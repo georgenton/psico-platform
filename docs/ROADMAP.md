@@ -227,9 +227,34 @@ hecho que mide**: ahora afirma que el lector dejó de ser posicional, y falla si
 `anchorAppliesTo` reaparece o si alguien borra la barrera.
 
 ```
-C3C_C4_MERGE_BARRIER=true
-NEXT_STEP=FINAL_REVIEW_PR_679_THEN_MERGE_DEPLOY_C3R
+C3C_C4_MERGE_BARRIER=false
+NEXT_STEP=FINAL_PRODUCTION_GATE_FOR_C3C_C4
 ```
+
+**La barrera bajó, y bajó por sus cuatro antecedentes** (2026-08-24). C.3R se
+fusionó (#679 → `main` `f6d1d3fb`) y se desplegó en API, worker y Web; el lector
+de producción decide por identidad y la instancia emite
+`experience-binding-bridge-v1` con 59 migraciones y 0 aplicadas en el deploy.
+
+```
+PR_679_MERGED=true
+PR_679_DEPLOYED=true
+SERVER_SIDE_ANCHOR_AUTHORITY_VERIFIED_IN_PRODUCTION=true
+PR_677_RETARGETED_TO_MAIN=true
+```
+
+**Y bajarla no autoriza nada.** Son tres decisiones distintas y el módulo las
+mantiene separadas, con un ratchet que falla si alguien las colapsa:
+
+```
+C3C_C4_MERGE_BARRIER=false     ← puede someterse al gate final
+C3C_C4_MERGE_AUTHORIZED=false  ← decisión humana, después del gate
+C3C_C4_DEPLOYED=false          ← nunca ha tocado producción
+C5_AUTHORIZED=false            ← la verificación viene después del deploy
+```
+
+Otro ratchet impide bajar la bandera sin los cuatro antecedentes: hacerlo exige
+editar los hechos en los que descansa, donde un revisor puede verlos.
 
 #### C.3C+C.4 reapilada sobre C.3R — qué cambió y qué NO
 

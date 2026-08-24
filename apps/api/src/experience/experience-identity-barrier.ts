@@ -72,13 +72,53 @@ export const EXPERIENCE_IDENTITY_BARRIER = {
   C3A_DEPLOY_BLOCKED_BY_POSITIONAL_READER: false,
   /** C.3R deleted the positional decision from the reader — in THIS tree. */
   READER_ANCHOR_IDENTITY_CLOSED_IN_TREE: true,
+  /** C.3R is MERGED and DEPLOYED, and production's reader now decides by identity. */
+  READER_ANCHOR_IDENTITY_DEPLOYED: true,
   /**
-   * Still shut. Closed in the tree is not deployed: production's reader is
-   * positional until this branch ships, and C.3C+C.4 consolidating the new
-   * authority before then would let an editor bind by identity what the live
-   * reader refuses by position.
+   * Open — and that word is narrower than it looks.
+   *
+   * The barrier answered ONE question: may C.3C+C.4 consolidate the new
+   * authority while the live reader still decides by position? It may not, and
+   * it no longer has to: C.3R is merged (#679 → `f6d1d3fb`), deployed on API,
+   * worker and Web, and verified in production emitting
+   * `experience-binding-bridge-v1` with the server-side verdict live.
+   *
+   * What it does NOT say is that this branch may merge. That is a separate
+   * decision with its own gate, recorded next to this one so the two cannot be
+   * read as the same fact.
    */
-  C3C_C4_MERGE_BLOCKED_UNTIL_READER_ANCHOR_IDENTITY_CLOSED: true,
+  C3C_C4_MERGE_BLOCKED_UNTIL_READER_ANCHOR_IDENTITY_CLOSED: false,
+} as const;
+
+/**
+ * The four antecedents the barrier rested on, each stated as a fact.
+ *
+ * Written out rather than folded into the boolean above because a lowered
+ * barrier with no record of WHY reads, six months from now, exactly like a
+ * barrier somebody got tired of. The companion ratchet refuses to let the flag
+ * be false unless all four are true, so lowering it takes editing the reasons —
+ * which is a thing a reviewer can see.
+ */
+export const READER_ANCHOR_BARRIER_ANTECEDENTS = {
+  PR_679_MERGED: true,
+  PR_679_DEPLOYED: true,
+  SERVER_SIDE_ANCHOR_AUTHORITY_VERIFIED_IN_PRODUCTION: true,
+  PR_677_RETARGETED_TO_MAIN: true,
+} as const;
+
+/**
+ * Lowered ≠ authorised. Three separate decisions, none implied by the others.
+ *
+ * `MERGE_AUTHORIZED` is a human's call after the final gate; `DEPLOYED` is a
+ * fact about production, which this branch has never touched; `C5_AUTHORIZED`
+ * is the verification phase that follows the deploy. Keeping them apart is the
+ * whole reason the barrier was a named flag instead of a paragraph.
+ */
+export const C3C_C4_STATE = {
+  MERGE_BARRIER: false,
+  MERGE_AUTHORIZED: false,
+  DEPLOYED: false,
+  C5_AUTHORIZED: false,
 } as const;
 
 /**
@@ -102,6 +142,7 @@ export const PUBLIC_READER_ANCHOR_CONSUMER =
  * the merge flag above is still true.
  */
 export const READER_ANCHOR_IDENTITY_TASK =
-  "Hecho en árbol (C.3R): el lector pregunta al servidor, que compara " +
-  "contentUnitId resuelto desde los targets contra la unidad del lector; " +
-  "anchorAppliesTo fue eliminado. Falta desplegarlo antes de bajar la barrera.";
+  "Cerrado y desplegado (C.3R, PR #679 → main f6d1d3fb): el lector pregunta al " +
+  "servidor, que compara contentUnitId resuelto desde los targets contra la " +
+  "unidad del lector; anchorAppliesTo fue eliminado. La barrera queda abajo; " +
+  "fusionar C.3C+C.4 sigue siendo una decisión aparte con su propio gate.";

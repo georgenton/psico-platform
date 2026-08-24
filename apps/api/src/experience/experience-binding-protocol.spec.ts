@@ -12,7 +12,9 @@ import {
   EXPERIENCE_BINDING_PROTOCOL,
 } from "./experience-binding-lock";
 import {
+  C3C_C4_STATE,
   EXPERIENCE_IDENTITY_BARRIER,
+  READER_ANCHOR_BARRIER_ANTECEDENTS,
   PUBLIC_READER_ANCHOR_CONSUMER,
   PUBLIC_READER_ANCHOR_SOURCE,
   READER_ANCHOR_IDENTITY_TASK,
@@ -674,10 +676,50 @@ describe("ratchet · the reader anchor barrier", () => {
       PUBLIC_READER_ANCHOR: "veredicto del servidor por contentUnitId (C.3R)",
       C3A_DEPLOY_BLOCKED_BY_POSITIONAL_READER: false,
       READER_ANCHOR_IDENTITY_CLOSED_IN_TREE: true,
-      // Closed in the tree is not deployed. The gate stays shut until this
-      // branch ships; lowering it is a decision about a deploy, not a diff.
-      C3C_C4_MERGE_BLOCKED_UNTIL_READER_ANCHOR_IDENTITY_CLOSED: true,
+      READER_ANCHOR_IDENTITY_DEPLOYED: true,
+      // Open: C.3R is merged AND deployed, so the ordering constraint this
+      // flag encoded no longer has anything to protect.
+      C3C_C4_MERGE_BLOCKED_UNTIL_READER_ANCHOR_IDENTITY_CLOSED: false,
     });
+  });
+
+  it("the barrier cannot be lowered without ALL FOUR antecedents", () => {
+    // The ratchet that gives the lowered flag its meaning. Anyone can flip a
+    // boolean; this makes flipping it require editing the four facts it rests
+    // on, where a reviewer can see them — and makes deleting one of those facts
+    // fail the build rather than quietly widen what the flag permits.
+    const antecedents = Object.entries(READER_ANCHOR_BARRIER_ANTECEDENTS);
+    expect(antecedents).toHaveLength(4);
+    if (
+      EXPERIENCE_IDENTITY_BARRIER.C3C_C4_MERGE_BLOCKED_UNTIL_READER_ANCHOR_IDENTITY_CLOSED ===
+      false
+    ) {
+      for (const [name, value] of antecedents) {
+        expect(value, `antecedente ${name}`).toBe(true);
+      }
+    }
+    // And the deployed fact has to agree with the tree fact: a reader that is
+    // positional in the tree cannot be identity-based in production.
+    if (EXPERIENCE_IDENTITY_BARRIER.READER_ANCHOR_IDENTITY_DEPLOYED) {
+      expect(
+        EXPERIENCE_IDENTITY_BARRIER.READER_ANCHOR_IDENTITY_CLOSED_IN_TREE,
+      ).toBe(true);
+    }
+  });
+
+  it("lowered is NOT authorised — the three decisions stay apart", () => {
+    // The distinction the barrier exists to preserve. Collapsing them is how a
+    // gate becomes a formality: "the barrier is down" would start to read as
+    // "someone approved the merge", which nobody did.
+    expect(C3C_C4_STATE).toEqual({
+      MERGE_BARRIER: false,
+      MERGE_AUTHORIZED: false,
+      DEPLOYED: false,
+      C5_AUTHORIZED: false,
+    });
+    expect(C3C_C4_STATE.MERGE_BARRIER).toBe(
+      EXPERIENCE_IDENTITY_BARRIER.C3C_C4_MERGE_BLOCKED_UNTIL_READER_ANCHOR_IDENTITY_CLOSED,
+    );
   });
 
   it("the reader really has STOPPED being positional — measured, not remembered", () => {
@@ -723,21 +765,26 @@ describe("ratchet · the reader anchor barrier", () => {
         EXPERIENCE_IDENTITY_BARRIER.C3A_DEPLOY_BLOCKED_BY_POSITIONAL_READER,
       ).toBe(false);
     } else {
-      // C.3C+C.4. The editorial surface exists, which is exactly the condition
-      // the merge gate was written for — so the gate had better still be shut.
+      // C.3C+C.4. The editorial surface exists — the condition the merge gate
+      // was written for. The gate is now open, and what makes that legitimate
+      // is not this branch's opinion of itself: it is that the reader's
+      // identity anchor is deployed, asserted here against the same flag.
       expect(editorial.some((op) => service.includes(op))).toBe(true);
+      expect(EXPERIENCE_IDENTITY_BARRIER.READER_ANCHOR_IDENTITY_DEPLOYED).toBe(
+        true,
+      );
       expect(
         EXPERIENCE_IDENTITY_BARRIER.C3C_C4_MERGE_BLOCKED_UNTIL_READER_ANCHOR_IDENTITY_CLOSED,
-      ).toBe(true);
+      ).toBe(false);
     }
   });
 
-  it("names what closed it and what is left, not a generic debt", () => {
+  it("names what closed it, and that merging is still a separate decision", () => {
     expect(READER_ANCHOR_IDENTITY_TASK).toContain("anchorAppliesTo");
     expect(READER_ANCHOR_IDENTITY_TASK).toContain("contentUnitId");
-    // The remaining step is a deploy, and saying so is what keeps the still-true
-    // merge flag from reading as an oversight.
-    expect(READER_ANCHOR_IDENTITY_TASK).toContain("desplegar");
+    // The task now records a closure, so what must be said instead is that
+    // lowering the barrier did not authorise anything.
+    expect(READER_ANCHOR_IDENTITY_TASK).toContain("gate");
   });
 });
 

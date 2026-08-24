@@ -104,6 +104,33 @@ suite("C.3A · the binding bridge", () => {
     pool = new Pool({ connectionString: url });
     prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
 
+    /**
+     * This suite models the BRIDGE phase, and says so to the schema.
+     *
+     * `migrate deploy` applies every migration in the tree, so on the cutover
+     * branch this disposable database also gets the constraint that ENDS the
+     * bridge — the one that makes a row with null binding columns illegal.
+     * Those rows are the whole subject here: they are what the previous binary
+     * writes while both are live.
+     *
+     * Dropping it is not weakening a guarantee. It is stating which phase these
+     * tests are about, in a throwaway database, with `IF EXISTS` so the same
+     * file runs unchanged on the branch where the constraint does not exist yet.
+     * That the constraint refuses those rows is asserted where it belongs, in
+     * `experience-binding-cutover.pg-spec.ts`.
+     */
+    await prisma.$executeRawUnsafe(
+      'ALTER TABLE "ChapterExperienceVersion" DROP CONSTRAINT IF EXISTS "ChapterExperienceVersion_binding_shape_check"',
+    );
+    // The other half of the cutover, for the same reason. `NOT NULL` and the
+    // CHECK land in ONE migration precisely so no replica can observe one
+    // without the other — which is also why rewinding one here means rewinding
+    // both, or this database would be in the half-applied shape the authority
+    // detector calls FAIL_CLOSED.
+    await prisma.$executeRawUnsafe(
+      'ALTER TABLE "ChapterExperienceVersion" ALTER COLUMN "contentUnitId" DROP NOT NULL',
+    );
+
     for (const [slug, title, heading, order] of [
       [BOOK_A, "Emociones en Construcción", HEADING_A, 1],
       [BOOK_B, "Parejas que Perduran", HEADING_B, 2],
@@ -175,24 +202,30 @@ suite("C.3A · the binding bridge", () => {
     await prisma.experienceGuideReservation.deleteMany();
   });
 
-  /** Insert exactly what the PREVIOUS binary writes: no identity, no lineage. */
+  /**
+   * Insert exactly what the PREVIOUS binary writes: no identity, no lineage.
+   *
+   * Raw SQL, and that is the point rather than a convenience. On the cutover
+   * branch the generated Prisma client is built from a schema where
+   * `contentUnitId` is NOT NULL, so a row without it is not expressible through
+   * the client AT ALL — the create input has no shape for it. The DDL was
+   * rewound above; the client cannot be. Writing the statement the old binary's
+   * client would have produced is the faithful way to reproduce its rows.
+   */
   async function insertLegacyRow(
     def: ChapterExperienceDefinition,
     status: "DRAFT" | "PUBLISHED" = "DRAFT",
   ): Promise<string> {
-    const row = await prisma.chapterExperienceVersion.create({
-      data: {
-        experienceKey: def.experienceKey,
-        experienceVersion: def.experienceVersion,
-        bookSlug: def.bookSlug,
-        chapterOrder: def.chapterOrder,
-        status,
-        definitionJson: def as unknown as never,
-        createdByUserId: userId,
-      },
-      select: { id: true },
-    });
-    return row.id;
+    const rows = await prisma.$queryRaw<Array<{ id: string }>>`
+      INSERT INTO "ChapterExperienceVersion"
+        ("id", "experienceKey", "experienceVersion", "bookSlug", "chapterOrder",
+         "status", "definitionJson", "createdByUserId", "createdAt", "updatedAt")
+      VALUES (gen_random_uuid()::text, ${def.experienceKey}, ${def.experienceVersion},
+              ${def.bookSlug}, ${def.chapterOrder},
+              ${status}::"ExperienceVersionStatus",
+              ${JSON.stringify(def)}::jsonb, ${userId}, now(), now())
+      RETURNING "id"`;
+    return rows[0]!.id;
   }
 
   /** Both tables, as they finally stand. */
@@ -951,6 +984,10 @@ suite("C.3A · the binding bridge", () => {
    * manifest AFTER the holder commits and the assertion passes for the wrong
    * reason. Waiting on `pg_stat_activity` makes the block itself the
    * precondition.
+   *
+   * The statement it looks for is the one the binding path issues under
+   * `lock: "for-update"`, so a build that stopped taking it never satisfies
+   * this.
    */
   async function waitForEditionLockWaiter(): Promise<void> {
     for (let attempt = 0; attempt < 300; attempt += 1) {
@@ -958,7 +995,7 @@ suite("C.3A · the binding bridge", () => {
         SELECT count(*) AS n FROM pg_stat_activity
          WHERE wait_event_type = 'Lock'
            AND state = 'active'
-           AND query LIKE '%"Edition"%FOR UPDATE%'`;
+           AND query LIKE '%FROM "Edition"%FOR UPDATE%'`;
       if (Number(waiting[0]?.n ?? 0) > 0) return;
       await new Promise((resolve) => setTimeout(resolve, 20));
     }
@@ -993,22 +1030,39 @@ suite("C.3A · the binding bridge", () => {
         },
       );
 
-      // The binder must be OBSERVABLY blocked before the publish commits.
-      // Draining the event loop instead lets a build that takes no lock read
-      // the manifest after the commit and pass for the wrong reason.
+      // Wait for the binder to be OBSERVABLY blocked on the edition row before
+      // letting the publish commit. Draining the event loop instead lets a
+      // build that takes no lock read the manifest after the commit and pass
+      // for the wrong reason.
       await waitForEditionLockWaiter();
       expect(created).toBe(false);
 
       b.open();
       const { newUnitId, previousRevisionId } = await republish;
       restore = previousRevisionId;
-      await create;
+
+      // C.3R changed the OUTCOME of this race, and for the better.
+      //
+      // The unit that is really at that position is a NEW one, and this guide's
+      // passage is not in it. Under the old positional rule the binder compared
+      // `(bookSlug, chapterOrder)`, found them equal, and wrote a row on the new
+      // unit — published, correct-looking, and unopenable, because the reader
+      // resolves the passage from the unit's own blocks.
+      //
+      // Now the pin is re-placed inside the transaction, under the lock this
+      // test proves it took, and the answer is a refusal.
+      await expect(create).rejects.toMatchObject({
+        response: { code: "EXPERIENCE_GUIDE_PIN_NOT_RUNNABLE_HERE" },
+      });
 
       const { rows, reservations } = await state();
-      // It bound to the unit the manifest names NOW — never to the old one.
-      expect(rows[0]!.contentUnitId).toBe(newUnitId);
-      expect(rows[0]!.contentUnitId).not.toBe(unitA);
-      expect(reservations[0]!.contentUnitId).toBe(newUnitId);
+      // The property this test exists for is unchanged: the binder waited on
+      // the edition row instead of reading a manifest nobody was holding. What
+      // changed is that it then refused rather than binding the wrong unit —
+      // and it wrote nothing at all.
+      expect(rows).toEqual([]);
+      expect(reservations).toEqual([]);
+      expect(newUnitId).not.toBe(unitA);
     } finally {
       if (restore) await restorePublishedRevision(BOOK_A, restore);
     }
@@ -1382,17 +1436,7 @@ suite("C.3A · the binding bridge", () => {
       experienceVersion: version,
       status,
     });
-    await prisma.chapterExperienceVersion.create({
-      data: {
-        experienceKey: def.experienceKey,
-        experienceVersion: version,
-        bookSlug: def.bookSlug,
-        chapterOrder: def.chapterOrder,
-        status,
-        definitionJson: def as unknown as never,
-        createdByUserId: userId,
-      },
-    });
+    await insertLegacyRow({ ...def, experienceVersion: version }, status);
   }
 
   it("measure is read-only and reports the groups it would create", async () => {
@@ -1433,18 +1477,7 @@ suite("C.3A · the binding bridge", () => {
     // The collision that would otherwise appear the day a deploy replaced the
     // catalog — which is the worst possible moment to find it. The row claims
     // this chapter's guide under a lineage the build does not ship.
-    const def = await eecDraft({ experienceKey: "eec-c1-intrusa" });
-    await prisma.chapterExperienceVersion.create({
-      data: {
-        experienceKey: def.experienceKey,
-        experienceVersion: 1,
-        bookSlug: def.bookSlug,
-        chapterOrder: def.chapterOrder,
-        status: "DRAFT",
-        definitionJson: def as unknown as never,
-        createdByUserId: userId,
-      },
-    });
+    await insertLegacyRow(await eecDraft({ experienceKey: "eec-c1-intrusa" }));
 
     const measured = await measureReservations(prisma);
     expect(measured.anomalies.map((a) => a.kind)).toContain(
@@ -1565,17 +1598,7 @@ suite("C.3A · the binding bridge", () => {
   it("a legacy collision aborts the WHOLE backfill", async () => {
     const def = await eecDraft();
     for (const key of ["eec-c1-una", "eec-c1-otra"]) {
-      await prisma.chapterExperienceVersion.create({
-        data: {
-          experienceKey: key,
-          experienceVersion: 1,
-          bookSlug: def.bookSlug,
-          chapterOrder: def.chapterOrder,
-          status: "PUBLISHED",
-          definitionJson: { ...def, experienceKey: key } as unknown as never,
-          createdByUserId: userId,
-        },
-      });
+      await insertLegacyRow({ ...def, experienceKey: key }, "PUBLISHED");
     }
 
     await expect(applyReservations(prisma)).rejects.toBeInstanceOf(
@@ -1737,17 +1760,7 @@ suite("C.3A · the binding bridge", () => {
 
   it("the backfill and a create are serialised by the GLOBAL lock", async () => {
     const legacy = await eecDraft({ experienceKey: "eec-c1-legado" });
-    await prisma.chapterExperienceVersion.create({
-      data: {
-        experienceKey: legacy.experienceKey,
-        experienceVersion: 1,
-        bookSlug: legacy.bookSlug,
-        chapterOrder: legacy.chapterOrder,
-        status: "PUBLISHED",
-        definitionJson: legacy as unknown as never,
-        createdByUserId: userId,
-      },
-    });
+    await insertLegacyRow(legacy, "PUBLISHED");
 
     const b = barrier();
     // Hold the backfill open inside its transaction, with the global lock

@@ -21,9 +21,11 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
   Header,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Put,
   Query,
@@ -47,6 +49,11 @@ import { ExperienceAdminService } from "./experience-admin.service";
 import {
   ExperienceBindingHintDto,
   ListChapterExperiencesQueryDto,
+  ArchiveExperienceDraftResultDto,
+  ListSelectableGuidesQueryDto,
+  RebindExperienceDraftDto,
+  RebindExperienceDraftResultDto,
+  SelectableGuideOptionDto,
   SaveExperienceDefinitionDto,
 } from "./dto/experience-admin.dto";
 
@@ -67,6 +74,26 @@ export class ExperienceAdminController {
   @ApiOkResponse({ description: "Vista de administración del capítulo." })
   listForChapter(@Query() query: ListChapterExperiencesQueryDto) {
     return this.admin.listForChapter(query.bookSlug, query.chapterOrder);
+  }
+
+  @Get("guides")
+  @Header("Cache-Control", "private, no-store")
+  @ApiOperation({
+    operationId: "listSelectableGuidesForChapter",
+    summary:
+      "Las guías que este capítulo puede vincular, con su disponibilidad decidida en el servidor.",
+  })
+  @ApiOkResponse({
+    description: "Opciones de guía para el capítulo.",
+    type: SelectableGuideOptionDto,
+    isArray: true,
+  })
+  listSelectableGuides(@Query() query: ListSelectableGuidesQueryDto) {
+    return this.admin.listSelectableGuides(
+      query.bookSlug,
+      query.chapterOrder,
+      query.experienceKey ?? null,
+    );
   }
 
   @Get("drafts/:id")
@@ -157,6 +184,48 @@ export class ExperienceAdminController {
       dto.definition as unknown as ChapterExperienceDefinition,
       dto.expectedContentUnitId ?? null,
     );
+  }
+
+  @Patch("drafts/:id/binding")
+  @Header("Cache-Control", "private, no-store")
+  @ApiOperation({
+    operationId: "rebindExperienceDraft",
+    summary:
+      "Cambia la guía de un borrador. Solo si la experiencia nunca se publicó.",
+  })
+  @ApiConflictResponse({
+    type: ErrorEnvelopeDto,
+    description: "Ya hay una versión publicada, o la guía está reservada.",
+  })
+  @ApiUnprocessableEntityResponse({ type: ErrorEnvelopeDto })
+  @ApiOkResponse({ type: RebindExperienceDraftResultDto })
+  // 200, not 201. PATCH does not create; the default would have been right by
+  // accident and wrong the day this became a POST.
+  @HttpCode(200)
+  rebindDraft(@Param("id") id: string, @Body() dto: RebindExperienceDraftDto) {
+    return this.admin.rebindDraft(
+      id,
+      dto.guidePin,
+      dto.expectedContentUnitId ?? null,
+    );
+  }
+
+  @Post("drafts/:id/archive")
+  @Header("Cache-Control", "private, no-store")
+  @ApiOperation({
+    operationId: "archiveExperienceDraft",
+    summary:
+      "Archiva el borrador. La fila no se borra, su versión no se reutiliza y la guía queda libre.",
+  })
+  @ApiConflictResponse({ type: ErrorEnvelopeDto })
+  @ApiOkResponse({ type: ArchiveExperienceDraftResultDto })
+  @ApiBody({ type: ExperienceBindingHintDto, required: false })
+  // 200, chosen rather than inherited. `@Post` defaults to 201 Created, and
+  // archiving creates nothing — it ends something. A status that says
+  // "Created" for a terminal transition is a contract that misleads.
+  @HttpCode(200)
+  archiveDraft(@Param("id") id: string, @Body() dto: ExperienceBindingHintDto) {
+    return this.admin.archiveDraft(id, dto.expectedContentUnitId ?? null);
   }
 
   @Post("drafts/:id/publish")

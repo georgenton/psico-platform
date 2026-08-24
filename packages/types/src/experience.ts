@@ -374,6 +374,26 @@ export interface AdminExperienceRow {
   updatedAt: string | null;
 }
 
+/** How a guide option stands for the chapter being edited (C.4). */
+export type GuideOptionAvailability =
+  | "AVAILABLE"
+  | "OWNED_BY_THIS_EXPERIENCE"
+  | "RESERVED_BY_ANOTHER_EXPERIENCE";
+
+/**
+ * One guide an editor may bind, as the SERVER decides it.
+ *
+ * A guide reserved by another experience is listed as reserved, never hidden:
+ * "that guide does not exist" would be false, and an editor who cannot see the
+ * collision cannot resolve it. Who holds it is deliberately not disclosed.
+ */
+export interface SelectableGuideOption {
+  guideKey: string;
+  guideVersion: number;
+  stepCount: number;
+  availability: GuideOptionAvailability;
+}
+
 /** Everything the editor needs for one chapter, in one read. */
 export interface AdminChapterExperiences {
   bookSlug: string;
@@ -409,4 +429,14 @@ export interface AdminExperienceDraft {
    * position.
    */
   contentUnitId: string | null;
+  /**
+   * C.4 — may this draft still change guide?
+   *
+   * A property of the LINEAGE, not of this row: one published version anywhere
+   * fixes the guide forever (PUBLISHED_GUIDE_KEY_IMMUTABLE), and a draft
+   * sitting beside a published sibling looks rebindable from the outside. The
+   * server decides it so the CMS can hide the control rather than offer it and
+   * answer with a conflict.
+   */
+  rebindable: boolean;
 }

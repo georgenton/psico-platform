@@ -2,8 +2,10 @@ import type { SchemaObject } from "@nestjs/swagger/dist/interfaces/open-api-spec
 
 import {
   GUIDE_CARD_STATES_KEY_PATTERN,
+  GUIDE_CARD_STATES_MAX_CHAPTER_ORDER,
   GUIDE_CARD_STATES_MAX_PINS,
   GUIDE_CARD_STATES_MAX_VERSION,
+  GUIDE_CARD_STATES_UNIT_KEY_PATTERN,
 } from "../guide-card-states-params";
 
 /**
@@ -287,12 +289,72 @@ const GUIDE_CARD_PIN: SchemaObject = {
   },
 };
 
-/** POST /api/guide/experiences/state */
+/**
+ * C.3R — where the reader is, as the client can honestly describe it.
+ *
+ * `unitKey` is an ENVIRONMENT-LOCAL locator and never proof of anything: the
+ * server looks the unit up by it inside the published revision and then
+ * requires the claimed navigation to be where that unit actually sits. There is
+ * deliberately no `contentUnitId` here, in either direction — a client that
+ * could name an internal id could also name someone else's.
+ */
+const GUIDE_CARD_STATES_READER: SchemaObject = {
+  type: "object",
+  additionalProperties: false,
+  required: ["bookSlug", "chapterOrder", "unitKey"],
+  properties: {
+    bookSlug: {
+      type: "string",
+      pattern: GUIDE_CARD_STATES_KEY_PATTERN,
+      minLength: 1,
+      maxLength: 200,
+    },
+    chapterOrder: {
+      type: "integer",
+      minimum: 1,
+      maximum: GUIDE_CARD_STATES_MAX_CHAPTER_ORDER,
+      description:
+        "Navegación, no identidad: se contrasta con la del capítulo real y " +
+        "nunca elige la unidad.",
+    },
+    unitKey: {
+      type: "string",
+      pattern: GUIDE_CARD_STATES_UNIT_KEY_PATTERN,
+      minLength: 1,
+      maxLength: 200,
+      description:
+        "Localizador local del entorno. NO es una identidad portable: la " +
+        "misma obra ingerida dos veces produce claves distintas.",
+    },
+  },
+};
+
+/**
+ * POST /api/guide/experiences/state
+ *
+ * `reader` is optional on paper for ONE deploy window and required in practice.
+ * A browser built before C.3R does not know the field exists, and the server
+ * cannot invent a context for it — a verdict about "wherever you are" is the
+ * guess this whole change removes. So an older client is answered in the older
+ * shape, without verdicts, and keeps its own positional check: the status quo,
+ * not a regression.
+ *
+ * Deploy order follows from that, and only one order works: API first, then
+ * Web. The reverse would put a client that sends `reader` in front of a server
+ * that refuses unknown fields.
+ */
 export const GUIDE_CARD_STATES_BODY: SchemaObject = {
   type: "object",
   additionalProperties: false,
   required: ["pins"],
   properties: {
+    reader: {
+      ...GUIDE_CARD_STATES_READER,
+      description:
+        "Dónde está el lector. Obligatorio para todo cliente C.3R; su " +
+        "ausencia solo se tolera durante la ventana de despliegue y se " +
+        "responde SIN veredicto.",
+    },
     pins: {
       type: "array",
       minItems: 1,
@@ -306,6 +368,62 @@ export const GUIDE_CARD_STATES_BODY: SchemaObject = {
   },
 };
 
+/** The three fields every answer carries, with or without a verdict. */
+const GUIDE_CARD_STATE_CORE: Record<string, SchemaObject> = {
+  guidePin: GUIDE_CARD_PIN,
+  status: {
+    type: "string",
+    enum: ["START", "CONTINUE", "COMPLETED"],
+    description:
+      "CONTINUE si hay una sesión ACTIVE del mismo guideKey, sea cual " +
+      "sea su versión; COMPLETED solo si el pin EXACTO está " +
+      "completado; START en cualquier otro caso.",
+  },
+  resumePin: {
+    ...GUIDE_CARD_PIN,
+    description:
+      "El pin que debe ejecutarse al pulsar: el de la sesión abierta " +
+      "cuando la hay, el publicado en caso contrario.",
+  },
+};
+
+/** The window arm: a request without a reader is answered without a verdict. */
+const GUIDE_CARD_STATE_LEGACY_ITEM: SchemaObject = {
+  type: "object",
+  additionalProperties: false,
+  required: ["guidePin", "status", "resumePin"],
+  properties: { ...GUIDE_CARD_STATE_CORE },
+};
+
+const GUIDE_CARD_STATE_ITEM: SchemaObject = {
+  type: "object",
+  additionalProperties: false,
+  required: [
+    "guidePin",
+    "status",
+    "resumePin",
+    "applicability",
+    "evaluatedPin",
+  ],
+  properties: {
+    ...GUIDE_CARD_STATE_CORE,
+    applicability: {
+      type: "string",
+      enum: ["APPLIES", "UNAVAILABLE"],
+      description:
+        "C.3R — si esta guía es sobre la unidad en la que está el " +
+        "lector, resuelto EN EL SERVIDOR comparando identidades. El " +
+        "cliente no recibe ningún identificador para recalcularlo.",
+    },
+    evaluatedPin: {
+      ...GUIDE_CARD_PIN,
+      description:
+        "El pin sobre el que se emitió el veredicto: el reanudable " +
+        "cuando hay linaje abierto, el publicado en caso contrario.",
+    },
+  },
+};
+
 export const GUIDE_CARD_STATES_RESPONSE: SchemaObject = {
   type: "object",
   additionalProperties: false,
@@ -313,31 +431,17 @@ export const GUIDE_CARD_STATES_RESPONSE: SchemaObject = {
   properties: {
     items: {
       type: "array",
+      // CLOSED either way: the two arms are the two questions that can be
+      // asked, and an item that is neither is not an answer.
       items: {
-        type: "object",
-        additionalProperties: false,
-        required: ["guidePin", "status", "resumePin"],
-        properties: {
-          guidePin: GUIDE_CARD_PIN,
-          status: {
-            type: "string",
-            enum: ["START", "CONTINUE", "COMPLETED"],
-            description:
-              "CONTINUE si hay una sesión ACTIVE del mismo guideKey, sea cual " +
-              "sea su versión; COMPLETED solo si el pin EXACTO está " +
-              "completado; START en cualquier otro caso.",
-          },
-          resumePin: {
-            ...GUIDE_CARD_PIN,
-            description:
-              "El pin que debe ejecutarse al pulsar: el de la sesión abierta " +
-              "cuando la hay, el publicado en caso contrario.",
-          },
-        },
+        oneOf: [GUIDE_CARD_STATE_ITEM, GUIDE_CARD_STATE_LEGACY_ITEM],
       },
     },
   },
 };
+
+/** The C.3R arm, exported so the ratchets can hold it to its exact shape. */
+export const GUIDE_CARD_STATES_RESPONSE_ITEM = GUIDE_CARD_STATE_ITEM;
 
 /** The response of all five commands. */
 export const GUIDE_COMMAND_RESPONSE: SchemaObject = {

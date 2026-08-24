@@ -37,6 +37,17 @@ export class GuideCardStatesBodyError extends Error {
 
 export interface GuideCardStatesQuery {
   pins: Array<{ guideKey: string; guideVersion: number }>;
+  /**
+   * Where the reader is. Navigation plus an environment-local token — never
+   * `contentUnitId`, which this endpoint refuses to accept from a client.
+   *
+   * `null` when the caller sent none. That is the ROLLING WINDOW, and it is
+   * distinguished from a malformed context on purpose: a browser built before
+   * C.3R does not know the field exists, while a browser that sends a broken
+   * one is making a claim that cannot be checked. The first is answered
+   * without a verdict; the second is refused.
+   */
+  reader: { bookSlug: string; chapterOrder: number; unitKey: string } | null;
 }
 
 /**
@@ -56,7 +67,23 @@ export const GUIDE_CARD_STATES_MAX_PINS = 25;
 /** The largest version a pin may name — a version, not an identifier. */
 export const GUIDE_CARD_STATES_MAX_VERSION = 999_999_999;
 
-const ROOT_KEYS = ["pins"] as const;
+const ROOT_KEYS = ["pins", "reader"] as const;
+const READER_KEYS = ["bookSlug", "chapterOrder", "unitKey"] as const;
+
+/** A book slug: the same key grammar, since it is one. */
+const SLUG_RE = KEY_RE;
+/**
+ * A `unitKey` is a uuidv5 in this build, but the parser bounds SHAPE rather
+ * than format: it is an environment-local token the server re-resolves, so
+ * pinning a uuid grammar here would refuse a future ingest for no safety gain.
+ * What matters is that it is a bounded, non-empty, printable string.
+ */
+export const GUIDE_CARD_STATES_UNIT_KEY_PATTERN =
+  "^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$";
+const UNIT_KEY_RE = new RegExp(GUIDE_CARD_STATES_UNIT_KEY_PATTERN);
+/** Chapter numbering is 1-based and generously bounded. */
+export const GUIDE_CARD_STATES_MAX_CHAPTER_ORDER = 10_000;
+const MAX_CHAPTER_ORDER = GUIDE_CARD_STATES_MAX_CHAPTER_ORDER;
 const PIN_KEYS = ["guideKey", "guideVersion"] as const;
 
 /**
@@ -115,5 +142,39 @@ export function parseGuideCardStatesBody(body: unknown): GuideCardStatesQuery {
     return { guideKey, guideVersion };
   });
 
-  return { pins };
+  const readerRaw = (body as { reader?: unknown }).reader;
+  // Absent — the pre-C.3R shape. `null` is NOT absent: sending it is a claim
+  // that there is no place, which no client should make.
+  if (!("reader" in (body as object))) {
+    return { pins, reader: null };
+  }
+  if (
+    typeof readerRaw !== "object" ||
+    readerRaw === null ||
+    Array.isArray(readerRaw)
+  ) {
+    throw new GuideCardStatesBodyError();
+  }
+  onlyKeys(readerRaw, READER_KEYS);
+  const { bookSlug, chapterOrder, unitKey } = readerRaw as {
+    bookSlug?: unknown;
+    chapterOrder?: unknown;
+    unitKey?: unknown;
+  };
+  if (typeof bookSlug !== "string" || !SLUG_RE.test(bookSlug)) {
+    throw new GuideCardStatesBodyError();
+  }
+  if (typeof unitKey !== "string" || !UNIT_KEY_RE.test(unitKey)) {
+    throw new GuideCardStatesBodyError();
+  }
+  if (
+    typeof chapterOrder !== "number" ||
+    !Number.isInteger(chapterOrder) ||
+    chapterOrder <= 0 ||
+    chapterOrder > MAX_CHAPTER_ORDER
+  ) {
+    throw new GuideCardStatesBodyError();
+  }
+
+  return { pins, reader: { bookSlug, chapterOrder, unitKey } };
 }

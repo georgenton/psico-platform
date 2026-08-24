@@ -10,7 +10,6 @@ export {
   PAREJAS_READER_ANCHOR,
   GuideAnchorRegistry,
   guideAnchorRegistry,
-  anchorAppliesTo,
   resolveGuideAnchor,
   type AnchorCandidateBlock,
   type GuideAnchorPin,

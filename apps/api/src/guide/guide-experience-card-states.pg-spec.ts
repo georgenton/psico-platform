@@ -12,6 +12,7 @@ import {
   vi,
 } from "vitest";
 
+import type { GuideExperienceCardState } from "@psico/types";
 import type { PrismaService } from "../prisma";
 import type { AuthenticatedUser } from "../auth";
 import { backfillContentCore } from "../content-core/backfill";
@@ -22,7 +23,9 @@ import { LearningEventRepository } from "../learning/learning-event.repository";
 import { GuideCommandReceiptRepository } from "./guide-command-receipt.repository";
 import { GuideSessionRepository } from "./guide-session.repository";
 import { GuideSessionStepRepository } from "./guide-session-step.repository";
+import { productionGuideRegistry } from "./guide-catalog";
 import { GuideTargetContextService } from "./guide-target-context.service";
+import { GuideReaderApplicabilityService } from "./guide-reader-applicability.service";
 import { GuideLifecycleService } from "./guide-lifecycle.service";
 
 /**
@@ -175,6 +178,9 @@ suite("C.1 · one card state per experience", () => {
       steps,
       new GuideCommandReceiptRepository(prisma),
       new LearningEventRepository(prisma),
+      new GuideReaderApplicabilityService(
+        new GuideTargetContextService(resolver),
+      ),
     );
   }, 240_000);
 
@@ -195,6 +201,23 @@ suite("C.1 · one card state per experience", () => {
   }, 240_000);
 
   beforeEach(async () => {
+    if (!readerA) {
+      const row = await prisma.$queryRawUnsafe<
+        Array<{ unitKey: string; order: number }>
+      >(
+        `SELECT u."unitKey", ru."order" FROM "ContentUnit" u
+           JOIN "Edition" e ON e."id" = u."editionId"
+           JOIN "RevisionUnit" ru ON ru."unitId" = u."id"
+          WHERE ru."revisionId" = e."publishedRevisionId" AND e."slug" = $1
+          ORDER BY ru."order" LIMIT 1`,
+        BOOK_A,
+      );
+      readerA = {
+        bookSlug: BOOK_A,
+        chapterOrder: row[0]!.order,
+        unitKey: row[0]!.unitKey,
+      };
+    }
     vi.restoreAllMocks();
     await prisma.guideSessionStep.deleteMany();
     await prisma.guideCommandReceipt.deleteMany();
@@ -202,8 +225,15 @@ suite("C.1 · one card state per experience", () => {
     await prisma.learningEvent.deleteMany();
   });
 
+  /**
+   * The reader context these cases are asked from: book A, chapter 1 — the
+   * unit PIN_A's guide is actually about. Resolved from the database rather
+   * than written down, because `unitKey` is environment-local.
+   */
+  let readerA: { bookSlug: string; chapterOrder: number; unitKey: string };
+
   const cards = (pins = [PIN_A, PIN_B]) =>
-    service.resolveExperienceCardStates(user.userId, pins);
+    service.resolveExperienceCardStates(user.userId, pins, readerA);
 
   /**
    * The answer no longer carries the session (a card needs a verdict and a pin
@@ -357,7 +387,11 @@ suite("C.1 · one card state per experience", () => {
     });
     await start(PIN_A);
 
-    const theirs = await service.resolveExperienceCardStates(other.id, [PIN_A]);
+    const theirs = await service.resolveExperienceCardStates(
+      other.id,
+      [PIN_A],
+      readerA,
+    );
     expect(theirs[0]?.status).toBe("START");
     expect(theirs[0]?.resumePin).toEqual(PIN_A);
   });
@@ -656,6 +690,248 @@ suite("C.1 · one card state per experience", () => {
     }).toEqual(before);
   });
 
+  /**
+   * C.3R · the rolling deploy window, exercised in BOTH directions.
+   *
+   * Only one deploy order works — API first, then Web — and the reason is
+   * asymmetric. A new server can answer an old client, because the older shape
+   * is a subset of the newer one. An old server cannot answer a new client: its
+   * parser refuses unknown root fields, so `reader` would fail the whole
+   * chapter. These tests hold the half that is ours to keep working.
+   */
+  describe("the rolling deploy window", () => {
+    it("answers a request without a context in the OLDER shape", async () => {
+      const items = await service.resolveExperienceCardStates(
+        user.userId,
+        [PIN_A],
+        null,
+      );
+      const card = items[0];
+      // Exactly the three fields the pre-C.3R browser renders. Nothing is
+      // invented to fill the two it does not know: a verdict about "wherever
+      // you are" is the guess this whole change removes.
+      expect(Object.keys(card ?? {}).sort()).toEqual([
+        "guidePin",
+        "resumePin",
+        "status",
+      ]);
+      expect(JSON.stringify(card)).not.toMatch(
+        /applicability|evaluatedPin|unitKey|contentUnitId/,
+      );
+    });
+
+    it("still answers the same STATUS it always did", async () => {
+      // The window changes what is added, never what was already there.
+      const [withContext] = await service.resolveExperienceCardStates(
+        user.userId,
+        [PIN_A],
+        readerA,
+      );
+      const [without] = await service.resolveExperienceCardStates(
+        user.userId,
+        [PIN_A],
+        null,
+      );
+      expect(without!.status).toBe(withContext!.status);
+      expect(without!.resumePin).toEqual(withContext!.resumePin);
+      expect(without!.guidePin).toEqual(withContext!.guidePin);
+    });
+
+    it("costs the older client LESS, not more", async () => {
+      // No context, no verdict, and no read to produce one. Measured, because
+      // "it should not query" is exactly the kind of claim that rots.
+      const count = async (reader: typeof readerA | null): Promise<number> => {
+        let queries = 0;
+        const countingTx = (tx: object): object =>
+          new Proxy(tx, {
+            get(target, prop, recv) {
+              const v = Reflect.get(target, prop, recv);
+              if (prop === "$queryRaw" || prop === "$queryRawUnsafe") {
+                return (...args: unknown[]) => {
+                  queries += 1;
+                  return (v as (...a: unknown[]) => unknown).apply(
+                    target,
+                    args,
+                  );
+                };
+              }
+              if (typeof prop === "string" && prop.startsWith("$")) return v;
+              if (typeof v !== "object" || v === null) return v;
+              return new Proxy(v, {
+                get(m, mp, mr) {
+                  const fn = Reflect.get(m, mp, mr);
+                  if (typeof fn !== "function") return fn;
+                  return (...args: unknown[]) => {
+                    queries += 1;
+                    return (fn as (...a: unknown[]) => unknown).apply(m, args);
+                  };
+                },
+              });
+            },
+          });
+        const countingClient = new Proxy(prisma, {
+          get(target, prop, recv) {
+            const v = Reflect.get(target, prop, recv);
+            if (prop === "$transaction" && typeof v === "function") {
+              return (fn: unknown, opts: unknown) =>
+                (v as (...a: unknown[]) => unknown).call(
+                  target,
+                  typeof fn === "function"
+                    ? (tx: object) =>
+                        (fn as (t: unknown) => unknown)(countingTx(tx))
+                    : fn,
+                  opts,
+                );
+            }
+            return typeof v === "function" ? v.bind(target) : v;
+          },
+        }) as unknown as PrismaService;
+
+        const counted = new GuideLifecycleService(
+          countingClient,
+          new LearningCatalogResolver(countingClient),
+          new ContentAccessService(countingClient),
+          new GuideTargetContextService(
+            new LearningCatalogResolver(countingClient),
+          ),
+          new GuideSessionRepository(countingClient as never),
+          new GuideSessionStepRepository(countingClient as never),
+          new GuideCommandReceiptRepository(countingClient as never),
+          new LearningEventRepository(countingClient as never),
+          new GuideReaderApplicabilityService(
+            new GuideTargetContextService(
+              new LearningCatalogResolver(countingClient),
+            ),
+          ),
+        );
+        await counted.resolveExperienceCardStates(
+          user.userId,
+          [PIN_A, PIN_B],
+          reader,
+        );
+        return queries;
+      };
+
+      const withContext = await count(readerA);
+      const without = await count(null);
+      expect(without).toBeLessThan(withContext);
+      // eslint-disable-next-line no-console
+      console.log(`CARD_STATE_WINDOW_QUERIES=${without} (C.3R=${withContext})`);
+    });
+  });
+
+  it("the whole chunk costs a fixed number of reads, 2 pins or 25", async () => {
+    // Measured end to end inside the real transaction — not 2 + 5 asserted
+    // from two separate counts. Everything the snapshot issues is counted: the
+    // reader's unit, both state reads, and the batched target resolution.
+    //
+    // The counter wraps the CLIENT rather than spying on `$transaction`: the
+    // Prisma 7 client is a proxy, so `$transaction` is not an own property and
+    // cannot be spied on.
+    const count = async (n: number): Promise<number> => {
+      let queries = 0;
+      const countingTx = (tx: object): object =>
+        new Proxy(tx, {
+          get(target, prop, recv) {
+            const v = Reflect.get(target, prop, recv);
+            if (prop === "$queryRaw" || prop === "$queryRawUnsafe") {
+              return (...args: unknown[]) => {
+                queries += 1;
+                return (v as (...a: unknown[]) => unknown).apply(target, args);
+              };
+            }
+            if (typeof prop === "string" && prop.startsWith("$")) return v;
+            if (typeof v !== "object" || v === null) return v;
+            return new Proxy(v, {
+              get(m, mp, mr) {
+                const fn = Reflect.get(m, mp, mr);
+                if (typeof fn !== "function") return fn;
+                return (...args: unknown[]) => {
+                  queries += 1;
+                  return (fn as (...a: unknown[]) => unknown).apply(m, args);
+                };
+              },
+            });
+          },
+        });
+
+      const countingClient = new Proxy(prisma, {
+        get(target, prop, recv) {
+          const v = Reflect.get(target, prop, recv);
+          if (prop === "$transaction" && typeof v === "function") {
+            return (fn: unknown, opts: unknown) =>
+              (v as (...a: unknown[]) => unknown).call(
+                target,
+                typeof fn === "function"
+                  ? (tx: object) =>
+                      (fn as (t: unknown) => unknown)(countingTx(tx))
+                  : fn,
+                opts,
+              );
+          }
+          return typeof v === "function" ? v.bind(target) : v;
+        },
+      }) as unknown as PrismaService;
+
+      // DISTINCT pins, and every one of them RESOLVABLE.
+      //
+      // This used to fill the list with `absent-i` keys. Those are answered
+      // from the registry BEFORE a single query is issued, so the batch really
+      // resolved one pin whether it was asked about 2 or 25 — and "the cost
+      // does not grow" was true of a batch that never grew. Each pin here is
+      // the real definition under its own key, through the registry seam, so
+      // all n are placed for real and the measurement means what it says.
+      const menu = {
+        getExact: (guideKey: string, guideVersion: number) => ({
+          ...productionGuideRegistry.getExact(
+            PIN_A.guideKey,
+            PIN_A.guideVersion,
+          ),
+          guideKey,
+          guideVersion,
+        }),
+      };
+      const counted = new GuideLifecycleService(
+        countingClient,
+        new LearningCatalogResolver(countingClient),
+        new ContentAccessService(countingClient),
+        new GuideTargetContextService(
+          new LearningCatalogResolver(countingClient),
+          menu,
+        ),
+        new GuideSessionRepository(countingClient as never),
+        new GuideSessionStepRepository(countingClient as never),
+        new GuideCommandReceiptRepository(countingClient as never),
+        new LearningEventRepository(countingClient as never),
+        new GuideReaderApplicabilityService(
+          new GuideTargetContextService(
+            new LearningCatalogResolver(countingClient),
+            menu,
+          ),
+        ),
+      );
+
+      const pins = Array.from({ length: n }, (_, i) => ({
+        guideKey: i === 0 ? PIN_A.guideKey : `${PIN_A.guideKey}-c${i}`,
+        guideVersion: 1,
+      }));
+      await counted.resolveExperienceCardStates(user.userId, pins, readerA);
+      return queries;
+    };
+
+    const two = await count(2);
+    const twentyFive = await count(25);
+    expect(twentyFive).toBe(two);
+    // Scoped in the NAME: these pins carry the shipped definition's targets,
+    // which walk every family, so this is the mixed composition. The
+    // composition matrix — concept-only, exercise-only, recall-only, mixed —
+    // is measured in `guide-target-cost.pg-spec.ts`.
+    // eslint-disable-next-line no-console
+    console.log(`CARD_STATE_QUERIES_MIXED_2_DISTINCT=${two}`);
+    // eslint-disable-next-line no-console
+    console.log(`CARD_STATE_QUERIES_MIXED_25_DISTINCT=${twentyFive}`);
+  });
+
   it("carries no user id, no idempotency key and no editorial context", async () => {
     await start(PIN_A);
     const [card] = await cards([PIN_A]);
@@ -663,10 +939,22 @@ suite("C.1 · one card state per experience", () => {
     expect(wire).not.toContain(user.userId);
     expect(wire).not.toMatch(/idempotency/i);
     expect(wire).not.toMatch(/editionId|unitId/);
+    // C.3R added a verdict and the pin it is about. Neither is editorial
+    // identity: `contentUnitId` and `unitKey` do not cross this wire in either
+    // direction, which is the whole reason the verdict is a WORD.
+    expect(wire).not.toMatch(/contentUnitId|unitKey|revisionId/);
     expect(Object.keys(card ?? {}).sort()).toEqual([
+      "applicability",
+      "evaluatedPin",
       "guidePin",
       "resumePin",
       "status",
+    ]);
+    const verdict = card as GuideExperienceCardState;
+    expect(["APPLIES", "UNAVAILABLE"]).toContain(verdict.applicability);
+    expect(Object.keys(verdict.evaluatedPin ?? {}).sort()).toEqual([
+      "guideKey",
+      "guideVersion",
     ]);
     // The session itself is deliberately absent: a card renders a word and a
     // pin, and shipping a projection per card would pay the ledger's cost for

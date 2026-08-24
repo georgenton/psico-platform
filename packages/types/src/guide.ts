@@ -257,7 +257,20 @@ export type GuideExperienceStateResponse =
  */
 export type GuideExperienceCardStatus = "START" | "CONTINUE" | "COMPLETED";
 
-export interface GuideExperienceCardState {
+/**
+ * The pre-C.3R item, kept ONLY for the rolling deploy window.
+ *
+ * A browser built before C.3R sends no reader context, and the server cannot
+ * invent one: a verdict about "wherever you are" is the guess #639 is about.
+ * So a request without a context is answered without a verdict — exactly the
+ * shape that browser already knows how to render, with its own positional
+ * check, which is the status quo rather than a regression.
+ *
+ * It is a WINDOW, not a mode. Once the Web deploy lands, every request carries
+ * a context and this arm stops being reached; the ratchet in
+ * `guide-card-states-contract.spec.ts` pins that the client never omits it.
+ */
+export interface GuideExperienceCardStateLegacy {
   /** The PUBLISHED pin this answer is about — echoed so a batch can be keyed. */
   guidePin: { guideKey: string; guideVersion: number };
   status: GuideExperienceCardStatus;
@@ -276,6 +289,56 @@ export interface GuideExperienceCardState {
   resumePin: { guideKey: string; guideVersion: number };
 }
 
+export interface GuideExperienceCardState extends GuideExperienceCardStateLegacy {
+  /**
+   * Does the pin a click would RUN belong to the chapter the reader is on?
+   *
+   * Decided by the server (C.3R), by resolving the reader's unit and the pin's
+   * editorial target to internal ids and comparing them. Neither id crosses
+   * the wire; what arrives is this closed word.
+   *
+   * The browser used to answer this by comparing the anchor's
+   * `(bookSlug, chapterOrder)` with the chapter on screen — placement, not
+   * identity, so an editorial reorder moved the guide to whichever unit
+   * inherited the number.
+   *
+   * Bound to `evaluatedPin`, never to `guidePin`: a CONTINUE card runs the
+   * session's own version, and answering about the published one would be an
+   * answer to a different question.
+   */
+  applicability: GuideApplicability;
+  /**
+   * The pin this verdict is ABOUT — `resumePin` for CONTINUE, `guidePin`
+   * otherwise. Echoed so a client can verify the answer matches the question
+   * it would act on rather than assuming the rule was applied.
+   */
+  evaluatedPin: { guideKey: string; guideVersion: number };
+}
+
+/**
+ * A closed verdict. `UNAVAILABLE` means "the catalog says this guide is not
+ * about this chapter" — never "the lookup failed", which is an error.
+ */
+export type GuideApplicability = "APPLIES" | "UNAVAILABLE";
+
+/**
+ * Where the reader is, as the client may honestly describe it.
+ *
+ * `unitKey` is an ENVIRONMENT-LOCAL staleness token, not portable editorial
+ * identity: it is `uuidv5(Chapter.id)` over a random cuid, so two ingestions of
+ * the same book produce different values. The server looks the unit up by it
+ * inside the published revision and requires the navigation to agree; it never
+ * adopts it as identity and never accepts it as proof of anything.
+ *
+ * `contentUnitId` is deliberately absent. The client neither sends nor
+ * receives it.
+ */
+export interface GuideReaderContext {
+  bookSlug: string;
+  chapterOrder: number;
+  unitKey: string;
+}
+
 /**
  * A batch, because a chapter shows a LIST.
  *
@@ -288,10 +351,28 @@ export interface GuideExperienceCardState {
  */
 export interface GuideExperienceCardStatesRequest {
   pins: Array<{ guideKey: string; guideVersion: number }>;
+  /**
+   * Where the reader is. See `GuideReaderContext` — navigation and a token.
+   *
+   * Optional on the WIRE for one deploy window only, and never omitted by this
+   * client: a request without it is answered with
+   * `GuideExperienceCardStateLegacy` items, which carry no verdict.
+   */
+  reader: GuideReaderContext;
 }
 
 export interface GuideExperienceCardStatesResponse {
   items: GuideExperienceCardState[];
+}
+
+/**
+ * What the SERVER may answer during the rolling window: verdicts when a reader
+ * context was sent, the pre-C.3R items when it was not. The client-facing
+ * `GuideExperienceCardStatesResponse` stays the strict one — this client always
+ * sends a context, so it always receives verdicts and refuses anything else.
+ */
+export interface GuideExperienceCardStatesServerResponse {
+  items: GuideExperienceCardState[] | GuideExperienceCardStateLegacy[];
 }
 
 /**

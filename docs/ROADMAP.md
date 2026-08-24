@@ -83,20 +83,20 @@ Cada fase necesita su propia autorización. El orden **no** es negociable: lo
 impone qué locks comparten dos binarios que conviven durante un rolling deploy,
 no el esquema.
 
-| Fase         | Qué                                                           | Puerta previa                                            | Estado                                           |
-| ------------ | ------------------------------------------------------------- | -------------------------------------------------------- | ------------------------------------------------ |
-| **C.0A**     | Desplegar V1 doble lock (`GLOBAL_COMPAT → LINEAGE → SESSION`) | —                                                        | ✅ desplegada                                    |
-| **C.0A1**    | Hardening del despliegue (ver abajo)                          | C.0A desplegada                                          | ✅ completa                                      |
-| **C.0B1**    | Crear `UNIQUE(userId, guideKey) WHERE ACTIVE`                 | C.0A1 completa, incluido el enlace de configs            | ✅ aplicada                                      |
-| **C.0B2**    | Retirar el índice global                                      | **V0 extinto, demostrado** (ver abajo)                   | ✅ aplicada                                      |
-| **C.0B3**    | Desplegar V2 lineage-only                                     | C.0B2 aplicada; V1 y V2 **sí** pueden coexistir          | ✅ desplegada                                    |
-| **C.1**      | Estado por Experience + discovery con pin exacto              | C.0B3 desplegada                                         | ✅ desplegada (#675)                             |
-| **C.2**      | La web consume estados independientes                         | C.1 en la misma PR                                       | ✅ desplegada (#675)                             |
-| **C.3A**     | Puente de binding: identidad estable, locks y reserva         | C.2 desplegada                                           | ⬜ PR Draft, sin fusionar                        |
-| **C.3B**     | Backfill de reservas — **fase operativa, no una PR**          | C.3A desplegada y **V0 extinto**                         | ⬜ `--measure` corrido · `--apply` sin autorizar |
-| **C.3R**     | **Ancla del lector por identidad** — ver abajo                | C.3A desplegada                                          | ⬜ **bloquea C.3C+C.4**                          |
-| **C.3C+C.4** | Cutover estructural + selección, rebind y archive en el CMS   | C.3B aplicado, sin nulls ni colisiones, **C.3R cerrada** | ⬜ PR Draft, sin fusionar                        |
-| **C.5**      | Verificación en producción (solo lectura)                     | C.3C+C.4 desplegada                                      | ⬜ pendiente                                     |
+| Fase         | Qué                                                           | Puerta previa                                            | Estado                                            |
+| ------------ | ------------------------------------------------------------- | -------------------------------------------------------- | ------------------------------------------------- |
+| **C.0A**     | Desplegar V1 doble lock (`GLOBAL_COMPAT → LINEAGE → SESSION`) | —                                                        | ✅ desplegada                                     |
+| **C.0A1**    | Hardening del despliegue (ver abajo)                          | C.0A desplegada                                          | ✅ completa                                       |
+| **C.0B1**    | Crear `UNIQUE(userId, guideKey) WHERE ACTIVE`                 | C.0A1 completa, incluido el enlace de configs            | ✅ aplicada                                       |
+| **C.0B2**    | Retirar el índice global                                      | **V0 extinto, demostrado** (ver abajo)                   | ✅ aplicada                                       |
+| **C.0B3**    | Desplegar V2 lineage-only                                     | C.0B2 aplicada; V1 y V2 **sí** pueden coexistir          | ✅ desplegada                                     |
+| **C.1**      | Estado por Experience + discovery con pin exacto              | C.0B3 desplegada                                         | ✅ desplegada (#675)                              |
+| **C.2**      | La web consume estados independientes                         | C.1 en la misma PR                                       | ✅ desplegada (#675)                              |
+| **C.3A**     | Puente de binding: identidad estable, locks y reserva         | C.2 desplegada                                           | ⬜ PR Draft, sin fusionar                         |
+| **C.3B**     | Backfill de reservas — **fase operativa, no una PR**          | C.3A desplegada y **V0 extinto**                         | ⬜ `--measure` corrido · `--apply` sin autorizar  |
+| **C.3R**     | **Ancla del lector por identidad** — ver abajo                | C.3A desplegada                                          | ⬜ PR Draft · **cerrada en árbol, sin desplegar** |
+| **C.3C+C.4** | Cutover estructural + selección, rebind y archive en el CMS   | C.3B aplicado, sin nulls ni colisiones, **C.3R cerrada** | ⬜ PR Draft, sin fusionar                         |
+| **C.5**      | Verificación en producción (solo lectura)                     | C.3C+C.4 desplegada                                      | ⬜ pendiente                                      |
 
 **Checkpoint de producción — 2026-08-19.** Ambos servicios sirven
 `78d3b58f925979a3c51bdeef40b02262ad78fd8b` y **consumen sus ficheros
@@ -156,14 +156,23 @@ no demuestra que desapareció.
 #### C.3R — el ancla del lector, y por qué bloquea a C.3C+C.4
 
 Después de C.3A conviven **dos** formas de decir «de qué capítulo hablamos», y
-tras un reordenamiento no coinciden:
+tras un reordenamiento no coinciden. **En el árbol ya no**: C.3R cerró esa
+discrepancia. En producción sigue abierta hasta que la rama se despliegue.
 
 ```
 CODE_OWNED_BINDING_IDENTITY=contentUnitId derivado por GuideTargetContext
-PUBLIC_READER_ANCHOR=bookSlug+chapterOrder todavía posicional
+PUBLIC_READER_ANCHOR=veredicto del servidor por contentUnitId (C.3R)
 C3A_DEPLOY_BLOCKED_BY_POSITIONAL_READER=false
+READER_ANCHOR_IDENTITY_CLOSED_IN_TREE=true
 C3C_C4_MERGE_BLOCKED_UNTIL_READER_ANCHOR_IDENTITY_CLOSED=true
 ```
+
+**La barrera de fusión sigue arriba, y no es un olvido.** Cerrada en el árbol
+no es desplegada: el lector de producción decide por posición hasta que esta
+rama salga, así que consolidar la autoridad nueva antes — C.3C+C.4, donde el
+CMS gana selección y rebind — seguiría permitiendo enlazar por identidad lo que
+el lector vivo rechaza por posición. Bajarla es una decisión sobre un despliegue,
+no sobre un diff.
 
 **C.3A puede desplegarse igual.** Es un puente aditivo: añade columnas, tabla y
 constraints, y **ninguna** operación editorial — no hay selector, ni rebind, ni
@@ -177,21 +186,50 @@ en el que un editor puede dedicar una sesión a enlazar por identidad una guía
 que el lector no abrirá por posición — correcta, completa e inabrible.
 Volverla identitaria **solo en el CMS** sería estrictamente peor que rechazar.
 
-**La tarea concreta (no una deuda genérica):**
+**Lo que se descartó primero, y por qué importa.** El plan original era meter
+una identidad estable dentro del ancla publicada. Se midió y no se sostiene:
+`ContentUnit.unitKey` es `uuidv5(Chapter.id)` sobre un cuid aleatorio, así que
+**la misma obra ingerida dos veces produce claves distintas** — se comprobó en
+dos bases independientes y contra producción, tres valores distintos.
+`editionKey` (`${slug}-1e`) sí es estable, pero nombra el **libro**, no el
+capítulo. No existe identidad de capítulo portable que empaquetar, de modo que
+la autoridad tiene que resolverse **por entorno**, y eso significa en el
+servidor.
 
-1. Añadir `contentUnitId` (o el `unitKey` versionado) al `GuideReaderAnchorLocator`
-   de `packages/types/src/guide-anchor.ts`, junto al par posicional que ya lleva.
-2. Hacer que `anchorAppliesTo` resuelva **por identidad cuando exista** y caiga
-   al par posicional solo mientras haya anclas sin migrar.
-3. Poblar la identidad de las anclas ya publicadas (`GUIDE_READER_ANCHOR`,
-   `PAREJAS_READER_ANCHOR`) resolviéndolas una vez contra el manifiesto.
-4. Retirar la comparación posicional cuando ninguna ancla dependa ya de ella.
-5. Poner `C3C_C4_MERGE_BLOCKED_UNTIL_READER_ANCHOR_IDENTITY_CLOSED=false` en
-   `apps/api/src/experience/experience-identity-barrier.ts`.
+**Cómo quedó (C.3R, cerrada en árbol):**
 
-La barrera vive en ese módulo y tiene su propio ratchet: si el lector deja de
-ser posicional el ratchet falla hasta que alguien baje la bandera a propósito,
-y si la barrera se borra el ratchet falla directamente.
+1. `GuideReaderApplicabilityService` compara, dentro de la transacción de quien
+   pregunta, la unidad del lector contra la unidad que resuelven los targets de
+   la guía vía `GuideTargetContextService.resolveMany` — la **única** autoridad
+   sobre qué unidad describe un pin. Ningún `contentUnitId` cruza el cable.
+2. El lote de tarjetas (`POST /api/guide/experiences/state`) acepta un
+   `reader { bookSlug, chapterOrder, unitKey }` y devuelve
+   `applicability: APPLIES | UNAVAILABLE` ligado a `evaluatedPin`. `unitKey` es
+   un **localizador local del entorno**, no identidad: el servidor lo re-resuelve
+   dentro de la revisión publicada y exige que la navegación declarada coincida.
+3. Discovery localiza la unidad del lector por el **manifiesto publicado**, igual
+   que `content-read.ts`, en vez de por la tabla legacy `Chapter`.
+4. `anchorAppliesTo` **fue eliminado** de `packages/types/src/guide-anchor.ts` —
+   no deprecado: un fallback posicional que siguiera funcionando seguiría dando
+   una respuesta segura y equivocada en un libro reordenado.
+5. Ventana de despliegue: una petición **sin** `reader` se responde en la forma
+   anterior, sin veredicto. Solo funciona un orden — **API primero, web después**.
+   Al revés, un cliente que manda `reader` choca con un parser que rechaza campos
+   desconocidos y falla el capítulo entero.
+
+**Lo que falta para bajar la barrera** — un despliegue, no un cambio de código:
+desplegar esta rama (API y luego web), verificar en producción, y solo entonces
+poner `C3C_C4_MERGE_BLOCKED_UNTIL_READER_ANCHOR_IDENTITY_CLOSED=false` en
+`apps/api/src/experience/experience-identity-barrier.ts`.
+
+La barrera vive en ese módulo y tiene su propio ratchet, que **cambió con el
+hecho que mide**: ahora afirma que el lector dejó de ser posicional, y falla si
+`anchorAppliesTo` reaparece o si alguien borra la barrera.
+
+```
+C3C_C4_MERGE_BARRIER=true
+NEXT_STEP=RETARGET_AND_ADAPT_PR_677_ON_C3R
+```
 
 **Decisiones de producto aprobadas para C.3/C.4** (2026-08-19):
 

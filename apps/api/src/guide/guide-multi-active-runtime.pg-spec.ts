@@ -15,6 +15,7 @@ import { GuideCommandReceiptRepository } from "./guide-command-receipt.repositor
 import { GuideSessionRepository } from "./guide-session.repository";
 import { GuideSessionStepRepository } from "./guide-session-step.repository";
 import { GuideTargetContextService } from "./guide-target-context.service";
+import { GuideReaderApplicabilityService } from "./guide-reader-applicability.service";
 import { GuideLifecycleService } from "./guide-lifecycle.service";
 import { readGuideActiveCapability } from "./guide-active-capability";
 
@@ -156,6 +157,9 @@ suite("C.0B2 · the runtime under two ACTIVE lineages", () => {
       new GuideSessionStepRepository(prisma),
       new GuideCommandReceiptRepository(prisma),
       new LearningEventRepository(prisma),
+      new GuideReaderApplicabilityService(
+        new GuideTargetContextService(resolver),
+      ),
     );
   }, 240_000);
 

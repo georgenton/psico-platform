@@ -263,11 +263,26 @@ export function resolveGuideAnchor(
   };
 }
 
-/** Whether this reader screen is the one the anchor belongs to. */
-export function anchorAppliesTo(
-  bookSlug: string,
-  chapterOrder: number,
-  locator: GuideReaderAnchorLocator = GUIDE_READER_ANCHOR,
-): boolean {
-  return bookSlug === locator.bookSlug && chapterOrder === locator.chapterOrder;
-}
+/**
+ * C.3R (#639) — `anchorAppliesTo` was deleted here, deliberately.
+ *
+ * It answered "does this guide belong to the chapter on screen?" by comparing
+ * the anchor's `(bookSlug, chapterOrder)` with the reader's. That is placement
+ * compared against placement: after an editorial reorder the guide followed the
+ * NUMBER, so it appeared over whichever unit inherited it and vanished from the
+ * unit it is actually about.
+ *
+ * The question now belongs to the server, which resolves the guide's editorial
+ * target and the reader's unit to internal ids inside one snapshot and compares
+ * THOSE — see `GuideReaderApplicabilityService`. Neither id crosses the wire;
+ * what arrives is a closed word (`APPLIES` | `UNAVAILABLE`).
+ *
+ * It is deleted rather than deprecated because a positional fallback is exactly
+ * what must not be reachable: a caller that could still ask would get a
+ * confident wrong answer on a reordered book, and "we also have a server
+ * verdict" is no defence if a browser can decide without it.
+ *
+ * What stays here is `resolveGuideAnchor`, which answers a different question:
+ * WHERE in these blocks the approved passage is. That is about the text served,
+ * not about which chapter it belongs to.
+ */

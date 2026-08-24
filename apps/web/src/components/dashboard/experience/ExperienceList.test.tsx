@@ -51,7 +51,20 @@ function state(
   status: GuideExperienceCardState["status"],
   over: Partial<GuideExperienceCardState> = {},
 ): GuideExperienceCardState {
-  return { guidePin: pin, status, resumePin: pin, ...over };
+  // APPLIES by default: these cases are about the STATUS word and about
+  // runnability, and a default of UNAVAILABLE would silently disable every
+  // card and make half of them pass for the wrong reason. The applicability
+  // cases below set it explicitly.
+  const resumePin = (over.resumePin ??
+    pin) as GuideExperienceCardState["resumePin"];
+  return {
+    guidePin: pin,
+    status,
+    resumePin,
+    applicability: "APPLIES",
+    evaluatedPin: resumePin,
+    ...over,
+  };
 }
 
 /**
@@ -277,11 +290,9 @@ describe("Chapter Home · each card carries its OWN state (#639)", () => {
     // The server answers CONTINUE for the published pin and hands back the
     // session's own pin — the card must not read «Empezar» and strand the run.
     const published = { guideKey: "guide-1", guideVersion: 2 };
-    const older: GuideExperienceCardState = {
-      guidePin: published,
-      status: "CONTINUE",
+    const older: GuideExperienceCardState = state(published, "CONTINUE", {
       resumePin: { guideKey: "guide-1", guideVersion: 1 },
-    };
+    });
 
     render(
       <ExperienceList
@@ -488,11 +499,7 @@ describe("Chapter Home · a verdict this screen cannot act on", () => {
     render(
       <ExperienceList
         experiences={[experience(1, { guidePin: published })]}
-        load={states({
-          guidePin: published,
-          status: "CONTINUE",
-          resumePin: resume,
-        })}
+        load={states(state(published, "CONTINUE", { resumePin: resume }))}
         canRun={canRun}
         onOpen={onOpen}
       />,
@@ -711,7 +718,7 @@ describe("experienceCardView — two facts, answered separately", () => {
 
     const result = experienceCardView(
       experience(1, { guidePin: published }),
-      states({ guidePin: published, status: "CONTINUE", resumePin: resume }),
+      states(state(published, "CONTINUE", { resumePin: resume })),
       (p) => {
         asked.push(p);
         return p.guideVersion === 1;

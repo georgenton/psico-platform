@@ -7,12 +7,12 @@ import type { GuideDiscoveryResponse } from "@psico/types";
 import type { AuthenticatedUser } from "../auth";
 import { PrismaService } from "../prisma";
 import { ContentAccessService } from "../content-core/access/content-access.service";
-import { unitKeyFromLegacyChapterId } from "../content-core/lib/block-key";
 import { productionGuideRegistry } from "./guide-catalog";
 import { productionGuideDiscoveryCatalog } from "./guide-discovery-catalog";
 import { GuideLifecycleError } from "./guide-errors";
 import { GuideRolloutService } from "./guide-rollout.service";
 import { GuideTargetContextService } from "./guide-target-context.service";
+import { GuideReaderApplicabilityService } from "./guide-reader-applicability.service";
 
 /**
  * The EDITORIAL verdicts of the context resolver: the catalog looked and
@@ -67,6 +67,8 @@ export class GuideDiscoveryService {
     private readonly rollout: GuideRolloutService,
     private readonly targetContext: GuideTargetContextService,
     private readonly access: ContentAccessService,
+    /** C.3R — the ONE place a reader's unit is resolved for a verdict. */
+    private readonly applicability: GuideReaderApplicabilityService,
   ) {}
 
   async discover(
@@ -111,43 +113,28 @@ export class GuideDiscoveryService {
       // an offer.
       if (resolved.bookSlug !== input.bookSlug) return { available: false };
 
-      const book = await tx.book.findUnique({
-        where: { slug: input.bookSlug },
-        select: { id: true },
+      // C.3R — the reader's unit is located the way the CONTENT is located:
+      // the published manifest, by `(bookSlug, order)`.
+      //
+      // This used to go through the LEGACY table — `Chapter` by `(bookId,
+      // order)`, then `uuidv5(chapter.id)` — which is a second, parallel notion
+      // of "the chapter at position N". `content-read.ts` serves the unit from
+      // `RevisionUnit` on the edition's published revision, and a verdict about
+      // a different unit than the one whose text is on screen is a verdict
+      // about the wrong thing. Position still LOCATES here, as it does in the
+      // URL; it decides nothing.
+      //
+      // One query replaces three, and membership of the published revision is
+      // part of the same lookup rather than a separate confirmation.
+      const readerUnit = await this.applicability.resolveUnitByNavigation(tx, {
+        bookSlug: input.bookSlug,
+        chapterOrder: input.chapterOrder,
       });
-      if (!book) return { available: false };
+      if (readerUnit === null) return { available: false };
 
-      const chapter = await tx.chapter.findFirst({
-        where: { bookId: book.id, order: input.chapterOrder },
-        select: { id: true },
-      });
-      if (!chapter) return { available: false };
-
-      // The chapter the reader is standing in must be the SAME unit the
-      // targets anchor to. Without this, a guide could be offered from a
-      // chapter it does not belong to.
-      const unit = await tx.contentUnit.findUnique({
-        where: {
-          editionId_unitKey: {
-            editionId: resolved.editionId,
-            unitKey: unitKeyFromLegacyChapterId(chapter.id),
-          },
-        },
-        select: { id: true },
-      });
-      if (!unit || unit.id !== resolved.unitId) return { available: false };
-
-      // …and that unit must be in the revision readers actually see.
-      const inRevision = await tx.revisionUnit.findUnique({
-        where: {
-          revisionId_unitId: {
-            revisionId: resolved.revisionId,
-            unitId: unit.id,
-          },
-        },
-        select: { id: true },
-      });
-      if (!inRevision) return { available: false };
+      // The unit the reader is standing in must BE the unit the targets anchor
+      // to. Identity, compared server-side — the whole point of C.3R.
+      if (readerUnit !== resolved.unitId) return { available: false };
 
       // Entitlement last, through the ONE policy the reader itself uses.
       try {

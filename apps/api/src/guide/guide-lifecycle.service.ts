@@ -5,15 +5,17 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import type {
+  GuideApplicability,
   GuideDefinition,
+  GuideExperienceCardState,
+  GuideExperienceCardStateLegacy,
+  GuideExperienceCardStatus,
+  GuideExperienceStateResponse,
   GuideRecallOutcome,
   GuideSessionProjection,
-  GuideSessionView,
   GuideSessionStatus,
+  GuideSessionView,
   GuideStepDefinition,
-  GuideExperienceStateResponse,
-  GuideExperienceCardState,
-  GuideExperienceCardStatus,
 } from "@psico/types";
 // Value import, not `import type`: `Prisma.TransactionIsolationLevel` is read
 // at runtime to state the isolation level of both Guide command transactions.
@@ -71,6 +73,10 @@ import {
   GuideTargetContextService,
   type ResolvedGuideContext,
 } from "./guide-target-context.service";
+import {
+  GuideReaderApplicabilityService,
+  type ReaderUnitContext,
+} from "./guide-reader-applicability.service";
 import {
   classifyCatalogError,
   guideFail,
@@ -198,6 +204,8 @@ export class GuideLifecycleService {
     private readonly steps: GuideSessionStepRepository,
     private readonly receipts: GuideCommandReceiptRepository,
     private readonly events: LearningEventRepository,
+    /** C.3R — the comparator that answers "is this guide about this chapter?". */
+    private readonly applicability: GuideReaderApplicabilityService,
   ) {}
 
   /** Operational signal only — never a decision input. */
@@ -496,7 +504,14 @@ export class GuideLifecycleService {
   async resolveExperienceCardStates(
     userId: string,
     pins: readonly { guideKey: string; guideVersion: number }[],
-  ): Promise<GuideExperienceCardState[]> {
+    /**
+     * Where the reader is (C.3R). Applicability is decided about the unit whose
+     * text is on screen, so it has to be resolved inside THIS snapshot — a
+     * verdict read a moment later could describe a chapter the state reads did
+     * not.
+     */
+    reader: ReaderUnitContext | null,
+  ): Promise<GuideExperienceCardState[] | GuideExperienceCardStateLegacy[]> {
     if (pins.length === 0) return [];
 
     // TWO reads, whatever the list's length. A card shows a word and a
@@ -522,26 +537,56 @@ export class GuideLifecycleService {
     // Deliberately sequential: two queries racing inside one interactive
     // transaction buy nothing here and make the order of what the snapshot
     // covers a matter of luck.
-    const { activeRows, exactRows } = await this.prisma.$transaction(
-      async (tx) => {
-        const activeRows = await this.sessions.findActiveOwnForGuideKeys(
-          userId,
-          pins.map((p) => p.guideKey),
-          tx,
-        );
-        const exactRows = await this.sessions.findLatestOwnPerExactPin(
-          userId,
-          pins,
-          tx,
-        );
-        return { activeRows, exactRows };
-      },
-      // NOT the level the commands use. START and the mutations stay READ
-      // COMMITTED on purpose (see `start`), because their idempotency contract
-      // depends on re-reading the receipt a concurrent winner just committed.
-      // This path writes nothing and needs the opposite property.
-      { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
-    );
+    const { activeRows, exactRows, applicability } =
+      await this.prisma.$transaction(
+        async (tx) => {
+          const activeRows = await this.sessions.findActiveOwnForGuideKeys(
+            userId,
+            pins.map((p) => p.guideKey),
+            tx,
+          );
+          const exactRows = await this.sessions.findLatestOwnPerExactPin(
+            userId,
+            pins,
+            tx,
+          );
+
+          // The pin a click would RUN — `resumePin` for a lineage with an open
+          // session, the published pin otherwise. Applicability is asked about
+          // THAT pin, because answering about the published one would answer a
+          // question the card is not going to act on.
+          //
+          // Computed here, inside the snapshot, from rows this same snapshot
+          // produced.
+          const activeFirst = new Map<string, GuideSessionRow>();
+          for (const row of activeRows) {
+            if (!activeFirst.has(row.guideKey)) {
+              activeFirst.set(row.guideKey, row);
+            }
+          }
+          const evaluated = pins.map((pin) => {
+            const open = activeFirst.get(pin.guideKey);
+            return open
+              ? { guideKey: open.guideKey, guideVersion: open.guideVersion }
+              : { guideKey: pin.guideKey, guideVersion: pin.guideVersion };
+          });
+          // No context, no verdict — and no read to produce one. The window
+          // costs the older client nothing, and the newer path is unchanged.
+          const verdicts = reader
+            ? await this.applicability.verdicts(tx, reader, evaluated)
+            : null;
+          return {
+            activeRows,
+            exactRows,
+            applicability: { evaluated, verdicts },
+          };
+        },
+        // NOT the level the commands use. START and the mutations stay READ
+        // COMMITTED on purpose (see `start`), because their idempotency contract
+        // depends on re-reading the receipt a concurrent winner just committed.
+        // This path writes nothing and needs the opposite property.
+        { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+      );
 
     const activeByKey = new Map<string, GuideSessionRow>();
     for (const row of activeRows) {
@@ -554,11 +599,22 @@ export class GuideLifecycleService {
       exactByPin.set(`${row.guideKey}@${row.guideVersion}`, row);
     }
 
-    return pins.map((pin) => {
+    return pins.map((pin, i) => {
       const published = {
         guideKey: pin.guideKey,
         guideVersion: pin.guideVersion,
       };
+      // Positional: answer `i` is about question `i`, duplicates included.
+      const evaluatedPin = applicability.evaluated[i] as {
+        guideKey: string;
+        guideVersion: number;
+      };
+      const verdicts = applicability.verdicts;
+      // The rolling window: the three fields the pre-C.3R client knows, and
+      // nothing invented to fill the two it does not.
+      const verdict = verdicts
+        ? { applicability: verdicts[i] as GuideApplicability, evaluatedPin }
+        : null;
 
       // 1. An ACTIVE run of this lineage wins, on its OWN pin. The registry is
       //    deliberately not consulted: a run pinned to a version this build no
@@ -572,6 +628,7 @@ export class GuideLifecycleService {
             guideKey: active.guideKey,
             guideVersion: active.guideVersion,
           },
+          ...verdict,
         };
       }
 
@@ -583,6 +640,7 @@ export class GuideLifecycleService {
           guidePin: published,
           status: "COMPLETED" as GuideExperienceCardStatus,
           resumePin: published,
+          ...verdict,
         };
       }
 
@@ -592,6 +650,7 @@ export class GuideLifecycleService {
         guidePin: published,
         status: "START" as GuideExperienceCardStatus,
         resumePin: published,
+        ...verdict,
       };
     });
   }

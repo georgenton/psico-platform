@@ -142,7 +142,17 @@ describe("ratchet · guide OpenAPI surface", () => {
       properties?: { pins?: { maxItems?: number; minItems?: number } };
     };
     expect(schema?.additionalProperties).toBe(false);
+    // C.3R — the reader context joins the pins. Optional on paper for ONE
+    // deploy window: a browser built before C.3R does not know the field, and
+    // is answered without a verdict rather than refused. The client always
+    // sends it (see `guide-card-states-contract.spec.ts`).
     expect(schema?.required).toEqual(["pins"]);
+    const reader = (
+      schema as unknown as {
+        properties: { reader: { additionalProperties: boolean } };
+      }
+    ).properties.reader;
+    expect(reader.additionalProperties).toBe(false);
     // Bounded on purpose: an unbounded batch turns one authenticated request
     // into as much work as the caller likes.
     expect(schema?.properties?.pins?.minItems).toBe(1);
@@ -156,6 +166,11 @@ describe("ratchet · guide OpenAPI surface", () => {
       ]?.schema;
     const serialized = JSON.stringify(schema);
     expect(serialized).not.toMatch(/userId|editionId|unitId|idempotency/i);
+    // C.3R — the ANSWER carries the verdict and no identity to recompute it
+    // with. `unitKey` travels one way only: in, as the reader's locator.
+    expect(serialized).not.toMatch(/unitKey/);
+    expect(serialized).toContain('"APPLIES"');
+    expect(serialized).toContain('"UNAVAILABLE"');
     // The three words, closed.
     expect(serialized).toContain('"START"');
     expect(serialized).toContain('"CONTINUE"');
@@ -430,7 +445,6 @@ describe("ratchet · guide OpenAPI surface", () => {
       "editionId",
       "unitId",
       "editionKey",
-      "unitKey",
       "userId",
       "metadata",
       "payload",
@@ -441,6 +455,13 @@ describe("ratchet · guide OpenAPI surface", () => {
     ];
     for (const path of GUIDE_PATHS) {
       const serialized = JSON.stringify(openapi.paths[path]);
+      // `unitKey` is accepted on exactly one path, as the reader's locator —
+      // see `no-guide-client-context.spec.ts`. Everywhere else it stays out.
+      if (path !== CARD_STATES_PATH) {
+        expect(serialized.includes('"unitKey":'), `${path} → unitKey`).toBe(
+          false,
+        );
+      }
       for (const term of forbidden) {
         // `"<term>"` as a JSON key or enum value — a prose mention inside a
         // description is not a contract field.

@@ -43,7 +43,7 @@ import type { AuthenticatedUser } from "../auth";
 import { CurrentUser } from "../shared";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import type {
-  GuideExperienceCardStatesResponse,
+  GuideExperienceCardStatesServerResponse,
   GuideExperienceStateResponse,
   RecoverableGuideSessionResponse,
 } from "@psico/types";
@@ -64,6 +64,7 @@ import {
   GUIDE_INVALID_CARD_STATES_BODY,
   parseGuideCardStatesBody,
 } from "./guide-card-states-params";
+import { GuideReaderContextStaleError } from "./guide-reader-applicability.service";
 import type {
   GuideCommandResult,
   GuideRecallCommandResult,
@@ -261,18 +262,30 @@ export class GuideController {
   async getGuideExperienceCardStates(
     @CurrentUser() user: AuthenticatedUser,
     @Body() body: unknown,
-  ): Promise<GuideExperienceCardStatesResponse> {
-    let parsed: { pins: Array<{ guideKey: string; guideVersion: number }> };
+  ): Promise<GuideExperienceCardStatesServerResponse> {
+    let parsed: ReturnType<typeof parseGuideCardStatesBody>;
     try {
       parsed = parseGuideCardStatesBody(body);
     } catch {
       throw new BadRequestException({ code: GUIDE_INVALID_CARD_STATES_BODY });
     }
-    const items = await this.lifecycle.resolveExperienceCardStates(
-      user.userId,
-      parsed.pins,
-    );
-    return { items };
+    // A reader context the server cannot confirm fails the WHOLE chunk. It is
+    // not a verdict: "I cannot tell where you are" and "this guide is not for
+    // here" are different facts, and a stale render must not read as a chapter
+    // full of inapplicable cards.
+    try {
+      const items = await this.lifecycle.resolveExperienceCardStates(
+        user.userId,
+        parsed.pins,
+        parsed.reader,
+      );
+      return { items };
+    } catch (error) {
+      if (error instanceof GuideReaderContextStaleError) {
+        throw new BadRequestException({ code: error.code });
+      }
+      throw error;
+    }
   }
 
   @Get("sessions/recoverable")

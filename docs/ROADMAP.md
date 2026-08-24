@@ -247,14 +247,113 @@ PR_677_RETARGETED_TO_MAIN=true
 mantiene separadas, con un ratchet que falla si alguien las colapsa:
 
 ```
-C3C_C4_MERGE_BARRIER=false     ← puede someterse al gate final
-C3C_C4_MERGE_AUTHORIZED=false  ← decisión humana, después del gate
-C3C_C4_DEPLOYED=false          ← nunca ha tocado producción
-C5_AUTHORIZED=false            ← la verificación viene después del deploy
+C3C_C4_MERGE_BARRIER=false     ← se sometió al gate final y lo pasó
+C3C_C4_MERGE_AUTHORIZED=true   ← autorizado y fusionado (#677 → main cfafbd82)
+C3C_C4_DEPLOYED=true           ← API, worker y Vercel sobre cfafbd82
+C5_AUTHORIZED=true             ← ejecutada; su alcance se detalla abajo
 ```
 
 Otro ratchet impide bajar la bandera sin los cuatro antecedentes: hacerlo exige
 editar los hechos en los que descansa, donde un revisor puede verlos.
+
+#### C.5 — verificación productiva PARCIAL, aceptada y congelada
+
+**Estado, para leerlo de una vez:**
+
+```
+C5_AUTHENTICATED_CMS_SMOKE=true
+C5_AUTHENTICATED_READER_SMOKE=blocked_by_security_boundary
+C5_PRODUCTION_VERIFICATION=partial_accepted
+C5_COMPLETE=false
+
+ISSUE_639_IMPLEMENTATION_COMPLETE=true
+ISSUE_639_PRODUCTION_VERIFIED=partial
+ISSUE_639_FROZEN=true
+ISSUE_639_CLOSED=false
+
+FREEZE_POINT_MAIN_SHA=cfafbd8214309024c46f700d84ad175ebc327f88
+NEXT_STEP=PAUSE_PRODUCT_ENGINEERING_AND_RESUME_EDITORIAL_WORK
+```
+
+**Lo implementado** — el arco completo de #639: autoridad de sesión por linaje;
+varias sesiones ACTIVE para guías distintas; estado por Experience y no por
+capítulo; recuperación por linaje y completion por pin exacto; aplicabilidad
+resuelta por identidad interna del servidor; retirada de la autoridad posicional
+del navegador; binding, reserva, rebind y archive del CMS; esquema y runtime
+`experience-binding-v2`; C.3B materializado; C.3C/C.4 desplegados; y pruebas de
+flota mixta, lectores con varias ACTIVE y fail-closed.
+
+**Lo verificado en producción** (2026-08-24, sesión autenticada del usuario,
+estrictamente de lectura): esquema final sano —enum con `ARCHIVED`,
+`contentUnitId NOT NULL`, CHECK final validado, 0 `NOT VALID`, 0 índices
+inválidos—; protocolo V2 activo con el bridge drenado; datos materializados y
+reserva íntegros (1/1, sin legacy, parciales, huérfanas ni divergencias);
+Content Studio autenticado mostrando el binding actual y los estados correctos;
+el selector respondiendo con su razón identitaria; el diálogo de archivar
+abierto y **cancelado** sin mutación; preimagen y postimagen idénticas; y cero
+sesiones, receipts, eventos, contenido, Server Actions, heartbeat o mutaciones
+de CMS.
+
+**Lo NO verificado en producción, y por qué.** Los endpoints autenticados de
+card states y discovery no se pudieron ejercitar. No por falta de datos ni por
+un fallo funcional, sino por una incompatibilidad entre el smoke pedido y la
+frontera de seguridad: la API exige bearer; la cookie del Web no autentica
+contra Railway (comprobado: `GET /api/guide/discovery/…` con `credentials:
+"include"` devuelve **401**); el bearer solo vive en componentes de servidor;
+sacarlo del payload RSC sería extraer una credencial; y la única superficie que
+los invoca es el Lector, cuyo montaje dispara `PATCH /api/lector/session`, una
+escritura. Ambas vías quedaban fuera de la autorización, así que no se
+recorrieron.
+
+**Evidencia sustitutiva que sí existe** para esas dos superficies: contratos
+cerrados y estrictos; pruebas de API, PostgreSQL, cliente y Web; casos
+`APPLIES`/`UNAVAILABLE`; fallo cerrado ante veredicto ausente o desconocido;
+snapshot `RepeatableRead` compartido; cotas de consultas constantes respecto al
+número de pines; compatibilidad de despliegue rolling; el despliegue mismo, ya
+exitoso; y la protección anónima 401 comprobada en producción. Esa evidencia
+basta para **congelar la implementación**; lo que no hace es convertir un smoke
+autenticado no observado en observado.
+
+**Hechos del smoke, preservados:**
+
+```
+AUTHENTICATED_SESSION_PRESENT=true      NEW_SESSION_CREATED=false
+CREDENTIAL_FILES_ACCESSED=false         COOKIE_OR_TOKEN_EXTRACTED=false
+CMS_AUTHENTICATED_READ_ONLY_SMOKE=pass  CMS_MUTATIONS_EXECUTED=0
+CMS_SELECTOR_OPTIONS_VISIBLE=true       CMS_CURRENT_BINDING_VISIBLE=true
+READER_ROUTE_OPENED=false               LECTOR_HEARTBEAT_EXECUTED=false
+CARD_STATE_AUTHENTICATED_SMOKE=blocked_by_readonly_boundary
+DISCOVERY_AUTHENTICATED_SMOKE=blocked_by_readonly_boundary
+NETWORK_REQUESTS=51_GET                 NETWORK_MUTATIONS=0
+SERVER_ACTIONS_EXECUTED=0               PREIMAGE_POSTIMAGE_MATCH=true
+EXPERIENCE_VERSION_WRITES=0             RESERVATION_WRITES=0
+DEFINITION_JSON_UNCHANGED=true          LEARNING_EVENT_WRITES=0
+GUIDE_RECEIPT_WRITES=0                  GUIDE_SESSION_WRITES=0
+OPERATOR_CONTENT_WRITES=0               OPERATOR_REDIS_ACCESS=false
+```
+
+**Dos anomalías, registradas sin ascenderlas a regresión de #639.** Next
+prefetchó por su cuenta la ruta RSC de un Lector al pintar la navegación
+lateral: fue un `GET` 200, sin montaje de cliente y sin heartbeat. Y dos
+prefetches devolvieron 503 (`/dashboard/mapa`, `/dashboard/admin/contenido`);
+quedaron sin investigar por estar fuera del alcance de esta ronda.
+
+**Criterio de reapertura.** C.5 solo podrá completarse si aparece una de estas
+vías, sin reinterpretar lo hecho en esta ronda:
+
+1. una superficie autenticada de solo lectura, soportada por el producto, que
+   invoque card states y discovery sin montar el heartbeat;
+2. una capacidad operativa aprobada que ejecute esas lecturas del lado servidor
+   sin revelar ni extraer credenciales;
+3. una modificación independiente del Lector que elimine la escritura al montar,
+   con su propio plan, pruebas y autorización;
+4. una regresión funcional o evidencia nueva que contradiga los contratos
+   desplegados.
+
+Ninguna se construye ahora. **Congelar es una decisión de prioridad y riesgo,
+no un veredicto técnico**: la implementación está terminada y su evidencia
+automatizada es completa, así que seguir acumulando ingeniería mientras el
+trabajo editorial espera sería el peor uso del tiempo disponible.
 
 #### C.3C+C.4 reapilada sobre C.3R — qué cambió y qué NO
 

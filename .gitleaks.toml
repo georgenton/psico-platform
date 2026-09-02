@@ -15,11 +15,45 @@ useDefault = true
 # This is deliberately NARROW: a commit allowlist, not a path or regex allowlist.
 # New secrets in the same files are still caught — the PR-diff job scans the
 # actual changes, and none of these SHAs are in any future PR range.
-[allowlist]
+#
+# Written as `[[allowlists]]` rather than `[allowlist]` only because gitleaks
+# 8.30 refuses to load a config that mixes the two forms, and a second allowlist
+# had to be added below. Same scope, same commits, same rule: do NOT add paths or
+# regexes to THIS entry.
+[[allowlists]]
 description = "Rotated demo credential — settled historical commits only (do NOT add paths/regexes here)"
 commits = [
   "a6e4d9a15701dd15155ae08b5119b7fa7f179ed1", # #460 introduced the demo seed with the default password
   "19a93df8d6c2ebbfb654c0b9e68ce642fa938dd1", # #461 sync of the same to main
   "324673bfc94be1536d043549164d46e96ddb0cae", # #555 removal commit (its diff still contains the old literal)
   "4aa8f64d775baf03f55c08f68992d57bb9cdb01e", # #555 squash on main
+]
+
+# ── Identificadores editoriales, no credenciales ────────────────────────────
+#
+# `generic-api-key` marca cualquier cadena de alta entropía asignada a un campo
+# que se llame "…key". Las fuentes de los libros están llenas de campos así, y
+# ninguno es un secreto:
+#
+#   unitKey       uuidv5 determinista del id de un capítulo. La API pública lo
+#                 devuelve tal cual como `contentUnitKey` en la respuesta del
+#                 lector — no se puede filtrar algo que ya se publica.
+#   practice_key  slug de catálogo de una microguía.
+#
+# Acotado a las rutas de contenido editorial y a ESE rule, con la forma exacta
+# de lo permitido. El código de la aplicación sigue escaneado igual de duro: un
+# token real en `apps/` o `packages/` se detecta como siempre.
+[[allowlists]]
+description = "Claves de contenido editorial (uuidv5 de unidad, slugs de catálogo)"
+targetRules = ["generic-api-key"]
+paths = [
+  '''^content/books/.*\.json$''',
+  '''^artifacts/eec/.*\.json$''',
+]
+regexTarget = "match"
+regexes = [
+  # uuid v5 canónico
+  '''[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}''',
+  # slugs kebab-case del catálogo
+  '''[a-z0-9]+(-[a-z0-9]+){2,}''',
 ]

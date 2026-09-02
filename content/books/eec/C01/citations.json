@@ -1,0 +1,34 @@
+{
+  "schema_version": "0.1-draft",
+  "chapter_id": "EEC-C01",
+  "publication_reference_layer": "EEC_C01_PUBREF_v0.1",
+  "citation_style": {
+    "manual": "Chicago Manual of Style",
+    "edition": 18,
+    "system": "shortened-notes-and-bibliography",
+    "csl_file": "chicago-shortened-notes-bibliography.csl",
+    "callouts": "superscript",
+    "endnotes_scope": "chapter",
+    "numbering_resets_each_chapter": true,
+    "bibliography_scope": "book"
+  },
+  "source_inventory_summary": {
+    "notion_rows_linked": 28,
+    "verified": 19,
+    "read": 1,
+    "located": 7,
+    "discarded": 1,
+    "zotero_keys_recorded_in_notion": 0,
+    "historical_zotero_import": {
+      "articles": 16,
+      "base_books": 7
+    }
+  },
+  "citations": [],
+  "status": "SCHEMA_VALID_RECORDS_BLOCKED",
+  "blockers": [
+    "Zotero Keys no están registrados en las 28 filas vinculadas de Notion.",
+    "Faltan ancla textual, código de nota y localizador verificados para cada afirmación documentada.",
+    "No se escribirán números de nota manualmente ni se inferirán metadatos desde la bibliografía final."
+  ]
+}

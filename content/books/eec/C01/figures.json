@@ -1,0 +1,35 @@
+{
+  "schema_version": "0.1-draft",
+  "chapter_id": "EEC-C01",
+  "visual_opportunities_from_editorial_observations": 19,
+  "figures": [
+    {
+      "figure_id": "FIG-C01-001",
+      "legacy_id": "EEC-C01_CON-001",
+      "chapter_id": "EEC-C01",
+      "anchor_id": "eec-c1-distintas-lentes",
+      "category": "A_EXPLICATIVA_ESENCIAL_CANDIDATE",
+      "objective": "Calibrar una metáfora visual que muestre teorías como lentes parciales sin convertir una teoría en la escena completa.",
+      "brief_status": "PREPARED",
+      "sketch_variants": [
+        "v0.1A",
+        "v0.1B",
+        "v0.1C"
+      ],
+      "evaluation_status": "PENDING",
+      "final_art_status": "NOT_STARTED",
+      "aspect_ratio": null,
+      "print_asset": null,
+      "screen_asset": null,
+      "caption": null,
+      "text_callout_required": false,
+      "alt_text": null,
+      "rights": null,
+      "license": null,
+      "author": null,
+      "version": "v0.1-brief",
+      "sha256": null,
+      "text_locked_change_required": false
+    }
+  ]
+}

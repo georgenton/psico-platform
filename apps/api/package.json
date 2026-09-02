@@ -25,7 +25,8 @@
     "content:book:bootstrap": "ts-node src/content-core/bootstrap-cli.ts",
     "content:book:activate-learning": "ts-node src/content-core/learning-activation-cli.ts",
     "smoke:r2": "node --env-file-if-exists=.env scripts/r2-smoke.mjs",
-    "content:experience:reserve": "ts-node src/experience/reservation-backfill-cli.ts"
+    "content:experience:reserve": "ts-node src/experience/reservation-backfill-cli.ts",
+    "content:unit:ingest": "ts-node src/content-core/unit-ingest-cli.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.95.1",

@@ -70,3 +70,11 @@ apps/web/.vercel/
 # C.3C — the V1 compatibility gate materialises the previous binary here at
 # test time (`experience-v1-compat.pg-spec.ts`). Generated, never committed.
 apps/api/src/.v1-artifact/
+
+# EEC — binarios de build. Se regeneran con `pnpm eec:c01:build` desde
+# content/books/eec/, así que versionarlos sería guardar una copia que puede
+# quedar por detrás de su fuente. Los manifiestos y el JSON de FeelVerse SÍ se
+# versionan: son revisables en un diff y sirven de contrato.
+artifacts/**/print/*.docx
+artifacts/**/print/*.pdf
+artifacts/**/epub/*.epub

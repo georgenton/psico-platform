@@ -153,19 +153,30 @@ describe("unit-ingest CLI · plan", () => {
     ).rejects.toThrow("UNIT_KEY_NOT_IN_THIS_EDITION");
   });
 
-  it("marca la divergencia cuando un capítulo legado respalda la unidad", async () => {
+  it("nombra el capítulo legado que queda como histórico", async () => {
     const plan = await planUnitIngest(db(), payload());
     expect(plan.legacyBackedChapterId).toBe(LEGACY_CHAPTER_ID);
-    expect(plan.readerWouldDiverge).toBe(true);
   });
 
-  it("no la marca cuando ningún capítulo legado deriva ese unitKey", async () => {
+  it("no nombra ninguno cuando ningún capítulo legado deriva ese unitKey", async () => {
     const plan = await planUnitIngest(
       db({ chapters: [{ id: "otro-capitulo-cualquiera" }] }),
       payload({ unitKey: NATIVE_UNIT_KEY }),
     );
     expect(plan.legacyBackedChapterId).toBeNull();
-    expect(plan.readerWouldDiverge).toBe(false);
+  });
+
+  it("anuncia que tras aplicar el texto lo sirve Content Core, haya o no capítulo detrás", async () => {
+    // Los bloques que acuña la ingesta no llevan `legacyBlockId`, así que la
+    // unidad deja de ser espejo y el lector cambia de fuente. Antes esto era un
+    // aviso de divergencia porque el lector no seguía esa regla; ahora la sigue.
+    const conCapitulo = await planUnitIngest(db(), payload());
+    const sinCapitulo = await planUnitIngest(
+      db({ chapters: [{ id: "otro" }] }),
+      payload({ unitKey: NATIVE_UNIT_KEY }),
+    );
+    expect(conCapitulo.readerSourceAfterIngest).toBe("content-core");
+    expect(sinCapitulo.readerSourceAfterIngest).toBe("content-core");
   });
 
   it("exige una revisión base publicada", async () => {
@@ -181,10 +192,11 @@ describe("unit-ingest CLI · plan", () => {
   });
 });
 
-describe("unit-ingest CLI · el nombre del rechazo", () => {
-  it("nombra la divergencia del lector, no un fallo genérico", () => {
-    // El código es la documentación operativa: quien lo vea en un log tiene que
-    // saber QUÉ pasaría, no solo que algo se negó.
+describe("unit-ingest CLI · el rechazo que ya no aplica", () => {
+  it("conserva el nombre del bloqueo histórico", () => {
+    // Fue el motivo por el que C01 no se publicó en su momento. El guard ya no
+    // dispara —el lector sigue la regla del espejo— pero borrar la constante
+    // dejaría ilegible ese episodio para quien lo encuentre en un registro.
     expect(READER_WOULD_DIVERGE).toBe("READER_WOULD_SERVE_STALE_LEGACY_BLOCKS");
   });
 });

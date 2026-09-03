@@ -1,0 +1,135 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "EEC-C01-MG04",
+  "bookSlug": "emociones-en-construccion",
+  "editionKey": "emociones-en-construccion-1e",
+  "chapterCode": "EEC-C01",
+  "chapterOrder": 1,
+  "unitKey": "dce92620-2398-5efb-80a4-b90b180a01ae",
+  "canonicalVersion": "EEC_C01_v1.0_TEXT_LOCKED_2026-08-20",
+  "canonicalSha256": "e10f42cedf881838578b7337355887c0e8cb2fe37b75dfa4204db509ac023018",
+  "sourceArtifact": "artifacts/eec/C01/v1.0/feelverse/unit-payload.json",
+  "experienceKey": "eec-c1-emocion-informa-no-manda",
+  "experienceVersion": 1,
+  "guideKey": "eec-c1-emocion-informa-no-manda",
+  "guideVersion": 1,
+  "conceptKey": "eec-emocion-informa-no-manda",
+  "practiceKey": "eec-c1-practice-emocion-informa-no-manda",
+  "recallKey": "eec-c1-recall-emocion-informa-no-manda",
+  "anchors": {
+    "primary": {
+      "reference": "eec-c1-aprender-a-leer-el-mundo-emocional",
+      "heading": "Daniel Goleman: aprender a leer el mundo emocional",
+      "fingerprint": "una emoción no es una conducta",
+      "expectedMatchCount": 1
+    },
+    "secondary": {
+      "reference": "eec-c1-razon-necesita-relevancia",
+      "heading": "Antonio Damasio: la razón necesita relevancia",
+      "fingerprint": "Una emoción aporta información; no dicta por sí sola la decisión.",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "Sentir, interpretar, querer, elegir",
+      "body": "Vas a separar cuatro cosas que solemos juntar. La situación es cotidiana y leve; la reflexión, si la escribes, es opcional y se queda contigo."
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "Los pasajes",
+      "body": "Esta microguía se apoya en dos secciones: Goleman, sobre la diferencia entre reconocer, expresar y actuar; y Damasio, sobre cómo las señales afectivas orientan sin garantizar.",
+      "anchorRef": "eec-c1-aprender-a-leer-el-mundo-emocional"
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "Informa; no manda",
+      "body": "Una emoción aporta información y señala qué es relevante. No dicta por sí sola la decisión: sentir, interpretar, tener un impulso y elegir una conducta son procesos distintos.",
+      "stepKey": "explorar-emocion-informa-no-manda"
+    },
+    {
+      "order": 4,
+      "kind": "EXAMPLE",
+      "title": "Un mensaje que no llega",
+      "body": "Escribes a alguien y no responde en todo el día. Sientes algo, lo interpretas de alguna manera, aparece un impulso — y lo que finalmente haces sigue siendo una decisión tuya."
+    },
+    {
+      "order": 5,
+      "kind": "PRACTICE",
+      "title": "Cuatro campos",
+      "body": "Sobre esa situación, completa: siento · interpreto · tengo ganas de · elijo hacer. Validar una emoción no es justificar cualquier conducta; separar los cuatro campos es lo que hace visible esa diferencia.",
+      "stepKey": "practicar-emocion-informa-no-manda"
+    },
+    {
+      "order": 6,
+      "kind": "REFLECTION",
+      "title": "Opcional",
+      "body": "Si quieres, anota qué notaste al separarlos. Es opcional, no se evalúa, no viaja con tu progreso y puedes saltarla.",
+      "optional": true
+    },
+    {
+      "order": 7,
+      "kind": "RECALL",
+      "title": "Una pregunta",
+      "body": "Comprueba la idea principal de esta microguía.",
+      "stepKey": "recordar-emocion-informa-no-manda"
+    },
+    {
+      "order": 8,
+      "kind": "SUMMARY",
+      "title": "Lo que te llevas",
+      "body": "La emoción orienta hacia lo que importa. Entre esa orientación y la conducta hay un espacio, y ese espacio es donde se decide."
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-emocion-informa-no-manda",
+      "targetKey": "eec-emocion-informa-no-manda"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-emocion-informa-no-manda",
+      "targetKey": "eec-c1-practice-emocion-informa-no-manda"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-emocion-informa-no-manda",
+      "targetKey": "eec-c1-recall-emocion-informa-no-manda"
+    }
+  ],
+  "media": {
+    "audio": null,
+    "video": null
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Navegación completa por teclado, con foco visible y orden de tabulación lógico.",
+    "Toda reordenación anunciada por lector de pantalla mediante aria-live.",
+    "Alternativa sin arrastrar para cualquier interacción de ordenamiento.",
+    "Respeta prefers-reduced-motion.",
+    "El color nunca es la única señal de estado.",
+    "Ninguna reproducción automática y ningún audio o vídeo obligatorio."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "eec-c01-emocion-informa-no-manda-v1-8671c5481bddd692",
+  "approvalReferences": [
+    "https://app.notion.com/p/3cfcbb1031a0813fb184fe6173d8a826",
+    "Decisión autoral 2026-09-03: implementar las cinco microguías de EEC-C01."
+  ],
+  "manifestSha256": "27e65e4daaafd0f02d94a38118fcdd30fc7d2ea7b9814fea11e53f82c198e3ea"
+}

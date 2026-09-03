@@ -1,0 +1,147 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://feelverse.local/schemas/eec-guided-microguide.manifest.json",
+  "title": "EEC guided microguide manifest",
+  "description": "El contrato ejecutable entre la decisión editorial, el repositorio y el CMS. Todo lo que un DRAFT necesita, y nada que dependa de una base de datos concreta: los ids reales se resuelven en `plan`, contra el entorno destino.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion", "manifestId", "bookSlug", "editionKey", "chapterCode",
+    "chapterOrder", "unitKey", "canonicalVersion", "canonicalSha256",
+    "sourceArtifact", "experienceKey", "experienceVersion", "guideKey",
+    "guideVersion", "conceptKey", "practiceKey", "recallKey", "anchors",
+    "scenes", "guideSteps", "privacyPolicy", "accessibilityRequirements",
+    "status", "publishAllowed", "idempotencyKey", "approvalReferences"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "1.0" },
+    "manifestId": { "type": "string", "pattern": "^EEC-C01-MG0[1-5]$" },
+    "bookSlug": { "const": "emociones-en-construccion" },
+    "editionKey": { "const": "emociones-en-construccion-1e" },
+    "chapterCode": { "const": "EEC-C01" },
+    "chapterOrder": { "const": 1 },
+    "unitKey": { "const": "dce92620-2398-5efb-80a4-b90b180a01ae" },
+    "canonicalVersion": { "const": "EEC_C01_v1.0_TEXT_LOCKED_2026-08-20" },
+    "canonicalSha256": {
+      "const": "e10f42cedf881838578b7337355887c0e8cb2fe37b75dfa4204db509ac023018"
+    },
+    "sourceArtifact": { "type": "string" },
+    "experienceKey": { "type": "string", "pattern": "^eec-c1-[a-z0-9-]+$" },
+    "experienceVersion": { "const": 1 },
+    "guideKey": { "type": "string", "pattern": "^eec-c1-[a-z0-9-]+$" },
+    "guideVersion": { "const": 1 },
+    "conceptKey": { "type": "string", "pattern": "^eec-[a-z0-9-]+$" },
+    "practiceKey": { "type": "string", "pattern": "^eec-c1-practice-[a-z0-9-]+$" },
+    "recallKey": { "type": "string", "pattern": "^eec-c1-recall-[a-z0-9-]+$" },
+
+    "anchors": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["primary"],
+      "description": "Por REFERENCIA editorial, nunca por blockKey: Content Core lo deriva por entorno, así que una clave literal sería cierta en una base y mentira en la siguiente.",
+      "properties": {
+        "primary": { "$ref": "#/definitions/anchor" },
+        "secondary": { "$ref": "#/definitions/anchor" }
+      }
+    },
+
+    "scenes": {
+      "type": "array",
+      "minItems": 7,
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["order", "kind", "title", "body"],
+        "properties": {
+          "order": { "type": "integer", "minimum": 1 },
+          "kind": {
+            "enum": ["INTRO","PASSAGE","CONCEPT","EXAMPLE","PRACTICE","REFLECTION","QUESTION","RECALL","SUMMARY"]
+          },
+          "title": { "type": "string", "minLength": 1 },
+          "body": { "type": "string", "minLength": 1 },
+          "anchorRef": { "type": "string" },
+          "stepKey": { "type": "string" },
+          "optional": { "type": "boolean" }
+        }
+      }
+    },
+
+    "guideSteps": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["order", "kind", "stepKey", "targetKey"],
+        "properties": {
+          "order": { "type": "integer", "minimum": 1, "maximum": 3 },
+          "kind": { "enum": ["CONCEPT_EXPLORATION","CATALOG_PRACTICE","ACTIVE_RECALL"] },
+          "stepKey": { "type": "string" },
+          "targetKey": { "type": "string" }
+        }
+      }
+    },
+
+    "privacyPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "freeTextLeavesDevice", "freeTextInProgress", "emotionalInference",
+        "diagnosis", "requiresIntenseEmotion"
+      ],
+      "properties": {
+        "freeTextLeavesDevice": { "const": false },
+        "freeTextInProgress": { "const": false },
+        "emotionalInference": { "const": false },
+        "diagnosis": { "const": false },
+        "requiresIntenseEmotion": { "const": false }
+      }
+    },
+
+    "accessibilityRequirements": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string" }
+    },
+
+    "media": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Presente y vacío a propósito: declarar que no hay activos es distinto de olvidarse de ellos.",
+      "required": ["audio", "video"],
+      "properties": {
+        "audio": { "const": null },
+        "video": { "const": null }
+      }
+    },
+
+    "status": { "const": "DRAFT" },
+    "publishAllowed": { "const": false },
+    "idempotencyKey": { "type": "string", "minLength": 8 },
+    "manifestSha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "Checksum del propio manifiesto con este campo excluido. Se calcula, no se escribe a mano."
+    },
+    "approvalReferences": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string" }
+    }
+  },
+  "definitions": {
+    "anchor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["heading", "fingerprint", "expectedMatchCount"],
+      "properties": {
+        "reference": { "type": "string" },
+        "heading": { "type": "string", "minLength": 1 },
+        "fingerprint": { "type": "string", "minLength": 1 },
+        "expectedMatchCount": { "const": 1 }
+      }
+    }
+  }
+}

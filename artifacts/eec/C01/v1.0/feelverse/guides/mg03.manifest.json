@@ -1,0 +1,122 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "EEC-C01-MG03",
+  "bookSlug": "emociones-en-construccion",
+  "editionKey": "emociones-en-construccion-1e",
+  "chapterCode": "EEC-C01",
+  "chapterOrder": 1,
+  "unitKey": "dce92620-2398-5efb-80a4-b90b180a01ae",
+  "canonicalVersion": "EEC_C01_v1.0_TEXT_LOCKED_2026-08-20",
+  "canonicalSha256": "e10f42cedf881838578b7337355887c0e8cb2fe37b75dfa4204db509ac023018",
+  "sourceArtifact": "artifacts/eec/C01/v1.0/feelverse/unit-payload.json",
+  "experienceKey": "eec-c1-alarma-antes-del-relato",
+  "experienceVersion": 1,
+  "guideKey": "eec-c1-alarma-antes-del-relato",
+  "guideVersion": 1,
+  "conceptKey": "eec-alarma-antes-del-relato",
+  "practiceKey": "eec-c1-practice-alarma-antes-del-relato",
+  "recallKey": "eec-c1-recall-alarma-antes-del-relato",
+  "anchors": {
+    "primary": {
+      "reference": "eec-c1-alarma-antes-del-relato",
+      "heading": "Joseph LeDoux: la alarma antes del relato",
+      "fingerprint": "Una respuesta rápida de protección no es exactamente lo mismo que sentir miedo.",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "La alarma antes del relato",
+      "body": "Vas a ordenar una secuencia breve y de baja intensidad. No hace falta recordar nada difícil: el ejemplo lo ponemos nosotros."
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "El pasaje",
+      "body": "Lee la sección sobre LeDoux, con la escena de Darwin frente a la víbora tras el vidrio: sabía que estaba a salvo y aun así saltó hacia atrás.",
+      "anchorRef": "eec-c1-alarma-antes-del-relato"
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "Protegerse y sentir miedo no son lo mismo",
+      "body": "El cerebro puede empezar a organizar una respuesta de protección antes de que entiendas conscientemente qué pasa. Sentir miedo incluye además reconocer, de alguna manera, «esto me asusta».",
+      "stepKey": "explorar-alarma-antes-del-relato"
+    },
+    {
+      "order": 4,
+      "kind": "EXAMPLE",
+      "title": "El detector de humo",
+      "body": "Un detector de humo no explica si el fuego vino de una vela o de una tostada quemada. Su tarea inicial es detectar una señal relevante y movilizar una respuesta. A veces acierta; a veces se activa por la tostada."
+    },
+    {
+      "order": 5,
+      "kind": "PRACTICE",
+      "title": "Ordena la secuencia",
+      "body": "Coloca en orden: aparece una señal repentina · el cuerpo inicia una respuesta de protección · compruebas el contexto · interpretas y quizá le pones nombre. Puedes arrastrar, usar los botones Subir y Bajar, o pedir ver la secuencia resuelta y seguir sin penalización.",
+      "stepKey": "practicar-alarma-antes-del-relato"
+    },
+    {
+      "order": 6,
+      "kind": "RECALL",
+      "title": "Una pregunta",
+      "body": "Comprueba la idea principal de esta microguía.",
+      "stepKey": "recordar-alarma-antes-del-relato"
+    },
+    {
+      "order": 7,
+      "kind": "SUMMARY",
+      "title": "Lo que te llevas",
+      "body": "El orden no es una cronología neural rígida ni una escalera fija: es una forma de separar lo que se dispara solo de lo que después nombras."
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-alarma-antes-del-relato",
+      "targetKey": "eec-alarma-antes-del-relato"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-alarma-antes-del-relato",
+      "targetKey": "eec-c1-practice-alarma-antes-del-relato"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-alarma-antes-del-relato",
+      "targetKey": "eec-c1-recall-alarma-antes-del-relato"
+    }
+  ],
+  "media": {
+    "audio": null,
+    "video": null
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Navegación completa por teclado, con foco visible y orden de tabulación lógico.",
+    "Toda reordenación anunciada por lector de pantalla mediante aria-live.",
+    "Alternativa sin arrastrar para cualquier interacción de ordenamiento.",
+    "Respeta prefers-reduced-motion.",
+    "El color nunca es la única señal de estado.",
+    "Ninguna reproducción automática y ningún audio o vídeo obligatorio."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "eec-c01-alarma-antes-del-relato-v1-a4d652d16904c497",
+  "approvalReferences": [
+    "https://app.notion.com/p/3cfcbb1031a0813fb184fe6173d8a826",
+    "Decisión autoral 2026-09-03: implementar las cinco microguías de EEC-C01."
+  ],
+  "manifestSha256": "669f61e4dd54b73861ff65c233446d4c82f5ba97fdd95960a5a5551d9f9d72a5"
+}

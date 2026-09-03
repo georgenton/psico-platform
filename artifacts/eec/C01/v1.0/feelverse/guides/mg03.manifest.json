@@ -1,0 +1,149 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "EEC-C01-MG03",
+  "bookSlug": "emociones-en-construccion",
+  "editionKey": "emociones-en-construccion-1e",
+  "chapterCode": "EEC-C01",
+  "chapterOrder": 1,
+  "unitKey": "dce92620-2398-5efb-80a4-b90b180a01ae",
+  "canonicalVersion": "EEC_C01_v1.0_TEXT_LOCKED_2026-08-20",
+  "canonicalSha256": "e10f42cedf881838578b7337355887c0e8cb2fe37b75dfa4204db509ac023018",
+  "sourceArtifact": "artifacts/eec/C01/v1.0/feelverse/unit-payload.json",
+  "experienceKey": "eec-c1-alarma-antes-del-relato",
+  "experienceVersion": 1,
+  "guideKey": "eec-c1-alarma-antes-del-relato",
+  "guideVersion": 1,
+  "conceptKey": "eec-alarma-antes-del-relato",
+  "practiceKey": "eec-c1-practice-ordenar-alarma-y-relato",
+  "practiceKind": "sequence_ordering",
+  "recallKey": "eec-c1-recall-alarma-antes-del-relato",
+  "anchors": {
+    "primary": {
+      "reference": "eec-c1-alarma-antes-del-relato",
+      "heading": "Joseph LeDoux: la alarma antes del relato",
+      "fingerprint": "Una respuesta rápida de protección no es exactamente lo mismo que sentir miedo.",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "Cuando reaccionas antes de entender",
+      "body": [
+        "A veces el organismo se prepara antes de que alcances a explicar qué ocurrió. En esta guía distinguirás esa respuesta rápida de la emoción consciente que después puedes reconocer y nombrar."
+      ],
+      "note": "Trabajaremos con situaciones hipotéticas y cotidianas. No necesitas recordar una experiencia difícil. Puedes salir y volver cuando quieras.",
+      "actionLabel": "Comenzar"
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "Una alarma antes de la historia",
+      "body": [
+        "Lee el pasaje donde el capítulo presenta la propuesta de Joseph LeDoux. Mientras avanzas, busca una diferencia: responder rápidamente a una señal no es todavía lo mismo que saber qué sientes."
+      ],
+      "actionLabel": "Leí el pasaje",
+      "anchorRef": "eec-c1-alarma-antes-del-relato"
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "Protegerse no es lo mismo que sentir miedo",
+      "body": [
+        "Una señal repentina puede iniciar una respuesta protectora antes de que comprendas la situación. Después, al integrar el contexto, los recuerdos y los conceptos disponibles, puedes reconocer la experiencia como miedo, sobresalto, alivio u otra cosa. La reacción aporta información, pero no revela por sí sola una emoción completa.",
+        "Esta es una secuencia pedagógica para distinguir procesos relacionados; no una cadena cerebral rígida que funcione igual en todas las personas y situaciones."
+      ],
+      "note": "Marcar esta escena registra que exploraste el concepto; no evalúa lo que sentiste ni infiere un estado psicológico.",
+      "actionLabel": "He explorado la idea",
+      "stepKey": "explorar-alarma-antes-del-relato"
+    },
+    {
+      "order": 4,
+      "kind": "EXAMPLE",
+      "title": "Lo que sabía Darwin y lo que hizo su cuerpo",
+      "body": [
+        "Ante una serpiente protegida por un vidrio, Darwin sabía que estaba a salvo. Aun así, su cuerpo retrocedió cuando el animal atacó el cristal. El ejemplo no demuestra que hubiera una única emoción automática; muestra que una respuesta protectora puede adelantarse a la explicación consciente.",
+        "Algo parecido puede ocurrir cuando una puerta se cierra de golpe: primero aparece el sobresalto; después compruebas qué pasó y le das significado."
+      ]
+    },
+    {
+      "order": 5,
+      "kind": "PRACTICE",
+      "title": "Ordena la alarma y el relato",
+      "body": [
+        "Imagina que lees tranquilamente y una puerta se cierra de golpe. Ordena las tarjetas según el modelo de esta guía. No buscamos reconstruir cada milisegundo del cerebro, sino distinguir partes que suelen confundirse."
+      ],
+      "note": "Puedes ver el ejemplo resuelto y continuar sin penalización. Confirmar registra únicamente que hiciste la práctica.",
+      "actionLabel": "Ya hice la práctica",
+      "stepKey": "practicar-ordenar-alarma-y-relato",
+      "practiceKind": "sequence_ordering"
+    },
+    {
+      "order": 6,
+      "kind": "RECALL",
+      "title": "¿Qué demuestra una reacción rápida?",
+      "body": [
+        "Recupera la idea central de esta microguía."
+      ],
+      "stepKey": "recordar-alarma-antes-del-relato"
+    },
+    {
+      "order": 7,
+      "kind": "SUMMARY",
+      "title": "Una alarma no cuenta toda la historia",
+      "body": [
+        "Antes de concluir «esto es miedo», conviene separar tres cosas: la reacción que apareció, lo que el contexto mostró y el significado que después tomó la experiencia. La respuesta protectora es real; no es, por sí sola, toda la emoción.",
+        "En las siguientes microguías veremos por qué observar una expresión o sentir un impulso tampoco basta para leer una emoción completa."
+      ],
+      "actionLabel": "Finalizar"
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-alarma-antes-del-relato",
+      "targetKey": "eec-alarma-antes-del-relato"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-ordenar-alarma-y-relato",
+      "targetKey": "eec-c1-practice-ordenar-alarma-y-relato"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-alarma-antes-del-relato",
+      "targetKey": "eec-c1-recall-alarma-antes-del-relato"
+    }
+  ],
+  "media": {
+    "audio": null,
+    "video": null
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Navegación completa por teclado, con foco visible y orden de tabulación lógico.",
+    "Toda reordenación anunciada por lector de pantalla mediante aria-live.",
+    "Alternativa sin arrastrar para cualquier interacción de ordenamiento.",
+    "Respeta prefers-reduced-motion.",
+    "El color nunca es la única señal de estado.",
+    "Ninguna reproducción automática y ningún audio o vídeo obligatorio."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "eec-c01-alarma-antes-del-relato-v1-a4d652d16904c497",
+  "approvalReferences": [
+    "https://app.notion.com/p/3cfcbb1031a0813fb184fe6173d8a826",
+    "Decisión autoral 2026-09-03: implementar las cinco microguías de EEC-C01."
+  ],
+  "manifestSha256": "f2124adecf3ba817c7aa99f58904bd9c56f6ad99997a2668fc82af7fcc54a513"
+}

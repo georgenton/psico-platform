@@ -18,6 +18,7 @@ import { GuideTargetContextService } from "./guide-target-context.service";
 import { GuideReaderApplicabilityService } from "./guide-reader-applicability.service";
 import { GuideLifecycleService } from "./guide-lifecycle.service";
 import { readGuideActiveCapability } from "./guide-active-capability";
+import { seedPracticeHeadings } from "../content-core/test-support/seed-practice-headings";
 
 /**
  * C.0B2 — do the READERS survive multi-ACTIVE, or only PostgreSQL?
@@ -137,6 +138,16 @@ suite("C.0B2 · the runtime under two ACTIVE lineages", () => {
       await prisma.chapterBlock.create({
         data: { chapterId: ch.id, order: 1, kind: "HEADING", content: heading },
       });
+    }
+    // Encabezados del catálogo de ejercicios, sembrados desde el catálogo.
+    for (const c of await prisma.chapter.findMany({
+      select: { id: true, bookId: true },
+    })) {
+      const bk = await prisma.book.findUnique({
+        where: { id: c.bookId },
+        select: { slug: true },
+      });
+      if (bk) await seedPracticeHeadings(prisma, c.id, bk.slug);
     }
     await backfillContentCore(prisma);
 

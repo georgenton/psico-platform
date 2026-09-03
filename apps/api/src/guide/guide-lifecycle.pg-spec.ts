@@ -16,7 +16,10 @@ import { ForbiddenException } from "@nestjs/common";
 import type { PrismaService } from "../prisma";
 import type { AuthenticatedUser } from "../auth";
 import { backfillContentCore } from "../content-core/backfill";
-import { EXERCISE_INGESTION_CATALOG } from "../content-core/exercise-ingestion-catalog";
+import {
+  EXERCISE_INGESTION_CATALOG,
+  practiceSourceHeadings,
+} from "../content-core/exercise-ingestion-catalog";
 import { ContentAccessService } from "../content-core/access/content-access.service";
 import { LearningCatalogResolver } from "../learning/learning-catalog.resolver";
 import { LearningEventRepository } from "../learning/learning-event.repository";
@@ -178,6 +181,27 @@ suite("CC-7.4C · Guide V1 lifecycle (real PostgreSQL)", () => {
         content: PRACTICE_HEADING,
       },
     });
+    // Los demás encabezados a los que ancla el catálogo, derivados del
+    // propio catálogo: así este fixture no puede quedarse atrás cuando se
+    // añade un par nuevo, que es justo como llegó a reportar SOURCE_MISSING
+    // sobre contenido que en producción está perfectamente bien.
+    {
+      let extraOrder = 900;
+      for (const heading of practiceSourceHeadings(
+        "emociones-en-construccion",
+      )) {
+        if (heading === PRACTICE_HEADING) continue;
+        await prisma.chapterBlock.create({
+          data: {
+            chapterId: ch1.id,
+            order: extraOrder,
+            kind: "HEADING",
+            content: heading,
+          },
+        });
+        extraOrder += 1;
+      }
+    }
     await backfillContentCore(prisma);
 
     const a = await prisma.user.create({

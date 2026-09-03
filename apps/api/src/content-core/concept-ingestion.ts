@@ -1,5 +1,5 @@
 import type { Prisma } from "@prisma/client";
-import { CHAPTER_CONCEPTS } from "@psico/types";
+import { CHAPTER_CONCEPTS, guidedChapterConcepts } from "@psico/types";
 
 /**
  * Content Core — closed materialization of `Concept` + `ConceptLink` from the
@@ -148,9 +148,40 @@ export async function ingestBookConcepts(
   };
 
   const bookConcepts = CHAPTER_CONCEPTS[bookSlug];
-  if (!bookConcepts) return stats; // book not catalogued → the ONLY allowed no-op
 
-  for (const [orderStr, concept] of Object.entries(bookConcepts)) {
+  /**
+   * Every concept this book teaches, as `[chapterOrder, concept]`.
+   *
+   * Two catalogs feed it. `CHAPTER_CONCEPTS` carries the chapter's ARC default
+   * — one per chapter, its keys persisted on `Resonance` rows — and
+   * `GUIDED_CHAPTER_CONCEPTS` carries the ones a guided route teaches, which is
+   * five for EEC-C01. A guide names its own concept, so the concept has to
+   * exist as a row; without this the route's steps resolve to nothing and
+   * discovery answers "no guide here" for content that is perfectly present.
+   *
+   * Both are materialised through the SAME path below: same drift check, same
+   * link id, same idempotency. Nothing about the default's behaviour changes.
+   */
+  const catalogued: [number, { key: string; label: string }][] = [
+    ...Object.entries(bookConcepts ?? {}).map(
+      ([orderStr, c]) => [Number(orderStr), c] as [number, typeof c],
+    ),
+  ];
+  for (const order of new Set(
+    // Chapters the guided catalog mentions for this book, in catalog order.
+    [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].flatMap((o) =>
+      guidedChapterConcepts(bookSlug, o).length > 0 ? [o] : [],
+    ),
+  )) {
+    for (const g of guidedChapterConcepts(bookSlug, order)) {
+      catalogued.push([order, { key: g.key, label: g.label }]);
+    }
+  }
+  // A book in neither catalog contributes nothing — the ONLY allowed no-op.
+  if (catalogued.length === 0) return stats;
+
+  for (const [chapterOrder, concept] of catalogued) {
+    const orderStr = String(chapterOrder);
     const unitId = unitIdByOrder.get(Number(orderStr));
     if (!unitId) {
       if (onMissingUnit === "throw") {

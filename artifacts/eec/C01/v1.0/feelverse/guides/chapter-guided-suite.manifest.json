@@ -1,0 +1,58 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "EEC-C01-SUITE",
+  "bookSlug": "emociones-en-construccion",
+  "editionKey": "emociones-en-construccion-1e",
+  "chapterCode": "EEC-C01",
+  "chapterOrder": 1,
+  "unitKey": "dce92620-2398-5efb-80a4-b90b180a01ae",
+  "canonicalVersion": "EEC_C01_v1.0_TEXT_LOCKED_2026-08-20",
+  "canonicalSha256": "e10f42cedf881838578b7337355887c0e8cb2fe37b75dfa4204db509ac023018",
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "approvalReferences": [
+    "https://app.notion.com/p/3cfcbb1031a0813fb184fe6173d8a826",
+    "Decisión autoral 2026-09-03: implementar las cinco microguías de EEC-C01."
+  ],
+  "featureFlag": "EEC_C01_GUIDED_SUITE_V1",
+  "featureFlagDefault": "off",
+  "legacyPilot": {
+    "guideKey": "eec-c1-cuerpo-antes-que-mente",
+    "guideVersion": 1,
+    "inV2Route": false,
+    "mutated": false,
+    "note": "Conservado y registrado: una sesión fijada a él debe seguir resolviendo. Fuera del recorrido nuevo, y su ancla dejó de resolver contra el texto v1.0."
+  },
+  "route": [
+    {
+      "order": 1,
+      "manifestId": "EEC-C01-MG01",
+      "guideKey": "eec-c1-teorias-como-lentes",
+      "guideVersion": 1
+    },
+    {
+      "order": 2,
+      "manifestId": "EEC-C01-MG02",
+      "guideKey": "eec-c1-rostro-como-pista",
+      "guideVersion": 1
+    },
+    {
+      "order": 3,
+      "manifestId": "EEC-C01-MG03",
+      "guideKey": "eec-c1-alarma-antes-del-relato",
+      "guideVersion": 1
+    },
+    {
+      "order": 4,
+      "manifestId": "EEC-C01-MG04",
+      "guideKey": "eec-c1-emocion-informa-no-manda",
+      "guideVersion": 1
+    },
+    {
+      "order": 5,
+      "manifestId": "EEC-C01-MG05",
+      "guideKey": "eec-c1-construida-no-significa-falsa",
+      "guideVersion": 1
+    }
+  ]
+}

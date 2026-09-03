@@ -13,6 +13,7 @@ import type {
   StartGuideSessionRequestBody,
   SubmitGuideStepRecallRequestBody,
   SubmitGuideStepRecallResponse,
+  GuideRouteResponse,
 } from "@psico/types";
 import { apiClient } from "./client";
 
@@ -253,6 +254,27 @@ export const guideApi = {
     }
     return apiClient.get<GuideDiscoveryResponse>(
       `/guide/discovery/${encodeURIComponent(slug)}/${chapterOrder}`,
+    );
+  },
+
+  /**
+   * GR-5 — "standing in this chapter, what guided readings am I offered?".
+   *
+   * The plural of discovery, not a replacement for it. Same authority, same
+   * opaque negative: an unavailable answer carries no pins and no reason, so it
+   * cannot be used to enumerate a catalog the reader is not offered.
+   *
+   * The same local grammar check as discovery, for the same reason: a `false`
+   * caused by a typo would be indistinguishable from "this chapter has no
+   * route", and those are different facts.
+   */
+  getGuideRoute: (bookSlug: string, chapterOrder: number) => {
+    const slug = normalizeDiscoverySlug(bookSlug);
+    if (slug === null || !Number.isInteger(chapterOrder) || chapterOrder <= 0) {
+      return Promise.reject(new Error(GUIDE_DISCOVERY_PARAMS_INVALID));
+    }
+    return apiClient.get<GuideRouteResponse>(
+      `/guide/route/${encodeURIComponent(slug)}/${chapterOrder}`,
     );
   },
 

@@ -6,6 +6,10 @@ import {
   ExperienceList,
   type ExperienceStatesLoad,
 } from "../experience/ExperienceList";
+import { GuidedRouteList } from "../guide/GuidedRouteList";
+import type { RouteCardVerdict } from "../guide/GuidedRouteList";
+import type { GuideRouteState } from "../guide/use-guide-route";
+import type { GuideRouteItem } from "@psico/types";
 import type { BookExperienceModeView } from "./book-experience";
 import {
   disabledNotice,
@@ -97,6 +101,17 @@ export interface ChapterExperienceHomeProps {
   onPickMode: (mode: ReaderMode) => void;
   /** Opens the reader AT the activities section, not merely at the chapter. */
   onOpenActivities: () => void;
+  /**
+   * GR-5 — the chapter's guided ROUTE, when the server offers one.
+   *
+   * Separate from `experiences` on purpose: that list is what is published and
+   * runnable today, this is the route the chapter teaches. While the route is
+   * dark the state is `unavailable` and the section does not exist at all.
+   */
+  routeState?: GuideRouteState;
+  routeVerdicts?: ReadonlyMap<string, RouteCardVerdict>;
+  onOpenRouteGuide?: (item: GuideRouteItem) => void;
+  onRetryRoute?: () => void;
 }
 
 interface RouteRow {
@@ -153,6 +168,10 @@ export function ChapterExperienceHome({
   onContinueReading,
   onPickMode,
   onOpenActivities,
+  routeState,
+  routeVerdicts,
+  onOpenRouteGuide,
+  onRetryRoute,
 }: ChapterExperienceHomeProps) {
   const rows: RouteRow[] = [];
 
@@ -358,6 +377,15 @@ export function ChapterExperienceHome({
         onOpen={onOpenExperience}
         onRetry={onRetryExperienceStates}
       />
+
+      {routeState && onOpenRouteGuide ? (
+        <GuidedRouteList
+          state={routeState}
+          verdicts={routeVerdicts ?? new Map()}
+          onOpen={onOpenRouteGuide}
+          onRetry={onRetryRoute}
+        />
+      ) : null}
 
       <div className="mt-7 flex flex-wrap gap-3">
         <button

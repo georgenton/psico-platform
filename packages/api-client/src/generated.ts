@@ -2075,6 +2075,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/learning/practices/{exerciseKey}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Contenido público de una práctica de catálogo. Sin datos de corrección. */
+        get: operations["LearningController_getPractice"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/learning/practices/{exerciseKey}/complete": {
         parameters: {
             query?: never;
@@ -2186,6 +2203,23 @@ export interface paths {
         };
         /** Si hay una guía para el contexto de lectura pedido. No revela el motivo de un negativo, ni objetivos, ni identificadores internos. */
         get: operations["getGuideDiscovery"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/guide/route/{bookSlug}/{chapterOrder}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Las lecturas guiadas que ofrece un capítulo, en orden. No revela el motivo de un negativo, ni objetivos, ni identificadores internos. */
+        get: operations["getGuideRoute"];
         put?: never;
         post?: never;
         delete?: never;
@@ -12687,6 +12721,143 @@ export interface operations {
             };
         };
     };
+    LearningController_getPractice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                exerciseKey: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        exerciseKey: string;
+                        title: string;
+                        skipLabel: string;
+                        confirmLabel: string;
+                        interaction: {
+                            /** @enum {string} */
+                            kind: PathsApiLearningPracticesExerciseKeyGetResponses200ContentApplicationJsonInteractionOneOf0Kind;
+                            belief: string;
+                            zones: {
+                                /** @enum {string} */
+                                key: PathsApiLearningPracticesExerciseKeyGetResponses200ContentApplicationJsonInteractionOneOf0ZonesKey;
+                                label: string;
+                                hint: string;
+                                options: {
+                                    key: string;
+                                    label: string;
+                                }[];
+                            }[];
+                            allowsFreeText: boolean;
+                        } | {
+                            /** @enum {string} */
+                            kind: PathsApiLearningPracticesExerciseKeyGetResponses200ContentApplicationJsonInteractionOneOf1Kind;
+                            situation: string;
+                            observation: string;
+                            availableContext: string[];
+                            readings: {
+                                key: string;
+                                label: string;
+                            }[];
+                            buckets: {
+                                key: string;
+                                label: string;
+                            }[];
+                            missingInformationPrompt: string;
+                        } | {
+                            /** @enum {string} */
+                            kind: PathsApiLearningPracticesExerciseKeyGetResponses200ContentApplicationJsonInteractionOneOf2Kind;
+                            scenario: string;
+                            cards: {
+                                key: string;
+                                label: string;
+                            }[];
+                            solved: string[];
+                            solvedLabel: string;
+                            feedback: string;
+                        } | {
+                            /** @enum {string} */
+                            kind: PathsApiLearningPracticesExerciseKeyGetResponses200ContentApplicationJsonInteractionOneOf3Kind;
+                            scenario: string;
+                            fields: {
+                                /** @enum {string} */
+                                key: PathsApiLearningPracticesExerciseKeyGetResponses200ContentApplicationJsonInteractionOneOf3FieldsKey;
+                                label: string;
+                                options: {
+                                    key: string;
+                                    label: string;
+                                }[];
+                            }[];
+                            allowsFreeText: boolean;
+                            disclaimer: string;
+                        } | {
+                            /** @enum {string} */
+                            kind: PathsApiLearningPracticesExerciseKeyGetResponses200ContentApplicationJsonInteractionOneOf4Kind;
+                            signals: string[];
+                            contexts: {
+                                key: string;
+                                label: string;
+                                description: string;
+                            }[];
+                            factors: {
+                                key: string;
+                                label: string;
+                            }[];
+                            prompt: string;
+                        };
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
     LearningController_completePractice: {
         parameters: {
             query?: never;
@@ -13642,6 +13813,107 @@ export interface operations {
                         guideKey: string;
                         /** @description Versión exacta; el par clave@versión es inmutable. */
                         guideVersion: number;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    getGuideRoute: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Slug canónico del libro (kebab-case, minúsculas). */
+                bookSlug: string;
+                /** @description Orden del capítulo EN LA PLATAFORMA, que no siempre coincide con la numeración impresa del libro. */
+                chapterOrder: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        available: false;
+                    } | {
+                        /** @enum {boolean} */
+                        available: true;
+                        /** @description Las lecturas guiadas que ofrece el capítulo, ya ordenadas. Un capítulo con una sola devuelve una lista de una. */
+                        guides: {
+                            /** @description Clave exacta de esta lectura guiada. */
+                            guideKey: string;
+                            /** @description Versión exacta; el par clave@versión es inmutable. */
+                            guideVersion: number;
+                            /** @description Posición dentro del recorrido del capítulo, contigua desde 1. La declara el catálogo: no se deduce del orden del array. */
+                            order: number;
+                            /** @description Título editorial de la tarjeta. */
+                            title: string;
+                            /** @description Descripción breve, para decidir si empezarla. */
+                            description: string;
+                            /** @description Duración estimada como RANGO, tal y como la declara el catálogo (por ejemplo "7–9"). No es un número: el catálogo declara un rango. */
+                            estimatedMinutes: string;
+                        }[];
                     };
                 };
             };
@@ -19053,6 +19325,32 @@ export enum PathsApiLearningRecallAttemptsPostResponses201ContentApplicationJson
     AUDIOBOOK = "AUDIOBOOK",
     PODCAST = "PODCAST",
     VIDEO = "VIDEO"
+}
+export enum PathsApiLearningPracticesExerciseKeyGetResponses200ContentApplicationJsonInteractionOneOf0Kind {
+    belief_lens = "belief_lens"
+}
+export enum PathsApiLearningPracticesExerciseKeyGetResponses200ContentApplicationJsonInteractionOneOf0ZonesKey {
+    observo = "observo",
+    supongo = "supongo",
+    falta = "falta"
+}
+export enum PathsApiLearningPracticesExerciseKeyGetResponses200ContentApplicationJsonInteractionOneOf1Kind {
+    context_plausibility = "context_plausibility"
+}
+export enum PathsApiLearningPracticesExerciseKeyGetResponses200ContentApplicationJsonInteractionOneOf2Kind {
+    sequence_ordering = "sequence_ordering"
+}
+export enum PathsApiLearningPracticesExerciseKeyGetResponses200ContentApplicationJsonInteractionOneOf3Kind {
+    four_part_distinction = "four_part_distinction"
+}
+export enum PathsApiLearningPracticesExerciseKeyGetResponses200ContentApplicationJsonInteractionOneOf3FieldsKey {
+    siento = "siento",
+    interpreto = "interpreto",
+    impulso = "impulso",
+    elijo = "elijo"
+}
+export enum PathsApiLearningPracticesExerciseKeyGetResponses200ContentApplicationJsonInteractionOneOf4Kind {
+    signal_context_compare = "signal_context_compare"
 }
 export enum PathsApiLearningPracticesExerciseKeyCompletePostResponses200ContentApplicationJsonEventOneOf0SchemaVersion {
     Value1 = 1

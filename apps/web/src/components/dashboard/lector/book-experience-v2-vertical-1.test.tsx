@@ -753,13 +753,16 @@ describe("Chapter Home — activities row and units", () => {
 
   it("the count folds curated activities and chapter exercises without double-counting", async () => {
     // The fixture's lesson is «Nombrar sin cerrar»; the curated catalog for
-    // (emociones-en-construccion, 1) contributes its own two. Three cards, so
-    // three is what the row must say.
+    // (emociones-en-construccion, 1) contributes its own three — breathing,
+    // the reflection, and the book's integrative activity. Four cards, so four
+    // is what the row must say. The number is derived from the catalog, so it
+    // moves when the chapter genuinely gains an activity; what this test
+    // guards is that the two collections are folded without double-counting.
     renderReader();
     await settle();
     openHome();
     expect(screen.getByTestId("chapter-route-actividades")).toHaveTextContent(
-      "3 en el capítulo",
+      "4 en el capítulo",
     );
   });
 

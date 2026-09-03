@@ -9,6 +9,7 @@ import {
   unitKeyFromLegacyChapterId,
 } from "./lib/block-key";
 import { EXERCISE_INGESTION_CATALOG } from "./exercise-ingestion-catalog";
+import { seedPracticeHeadings } from "./test-support/seed-practice-headings";
 
 // CC-7.4B.2: this scenario uses the productive slug `emociones-en-construccion`,
 // so it must carry the approved editorial source block — the ingestion fails
@@ -72,6 +73,7 @@ suite("Content Core · CC-3 backfill · creation + idempotency", () => {
   let prisma: PrismaClient;
   let pool: Pool;
   let ch1Id: string;
+  let seededBlocks: number;
   let firstRun: BackfillStats;
   let secondRun: BackfillStats;
 
@@ -141,6 +143,22 @@ suite("Content Core · CC-3 backfill · creation + idempotency", () => {
       },
     });
 
+    // El catálogo de ejercicios ancla cada práctica a un encabezado editorial.
+    // Se siembran desde el propio catálogo para que añadir una microguía no
+    // rompa un fixture que no tiene nada que ver con ella.
+    for (const ch of await prisma.chapter.findMany({
+      select: { id: true, bookId: true },
+    })) {
+      const b = await prisma.book.findUnique({
+        where: { id: ch.bookId },
+        select: { slug: true },
+      });
+      if (b) await seedPracticeHeadings(prisma, ch.id, b.slug);
+    }
+    // Los bloques que el fixture crea MÁS los encabezados que siembra el
+    // catálogo. Se cuenta en vez de escribirse: así añadir una microguía no
+    // convierte esta prueba de idempotencia en una prueba de aritmética.
+    seededBlocks = await prisma.chapterBlock.count();
     firstRun = await backfillContentCore(prisma);
     secondRun = await backfillContentCore(prisma);
   }, 180_000);
@@ -217,11 +235,13 @@ suite("Content Core · CC-3 backfill · creation + idempotency", () => {
 
   it("is idempotent — the second run is a no-op (identical stats, no duplicate rows)", async () => {
     expect(secondRun).toEqual(firstRun);
-    expect(await prisma.contentBlock.count()).toBe(4);
-    expect(await prisma.blockVersion.count()).toBe(4);
+    expect(await prisma.contentBlock.count()).toBe(seededBlocks);
+    expect(await prisma.blockVersion.count()).toBe(seededBlocks);
     expect(await prisma.contentUnit.count()).toBe(2);
     expect(await prisma.revisionUnit.count()).toBe(2);
-    expect(await prisma.conceptLink.count()).toBe(2);
+    // Un enlace por concepto catalogado: el de cada capítulo más los cinco
+    // conceptos de la ruta guiada de C01.
+    expect(await prisma.conceptLink.count()).toBe(await prisma.concept.count());
     expect(await prisma.edition.count()).toBe(1);
     expect(await prisma.revision.count()).toBe(1);
   });
@@ -229,7 +249,7 @@ suite("Content Core · CC-3 backfill · creation + idempotency", () => {
   it("performs zero DELETE — the legacy rows remain intact", async () => {
     expect(await prisma.book.count()).toBe(1);
     expect(await prisma.chapter.count()).toBe(2);
-    expect(await prisma.chapterBlock.count()).toBe(4);
+    expect(await prisma.chapterBlock.count()).toBe(seededBlocks);
   });
 });
 

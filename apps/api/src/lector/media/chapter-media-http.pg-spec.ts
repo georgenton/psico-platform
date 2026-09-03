@@ -14,6 +14,7 @@ import {
   EEC_C1_PODCAST,
   EEC_C1_VIDEO,
 } from "./chapter-media.catalog";
+import { seedPracticeHeadings } from "../../content-core/test-support/seed-practice-headings";
 
 /**
  * GR-2 — the chapter-media WIRE, end to end: real Nest app, real JWT, real
@@ -72,7 +73,11 @@ suite("GR-2 · chapter media HTTP contract (real app + real PostgreSQL)", () => 
     prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
 
     const book = await prisma.book.create({
-      data: { slug: BOOK_SLUG, title: "Emociones en Construcción", plan: "PRO" },
+      data: {
+        slug: BOOK_SLUG,
+        title: "Emociones en Construcción",
+        plan: "PRO",
+      },
     });
     const chapter = await prisma.chapter.create({
       data: { bookId: book.id, order: 1, title: "C1", isPublished: true },
@@ -92,7 +97,8 @@ suite("GR-2 · chapter media HTTP contract (real app + real PostgreSQL)", () => 
         chapterId: chapter.id,
         order: 1,
         kind: "HEADING",
-        content: EXERCISE_INGESTION_CATALOG[BOOK_SLUG][0].practice.sourceHeading,
+        content:
+          EXERCISE_INGESTION_CATALOG[BOOK_SLUG][0].practice.sourceHeading,
       },
     });
     // The catalog says the audiobook is PUBLISHED with `source: CHAPTER_AUDIO`,
@@ -105,6 +111,16 @@ suite("GR-2 · chapter media HTTP contract (real app + real PostgreSQL)", () => 
         durationSeconds: 1140,
       },
     });
+    // Encabezados del catálogo de ejercicios, sembrados desde el catálogo.
+    for (const c of await prisma.chapter.findMany({
+      select: { id: true, bookId: true },
+    })) {
+      const bk = await prisma.book.findUnique({
+        where: { id: c.bookId },
+        select: { slug: true },
+      });
+      if (bk) await seedPracticeHeadings(prisma, c.id, bk.slug);
+    }
     await backfillContentCore(prisma);
 
     const user = await prisma.user.create({

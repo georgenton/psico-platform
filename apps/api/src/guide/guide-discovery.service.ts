@@ -3,7 +3,11 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import type { GuideDiscoveryResponse } from "@psico/types";
+import type {
+  GuideDiscoveryResponse,
+  GuideRouteItem,
+  GuideRouteResponse,
+} from "@psico/types";
 import type { AuthenticatedUser } from "../auth";
 import { PrismaService } from "../prisma";
 import { ContentAccessService } from "../content-core/access/content-access.service";
@@ -79,11 +83,16 @@ export class GuideDiscoveryService {
     // catalog, so no read happens at all after this point.
     if (!this.rollout.isAvailable(user.userId)) return { available: false };
 
-    // 5.2 — exact context → pin. Never `latestStartableVersion`.
-    const pin = productionGuideDiscoveryCatalog.getExactContext(
+    // 5.2 — exact context → the route, and this endpoint answers with its
+    // FIRST step. Never `latestStartableVersion`, and deliberately NOT
+    // `getExactContext`: that method is the compatibility answer for the
+    // materialized V1 binary and returns the historical pilot, which a new
+    // reader must not be offered.
+    const route = productionGuideDiscoveryCatalog.listContext(
       input.bookSlug,
       input.chapterOrder,
     );
+    const pin = route.length > 0 ? route[0].pin : null;
     if (!pin) return { available: false };
 
     // 5.3 — the definition must exist. A discovery entry pointing at nothing
@@ -159,6 +168,98 @@ export class GuideDiscoveryService {
         guideKey: pin.guideKey,
         guideVersion: pin.guideVersion,
       };
+    });
+  }
+
+  /**
+   * GR-5 — every guided reading this chapter offers, ordered.
+   *
+   * The same decision `discover` makes, taken once per pin instead of once. The
+   * checks that belong to the CONTEXT — rollout, the reader's unit, entitlement
+   * — run a single time, because five guided readings of one chapter share the
+   * chapter: asking five times would be five identical answers and five times
+   * the reads.
+   *
+   * What stays per-guide is the part that is genuinely per-guide: each pin's
+   * targets are resolved and each resolved unit is compared against the unit the
+   * reader is standing in. A guide whose targets do not answer, or answer with
+   * another unit, is dropped from the list rather than failing it — one
+   * mis-catalogued microguide must not take the other four off the page.
+   *
+   * `resolveMany` is deliberate: the batch keeps the query cost bounded by the
+   * number of TARGET FAMILIES rather than by the number of pins (#639).
+   */
+  async discoverRoute(
+    user: AuthenticatedUser,
+    input: { bookSlug: string; chapterOrder: number },
+  ): Promise<GuideRouteResponse> {
+    if (!this.rollout.isAvailable(user.userId)) return { available: false };
+
+    const route = productionGuideDiscoveryCatalog.listContext(
+      input.bookSlug,
+      input.chapterOrder,
+    );
+    if (route.length === 0) return { available: false };
+
+    return this.prisma.$transaction(async (tx) => {
+      const readerUnit = await this.applicability.resolveUnitByNavigation(tx, {
+        bookSlug: input.bookSlug,
+        chapterOrder: input.chapterOrder,
+      });
+      if (readerUnit === null) return { available: false };
+
+      let resolved;
+      try {
+        resolved = await this.targetContext.resolveMany(
+          route.map((i) => i.pin),
+          tx,
+        );
+      } catch (err) {
+        if (isEditorialContextVerdict(err)) return { available: false };
+        throw err;
+      }
+
+      const offered: GuideRouteItem[] = [];
+      let entitlementChecked = false;
+      for (const [i, item] of route.entries()) {
+        const r = resolved[i];
+        if (!r || !r.ok) continue;
+        if (r.context.bookSlug !== input.bookSlug) continue;
+        if (r.context.unitId !== readerUnit) continue;
+
+        // Entitlement is a property of the UNIT, and every guide that survived
+        // the check above anchors to the same one — so it is asked once, and a
+        // denial takes the whole route rather than pruning it silently.
+        if (!entitlementChecked) {
+          try {
+            await this.access.assertCanReadUnit(
+              {
+                userId: user.userId,
+                userPlan: user.plan,
+                editionKey: r.context.editionKey,
+                unitKey: r.context.unitKey,
+              },
+              tx,
+            );
+          } catch (err) {
+            if (isAccessDenial(err)) return { available: false };
+            throw err;
+          }
+          entitlementChecked = true;
+        }
+
+        offered.push({
+          guideKey: item.pin.guideKey,
+          guideVersion: item.pin.guideVersion,
+          order: item.order,
+          title: item.title,
+          description: item.description,
+          estimatedMinutes: item.estimatedMinutes,
+        });
+      }
+
+      if (offered.length === 0) return { available: false };
+      return { available: true, guides: offered };
     });
   }
 }

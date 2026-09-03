@@ -11,7 +11,10 @@ import {
   type ResolvedUnitContext,
 } from "../learning/learning-catalog.resolver";
 import { backfillContentCore } from "../content-core/backfill";
-import { EXERCISE_INGESTION_CATALOG } from "../content-core/exercise-ingestion-catalog";
+import {
+  EXERCISE_INGESTION_CATALOG,
+  practiceSourceHeadings,
+} from "../content-core/exercise-ingestion-catalog";
 import {
   GuideCatalogError,
   PRODUCTION_GUIDE_DEFINITIONS,
@@ -128,6 +131,27 @@ suite("CC-7.4B.3 · first production GuideDefinition (real PostgreSQL)", () => {
         content: PRACTICE_HEADING,
       },
     });
+    // Los demás encabezados a los que ancla el catálogo, derivados del
+    // propio catálogo: así este fixture no puede quedarse atrás cuando se
+    // añade un par nuevo, que es justo como llegó a reportar SOURCE_MISSING
+    // sobre contenido que en producción está perfectamente bien.
+    {
+      let extraOrder = 900;
+      for (const heading of practiceSourceHeadings(
+        "emociones-en-construccion",
+      )) {
+        if (heading === PRACTICE_HEADING) continue;
+        await prisma.chapterBlock.create({
+          data: {
+            chapterId: ch1.id,
+            order: extraOrder,
+            kind: "HEADING",
+            content: heading,
+          },
+        });
+        extraOrder += 1;
+      }
+    }
     // A SECOND unit in the same edition — the "other unit" of the negatives.
     const ch2 = await prisma.chapter.create({
       data: { bookId: book.id, order: 2, title: "C2", isPublished: true },
@@ -194,7 +218,7 @@ suite("CC-7.4B.3 · first production GuideDefinition (real PostgreSQL)", () => {
     expect(productionGuideRegistry.size).toBe(
       PRODUCTION_GUIDE_DEFINITIONS.length,
     );
-    expect(PRODUCTION_GUIDE_DEFINITIONS.length).toBe(2);
+    expect(PRODUCTION_GUIDE_DEFINITIONS.length).toBe(7);
     expect(productionGuideRegistry.latestStartableVersion(GUIDE_KEY)).toBe(1);
     expect(productionGuideRegistry.getExact(GUIDE_KEY, 1)).toEqual(
       PRODUCTION_GUIDE_DEFINITIONS[0],

@@ -21,6 +21,7 @@ import {
   ingestUnitExercises,
   type ExerciseIngestDb,
 } from "./exercise-ingestion";
+import { seedPracticeHeadings } from "./test-support/seed-practice-headings";
 
 /**
  * CC-7.4B.2 — the editorial Exercise ingestion (practice + objective recall)
@@ -131,6 +132,18 @@ suite(
         },
       });
 
+      // El catálogo de ejercicios ancla cada práctica a un encabezado editorial.
+      // Se siembran desde el propio catálogo para que añadir una microguía no
+      // rompa un fixture que no tiene nada que ver con ella.
+      for (const ch of await prisma.chapter.findMany({
+        select: { id: true, bookId: true },
+      })) {
+        const b = await prisma.book.findUnique({
+          where: { id: ch.bookId },
+          select: { slug: true },
+        });
+        if (b) await seedPracticeHeadings(prisma, ch.id, b.slug);
+      }
       await backfillContentCore(prisma);
     }, 120_000);
 
@@ -139,12 +152,18 @@ suite(
       await pool.end();
     });
 
-    it("creates exactly one practice and one recall row for the unit", async () => {
+    it("creates one practice and one recall row per catalog pair", async () => {
+      // Six pairs since the EEC-C01 route landed: the V1 pilot's plus the five
+      // microguides'. The count comes from the catalog rather than a literal so
+      // adding a microguide does not turn this into a failing test about
+      // arithmetic.
+      const pairs =
+        EXERCISE_INGESTION_CATALOG["emociones-en-construccion"] ?? [];
       const rows = await prisma.exercise.findMany({
         where: { chapterId },
         orderBy: { order: "asc" },
       });
-      expect(rows).toHaveLength(2);
+      expect(rows).toHaveLength(pairs.length * 2);
       expect(rows.find((r) => r.type === "REFLECTION")).toBeDefined();
       expect(rows.find((r) => r.type === "QUIZ")).toBeDefined();
 
@@ -160,7 +179,8 @@ suite(
       expect(
         await prisma.exercise.count({ where: { chapterId: otherChapter.id } }),
       ).toBe(0);
-      expect(await prisma.exercise.count()).toBe(2);
+      // El total del entorno es el del catálogo: nada se creó fuera de él.
+      expect(await prisma.exercise.count()).toBe(pairs.length * 2);
     });
 
     it("stores the approved practice with a server-owned sourceBlockKey in the unit", async () => {

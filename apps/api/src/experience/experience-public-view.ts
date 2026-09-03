@@ -69,6 +69,10 @@ function scenePayload(
     case "CONCEPT":
     case "RESONANCE":
       return { ...base, conceptKey: scene.conceptKey };
+    // The key, never the interaction. The player asks the learning surface for
+    // the content, which is where the closed parser lives.
+    case "PRACTICE":
+      return { ...base, exerciseKey: scene.exerciseKey };
     // The format, never a signed URL. Access is its own request, with its own
     // entitlement check, at the moment a reader actually presses play.
     case "AUDIO":

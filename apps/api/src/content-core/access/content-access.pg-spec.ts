@@ -15,6 +15,7 @@ import {
 import { ContentAccessService } from "./content-access.service";
 import { ContentReadService } from "../read/content-read.service";
 import { EXERCISE_INGESTION_CATALOG } from "../exercise-ingestion-catalog";
+import { seedPracticeHeadings } from "../test-support/seed-practice-headings";
 
 // CC-7.4B.2: this suite seeds the productive slug `emociones-en-construccion`,
 // so its chapter 1 must carry the approved editorial source block — the
@@ -156,6 +157,16 @@ suite("Content Core · CC-6E access parity (real PostgreSQL)", () => {
     });
     freeUnitCh2 = unitKeyFromLegacyChapterId(freeCh2.id);
 
+    // Encabezados del catálogo de ejercicios, sembrados desde el catálogo.
+    for (const c of await prisma.chapter.findMany({
+      select: { id: true, bookId: true },
+    })) {
+      const bk = await prisma.book.findUnique({
+        where: { id: c.bookId },
+        select: { slug: true },
+      });
+      if (bk) await seedPracticeHeadings(prisma, c.id, bk.slug);
+    }
     await backfillContentCore(prisma);
   }, 180_000);
 

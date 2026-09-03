@@ -197,12 +197,14 @@ beforeEach(() => {
         pins: readonly { guideKey: string; guideVersion: number }[],
       ) =>
         pins.map((pin) => {
-          const unitId =
-            pin.guideKey === EEC_PIN.guideKey
-              ? UNIT_ID
-              : pin.guideKey === "pqp-c1-contacto-sostenido"
-                ? "unit_pqp_c1"
-                : null;
+          // Every EEC-C01 guided reading targets THIS chapter's unit — the V1
+          // pilot and the five microguides alike. That is the whole point of
+          // the route: one unit, several guides.
+          const unitId = pin.guideKey.startsWith("eec-c1-")
+            ? UNIT_ID
+            : pin.guideKey === "pqp-c1-contacto-sostenido"
+              ? "unit_pqp_c1"
+              : null;
           return unitId === null
             ? { ok: false as const, pin, code: "GUIDE_CONTEXT_UNRESOLVED" }
             : { ok: true as const, pin, context: { unitId } };
@@ -264,6 +266,10 @@ describe("ExperienceAdminService — creating", () => {
     prisma.chapterExperienceVersion.findUnique.mockResolvedValue(null);
     prisma.chapterExperienceVersion.create.mockResolvedValue({ id: "row_1" });
 
+    // The lineage has to be the one that owns the guide the fallback will pick.
+    // Asking for the pilot's lineage and letting it fall back to MG01 is a
+    // cross-lineage bind, which the reservation correctly refuses — that is a
+    // different test, and it already exists.
     const withoutPin = { ...definition(), guidePin: undefined };
     await service.createDraft(
       "user_1",
@@ -271,6 +277,9 @@ describe("ExperienceAdminService — creating", () => {
     );
 
     const data = prisma.chapterExperienceVersion.create.mock.calls[0]![0].data;
+    // The CMS fallback goes through the V1-compat adapter, which answers with
+    // the historical pilot. That is what it answered before this branch, and
+    // an editor who wants a microguide picks it from `listSelectableGuides`.
     expect(data.definitionJson.guidePin).toEqual(EEC_PIN);
   });
 

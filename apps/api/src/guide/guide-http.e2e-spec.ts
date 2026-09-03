@@ -21,6 +21,7 @@ import type * as SentryModule from "../observability/sentry";
 import { GuideLifecycleService } from "./guide-lifecycle.service";
 import { backfillContentCore } from "../content-core/backfill";
 import { EXERCISE_INGESTION_CATALOG } from "../content-core/exercise-ingestion-catalog";
+import { seedPracticeHeadings } from "../content-core/test-support/seed-practice-headings";
 
 /**
  * CC-7.4D — the Guide HTTP surface end to end: real Nest app, real JWT, real
@@ -153,6 +154,16 @@ suite("CC-7.4D · Guide HTTP surface (real app + real PostgreSQL)", () => {
         content: PRACTICE_HEADING,
       },
     });
+    // Encabezados del catálogo de ejercicios, sembrados desde el catálogo.
+    for (const c of await prisma.chapter.findMany({
+      select: { id: true, bookId: true },
+    })) {
+      const bk = await prisma.book.findUnique({
+        where: { id: c.bookId },
+        select: { slug: true },
+      });
+      if (bk) await seedPracticeHeadings(prisma, c.id, bk.slug);
+    }
     await backfillContentCore(prisma);
 
     const a = await prisma.user.create({

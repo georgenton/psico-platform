@@ -16,6 +16,7 @@ import {
 } from "./guide-reader-applicability.service";
 import { LearningCatalogResolver } from "../learning/learning-catalog.resolver";
 import type { PrismaService } from "../prisma";
+import { seedPracticeHeadings } from "../content-core/test-support/seed-practice-headings";
 
 /**
  * C.3R (#639) blocker zero — is the SERVER's notion of "which chapter is this
@@ -120,6 +121,16 @@ async function makeEnv(
         },
       });
     }
+  }
+  // Encabezados del catálogo de ejercicios, sembrados desde el catálogo.
+  for (const c of await prisma.chapter.findMany({
+    select: { id: true, bookId: true },
+  })) {
+    const bk = await prisma.book.findUnique({
+      where: { id: c.bookId },
+      select: { slug: true },
+    });
+    if (bk) await seedPracticeHeadings(prisma, c.id, bk.slug);
   }
   await backfillContentCore(prisma);
   return { prisma, pool, db };

@@ -452,6 +452,42 @@ export type GuideDiscoveryResponse =
     };
 
 /**
+ * GR-5 — one offered guided reading, with what a card needs before any session
+ * exists.
+ *
+ * The copy is server-owned for the same reason the pin is: a client that wrote
+ * its own titles would drift from the catalog the moment editorial changed one,
+ * and a client that derived the order from array position would renumber a
+ * route somebody deliberately reordered.
+ */
+export interface GuideRouteItem {
+  guideKey: string;
+  guideVersion: number;
+  /** Position in the chapter's route, 1-based and contiguous. */
+  order: number;
+  title: string;
+  description: string;
+  /** Human range, e.g. "7–9". Not a number: the catalog states a range. */
+  estimatedMinutes: string;
+}
+
+/**
+ * GR-5 — "standing in this chapter, what guided readings am I offered?".
+ *
+ * The list replaces nothing: `GuideDiscoveryResponse` keeps answering the
+ * single-pin question for clients that only know how to ask it. Same closed
+ * union, same opaque negative — the unavailable arm still carries no pin, no
+ * context and no reason, so a negative cannot be used to enumerate the catalog.
+ *
+ * A chapter with one guided reading returns a list of one. There is no separate
+ * "single" shape to special-case, and no client has to know whether the chapter
+ * it is on happens to teach one idea or five.
+ */
+export type GuideRouteResponse =
+  | { available: false }
+  | { available: true; guides: GuideRouteItem[] };
+
+/**
  * CC-7.R1 — the rollout gate's only public code. A 503 that says "not on for
  * you right now" and nothing more; it is NOT one of the eight lifecycle codes
  * and never widens them.

@@ -14,6 +14,7 @@ import {
   EDITION_KEY_SUFFIX,
   readContentUnit,
 } from "../content-core/read/content-read";
+import { seedPracticeHeadings } from "../content-core/test-support/seed-practice-headings";
 
 /**
  * GR-3 — the anchor, against the REAL chapter.
@@ -98,6 +99,16 @@ suite("GR-3 · the guided-reading anchor over the ingested chapter", () => {
       },
     );
 
+    // Encabezados del catálogo de ejercicios, sembrados desde el catálogo.
+    for (const c of await prisma.chapter.findMany({
+      select: { id: true, bookId: true },
+    })) {
+      const bk = await prisma.book.findUnique({
+        where: { id: c.bookId },
+        select: { slug: true },
+      });
+      if (bk) await seedPracticeHeadings(prisma, c.id, bk.slug);
+    }
     await backfillContentCore(prisma);
 
     const chapter = await prisma.chapter.findFirstOrThrow({

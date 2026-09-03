@@ -3899,3 +3899,4 @@ export * from "./experience";
 // resolver that turns it into a runtime block reference. Shared so the reader
 // and the ingest test run the same code.
 export * from "./guide-anchor";
+export * from "./practice";

@@ -169,6 +169,94 @@ export const GUIDE_DISCOVERY_RESPONSE: SchemaObject = {
 };
 
 /**
+ * GR-5 — GET /api/guide/route/:bookSlug/:chapterOrder.
+ *
+ * The same closed discipline as discovery, for a chapter that offers several
+ * guided readings. The unavailable arm is byte-identical in shape to
+ * discovery's — no pins, no count, no reason — so "this chapter teaches five
+ * ideas but not for you" and "this chapter has none" are the same answer on
+ * the wire.
+ *
+ * The available arm carries what a CARD needs and nothing else: the exact pin,
+ * its position in the route, and the editorial copy. Deliberately absent:
+ * target keys, internal ids, anchors, scene structure and anything about the
+ * caller's progress — a client that wanted progress asks the endpoint that
+ * owns it.
+ */
+export const GUIDE_ROUTE_ITEM: SchemaObject = {
+  type: "object",
+  additionalProperties: false,
+  required: [
+    "guideKey",
+    "guideVersion",
+    "order",
+    "title",
+    "description",
+    "estimatedMinutes",
+  ],
+  properties: {
+    guideKey: {
+      type: "string",
+      description: "Clave exacta de esta lectura guiada.",
+    },
+    guideVersion: {
+      type: "integer",
+      minimum: 1,
+      description: "Versión exacta; el par clave@versión es inmutable.",
+    },
+    order: {
+      type: "integer",
+      minimum: 1,
+      description:
+        "Posición dentro del recorrido del capítulo, contigua desde 1. La " +
+        "declara el catálogo: no se deduce del orden del array.",
+    },
+    title: {
+      type: "string",
+      description: "Título editorial de la tarjeta.",
+    },
+    description: {
+      type: "string",
+      description: "Descripción breve, para decidir si empezarla.",
+    },
+    estimatedMinutes: {
+      type: "string",
+      description:
+        "Duración estimada como RANGO, tal y como la declara el catálogo " +
+        '(por ejemplo "7–9"). No es un número: el catálogo declara un rango.',
+    },
+  },
+};
+
+export const GUIDE_ROUTE_UNAVAILABLE: SchemaObject = {
+  type: "object",
+  additionalProperties: false,
+  required: ["available"],
+  properties: { available: { type: "boolean", enum: [false] } },
+};
+
+export const GUIDE_ROUTE_AVAILABLE: SchemaObject = {
+  type: "object",
+  additionalProperties: false,
+  required: ["available", "guides"],
+  properties: {
+    available: { type: "boolean", enum: [true] },
+    guides: {
+      type: "array",
+      minItems: 1,
+      items: GUIDE_ROUTE_ITEM,
+      description:
+        "Las lecturas guiadas que ofrece el capítulo, ya ordenadas. Un " +
+        "capítulo con una sola devuelve una lista de una.",
+    },
+  },
+};
+
+export const GUIDE_ROUTE_RESPONSE: SchemaObject = {
+  oneOf: [GUIDE_ROUTE_UNAVAILABLE, GUIDE_ROUTE_AVAILABLE],
+};
+
+/**
  * GR-5 — GET /api/guide/sessions/recoverable.
  *
  * A CLOSED union with the same discipline as discovery: the negative arm

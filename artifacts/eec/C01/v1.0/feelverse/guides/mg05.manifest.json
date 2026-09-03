@@ -1,0 +1,157 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "EEC-C01-MG05",
+  "bookSlug": "emociones-en-construccion",
+  "editionKey": "emociones-en-construccion-1e",
+  "chapterCode": "EEC-C01",
+  "chapterOrder": 1,
+  "unitKey": "dce92620-2398-5efb-80a4-b90b180a01ae",
+  "canonicalVersion": "EEC_C01_v1.0_TEXT_LOCKED_2026-08-20",
+  "canonicalSha256": "e10f42cedf881838578b7337355887c0e8cb2fe37b75dfa4204db509ac023018",
+  "sourceArtifact": "artifacts/eec/C01/v1.0/feelverse/unit-payload.json",
+  "experienceKey": "eec-c1-construida-no-significa-falsa",
+  "experienceVersion": 1,
+  "guideKey": "eec-c1-construida-no-significa-falsa",
+  "guideVersion": 1,
+  "conceptKey": "eec-construida-no-significa-falsa",
+  "practiceKey": "eec-c1-practice-senales-y-contextos",
+  "practiceKind": "signal_context_compare",
+  "recallKey": "eec-c1-recall-construida-no-significa-falsa",
+  "anchors": {
+    "primary": {
+      "reference": "eec-c1-emocion-como-construccion",
+      "heading": "Lisa Feldman Barrett: la emoción como construcción",
+      "fingerprint": "construir una emoción no significa inventarla",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "Construida no significa falsa",
+      "body": [
+        "Vas a comparar unas mismas señales del cuerpo en dos contextos distintos y a notar qué información cambia su significado."
+      ],
+      "note": "Los dos escenarios los ponemos nosotros. No hace falta que traigas nada tuyo.",
+      "actionLabel": "Comenzar"
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "Lisa Feldman Barrett: la emoción como construcción",
+      "body": [
+        "Lee la sección sobre Barrett, incluida la escena del rubor y las mariposas que terminaron siendo gripe."
+      ],
+      "actionLabel": "Leí el pasaje",
+      "anchorRef": "eec-c1-emocion-como-construccion"
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "Real, y no elegida",
+      "body": [
+        "Las emociones se forman con señales reales del cuerpo, percepción, memoria, conceptos aprendidos y contexto. Construir una emoción no significa inventarla: sigue siendo real, se siente en el cuerpo y no se elige a voluntad.",
+        "El construccionismo es el mapa principal de este libro, no un consenso científico cerrado."
+      ],
+      "note": "Marcar esta escena registra que exploraste la idea; no evalúa lo que sientes.",
+      "actionLabel": "He explorado la idea",
+      "stepKey": "explorar-construida-no-significa-falsa"
+    },
+    {
+      "order": 4,
+      "kind": "EXAMPLE",
+      "title": "Mismas señales, dos situaciones",
+      "body": [
+        "Corazón acelerado y estómago revuelto antes de una entrevista, y antes de una primera cita. Las señales del cuerpo se parecen.",
+        "Lo que cambia no es solo lo que te dices: cambian la situación, lo que aprendiste a esperar de ella, los recuerdos que trae y los conceptos con los que la reconoces."
+      ]
+    },
+    {
+      "order": 5,
+      "kind": "PRACTICE",
+      "title": "Señales y contextos",
+      "body": [
+        "Ante esas señales ambiguas en dos contextos, identifica qué información hace que signifiquen cosas distintas: la situación, el aprendizaje previo, la expectativa, los recuerdos disponibles o la información nueva."
+      ],
+      "note": "No hay una única respuesta correcta; la práctica registra únicamente que la hiciste.",
+      "actionLabel": "Ya hice la práctica",
+      "stepKey": "practicar-senales-y-contextos",
+      "practiceKind": "signal_context_compare"
+    },
+    {
+      "order": 6,
+      "kind": "QUESTION",
+      "title": "Si quieres, respóndete",
+      "body": [
+        "¿Qué dato adicional buscarías antes de cerrar una interpretación? Es opcional y, si respondes, tu texto se queda en tu dispositivo."
+      ],
+      "optional": true
+    },
+    {
+      "order": 7,
+      "kind": "RECALL",
+      "title": "¿Qué significa que una emoción sea construida?",
+      "body": [
+        "Recupera la idea central de esta microguía."
+      ],
+      "stepKey": "recordar-construida-no-significa-falsa"
+    },
+    {
+      "order": 8,
+      "kind": "SUMMARY",
+      "title": "Lo que te llevas",
+      "body": [
+        "«Construida» no es lo contrario de «real». Señales del cuerpo, contexto, memoria y conceptos participan a la vez, y por eso la misma sensación puede significar cosas distintas."
+      ],
+      "actionLabel": "Finalizar"
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-construida-no-significa-falsa",
+      "targetKey": "eec-construida-no-significa-falsa"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-senales-y-contextos",
+      "targetKey": "eec-c1-practice-senales-y-contextos"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-construida-no-significa-falsa",
+      "targetKey": "eec-c1-recall-construida-no-significa-falsa"
+    }
+  ],
+  "media": {
+    "audio": null,
+    "video": null
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Navegación completa por teclado, con foco visible y orden de tabulación lógico.",
+    "Toda reordenación anunciada por lector de pantalla mediante aria-live.",
+    "Alternativa sin arrastrar para cualquier interacción de ordenamiento.",
+    "Respeta prefers-reduced-motion.",
+    "El color nunca es la única señal de estado.",
+    "Ninguna reproducción automática y ningún audio o vídeo obligatorio."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "eec-c01-construida-no-significa-falsa-v1-609b02645373ef92",
+  "approvalReferences": [
+    "https://app.notion.com/p/3cfcbb1031a0813fb184fe6173d8a826",
+    "Decisión autoral 2026-09-03: implementar las cinco microguías de EEC-C01."
+  ],
+  "manifestSha256": "b8fb514e617be8fade6c3e68eee36124f1cd5d45e190b195440171b133911ce2"
+}

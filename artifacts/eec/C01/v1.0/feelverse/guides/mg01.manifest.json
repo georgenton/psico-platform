@@ -1,0 +1,147 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "EEC-C01-MG01",
+  "bookSlug": "emociones-en-construccion",
+  "editionKey": "emociones-en-construccion-1e",
+  "chapterCode": "EEC-C01",
+  "chapterOrder": 1,
+  "unitKey": "dce92620-2398-5efb-80a4-b90b180a01ae",
+  "canonicalVersion": "EEC_C01_v1.0_TEXT_LOCKED_2026-08-20",
+  "canonicalSha256": "e10f42cedf881838578b7337355887c0e8cb2fe37b75dfa4204db509ac023018",
+  "sourceArtifact": "artifacts/eec/C01/v1.0/feelverse/unit-payload.json",
+  "experienceKey": "eec-c1-teorias-como-lentes",
+  "experienceVersion": 1,
+  "guideKey": "eec-c1-teorias-como-lentes",
+  "guideVersion": 1,
+  "conceptKey": "eec-teorias-como-lentes",
+  "practiceKey": "eec-c1-practice-revisar-un-lente",
+  "practiceKind": "belief_lens",
+  "recallKey": "eec-c1-recall-teorias-como-lentes",
+  "anchors": {
+    "primary": {
+      "reference": "eec-c1-distintas-lentes",
+      "heading": "Distintas lentes para comprender una emoción",
+      "fingerprint": "Las teorías sobre las emociones no son simples opiniones",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "Lo que una teoría alcanza a mirar",
+      "body": [
+        "Vas a revisar una creencia cotidiana sobre las emociones con tres preguntas: qué se observa, qué se está suponiendo y qué contexto falta."
+      ],
+      "note": "Trabajaremos con frases de uso común, no con tu historia personal. Puedes salir y volver cuando quieras.",
+      "actionLabel": "Comenzar"
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "Distintas lentes para comprender una emoción",
+      "body": [
+        "Lee la sección donde el capítulo compara las teorías con mapas: cada una resalta ciertos caminos y deja otros con menos detalle."
+      ],
+      "actionLabel": "Leí el pasaje",
+      "anchorRef": "eec-c1-distintas-lentes"
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "Una teoría responde a una pregunta",
+      "body": [
+        "Las teorías sobre las emociones no son opiniones sueltas: son explicaciones organizadas a partir de preguntas, observaciones y métodos distintos. Por eso compararlas no consiste en buscar de inmediato una ganadora, sino en entender qué problema intentaba resolver cada una."
+      ],
+      "note": "Marcar esta escena registra que exploraste la idea; no evalúa lo que sabes ni infiere nada sobre ti.",
+      "actionLabel": "He explorado la idea",
+      "stepKey": "explorar-teorias-como-lentes"
+    },
+    {
+      "order": 4,
+      "kind": "EXAMPLE",
+      "title": "Dos mapas de la misma ciudad",
+      "body": [
+        "Un mapa del metro y uno de ciclovías describen la misma ciudad enfocando aspectos distintos. Saber a qué pregunta responde cada uno evita exigirle a uno lo que el otro fue hecho para mostrar.",
+        "La analogía tiene un límite: que dos teorías miren aspectos distintos no las vuelve equivalentes ni automáticamente compatibles. Algunas sí afirman cosas incompatibles entre sí, y esa discusión sigue abierta."
+      ]
+    },
+    {
+      "order": 5,
+      "kind": "PRACTICE",
+      "title": "Revisa un lente",
+      "body": [
+        "Toma una frase de uso común sobre las emociones y sepárala en tres: qué se observa realmente, qué se está suponiendo y qué contexto haría falta para saberlo."
+      ],
+      "note": "Puedes elegir entre las opciones sugeridas. Si prefieres escribir, tu texto se queda en tu dispositivo y no viaja con tu progreso.",
+      "actionLabel": "Ya hice la práctica",
+      "stepKey": "practicar-revisar-un-lente",
+      "practiceKind": "belief_lens"
+    },
+    {
+      "order": 6,
+      "kind": "RECALL",
+      "title": "¿Qué se compara al comparar dos teorías?",
+      "body": [
+        "Recupera la idea central de esta microguía."
+      ],
+      "stepKey": "recordar-teorias-como-lentes"
+    },
+    {
+      "order": 7,
+      "kind": "SUMMARY",
+      "title": "Lo que te llevas",
+      "body": [
+        "Antes de preguntar cuál teoría gana, conviene saber qué problema intentaba resolver cada una. Eso no las vuelve equivalentes: las vuelve comparables."
+      ],
+      "actionLabel": "Finalizar"
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-teorias-como-lentes",
+      "targetKey": "eec-teorias-como-lentes"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-revisar-un-lente",
+      "targetKey": "eec-c1-practice-revisar-un-lente"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-teorias-como-lentes",
+      "targetKey": "eec-c1-recall-teorias-como-lentes"
+    }
+  ],
+  "media": {
+    "audio": null,
+    "video": null
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Navegación completa por teclado, con foco visible y orden de tabulación lógico.",
+    "Toda reordenación anunciada por lector de pantalla mediante aria-live.",
+    "Alternativa sin arrastrar para cualquier interacción de ordenamiento.",
+    "Respeta prefers-reduced-motion.",
+    "El color nunca es la única señal de estado.",
+    "Ninguna reproducción automática y ningún audio o vídeo obligatorio."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "eec-c01-teorias-como-lentes-v1-0e374373b7ed7011",
+  "approvalReferences": [
+    "https://app.notion.com/p/3cfcbb1031a0813fb184fe6173d8a826",
+    "Decisión autoral 2026-09-03: implementar las cinco microguías de EEC-C01."
+  ],
+  "manifestSha256": "e411b39f94c14aa37ec808f7a8c93eb46bb6edc8cc785324fe6ef86d05213fbc"
+}

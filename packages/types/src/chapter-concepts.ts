@@ -68,6 +68,100 @@ export function chapterConcept(
   };
 }
 
+// ─── Guided concepts (multi-concept per chapter) ─────────────────────────────
+
+/**
+ * A chapter can teach more than one idea.
+ *
+ * `CHAPTER_CONCEPTS` above holds ONE concept per chapter and its keys are
+ * PERSISTED on `Resonance` rows, so it cannot grow a second entry without
+ * changing what `chapterConcept()` returns for readers who already resonated.
+ * This catalog sits beside it instead: additive, keyed by `conceptKey`, and
+ * carrying the context each concept belongs to.
+ *
+ * Nothing here renames or shadows an existing key. `eec-cuerpo-antes-que-mente`
+ * stays exactly where it is and keeps being what `chapterConcept()` answers for
+ * chapter 1 — the ARC cycle's default offer is untouched. What changes is that
+ * a GUIDE can now name its own concept, and five guides in one chapter name
+ * five different ones.
+ */
+export interface GuidedChapterConcept extends ChapterConcept {
+  readonly bookSlug: string;
+  /** PLATFORM chapter order, matching the discovery catalog. */
+  readonly chapterOrder: number;
+  /** The edition this concept was approved against. */
+  readonly editionKey: string;
+  /** Content Core unit identity — stable across environments, unlike ids. */
+  readonly unitKey: string;
+}
+
+/**
+ * The EEC-C01 route's five concepts (author decision, 2026-09-03).
+ *
+ * Keys are NEW and immutable from here on: they land on `Resonance` rows the
+ * moment a reader confirms one, and renaming a persisted key would orphan the
+ * confirmation instead of moving it.
+ */
+export const GUIDED_CHAPTER_CONCEPTS: readonly GuidedChapterConcept[] = [
+  {
+    key: "eec-teorias-como-lentes",
+    label: "Las teorías son lentes",
+    bookSlug: "emociones-en-construccion",
+    chapterOrder: 1,
+    editionKey: "emociones-en-construccion-1e",
+    unitKey: "dce92620-2398-5efb-80a4-b90b180a01ae",
+  },
+  {
+    key: "eec-rostro-como-pista",
+    label: "El rostro es una pista",
+    bookSlug: "emociones-en-construccion",
+    chapterOrder: 1,
+    editionKey: "emociones-en-construccion-1e",
+    unitKey: "dce92620-2398-5efb-80a4-b90b180a01ae",
+  },
+  {
+    key: "eec-alarma-antes-del-relato",
+    label: "La alarma antes del relato",
+    bookSlug: "emociones-en-construccion",
+    chapterOrder: 1,
+    editionKey: "emociones-en-construccion-1e",
+    unitKey: "dce92620-2398-5efb-80a4-b90b180a01ae",
+  },
+  {
+    key: "eec-emocion-informa-no-manda",
+    label: "La emoción informa; no manda",
+    bookSlug: "emociones-en-construccion",
+    chapterOrder: 1,
+    editionKey: "emociones-en-construccion-1e",
+    unitKey: "dce92620-2398-5efb-80a4-b90b180a01ae",
+  },
+  {
+    key: "eec-construida-no-significa-falsa",
+    label: "Construida no significa falsa",
+    bookSlug: "emociones-en-construccion",
+    chapterOrder: 1,
+    editionKey: "emociones-en-construccion-1e",
+    unitKey: "dce92620-2398-5efb-80a4-b90b180a01ae",
+  },
+];
+
+/** Every guided concept of one chapter, in catalog order. Empty is normal. */
+export function guidedChapterConcepts(
+  bookSlug: string,
+  chapterOrder: number,
+): readonly GuidedChapterConcept[] {
+  return GUIDED_CHAPTER_CONCEPTS.filter(
+    (c) => c.bookSlug === bookSlug && c.chapterOrder === chapterOrder,
+  );
+}
+
+/** One guided concept by its exact key, or null. Never a nearby one. */
+export function guidedConceptByKey(
+  conceptKey: string,
+): GuidedChapterConcept | null {
+  return GUIDED_CHAPTER_CONCEPTS.find((c) => c.key === conceptKey) ?? null;
+}
+
 // ─── Resonance wire types ────────────────────────────────────────────────────
 
 /**

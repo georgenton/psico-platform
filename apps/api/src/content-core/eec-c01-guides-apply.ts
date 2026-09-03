@@ -212,6 +212,79 @@ export interface DraftCreator {
   ): Promise<{ id: string }>;
 }
 
+/** The slice the NON-PRODUCTION publisher needs. Deliberately separate. */
+export interface DraftPublisher {
+  publish(
+    id: string,
+    expectedContentUnitId?: string | null,
+  ): Promise<{ id: string; publishedAt: string }>;
+}
+
+export const PUBLISH_REFUSED_ON_DEPLOYED =
+  "EEC_C01_PUBLISH_REFUSED_ON_DEPLOYED";
+
+export interface PublishTestSuiteResult {
+  ok: boolean;
+  environment: string;
+  published: { manifestId: string; experienceKey: string; id: string }[];
+}
+
+/**
+ * `publish-test-suite` — publish the five, and ONLY off a deployed box.
+ *
+ * The browser walkthrough needs published experiences, and the correct way to
+ * get them is not to publish production's. So this exists, and it is built to
+ * be impossible to point at production by accident:
+ *
+ *   - it throws when the resolved environment is production or staging, before
+ *     reading anything, and that refusal takes no flag to switch off;
+ *   - the caller must additionally have typed `--confirm-nonproduction-publish`;
+ *   - it publishes by the same governed path the CMS uses, so a state it
+ *     creates is a state the product could have reached.
+ *
+ * The environment check is first on purpose. A guard that runs after a
+ * connection is opened has already told production something.
+ */
+export async function publishTestSuite(
+  prisma: Pick<PrismaClient, "chapterExperienceVersion">,
+  publisher: DraftPublisher,
+  manifests: readonly GuideManifest[],
+  environment: string,
+  confirmed: boolean,
+): Promise<PublishTestSuiteResult> {
+  if (environment === "production" || environment === "staging") {
+    throw new Error(PUBLISH_REFUSED_ON_DEPLOYED);
+  }
+  if (!confirmed) {
+    throw new Error("EEC_C01_PUBLISH_NOT_CONFIRMED");
+  }
+
+  const published: PublishTestSuiteResult["published"] = [];
+  for (const m of manifests) {
+    const row = await prisma.chapterExperienceVersion.findUnique({
+      where: {
+        experienceKey_experienceVersion: {
+          experienceKey: m.experienceKey,
+          experienceVersion: m.experienceVersion,
+        },
+      },
+      select: { id: true, status: true },
+    });
+    if (!row) continue;
+    if (row.status !== "PUBLISHED") await publisher.publish(row.id);
+    published.push({
+      manifestId: m.manifestId,
+      experienceKey: m.experienceKey,
+      id: row.id,
+    });
+  }
+  return {
+    ok: published.length === manifests.length,
+    environment,
+    published,
+  };
+}
+
 /**
  * `create-drafts` — five Experiences v1 in DRAFT, each with its own pin.
  *
@@ -462,7 +535,9 @@ export async function previewReport(
     orderBy: { experienceKey: "asc" },
   });
 
+  const byKey = new Map(manifests.map((m) => [m.experienceKey, m]));
   const previews = rows.map((r) => {
+    const m = byKey.get(r.experienceKey) as GuideManifest;
     const def = r.definitionJson as unknown as ChapterExperienceDefinition;
     const scenes = def?.scenes ?? [];
     const serialized = JSON.stringify(def);
@@ -475,7 +550,12 @@ export async function previewReport(
       publicRecallOptionsPresent: scenes.some((s) => s.kind === "RECALL"),
       correctOptionKeyExposed: serialized.includes("correctOptionKey"),
       anchorResolved: scenes.some((s) => s.kind === "PASSAGE"),
-      previewEndpointOrUrl: `/dashboard/admin/contenido/experiencias/${r.id}`,
+      // The CMS's real route, checked against the app rather than invented:
+      // `/dashboard/admin/experiencias/{bookSlug}/{chapterOrder}/borrador/{id}`.
+      // The previous string pointed at a path Next does not serve, so every
+      // "preview" opened the same shell — five identical screenshots, which is
+      // how it was caught.
+      previewEndpointOrUrl: `/dashboard/admin/experiencias/${m.bookSlug}/${m.chapterOrder}/borrador/${r.id}`,
     };
   });
 
@@ -506,6 +586,22 @@ export async function runCreateDrafts(
     userId,
     apply,
     plan.contentUnitId,
+  );
+}
+
+export async function runPublishTestSuite(
+  prisma: PrismaClient,
+  manifests: readonly GuideManifest[],
+  confirmed: boolean,
+): Promise<PublishTestSuiteResult> {
+  const { buildDraftCreator } = await import("./eec-c01-guides-runtime");
+  const { resolveEnvironment } = await import("../shared/psico-environment");
+  return publishTestSuite(
+    prisma,
+    buildDraftCreator(prisma) as unknown as DraftPublisher,
+    manifests,
+    resolveEnvironment(),
+    confirmed,
   );
 }
 

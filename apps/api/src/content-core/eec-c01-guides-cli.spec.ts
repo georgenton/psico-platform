@@ -12,8 +12,10 @@ import {
 import {
   createDrafts,
   previewReport,
+  publishTestSuite,
   toDefinition,
   verifyDrafts,
+  PUBLISH_REFUSED_ON_DEPLOYED,
   type DraftCreator,
 } from "./eec-c01-guides-apply";
 import { assertWriteAllowed, parseArgs } from "./eec-c01-guides-main";
@@ -636,5 +638,83 @@ describe("EEC-C01 · recovering from a partial apply", () => {
     expect(third.calls).toBe(0);
     expect(r.outcome).toBe("NOOP");
     expect(r.drafts.every((d) => d.action === "NOOP")).toBe(true);
+  });
+});
+
+/**
+ * §4 — publishing, and the one place it must never reach.
+ *
+ * The browser walkthrough needs published experiences. The wrong way to get
+ * them is production's, so the guard is asserted here rather than trusted to a
+ * flag somebody could set.
+ */
+describe("EEC-C01 · publish-test-suite refuses a deployed box", () => {
+  const publisher = {
+    publish: (id: string) =>
+      Promise.resolve({ id, publishedAt: new Date().toISOString() }),
+  };
+
+  for (const env of ["production", "staging"]) {
+    it(`refuses on ${env}, even with the confirmation typed`, async () => {
+      await expect(
+        publishTestSuite(fakeDb(), publisher, MANIFESTS, env, true),
+      ).rejects.toThrow(PUBLISH_REFUSED_ON_DEPLOYED);
+    });
+  }
+
+  it("refuses off production too, when nobody confirmed", async () => {
+    await expect(
+      publishTestSuite(fakeDb(), publisher, MANIFESTS, "development", false),
+    ).rejects.toThrow(/NOT_CONFIRMED/);
+  });
+
+  it("publishes the five when the environment and the intent both allow it", async () => {
+    const rows = Object.fromEntries(
+      MANIFESTS.map((m, i) => [
+        m.experienceKey,
+        { id: `x${i}`, status: "DRAFT", guideKey: m.guideKey },
+      ]),
+    );
+    const seen: string[] = [];
+    const r = await publishTestSuite(
+      fakeDb(rows),
+      {
+        publish: (id: string) => {
+          seen.push(id);
+          return Promise.resolve({ id, publishedAt: "now" });
+        },
+      },
+      MANIFESTS,
+      "development",
+      true,
+    );
+    expect(r.ok).toBe(true);
+    expect(seen).toHaveLength(5);
+    expect(r.published.map((p) => p.manifestId)).toEqual(
+      MANIFESTS.map((m) => m.manifestId),
+    );
+  });
+
+  it("does not republish what is already published", async () => {
+    const rows = Object.fromEntries(
+      MANIFESTS.map((m, i) => [
+        m.experienceKey,
+        { id: `x${i}`, status: "PUBLISHED", guideKey: m.guideKey },
+      ]),
+    );
+    const seen: string[] = [];
+    await publishTestSuite(
+      fakeDb(rows),
+      {
+        publish: (id: string) => {
+          seen.push(id);
+          return Promise.resolve({ id, publishedAt: "now" });
+        },
+      },
+      MANIFESTS,
+      "test",
+      true,
+    );
+    expect(seen).toEqual([]);
   });
 });

@@ -42,6 +42,8 @@ export interface CliArgs {
   apply: boolean;
   environment: string | null;
   confirmProductionDraft: boolean;
+  /** Only ever meaningful off a deployed box; see `publishTestSuite`. */
+  confirmNonProductionPublish: boolean;
   out: string | null;
 }
 
@@ -58,6 +60,9 @@ export function parseArgs(argv: readonly string[]): CliArgs {
     apply: argv.includes("--apply") && !argv.includes("--dry-run"),
     environment: get("environment"),
     confirmProductionDraft: argv.includes("--confirm-production-draft"),
+    confirmNonProductionPublish: argv.includes(
+      "--confirm-nonproduction-publish",
+    ),
     out: get("out"),
   };
 }
@@ -148,6 +153,7 @@ async function main(): Promise<number> {
       runCreateDrafts,
       runVerifyDrafts,
       runPreviewReport,
+      runPublishTestSuite,
     } = await import("./eec-c01-guides-apply");
 
     switch (args.command) {
@@ -169,6 +175,19 @@ async function main(): Promise<number> {
         if (r.outcome === "PARTIAL_APPLY") return 3;
         return r.ok ? 0 : r.drift ? 2 : 1;
       }
+      // Publishing, for a throwaway environment only. `publishTestSuite`
+      // refuses production and staging before it reads anything.
+      case "publish-test-suite": {
+        const r = await runPublishTestSuite(
+          prisma,
+          manifests,
+          args.confirmNonProductionPublish,
+        );
+        console.log(
+          JSON.stringify({ command: "publish-test-suite", ...r }, null, 2),
+        );
+        return r.ok ? 0 : 1;
+      }
       case "verify-drafts": {
         const r = await runVerifyDrafts(prisma, manifests);
         console.log(
@@ -189,7 +208,8 @@ async function main(): Promise<number> {
       }
       default:
         console.error(
-          "usage: validate | plan | apply-targets | create-drafts | verify-drafts | preview-report",
+          "usage: validate | plan | apply-targets | create-drafts | " +
+            "publish-test-suite | verify-drafts | preview-report",
         );
         return 1;
     }

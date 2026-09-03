@@ -1,0 +1,363 @@
+{
+  "api": "http://localhost:3011",
+  "book": "emociones-en-construccion",
+  "chapter": 1,
+  "results": [
+    {
+      "name": "the route offers exactly five readings",
+      "status": "PASS",
+      "detail": "5"
+    },
+    {
+      "name": "in the order the chapter teaches them",
+      "status": "PASS",
+      "detail": "1,2,3,4,5"
+    },
+    {
+      "name": "the historical pilot is not one of them",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "each card carries a title, a description and a duration",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "all five start independently at START",
+      "status": "PASS",
+      "detail": "START,START,START,START,START"
+    },
+    {
+      "name": "one batched request answers for all five",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "teorias-como-lentes · starts from START",
+      "status": "PASS",
+      "detail": "START"
+    },
+    {
+      "name": "teorias-como-lentes · session opens on its own pin",
+      "status": "PASS",
+      "detail": "eec-c1-teorias-como-lentes@1"
+    },
+    {
+      "name": "teorias-como-lentes · three steps, as the guide declares",
+      "status": "PASS",
+      "detail": "3"
+    },
+    {
+      "name": "teorias-como-lentes · the chapter now offers CONTINUE",
+      "status": "PASS",
+      "detail": "CONTINUE"
+    },
+    {
+      "name": "teorias-como-lentes · resuming lands on the SAME pinned version",
+      "status": "PASS",
+      "detail": "{\"guideKey\":\"eec-c1-teorias-como-lentes\",\"guideVersion\":1}"
+    },
+    {
+      "name": "teorias-como-lentes · a wrong answer says REVIEW",
+      "status": "PASS",
+      "detail": "REVIEW"
+    },
+    {
+      "name": "teorias-como-lentes · and carries the approved sentence",
+      "status": "PASS",
+      "detail": "Revisa la diferencia central: comparar teorías no consiste e"
+    },
+    {
+      "name": "teorias-como-lentes · the recall response hides the answer",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "teorias-como-lentes · a replay returns the same verdict and the same words",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "teorias-como-lentes · completes",
+      "status": "PASS",
+      "detail": "201 COMPLETED"
+    },
+    {
+      "name": "teorias-como-lentes · the chapter now says COMPLETED",
+      "status": "PASS",
+      "detail": "COMPLETED"
+    },
+    {
+      "name": "finishing teorias-como-lentes left the others alone",
+      "status": "PASS",
+      "detail": "0 completed of 4"
+    },
+    {
+      "name": "rostro-como-pista · starts from START",
+      "status": "PASS",
+      "detail": "START"
+    },
+    {
+      "name": "rostro-como-pista · session opens on its own pin",
+      "status": "PASS",
+      "detail": "eec-c1-rostro-como-pista@1"
+    },
+    {
+      "name": "rostro-como-pista · three steps, as the guide declares",
+      "status": "PASS",
+      "detail": "3"
+    },
+    {
+      "name": "rostro-como-pista · the chapter now offers CONTINUE",
+      "status": "PASS",
+      "detail": "CONTINUE"
+    },
+    {
+      "name": "rostro-como-pista · resuming lands on the SAME pinned version",
+      "status": "PASS",
+      "detail": "{\"guideKey\":\"eec-c1-rostro-como-pista\",\"guideVersion\":1}"
+    },
+    {
+      "name": "rostro-como-pista · a wrong answer says REVIEW",
+      "status": "PASS",
+      "detail": "REVIEW"
+    },
+    {
+      "name": "rostro-como-pista · and carries the approved sentence",
+      "status": "PASS",
+      "detail": "Revisa la diferencia central: un rostro ofrece pistas, no un"
+    },
+    {
+      "name": "rostro-como-pista · the recall response hides the answer",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "rostro-como-pista · a replay returns the same verdict and the same words",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "rostro-como-pista · completes",
+      "status": "PASS",
+      "detail": "201 COMPLETED"
+    },
+    {
+      "name": "rostro-como-pista · the chapter now says COMPLETED",
+      "status": "PASS",
+      "detail": "COMPLETED"
+    },
+    {
+      "name": "finishing rostro-como-pista left the others alone",
+      "status": "PASS",
+      "detail": "1 completed of 4"
+    },
+    {
+      "name": "alarma-antes-del-relato · starts from START",
+      "status": "PASS",
+      "detail": "START"
+    },
+    {
+      "name": "alarma-antes-del-relato · session opens on its own pin",
+      "status": "PASS",
+      "detail": "eec-c1-alarma-antes-del-relato@1"
+    },
+    {
+      "name": "alarma-antes-del-relato · three steps, as the guide declares",
+      "status": "PASS",
+      "detail": "3"
+    },
+    {
+      "name": "alarma-antes-del-relato · the chapter now offers CONTINUE",
+      "status": "PASS",
+      "detail": "CONTINUE"
+    },
+    {
+      "name": "alarma-antes-del-relato · resuming lands on the SAME pinned version",
+      "status": "PASS",
+      "detail": "{\"guideKey\":\"eec-c1-alarma-antes-del-relato\",\"guideVersion\":1}"
+    },
+    {
+      "name": "alarma-antes-del-relato · a wrong answer says REVIEW",
+      "status": "PASS",
+      "detail": "REVIEW"
+    },
+    {
+      "name": "alarma-antes-del-relato · and carries the approved sentence",
+      "status": "PASS",
+      "detail": "Revisa la diferencia central: reaccionar ante una señal no d"
+    },
+    {
+      "name": "alarma-antes-del-relato · the recall response hides the answer",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "alarma-antes-del-relato · a replay returns the same verdict and the same words",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "alarma-antes-del-relato · completes",
+      "status": "PASS",
+      "detail": "201 COMPLETED"
+    },
+    {
+      "name": "alarma-antes-del-relato · the chapter now says COMPLETED",
+      "status": "PASS",
+      "detail": "COMPLETED"
+    },
+    {
+      "name": "finishing alarma-antes-del-relato left the others alone",
+      "status": "PASS",
+      "detail": "2 completed of 4"
+    },
+    {
+      "name": "emocion-informa-no-manda · starts from START",
+      "status": "PASS",
+      "detail": "START"
+    },
+    {
+      "name": "emocion-informa-no-manda · session opens on its own pin",
+      "status": "PASS",
+      "detail": "eec-c1-emocion-informa-no-manda@1"
+    },
+    {
+      "name": "emocion-informa-no-manda · three steps, as the guide declares",
+      "status": "PASS",
+      "detail": "3"
+    },
+    {
+      "name": "emocion-informa-no-manda · the chapter now offers CONTINUE",
+      "status": "PASS",
+      "detail": "CONTINUE"
+    },
+    {
+      "name": "emocion-informa-no-manda · resuming lands on the SAME pinned version",
+      "status": "PASS",
+      "detail": "{\"guideKey\":\"eec-c1-emocion-informa-no-manda\",\"guideVersion\":1}"
+    },
+    {
+      "name": "emocion-informa-no-manda · a wrong answer says REVIEW",
+      "status": "PASS",
+      "detail": "REVIEW"
+    },
+    {
+      "name": "emocion-informa-no-manda · and carries the approved sentence",
+      "status": "PASS",
+      "detail": "Revisa la diferencia central: sentir algo orienta la decisió"
+    },
+    {
+      "name": "emocion-informa-no-manda · the recall response hides the answer",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "emocion-informa-no-manda · a replay returns the same verdict and the same words",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "emocion-informa-no-manda · completes",
+      "status": "PASS",
+      "detail": "201 COMPLETED"
+    },
+    {
+      "name": "emocion-informa-no-manda · the chapter now says COMPLETED",
+      "status": "PASS",
+      "detail": "COMPLETED"
+    },
+    {
+      "name": "finishing emocion-informa-no-manda left the others alone",
+      "status": "PASS",
+      "detail": "3 completed of 4"
+    },
+    {
+      "name": "construida-no-significa-falsa · starts from START",
+      "status": "PASS",
+      "detail": "START"
+    },
+    {
+      "name": "construida-no-significa-falsa · session opens on its own pin",
+      "status": "PASS",
+      "detail": "eec-c1-construida-no-significa-falsa@1"
+    },
+    {
+      "name": "construida-no-significa-falsa · three steps, as the guide declares",
+      "status": "PASS",
+      "detail": "3"
+    },
+    {
+      "name": "construida-no-significa-falsa · the chapter now offers CONTINUE",
+      "status": "PASS",
+      "detail": "CONTINUE"
+    },
+    {
+      "name": "construida-no-significa-falsa · resuming lands on the SAME pinned version",
+      "status": "PASS",
+      "detail": "{\"guideKey\":\"eec-c1-construida-no-significa-falsa\",\"guideVersion\":1}"
+    },
+    {
+      "name": "construida-no-significa-falsa · a wrong answer says REVIEW",
+      "status": "PASS",
+      "detail": "REVIEW"
+    },
+    {
+      "name": "construida-no-significa-falsa · and carries the approved sentence",
+      "status": "PASS",
+      "detail": "Revisa la diferencia central: «construida» no es lo contrari"
+    },
+    {
+      "name": "construida-no-significa-falsa · the recall response hides the answer",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "construida-no-significa-falsa · a replay returns the same verdict and the same words",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "construida-no-significa-falsa · completes",
+      "status": "PASS",
+      "detail": "201 COMPLETED"
+    },
+    {
+      "name": "construida-no-significa-falsa · the chapter now says COMPLETED",
+      "status": "PASS",
+      "detail": "COMPLETED"
+    },
+    {
+      "name": "finishing construida-no-significa-falsa left the others alone",
+      "status": "PASS",
+      "detail": "4 completed of 4"
+    },
+    {
+      "name": "all five were walked",
+      "status": "PASS",
+      "detail": "5"
+    },
+    {
+      "name": "a session pinned to the historical pilot still opens",
+      "status": "PASS",
+      "detail": "201 eec-c1-cuerpo-antes-que-mente"
+    },
+    {
+      "name": "and it resumes under that exact pin",
+      "status": "PASS",
+      "detail": "ACTIVE"
+    },
+    {
+      "name": "while the new route still does not offer it",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "no 5xx anywhere in the walk",
+      "status": "PASS",
+      "detail": ""
+    }
+  ],
+  "failures": 0
+}

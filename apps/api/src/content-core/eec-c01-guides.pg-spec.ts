@@ -289,6 +289,38 @@ suite("EEC-C01 · manifests → targets → five DRAFTs (real PostgreSQL)", () =
     expect(plan.targets.every((t) => t.action === "VERIFY")).toBe(true);
   }, 120_000);
 
+  it("5b · with the targets gone, apply-targets creates them", async () => {
+    // The backfill already materialises this book's catalog, so the case above
+    // proves the activation VERIFIES. That leaves the branch that actually
+    // writes untested — so here the chapter's targets are removed first and the
+    // same command has to put them back.
+    const keys = manifests.flatMap((m) => [m.practiceKey, m.recallKey]);
+    const conceptKeys = manifests.map((m) => m.conceptKey);
+    await prisma.exercise.deleteMany({ where: { id: { in: keys } } });
+    await prisma.conceptLink.deleteMany({
+      where: { concept: { conceptKey: { in: conceptKeys } } },
+    });
+    await prisma.concept.deleteMany({
+      where: { conceptKey: { in: conceptKeys } },
+    });
+
+    const plan = await planGuides(prisma, manifests, "test", false);
+    expect(plan.targets.filter((t) => t.action === "CREATE")).toHaveLength(15);
+
+    const r = await runApplyTargets(prisma, manifests, true);
+    expect(r.ok).toBe(true);
+    expect(
+      (r.stats as { conceptsCreated: number; exercisesCreated: number })
+        .conceptsCreated,
+    ).toBeGreaterThan(0);
+    expect(
+      (r.stats as { exercisesCreated: number }).exercisesCreated,
+    ).toBeGreaterThan(0);
+
+    const after = await planGuides(prisma, manifests, "test", false);
+    expect(after.targets.every((t) => t.action === "VERIFY")).toBe(true);
+  }, 180_000);
+
   it("6 · replaying apply-targets is a no-op", async () => {
     const before = [
       await prisma.concept.count(),

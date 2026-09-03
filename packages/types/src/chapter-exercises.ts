@@ -36,7 +36,45 @@ export interface BreatheExercise {
   exhaleSec: number;
 }
 
-export type ChapterExercise = ReflectExercise | BreatheExercise;
+/**
+ * The book's own integrative activity — «mitos emocionales bajo la lupa».
+ *
+ * The chapter already ships this as prose with a "próximamente" card. This
+ * turns it into the real thing without touching a single block: the activity is
+ * activated for a chapter here, exactly like the other two kinds, so no
+ * re-ingestion is needed and no anchor moves.
+ *
+ * It is NOT a sixth guided reading. It has no Guide, no steps, no catalog
+ * targets and no progress of its own — it blocks nothing and nothing blocks it.
+ *
+ * Privacy, stated as data rather than as a promise: nothing here diagnoses,
+ * nothing infers an emotional state, nothing scores a right answer, every step
+ * can be skipped, and free text — the rewrite and the better question — never
+ * leaves the device from this component. A reader who wants to keep it sends it
+ * through the Reflexión tab, which is encrypted end to end, as an explicit act.
+ */
+export interface MythsLensExercise {
+  id: string;
+  kind: "myths_lens";
+  title: string;
+  description: string;
+  /** Seven common beliefs, each rated 1–5. No total, no profile, no verdict. */
+  beliefs: readonly { id: string; text: string }[];
+  /** The scale's ends, so the UI never invents "de acuerdo / en desacuerdo". */
+  scaleLow: string;
+  scaleHigh: string;
+  /** The five lenses of this chapter, in the order the microguides teach them. */
+  lenses: readonly { id: string; label: string; question: string }[];
+  rewritePrompt: string;
+  betterQuestionPrompt: string;
+  /** Shown wherever the interaction cannot run. The activity still makes sense. */
+  fallbackSteps: readonly string[];
+}
+
+export type ChapterExercise =
+  | ReflectExercise
+  | BreatheExercise
+  | MythsLensExercise;
 
 export const CHAPTER_EXERCISES: Record<
   string,
@@ -54,6 +92,70 @@ export const CHAPTER_EXERCISES: Record<
         inhaleSec: 4,
         holdSec: 4,
         exhaleSec: 6,
+      },
+      {
+        id: "eec-1-myths-lens",
+        kind: "myths_lens",
+        title: "Mitos emocionales bajo la lupa",
+        description:
+          "Puntúa siete creencias comunes, elige una y míralas con las cinco lentes del capítulo.",
+        beliefs: [
+          { id: "b1", text: "Las emociones negativas hay que evitarlas." },
+          { id: "b2", text: "Si alguien sonríe, está contento." },
+          { id: "b3", text: "Una reacción fuerte demuestra que hay peligro." },
+          { id: "b4", text: "Sentir algo justifica actuar en consecuencia." },
+          {
+            id: "b5",
+            text: "Las emociones son iguales en todas las culturas.",
+          },
+          { id: "b6", text: "Si es construida, entonces no es real." },
+          { id: "b7", text: "Una persona madura controla lo que siente." },
+        ],
+        scaleLow: "No lo comparto",
+        scaleHigh: "Lo comparto",
+        lenses: [
+          {
+            id: "teoria",
+            label: "Teoría o mapa",
+            question:
+              "¿A qué pregunta responde esta creencia y qué deja fuera de foco?",
+          },
+          {
+            id: "rostro",
+            label: "Rostro",
+            question:
+              "¿Cuánto de esto se apoya en leer una expresión como si fuera un diccionario?",
+          },
+          {
+            id: "alarma",
+            label: "Alarma",
+            question:
+              "¿Confunde una respuesta protectora rápida con la emoción consciente?",
+          },
+          {
+            id: "decision",
+            label: "Emoción y decisión",
+            question:
+              "¿Da por hecho que sentir algo decide la conducta que sigue?",
+          },
+          {
+            id: "construccion",
+            label: "Construcción",
+            question:
+              "¿Qué papel dan aquí el contexto, la memoria y los conceptos aprendidos?",
+          },
+        ],
+        rewritePrompt:
+          "Reescribe la creencia con matices: qué parte se sostiene, qué parte no y en qué condiciones.",
+        betterQuestionPrompt:
+          "¿Qué pregunta harías ahora, en lugar de la creencia con la que empezaste?",
+        fallbackSteps: [
+          "Puntúa del 1 al 5 cuánto compartes cada una de las siete creencias.",
+          "Elige una que uses a menudo.",
+          "Mírala con las cinco lentes del capítulo: teoría, rostro, alarma, emoción y decisión, construcción.",
+          "Reescríbela con matices.",
+          "Formula una pregunta mejor que la creencia original.",
+        ],
       },
       {
         id: "eec-1-reflect",

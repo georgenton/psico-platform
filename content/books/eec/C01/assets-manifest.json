@@ -1,0 +1,33 @@
+{
+  "schema_version": "0.1-draft",
+  "chapter_id": "EEC-C01",
+  "heavy_assets_in_repository": false,
+  "assets": [],
+  "planned_assets": [
+    {
+      "owner_id": "FIG-C01-001",
+      "kind": "figure",
+      "state": "BRIEF_ONLY",
+      "path_or_url": null,
+      "rights": null,
+      "license": null,
+      "sha256": null
+    },
+    {
+      "owner_id": "GUIDE-C01-003",
+      "kind": "microguide_package",
+      "state": "TECHNICAL_DRAFT_METADATA_ONLY",
+      "path_or_url": null,
+      "rights": null,
+      "license": null,
+      "sha256": null
+    }
+  ],
+  "policy": {
+    "no_private_research_pdfs": true,
+    "no_scrivener_project": true,
+    "no_zotero_library_dump": true,
+    "no_env_or_secrets": true,
+    "no_unapproved_ai_asset_publish": true
+  }
+}

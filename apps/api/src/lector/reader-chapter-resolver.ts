@@ -53,6 +53,8 @@ export interface NativeChapterTarget {
   contentUnitId: string;
   order: number;
   unitKey: string;
+  /** The exact published snapshot the reader is being served. */
+  unitVersionId: string;
   editionKey: string;
   title: string;
   summary: string | null;
@@ -66,11 +68,39 @@ export type ReaderChapterTarget = LegacyChapterTarget | NativeChapterTarget;
 /** The narrow Prisma surface this needs — satisfied by a transaction client. */
 type Db = Pick<
   PrismaClient,
-  "chapter" | "edition" | "revisionUnit" | "contentUnit"
+  "chapter" | "edition" | "revisionUnit" | "contentUnit" | "blockVersion"
 >;
 
 /**
- * Resolve one position within a book, preferring the legacy chapter.
+ * Is the published unit still a faithful copy of its legacy chapter?
+ *
+ * The backfill created one `ContentBlock` per `ChapterBlock` and recorded the
+ * origin in `legacyBlockId`. While every published block still carries one, the
+ * two stores hold the same text and it does not matter which one answers.
+ *
+ * An ingest breaks that: `ingestUnitV2` mints blocks from the manuscript, and a
+ * block it creates has no legacy origin to record. So the FIRST block without a
+ * `legacyBlockId` is the moment Content Core stopped being a copy and started
+ * being the text — and from then on it has to be the one the reader gets.
+ *
+ * Deriving the cutover from the data rather than from a column is what keeps it
+ * honest. A flag would have to be set by whoever remembered to, and a chapter
+ * whose flag was forgotten would serve the old text while every manifest and
+ * report said otherwise. Here there is nothing to remember and nothing to drift.
+ */
+async function publishedUnitIsLegacyMirror(
+  db: Db,
+  unitVersionId: string,
+): Promise<boolean> {
+  const native = await db.blockVersion.count({
+    where: { unitVersionId, contentBlock: { legacyBlockId: null } },
+  });
+  return native === 0;
+}
+
+/**
+ * Resolve one position within a book, preferring the legacy chapter while it is
+ * still a faithful mirror of the published unit.
  *
  * `bookSlug` is the edition's slug, which the backfill sets to the book slug —
  * so this does not parse an edition key or assume its shape (#580).
@@ -90,7 +120,13 @@ export async function resolveReaderChapter(
       select: { id: true, order: true },
     });
     const backing = legacyChaptersByUnitKey(chapters).get(native.unitKey);
-    if (backing) {
+    // …but only while the legacy rows still say the same thing. Once an ingest
+    // has published text Content Core owns, answering from the legacy chapter
+    // would serve a previous edition of the book under the current one's name.
+    if (
+      backing &&
+      (await publishedUnitIsLegacyMirror(db, native.unitVersionId))
+    ) {
       return {
         source: "legacy",
         chapterId: backing.id,
@@ -158,7 +194,7 @@ export async function resolveNativeChapter(
       partTitle: true,
       unit: { select: { id: true, unitKey: true } },
       unitVersion: {
-        select: { title: true, summary: true, durationMinutes: true },
+        select: { id: true, title: true, summary: true, durationMinutes: true },
       },
     },
   });
@@ -170,6 +206,7 @@ export async function resolveNativeChapter(
     contentUnitId: entry.unit.id,
     order: entry.order,
     unitKey: entry.unit.unitKey,
+    unitVersionId: entry.unitVersion.id,
     editionKey: edition.editionKey,
     title: entry.unitVersion.title,
     summary: entry.unitVersion.summary,
@@ -243,7 +280,7 @@ export async function resolveNativeUnitById(
       partTitle: true,
       unit: { select: { id: true, unitKey: true } },
       unitVersion: {
-        select: { title: true, summary: true, durationMinutes: true },
+        select: { id: true, title: true, summary: true, durationMinutes: true },
       },
     },
   });
@@ -253,6 +290,7 @@ export async function resolveNativeUnitById(
     source: "content-core",
     chapterId: null,
     contentUnitId: entry.unit.id,
+    unitVersionId: entry.unitVersion.id,
     // The unit's CURRENT position, deliberately — not whatever stale order the
     // client sent. A write lands on the unit; navigation continues from where
     // that unit actually is now.

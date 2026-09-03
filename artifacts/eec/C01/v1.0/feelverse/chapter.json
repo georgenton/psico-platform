@@ -1,0 +1,103 @@
+{
+  "unit_id": "EEC-C01",
+  "canonical_version": "EEC_C01_v1.0_TEXT_LOCKED_2026-08-20",
+  "canonical_sha256": "e10f42cedf881838578b7337355887c0e8cb2fe37b75dfa4204db509ac023018",
+  "title": "¿Realmente sabemos qué es una emoción?",
+  "placement": {
+    "order": 1,
+    "partNumber": 1,
+    "partTitle": "Deconstruyendo lo que sabíamos"
+  },
+  "blocks": 188,
+  "notes": [
+    {
+      "n": 1,
+      "anchorId": "eec-c1-rostro-como-pista",
+      "citationKey": "EkmanSorensonFriesen1969",
+      "locator": "Science, 164(3875), 86–88."
+    },
+    {
+      "n": 2,
+      "anchorId": "eec-c1-rostro-como-pista",
+      "citationKey": "EkmanFriesen1971",
+      "locator": "Journal of Personality and Social Psychology, 17(2), 124–129."
+    },
+    {
+      "n": 3,
+      "anchorId": "eec-c1-alarma-antes-del-relato",
+      "citationKey": "LeDoux2012",
+      "locator": "Neuron, 73(4), 653–676."
+    },
+    {
+      "n": 4,
+      "anchorId": "eec-c1-alarma-antes-del-relato",
+      "citationKey": "LeDouxPine2016",
+      "locator": "American Journal of Psychiatry, 173(11), 1083–1093."
+    },
+    {
+      "n": 5,
+      "anchorId": "eec-c1-razon-necesita-relevancia",
+      "citationKey": "BecharaEtAl1997",
+      "locator": "Science, 275(5304), 1293–1295."
+    },
+    {
+      "n": 6,
+      "anchorId": "eec-c1-emocion-como-construccion",
+      "citationKey": "Barrett2017Constructed",
+      "locator": "Social Cognitive and Affective Neuroscience, 12(1), 1–23."
+    },
+    {
+      "n": 7,
+      "anchorId": "eec-c1-emocion-como-construccion",
+      "citationKey": "BarrettEtAl2019Expressions",
+      "locator": "Psychological Science in the Public Interest, 20(1), 1–68."
+    },
+    {
+      "n": 8,
+      "anchorId": "eec-c1-emocion-como-construccion",
+      "citationKey": "LindquistEtAl2012",
+      "locator": "Behavioral and Brain Sciences, 35(3), 121–143."
+    },
+    {
+      "n": 9,
+      "anchorId": "eec-c1-emocion-como-construccion",
+      "citationKey": "SiegelEtAl2018",
+      "locator": "Psychological Bulletin, 144(4), 343–393."
+    }
+  ],
+  "bibliography": [
+    "Barrett, Lisa Feldman. 2018-03-13. La vida secreta del cerebro. Ediciones Paidós.",
+    "Barrett, Lisa Feldman. 2017. The Theory of Constructed Emotion: An Active Inference Account of Interoception and Categorization. Social Cognitive and Affective Neuroscience.",
+    "Barrett, Lisa Feldman and Adolphs, Ralph and Marsella, Stacy and Martinez, Aleix M. and Pollak, Seth D.. 2019. Emotional Expressions Reconsidered: Challenges to Inferring Emotion From Human Facial Movements. Psychological Science in the Public Interest.",
+    "Bechara, Antoine and Damasio, Hanna and Tranel, Daniel and Damasio, Antonio R.. 1997. Deciding Advantageously Before Knowing the Advantageous Strategy. Science.",
+    "Cowen, Alan S. and Keltner, Dacher. 2021. Semantic Space Theory: A Computational Approach to Emotion. Trends in Cognitive Sciences.",
+    "Crivelli, Carlos and Russell, James A. and Jarillo, Sergio and Fern\\'andez-Dols, Jos\\'e-Miguel. 2016. The Fear Gasping Face as a Threat Display in a Melanesian Society. Proceedings of the National Academy of Sciences.",
+    "Damasio, Antonio R.. 2010-11-04. El error de Descartes. Editorial Crítica.",
+    "Darwin, Charles. 1872. The Expression of the Emotions in Man and Animals. John Murray.",
+    "Ekman, Paul. 2007-03-20. Emotions Revealed. Holt Paperbacks.",
+    "Ekman, Paul and Friesen, Wallace V.. 1971. Constants Across Cultures in the Face and Emotion. Journal of Personality and Social Psychology.",
+    "Ekman, Paul and Sorenson, E. Richard and Friesen, Wallace V.. 1969. Pan-Cultural Elements in Facial Displays of Emotion. Science.",
+    "Goleman, Daniel. 1996-10-01. Inteligencia emocional. Editorial Kairós.",
+    "Jack, Rachael E. and Garrod, Oliver G. B. and Yu, Hui and Caldara, Roberto and Schyns, Philippe G.. 2012. Facial Expressions of Emotion Are Not Culturally Universal. Proceedings of the National Academy of Sciences.",
+    "Keltner, Dacher and Sauter, Disa and Tracy, Jessica and Cowen, Alan. 2019. Emotional Expression: Advances in Basic Emotion Theory. Journal of Nonverbal Behavior.",
+    "LeDoux, Joseph E.. 1999-02-05. El cerebro emocional. Editorial Ariel.",
+    "LeDoux, Joseph E.. 2012. Rethinking the Emotional Brain. Neuron.",
+    "LeDoux, Joseph E. and Pine, Daniel S.. 2016. Using Neuroscience to Help Understand Fear and Anxiety: A Two-System Framework. American Journal of Psychiatry.",
+    "Lindquist, Kristen A. and Wager, Tor D. and Kober, Hedy and Bliss-Moreau, Eliza and Barrett, Lisa Feldman. 2012. The Brain Basis of Emotion: A Meta-Analytic Review. Behavioral and Brain Sciences.",
+    "Maia, Tiago V. and McClelland, James L.. 2004. A Reexamination of the Evidence for the Somatic Marker Hypothesis: What Participants Really Know in the Iowa Gambling Task. Proceedings of the National Academy of Sciences.",
+    "Matsumoto, David and Willingham, Bob. 2009. Spontaneous Facial Expressions of Emotion of Congenitally and Noncongenitally Blind Individuals. Journal of Personality and Social Psychology.",
+    "McLaren, Karla. 2010. The Language of Emotions. Sounds True.",
+    "Salovey, Peter and Mayer, John D.. 1990. Emotional Intelligence. Imagination, Cognition and Personality.",
+    "Siegel, Erika H. and Sands, Molly K. and Van den Noortgate, Wim and Condon, Paul and Chang, Yale and Dy, Jennifer and Quigley, Karen S. and Barrett, Lisa Feldman. 2018. Emotion Fingerprints or Emotion Populations? A Meta-Analytic Investigation of Autonomic Features of Emotion Categories. Psychological Bulletin."
+  ],
+  "citation_system": {
+    "manual": "Chicago Manual of Style",
+    "edition": 18,
+    "system": "shortened-notes-and-bibliography",
+    "csl_file": "chicago-shortened-notes-bibliography.csl",
+    "bibliography": "bibliography/eec-library.bib",
+    "callouts": "superscript",
+    "numbering": "generated-at-build-time",
+    "numbering_resets_each_chapter": true
+  }
+}

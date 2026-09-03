@@ -1,0 +1,281 @@
+{
+  "schema_version": "1.0",
+  "chapter_id": "EEC-C01",
+  "canonical_version": "EEC_C01_v1.0_TEXT_LOCKED_2026-08-20",
+  "publication_reference_layer": "EEC_C01_PUBREF_v1.0",
+  "citation_style": {
+    "manual": "Chicago Manual of Style",
+    "edition": 18,
+    "system": "shortened-notes-and-bibliography",
+    "csl_file": "chicago-shortened-notes-bibliography.csl",
+    "callouts": "superscript",
+    "numbering": "generated-at-build-time",
+    "numbering_resets_each_chapter": true,
+    "bibliography_scope": "book"
+  },
+  "generated_by": "scripts/eec/resolve-citations.mjs",
+  "generated_at": "2026-09-03",
+  "citations": [
+    {
+      "note_id": "EEC-C01-N001",
+      "anchor_id": "eec-c1-emocion-como-construccion",
+      "citation_key": "Barrett2017Constructed",
+      "locator": "Social Cognitive and Affective Neuroscience, 12(1), 1–23.",
+      "locator_required": false,
+      "source_code": "SRC-BARRETT-2017-CONSTRUCTED",
+      "evidence": {
+        "citation_key_matched_by": "title",
+        "citation_key_evidence": "The Theory of Constructed Emotion: An Active Inference Account of Interoception and Categorization",
+        "anchor_matched_by": "heading-names-author",
+        "anchor_evidence": "Lisa Feldman Barrett: la emoción como construcción",
+        "locator_from": "source-inventory.Localizador",
+        "editorial_status": "VERIFICADA"
+      }
+    },
+    {
+      "note_id": "EEC-C01-N002",
+      "anchor_id": "eec-c1-emocion-como-construccion",
+      "citation_key": "BarrettEtAl2019Expressions",
+      "locator": "Psychological Science in the Public Interest, 20(1), 1–68.",
+      "locator_required": false,
+      "source_code": "SRC-BARRETT-ETAL-2019-EXPRESSIONS",
+      "evidence": {
+        "citation_key_matched_by": "title",
+        "citation_key_evidence": "Emotional Expressions Reconsidered: Challenges to Inferring Emotion From Human Facial Movements",
+        "anchor_matched_by": "heading-names-author",
+        "anchor_evidence": "Lisa Feldman Barrett: la emoción como construcción",
+        "locator_from": "source-inventory.Localizador",
+        "editorial_status": "VERIFICADA"
+      }
+    },
+    {
+      "note_id": "EEC-C01-N003",
+      "anchor_id": "eec-c1-razon-necesita-relevancia",
+      "citation_key": "BecharaEtAl1997",
+      "locator": "Science, 275(5304), 1293–1295.",
+      "locator_required": false,
+      "source_code": "SRC-BECHARA-ETAL-1997",
+      "evidence": {
+        "citation_key_matched_by": "title",
+        "citation_key_evidence": "Deciding Advantageously Before Knowing the Advantageous Strategy",
+        "anchor_matched_by": "heading-names-author",
+        "anchor_evidence": "Antonio Damasio: la razón necesita relevancia",
+        "locator_from": "source-inventory.Localizador",
+        "editorial_status": "VERIFICADA"
+      }
+    },
+    {
+      "note_id": "EEC-C01-N004",
+      "anchor_id": "eec-c1-rostro-como-pista",
+      "citation_key": "EkmanSorensonFriesen1969",
+      "locator": "Science, 164(3875), 86–88.",
+      "locator_required": false,
+      "source_code": "SRC-EKMAN-1969-PANCULTURAL",
+      "evidence": {
+        "citation_key_matched_by": "title",
+        "citation_key_evidence": "Pan-Cultural Elements in Facial Displays of Emotion",
+        "anchor_matched_by": "heading-names-author",
+        "anchor_evidence": "Paul Ekman: el rostro como pista",
+        "locator_from": "source-inventory.Localizador",
+        "editorial_status": "VERIFICADA"
+      }
+    },
+    {
+      "note_id": "EEC-C01-N005",
+      "anchor_id": "eec-c1-rostro-como-pista",
+      "citation_key": "EkmanFriesen1971",
+      "locator": "Journal of Personality and Social Psychology, 17(2), 124–129.",
+      "locator_required": false,
+      "source_code": "SRC-EKMAN-FRIESEN-1971",
+      "evidence": {
+        "citation_key_matched_by": "title",
+        "citation_key_evidence": "Constants Across Cultures in the Face and Emotion",
+        "anchor_matched_by": "heading-names-author",
+        "anchor_evidence": "Paul Ekman: el rostro como pista",
+        "locator_from": "source-inventory.Localizador",
+        "editorial_status": "VERIFICADA"
+      }
+    },
+    {
+      "note_id": "EEC-C01-N006",
+      "anchor_id": "eec-c1-alarma-antes-del-relato",
+      "citation_key": "LeDoux2012",
+      "locator": "Neuron, 73(4), 653–676.",
+      "locator_required": false,
+      "source_code": "SRC-LEDOUX-2012-RETHINKING",
+      "evidence": {
+        "citation_key_matched_by": "title",
+        "citation_key_evidence": "Rethinking the Emotional Brain",
+        "anchor_matched_by": "heading-names-author",
+        "anchor_evidence": "Joseph LeDoux: la alarma antes del relato",
+        "locator_from": "source-inventory.Localizador",
+        "editorial_status": "VERIFICADA"
+      }
+    },
+    {
+      "note_id": "EEC-C01-N007",
+      "anchor_id": "eec-c1-alarma-antes-del-relato",
+      "citation_key": "LeDouxPine2016",
+      "locator": "American Journal of Psychiatry, 173(11), 1083–1093.",
+      "locator_required": false,
+      "source_code": "SRC-LEDOUX-PINE-2016",
+      "evidence": {
+        "citation_key_matched_by": "title",
+        "citation_key_evidence": "Using Neuroscience to Help Understand Fear and Anxiety: A Two-System Framework",
+        "anchor_matched_by": "heading-names-author",
+        "anchor_evidence": "Joseph LeDoux: la alarma antes del relato",
+        "locator_from": "source-inventory.Localizador",
+        "editorial_status": "VERIFICADA"
+      }
+    },
+    {
+      "note_id": "EEC-C01-N008",
+      "anchor_id": "eec-c1-emocion-como-construccion",
+      "citation_key": "LindquistEtAl2012",
+      "locator": "Behavioral and Brain Sciences, 35(3), 121–143.",
+      "locator_required": false,
+      "source_code": "SRC-LINDQUIST-ETAL-2012",
+      "evidence": {
+        "citation_key_matched_by": "title",
+        "citation_key_evidence": "The Brain Basis of Emotion: A Meta-Analytic Review",
+        "anchor_matched_by": "heading-names-author",
+        "anchor_evidence": "Lisa Feldman Barrett: la emoción como construcción",
+        "locator_from": "source-inventory.Localizador",
+        "editorial_status": "VERIFICADA"
+      }
+    },
+    {
+      "note_id": "EEC-C01-N009",
+      "anchor_id": "eec-c1-emocion-como-construccion",
+      "citation_key": "SiegelEtAl2018",
+      "locator": "Psychological Bulletin, 144(4), 343–393.",
+      "locator_required": false,
+      "source_code": "SRC-SIEGEL-ETAL-2018",
+      "evidence": {
+        "citation_key_matched_by": "title",
+        "citation_key_evidence": "Emotion Fingerprints or Emotion Populations? A Meta-Analytic Investigation of Autonomic Features of Emotion Categories",
+        "anchor_matched_by": "heading-names-author",
+        "anchor_evidence": "Lisa Feldman Barrett: la emoción como construcción",
+        "locator_from": "source-inventory.Localizador",
+        "editorial_status": "VERIFICADA"
+      }
+    }
+  ],
+  "unresolved": [
+    {
+      "source_code": "SRC-BARRETT-2017-HEM",
+      "reason": "NO_CITATION_KEY",
+      "detail": "Ninguna entrada del .bib coincide de forma única por DOI, título ni autor+año."
+    },
+    {
+      "source_code": "SRC-BARRETT-2017-SIMULATION",
+      "reason": "NO_CITATION_KEY",
+      "detail": "Ninguna entrada del .bib coincide de forma única por DOI, título ni autor+año."
+    },
+    {
+      "source_code": "SRC-COWEN-KELTNER-2021",
+      "citation_key": "CowenKeltner2021",
+      "reason": "NO_ANCHOR",
+      "detail": "Ningún encabezado del capítulo nombra a esta autoría, y no existe marcador de cita en el manuscrito. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "source_code": "SRC-CRIVELLI-ETAL-2016",
+      "citation_key": "CrivelliEtAl2016",
+      "reason": "NO_ANCHOR",
+      "detail": "Ningún encabezado del capítulo nombra a esta autoría, y no existe marcador de cita en el manuscrito. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "source_code": "SRC-DAMASIO-DESCARTES-C03-C08",
+      "citation_key": "damasio_error_descartes_2010",
+      "anchor_id": "eec-c1-razon-necesita-relevancia",
+      "reason": "MISSING_LOCATOR_FOR_BOOK",
+      "detail": "Chicago 18 pide localizador para un libro y el inventario lo declara pendiente de cotejo."
+    },
+    {
+      "source_code": "SRC-DARWIN-1872-EXPRESSION",
+      "citation_key": "darwin_expression_emotions_1872",
+      "reason": "NO_ANCHOR",
+      "detail": "Ningún encabezado del capítulo nombra a esta autoría, y no existe marcador de cita en el manuscrito. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "source_code": "SRC-EKMAN-NEWGUINEA-WEB",
+      "reason": "NO_CITATION_KEY",
+      "detail": "Ninguna entrada del .bib coincide de forma única por DOI, título ni autor+año."
+    },
+    {
+      "source_code": "SRC-GOLEMAN-IE-C08",
+      "citation_key": "goleman_inteligencia_emocional_1996",
+      "anchor_id": "eec-c1-aprender-a-leer-el-mundo-emocional",
+      "reason": "MISSING_LOCATOR_FOR_BOOK",
+      "detail": "Chicago 18 pide localizador para un libro y el inventario lo declara pendiente de cotejo."
+    },
+    {
+      "source_code": "SRC-GOLEMAN-IE-C16",
+      "citation_key": "goleman_inteligencia_emocional_1996",
+      "anchor_id": "eec-c1-aprender-a-leer-el-mundo-emocional",
+      "reason": "MISSING_LOCATOR_FOR_BOOK",
+      "detail": "Chicago 18 pide localizador para un libro y el inventario lo declara pendiente de cotejo."
+    },
+    {
+      "source_code": "SRC-JACK-ETAL-2012",
+      "citation_key": "JackEtAl2012",
+      "reason": "NO_ANCHOR",
+      "detail": "Ningún encabezado del capítulo nombra a esta autoría, y no existe marcador de cita en el manuscrito. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "source_code": "SRC-KELTNER-ETAL-2019",
+      "citation_key": "KeltnerEtAl2019",
+      "reason": "NO_ANCHOR",
+      "detail": "Ningún encabezado del capítulo nombra a esta autoría, y no existe marcador de cita en el manuscrito. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "source_code": "SRC-MAIA-MCCLELLAND-2004",
+      "citation_key": "MaiaMcClelland2004",
+      "reason": "NO_ANCHOR",
+      "detail": "Ningún encabezado del capítulo nombra a esta autoría, y no existe marcador de cita en el manuscrito. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "source_code": "SRC-MATSUMOTO-WILLINGHAM-2009",
+      "citation_key": "MatsumotoWillingham2009",
+      "reason": "NO_ANCHOR",
+      "detail": "Ningún encabezado del capítulo nombra a esta autoría, y no existe marcador de cita en el manuscrito. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "source_code": "SRC-MCLAREN-HATE-C15",
+      "reason": "NO_CITATION_KEY",
+      "detail": "Ninguna entrada del .bib coincide de forma única por DOI, título ni autor+año."
+    },
+    {
+      "source_code": "SRC-MCLAREN-HYPEREMPATHY-2011",
+      "reason": "NO_CITATION_KEY",
+      "detail": "Ninguna entrada del .bib coincide de forma única por DOI, título ni autor+año."
+    },
+    {
+      "source_code": "SRC-MCLAREN-TLOE-C24",
+      "reason": "NO_CITATION_KEY",
+      "detail": "Ninguna entrada del .bib coincide de forma única por DOI, título ni autor+año."
+    },
+    {
+      "source_code": "SRC-NEWMAN-1964-WILDMAN",
+      "reason": "NO_CITATION_KEY",
+      "detail": "Ninguna entrada del .bib coincide de forma única por DOI, título ni autor+año."
+    },
+    {
+      "source_code": "SRC-PINEL-PUSSIN-1979",
+      "reason": "SOURCE_DISCARDED",
+      "detail": "La fila está marcada DESCARTADA en el inventario editorial."
+    },
+    {
+      "source_code": "SRC-SALOVEY-MAYER-1990",
+      "citation_key": "SaloveyMayer1990",
+      "reason": "NO_ANCHOR",
+      "detail": "Ningún encabezado del capítulo nombra a esta autoría, y no existe marcador de cita en el manuscrito. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    }
+  ],
+  "summary": {
+    "sources_in_inventory": 28,
+    "bib_entries": 23,
+    "resolved": 9,
+    "unresolved": 19
+  }
+}

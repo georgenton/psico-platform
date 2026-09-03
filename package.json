@@ -10,7 +10,9 @@
     "test": "turbo test",
     "typecheck": "turbo typecheck",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml}\"",
-    "prepare": "husky"
+    "prepare": "husky",
+    "eec:build": "node scripts/eec/build-chapter.mjs",
+    "eec:c01:build": "node scripts/eec/build-chapter.mjs --chapter=C01"
   },
   "devDependencies": {
     "@changesets/cli": "^2.27.1",

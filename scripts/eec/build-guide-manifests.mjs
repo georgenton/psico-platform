@@ -72,7 +72,7 @@ const COMMON = {
 };
 
 /** The three obligatory steps, derived from the keys so they cannot drift. */
-const steps = (slug, conceptKey) => [
+const steps = (slug, conceptKey, practiceSlug) => [
   {
     order: 1,
     kind: "CONCEPT_EXPLORATION",
@@ -82,8 +82,8 @@ const steps = (slug, conceptKey) => [
   {
     order: 2,
     kind: "CATALOG_PRACTICE",
-    stepKey: `practicar-${slug}`,
-    targetKey: `eec-c1-practice-${slug}`,
+    stepKey: `practicar-${practiceSlug}`,
+    targetKey: `eec-c1-practice-${practiceSlug}`,
   },
   {
     order: 3,
@@ -98,7 +98,7 @@ const MICROGUIDES = [
     id: "EEC-C01-MG01",
     slug: "teorias-como-lentes",
     conceptKey: "eec-teorias-como-lentes",
-    practiceKey: "eec-c1-practice-teorias-como-lentes",
+    practiceSlug: "revisar-un-lente",
     anchors: {
       primary: {
         reference: "eec-c1-distintas-lentes",
@@ -122,7 +122,7 @@ const MICROGUIDES = [
     id: "EEC-C01-MG02",
     slug: "rostro-como-pista",
     conceptKey: "eec-rostro-como-pista",
-    practiceKey: "eec-c1-practice-rostro-como-pista",
+    practiceSlug: "una-sonrisa-varios-contextos",
     anchors: {
       primary: {
         reference: "eec-c1-rostro-como-pista",
@@ -146,7 +146,7 @@ const MICROGUIDES = [
     id: "EEC-C01-MG03",
     slug: "alarma-antes-del-relato",
     conceptKey: "eec-alarma-antes-del-relato",
-    practiceKey: "eec-c1-practice-alarma-antes-del-relato",
+    practiceSlug: "ordenar-alarma-y-relato",
     anchors: {
       primary: {
         reference: "eec-c1-alarma-antes-del-relato",
@@ -170,7 +170,7 @@ const MICROGUIDES = [
     id: "EEC-C01-MG04",
     slug: "emocion-informa-no-manda",
     conceptKey: "eec-emocion-informa-no-manda",
-    practiceKey: "eec-c1-practice-emocion-informa-no-manda",
+    practiceSlug: "siento-interpreto-impulso-elijo",
     anchors: {
       primary: {
         reference: "eec-c1-aprender-a-leer-el-mundo-emocional",
@@ -201,7 +201,7 @@ const MICROGUIDES = [
     id: "EEC-C01-MG05",
     slug: "construida-no-significa-falsa",
     conceptKey: "eec-construida-no-significa-falsa",
-    practiceKey: "eec-c1-practice-construida-no-significa-falsa",
+    practiceSlug: "senales-y-contextos",
     anchors: {
       primary: {
         reference: "eec-c1-emocion-como-construccion",
@@ -249,19 +249,19 @@ function buildOne(mg) {
     experienceKey: `eec-c1-${mg.slug}`,
     guideKey: `eec-c1-${mg.slug}`,
     conceptKey: mg.conceptKey,
-    practiceKey: mg.practiceKey,
+    practiceKey: `eec-c1-practice-${mg.practiceSlug}`,
     recallKey: `eec-c1-recall-${mg.slug}`,
     anchors: mg.anchors,
     scenes: mg.scenes.map(([kind, title, body], i) => {
       const scene = { order: i + 1, kind, title, body };
       if (kind === "PASSAGE") scene.anchorRef = mg.anchors.primary.reference;
       if (kind === "CONCEPT") scene.stepKey = `explorar-${mg.slug}`;
-      if (kind === "PRACTICE") scene.stepKey = `practicar-${mg.slug}`;
+      if (kind === "PRACTICE") scene.stepKey = `practicar-${mg.practiceSlug}`;
       if (kind === "RECALL") scene.stepKey = `recordar-${mg.slug}`;
       if (kind === "REFLECTION" || kind === "QUESTION") scene.optional = true;
       return scene;
     }),
-    guideSteps: steps(mg.slug, mg.conceptKey),
+    guideSteps: steps(mg.slug, mg.conceptKey, mg.practiceSlug),
     // Stable across runs and across machines: the same manifest content always
     // yields the same key, so a replay is recognisably the same operation.
     idempotencyKey: `eec-c01-${mg.slug}-v1-${sha(mg.id + COMMON.canonicalSha256).slice(0, 16)}`,

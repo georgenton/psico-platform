@@ -400,7 +400,11 @@ export const PQP_C1_SUSTAINED_CONTACT_GUIDE = validateGuideDefinition({
  * definition names them; it never carries copy.
  */
 
-const eecC1Guide = (slug: string, conceptKey: string): GuideDefinition =>
+const eecC1Guide = (
+  slug: string,
+  conceptKey: string,
+  practiceSlug: string,
+): GuideDefinition =>
   validateGuideDefinition({
     guideKey: `eec-c1-${slug}`,
     guideVersion: 1,
@@ -414,12 +418,12 @@ const eecC1Guide = (slug: string, conceptKey: string): GuideDefinition =>
         conceptKey,
       },
       {
-        stepKey: `practicar-${slug}`,
+        stepKey: `practicar-${practiceSlug}`,
         order: 2,
         required: true,
         kind: "CATALOG_PRACTICE",
         completionPolicy: "catalog_practice_confirmation",
-        exerciseKey: `eec-c1-practice-${slug}`,
+        exerciseKey: `eec-c1-practice-${practiceSlug}`,
       },
       {
         stepKey: `recordar-${slug}`,
@@ -436,30 +440,35 @@ const eecC1Guide = (slug: string, conceptKey: string): GuideDefinition =>
 export const EEC_C1_MG01_LENSES_GUIDE = eecC1Guide(
   "teorias-como-lentes",
   "eec-teorias-como-lentes",
+  "revisar-un-lente",
 );
 
 /** MG02 — a face gives information; it does not hand over a reading. */
 export const EEC_C1_MG02_FACE_GUIDE = eecC1Guide(
   "rostro-como-pista",
   "eec-rostro-como-pista",
+  "una-sonrisa-varios-contextos",
 );
 
 /** MG03 — protection can start before the story does. Reconciles the pilot. */
 export const EEC_C1_MG03_ALARM_GUIDE = eecC1Guide(
   "alarma-antes-del-relato",
   "eec-alarma-antes-del-relato",
+  "ordenar-alarma-y-relato",
 );
 
 /** MG04 — feeling, interpreting, wanting and choosing are four things. */
 export const EEC_C1_MG04_INFORMS_GUIDE = eecC1Guide(
   "emocion-informa-no-manda",
   "eec-emocion-informa-no-manda",
+  "siento-interpreto-impulso-elijo",
 );
 
 /** MG05 — built out of real signals, memory and context. Not invented. */
 export const EEC_C1_MG05_CONSTRUCTED_GUIDE = eecC1Guide(
   "construida-no-significa-falsa",
   "eec-construida-no-significa-falsa",
+  "senales-y-contextos",
 );
 
 /**

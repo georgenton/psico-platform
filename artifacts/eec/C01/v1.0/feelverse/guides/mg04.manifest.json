@@ -14,7 +14,7 @@
   "guideKey": "eec-c1-emocion-informa-no-manda",
   "guideVersion": 1,
   "conceptKey": "eec-emocion-informa-no-manda",
-  "practiceKey": "eec-c1-practice-emocion-informa-no-manda",
+  "practiceKey": "eec-c1-practice-siento-interpreto-impulso-elijo",
   "recallKey": "eec-c1-recall-emocion-informa-no-manda",
   "anchors": {
     "primary": {
@@ -62,7 +62,7 @@
       "kind": "PRACTICE",
       "title": "Cuatro campos",
       "body": "Sobre esa situación, completa: siento · interpreto · tengo ganas de · elijo hacer. Validar una emoción no es justificar cualquier conducta; separar los cuatro campos es lo que hace visible esa diferencia.",
-      "stepKey": "practicar-emocion-informa-no-manda"
+      "stepKey": "practicar-siento-interpreto-impulso-elijo"
     },
     {
       "order": 6,
@@ -95,8 +95,8 @@
     {
       "order": 2,
       "kind": "CATALOG_PRACTICE",
-      "stepKey": "practicar-emocion-informa-no-manda",
-      "targetKey": "eec-c1-practice-emocion-informa-no-manda"
+      "stepKey": "practicar-siento-interpreto-impulso-elijo",
+      "targetKey": "eec-c1-practice-siento-interpreto-impulso-elijo"
     },
     {
       "order": 3,
@@ -131,5 +131,5 @@
     "https://app.notion.com/p/3cfcbb1031a0813fb184fe6173d8a826",
     "Decisión autoral 2026-09-03: implementar las cinco microguías de EEC-C01."
   ],
-  "manifestSha256": "27e65e4daaafd0f02d94a38118fcdd30fc7d2ea7b9814fea11e53f82c198e3ea"
+  "manifestSha256": "e1d8a4ebe329b9d14d29cda9bc20d51dbb1327f61b6a2187b8ddcf73547253c7"
 }

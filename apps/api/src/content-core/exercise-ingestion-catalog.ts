@@ -137,7 +137,7 @@ export const EXERCISE_INGESTION_CATALOG: Readonly<
     // are referenced by sessions that already ran.
     {
       practice: {
-        exerciseKey: "eec-c1-practice-teorias-como-lentes",
+        exerciseKey: "eec-c1-practice-revisar-un-lente",
         bookSlug: "emociones-en-construccion",
         chapterOrder: 1,
         order: 3,
@@ -180,7 +180,7 @@ export const EXERCISE_INGESTION_CATALOG: Readonly<
     },
     {
       practice: {
-        exerciseKey: "eec-c1-practice-rostro-como-pista",
+        exerciseKey: "eec-c1-practice-una-sonrisa-varios-contextos",
         bookSlug: "emociones-en-construccion",
         chapterOrder: 1,
         order: 5,
@@ -223,7 +223,7 @@ export const EXERCISE_INGESTION_CATALOG: Readonly<
     },
     {
       practice: {
-        exerciseKey: "eec-c1-practice-alarma-antes-del-relato",
+        exerciseKey: "eec-c1-practice-ordenar-alarma-y-relato",
         bookSlug: "emociones-en-construccion",
         chapterOrder: 1,
         order: 7,
@@ -266,7 +266,7 @@ export const EXERCISE_INGESTION_CATALOG: Readonly<
     },
     {
       practice: {
-        exerciseKey: "eec-c1-practice-emocion-informa-no-manda",
+        exerciseKey: "eec-c1-practice-siento-interpreto-impulso-elijo",
         bookSlug: "emociones-en-construccion",
         chapterOrder: 1,
         order: 9,
@@ -309,7 +309,7 @@ export const EXERCISE_INGESTION_CATALOG: Readonly<
     },
     {
       practice: {
-        exerciseKey: "eec-c1-practice-construida-no-significa-falsa",
+        exerciseKey: "eec-c1-practice-senales-y-contextos",
         bookSlug: "emociones-en-construccion",
         chapterOrder: 1,
         order: 11,

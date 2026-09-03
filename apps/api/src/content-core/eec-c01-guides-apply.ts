@@ -50,7 +50,7 @@ function toScene(
         kind: "CONCEPT",
         conceptKey: m.conceptKey,
         // The panel that OFFERS the concept step is the one that explains it.
-        completesGuideStepKey: `explorar-${slugOf(m)}`,
+        completesGuideStepKey: stepKeyFor(m, "CONCEPT_EXPLORATION"),
         copy,
       } as ExperienceSceneDefinition;
     case "PRACTICE":
@@ -58,7 +58,7 @@ function toScene(
         ...base,
         kind: "PRACTICE",
         exerciseKey: m.practiceKey,
-        completesGuideStepKey: `practicar-${slugOf(m)}`,
+        completesGuideStepKey: stepKeyFor(m, "CATALOG_PRACTICE"),
         copy: { ...copy, actionLabel: "Lo hice" },
       } as ExperienceSceneDefinition;
     case "RECALL":
@@ -66,7 +66,7 @@ function toScene(
         ...base,
         kind: "RECALL",
         itemKey: m.recallKey,
-        completesGuideStepKey: `recordar-${slugOf(m)}`,
+        completesGuideStepKey: stepKeyFor(m, "ACTIVE_RECALL"),
         copy,
       } as ExperienceSceneDefinition;
     case "REFLECTION":
@@ -94,7 +94,17 @@ function toScene(
   }
 }
 
-const slugOf = (m: GuideManifest) => m.guideKey.replace(/^eec-c1-/, "");
+/**
+ * The step a scene completes, READ from the manifest rather than rebuilt from
+ * the guide's slug. Practice steps are named after the activity — `practicar-
+ * ordenar-alarma-y-relato`, not `practicar-alarma-antes-del-relato` — so any
+ * derivation here would quietly disagree with the guide it is meant to drive.
+ */
+function stepKeyFor(m: GuideManifest, kind: string): string {
+  const step = m.guideSteps.find((s) => s.kind === kind);
+  if (!step) throw new Error("EEC_C01_MANIFEST_STEP_MISSING");
+  return step.stepKey;
+}
 
 /**
  * Manifest → the definition `createDraft` validates.

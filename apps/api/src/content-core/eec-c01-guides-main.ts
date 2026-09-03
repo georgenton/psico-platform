@@ -28,8 +28,9 @@ import {
  * `--environment=production --confirm-production-draft`, so nothing writes to
  * production because a script was run in the wrong terminal.
  *
- * Exit codes: 0 ok · 1 refused or failed · 2 drift found (a plan verdict, not a
- * crash — an operator scripting this needs to tell them apart).
+ * Exit codes: 0 ok · 1 refused or failed · 2 drift found · 3 partial apply.
+ * They are distinct because the remedies are: 2 needs somebody to look at a
+ * conflict, 3 needs the same command run again.
  */
 
 const ROOT = join(process.cwd(), "../..");
@@ -162,6 +163,10 @@ async function main(): Promise<number> {
         console.log(
           JSON.stringify({ command: "create-drafts", ...r }, null, 2),
         );
+        // 3 is its own code: a partial apply is neither success nor drift, and
+        // an operator scripting this has to be able to branch on it — the
+        // remedy is to run the command again, not to investigate a conflict.
+        if (r.outcome === "PARTIAL_APPLY") return 3;
         return r.ok ? 0 : r.drift ? 2 : 1;
       }
       case "verify-drafts": {

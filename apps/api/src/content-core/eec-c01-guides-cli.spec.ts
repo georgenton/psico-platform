@@ -505,3 +505,136 @@ describe("EEC-C01 · the gates on the executable", () => {
     expect(() => assertWriteAllowed(parseArgs(["plan"]))).not.toThrow();
   });
 });
+
+/**
+ * §9 — what happens when the batch dies halfway.
+ *
+ * The five creations are five transactions, and no wrapper here can make them
+ * one: `createDraft` takes the chapter's advisory lock and opens its own. So
+ * the guarantee is not atomicity, it is RECOVERABILITY — and that has to be
+ * demonstrated at every position, not argued for once.
+ */
+describe("EEC-C01 · recovering from a partial apply", () => {
+  /** A creator that fails on the Nth call and succeeds on every other. */
+  function creatorFailingAt(position: number, store: Record<string, Row>) {
+    let n = 0;
+    return {
+      get calls() {
+        return n;
+      },
+      createDraft(_userId: string, input: { experienceKey: string }) {
+        n += 1;
+        if (n === position) {
+          return Promise.reject(new Error("connection reset"));
+        }
+        // A successful create is a row that exists from now on — which is what
+        // makes the rerun's inspection meaningful.
+        store[input.experienceKey] = {
+          id: `row-${input.experienceKey}`,
+          status: "DRAFT",
+          guideKey: input.experienceKey,
+        };
+        return Promise.resolve({ id: `row-${input.experienceKey}` });
+      },
+    };
+  }
+
+  for (const position of [1, 2, 3, 4, 5]) {
+    it(`a failure at position ${position} reports PARTIAL_APPLY and names what is left`, async () => {
+      const store: Record<string, Row> = {};
+      const service = creatorFailingAt(position, store);
+      const first = await createDrafts(
+        fakeDb(store),
+        service,
+        MANIFESTS,
+        "u1",
+        true,
+        "unit-1",
+      );
+
+      const landed = position - 1;
+      expect(Object.keys(store)).toHaveLength(landed);
+      if (landed === 0) {
+        // Nothing landed: this is a refusal, not a partial apply.
+        expect(first.outcome).toBe("REFUSED");
+      } else {
+        expect(first.outcome).toBe("PARTIAL_APPLY");
+      }
+      expect(first.ok).toBe(false);
+      // The ones that did not land are named, so an operator does not have to
+      // diff the database against the manifests by hand.
+      expect(first.pending).toHaveLength(MANIFESTS.length - landed);
+      expect(first.pending).toContain(MANIFESTS[position - 1].manifestId);
+      // Nothing was deleted to "clean up". What landed stays.
+      expect(first.drafts.filter((d) => d.action === "CREATED")).toHaveLength(
+        landed,
+      );
+    });
+
+    it(`re-running after a failure at position ${position} completes exactly the missing ones`, async () => {
+      const store: Record<string, Row> = {};
+      await createDrafts(
+        fakeDb(store),
+        creatorFailingAt(position, store),
+        MANIFESTS,
+        "u1",
+        true,
+        "unit-1",
+      );
+      const landed = Object.keys(store).length;
+
+      // The rerun uses a creator that fails at nothing.
+      const healthy = creatorFailingAt(0, store);
+      const second = await createDrafts(
+        fakeDb(store),
+        healthy,
+        MANIFESTS,
+        "u1",
+        true,
+        "unit-1",
+      );
+
+      expect(second.ok).toBe(true);
+      expect(second.outcome).toBe(landed === 5 ? "NOOP" : "APPLIED");
+      expect(second.pending).toEqual([]);
+      // Only the missing ones were created: no duplicates, no rewrites.
+      expect(healthy.calls).toBe(MANIFESTS.length - landed);
+      expect(Object.keys(store)).toHaveLength(MANIFESTS.length);
+      expect(second.drafts.filter((d) => d.action === "NOOP")).toHaveLength(
+        landed,
+      );
+    });
+  }
+
+  it("a third run after a completed recovery writes nothing at all", async () => {
+    const store: Record<string, Row> = {};
+    await createDrafts(
+      fakeDb(store),
+      creatorFailingAt(3, store),
+      MANIFESTS,
+      "u1",
+      true,
+      "unit-1",
+    );
+    await createDrafts(
+      fakeDb(store),
+      creatorFailingAt(0, store),
+      MANIFESTS,
+      "u1",
+      true,
+      "unit-1",
+    );
+    const third = creatorFailingAt(0, store);
+    const r = await createDrafts(
+      fakeDb(store),
+      third,
+      MANIFESTS,
+      "u1",
+      true,
+      "unit-1",
+    );
+    expect(third.calls).toBe(0);
+    expect(r.outcome).toBe("NOOP");
+    expect(r.drafts.every((d) => d.action === "NOOP")).toBe(true);
+  });
+});

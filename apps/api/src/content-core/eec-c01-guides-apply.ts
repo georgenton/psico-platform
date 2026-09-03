@@ -186,6 +186,21 @@ export interface CreateDraftsResult {
   drift: boolean;
   applied: boolean;
   drafts: DraftRow[];
+  /**
+   * What actually happened to the SET, in one word.
+   *
+   *   NOOP           all five already existed, exactly as declared
+   *   APPLIED        the set is complete now
+   *   PARTIAL_APPLY  some landed, some did not — the state this exists for
+   *   REFUSED        drift found; nothing was written
+   *
+   * `PARTIAL_APPLY` is a real outcome rather than a failure, because the five
+   * creations are five transactions and no wrapper can make them one. An
+   * operator needs to be told which ones landed, not handed a stack trace.
+   */
+  outcome: "NOOP" | "APPLIED" | "PARTIAL_APPLY" | "REFUSED";
+  /** The manifests that still have no row. Empty on NOOP and APPLIED. */
+  pending: string[];
 }
 
 /** The narrow slice of the admin service this needs. */
@@ -264,7 +279,7 @@ export async function createDrafts(
   }
 
   if (!apply || drift) {
-    return { ok: !drift, drift, applied: false, drafts };
+    return summarise(drafts, drift, false);
   }
 
   // ── Pass 2: create the ones that are missing ──────────────────────────────
@@ -299,11 +314,39 @@ export async function createDrafts(
     }
   }
 
+  return summarise(drafts, drift, true);
+}
+
+/**
+ * The verdict, derived from what the rows say rather than tracked alongside
+ * them. Two sources for "what happened" is how a report starts disagreeing
+ * with the database it describes.
+ */
+function summarise(
+  drafts: DraftRow[],
+  drift: boolean,
+  applied: boolean,
+): CreateDraftsResult {
+  const pending = drafts
+    .filter((d) => d.action === "SKIPPED" || d.action === "DRIFT")
+    .map((d) => d.manifestId);
+  const created = drafts.filter((d) => d.action === "CREATED").length;
+  const outcome: CreateDraftsResult["outcome"] = !applied
+    ? "REFUSED"
+    : drift && created > 0
+      ? "PARTIAL_APPLY"
+      : drift
+        ? "REFUSED"
+        : created > 0
+          ? "APPLIED"
+          : "NOOP";
   return {
     ok: !drift && drafts.every((d) => d.action !== "DRIFT"),
     drift,
-    applied: true,
+    applied,
     drafts,
+    outcome,
+    pending: outcome === "NOOP" || outcome === "APPLIED" ? [] : pending,
   };
 }
 

@@ -52,6 +52,30 @@ On production or staging a write additionally needs
 `--environment=<env> --confirm-production-draft`. Exit codes: `0` ok, `1`
 refused or failed, `2` drift found.
 
+## Si `create-drafts` se interrumpe a la mitad
+
+Las cinco altas son cinco transacciones: `createDraft` toma el cerrojo del
+capítulo y abre la suya, así que no hay envoltorio que las convierta en una. Lo
+que sí está garantizado es la recuperación.
+
+Un fallo inesperado devuelve `outcome: "PARTIAL_APPLY"`, **código de salida 3**,
+la lista de las que sí quedaron creadas y `pending` con las que faltan.
+
+**Compensación:** vuelve a ejecutar el mismo comando.
+
+```bash
+pnpm content:eec:c01:guides create-drafts --apply   # y en producción, con la ceremonia
+```
+
+La segunda pasada inspecciona antes de escribir: las que existen se reportan
+`NOOP` y solo se crean las que faltan. No duplica, no reescribe y **no borra
+nada automáticamente** — deshacer un alta es una decisión de una persona, no el
+efecto secundario de un reintento.
+
+Si en lugar de 3 devuelve 2, no es lo mismo: hay una fila que no coincide con su
+manifiesto, no se escribió nada, y eso necesita que alguien lo mire antes de
+insistir.
+
 ## What these manifests may not do
 
 - **Publish.** `status` is `DRAFT` and `publishAllowed` is `false` in all five.

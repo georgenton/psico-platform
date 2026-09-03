@@ -4,7 +4,6 @@
   "canonical_version": "EEC_C01_v1.0_TEXT_LOCKED_2026-08-20",
   "canonical_sha256": "e10f42cedf881838578b7337355887c0e8cb2fe37b75dfa4204db509ac023018",
   "title": "¿Realmente sabemos qué es una emoción?",
-
   "_comment_identity": "Identificadores REALES de producción, leídos el 2026-09-02 en una transacción READ ONLY. El paquete GATE-1 traía «candidatos» derivados del slug; el unitKey real no se deriva del slug sino de uuidv5(Chapter.id) — no es portable entre entornos (ver docs/architecture/content-core.md y la nota de #639). Se registran aquí para trazabilidad; el CLI de ingesta los RESUELVE en el entorno destino y nunca confía en estos valores.",
   "production": {
     "workKey": "emociones-en-construccion",
@@ -14,16 +13,17 @@
     "unitKey": "dce92620-2398-5efb-80a4-b90b180a01ae",
     "contentUnitId": "cms54lbnt0003lnrtax9tnjhx",
     "legacyChapterId": "cmql50rvm00025nvvwpft991k",
-    "observedAt": "2026-09-02"
+    "observedAt": "2026-09-02",
+    "publishedRevisionNumber": 10,
+    "previousPublishedRevisionId": "cmsp5d6pb000201o21j3yl075",
+    "publishedAt": "2026-09-03"
   },
-
   "placement": {
     "order": 1,
     "partNumber": 1,
     "partTitle": "Deconstruyendo lo que sabíamos"
   },
   "isFreePreview": true,
-
   "files": {
     "canonical_markdown": "chapter.md",
     "anchors": "anchors.json",
@@ -33,7 +33,6 @@
     "activities": "activities.json",
     "assets": "assets-manifest.json"
   },
-
   "citation_system": {
     "manual": "Chicago Manual of Style",
     "edition": 18,
@@ -44,11 +43,10 @@
     "numbering": "generated-at-build-time",
     "numbering_resets_each_chapter": true
   },
-
-  "_comment_gates": "Estos dos gates los evalúa el build; no se editan a mano para «desbloquear».",
+  "_comment_gates": "Estos tres gates los evalúa el build y la ingesta; no se editan a mano para «desbloquear».",
   "gates": {
     "text_locked": "PASS",
-    "citations": "BLOCKED_NO_NOTE_MAP",
-    "reader_projection": "BLOCKED_LEGACY_BLOCKS_NOT_WRITTEN_BY_INGEST_V2"
+    "citations": "PARTIAL_9_RESOLVED_19_UNRESOLVED",
+    "reader_projection": "PASS"
   }
 }

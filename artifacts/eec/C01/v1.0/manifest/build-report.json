@@ -1,7 +1,7 @@
 {
   "chapter": "C01",
   "canonicalVersion": "EEC_C01_v1.0_TEXT_LOCKED_2026-08-20",
-  "builtAt": "2026-09-03T00:59:54.833Z",
+  "builtAt": "2026-09-03T01:34:14.993Z",
   "checks": {
     "canonicalSha256": "e10f42cedf881838578b7337355887c0e8cb2fe37b75dfa4204db509ac023018",
     "canonicalShaMatches": true,

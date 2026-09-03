@@ -26,14 +26,20 @@ import { unitKeyFromLegacyChapterId } from "./lib/block-key";
  * Un payload construido contra otra base falla en vez de escribir en la unidad
  * equivocada.
  *
- * ── Por qué puede negarse aunque el payload sea válido ──────────────────────
+ * ── Qué le pasa al lector después ───────────────────────────────────────────
  *
- * El lector público sirve `ChapterBlock` (filas legadas) cuando la unidad tiene
- * un capítulo legado detrás — que es el caso de todo lo que existe hoy. Y
- * `ingestUnitV2` no escribe `ChapterBlock`: publica una revisión nueva en Content
- * Core y ahí se acaba. Aplicar sin más dejaría Content Core con el texto nuevo y
- * al lector mostrando el viejo, sin que nada lo señale. Eso es peor que no
- * publicar, así que el caso se comprueba y se rechaza por su nombre.
+ * Este CLI se negaba a aplicar sobre una unidad con capítulo legado detrás,
+ * porque el lector servía `ChapterBlock` y la ingesta no los escribe: publicar
+ * habría dejado Content Core con el texto nuevo y la página con el viejo.
+ *
+ * Ya no. El lector sigue la regla del espejo: el capítulo legado responde solo
+ * mientras todos los bloques publicados conserven `legacyBlockId`, y esta
+ * ingesta acuña bloques que no lo tienen. Así que el plan ya no avisa de una
+ * divergencia — informa del traspaso, que es lo que de verdad ocurre.
+ *
+ * `READER_WOULD_DIVERGE` se conserva exportado y sin usar a propósito: fue el
+ * motivo por el que C01 no se publicó en su momento, y borrar el nombre haría
+ * ilegible ese episodio en los registros.
  *
  * stdout lleva SOLO métricas e identificadores — nunca texto del capítulo.
  * Códigos de salida: 0 ok · 1 rechazado/fallido.
@@ -105,7 +111,8 @@ export interface UnitIngestPlan {
   currentBlocks: number;
   incomingBlocks: number;
   legacyBackedChapterId: string | null;
-  readerWouldDiverge: boolean;
+  /** Quién servirá el texto de esta unidad EN CUANTO se aplique la ingesta. */
+  readerSourceAfterIngest: "content-core" | "legacy";
 }
 
 /**
@@ -169,7 +176,10 @@ export async function planUnitIngest(
     currentBlocks,
     incomingBlocks: payload.blocks.length,
     legacyBackedChapterId,
-    readerWouldDiverge: legacyBackedChapterId !== null,
+    // Los bloques que acuña la ingesta no llevan origen legado, así que la
+    // unidad deja de ser espejo y el lector pasa a Content Core. Vale también
+    // cuando no hay capítulo detrás: ahí ya servía Content Core.
+    readerSourceAfterIngest: "content-core",
   };
 }
 
@@ -186,9 +196,6 @@ export async function runUnitIngest(
   if (!args.apply) return { plan, result: null };
 
   assertUnitIngestAllowed(env);
-  if (plan.readerWouldDiverge && env.ALLOW_READER_DIVERGENCE !== "on") {
-    throw new Error(READER_WOULD_DIVERGE);
-  }
 
   const params: IngestUnitParams = {
     editionId: plan.editionId,
@@ -221,12 +228,13 @@ async function main(): Promise<void> {
         2,
       ),
     );
-    if (!args.apply && plan.readerWouldDiverge) {
+    if (!args.apply && plan.legacyBackedChapterId) {
       console.log(
-        `\nAVISO ${READER_WOULD_DIVERGE}: la unidad tiene el capítulo legado ` +
-          `${plan.legacyBackedChapterId} detrás, y el lector sirve sus ChapterBlock. ` +
-          `ingestUnitV2 no los escribe, así que un --apply publicaría la revisión ` +
-          `nueva mientras el lector sigue mostrando la anterior.`,
+        `\nAVISO: la unidad tiene detrás el capítulo legado ` +
+          `${plan.legacyBackedChapterId}. Aplicar publica la revisión nueva Y ` +
+          `traspasa el texto del lector a Content Core, porque los bloques ` +
+          `acuñados aquí ya no son espejo de las filas legadas. Esas filas no ` +
+          `se tocan: quedan como histórico.`,
       );
     }
     process.exit(0);

@@ -147,8 +147,19 @@ suite("completion across a mixed book", () => {
       const version = await prisma.contentUnitVersion.create({
         data: { unitId: unit.id, title },
       });
+      // Solo las unidades con capítulo detrás llevan enlace legado; la nativa
+      // (order 2) no tiene ninguno, que es precisamente lo que la hace nativa.
+      // El bloque legado ya existe (se creó con el capítulo): se reutiliza, que
+      // es también lo que hace el backfill — adopta, no duplica.
+      const legacyBlock = backing
+        ? await prisma.chapterBlock.findFirst({ where: { chapterId: backing } })
+        : null;
       const block = await prisma.contentBlock.create({
-        data: { unitId: unit.id, blockKey: `bk-${key}` },
+        data: {
+          unitId: unit.id,
+          blockKey: `bk-${key}`,
+          legacyBlockId: legacyBlock?.id ?? null,
+        },
       });
       await prisma.blockVersion.create({
         data: {

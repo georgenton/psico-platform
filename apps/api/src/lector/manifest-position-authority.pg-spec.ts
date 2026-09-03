@@ -134,7 +134,7 @@ suite("published manifest is the position authority", () => {
         data: { bookId, order, title: `Cap ${key}`, isPublished: true },
       });
       chapterId[key] = ch.id;
-      await prisma.chapterBlock.create({
+      const legacyBlock = await prisma.chapterBlock.create({
         data: {
           chapterId: ch.id,
           order: 0,
@@ -159,7 +159,11 @@ suite("published manifest is the position authority", () => {
         data: {
           unitId: unit.id,
           blockKey: `bk-${key}`,
-          legacyBlockId: null,
+          // Enlazado como lo deja el backfill: este fixture representa capítulos
+          // ADOPTADOS, y un espejo adoptado conserva el origen de cada bloque.
+          // Sin el enlace la unidad afirmaría que Content Core escribió ese
+          // texto de cero, que es justo lo contrario de lo que prueba la suite.
+          legacyBlockId: legacyBlock.id,
         },
       });
       await prisma.blockVersion.create({
@@ -345,7 +349,7 @@ suite("published manifest is the position authority", () => {
         });
         if (key === "gone") goneChapterId = ch.id;
         else survivorChapterId = ch.id;
-        await prisma.chapterBlock.create({
+        const retLegacyBlock = await prisma.chapterBlock.create({
           data: {
             chapterId: ch.id,
             order: 0,
@@ -364,7 +368,14 @@ suite("published manifest is the position authority", () => {
           data: { unitId: unit.id, title: `Cap ${key}` },
         });
         const cb = await prisma.contentBlock.create({
-          data: { unitId: unit.id, blockKey: `bk-ret-${key}` },
+          data: {
+            unitId: unit.id,
+            blockKey: `bk-ret-${key}`,
+            // Enlazado como el backfill: un capítulo adoptado conserva el origen
+            // de su bloque. Sin él la unidad diría que Content Core escribió ese
+            // texto de cero, y el lector la serviría a ella y no al capítulo.
+            legacyBlockId: retLegacyBlock.id,
+          },
         });
         await prisma.blockVersion.create({
           data: {

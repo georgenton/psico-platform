@@ -62,6 +62,13 @@ suite("native reader · a chapter with no legacy Chapter row", () => {
     durationMinutes?: number;
     partNumber?: number;
     partTitle?: string;
+    /**
+     * El capítulo legado del que esta unidad es gemela. Cuando se pasa, el
+     * bloque queda enlazado como lo deja el backfill (`legacyBlockId`), que es
+     * lo que distingue un espejo adoptado de una unidad que Content Core creó
+     * por su cuenta. Sin ese enlace la unidad dice ser un gemelo y no lo parece.
+     */
+    legacyChapterId?: string;
   }) {
     const unit = await prisma.contentUnit.create({
       data: {
@@ -78,8 +85,22 @@ suite("native reader · a chapter with no legacy Chapter row", () => {
         durationMinutes: opts.durationMinutes ?? null,
       },
     });
+    const legacyBlock = opts.legacyChapterId
+      ? await prisma.chapterBlock.create({
+          data: {
+            chapterId: opts.legacyChapterId,
+            order: 0,
+            kind: "PARAGRAPH",
+            content: `Texto de ${opts.title}.`,
+          },
+        })
+      : null;
     const block = await prisma.contentBlock.create({
-      data: { unitId: unit.id, blockKey: `bk-${opts.unitKey}` },
+      data: {
+        unitId: unit.id,
+        blockKey: `bk-${opts.unitKey}`,
+        legacyBlockId: legacyBlock?.id ?? null,
+      },
     });
     await prisma.blockVersion.create({
       data: {
@@ -187,12 +208,14 @@ suite("native reader · a chapter with no legacy Chapter row", () => {
       order: 1,
       revisionId: revision.id,
       isFreePreview: true,
+      legacyChapterId: legacyChapter1Id,
     });
     await makeNativeUnit({
       unitKey: unitKeyFromLegacyChapterId(legacyChapter2Id),
       title: "Dos",
       order: 2,
       revisionId: revision.id,
+      legacyChapterId: legacyChapter2Id,
     });
     nativeUnitId = await makeNativeUnit({
       unitKey: "u-nativa",
@@ -256,13 +279,21 @@ suite("native reader · a chapter with no legacy Chapter row", () => {
       expect(book.totalChapters).toBe(2);
     });
 
-    it("reports empty extras truthfully rather than faking them", async () => {
-      // A chapter with no exercises, no audio and no legacy blocks is still a
-      // perfectly valid chapter. What it must not do is invent any of them.
+    it("sirve el texto de Content Core y deja vacío solo lo que de verdad no tiene", async () => {
+      // Antes esta prueba exigía `blocks: []` y apuntaba a los clientes hacia la
+      // superficie `/content`. Eso dejó de ser cierto: el lector web pide
+      // `/lector/…` también para un capítulo nativo, así que un array vacío era
+      // una página en blanco. El texto sale ahora del snapshot publicado.
       const res = await open(3);
+      expect(res.blocks.map((b) => b.content)).toEqual([
+        "Texto de Capítulo nativo.",
+      ]);
+      expect(res.blocks[0].kind).toBe("PARAGRAPH");
+      // Lo que sigue sin existir se sigue diciendo vacío, sin inventarlo:
+      // los ejercicios son un concepto legado y no hay fila Chapter para audio.
       expect(res.lessons).toEqual([]);
       expect(res.chapter.audioAvailable).toBe(false);
-      expect(res.blocks).toEqual([]);
+      // Este usuario no ha marcado nada en esta unidad.
       expect(res.highlights).toEqual([]);
       expect(res.annotations).toEqual([]);
     });

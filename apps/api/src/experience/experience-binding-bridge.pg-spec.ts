@@ -24,6 +24,7 @@ import {
 } from "./experience-binding-schema";
 import { codeOwnedClaimsByUnit } from "./experience-code-owned-identity";
 import { GUIDE_READER_ANCHOR } from "@psico/types";
+import { seedPracticeHeadings } from "../content-core/test-support/seed-practice-headings";
 
 /** The lineage every fixture here works with, taken from the catalog. */
 const EEC_GUIDE_KEY = GUIDE_READER_ANCHOR.guideKey;
@@ -152,6 +153,18 @@ suite("C.3A · the binding bridge", () => {
       await prisma.chapterBlock.create({
         data: { chapterId: ch.id, order: 1, kind: "HEADING", content: heading },
       });
+    }
+    // El catálogo de ejercicios ancla cada práctica a un encabezado editorial.
+    // Se siembran desde el propio catálogo para que añadir una microguía no
+    // rompa un fixture que no tiene nada que ver con ella.
+    for (const ch of await prisma.chapter.findMany({
+      select: { id: true, bookId: true },
+    })) {
+      const b = await prisma.book.findUnique({
+        where: { id: ch.bookId },
+        select: { slug: true },
+      });
+      if (b) await seedPracticeHeadings(prisma, ch.id, b.slug);
     }
     await backfillContentCore(prisma);
 

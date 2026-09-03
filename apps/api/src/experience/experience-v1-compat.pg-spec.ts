@@ -13,6 +13,7 @@ import { backfillContentCore } from "../content-core/backfill";
 import { EXERCISE_INGESTION_CATALOG } from "../content-core/exercise-ingestion-catalog";
 import { productionExperienceRepository } from "./experience-production-catalog";
 import { ExperienceAdminService } from "./experience-admin.service";
+import { seedPracticeHeadings } from "../content-core/test-support/seed-practice-headings";
 
 /**
  * C.3C+C.4 (#639) — can the binary being REPLACED still operate on the schema
@@ -244,6 +245,18 @@ suite("C.3C · the previous binary, on the schema this PR ships", () => {
       await prisma.chapterBlock.create({
         data: { chapterId: ch.id, order: 1, kind: "HEADING", content: heading },
       });
+    }
+    // El catálogo de ejercicios ancla cada práctica a un encabezado editorial.
+    // Se siembran desde el propio catálogo para que añadir una microguía no
+    // rompa un fixture que no tiene nada que ver con ella.
+    for (const ch of await prisma.chapter.findMany({
+      select: { id: true, bookId: true },
+    })) {
+      const b = await prisma.book.findUnique({
+        where: { id: ch.bookId },
+        select: { slug: true },
+      });
+      if (b) await seedPracticeHeadings(prisma, ch.id, b.slug);
     }
     await backfillContentCore(prisma);
 

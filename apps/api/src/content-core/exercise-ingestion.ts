@@ -52,7 +52,7 @@ export class ExerciseIngestError extends Error {
 /** The transaction-client slice this ingestion touches. */
 export type ExerciseIngestDb = Pick<
   Prisma.TransactionClient,
-  "exercise" | "chapterBlock" | "contentBlock"
+  "exercise" | "chapterBlock" | "contentBlock" | "blockVersion"
 >;
 
 /** Structural JSON equality — EXPORTED so the activation planner compares
@@ -225,7 +225,17 @@ export async function inspectPracticeSource(
     where: { chapterId, kind: "HEADING", content: sourceHeading },
     select: { id: true },
   });
-  if (blocks.length !== 1) {
+
+  // The legacy rows are the source of truth only while they still ARE the
+  // chapter. Once an ingest publishes text Content Core minted, the definitive
+  // headings exist only there — measured on EEC-C01 after v1.0: 7 headings in
+  // `ChapterBlock`, 24 in the published revision, and no overlap at all.
+  // Looking only at the legacy side would report SOURCE_MISSING for a heading
+  // the reader is displaying right now.
+  if (blocks.length === 0) {
+    return inspectCoreOwnedPracticeSource(tx, unitId, sourceHeading);
+  }
+  if (blocks.length > 1) {
     return { matchCount: blocks.length, sourceBlockKey: null };
   }
 
@@ -245,6 +255,36 @@ export async function inspectPracticeSource(
     return { matchCount: 1, sourceBlockKey: null };
   }
   return { matchCount: 1, sourceBlockKey };
+}
+
+/**
+ * The same question asked of Content Core: which block of THIS unit is that
+ * heading?
+ *
+ * Only blocks in the unit's own set are considered, and the match must be
+ * unique — the two refusals the legacy path already had, kept identical here so
+ * a heading that repeats is ambiguous on both sides rather than resolvable on
+ * one. A Core-owned block has no `legacyBlockId` to round-trip through, so the
+ * `blockKey` IS the identity and there is nothing to cross-check it against.
+ */
+async function inspectCoreOwnedPracticeSource(
+  tx: ExerciseIngestDb,
+  unitId: string,
+  sourceHeading: string,
+): Promise<PracticeSourceInspection> {
+  const versions = await tx.blockVersion.findMany({
+    where: {
+      kind: "HEADING",
+      content: sourceHeading,
+      contentBlock: { unitId },
+    },
+    select: { contentBlock: { select: { blockKey: true } } },
+  });
+  const keys = [...new Set(versions.map((v) => v.contentBlock.blockKey))];
+  if (keys.length !== 1) {
+    return { matchCount: keys.length, sourceBlockKey: null };
+  }
+  return { matchCount: 1, sourceBlockKey: keys[0] };
 }
 
 async function resolvePracticeSourceBlockKey(

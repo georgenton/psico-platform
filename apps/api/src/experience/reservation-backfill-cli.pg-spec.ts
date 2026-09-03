@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { backfillContentCore } from "../content-core/backfill";
 import { EXERCISE_INGESTION_CATALOG } from "../content-core/exercise-ingestion-catalog";
+import { seedPracticeHeadings } from "../content-core/test-support/seed-practice-headings";
 
 /**
  * C.3B (#639) — the LITERAL operator command, run as a process.
@@ -88,6 +89,18 @@ suite("C.3B · the command an operator actually types", () => {
       });
     }
     // Backfills every book present, which is both of them.
+    // El catálogo de ejercicios ancla cada práctica a un encabezado editorial.
+    // Se siembran desde el propio catálogo para que añadir una microguía no
+    // rompa un fixture que no tiene nada que ver con ella.
+    for (const ch of await prisma.chapter.findMany({
+      select: { id: true, bookId: true },
+    })) {
+      const b = await prisma.book.findUnique({
+        where: { id: ch.bookId },
+        select: { slug: true },
+      });
+      if (b) await seedPracticeHeadings(prisma, ch.id, b.slug);
+    }
     await backfillContentCore(prisma);
   }, 240_000);
 

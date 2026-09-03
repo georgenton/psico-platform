@@ -20,6 +20,7 @@ import {
 import type { MapProjection } from "../test/emotional-firewall-testkit";
 import { backfillContentCore } from "../content-core/backfill";
 import { EXERCISE_INGESTION_CATALOG } from "../content-core/exercise-ingestion-catalog";
+import { seedPracticeHeadings } from "../content-core/test-support/seed-practice-headings";
 
 /**
  * CC-7.4D — the emotional firewall, over the FULL HTTP stack.
@@ -206,6 +207,16 @@ suite("CC-7.4D · Guide full-stack emotional firewall", () => {
         content: PRACTICE_HEADING,
       },
     });
+    // Encabezados del catálogo de ejercicios, sembrados desde el catálogo.
+    for (const c of await prisma.chapter.findMany({
+      select: { id: true, bookId: true },
+    })) {
+      const bk = await prisma.book.findUnique({
+        where: { id: c.bookId },
+        select: { slug: true },
+      });
+      if (bk) await seedPracticeHeadings(prisma, c.id, bk.slug);
+    }
     await backfillContentCore(prisma);
 
     // The SHARED firewall wiring: real cache identity, and a provider that

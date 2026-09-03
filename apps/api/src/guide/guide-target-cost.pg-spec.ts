@@ -22,6 +22,7 @@ import { GuideLifecycleService } from "./guide-lifecycle.service";
 import { GuideSessionRepository } from "./guide-session.repository";
 import { GuideSessionStepRepository } from "./guide-session-step.repository";
 import { GuideCommandReceiptRepository } from "./guide-command-receipt.repository";
+import { seedPracticeHeadings } from "../content-core/test-support/seed-practice-headings";
 
 /**
  * C.3R (#639) — what the batch actually costs, by target COMPOSITION.
@@ -135,6 +136,16 @@ suite("C.3R · batch cost by target composition", () => {
           },
         });
       }
+    }
+    // Encabezados del catálogo de ejercicios, sembrados desde el catálogo.
+    for (const c of await prisma.chapter.findMany({
+      select: { id: true, bookId: true },
+    })) {
+      const bk = await prisma.book.findUnique({
+        where: { id: c.bookId },
+        select: { slug: true },
+      });
+      if (bk) await seedPracticeHeadings(prisma, c.id, bk.slug);
     }
     await backfillContentCore(prisma);
 

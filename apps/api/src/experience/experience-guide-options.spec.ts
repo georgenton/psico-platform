@@ -2,6 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   GUIDE_READER_ANCHOR,
+  EEC_C1_MG01_ANCHOR,
+  EEC_C1_MG02_ANCHOR,
+  EEC_C1_MG03_ANCHOR,
+  EEC_C1_MG04_ANCHOR,
+  EEC_C1_MG05_ANCHOR,
   PAREJAS_READER_ANCHOR,
   type GuideReaderAnchorLocator,
 } from "@psico/types";
@@ -34,6 +39,11 @@ import type { ChapterBindingView } from "./experience-binding-reservation";
 
 const ANCHORS: readonly GuideReaderAnchorLocator[] = [
   GUIDE_READER_ANCHOR,
+  EEC_C1_MG01_ANCHOR,
+  EEC_C1_MG02_ANCHOR,
+  EEC_C1_MG03_ANCHOR,
+  EEC_C1_MG04_ANCHOR,
+  EEC_C1_MG05_ANCHOR,
   PAREJAS_READER_ANCHOR,
 ];
 
@@ -106,9 +116,11 @@ describe("ratchet · every anchor resolves an exact guide", () => {
       // no `chapterOrder` to compare, which is what makes the old failure
       // inexpressible rather than merely unlikely.
       expect(guidePinTargetsUnit(anchor, "unit_ajena", TARGETS)).toBe(false);
-      // And the other anchor's unit, which is a real unit — just not this
-      // guide's.
-      const other = ANCHORS.find((a) => a.guideKey !== anchor.guideKey);
+      // And a real unit that is not this guide's. It has to be picked by UNIT,
+      // not by "some other guide": six anchors now share EEC-C01's unit, and a
+      // sibling microguide's unit IS this guide's — asserting false there would
+      // be asserting that the chapter cannot offer its own route.
+      const other = ANCHORS.find((a) => UNIT_OF(a) !== UNIT_OF(anchor));
       if (other) {
         expect(guidePinTargetsUnit(anchor, UNIT_OF(other), TARGETS)).toBe(
           false,

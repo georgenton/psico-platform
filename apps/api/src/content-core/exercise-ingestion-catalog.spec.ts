@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { CHAPTER_CONCEPTS } from "@psico/types";
+import {
+  CHAPTER_CONCEPTS,
+  guidedChapterConcepts,
+  guidedConceptByKey,
+} from "@psico/types";
 import { EXERCISE_INGESTION_CATALOG } from "./exercise-ingestion-catalog";
 import { assertPairValid } from "./exercise-ingestion";
 
@@ -30,14 +34,36 @@ describe("EXERCISE_INGESTION_CATALOG — global invariants", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it("points every recall at a concept the shared catalog declares", () => {
+  it("points every recall at a concept some shared catalog declares", () => {
+    // Two catalogs, both shared and both authoritative: `CHAPTER_CONCEPTS`
+    // holds the chapter's ARC default (one per chapter, keys persisted on
+    // Resonance) and `GUIDED_CHAPTER_CONCEPTS` holds the concepts a guided
+    // route teaches (several per chapter). A recall may name either — what it
+    // may NOT do is name a key nothing declares, which would ship a quiz
+    // pointing at a concept no surface can label.
     for (const [slug, pairs] of Object.entries(EXERCISE_INGESTION_CATALOG)) {
       for (const pair of pairs) {
-        const declared = Object.values(CHAPTER_CONCEPTS[slug] ?? {}).map(
-          (c) => c.key,
-        );
-        expect(declared).toContain(pair.recall.content.conceptKey);
+        const key = pair.recall.content.conceptKey;
+        const inChapterCatalog = Object.values(CHAPTER_CONCEPTS[slug] ?? {})
+          .map((c) => c.key)
+          .includes(key);
+        const guided = guidedConceptByKey(key);
+        expect(
+          inChapterCatalog || (guided !== null && guided.bookSlug === slug),
+        ).toBe(true);
       }
+    }
+  });
+
+  it("gives every guided concept of C01 exactly one recall", () => {
+    // The route promises five ideas; five recalls is what makes that checkable.
+    const c01 = guidedChapterConcepts("emociones-en-construccion", 1);
+    expect(c01).toHaveLength(5);
+    const recallConcepts = (
+      EXERCISE_INGESTION_CATALOG["emociones-en-construccion"] ?? []
+    ).map((p) => p.recall.content.conceptKey);
+    for (const concept of c01) {
+      expect(recallConcepts.filter((k) => k === concept.key)).toHaveLength(1);
     }
   });
 });

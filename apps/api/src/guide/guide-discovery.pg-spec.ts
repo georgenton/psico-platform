@@ -15,6 +15,7 @@ import { GuideDiscoveryService } from "./guide-discovery.service";
 import { GuideReaderApplicabilityService } from "./guide-reader-applicability.service";
 import { GuideRolloutService } from "./guide-rollout.service";
 import { GuideTargetContextService } from "./guide-target-context.service";
+import { seedPracticeHeadings } from "../content-core/test-support/seed-practice-headings";
 
 /**
  * C.3R (#639) — discovery decides applicability the way the READER's content is
@@ -116,6 +117,16 @@ suite("C.3R · discovery resolves the reader's unit from the manifest", () => {
         });
       }
     }
+    // Encabezados del catálogo de ejercicios, sembrados desde el catálogo.
+    for (const c of await prisma.chapter.findMany({
+      select: { id: true, bookId: true },
+    })) {
+      const bk = await prisma.book.findUnique({
+        where: { id: c.bookId },
+        select: { slug: true },
+      });
+      if (bk) await seedPracticeHeadings(prisma, c.id, bk.slug);
+    }
     await backfillContentCore(prisma);
   }, 240_000);
 
@@ -204,7 +215,8 @@ suite("C.3R · discovery resolves the reader's unit from the manifest", () => {
     const res = await makeService().discover(USER, EEC_CTX);
     expect(res).toEqual({
       available: true,
-      guideKey: "eec-c1-cuerpo-antes-que-mente",
+      // La ruta de C01 abre con MG01; el piloto salió del discovery.
+      guideKey: "eec-c1-teorias-como-lentes",
       guideVersion: 1,
     });
     // EXACT, never `latestStartableVersion`: the offered version is the one the
@@ -297,7 +309,8 @@ suite("C.3R · discovery resolves the reader's unit from the manifest", () => {
     try {
       await expect(makeService().discover(USER, EEC_CTX)).resolves.toEqual({
         available: true,
-        guideKey: "eec-c1-cuerpo-antes-que-mente",
+        // La ruta de C01 abre con MG01; el piloto salió del discovery.
+        guideKey: "eec-c1-teorias-como-lentes",
         guideVersion: 1,
       });
     } finally {

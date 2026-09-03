@@ -1,5 +1,10 @@
 import {
   GUIDE_READER_ANCHOR,
+  EEC_C1_MG01_ANCHOR,
+  EEC_C1_MG02_ANCHOR,
+  EEC_C1_MG03_ANCHOR,
+  EEC_C1_MG04_ANCHOR,
+  EEC_C1_MG05_ANCHOR,
   PAREJAS_READER_ANCHOR,
   type GuideDefinition,
   type GuideReaderAnchorLocator,
@@ -98,7 +103,20 @@ export interface ExperienceBindingCatalog {
 export const EXPERIENCE_BINDING_CATALOG = "EXPERIENCE_BINDING_CATALOG";
 
 export const productionBindingCatalog: ExperienceBindingCatalog = {
-  anchors: [GUIDE_READER_ANCHOR, PAREJAS_READER_ANCHOR],
+  // Every anchored guide the CMS may offer. Six of them target the SAME unit
+  // (EEC-C01's five microguides plus the V1 pilot), which the selector already
+  // handles: it walks the anchors and offers each pin that targets the unit
+  // being edited, so several guided readings in one chapter needed no change
+  // here beyond naming them.
+  anchors: [
+    GUIDE_READER_ANCHOR,
+    EEC_C1_MG01_ANCHOR,
+    EEC_C1_MG02_ANCHOR,
+    EEC_C1_MG03_ANCHOR,
+    EEC_C1_MG04_ANCHOR,
+    EEC_C1_MG05_ANCHOR,
+    PAREJAS_READER_ANCHOR,
+  ],
   getExact: (guideKey, guideVersion) =>
     productionGuideRegistry.getExact(guideKey, guideVersion),
 };

@@ -125,6 +125,231 @@ export const EXERCISE_INGESTION_CATALOG: Readonly<
         },
       },
     },
+    // ── EEC-C01 · the five-microguide route (author decision, 2026-09-03) ──
+    //
+    // Ten new rows: one CATALOG_PRACTICE and one ACTIVE_RECALL per microguide.
+    // Every `sourceHeading` is verbatim from
+    // `EEC_C01_v1.0_TEXT_LOCKED_2026-08-20`, and every recall answer is
+    // derived from what that chapter actually says — the distractors are
+    // plausible readings the chapter explicitly corrects, not nonsense.
+    //
+    // The V1 pilot's pair above is untouched and stays first: its Exercise rows
+    // are referenced by sessions that already ran.
+    {
+      practice: {
+        exerciseKey: "eec-c1-practice-teorias-como-lentes",
+        bookSlug: "emociones-en-construccion",
+        chapterOrder: 1,
+        order: 3,
+        type: "REFLECTION",
+        title: "Revisa una creencia: qué observa, qué supone, qué falta",
+        sourceHeading: "Distintas lentes para comprender una emoción",
+        practiceKind: "guided_reflection",
+      },
+      recall: {
+        exerciseKey: "eec-c1-recall-teorias-como-lentes",
+        bookSlug: "emociones-en-construccion",
+        chapterOrder: 1,
+        order: 4,
+        type: "QUIZ",
+        title:
+          "Según el capítulo 1, ¿por qué comparar dos teorías de la emoción no consiste en buscar de inmediato una ganadora?",
+        content: {
+          recallMode: "objective",
+          conceptKey: "eec-teorias-como-lentes",
+          options: [
+            {
+              key: "opcion-preguntas-distintas",
+              label:
+                "Porque cada una se organizó alrededor de preguntas, observaciones y métodos distintos, así que primero hay que entender qué problema intentaba resolver cada una.",
+            },
+            {
+              key: "opcion-todas-igual-validas",
+              label:
+                "Porque todas las teorías son igualmente válidas y elegir entre ellas es solo cuestión de preferencia personal.",
+            },
+            {
+              key: "opcion-falta-evidencia",
+              label:
+                "Porque todavía no existe evidencia suficiente sobre las emociones y por eso ninguna teoría puede compararse con otra.",
+            },
+          ],
+          correctOptionKey: "opcion-preguntas-distintas",
+        },
+      },
+    },
+    {
+      practice: {
+        exerciseKey: "eec-c1-practice-rostro-como-pista",
+        bookSlug: "emociones-en-construccion",
+        chapterOrder: 1,
+        order: 5,
+        type: "REFLECTION",
+        title: "Una sonrisa, varios contextos",
+        sourceHeading: "Paul Ekman: el rostro como pista",
+        practiceKind: "guided_reflection",
+      },
+      recall: {
+        exerciseKey: "eec-c1-recall-rostro-como-pista",
+        bookSlug: "emociones-en-construccion",
+        chapterOrder: 1,
+        order: 6,
+        type: "QUIZ",
+        title:
+          "Según el capítulo 1, ¿qué nos permite y qué no nos permite concluir una expresión facial?",
+        content: {
+          recallMode: "objective",
+          conceptKey: "eec-rostro-como-pista",
+          options: [
+            {
+              key: "opcion-pista-sin-lectura",
+              label:
+                "Aporta información útil sobre lo que puede estar ocurriendo, pero no entrega por sí sola una lectura completa de la experiencia de esa persona.",
+            },
+            {
+              key: "opcion-diccionario-universal",
+              label:
+                "Permite identificar la emoción exacta que siente la persona, porque las expresiones significan lo mismo en todas las culturas.",
+            },
+            {
+              key: "opcion-no-informa-nada",
+              label:
+                "No aporta ninguna información fiable, porque el rostro se controla voluntariamente casi siempre.",
+            },
+          ],
+          correctOptionKey: "opcion-pista-sin-lectura",
+        },
+      },
+    },
+    {
+      practice: {
+        exerciseKey: "eec-c1-practice-alarma-antes-del-relato",
+        bookSlug: "emociones-en-construccion",
+        chapterOrder: 1,
+        order: 7,
+        type: "REFLECTION",
+        title: "Ordena la secuencia: señal, reacción, contexto, interpretación",
+        sourceHeading: "Joseph LeDoux: la alarma antes del relato",
+        practiceKind: "guided_reflection",
+      },
+      recall: {
+        exerciseKey: "eec-c1-recall-alarma-antes-del-relato",
+        bookSlug: "emociones-en-construccion",
+        chapterOrder: 1,
+        order: 8,
+        type: "QUIZ",
+        title:
+          "Según el capítulo 1, ¿qué diferencia hay entre una respuesta rápida de protección y sentir miedo?",
+        content: {
+          recallMode: "objective",
+          conceptKey: "eec-alarma-antes-del-relato",
+          options: [
+            {
+              key: "opcion-reconocer-esto-me-asusta",
+              label:
+                "La respuesta de protección puede empezar antes de entender qué pasa; sentir miedo incluye además reconocer de alguna manera «esto me asusta».",
+            },
+            {
+              key: "opcion-amigdala-produce-miedo",
+              label:
+                "No hay diferencia: la amígdala produce el miedo y la reacción del cuerpo es ese mismo miedo.",
+            },
+            {
+              key: "opcion-miedo-primero",
+              label:
+                "Primero se siente el miedo de forma consciente y solo después el cuerpo organiza una respuesta de protección.",
+            },
+          ],
+          correctOptionKey: "opcion-reconocer-esto-me-asusta",
+        },
+      },
+    },
+    {
+      practice: {
+        exerciseKey: "eec-c1-practice-emocion-informa-no-manda",
+        bookSlug: "emociones-en-construccion",
+        chapterOrder: 1,
+        order: 9,
+        type: "REFLECTION",
+        title: "Siento, interpreto, tengo ganas de, elijo hacer",
+        sourceHeading: "Daniel Goleman: aprender a leer el mundo emocional",
+        practiceKind: "guided_reflection",
+      },
+      recall: {
+        exerciseKey: "eec-c1-recall-emocion-informa-no-manda",
+        bookSlug: "emociones-en-construccion",
+        chapterOrder: 1,
+        order: 10,
+        type: "QUIZ",
+        title:
+          "Según el capítulo 1, ¿qué relación hay entre una emoción y la conducta que sigue?",
+        content: {
+          recallMode: "objective",
+          conceptKey: "eec-emocion-informa-no-manda",
+          options: [
+            {
+              key: "opcion-informa-no-dicta",
+              label:
+                "La emoción aporta información y señala qué es relevante, pero no dicta por sí sola la decisión: sentir, interpretar, tener un impulso y elegir son procesos distintos.",
+            },
+            {
+              key: "opcion-emocion-determina",
+              label:
+                "La emoción determina la conducta: si la señal es intensa, la acción que sigue es la única posible.",
+            },
+            {
+              key: "opcion-ignorar-emocion",
+              label:
+                "Para decidir bien conviene dejar la emoción fuera, porque interfiere con el razonamiento.",
+            },
+          ],
+          correctOptionKey: "opcion-informa-no-dicta",
+        },
+      },
+    },
+    {
+      practice: {
+        exerciseKey: "eec-c1-practice-construida-no-significa-falsa",
+        bookSlug: "emociones-en-construccion",
+        chapterOrder: 1,
+        order: 11,
+        type: "REFLECTION",
+        title: "Las mismas señales, dos contextos",
+        sourceHeading: "Lisa Feldman Barrett: la emoción como construcción",
+        practiceKind: "guided_reflection",
+      },
+      recall: {
+        exerciseKey: "eec-c1-recall-construida-no-significa-falsa",
+        bookSlug: "emociones-en-construccion",
+        chapterOrder: 1,
+        order: 12,
+        type: "QUIZ",
+        title:
+          "Según el capítulo 1, ¿qué quiere decir que una emoción sea «construida»?",
+        content: {
+          recallMode: "objective",
+          conceptKey: "eec-construida-no-significa-falsa",
+          options: [
+            {
+              key: "opcion-real-y-no-elegida",
+              label:
+                "Que se forma con señales reales del cuerpo, memoria, conceptos aprendidos y contexto — sigue siendo real y no se elige a voluntad.",
+            },
+            {
+              key: "opcion-inventada",
+              label:
+                "Que en realidad es imaginaria: si la construimos nosotros, no corresponde a nada que esté ocurriendo de verdad.",
+            },
+            {
+              key: "opcion-controlable",
+              label:
+                "Que podemos decidir conscientemente qué emoción sentir en cada momento si nos lo proponemos.",
+            },
+          ],
+          correctOptionKey: "opcion-real-y-no-elegida",
+        },
+      },
+    },
   ],
   // Demo Guide for Parejas que perduran (David Jaramillo, used with the
   // author's authorization). The book's chapter 1 is PLATFORM order 2 — the
@@ -178,3 +403,17 @@ export const EXERCISE_INGESTION_CATALOG: Readonly<
     },
   ],
 };
+
+/**
+ * Every editorial heading the catalog's practices anchor to, for one book.
+ *
+ * Derived from the catalog rather than written next to it, so a fixture that
+ * seeds "the headings this book needs" cannot fall behind when a pair is
+ * added — which is exactly how a suite ends up reporting SOURCE_MISSING for
+ * content that is perfectly fine in production.
+ */
+export function practiceSourceHeadings(bookSlug: string): readonly string[] {
+  return (EXERCISE_INGESTION_CATALOG[bookSlug] ?? []).map(
+    (p) => p.practice.sourceHeading,
+  );
+}

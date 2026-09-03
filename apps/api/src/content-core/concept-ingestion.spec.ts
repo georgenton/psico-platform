@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { CHAPTER_CONCEPTS } from "@psico/types";
+import { CHAPTER_CONCEPTS, GUIDED_CHAPTER_CONCEPTS } from "@psico/types";
 import {
   assertConceptCatalogValid,
   conceptLinkId,
@@ -63,13 +63,30 @@ function makeDb(opts: {
   return { db: db as unknown as ConceptIngestDb, created, raw: db };
 }
 
-/** Units for every chapter the catalog declares for `book`. */
+/** Units for every chapter EITHER catalog declares for `book`. */
 function unitsFor(book: string): Map<number, string> {
   const m = new Map<number, string>();
   for (const order of Object.keys(CHAPTER_CONCEPTS[book] ?? {})) {
     m.set(Number(order), `u-${order}`);
   }
+  for (const c of GUIDED_CHAPTER_CONCEPTS) {
+    if (c.bookSlug === book) m.set(c.chapterOrder, `u-${c.chapterOrder}`);
+  }
   return m;
+}
+
+/**
+ * How many concepts the ingestion should write for a book.
+ *
+ * Derived from both catalogs rather than typed as a literal: the guided route
+ * adds five to EEC-C01, and a hard-coded 3 would turn "the route grew" into a
+ * failing test about arithmetic instead of a real signal.
+ */
+function conceptCountFor(book: string): number {
+  return (
+    Object.keys(CHAPTER_CONCEPTS[book] ?? {}).length +
+    GUIDED_CHAPTER_CONCEPTS.filter((c) => c.bookSlug === book).length
+  );
 }
 
 describe("assertConceptCatalogValid", () => {
@@ -114,7 +131,7 @@ describe("ingestBookConcepts", () => {
     const { db, created, raw } = makeDb({});
     const stats = await ingestBookConcepts(db, BOOK, unitsFor(BOOK));
 
-    const declared = Object.keys(CHAPTER_CONCEPTS[BOOK]).length;
+    const declared = conceptCountFor(BOOK);
     expect(stats.conceptsCreated).toBe(declared);
     expect(stats.conceptLinksCreated).toBe(declared);
     expect(stats.conceptsVerified).toBe(0);
@@ -134,7 +151,22 @@ describe("ingestBookConcepts", () => {
   it("writes nothing on an identical replay", async () => {
     const concepts: Record<string, Row> = {};
     const links: Record<string, LinkRow> = {};
-    for (const [order, c] of Object.entries(CHAPTER_CONCEPTS[BOOK])) {
+    // Both catalogs, because both are ingested: seeding only the ARC defaults
+    // would leave the guided concepts genuinely absent, and "the replay wrote
+    // five rows" would be correct behaviour reported as a regression.
+    const seeded: [number, { key: string; label: string }][] = [
+      ...Object.entries(CHAPTER_CONCEPTS[BOOK]).map(
+        ([o, c]) => [Number(o), c] as [number, typeof c],
+      ),
+      ...GUIDED_CHAPTER_CONCEPTS.filter((c) => c.bookSlug === BOOK).map(
+        (c) =>
+          [c.chapterOrder, { key: c.key, label: c.label }] as [
+            number,
+            { key: string; label: string },
+          ],
+      ),
+    ];
+    for (const [order, c] of seeded) {
       concepts[c.key] = { id: `c-${c.key}`, label: c.label };
       links[conceptLinkId(c.key)] = {
         conceptId: `c-${c.key}`,
@@ -212,7 +244,7 @@ describe("ingestBookConcepts", () => {
 
   it("under the skip policy, counts the gap instead of hiding it", async () => {
     const { db, created } = makeDb({});
-    const declared = Object.keys(CHAPTER_CONCEPTS[BOOK]).length;
+    const declared = conceptCountFor(BOOK);
     const stats = await ingestBookConcepts(db, BOOK, new Map(), "skip");
 
     expect(stats.conceptsSkippedMissingUnit).toBe(declared);
@@ -225,15 +257,31 @@ describe("ingestBookConcepts", () => {
     const partial = new Map([[1, "u-1"]]); // only the first chapter is ingested
     const stats = await ingestBookConcepts(db, BOOK, partial, "skip");
 
-    expect(stats.conceptsCreated).toBe(1);
-    expect(stats.conceptLinksCreated).toBe(1);
+    // Chapter 1 carries the ARC default AND the five guided concepts, so
+    // "only the first chapter" is six concepts, not one.
+    const inChapterOne =
+      1 +
+      GUIDED_CHAPTER_CONCEPTS.filter(
+        (c) => c.bookSlug === BOOK && c.chapterOrder === 1,
+      ).length;
+    expect(stats.conceptsCreated).toBe(inChapterOne);
+    expect(stats.conceptLinksCreated).toBe(inChapterOne);
     expect(stats.conceptsSkippedMissingUnit).toBe(
-      Object.keys(CHAPTER_CONCEPTS[BOOK]).length - 1,
+      conceptCountFor(BOOK) - inChapterOne,
     );
-    expect(created).toEqual([
-      `concept:${CHAPTER_CONCEPTS[BOOK][1].key}`,
-      `link:${conceptLinkId(CHAPTER_CONCEPTS[BOOK][1].key)}`,
-    ]);
+    // Concept then link, for each of chapter 1's concepts and nothing else.
+    const chapterOneKeys = [
+      CHAPTER_CONCEPTS[BOOK][1].key,
+      ...GUIDED_CHAPTER_CONCEPTS.filter(
+        (c) => c.bookSlug === BOOK && c.chapterOrder === 1,
+      ).map((c) => c.key),
+    ];
+    expect(created).toEqual(
+      chapterOneKeys.flatMap((k) => [
+        `concept:${k}`,
+        `link:${conceptLinkId(k)}`,
+      ]),
+    );
   });
 
   it("keeps errors value-free — the message is exactly the code", async () => {

@@ -21,6 +21,7 @@ import { productionCodeOwnedClaims } from "./experience-code-owned-identity";
 import { GUIDE_READER_ANCHOR, PAREJAS_READER_ANCHOR } from "@psico/types";
 import { productionGuideRegistry } from "../guide/guide-catalog";
 import type { ExperienceBindingCatalog } from "./experience-guide-options";
+import { seedPracticeHeadings } from "../content-core/test-support/seed-practice-headings";
 
 /**
  * C.3C+C.4 (#639) — the cutover: archive, rebind, and a fleet where the bridge
@@ -127,6 +128,18 @@ suite("C.3C+C.4 · cutover, archive and a mixed fleet", () => {
       await prisma.chapterBlock.create({
         data: { chapterId: ch.id, order: 1, kind: "HEADING", content: heading },
       });
+    }
+    // El catálogo de ejercicios ancla cada práctica a un encabezado editorial.
+    // Se siembran desde el propio catálogo para que añadir una microguía no
+    // rompa un fixture que no tiene nada que ver con ella.
+    for (const ch of await prisma.chapter.findMany({
+      select: { id: true, bookId: true },
+    })) {
+      const b = await prisma.book.findUnique({
+        where: { id: ch.bookId },
+        select: { slug: true },
+      });
+      if (b) await seedPracticeHeadings(prisma, ch.id, b.slug);
     }
     await backfillContentCore(prisma);
 
@@ -333,12 +346,25 @@ suite("C.3C+C.4 · cutover, archive and a mixed fleet", () => {
 
   it("offers only guides whose passage is in this chapter, with availability", async () => {
     const before = await service.listSelectableGuides(BOOK_A, 1, null);
-    // The other book's guide is not an option here at all.
+    // Six guided readings anchor to this chapter now — the V1 pilot plus the
+    // five microguides — and the other book's guide is not an option here at
+    // all. That last part is what this test is about; the count is not.
     expect(before.map((o) => o.guideKey)).toEqual([
       "eec-c1-cuerpo-antes-que-mente",
+      "eec-c1-teorias-como-lentes",
+      "eec-c1-rostro-como-pista",
+      "eec-c1-alarma-antes-del-relato",
+      "eec-c1-emocion-informa-no-manda",
+      "eec-c1-construida-no-significa-falsa",
     ]);
-    // The code-owned experience already holds it.
-    expect(before[0]!.availability).toBe("RESERVED_BY_ANOTHER_EXPERIENCE");
+    expect(before.map((o) => o.guideKey)).not.toContain(
+      "pqp-c1-contacto-sostenido",
+    );
+    // The code-owned experience already holds the pilot's guide.
+    const pilot = before.find(
+      (o) => o.guideKey === "eec-c1-cuerpo-antes-que-mente",
+    );
+    expect(pilot!.availability).toBe("RESERVED_BY_ANOTHER_EXPERIENCE");
 
     // …and from the owner's own point of view it reads as theirs.
     const mine = await service.listSelectableGuides(
@@ -346,7 +372,10 @@ suite("C.3C+C.4 · cutover, archive and a mixed fleet", () => {
       1,
       "eec-c1-cuerpo-antes-que-mente",
     );
-    expect(mine[0]!.availability).toBe("OWNED_BY_THIS_EXPERIENCE");
+    expect(
+      mine.find((o) => o.guideKey === "eec-c1-cuerpo-antes-que-mente")!
+        .availability,
+    ).toBe("OWNED_BY_THIS_EXPERIENCE");
   });
 
   // ── Archive ──────────────────────────────────────────────────────────────

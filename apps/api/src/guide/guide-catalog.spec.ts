@@ -247,9 +247,32 @@ describe("guide catalog · registry", () => {
 });
 
 describe("ratchet · guide catalog contract", () => {
-  it("GUIDE_PRODUCTION_REGISTRY_ENTRIES=2 — exactly the approved definitions", () => {
-    expect(PRODUCTION_GUIDE_DEFINITIONS).toHaveLength(2);
-    expect(productionGuideRegistry.size).toBe(2);
+  it("GUIDE_PRODUCTION_REGISTRY_ENTRIES=7 — exactly the approved definitions", () => {
+    // 2 → 7 with the EEC-C01 five-microguide route (author decision 2026-09-03).
+    // The V1 pilot stays in the registry although discovery retired it: a
+    // session pinned to it must keep resolving.
+    expect(PRODUCTION_GUIDE_DEFINITIONS).toHaveLength(7);
+    expect(productionGuideRegistry.size).toBe(7);
+    expect(PRODUCTION_GUIDE_DEFINITIONS.map((d) => d.guideKey)).toEqual([
+      "eec-c1-cuerpo-antes-que-mente",
+      "eec-c1-teorias-como-lentes",
+      "eec-c1-rostro-como-pista",
+      "eec-c1-alarma-antes-del-relato",
+      "eec-c1-emocion-informa-no-manda",
+      "eec-c1-construida-no-significa-falsa",
+      "pqp-c1-contacto-sostenido",
+    ]);
+    // Every microguide carries the same three obligatory steps, in order.
+    for (const d of PRODUCTION_GUIDE_DEFINITIONS) {
+      expect(d.guideVersion).toBe(1);
+      expect(d.steps.map((s) => s.kind)).toEqual([
+        "CONCEPT_EXPLORATION",
+        "CATALOG_PRACTICE",
+        "ACTIVE_RECALL",
+      ]);
+      expect(d.steps.map((s) => s.order)).toEqual([1, 2, 3]);
+      expect(d.steps.every((s) => s.required)).toBe(true);
+    }
     // The EXACT approved content (CC-7.4B.3) — any drift is a new version.
     expect(PRODUCTION_GUIDE_DEFINITIONS[0]).toEqual({
       guideKey: "eec-c1-cuerpo-antes-que-mente",
@@ -284,7 +307,7 @@ describe("ratchet · guide catalog contract", () => {
 
     // The SECOND approved definition — Parejas que perduran, chapter 1
     // (platform chapterOrder 2). Same immutability rule.
-    expect(PRODUCTION_GUIDE_DEFINITIONS[1]).toEqual({
+    expect(PRODUCTION_GUIDE_DEFINITIONS[6]).toEqual({
       guideKey: "pqp-c1-contacto-sostenido",
       guideVersion: 1,
       steps: [

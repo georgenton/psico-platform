@@ -206,7 +206,8 @@ describe("GuideDiscoveryService", () => {
     });
     await expect(svc.discover(USER, EEC_CTX)).resolves.toEqual({
       available: true,
-      guideKey: "eec-c1-cuerpo-antes-que-mente",
+      // La ruta de C01 empieza por MG01; el pin del piloto ya no se ofrece.
+      guideKey: "eec-c1-teorias-como-lentes",
       guideVersion: 1,
     });
   });

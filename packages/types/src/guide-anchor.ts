@@ -35,6 +35,25 @@ export interface GuideReaderAnchorLocator {
 
   /** How many paragraphs may contain the sentence. More than this is a bug. */
   expectedMatchCount: 1;
+
+  /**
+   * A SECOND approved passage, when one idea genuinely rests on two sections.
+   *
+   * MG04 is the case this exists for: Goleman carries the difference between
+   * recognising, expressing and acting, and Damasio carries relevance without
+   * guarantee. Dropping either would leave the guide teaching half of what it
+   * claims to teach, and folding them into one heading would point the reader
+   * at a passage that does not say both things.
+   *
+   * Optional and additive: every anchor written before this field omits it, and
+   * the reader still scrolls to `sourceHeading` — the primary is what the
+   * runtime resolves. A secondary passage is offered as context, never as the
+   * place the guide sends you.
+   */
+  secondaryPassage?: {
+    sourceHeading: string;
+    passageLastSentence: string;
+  };
 }
 
 /**
@@ -165,9 +184,89 @@ function anchorPinKey(pin: GuideAnchorPin): string | null {
   return `${pin.guideKey}@${pin.guideVersion}`;
 }
 
+/**
+ * EEC-C01 · the five-microguide route (author decision, 2026-09-03).
+ *
+ * Every heading below is verbatim from `EEC_C01_v1.0_TEXT_LOCKED_2026-08-20`
+ * (SHA-256 `e10f42ce…023018`) and every fingerprint was measured against that
+ * file: heading present, sentence appearing EXACTLY ONCE. A locator that
+ * resolved twice would be ambiguous and one that resolved zero times would send
+ * the reader nowhere, so both are failures rather than warnings.
+ *
+ * Worth recording next to them: the V1 pilot's anchor
+ * (`GUIDE_READER_ANCHOR`, heading «El cuerpo y la emoción») no longer resolves
+ * against the published chapter — the v1.0 text does not contain that heading.
+ * It is left registered untouched so a pinned session still finds its
+ * definition, but that is also why discovery stopped offering the pilot: it
+ * would scroll a new reader at a passage that is not there.
+ */
+export const EEC_C1_MG01_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "eec-c1-teorias-como-lentes",
+  guideVersion: 1,
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 1,
+  sourceHeading: "Distintas lentes para comprender una emoción",
+  passageLastSentence:
+    "Las teorías sobre las emociones no son simples opiniones",
+  expectedMatchCount: 1,
+};
+
+export const EEC_C1_MG02_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "eec-c1-rostro-como-pista",
+  guideVersion: 1,
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 1,
+  sourceHeading: "Paul Ekman: el rostro como pista",
+  passageLastSentence:
+    "un rostro ofrece pistas; no entrega una lectura completa de la experiencia",
+  expectedMatchCount: 1,
+};
+
+export const EEC_C1_MG03_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "eec-c1-alarma-antes-del-relato",
+  guideVersion: 1,
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 1,
+  sourceHeading: "Joseph LeDoux: la alarma antes del relato",
+  passageLastSentence:
+    "Una respuesta rápida de protección no es exactamente lo mismo que sentir miedo.",
+  expectedMatchCount: 1,
+};
+
+/** The one guide whose idea rests on two sections — see `secondaryPassage`. */
+export const EEC_C1_MG04_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "eec-c1-emocion-informa-no-manda",
+  guideVersion: 1,
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 1,
+  sourceHeading: "Daniel Goleman: aprender a leer el mundo emocional",
+  passageLastSentence: "una emoción no es una conducta",
+  expectedMatchCount: 1,
+  secondaryPassage: {
+    sourceHeading: "Antonio Damasio: la razón necesita relevancia",
+    passageLastSentence:
+      "Una emoción aporta información; no dicta por sí sola la decisión.",
+  },
+};
+
+export const EEC_C1_MG05_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "eec-c1-construida-no-significa-falsa",
+  guideVersion: 1,
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 1,
+  sourceHeading: "Lisa Feldman Barrett: la emoción como construcción",
+  passageLastSentence: "construir una emoción no significa inventarla",
+  expectedMatchCount: 1,
+};
+
 /** The anchors this build ships. Adding a guide means adding a line here. */
 export const guideAnchorRegistry = new GuideAnchorRegistry([
   GUIDE_READER_ANCHOR,
+  EEC_C1_MG01_ANCHOR,
+  EEC_C1_MG02_ANCHOR,
+  EEC_C1_MG03_ANCHOR,
+  EEC_C1_MG04_ANCHOR,
+  EEC_C1_MG05_ANCHOR,
   PAREJAS_READER_ANCHOR,
 ]);
 

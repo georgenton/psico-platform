@@ -383,12 +383,102 @@ export const PQP_C1_SUSTAINED_CONTACT_GUIDE = validateGuideDefinition({
 });
 
 /**
+ * EEC-C01 · the five-microguide route (author decision, 2026-09-03).
+ *
+ * One idea per guide, each with the same three obligatory steps: explore the
+ * concept, do the catalog practice, answer the objective recall. Independent,
+ * optional and resumable — the chapter offers a route, not a 50-minute exam.
+ *
+ * Every key below is NEW. None of them reuses, renames or shadows the V1 pilot
+ * (`eec-c1-cuerpo-antes-que-mente@1`), whose definition, sessions and
+ * resonances stay exactly as they are: reusing a key would silently merge two
+ * different readings' progress.
+ *
+ * The editorial content of each target lives where it belongs — the concept in
+ * the shared guided-concept catalog, the practice and the recall in the
+ * server-side exercise catalog, and the passage in the anchor registry. A
+ * definition names them; it never carries copy.
+ */
+
+const eecC1Guide = (slug: string, conceptKey: string): GuideDefinition =>
+  validateGuideDefinition({
+    guideKey: `eec-c1-${slug}`,
+    guideVersion: 1,
+    steps: [
+      {
+        stepKey: `explorar-${slug}`,
+        order: 1,
+        required: true,
+        kind: "CONCEPT_EXPLORATION",
+        completionPolicy: "explicit_confirmation",
+        conceptKey,
+      },
+      {
+        stepKey: `practicar-${slug}`,
+        order: 2,
+        required: true,
+        kind: "CATALOG_PRACTICE",
+        completionPolicy: "catalog_practice_confirmation",
+        exerciseKey: `eec-c1-practice-${slug}`,
+      },
+      {
+        stepKey: `recordar-${slug}`,
+        order: 3,
+        required: true,
+        kind: "ACTIVE_RECALL",
+        completionPolicy: "objective_recall",
+        itemKey: `eec-c1-recall-${slug}`,
+      },
+    ],
+  });
+
+/** MG01 — a theory answers some questions and leaves others out of focus. */
+export const EEC_C1_MG01_LENSES_GUIDE = eecC1Guide(
+  "teorias-como-lentes",
+  "eec-teorias-como-lentes",
+);
+
+/** MG02 — a face gives information; it does not hand over a reading. */
+export const EEC_C1_MG02_FACE_GUIDE = eecC1Guide(
+  "rostro-como-pista",
+  "eec-rostro-como-pista",
+);
+
+/** MG03 — protection can start before the story does. Reconciles the pilot. */
+export const EEC_C1_MG03_ALARM_GUIDE = eecC1Guide(
+  "alarma-antes-del-relato",
+  "eec-alarma-antes-del-relato",
+);
+
+/** MG04 — feeling, interpreting, wanting and choosing are four things. */
+export const EEC_C1_MG04_INFORMS_GUIDE = eecC1Guide(
+  "emocion-informa-no-manda",
+  "eec-emocion-informa-no-manda",
+);
+
+/** MG05 — built out of real signals, memory and context. Not invented. */
+export const EEC_C1_MG05_CONSTRUCTED_GUIDE = eecC1Guide(
+  "construida-no-significa-falsa",
+  "eec-construida-no-significa-falsa",
+);
+
+/**
  * The PRODUCTION registry — exactly the approved definitions. Adding one is a
  * deliberate, reviewed change (editorial approval + real, resolvable targets);
  * content is never invented here.
+ *
+ * The V1 pilot stays registered even though discovery no longer offers it: a
+ * session pinned to `eec-c1-cuerpo-antes-que-mente@1` must keep resolving, and
+ * removing the definition would break exactly the readers this change promised
+ * not to disturb.
  */
 export const PRODUCTION_GUIDE_DEFINITIONS: readonly GuideDefinition[] = [
   EEC_C1_BODY_BEFORE_MIND_GUIDE,
+  EEC_C1_MG01_LENSES_GUIDE,
+  EEC_C1_MG02_FACE_GUIDE,
+  EEC_C1_MG03_ALARM_GUIDE,
+  EEC_C1_MG04_INFORMS_GUIDE,
+  EEC_C1_MG05_CONSTRUCTED_GUIDE,
   PQP_C1_SUSTAINED_CONTACT_GUIDE,
 ];
 

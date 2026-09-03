@@ -6,6 +6,7 @@ import { LearningCatalogResolver } from "./learning-catalog.resolver";
 import { LearningCommandService } from "./learning-command.service";
 import { LearningEventRepository } from "./learning-event.repository";
 import { LearningProgressService } from "./learning-progress.service";
+import { PracticeViewService } from "./practice-view.service";
 import { LearningController } from "./learning.controller";
 
 /**
@@ -24,6 +25,7 @@ import { LearningController } from "./learning.controller";
     LearningCatalogResolver,
     LearningCommandService,
     LearningProgressService,
+    PracticeViewService,
     {
       provide: LearningEventRepository,
       useFactory: (prisma: PrismaService) =>

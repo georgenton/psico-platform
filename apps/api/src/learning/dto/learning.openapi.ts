@@ -229,3 +229,162 @@ export const LEARNING_COMMAND_RESPONSE: SchemaObject = {
     event: LEARNING_EVENT_RECORD,
   },
 };
+
+/**
+ * The public view of a catalog practice.
+ *
+ * `interaction` is a `oneOf` over the five kinds rather than a free object, so
+ * the generated client gets a discriminated union it can switch on — and so a
+ * sixth kind cannot appear in the contract without someone declaring it here.
+ * No branch carries a correct answer, because a practice does not have one.
+ */
+const PRACTICE_OPTION: SchemaObject = {
+  type: "object",
+  additionalProperties: false,
+  required: ["key", "label"],
+  properties: { key: { type: "string" }, label: { type: "string" } },
+};
+
+const OPTION_LIST: SchemaObject = { type: "array", items: PRACTICE_OPTION };
+
+const BELIEF_LENS: SchemaObject = {
+  type: "object",
+  additionalProperties: false,
+  required: ["kind", "belief", "zones", "allowsFreeText"],
+  properties: {
+    kind: { type: "string", enum: ["belief_lens"] },
+    belief: { type: "string" },
+    zones: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["key", "label", "hint", "options"],
+        properties: {
+          key: { type: "string", enum: ["observo", "supongo", "falta"] },
+          label: { type: "string" },
+          hint: { type: "string" },
+          options: OPTION_LIST,
+        },
+      },
+    },
+    allowsFreeText: { type: "boolean" },
+  },
+};
+
+const CONTEXT_PLAUSIBILITY: SchemaObject = {
+  type: "object",
+  additionalProperties: false,
+  required: [
+    "kind",
+    "situation",
+    "observation",
+    "availableContext",
+    "readings",
+    "buckets",
+    "missingInformationPrompt",
+  ],
+  properties: {
+    kind: { type: "string", enum: ["context_plausibility"] },
+    situation: { type: "string" },
+    observation: { type: "string" },
+    availableContext: { type: "array", items: { type: "string" } },
+    readings: OPTION_LIST,
+    buckets: OPTION_LIST,
+    missingInformationPrompt: { type: "string" },
+  },
+};
+
+const SEQUENCE_ORDERING: SchemaObject = {
+  type: "object",
+  additionalProperties: false,
+  required: ["kind", "scenario", "cards", "solved", "solvedLabel", "feedback"],
+  properties: {
+    kind: { type: "string", enum: ["sequence_ordering"] },
+    scenario: { type: "string" },
+    cards: OPTION_LIST,
+    solved: { type: "array", items: { type: "string" } },
+    solvedLabel: { type: "string" },
+    feedback: { type: "string" },
+  },
+};
+
+const FOUR_PART: SchemaObject = {
+  type: "object",
+  additionalProperties: false,
+  required: ["kind", "scenario", "fields", "allowsFreeText", "disclaimer"],
+  properties: {
+    kind: { type: "string", enum: ["four_part_distinction"] },
+    scenario: { type: "string" },
+    fields: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["key", "label", "options"],
+        properties: {
+          key: {
+            type: "string",
+            enum: ["siento", "interpreto", "impulso", "elijo"],
+          },
+          label: { type: "string" },
+          options: OPTION_LIST,
+        },
+      },
+    },
+    allowsFreeText: { type: "boolean" },
+    disclaimer: { type: "string" },
+  },
+};
+
+const SIGNAL_CONTEXT: SchemaObject = {
+  type: "object",
+  additionalProperties: false,
+  required: ["kind", "signals", "contexts", "factors", "prompt"],
+  properties: {
+    kind: { type: "string", enum: ["signal_context_compare"] },
+    signals: { type: "array", items: { type: "string" } },
+    contexts: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["key", "label", "description"],
+        properties: {
+          key: { type: "string" },
+          label: { type: "string" },
+          description: { type: "string" },
+        },
+      },
+    },
+    factors: OPTION_LIST,
+    prompt: { type: "string" },
+  },
+};
+
+export const PRACTICE_PUBLIC_VIEW: SchemaObject = {
+  type: "object",
+  additionalProperties: false,
+  required: [
+    "exerciseKey",
+    "title",
+    "skipLabel",
+    "confirmLabel",
+    "interaction",
+  ],
+  properties: {
+    exerciseKey: { type: "string" },
+    title: { type: "string" },
+    skipLabel: { type: "string" },
+    confirmLabel: { type: "string" },
+    interaction: {
+      oneOf: [
+        BELIEF_LENS,
+        CONTEXT_PLAUSIBILITY,
+        SEQUENCE_ORDERING,
+        FOUR_PART,
+        SIGNAL_CONTEXT,
+      ],
+    },
+  },
+};

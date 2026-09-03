@@ -1,3 +1,5 @@
+import type { PracticeInteraction, PracticeKind } from "@psico/types";
+
 /**
  * CC-7.4B.2 — CLOSED, server-side catalog of the Exercise rows the Content Core
  * backfill materializes for the FIRST Guide V1 unit.
@@ -50,7 +52,18 @@ export interface PracticeExerciseDefinition {
   readonly title: string;
   /** The exact editorial heading whose ChapterBlock anchors the practice. */
   readonly sourceHeading: string;
-  readonly practiceKind: "guided_reflection";
+  /**
+   * `guided_reflection` is the original shape: copy plus a button. The five
+   * EEC-C01 microguides declare a real interaction instead, and carry the
+   * editorial content for it in `interaction`.
+   */
+  readonly practiceKind: "guided_reflection" | PracticeKind;
+  /**
+   * The interaction's own content, stored verbatim in `Exercise.content`.
+   * Absent for `guided_reflection`, whose stored bytes must not change: the
+   * ingestion fails closed on drift, and the pilot is already in production.
+   */
+  readonly interaction?: PracticeInteraction;
 }
 
 /** ACTIVE_RECALL definition — the editorially-approved objective item. */
@@ -144,7 +157,59 @@ export const EXERCISE_INGESTION_CATALOG: Readonly<
         type: "REFLECTION",
         title: "Revisa una creencia: qué observa, qué supone, qué falta",
         sourceHeading: "Distintas lentes para comprender una emoción",
-        practiceKind: "guided_reflection",
+        practiceKind: "belief_lens",
+        interaction: {
+          kind: "belief_lens",
+          belief: "«Si alguien se enoja, es porque no le importas.»",
+          zones: [
+            {
+              key: "observo",
+              label: "Qué observo",
+              hint: "Solo lo que se vería en una grabación, sin interpretar.",
+              options: [
+                { key: "tono", label: "Levantó la voz." },
+                { key: "gesto", label: "Frunció el ceño y cruzó los brazos." },
+                { key: "salida", label: "Salió de la habitación." },
+                { key: "silencio", label: "Se quedó en silencio un rato." },
+              ],
+            },
+            {
+              key: "supongo",
+              label: "Qué estoy suponiendo",
+              hint: "El salto entre lo que se ve y lo que se concluye.",
+              options: [
+                { key: "no-importa", label: "Que no le importo." },
+                { key: "contra-mi", label: "Que el enojo es contra mí." },
+                {
+                  key: "significado",
+                  label: "Que el enojo significa siempre lo mismo.",
+                },
+                {
+                  key: "unica-causa",
+                  label: "Que hay una sola causa posible.",
+                },
+              ],
+            },
+            {
+              key: "falta",
+              label: "Qué contexto falta",
+              hint: "Lo que habría que saber antes de cerrar la lectura.",
+              options: [
+                { key: "antes", label: "Qué pasó antes de esa conversación." },
+                {
+                  key: "historia",
+                  label: "Cómo suele expresar el enojo esa persona.",
+                },
+                {
+                  key: "otros",
+                  label: "Si hay algo más ocupándole la cabeza.",
+                },
+                { key: "dicho", label: "Qué diría si le preguntara." },
+              ],
+            },
+          ],
+          allowsFreeText: true,
+        },
       },
       recall: {
         exerciseKey: "eec-c1-recall-teorias-como-lentes",
@@ -187,7 +252,33 @@ export const EXERCISE_INGESTION_CATALOG: Readonly<
         type: "REFLECTION",
         title: "Una sonrisa, varios contextos",
         sourceHeading: "Paul Ekman: el rostro como pista",
-        practiceKind: "guided_reflection",
+        practiceKind: "context_plausibility",
+        interaction: {
+          kind: "context_plausibility",
+          situation:
+            "Alguien sonríe al terminar una reunión de trabajo que se alargó.",
+          observation:
+            "Se ven las comisuras elevadas y un movimiento breve de los ojos.",
+          availableContext: [
+            "La reunión duró el doble de lo previsto.",
+            "La persona miró el reloj dos veces.",
+            "Al salir se despidió con la mano.",
+          ],
+          readings: [
+            { key: "alivio", label: "Alivio porque la reunión terminó." },
+            { key: "cortesia", label: "Cortesía al despedirse." },
+            { key: "incomodidad", label: "Incomodidad que se disimula." },
+            { key: "alegria", label: "Alegría por algo que se acordó ahí." },
+            { key: "otra", label: "Algo que no aparece en esta lista." },
+          ],
+          buckets: [
+            { key: "mas-plausible", label: "Más plausible" },
+            { key: "posible", label: "Posible" },
+            { key: "falta-info", label: "Falta información" },
+          ],
+          missingInformationPrompt:
+            "¿Qué necesitarías saber para mover alguna lectura de «falta información» a «más plausible»?",
+        },
       },
       recall: {
         exerciseKey: "eec-c1-recall-rostro-como-pista",
@@ -230,7 +321,33 @@ export const EXERCISE_INGESTION_CATALOG: Readonly<
         type: "REFLECTION",
         title: "Ordena la secuencia: señal, reacción, contexto, interpretación",
         sourceHeading: "Joseph LeDoux: la alarma antes del relato",
-        practiceKind: "guided_reflection",
+        practiceKind: "sequence_ordering",
+        interaction: {
+          kind: "sequence_ordering",
+          scenario:
+            "Lees tranquilamente en casa y una puerta se cierra de golpe.",
+          cards: [
+            { key: "senal", label: "Aparece una señal repentina." },
+            {
+              key: "respuesta",
+              label:
+                "El organismo inicia una respuesta protectora o de sobresalto.",
+            },
+            {
+              key: "contexto",
+              label: "Compruebas el contexto y descubres qué ocurrió.",
+            },
+            {
+              key: "interpretacion",
+              label:
+                "Interpretas la situación y puedes nombrar la experiencia.",
+            },
+          ],
+          solved: ["senal", "respuesta", "contexto", "interpretacion"],
+          solvedLabel: "Prefiero ver el ejemplo resuelto",
+          feedback:
+            "La señal y la respuesta rápida pueden preceder a una comprensión más completa. El contexto ayuda a decidir si aquello fue peligro, sorpresa, alivio u otra experiencia.",
+        },
       },
       recall: {
         exerciseKey: "eec-c1-recall-alarma-antes-del-relato",
@@ -273,7 +390,56 @@ export const EXERCISE_INGESTION_CATALOG: Readonly<
         type: "REFLECTION",
         title: "Siento, interpreto, tengo ganas de, elijo hacer",
         sourceHeading: "Daniel Goleman: aprender a leer el mundo emocional",
-        practiceKind: "guided_reflection",
+        practiceKind: "four_part_distinction",
+        interaction: {
+          kind: "four_part_distinction",
+          scenario:
+            "Escribes a alguien por la mañana y a la tarde todavía no responde.",
+          fields: [
+            {
+              key: "siento",
+              label: "Siento",
+              options: [
+                { key: "inquietud", label: "Algo de inquietud." },
+                { key: "molestia", label: "Una molestia leve." },
+                { key: "nada", label: "Casi nada; lo noto y sigo." },
+              ],
+            },
+            {
+              key: "interpreto",
+              label: "Interpreto",
+              options: [
+                { key: "ocupado", label: "Que está ocupado." },
+                { key: "molesto", label: "Que está molesto conmigo." },
+                { key: "no-vio", label: "Que no vio el mensaje." },
+              ],
+            },
+            {
+              key: "impulso",
+              label: "Tengo ganas de",
+              options: [
+                { key: "reescribir", label: "Escribir otra vez enseguida." },
+                { key: "revisar", label: "Revisar si se conectó." },
+                { key: "dejarlo", label: "Dejarlo pasar." },
+              ],
+            },
+            {
+              key: "elijo",
+              label: "Elijo hacer",
+              options: [
+                { key: "esperar", label: "Esperar hasta mañana." },
+                {
+                  key: "preguntar",
+                  label: "Preguntar directamente, sin reclamo.",
+                },
+                { key: "otra-cosa", label: "Ocuparme de otra cosa por ahora." },
+              ],
+            },
+          ],
+          allowsFreeText: true,
+          disclaimer:
+            "Lo que elijas aquí no es un diagnóstico ni una recomendación de conducta: es una forma de ver que sentir, interpretar, querer y elegir son cosas distintas.",
+        },
       },
       recall: {
         exerciseKey: "eec-c1-recall-emocion-informa-no-manda",
@@ -316,7 +482,37 @@ export const EXERCISE_INGESTION_CATALOG: Readonly<
         type: "REFLECTION",
         title: "Las mismas señales, dos contextos",
         sourceHeading: "Lisa Feldman Barrett: la emoción como construcción",
-        practiceKind: "guided_reflection",
+        practiceKind: "signal_context_compare",
+        interaction: {
+          kind: "signal_context_compare",
+          signals: ["Corazón acelerado.", "Estómago revuelto.", "Manos frías."],
+          contexts: [
+            {
+              key: "entrevista",
+              label: "Antes de una entrevista",
+              description:
+                "Esperas en una sala; en unos minutos te van a evaluar.",
+            },
+            {
+              key: "primera-cita",
+              label: "Antes de una primera cita",
+              description:
+                "Esperas en un café; en unos minutos verás a alguien que te gusta.",
+            },
+          ],
+          factors: [
+            { key: "situacion", label: "La situación en la que ocurre." },
+            {
+              key: "aprendizaje",
+              label: "Lo que aprendiste a esperar de ella.",
+            },
+            { key: "expectativa", label: "Lo que anticipas que va a pasar." },
+            { key: "recuerdos", label: "Los recuerdos que trae a mano." },
+            { key: "nueva-info", label: "Información nueva que aparece." },
+          ],
+          prompt:
+            "Las señales del cuerpo se parecen. ¿Qué información hace que signifiquen cosas distintas?",
+        },
       },
       recall: {
         exerciseKey: "eec-c1-recall-construida-no-significa-falsa",

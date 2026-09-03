@@ -138,7 +138,14 @@ export function practiceContentFor(
   def: PracticeExerciseDefinition,
   sourceBlockKey: string,
 ): Record<string, unknown> {
-  return { practiceKind: def.practiceKind, sourceBlockKey };
+  // `interaction` is added only when the definition declares one. A
+  // `guided_reflection` practice keeps the exact two-key shape it has always
+  // stored — the pilot's row is in production, and the ingestion refuses on
+  // drift, so widening every practice would have failed the next deploy.
+  const base = { practiceKind: def.practiceKind, sourceBlockKey };
+  return def.interaction === undefined
+    ? base
+    : { ...base, interaction: def.interaction };
 }
 
 interface ExerciseRow {

@@ -27,6 +27,7 @@ import type { Request, Response } from "express";
 import type {
   LearningCommandResponse,
   LearningProgressResponse,
+  PracticePublicView,
 } from "@psico/types";
 import { JwtAuthGuard } from "../auth";
 import type { AuthenticatedUser } from "../auth";
@@ -37,6 +38,8 @@ import { ErrorEnvelopeDto } from "../shared/dto/error-envelope.dto";
 import { LearningCommandService } from "./learning-command.service";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { LearningProgressService } from "./learning-progress.service";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { PracticeViewService } from "./practice-view.service";
 import {
   parseCompletePracticeCommand,
   parseCompleteUnitCommand,
@@ -51,6 +54,7 @@ import {
   IDEMPOTENT_COMMAND_BODY,
   LEARNING_COMMAND_RESPONSE,
   RECALL_ATTEMPT_BODY,
+  PRACTICE_PUBLIC_VIEW,
 } from "./dto/learning.openapi";
 
 /**
@@ -79,6 +83,7 @@ export class LearningController {
   constructor(
     private readonly commands: LearningCommandService,
     private readonly progress: LearningProgressService,
+    private readonly practiceView: PracticeViewService,
   ) {}
 
   /** Parser verdict → typed command, or the mapped 400. */
@@ -182,6 +187,20 @@ export class LearningController {
       res,
       await this.commands.submitRecallAttempt(user, command),
     );
+  }
+
+  @Get("practices/:exerciseKey")
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  @ApiOperation({
+    summary:
+      "Contenido público de una práctica de catálogo. Sin datos de corrección.",
+  })
+  @ApiOkResponse({ schema: PRACTICE_PUBLIC_VIEW })
+  @ApiNotFoundResponse({ type: ErrorEnvelopeDto })
+  async getPractice(
+    @Param("exerciseKey") exerciseKey: string,
+  ): Promise<PracticePublicView> {
+    return this.practiceView.getPublicView(exerciseKey);
   }
 
   @Post("practices/:exerciseKey/complete")

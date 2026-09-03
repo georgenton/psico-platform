@@ -79,11 +79,16 @@ export class GuideDiscoveryService {
     // catalog, so no read happens at all after this point.
     if (!this.rollout.isAvailable(user.userId)) return { available: false };
 
-    // 5.2 — exact context → pin. Never `latestStartableVersion`.
-    const pin = productionGuideDiscoveryCatalog.getExactContext(
+    // 5.2 — exact context → the route, and this endpoint answers with its
+    // FIRST step. Never `latestStartableVersion`, and deliberately NOT
+    // `getExactContext`: that method is the compatibility answer for the
+    // materialized V1 binary and returns the historical pilot, which a new
+    // reader must not be offered.
+    const route = productionGuideDiscoveryCatalog.listContext(
       input.bookSlug,
       input.chapterOrder,
     );
+    const pin = route.length > 0 ? route[0].pin : null;
     if (!pin) return { available: false };
 
     // 5.3 — the definition must exist. A discovery entry pointing at nothing

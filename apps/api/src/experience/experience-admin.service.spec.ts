@@ -270,23 +270,17 @@ describe("ExperienceAdminService — creating", () => {
     // Asking for the pilot's lineage and letting it fall back to MG01 is a
     // cross-lineage bind, which the reservation correctly refuses — that is a
     // different test, and it already exists.
-    const withoutPin = {
-      ...definition(),
-      experienceKey: "eec-c1-teorias-como-lentes",
-      guidePin: undefined,
-    };
+    const withoutPin = { ...definition(), guidePin: undefined };
     await service.createDraft(
       "user_1",
       withoutPin as unknown as ChapterExperienceDefinition,
     );
 
     const data = prisma.chapterExperienceVersion.create.mock.calls[0]![0].data;
-    // The chapter's own pin is now the route's FIRST step, not the retired
-    // pilot: discovery answers with what a new reader would be offered.
-    expect(data.definitionJson.guidePin).toEqual({
-      guideKey: "eec-c1-teorias-como-lentes",
-      guideVersion: 1,
-    });
+    // The CMS fallback goes through the V1-compat adapter, which answers with
+    // the historical pilot. That is what it answered before this branch, and
+    // an editor who wants a microguide picks it from `listSelectableGuides`.
+    expect(data.definitionJson.guidePin).toEqual(EEC_PIN);
   });
 
   it("refuses a chapter that publishes no guide, instead of inventing one", async () => {

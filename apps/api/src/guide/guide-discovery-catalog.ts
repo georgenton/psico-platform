@@ -57,6 +57,16 @@ export interface GuideDiscoveryEntry {
   readonly estimatedMinutes: string;
 }
 
+/**
+ * What the MATERIALIZED V1 binary is answered when it asks a context for "the"
+ * guide. Separate from the route on purpose — see `getExactContext`.
+ */
+export interface GuideLegacyPinEntry {
+  readonly bookSlug: string;
+  readonly chapterOrder: number;
+  readonly pin: GuidePin;
+}
+
 /** One offered guided reading, resolved and ordered. */
 export interface GuideDiscoveryItem {
   readonly pin: GuidePin;
@@ -72,7 +82,10 @@ export type GuideDiscoveryErrorCode =
   | "GUIDE_DISCOVERY_CATALOG_DUPLICATE_ORDER"
   | "GUIDE_DISCOVERY_CATALOG_NON_CONTIGUOUS_ORDER"
   | "GUIDE_DISCOVERY_CATALOG_UNKNOWN_DEFINITION"
-  | "GUIDE_DISCOVERY_CATALOG_CONTRADICTORY_PIN";
+  | "GUIDE_DISCOVERY_CATALOG_CONTRADICTORY_PIN"
+  | "GUIDE_DISCOVERY_CATALOG_LEGACY_INVALID"
+  | "GUIDE_DISCOVERY_CATALOG_LEGACY_DUPLICATE_CONTEXT"
+  | "GUIDE_DISCOVERY_CATALOG_LEGACY_UNKNOWN_DEFINITION";
 
 /** Value-free catalog failure — a stable code and nothing else. */
 export class GuideDiscoveryCatalogError extends Error {
@@ -115,9 +128,11 @@ function pinKey(pin: GuidePin): string {
  */
 export class GuideDiscoveryCatalog {
   private readonly byContext = new Map<string, GuideDiscoveryItem[]>();
+  private readonly legacyByContext = new Map<string, GuidePin>();
 
   constructor(
     entries: readonly GuideDiscoveryEntry[],
+    legacyPins: readonly GuideLegacyPinEntry[] = [],
     registry: {
       getExact(k: string, v: number): unknown;
     } = productionGuideRegistry,
@@ -214,21 +229,71 @@ export class GuideDiscoveryCatalog {
       }
       this.byContext.set(ctx, Object.freeze(list) as GuideDiscoveryItem[]);
     }
+
+    for (const legacy of legacyPins) {
+      const slug = normalizeBookSlug(legacy.bookSlug);
+      const order = normalizeChapterOrder(legacy.chapterOrder);
+      const pin = legacy.pin;
+      const ok =
+        slug !== null &&
+        order !== null &&
+        typeof pin?.guideKey === "string" &&
+        pin.guideKey.length > 0 &&
+        Number.isInteger(pin.guideVersion) &&
+        pin.guideVersion > 0;
+      if (!ok || slug === null || order === null) {
+        throw new GuideDiscoveryCatalogError(
+          "GUIDE_DISCOVERY_CATALOG_LEGACY_INVALID",
+        );
+      }
+      const ctx = contextKey(slug, order);
+      if (this.legacyByContext.has(ctx)) {
+        throw new GuideDiscoveryCatalogError(
+          "GUIDE_DISCOVERY_CATALOG_LEGACY_DUPLICATE_CONTEXT",
+        );
+      }
+      // The old binary will try to bind whatever comes back, so a pin naming a
+      // definition this build does not ship would fail at the write instead of
+      // at boot — during a rolling deploy, on somebody's draft.
+      try {
+        registry.getExact(pin.guideKey, pin.guideVersion);
+      } catch {
+        throw new GuideDiscoveryCatalogError(
+          "GUIDE_DISCOVERY_CATALOG_LEGACY_UNKNOWN_DEFINITION",
+        );
+      }
+      this.legacyByContext.set(ctx, {
+        guideKey: pin.guideKey,
+        guideVersion: pin.guideVersion,
+      });
+    }
   }
 
   /**
-   * EXACT lookup, V1 shape. Never first-match by luck, never "latest", never a
-   * default: an unlisted context returns null and the caller reports
-   * unavailable.
+   * @deprecated COMPATIBILITY ONLY — the pin the materialized V1 binary gets.
    *
-   * For a context with several guided readings this answers with the FIRST —
-   * the route's opening step. Callers that need the whole route ask
-   * `listContext`; this one exists so that everything written before the route
-   * existed keeps meaning what it meant.
+   * New code must never call this. Use `listContext` to show the route and
+   * `offersPin` to validate a start.
+   *
+   * ── Why it does not answer with the route's first step ────────────────────
+   *
+   * The rolling-deploy gate materialises the previous `experience` module and
+   * runs it against THIS tree, so the old `createDraft` calls this method and
+   * binds whatever it returns. Keeping the signature while changing the answer
+   * is compatibility on paper only: measured, it made the old binary reserve,
+   * publish and race on MG01 under the pilot's lineage, and the reservation
+   * refused it — `EXPERIENCE_LINEAGE_ALREADY_BOUND`, five of seven tests.
+   *
+   * So the legacy answer is DECLARED, not derived. A context absent from the
+   * legacy map returns null, which is the truthful answer for a chapter the old
+   * binary never knew: better a "no guide here" than a guide it was never
+   * designed to bind.
    */
   getExactContext(bookSlug: string, chapterOrder: number): GuidePin | null {
-    const list = this.listContext(bookSlug, chapterOrder);
-    return list.length > 0 ? list[0].pin : null;
+    const slug = normalizeBookSlug(bookSlug);
+    const order = normalizeChapterOrder(chapterOrder);
+    if (slug === null || order === null) return null;
+    return this.legacyByContext.get(contextKey(slug, order)) ?? null;
   }
 
   /** The whole guided route for a context, ordered. Empty when unlisted. */
@@ -254,6 +319,11 @@ export class GuideDiscoveryCatalog {
   /** Number of CONTEXTS, unchanged in meaning from V1. */
   get size(): number {
     return this.byContext.size;
+  }
+
+  /** Contexts that answer the V1 adapter. */
+  get legacySize(): number {
+    return this.legacyByContext.size;
   }
 
   /** Number of offered guided readings across every context. */
@@ -347,6 +417,35 @@ export const PRODUCTION_GUIDE_DISCOVERY_ENTRIES: readonly GuideDiscoveryEntry[] 
     },
   ];
 
+/**
+ * What the previous binary is answered, per context.
+ *
+ * These are NOT startable through the new route — `listContext` does not
+ * mention the pilot and `offersPin` refuses it — and they are not derived from
+ * the route either. They are the pins the deployed-and-being-replaced code
+ * already binds, written down so a rolling deploy keeps meaning what it meant.
+ *
+ * EEC-C01 keeps the V1 pilot. Parejas keeps its sole pin, which happens to be
+ * both its legacy answer and its whole route; stating it twice is the point —
+ * the two contracts agree here by coincidence, not by construction.
+ *
+ * This map shrinks when the compatibility gate stops materialising the V1
+ * module, and not before.
+ */
+export const PRODUCTION_LEGACY_GUIDE_PINS: readonly GuideLegacyPinEntry[] = [
+  {
+    bookSlug: "emociones-en-construccion",
+    chapterOrder: 1,
+    pin: { guideKey: "eec-c1-cuerpo-antes-que-mente", guideVersion: 1 },
+  },
+  {
+    bookSlug: "parejas-que-perduran",
+    chapterOrder: 2,
+    pin: { guideKey: "pqp-c1-contacto-sostenido", guideVersion: 1 },
+  },
+];
+
 export const productionGuideDiscoveryCatalog = new GuideDiscoveryCatalog(
   PRODUCTION_GUIDE_DISCOVERY_ENTRIES,
+  PRODUCTION_LEGACY_GUIDE_PINS,
 );

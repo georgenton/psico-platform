@@ -5,8 +5,10 @@ import {
   normalizeBookSlug,
   normalizeChapterOrder,
   PRODUCTION_GUIDE_DISCOVERY_ENTRIES,
+  PRODUCTION_LEGACY_GUIDE_PINS,
   productionGuideDiscoveryCatalog,
   type GuideDiscoveryEntry,
+  type GuideLegacyPinEntry,
 } from "./guide-discovery-catalog";
 import { productionGuideRegistry } from "./guide-catalog";
 
@@ -116,7 +118,25 @@ describe("production discovery catalog", () => {
     ).not.toThrow();
   });
 
-  it("resolves Parejas PLATFORM order 2 to the PQP pin", () => {
+  it("V1 callers retain the historical pin while V2 discovery exposes the new route", () => {
+    // The two contracts, side by side. Answering the old binary with the
+    // route's first step is signature compatibility and nothing more: measured,
+    // it made V1 reserve and publish MG01 under the pilot's lineage and the
+    // reservation refused it (EXPERIENCE_LINEAGE_ALREADY_BOUND, 5/7 failures).
+    expect(
+      productionGuideDiscoveryCatalog.getExactContext(
+        "emociones-en-construccion",
+        1,
+      ),
+    ).toEqual(PILOT);
+    expect(
+      productionGuideDiscoveryCatalog
+        .listContext("emociones-en-construccion", 1)
+        .map((i) => i.pin.guideKey),
+    ).not.toContain(PILOT.guideKey);
+  });
+
+  it("answers the V1 adapter for Parejas with its existing sole pin", () => {
     expect(
       productionGuideDiscoveryCatalog.getExactContext(
         "parejas-que-perduran",
@@ -125,13 +145,18 @@ describe("production discovery catalog", () => {
     ).toEqual(PQP);
   });
 
-  it("V1 callers still get a single pin — the route's first step", () => {
+  it("declares a legacy pin only for the contexts the old binary knew", () => {
+    expect(PRODUCTION_LEGACY_GUIDE_PINS).toHaveLength(2);
+    expect(productionGuideDiscoveryCatalog.legacySize).toBe(2);
+    // A context with a route but no declared legacy pin answers null, which is
+    // the truthful answer for a chapter V1 never knew.
     expect(
-      productionGuideDiscoveryCatalog.getExactContext(
-        "emociones-en-construccion",
-        1,
-      ),
-    ).toEqual(MG01);
+      new GuideDiscoveryCatalog(
+        [entry()],
+        [],
+        productionGuideRegistry,
+      ).getExactContext("emociones-en-construccion", 1),
+    ).toBeNull();
   });
 
   it("offers nothing for the Parejas preface (order 1)", () => {
@@ -202,6 +227,7 @@ describe("catalog validation refuses to load", () => {
       () =>
         new GuideDiscoveryCatalog(
           [entry({ order: 1 }), entry({ order: 2 })],
+          [],
           reg,
         ),
     ).toThrow(/GUIDE_DISCOVERY_CATALOG_DUPLICATE_CONTEXT/);
@@ -212,6 +238,7 @@ describe("catalog validation refuses to load", () => {
       () =>
         new GuideDiscoveryCatalog(
           [entry({ order: 1 }), entry({ order: 1, pin: MG05 })],
+          [],
           reg,
         ),
     ).toThrow(/GUIDE_DISCOVERY_CATALOG_DUPLICATE_ORDER/);
@@ -222,15 +249,16 @@ describe("catalog validation refuses to load", () => {
       () =>
         new GuideDiscoveryCatalog(
           [entry({ order: 1 }), entry({ order: 3, pin: MG05 })],
+          [],
           reg,
         ),
     ).toThrow(/GUIDE_DISCOVERY_CATALOG_NON_CONTIGUOUS_ORDER/);
   });
 
   it("a route that does not start at 1", () => {
-    expect(() => new GuideDiscoveryCatalog([entry({ order: 2 })], reg)).toThrow(
-      /GUIDE_DISCOVERY_CATALOG_NON_CONTIGUOUS_ORDER/,
-    );
+    expect(
+      () => new GuideDiscoveryCatalog([entry({ order: 2 })], [], reg),
+    ).toThrow(/GUIDE_DISCOVERY_CATALOG_NON_CONTIGUOUS_ORDER/);
   });
 
   it("a pin naming a definition that does not exist", () => {
@@ -238,6 +266,7 @@ describe("catalog validation refuses to load", () => {
       () =>
         new GuideDiscoveryCatalog(
           [entry({ pin: { guideKey: "no-existe", guideVersion: 1 } })],
+          [],
           reg,
         ),
     ).toThrow(/GUIDE_DISCOVERY_CATALOG_UNKNOWN_DEFINITION/);
@@ -251,6 +280,7 @@ describe("catalog validation refuses to load", () => {
             entry(),
             entry({ bookSlug: "parejas-que-perduran", chapterOrder: 2 }),
           ],
+          [],
           reg,
         ),
     ).toThrow(/GUIDE_DISCOVERY_CATALOG_CONTRADICTORY_PIN/);
@@ -270,14 +300,54 @@ describe("catalog validation refuses to load", () => {
       () =>
         new GuideDiscoveryCatalog(
           [entry(over as Partial<GuideDiscoveryEntry>)],
+          [],
           reg,
         ),
     ).toThrow(GuideDiscoveryCatalogError);
   });
 
+  it("a legacy pin naming a definition that does not exist", () => {
+    const legacy: GuideLegacyPinEntry = {
+      bookSlug: "emociones-en-construccion",
+      chapterOrder: 1,
+      pin: { guideKey: "no-existe", guideVersion: 1 },
+    };
+    expect(() => new GuideDiscoveryCatalog([entry()], [legacy], reg)).toThrow(
+      /GUIDE_DISCOVERY_CATALOG_LEGACY_UNKNOWN_DEFINITION/,
+    );
+  });
+
+  it("two legacy pins for one context", () => {
+    const one: GuideLegacyPinEntry = {
+      bookSlug: "emociones-en-construccion",
+      chapterOrder: 1,
+      pin: PILOT,
+    };
+    expect(
+      () =>
+        new GuideDiscoveryCatalog([entry()], [one, { ...one, pin: MG05 }], reg),
+    ).toThrow(/GUIDE_DISCOVERY_CATALOG_LEGACY_DUPLICATE_CONTEXT/);
+  });
+
+  it.each([
+    ["a bad slug", { bookSlug: "Con Espacios" }],
+    ["a zero chapter order", { chapterOrder: 0 }],
+    ["a zero version", { pin: { guideKey: PILOT.guideKey, guideVersion: 0 } }],
+  ])("a malformed legacy entry: %s", (_why, over) => {
+    const legacy = {
+      bookSlug: "emociones-en-construccion",
+      chapterOrder: 1,
+      pin: PILOT,
+      ...over,
+    } as GuideLegacyPinEntry;
+    expect(() => new GuideDiscoveryCatalog([entry()], [legacy], reg)).toThrow(
+      /GUIDE_DISCOVERY_CATALOG_LEGACY_INVALID/,
+    );
+  });
+
   it("keeps errors value-free — the message is exactly the code", () => {
     try {
-      new GuideDiscoveryCatalog([entry({ bookSlug: "Con Espacios" })], reg);
+      new GuideDiscoveryCatalog([entry({ bookSlug: "Con Espacios" })], [], reg);
     } catch (e) {
       const err = e as GuideDiscoveryCatalogError;
       expect(err.message).toBe(err.code);

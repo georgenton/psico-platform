@@ -405,6 +405,19 @@ export type GuideRecallOutcome = "CORRECT" | "REVIEW";
 export interface SubmitGuideStepRecallResponse extends GuideCommandResponse {
   feedback: {
     outcome: GuideRecallOutcome;
+    /**
+     * The approved sentence for THIS outcome, and only this one.
+     *
+     * Server-owned: the runtime looks it up in the recall catalog rather than
+     * composing it, because the moment right after somebody answers is the
+     * worst possible moment for a product to improvise. The other branch's
+     * copy never crosses the wire — a client holding both messages holds the
+     * answer, which is the same reason `correctOptionKey` stays behind.
+     *
+     * Read back from the ledger like the outcome, so a replay of the same
+     * idempotency key returns the same words by construction.
+     */
+    message: string;
   };
 }
 

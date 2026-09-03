@@ -432,6 +432,7 @@ export function ExperiencePlayerSurface({
     concept,
     media,
     recallOutcome: run.recallOutcome,
+    recallMessage: run.recallMessage,
     confirmStep: run.completeStep,
     submitRecall: run.submitRecall,
     goForward,

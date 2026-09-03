@@ -60,6 +60,7 @@ import {
   type GuideSessionRow,
 } from "./guide-session.repository";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { recallFeedbackMessage } from "../content-core/recall-feedback";
 import { GuideSessionStepRepository } from "./guide-session-step.repository";
 import {
   type AcceptedGuideStep,
@@ -177,7 +178,7 @@ export interface GuideCommandResult {
  * person is shown; the catalog's correct option is still never returned.
  */
 export interface GuideRecallCommandResult extends GuideCommandResult {
-  feedback: { outcome: GuideRecallOutcome };
+  feedback: { outcome: GuideRecallOutcome; message: string };
 }
 
 type Tx = Prisma.TransactionClient;
@@ -1243,9 +1244,7 @@ export class GuideLifecycleService {
       },
       async (tx, session, result) => ({
         ...result,
-        feedback: {
-          outcome: await this.recallOutcome(session.id, command, tx),
-        },
+        feedback: await this.recallFeedback(session.id, command, tx),
       }),
     );
   }
@@ -1259,24 +1258,38 @@ export class GuideLifecycleService {
    * inventing an outcome would be telling the person something the system did
    * not measure.
    */
-  private async recallOutcome(
+  private async recallFeedback(
     sessionId: string,
     command: GuideStepRecallCommandInput,
     tx: Tx,
-  ): Promise<GuideRecallOutcome> {
+  ): Promise<{ outcome: GuideRecallOutcome; message: string }> {
     const accepted = await this.ledger(sessionId, tx);
     const row = accepted.find((s) => s.stepKey === command.stepKey);
     if (!row || row.kind !== "ACTIVE_RECALL") {
       guideFail("GUIDE_STORAGE_FAILURE");
     }
-    const graded = (
-      row as Extract<AcceptedGuideStep, { kind: "ACTIVE_RECALL" }>
-    ).recallResult;
+    const recall = row as Extract<AcceptedGuideStep, { kind: "ACTIVE_RECALL" }>;
+    const graded = recall.recallResult;
     if (graded !== "CORRECT" && graded !== "INCORRECT") {
       guideFail("GUIDE_STORAGE_FAILURE");
     }
     // INCORRECT is a measurement; REVIEW is what we say about it.
-    return graded === "CORRECT" ? "CORRECT" : "REVIEW";
+    const outcome: GuideRecallOutcome =
+      graded === "CORRECT" ? "CORRECT" : "REVIEW";
+    // The item key comes from the LEDGER row, not from the command, so the
+    // message a replay returns is looked up from the same evidence as the
+    // first response rather than from what the caller happens to send.
+    const message = recallFeedbackMessage(recall.itemKey, outcome);
+    if (message === null) {
+      // The catalog has no approved words for this item. Refusing is the
+      // honest answer: validation guarantees every shipped recall has both
+      // branches, so reaching here means the item is not in the catalog at
+      // all — and a sentence invented now would be the runtime editorialising.
+      guideFail("GUIDE_STORAGE_FAILURE");
+    }
+    // `guideFail` returns `never` but is a plain const arrow, so TypeScript
+    // does not narrow through it — the same reason the row above is cast.
+    return { outcome, message: message as string };
   }
 
   // ─── CANCEL ──────────────────────────────────────────────────────────────

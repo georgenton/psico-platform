@@ -417,10 +417,20 @@ describe("ratchet · guide OpenAPI surface", () => {
         ?.feedback as Schema;
       expect(feedback, status).toBeDefined();
       expect(feedback.additionalProperties, status).toBe(false);
-      expect([...(feedback.required ?? [])], status).toEqual(["outcome"]);
+      // Two fields, and only two: the outcome and the approved sentence FOR
+      // that outcome. A third would be room for the other branch's copy, and
+      // a client holding both messages holds the answer.
+      expect([...(feedback.required ?? [])], status).toEqual([
+        "outcome",
+        "message",
+      ]);
       expect(Object.keys(feedback.properties ?? {}), status).toEqual([
         "outcome",
+        "message",
       ]);
+      expect((feedback.properties?.message as Schema).type, status).toBe(
+        "string",
+      );
       const outcome = feedback.properties?.outcome as Schema & {
         enum?: string[];
       };

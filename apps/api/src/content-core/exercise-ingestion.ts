@@ -119,6 +119,21 @@ export function assertPairValid(
   if (!uniqueKeys || !correctInOptions) {
     throw new ExerciseIngestError("EXERCISE_INGEST_CATALOG_INVALID");
   }
+
+  // Every objective recall says something after it is answered, in both
+  // directions. Enforced HERE rather than discovered at runtime: a person who
+  // just answered is the worst moment to find out the catalog has nothing to
+  // say, and inventing a sentence then would be the product speaking without
+  // an editor.
+  const fb = recall.feedback;
+  const feedbackOk =
+    typeof fb?.correct === "string" &&
+    fb.correct.trim().length > 0 &&
+    typeof fb.review === "string" &&
+    fb.review.trim().length > 0;
+  if (!feedbackOk) {
+    throw new ExerciseIngestError("EXERCISE_INGEST_CATALOG_INVALID");
+  }
 }
 
 /**
@@ -321,6 +336,13 @@ export function recallContentFor(
   def: ObjectiveRecallDefinition,
 ): Record<string, unknown> {
   // Reconstruct explicitly so no stray key can reach storage.
+  //
+  // `feedback` is deliberately absent. This function's output is compared
+  // byte-for-byte against what is already stored, and a difference THROWS
+  // rather than updating — so adding a field here would make the next
+  // `apply-targets` refuse every recall already in production. The copy is
+  // resolved from the catalog at read time instead, which is where the
+  // authority was anyway.
   return {
     recallMode: def.content.recallMode,
     conceptKey: def.content.conceptKey,

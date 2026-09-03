@@ -1,4 +1,5 @@
 import { execSync } from "node:child_process";
+import { recallFeedbackMessage } from "../content-core/recall-feedback";
 import { PrismaClient } from "@prisma/client";
 import type { LearningEventKind } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
@@ -502,6 +503,42 @@ suite("CC-7.4C · Guide V1 lifecycle (real PostgreSQL)", () => {
     // command result.
     expect(Object.keys(payload)).not.toContain("correctOptionKey");
     expect(JSON.stringify(result)).not.toContain("correctOptionKey");
+
+    // The approved sentence for THIS outcome, resolved from the catalog.
+    expect(result.feedback.outcome).toBe("CORRECT");
+    expect(result.feedback.message).toBe(
+      recallFeedbackMessage("eec-c1-recall-cuerpo-antes-que-mente", "CORRECT"),
+    );
+    // And not the other branch's: holding both would be holding the answer.
+    expect(result.feedback.message).not.toBe(
+      recallFeedbackMessage("eec-c1-recall-cuerpo-antes-que-mente", "REVIEW"),
+    );
+  });
+
+  it("a replay returns the same outcome AND the same words", async () => {
+    const sessionId = await startAndAdvance(userA);
+    const key = nextKey();
+    const first = await service.completeRecallStep(userA, {
+      idempotencyKey: key,
+      sessionId,
+      stepKey: STEP_RECALL,
+      selectedOptionKey: WRONG_OPTION,
+    });
+    const replay = await service.completeRecallStep(userA, {
+      idempotencyKey: key,
+      sessionId,
+      stepKey: STEP_RECALL,
+      selectedOptionKey: WRONG_OPTION,
+    });
+
+    expect(replay.replayed).toBe(true);
+    // Both are read back from the ledger, so they agree by construction rather
+    // than by grading the attempt a second time.
+    expect(replay.feedback).toEqual(first.feedback);
+    expect(replay.feedback.outcome).toBe("REVIEW");
+    expect(replay.feedback.message).toBe(
+      recallFeedbackMessage("eec-c1-recall-cuerpo-antes-que-mente", "REVIEW"),
+    );
   });
 
   it("grades an incorrect option without failing the step", async () => {

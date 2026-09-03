@@ -83,6 +83,7 @@ function contextFor(
     // "not here yet" copy rather than reaching for a manifest.
     media: null,
     recallOutcome: null,
+    recallMessage: null,
     confirmStep,
     submitRecall,
     goForward,

@@ -3,13 +3,33 @@ import {
   ForbiddenException,
   NotFoundException,
 } from "@nestjs/common";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import { GuideLifecycleError } from "./guide-errors";
 import {
   GuideDiscoveryParamsError,
   parseGuideDiscoveryParams,
 } from "./guide-discovery-params";
 import { GuideDiscoveryService } from "./guide-discovery.service";
+
+/**
+ * The route ships behind `EEC_C01_GUIDED_SUITE_V1`, default OFF. These suites
+ * are about what the catalog offers WHEN it is on; the switch itself has its
+ * own tests in `guide-discovery-contracts.spec.ts`.
+ */
+beforeAll(() => {
+  process.env.EEC_C01_GUIDED_SUITE_V1 = "on";
+});
+afterAll(() => {
+  delete process.env.EEC_C01_GUIDED_SUITE_V1;
+});
 
 /**
  * Unit coverage for the params parser and for the service's decision ORDER.

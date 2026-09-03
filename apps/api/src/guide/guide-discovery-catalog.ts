@@ -1,4 +1,5 @@
 import { productionGuideRegistry } from "./guide-catalog";
+import { flagEnabled } from "../shared/flags";
 
 /**
  * GR-4 — the SERVER-OWNED map from a reading context to its guided readings.
@@ -296,7 +297,19 @@ export class GuideDiscoveryCatalog {
     return this.legacyByContext.get(contextKey(slug, order)) ?? null;
   }
 
-  /** The whole guided route for a context, ordered. Empty when unlisted. */
+  /**
+   * The whole guided route for a context, ordered. Empty when unlisted — and
+   * empty when the route's kill switch is off.
+   *
+   * The switch lives HERE rather than at the endpoint so every reader of the
+   * route sees the same answer: discovery, the single-pin adapter and the start
+   * validation would otherwise be able to disagree, and a chapter that offers a
+   * guide it refuses to start is worse than one that offers none.
+   *
+   * It gates the OFFER only. `getExactContext` is untouched (the V1 binary must
+   * keep working through a rollback), the definitions stay registered, and a
+   * session already pinned resolves from the registry without ever asking this.
+   */
   listContext(
     bookSlug: string,
     chapterOrder: number,
@@ -304,7 +317,15 @@ export class GuideDiscoveryCatalog {
     const slug = normalizeBookSlug(bookSlug);
     const order = normalizeChapterOrder(chapterOrder);
     if (slug === null || order === null) return [];
-    return this.byContext.get(contextKey(slug, order)) ?? [];
+    const list = this.byContext.get(contextKey(slug, order)) ?? [];
+    if (
+      slug === "emociones-en-construccion" &&
+      order === 1 &&
+      !flagEnabled("EEC_C01_GUIDED_SUITE_V1")
+    ) {
+      return [];
+    }
+    return list;
   }
 
   /** Is this exact pin offered at this context? Used to validate a start. */

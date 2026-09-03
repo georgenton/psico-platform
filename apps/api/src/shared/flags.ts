@@ -124,6 +124,26 @@ export const FLAGS = {
     description:
       "Serve the emotional map at all (fail-closed kill switch; off → 503 + null).",
   },
+  /**
+   * EEC-C01's five-microguide route. Default OFF while it rolls out.
+   *
+   * A KILL SWITCH, not a build toggle: turning it off stops NEW readers being
+   * offered the route and nothing else. Definitions stay registered, sessions
+   * already started still resolve their exact pinned version from the registry,
+   * progress and resonances are untouched, and no row is deleted anywhere.
+   * Turning it back on restores the offer — which is the whole point of doing
+   * the rollback this way instead of unpublishing.
+   *
+   * With it off, `discoverRoute` answers "no route here" for that chapter and
+   * the single-pin `discover` falls back to nothing, so the chapter reads
+   * exactly as it did before the suite existed.
+   */
+  EEC_C01_GUIDED_SUITE_V1: {
+    env: "EEC_C01_GUIDED_SUITE_V1",
+    default: false,
+    description:
+      "Offer EEC-C01's five-microguide route to new readers (kill switch).",
+  },
 } as const satisfies Record<string, FlagDef>;
 
 export type FlagName = keyof typeof FLAGS;

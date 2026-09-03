@@ -24,6 +24,15 @@ import { GuideSessionStepRepository } from "./guide-session-step.repository";
 import { GuideCommandReceiptRepository } from "./guide-command-receipt.repository";
 import { seedPracticeHeadings } from "../content-core/test-support/seed-practice-headings";
 
+// `discover` lee ahora el recorrido, que va detrás de su interruptor. Esta
+// suite mide coste de consultas, no el interruptor, así que lo enciende.
+beforeAll(() => {
+  process.env.EEC_C01_GUIDED_SUITE_V1 = "on";
+});
+afterAll(() => {
+  delete process.env.EEC_C01_GUIDED_SUITE_V1;
+});
+
 /**
  * C.3R (#639) — what the batch actually costs, by target COMPOSITION.
  *

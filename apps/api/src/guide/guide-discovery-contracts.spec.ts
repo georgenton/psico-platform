@@ -1,10 +1,22 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
   PRODUCTION_LEGACY_GUIDE_PINS,
   productionGuideDiscoveryCatalog,
 } from "./guide-discovery-catalog";
+
+/**
+ * The route ships behind `EEC_C01_GUIDED_SUITE_V1`, default OFF. These suites
+ * are about what the catalog offers WHEN it is on; the switch itself has its
+ * own tests in `guide-discovery-contracts.spec.ts`.
+ */
+beforeAll(() => {
+  process.env.EEC_C01_GUIDED_SUITE_V1 = "on";
+});
+afterAll(() => {
+  delete process.env.EEC_C01_GUIDED_SUITE_V1;
+});
 
 /**
  * Two discovery contracts, and the rule about who may use which.
@@ -131,5 +143,55 @@ describe("contrato · la ruta V2 y el pin legado no se mezclan", () => {
     expect(
       productionGuideDiscoveryCatalog.getExactContext("libro-x", 1),
     ).toBeNull();
+  });
+});
+
+describe("kill switch · EEC_C01_GUIDED_SUITE_V1", () => {
+  const EEC = ["emociones-en-construccion", 1] as const;
+
+  afterEach(() => {
+    process.env.EEC_C01_GUIDED_SUITE_V1 = "on";
+  });
+
+  it("off: the chapter offers no route at all", () => {
+    process.env.EEC_C01_GUIDED_SUITE_V1 = "off";
+    expect(productionGuideDiscoveryCatalog.listContext(...EEC)).toEqual([]);
+    // And nothing can be started through it either — the two must agree, or a
+    // chapter offers a guide it then refuses to start.
+    expect(
+      productionGuideDiscoveryCatalog.offersPin(...EEC, {
+        guideKey: "eec-c1-teorias-como-lentes",
+        guideVersion: 1,
+      }),
+    ).toBe(false);
+  });
+
+  it("off: the V1 adapter is untouched, so a rollback does not break the old binary", () => {
+    process.env.EEC_C01_GUIDED_SUITE_V1 = "off";
+    expect(productionGuideDiscoveryCatalog.getExactContext(...EEC)).toEqual({
+      guideKey: "eec-c1-cuerpo-antes-que-mente",
+      guideVersion: 1,
+    });
+  });
+
+  it("off: no other chapter loses its guided reading", () => {
+    process.env.EEC_C01_GUIDED_SUITE_V1 = "off";
+    expect(
+      productionGuideDiscoveryCatalog
+        .listContext("parejas-que-perduran", 2)
+        .map((i) => i.pin.guideKey),
+    ).toEqual(["pqp-c1-contacto-sostenido"]);
+  });
+
+  it("on again: the route comes back whole, without republishing anything", () => {
+    process.env.EEC_C01_GUIDED_SUITE_V1 = "off";
+    expect(productionGuideDiscoveryCatalog.listContext(...EEC)).toHaveLength(0);
+    process.env.EEC_C01_GUIDED_SUITE_V1 = "on";
+    expect(productionGuideDiscoveryCatalog.listContext(...EEC)).toHaveLength(5);
+  });
+
+  it("defaults to off — the suite ships dark", () => {
+    delete process.env.EEC_C01_GUIDED_SUITE_V1;
+    expect(productionGuideDiscoveryCatalog.listContext(...EEC)).toEqual([]);
   });
 });

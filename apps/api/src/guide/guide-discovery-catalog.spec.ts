@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   GuideDiscoveryCatalog,
   GuideDiscoveryCatalogError,
@@ -11,6 +11,18 @@ import {
   type GuideLegacyPinEntry,
 } from "./guide-discovery-catalog";
 import { productionGuideRegistry } from "./guide-catalog";
+
+/**
+ * The route ships behind `EEC_C01_GUIDED_SUITE_V1`, default OFF. These suites
+ * are about what the catalog offers WHEN it is on; the switch itself has its
+ * own tests in `guide-discovery-contracts.spec.ts`.
+ */
+beforeAll(() => {
+  process.env.EEC_C01_GUIDED_SUITE_V1 = "on";
+});
+afterAll(() => {
+  delete process.env.EEC_C01_GUIDED_SUITE_V1;
+});
 
 /**
  * The discovery catalog decides which guided readings a reading context is

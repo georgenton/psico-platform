@@ -17,6 +17,16 @@ import { GuideRolloutService } from "./guide-rollout.service";
 import { GuideTargetContextService } from "./guide-target-context.service";
 import { seedPracticeHeadings } from "../content-core/test-support/seed-practice-headings";
 
+// El recorrido de C01 va detrás de `EEC_C01_GUIDED_SUITE_V1`, apagado por
+// defecto. Esta suite prueba cómo el discovery resuelve la unidad del lector,
+// no el interruptor, así que lo enciende.
+beforeAll(() => {
+  process.env.EEC_C01_GUIDED_SUITE_V1 = "on";
+});
+afterAll(() => {
+  delete process.env.EEC_C01_GUIDED_SUITE_V1;
+});
+
 /**
  * C.3R (#639) — discovery decides applicability the way the READER's content is
  * served, against real PostgreSQL.

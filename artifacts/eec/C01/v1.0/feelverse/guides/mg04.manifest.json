@@ -15,6 +15,7 @@
   "guideVersion": 1,
   "conceptKey": "eec-emocion-informa-no-manda",
   "practiceKey": "eec-c1-practice-siento-interpreto-impulso-elijo",
+  "practiceKind": "four_part_distinction",
   "recallKey": "eec-c1-recall-emocion-informa-no-manda",
   "anchors": {
     "primary": {
@@ -35,54 +36,79 @@
       "order": 1,
       "kind": "INTRO",
       "title": "Sentir, interpretar, querer, elegir",
-      "body": "Vas a separar cuatro cosas que solemos juntar. La situación es cotidiana y leve; la reflexión, si la escribes, es opcional y se queda contigo."
+      "body": [
+        "Vas a separar cuatro cosas que solemos juntar: lo que sientes, cómo lo interpretas, qué impulso aparece y qué eliges hacer."
+      ],
+      "note": "La situación es cotidiana y leve, y la ponemos nosotros. Puedes salir y volver cuando quieras.",
+      "actionLabel": "Comenzar"
     },
     {
       "order": 2,
       "kind": "PASSAGE",
-      "title": "Los pasajes",
-      "body": "Esta microguía se apoya en dos secciones: Goleman, sobre la diferencia entre reconocer, expresar y actuar; y Damasio, sobre cómo las señales afectivas orientan sin garantizar.",
+      "title": "Una emoción no es una conducta",
+      "body": [
+        "Esta microguía se apoya en dos secciones del capítulo que sostienen la misma idea desde ángulos distintos: Goleman, sobre la diferencia entre reconocer, expresar y actuar; y Damasio, sobre cómo las señales afectivas marcan qué es relevante sin decidir por ti."
+      ],
+      "actionLabel": "Leí el pasaje",
       "anchorRef": "eec-c1-aprender-a-leer-el-mundo-emocional"
     },
     {
       "order": 3,
       "kind": "CONCEPT",
       "title": "Informa; no manda",
-      "body": "Una emoción aporta información y señala qué es relevante. No dicta por sí sola la decisión: sentir, interpretar, tener un impulso y elegir una conducta son procesos distintos.",
+      "body": [
+        "Una emoción aporta información y señala qué es relevante. No dicta por sí sola la decisión: sentir, interpretar, tener un impulso y elegir una conducta son procesos distintos, y entre el último y los anteriores hay un espacio."
+      ],
+      "note": "Marcar esta escena registra que exploraste la idea; no evalúa tus decisiones ni las califica.",
+      "actionLabel": "He explorado la idea",
       "stepKey": "explorar-emocion-informa-no-manda"
     },
     {
       "order": 4,
       "kind": "EXAMPLE",
       "title": "Un mensaje que no llega",
-      "body": "Escribes a alguien y no responde en todo el día. Sientes algo, lo interpretas de alguna manera, aparece un impulso — y lo que finalmente haces sigue siendo una decisión tuya."
+      "body": [
+        "Escribes a alguien y no responde en todo el día. Aparece una sensación, la interpretas de alguna manera, surge un impulso; y lo que finalmente haces sigue siendo una decisión tuya."
+      ]
     },
     {
       "order": 5,
       "kind": "PRACTICE",
-      "title": "Cuatro campos",
-      "body": "Sobre esa situación, completa: siento · interpreto · tengo ganas de · elijo hacer. Validar una emoción no es justificar cualquier conducta; separar los cuatro campos es lo que hace visible esa diferencia.",
-      "stepKey": "practicar-siento-interpreto-impulso-elijo"
+      "title": "Siento, interpreto, impulso, elijo",
+      "body": [
+        "Sobre esa situación, completa cuatro campos: siento, interpreto, tengo ganas de, elijo hacer."
+      ],
+      "note": "Lo que elijas no es un diagnóstico ni una recomendación de conducta. Si escribes, tu texto se queda en tu dispositivo.",
+      "actionLabel": "Ya hice la práctica",
+      "stepKey": "practicar-siento-interpreto-impulso-elijo",
+      "practiceKind": "four_part_distinction"
     },
     {
       "order": 6,
       "kind": "REFLECTION",
-      "title": "Opcional",
-      "body": "Si quieres, anota qué notaste al separarlos. Es opcional, no se evalúa, no viaja con tu progreso y puedes saltarla.",
+      "title": "Si quieres, anótalo",
+      "body": [
+        "¿Qué notaste al separar los cuatro campos? Es opcional, no se evalúa, no viaja con tu progreso y puedes saltarla."
+      ],
       "optional": true
     },
     {
       "order": 7,
       "kind": "RECALL",
-      "title": "Una pregunta",
-      "body": "Comprueba la idea principal de esta microguía.",
+      "title": "¿Qué hace una emoción con la conducta?",
+      "body": [
+        "Recupera la idea central de esta microguía."
+      ],
       "stepKey": "recordar-emocion-informa-no-manda"
     },
     {
       "order": 8,
       "kind": "SUMMARY",
       "title": "Lo que te llevas",
-      "body": "La emoción orienta hacia lo que importa. Entre esa orientación y la conducta hay un espacio, y ese espacio es donde se decide."
+      "body": [
+        "La emoción orienta hacia lo que importa. Entre esa orientación y la conducta hay un espacio, y ese espacio es donde se decide."
+      ],
+      "actionLabel": "Finalizar"
     }
   ],
   "guideSteps": [
@@ -131,5 +157,5 @@
     "https://app.notion.com/p/3cfcbb1031a0813fb184fe6173d8a826",
     "Decisión autoral 2026-09-03: implementar las cinco microguías de EEC-C01."
   ],
-  "manifestSha256": "e1d8a4ebe329b9d14d29cda9bc20d51dbb1327f61b6a2187b8ddcf73547253c7"
+  "manifestSha256": "87df0d3202588868351a6a636cd8fc9a10e86a1fe5d4ab17382a57623db7eca3"
 }

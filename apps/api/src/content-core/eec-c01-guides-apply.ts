@@ -34,7 +34,16 @@ function toScene(
   s: GuideManifest["scenes"][number],
 ): ExperienceSceneDefinition {
   const sceneKey = `${m.manifestId.toLowerCase()}-${s.kind.toLowerCase()}`;
-  const copy = { title: s.title, body: [s.body] };
+  // `note` and `actionLabel` are carried through rather than dropped: the
+  // approved designs specify a safe-exit note and the exact words on the
+  // button, and an experience that silently renamed them would not be the one
+  // that was approved.
+  const copy = {
+    title: s.title,
+    body: s.body,
+    ...(s.note !== undefined ? { note: s.note } : {}),
+    ...(s.actionLabel !== undefined ? { actionLabel: s.actionLabel } : {}),
+  };
   const base = { sceneKey, order: s.order };
   switch (s.kind) {
     case "PASSAGE":
@@ -59,7 +68,7 @@ function toScene(
         kind: "PRACTICE",
         exerciseKey: m.practiceKey,
         completesGuideStepKey: stepKeyFor(m, "CATALOG_PRACTICE"),
-        copy: { ...copy, actionLabel: "Lo hice" },
+        copy,
       } as ExperienceSceneDefinition;
     case "RECALL":
       return {
@@ -121,7 +130,9 @@ export function toDefinition(m: GuideManifest): ChapterExperienceDefinition {
     bookSlug: m.bookSlug,
     chapterOrder: m.chapterOrder,
     title: m.scenes[0]?.title ?? m.manifestId,
-    summary: m.scenes.find((s) => s.kind === "SUMMARY")?.body,
+    // The summary field is one line; the closing scene may be two paragraphs.
+    // The first is the synthesis, the second the bridge to the next microguide.
+    summary: m.scenes.find((s) => s.kind === "SUMMARY")?.body[0],
     status: "DRAFT",
     guidePin: { guideKey: m.guideKey, guideVersion: m.guideVersion },
     scenes: m.scenes.map((s) => toScene(m, s)),

@@ -15,6 +15,7 @@
   "guideVersion": 1,
   "conceptKey": "eec-alarma-antes-del-relato",
   "practiceKey": "eec-c1-practice-ordenar-alarma-y-relato",
+  "practiceKind": "sequence_ordering",
   "recallKey": "eec-c1-recall-alarma-antes-del-relato",
   "anchors": {
     "primary": {
@@ -28,48 +29,74 @@
     {
       "order": 1,
       "kind": "INTRO",
-      "title": "La alarma antes del relato",
-      "body": "Vas a ordenar una secuencia breve y de baja intensidad. No hace falta recordar nada difícil: el ejemplo lo ponemos nosotros."
+      "title": "Cuando reaccionas antes de entender",
+      "body": [
+        "A veces el organismo se prepara antes de que alcances a explicar qué ocurrió. En esta guía distinguirás esa respuesta rápida de la emoción consciente que después puedes reconocer y nombrar."
+      ],
+      "note": "Trabajaremos con situaciones hipotéticas y cotidianas. No necesitas recordar una experiencia difícil. Puedes salir y volver cuando quieras.",
+      "actionLabel": "Comenzar"
     },
     {
       "order": 2,
       "kind": "PASSAGE",
-      "title": "El pasaje",
-      "body": "Lee la sección sobre LeDoux, con la escena de Darwin frente a la víbora tras el vidrio: sabía que estaba a salvo y aun así saltó hacia atrás.",
+      "title": "Una alarma antes de la historia",
+      "body": [
+        "Lee el pasaje donde el capítulo presenta la propuesta de Joseph LeDoux. Mientras avanzas, busca una diferencia: responder rápidamente a una señal no es todavía lo mismo que saber qué sientes."
+      ],
+      "actionLabel": "Leí el pasaje",
       "anchorRef": "eec-c1-alarma-antes-del-relato"
     },
     {
       "order": 3,
       "kind": "CONCEPT",
-      "title": "Protegerse y sentir miedo no son lo mismo",
-      "body": "El cerebro puede empezar a organizar una respuesta de protección antes de que entiendas conscientemente qué pasa. Sentir miedo incluye además reconocer, de alguna manera, «esto me asusta».",
+      "title": "Protegerse no es lo mismo que sentir miedo",
+      "body": [
+        "Una señal repentina puede iniciar una respuesta protectora antes de que comprendas la situación. Después, al integrar el contexto, los recuerdos y los conceptos disponibles, puedes reconocer la experiencia como miedo, sobresalto, alivio u otra cosa. La reacción aporta información, pero no revela por sí sola una emoción completa.",
+        "Esta es una secuencia pedagógica para distinguir procesos relacionados; no una cadena cerebral rígida que funcione igual en todas las personas y situaciones."
+      ],
+      "note": "Marcar esta escena registra que exploraste el concepto; no evalúa lo que sentiste ni infiere un estado psicológico.",
+      "actionLabel": "He explorado la idea",
       "stepKey": "explorar-alarma-antes-del-relato"
     },
     {
       "order": 4,
       "kind": "EXAMPLE",
-      "title": "El detector de humo",
-      "body": "Un detector de humo no explica si el fuego vino de una vela o de una tostada quemada. Su tarea inicial es detectar una señal relevante y movilizar una respuesta. A veces acierta; a veces se activa por la tostada."
+      "title": "Lo que sabía Darwin y lo que hizo su cuerpo",
+      "body": [
+        "Ante una serpiente protegida por un vidrio, Darwin sabía que estaba a salvo. Aun así, su cuerpo retrocedió cuando el animal atacó el cristal. El ejemplo no demuestra que hubiera una única emoción automática; muestra que una respuesta protectora puede adelantarse a la explicación consciente.",
+        "Algo parecido puede ocurrir cuando una puerta se cierra de golpe: primero aparece el sobresalto; después compruebas qué pasó y le das significado."
+      ]
     },
     {
       "order": 5,
       "kind": "PRACTICE",
-      "title": "Ordena la secuencia",
-      "body": "Coloca en orden: aparece una señal repentina · el cuerpo inicia una respuesta de protección · compruebas el contexto · interpretas y quizá le pones nombre. Puedes arrastrar, usar los botones Subir y Bajar, o pedir ver la secuencia resuelta y seguir sin penalización.",
-      "stepKey": "practicar-ordenar-alarma-y-relato"
+      "title": "Ordena la alarma y el relato",
+      "body": [
+        "Imagina que lees tranquilamente y una puerta se cierra de golpe. Ordena las tarjetas según el modelo de esta guía. No buscamos reconstruir cada milisegundo del cerebro, sino distinguir partes que suelen confundirse."
+      ],
+      "note": "Puedes ver el ejemplo resuelto y continuar sin penalización. Confirmar registra únicamente que hiciste la práctica.",
+      "actionLabel": "Ya hice la práctica",
+      "stepKey": "practicar-ordenar-alarma-y-relato",
+      "practiceKind": "sequence_ordering"
     },
     {
       "order": 6,
       "kind": "RECALL",
-      "title": "Una pregunta",
-      "body": "Comprueba la idea principal de esta microguía.",
+      "title": "¿Qué demuestra una reacción rápida?",
+      "body": [
+        "Recupera la idea central de esta microguía."
+      ],
       "stepKey": "recordar-alarma-antes-del-relato"
     },
     {
       "order": 7,
       "kind": "SUMMARY",
-      "title": "Lo que te llevas",
-      "body": "El orden no es una cronología neural rígida ni una escalera fija: es una forma de separar lo que se dispara solo de lo que después nombras."
+      "title": "Una alarma no cuenta toda la historia",
+      "body": [
+        "Antes de concluir «esto es miedo», conviene separar tres cosas: la reacción que apareció, lo que el contexto mostró y el significado que después tomó la experiencia. La respuesta protectora es real; no es, por sí sola, toda la emoción.",
+        "En las siguientes microguías veremos por qué observar una expresión o sentir un impulso tampoco basta para leer una emoción completa."
+      ],
+      "actionLabel": "Finalizar"
     }
   ],
   "guideSteps": [
@@ -118,5 +145,5 @@
     "https://app.notion.com/p/3cfcbb1031a0813fb184fe6173d8a826",
     "Decisión autoral 2026-09-03: implementar las cinco microguías de EEC-C01."
   ],
-  "manifestSha256": "2fc79f9af414dd0be1887b0983c77f4a84c9cc2681534b2ac23813d7d51ca9d6"
+  "manifestSha256": "f2124adecf3ba817c7aa99f58904bd9c56f6ad99997a2668fc82af7fcc54a513"
 }

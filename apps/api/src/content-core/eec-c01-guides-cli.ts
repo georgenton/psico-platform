@@ -78,7 +78,20 @@ export interface GuideManifest {
     };
     secondary?: { reference?: string; heading: string; fingerprint: string };
   };
-  scenes: { order: number; kind: string; title: string; body: string }[];
+  practiceKind: string;
+  scenes: {
+    order: number;
+    kind: string;
+    title: string;
+    /** One entry per paragraph. The approved copy is not always one. */
+    body: string[];
+    note?: string;
+    actionLabel?: string;
+    anchorRef?: string;
+    stepKey?: string;
+    practiceKind?: string;
+    optional?: boolean;
+  }[];
   guideSteps: {
     order: number;
     kind: string;

@@ -15,6 +15,7 @@
   "guideVersion": 1,
   "conceptKey": "eec-rostro-como-pista",
   "practiceKey": "eec-c1-practice-una-sonrisa-varios-contextos",
+  "practiceKind": "context_plausibility",
   "recallKey": "eec-c1-recall-rostro-como-pista",
   "anchors": {
     "primary": {
@@ -29,47 +30,71 @@
       "order": 1,
       "kind": "INTRO",
       "title": "Una sonrisa, varios contextos",
-      "body": "Vas a comparar lecturas posibles de una misma expresión. No se trata de acertar la emoción: se trata de notar cuánta información aporta un rostro y dónde termina."
+      "body": [
+        "Vas a comparar lecturas posibles de una misma expresión. No se trata de acertar la emoción, sino de notar cuánta información aporta un rostro y dónde termina."
+      ],
+      "note": "Usaremos escenas cotidianas y ajenas. No necesitas traer ninguna situación tuya.",
+      "actionLabel": "Comenzar"
     },
     {
       "order": 2,
       "kind": "PASSAGE",
-      "title": "El pasaje",
-      "body": "Lee la sección sobre Ekman. El capítulo reconoce el aporte del rostro y también dónde la lectura directa se queda corta.",
+      "title": "Paul Ekman: el rostro como pista",
+      "body": [
+        "Lee la sección sobre Ekman. El capítulo reconoce el aporte del rostro y también dónde la lectura directa se queda corta."
+      ],
+      "actionLabel": "Leí el pasaje",
       "anchorRef": "eec-c1-rostro-como-pista"
     },
     {
       "order": 3,
       "kind": "CONCEPT",
       "title": "Pista, no diccionario",
-      "body": "Un movimiento facial aporta información, pero su significado depende de la persona, la situación y lo ocurrido antes. Un rostro ofrece pistas; no entrega una lectura completa de la experiencia.",
+      "body": [
+        "Un movimiento facial aporta información, pero su significado depende de la persona, la situación y lo ocurrido antes. Un rostro ofrece pistas; no entrega una lectura completa de la experiencia."
+      ],
+      "note": "Marcar esta escena registra que exploraste la idea; no evalúa tu capacidad de leer a nadie.",
+      "actionLabel": "He explorado la idea",
       "stepKey": "explorar-rostro-como-pista"
     },
     {
       "order": 4,
       "kind": "EXAMPLE",
       "title": "La misma sonrisa",
-      "body": "La misma sonrisa puede aparecer al saludar por cortesía, al terminar algo que costaba, en una situación incómoda o al ver a alguien querido. El movimiento se parece; lo que ocurre alrededor, no."
+      "body": [
+        "La misma sonrisa puede aparecer al saludar por cortesía, al terminar algo que costaba, en una situación incómoda o al ver a alguien querido. El movimiento se parece; lo que ocurre alrededor, no."
+      ]
     },
     {
       "order": 5,
       "kind": "PRACTICE",
-      "title": "Varias lecturas plausibles",
-      "body": "Ante una sonrisa en un contexto dado, ordena qué interpretaciones te parecen más y menos plausibles. Que haya varias posibles no significa que todas sean igual de probables.",
-      "stepKey": "practicar-una-sonrisa-varios-contextos"
+      "title": "Una sonrisa, varios contextos",
+      "body": [
+        "Ante una sonrisa en un contexto concreto, separa cuatro cosas: qué se observa, qué contexto tienes disponible, qué interpretaciones son plausibles y qué información falta.",
+        "Que haya varias lecturas posibles no significa que todas sean igual de probables: unas encajan mejor con el contexto disponible que otras."
+      ],
+      "note": "Hay una alternativa sin arrastrar: puedes clasificar cada lectura como más plausible, posible o falta información.",
+      "actionLabel": "Ya hice la práctica",
+      "stepKey": "practicar-una-sonrisa-varios-contextos",
+      "practiceKind": "context_plausibility"
     },
     {
       "order": 6,
       "kind": "RECALL",
-      "title": "Una pregunta",
-      "body": "Comprueba la idea principal de esta microguía.",
+      "title": "¿Qué entrega un rostro?",
+      "body": [
+        "Recupera la idea central de esta microguía."
+      ],
       "stepKey": "recordar-rostro-como-pista"
     },
     {
       "order": 7,
       "kind": "SUMMARY",
       "title": "Lo que te llevas",
-      "body": "El rostro informa. Lo que no hace es cerrar por sí solo la pregunta de qué está sintiendo alguien — y esa distinción cambia cómo escuchas."
+      "body": [
+        "El rostro informa. Lo que no hace es cerrar por sí solo la pregunta de qué está sintiendo alguien, y esa distinción cambia cómo escuchas."
+      ],
+      "actionLabel": "Finalizar"
     }
   ],
   "guideSteps": [
@@ -118,5 +143,5 @@
     "https://app.notion.com/p/3cfcbb1031a0813fb184fe6173d8a826",
     "Decisión autoral 2026-09-03: implementar las cinco microguías de EEC-C01."
   ],
-  "manifestSha256": "7fc4536f1256221f75b751414d91cdb5fba75a85b2ca2276de768fa69bf96111"
+  "manifestSha256": "61ba03390225393d330989b3b656437dfb04e134729b7f3c56c4aa66f6dfb9ef"
 }

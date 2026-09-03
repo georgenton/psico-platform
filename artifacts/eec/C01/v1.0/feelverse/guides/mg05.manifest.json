@@ -15,6 +15,7 @@
   "guideVersion": 1,
   "conceptKey": "eec-construida-no-significa-falsa",
   "practiceKey": "eec-c1-practice-senales-y-contextos",
+  "practiceKind": "signal_context_compare",
   "recallKey": "eec-c1-recall-construida-no-significa-falsa",
   "anchors": {
     "primary": {
@@ -29,54 +30,81 @@
       "order": 1,
       "kind": "INTRO",
       "title": "Construida no significa falsa",
-      "body": "Vas a comparar unas mismas señales del cuerpo en dos contextos distintos, y a notar qué información cambia su significado."
+      "body": [
+        "Vas a comparar unas mismas señales del cuerpo en dos contextos distintos y a notar qué información cambia su significado."
+      ],
+      "note": "Los dos escenarios los ponemos nosotros. No hace falta que traigas nada tuyo.",
+      "actionLabel": "Comenzar"
     },
     {
       "order": 2,
       "kind": "PASSAGE",
-      "title": "El pasaje",
-      "body": "Lee la sección sobre Barrett, incluida la escena del rubor y las mariposas que terminaron siendo gripe.",
+      "title": "Lisa Feldman Barrett: la emoción como construcción",
+      "body": [
+        "Lee la sección sobre Barrett, incluida la escena del rubor y las mariposas que terminaron siendo gripe."
+      ],
+      "actionLabel": "Leí el pasaje",
       "anchorRef": "eec-c1-emocion-como-construccion"
     },
     {
       "order": 3,
       "kind": "CONCEPT",
       "title": "Real, y no elegida",
-      "body": "Las emociones se forman con señales reales del cuerpo, memoria, conceptos aprendidos y contexto. Construir una emoción no significa inventarla: sigue siendo real y no se elige a voluntad.",
+      "body": [
+        "Las emociones se forman con señales reales del cuerpo, percepción, memoria, conceptos aprendidos y contexto. Construir una emoción no significa inventarla: sigue siendo real, se siente en el cuerpo y no se elige a voluntad.",
+        "El construccionismo es el mapa principal de este libro, no un consenso científico cerrado."
+      ],
+      "note": "Marcar esta escena registra que exploraste la idea; no evalúa lo que sientes.",
+      "actionLabel": "He explorado la idea",
       "stepKey": "explorar-construida-no-significa-falsa"
     },
     {
       "order": 4,
       "kind": "EXAMPLE",
-      "title": "Mismas señales, dos pies de foto",
-      "body": "Corazón acelerado y estómago revuelto antes de una entrevista, y antes de una primera cita. Las señales se parecen; lo que cuentas sobre ellas, no."
+      "title": "Mismas señales, dos situaciones",
+      "body": [
+        "Corazón acelerado y estómago revuelto antes de una entrevista, y antes de una primera cita. Las señales del cuerpo se parecen.",
+        "Lo que cambia no es solo lo que te dices: cambian la situación, lo que aprendiste a esperar de ella, los recuerdos que trae y los conceptos con los que la reconoces."
+      ]
     },
     {
       "order": 5,
       "kind": "PRACTICE",
-      "title": "Qué cambia el significado",
-      "body": "Ante esas señales ambiguas en dos contextos, identifica qué información hace que signifiquen cosas distintas.",
-      "stepKey": "practicar-senales-y-contextos"
+      "title": "Señales y contextos",
+      "body": [
+        "Ante esas señales ambiguas en dos contextos, identifica qué información hace que signifiquen cosas distintas: la situación, el aprendizaje previo, la expectativa, los recuerdos disponibles o la información nueva."
+      ],
+      "note": "No hay una única respuesta correcta; la práctica registra únicamente que la hiciste.",
+      "actionLabel": "Ya hice la práctica",
+      "stepKey": "practicar-senales-y-contextos",
+      "practiceKind": "signal_context_compare"
     },
     {
       "order": 6,
       "kind": "QUESTION",
-      "title": "Una pregunta abierta",
-      "body": "¿Qué dato adicional buscarías antes de cerrar una interpretación? Es opcional y, si respondes, tu texto se queda en tu dispositivo.",
+      "title": "Si quieres, respóndete",
+      "body": [
+        "¿Qué dato adicional buscarías antes de cerrar una interpretación? Es opcional y, si respondes, tu texto se queda en tu dispositivo."
+      ],
       "optional": true
     },
     {
       "order": 7,
       "kind": "RECALL",
-      "title": "Una pregunta",
-      "body": "Comprueba la idea principal de esta microguía.",
+      "title": "¿Qué significa que una emoción sea construida?",
+      "body": [
+        "Recupera la idea central de esta microguía."
+      ],
       "stepKey": "recordar-construida-no-significa-falsa"
     },
     {
       "order": 8,
       "kind": "SUMMARY",
       "title": "Lo que te llevas",
-      "body": "El construccionismo es el mapa principal de este libro, no un consenso científico cerrado. Y «construida» no es lo contrario de «real»."
+      "body": [
+        "«Construida» no es lo contrario de «real». Señales del cuerpo, contexto, memoria y conceptos participan a la vez, y por eso la misma sensación puede significar cosas distintas."
+      ],
+      "actionLabel": "Finalizar"
     }
   ],
   "guideSteps": [
@@ -125,5 +153,5 @@
     "https://app.notion.com/p/3cfcbb1031a0813fb184fe6173d8a826",
     "Decisión autoral 2026-09-03: implementar las cinco microguías de EEC-C01."
   ],
-  "manifestSha256": "1f2c038b7d73f2666bc719846b35f6644f7351d1123d21da79d55629dffc2d0e"
+  "manifestSha256": "b8fb514e617be8fade6c3e68eee36124f1cd5d45e190b195440171b133911ce2"
 }

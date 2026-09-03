@@ -60,9 +60,7 @@
       "start_offset": null,
       "end_offset": null,
       "footprint_exact": "Una respuesta rápida de protección no es exactamente lo mismo que sentir miedo.",
-      "used_by": [
-        "GUIDE-C01-003"
-      ]
+      "used_by": ["GUIDE-C01-003"]
     },
     {
       "anchor_id": "eec-c1-aprender-a-leer-el-mundo-emocional",

@@ -121,10 +121,6 @@
     "title": "El cuerpo, antes que la mente",
     "status": "PUBLISHED_HISTORICAL_PRESERVE_PENDING_RECONCILIATION",
     "reuse_automatically": false,
-    "decision_after_mg03_preview": [
-      "ARCHIVE",
-      "COEXIST",
-      "RETIRE"
-    ]
+    "decision_after_mg03_preview": ["ARCHIVE", "COEXIST", "RETIRE"]
   }
 }

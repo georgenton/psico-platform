@@ -15,11 +15,16 @@
  */
 
 const HEADING_MAX_LEN = 80;
-const EXERCISE_HEADING = /actividad|ejercicio|exploraci[oó]n.*guiada|pr[aá]ctica guiada/i;
+const EXERCISE_HEADING =
+  /actividad|ejercicio|exploraci[oó]n.*guiada|pr[aá]ctica guiada/i;
 const REFERENCES_HEADING = /referencias bibliogr/i;
 const FENCE = /^:::\s*(pausa|ejercicio|video)\s*$/i;
 const FENCE_END = /^:::\s*$/;
-const FENCE_KIND = { pausa: "PAUSE", ejercicio: "EXERCISE", video: "VIDEO_MOCK" };
+const FENCE_KIND = {
+  pausa: "PAUSE",
+  ejercicio: "EXERCISE",
+  video: "VIDEO_MOCK",
+};
 
 /**
  * A short line without terminal punctuation reads as an implicit section

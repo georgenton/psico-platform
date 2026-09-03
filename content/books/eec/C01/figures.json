@@ -11,11 +11,7 @@
       "category": "A_EXPLICATIVA_ESENCIAL_CANDIDATE",
       "objective": "Calibrar una metáfora visual que muestre teorías como lentes parciales sin convertir una teoría en la escena completa.",
       "brief_status": "PREPARED",
-      "sketch_variants": [
-        "v0.1A",
-        "v0.1B",
-        "v0.1C"
-      ],
+      "sketch_variants": ["v0.1A", "v0.1B", "v0.1C"],
       "evaluation_status": "PENDING",
       "final_art_status": "NOT_STARTED",
       "aspect_ratio": null,

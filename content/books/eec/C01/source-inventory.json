@@ -1,0 +1,289 @@
+{
+  "schema_version": "1.0",
+  "chapter_id": "EEC-C01",
+  "provenance": "Notion · 📚 Fuentes (collection://f7221ef8-5097-4b62-bb39-1a1f3ce0430b), filas relacionadas con EEC-C01",
+  "retrieved_at": "2026-09-02",
+  "note": "Instantánea de solo lectura. La fuente maestra sigue siendo Notion; esto la versiona para que el build sea reproducible y auditable sin acceso a Notion.",
+  "sources": [
+    {
+      "Código": "SRC-BARRETT-2017-CONSTRUCTED",
+      "Autor": "Lisa Feldman Barrett",
+      "Año": 2017,
+      "DOI": "10.1093/scan/nsw154",
+      "Estado": "VERIFICADA",
+      "Localizador": "Social Cognitive and Affective Neuroscience, 12(1), 1–23.",
+      "Función editorial": "Postura del autor",
+      "Fuente": "The Theory of Constructed Emotion"
+    },
+    {
+      "Código": "SRC-BARRETT-2017-HEM",
+      "Autor": "Lisa Feldman Barrett",
+      "Año": 2017,
+      "DOI": null,
+      "Estado": "LOCALIZADA",
+      "Localizador": "Anécdota autobiográfica de la cita y la gripe; capítulo y páginas exactas pendientes de cotejo en la edición utilizada por Jorge.",
+      "Función editorial": "Postura del autor",
+      "Fuente": "How Emotions Are Made: The Secret Life of the Brain"
+    },
+    {
+      "Código": "SRC-BARRETT-2017-SIMULATION",
+      "Autor": "Lisa Feldman Barrett",
+      "Año": 2017,
+      "DOI": null,
+      "Estado": "VERIFICADA",
+      "Localizador": "Relato de la fiesta de cumpleaños: jugo de uva blanca servido en vasos médicos para muestras de orina y alimentos presentados de forma desagradable.",
+      "Función editorial": "Anécdota",
+      "Fuente": "Simulation"
+    },
+    {
+      "Código": "SRC-BARRETT-ETAL-2019-EXPRESSIONS",
+      "Autor": "Lisa Feldman Barrett; Ralph Adolphs; Stacy Marsella; Aleix M. Martinez; Seth D. Pollak",
+      "Año": 2019,
+      "DOI": "10.1177/1529100619832930",
+      "Estado": "VERIFICADA",
+      "Localizador": "Psychological Science in the Public Interest, 20(1), 1–68.",
+      "Función editorial": "Contrapunto",
+      "Fuente": "Emotional Expressions Reconsidered"
+    },
+    {
+      "Código": "SRC-BECHARA-ETAL-1997",
+      "Autor": "Antoine Bechara; Hanna Damasio; Daniel Tranel; Antonio R. Damasio",
+      "Año": 1997,
+      "DOI": "10.1126/science.275.5304.1293",
+      "Estado": "VERIFICADA",
+      "Localizador": "Science, 275(5304), 1293–1295.",
+      "Función editorial": "Evidencia actual",
+      "Fuente": "Deciding Advantageously Before Knowing the Advantageous Strategy"
+    },
+    {
+      "Código": "SRC-COWEN-KELTNER-2021",
+      "Autor": "Alan S. Cowen; Dacher Keltner",
+      "Año": 2021,
+      "DOI": "10.1016/j.tics.2020.11.004",
+      "Estado": "VERIFICADA",
+      "Localizador": "Trends in Cognitive Sciences, 25(2), 124–136.",
+      "Función editorial": "Contrapunto",
+      "Fuente": "Semantic Space Theory: A Computational Approach to Emotion"
+    },
+    {
+      "Código": "SRC-CRIVELLI-ETAL-2016",
+      "Autor": "Carlos Crivelli; James A. Russell; Sergio Jarillo; José-Miguel Fernández-Dols",
+      "Año": 2016,
+      "DOI": "10.1073/pnas.1611622113",
+      "Estado": "VERIFICADA",
+      "Localizador": "Proceedings of the National Academy of Sciences, 113(44), 12403–12407.",
+      "Función editorial": "Contrapunto",
+      "Fuente": "The Fear Gasping Face as a Threat Display in a Melanesian Society"
+    },
+    {
+      "Código": "SRC-DAMASIO-DESCARTES-C03-C08",
+      "Autor": "Antonio R. Damasio",
+      "Año": 1994,
+      "DOI": null,
+      "Estado": "LEÍDA",
+      "Localizador": "Capítulo 3: caso de Elliot y deterioro de decisiones tras lesión prefrontal. Capítulo 8, «La hipótesis del marcador somático»: elección entre dos días posibles para la próxima visita y ejemplo de abejas obreras que aprenden qué colores de flor predicen néctar. Páginas exactas pendientes de cotejo.",
+      "Función editorial": "Postura del autor",
+      "Fuente": "El error de Descartes — capítulos 3 y 8"
+    },
+    {
+      "Código": "SRC-DARWIN-1872-EXPRESSION",
+      "Autor": "Charles Darwin",
+      "Año": 1872,
+      "DOI": null,
+      "Estado": "VERIFICADA",
+      "Localizador": "Capítulo I, pp. 38–39 de la primera edición; pasaje de la víbora de Gabón/puff-adder detrás de una gruesa placa de vidrio",
+      "Función editorial": "Postura del autor",
+      "Fuente": "The expression of the emotions in man and animals"
+    },
+    {
+      "Código": "SRC-EKMAN-1969-PANCULTURAL",
+      "Autor": "Paul Ekman; E. Richard Sorenson; Wallace V. Friesen",
+      "Año": 1969,
+      "DOI": "10.1126/science.164.3875.86",
+      "Estado": "VERIFICADA",
+      "Localizador": "Science, 164(3875), 86–88.",
+      "Función editorial": "Postura del autor",
+      "Fuente": "Pan-Cultural Elements in Facial Displays of Emotion"
+    },
+    {
+      "Código": "SRC-EKMAN-FRIESEN-1971",
+      "Autor": "Paul Ekman; Wallace V. Friesen",
+      "Año": 1971,
+      "DOI": "10.1037/h0030377",
+      "Estado": "VERIFICADA",
+      "Localizador": "Journal of Personality and Social Psychology, 17(2), 124–129.",
+      "Función editorial": "Postura del autor",
+      "Fuente": "Constants Across Cultures in the Face and Emotion"
+    },
+    {
+      "Código": "SRC-EKMAN-NEWGUINEA-WEB",
+      "Autor": "Paul Ekman Group",
+      "Año": null,
+      "DOI": null,
+      "Estado": "LOCALIZADA",
+      "Localizador": "Apartado sobre la reproducción de música grabada en una aldea de Nueva Guinea",
+      "Función editorial": "Anécdota",
+      "Fuente": "Paul Ekman: Breaking Ground in New Guinea"
+    },
+    {
+      "Código": "SRC-GOLEMAN-IE-C08",
+      "Autor": "Daniel Goleman",
+      "Año": 1995,
+      "DOI": null,
+      "Estado": "LOCALIZADA",
+      "Localizador": "Capítulo 8, «Las artes sociales»; escena de Linda, Barbara, Nancy y Bill en la guardería. Página exacta pendiente según la edición utilizada.",
+      "Función editorial": "Divulgación",
+      "Fuente": "Inteligencia emocional"
+    },
+    {
+      "Código": "SRC-GOLEMAN-IE-C16",
+      "Autor": "Daniel Goleman",
+      "Año": 1995,
+      "DOI": null,
+      "Estado": "LOCALIZADA",
+      "Localizador": "Capítulo 16, «La escolaridad de las emociones»; apertura sobre Self Science en Nueva Learning Center. Página exacta pendiente según la edición utilizada.",
+      "Función editorial": "Divulgación",
+      "Fuente": "Inteligencia emocional — capítulo 16"
+    },
+    {
+      "Código": "SRC-JACK-ETAL-2012",
+      "Autor": "Rachael E. Jack; Oliver G. B. Garrod; Hui Yu; Roberto Caldara; Philippe G. Schyns",
+      "Año": 2012,
+      "DOI": "10.1073/pnas.1200155109",
+      "Estado": "VERIFICADA",
+      "Localizador": "Proceedings of the National Academy of Sciences, 109(19), 7241–7244.",
+      "Función editorial": "Contrapunto",
+      "Fuente": "Facial Expressions of Emotion Are Not Culturally Universal"
+    },
+    {
+      "Código": "SRC-KELTNER-ETAL-2019",
+      "Autor": "Dacher Keltner; Disa Sauter; Jessica Tracy; Alan Cowen",
+      "Año": 2019,
+      "DOI": "10.1007/s10919-019-00293-3",
+      "Estado": "VERIFICADA",
+      "Localizador": "Journal of Nonverbal Behavior, 43(2), 133–160.",
+      "Función editorial": "Contrapunto",
+      "Fuente": "Emotional Expression: Advances in Basic Emotion Theory"
+    },
+    {
+      "Código": "SRC-LEDOUX-2012-RETHINKING",
+      "Autor": "Joseph E. LeDoux",
+      "Año": 2012,
+      "DOI": "10.1016/j.neuron.2012.02.004",
+      "Estado": "VERIFICADA",
+      "Localizador": "Neuron, 73(4), 653–676.",
+      "Función editorial": "Postura del autor",
+      "Fuente": "Rethinking the Emotional Brain"
+    },
+    {
+      "Código": "SRC-LEDOUX-PINE-2016",
+      "Autor": "Joseph E. LeDoux; Daniel S. Pine",
+      "Año": 2016,
+      "DOI": "10.1176/appi.ajp.2016.16030353",
+      "Estado": "VERIFICADA",
+      "Localizador": "American Journal of Psychiatry, 173(11), 1083–1093.",
+      "Función editorial": "Evidencia actual",
+      "Fuente": "Using Neuroscience to Help Understand Fear and Anxiety: A Two-System Framework"
+    },
+    {
+      "Código": "SRC-LINDQUIST-ETAL-2012",
+      "Autor": "Kristen A. Lindquist; Tor D. Wager; Hedy Kober; Eliza Bliss-Moreau; Lisa Feldman Barrett",
+      "Año": 2012,
+      "DOI": "10.1017/S0140525X11000446",
+      "Estado": "VERIFICADA",
+      "Localizador": "Behavioral and Brain Sciences, 35(3), 121–143.",
+      "Función editorial": "Evidencia actual",
+      "Fuente": "The Brain Basis of Emotion: A Meta-Analytic Review"
+    },
+    {
+      "Código": "SRC-MAIA-MCCLELLAND-2004",
+      "Autor": "Tiago V. Maia; James L. McClelland",
+      "Año": 2004,
+      "DOI": "10.1073/pnas.0406666101",
+      "Estado": "VERIFICADA",
+      "Localizador": "Proceedings of the National Academy of Sciences, 101(45), 16075–16080.",
+      "Función editorial": "Contrapunto",
+      "Fuente": "A Reexamination of the Evidence for the Somatic Marker Hypothesis"
+    },
+    {
+      "Código": "SRC-MATSUMOTO-WILLINGHAM-2009",
+      "Autor": "David Matsumoto; Bob Willingham",
+      "Año": 2009,
+      "DOI": "10.1037/a0014037",
+      "Estado": "VERIFICADA",
+      "Localizador": "Journal of Personality and Social Psychology, 96(1), 1–10.",
+      "Función editorial": "Evidencia actual",
+      "Fuente": "Spontaneous Facial Expressions of Emotion of Congenitally and Noncongenitally Blind Individuals"
+    },
+    {
+      "Código": "SRC-MCLAREN-HATE-C15",
+      "Autor": "Karla McLaren",
+      "Año": 2010,
+      "DOI": null,
+      "Estado": "LOCALIZADA",
+      "Localizador": "Capítulo 15, «Odio: El espejo profundo», según el material almacenado en Notion.",
+      "Función editorial": "Postura del autor",
+      "Fuente": "El lenguaje de las emociones — capítulo sobre el odio"
+    },
+    {
+      "Código": "SRC-MCLAREN-HYPEREMPATHY-2011",
+      "Autor": "Karla McLaren",
+      "Año": 2011,
+      "DOI": null,
+      "Estado": "VERIFICADA",
+      "Localizador": "Autobiografía sobre hipersensibilidad, hiperempatía, retiro, ansiedad, hiperactividad y dificultad para organizar señales emocionales.",
+      "Función editorial": "Anécdota",
+      "Fuente": "Empaths on the Autism Spectrum, part 2"
+    },
+    {
+      "Código": "SRC-MCLAREN-TLOE-C24",
+      "Autor": "Karla McLaren",
+      "Año": 2010,
+      "DOI": null,
+      "Estado": "LOCALIZADA",
+      "Localizador": "Capítulo 24, «Duelo»; relato autobiográfico sobre evitación del duelo. Página exacta pendiente según la edición utilizada.",
+      "Función editorial": "Postura del autor",
+      "Fuente": "El lenguaje de las emociones — capítulo 24"
+    },
+    {
+      "Código": "SRC-NEWMAN-1964-WILDMAN",
+      "Autor": "Philip L. Newman",
+      "Año": 1964,
+      "DOI": "10.1525/aa.1964.66.1.02a00010",
+      "Estado": "LOCALIZADA",
+      "Localizador": "American Anthropologist, 66(1), 1–19. Texto completo pendiente de lectura.",
+      "Función editorial": "Contexto histórico",
+      "Fuente": "“Wild Man” behavior in a New Guinea Highlands community"
+    },
+    {
+      "Código": "SRC-PINEL-PUSSIN-1979",
+      "Autor": "D. B. Weiner",
+      "Año": 1979,
+      "DOI": "10.1176/ajp.136.9.1128",
+      "Estado": "DESCARTADA",
+      "Localizador": "American Journal of Psychiatry, 136(9), 1128–1134.",
+      "Función editorial": "Contexto histórico",
+      "Fuente": "The apprenticeship of Philippe Pinel"
+    },
+    {
+      "Código": "SRC-SALOVEY-MAYER-1990",
+      "Autor": "Peter Salovey; John D. Mayer",
+      "Año": 1990,
+      "DOI": "10.2190/DUGG-P24E-52WK-6CDG",
+      "Estado": "VERIFICADA",
+      "Localizador": "Imagination, Cognition and Personality, 9(3), 185–211.",
+      "Función editorial": "Contexto histórico",
+      "Fuente": "Emotional Intelligence"
+    },
+    {
+      "Código": "SRC-SIEGEL-ETAL-2018",
+      "Autor": "Erika H. Siegel; Molly K. Sands; Wim Van den Noortgate; Paul Condon; Yale Chang; Jennifer Dy; Karen S. Quigley; Lisa Feldman Barrett",
+      "Año": 2018,
+      "DOI": "10.1037/bul0000128",
+      "Estado": "VERIFICADA",
+      "Localizador": "Psychological Bulletin, 144(4), 343–393.",
+      "Función editorial": "Evidencia actual",
+      "Fuente": "Emotion Fingerprints or Emotion Populations?"
+    }
+  ]
+}

@@ -8,6 +8,8 @@ import {
 import { ConfigService } from "@nestjs/config";
 import { assertSingleWriteIdentity } from "./write-identity";
 import { publishedStructureHasMoved } from "../content-core/lib/published-structure-history";
+import { readContentUnit } from "../content-core/read/content-read";
+import { readUnitMarks } from "../content-core/read/content-marks";
 import {
   isOutsidePublishedStructure,
   resolveLegacyPlacement,
@@ -22,6 +24,7 @@ import {
   type NativeChapterTarget,
 } from "./reader-chapter-resolver";
 import type {
+  ChapterBlockSummary,
   ReaderChapterRef,
   LectorAudioMetadata,
   LectorAudioResponse,
@@ -346,18 +349,30 @@ export class LectorService {
   }
 
   /**
-   * The envelope for a chapter that exists only in Content Core.
+   * The envelope for a chapter Content Core serves.
    *
-   * Every field comes from the published snapshot. The optional extras are
-   * empty and say so truthfully rather than being faked:
+   * Every field comes from the published snapshot — including the TEXT. This
+   * used to return `blocks: []` and point clients at the separate `/content`
+   * surface, which was fine while no chapter was ever served this way. It stops
+   * being fine the moment an ingest publishes a chapter Content Core owns: the
+   * web reader asks `/lector/…` for both routes, so an empty array meant a
+   * blank page rather than the new edition.
+   *
+   * The projection is `readContentUnit` — the same one `/content` serves, not a
+   * second copy of it. Two renderings of one revision is exactly the drift this
+   * whole cutover exists to remove.
    *
    *   lessons        — exercises are still a legacy-only concept
    *   audioAvailable — `Chapter.audios` cannot exist without a Chapter
-   *   blocks         — clients read the text from the Content Core surface
-   *   highlights /   — marks live on the Content Core marks surface, keyed by
-   *   annotations      blockKey; the legacy arrays would only ever be empty
    *
-   * A chapter with none of those extras is still a perfectly valid chapter.
+   * ── Which marks come back ─────────────────────────────────────────────────
+   *
+   * Only marks bound to a block version being served right now. A highlight
+   * carries offsets into the exact text the reader had on screen, so replaying
+   * it against a revised paragraph would silently shift it — highlighting words
+   * nobody chose. Marks whose version is no longer published stay in the
+   * database untouched and simply do not render, which is the honest outcome:
+   * the sentence they marked is not on this page any more.
    */
   private async getNativeChapter(
     userId: string,
@@ -384,7 +399,7 @@ export class LectorService {
     // No `UserProgress` read here: on the legacy path it only drives per-lesson
     // status, and a native chapter has no lessons yet. Completion still reaches
     // the client through `session.completedAt`.
-    const [session, prefs, totalChapters] = await Promise.all([
+    const [session, prefs, totalChapters, unit, marks] = await Promise.all([
       this.prisma.readingSession.upsert({
         where: {
           userId_contentUnitId: { userId, contentUnitId: target.contentUnitId },
@@ -407,7 +422,17 @@ export class LectorService {
         bookSlug: book.slug,
         legacyTotal: book.totalChapters,
       }),
+      // The same projection `/content` serves — one revision, one rendering.
+      readContentUnit(this.prisma, target.editionKey, target.unitKey),
+      readUnitMarks(this.prisma, userId, target.editionKey, target.unitKey),
     ]);
+
+    // Offsets belong to the version they were taken on. A mark bound to a block
+    // this revision no longer publishes is kept in the database and left off the
+    // page rather than replayed against different words.
+    const servedBlockKeys = new Set(unit.blocks.map((b) => b.blockKey));
+    const stillPlaced = (m: { blockKey: string }) =>
+      servedBlockKeys.has(m.blockKey);
 
     return {
       book: {
@@ -439,10 +464,41 @@ export class LectorService {
         // past the type.
         contentUnitId: target.contentUnitId,
       },
-      blocks: [],
+      blocks: withResolvedImageUrls(
+        unit.blocks.map((b) => ({
+          // The reader addresses a Content Core block by its stable key: there
+          // is no `ChapterBlock.id` to hand out, and inventing one would be a
+          // fabricated legacy fact about content that has none.
+          id: b.blockKey,
+          order: b.order,
+          // `ReadBlock.kind` is the column's string; the envelope wants the
+          // enum. Same values — Content Core stores a `BlockKind` — so this is
+          // the projection's type widening, not an unchecked guess.
+          kind: b.kind as ChapterBlockSummary["kind"],
+          content: b.content,
+          meta: (b.meta as Record<string, unknown> | null) ?? null,
+        })),
+        this.config.get("R2_PUBLIC_URL", { infer: true }) as string | undefined,
+      ),
       lessons: [],
-      highlights: [],
-      annotations: [],
+      highlights: marks.highlights.filter(stillPlaced).map((h) => ({
+        id: h.id,
+        blockKey: h.blockKey,
+        blockId: h.blockId,
+        startOffset: h.startOffset,
+        endOffset: h.endOffset,
+        color: h.color,
+        note: h.note,
+        createdAt: h.createdAt,
+      })),
+      annotations: marks.annotations.filter(stillPlaced).map((a) => ({
+        id: a.id,
+        blockKey: a.blockKey,
+        blockId: a.blockId,
+        text: a.text,
+        createdAt: a.createdAt,
+        updatedAt: a.updatedAt,
+      })),
       session: {
         progressPct: session.progressPct,
         lastBlockId: session.lastBlockId,

@@ -1,7 +1,7 @@
 {
   "chapter": "C01",
   "canonicalVersion": "EEC_C01_v1.0_TEXT_LOCKED_2026-08-20",
-  "builtAt": "2026-09-02T22:58:48.457Z",
+  "builtAt": "2026-09-03T00:59:54.833Z",
   "checks": {
     "canonicalSha256": "e10f42cedf881838578b7337355887c0e8cb2fe37b75dfa4204db509ac023018",
     "canonicalShaMatches": true,
@@ -17,7 +17,7 @@
       "VIDEO": 1
     },
     "citationKeysInBib": 23,
-    "notes": 0,
+    "notes": 9,
     "citationProblems": [],
     "numberingIsAutomatic": true,
     "bibliographyEntries": 23
@@ -32,10 +32,6 @@
     "pdf": null
   },
   "blockers": [
-    {
-      "code": "CITATIONS_NOT_MAPPED",
-      "detail": "citations.json llega con `citations: []` (status SCHEMA_VALID_RECORDS_BLOCKED). Las 23 Citation Keys existen en el .bib, pero no existe el mapa afirmación → ancla → Zotero Key → localizador, así que no hay notas que numerar. No se inventa."
-    },
     {
       "code": "PDF_ENGINE_ABSENT",
       "detail": "Ni pandoc/LaTeX, ni LibreOffice, ni WeasyPrint en este entorno. El DOCX es válido y abre en Word; generar el PDF con un conversor improvisado daría un PDF que parece de imprenta y no lo es."

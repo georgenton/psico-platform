@@ -9,7 +9,62 @@
     "partTitle": "Deconstruyendo lo que sabíamos"
   },
   "blocks": 188,
-  "notes": [],
+  "notes": [
+    {
+      "n": 1,
+      "anchorId": "eec-c1-rostro-como-pista",
+      "citationKey": "EkmanSorensonFriesen1969",
+      "locator": "Science, 164(3875), 86–88."
+    },
+    {
+      "n": 2,
+      "anchorId": "eec-c1-rostro-como-pista",
+      "citationKey": "EkmanFriesen1971",
+      "locator": "Journal of Personality and Social Psychology, 17(2), 124–129."
+    },
+    {
+      "n": 3,
+      "anchorId": "eec-c1-alarma-antes-del-relato",
+      "citationKey": "LeDoux2012",
+      "locator": "Neuron, 73(4), 653–676."
+    },
+    {
+      "n": 4,
+      "anchorId": "eec-c1-alarma-antes-del-relato",
+      "citationKey": "LeDouxPine2016",
+      "locator": "American Journal of Psychiatry, 173(11), 1083–1093."
+    },
+    {
+      "n": 5,
+      "anchorId": "eec-c1-razon-necesita-relevancia",
+      "citationKey": "BecharaEtAl1997",
+      "locator": "Science, 275(5304), 1293–1295."
+    },
+    {
+      "n": 6,
+      "anchorId": "eec-c1-emocion-como-construccion",
+      "citationKey": "Barrett2017Constructed",
+      "locator": "Social Cognitive and Affective Neuroscience, 12(1), 1–23."
+    },
+    {
+      "n": 7,
+      "anchorId": "eec-c1-emocion-como-construccion",
+      "citationKey": "BarrettEtAl2019Expressions",
+      "locator": "Psychological Science in the Public Interest, 20(1), 1–68."
+    },
+    {
+      "n": 8,
+      "anchorId": "eec-c1-emocion-como-construccion",
+      "citationKey": "LindquistEtAl2012",
+      "locator": "Behavioral and Brain Sciences, 35(3), 121–143."
+    },
+    {
+      "n": 9,
+      "anchorId": "eec-c1-emocion-como-construccion",
+      "citationKey": "SiegelEtAl2018",
+      "locator": "Psychological Bulletin, 144(4), 343–393."
+    }
+  ],
   "bibliography": [
     "Barrett, Lisa Feldman. 2018-03-13. La vida secreta del cerebro. Ediciones Paidós.",
     "Barrett, Lisa Feldman. 2017. The Theory of Constructed Emotion: An Active Inference Account of Interoception and Categorization. Social Cognitive and Affective Neuroscience.",

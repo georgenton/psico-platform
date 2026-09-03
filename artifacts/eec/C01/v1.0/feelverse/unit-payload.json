@@ -103,7 +103,12 @@
     {
       "kind": "HEADING",
       "content": "Paul Ekman: el rostro como pista",
-      "meta": null
+      "meta": {
+        "notes": [
+          1,
+          2
+        ]
+      }
     },
     {
       "kind": "PARAGRAPH",
@@ -148,7 +153,12 @@
     {
       "kind": "HEADING",
       "content": "Joseph LeDoux: la alarma antes del relato",
-      "meta": null
+      "meta": {
+        "notes": [
+          3,
+          4
+        ]
+      }
     },
     {
       "kind": "PARAGRAPH",
@@ -268,7 +278,11 @@
     {
       "kind": "HEADING",
       "content": "Antonio Damasio: la razón necesita relevancia",
-      "meta": null
+      "meta": {
+        "notes": [
+          5
+        ]
+      }
     },
     {
       "kind": "PARAGRAPH",
@@ -398,7 +412,14 @@
     {
       "kind": "HEADING",
       "content": "Lisa Feldman Barrett: la emoción como construcción",
-      "meta": null
+      "meta": {
+        "notes": [
+          6,
+          7,
+          8,
+          9
+        ]
+      }
     },
     {
       "kind": "PARAGRAPH",

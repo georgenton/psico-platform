@@ -355,7 +355,35 @@ export function build({ chapter, out }) {
   const citations = citationsDoc.citations ?? [];
 
   const problems = validateCitations(citations, keys, anchors);
-  const notes = numberNotes(citations).map((n) => ({
+
+  // Anclas → bloques. Una ancla de encabezado nombra el HEADING literal, así que
+  // la nota cae en ese bloque; el `heading_exact` se coteja contra el texto y una
+  // ancla que no exista es un fallo, no una nota que desaparece en silencio.
+  const anchorBlock = new Map();
+  for (const a of anchors.anchors ?? []) {
+    const idx = blocks.findIndex(
+      (b) => b.kind === "HEADING" && b.content === a.heading_exact,
+    );
+    if (idx >= 0) {
+      blocks[idx].anchorId = a.anchor_id ?? a.id;
+      anchorBlock.set(a.anchor_id ?? a.id, idx);
+    }
+  }
+  for (const c of citations) {
+    if (c.anchor_id && !anchorBlock.has(c.anchor_id)) {
+      problems.push(`ANCHOR_NOT_IN_TEXT:${c.anchor_id}`);
+    }
+  }
+
+  // Chicago numera por orden de APARICIÓN. Ordenarlas por el orden del
+  // inventario daba llamadas 4,5,6,7,3,1,2… en la página: números correctos
+  // sobre las fuentes correctas, y aun así mal.
+  const ordered = [...citations].sort(
+    (a, b) =>
+      (anchorBlock.get(a.anchor_id) ?? Number.MAX_SAFE_INTEGER) -
+      (anchorBlock.get(b.anchor_id) ?? Number.MAX_SAFE_INTEGER),
+  );
+  const notes = numberNotes(ordered).map((n) => ({
     ...n,
     // Sin CSL processor no se compone la nota; con `citations: []` tampoco hay
     // ninguna que componer. Se deja explícito en vez de inventar una cadena.

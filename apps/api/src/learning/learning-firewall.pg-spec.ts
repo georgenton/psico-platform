@@ -145,6 +145,13 @@ suite("CC-7.2 · dynamic emotional firewall (real PostgreSQL)", () => {
   }, 180_000);
 
   afterAll(async () => {
+    // `WITH (FORCE)` terminates whatever backends are still attached, and a
+    // socket that has not finished closing hears that as 57P01. `pg` surfaces
+    // it as an `error` event on the pool; with no listener it becomes an
+    // unhandled rejection, and Vitest fails the whole RUN over a connection
+    // belonging to a database nobody will read again. So the pool is told,
+    // before the drop, that it has nothing useful left to say.
+    pool?.on("error", () => {});
     if (prisma) await prisma.$disconnect();
     if (pool) await pool.end();
     const admin = new Pool({ connectionString: base });

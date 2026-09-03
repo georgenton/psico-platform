@@ -67,6 +67,8 @@ const AVAILABILITY_PATH = "/api/guide/availability";
 /** GR-7 — where the actor stands in one exact experience. */
 const STATE_PATH = "/api/guide/sessions/state";
 const DISCOVERY_PATH = "/api/guide/discovery/{bookSlug}/{chapterOrder}";
+/** GR-5 — the chapter's whole guided route, for a chapter that teaches several ideas. */
+const ROUTE_PATH = "/api/guide/route/{bookSlug}/{chapterOrder}";
 const RECOVERABLE_PATH = "/api/guide/sessions/recoverable";
 /** C.1 — where the actor stands in EACH published experience of a chapter. */
 const CARD_STATES_PATH = "/api/guide/experiences/state";
@@ -93,6 +95,7 @@ const ALL_GUIDE_PATHS = [
   ...EXPECTED_PATHS,
   AVAILABILITY_PATH,
   DISCOVERY_PATH,
+  ROUTE_PATH,
   RECOVERABLE_PATH,
   STATE_PATH,
   CARD_STATES_PATH,
@@ -115,7 +118,7 @@ const responseOf = (path: string, status: string): Schema =>
     ?.schema as Schema;
 
 describe("ratchet · guide OpenAPI surface", () => {
-  it("publishes exactly ten paths — five commands and five read routes", () => {
+  it("publishes exactly eleven paths — five commands and six read routes", () => {
     expect(GUIDE_PATHS).toEqual(ALL_GUIDE_PATHS);
     const ids = EXPECTED_PATHS.map((p) => openapi.paths[p]?.post?.operationId)
       .filter((id): id is string => typeof id === "string")

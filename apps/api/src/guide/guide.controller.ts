@@ -36,6 +36,7 @@ import type {
   GuideAvailabilityResponse,
   GuideCommandResponse,
   GuideDiscoveryResponse,
+  GuideRouteResponse,
   SubmitGuideStepRecallResponse,
 } from "@psico/types";
 import { JwtAuthGuard } from "../auth";
@@ -392,6 +393,61 @@ export class GuideController {
     // The actor is passed THROUGH, never restated here: the public surface
     // must not contain an actor field the client could imagine supplying.
     return mapGuideLifecycleErrors(() => this.discovery.discover(user, params));
+  }
+
+  /**
+   * GR-5 — the whole guided route of a chapter, ordered.
+   *
+   * A separate route rather than a shape change: the single-pin endpoint above
+   * is a published contract with clients in the field, and widening its
+   * response would make every one of them handle a list they never asked for.
+   * Both answer from the same catalog and take the same decisions, so a chapter
+   * cannot be offered here and refused there.
+   *
+   * The negative stays opaque for the same reason it does above: a client must
+   * not be able to tell "no guide here" apart from "not for you", or the
+   * endpoint becomes a way to enumerate the catalog.
+   */
+  @Get("route/:bookSlug/:chapterOrder")
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  @Header("Cache-Control", "private, no-store")
+  @ApiOperation({
+    operationId: "getGuideRoute",
+    summary:
+      "Las lecturas guiadas que ofrece un capítulo, en orden. No revela el " +
+      "motivo de un negativo, ni objetivos, ni identificadores internos.",
+  })
+  @ApiParam({
+    name: "bookSlug",
+    required: true,
+    schema: { type: "string", pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+    description: "Slug canónico del libro (kebab-case, minúsculas).",
+  })
+  @ApiParam({
+    name: "chapterOrder",
+    required: true,
+    schema: { type: "integer", minimum: 1 },
+    description:
+      "Orden del capítulo EN LA PLATAFORMA, que no siempre coincide con la " +
+      "numeración impresa del libro.",
+  })
+  async getGuideRoute(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("bookSlug") bookSlug: string,
+    @Param("chapterOrder") chapterOrder: string,
+  ): Promise<GuideRouteResponse> {
+    let params;
+    try {
+      params = parseGuideDiscoveryParams(bookSlug, chapterOrder);
+    } catch {
+      throw new BadRequestException({
+        code: GUIDE_DISCOVERY_PARAMS_INVALID,
+        message: GUIDE_DISCOVERY_PARAMS_INVALID,
+      });
+    }
+    return mapGuideLifecycleErrors(() =>
+      this.discovery.discoverRoute(user, params),
+    );
   }
 
   /** Parser verdict → typed command, or the mapped 400. */

@@ -13739,7 +13739,28 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": Record<string, never>;
+                    "application/json": {
+                        /** @enum {boolean} */
+                        available: false;
+                    } | {
+                        /** @enum {boolean} */
+                        available: true;
+                        /** @description Las lecturas guiadas que ofrece el capítulo, ya ordenadas. Un capítulo con una sola devuelve una lista de una. */
+                        guides: {
+                            /** @description Clave exacta de esta lectura guiada. */
+                            guideKey: string;
+                            /** @description Versión exacta; el par clave@versión es inmutable. */
+                            guideVersion: number;
+                            /** @description Posición dentro del recorrido del capítulo, contigua desde 1. La declara el catálogo: no se deduce del orden del array. */
+                            order: number;
+                            /** @description Título editorial de la tarjeta. */
+                            title: string;
+                            /** @description Descripción breve, para decidir si empezarla. */
+                            description: string;
+                            /** @description Duración estimada como RANGO, tal y como la declara el catálogo (por ejemplo "7–9"). No es un número: el catálogo declara un rango. */
+                            estimatedMinutes: string;
+                        }[];
+                    };
                 };
             };
             400: {

@@ -15950,7 +15950,84 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "available"
+                      ],
+                      "properties": {
+                        "available": {
+                          "type": "boolean",
+                          "enum": [
+                            false
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "available",
+                        "guides"
+                      ],
+                      "properties": {
+                        "available": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "guides": {
+                          "type": "array",
+                          "minItems": 1,
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "guideKey",
+                              "guideVersion",
+                              "order",
+                              "title",
+                              "description",
+                              "estimatedMinutes"
+                            ],
+                            "properties": {
+                              "guideKey": {
+                                "type": "string",
+                                "description": "Clave exacta de esta lectura guiada."
+                              },
+                              "guideVersion": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "description": "Versión exacta; el par clave@versión es inmutable."
+                              },
+                              "order": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "description": "Posición dentro del recorrido del capítulo, contigua desde 1. La declara el catálogo: no se deduce del orden del array."
+                              },
+                              "title": {
+                                "type": "string",
+                                "description": "Título editorial de la tarjeta."
+                              },
+                              "description": {
+                                "type": "string",
+                                "description": "Descripción breve, para decidir si empezarla."
+                              },
+                              "estimatedMinutes": {
+                                "type": "string",
+                                "description": "Duración estimada como RANGO, tal y como la declara el catálogo (por ejemplo \"7–9\"). No es un número: el catálogo declara un rango."
+                              }
+                            }
+                          },
+                          "description": "Las lecturas guiadas que ofrece el capítulo, ya ordenadas. Un capítulo con una sola devuelve una lista de una."
+                        }
+                      }
+                    }
+                  ]
                 }
               }
             }

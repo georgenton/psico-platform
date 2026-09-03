@@ -98,6 +98,7 @@ import {
   GUIDE_EXPERIENCE_STATE_RESPONSE,
   GUIDE_RECOVERABLE_SESSION_RESPONSE,
   GUIDE_DISCOVERY_RESPONSE,
+  GUIDE_ROUTE_RESPONSE,
   GUIDE_COMMAND_RESPONSE,
   GUIDE_RECALL_BODY,
   GUIDE_RECALL_COMMAND_RESPONSE,
@@ -431,6 +432,7 @@ export class GuideController {
       "Orden del capítulo EN LA PLATAFORMA, que no siempre coincide con la " +
       "numeración impresa del libro.",
   })
+  @ApiOkResponse({ schema: GUIDE_ROUTE_RESPONSE })
   async getGuideRoute(
     @CurrentUser() user: AuthenticatedUser,
     @Param("bookSlug") bookSlug: string,

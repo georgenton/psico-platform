@@ -518,3 +518,82 @@ describe("ratchet · guide OpenAPI surface", () => {
     expect(generated).not.toContain("correctOptionKey");
   });
 });
+
+describe("ratchet · the route response is a CLOSED contract", () => {
+  const ROUTE = "/api/guide/route/{bookSlug}/{chapterOrder}";
+
+  /** The 200 schema as OpenAPI actually publishes it. */
+  const schema = () =>
+    openapi.paths[ROUTE]?.get?.responses?.["200"]?.content?.["application/json"]
+      ?.schema as
+      | { oneOf?: Record<string, unknown>[] }
+      | Record<string, unknown>
+      | undefined;
+
+  it("publishes a two-armed union, not a generic object", () => {
+    const s = schema();
+    // The failure this guards: a handler with no `@ApiOkResponse` documents
+    // `{}` — every client generator then emits `unknown`, and a closed union
+    // becomes a shape nobody can rely on.
+    expect(s).toBeDefined();
+    const arms = (s as { oneOf?: Record<string, unknown>[] }).oneOf;
+    expect(Array.isArray(arms)).toBe(true);
+    expect(arms).toHaveLength(2);
+  });
+
+  it("closes both arms against extra properties", () => {
+    const arms = (schema() as { oneOf: Record<string, unknown>[] }).oneOf;
+    for (const arm of arms) {
+      expect(arm.type).toBe("object");
+      expect(arm.additionalProperties).toBe(false);
+    }
+  });
+
+  it("the negative arm carries nothing but `available: false`", () => {
+    const arms = (schema() as { oneOf: Record<string, unknown>[] }).oneOf;
+    const no = arms.find(
+      (a) =>
+        ((a.properties as Record<string, { enum?: unknown[] }>).available
+          ?.enum ?? [])[0] === false,
+    );
+    expect(no).toBeDefined();
+    expect(Object.keys(no!.properties as object)).toEqual(["available"]);
+    expect(no!.required).toEqual(["available"]);
+  });
+
+  it("the positive arm documents every card field, and only those", () => {
+    const arms = (schema() as { oneOf: Record<string, unknown>[] }).oneOf;
+    const yes = arms.find(
+      (a) =>
+        ((a.properties as Record<string, { enum?: unknown[] }>).available
+          ?.enum ?? [])[0] === true,
+    );
+    expect(yes).toBeDefined();
+    const guides = (yes!.properties as Record<string, Record<string, unknown>>)
+      .guides;
+    expect(guides.type).toBe("array");
+    const item = guides.items as Record<string, unknown>;
+    expect(item.additionalProperties).toBe(false);
+    expect(Object.keys(item.properties as object).sort()).toEqual([
+      "description",
+      "estimatedMinutes",
+      "guideKey",
+      "guideVersion",
+      "order",
+      "title",
+    ]);
+    // Nothing internal leaks into a card: no targets, no ids, no anchors.
+    const serialized = JSON.stringify(item);
+    for (const forbidden of [
+      "conceptKey",
+      "exerciseKey",
+      "itemKey",
+      "unitId",
+      "revisionId",
+      "correctOptionKey",
+      "anchor",
+    ]) {
+      expect(serialized).not.toContain(forbidden);
+    }
+  });
+});

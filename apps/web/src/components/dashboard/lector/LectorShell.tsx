@@ -78,6 +78,8 @@ import { resolveGuideWebBundle } from "../guide/guide-web-bundle";
 import { useGuideActorScope } from "../guide/guide-actor-scope";
 import { useGuideAvailability } from "../guide/guide-availability";
 import { useGuideDiscovery } from "../guide/use-guide-discovery";
+import { useGuideRoute } from "../guide/use-guide-route";
+import type { RouteCardVerdict } from "../guide/GuidedRouteList";
 import {
   guideAnchorRegistry,
   resolveGuideAnchor,
@@ -509,6 +511,20 @@ export function LectorShell({
   const discoveredPin = discovery.status === "available" ? discovery.pin : null;
 
   /**
+   * GR-5 — the chapter's whole guided route, when the server offers one.
+   *
+   * Asked under the same gate as discovery, and answered `unavailable` while
+   * the route is dark. A reader outside the pilot, or a chapter whose route is
+   * switched off, sees no section at all — which is the same screen a chapter
+   * with nothing to offer produces, by design.
+   */
+  const route = useGuideRoute({
+    enabled: guideAvailable === true,
+    bookSlug,
+    chapterOrder: chapter.order,
+  });
+
+  /**
    * The web-side definition of the discovered guide: its presentation and its
    * reader copy, both filed under the EXACT pin.
    *
@@ -541,10 +557,23 @@ export function LectorShell({
    * two experiences deliberately bound to the same guide DO share a verdict.
    * That is not a bug to paper over; it is what the binding says.
    */
-  const experiencePins = useMemo(
-    () => chapterExperiences.items.map((item) => item.guidePin),
-    [chapterExperiences.items],
-  );
+  const experiencePins = useMemo(() => {
+    const pins = chapterExperiences.items.map((item) => item.guidePin);
+    // The route's pins join the SAME question. Asking separately would be a
+    // second request for the same answer, and a route card that had to wait
+    // for its own round trip would read «No disponible ahora» for a moment
+    // after the published cards already knew where the reader stood.
+    if (route.status === "available") {
+      const seen = new Set(pins.map((p) => `${p.guideKey}@${p.guideVersion}`));
+      for (const g of route.guides) {
+        const key = `${g.guideKey}@${g.guideVersion}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        pins.push({ guideKey: g.guideKey, guideVersion: g.guideVersion });
+      }
+    }
+    return pins;
+  }, [chapterExperiences.items, route]);
 
   /**
    * C.3R — where the reader is, as this screen can honestly describe it.
@@ -682,6 +711,32 @@ export function LectorShell({
    * An answer that has lapsed reads as `loading`, because that is what is
    * true: we are asking again.
    */
+  /**
+   * The route cards' verdicts, read out of the SAME authority the published
+   * cards use. A pin with no answer is deliberately absent from this map: the
+   * card then renders disabled, because "we could not ask" is not "you have
+   * not started" — and the second is the one that starts a fresh run.
+   */
+  const routeVerdicts = useMemo(() => {
+    const out = new Map<string, RouteCardVerdict>();
+    if (experienceLoad.status !== "ready") return out;
+    if (route.status !== "available") return out;
+    for (const g of route.guides) {
+      const key = `${g.guideKey}@${g.guideVersion}`;
+      const state = experienceLoad.states.get(key);
+      if (!state) continue;
+      out.set(
+        key,
+        state.status === "COMPLETED"
+          ? "completed"
+          : state.status === "CONTINUE"
+            ? "continue"
+            : "start",
+      );
+    }
+    return out;
+  }, [experienceLoad, route]);
+
   const experienceAuthority: ExperienceStatesLoad = useMemo(() => {
     if (experienceLoad.status === "idle") return experienceLoad;
     if (experienceLoad.status === "loading") return experienceLoad;
@@ -1887,6 +1942,21 @@ export function LectorShell({
             if (!canRunPin(state.resumePin)) return;
             setPickedPin(state.resumePin);
             setPickedExperience(experience);
+            openReaderSurface();
+            setGuideOpen(true);
+          }}
+          routeState={route}
+          routeVerdicts={routeVerdicts}
+          onRetryRoute={revalidateExperienceStates}
+          onOpenRouteGuide={(item) => {
+            // Same guard the published cards apply: a verdict must exist, and
+            // the pin a click would run must belong to this chapter.
+            if (experienceLoad.status !== "ready") return;
+            const state = experienceLoad.states.get(
+              `${item.guideKey}@${item.guideVersion}`,
+            );
+            if (!state || !canRunPin(state.resumePin)) return;
+            setPickedPin(state.resumePin);
             openReaderSurface();
             setGuideOpen(true);
           }}

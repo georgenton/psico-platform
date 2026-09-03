@@ -20,6 +20,7 @@
 
 import { useState } from "react";
 import type { ExperienceSceneContext } from "../scene-contract";
+import { PracticeInteractionView } from "../practices/PracticeInteractionView";
 import {
   SceneAction,
   SceneActions,
@@ -116,6 +117,7 @@ export function PracticeScene({
   busy,
   confirmStep,
   goForward,
+  media,
 }: ExperienceSceneContext) {
   const { payload } = scene;
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
@@ -137,6 +139,16 @@ export function PracticeScene({
     <div data-testid="scene-practice">
       <SceneHeading>{payload.title}</SceneHeading>
       <Prose lines={payload.body} />
+
+      {/* The interaction the catalog declares, when there is one. A practice
+          without an `exerciseKey` is the older shape and renders as it always
+          did: copy, a timer nobody has to use, and a button. */}
+      <PracticeInteractionView
+        exerciseKey={payload.exerciseKey}
+        fetchContext={
+          media ? { apiBase: media.apiBase, token: media.token } : null
+        }
+      />
 
       {secondsLeft === null ? (
         <SceneActions>

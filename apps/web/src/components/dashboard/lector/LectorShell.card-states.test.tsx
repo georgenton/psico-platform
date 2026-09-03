@@ -313,7 +313,14 @@ describe("Chapter Home · an unknown card is inert (fail closed)", () => {
     getExperienceCardStates.mockResolvedValue({
       items: [card(EEC_EXPERIENCE.guidePin, "CONTINUE")],
     });
-    fireEvent.click(screen.getByRole("button", { name: /Reintentar/ }));
+    // Named exactly: the chapter screen can now show a second retry, for
+    // the guided route, and a regex that matched both would click whichever
+    // rendered first.
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Reintentar consultar tu avance en las experiencias",
+      }),
+    );
 
     expect(
       await screen.findByRole("button", { name: /Continuar/ }),
@@ -454,7 +461,14 @@ describe("Chapter Home · a stale verdict stops counting IMMEDIATELY", () => {
 
     const pending = deferred<{ items: GuideExperienceCardState[] }>();
     getExperienceCardStates.mockReturnValue(pending.promise);
-    fireEvent.click(screen.getByRole("button", { name: /Reintentar/ }));
+    // Named exactly: the chapter screen can now show a second retry, for
+    // the guided route, and a regex that matched both would click whichever
+    // rendered first.
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Reintentar consultar tu avance en las experiencias",
+      }),
+    );
 
     // The failure is no longer the current answer, so it is no longer shown as
     // one: we are asking again, and that is what the reader is told.

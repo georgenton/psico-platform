@@ -308,6 +308,15 @@ export interface ExperienceScenePayload {
   anchorKey?: string;
   /** CONCEPT · RESONANCE. */
   conceptKey?: string;
+  /**
+   * PRACTICE — which catalog practice this scene runs.
+   *
+   * An identifier, not content: the interaction itself is fetched from
+   * `GET /api/learning/practices/:exerciseKey`, which is also the only place
+   * that parses it. The client already sends this key when confirming a
+   * practice, so nothing new is exposed by naming it here.
+   */
+  exerciseKey?: string;
   /** AUDIO · VIDEO — which produced format, never a signed URL. */
   mediaKind?: "AUDIOBOOK" | "PODCAST" | "VIDEO";
   /** RECALL only. */

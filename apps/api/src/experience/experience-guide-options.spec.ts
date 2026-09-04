@@ -8,6 +8,7 @@ import {
   EEC_C1_MG04_ANCHOR,
   EEC_C1_MG05_ANCHOR,
   PAREJAS_READER_ANCHOR,
+  guideAnchorRegistry,
   type GuideReaderAnchorLocator,
 } from "@psico/types";
 import {
@@ -222,7 +223,18 @@ describe("ratchet · a guide the CMS could never offer", () => {
     // and forgetting it fails here instead.
     const DELIBERATELY_UNANCHORED: readonly string[] = [];
 
-    const anchored = new Set(ANCHORS.map((a) => a.guideKey));
+    // Read from the REGISTRY, not from this file's fixture list. The fixtures
+    // above exist to drive the behavioural cases and only cover the guides
+    // those cases need; measuring coverage against them would let a guide
+    // registered with no anchor pass as long as nobody added it here — which
+    // is the exact hole this ratchet is for.
+    const anchored = new Set(
+      PRODUCTION_GUIDE_DEFINITIONS.map(
+        (g) => (g as { guideKey: string }).guideKey,
+      ).filter((k) =>
+        Boolean(guideAnchorRegistry.getExact({ guideKey: k, guideVersion: 1 })),
+      ),
+    );
     const unanchored = PRODUCTION_GUIDE_DEFINITIONS.map(
       (g) => (g as { guideKey: string }).guideKey,
     )

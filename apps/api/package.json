@@ -28,7 +28,8 @@
     "content:experience:reserve": "ts-node src/experience/reservation-backfill-cli.ts",
     "content:unit:ingest": "ts-node src/content-core/unit-ingest-cli.ts",
     "content:eec:c01:guides": "ts-node src/content-core/eec-c01-guides-main.ts",
-    "content:eec:c01:e2e-seed": "ts-node src/content-core/eec-c01-e2e-seed.ts"
+    "content:eec:c01:e2e-seed": "ts-node src/content-core/eec-c01-e2e-seed.ts",
+    "content:eec:guides": "ts-node src/content-core/eec-c01-guides-main.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.95.1",

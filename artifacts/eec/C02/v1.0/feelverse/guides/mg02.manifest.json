@@ -1,0 +1,159 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "EEC-C02-MG02",
+  "bookSlug": "emociones-en-construccion",
+  "editionKey": "emociones-en-construccion-1e",
+  "chapterCode": "EEC-C02",
+  "chapterOrder": 2,
+  "unitKey": "f58df2e8-4203-5aa2-83b0-1a8ab79a885a",
+  "canonicalVersion": "EEC_C02_v1.0_TEXT_LOCKED_2026-08-21",
+  "canonicalSha256": "f137ee10fb80a3ea91af42d93d7262b98de7101a5eeae37051d765dc12a2188a",
+  "sourceArtifact": "artifacts/eec/C02/v1.0/feelverse/unit-payload.json",
+  "experienceKey": "eec-c2-cultura-gramatica-no-destino",
+  "experienceVersion": 1,
+  "guideKey": "eec-c2-cultura-gramatica-no-destino",
+  "guideVersion": 1,
+  "conceptKey": "eec-cultura-gramatica-no-destino",
+  "practiceKey": "eec-c2-practice-de-etiqueta-a-contexto",
+  "practiceKind": "belief_lens",
+  "recallKey": "eec-c2-recall-cultura-gramatica-no-destino",
+  "anchors": {
+    "primary": {
+      "reference": "eec-c2-cultura-gramatica",
+      "heading": "La cultura como gramática emocional",
+      "fingerprint": "la cultura emocional no determina mecánicamente cada experiencia",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "Reglas que orientan, no que deciden",
+      "body": [
+        "La cultura enseña qué suele notarse, qué puede decirse y qué respuesta se espera. Vas a tomar una generalización rígida y a convertirla en algo más preciso: una tendencia, un contexto, una persona concreta y lo que falta saber."
+      ],
+      "note": "No te pediremos datos sobre tu identidad ni sobre tu familia. Trabajamos con una frase de ejemplo.",
+      "actionLabel": "Comenzar"
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "La cultura como gramática emocional",
+      "body": [
+        "Lee la sección donde el capítulo compara la cultura emocional con una gramática: ofrece estructuras que vuelven ciertas combinaciones familiares y otras extrañas, sin decidir cada frase."
+      ],
+      "actionLabel": "Leí el pasaje",
+      "anchorRef": "eec-c2-cultura-gramatica"
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "Gramática, no destino",
+      "body": [
+        "Una gramática no pronuncia las frases por nosotros: hace que unas suenen naturales y otras raras. La cultura emocional funciona parecido. Ofrece significados, valores y expectativas sobre qué conviene sentir, mostrar y acompañar, y aun así no determina mecánicamente lo que una persona vive.",
+        "De ahí se siguen dos cuidados. Una tendencia observada en un grupo no describe a cada integrante, y una costumbre aprendida en la infancia no es una sentencia: se pueden aprender palabras nuevas y ampliar el repertorio."
+      ],
+      "note": "Marcar esta escena registra que exploraste la idea; no evalúa lo que sabes ni infiere nada sobre ti.",
+      "actionLabel": "He explorado la idea",
+      "stepKey": "explorar-cultura-gramatica-no-destino"
+    },
+    {
+      "order": 4,
+      "kind": "EXAMPLE",
+      "title": "Dos casas después de una pelea",
+      "body": [
+        "A un niño le preguntan qué sintió cuando ocurrió. A otro le dicen que no le dé importancia. Ninguna frase fabrica por sí sola una emoción; repetidas en el tiempo, orientan la atención hacia lo que conviene notar y decir.",
+        "Eso influye en lo que se vuelve fácil o difícil de reconocer. No permite deducir la historia completa de nadie a partir de una frase."
+      ]
+    },
+    {
+      "order": 5,
+      "kind": "PRACTICE",
+      "title": "De etiqueta a contexto",
+      "body": [
+        "Toma la frase que aparece y sepárala en tres: qué afirma exactamente, qué está suponiendo y qué faltaría precisar — el contexto y la persona concreta."
+      ],
+      "note": "Puedes elegir entre las opciones sugeridas. Si prefieres escribir, tu texto se queda en tu dispositivo y no viaja con tu progreso.",
+      "actionLabel": "Ya hice la práctica",
+      "stepKey": "practicar-de-etiqueta-a-contexto",
+      "practiceKind": "belief_lens"
+    },
+    {
+      "order": 6,
+      "kind": "REFLECTION",
+      "title": "Una regla que aprendiste",
+      "body": [
+        "Si quieres, piensa en una regla emocional cotidiana y manejable que hayas aprendido en la familia, la escuela o el trabajo: algo como «aquí no se llora en público» o «primero se resuelve y después se habla»."
+      ],
+      "note": "Es opcional y puedes saltarla. Lo que escribas se queda en tu dispositivo: no se envía, no se guarda con tu progreso y nadie lo revisa.",
+      "actionLabel": "Continuar",
+      "optional": true
+    },
+    {
+      "order": 7,
+      "kind": "RECALL",
+      "title": "¿Qué significa que la cultura sea una gramática?",
+      "body": [
+        "Recupera la idea central de esta microguía."
+      ],
+      "stepKey": "recordar-cultura-gramatica-no-destino"
+    },
+    {
+      "order": 8,
+      "kind": "SUMMARY",
+      "title": "Lo que te llevas",
+      "body": [
+        "La cultura emocional influye sin determinar. Distinguir entre una tendencia aprendida y una regla fija te deja espacio para mirar el contexto y a la persona concreta que tienes delante."
+      ],
+      "actionLabel": "Finalizar"
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-cultura-gramatica-no-destino",
+      "targetKey": "eec-cultura-gramatica-no-destino"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-de-etiqueta-a-contexto",
+      "targetKey": "eec-c2-practice-de-etiqueta-a-contexto"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-cultura-gramatica-no-destino",
+      "targetKey": "eec-c2-recall-cultura-gramatica-no-destino"
+    }
+  ],
+  "media": {
+    "audio": null,
+    "video": null
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Navegación completa por teclado, con foco visible y orden de tabulación lógico.",
+    "Toda reordenación anunciada por lector de pantalla mediante aria-live.",
+    "Alternativa sin arrastrar para cualquier interacción de ordenamiento.",
+    "Respeta prefers-reduced-motion.",
+    "El color nunca es la única señal de estado.",
+    "Ninguna reproducción automática y ningún audio o vídeo obligatorio."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "eec-c02-cultura-gramatica-no-destino-v1-351cccdbd70dd0d9",
+  "approvalReferences": [
+    "https://app.notion.com/p/3d1cbb1031a0812f8fb9f5a4723752ab",
+    "APROBAR ARQUITECTURA C02 — decisión autoral 2026-09-04."
+  ],
+  "manifestSha256": "57b30504bd0f1db96403f297e90581ef957d1f865fedf6c57f2e5e276891f890"
+}

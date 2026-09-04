@@ -143,6 +143,51 @@ export const GUIDED_CHAPTER_CONCEPTS: readonly GuidedChapterConcept[] = [
     editionKey: "emociones-en-construccion-1e",
     unitKey: "dce92620-2398-5efb-80a4-b90b180a01ae",
   },
+  // ── EEC-C02 · «¿Existen realmente las emociones universales?» ─────────────
+  //
+  // Cinco ideas del capítulo 2, aprobadas el 2026-09-04. Mismo contrato que
+  // las cinco de C01: claves nuevas, inmutables desde aquí, y el `unitKey` de
+  // la unidad publicada en la revisión 11 — no el del capítulo 1.
+  {
+    key: "eec-universal-no-significa-uniforme",
+    label: "Lo universal no significa uniforme",
+    bookSlug: "emociones-en-construccion",
+    chapterOrder: 2,
+    editionKey: "emociones-en-construccion-1e",
+    unitKey: "f58df2e8-4203-5aa2-83b0-1a8ab79a885a",
+  },
+  {
+    key: "eec-cultura-gramatica-no-destino",
+    label: "La cultura es gramática, no destino",
+    bookSlug: "emociones-en-construccion",
+    chapterOrder: 2,
+    editionKey: "emociones-en-construccion-1e",
+    unitKey: "f58df2e8-4203-5aa2-83b0-1a8ab79a885a",
+  },
+  {
+    key: "eec-gesto-necesita-contexto",
+    label: "Un gesto necesita contexto",
+    bookSlug: "emociones-en-construccion",
+    chapterOrder: 2,
+    editionKey: "emociones-en-construccion-1e",
+    unitKey: "f58df2e8-4203-5aa2-83b0-1a8ab79a885a",
+  },
+  {
+    key: "eec-palabras-dan-contorno",
+    label: "Las palabras dan contorno",
+    bookSlug: "emociones-en-construccion",
+    chapterOrder: 2,
+    editionKey: "emociones-en-construccion-1e",
+    unitKey: "f58df2e8-4203-5aa2-83b0-1a8ab79a885a",
+  },
+  {
+    key: "eec-rituales-dan-marco-no-guion",
+    label: "Los rituales dan marco, no guion",
+    bookSlug: "emociones-en-construccion",
+    chapterOrder: 2,
+    editionKey: "emociones-en-construccion-1e",
+    unitKey: "f58df2e8-4203-5aa2-83b0-1a8ab79a885a",
+  },
 ];
 
 /** Every guided concept of one chapter, in catalog order. Empty is normal. */

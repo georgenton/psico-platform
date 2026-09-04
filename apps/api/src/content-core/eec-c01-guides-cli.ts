@@ -272,15 +272,39 @@ export function validateManifests(
     }
   }
 
+  // The chapter these manifests describe, READ from them rather than assumed.
+  // The same five checks serve any EEC chapter; hardcoding chapter 1 here made
+  // C02's manifests fail against C01's route, which is a fact about this
+  // function and not about the manifests.
+  const bookSlug = manifests[0]?.bookSlug ?? "";
+  const chapterOrder = manifests[0]?.chapterOrder ?? 0;
+  const suiteId = `${manifests[0]?.manifestId.split("-").slice(0, 2).join("-") ?? "EEC"}-SUITE`;
+  if (manifests.some((m) => m.bookSlug !== bookSlug)) {
+    issues.push({
+      manifestId: suiteId,
+      code: CLI_ERRORS.manifestInvalid,
+      detail: "the set spans more than one book",
+    });
+  }
+  if (manifests.some((m) => m.chapterOrder !== chapterOrder)) {
+    issues.push({
+      manifestId: suiteId,
+      code: CLI_ERRORS.manifestInvalid,
+      detail: "the set spans more than one chapter",
+    });
+  }
+
   // The route the discovery catalog offers must be exactly these five, in this
-  // order — otherwise the manifests describe a chapter nobody is served.
+  // order — otherwise the manifests describe a chapter nobody is served. An
+  // empty route is normal for a chapter that is not offered yet: C02 ships as
+  // DRAFT and joins the catalog when it is published, not before.
   const routeKeys = productionGuideDiscoveryCatalog
-    .listContext("emociones-en-construccion", 1)
+    .listContext(bookSlug, chapterOrder)
     .map((i) => i.pin.guideKey);
   const manifestKeys = manifests.map((m) => m.guideKey);
   if (routeKeys.length > 0 && routeKeys.join(",") !== manifestKeys.join(",")) {
     issues.push({
-      manifestId: "EEC-C01-SUITE",
+      manifestId: suiteId,
       code: CLI_ERRORS.manifestInvalid,
       detail: "manifest order does not match the discovery route",
     });
@@ -288,15 +312,18 @@ export function validateManifests(
 
   // The legacy adapter must still answer with the pilot. If a manifest ever
   // made it into that map, the old binary would start binding a microguide.
-  const legacy = PRODUCTION_LEGACY_GUIDE_PINS.find(
-    (l) => l.bookSlug === "emociones-en-construccion" && l.chapterOrder === 1,
-  );
-  if (legacy?.pin.guideKey !== PILOT_KEY) {
-    issues.push({
-      manifestId: "EEC-C01-SUITE",
-      code: CLI_ERRORS.pilotReferenced,
-      detail: "the V1 adapter no longer answers with the historical pilot",
-    });
+  // Only chapter 1 has that adapter, and only chapter 1 can break it.
+  if (bookSlug === "emociones-en-construccion" && chapterOrder === 1) {
+    const legacy = PRODUCTION_LEGACY_GUIDE_PINS.find(
+      (l) => l.bookSlug === bookSlug && l.chapterOrder === 1,
+    );
+    if (legacy?.pin.guideKey !== PILOT_KEY) {
+      issues.push({
+        manifestId: suiteId,
+        code: CLI_ERRORS.pilotReferenced,
+        detail: "the V1 adapter no longer answers with the historical pilot",
+      });
+    }
   }
   return issues;
 }
@@ -491,12 +518,14 @@ export async function planGuides(
 }
 
 /** Everything the catalogs say this chapter should end up with. */
-export function expectedCatalogShape() {
+export function expectedCatalogShape(
+  bookSlug = "emociones-en-construccion",
+  chapterOrder = 1,
+) {
   return {
-    concepts: guidedChapterConcepts("emociones-en-construccion", 1).map(
-      (c) => c.key,
-    ),
-    pairs: (EXERCISE_INGESTION_CATALOG["emociones-en-construccion"] ?? [])
-      .length,
+    concepts: guidedChapterConcepts(bookSlug, chapterOrder).map((c) => c.key),
+    // Book-wide on purpose: the activation materialises the whole book's pairs
+    // in one call, so the count that matters is the book's, not the chapter's.
+    pairs: (EXERCISE_INGESTION_CATALOG[bookSlug] ?? []).length,
   };
 }

@@ -472,6 +472,92 @@ export const EEC_C1_MG05_CONSTRUCTED_GUIDE = eecC1Guide(
 );
 
 /**
+ * EEC-C02 · the five-microguide route of «¿Existen realmente las emociones
+ * universales?» (author decision, 2026-09-04).
+ *
+ * Same contract as C01's five — three obligatory steps, one idea each, keys
+ * that never reuse another reading's. The chapter differs, so the concepts,
+ * practices and recalls do too: nothing here shares a target with chapter 1,
+ * and a session on one chapter can never complete a step of the other.
+ *
+ * The practices deliberately reuse the five interactions C01 shipped rather
+ * than inventing kinds. Which one each microguide uses is an editorial fit,
+ * not a default: classifying claims into levels is the same interaction as
+ * sorting readings into buckets, and accompanying without prescribing is the
+ * same four fields as feeling, interpreting, wanting and choosing.
+ */
+const eecC2Guide = (
+  slug: string,
+  conceptKey: string,
+  practiceSlug: string,
+): GuideDefinition =>
+  validateGuideDefinition({
+    guideKey: `eec-c2-${slug}`,
+    guideVersion: 1,
+    steps: [
+      {
+        stepKey: `explorar-${slug}`,
+        order: 1,
+        required: true,
+        kind: "CONCEPT_EXPLORATION",
+        completionPolicy: "explicit_confirmation",
+        conceptKey,
+      },
+      {
+        stepKey: `practicar-${practiceSlug}`,
+        order: 2,
+        required: true,
+        kind: "CATALOG_PRACTICE",
+        completionPolicy: "catalog_practice_confirmation",
+        exerciseKey: `eec-c2-practice-${practiceSlug}`,
+      },
+      {
+        stepKey: `recordar-${slug}`,
+        order: 3,
+        required: true,
+        kind: "ACTIVE_RECALL",
+        completionPolicy: "objective_recall",
+        itemKey: `eec-c2-recall-${slug}`,
+      },
+    ],
+  });
+
+/** MG01 — «universal» nombra varios niveles; uno no demuestra los otros. */
+export const EEC_C2_MG01_UNIVERSAL_GUIDE = eecC2Guide(
+  "universal-no-significa-uniforme",
+  "eec-universal-no-significa-uniforme",
+  "seis-cajones",
+);
+
+/** MG02 — la cultura ofrece estructuras; no dicta cada frase. */
+export const EEC_C2_MG02_CULTURE_GUIDE = eecC2Guide(
+  "cultura-gramatica-no-destino",
+  "eec-cultura-gramatica-no-destino",
+  "de-etiqueta-a-contexto",
+);
+
+/** MG03 — del gesto a la pregunta: una hipótesis que se comprueba. */
+export const EEC_C2_MG03_GESTURE_GUIDE = eecC2Guide(
+  "gesto-necesita-contexto",
+  "eec-gesto-necesita-contexto",
+  "del-gesto-a-la-pregunta",
+);
+
+/** MG04 — la palabra ayuda a diferenciar; su ausencia no niega la experiencia. */
+export const EEC_C2_MG04_WORDS_GUIDE = eecC2Guide(
+  "palabras-dan-contorno",
+  "eec-palabras-dan-contorno",
+  "la-palabra-no-basta",
+);
+
+/** MG05 — el ritual ofrece marco y testigos; no prescribe cómo sentir. */
+export const EEC_C2_MG05_RITUALS_GUIDE = eecC2Guide(
+  "rituales-dan-marco-no-guion",
+  "eec-rituales-dan-marco-no-guion",
+  "acompanar-sin-imponer",
+);
+
+/**
  * The PRODUCTION registry — exactly the approved definitions. Adding one is a
  * deliberate, reviewed change (editorial approval + real, resolvable targets);
  * content is never invented here.
@@ -488,6 +574,11 @@ export const PRODUCTION_GUIDE_DEFINITIONS: readonly GuideDefinition[] = [
   EEC_C1_MG03_ALARM_GUIDE,
   EEC_C1_MG04_INFORMS_GUIDE,
   EEC_C1_MG05_CONSTRUCTED_GUIDE,
+  EEC_C2_MG01_UNIVERSAL_GUIDE,
+  EEC_C2_MG02_CULTURE_GUIDE,
+  EEC_C2_MG03_GESTURE_GUIDE,
+  EEC_C2_MG04_WORDS_GUIDE,
+  EEC_C2_MG05_RITUALS_GUIDE,
   PQP_C1_SUSTAINED_CONTACT_GUIDE,
 ];
 

@@ -1,0 +1,148 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "EEC-C02-MG03",
+  "bookSlug": "emociones-en-construccion",
+  "editionKey": "emociones-en-construccion-1e",
+  "chapterCode": "EEC-C02",
+  "chapterOrder": 2,
+  "unitKey": "f58df2e8-4203-5aa2-83b0-1a8ab79a885a",
+  "canonicalVersion": "EEC_C02_v1.0_TEXT_LOCKED_2026-08-21",
+  "canonicalSha256": "f137ee10fb80a3ea91af42d93d7262b98de7101a5eeae37051d765dc12a2188a",
+  "sourceArtifact": "artifacts/eec/C02/v1.0/feelverse/unit-payload.json",
+  "experienceKey": "eec-c2-gesto-necesita-contexto",
+  "experienceVersion": 1,
+  "guideKey": "eec-c2-gesto-necesita-contexto",
+  "guideVersion": 1,
+  "conceptKey": "eec-gesto-necesita-contexto",
+  "practiceKey": "eec-c2-practice-del-gesto-a-la-pregunta",
+  "practiceKind": "context_plausibility",
+  "recallKey": "eec-c2-recall-gesto-necesita-contexto",
+  "anchors": {
+    "primary": {
+      "reference": "eec-c2-rostro-no-habla-solo",
+      "heading": "El rostro no habla solo",
+      "fingerprint": "La expresión es una pista; el contexto y la conversación permiten formular **hipótesis**",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "De la conclusión a la pregunta",
+      "body": [
+        "Un gesto visible casi siempre admite más de una lectura. Vas a practicar un recorrido corto: describir lo que se observa, sostener dos interpretaciones posibles, notar qué contexto falta y elegir una pregunta para comprobar."
+      ],
+      "note": "Es una escena hipotética, no un caso real. Puedes salir y volver cuando quieras.",
+      "actionLabel": "Comenzar"
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "El rostro no habla solo",
+      "body": [
+        "Lee la sección donde el capítulo explica las reglas de expresión y advierte que regular lo que se muestra no equivale a no sentir."
+      ],
+      "actionLabel": "Leí el pasaje",
+      "anchorRef": "eec-c2-rostro-no-habla-solo"
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "Gesto, contexto, hipótesis, verificación",
+      "body": [
+        "Una expresión aporta información, como una palabra suelta dentro de una frase que todavía no escuchamos completa. Qué ocurrió antes, quién está presente y qué se aprendió a mostrar cambian lo que esa expresión significa.",
+        "Por eso conviene tratarla como una hipótesis: una lectura provisional que se comprueba preguntando, no un veredicto sobre lo que la otra persona siente. Las reglas de expresión aprendidas pueden modificar lo visible sin demostrar que la experiencia no exista."
+      ],
+      "note": "Marcar esta escena registra que exploraste la idea; no evalúa lo que sabes ni infiere nada sobre ti.",
+      "actionLabel": "He explorado la idea",
+      "stepKey": "explorar-gesto-necesita-contexto"
+    },
+    {
+      "order": 4,
+      "kind": "EXAMPLE",
+      "title": "El volumen y el silencio",
+      "body": [
+        "En una conversación tensa, una persona sube la voz y la otra deja de responder. En una casa, hablar con intensidad era habitual y no anunciaba ruptura; en la otra, el silencio era la forma aprendida de no escalar.",
+        "Cada quien lee al otro con su propia gramática: una interpreta indiferencia, la otra amenaza. Traducirse en voz alta suele funcionar mejor que acertar de una."
+      ]
+    },
+    {
+      "order": 5,
+      "kind": "PRACTICE",
+      "title": "Del gesto a la pregunta",
+      "body": [
+        "Ordena las lecturas posibles según cuánto encajan con lo que realmente se ve, y termina eligiendo la pregunta que harías para comprobar."
+      ],
+      "note": "Puedes elegir entre las opciones sugeridas. Si prefieres escribir, tu texto se queda en tu dispositivo y no viaja con tu progreso.",
+      "actionLabel": "Ya hice la práctica",
+      "stepKey": "practicar-del-gesto-a-la-pregunta",
+      "practiceKind": "context_plausibility"
+    },
+    {
+      "order": 6,
+      "kind": "RECALL",
+      "title": "¿Qué demuestra una expresión suavizada?",
+      "body": [
+        "Recupera la idea central de esta microguía."
+      ],
+      "stepKey": "recordar-gesto-necesita-contexto"
+    },
+    {
+      "order": 7,
+      "kind": "SUMMARY",
+      "title": "Lo que te llevas",
+      "body": [
+        "Un gesto abre una hipótesis, no la cierra. Describir lo observado, sostener dos lecturas y preguntar cuesta menos que corregir una conclusión apresurada."
+      ],
+      "actionLabel": "Finalizar"
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-gesto-necesita-contexto",
+      "targetKey": "eec-gesto-necesita-contexto"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-del-gesto-a-la-pregunta",
+      "targetKey": "eec-c2-practice-del-gesto-a-la-pregunta"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-gesto-necesita-contexto",
+      "targetKey": "eec-c2-recall-gesto-necesita-contexto"
+    }
+  ],
+  "media": {
+    "audio": null,
+    "video": null
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Navegación completa por teclado, con foco visible y orden de tabulación lógico.",
+    "Toda reordenación anunciada por lector de pantalla mediante aria-live.",
+    "Alternativa sin arrastrar para cualquier interacción de ordenamiento.",
+    "Respeta prefers-reduced-motion.",
+    "El color nunca es la única señal de estado.",
+    "Ninguna reproducción automática y ningún audio o vídeo obligatorio."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "eec-c02-gesto-necesita-contexto-v1-d1d460036f8732b1",
+  "approvalReferences": [
+    "https://app.notion.com/p/3d1cbb1031a0812f8fb9f5a4723752ab",
+    "APROBAR ARQUITECTURA C02 — decisión autoral 2026-09-04."
+  ],
+  "manifestSha256": "be8fa821d47fa9972de6c8a0d414c388d69ccd5f94bb4b9888d364573ad1a161"
+}

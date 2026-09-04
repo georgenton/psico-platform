@@ -1,0 +1,148 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "EEC-C02-MG04",
+  "bookSlug": "emociones-en-construccion",
+  "editionKey": "emociones-en-construccion-1e",
+  "chapterCode": "EEC-C02",
+  "chapterOrder": 2,
+  "unitKey": "f58df2e8-4203-5aa2-83b0-1a8ab79a885a",
+  "canonicalVersion": "EEC_C02_v1.0_TEXT_LOCKED_2026-08-21",
+  "canonicalSha256": "f137ee10fb80a3ea91af42d93d7262b98de7101a5eeae37051d765dc12a2188a",
+  "sourceArtifact": "artifacts/eec/C02/v1.0/feelverse/unit-payload.json",
+  "experienceKey": "eec-c2-palabras-dan-contorno",
+  "experienceVersion": 1,
+  "guideKey": "eec-c2-palabras-dan-contorno",
+  "guideVersion": 1,
+  "conceptKey": "eec-palabras-dan-contorno",
+  "practiceKey": "eec-c2-practice-la-palabra-no-basta",
+  "practiceKind": "signal_context_compare",
+  "recallKey": "eec-c2-recall-palabras-dan-contorno",
+  "anchors": {
+    "primary": {
+      "reference": "eec-c2-palabras-contorno",
+      "heading": "Las palabras dan contorno a la experiencia",
+      "fingerprint": "Las palabras funcionan como líneas en un mapa.",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "Cuando la palabra alcanza y cuando no",
+      "body": [
+        "«Pena», «coraje», «sentido», «nervioso»: la misma palabra puede señalar experiencias distintas según la región, la familia y la escena. Vas a comparar cuatro frases en dos contextos y a notar qué información ayuda a interpretarlas."
+      ],
+      "note": "Trabajaremos con frases de uso común, no con tu historia personal. Puedes salir y volver cuando quieras.",
+      "actionLabel": "Comenzar"
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "Las palabras dan contorno a la experiencia",
+      "body": [
+        "Lee la sección donde el capítulo compara las palabras con líneas en un mapa: no producen las montañas ni los ríos, pero ayudan a diferenciarlos y a orientarse."
+      ],
+      "actionLabel": "Leí el pasaje",
+      "anchorRef": "eec-c2-palabras-contorno"
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "Dan contorno; no dictan el territorio",
+      "body": [
+        "Disponer de conceptos emocionales puede ayudarnos a atender, diferenciar y compartir lo que nos pasa. Decir «me siento decepcionado porque esperaba apoyo» abre más opciones que decir «estoy mal».",
+        "Al mismo tiempo, no hace falta una palabra exacta para que la experiencia exista, y tener la palabra no fija su significado: «pena» puede nombrar tristeza en una región y vergüenza en otra. Cuando alguien no encuentra cómo decirlo, conviene evitar dos juicios rápidos —«no sabe lo que siente» o «está reprimiendo»— y dar tiempo u otra pregunta."
+      ],
+      "note": "Marcar esta escena registra que exploraste la idea; no evalúa lo que sabes ni infiere nada sobre ti.",
+      "actionLabel": "He explorado la idea",
+      "stepKey": "explorar-palabras-dan-contorno"
+    },
+    {
+      "order": 4,
+      "kind": "EXAMPLE",
+      "title": "«Estoy sentido»",
+      "body": [
+        "Dentro de una familia, «estoy sentido» puede comunicar tristeza, ofensa, resentimiento o necesidad de distancia. La palabra funciona: alcanza para avisar que algo pasó.",
+        "Que sea amplia no significa que esté mal elegida. A veces todavía no aprendimos a distinguir más; a veces la experiencia misma viene mezclada."
+      ]
+    },
+    {
+      "order": 5,
+      "kind": "PRACTICE",
+      "title": "La palabra no basta",
+      "body": [
+        "Lee cada frase en las dos escenas propuestas y marca qué información adicional ayudaría a interpretarla: la región, con quién se habla, qué pasó antes, qué ocurre en el cuerpo, en qué lengua se dice."
+      ],
+      "note": "Puedes elegir entre las opciones sugeridas. Si prefieres escribir, tu texto se queda en tu dispositivo y no viaja con tu progreso.",
+      "actionLabel": "Ya hice la práctica",
+      "stepKey": "practicar-la-palabra-no-basta",
+      "practiceKind": "signal_context_compare"
+    },
+    {
+      "order": 6,
+      "kind": "RECALL",
+      "title": "¿Qué hacen las palabras con la experiencia?",
+      "body": [
+        "Recupera la idea central de esta microguía."
+      ],
+      "stepKey": "recordar-palabras-dan-contorno"
+    },
+    {
+      "order": 7,
+      "kind": "SUMMARY",
+      "title": "Lo que te llevas",
+      "body": [
+        "Las palabras ayudan a diferenciar y comunicar, y su significado sigue dependiendo del contexto. Nombrar ayuda, pero no obliga: el silencio también puede ser una etapa del significado."
+      ],
+      "actionLabel": "Finalizar"
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-palabras-dan-contorno",
+      "targetKey": "eec-palabras-dan-contorno"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-la-palabra-no-basta",
+      "targetKey": "eec-c2-practice-la-palabra-no-basta"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-palabras-dan-contorno",
+      "targetKey": "eec-c2-recall-palabras-dan-contorno"
+    }
+  ],
+  "media": {
+    "audio": null,
+    "video": null
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Navegación completa por teclado, con foco visible y orden de tabulación lógico.",
+    "Toda reordenación anunciada por lector de pantalla mediante aria-live.",
+    "Alternativa sin arrastrar para cualquier interacción de ordenamiento.",
+    "Respeta prefers-reduced-motion.",
+    "El color nunca es la única señal de estado.",
+    "Ninguna reproducción automática y ningún audio o vídeo obligatorio."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "eec-c02-palabras-dan-contorno-v1-93fd070898fc4218",
+  "approvalReferences": [
+    "https://app.notion.com/p/3d1cbb1031a0812f8fb9f5a4723752ab",
+    "APROBAR ARQUITECTURA C02 — decisión autoral 2026-09-04."
+  ],
+  "manifestSha256": "e45bc6b09d973b014af43e8136e3a0bc90c3c8ae066878ae4074113a50f093f9"
+}

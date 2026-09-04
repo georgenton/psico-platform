@@ -5,7 +5,7 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { resolveEnvironment } from "../shared/psico-environment";
-import { flagEnabled } from "../shared/flags";
+import { flagEnabled, type FlagName } from "../shared/flags";
 import {
   EecGuidesCliError,
   loadManifests,
@@ -24,6 +24,11 @@ import {
  *   node dist/content-core/eec-c01-guides-main.js verify-drafts
  *   node dist/content-core/eec-c01-guides-main.js preview-report
  *
+ * `--chapter=C02` runs the same commands over the second chapter's suite. The
+ * module keeps its C01 name because the deployed container invokes it by path
+ * and the ops runbooks for the pilot cite it; what it serves is any EEC
+ * chapter listed in `CHAPTERS` below.
+ *
  * Dry-run is the default everywhere. A deployed box additionally requires
  * `--environment=production --confirm-production-draft`, so nothing writes to
  * production because a script was run in the wrong terminal.
@@ -34,11 +39,39 @@ import {
  */
 
 const ROOT = join(process.cwd(), "../..");
-const MANIFEST_DIR = join(ROOT, "artifacts/eec/C01/v1.0/feelverse/guides");
-const CHAPTER = join(ROOT, "content/books/eec/C01/chapter.md");
+
+/**
+ * Which chapter's suite this run is about.
+ *
+ * The commands were written for C01 and are chapter-agnostic in everything but
+ * these three facts, so C02 needed a row here rather than a second CLI. The
+ * flag is per chapter because it gates a route: C01 has one
+ * (`EEC_C01_GUIDED_SUITE_V1`), C02 has none yet — its five are DRAFT and the
+ * chapter is not in the discovery catalog, so "the route is dark" is
+ * structural rather than switchable.
+ */
+const CHAPTERS = {
+  C01: {
+    manifestDir: "artifacts/eec/C01/v1.0/feelverse/guides",
+    chapterMd: "content/books/eec/C01/chapter.md",
+    flag: "EEC_C01_GUIDED_SUITE_V1" as FlagName | null,
+  },
+  C02: {
+    manifestDir: "artifacts/eec/C02/v1.0/feelverse/guides",
+    chapterMd: "content/books/eec/C02/chapter.md",
+    flag: null as FlagName | null,
+  },
+} as const;
+
+export type ChapterCode = keyof typeof CHAPTERS;
+
+export function isChapterCode(value: string): value is ChapterCode {
+  return Object.prototype.hasOwnProperty.call(CHAPTERS, value);
+}
 
 export interface CliArgs {
   command: string;
+  chapter: ChapterCode;
   apply: boolean;
   environment: string | null;
   confirmProductionDraft: boolean;
@@ -55,8 +88,16 @@ export function parseArgs(argv: readonly string[]): CliArgs {
       ?.split("=")
       .slice(1)
       .join("=") ?? null;
+  const chapter = get("chapter") ?? "C01";
+  if (!isChapterCode(chapter)) {
+    throw new EecGuidesCliError(
+      "EEC_GUIDES_UNKNOWN_CHAPTER",
+      `--chapter must be one of ${Object.keys(CHAPTERS).join(", ")}`,
+    );
+  }
   return {
     command,
+    chapter,
     apply: argv.includes("--apply") && !argv.includes("--dry-run"),
     environment: get("environment"),
     confirmProductionDraft: argv.includes("--confirm-production-draft"),
@@ -99,8 +140,11 @@ function openPrisma(): { prisma: PrismaClient; pool: Pool } {
 /* c8 ignore start — process wiring */
 async function main(): Promise<number> {
   const args = parseArgs(process.argv.slice(2));
-  const manifests: GuideManifest[] = loadManifests(MANIFEST_DIR);
-  const canonical = sha256(readFileSync(CHAPTER, "utf8"));
+  const chapter = CHAPTERS[args.chapter];
+  const manifests: GuideManifest[] = loadManifests(
+    join(ROOT, chapter.manifestDir),
+  );
+  const canonical = sha256(readFileSync(join(ROOT, chapter.chapterMd), "utf8"));
 
   if (args.command === "validate") {
     const issues = validateManifests(manifests, canonical);
@@ -128,7 +172,7 @@ async function main(): Promise<number> {
         prisma,
         manifests,
         resolveEnvironment(),
-        flagEnabled("EEC_C01_GUIDED_SUITE_V1"),
+        chapter.flag ? flagEnabled(chapter.flag) : false,
       );
       console.log(JSON.stringify({ command: "plan", ...plan }, null, 2));
       const drift = plan.drafts.some((d) => d.action === "DRIFT");
@@ -189,7 +233,7 @@ async function main(): Promise<number> {
         return r.ok ? 0 : 1;
       }
       case "verify-drafts": {
-        const r = await runVerifyDrafts(prisma, manifests);
+        const r = await runVerifyDrafts(prisma, manifests, chapter.flag);
         console.log(
           JSON.stringify({ command: "verify-drafts", ...r }, null, 2),
         );
@@ -208,8 +252,9 @@ async function main(): Promise<number> {
       }
       default:
         console.error(
-          "usage: validate | plan | apply-targets | create-drafts | " +
-            "publish-test-suite | verify-drafts | preview-report",
+          "usage: [--chapter=C01|C02] validate | plan | apply-targets | " +
+            "create-drafts | publish-test-suite | verify-drafts | " +
+            "preview-report",
         );
         return 1;
     }

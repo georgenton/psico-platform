@@ -153,12 +153,14 @@ suite(
     });
 
     it("creates one practice and one recall row per catalog pair", async () => {
-      // Six pairs since the EEC-C01 route landed: the V1 pilot's plus the five
-      // microguides'. The count comes from the catalog rather than a literal so
-      // adding a microguide does not turn this into a failing test about
-      // arithmetic.
-      const pairs =
-        EXERCISE_INGESTION_CATALOG["emociones-en-construccion"] ?? [];
+      // Six pairs in chapter 1 since the EEC-C01 route landed: the V1 pilot's
+      // plus the five microguides'. The count comes from the catalog rather
+      // than a literal so adding a microguide does not turn this into a failing
+      // test about arithmetic — and it is filtered by CHAPTER, because the rows
+      // read below belong to chapter 1 and the catalog now teaches in two.
+      const pairs = (
+        EXERCISE_INGESTION_CATALOG["emociones-en-construccion"] ?? []
+      ).filter((p) => p.practice.chapterOrder === 1);
       const rows = await prisma.exercise.findMany({
         where: { chapterId },
         orderBy: { order: "asc" },
@@ -179,8 +181,12 @@ suite(
       expect(
         await prisma.exercise.count({ where: { chapterId: otherChapter.id } }),
       ).toBe(0);
-      // El total del entorno es el del catálogo: nada se creó fuera de él.
-      expect(await prisma.exercise.count()).toBe(pairs.length * 2);
+      // El total del entorno es el del catálogo COMPLETO del libro — las dos
+      // parejas de chapter 1 y las de chapter 2 —: nada se creó fuera de él.
+      expect(await prisma.exercise.count()).toBe(
+        (EXERCISE_INGESTION_CATALOG["emociones-en-construccion"] ?? []).length *
+          2,
+      );
     });
 
     it("stores the approved practice with a server-owned sourceBlockKey in the unit", async () => {

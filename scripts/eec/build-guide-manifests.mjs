@@ -1,9 +1,14 @@
 #!/usr/bin/env node
 /**
- * EEC-C01 — emit the guided-suite manifests.
+ * EEC — emit a chapter's guided-suite manifests.
  *
- *   node scripts/eec/build-guide-manifests.mjs           # check (no write)
- *   node scripts/eec/build-guide-manifests.mjs --write   # emit + SHA256SUMS
+ *   node scripts/eec/build-guide-manifests.mjs                        # check
+ *   node scripts/eec/build-guide-manifests.mjs --chapter=C02 --write  # emit
+ *
+ * One generator, one manifest shape, one checksum rule for every chapter. C02
+ * added a row to `CHAPTERS` and its own microguides; it did not add a second
+ * script, because two generators of the same artifact drift the moment one is
+ * fixed and the other is not.
  *
  * The manifests are the executable contract between the editorial decision, the
  * repository and the CMS. They are GENERATED rather than hand-written for one
@@ -31,10 +36,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "../..");
-const OUT = join(ROOT, "artifacts/eec/C01/v1.0/feelverse/guides");
-const CHAPTER = join(ROOT, "content/books/eec/C01/chapter.md");
 
-const COMMON = {
+const COMMON_C01 = {
   schemaVersion: "1.0",
   bookSlug: "emociones-en-construccion",
   editionKey: "emociones-en-construccion-1e",
@@ -71,8 +74,24 @@ const COMMON = {
   ],
 };
 
+/** EEC-C02 — same contract, second chapter (revisión productiva 11). */
+const COMMON_C02 = {
+  ...COMMON_C01,
+  chapterCode: "EEC-C02",
+  chapterOrder: 2,
+  unitKey: "f58df2e8-4203-5aa2-83b0-1a8ab79a885a",
+  canonicalVersion: "EEC_C02_v1.0_TEXT_LOCKED_2026-08-21",
+  canonicalSha256:
+    "f137ee10fb80a3ea91af42d93d7262b98de7101a5eeae37051d765dc12a2188a",
+  sourceArtifact: "artifacts/eec/C02/v1.0/feelverse/unit-payload.json",
+  approvalReferences: [
+    "https://app.notion.com/p/3d1cbb1031a0812f8fb9f5a4723752ab",
+    "APROBAR ARQUITECTURA C02 — decisión autoral 2026-09-04.",
+  ],
+};
+
 /** The three obligatory steps, derived from the keys so they cannot drift. */
-const steps = (slug, conceptKey, practiceSlug) => [
+const steps = (prefix, slug, conceptKey, practiceSlug) => [
   {
     order: 1,
     kind: "CONCEPT_EXPLORATION",
@@ -83,17 +102,17 @@ const steps = (slug, conceptKey, practiceSlug) => [
     order: 2,
     kind: "CATALOG_PRACTICE",
     stepKey: `practicar-${practiceSlug}`,
-    targetKey: `eec-c1-practice-${practiceSlug}`,
+    targetKey: `${prefix}-practice-${practiceSlug}`,
   },
   {
     order: 3,
     kind: "ACTIVE_RECALL",
     stepKey: `recordar-${slug}`,
-    targetKey: `eec-c1-recall-${slug}`,
+    targetKey: `${prefix}-recall-${slug}`,
   },
 ];
 
-const MICROGUIDES = [
+const MICROGUIDES_C01 = [
   {
     id: "EEC-C01-MG01",
     slug: "teorias-como-lentes",
@@ -487,6 +506,435 @@ const MICROGUIDES = [
   },
 ];
 
+const MICROGUIDES_C02 = [
+  {
+    id: "EEC-C02-MG01",
+    slug: "universal-no-significa-uniforme",
+    conceptKey: "eec-universal-no-significa-uniforme",
+    practiceSlug: "seis-cajones",
+    practiceKind: "context_plausibility",
+    anchors: {
+      primary: {
+        reference: "eec-c2-que-significa-universal",
+        heading: "¿Qué significa realmente que una emoción sea universal?",
+        fingerprint:
+          "En realidad, la palabra *universal* puede referirse a cosas diferentes.",
+        expectedMatchCount: 1,
+      },
+    },
+    scenes: [
+      {
+        kind: "INTRO",
+        title: "Seis preguntas dentro de una",
+        body: [
+          "«¿Las emociones son universales?» parece una sola pregunta, y en realidad son varias. Vas a separar seis niveles que el capítulo distingue y a ver qué permite concluir cada uno.",
+        ],
+        note: "Trabajaremos con afirmaciones de ejemplo, no con tu historia personal. Puedes salir y volver cuando quieras.",
+        actionLabel: "Comenzar",
+      },
+      {
+        kind: "PASSAGE",
+        title: "¿Qué significa realmente que una emoción sea universal?",
+        body: [
+          "Lee la sección donde el capítulo abre la palabra «universal» en preguntas distintas: capacidades del cuerpo, acontecimientos que importan, categorías, expresión, reconocimiento y reglas sociales.",
+        ],
+        actionLabel: "Leí el pasaje",
+      },
+      {
+        kind: "CONCEPT",
+        title: "Universal no es sinónimo de uniforme",
+        body: [
+          "Hablar de universalidad exige decir qué nivel estamos comparando. Podemos compartir capacidades corporales y aun así agrupar las experiencias en categorías distintas; podemos producir gestos parecidos y darles significados diferentes; podemos reconocer una expresión en una tarea con opciones dadas y no interpretarla igual en una conversación real.",
+          "Por eso una semejanza encontrada en un nivel no demuestra uniformidad en los demás. Decirlo con precisión no debilita la evidencia: la ubica.",
+        ],
+        note: "Marcar esta escena registra que exploraste la idea; no evalúa lo que sabes ni infiere nada sobre ti.",
+        actionLabel: "He explorado la idea",
+      },
+      {
+        kind: "EXAMPLE",
+        title: "Dos ciudades, cuatro respuestas",
+        body: [
+          "Preguntar si dos ciudades son iguales no tiene respuesta hasta aclarar si hablamos del clima, del trazado de sus calles, de sus costumbres o de sus leyes. La respuesta puede cambiar en cada caso, y ninguna anula a las otras.",
+          "Con las emociones ocurre lo mismo: la comparación se vuelve informativa cuando se dice de qué nivel habla.",
+        ],
+      },
+      {
+        kind: "PRACTICE",
+        title: "Seis cajones",
+        body: [
+          "Clasifica cada afirmación en el nivel del que habla y observa después qué conclusión permite y cuál no permite ese tipo de evidencia.",
+        ],
+        note: "Puedes elegir entre las opciones sugeridas. Si prefieres escribir, tu texto se queda en tu dispositivo y no viaja con tu progreso.",
+        actionLabel: "Ya hice la práctica",
+      },
+      {
+        kind: "RECALL",
+        title: "¿Qué demuestra una semejanza en un nivel?",
+        body: ["Recupera la idea central de esta microguía."],
+      },
+      {
+        kind: "SUMMARY",
+        title: "Lo que te llevas",
+        body: [
+          "Antes de responder si una emoción es universal, conviene preguntar de qué nivel hablamos. Compartir una capacidad no obliga a compartir una categoría, ni una expresión a compartir un significado.",
+        ],
+        actionLabel: "Finalizar",
+      },
+    ],
+  },
+  {
+    id: "EEC-C02-MG02",
+    slug: "cultura-gramatica-no-destino",
+    conceptKey: "eec-cultura-gramatica-no-destino",
+    practiceSlug: "de-etiqueta-a-contexto",
+    practiceKind: "belief_lens",
+    anchors: {
+      primary: {
+        reference: "eec-c2-cultura-gramatica",
+        heading: "La cultura como gramática emocional",
+        fingerprint:
+          "la cultura emocional no determina mecánicamente cada experiencia",
+        expectedMatchCount: 1,
+      },
+    },
+    scenes: [
+      {
+        kind: "INTRO",
+        title: "Reglas que orientan, no que deciden",
+        body: [
+          "La cultura enseña qué suele notarse, qué puede decirse y qué respuesta se espera. Vas a tomar una generalización rígida y a convertirla en algo más preciso: una tendencia, un contexto, una persona concreta y lo que falta saber.",
+        ],
+        note: "No te pediremos datos sobre tu identidad ni sobre tu familia. Trabajamos con una frase de ejemplo.",
+        actionLabel: "Comenzar",
+      },
+      {
+        kind: "PASSAGE",
+        title: "La cultura como gramática emocional",
+        body: [
+          "Lee la sección donde el capítulo compara la cultura emocional con una gramática: ofrece estructuras que vuelven ciertas combinaciones familiares y otras extrañas, sin decidir cada frase.",
+        ],
+        actionLabel: "Leí el pasaje",
+      },
+      {
+        kind: "CONCEPT",
+        title: "Gramática, no destino",
+        body: [
+          "Una gramática no pronuncia las frases por nosotros: hace que unas suenen naturales y otras raras. La cultura emocional funciona parecido. Ofrece significados, valores y expectativas sobre qué conviene sentir, mostrar y acompañar, y aun así no determina mecánicamente lo que una persona vive.",
+          "De ahí se siguen dos cuidados. Una tendencia observada en un grupo no describe a cada integrante, y una costumbre aprendida en la infancia no es una sentencia: se pueden aprender palabras nuevas y ampliar el repertorio.",
+        ],
+        note: "Marcar esta escena registra que exploraste la idea; no evalúa lo que sabes ni infiere nada sobre ti.",
+        actionLabel: "He explorado la idea",
+      },
+      {
+        kind: "EXAMPLE",
+        title: "Dos casas después de una pelea",
+        body: [
+          "A un niño le preguntan qué sintió cuando ocurrió. A otro le dicen que no le dé importancia. Ninguna frase fabrica por sí sola una emoción; repetidas en el tiempo, orientan la atención hacia lo que conviene notar y decir.",
+          "Eso influye en lo que se vuelve fácil o difícil de reconocer. No permite deducir la historia completa de nadie a partir de una frase.",
+        ],
+      },
+      {
+        kind: "PRACTICE",
+        title: "De etiqueta a contexto",
+        body: [
+          "Toma la frase que aparece y sepárala en tres: qué afirma exactamente, qué está suponiendo y qué faltaría precisar — el contexto y la persona concreta.",
+        ],
+        note: "Puedes elegir entre las opciones sugeridas. Si prefieres escribir, tu texto se queda en tu dispositivo y no viaja con tu progreso.",
+        actionLabel: "Ya hice la práctica",
+      },
+      {
+        kind: "REFLECTION",
+        title: "Una regla que aprendiste",
+        body: [
+          "Si quieres, piensa en una regla emocional cotidiana y manejable que hayas aprendido en la familia, la escuela o el trabajo: algo como «aquí no se llora en público» o «primero se resuelve y después se habla».",
+        ],
+        note: "Es opcional y puedes saltarla. Lo que escribas se queda en tu dispositivo: no se envía, no se guarda con tu progreso y nadie lo revisa.",
+        actionLabel: "Continuar",
+      },
+      {
+        kind: "RECALL",
+        title: "¿Qué significa que la cultura sea una gramática?",
+        body: ["Recupera la idea central de esta microguía."],
+      },
+      {
+        kind: "SUMMARY",
+        title: "Lo que te llevas",
+        body: [
+          "La cultura emocional influye sin determinar. Distinguir entre una tendencia aprendida y una regla fija te deja espacio para mirar el contexto y a la persona concreta que tienes delante.",
+        ],
+        actionLabel: "Finalizar",
+      },
+    ],
+  },
+  {
+    id: "EEC-C02-MG03",
+    slug: "gesto-necesita-contexto",
+    conceptKey: "eec-gesto-necesita-contexto",
+    practiceSlug: "del-gesto-a-la-pregunta",
+    practiceKind: "context_plausibility",
+    anchors: {
+      primary: {
+        reference: "eec-c2-rostro-no-habla-solo",
+        heading: "El rostro no habla solo",
+        fingerprint:
+          "La expresión es una pista; el contexto y la conversación permiten formular **hipótesis**",
+        expectedMatchCount: 1,
+      },
+    },
+    scenes: [
+      {
+        kind: "INTRO",
+        title: "De la conclusión a la pregunta",
+        body: [
+          "Un gesto visible casi siempre admite más de una lectura. Vas a practicar un recorrido corto: describir lo que se observa, sostener dos interpretaciones posibles, notar qué contexto falta y elegir una pregunta para comprobar.",
+        ],
+        note: "Es una escena hipotética, no un caso real. Puedes salir y volver cuando quieras.",
+        actionLabel: "Comenzar",
+      },
+      {
+        kind: "PASSAGE",
+        title: "El rostro no habla solo",
+        body: [
+          "Lee la sección donde el capítulo explica las reglas de expresión y advierte que regular lo que se muestra no equivale a no sentir.",
+        ],
+        actionLabel: "Leí el pasaje",
+      },
+      {
+        kind: "CONCEPT",
+        title: "Gesto, contexto, hipótesis, verificación",
+        body: [
+          "Una expresión aporta información, como una palabra suelta dentro de una frase que todavía no escuchamos completa. Qué ocurrió antes, quién está presente y qué se aprendió a mostrar cambian lo que esa expresión significa.",
+          "Por eso conviene tratarla como una hipótesis: una lectura provisional que se comprueba preguntando, no un veredicto sobre lo que la otra persona siente. Las reglas de expresión aprendidas pueden modificar lo visible sin demostrar que la experiencia no exista.",
+        ],
+        note: "Marcar esta escena registra que exploraste la idea; no evalúa lo que sabes ni infiere nada sobre ti.",
+        actionLabel: "He explorado la idea",
+      },
+      {
+        kind: "EXAMPLE",
+        title: "El volumen y el silencio",
+        body: [
+          "En una conversación tensa, una persona sube la voz y la otra deja de responder. En una casa, hablar con intensidad era habitual y no anunciaba ruptura; en la otra, el silencio era la forma aprendida de no escalar.",
+          "Cada quien lee al otro con su propia gramática: una interpreta indiferencia, la otra amenaza. Traducirse en voz alta suele funcionar mejor que acertar de una.",
+        ],
+      },
+      {
+        kind: "PRACTICE",
+        title: "Del gesto a la pregunta",
+        body: [
+          "Ordena las lecturas posibles según cuánto encajan con lo que realmente se ve, y termina eligiendo la pregunta que harías para comprobar.",
+        ],
+        note: "Puedes elegir entre las opciones sugeridas. Si prefieres escribir, tu texto se queda en tu dispositivo y no viaja con tu progreso.",
+        actionLabel: "Ya hice la práctica",
+      },
+      {
+        kind: "RECALL",
+        title: "¿Qué demuestra una expresión suavizada?",
+        body: ["Recupera la idea central de esta microguía."],
+      },
+      {
+        kind: "SUMMARY",
+        title: "Lo que te llevas",
+        body: [
+          "Un gesto abre una hipótesis, no la cierra. Describir lo observado, sostener dos lecturas y preguntar cuesta menos que corregir una conclusión apresurada.",
+        ],
+        actionLabel: "Finalizar",
+      },
+    ],
+  },
+  {
+    id: "EEC-C02-MG04",
+    slug: "palabras-dan-contorno",
+    conceptKey: "eec-palabras-dan-contorno",
+    practiceSlug: "la-palabra-no-basta",
+    practiceKind: "signal_context_compare",
+    anchors: {
+      primary: {
+        reference: "eec-c2-palabras-contorno",
+        heading: "Las palabras dan contorno a la experiencia",
+        fingerprint: "Las palabras funcionan como líneas en un mapa.",
+        expectedMatchCount: 1,
+      },
+    },
+    scenes: [
+      {
+        kind: "INTRO",
+        title: "Cuando la palabra alcanza y cuando no",
+        body: [
+          "«Pena», «coraje», «sentido», «nervioso»: la misma palabra puede señalar experiencias distintas según la región, la familia y la escena. Vas a comparar cuatro frases en dos contextos y a notar qué información ayuda a interpretarlas.",
+        ],
+        note: "Trabajaremos con frases de uso común, no con tu historia personal. Puedes salir y volver cuando quieras.",
+        actionLabel: "Comenzar",
+      },
+      {
+        kind: "PASSAGE",
+        title: "Las palabras dan contorno a la experiencia",
+        body: [
+          "Lee la sección donde el capítulo compara las palabras con líneas en un mapa: no producen las montañas ni los ríos, pero ayudan a diferenciarlos y a orientarse.",
+        ],
+        actionLabel: "Leí el pasaje",
+      },
+      {
+        kind: "CONCEPT",
+        title: "Dan contorno; no dictan el territorio",
+        body: [
+          "Disponer de conceptos emocionales puede ayudarnos a atender, diferenciar y compartir lo que nos pasa. Decir «me siento decepcionado porque esperaba apoyo» abre más opciones que decir «estoy mal».",
+          "Al mismo tiempo, no hace falta una palabra exacta para que la experiencia exista, y tener la palabra no fija su significado: «pena» puede nombrar tristeza en una región y vergüenza en otra. Cuando alguien no encuentra cómo decirlo, conviene evitar dos juicios rápidos —«no sabe lo que siente» o «está reprimiendo»— y dar tiempo u otra pregunta.",
+        ],
+        note: "Marcar esta escena registra que exploraste la idea; no evalúa lo que sabes ni infiere nada sobre ti.",
+        actionLabel: "He explorado la idea",
+      },
+      {
+        kind: "EXAMPLE",
+        title: "«Estoy sentido»",
+        body: [
+          "Dentro de una familia, «estoy sentido» puede comunicar tristeza, ofensa, resentimiento o necesidad de distancia. La palabra funciona: alcanza para avisar que algo pasó.",
+          "Que sea amplia no significa que esté mal elegida. A veces todavía no aprendimos a distinguir más; a veces la experiencia misma viene mezclada.",
+        ],
+      },
+      {
+        kind: "PRACTICE",
+        title: "La palabra no basta",
+        body: [
+          "Lee cada frase en las dos escenas propuestas y marca qué información adicional ayudaría a interpretarla: la región, con quién se habla, qué pasó antes, qué ocurre en el cuerpo, en qué lengua se dice.",
+        ],
+        note: "Puedes elegir entre las opciones sugeridas. Si prefieres escribir, tu texto se queda en tu dispositivo y no viaja con tu progreso.",
+        actionLabel: "Ya hice la práctica",
+      },
+      {
+        kind: "RECALL",
+        title: "¿Qué hacen las palabras con la experiencia?",
+        body: ["Recupera la idea central de esta microguía."],
+      },
+      {
+        kind: "SUMMARY",
+        title: "Lo que te llevas",
+        body: [
+          "Las palabras ayudan a diferenciar y comunicar, y su significado sigue dependiendo del contexto. Nombrar ayuda, pero no obliga: el silencio también puede ser una etapa del significado.",
+        ],
+        actionLabel: "Finalizar",
+      },
+    ],
+  },
+  {
+    id: "EEC-C02-MG05",
+    slug: "rituales-dan-marco-no-guion",
+    conceptKey: "eec-rituales-dan-marco-no-guion",
+    practiceSlug: "acompanar-sin-imponer",
+    practiceKind: "four_part_distinction",
+    anchors: {
+      primary: {
+        reference: "eec-c2-rituales-marco-compartido",
+        heading: "Rituales: cuando sentir necesita un marco compartido",
+        fingerprint:
+          "Los rituales pueden ofrecer testigos. Pero el testigo no dicta cómo debe sentirse quien está de duelo.",
+        expectedMatchCount: 1,
+      },
+    },
+    scenes: [
+      {
+        kind: "INTRO",
+        title: "Acompañar sin dar instrucciones",
+        body: [
+          "Un ritual puede organizar el tiempo, reunir testigos y ofrecer palabras cuando cuesta ordenar lo que pasa. Vas a practicar cómo acompañar sin prescribir: convertir un «deberías» en una opción o en una pregunta.",
+        ],
+        note: "Es una escena hipotética y de baja intensidad. No te pediremos recordar una pérdida propia y puedes salir en cualquier momento.",
+        actionLabel: "Comenzar",
+      },
+      {
+        kind: "PASSAGE",
+        title: "Rituales: cuando sentir necesita un marco compartido",
+        body: [
+          "Lee la sección donde el capítulo distingue lo que un ritual ofrece —tiempo, acciones, testigos, significado compartido— de lo que no garantiza.",
+        ],
+        actionLabel: "Leí el pasaje",
+      },
+      {
+        kind: "CONCEPT",
+        title: "Marco compartido, no guion",
+        body: [
+          "Un ritual puede decir «esta pérdida importa» y sostener a quien la vive. Su efecto depende del sentido que tenga para esa persona y de las condiciones que la rodean; participar no garantiza alivio y no participar tampoco demuestra negación.",
+          "El duelo tampoco tiene una cronología igual para todos: cambia con el vínculo, las circunstancias y los recursos disponibles. Acompañar consiste en tolerar esa variedad — a veces hace falta hablar, a veces ayuda práctica, a veces compañía en silencio.",
+        ],
+        note: "Marcar esta escena registra que exploraste la idea; no evalúa lo que sabes ni infiere nada sobre ti.",
+        actionLabel: "He explorado la idea",
+      },
+      {
+        kind: "EXAMPLE",
+        title: "Muchas formas en una misma casa",
+        body: [
+          "En un velorio, algunas personas acompañan conversando, otras cocinan, otras rezan o permanecen sentadas. Ninguna conducta contiene por sí sola todo el duelo; juntas construyen un marco.",
+          "Para alguien que migró, una videollamada puede ser la única despedida posible. Y no hacer ninguna ceremonia también puede ser una forma legítima de vivirlo.",
+        ],
+      },
+      {
+        kind: "PRACTICE",
+        title: "Acompañar sin imponer",
+        body: [
+          "Separa cuatro cosas en la escena: qué observas, qué estás suponiendo que la otra persona necesita, qué te sale decir y qué puedes ofrecer o preguntar en su lugar.",
+        ],
+        note: "Puedes elegir entre las opciones sugeridas. Si prefieres escribir, tu texto se queda en tu dispositivo y no viaja con tu progreso.",
+        actionLabel: "Ya hice la práctica",
+      },
+      {
+        kind: "RECALL",
+        title: "¿Qué demuestra participar o no en un ritual?",
+        body: ["Recupera la idea central de esta microguía."],
+      },
+      {
+        kind: "SUMMARY",
+        title: "Lo que te llevas",
+        body: [
+          "El ritual ofrece marco y testigos; no un guion de cómo sentir. Una pregunta sencilla —«¿qué sería útil para ti en este momento?»— suele acompañar mejor que una interpretación segura.",
+        ],
+        actionLabel: "Finalizar",
+      },
+    ],
+  },
+];
+
+/**
+ * The chapters this generator knows. A new chapter is a row plus its
+ * microguides — never a copy of this file.
+ *
+ * `keyPrefix` is what the platform keys start with (`eec-c1`, `eec-c2`);
+ * `idPrefix` only names the idempotency key, which is a label for an operator
+ * rather than an identity the platform resolves.
+ */
+const CHAPTERS = {
+  C01: {
+    common: COMMON_C01,
+    microguides: MICROGUIDES_C01,
+    keyPrefix: "eec-c1",
+    idPrefix: "eec-c01",
+    out: "artifacts/eec/C01/v1.0/feelverse/guides",
+    chapterMd: "content/books/eec/C01/chapter.md",
+    suiteId: "EEC-C01-SUITE",
+    featureFlag: "EEC_C01_GUIDED_SUITE_V1",
+    legacyPilot: {
+      guideKey: "eec-c1-cuerpo-antes-que-mente",
+      guideVersion: 1,
+      inV2Route: false,
+      mutated: false,
+      note:
+        "Conservado y registrado: una sesión fijada a él debe seguir resolviendo. " +
+        "Fuera del recorrido nuevo, y su ancla dejó de resolver contra el texto v1.0.",
+    },
+  },
+  C02: {
+    common: COMMON_C02,
+    microguides: MICROGUIDES_C02,
+    keyPrefix: "eec-c2",
+    idPrefix: "eec-c02",
+    out: "artifacts/eec/C02/v1.0/feelverse/guides",
+    chapterMd: "content/books/eec/C02/chapter.md",
+    suiteId: "EEC-C02-SUITE",
+    // No flag: the five ship as DRAFT and the chapter is not in the discovery
+    // catalog, so the route is dark by construction rather than by a switch.
+    featureFlag: null,
+    legacyPilot: null,
+  },
+};
+
 /** Deterministic JSON: keys emitted in a declared order, two-space indent. */
 const KEY_ORDER = [
   "schemaVersion","manifestId","bookSlug","editionKey","chapterCode",
@@ -506,16 +954,16 @@ function ordered(obj) {
 
 const sha = (s) => createHash("sha256").update(s, "utf8").digest("hex");
 
-function buildOne(mg) {
+function buildOne(mg, ch) {
   const base = ordered({
-    ...COMMON,
+    ...ch.common,
     manifestId: mg.id,
-    experienceKey: `eec-c1-${mg.slug}`,
-    guideKey: `eec-c1-${mg.slug}`,
+    experienceKey: `${ch.keyPrefix}-${mg.slug}`,
+    guideKey: `${ch.keyPrefix}-${mg.slug}`,
     conceptKey: mg.conceptKey,
-    practiceKey: `eec-c1-practice-${mg.practiceSlug}`,
+    practiceKey: `${ch.keyPrefix}-practice-${mg.practiceSlug}`,
     practiceKind: mg.practiceKind,
-    recallKey: `eec-c1-recall-${mg.slug}`,
+    recallKey: `${ch.keyPrefix}-recall-${mg.slug}`,
     anchors: mg.anchors,
     scenes: mg.scenes.map((raw, i) => {
       const { kind, title, body, note, actionLabel } = raw;
@@ -532,10 +980,10 @@ function buildOne(mg) {
       if (kind === "REFLECTION" || kind === "QUESTION") scene.optional = true;
       return scene;
     }),
-    guideSteps: steps(mg.slug, mg.conceptKey, mg.practiceSlug),
+    guideSteps: steps(ch.keyPrefix, mg.slug, mg.conceptKey, mg.practiceSlug),
     // Stable across runs and across machines: the same manifest content always
     // yields the same key, so a replay is recognisably the same operation.
-    idempotencyKey: `eec-c01-${mg.slug}-v1-${sha(mg.id + COMMON.canonicalSha256).slice(0, 16)}`,
+    idempotencyKey: `${ch.idPrefix}-${mg.slug}-v1-${sha(mg.id + ch.common.canonicalSha256).slice(0, 16)}`,
   });
   // The checksum covers the manifest WITHOUT itself — otherwise it would have
   // to predict its own value.
@@ -543,53 +991,55 @@ function buildOne(mg) {
   return ordered({ ...base, manifestSha256: sha(body) });
 }
 
-export function buildManifests() {
-  return MICROGUIDES.map(buildOne);
+export function buildManifests(code = "C01") {
+  const ch = CHAPTERS[code];
+  return ch.microguides.map((mg) => buildOne(mg, ch));
 }
 
-export function suiteManifest(manifests) {
+export function suiteManifest(manifests, code = "C01") {
+  const ch = CHAPTERS[code];
   return ordered({
     schemaVersion: "1.0",
-    manifestId: "EEC-C01-SUITE",
-    bookSlug: COMMON.bookSlug,
-    editionKey: COMMON.editionKey,
-    chapterCode: COMMON.chapterCode,
-    chapterOrder: COMMON.chapterOrder,
-    unitKey: COMMON.unitKey,
-    canonicalVersion: COMMON.canonicalVersion,
-    canonicalSha256: COMMON.canonicalSha256,
+    manifestId: ch.suiteId,
+    bookSlug: ch.common.bookSlug,
+    editionKey: ch.common.editionKey,
+    chapterCode: ch.common.chapterCode,
+    chapterOrder: ch.common.chapterOrder,
+    unitKey: ch.common.unitKey,
+    canonicalVersion: ch.common.canonicalVersion,
+    canonicalSha256: ch.common.canonicalSha256,
     status: "DRAFT",
     publishAllowed: false,
-    featureFlag: "EEC_C01_GUIDED_SUITE_V1",
+    featureFlag: ch.featureFlag,
     featureFlagDefault: "off",
-    legacyPilot: {
-      guideKey: "eec-c1-cuerpo-antes-que-mente",
-      guideVersion: 1,
-      inV2Route: false,
-      mutated: false,
-      note:
-        "Conservado y registrado: una sesión fijada a él debe seguir resolviendo. " +
-        "Fuera del recorrido nuevo, y su ancla dejó de resolver contra el texto v1.0.",
-    },
+    legacyPilot: ch.legacyPilot,
     route: manifests.map((m, i) => ({
       order: i + 1,
       manifestId: m.manifestId,
       guideKey: m.guideKey,
       guideVersion: m.guideVersion,
     })),
-    approvalReferences: COMMON.approvalReferences,
+    approvalReferences: ch.common.approvalReferences,
   });
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const write = process.argv.includes("--write");
-  const canonical = sha(readFileSync(CHAPTER, "utf8"));
-  if (canonical !== COMMON.canonicalSha256) {
+  const code =
+    process.argv.find((a) => a.startsWith("--chapter="))?.slice(10) ?? "C01";
+  const ch = CHAPTERS[code];
+  if (!ch) {
+    console.error(`FALLO CHAPTER_DESCONOCIDO: ${code}`);
+    process.exit(1);
+  }
+  const OUT = join(ROOT, ch.out);
+  const canonical = sha(readFileSync(join(ROOT, ch.chapterMd), "utf8"));
+  if (canonical !== ch.common.canonicalSha256) {
     console.error(`FALLO CANONICAL_SHA: ${canonical}`);
     process.exit(1);
   }
-  const manifests = buildManifests();
-  const suite = suiteManifest(manifests);
+  const manifests = buildManifests(code);
+  const suite = suiteManifest(manifests, code);
   const files = [
     ...manifests.map((m, i) => [`mg0${i + 1}.manifest.json`, m]),
     ["chapter-guided-suite.manifest.json", suite],

@@ -20,6 +20,7 @@
 
 import { guidePinKey, type GuidePin } from "./guide-pin";
 import { EEC_C01_PRESENTATIONS } from "./eec-c01-microguides";
+import { EEC_C02_PRESENTATIONS } from "./eec-c02-microguides";
 
 /**
  * Where the reader panel opens inside a checkpoint.
@@ -393,6 +394,10 @@ export const PRODUCTION_GUIDE_PRESENTATIONS: readonly GuidePresentation[] = [
   PQP_C1_PRESENTATION,
   // EEC-C01's five microguides, built from the approved manifests.
   ...EEC_C01_PRESENTATIONS,
+  // EEC-C02's five, from theirs. Registered while the five Experiences are
+  // still DRAFT: a draft the CMS cannot draw is a draft nobody can review, and
+  // a presentation is what the player reads to draw one.
+  ...EEC_C02_PRESENTATIONS,
 ];
 
 export const guidePresentationRegistry = new GuidePresentationRegistry(

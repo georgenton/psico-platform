@@ -133,10 +133,12 @@ suite("EEC-C01 · manifests → targets → five DRAFTs (real PostgreSQL)", () =
         });
       }
     }
-    await seedPracticeHeadings(prisma, chapter.id, BOOK);
     // The activation is book-wide and the concept catalog names chapters 2 and
     // 3, so they have to exist or it refuses the whole run. Filler prose: this
     // suite is about chapter 1, and the other two only need to be resolvable.
+    // Created BEFORE the headings are seeded: the helper creates any chapter
+    // the exercise catalog teaches in, and creating chapter 2 twice is a
+    // unique-constraint violation, not a fixture.
     for (const other of [2, 3]) {
       const ch = await prisma.chapter.create({
         data: {
@@ -186,6 +188,10 @@ suite("EEC-C01 · manifests → targets → five DRAFTs (real PostgreSQL)", () =
       if (o === 2)
         await seedPracticeHeadings(prisma, ch.id, "parejas-que-perduran");
     }
+    // LAST, once every fixture chapter exists: the helper fills the gaps the
+    // catalog needs, and a chapter it created before this fixture reached the
+    // same order would collide on `(bookId, order)`.
+    await seedPracticeHeadings(prisma, chapter.id, BOOK);
     await backfillContentCore(prisma);
 
     // Parejas' own targets, for the same reason: without them its shipped

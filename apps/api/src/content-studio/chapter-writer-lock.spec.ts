@@ -69,6 +69,7 @@ describe("Chapter structural writers", () => {
     "prisma/seed.ts",
     "scripts/ingest-chapter-md.mjs",
     "src/content-core/eec-c01-e2e-seed.ts",
+    "src/content-core/test-support/seed-practice-headings.ts",
   ];
 
   it("is a closed set — no unaudited writer exists", () => {
@@ -131,6 +132,29 @@ describe("Chapter structural writers", () => {
     expect(src.indexOf("SEED_REFUSED_ON_DEPLOYED")).toBeLessThan(
       src.indexOf("new PrismaClient"),
     );
+  });
+
+  it("the fixture helper can only ever run inside a test", () => {
+    // No lock, and it needs none for a third reason: it lives under
+    // `test-support/`, nothing in the running application imports it, and the
+    // chapters it creates are the ones the exercise catalog declares — filler
+    // for a database a spec built and will drop. The argument is the import
+    // graph, so that is what is asserted.
+    const helper = "src/content-core/test-support/seed-practice-headings.ts";
+    expect(helper.startsWith("src/content-core/test-support/")).toBe(true);
+    const importers = [
+      ...sourceFiles(join(API_DIR, "src"), [".ts"]),
+      ...sourceFiles(join(API_DIR, "prisma"), [".ts"]),
+      ...sourceFiles(join(API_DIR, "scripts"), [".mjs", ".ts"]),
+    ]
+      .filter((f) => !f.endsWith("seed-practice-headings.ts"))
+      .filter((f) => /seed-practice-headings/.test(readFileSync(f, "utf8")))
+      .map((f) => f.slice(API_DIR.length + 1))
+      .sort();
+    // `sourceFiles` already skips specs, so anything left is runtime code.
+    // The E2E seeder is the one non-spec importer, and it refuses a deployed
+    // box before it opens a connection (asserted above).
+    expect(importers).toEqual(["src/content-core/eec-c01-e2e-seed.ts"]);
   });
 
   it("bootstrap is safe by construction — it refuses an existing book", () => {

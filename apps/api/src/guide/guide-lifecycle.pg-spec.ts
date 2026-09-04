@@ -1,6 +1,7 @@
 import { execSync } from "node:child_process";
 import { recallFeedbackMessage } from "../content-core/recall-feedback";
 import { PrismaClient } from "@prisma/client";
+import { seedPracticeHeadings } from "../content-core/test-support/seed-practice-headings";
 import type { LearningEventKind } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
@@ -17,10 +18,7 @@ import { ForbiddenException } from "@nestjs/common";
 import type { PrismaService } from "../prisma";
 import type { AuthenticatedUser } from "../auth";
 import { backfillContentCore } from "../content-core/backfill";
-import {
-  EXERCISE_INGESTION_CATALOG,
-  practiceSourceHeadings,
-} from "../content-core/exercise-ingestion-catalog";
+import { EXERCISE_INGESTION_CATALOG } from "../content-core/exercise-ingestion-catalog";
 import { ContentAccessService } from "../content-core/access/content-access.service";
 import { LearningCatalogResolver } from "../learning/learning-catalog.resolver";
 import { LearningEventRepository } from "../learning/learning-event.repository";
@@ -186,23 +184,11 @@ suite("CC-7.4C · Guide V1 lifecycle (real PostgreSQL)", () => {
     // propio catálogo: así este fixture no puede quedarse atrás cuando se
     // añade un par nuevo, que es justo como llegó a reportar SOURCE_MISSING
     // sobre contenido que en producción está perfectamente bien.
-    {
-      let extraOrder = 900;
-      for (const heading of practiceSourceHeadings(
-        "emociones-en-construccion",
-      )) {
-        if (heading === PRACTICE_HEADING) continue;
-        await prisma.chapterBlock.create({
-          data: {
-            chapterId: ch1.id,
-            order: extraOrder,
-            kind: "HEADING",
-            content: heading,
-          },
-        });
-        extraOrder += 1;
-      }
-    }
+    // Delegado al helper compartido: el catálogo ya enseña en más de un
+    // capítulo, así que sembrar «todos los encabezados del libro» en el
+    // capítulo 1 dejaría al capítulo 2 sin los suyos — y la ingesta falla
+    // cerrada, con razón.
+    await seedPracticeHeadings(prisma, ch1.id, "emociones-en-construccion");
     await backfillContentCore(prisma);
 
     const a = await prisma.user.create({

@@ -27,8 +27,10 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  readdirSync,
   renameSync,
   rmSync,
+  utimesSync,
   writeFileSync,
 } from "node:fs";
 import { execFileSync } from "node:child_process";
@@ -142,8 +144,27 @@ function validateCitations(citations, keys, anchors) {
 
 // ── salidas ────────────────────────────────────────────────────────────────
 
-function zipDir(dir, outFile, firstStored) {
+/**
+ * Fecha fija para todo lo que entra en un ZIP.
+ *
+ * `zip` guarda la fecha de modificación de cada fichero, así que dos builds del
+ * mismo capítulo daban archivos con hashes distintos solo por el reloj. Se
+ * ancla a la fecha de la versión canónica: el mismo texto produce el mismo
+ * DOCX y el mismo EPUB, hoy y dentro de diez años, y el `SHA256SUMS.txt` sirve
+ * para lo que existe — comprobar que un fichero es EL fichero.
+ */
+function stampTimes(dir, when) {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) stampTimes(full, when);
+    else utimesSync(full, when, when);
+  }
+  utimesSync(dir, when, when);
+}
+
+function zipDir(dir, outFile, firstStored, when) {
   rmSync(outFile, { force: true });
+  if (when) stampTimes(dir, when);
   // `mimetype` va sin comprimir y primero: lo exige el spec de EPUB.
   if (firstStored) {
     execFileSync("zip", ["-X0", outFile, firstStored], { cwd: dir });
@@ -248,7 +269,7 @@ function buildDocx(tmp, { title, blocks, notes, bibEntries }) {
 
 function buildEpub(
   tmp,
-  { title, author, blocks, notes, bibEntries, lang, uid },
+  { title, author, blocks, notes, bibEntries, lang, uid, modified },
 ) {
   const H = { HEADING: "h2", QUOTE: "blockquote" };
   const html = blocks
@@ -315,7 +336,7 @@ ${bibHtml}
   writeFileSync(
     join(tmp, "OEBPS/content.opf"),
     `<?xml version="1.0" encoding="utf-8"?>
-<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="pub-id"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="pub-id">urn:uuid:${uid}</dc:identifier><dc:title>${xml(title)}</dc:title><dc:creator>${xml(author)}</dc:creator><dc:language>${lang}</dc:language><meta property="dcterms:modified">${new Date().toISOString().replace(/\.\d{3}Z$/, "Z")}</meta></metadata><manifest><item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/><item id="ch" href="chapter.xhtml" media-type="application/xhtml+xml"/><item id="css" href="style.css" media-type="text/css"/></manifest><spine><itemref idref="ch"/></spine></package>`,
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="pub-id"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="pub-id">urn:uuid:${uid}</dc:identifier><dc:title>${xml(title)}</dc:title><dc:creator>${xml(author)}</dc:creator><dc:language>${lang}</dc:language><meta property="dcterms:modified">${modified}</meta></metadata><manifest><item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/><item id="ch" href="chapter.xhtml" media-type="application/xhtml+xml"/><item id="css" href="style.css" media-type="text/css"/></manifest><spine><itemref idref="ch"/></spine></package>`,
   );
 }
 
@@ -383,6 +404,10 @@ export function build({ chapter, out }) {
   const src = join(ROOT, "content/books/eec", chapter);
   const unit = JSON.parse(readFileSync(join(src, "unit.json"), "utf8"));
   const version = unit.canonical_version.match(/_v([\d.]+)_/)?.[1] ?? "1.0";
+  // La fecha del cierre editorial, no la del reloj de quien compila.
+  const canonicalDate = new Date(
+    `${unit.canonical_version.match(/(\d{4}-\d{2}-\d{2})/)?.[1] ?? "1970-01-01"}T00:00:00Z`,
+  );
   const dest = join(ROOT, out, "eec", chapter, `v${version}`);
 
   const report = {
@@ -527,10 +552,27 @@ export function build({ chapter, out }) {
   };
 
   // 3 · salidas.
-  rmSync(dest, { recursive: true, force: true });
+  //
+  // Se borra lo que ESTE build vuelve a escribir, y solo eso. Antes se hacía
+  // `rmSync(dest)` entero, que además de las salidas se llevaba por delante lo
+  // que otros procesos dejan en la misma carpeta — la preimagen y la postimagen
+  // de producción viven ahí, y una reconstrucción del capítulo las borraba en
+  // silencio junto con la evidencia de que se publicó.
   for (const d of ["manifest", "print", "epub", "feelverse"])
     mkdirSync(join(dest, d), { recursive: true });
+  for (const f of [
+    "feelverse/unit-payload.json",
+    "feelverse/chapter.json",
+    "manifest/SHA256SUMS.txt",
+    "manifest/release.yaml",
+    "manifest/build-report.json",
+    `print/EEC_${chapter}_PRINT_v${version}_READY.docx`,
+    `print/EEC_${chapter}_PRINT_v${version}_READY.pdf`,
+    `epub/EEC_${chapter}_v${version}.epub`,
+  ])
+    rmSync(join(dest, f), { force: true });
   const tmp = join(dest, ".tmp");
+  rmSync(tmp, { recursive: true, force: true });
 
   // 3a · FeelVerse: el payload EXACTO de ingestUnitV2, más el JSON del lector.
   const payload = {
@@ -585,7 +627,7 @@ export function build({ chapter, out }) {
   mkdirSync(docxTmp, { recursive: true });
   buildDocx(docxTmp, { title: unit.title, blocks, notes, bibEntries });
   const docx = join(dest, `print/EEC_${chapter}_PRINT_v${version}_READY.docx`);
-  zipDir(docxTmp, docx, null);
+  zipDir(docxTmp, docx, null, canonicalDate);
   report.outputs.docx = relative(ROOT, docx);
 
   // 3c · EPUB.
@@ -598,13 +640,14 @@ export function build({ chapter, out }) {
     notes,
     bibEntries,
     lang: "es",
+    modified: canonicalDate.toISOString().replace(/\.\d{3}Z$/, "Z"),
     uid:
       unit.canonical_sha256.slice(0, 8) +
       "-0000-5000-8000-" +
       unit.canonical_sha256.slice(8, 20),
   });
   const epub = join(dest, `epub/EEC_${chapter}_v${version}.epub`);
-  zipDir(epubTmp, epub, "mimetype");
+  zipDir(epubTmp, epub, "mimetype", canonicalDate);
   report.outputs.epub = relative(ROOT, epub);
 
   // 3d · PDF, solo con un motor real.

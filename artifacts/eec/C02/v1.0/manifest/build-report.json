@@ -1,7 +1,7 @@
 {
   "chapter": "C02",
   "canonicalVersion": "EEC_C02_v1.0_TEXT_LOCKED_2026-08-21",
-  "builtAt": "2026-09-04T15:19:47.778Z",
+  "builtAt": "2026-09-04T17:20:36.017Z",
   "checks": {
     "canonicalSha256": "f137ee10fb80a3ea91af42d93d7262b98de7101a5eeae37051d765dc12a2188a",
     "canonicalShaMatches": true,
@@ -49,5 +49,16 @@
       "code": "SKIPPED_NO_RELIABLE_PDF_ENGINE",
       "detail": "Ni pandoc/LaTeX ni LibreOffice en este entorno. El DOCX es válido y abre en Word; generar el PDF con un conversor improvisado — o llamando a uno real con los argumentos de otro — daría un fichero que parece de imprenta y no lo es."
     }
-  ]
+  ],
+  "production": {
+    "revision": 11,
+    "revisionId": "cmtn7tmxh00002aqhfo00ct5e",
+    "previousRevision": 10,
+    "publishedAt": "2026-09-04T17:16:14.661Z",
+    "blocksMatched": 2,
+    "blocksNew": 228,
+    "blocksTombstoned": 183,
+    "readerSource": "content-core",
+    "verifiedAgainstReader": true
+  }
 }

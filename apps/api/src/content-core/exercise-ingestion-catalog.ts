@@ -66,6 +66,26 @@ export interface PracticeExerciseDefinition {
   readonly interaction?: PracticeInteraction;
 }
 
+/**
+ * What a person is told after answering, per outcome.
+ *
+ * Editorial copy, and server-owned: the browser never receives both branches,
+ * only the one that matches the outcome the ledger recorded.
+ *
+ * It lives on the DEFINITION and not in `Exercise.content` on purpose. The
+ * ingestion compares stored bytes and throws `EXERCISE_INGEST_DRIFT_DETECTED`
+ * on any difference — it never updates — so adding a field to the stored shape
+ * would make the next `apply-targets` refuse every recall already in
+ * production. The copy is catalog data either way; this is the half of the
+ * catalog that does not need a row to be true.
+ */
+export interface ObjectiveRecallFeedback {
+  /** Shown when the ledger graded the attempt CORRECT. */
+  readonly correct: string;
+  /** Shown when it graded INCORRECT. The public word for that is REVIEW. */
+  readonly review: string;
+}
+
 /** ACTIVE_RECALL definition — the editorially-approved objective item. */
 export interface ObjectiveRecallDefinition {
   /** Equals the Guide `itemKey`; stored as the Exercise row id. */
@@ -77,6 +97,8 @@ export interface ObjectiveRecallDefinition {
   /** The question stem (Exercise.title). */
   readonly title: string;
   readonly content: ObjectiveRecallContent;
+  /** Required. `assertBookExerciseCatalogValid` refuses a recall without it. */
+  readonly feedback: ObjectiveRecallFeedback;
 }
 
 /** The pair of targets a single unit contributes to the first GuideDefinition. */
@@ -135,6 +157,12 @@ export const EXERCISE_INGESTION_CATALOG: Readonly<
             },
           ],
           correctOptionKey: "opcion-cuerpo-primero",
+        },
+        feedback: {
+          correct:
+            "Exacto. El cuerpo puede reaccionar antes de que alcances a identificar la emoción; reconocerla y nombrarla llega después.",
+          review:
+            "Revisa la idea central: el capítulo describe que la reacción corporal puede adelantarse a la identificación consciente, no que ocurran siempre a la vez.",
         },
       },
     },
@@ -241,6 +269,12 @@ export const EXERCISE_INGESTION_CATALOG: Readonly<
           ],
           correctOptionKey: "opcion-preguntas-distintas",
         },
+        feedback: {
+          correct:
+            "Exacto. Comparar dos teorías empieza por entender a qué pregunta responde cada una; eso no las vuelve equivalentes, las vuelve comparables.",
+          review:
+            "Revisa la diferencia central: comparar teorías no consiste en elegir una ganadora de entrada, sino en ver qué problema intentaba resolver cada una.",
+        },
       },
     },
     {
@@ -310,6 +344,12 @@ export const EXERCISE_INGESTION_CATALOG: Readonly<
           ],
           correctOptionKey: "opcion-pista-sin-lectura",
         },
+        feedback: {
+          correct:
+            "Exacto. Una expresión aporta información valiosa, y su significado sigue dependiendo de la persona, la situación y lo ocurrido antes.",
+          review:
+            "Revisa la diferencia central: un rostro ofrece pistas, no una lectura completa de lo que alguien está sintiendo.",
+        },
       },
     },
     {
@@ -378,6 +418,12 @@ export const EXERCISE_INGESTION_CATALOG: Readonly<
             },
           ],
           correctOptionKey: "opcion-reconocer-esto-me-asusta",
+        },
+        feedback: {
+          correct:
+            "Exacto. Una defensa puede comenzar antes de comprender lo ocurrido, pero el sentimiento consciente integra más información que esa primera respuesta.",
+          review:
+            "Revisa la diferencia central: reaccionar ante una señal no demuestra todavía qué emoción consciente existe ni que haya un peligro real.",
         },
       },
     },
@@ -471,6 +517,12 @@ export const EXERCISE_INGESTION_CATALOG: Readonly<
           ],
           correctOptionKey: "opcion-informa-no-dicta",
         },
+        feedback: {
+          correct:
+            "Exacto. La emoción informa y señala qué es relevante; entre ese impulso y la conducta queda un espacio donde se decide.",
+          review:
+            "Revisa la diferencia central: sentir algo orienta la decisión, pero no la dicta ni garantiza la conducta que sigue.",
+        },
       },
     },
     {
@@ -544,6 +596,12 @@ export const EXERCISE_INGESTION_CATALOG: Readonly<
           ],
           correctOptionKey: "opcion-real-y-no-elegida",
         },
+        feedback: {
+          correct:
+            "Exacto. Que una emoción se construya con señales, contexto, memoria y conceptos no la vuelve menos real ni elegible a voluntad.",
+          review:
+            "Revisa la diferencia central: «construida» no es lo contrario de «real»; describe cómo se forma la experiencia, no que sea inventada.",
+        },
       },
     },
   ],
@@ -594,6 +652,12 @@ export const EXERCISE_INGESTION_CATALOG: Readonly<
             },
           ],
           correctOptionKey: "pqp-opcion-manos-y-mirada",
+        },
+        feedback: {
+          correct:
+            "Exacto. El contacto sostenido se describe como una práctica breve y repetida, no como un gesto extraordinario.",
+          review:
+            "Revisa la idea central del capítulo: lo que sostiene el vínculo es la repetición de momentos breves de contacto, no su intensidad.",
         },
       },
     },

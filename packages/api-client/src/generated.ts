@@ -14299,6 +14299,8 @@ export interface operations {
                              * @enum {string}
                              */
                             outcome: PathsApiGuideSessionsSessionIdStepsStepKeyRecallPostResponses200ContentApplicationJsonFeedbackOutcome;
+                            /** @description La frase aprobada para ESTE resultado, y solo para este. La resuelve el servidor desde el catálogo; la del otro resultado no cruza el cable, porque tener las dos sería tener la respuesta. */
+                            message: string;
                         };
                     };
                 };
@@ -14330,6 +14332,8 @@ export interface operations {
                              * @enum {string}
                              */
                             outcome: PathsApiGuideSessionsSessionIdStepsStepKeyRecallPostResponses201ContentApplicationJsonFeedbackOutcome;
+                            /** @description La frase aprobada para ESTE resultado, y solo para este. La resuelve el servidor desde el catálogo; la del otro resultado no cruza el cable, porque tener las dos sería tener la respuesta. */
+                            message: string;
                         };
                     };
                 };

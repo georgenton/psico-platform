@@ -1,0 +1,138 @@
+{
+  "base": "http://localhost:3012",
+  "book": "emociones-en-construccion",
+  "chapter": 1,
+  "results": [
+    {
+      "name": "mg01 · the CMS preview renders that experience",
+      "status": "PASS",
+      "detail": "1749 chars · /dashboard/admin/experiencias/emociones-en-construccion/1/borrador/cmtm78mbf0000trvvy9pzczto"
+    },
+    {
+      "name": "mg01 · the preview carries no correct answer",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "mg02 · the CMS preview renders that experience",
+      "status": "PASS",
+      "detail": "1739 chars · /dashboard/admin/experiencias/emociones-en-construccion/1/borrador/cmtm78mcs0001trvv2uhbh3zj"
+    },
+    {
+      "name": "mg02 · the preview carries no correct answer",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "mg03 · the CMS preview renders that experience",
+      "status": "PASS",
+      "detail": "1763 chars · /dashboard/admin/experiencias/emociones-en-construccion/1/borrador/cmtm78mdz0002trvvdpuvkluu"
+    },
+    {
+      "name": "mg03 · the preview carries no correct answer",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "mg04 · the CMS preview renders that experience",
+      "status": "PASS",
+      "detail": "1915 chars · /dashboard/admin/experiencias/emociones-en-construccion/1/borrador/cmtm78mfc0003trvvi2dsvlh5"
+    },
+    {
+      "name": "mg04 · the preview carries no correct answer",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "mg05 · the CMS preview renders that experience",
+      "status": "PASS",
+      "detail": "1922 chars · /dashboard/admin/experiencias/emociones-en-construccion/1/borrador/cmtm78mgh0004trvvsu624gv0"
+    },
+    {
+      "name": "mg05 · the preview carries no correct answer",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "the five previews are five different screens",
+      "status": "PASS",
+      "detail": "5 distinct of 5"
+    },
+    {
+      "name": "the chapter home is reachable from the reader",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "the chapter offers five guided readings",
+      "status": "PASS",
+      "detail": "5"
+    },
+    {
+      "name": "the historical pilot is not among them",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "every card shows a duration",
+      "status": "PASS",
+      "detail": "6"
+    },
+    {
+      "name": "the book's integrative activity is offered",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "it opens",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "it shows no total and no verdict",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "a rating is marked in more than colour",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "choosing a belief reveals the five lenses",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "it says where what you write stays",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "still no verdict once the lenses are open",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "no request carried a correct answer",
+      "status": "PASS",
+      "detail": "0"
+    },
+    {
+      "name": "no guide command carried free text",
+      "status": "PASS",
+      "detail": "0"
+    },
+    {
+      "name": "no 5xx",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "console errors",
+      "status": "INFO",
+      "detail": "none"
+    }
+  ],
+  "failures": 0
+}

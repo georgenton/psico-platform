@@ -64,6 +64,15 @@ export interface ExperienceSceneContext {
   media: ExperienceMediaHooks | null;
   /** The verdict the SERVER returned for this session's recall, if any. */
   recallOutcome: GuideRecallOutcome | null;
+  /**
+   * The words the SERVER chose for that outcome.
+   *
+   * The panel used to write its own two sentences. That made the browser the
+   * editor of the one moment where copy was already approved — right after
+   * somebody answered a question about the chapter. Now it renders what the
+   * server sends, and `null` only while there is no verdict yet.
+   */
+  recallMessage: string | null;
 
   // ── The only ways a scene can cause anything ────────────────────────────
   /** Confirm the bound step. Valid only while `pendingStepKey` is set. */

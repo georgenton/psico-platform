@@ -494,7 +494,10 @@ export class GuideController {
   ): SubmitGuideStepRecallResponse {
     return {
       ...this.toResponse(res, result),
-      feedback: { outcome: result.feedback.outcome },
+      feedback: {
+        outcome: result.feedback.outcome,
+        message: result.feedback.message,
+      },
     };
   }
 

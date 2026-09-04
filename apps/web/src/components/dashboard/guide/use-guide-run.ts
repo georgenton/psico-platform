@@ -83,6 +83,8 @@ interface PlayerState {
   storageBlocked: boolean;
   /** GR-3 — what the server said about the last recall of this session. */
   recallOutcome: GuideRecallOutcome | null;
+  /** The server's approved sentence for that outcome. Never composed here. */
+  recallMessage: string | null;
   /**
    * GR-4 — the server handed back a session for a DIFFERENT
    * `guideKey@guideVersion`. Terminal by design: see `PIN_MISMATCH`.
@@ -129,7 +131,7 @@ const NO_FACTS: GuideRunFacts = { confirmedStepKeys: [], recalls: [] };
 function extendFacts(
   facts: GuideRunFacts,
   command: PendingGuideCommand,
-  feedback: { outcome: GuideRecallOutcome } | undefined,
+  feedback: { outcome: GuideRecallOutcome; message: string } | undefined,
 ): GuideRunFacts {
   if (command.commandType === "STEP_COMPLETE") {
     if (facts.confirmedStepKeys.includes(command.stepKey)) return facts;
@@ -159,6 +161,7 @@ const INITIAL: PlayerState = {
   retry: null,
   storageBlocked: false,
   recallOutcome: null,
+  recallMessage: null,
   pinMismatch: false,
   recoverable: null,
   facts: NO_FACTS,
@@ -224,6 +227,8 @@ export interface GuideRun {
   booting: boolean;
   /** The last recall verdict of this session, or null before one exists. */
   recallOutcome: GuideRecallOutcome | null;
+  /** The server's approved sentence for that outcome. Never composed here. */
+  recallMessage: string | null;
   /** GR-5 — an open run the server offered, which nothing has adopted yet. */
   recoverable: GuideSessionView | null;
   /** GR-7 — what this run was told, for the Completion Summary. */
@@ -335,6 +340,7 @@ export function useGuideRun({
         record: null,
         retry: null,
         recallOutcome: null,
+        recallMessage: null,
         error: PIN_MISMATCH,
       });
       return true;
@@ -368,7 +374,9 @@ export function useGuideRun({
     (
       command: PendingGuideCommand,
     ): Promise<
-      GuideCommandResponse & { feedback?: { outcome: GuideRecallOutcome } }
+      GuideCommandResponse & {
+        feedback?: { outcome: GuideRecallOutcome; message: string };
+      }
     > => {
       switch (command.commandType) {
         case "STEP_COMPLETE":
@@ -422,7 +430,12 @@ export function useGuideRun({
           retry: null,
           // Only the recall command carries a verdict; the others leave the
           // last one alone rather than blanking a screen the reader is on.
-          ...(res.feedback ? { recallOutcome: res.feedback.outcome } : {}),
+          ...(res.feedback
+            ? {
+                recallOutcome: res.feedback.outcome,
+                recallMessage: res.feedback.message,
+              }
+            : {}),
         });
         // Facts grow from the PREVIOUS facts, so this takes the updater form
         // rather than riding along in `patch`. React batches the two.
@@ -496,6 +509,7 @@ export function useGuideRun({
             session: null,
             record: null,
             recallOutcome: null,
+            recallMessage: null,
           });
           return;
         }
@@ -862,6 +876,7 @@ export function useGuideRun({
       error: null,
       retry: null,
       recallOutcome: null,
+      recallMessage: null,
       pinMismatch: false,
     });
   }, [patch, runPin]);
@@ -974,6 +989,7 @@ export function useGuideRun({
     busy: state.busy,
     booting: state.booting,
     recallOutcome: state.recallOutcome,
+    recallMessage: state.recallMessage,
     recoverable: state.recoverable,
     /** GR-7 — what this run was told, for the Completion Summary. */
     facts: state.facts,

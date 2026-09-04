@@ -17268,7 +17268,8 @@
                       "type": "object",
                       "additionalProperties": false,
                       "required": [
-                        "outcome"
+                        "outcome",
+                        "message"
                       ],
                       "properties": {
                         "outcome": {
@@ -17278,6 +17279,10 @@
                             "REVIEW"
                           ],
                           "description": "Lo que se le dice a la persona. Calificado por el servidor contra la respuesta canónica del catálogo, que nunca sale."
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "La frase aprobada para ESTE resultado, y solo para este. La resuelve el servidor desde el catálogo; la del otro resultado no cruza el cable, porque tener las dos sería tener la respuesta."
                         }
                       }
                     }
@@ -17362,7 +17367,8 @@
                       "type": "object",
                       "additionalProperties": false,
                       "required": [
-                        "outcome"
+                        "outcome",
+                        "message"
                       ],
                       "properties": {
                         "outcome": {
@@ -17372,6 +17378,10 @@
                             "REVIEW"
                           ],
                           "description": "Lo que se le dice a la persona. Calificado por el servidor contra la respuesta canónica del catálogo, que nunca sale."
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "La frase aprobada para ESTE resultado, y solo para este. La resuelve el servidor desde el catálogo; la del otro resultado no cruza el cable, porque tener las dos sería tener la respuesta."
                         }
                       }
                     }

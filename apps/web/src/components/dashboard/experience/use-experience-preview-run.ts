@@ -123,6 +123,7 @@ export function useExperiencePreviewRun(
       busy: false,
       booting: false,
       recallOutcome: null,
+      recallMessage: null,
       // A preview has no history to recover and nothing to adopt.
       recoverable: null,
       facts: { confirmedStepKeys: state.confirmedStepKeys, recalls: [] },

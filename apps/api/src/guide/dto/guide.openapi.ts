@@ -580,7 +580,7 @@ export const GUIDE_RECALL_COMMAND_RESPONSE: SchemaObject = {
     feedback: {
       type: "object",
       additionalProperties: false,
-      required: ["outcome"],
+      required: ["outcome", "message"],
       properties: {
         outcome: {
           type: "string",
@@ -588,6 +588,14 @@ export const GUIDE_RECALL_COMMAND_RESPONSE: SchemaObject = {
           description:
             "Lo que se le dice a la persona. Calificado por el servidor " +
             "contra la respuesta canónica del catálogo, que nunca sale.",
+        },
+        message: {
+          type: "string",
+          description:
+            "La frase aprobada para ESTE resultado, y solo para este. La " +
+            "resuelve el servidor desde el catálogo; la del otro resultado " +
+            "no cruza el cable, porque tener las dos sería tener la " +
+            "respuesta.",
         },
       },
     },

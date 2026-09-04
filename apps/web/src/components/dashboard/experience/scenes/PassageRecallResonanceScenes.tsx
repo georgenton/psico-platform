@@ -87,6 +87,7 @@ export function RecallScene({
   pendingStepKey,
   busy,
   recallOutcome,
+  recallMessage,
   submitRecall,
   goForward,
 }: ExperienceSceneContext) {
@@ -101,10 +102,13 @@ export function RecallScene({
         <SceneHeading>
           {recallOutcome === "CORRECT" ? "Correcto" : "Vale la pena repasarlo"}
         </SceneHeading>
+        {/* The approved sentence, from the server. The fallback is generic on
+            purpose: it says nothing about the answer, because a client that
+            filled this in with something specific would be editorialising a
+            verdict it did not reach. */}
         <SceneBody>
-          {recallOutcome === "CORRECT"
-            ? "Eso era. Puedes seguir."
-            : "No era esa. Volver al capítulo cuando quieras es parte del recorrido."}
+          {recallMessage ??
+            "Tu respuesta quedó registrada. Puedes seguir cuando quieras."}
         </SceneBody>
         <SceneActions>
           <SceneAction label="Continuar" onClick={goForward} />

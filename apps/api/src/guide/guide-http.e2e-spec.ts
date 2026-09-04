@@ -3,6 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import request from "supertest";
+import { recallFeedbackMessage } from "../content-core/recall-feedback";
 import { Logger } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import {
@@ -48,6 +49,8 @@ const PRACTICE_HEADING =
 const STEP_CONCEPT = "explorar-cuerpo-antes-que-mente";
 const STEP_PRACTICE = "practicar-escucharte-por-dentro";
 const STEP_RECALL = "recordar-cuerpo-antes-que-mente";
+/** The catalog item that step grades — where its approved copy comes from. */
+const RECALL_ITEM_KEY = "eec-c1-recall-cuerpo-antes-que-mente";
 const CORRECT_OPTION = "opcion-cuerpo-primero";
 const WRONG_OPTION = "opcion-mente-primero";
 
@@ -393,7 +396,24 @@ suite("CC-7.4D · Guide HTTP surface (real app + real PostgreSQL)", () => {
       expect(res.body.session.stepsCompleted).toBe(3);
       // GR-3 — the person is told how it went. `REVIEW`, never `INCORRECT`:
       // the ledger keeps the graded fact, the wire carries the invitation.
-      expect(res.body.feedback).toEqual({ outcome });
+      //
+      // Two fields and no more: the outcome, and the approved sentence FOR
+      // that outcome. The other branch's copy stays on the server — a client
+      // holding both messages holds the answer.
+      expect(Object.keys(res.body.feedback).sort()).toEqual([
+        "message",
+        "outcome",
+      ]);
+      expect(res.body.feedback.outcome).toBe(outcome);
+      expect(res.body.feedback.message).toBe(
+        recallFeedbackMessage(RECALL_ITEM_KEY, outcome),
+      );
+      expect(res.body.feedback.message).not.toBe(
+        recallFeedbackMessage(
+          RECALL_ITEM_KEY,
+          outcome === "CORRECT" ? "REVIEW" : "CORRECT",
+        ),
+      );
       // The correct answer never reaches the client.
       const serialized = JSON.stringify(res.body);
       expect(serialized).not.toContain("correctOptionKey");

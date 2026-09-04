@@ -113,7 +113,7 @@ evita para no sugerir un circuito único.
 | Opción C | toda reacción intensa demuestra peligro | idéntica | `MATCH` |
 | Correcta | `B`, solo servidor | `correctOptionKey` solo en `Exercise.content`; ausente de la definición, del manifiesto y de la vista pública | `MATCH` |
 | Sin inferencia | una respuesta incorrecta no deduce nada | ningún consumo de la respuesta más allá de la escena | `MATCH` |
-| Feedback CORRECT / REVIEW | dos textos | `MISSING` — el contrato de recall del catálogo (CC-7.3) acepta exactamente `recallMode`, `conceptKey`, `options` y `correctOptionKey`; añadir feedback exige ampliar ese contrato cerrado y su parser, fuera del alcance de esta fase. La corrección se muestra sin texto editorial. |
+| Feedback CORRECT / REVIEW | dos textos | `MATCH` — implementados literales. Ver la nota de abajo sobre dónde viven. |
 
 ### Escena 7 · SUMMARY
 
@@ -123,6 +123,27 @@ evita para no sugerir un circuito único.
 | Cuerpo | «Antes de concluir “esto es miedo”…» | idéntico | `MATCH` |
 | Puente | «En las siguientes microguías…» | segundo párrafo | `MATCH` |
 | actionLabel | `Finalizar` | idéntico | `MATCH` |
+
+#### Dónde vive el feedback del recall
+
+La copy aprobada de `CORRECT` y `REVIEW` está en el catálogo server-side, en la
+definición del recall — **no** en `Exercise.content`.
+
+La razón es operativa y vale la pena dejarla escrita: la ingesta compara los
+bytes almacenados y lanza `EXERCISE_INGEST_DRIFT_DETECTED` ante cualquier
+diferencia; nunca actualiza. Añadir un campo a la forma almacenada habría hecho
+que el siguiente `apply-targets` rechazara los siete recalls ya materializados,
+producción incluida. El feedback es dato de catálogo en ambos casos; esta es la
+mitad del catálogo que no necesita una fila para ser cierta.
+
+El servidor resuelve la frase al leer el resultado del ledger, así que un replay
+con la misma clave de idempotencia devuelve el mismo resultado **y** las mismas
+palabras. Solo viaja la rama que ocurrió: tener las dos sería tener la
+respuesta, igual que `correctOptionKey`.
+
+`assertPairValid` exige ambas ramas en todo recall objetivo, de modo que la
+falta de copy se detecta en la validación del catálogo y no delante de una
+persona que acaba de responder.
 
 ### Identidades: diseño v0.1 frente a handoff
 

@@ -5,8 +5,8 @@
   "results": [
     {
       "name": "mg01 · the CMS preview renders that experience",
-      "status": "PASS",
-      "detail": "/dashboard/admin/contenido/experiencias/cmtm67dyw0000mjvvngfpu1xw"
+      "status": "FAIL",
+      "detail": "1126 chars · /dashboard"
     },
     {
       "name": "mg01 · the preview carries no correct answer",
@@ -15,8 +15,8 @@
     },
     {
       "name": "mg02 · the CMS preview renders that experience",
-      "status": "PASS",
-      "detail": "/dashboard/admin/contenido/experiencias/cmtm67e090001mjvvriex7sqc"
+      "status": "FAIL",
+      "detail": "1126 chars · /dashboard"
     },
     {
       "name": "mg02 · the preview carries no correct answer",
@@ -25,8 +25,8 @@
     },
     {
       "name": "mg03 · the CMS preview renders that experience",
-      "status": "PASS",
-      "detail": "/dashboard/admin/contenido/experiencias/cmtm67e1e0002mjvvcf3v29ge"
+      "status": "FAIL",
+      "detail": "1126 chars · /dashboard"
     },
     {
       "name": "mg03 · the preview carries no correct answer",
@@ -35,8 +35,8 @@
     },
     {
       "name": "mg04 · the CMS preview renders that experience",
-      "status": "PASS",
-      "detail": "/dashboard/admin/contenido/experiencias/cmtm67e2j0003mjvv7595l5xq"
+      "status": "FAIL",
+      "detail": "1126 chars · /dashboard"
     },
     {
       "name": "mg04 · the preview carries no correct answer",
@@ -45,13 +45,18 @@
     },
     {
       "name": "mg05 · the CMS preview renders that experience",
-      "status": "PASS",
-      "detail": "/dashboard/admin/contenido/experiencias/cmtm67e3s0004mjvv7nwx9kdt"
+      "status": "FAIL",
+      "detail": "1126 chars · /dashboard"
     },
     {
       "name": "mg05 · the preview carries no correct answer",
       "status": "PASS",
       "detail": ""
+    },
+    {
+      "name": "the five previews are five different screens",
+      "status": "FAIL",
+      "detail": "1 distinct of 5"
     },
     {
       "name": "the chapter home is reachable from the reader",
@@ -60,12 +65,52 @@
     },
     {
       "name": "the chapter offers five guided readings",
-      "status": "FAIL",
-      "detail": "0"
+      "status": "PASS",
+      "detail": "5"
+    },
+    {
+      "name": "the historical pilot is not among them",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "every card shows a duration",
+      "status": "PASS",
+      "detail": "6"
     },
     {
       "name": "the book's integrative activity is offered",
-      "status": "FAIL",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "it opens",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "it shows no total and no verdict",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "a rating is marked in more than colour",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "choosing a belief reveals the five lenses",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "it says where what you write stays",
+      "status": "PASS",
+      "detail": ""
+    },
+    {
+      "name": "still no verdict once the lenses are open",
+      "status": "PASS",
       "detail": ""
     },
     {
@@ -86,8 +131,8 @@
     {
       "name": "console errors",
       "status": "INFO",
-      "detail": "Failed to load resource: the server responded with a status of 404 (Not Found) · Failed to load resource: the server responded with a status of 404 (Not Found) · Failed to load resource: the server responded with a status of 404 (Not Found)"
+      "detail": "none"
     }
   ],
-  "failures": 2
+  "failures": 6
 }

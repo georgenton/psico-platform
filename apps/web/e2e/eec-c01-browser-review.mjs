@@ -159,7 +159,9 @@ async function main() {
 
     // ── The reader's chapter ────────────────────────────────────────────────
     const readerUrl = `${BASE}/dashboard/biblioteca/${BOOK}/lector/${CHAPTER}`;
-    await page.goto(readerUrl, { waitUntil: "networkidle" });
+    // NOT `networkidle`: the reader keeps a reading-session heartbeat open, so
+    // the network is never idle and the wait would always time out.
+    await page.goto(readerUrl, { waitUntil: "domcontentloaded" });
 
     // The reader redirects to its canonical Content Core URL; wait for that
     // rather than for the one we typed.
@@ -208,6 +210,16 @@ async function main() {
     }
 
     // ── The integrative activity ────────────────────────────────────────────
+    //
+    // It lives in the READER, with the chapter's other activities — not on the
+    // chapter home, which is a menu. So go back to the text first.
+    const back = page.getByTestId("reader-open-chapter-home");
+    if (await back.isVisible().catch(() => false)) {
+      await back.click();
+      await page.waitForTimeout(2000);
+    }
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await page.waitForTimeout(1500);
     const myths = page.getByText("Mitos emocionales bajo la lupa").first();
     const mythsVisible = await myths.isVisible().catch(() => false);
     check("the book's integrative activity is offered", mythsVisible);
@@ -221,9 +233,30 @@ async function main() {
         "it shows no total and no verdict",
         !/total|puntaje|correcto|incorrecto/i.test(panelText),
       );
+
+      // Rate one belief, then pick one to look at. The writing step — and the
+      // line that says where the writing stays — only exists once there is
+      // something to look at, which is the design, not a missing string.
+      const firstRating = panel.getByRole("button", { name: /— 3 de 5$/ }).first();
+      if (await firstRating.isVisible().catch(() => false)) {
+        await firstRating.click();
+        check(
+          "a rating is marked in more than colour",
+          (await firstRating.getAttribute("aria-pressed")) === "true",
+        );
+      }
+      const beliefGroup = panel.getByRole("group", { name: "Elige una creencia" });
+      await beliefGroup.getByRole("button").first().click();
+      await page.waitForTimeout(600);
+      const opened = await panel.innerText();
+      check("choosing a belief reveals the five lenses", /Cinco lentes/i.test(opened));
       check(
         "it says where what you write stays",
-        /se queda en tu dispositivo/i.test(panelText),
+        /se queda en tu dispositivo/i.test(opened),
+      );
+      check(
+        "still no verdict once the lenses are open",
+        !/correcto|incorrecto|puntaje/i.test(opened),
       );
       await page.screenshot({
         path: join(ASSETS, "e2e", "integrative-activity.png"),

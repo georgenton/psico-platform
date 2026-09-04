@@ -494,6 +494,12 @@ describe("ratchet · guide web surface", () => {
    *   - the standalone route/card, which publish that exact guide and say so;
    *   - `LectorShell`, which pins it until GR-4 discovery lands (Session C
    *     replaces that literal with the server's answer);
+   *   - `guide-discovery-surface.ts`, which says WHERE each published pin is
+   *     offered. Naming a pin is the whole job of a lookup table, and the
+   *     property this ratchet protects — never DEFAULTING to Emociones when a
+   *     pin was not given — still holds there: an unclassified pin falls back
+   *     to a surface, never to a guide, and the `??`/`||` half of this test
+   *     below covers the file with no exemption at all;
    *   - test fixtures.
    */
   const EEC_LITERAL_ALLOWED = [
@@ -501,6 +507,7 @@ describe("ratchet · guide web surface", () => {
     join(GUIDE_DIR, "guide-reader-copy.ts"),
     join(GUIDE_DIR, "GuidePlayerMount.tsx"),
     join(GUIDE_DIR, "GuideEntryCard.tsx"),
+    join(GUIDE_DIR, "guide-discovery-surface.ts"),
     join(GUIDE_DIR, "guide-test-fixtures.ts"),
     join(WEB_SRC, "components", "dashboard", "lector", "LectorShell.tsx"),
   ];

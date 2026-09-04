@@ -19,6 +19,7 @@
  */
 
 import { guidePinKey, type GuidePin } from "./guide-pin";
+import { EEC_C01_PRESENTATIONS } from "./eec-c01-microguides";
 
 /**
  * Where the reader panel opens inside a checkpoint.
@@ -390,6 +391,8 @@ export class GuidePresentationRegistry {
 export const PRODUCTION_GUIDE_PRESENTATIONS: readonly GuidePresentation[] = [
   EEC_C1_PRESENTATION,
   PQP_C1_PRESENTATION,
+  // EEC-C01's five microguides, built from the approved manifests.
+  ...EEC_C01_PRESENTATIONS,
 ];
 
 export const guidePresentationRegistry = new GuidePresentationRegistry(

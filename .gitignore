@@ -82,3 +82,6 @@ artifacts/**/epub/*.epub
 # Playwright sessions saved by the e2e review scripts. They hold a real
 # access token for whatever environment the run authenticated against.
 apps/web/e2e/.eec-c01-session.json
+
+# Salidas temporales del spec del build EEC (se limpian solas; esto cubre un fallo a mitad).
+.tmp-eec-build-spec/

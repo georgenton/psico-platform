@@ -1,0 +1,7 @@
+{
+  "schema_version": "0.1-draft",
+  "chapter_id": "EEC-C02",
+  "architecture_status": "NOT_STARTED",
+  "_comment": "C01 llegó con su arquitectura de microguías aprobada por el equipo editorial; C02 todavía no la tiene. Se deja vacío a propósito: la suite guiada de un capítulo se diseña, no se deriva del texto.",
+  "guides": []
+}

@@ -26,6 +26,9 @@ importers:
       '@typescript-eslint/parser':
         specifier: ^7.10.0
         version: 7.18.0(eslint@8.57.1)(typescript@5.9.3)
+      citeproc:
+        specifier: ^2.4.63
+        version: 2.4.63
       eslint:
         specifier: ^8.57.0
         version: 8.57.1
@@ -5204,6 +5207,9 @@ packages:
   ci-info@3.9.0:
     resolution: {integrity: sha512-NIxF55hv4nSqQswkAeiOi1r83xy8JldOFDTWiug55KBu9Jnblncd2U6ViHmYgHf01TPZS77NJBhBMKdWj9HQMQ==}
     engines: {node: '>=8'}
+
+  citeproc@2.4.63:
+    resolution: {integrity: sha512-68F95Bp4UbgZU/DBUGQn0qV3HDZLCdI9+Bb2ByrTaNJDL5VEm9LqaiNaxljsvoaExSLEXe1/r6n2Z06SCzW3/Q==}
 
   cjs-module-lexer@1.4.3:
     resolution: {integrity: sha512-9z8TZaGM1pfswYeXrUpzPrkx8UnWYdhJclsiYMm6x/w5+nN+8Tf/LnAgfLGQCm59qAOxU8WwHEq2vNwF6i4j+Q==}
@@ -16407,6 +16413,8 @@ snapshots:
   ci-info@2.0.0: {}
 
   ci-info@3.9.0: {}
+
+  citeproc@2.4.63: {}
 
   cjs-module-lexer@1.4.3: {}
 

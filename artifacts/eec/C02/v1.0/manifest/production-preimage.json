@@ -1,0 +1,210 @@
+{
+  "observedAt": "2026-09-04T15:12:32.212Z",
+  "work": {
+    "id": "cms54lbmk0000lnrtj51e1tqx",
+    "workKey": "emociones-en-construccion",
+    "title": "Emociones en Construcción",
+    "authorName": "Marina Quintana"
+  },
+  "edition": {
+    "id": "cms54lbmv0001lnrto8llr2hb",
+    "editionKey": "emociones-en-construccion-1e",
+    "slug": "emociones-en-construccion",
+    "label": "Primera edición",
+    "language": "es-419",
+    "publishedRevisionId": "cmtkup2hi000027m10jvn18sj"
+  },
+  "publishedRevision": {
+    "id": "cmtkup2hi000027m10jvn18sj",
+    "number": 10,
+    "status": "PUBLISHED",
+    "publishedAt": "2026-09-03T01:33:07.084Z",
+    "note": "ingest-v2"
+  },
+  "manifest": [
+    {
+      "order": 1,
+      "unitId": "cms54lbnt0003lnrtax9tnjhx",
+      "unitVersionId": "cmtkup2hs000127m1zwp2onyn",
+      "partNumber": 1,
+      "partTitle": "Deconstruyendo lo que sabíamos",
+      "unitKey": "dce92620-2398-5efb-80a4-b90b180a01ae",
+      "isFreePreview": true,
+      "title": "¿Realmente sabemos qué es una emoción?",
+      "blocks": 188,
+      "blocks_native": 186,
+      "blocks_mirrored": 2
+    },
+    {
+      "order": 2,
+      "unitId": "cms54ld4j007blnrt9dunicjl",
+      "unitVersionId": "cuv-f58df2e8-4203-5aa2-83b0-1a8ab79a885a",
+      "partNumber": 1,
+      "partTitle": "Deconstruyendo lo que sabíamos",
+      "unitKey": "f58df2e8-4203-5aa2-83b0-1a8ab79a885a",
+      "isFreePreview": false,
+      "title": "¿Existen realmente las emociones universales?",
+      "blocks": 185,
+      "blocks_native": 0,
+      "blocks_mirrored": 185
+    },
+    {
+      "order": 3,
+      "unitId": "cms54lf9600hnlnrtdfecefhq",
+      "unitVersionId": "cuv-f1fd8e4d-39ac-547f-908a-cb97c7f9170b",
+      "partNumber": 1,
+      "partTitle": "Deconstruyendo lo que sabíamos",
+      "unitKey": "f1fd8e4d-39ac-547f-908a-cb97c7f9170b",
+      "isFreePreview": false,
+      "title": "Tu cerebro inventa emociones",
+      "blocks": 68,
+      "blocks_native": 0,
+      "blocks_mirrored": 68
+    }
+  ],
+  "revisions": [
+    {
+      "id": "cms54lbnh0002lnrtuq1ajwlu",
+      "number": 1,
+      "status": "PUBLISHED",
+      "publishedAt": "2026-07-28T20:46:05.465Z"
+    },
+    {
+      "id": "cmsmj8816000601o7lk6wzc8o",
+      "number": 2,
+      "status": "ARCHIVED",
+      "publishedAt": null
+    },
+    {
+      "id": "cmsmj8j9m003w01o7ddrzcckv",
+      "number": 3,
+      "status": "PUBLISHED",
+      "publishedAt": "2026-08-10T01:15:16.456Z"
+    },
+    {
+      "id": "cmsmnmj8c000u01nzix8ni7wz",
+      "number": 4,
+      "status": "ARCHIVED",
+      "publishedAt": null
+    },
+    {
+      "id": "cmsmnml67004k01nzcmwxw8yy",
+      "number": 5,
+      "status": "PUBLISHED",
+      "publishedAt": "2026-08-10T03:12:03.038Z"
+    },
+    {
+      "id": "cmsowzyh3000301mpvn0wos82",
+      "number": 6,
+      "status": "ARCHIVED",
+      "publishedAt": null
+    },
+    {
+      "id": "cmsox1kju003v01mpk4n8ilfy",
+      "number": 7,
+      "status": "PUBLISHED",
+      "publishedAt": "2026-08-11T17:10:24.443Z"
+    },
+    {
+      "id": "cmsp3hb06000501sv11d6dcnl",
+      "number": 8,
+      "status": "PUBLISHED",
+      "publishedAt": "2026-08-11T20:10:28.782Z"
+    },
+    {
+      "id": "cmsp5d6pb000201o21j3yl075",
+      "number": 9,
+      "status": "PUBLISHED",
+      "publishedAt": "2026-08-11T21:04:26.451Z"
+    },
+    {
+      "id": "cmtkup2hi000027m10jvn18sj",
+      "number": 10,
+      "status": "PUBLISHED",
+      "publishedAt": "2026-09-03T01:33:07.084Z"
+    }
+  ],
+  "legacyBook": {
+    "id": "cmql50rqr00015nvvjz2mxdpq",
+    "slug": "emociones-en-construccion",
+    "title": "Emociones en Construcción"
+  },
+  "legacyChapters": [
+    {
+      "id": "cmql50rvm00025nvvwpft991k",
+      "order": 1,
+      "title": "¿Realmente sabemos qué es una emoción?",
+      "chapter_blocks": 129
+    },
+    {
+      "id": "cmql50s0300035nvvaq6j3mt1",
+      "order": 2,
+      "title": "¿Existen realmente las emociones universales?",
+      "chapter_blocks": 185
+    },
+    {
+      "id": "cmredpw6l008s0nprp3uomtwx",
+      "order": 3,
+      "title": "Tu cerebro inventa emociones",
+      "chapter_blocks": 68
+    }
+  ],
+  "preservation": {
+    "order-1": {
+      "unitId": "cms54lbnt0003lnrtax9tnjhx",
+      "contentBlocks": 316,
+      "highlights": 6,
+      "annotations": 1,
+      "readingSessions": 1,
+      "legacyChapterId": "cmql50rvm00025nvvwpft991k",
+      "legacyChapterBlocks": 129,
+      "legacyHighlights": 6,
+      "legacyAnnotations": 1,
+      "legacyReadingSessions": 13
+    },
+    "order-2": {
+      "unitId": "cms54ld4j007blnrt9dunicjl",
+      "contentBlocks": 185,
+      "highlights": 0,
+      "annotations": 0,
+      "readingSessions": 0,
+      "legacyChapterId": "cmql50s0300035nvvaq6j3mt1",
+      "legacyChapterBlocks": 185,
+      "legacyHighlights": 0,
+      "legacyAnnotations": 0,
+      "legacyReadingSessions": 3
+    },
+    "order-3": {
+      "unitId": "cms54lf9600hnlnrtdfecefhq",
+      "contentBlocks": 68,
+      "highlights": 0,
+      "annotations": 0,
+      "readingSessions": 0,
+      "legacyChapterId": "cmredpw6l008s0nprp3uomtwx",
+      "legacyChapterBlocks": 68,
+      "legacyHighlights": 0,
+      "legacyAnnotations": 0,
+      "legacyReadingSessions": 1
+    }
+  },
+  "unitDigests": {
+    "order-1": {
+      "unitKey": "dce92620-2398-5efb-80a4-b90b180a01ae",
+      "title": "¿Realmente sabemos qué es una emoción?",
+      "blocks": 188,
+      "digest": "06655b2be292186b475258b8259e2204680ecf7d5e6815936f8c5fb32e2a42c8"
+    },
+    "order-2": {
+      "unitKey": "f58df2e8-4203-5aa2-83b0-1a8ab79a885a",
+      "title": "¿Existen realmente las emociones universales?",
+      "blocks": 185,
+      "digest": "58a60a9da538c93f52745b657559fa13a271d4f6466a29018699d77be67e5285"
+    },
+    "order-3": {
+      "unitKey": "f1fd8e4d-39ac-547f-908a-cb97c7f9170b",
+      "title": "Tu cerebro inventa emociones",
+      "blocks": 68,
+      "digest": "f9e269684bacbbc16851fb1e9896d5db50e79681fe697b1ba7ff551cb2c79729"
+    }
+  }
+}

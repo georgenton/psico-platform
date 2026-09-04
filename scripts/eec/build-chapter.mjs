@@ -27,15 +27,25 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  renameSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
+import CSL from "citeproc";
 import { parseChapter } from "./parse-chapter.mjs";
+import {
+  bibToCslJson,
+  createEngine,
+  renderBibliography,
+  renderNotes,
+} from "./render-csl.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "../..");
+/** El libro se compone en español; el estilo toma de aquí sus términos. */
+const CSL_LOCALE_FILE = "locales-es-ES.xml";
 
 // ── args ───────────────────────────────────────────────────────────────────
 function parseArgs(argv) {
@@ -99,6 +109,12 @@ function numberNotes(citations) {
   const seen = new Set();
   return citations.map((c, i) => ({
     n: i + 1,
+    // El identificador estable de la nota. El número visible depende del orden
+    // de aparición y cambia si el capítulo se reordena; `noteId` no, y es lo
+    // único con lo que impresión, EPUB y FeelVerse pueden hablar de LA MISMA
+    // nota. Se perdía justo aquí: `numberNotes` construía objetos nuevos y
+    // `note_id` se quedaba en `citations.json`.
+    noteId: c.note_id ?? null,
     anchorId: c.anchor_id ?? null,
     citationKey: c.citation_key,
     locator: c.locator ?? null,
@@ -178,10 +194,18 @@ function buildDocx(tmp, { title, blocks, notes, bibEntries }) {
     body.push(
       `<w:p><w:pPr><w:pStyle w:val="Heading2"/></w:pPr><w:r><w:t>Notas</w:t></w:r></w:p>`,
     );
-    for (const n of notes)
+    // El `noteId` viaja en un marcador de Word: invisible en la página,
+    // legible por cualquiera que abra el fichero. Sin esto, la nota impresa
+    // solo se podría identificar por su número, que es justo lo que cambia.
+    notes.forEach((n, i) =>
       body.push(
-        `<w:p><w:r><w:t xml:space="preserve">${xml(`${n.n}. ${n.rendered}`)}</w:t></w:r></w:p>`,
-      );
+        `<w:p>${
+          n.noteId
+            ? `<w:bookmarkStart w:id="${i + 1}" w:name="${xml(n.noteId)}"/><w:bookmarkEnd w:id="${i + 1}"/>`
+            : ""
+        }<w:r><w:t xml:space="preserve">${xml(`${n.n}. ${n.rendered}`)}</w:t></w:r></w:p>`,
+      ),
+    );
   }
   body.push(
     `<w:p><w:pPr><w:pStyle w:val="Heading2"/></w:pPr><w:r><w:t>Bibliografía</w:t></w:r></w:p>`,
@@ -250,7 +274,15 @@ function buildEpub(
     })
     .join("\n");
   const notesHtml = notes.length
-    ? `<h2>Notas</h2><ol>${notes.map((n) => `<li id="note-${n.n}">${xml(n.rendered)} <a href="#ref-${n.n}">↩</a></li>`).join("")}</ol>`
+    ? `<h2>Notas</h2><ol>${notes
+        .map(
+          (n) =>
+            // `data-note-id`: el identificador estable acompaña a la nota en el
+            // EPUB igual que en el DOCX y en el JSON de FeelVerse.
+            `<li id="note-${n.n}"${n.noteId ? ` data-note-id="${xml(n.noteId)}"` : ""}>` +
+            `${xml(n.rendered)} <a href="#ref-${n.n}">↩</a></li>`,
+        )
+        .join("")}</ol>`
     : "";
   const bibHtml = `<h2>Bibliografía</h2>${bibEntries.map((e) => `<p class="bib">${xml(e)}</p>`).join("")}`;
 
@@ -287,17 +319,58 @@ ${bibHtml}
   );
 }
 
-/** Un motor de PDF real o nada. Un PDF «casi bien» para imprenta es peor que ninguno. */
+/**
+ * Un motor de PDF real o nada. Un PDF «casi bien» para imprenta es peor que
+ * ninguno.
+ *
+ * Cada motor se invoca con SUS argumentos. La versión anterior devolvía el
+ * primer binario encontrado y lo llamaba siempre con la línea de Pandoc
+ * (`--to=pdf -o salida entrada`): con LibreOffice o WeasyPrint delante en el
+ * PATH, eso o falla o escribe un fichero que no es el PDF que se pidió.
+ * WeasyPrint, además, ni siquiera lee DOCX — solo HTML —, así que aquí no
+ * figura como conversor de este build.
+ */
+const PDF_ENGINES = [
+  {
+    bin: "pandoc",
+    args: (docx, pdf) => [docx, "--to=pdf", "-o", pdf],
+    reads: "docx",
+  },
+  {
+    bin: "soffice",
+    args: (docx, pdf) => [
+      "--headless",
+      "--convert-to",
+      "pdf",
+      "--outdir",
+      dirname(pdf),
+      docx,
+    ],
+    reads: "docx",
+    // LibreOffice nombra la salida como el fuente: hay que moverla al nombre
+    // pedido en vez de suponer que `--outdir` acepta un nombre de fichero.
+    producesSourceName: true,
+  },
+  {
+    bin: "libreoffice",
+    args: (docx, pdf) => [
+      "--headless",
+      "--convert-to",
+      "pdf",
+      "--outdir",
+      dirname(pdf),
+      docx,
+    ],
+    reads: "docx",
+    producesSourceName: true,
+  },
+];
+
 function findPdfEngine() {
-  for (const [bin, args] of [
-    ["pandoc", ["--version"]],
-    ["soffice", ["--version"]],
-    ["libreoffice", ["--version"]],
-    ["weasyprint", ["--version"]],
-  ]) {
+  for (const engine of PDF_ENGINES) {
     try {
-      execFileSync("which", [bin], { stdio: "pipe" });
-      return { bin, args };
+      execFileSync("which", [engine.bin], { stdio: "pipe" });
+      return engine;
     } catch {
       /* siguiente */
     }
@@ -350,8 +423,32 @@ export function build({ chapter, out }) {
     readFileSync(join(src, unit.files.anchors), "utf8"),
   );
   const bibPath = join(ROOT, unit.citation_system.bibliography);
-  const bibText = readFileSync(bibPath, "utf8");
+  const bibRaw = readFileSync(bibPath);
+  const bibText = bibRaw.toString("utf8");
   const keys = bibKeys(bibText);
+
+  // El `.bib` es tan canónico como la prosa cuando la unidad fija su SHA: la
+  // bibliografía de un capítulo cerrado no puede cambiar por debajo del build.
+  if (unit.citation_system.bibliography_sha256) {
+    const bibSha = sha256(bibRaw);
+    report.checks.bibliographySha256 = bibSha;
+    report.checks.bibliographyShaMatches =
+      bibSha === unit.citation_system.bibliography_sha256;
+    if (!report.checks.bibliographyShaMatches) {
+      throw new Error(
+        `BIBLIOGRAPHY_SHA_MISMATCH esperado=${unit.citation_system.bibliography_sha256} real=${bibSha}`,
+      );
+    }
+  }
+  if (unit.citation_system.bibliography_entries_expected != null) {
+    const expected = unit.citation_system.bibliography_entries_expected;
+    report.checks.bibliographyEntriesExpected = expected;
+    if (keys.size !== expected) {
+      throw new Error(
+        `BIBLIOGRAPHY_ENTRY_COUNT_MISMATCH esperado=${expected} real=${keys.size}`,
+      );
+    }
+  }
   const citations = citationsDoc.citations ?? [];
 
   const problems = validateCitations(citations, keys, anchors);
@@ -383,12 +480,16 @@ export function build({ chapter, out }) {
       (anchorBlock.get(a.anchor_id) ?? Number.MAX_SAFE_INTEGER) -
       (anchorBlock.get(b.anchor_id) ?? Number.MAX_SAFE_INTEGER),
   );
-  const notes = numberNotes(ordered).map((n) => ({
-    ...n,
-    // Sin CSL processor no se compone la nota; con `citations: []` tampoco hay
-    // ninguna que componer. Se deja explícito en vez de inventar una cadena.
-    rendered: `${n.citationKey}${n.locator ? `, ${n.locator}` : ""}`,
-  }));
+  // Chicago de verdad: el estilo declarado en `unit.json`, procesado por
+  // citeproc-js. Antes salía `citationKey, locator`, que no es Chicago ni es
+  // una nota — era el nombre de una fila de Zotero.
+  const cslItems = bibToCslJson(bibText);
+  const engine = createEngine({
+    stylePath: join(ROOT, "styles", unit.citation_system.csl_file),
+    localePath: join(ROOT, "styles", CSL_LOCALE_FILE),
+    items: cslItems,
+  });
+  const notes = renderNotes(engine, numberNotes(ordered));
   const byAnchor = new Map();
   for (const n of notes) {
     if (!n.anchorId) continue;
@@ -405,42 +506,25 @@ export function build({ chapter, out }) {
     report.blockers.push({
       code: "CITATIONS_NOT_MAPPED",
       detail:
-        "citations.json llega con `citations: []` (status SCHEMA_VALID_RECORDS_BLOCKED). " +
-        "Las 23 Citation Keys existen en el .bib, pero no existe el mapa afirmación → ancla → " +
-        "Zotero Key → localizador, así que no hay notas que numerar. No se inventa.",
+        `citations.json llega con \`citations: []\`. Las ${keys.size} Citation Keys existen ` +
+        "en el .bib, pero no existe el mapa afirmación → ancla → Zotero Key → localizador, " +
+        "así que no hay notas que numerar. No se inventa.",
     });
   }
   if (problems.length) {
     throw new Error(`CITATION_VALIDATION_FAILED: ${problems.join(", ")}`);
   }
 
-  // Bibliografía: entradas del .bib en orden alfabético por clave. Una sola.
-  const bibEntries = [
-    ...bibText.matchAll(/^@[a-zA-Z]+\{([^,]+),([\s\S]*?)\n\}/gm),
-  ]
-    .map(([, key, body]) => {
-      const f = (n) =>
-        body
-          .match(
-            new RegExp(
-              `\\n\\s*${n}\\s*=\\s*[{"]([\\s\\S]*?)[}"],?\\s*\\n`,
-              "i",
-            ),
-          )?.[1]
-          ?.replace(/\s+/g, " ")
-          .replace(/[{}]/g, "")
-          .trim() ?? "";
-      const parts = [
-        f("author"),
-        f("year") || f("date"),
-        f("title"),
-        f("journal") || f("publisher"),
-      ];
-      return { key, line: parts.filter(Boolean).join(". ") + "." };
-    })
-    .sort((a, b) => a.key.localeCompare(b.key))
-    .map((e) => e.line);
+  // Bibliografía: el `.bib` del capítulo entero (`bibliography_scope: book`),
+  // compuesto y ordenado por el mismo estilo CSL que las notas. Antes era un
+  // `author. year. title. journal.` unido con puntos, que no es ningún estilo.
+  const bibEntries = renderBibliography(engine, Object.keys(cslItems));
   report.checks.bibliographyEntries = bibEntries.length;
+  report.checks.citationStyle = {
+    csl: unit.citation_system.csl_file,
+    locale: CSL_LOCALE_FILE,
+    processor: `citeproc-js ${CSL.PROCESSOR_VERSION}`,
+  };
 
   // 3 · salidas.
   rmSync(dest, { recursive: true, force: true });
@@ -477,9 +561,13 @@ export function build({ chapter, out }) {
         blocks: payload.blocks.length,
         notes: notes.map((n) => ({
           n: n.n,
+          // `noteId` viaja a las tres salidas: el número puede cambiar de
+          // capítulo a capítulo o de edición a edición, el identificador no.
+          noteId: n.noteId,
           anchorId: n.anchorId,
           citationKey: n.citationKey,
           locator: n.locator,
+          rendered: n.rendered,
         })),
         bibliography: bibEntries,
         citation_system: unit.citation_system,
@@ -520,19 +608,29 @@ export function build({ chapter, out }) {
   report.outputs.epub = relative(ROOT, epub);
 
   // 3d · PDF, solo con un motor real.
-  const engine = findPdfEngine();
-  if (engine) {
+  const pdfEngine = findPdfEngine();
+  if (pdfEngine) {
     const pdf = join(dest, `print/EEC_${chapter}_PRINT_v${version}_READY.pdf`);
-    execFileSync(engine.bin, ["--to=pdf", "-o", pdf, docx], { cwd: ROOT });
+    execFileSync(pdfEngine.bin, pdfEngine.args(docx, pdf), { cwd: ROOT });
+    if (pdfEngine.producesSourceName) {
+      const produced = docx.replace(/\.docx$/, ".pdf");
+      if (produced !== pdf && existsSync(produced)) renameSync(produced, pdf);
+    }
+    if (!existsSync(pdf)) {
+      throw new Error(`PDF_ENGINE_PRODUCED_NOTHING:${pdfEngine.bin}`);
+    }
     report.outputs.pdf = relative(ROOT, pdf);
+    report.checks.pdfEngine = pdfEngine.bin;
   } else {
     report.outputs.pdf = null;
+    report.checks.pdfEngine = null;
     report.blockers.push({
-      code: "PDF_ENGINE_ABSENT",
+      code: "SKIPPED_NO_RELIABLE_PDF_ENGINE",
       detail:
-        "Ni pandoc/LaTeX, ni LibreOffice, ni WeasyPrint en este entorno. El DOCX es " +
-        "válido y abre en Word; generar el PDF con un conversor improvisado daría un " +
-        "PDF que parece de imprenta y no lo es.",
+        "Ni pandoc/LaTeX ni LibreOffice en este entorno. El DOCX es válido y abre " +
+        "en Word; generar el PDF con un conversor improvisado — o llamando a uno " +
+        "real con los argumentos de otro — daría un fichero que parece de imprenta " +
+        "y no lo es.",
     });
   }
 

@@ -78,3 +78,7 @@ apps/api/src/.v1-artifact/
 artifacts/**/print/*.docx
 artifacts/**/print/*.pdf
 artifacts/**/epub/*.epub
+
+# Playwright sessions saved by the e2e review scripts. They hold a real
+# access token for whatever environment the run authenticated against.
+apps/web/e2e/.eec-c01-session.json

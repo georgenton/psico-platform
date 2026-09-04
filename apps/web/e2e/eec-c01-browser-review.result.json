@@ -5,8 +5,8 @@
   "results": [
     {
       "name": "mg01 · the CMS preview renders that experience",
-      "status": "FAIL",
-      "detail": "1126 chars · /dashboard"
+      "status": "PASS",
+      "detail": "1749 chars · /dashboard/admin/experiencias/emociones-en-construccion/1/borrador/cmtm78mbf0000trvvy9pzczto"
     },
     {
       "name": "mg01 · the preview carries no correct answer",
@@ -15,8 +15,8 @@
     },
     {
       "name": "mg02 · the CMS preview renders that experience",
-      "status": "FAIL",
-      "detail": "1126 chars · /dashboard"
+      "status": "PASS",
+      "detail": "1739 chars · /dashboard/admin/experiencias/emociones-en-construccion/1/borrador/cmtm78mcs0001trvv2uhbh3zj"
     },
     {
       "name": "mg02 · the preview carries no correct answer",
@@ -25,8 +25,8 @@
     },
     {
       "name": "mg03 · the CMS preview renders that experience",
-      "status": "FAIL",
-      "detail": "1126 chars · /dashboard"
+      "status": "PASS",
+      "detail": "1763 chars · /dashboard/admin/experiencias/emociones-en-construccion/1/borrador/cmtm78mdz0002trvvdpuvkluu"
     },
     {
       "name": "mg03 · the preview carries no correct answer",
@@ -35,8 +35,8 @@
     },
     {
       "name": "mg04 · the CMS preview renders that experience",
-      "status": "FAIL",
-      "detail": "1126 chars · /dashboard"
+      "status": "PASS",
+      "detail": "1915 chars · /dashboard/admin/experiencias/emociones-en-construccion/1/borrador/cmtm78mfc0003trvvi2dsvlh5"
     },
     {
       "name": "mg04 · the preview carries no correct answer",
@@ -45,8 +45,8 @@
     },
     {
       "name": "mg05 · the CMS preview renders that experience",
-      "status": "FAIL",
-      "detail": "1126 chars · /dashboard"
+      "status": "PASS",
+      "detail": "1922 chars · /dashboard/admin/experiencias/emociones-en-construccion/1/borrador/cmtm78mgh0004trvvsu624gv0"
     },
     {
       "name": "mg05 · the preview carries no correct answer",
@@ -55,8 +55,8 @@
     },
     {
       "name": "the five previews are five different screens",
-      "status": "FAIL",
-      "detail": "1 distinct of 5"
+      "status": "PASS",
+      "detail": "5 distinct of 5"
     },
     {
       "name": "the chapter home is reachable from the reader",
@@ -134,5 +134,5 @@
       "detail": "none"
     }
   ],
-  "failures": 6
+  "failures": 0
 }

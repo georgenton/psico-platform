@@ -49,6 +49,14 @@ const info = (name, detail) => {
 
 async function login(page) {
   await page.goto(`${BASE}/login`, { waitUntil: "networkidle" });
+  // Wait for hydration before submitting. A click on a form whose action has
+  // not attached yet submits it NATIVELY — the browser then lands back on
+  // /login with the password in the query string, and the wait below times out
+  // with nothing on screen to explain why.
+  await page.waitForFunction(() => {
+    const f = document.querySelector("form");
+    return Boolean(f && Object.keys(f).some((k) => k.startsWith("__react")));
+  }, { timeout: 30_000 });
   await page.fill('input[type="email"]', EMAIL);
   await page.fill('input[type="password"]', PASSWORD);
   await page.click('button[type="submit"]');

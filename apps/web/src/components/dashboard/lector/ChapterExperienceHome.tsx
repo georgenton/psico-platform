@@ -7,6 +7,7 @@ import {
   type ExperienceStatesLoad,
 } from "../experience/ExperienceList";
 import { GuidedRouteList } from "../guide/GuidedRouteList";
+import { belongsInLegacyExperienceList } from "../guide/guide-discovery-surface";
 import type { RouteCardVerdict } from "../guide/GuidedRouteList";
 import type { GuideRouteState } from "../guide/use-guide-route";
 import type { GuideRouteItem } from "@psico/types";
@@ -216,7 +217,13 @@ export function ChapterExperienceHome({
   // guide discovery answers «nothing here» hide experiences it publishes
   // itself, and left a picked journey unrunnable for a reason that has nothing
   // to do with it.
-  const visibleExperiences = experiencesEnabled ? experiences : [];
+  // …and not the ones whose home is the guided route. Publishing EEC-C01's
+  // five put them in both lists at once, so a reader saw the same readings
+  // twice — once as a route, once as cards that could not open. One surface
+  // owns each pin; the rest of this list is unchanged.
+  const visibleExperiences = experiencesEnabled
+    ? experiences.filter((e) => belongsInLegacyExperienceList(e.guidePin))
+    : [];
 
   if (activityCount > 0) {
     rows.push({

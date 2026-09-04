@@ -45,6 +45,20 @@ const getExperienceCardStates = vi.fn();
 const createGuideSession = vi.fn();
 const listPublishedForChapter = vi.fn();
 
+/**
+ * These suites are about card machinery — status, pick, handler guards,
+ * verdicts — and they use the historical pilot as "some published card in this
+ * chapter". Since EEC-C01's five shipped, that pin is no longer OFFERED as a
+ * card (one surface per reading); its bundle still resolves so an open session
+ * runs. Which pins reach the list is asserted, unmocked, in
+ * `ChapterExperienceHome.surfaces.test.tsx`; here we simply say the chapter
+ * lists what it is given.
+ */
+vi.mock("../guide/guide-discovery-surface", () => ({
+  guideDiscoverySurface: () => "legacy",
+  belongsInLegacyExperienceList: () => true,
+}));
+
 vi.mock("@psico/api-client", async (importOriginal) => {
   const actual = await importOriginal<typeof ApiClientModule>();
   return {

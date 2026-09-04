@@ -12,6 +12,10 @@
  */
 
 import { guidePinKey, type GuidePin } from "./guide-pin";
+import { EEC_C01_READER_COPY } from "./eec-c01-microguides";
+import { READER_GUIDE_SHARED } from "./guide-reader-shared";
+
+export { READER_GUIDE_SHARED };
 
 export interface GuideReaderCopy {
   guideKey: string;
@@ -132,31 +136,12 @@ export const READER_GUIDE_UNAVAILABLE =
  */
 export const READER_GUIDE_LOADING = "Buscando la guía de este capítulo…";
 
-/** Words that are the product's, not a chapter's — identical in every guide. */
-const SHARED = {
-  modeLabel: READER_GUIDE_MODE_LABEL,
-  resonance: {
-    question: "¿Esta idea fue personalmente significativa para ti?",
-    yes: "Esto me resonó",
-    no: "Ahora no",
-    saved: "Añadido a tu mapa. Puedes verlo (y quitarlo) en Mis resonancias.",
-    error: "No pudimos guardarlo. Reintenta.",
-  },
-  checkin: {
-    action: "Registrar mi momento",
-    note: "Opcional. Lo eliges tú; la guía no interpreta cómo te sientes.",
-  },
-  unavailable: READER_GUIDE_UNAVAILABLE,
-  close: "Cerrar",
-  panelLabel: "Lectura guiada",
-} as const;
-
 // ─── Emociones en Construcción · capítulo 1 ──────────────────────────────────
 
 const EEC_C1_COPY: GuideReaderCopy = {
   guideKey: "eec-c1-cuerpo-antes-que-mente",
   guideVersion: 1,
-  ...SHARED,
+  ...READER_GUIDE_SHARED,
 
   cover: {
     eyebrow: "Guía breve",
@@ -272,7 +257,7 @@ const EEC_C1_COPY: GuideReaderCopy = {
 const PQP_C1_COPY: GuideReaderCopy = {
   guideKey: "pqp-c1-contacto-sostenido",
   guideVersion: 1,
-  ...SHARED,
+  ...READER_GUIDE_SHARED,
 
   cover: {
     eyebrow: "Guía breve",
@@ -419,6 +404,8 @@ export class GuideReaderCopyRegistry {
 }
 
 export const PRODUCTION_GUIDE_READER_COPY: readonly GuideReaderCopy[] = [
+  // EEC-C01's five microguides, built from the approved manifests.
+  ...EEC_C01_READER_COPY,
   EEC_C1_COPY,
   PQP_C1_COPY,
 ];

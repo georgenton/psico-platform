@@ -1,0 +1,201 @@
+{
+  "schema_version": "1.0",
+  "chapter_id": "EEC-C02",
+  "canonical_version": "EEC_C02_v1.0_TEXT_LOCKED_2026-08-21",
+  "publication_reference_layer": "EEC_C02_PUBREF_v1.0",
+  "citation_style": {
+    "manual": "Chicago Manual of Style",
+    "edition": 18,
+    "system": "shortened-notes-and-bibliography",
+    "csl_file": "chicago-shortened-notes-bibliography.csl",
+    "callouts": "superscript",
+    "numbering": "generated-at-build-time",
+    "numbering_resets_each_chapter": true,
+    "bibliography_scope": "book"
+  },
+  "generated_by": "scripts/eec/resolve-citations.mjs",
+  "generated_at": "2026-09-04",
+  "citations": [],
+  "unresolved": [
+    {
+      "source_code": "SRC-EKMAN-SORENSON-1969-PAN-CULTURAL-ELEMENTS",
+      "citation_key": "EkmanSorensonFriesen1969PanCultural",
+      "reason": "NO_ANCHOR",
+      "detail": "Ningún encabezado del capítulo nombra a esta autoría, y no existe marcador de cita en el manuscrito. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "source_code": "SRC-EKMAN-FRIESEN-1971-CONSTANTS-ACROSS-CULTURES",
+      "citation_key": "EkmanFriesen1971Constants",
+      "reason": "NO_ANCHOR",
+      "detail": "Ningún encabezado del capítulo nombra a esta autoría, y no existe marcador de cita en el manuscrito. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "source_code": "SRC-EKMAN-1987-UNIVERSALS-AND-CULTURAL",
+      "citation_key": "EkmanEtAl1987Universals",
+      "reason": "NO_ANCHOR",
+      "detail": "Ningún encabezado del capítulo nombra a esta autoría, y no existe marcador de cita en el manuscrito. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "source_code": "SRC-COWEN-2021-SIXTEEN-FACIAL-EXPRESSIONS",
+      "citation_key": "CowenEtAl2021Sixteen",
+      "reason": "NO_ANCHOR",
+      "detail": "Ningún encabezado del capítulo nombra a esta autoría, y no existe marcador de cita en el manuscrito. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "source_code": "SRC-GENDRON-2014-PERCEPTIONS-OF-EMOTION",
+      "citation_key": "GendronEtAl2014Facial",
+      "reason": "NO_ANCHOR",
+      "detail": "Ningún encabezado del capítulo nombra a esta autoría, y no existe marcador de cita en el manuscrito. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "source_code": "SRC-GENDRON-2014-CULTURAL-RELATIVITY-IN",
+      "citation_key": "GendronEtAl2014Vocalizations",
+      "reason": "NO_ANCHOR",
+      "detail": "Ningún encabezado del capítulo nombra a esta autoría, y no existe marcador de cita en el manuscrito. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "source_code": "SRC-JACK-2012-FACIAL-EXPRESSIONS-OF",
+      "citation_key": "JackEtAl2012Facial",
+      "reason": "NO_ANCHOR",
+      "detail": "Ningún encabezado del capítulo nombra a esta autoría, y no existe marcador de cita en el manuscrito. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "source_code": "SRC-MASUDA-2008-PLACING-THE-FACE",
+      "citation_key": "MasudaEtAl2008Context",
+      "reason": "NO_ANCHOR",
+      "detail": "Ningún encabezado del capítulo nombra a esta autoría, y no existe marcador de cita en el manuscrito. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "source_code": "SRC-AVIEZER-TROPE-2012-BODY-CUES-NOT",
+      "citation_key": "AviezerTropeTodorov2012Body",
+      "reason": "NO_ANCHOR",
+      "detail": "Ningún encabezado del capítulo nombra a esta autoría, y no existe marcador de cita en el manuscrito. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "source_code": "SRC-RIGHART-GELDER-2008-RAPID-INFLUENCE-OF",
+      "citation_key": "RighartDeGelder2008SceneGist",
+      "reason": "NO_ANCHOR",
+      "detail": "Ningún encabezado del capítulo nombra a esta autoría, y no existe marcador de cita en el manuscrito. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "source_code": "SRC-MATSUMOTO-1990-CULTURAL-SIMILARITIES-AND",
+      "citation_key": "Matsumoto1990DisplayRules",
+      "reason": "NO_ANCHOR",
+      "detail": "Ningún encabezado del capítulo nombra a esta autoría, y no existe marcador de cita en el manuscrito. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "source_code": "SRC-TSAI-KNUTSON-2006-CULTURAL-VARIATION-IN",
+      "citation_key": "TsaiKnutsonFung2006AffectValuation",
+      "reason": "NO_ANCHOR",
+      "detail": "Ningún encabezado del capítulo nombra a esta autoría, y no existe marcador de cita en el manuscrito. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "source_code": "SRC-TSAI-2007-LEARNING-WHAT-FEELINGS",
+      "citation_key": "TsaiEtAl2007Storybooks",
+      "reason": "NO_ANCHOR",
+      "detail": "Ningún encabezado del capítulo nombra a esta autoría, y no existe marcador de cita en el manuscrito. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "source_code": "SRC-COLE-BRUSCHI-2002-CULTURAL-DIFFERENCES-IN",
+      "citation_key": "ColeBruschiTamang2002DifficultSituations",
+      "reason": "NO_ANCHOR",
+      "detail": "Ningún encabezado del capítulo nombra a esta autoría, y no existe marcador de cita en el manuscrito. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "source_code": "SRC-COLE-TAMANG-2006-CULTURAL-VARIATIONS-IN",
+      "citation_key": "ColeTamangShrestha2006AngerShame",
+      "reason": "NO_ANCHOR",
+      "detail": "Ningún encabezado del capítulo nombra a esta autoría, y no existe marcador de cita en el manuscrito. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "source_code": "SRC-CHAPLIN-COLE-2005-PARENTAL-SOCIALIZATION-OF",
+      "citation_key": "ChaplinColeZahnWaxler2005Parental",
+      "reason": "NO_ANCHOR",
+      "detail": "Ningún encabezado del capítulo nombra a esta autoría, y no existe marcador de cita en el manuscrito. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "source_code": "SRC-LINDQUIST-2006-LANGUAGE-AND-THE",
+      "citation_key": "LindquistEtAl2006Language",
+      "reason": "NO_ANCHOR",
+      "detail": "Ningún encabezado del capítulo nombra a esta autoría, y no existe marcador de cita en el manuscrito. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "source_code": "SRC-GENDRON-2012-EMOTION-WORDS-SHAPE",
+      "citation_key": "GendronEtAl2012WordsShapePercepts",
+      "reason": "NO_ANCHOR",
+      "detail": "Ningún encabezado del capítulo nombra a esta autoría, y no existe marcador de cita en el manuscrito. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "source_code": "SRC-ANOOSHIAN-HERTEL-1994-EMOTIONALITY-IN-FREE",
+      "citation_key": "AnooshianHertel1994Emotionality",
+      "reason": "NO_ANCHOR",
+      "detail": "Ningún encabezado del capítulo nombra a esta autoría, y no existe marcador de cita en el manuscrito. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "source_code": "SRC-FERRE-2010-MEMORY-FOR-EMOTIONAL",
+      "citation_key": "FerreEtAl2010Bilinguals",
+      "reason": "NO_ANCHOR",
+      "detail": "Ningún encabezado del capítulo nombra a esta autoría, y no existe marcador de cita en el manuscrito. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "source_code": "SRC-RAE-ASALE-2014-PENA-CORAJE",
+      "citation_key": "RAEASALE2014PenaCoraje",
+      "reason": "NO_ANCHOR",
+      "detail": "Ningún encabezado del capítulo nombra a esta autoría, y no existe marcador de cita en el manuscrito. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "source_code": "SRC-BOSS-2004-AMBIGUOUS-LOSS-RESEARCH",
+      "citation_key": "Boss2004AmbiguousLoss",
+      "reason": "NO_ANCHOR",
+      "detail": "Ningún encabezado del capítulo nombra a esta autoría, y no existe marcador de cita en el manuscrito. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "source_code": "SRC-BOSS-COUDEN-2002-AMBIGUOUS-LOSS-FROM",
+      "citation_key": "BossCouden2002ChronicIllness",
+      "reason": "NO_ANCHOR",
+      "detail": "Ningún encabezado del capítulo nombra a esta autoría, y no existe marcador de cita en el manuscrito. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "source_code": "SRC-DOKA-1989-DISENFRANCHISED-GRIEF-RECOGNIZING",
+      "citation_key": "Doka1989DisenfranchisedBook",
+      "reason": "NO_ANCHOR",
+      "detail": "Ningún encabezado del capítulo nombra a esta autoría, y no existe marcador de cita en el manuscrito. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "source_code": "SRC-DOKA-1999-DISENFRANCHISED-GRIEF",
+      "citation_key": "Doka1999Disenfranchised",
+      "reason": "NO_ANCHOR",
+      "detail": "Ningún encabezado del capítulo nombra a esta autoría, y no existe marcador de cita en el manuscrito. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "source_code": "SRC-CORR-1999-ENHANCING-THE-CONCEPT",
+      "citation_key": "Corr1999Enhancing",
+      "reason": "NO_ANCHOR",
+      "detail": "Ningún encabezado del capítulo nombra a esta autoría, y no existe marcador de cita en el manuscrito. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "source_code": "SRC-CASTLE-PHILLIPS-2003-GRIEF-RITUALS-ASPECTS",
+      "citation_key": "CastlePhillips2003GriefRituals",
+      "reason": "NO_ANCHOR",
+      "detail": "Ningún encabezado del capítulo nombra a esta autoría, y no existe marcador de cita en el manuscrito. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "source_code": "SRC-ULCUANGO-NOVOA-2013-LOS-RITUALES-FUNERARIOS",
+      "citation_key": "UlcuangoNovoa2013RitualesZuleta",
+      "reason": "NO_ANCHOR",
+      "detail": "Ningún encabezado del capítulo nombra a esta autoría, y no existe marcador de cita en el manuscrito. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "source_code": "SRC-QUITO-INFORMA-2024-CALDERON-CONMEMORA-EL",
+      "citation_key": "QuitoInforma2024DifuntosCalderon",
+      "reason": "NO_ANCHOR",
+      "detail": "Ningún encabezado del capítulo nombra a esta autoría, y no existe marcador de cita en el manuscrito. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    }
+  ],
+  "summary": {
+    "sources_in_inventory": 29,
+    "bib_entries": 29,
+    "resolved": 0,
+    "unresolved": 29
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "chapter": "C02",
+  "canonicalVersion": "EEC_C02_v1.0_TEXT_LOCKED_2026-08-21",
+  "builtAt": "2026-09-04T15:19:47.778Z",
+  "checks": {
+    "canonicalSha256": "f137ee10fb80a3ea91af42d93d7262b98de7101a5eeae37051d765dc12a2188a",
+    "canonicalShaMatches": true,
+    "parsedTitle": "¿Existen realmente las emociones universales?",
+    "titleMatchesUnit": true,
+    "blocks": 230,
+    "blockKinds": {
+      "HEADING": 19,
+      "QUOTE": 5,
+      "PARAGRAPH": 203,
+      "PAUSE": 1,
+      "EXERCISE": 1,
+      "VIDEO": 1
+    },
+    "bibliographySha256": "c13f040401797329aa3945d6f1358cdf1a67a1b83cf6fc029b31cc7854abd2fa",
+    "bibliographyShaMatches": true,
+    "bibliographyEntriesExpected": 29,
+    "citationKeysInBib": 29,
+    "notes": 0,
+    "citationProblems": [],
+    "numberingIsAutomatic": true,
+    "bibliographyEntries": 29,
+    "citationStyle": {
+      "csl": "chicago-shortened-notes-bibliography.csl",
+      "locale": "locales-es-ES.xml",
+      "processor": "citeproc-js 1.4.61"
+    },
+    "pdfEngine": null
+  },
+  "outputs": {
+    "feelverse": [
+      "artifacts/eec/C02/v1.0/feelverse/unit-payload.json",
+      "artifacts/eec/C02/v1.0/feelverse/chapter.json"
+    ],
+    "docx": "artifacts/eec/C02/v1.0/print/EEC_C02_PRINT_v1.0_READY.docx",
+    "epub": "artifacts/eec/C02/v1.0/epub/EEC_C02_v1.0.epub",
+    "pdf": null
+  },
+  "blockers": [
+    {
+      "code": "CITATIONS_NOT_MAPPED",
+      "detail": "citations.json llega con `citations: []`. Las 29 Citation Keys existen en el .bib, pero no existe el mapa afirmación → ancla → Zotero Key → localizador, así que no hay notas que numerar. No se inventa."
+    },
+    {
+      "code": "SKIPPED_NO_RELIABLE_PDF_ENGINE",
+      "detail": "Ni pandoc/LaTeX ni LibreOffice en este entorno. El DOCX es válido y abre en Word; generar el PDF con un conversor improvisado — o llamando a uno real con los argumentos de otro — daría un fichero que parece de imprenta y no lo es."
+    }
+  ]
+}

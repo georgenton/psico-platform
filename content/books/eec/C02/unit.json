@@ -1,0 +1,55 @@
+{
+  "schema_version": "1.0",
+  "unit_id": "EEC-C02",
+  "canonical_version": "EEC_C02_v1.0_TEXT_LOCKED_2026-08-21",
+  "canonical_sha256": "f137ee10fb80a3ea91af42d93d7262b98de7101a5eeae37051d765dc12a2188a",
+  "title": "¿Existen realmente las emociones universales?",
+  "_comment_identity": "Identificadores REALES de producción, leídos el 2026-09-04 en una transacción READ ONLY (artifacts/eec/C02/v1.0/manifest/production-preimage.json). Igual que en C01: el unitKey no se deriva del slug sino de uuidv5(Chapter.id), así que no es portable entre entornos. Se registran para trazabilidad; el CLI de ingesta los RESUELVE en el entorno destino y nunca confía en estos valores.",
+  "production": {
+    "workKey": "emociones-en-construccion",
+    "editionKey": "emociones-en-construccion-1e",
+    "editionId": "cms54lbmv0001lnrto8llr2hb",
+    "editionSlug": "emociones-en-construccion",
+    "unitKey": "f58df2e8-4203-5aa2-83b0-1a8ab79a885a",
+    "contentUnitId": "cms54ld4j007blnrt9dunicjl",
+    "legacyChapterId": "cmql50s0300035nvvaq6j3mt1",
+    "observedAt": "2026-09-04",
+    "publishedRevisionNumber": 10,
+    "previousPublishedRevisionId": "cmtkup2hi000027m10jvn18sj",
+    "publishedAt": null
+  },
+  "placement": {
+    "order": 2,
+    "partNumber": 1,
+    "partTitle": "Deconstruyendo lo que sabíamos"
+  },
+  "isFreePreview": false,
+  "files": {
+    "canonical_markdown": "chapter.md",
+    "anchors": "anchors.json",
+    "citations": "citations.json",
+    "figures": "figures.json",
+    "microguides": "microguides.json",
+    "activities": "activities.json",
+    "assets": "assets-manifest.json"
+  },
+  "citation_system": {
+    "manual": "Chicago Manual of Style",
+    "edition": 18,
+    "system": "shortened-notes-and-bibliography",
+    "csl_file": "chicago-shortened-notes-bibliography.csl",
+    "bibliography": "bibliography/eec-c02.bib",
+    "bibliography_canonical_filename": "EEC_C02_ZOTERO_IMPORTACION_COMPLETA_2026-08-21.bib",
+    "bibliography_sha256": "c13f040401797329aa3945d6f1358cdf1a67a1b83cf6fc029b31cc7854abd2fa",
+    "bibliography_entries_expected": 29,
+    "callouts": "superscript",
+    "numbering": "generated-at-build-time",
+    "numbering_resets_each_chapter": true
+  },
+  "_comment_gates": "Estos tres gates los evalúa el build y la ingesta; no se editan a mano para «desbloquear».",
+  "gates": {
+    "text_locked": "PASS",
+    "citations": "NONE_RESOLVED_29_UNRESOLVED",
+    "reader_projection": "PASS"
+  }
+}

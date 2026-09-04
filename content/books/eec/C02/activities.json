@@ -1,0 +1,16 @@
+{
+  "schema_version": "0.1-draft",
+  "chapter_id": "EEC-C02",
+  "activities": [
+    {
+      "activity_id": "ACT-C02-001",
+      "title": "Tu mapa de cultura emocional",
+      "anchor_id": "eec-c2-actividad-tu-mapa-de-cultura-emocional",
+      "source_layer": "TEXT_LOCKED",
+      "status": "EXISTING_CANONICAL_ACTIVITY",
+      "feelverse_adaptation": "PENDING_DESIGN",
+      "creates_second_version_of_chapter": false,
+      "text_locked_change_required": false
+    }
+  ]
+}

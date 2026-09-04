@@ -104,6 +104,16 @@ function matchKey(src, bib) {
   }
   const srcSur = surnames(src.Autor ?? "");
   const srcTitle = norm(src.Fuente);
+  // Título idéntico primero. La regla de prefijo existe para tolerar subtítulos
+  // recortados en el inventario, pero convierte a un título corto en prefijo de
+  // uno largo: «Disenfranchised Grief» (1999) empata también con
+  // «Disenfranchised Grief: Recognizing Hidden Sorrow» (1989), y dos candidatos
+  // se descartan. Cuando UNA entrada coincide exactamente, esa igualdad es la
+  // identidad más fuerte disponible y no hay ambigüedad que romper.
+  const exact = bib.filter((b) => norm(b.title) && norm(b.title) === srcTitle);
+  if (exact.length === 1) {
+    return { key: exact[0].key, method: "title-exact", value: exact[0].title };
+  }
   const byTitle = bib.filter((b) => {
     const t = norm(b.title);
     return (

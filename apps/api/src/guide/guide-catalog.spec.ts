@@ -247,12 +247,15 @@ describe("guide catalog · registry", () => {
 });
 
 describe("ratchet · guide catalog contract", () => {
-  it("GUIDE_PRODUCTION_REGISTRY_ENTRIES=7 — exactly the approved definitions", () => {
-    // 2 → 7 with the EEC-C01 five-microguide route (author decision 2026-09-03).
+  it("GUIDE_PRODUCTION_REGISTRY_ENTRIES=12 — exactly the approved definitions", () => {
+    // 2 → 7 with the EEC-C01 five-microguide route (author decision 2026-09-03),
+    // 7 → 12 with the EEC-C02 five (author decision 2026-09-04). The count is a
+    // ratchet on purpose: registering a guide is an editorial act, so growth
+    // has to be typed here by whoever approved it.
     // The V1 pilot stays in the registry although discovery retired it: a
     // session pinned to it must keep resolving.
-    expect(PRODUCTION_GUIDE_DEFINITIONS).toHaveLength(7);
-    expect(productionGuideRegistry.size).toBe(7);
+    expect(PRODUCTION_GUIDE_DEFINITIONS).toHaveLength(12);
+    expect(productionGuideRegistry.size).toBe(12);
     expect(PRODUCTION_GUIDE_DEFINITIONS.map((d) => d.guideKey)).toEqual([
       "eec-c1-cuerpo-antes-que-mente",
       "eec-c1-teorias-como-lentes",
@@ -260,8 +263,23 @@ describe("ratchet · guide catalog contract", () => {
       "eec-c1-alarma-antes-del-relato",
       "eec-c1-emocion-informa-no-manda",
       "eec-c1-construida-no-significa-falsa",
+      "eec-c2-universal-no-significa-uniforme",
+      "eec-c2-cultura-gramatica-no-destino",
+      "eec-c2-gesto-necesita-contexto",
+      "eec-c2-palabras-dan-contorno",
+      "eec-c2-rituales-dan-marco-no-guion",
       "pqp-c1-contacto-sostenido",
     ]);
+    // No chapter's guide may target another chapter's teaching rows: five
+    // sessions on C02 completing a C01 step would merge two readings' progress.
+    for (const d of PRODUCTION_GUIDE_DEFINITIONS.filter((g) =>
+      g.guideKey.startsWith("eec-c2-"),
+    )) {
+      const targets = JSON.stringify(d.steps);
+      expect(targets).not.toContain("eec-c1-");
+      expect(targets).toContain("eec-c2-practice-");
+      expect(targets).toContain("eec-c2-recall-");
+    }
     // Every microguide carries the same three obligatory steps, in order.
     for (const d of PRODUCTION_GUIDE_DEFINITIONS) {
       expect(d.guideVersion).toBe(1);
@@ -305,9 +323,15 @@ describe("ratchet · guide catalog contract", () => {
       ],
     });
 
-    // The SECOND approved definition — Parejas que perduran, chapter 1
-    // (platform chapterOrder 2). Same immutability rule.
-    expect(PRODUCTION_GUIDE_DEFINITIONS[6]).toEqual({
+    // The Parejas definition — chapter 1 of that book (platform chapterOrder
+    // 2). Same immutability rule. Looked up by key rather than by index: it
+    // sits last, and pinning a position would make every new chapter's five
+    // rewrite an assertion about a definition they do not touch.
+    expect(
+      PRODUCTION_GUIDE_DEFINITIONS.find(
+        (d) => d.guideKey === "pqp-c1-contacto-sostenido",
+      ),
+    ).toEqual({
       guideKey: "pqp-c1-contacto-sostenido",
       guideVersion: 1,
       steps: [

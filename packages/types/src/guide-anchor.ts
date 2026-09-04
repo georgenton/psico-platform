@@ -259,6 +259,69 @@ export const EEC_C1_MG05_ANCHOR: GuideReaderAnchorLocator = {
   expectedMatchCount: 1,
 };
 
+/**
+ * EEC-C02 · «¿Existen realmente las emociones universales?» (revisión 11).
+ *
+ * Las cinco anclas del capítulo 2. Cada `passageLastSentence` está copiada del
+ * texto canónico tal como Content Core lo sirve — con su énfasis Markdown
+ * incluido, porque el bloque publicado lo lleva: quitar los asteriscos de
+ * `*universal*` o de `**hipótesis**` produciría cero coincidencias, y una
+ * ancla que no resuelve es una guía sin pasaje.
+ */
+export const EEC_C2_MG01_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "eec-c2-universal-no-significa-uniforme",
+  guideVersion: 1,
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 2,
+  sourceHeading: "¿Qué significa realmente que una emoción sea universal?",
+  passageLastSentence:
+    "En realidad, la palabra *universal* puede referirse a cosas diferentes.",
+  expectedMatchCount: 1,
+};
+
+export const EEC_C2_MG02_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "eec-c2-cultura-gramatica-no-destino",
+  guideVersion: 1,
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 2,
+  sourceHeading: "La cultura como gramática emocional",
+  passageLastSentence:
+    "la cultura emocional no determina mecánicamente cada experiencia",
+  expectedMatchCount: 1,
+};
+
+export const EEC_C2_MG03_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "eec-c2-gesto-necesita-contexto",
+  guideVersion: 1,
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 2,
+  sourceHeading: "El rostro no habla solo",
+  passageLastSentence:
+    "La expresión es una pista; el contexto y la conversación permiten formular **hipótesis**",
+  expectedMatchCount: 1,
+};
+
+export const EEC_C2_MG04_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "eec-c2-palabras-dan-contorno",
+  guideVersion: 1,
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 2,
+  sourceHeading: "Las palabras dan contorno a la experiencia",
+  passageLastSentence: "Las palabras funcionan como líneas en un mapa.",
+  expectedMatchCount: 1,
+};
+
+export const EEC_C2_MG05_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "eec-c2-rituales-dan-marco-no-guion",
+  guideVersion: 1,
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 2,
+  sourceHeading: "Rituales: cuando sentir necesita un marco compartido",
+  passageLastSentence:
+    "Los rituales pueden ofrecer testigos. Pero el testigo no dicta cómo debe sentirse quien está de duelo.",
+  expectedMatchCount: 1,
+};
+
 /** The anchors this build ships. Adding a guide means adding a line here. */
 export const guideAnchorRegistry = new GuideAnchorRegistry([
   GUIDE_READER_ANCHOR,
@@ -267,6 +330,11 @@ export const guideAnchorRegistry = new GuideAnchorRegistry([
   EEC_C1_MG03_ANCHOR,
   EEC_C1_MG04_ANCHOR,
   EEC_C1_MG05_ANCHOR,
+  EEC_C2_MG01_ANCHOR,
+  EEC_C2_MG02_ANCHOR,
+  EEC_C2_MG03_ANCHOR,
+  EEC_C2_MG04_ANCHOR,
+  EEC_C2_MG05_ANCHOR,
   PAREJAS_READER_ANCHOR,
 ]);
 

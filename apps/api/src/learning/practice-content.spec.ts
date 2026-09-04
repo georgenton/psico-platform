@@ -23,11 +23,23 @@ const stored = (key: string) => {
 };
 
 describe("the five practice interactions", () => {
-  it("the catalog ships exactly five, one per kind", () => {
-    expect(withInteraction).toHaveLength(5);
-    expect(withInteraction.map((p) => p.practiceKind).sort()).toEqual(
-      [...PRACTICE_KINDS].sort(),
-    );
+  it("ships one practice per microguide, and every kind is used", () => {
+    // Five with EEC-C01, ten with EEC-C02. What is ratcheted is not the number
+    // of practices — a chapter may add more — but that each one declares a kind
+    // this build renders, and that no kind is shipped without a practice using
+    // it.
+    expect(withInteraction).toHaveLength(10);
+    expect(
+      withInteraction.every(
+        (p) => p.chapterOrder === 1 || p.chapterOrder === 2,
+      ),
+    ).toBe(true);
+    for (const p of withInteraction) {
+      expect(PRACTICE_KINDS as readonly string[]).toContain(p.practiceKind);
+    }
+    expect(
+      [...new Set(withInteraction.map((p) => p.practiceKind))].sort(),
+    ).toEqual([...PRACTICE_KINDS].sort());
   });
 
   it("each one round-trips through the stored content", () => {

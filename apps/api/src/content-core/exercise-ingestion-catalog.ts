@@ -604,6 +604,493 @@ export const EXERCISE_INGESTION_CATALOG: Readonly<
         },
       },
     },
+    // ── EEC-C02 · the five-microguide route (author decision, 2026-09-04) ──
+    //
+    // Ten more rows for chapter 2. Every `sourceHeading` is verbatim from
+    // `EEC_C02_v1.0_TEXT_LOCKED_2026-08-21`, and every recall answer is what
+    // that chapter says — the distractors are the readings it explicitly
+    // corrects (uniformity from one level, culture as destiny, expression as
+    // subtitle, the word as the experience, the ritual as a prescription).
+    //
+    // The interactions reuse the five kinds C01 shipped. `context_plausibility`
+    // appears twice on purpose: sorting claims into levels and sorting readings
+    // of a gesture into how well they fit are the same interaction with
+    // different buckets, and inventing a sixth kind for that would add a
+    // renderer nobody needs.
+    {
+      practice: {
+        exerciseKey: "eec-c2-practice-seis-cajones",
+        bookSlug: "emociones-en-construccion",
+        chapterOrder: 2,
+        order: 13,
+        type: "REFLECTION",
+        title: "Seis cajones: de qué nivel habla cada afirmación",
+        sourceHeading:
+          "¿Qué significa realmente que una emoción sea universal?",
+        practiceKind: "context_plausibility",
+        interaction: {
+          kind: "context_plausibility",
+          situation:
+            "Alguien afirma que «el miedo es universal». Antes de responder sí o no, conviene preguntar de qué nivel está hablando.",
+          observation:
+            "El capítulo separa seis preguntas distintas que suelen discutirse como si fueran una sola.",
+          availableContext: [
+            "Compartir una capacidad corporal no obliga a compartir una categoría.",
+            "Reconocer una expresión en una tarea de laboratorio no equivale a interpretarla igual en la vida diaria.",
+            "Una regla social sobre cuándo mostrar algo no dice nada sobre si se siente.",
+          ],
+          readings: [
+            {
+              key: "activacion",
+              label:
+                "«Ante un peligro, el cuerpo de cualquier persona puede activarse.»",
+            },
+            {
+              key: "palabra",
+              label:
+                "«Una lengua puede reunir bajo una palabra lo que otra separa en dos.»",
+            },
+            {
+              key: "gesto",
+              label:
+                "«Los movimientos del rostro se parecen bastante entre poblaciones distintas.»",
+            },
+            {
+              key: "eleccion",
+              label:
+                "«En una tarea con opciones dadas, la mayoría elige la misma etiqueta.»",
+            },
+            {
+              key: "velorio",
+              label:
+                "«En este grupo se espera contener el llanto delante de visitas.»",
+            },
+          ],
+          buckets: [
+            { key: "capacidad", label: "Capacidad corporal" },
+            { key: "acontecimiento", label: "Acontecimiento relevante" },
+            { key: "categoria", label: "Categoría" },
+            { key: "expresion", label: "Expresión" },
+            { key: "reconocimiento", label: "Reconocimiento" },
+            { key: "regla", label: "Regla social" },
+          ],
+          missingInformationPrompt:
+            "Mira lo que clasificaste: ¿qué conclusión permite cada nivel, y cuál NO permite? Encontrar una semejanza en uno no demuestra uniformidad en los demás.",
+        },
+      },
+      recall: {
+        exerciseKey: "eec-c2-recall-universal-no-significa-uniforme",
+        bookSlug: "emociones-en-construccion",
+        chapterOrder: 2,
+        order: 14,
+        type: "QUIZ",
+        title:
+          "Según el capítulo 2, si un estudio encuentra que cierta expresión facial se reconoce de forma parecida en varios países, ¿qué queda demostrado?",
+        content: {
+          recallMode: "objective",
+          conceptKey: "eec-universal-no-significa-uniforme",
+          options: [
+            {
+              key: "opcion-solo-ese-nivel",
+              label:
+                "Solo una semejanza en ese nivel: no demuestra que las categorías, el significado, la interpretación ni las reglas sociales sean iguales.",
+            },
+            {
+              key: "opcion-todo-uniforme",
+              label:
+                "Que esa emoción se vive, se nombra y se expresa de la misma manera en todas esas culturas.",
+            },
+            {
+              key: "opcion-nada",
+              label:
+                "Que las expresiones faciales no aportan ninguna información sobre lo que siente una persona.",
+            },
+          ],
+          correctOptionKey: "opcion-solo-ese-nivel",
+        },
+        feedback: {
+          correct:
+            "Exacto. «Universal» nombra varios niveles distintos; una semejanza en uno de ellos no se extiende automáticamente a los otros.",
+          review:
+            "Revisa la idea central: el capítulo separa capacidades, acontecimientos, categorías, expresión, reconocimiento y reglas sociales. Encontrar una regularidad en un nivel no demuestra uniformidad en los demás.",
+        },
+      },
+    },
+    {
+      practice: {
+        exerciseKey: "eec-c2-practice-de-etiqueta-a-contexto",
+        bookSlug: "emociones-en-construccion",
+        chapterOrder: 2,
+        order: 15,
+        type: "REFLECTION",
+        title: "De etiqueta a contexto: qué afirma, qué supone, qué falta",
+        sourceHeading: "La cultura como gramática emocional",
+        practiceKind: "belief_lens",
+        interaction: {
+          kind: "belief_lens",
+          belief: "«En esta familia nadie habla de lo que siente.»",
+          zones: [
+            {
+              key: "observo",
+              label: "Qué afirma la frase",
+              hint: "Lo dicho, sin ampliarlo: a quiénes incluye y con qué alcance.",
+              options: [
+                { key: "todos", label: "Que aplica a todas las personas." },
+                {
+                  key: "siempre",
+                  label: "Que ocurre siempre, en cualquier situación.",
+                },
+                { key: "tendencia", label: "Que hay una tendencia aprendida." },
+                {
+                  key: "algunas",
+                  label: "Que algunas conversaciones son difíciles.",
+                },
+              ],
+            },
+            {
+              key: "supongo",
+              label: "Qué está suponiendo",
+              hint: "El salto de una costumbre observada a un rasgo fijo.",
+              options: [
+                { key: "destino", label: "Que la costumbre no puede cambiar." },
+                { key: "no-siente", label: "Que quien no habla no siente." },
+                {
+                  key: "uniforme",
+                  label: "Que dentro del grupo nadie difiere.",
+                },
+                {
+                  key: "causa-unica",
+                  label: "Que hay una sola razón para ese silencio.",
+                },
+              ],
+            },
+            {
+              key: "falta",
+              label: "Qué falta: contexto y persona concreta",
+              hint: "Lo que habría que precisar antes de convertirla en regla.",
+              options: [
+                { key: "quien", label: "De qué persona concreta hablamos." },
+                {
+                  key: "cuando",
+                  label: "En qué situaciones sí ocurre y en cuáles no.",
+                },
+                {
+                  key: "con-quien",
+                  label: "Con quién sí se habla de otras cosas.",
+                },
+                { key: "aprendido", label: "Qué se aprendió y de quién." },
+              ],
+            },
+          ],
+          allowsFreeText: true,
+        },
+      },
+      recall: {
+        exerciseKey: "eec-c2-recall-cultura-gramatica-no-destino",
+        bookSlug: "emociones-en-construccion",
+        chapterOrder: 2,
+        order: 16,
+        type: "QUIZ",
+        title:
+          "Según el capítulo 2, ¿qué quiere decir que la cultura emocional funcione como una gramática?",
+        content: {
+          recallMode: "objective",
+          conceptKey: "eec-cultura-gramatica-no-destino",
+          options: [
+            {
+              key: "opcion-influye-no-determina",
+              label:
+                "Que ofrece estructuras que vuelven ciertas respuestas familiares y otras extrañas, sin decidir mecánicamente lo que cada persona siente.",
+            },
+            {
+              key: "opcion-determina",
+              label:
+                "Que fija de antemano qué siente cada integrante del grupo y vuelve homogénea a la sociedad.",
+            },
+            {
+              key: "opcion-irrelevante",
+              label:
+                "Que la cultura solo afecta modales y costumbres visibles, sin relación con la vida emocional.",
+            },
+          ],
+          correctOptionKey: "opcion-influye-no-determina",
+        },
+        feedback: {
+          correct:
+            "Exacto. Una gramática ofrece estructuras y hace unas combinaciones más familiares que otras; no dicta cada frase, y la cultura emocional tampoco dicta cada experiencia.",
+          review:
+            "Revisa la distinción central del capítulo: influencia no es determinación. La cultura enseña qué suele notarse, decirse y esperarse — y aun así las personas difieren dentro de un mismo grupo.",
+        },
+      },
+    },
+    {
+      practice: {
+        exerciseKey: "eec-c2-practice-del-gesto-a-la-pregunta",
+        bookSlug: "emociones-en-construccion",
+        chapterOrder: 2,
+        order: 17,
+        type: "REFLECTION",
+        title: "Del gesto a la pregunta",
+        sourceHeading: "El rostro no habla solo",
+        practiceKind: "context_plausibility",
+        interaction: {
+          kind: "context_plausibility",
+          situation:
+            "Durante una conversación sobre una cuenta pendiente, una persona sube el volumen de la voz y la otra deja de responder.",
+          observation:
+            "Se ve un cambio de volumen en una y un silencio sostenido en la otra. Nada más es visible.",
+          availableContext: [
+            "En una de las dos casas, hablar con intensidad era habitual y no anunciaba ruptura.",
+            "En la otra, el silencio era la forma aprendida de evitar el conflicto.",
+            "Ninguna de las dos ha dicho todavía qué está sintiendo.",
+          ],
+          readings: [
+            {
+              key: "indiferencia",
+              label: "«El silencio significa que no le importa.»",
+            },
+            {
+              key: "amenaza",
+              label: "«El volumen significa que hay una amenaza.»",
+            },
+            {
+              key: "aprendido",
+              label:
+                "«Cada quien está usando la forma que aprendió para un momento tenso.»",
+            },
+          ],
+          buckets: [
+            { key: "encaja", label: "Encaja con lo que se ve" },
+            { key: "falta-contexto", label: "Podría ser: falta contexto" },
+            { key: "va-mas-alla", label: "Va más allá de la evidencia" },
+          ],
+          missingInformationPrompt:
+            "Elige la pregunta que harías para comprobar en vez de concluir. Por ejemplo: «Cuando te quedas en silencio, ¿qué está pasando por ti?». Una hipótesis se comprueba; un veredicto se impone.",
+        },
+      },
+      recall: {
+        exerciseKey: "eec-c2-recall-gesto-necesita-contexto",
+        bookSlug: "emociones-en-construccion",
+        chapterOrder: 2,
+        order: 18,
+        type: "QUIZ",
+        title:
+          "Según el capítulo 2, si alguien suaviza su rostro por una regla de expresión aprendida, ¿qué se puede concluir sobre lo que siente?",
+        content: {
+          recallMode: "objective",
+          conceptKey: "eec-gesto-necesita-contexto",
+          options: [
+            {
+              key: "opcion-regula-no-niega",
+              label:
+                "Que la regla puede modificar lo que se muestra; no demuestra que la experiencia esté ausente, ni cuál es.",
+            },
+            {
+              key: "opcion-no-siente",
+              label:
+                "Que no está sintiendo nada: si lo sintiera, se le notaría en la cara.",
+            },
+            {
+              key: "opcion-oculta-tristeza",
+              label:
+                "Que detrás de esa expresión suave hay tristeza que la persona está reprimiendo.",
+            },
+          ],
+          correctOptionKey: "opcion-regula-no-niega",
+        },
+        feedback: {
+          correct:
+            "Exacto. Regular la expresión no equivale a no sentir, y tampoco autoriza a suponer qué se esconde detrás: la expresión es una pista que se comprueba preguntando.",
+          review:
+            "Revisa el punto del capítulo: no hay que confundir la regulación de la expresión con la inexistencia de la experiencia — ni asumir que toda sonrisa esconde tristeza.",
+        },
+      },
+    },
+    {
+      practice: {
+        exerciseKey: "eec-c2-practice-la-palabra-no-basta",
+        bookSlug: "emociones-en-construccion",
+        chapterOrder: 2,
+        order: 19,
+        type: "REFLECTION",
+        title: "La palabra no basta: la misma palabra, dos escenas",
+        sourceHeading: "Las palabras dan contorno a la experiencia",
+        practiceKind: "signal_context_compare",
+        interaction: {
+          kind: "signal_context_compare",
+          signals: [
+            "«Me da pena preguntar.»",
+            "«Le tengo coraje.»",
+            "«Estoy sentido.»",
+            "«Estoy nervioso.»",
+          ],
+          contexts: [
+            {
+              key: "reunion",
+              label: "En una reunión con desconocidos",
+              description:
+                "La persona lo dice antes de levantar la mano para hablar.",
+            },
+            {
+              key: "familia",
+              label: "En una conversación de familia",
+              description:
+                "La persona lo dice después de un desacuerdo con alguien cercano.",
+            },
+          ],
+          factors: [
+            { key: "region", label: "La región donde se aprendió la palabra" },
+            { key: "quien", label: "Con quién se está hablando" },
+            { key: "antes", label: "Qué ocurrió justo antes" },
+            { key: "cuerpo", label: "Qué está pasando en el cuerpo" },
+            { key: "lengua", label: "En qué lengua se está diciendo" },
+          ],
+          prompt:
+            "Elige qué información adicional ayudaría a interpretar cada frase en cada escena. La palabra da contorno; el contexto termina de dibujarlo.",
+        },
+      },
+      recall: {
+        exerciseKey: "eec-c2-recall-palabras-dan-contorno",
+        bookSlug: "emociones-en-construccion",
+        chapterOrder: 2,
+        order: 20,
+        type: "QUIZ",
+        title:
+          "Según el capítulo 2, ¿qué papel cumplen las palabras y los conceptos emocionales?",
+        content: {
+          recallMode: "objective",
+          conceptKey: "eec-palabras-dan-contorno",
+          options: [
+            {
+              key: "opcion-ayudan-y-dependen",
+              label:
+                "Los conceptos y palabras pueden ayudarnos a diferenciar y comunicar experiencias, pero su significado también depende del contexto.",
+            },
+            {
+              key: "opcion-sin-palabra-no-hay",
+              label:
+                "Sin una palabra precisa no puede existir la experiencia: el lenguaje crea toda emoción.",
+            },
+            {
+              key: "opcion-significado-universal",
+              label:
+                "Cada palabra emocional tiene un significado universal, igual en cualquier región y en cualquier familia.",
+            },
+          ],
+          correctOptionKey: "opcion-ayudan-y-dependen",
+        },
+        feedback: {
+          correct:
+            "Exacto. Las palabras funcionan como líneas en un mapa: ayudan a diferenciar y orientarse, y aun así lo que significan depende de dónde y con quién se digan.",
+          review:
+            "Revisa la formulación del capítulo: no hace falta una palabra exacta para que exista la experiencia, y tener la palabra no fija su significado — «pena» o «coraje» cambian de territorio según la región y la escena.",
+        },
+      },
+    },
+    {
+      practice: {
+        exerciseKey: "eec-c2-practice-acompanar-sin-imponer",
+        bookSlug: "emociones-en-construccion",
+        chapterOrder: 2,
+        order: 21,
+        type: "REFLECTION",
+        title: "Acompañar sin imponer",
+        sourceHeading: "Rituales: cuando sentir necesita un marco compartido",
+        practiceKind: "four_part_distinction",
+        interaction: {
+          kind: "four_part_distinction",
+          scenario:
+            "Una compañera de trabajo vuelve después de una ausencia por una pérdida familiar. Saluda, se sienta y sigue con lo suyo. No sabes qué decir.",
+          fields: [
+            {
+              key: "siento",
+              label: "Qué observo en la escena",
+              options: [
+                { key: "saludo", label: "Saludó y siguió con su trabajo." },
+                { key: "breve", label: "Respondió con frases cortas." },
+                { key: "sin-tema", label: "No mencionó lo que pasó." },
+              ],
+            },
+            {
+              key: "interpreto",
+              label: "Qué estoy suponiendo que necesita",
+              options: [
+                { key: "hablar", label: "Que necesita hablar de ello." },
+                { key: "distraerse", label: "Que prefiere no tocar el tema." },
+                { key: "no-se", label: "Que todavía no lo sé." },
+              ],
+            },
+            {
+              key: "impulso",
+              label: "Lo que me sale decir",
+              options: [
+                { key: "deberias", label: "«Deberías desahogarte.»" },
+                { key: "tienes-que", label: "«Tienes que ir a la misa.»" },
+                { key: "fuerte", label: "«Hay que ser fuerte.»" },
+              ],
+            },
+            {
+              key: "elijo",
+              label: "Lo que puedo ofrecer o preguntar",
+              options: [
+                {
+                  key: "que-seria-util",
+                  label: "«¿Qué sería útil para ti en este momento?»",
+                },
+                {
+                  key: "disponible",
+                  label: "«Estoy por aquí si quieres hablar, y también si no.»",
+                },
+                {
+                  key: "practico",
+                  label: "«¿Te ayudo con algo concreto esta semana?»",
+                },
+              ],
+            },
+          ],
+          allowsFreeText: true,
+          disclaimer:
+            "Esto no es una viñeta clínica ni una guía sobre tu propia pérdida: es una escena hipotética para practicar. Puedes salir cuando quieras y nada de lo que escribas sale de tu dispositivo.",
+        },
+      },
+      recall: {
+        exerciseKey: "eec-c2-recall-rituales-dan-marco-no-guion",
+        bookSlug: "emociones-en-construccion",
+        chapterOrder: 2,
+        order: 22,
+        type: "QUIZ",
+        title:
+          "Según el capítulo 2, ¿qué se puede concluir del hecho de que alguien participe o no participe en un ritual de duelo?",
+        content: {
+          recallMode: "objective",
+          conceptKey: "eec-rituales-dan-marco-no-guion",
+          options: [
+            {
+              key: "opcion-no-demuestra",
+              label:
+                "Por sí solo no demuestra amor, negación, intensidad del duelo ni recuperación: el ritual ofrece marco y testigos, no un guion de cómo sentir.",
+            },
+            {
+              key: "opcion-participar-sana",
+              label:
+                "Que participar garantiza alivio y que no participar indica que la persona está negando la pérdida.",
+            },
+            {
+              key: "opcion-ritual-irrelevante",
+              label:
+                "Que los rituales no cumplen ninguna función y son una formalidad social sin efecto.",
+            },
+          ],
+          correctOptionKey: "opcion-no-demuestra",
+        },
+        feedback: {
+          correct:
+            "Exacto. Un ritual puede organizar tiempo, acciones y testigos; su efecto depende del sentido que tenga para quien lo vive, y participar o no no mide el duelo.",
+          review:
+            "Revisa lo que dice el capítulo: participar no garantiza alivio y no participar tampoco demuestra negación. Llorar mucho no demuestra amar más; retomar actividades no demuestra olvido.",
+        },
+      },
+    },
   ],
   // Demo Guide for Parejas que perduran (David Jaramillo, used with the
   // author's authorization). The book's chapter 1 is PLATFORM order 2 — the

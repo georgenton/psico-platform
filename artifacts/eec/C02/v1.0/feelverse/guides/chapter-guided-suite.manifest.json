@@ -1,0 +1,52 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "EEC-C02-SUITE",
+  "bookSlug": "emociones-en-construccion",
+  "editionKey": "emociones-en-construccion-1e",
+  "chapterCode": "EEC-C02",
+  "chapterOrder": 2,
+  "unitKey": "f58df2e8-4203-5aa2-83b0-1a8ab79a885a",
+  "canonicalVersion": "EEC_C02_v1.0_TEXT_LOCKED_2026-08-21",
+  "canonicalSha256": "f137ee10fb80a3ea91af42d93d7262b98de7101a5eeae37051d765dc12a2188a",
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "approvalReferences": [
+    "https://app.notion.com/p/3d1cbb1031a0812f8fb9f5a4723752ab",
+    "APROBAR ARQUITECTURA C02 — decisión autoral 2026-09-04."
+  ],
+  "featureFlag": null,
+  "featureFlagDefault": "off",
+  "legacyPilot": null,
+  "route": [
+    {
+      "order": 1,
+      "manifestId": "EEC-C02-MG01",
+      "guideKey": "eec-c2-universal-no-significa-uniforme",
+      "guideVersion": 1
+    },
+    {
+      "order": 2,
+      "manifestId": "EEC-C02-MG02",
+      "guideKey": "eec-c2-cultura-gramatica-no-destino",
+      "guideVersion": 1
+    },
+    {
+      "order": 3,
+      "manifestId": "EEC-C02-MG03",
+      "guideKey": "eec-c2-gesto-necesita-contexto",
+      "guideVersion": 1
+    },
+    {
+      "order": 4,
+      "manifestId": "EEC-C02-MG04",
+      "guideKey": "eec-c2-palabras-dan-contorno",
+      "guideVersion": 1
+    },
+    {
+      "order": 5,
+      "manifestId": "EEC-C02-MG05",
+      "guideKey": "eec-c2-rituales-dan-marco-no-guion",
+      "guideVersion": 1
+    }
+  ]
+}

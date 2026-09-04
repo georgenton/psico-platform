@@ -7,6 +7,7 @@ import {
   activateBookLearningCatalog,
   planBookLearningActivation,
 } from "./learning-activation";
+import type { FlagName } from "../shared/flags";
 import type { GuideManifest } from "./eec-c01-guides-cli";
 
 /**
@@ -608,12 +609,18 @@ export async function runPublishTestSuite(
 export async function runVerifyDrafts(
   prisma: PrismaClient,
   manifests: readonly GuideManifest[],
+  /**
+   * The flag that gates this chapter's route, when it has one. A chapter with
+   * no flag is dark because no route offers it — reading another chapter's
+   * switch here would report on a suite this run is not about.
+   */
+  flagName: FlagName | null = "EEC_C01_GUIDED_SUITE_V1",
 ): Promise<VerifyResult> {
   const { flagEnabled } = await import("../shared/flags");
   return verifyDrafts(
     prisma,
     manifests,
-    flagEnabled("EEC_C01_GUIDED_SUITE_V1"),
+    flagName ? flagEnabled(flagName) : false,
   );
 }
 

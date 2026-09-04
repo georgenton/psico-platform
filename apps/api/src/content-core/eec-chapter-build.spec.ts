@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   cpSync,
   mkdtempSync,
@@ -207,6 +208,28 @@ describe("EEC-C02 · el capítulo cerrado del 2026-08-21", () => {
     expect(payload.placement.order).toBe(2);
     expect(payload.title).toBe("¿Existen realmente las emociones universales?");
     expect(payload.blocks.length).toBe(230);
+  }, 120_000);
+
+  it("dos builds del mismo texto dan los mismos bytes", async () => {
+    // El `SHA256SUMS.txt` solo sirve de algo si el hash depende del texto y no
+    // del reloj. DOCX y EPUB son ZIP, y un ZIP guarda la fecha de cada fichero:
+    // sin fijarla, dos builds seguidos daban hashes distintos y el manifiesto
+    // no probaba nada.
+    const d = dest("C02");
+    const hash = () =>
+      [
+        "print/EEC_C02_PRINT_v1.0_READY.docx",
+        "epub/EEC_C02_v1.0.epub",
+        "feelverse/unit-payload.json",
+        "feelverse/chapter.json",
+      ].map((f) =>
+        createHash("sha256")
+          .update(readFileSync(join(d, f)))
+          .digest("hex"),
+      );
+    const first = hash();
+    await buildChapter("C02");
+    expect(hash()).toEqual(first);
   }, 120_000);
 
   it("un `.bib` que cambia bajo el capítulo detiene el build", async () => {

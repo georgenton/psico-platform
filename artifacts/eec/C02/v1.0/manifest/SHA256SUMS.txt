@@ -1,4 +1,4 @@
 78e6ae4c6b366318d626de359b88e706dedaf94fd6b621f551e9aa8ec20cabca  artifacts/eec/C02/v1.0/feelverse/unit-payload.json
 3e1cd655d6e4a55f9c535094817e03dd06d47c8e19624603f7ab511d4e9c7b8a  artifacts/eec/C02/v1.0/feelverse/chapter.json
-01e9786489a794bf549ee056107244320507e2cbb97431969c54d76db1eda108  artifacts/eec/C02/v1.0/print/EEC_C02_PRINT_v1.0_READY.docx
-dd9d21c02d76413dc63e7f0b8322f919cfa96e09a8bb9d155b451a387fedebf6  artifacts/eec/C02/v1.0/epub/EEC_C02_v1.0.epub
+41276bd958690f8041e0cf6efb82ef5afd197a0986ac27464457a877846f2550  artifacts/eec/C02/v1.0/print/EEC_C02_PRINT_v1.0_READY.docx
+c8b219f363d792628f7a33822f995260e16d5e0cff7701b97e4dca29a3425809  artifacts/eec/C02/v1.0/epub/EEC_C02_v1.0.epub

@@ -2,7 +2,7 @@ chapter: EEC-C02
 canonical_version: EEC_C02_v1.0_TEXT_LOCKED_2026-08-21
 canonical_sha256: f137ee10fb80a3ea91af42d93d7262b98de7101a5eeae37051d765dc12a2188a
 title: ¿Existen realmente las emociones universales?
-built_at: 2026-09-04T15:19:47.778Z
+built_at: 2026-09-04T17:20:36.017Z
 citation_style: Chicago Manual of Style 18 · shortened-notes-and-bibliography
 csl: chicago-shortened-notes-bibliography.csl
 bibliography_entries: 29
@@ -17,3 +17,16 @@ outputs:
 blockers:
   - CITATIONS_NOT_MAPPED
   - SKIPPED_NO_RELIABLE_PDF_ENGINE
+production:
+  revision: 11
+  revision_id: cmtn7tmxh00002aqhfo00ct5e
+  previous_revision: 10
+  published_at: 2026-09-04T17:16:14.661Z
+  blocks_before: 185
+  blocks_after: 230
+  blocks_matched: 2
+  blocks_new: 228
+  blocks_tombstoned: 183
+  reader_source: content-core
+  legacy_chapter_id: cmql50s0300035nvvaq6j3mt1
+  legacy_chapter_blocks_preserved: 185

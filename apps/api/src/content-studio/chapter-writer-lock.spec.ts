@@ -68,6 +68,7 @@ describe("Chapter structural writers", () => {
     "src/content-core/bootstrap-book.ts",
     "prisma/seed.ts",
     "scripts/ingest-chapter-md.mjs",
+    "src/content-core/eec-c01-e2e-seed.ts",
   ];
 
   it("is a closed set — no unaudited writer exists", () => {
@@ -118,6 +119,18 @@ describe("Chapter structural writers", () => {
     expect(tx).toBeLessThan(lock);
     expect(lock).toBeLessThan(upsert);
     expect(src).toContain("FOR UPDATE");
+  });
+
+  it("the E2E seeder cannot run anywhere a reader exists", () => {
+    // No lock, and it needs none for a different reason than bootstrap's: it
+    // refuses production and staging BEFORE it opens a connection, so the only
+    // chapters it can create are in a database somebody made to throw away.
+    const src = read("src/content-core/eec-c01-e2e-seed.ts");
+    expect(src).toContain("SEED_REFUSED_ON_DEPLOYED");
+    // The refusal precedes the client, not the other way round.
+    expect(src.indexOf("SEED_REFUSED_ON_DEPLOYED")).toBeLessThan(
+      src.indexOf("new PrismaClient"),
+    );
   });
 
   it("bootstrap is safe by construction — it refuses an existing book", () => {

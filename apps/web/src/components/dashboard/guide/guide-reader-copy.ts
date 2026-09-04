@@ -13,6 +13,7 @@
 
 import { guidePinKey, type GuidePin } from "./guide-pin";
 import { EEC_C01_READER_COPY } from "./eec-c01-microguides";
+import { EEC_C02_READER_COPY } from "./eec-c02-microguides";
 import { READER_GUIDE_SHARED } from "./guide-reader-shared";
 
 export { READER_GUIDE_SHARED };
@@ -406,6 +407,8 @@ export class GuideReaderCopyRegistry {
 export const PRODUCTION_GUIDE_READER_COPY: readonly GuideReaderCopy[] = [
   // EEC-C01's five microguides, built from the approved manifests.
   ...EEC_C01_READER_COPY,
+  // EEC-C02's five, from theirs.
+  ...EEC_C02_READER_COPY,
   EEC_C1_COPY,
   PQP_C1_COPY,
 ];

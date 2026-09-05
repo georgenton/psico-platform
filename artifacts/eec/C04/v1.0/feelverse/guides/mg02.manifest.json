@@ -1,0 +1,149 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "EEC-C04-MG02",
+  "bookSlug": "emociones-en-construccion",
+  "editionKey": "emociones-en-construccion-1e",
+  "chapterCode": "EEC-C04",
+  "chapterOrder": 4,
+  "unitKey": "3540539f-72d6-5191-a5e8-447737410922",
+  "canonicalVersion": "EEC_C04_v1.0_TEXT_LOCKED_2026-08-25",
+  "canonicalSha256": "7f22cfb9859bc3309d6a410e9b1c80080c6b55ad6109b83d62a0852e8e6fe1ce",
+  "sourceArtifact": "artifacts/eec/C04/v1.0/feelverse/unit-payload.json",
+  "experienceKey": "eec-c4-notar-interpretar-nombrar",
+  "experienceVersion": 1,
+  "guideKey": "eec-c4-notar-interpretar-nombrar",
+  "guideVersion": 1,
+  "conceptKey": "eec-notar-interpretar-nombrar",
+  "practiceKey": "eec-c4-practice-senal-atencion-interpretacion-nombre",
+  "practiceKind": "four_part_distinction",
+  "recallKey": "eec-c4-recall-notar-interpretar-nombrar",
+  "anchors": {
+    "primary": {
+      "reference": "eec-c4-interocepcion-notar-interpretar",
+      "heading": "Interocepción: notar no es lo mismo que interpretar",
+      "fingerprint": "notar una señal, detectarla con precisión y comprender qué significa son cosas diferentes",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "Cuatro cosas que suelen ir juntas",
+      "body": [
+        "Notar algo en el cuerpo, prestarle atención, interpretarlo y ponerle nombre ocurren casi a la vez, y no son lo mismo. Vas a separarlos en un caso leve."
+      ],
+      "note": "Elegiremos una situación cotidiana de baja intensidad. Puedes salir y volver cuando quieras.",
+      "actionLabel": "Comenzar"
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "Interocepción: notar no es lo mismo que interpretar",
+      "body": [
+        "Lee la sección donde el capítulo distingue notar, detectar con precisión y comprender, y explica por qué más atención no siempre significa mejor comprensión."
+      ],
+      "actionLabel": "Leí el pasaje",
+      "anchorRef": "eec-c4-interocepcion-notar-interpretar"
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "Notar, medir e interpretar son pasos distintos",
+      "body": [
+        "Un termómetro puede indicar fiebre sin diagnosticar su causa. Con el cuerpo pasa algo parecido: se puede notar con mucha intensidad una señal y aun así no saber qué significa.",
+        "Por eso conviene una escucha con curiosidad, contexto y posibilidad de corregirse: en vez de «si siento esto, significa aquello», sostener «noto esto, y todavía no sé qué significa»."
+      ],
+      "note": "Marcar esta escena registra que exploraste la idea; no evalúa lo que sabes ni infiere nada sobre ti.",
+      "actionLabel": "He explorado la idea",
+      "stepKey": "explorar-notar-interpretar-nombrar"
+    },
+    {
+      "order": 4,
+      "kind": "EXAMPLE",
+      "title": "El estómago antes de una reunión",
+      "body": [
+        "Hay una molestia en el estómago. Notarla es un paso. Decidir mirarla es otro. Pensar «esto va a salir mal» es un tercero. Llamarlo «ansiedad» es un cuarto.",
+        "Cada paso añade algo que el anterior no traía, y cualquiera de ellos puede revisarse sin negar los otros."
+      ]
+    },
+    {
+      "order": 5,
+      "kind": "PRACTICE",
+      "title": "Señal, atención, interpretación y nombre",
+      "body": [
+        "Separa un caso leve en cuatro campos y observa qué aporta cada uno. No se trata de encontrar el nombre correcto."
+      ],
+      "note": "Puedes elegir entre las opciones sugeridas. Si prefieres escribir, tu texto se queda en tu dispositivo.",
+      "actionLabel": "Ya hice la práctica",
+      "stepKey": "practicar-senal-atencion-interpretacion-nombre",
+      "practiceKind": "four_part_distinction"
+    },
+    {
+      "order": 6,
+      "kind": "RECALL",
+      "title": "¿Notar una sensación equivale a saber qué significa?",
+      "body": [
+        "Recupera la idea central de esta microguía."
+      ],
+      "stepKey": "recordar-notar-interpretar-nombrar"
+    },
+    {
+      "order": 7,
+      "kind": "SUMMARY",
+      "title": "Lo que te llevas",
+      "body": [
+        "Notar no es medir, y medir no es interpretar. El cuerpo aporta información y esa información todavía necesita contexto. Un síntoma nuevo, intenso o persistente merece consulta, no una explicación emocional automática."
+      ],
+      "actionLabel": "Finalizar"
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-notar-interpretar-nombrar",
+      "targetKey": "eec-notar-interpretar-nombrar"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-senal-atencion-interpretacion-nombre",
+      "targetKey": "eec-c4-practice-senal-atencion-interpretacion-nombre"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-notar-interpretar-nombrar",
+      "targetKey": "eec-c4-recall-notar-interpretar-nombrar"
+    }
+  ],
+  "media": {
+    "audio": null,
+    "video": null
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Navegación completa por teclado, con foco visible y orden de tabulación lógico.",
+    "Toda reordenación anunciada por lector de pantalla mediante aria-live.",
+    "Alternativa sin arrastrar para cualquier interacción de ordenamiento.",
+    "Respeta prefers-reduced-motion.",
+    "El color nunca es la única señal de estado.",
+    "Ninguna reproducción automática y ningún audio o vídeo obligatorio."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "eec-c04-notar-interpretar-nombrar-v1-85f8281e71050b0f",
+  "approvalReferences": [
+    "https://app.notion.com/p/3d2cbb1031a081149d97ca054012b276",
+    "APROBAR ARQUITECTURA C03-C10 — decisión autoral 2026-09-04."
+  ],
+  "manifestSha256": "998cb4fcc83f1a5947d43d838175d4529a7edd39140c7936f31204d4e3ecc159",
+  "title": "Notar, interpretar y nombrar no son lo mismo"
+}

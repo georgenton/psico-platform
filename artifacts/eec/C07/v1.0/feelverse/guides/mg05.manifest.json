@@ -1,0 +1,149 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "EEC-C07-MG05",
+  "bookSlug": "emociones-en-construccion",
+  "editionKey": "emociones-en-construccion-1e",
+  "chapterCode": "EEC-C07",
+  "chapterOrder": 7,
+  "unitKey": "e98cb79d-5f04-514a-9efd-735254285958",
+  "canonicalVersion": "EEC_C07_v1.0_TEXT_LOCKED_2026-08-26",
+  "canonicalSha256": "26a9b18738f0534a8c172bb22827f92e8f3745d70e91ea0a5923733b4bac8bd9",
+  "sourceArtifact": "artifacts/eec/C07/v1.0/feelverse/unit-payload.json",
+  "experienceKey": "eec-c7-preguntar-es-traducir",
+  "experienceVersion": 1,
+  "guideKey": "eec-c7-preguntar-es-traducir",
+  "guideVersion": 1,
+  "conceptKey": "eec-preguntar-es-traducir",
+  "practiceKey": "eec-c7-practice-de-conclusion-a-pregunta",
+  "practiceKind": "context_plausibility",
+  "recallKey": "eec-c7-recall-preguntar-es-traducir",
+  "anchors": {
+    "primary": {
+      "reference": "eec-c7-preguntar-antes-de-interpretar",
+      "heading": "Preguntar antes de interpretar",
+      "fingerprint": "Significa reconocer que nuestro mapa puede estar incompleto",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "De la conclusión a la pregunta",
+      "body": [
+        "No hace falta memorizar un manual de costumbres. Vas a convertir tres conclusiones rápidas en preguntas de verificación que no renuncian a los límites."
+      ],
+      "note": "Trabajaremos con frases de ejemplo. Puedes salir y volver cuando quieras.",
+      "actionLabel": "Comenzar"
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "Preguntar antes de interpretar",
+      "body": [
+        "Lee la sección sobre humildad cultural y por qué los manuales de costumbres por país no resuelven el malentendido."
+      ],
+      "actionLabel": "Leí el pasaje",
+      "anchorRef": "eec-c7-preguntar-antes-de-interpretar"
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "Humildad no es fingir que no sabemos nada",
+      "body": [
+        "Humildad cultural significa reconocer que nuestro mapa puede estar incompleto y prestar atención a la persona concreta, no al estereotipo de su origen.",
+        "Preguntar forma parte de traducir. Mantener la hipótesis abierta no obliga a aceptar cualquier cosa: se puede preguntar y sostener un límite a la vez."
+      ],
+      "note": "Marcar esta escena registra que exploraste la idea; no evalúa lo que sabes ni infiere nada sobre ti.",
+      "actionLabel": "He explorado la idea",
+      "stepKey": "explorar-preguntar-es-traducir"
+    },
+    {
+      "order": 4,
+      "kind": "EXAMPLE",
+      "title": "«Si te importara, hablarías ahora»",
+      "body": [
+        "La frase cierra la escena antes de conocerla. Convertida en pregunta —«¿prefieres hablarlo ahora o más tarde?»— deja lugar a una respuesta.",
+        "La preocupación sigue ahí; lo que cambia es que ahora puede recibir información."
+      ]
+    },
+    {
+      "order": 5,
+      "kind": "PRACTICE",
+      "title": "De conclusión a pregunta",
+      "body": [
+        "Ordena varias formulaciones según cuánto dejan abierta la comprobación, y elige las que permiten seguir conversando sin renunciar a un límite."
+      ],
+      "note": "Puedes elegir entre las opciones sugeridas. Si prefieres escribir, tu texto se queda en tu dispositivo.",
+      "actionLabel": "Ya hice la práctica",
+      "stepKey": "practicar-de-conclusion-a-pregunta",
+      "practiceKind": "context_plausibility"
+    },
+    {
+      "order": 6,
+      "kind": "RECALL",
+      "title": "¿Qué implica la humildad cultural?",
+      "body": [
+        "Recupera la idea central de esta microguía."
+      ],
+      "stepKey": "recordar-preguntar-es-traducir"
+    },
+    {
+      "order": 7,
+      "kind": "SUMMARY",
+      "title": "Lo que te llevas",
+      "body": [
+        "Preguntar es parte de traducir: observar la señal, reconocer desde qué repertorio la leemos, preguntar y aceptar que alguna diferencia puede permanecer."
+      ],
+      "actionLabel": "Finalizar"
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-preguntar-es-traducir",
+      "targetKey": "eec-preguntar-es-traducir"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-de-conclusion-a-pregunta",
+      "targetKey": "eec-c7-practice-de-conclusion-a-pregunta"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-preguntar-es-traducir",
+      "targetKey": "eec-c7-recall-preguntar-es-traducir"
+    }
+  ],
+  "media": {
+    "audio": null,
+    "video": null
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Navegación completa por teclado, con foco visible y orden de tabulación lógico.",
+    "Toda reordenación anunciada por lector de pantalla mediante aria-live.",
+    "Alternativa sin arrastrar para cualquier interacción de ordenamiento.",
+    "Respeta prefers-reduced-motion.",
+    "El color nunca es la única señal de estado.",
+    "Ninguna reproducción automática y ningún audio o vídeo obligatorio."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "eec-c07-preguntar-es-traducir-v1-2e229eaecce7fc61",
+  "approvalReferences": [
+    "https://app.notion.com/p/3d2cbb1031a081149d97ca054012b276",
+    "APROBAR ARQUITECTURA C03-C10 — decisión autoral 2026-09-04."
+  ],
+  "manifestSha256": "2b6697b46a1ab24427bded11faeb0f753a11eaad1d03f46b60a0960a8c1377b4",
+  "title": "Preguntar es parte de traducir"
+}

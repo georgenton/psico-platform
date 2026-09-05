@@ -1,0 +1,149 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "EEC-C05-MG03",
+  "bookSlug": "emociones-en-construccion",
+  "editionKey": "emociones-en-construccion-1e",
+  "chapterCode": "EEC-C05",
+  "chapterOrder": 5,
+  "unitKey": "231166b5-f48e-506a-9edc-474a26795e4c",
+  "canonicalVersion": "EEC_C05_v1.0_TEXT_LOCKED_2026-08-26",
+  "canonicalSha256": "0f35f0d0f498ef0d6d1970709c1cbfdf939dfd9f3d6ab8f01aecc1bba1a1c956",
+  "sourceArtifact": "artifacts/eec/C05/v1.0/feelverse/unit-payload.json",
+  "experienceKey": "eec-c5-historia-dominante-no-es-identidad",
+  "experienceVersion": 1,
+  "guideKey": "eec-c5-historia-dominante-no-es-identidad",
+  "guideVersion": 1,
+  "conceptKey": "eec-historia-dominante-no-es-identidad",
+  "practiceKey": "eec-c5-practice-acontecimiento-descripcion-conclusion-excepcion",
+  "practiceKind": "four_part_distinction",
+  "recallKey": "eec-c5-recall-historia-dominante-no-es-identidad",
+  "anchors": {
+    "primary": {
+      "reference": "eec-c5-historias-dominantes",
+      "heading": "Historias dominantes y acontecimientos que no encajan",
+      "fingerprint": "Re-autoría no significa inventar capítulos nuevos ni cambiar el pasado",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "Cuando una descripción ocupa demasiado espacio",
+      "body": [
+        "Algunas descripciones repetidas terminan pareciendo toda la biografía. Vas a separar un acontecimiento, la descripción que se repite, la conclusión sobre uno mismo y el detalle que no encaja."
+      ],
+      "note": "Usaremos un ejemplo del capítulo. No te pediremos revisar un episodio doloroso propio.",
+      "actionLabel": "Comenzar"
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "Historias dominantes y acontecimientos que no encajan",
+      "body": [
+        "Lee la sección sobre historia dominante, resultados únicos y re-autoría, con la imagen del buscador que devuelve siempre los mismos resultados."
+      ],
+      "actionLabel": "Leí el pasaje",
+      "anchorRef": "eec-c5-historias-dominantes"
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "Un relato que ordena no es toda la persona",
+      "body": [
+        "Cuando alguien está convencido de «nunca he sabido defenderme», los episodios compatibles aparecen primero y los demás quedan abajo. El capítulo lo compara con un buscador que devuelve siempre los mismos resultados.",
+        "Encontrar un episodio que no encaja no demuestra lo contrario ni borra la dificultad. Es una página que el índice había dejado fuera. Re-autoría, en este enfoque, no es inventar capítulos ni cambiar el pasado: es revisar el índice de un libro ya escrito."
+      ],
+      "note": "Esto describe recursos de un modelo terapéutico; no es una indicación de tratamiento ni una técnica para aplicarte a solas.",
+      "actionLabel": "He explorado la idea",
+      "stepKey": "explorar-historia-dominante-no-es-identidad"
+    },
+    {
+      "order": 4,
+      "kind": "EXAMPLE",
+      "title": "La vez que sí intervino",
+      "body": [
+        "Quien afirma «nunca sé defenderme» quizá recuerde que habló cuando trataron injustamente a una compañera.",
+        "Ese episodio no prueba que «en realidad siempre fue valiente». Convive con los años de dificultad, y por eso amplía el cuadro en vez de reemplazarlo."
+      ]
+    },
+    {
+      "order": 5,
+      "kind": "PRACTICE",
+      "title": "Acontecimiento, descripción, conclusión y excepción",
+      "body": [
+        "Separa un caso en cuatro campos y observa qué aporta cada uno. No se trata de sustituir una conclusión por otra más optimista."
+      ],
+      "note": "Puedes elegir entre las opciones sugeridas. Si prefieres escribir, tu texto se queda en tu dispositivo.",
+      "actionLabel": "Ya hice la práctica",
+      "stepKey": "practicar-acontecimiento-descripcion-conclusion-excepcion",
+      "practiceKind": "four_part_distinction"
+    },
+    {
+      "order": 6,
+      "kind": "RECALL",
+      "title": "¿Qué es la re-autoría en este enfoque?",
+      "body": [
+        "Recupera la idea central de esta microguía."
+      ],
+      "stepKey": "recordar-historia-dominante-no-es-identidad"
+    },
+    {
+      "order": 7,
+      "kind": "SUMMARY",
+      "title": "Lo que te llevas",
+      "body": [
+        "Una historia dominante puede estrechar lo que vemos de nosotros sin ser una mentira. Tratarla como relato permite abrir otras descripciones sin negar hechos ni fabricar un final feliz."
+      ],
+      "actionLabel": "Finalizar"
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-historia-dominante-no-es-identidad",
+      "targetKey": "eec-historia-dominante-no-es-identidad"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-acontecimiento-descripcion-conclusion-excepcion",
+      "targetKey": "eec-c5-practice-acontecimiento-descripcion-conclusion-excepcion"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-historia-dominante-no-es-identidad",
+      "targetKey": "eec-c5-recall-historia-dominante-no-es-identidad"
+    }
+  ],
+  "media": {
+    "audio": null,
+    "video": null
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Navegación completa por teclado, con foco visible y orden de tabulación lógico.",
+    "Toda reordenación anunciada por lector de pantalla mediante aria-live.",
+    "Alternativa sin arrastrar para cualquier interacción de ordenamiento.",
+    "Respeta prefers-reduced-motion.",
+    "El color nunca es la única señal de estado.",
+    "Ninguna reproducción automática y ningún audio o vídeo obligatorio."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "eec-c05-historia-dominante-no-es-identidad-v1-ed3f63ede22b1e2b",
+  "approvalReferences": [
+    "https://app.notion.com/p/3d2cbb1031a081149d97ca054012b276",
+    "APROBAR ARQUITECTURA C03-C10 — decisión autoral 2026-09-04."
+  ],
+  "manifestSha256": "d6e0223342b6c146ab8fd0247914b6f1010f8e03fcc342a168a574fb77e98eac",
+  "title": "Una historia dominante no es toda tu identidad"
+}

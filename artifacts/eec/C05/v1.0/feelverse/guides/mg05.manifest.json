@@ -1,0 +1,149 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "EEC-C05-MG05",
+  "bookSlug": "emociones-en-construccion",
+  "editionKey": "emociones-en-construccion-1e",
+  "chapterCode": "EEC-C05",
+  "chapterOrder": 5,
+  "unitKey": "231166b5-f48e-506a-9edc-474a26795e4c",
+  "canonicalVersion": "EEC_C05_v1.0_TEXT_LOCKED_2026-08-26",
+  "canonicalSha256": "0f35f0d0f498ef0d6d1970709c1cbfdf939dfd9f3d6ab8f01aecc1bba1a1c956",
+  "sourceArtifact": "artifacts/eec/C05/v1.0/feelverse/unit-payload.json",
+  "experienceKey": "eec-c5-reescribir-abre-opciones",
+  "experienceVersion": 1,
+  "guideKey": "eec-c5-reescribir-abre-opciones",
+  "guideVersion": 1,
+  "conceptKey": "eec-reescribir-abre-opciones",
+  "practiceKey": "eec-c5-practice-dos-formulaciones-que-abren",
+  "practiceKind": "signal_context_compare",
+  "recallKey": "eec-c5-recall-reescribir-abre-opciones",
+  "anchors": {
+    "primary": {
+      "reference": "eec-c5-revisar-sin-borrar",
+      "heading": "7. Puedes revisar el relato sin borrar la página",
+      "fingerprint": "El objetivo no era convencerla de que «seguro todo está bien»",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "Abrir opciones, sin prometer calma",
+      "body": [
+        "Revisar un relato puede ampliar lo que se puede hacer y preguntar. No obliga a sentirse mejor. Vas a comparar dos formulaciones sobre una misma situación."
+      ],
+      "note": "No se puntúa qué emoción «debería» aparecer. Puedes salir y volver cuando quieras.",
+      "actionLabel": "Comenzar"
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "Puedes revisar el relato sin borrar la página",
+      "body": [
+        "Lee el cierre con Valeria: lo que sabe, lo que interpreta, lo que no sabe, y qué se propuso realmente el ejercicio."
+      ],
+      "actionLabel": "Leí el pasaje",
+      "anchorRef": "eec-c5-revisar-sin-borrar"
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "Otra perspectiva no es otra emoción garantizada",
+      "body": [
+        "Después de separar lo que sabe de lo que interpreta, Valeria no se calma necesariamente. Puede seguir mirando el teléfono y seguir ansiosa.",
+        "El objetivo no era convencerla de que todo está bien ni reemplazar su historia por una más agradable, sino recuperar la diferencia entre lo ocurrido y lo que se añade. Eso amplía opciones y preguntas; no promete un cambio emocional inmediato."
+      ],
+      "note": "Marcar esta escena registra que exploraste la idea; no evalúa lo que sabes ni infiere nada sobre ti.",
+      "actionLabel": "He explorado la idea",
+      "stepKey": "explorar-reescribir-abre-opciones"
+    },
+    {
+      "order": 4,
+      "kind": "EXAMPLE",
+      "title": "Dos maneras de decirlo",
+      "body": [
+        "«Me dejaron sola otra vez» y «no tengo respuesta todavía y no sé por qué» describen la misma espera.",
+        "La segunda no es más positiva: es más incompleta a propósito, y por eso deja abiertas preguntas que la primera ya había cerrado."
+      ]
+    },
+    {
+      "order": 5,
+      "kind": "PRACTICE",
+      "title": "Dos formulaciones, qué abre cada una",
+      "body": [
+        "Compara dos maneras de contar la misma situación y elige qué acciones o preguntas hace posible cada una."
+      ],
+      "note": "No se evalúa cuál formulación es correcta ni qué deberías sentir.",
+      "actionLabel": "Ya hice la práctica",
+      "stepKey": "practicar-dos-formulaciones-que-abren",
+      "practiceKind": "signal_context_compare"
+    },
+    {
+      "order": 6,
+      "kind": "RECALL",
+      "title": "¿Qué promete revisar un relato?",
+      "body": [
+        "Recupera la idea central de esta microguía."
+      ],
+      "stepKey": "recordar-reescribir-abre-opciones"
+    },
+    {
+      "order": 7,
+      "kind": "SUMMARY",
+      "title": "Lo que te llevas",
+      "body": [
+        "Reescribir puede abrir opciones y no garantiza otra emoción. No hace falta inventar una historia positiva para ampliar lo que puedes preguntar y hacer."
+      ],
+      "actionLabel": "Finalizar"
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-reescribir-abre-opciones",
+      "targetKey": "eec-reescribir-abre-opciones"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-dos-formulaciones-que-abren",
+      "targetKey": "eec-c5-practice-dos-formulaciones-que-abren"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-reescribir-abre-opciones",
+      "targetKey": "eec-c5-recall-reescribir-abre-opciones"
+    }
+  ],
+  "media": {
+    "audio": null,
+    "video": null
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Navegación completa por teclado, con foco visible y orden de tabulación lógico.",
+    "Toda reordenación anunciada por lector de pantalla mediante aria-live.",
+    "Alternativa sin arrastrar para cualquier interacción de ordenamiento.",
+    "Respeta prefers-reduced-motion.",
+    "El color nunca es la única señal de estado.",
+    "Ninguna reproducción automática y ningún audio o vídeo obligatorio."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "eec-c05-reescribir-abre-opciones-v1-c1c1fa5a2713fdd0",
+  "approvalReferences": [
+    "https://app.notion.com/p/3d2cbb1031a081149d97ca054012b276",
+    "APROBAR ARQUITECTURA C03-C10 — decisión autoral 2026-09-04."
+  ],
+  "manifestSha256": "f04d849754c8b0c62507ef25c356d189c844064c47ffe66a0ad6f0cb36232988",
+  "title": "Reescribir puede abrir opciones, no garantizar otra emoción"
+}

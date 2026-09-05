@@ -237,8 +237,10 @@ describe("runActivationCli — authorization precedes any connection", () => {
 describe("catalogChapterOrders", () => {
   it("returns the union the two catalogs declare, sorted", () => {
     expect(catalogChapterOrders("parejas-que-perduran")).toEqual([2]);
+    // Ten chapters since the C03–C10 guided suites landed: the catalog now
+    // covers the whole book, and this list is what the activation walks.
     expect(catalogChapterOrders("emociones-en-construccion")).toEqual([
-      1, 2, 3,
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
     ]);
   });
 

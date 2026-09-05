@@ -1,0 +1,149 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "EEC-C07-MG04",
+  "bookSlug": "emociones-en-construccion",
+  "editionKey": "emociones-en-construccion-1e",
+  "chapterCode": "EEC-C07",
+  "chapterOrder": 7,
+  "unitKey": "e98cb79d-5f04-514a-9efd-735254285958",
+  "canonicalVersion": "EEC_C07_v1.0_TEXT_LOCKED_2026-08-26",
+  "canonicalSha256": "26a9b18738f0534a8c172bb22827f92e8f3745d70e91ea0a5923733b4bac8bd9",
+  "sourceArtifact": "artifacts/eec/C07/v1.0/feelverse/unit-payload.json",
+  "experienceKey": "eec-c7-muchos-repertorios-dentro",
+  "experienceVersion": 1,
+  "guideKey": "eec-c7-muchos-repertorios-dentro",
+  "guideVersion": 1,
+  "conceptKey": "eec-muchos-repertorios-dentro",
+  "practiceKey": "eec-c7-practice-un-pais-no-es-una-variable",
+  "practiceKind": "belief_lens",
+  "recallKey": "eec-c7-recall-muchos-repertorios-dentro",
+  "anchors": {
+    "primary": {
+      "reference": "eec-c7-pais-no-es-variable-magica",
+      "heading": "Un país no es una variable mágica",
+      "fingerprint": "La cultura importa. Pero no explica todo por decreto.",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "Dentro de un país caben muchos repertorios",
+      "body": [
+        "«En el país A pasa más que en el país B» todavía deja preguntas abiertas. Vas a mirar una generalización de ese tipo y separar lo que observa de lo que supone."
+      ],
+      "note": "No se trata de opinar sobre países ni regiones, sino de mirar qué sostiene una afirmación comparativa.",
+      "actionLabel": "Comenzar"
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "Un país no es una variable mágica",
+      "body": [
+        "Lee la sección donde el capítulo compara medir con reglas distintas y enumera las preguntas que conviene hacerle a una comparación entre países."
+      ],
+      "actionLabel": "Leí el pasaje",
+      "anchorRef": "eec-c7-pais-no-es-variable-magica"
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "Un promedio no describe a cada persona",
+      "body": [
+        "Las muestras pueden diferir en edad, educación, clase social o experiencia migratoria, y los instrumentos no siempre miden lo mismo al traducirse. Por eso una diferencia entre países no demuestra por sí sola una causa cultural.",
+        "Región, familia, generación y migración producen variación dentro de un mismo país. La cultura importa, y no explica todo por decreto."
+      ],
+      "note": "Marcar esta escena registra que exploraste la idea; no evalúa lo que sabes ni infiere nada sobre ti.",
+      "actionLabel": "He explorado la idea",
+      "stepKey": "explorar-muchos-repertorios-dentro"
+    },
+    {
+      "order": 4,
+      "kind": "EXAMPLE",
+      "title": "Dos mesas, dos reglas",
+      "body": [
+        "Comparar dos mesas midiendo una en centímetros y otra en pulgadas produce números que no se pueden interpretar juntos sin aclarar la escala.",
+        "Con los estudios interculturales ocurre algo parecido: antes de leer la diferencia conviene saber quién participó y qué se midió."
+      ]
+    },
+    {
+      "order": 5,
+      "kind": "PRACTICE",
+      "title": "Un país no es una variable",
+      "body": [
+        "Toma una generalización sobre una región o un país y sepárala en lo que observa, lo que supone y lo que faltaría para sostenerla."
+      ],
+      "note": "Puedes elegir entre las opciones sugeridas. Si prefieres escribir, tu texto se queda en tu dispositivo.",
+      "actionLabel": "Ya hice la práctica",
+      "stepKey": "practicar-un-pais-no-es-una-variable",
+      "practiceKind": "belief_lens"
+    },
+    {
+      "order": 6,
+      "kind": "RECALL",
+      "title": "¿Qué demuestra una diferencia promedio entre dos países?",
+      "body": [
+        "Recupera la idea central de esta microguía."
+      ],
+      "stepKey": "recordar-muchos-repertorios-dentro"
+    },
+    {
+      "order": 7,
+      "kind": "SUMMARY",
+      "title": "Lo que te llevas",
+      "body": [
+        "Dentro de una cultura hay muchos repertorios, y una diferencia interna puede ser tan relevante como una comparación entre países. Un promedio no define a la persona que tienes delante."
+      ],
+      "actionLabel": "Finalizar"
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-muchos-repertorios-dentro",
+      "targetKey": "eec-muchos-repertorios-dentro"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-un-pais-no-es-una-variable",
+      "targetKey": "eec-c7-practice-un-pais-no-es-una-variable"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-muchos-repertorios-dentro",
+      "targetKey": "eec-c7-recall-muchos-repertorios-dentro"
+    }
+  ],
+  "media": {
+    "audio": null,
+    "video": null
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Navegación completa por teclado, con foco visible y orden de tabulación lógico.",
+    "Toda reordenación anunciada por lector de pantalla mediante aria-live.",
+    "Alternativa sin arrastrar para cualquier interacción de ordenamiento.",
+    "Respeta prefers-reduced-motion.",
+    "El color nunca es la única señal de estado.",
+    "Ninguna reproducción automática y ningún audio o vídeo obligatorio."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "eec-c07-muchos-repertorios-dentro-v1-7922cd71341eb93f",
+  "approvalReferences": [
+    "https://app.notion.com/p/3d2cbb1031a081149d97ca054012b276",
+    "APROBAR ARQUITECTURA C03-C10 — decisión autoral 2026-09-04."
+  ],
+  "manifestSha256": "b76ea4ace2a30680df8a6c6ea82b5192652b06cf599d4be7ec20e1815ca70a1d",
+  "title": "Dentro de una cultura también hay muchos repertorios"
+}

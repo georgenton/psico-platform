@@ -34,6 +34,10 @@ import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  COMMON_C03_C10,
+  MICROGUIDES_C03_C10,
+} from "./microguides-c03-c10.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "../..");
 
@@ -900,6 +904,29 @@ const MICROGUIDES_C02 = [
  * `idPrefix` only names the idempotency key, which is a label for an operator
  * rather than an identity the platform resolves.
  */
+/**
+ * C03–C10 — eight rows built from one shape.
+ *
+ * The chapters differ in identity (unitKey, canonical SHA, where the artifacts
+ * land) and in their five microguides. Everything else — the privacy policy,
+ * the accessibility requirements, the media contract — is C01's, inherited
+ * rather than restated, so a change to the shared contract cannot apply to two
+ * chapters and miss six.
+ */
+const c03c10 = (code) => ({
+  common: { ...COMMON_C01, ...COMMON_C03_C10[code] },
+  microguides: MICROGUIDES_C03_C10[code],
+  keyPrefix: `eec-c${COMMON_C03_C10[code].chapterOrder}`,
+  idPrefix: `eec-${code.toLowerCase()}`,
+  out: `artifacts/eec/${code}/${code === "C06" ? "v1.1" : "v1.0"}/feelverse/guides`,
+  chapterMd: `content/books/eec/${code}/chapter.md`,
+  suiteId: `EEC-${code}-SUITE`,
+  // No flag, same reason as C02: the five ship as DRAFT and the chapter is not
+  // in the discovery catalog, so the route is dark by construction.
+  featureFlag: null,
+  legacyPilot: null,
+});
+
 const CHAPTERS = {
   C01: {
     common: COMMON_C01,
@@ -933,6 +960,9 @@ const CHAPTERS = {
     featureFlag: null,
     legacyPilot: null,
   },
+  ...Object.fromEntries(
+    Object.keys(MICROGUIDES_C03_C10).map((code) => [code, c03c10(code)]),
+  ),
 };
 
 /** Deterministic JSON: keys emitted in a declared order, two-space indent. */
@@ -958,6 +988,7 @@ function buildOne(mg, ch) {
   const base = ordered({
     ...ch.common,
     manifestId: mg.id,
+    title: mg.title,
     experienceKey: `${ch.keyPrefix}-${mg.slug}`,
     guideKey: `${ch.keyPrefix}-${mg.slug}`,
     conceptKey: mg.conceptKey,

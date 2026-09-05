@@ -24,15 +24,14 @@ const stored = (key: string) => {
 
 describe("the five practice interactions", () => {
   it("ships one practice per microguide, and every kind is used", () => {
-    // Five with EEC-C01, ten with EEC-C02. What is ratcheted is not the number
-    // of practices — a chapter may add more — but that each one declares a kind
-    // this build renders, and that no kind is shipped without a practice using
-    // it.
-    expect(withInteraction).toHaveLength(10);
+    // Five per chapter across the ten EEC chapters: 5 with C01, 10 with C02,
+    // 50 once the C03–C10 suites landed (author decision 2026-09-04). What is
+    // ratcheted is not the number of practices — a chapter may add more — but
+    // that each one declares a kind this build renders, and that no kind is
+    // shipped without a practice using it.
+    expect(withInteraction).toHaveLength(50);
     expect(
-      withInteraction.every(
-        (p) => p.chapterOrder === 1 || p.chapterOrder === 2,
-      ),
+      withInteraction.every((p) => p.chapterOrder >= 1 && p.chapterOrder <= 10),
     ).toBe(true);
     for (const p of withInteraction) {
       expect(PRACTICE_KINDS as readonly string[]).toContain(p.practiceKind);

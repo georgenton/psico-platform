@@ -1,0 +1,52 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "EEC-C07-SUITE",
+  "bookSlug": "emociones-en-construccion",
+  "editionKey": "emociones-en-construccion-1e",
+  "chapterCode": "EEC-C07",
+  "chapterOrder": 7,
+  "unitKey": "e98cb79d-5f04-514a-9efd-735254285958",
+  "canonicalVersion": "EEC_C07_v1.0_TEXT_LOCKED_2026-08-26",
+  "canonicalSha256": "26a9b18738f0534a8c172bb22827f92e8f3745d70e91ea0a5923733b4bac8bd9",
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "approvalReferences": [
+    "https://app.notion.com/p/3d2cbb1031a081149d97ca054012b276",
+    "APROBAR ARQUITECTURA C03-C10 — decisión autoral 2026-09-04."
+  ],
+  "featureFlag": null,
+  "featureFlagDefault": "off",
+  "legacyPilot": null,
+  "route": [
+    {
+      "order": 1,
+      "manifestId": "EEC-C07-MG01",
+      "guideKey": "eec-c7-suspender-equivalencias",
+      "guideVersion": 1
+    },
+    {
+      "order": 2,
+      "manifestId": "EEC-C07-MG02",
+      "guideKey": "eec-c7-expectativa-cambia-la-lectura",
+      "guideVersion": 1
+    },
+    {
+      "order": 3,
+      "manifestId": "EEC-C07-MG03",
+      "guideKey": "eec-c7-diferencia-no-es-excusa",
+      "guideVersion": 1
+    },
+    {
+      "order": 4,
+      "manifestId": "EEC-C07-MG04",
+      "guideKey": "eec-c7-muchos-repertorios-dentro",
+      "guideVersion": 1
+    },
+    {
+      "order": 5,
+      "manifestId": "EEC-C07-MG05",
+      "guideKey": "eec-c7-preguntar-es-traducir",
+      "guideVersion": 1
+    }
+  ]
+}

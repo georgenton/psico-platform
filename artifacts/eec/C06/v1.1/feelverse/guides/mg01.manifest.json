@@ -1,0 +1,149 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "EEC-C06-MG01",
+  "bookSlug": "emociones-en-construccion",
+  "editionKey": "emociones-en-construccion-1e",
+  "chapterCode": "EEC-C06",
+  "chapterOrder": 6,
+  "unitKey": "170e6699-0507-5784-8ecc-c9994b8dbf7e",
+  "canonicalVersion": "EEC_C06_v1.1_TEXT_LOCKED_2026-09-01",
+  "canonicalSha256": "ac963f730925fc347e0ab91b9df09902af05f5febd73c830f099f3b82c7a4d7a",
+  "sourceArtifact": "artifacts/eec/C06/v1.1/feelverse/unit-payload.json",
+  "experienceKey": "eec-c6-sentir-se-aprende-con-otros",
+  "experienceVersion": 1,
+  "guideKey": "eec-c6-sentir-se-aprende-con-otros",
+  "guideVersion": 1,
+  "conceptKey": "eec-sentir-se-aprende-con-otros",
+  "practiceKey": "eec-c6-practice-dos-respuestas-relacionales",
+  "practiceKind": "signal_context_compare",
+  "recallKey": "eec-c6-recall-sentir-se-aprende-con-otros",
+  "anchors": {
+    "primary": {
+      "reference": "eec-c6-de-mi-a-nosotros",
+      "heading": "2. De lo que pasa en mí a lo que pasa entre nosotros",
+      "fingerprint": "añadir el nivel relacional no elimina el nivel individual",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "Acercar y alejar la cámara",
+      "body": [
+        "Mirar a una persona y mirar lo que ocurre entre dos personas son dos planos distintos. Vas a comparar una misma expresión emocional frente a dos respuestas relacionales."
+      ],
+      "note": "Trabajaremos con escenas de ejemplo, no con una relación tuya.",
+      "actionLabel": "Comenzar"
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "De lo que pasa en mí a lo que pasa entre nosotros",
+      "body": [
+        "Lee la sección de la cámara en el partido y la precisión que el capítulo añade enseguida."
+      ],
+      "actionLabel": "Leí el pasaje",
+      "anchorRef": "eec-c6-de-mi-a-nosotros"
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "Sumar el plano relacional no borra el individual",
+      "body": [
+        "Cada persona percibe y actúa, y su conducta pasa a formar parte del mundo que la otra está percibiendo. Ese plano añade información que el plano individual no alcanza.",
+        "El capítulo lo dice con cuidado: añadir el nivel relacional no elimina el nivel individual. La relación no es una fuerza por encima de las personas; es parte del contexto donde ocurren sus cuerpos, recuerdos y expectativas."
+      ],
+      "note": "Marcar esta escena registra que exploraste la idea; no evalúa lo que sabes ni infiere nada sobre ti.",
+      "actionLabel": "He explorado la idea",
+      "stepKey": "explorar-sentir-se-aprende-con-otros"
+    },
+    {
+      "order": 4,
+      "kind": "EXAMPLE",
+      "title": "Dos mensajes después de una entrevista",
+      "body": [
+        "«Sea lo que sea, estoy contigo» y un silencio no producen mecánicamente lo mismo, y tampoco determinan lo que cada persona sentirá.",
+        "Quien recibe apoyo puede irritarse porque no quería consuelo. La respuesta influye; no decide."
+      ]
+    },
+    {
+      "order": 5,
+      "kind": "PRACTICE",
+      "title": "La misma señal, dos respuestas",
+      "body": [
+        "Compara una expresión emocional ante dos respuestas relacionales distintas y elige qué podría cambiar en cada caso."
+      ],
+      "note": "Es una comparación entre ejemplos; no concluye nada sobre tus relaciones.",
+      "actionLabel": "Ya hice la práctica",
+      "stepKey": "practicar-dos-respuestas-relacionales",
+      "practiceKind": "signal_context_compare"
+    },
+    {
+      "order": 6,
+      "kind": "RECALL",
+      "title": "¿Qué aporta mirar el plano relacional?",
+      "body": [
+        "Recupera la idea central de esta microguía."
+      ],
+      "stepKey": "recordar-sentir-se-aprende-con-otros"
+    },
+    {
+      "order": 7,
+      "kind": "SUMMARY",
+      "title": "Lo que te llevas",
+      "body": [
+        "Sentir también se aprende con otros: relaciones, modelado y respuestas repetidas participan en el aprendizaje emocional. Participar no es fabricar por completo lo que alguien siente."
+      ],
+      "actionLabel": "Finalizar"
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-sentir-se-aprende-con-otros",
+      "targetKey": "eec-sentir-se-aprende-con-otros"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-dos-respuestas-relacionales",
+      "targetKey": "eec-c6-practice-dos-respuestas-relacionales"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-sentir-se-aprende-con-otros",
+      "targetKey": "eec-c6-recall-sentir-se-aprende-con-otros"
+    }
+  ],
+  "media": {
+    "audio": null,
+    "video": null
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Navegación completa por teclado, con foco visible y orden de tabulación lógico.",
+    "Toda reordenación anunciada por lector de pantalla mediante aria-live.",
+    "Alternativa sin arrastrar para cualquier interacción de ordenamiento.",
+    "Respeta prefers-reduced-motion.",
+    "El color nunca es la única señal de estado.",
+    "Ninguna reproducción automática y ningún audio o vídeo obligatorio."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "eec-c06-sentir-se-aprende-con-otros-v1-d893fa3d35cb57dc",
+  "approvalReferences": [
+    "https://app.notion.com/p/3d2cbb1031a081149d97ca054012b276",
+    "APROBAR ARQUITECTURA C03-C10 — decisión autoral 2026-09-04."
+  ],
+  "manifestSha256": "7bd2263bcfd42b8c964575a4b820db0e8732caa740e03e0485f354ac847591a4",
+  "title": "Sentir también se aprende con otros"
+}

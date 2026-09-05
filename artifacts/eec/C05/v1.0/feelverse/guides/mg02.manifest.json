@@ -1,0 +1,149 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "EEC-C05-MG02",
+  "bookSlug": "emociones-en-construccion",
+  "editionKey": "emociones-en-construccion-1e",
+  "chapterCode": "EEC-C05",
+  "chapterOrder": 5,
+  "unitKey": "231166b5-f48e-506a-9edc-474a26795e4c",
+  "canonicalVersion": "EEC_C05_v1.0_TEXT_LOCKED_2026-08-26",
+  "canonicalSha256": "0f35f0d0f498ef0d6d1970709c1cbfdf939dfd9f3d6ab8f01aecc1bba1a1c956",
+  "sourceArtifact": "artifacts/eec/C05/v1.0/feelverse/unit-payload.json",
+  "experienceKey": "eec-c5-silencio-sin-subtitulos",
+  "experienceVersion": 1,
+  "guideKey": "eec-c5-silencio-sin-subtitulos",
+  "guideVersion": 1,
+  "conceptKey": "eec-silencio-sin-subtitulos",
+  "practiceKey": "eec-c5-practice-escena-subtitulo-historia",
+  "practiceKind": "context_plausibility",
+  "recallKey": "eec-c5-recall-silencio-sin-subtitulos",
+  "anchors": {
+    "primary": {
+      "reference": "eec-c5-que-subtitulos-anado",
+      "heading": "**«¿Qué historia debo inventar para dejar de sentir esto?»**",
+      "fingerprint": "¿Qué subtítulos estoy añadiendo a esta escena",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "Lo que sé y lo que estoy añadiendo",
+      "body": [
+        "Un mensaje leído sin respuesta no trae su explicación incorporada. Vas a separar la escena, el subtítulo que le ponemos y la historia más amplia que aparece detrás."
+      ],
+      "note": "La escena es de ejemplo. Puedes salir y volver cuando quieras.",
+      "actionLabel": "Comenzar"
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "La pregunta más honesta",
+      "body": [
+        "Lee el punto donde el capítulo cambia «¿qué historia debo inventar?» por una pregunta sobre los subtítulos que añadimos, y muestra la distinción mínima entre escena, subtítulo e historia amplia."
+      ],
+      "actionLabel": "Leí el pasaje",
+      "anchorRef": "eec-c5-que-subtitulos-anado"
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "La escena, el subtítulo y la historia amplia",
+      "body": [
+        "«Mi jefa pidió hablar mañana» es una escena. «Va a despedirme» es un subtítulo. «Cuando confían en mí, termino fallando» es una historia más amplia.",
+        "Las tres pueden sentirse como una sola cosa. Separarlas no niega la preocupación: permite ver en qué momento un dato empezó a convertirse en una conclusión."
+      ],
+      "note": "Marcar esta escena registra que exploraste la idea; no evalúa lo que sabes ni infiere nada sobre ti.",
+      "actionLabel": "He explorado la idea",
+      "stepKey": "explorar-silencio-sin-subtitulos"
+    },
+    {
+      "order": 4,
+      "kind": "EXAMPLE",
+      "title": "Dos marcas azules",
+      "body": [
+        "El mensaje aparece leído y sin respuesta. Eso es lo observable.",
+        "«Está molesto», «se cansó de mí», «está ocupado» son subtítulos posibles. Ninguno viene incluido en las dos marcas azules."
+      ]
+    },
+    {
+      "order": 5,
+      "kind": "PRACTICE",
+      "title": "Escena, subtítulo e historia",
+      "body": [
+        "Ordena las lecturas posibles de un hecho ambiguo según lo que la información disponible permite sostener, y marca qué falta por saber."
+      ],
+      "note": "Puedes elegir entre las opciones sugeridas. Si prefieres escribir, tu texto se queda en tu dispositivo.",
+      "actionLabel": "Ya hice la práctica",
+      "stepKey": "practicar-escena-subtitulo-historia",
+      "practiceKind": "context_plausibility"
+    },
+    {
+      "order": 6,
+      "kind": "RECALL",
+      "title": "¿Qué trae consigo un hecho ambiguo?",
+      "body": [
+        "Recupera la idea central de esta microguía."
+      ],
+      "stepKey": "recordar-silencio-sin-subtitulos"
+    },
+    {
+      "order": 7,
+      "kind": "SUMMARY",
+      "title": "Lo que te llevas",
+      "body": [
+        "El silencio no viene con subtítulos. Distinguir lo que ocurrió de lo que estamos añadiendo no obliga a dejar de preocuparse: solo muestra dónde termina el dato y dónde empieza la conclusión."
+      ],
+      "actionLabel": "Finalizar"
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-silencio-sin-subtitulos",
+      "targetKey": "eec-silencio-sin-subtitulos"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-escena-subtitulo-historia",
+      "targetKey": "eec-c5-practice-escena-subtitulo-historia"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-silencio-sin-subtitulos",
+      "targetKey": "eec-c5-recall-silencio-sin-subtitulos"
+    }
+  ],
+  "media": {
+    "audio": null,
+    "video": null
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Navegación completa por teclado, con foco visible y orden de tabulación lógico.",
+    "Toda reordenación anunciada por lector de pantalla mediante aria-live.",
+    "Alternativa sin arrastrar para cualquier interacción de ordenamiento.",
+    "Respeta prefers-reduced-motion.",
+    "El color nunca es la única señal de estado.",
+    "Ninguna reproducción automática y ningún audio o vídeo obligatorio."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "eec-c05-silencio-sin-subtitulos-v1-7af939931311b878",
+  "approvalReferences": [
+    "https://app.notion.com/p/3d2cbb1031a081149d97ca054012b276",
+    "APROBAR ARQUITECTURA C03-C10 — decisión autoral 2026-09-04."
+  ],
+  "manifestSha256": "3b044fe010ce235d03036148057f8e39899372df7df57f4d97c60af9b42b21ee",
+  "title": "El silencio no viene con subtítulos"
+}

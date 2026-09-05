@@ -558,6 +558,305 @@ export const EEC_C2_MG05_RITUALS_GUIDE = eecC2Guide(
 );
 
 /**
+ * EEC-C03 → C10 · the forty approved microguides (author decision, 2026-09-04).
+ *
+ * `eecC1Guide` and `eecC2Guide` are left exactly as they were. This is the same
+ * shape with the chapter number as an argument rather than baked into a string,
+ * because eight more copies of the same six lines is how two of them end up
+ * disagreeing. The three obligatory steps and their completion policies are
+ * identical to C01's and C02's — a guide is a guide.
+ */
+const eecChapterGuide =
+  (order: number) =>
+  (slug: string, conceptKey: string, practiceSlug: string): GuideDefinition =>
+    validateGuideDefinition({
+      guideKey: `eec-c${order}-${slug}`,
+      guideVersion: 1,
+      steps: [
+        {
+          stepKey: `explorar-${slug}`,
+          order: 1,
+          required: true,
+          kind: "CONCEPT_EXPLORATION",
+          completionPolicy: "explicit_confirmation",
+          conceptKey,
+        },
+        {
+          stepKey: `practicar-${practiceSlug}`,
+          order: 2,
+          required: true,
+          kind: "CATALOG_PRACTICE",
+          completionPolicy: "catalog_practice_confirmation",
+          exerciseKey: `eec-c${order}-practice-${practiceSlug}`,
+        },
+        {
+          stepKey: `recordar-${slug}`,
+          order: 3,
+          required: true,
+          kind: "ACTIVE_RECALL",
+          completionPolicy: "objective_recall",
+          itemKey: `eec-c${order}-recall-${slug}`,
+        },
+      ],
+    });
+
+const eecC3Guide = eecChapterGuide(3);
+/** MG01 — Predecir no es adivinar */
+export const EEC_C3_MG01_GUIDE = eecC3Guide(
+  "predecir-no-es-adivinar",
+  "eec-predecir-no-es-adivinar",
+  "anticipar-dato-afirmacion",
+);
+/** MG02 — Una señal corporal no viene con etiqueta */
+export const EEC_C3_MG02_GUIDE = eecC3Guide(
+  "senal-corporal-sin-etiqueta",
+  "eec-senal-corporal-sin-etiqueta",
+  "misma-senal-tres-contextos",
+);
+/** MG03 — El cerebro también necesita contexto para categorizar */
+export const EEC_C3_MG03_GUIDE = eecC3Guide(
+  "contexto-para-categorizar",
+  "eec-contexto-para-categorizar",
+  "escena-antes-y-despues",
+);
+/** MG04 — No hay un botón de miedo */
+export const EEC_C3_MG04_GUIDE = eecC3Guide(
+  "no-hay-boton-de-miedo",
+  "eec-no-hay-boton-de-miedo",
+  "region-y-emocion",
+);
+/** MG05 — Cuando el modelo no encaja, puede actualizarse */
+export const EEC_C3_MG05_GUIDE = eecC3Guide(
+  "modelo-puede-actualizarse",
+  "eec-modelo-puede-actualizarse",
+  "de-la-expectativa-al-ajuste",
+);
+
+const eecC4Guide = eecChapterGuide(4);
+/** MG01 — El cuerpo aporta datos, no veredictos */
+export const EEC_C4_MG01_GUIDE = eecC4Guide(
+  "cuerpo-datos-no-veredictos",
+  "eec-cuerpo-datos-no-veredictos",
+  "misma-sensacion-otros-contextos",
+);
+/** MG02 — Notar, interpretar y nombrar no son lo mismo */
+export const EEC_C4_MG02_GUIDE = eecC4Guide(
+  "notar-interpretar-nombrar",
+  "eec-notar-interpretar-nombrar",
+  "senal-atencion-interpretacion-nombre",
+);
+/** MG03 — Cuerpo y cerebro no hacen fila */
+export const EEC_C4_MG03_GUIDE = eecC4Guide(
+  "cuerpo-y-cerebro-no-hacen-fila",
+  "eec-cuerpo-y-cerebro-no-hacen-fila",
+  "la-cadena-que-no-es-fila",
+);
+/** MG04 — Metáfora, teoría y evidencia no son lo mismo */
+export const EEC_C4_MG04_GUIDE = eecC4Guide(
+  "metafora-teoria-evidencia",
+  "eec-metafora-teoria-evidencia",
+  "que-tipo-de-afirmacion-es",
+);
+/** MG05 — Observar el cuerpo también requiere elección */
+export const EEC_C4_MG05_GUIDE = eecC4Guide(
+  "observar-requiere-eleccion",
+  "eec-observar-requiere-eleccion",
+  "elegir-como-observar",
+);
+
+const eecC5Guide = eecChapterGuide(5);
+/** MG01 — Una emoción no es una historia */
+export const EEC_C5_MG01_GUIDE = eecC5Guide(
+  "emocion-no-es-historia",
+  "eec-emocion-no-es-historia",
+  "cambia-la-historia-cambia-la-emocion",
+);
+/** MG02 — El silencio no viene con subtítulos */
+export const EEC_C5_MG02_GUIDE = eecC5Guide(
+  "silencio-sin-subtitulos",
+  "eec-silencio-sin-subtitulos",
+  "escena-subtitulo-historia",
+);
+/** MG03 — Una historia dominante no es toda tu identidad */
+export const EEC_C5_MG03_GUIDE = eecC5Guide(
+  "historia-dominante-no-es-identidad",
+  "eec-historia-dominante-no-es-identidad",
+  "acontecimiento-descripcion-conclusion-excepcion",
+);
+/** MG04 — Recordar reconstruye; no inventa libremente */
+export const EEC_C5_MG04_GUIDE = eecC5Guide(
+  "recordar-reconstruye",
+  "eec-recordar-reconstruye",
+  "dato-interpretacion-informacion-nueva",
+);
+/** MG05 — Reescribir puede abrir opciones, no garantizar otra emoción */
+export const EEC_C5_MG05_GUIDE = eecC5Guide(
+  "reescribir-abre-opciones",
+  "eec-reescribir-abre-opciones",
+  "dos-formulaciones-que-abren",
+);
+
+const eecC6Guide = eecChapterGuide(6);
+/** MG01 — Sentir también se aprende con otros */
+export const EEC_C6_MG01_GUIDE = eecC6Guide(
+  "sentir-se-aprende-con-otros",
+  "eec-sentir-se-aprende-con-otros",
+  "dos-respuestas-relacionales",
+);
+/** MG02 — Regular juntos no es controlar */
+export const EEC_C6_MG02_GUIDE = eecC6Guide(
+  "regular-juntos-no-es-controlar",
+  "eec-regular-juntos-no-es-controlar",
+  "apoyo-validacion-control-escalamiento",
+);
+/** MG03 — Un ciclo no significa culpa compartida */
+export const EEC_C6_MG03_GUIDE = eecC6Guide(
+  "ciclo-no-es-culpa-compartida",
+  "eec-ciclo-no-es-culpa-compartida",
+  "ordenar-el-ciclo",
+);
+/** MG04 — Parecidos que no son sinónimos */
+export const EEC_C6_MG04_GUIDE = eecC6Guide(
+  "parecidos-que-no-son-sinonimos",
+  "eec-parecidos-que-no-son-sinonimos",
+  "empatia-contagio-sincronia",
+);
+/** MG05 — Influencia no es destino */
+export const EEC_C6_MG05_GUIDE = eecC6Guide(
+  "influencia-no-es-destino",
+  "eec-influencia-no-es-destino",
+  "mi-parte-la-otra-el-contexto-el-limite",
+);
+
+const eecC7Guide = eecChapterGuide(7);
+/** MG01 — Traducir empieza por suspender equivalencias */
+export const EEC_C7_MG01_GUIDE = eecC7Guide(
+  "suspender-equivalencias",
+  "eec-suspender-equivalencias",
+  "separar-capas-de-una-escena",
+);
+/** MG02 — La expectativa cambia cómo lees la señal */
+export const EEC_C7_MG02_GUIDE = eecC7Guide(
+  "expectativa-cambia-la-lectura",
+  "eec-expectativa-cambia-la-lectura",
+  "senal-expectativa-interpretacion-dato",
+);
+/** MG03 — Una diferencia cultural no es una excusa automática */
+export const EEC_C7_MG03_GUIDE = eecC7Guide(
+  "diferencia-no-es-excusa",
+  "eec-diferencia-no-es-excusa",
+  "diferencia-falta-contexto-o-limite",
+);
+/** MG04 — Dentro de una cultura también hay muchos repertorios */
+export const EEC_C7_MG04_GUIDE = eecC7Guide(
+  "muchos-repertorios-dentro",
+  "eec-muchos-repertorios-dentro",
+  "un-pais-no-es-una-variable",
+);
+/** MG05 — Preguntar es parte de traducir */
+export const EEC_C7_MG05_GUIDE = eecC7Guide(
+  "preguntar-es-traducir",
+  "eec-preguntar-es-traducir",
+  "de-conclusion-a-pregunta",
+);
+
+const eecC8Guide = eecChapterGuide(8);
+/** MG01 — Sentirlo no lo vuelve verdad */
+export const EEC_C8_MG01_GUIDE = eecC8Guide(
+  "sentirlo-no-lo-vuelve-verdad",
+  "eec-sentirlo-no-lo-vuelve-verdad",
+  "emocion-interpretacion-hechos-falta",
+);
+/** MG02 — Una emoción puede mostrar lo que importa, no qué hacer */
+export const EEC_C8_MG02_GUIDE = eecC8Guide(
+  "muestra-lo-que-importa-no-que-hacer",
+  "eec-muestra-lo-que-importa-no-que-hacer",
+  "que-importa-y-que-esta-justificado",
+);
+/** MG03 — Pista, evidencia y veredicto son distintos */
+export const EEC_C8_MG03_GUIDE = eecC8Guide(
+  "pista-evidencia-veredicto",
+  "eec-pista-evidencia-veredicto",
+  "clasificar-pista-evidencia-veredicto",
+);
+/** MG04 — Validar no es dar la razón en todo */
+export const EEC_C8_MG04_GUIDE = eecC8Guide(
+  "validar-no-es-dar-la-razon",
+  "eec-validar-no-es-dar-la-razon",
+  "experiencia-interpretacion-impulso-conducta",
+);
+/** MG05 — Antes de actuar, amplía el examen */
+export const EEC_C8_MG05_GUIDE = eecC8Guide(
+  "antes-de-actuar-amplia-el-examen",
+  "eec-antes-de-actuar-amplia-el-examen",
+  "que-respuesta-puedo-justificar",
+);
+
+const eecC9Guide = eecChapterGuide(9);
+/** MG01 — Construido no significa elegido */
+export const EEC_C9_MG01_GUIDE = eecC9Guide(
+  "construido-no-significa-elegido",
+  "eec-construido-no-significa-elegido",
+  "influencia-o-voluntarismo",
+);
+/** MG02 — Una técnica útil no es una técnica universal */
+export const EEC_C9_MG02_GUIDE = eecC9Guide(
+  "tecnica-util-no-es-universal",
+  "eec-tecnica-util-no-es-universal",
+  "objetivo-y-herramienta",
+);
+/** MG03 — Define qué quieres cambiar antes de regular */
+export const EEC_C9_MG03_GUIDE = eecC9Guide(
+  "define-que-quieres-cambiar",
+  "eec-define-que-quieres-cambiar",
+  "objetivo-influencia-estrategia-senal",
+);
+/** MG04 — Cuatro puertas para intervenir */
+export const EEC_C9_MG04_GUIDE = eecC9Guide(
+  "cuatro-puertas",
+  "eec-cuatro-puertas",
+  "por-que-puerta-entra",
+);
+/** MG05 — Repensar también ocurre después */
+export const EEC_C9_MG05_GUIDE = eecC9Guide(
+  "repensar-ocurre-despues",
+  "eec-repensar-ocurre-despues",
+  "objetivo-respuesta-consecuencia-ajuste",
+);
+
+const eecC10Guide = eecChapterGuide(10);
+/** MG01 — Hacer espacio no es confirmar toda la historia */
+export const EEC_C10_MG01_GUIDE = eecC10Guide(
+  "hacer-espacio-no-es-confirmar",
+  "eec-hacer-espacio-no-es-confirmar",
+  "de-minimizar-a-hacer-espacio",
+);
+/** MG02 — No te conviertas demasiado pronto en narrador de la mente ajena */
+export const EEC_C10_MG02_GUIDE = eecC10Guide(
+  "no-narrador-de-la-mente-ajena",
+  "eec-no-narrador-de-la-mente-ajena",
+  "observacion-interpretacion-pregunta-falta",
+);
+/** MG03 — La emoción puede estar; la conducta sigue teniendo límites */
+export const EEC_C10_MG03_GUIDE = eecC10Guide(
+  "emocion-si-conducta-con-limites",
+  "eec-emocion-si-conducta-con-limites",
+  "experiencia-impulso-limite-alternativa",
+);
+/** MG04 — Ayudar sin borrar la agencia */
+export const EEC_C10_MG04_GUIDE = eecC10Guide(
+  "ayudar-sin-borrar-la-agencia",
+  "eec-ayudar-sin-borrar-la-agencia",
+  "escuchar-opciones-o-intervenir",
+);
+/** MG05 — A veces hay que cambiar el escenario */
+export const EEC_C10_MG05_GUIDE = eecC10Guide(
+  "cambiar-el-escenario",
+  "eec-cambiar-el-escenario",
+  "habilidad-o-condicion",
+);
+
+/**
  * The PRODUCTION registry — exactly the approved definitions. Adding one is a
  * deliberate, reviewed change (editorial approval + real, resolvable targets);
  * content is never invented here.
@@ -579,6 +878,46 @@ export const PRODUCTION_GUIDE_DEFINITIONS: readonly GuideDefinition[] = [
   EEC_C2_MG03_GESTURE_GUIDE,
   EEC_C2_MG04_WORDS_GUIDE,
   EEC_C2_MG05_RITUALS_GUIDE,
+  EEC_C3_MG01_GUIDE,
+  EEC_C3_MG02_GUIDE,
+  EEC_C3_MG03_GUIDE,
+  EEC_C3_MG04_GUIDE,
+  EEC_C3_MG05_GUIDE,
+  EEC_C4_MG01_GUIDE,
+  EEC_C4_MG02_GUIDE,
+  EEC_C4_MG03_GUIDE,
+  EEC_C4_MG04_GUIDE,
+  EEC_C4_MG05_GUIDE,
+  EEC_C5_MG01_GUIDE,
+  EEC_C5_MG02_GUIDE,
+  EEC_C5_MG03_GUIDE,
+  EEC_C5_MG04_GUIDE,
+  EEC_C5_MG05_GUIDE,
+  EEC_C6_MG01_GUIDE,
+  EEC_C6_MG02_GUIDE,
+  EEC_C6_MG03_GUIDE,
+  EEC_C6_MG04_GUIDE,
+  EEC_C6_MG05_GUIDE,
+  EEC_C7_MG01_GUIDE,
+  EEC_C7_MG02_GUIDE,
+  EEC_C7_MG03_GUIDE,
+  EEC_C7_MG04_GUIDE,
+  EEC_C7_MG05_GUIDE,
+  EEC_C8_MG01_GUIDE,
+  EEC_C8_MG02_GUIDE,
+  EEC_C8_MG03_GUIDE,
+  EEC_C8_MG04_GUIDE,
+  EEC_C8_MG05_GUIDE,
+  EEC_C9_MG01_GUIDE,
+  EEC_C9_MG02_GUIDE,
+  EEC_C9_MG03_GUIDE,
+  EEC_C9_MG04_GUIDE,
+  EEC_C9_MG05_GUIDE,
+  EEC_C10_MG01_GUIDE,
+  EEC_C10_MG02_GUIDE,
+  EEC_C10_MG03_GUIDE,
+  EEC_C10_MG04_GUIDE,
+  EEC_C10_MG05_GUIDE,
   PQP_C1_SUSTAINED_CONTACT_GUIDE,
 ];
 

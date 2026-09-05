@@ -1,0 +1,149 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "EEC-C08-MG02",
+  "bookSlug": "emociones-en-construccion",
+  "editionKey": "emociones-en-construccion-1e",
+  "chapterCode": "EEC-C08",
+  "chapterOrder": 8,
+  "unitKey": "cd8e1f8e-e19a-5c90-b0f0-5acd5d0a3163",
+  "canonicalVersion": "EEC_C08_v1.0_TEXT_LOCKED_2026-08-26",
+  "canonicalSha256": "6b71342e0117f4243022ff66e8af2e3b41caec0f4a978b50c48fbad3e0e336c2",
+  "sourceArtifact": "artifacts/eec/C08/v1.0/feelverse/unit-payload.json",
+  "experienceKey": "eec-c8-muestra-lo-que-importa-no-que-hacer",
+  "experienceVersion": 1,
+  "guideKey": "eec-c8-muestra-lo-que-importa-no-que-hacer",
+  "guideVersion": 1,
+  "conceptKey": "eec-muestra-lo-que-importa-no-que-hacer",
+  "practiceKey": "eec-c8-practice-que-importa-y-que-esta-justificado",
+  "practiceKind": "signal_context_compare",
+  "recallKey": "eec-c8-recall-muestra-lo-que-importa-no-que-hacer",
+  "anchors": {
+    "primary": {
+      "reference": "eec-c8-etica-cuando-aparece-el-otro",
+      "heading": "La ética empieza cuando aparece el otro",
+      "fingerprint": "no otorgan automáticamente derecho a revisar el teléfono de otra persona",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "Lo que importa y lo que está justificado",
+      "body": [
+        "Una emoción puede poner algo en primer plano sin decidir qué hacer con ello. Vas a comparar esas dos preguntas en situaciones cotidianas."
+      ],
+      "note": "Trabajaremos con escenas de ejemplo. Puedes salir y volver cuando quieras.",
+      "actionLabel": "Comenzar"
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "La ética empieza cuando aparece el otro",
+      "body": [
+        "Lee la sección donde el capítulo muestra que una ética centrada solo en la autenticidad individual sería insuficiente."
+      ],
+      "actionLabel": "Leí el pasaje",
+      "anchorRef": "eec-c8-etica-cuando-aparece-el-otro"
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "Poner algo en primer plano no es autorizar una acción",
+      "body": [
+        "Los celos pueden señalar que una relación importa. Aun siendo intensos, no otorgan automáticamente derecho a revisar el teléfono de otra persona, aislarla o controlarla.",
+        "La distancia entre «esto parece importarme» y «esta acción está justificada» es donde ocurre el discernimiento. Las decisiones afectan a otras personas, y eso añade preguntas que la intensidad no responde."
+      ],
+      "note": "Marcar esta escena registra que exploraste la idea; no evalúa lo que sabes ni infiere nada sobre ti.",
+      "actionLabel": "He explorado la idea",
+      "stepKey": "explorar-muestra-lo-que-importa-no-que-hacer"
+    },
+    {
+      "order": 4,
+      "kind": "EXAMPLE",
+      "title": "Indignación ante una publicación",
+      "body": [
+        "La indignación puede señalar un valor real que se siente vulnerado.",
+        "Qué hacer con ella —responder, esperar, informarse, no participar— sigue siendo una pregunta abierta que la emoción no cierra."
+      ]
+    },
+    {
+      "order": 5,
+      "kind": "PRACTICE",
+      "title": "Qué parece importar, qué está justificado",
+      "body": [
+        "Compara en dos situaciones lo que la emoción hace visible y lo que la acción requeriría para estar justificada."
+      ],
+      "note": "Es una comparación entre ejemplos; no es un consejo sobre qué hacer en tu caso.",
+      "actionLabel": "Ya hice la práctica",
+      "stepKey": "practicar-que-importa-y-que-esta-justificado",
+      "practiceKind": "signal_context_compare"
+    },
+    {
+      "order": 6,
+      "kind": "RECALL",
+      "title": "¿Qué autoriza la intensidad de una emoción?",
+      "body": [
+        "Recupera la idea central de esta microguía."
+      ],
+      "stepKey": "recordar-muestra-lo-que-importa-no-que-hacer"
+    },
+    {
+      "order": 7,
+      "kind": "SUMMARY",
+      "title": "Lo que te llevas",
+      "body": [
+        "Una emoción puede mostrar lo que importa y no dicta qué hacer. Entre lo que sentimos y lo que está justificado aparecen los derechos y las consecuencias para otras personas."
+      ],
+      "actionLabel": "Finalizar"
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-muestra-lo-que-importa-no-que-hacer",
+      "targetKey": "eec-muestra-lo-que-importa-no-que-hacer"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-que-importa-y-que-esta-justificado",
+      "targetKey": "eec-c8-practice-que-importa-y-que-esta-justificado"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-muestra-lo-que-importa-no-que-hacer",
+      "targetKey": "eec-c8-recall-muestra-lo-que-importa-no-que-hacer"
+    }
+  ],
+  "media": {
+    "audio": null,
+    "video": null
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Navegación completa por teclado, con foco visible y orden de tabulación lógico.",
+    "Toda reordenación anunciada por lector de pantalla mediante aria-live.",
+    "Alternativa sin arrastrar para cualquier interacción de ordenamiento.",
+    "Respeta prefers-reduced-motion.",
+    "El color nunca es la única señal de estado.",
+    "Ninguna reproducción automática y ningún audio o vídeo obligatorio."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "eec-c08-muestra-lo-que-importa-no-que-hacer-v1-d69fb453e79a72a4",
+  "approvalReferences": [
+    "https://app.notion.com/p/3d2cbb1031a081149d97ca054012b276",
+    "APROBAR ARQUITECTURA C03-C10 — decisión autoral 2026-09-04."
+  ],
+  "manifestSha256": "7b21a8603e536aadf7b97cfc79e365b62a28d456a6296f2ac93a9234ce6b5064",
+  "title": "Una emoción puede mostrar lo que importa, no qué hacer"
+}

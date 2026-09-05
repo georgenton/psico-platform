@@ -1,0 +1,149 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "EEC-C06-MG02",
+  "bookSlug": "emociones-en-construccion",
+  "editionKey": "emociones-en-construccion-1e",
+  "chapterCode": "EEC-C06",
+  "chapterOrder": 6,
+  "unitKey": "170e6699-0507-5784-8ecc-c9994b8dbf7e",
+  "canonicalVersion": "EEC_C06_v1.1_TEXT_LOCKED_2026-09-01",
+  "canonicalSha256": "ac963f730925fc347e0ab91b9df09902af05f5febd73c830f099f3b82c7a4d7a",
+  "sourceArtifact": "artifacts/eec/C06/v1.1/feelverse/unit-payload.json",
+  "experienceKey": "eec-c6-regular-juntos-no-es-controlar",
+  "experienceVersion": 1,
+  "guideKey": "eec-c6-regular-juntos-no-es-controlar",
+  "guideVersion": 1,
+  "conceptKey": "eec-regular-juntos-no-es-controlar",
+  "practiceKey": "eec-c6-practice-apoyo-validacion-control-escalamiento",
+  "practiceKind": "context_plausibility",
+  "recallKey": "eec-c6-recall-regular-juntos-no-es-controlar",
+  "anchors": {
+    "primary": {
+      "reference": "eec-c6-ayuda-o-empeora",
+      "heading": "4. Cuando otra persona ayuda —o empeora— lo que sientes",
+      "fingerprint": "regular no siempre significa reducir una emoción",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "Acompañar tiene varias formas",
+      "body": [
+        "Escuchar, distraer, ayudar a reinterpretar, acompañar en silencio: todas son respuestas sociales a una emoción, y no hacen lo mismo. Vas a clasificar respuestas a una escena cotidiana."
+      ],
+      "note": "Trabajaremos con la escena del capítulo. Puedes salir y volver cuando quieras.",
+      "actionLabel": "Comenzar"
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "Cuando otra persona ayuda —o empeora— lo que sientes",
+      "body": [
+        "Lee la sección de la llamada tras una mala noticia, la caja de herramientas sociales y lo que el capítulo dice sobre co-regulación y co-rumiación."
+      ],
+      "actionLabel": "Leí el pasaje",
+      "anchorRef": "eec-c6-ayuda-o-empeora"
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "Co-regular no es conseguir que el otro sienta lo que queremos",
+      "body": [
+        "Regular no siempre significa reducir una emoción: a veces se trata de sostenerla o de aumentar energía antes de algo importante. El proceso describe qué ocurre; no garantiza que el objetivo sea saludable.",
+        "Dos personas pueden calmarse juntas y también desregularse juntas. Dar vueltas al mismo problema puede acercar y a la vez mantener la atención pegada a él. Compartir no es una técnica única."
+      ],
+      "note": "Marcar esta escena registra que exploraste la idea; no evalúa lo que sabes ni infiere nada sobre ti.",
+      "actionLabel": "He explorado la idea",
+      "stepKey": "explorar-regular-juntos-no-es-controlar"
+    },
+    {
+      "order": 4,
+      "kind": "EXAMPLE",
+      "title": "«¿Y viste cómo te miró?»",
+      "body": [
+        "Dos amigos repasan una discusión durante una hora. Se sienten acompañados y quizá más cercanos.",
+        "La conversación también multiplica interpretaciones y mantiene el problema encendido. Cercanía y alivio no son la misma medida."
+      ]
+    },
+    {
+      "order": 5,
+      "kind": "PRACTICE",
+      "title": "Apoyo, validación, control o escalamiento",
+      "body": [
+        "Clasifica varias respuestas a una escena cotidiana y marca cuándo la información disponible no alcanza para decidir."
+      ],
+      "note": "Puedes elegir entre las opciones sugeridas. Si prefieres escribir, tu texto se queda en tu dispositivo.",
+      "actionLabel": "Ya hice la práctica",
+      "stepKey": "practicar-apoyo-validacion-control-escalamiento",
+      "practiceKind": "context_plausibility"
+    },
+    {
+      "order": 6,
+      "kind": "RECALL",
+      "title": "¿Qué significa regular junto a otra persona?",
+      "body": [
+        "Recupera la idea central de esta microguía."
+      ],
+      "stepKey": "recordar-regular-juntos-no-es-controlar"
+    },
+    {
+      "order": 7,
+      "kind": "SUMMARY",
+      "title": "Lo que te llevas",
+      "body": [
+        "Regular juntos no es controlar. Una respuesta puede ayudar, sostener o intensificar, y una pregunta sencilla sobre qué necesita la otra persona suele servir más que una frase aprendida."
+      ],
+      "actionLabel": "Finalizar"
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-regular-juntos-no-es-controlar",
+      "targetKey": "eec-regular-juntos-no-es-controlar"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-apoyo-validacion-control-escalamiento",
+      "targetKey": "eec-c6-practice-apoyo-validacion-control-escalamiento"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-regular-juntos-no-es-controlar",
+      "targetKey": "eec-c6-recall-regular-juntos-no-es-controlar"
+    }
+  ],
+  "media": {
+    "audio": null,
+    "video": null
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Navegación completa por teclado, con foco visible y orden de tabulación lógico.",
+    "Toda reordenación anunciada por lector de pantalla mediante aria-live.",
+    "Alternativa sin arrastrar para cualquier interacción de ordenamiento.",
+    "Respeta prefers-reduced-motion.",
+    "El color nunca es la única señal de estado.",
+    "Ninguna reproducción automática y ningún audio o vídeo obligatorio."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "eec-c06-regular-juntos-no-es-controlar-v1-4982437cce3ba6bc",
+  "approvalReferences": [
+    "https://app.notion.com/p/3d2cbb1031a081149d97ca054012b276",
+    "APROBAR ARQUITECTURA C03-C10 — decisión autoral 2026-09-04."
+  ],
+  "manifestSha256": "975f8ae46867728480ab9b3d54b04efb3301e248e628083a389079ada81b8890",
+  "title": "Regular juntos no es controlar"
+}

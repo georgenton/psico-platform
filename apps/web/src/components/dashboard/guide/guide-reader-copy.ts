@@ -14,6 +14,14 @@
 import { guidePinKey, type GuidePin } from "./guide-pin";
 import { EEC_C01_READER_COPY } from "./eec-c01-microguides";
 import { EEC_C02_READER_COPY } from "./eec-c02-microguides";
+import { EEC_C03_READER_COPY } from "./eec-c03-microguides";
+import { EEC_C04_READER_COPY } from "./eec-c04-microguides";
+import { EEC_C05_READER_COPY } from "./eec-c05-microguides";
+import { EEC_C06_READER_COPY } from "./eec-c06-microguides";
+import { EEC_C07_READER_COPY } from "./eec-c07-microguides";
+import { EEC_C08_READER_COPY } from "./eec-c08-microguides";
+import { EEC_C09_READER_COPY } from "./eec-c09-microguides";
+import { EEC_C10_READER_COPY } from "./eec-c10-microguides";
 import { READER_GUIDE_SHARED } from "./guide-reader-shared";
 
 export { READER_GUIDE_SHARED };
@@ -409,6 +417,14 @@ export const PRODUCTION_GUIDE_READER_COPY: readonly GuideReaderCopy[] = [
   ...EEC_C01_READER_COPY,
   // EEC-C02's five, from theirs.
   ...EEC_C02_READER_COPY,
+  ...EEC_C03_READER_COPY,
+  ...EEC_C04_READER_COPY,
+  ...EEC_C05_READER_COPY,
+  ...EEC_C06_READER_COPY,
+  ...EEC_C07_READER_COPY,
+  ...EEC_C08_READER_COPY,
+  ...EEC_C09_READER_COPY,
+  ...EEC_C10_READER_COPY,
   EEC_C1_COPY,
   PQP_C1_COPY,
 ];

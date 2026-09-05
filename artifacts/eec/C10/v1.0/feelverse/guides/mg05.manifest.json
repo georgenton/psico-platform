@@ -1,0 +1,149 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "EEC-C10-MG05",
+  "bookSlug": "emociones-en-construccion",
+  "editionKey": "emociones-en-construccion-1e",
+  "chapterCode": "EEC-C10",
+  "chapterOrder": 10,
+  "unitKey": "1e7704be-0297-5124-90f7-ebff5ef0caeb",
+  "canonicalVersion": "EEC_C10_v1.0_TEXT_LOCKED_2026-08-27",
+  "canonicalSha256": "a732ccb428e46787850b646c75e36a160cafbeb3280ff596d95d6297a0623c9b",
+  "sourceArtifact": "artifacts/eec/C10/v1.0/feelverse/unit-payload.json",
+  "experienceKey": "eec-c10-cambiar-el-escenario",
+  "experienceVersion": 1,
+  "guideKey": "eec-c10-cambiar-el-escenario",
+  "guideVersion": 1,
+  "conceptKey": "eec-cambiar-el-escenario",
+  "practiceKey": "eec-c10-practice-habilidad-o-condicion",
+  "practiceKind": "signal_context_compare",
+  "recallKey": "eec-c10-recall-cambiar-el-escenario",
+  "anchors": {
+    "primary": {
+      "reference": "eec-c10-mirar-el-escenario",
+      "heading": "5. Mirar también el escenario",
+      "fingerprint": "Es como enseñar equilibrio mientras el suelo continúa mojado.",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "La habilidad y el suelo mojado",
+      "body": [
+        "Enseñar una habilidad puede ayudar y no siempre alcanza. Vas a comparar dos puertas: la habilidad individual y la condición del entorno."
+      ],
+      "note": "Trabajaremos con escenas de ejemplo. Puedes salir y volver cuando quieras.",
+      "actionLabel": "Comenzar"
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "Mirar también el escenario",
+      "body": [
+        "Lee la sección donde el capítulo compara enseñar equilibrio con secar el suelo."
+      ],
+      "actionLabel": "Leí el pasaje",
+      "anchorRef": "eec-c10-mirar-el-escenario"
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "Aprender equilibrio importa; secar el suelo también",
+      "body": [
+        "Una buena estrategia para manejar la ira puede ayudar y no sería suficiente si existe acoso. Es como enseñar equilibrio mientras el suelo continúa mojado.",
+        "Lo mismo ocurre donde alguien debe mantener siempre la calma para evitar la violencia de otra persona, o donde pedir ayuda tiene costo. A veces hace falta ampliar una habilidad, y a veces cambiar la condición que la exige."
+      ],
+      "note": "Marcar esta escena registra que exploraste la idea; no evalúa lo que sabes ni infiere nada sobre ti.",
+      "actionLabel": "He explorado la idea",
+      "stepKey": "explorar-cambiar-el-escenario"
+    },
+    {
+      "order": 4,
+      "kind": "EXAMPLE",
+      "title": "Respirar mejor en un aula ruidosa",
+      "body": [
+        "Enseñar a respirar puede ayudar a un grupo a concentrarse.",
+        "Si el ruido viene de una obra al lado, la habilidad sigue siendo útil y no resuelve el ruido. Las dos cosas pueden hacer falta a la vez."
+      ]
+    },
+    {
+      "order": 5,
+      "kind": "PRACTICE",
+      "title": "¿Habilidad individual o condición del entorno?",
+      "body": [
+        "Compara dos puertas ante una misma situación y elige qué factores indicarían que hacen falta las dos."
+      ],
+      "note": "Es una comparación entre ejemplos; no es un diagnóstico de tu entorno.",
+      "actionLabel": "Ya hice la práctica",
+      "stepKey": "practicar-habilidad-o-condicion",
+      "practiceKind": "signal_context_compare"
+    },
+    {
+      "order": 6,
+      "kind": "RECALL",
+      "title": "¿Basta con enseñar a regularse mejor?",
+      "body": [
+        "Recupera la idea central de esta microguía."
+      ],
+      "stepKey": "recordar-cambiar-el-escenario"
+    },
+    {
+      "order": 7,
+      "kind": "SUMMARY",
+      "title": "Lo que te llevas",
+      "body": [
+        "Enseñar habilidades individuales no sustituye cambiar lo que genera el problema una y otra vez. «Regularte mejor» no puede ser la única respuesta a algo estructural."
+      ],
+      "actionLabel": "Finalizar"
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-cambiar-el-escenario",
+      "targetKey": "eec-cambiar-el-escenario"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-habilidad-o-condicion",
+      "targetKey": "eec-c10-practice-habilidad-o-condicion"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-cambiar-el-escenario",
+      "targetKey": "eec-c10-recall-cambiar-el-escenario"
+    }
+  ],
+  "media": {
+    "audio": null,
+    "video": null
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Navegación completa por teclado, con foco visible y orden de tabulación lógico.",
+    "Toda reordenación anunciada por lector de pantalla mediante aria-live.",
+    "Alternativa sin arrastrar para cualquier interacción de ordenamiento.",
+    "Respeta prefers-reduced-motion.",
+    "El color nunca es la única señal de estado.",
+    "Ninguna reproducción automática y ningún audio o vídeo obligatorio."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "eec-c10-cambiar-el-escenario-v1-b6b3804543f3fe13",
+  "approvalReferences": [
+    "https://app.notion.com/p/3d2cbb1031a081149d97ca054012b276",
+    "APROBAR ARQUITECTURA C03-C10 — decisión autoral 2026-09-04."
+  ],
+  "manifestSha256": "cc5fc139ce10a299fbe8c92e72981d7ed1c2ba16ef1c1516f0f1d88ed2eb0f7a",
+  "title": "A veces hay que cambiar el escenario"
+}

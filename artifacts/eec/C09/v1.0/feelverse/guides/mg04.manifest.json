@@ -1,0 +1,149 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "EEC-C09-MG04",
+  "bookSlug": "emociones-en-construccion",
+  "editionKey": "emociones-en-construccion-1e",
+  "chapterCode": "EEC-C09",
+  "chapterOrder": 9,
+  "unitKey": "a1c44e40-de0b-5bac-9946-ed7655e4140e",
+  "canonicalVersion": "EEC_C09_v1.0_TEXT_LOCKED_2026-08-27",
+  "canonicalSha256": "02b42dbdeef1136c560207d597b4c010250e19216dcb0e4c0592684914f1a956",
+  "sourceArtifact": "artifacts/eec/C09/v1.0/feelverse/unit-payload.json",
+  "experienceKey": "eec-c9-cuatro-puertas",
+  "experienceVersion": 1,
+  "guideKey": "eec-c9-cuatro-puertas",
+  "guideVersion": 1,
+  "conceptKey": "eec-cuatro-puertas",
+  "practiceKey": "eec-c9-practice-por-que-puerta-entra",
+  "practiceKind": "context_plausibility",
+  "recallKey": "eec-c9-recall-cuatro-puertas",
+  "anchors": {
+    "primary": {
+      "reference": "eec-c9-puerta-cambiar-algo-afuera",
+      "heading": "Puerta 1: cambiar algo afuera",
+      "fingerprint": "La regulación se vuelve injusta cuando enseña a las personas a adaptarse indefinidamente a condiciones que deberían cambiar.",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "Cuatro maneras de entrar",
+      "body": [
+        "El capítulo propone cuatro puertas: la situación, el espacio que ocupa ahora, la interpretación y la conducta. Vas a clasificar respuestas según la puerta que usan."
+      ],
+      "note": "Son una traducción pedagógica, no las únicas categorías científicas posibles.",
+      "actionLabel": "Comenzar"
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "Puerta 1: cambiar algo afuera",
+      "body": [
+        "Lee la primera puerta, con la imagen del humo que entra por una ventana abierta."
+      ],
+      "actionLabel": "Leí el pasaje",
+      "anchorRef": "eec-c9-puerta-cambiar-algo-afuera"
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "Ninguna puerta garantiza cambiar la emoción",
+      "body": [
+        "A veces la ruta más directa no pasa por el mundo interior: pasa por preguntar, organizar, poner un límite o pedir apoyo. Si el humo entra por una ventana abierta, se puede practicar respiración veinte minutos o cerrar la ventana.",
+        "El capítulo añade un límite ético que conviene no perder: la regulación se vuelve injusta cuando enseña a adaptarse indefinidamente a condiciones que deberían cambiar."
+      ],
+      "note": "Marcar esta escena registra que exploraste la idea; no evalúa lo que sabes ni infiere nada sobre ti.",
+      "actionLabel": "He explorado la idea",
+      "stepKey": "explorar-cuatro-puertas"
+    },
+    {
+      "order": 4,
+      "kind": "EXAMPLE",
+      "title": "Diez minutos antes de responder",
+      "body": [
+        "Pedir diez minutos antes de contestar no resuelve el asunto ni cambia la situación.",
+        "Recupera margen para no responder en automático. Es otra puerta, con otro alcance."
+      ]
+    },
+    {
+      "order": 5,
+      "kind": "PRACTICE",
+      "title": "¿Por qué puerta entra esta respuesta?",
+      "body": [
+        "Clasifica varias respuestas según la puerta que usan y compara qué alcanza y qué no alcanza cada una."
+      ],
+      "note": "Puedes elegir entre las opciones sugeridas. Si prefieres escribir, tu texto se queda en tu dispositivo.",
+      "actionLabel": "Ya hice la práctica",
+      "stepKey": "practicar-por-que-puerta-entra",
+      "practiceKind": "context_plausibility"
+    },
+    {
+      "order": 6,
+      "kind": "RECALL",
+      "title": "¿Qué promete elegir una puerta de intervención?",
+      "body": [
+        "Recupera la idea central de esta microguía."
+      ],
+      "stepKey": "recordar-cuatro-puertas"
+    },
+    {
+      "order": 7,
+      "kind": "SUMMARY",
+      "title": "Lo que te llevas",
+      "body": [
+        "Hay puertas en la situación, en la activación, en la interpretación y en la conducta. Elegir una no garantiza que la emoción cambie, y a veces lo que hay que cambiar está afuera."
+      ],
+      "actionLabel": "Finalizar"
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-cuatro-puertas",
+      "targetKey": "eec-cuatro-puertas"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-por-que-puerta-entra",
+      "targetKey": "eec-c9-practice-por-que-puerta-entra"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-cuatro-puertas",
+      "targetKey": "eec-c9-recall-cuatro-puertas"
+    }
+  ],
+  "media": {
+    "audio": null,
+    "video": null
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Navegación completa por teclado, con foco visible y orden de tabulación lógico.",
+    "Toda reordenación anunciada por lector de pantalla mediante aria-live.",
+    "Alternativa sin arrastrar para cualquier interacción de ordenamiento.",
+    "Respeta prefers-reduced-motion.",
+    "El color nunca es la única señal de estado.",
+    "Ninguna reproducción automática y ningún audio o vídeo obligatorio."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "eec-c09-cuatro-puertas-v1-bec919fedd8b6aba",
+  "approvalReferences": [
+    "https://app.notion.com/p/3d2cbb1031a081149d97ca054012b276",
+    "APROBAR ARQUITECTURA C03-C10 — decisión autoral 2026-09-04."
+  ],
+  "manifestSha256": "630bd30d6b9441b45c4e3febf9c694f60d9f01fd7f7a0608188705efe006115a",
+  "title": "Cuatro puertas para intervenir"
+}

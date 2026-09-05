@@ -61,6 +61,51 @@ const CHAPTERS = {
     chapterMd: "content/books/eec/C02/chapter.md",
     flag: null as FlagName | null,
   },
+  // C03–C10 · the forty guided readings (`APROBAR ARQUITECTURA C03-C10`,
+  // 2026-09-04). Eight rows, no flags: like C02, the five ship as DRAFT and the
+  // chapter is absent from the discovery catalog, so the route is dark by
+  // construction rather than by a switch somebody could flip early.
+  C03: {
+    manifestDir: "artifacts/eec/C03/v1.0/feelverse/guides",
+    chapterMd: "content/books/eec/C03/chapter.md",
+    flag: null as FlagName | null,
+  },
+  C04: {
+    manifestDir: "artifacts/eec/C04/v1.0/feelverse/guides",
+    chapterMd: "content/books/eec/C04/chapter.md",
+    flag: null as FlagName | null,
+  },
+  C05: {
+    manifestDir: "artifacts/eec/C05/v1.0/feelverse/guides",
+    chapterMd: "content/books/eec/C05/chapter.md",
+    flag: null as FlagName | null,
+  },
+  // C06 closed at v1.1 — its artifacts live under that version, not v1.0.
+  C06: {
+    manifestDir: "artifacts/eec/C06/v1.1/feelverse/guides",
+    chapterMd: "content/books/eec/C06/chapter.md",
+    flag: null as FlagName | null,
+  },
+  C07: {
+    manifestDir: "artifacts/eec/C07/v1.0/feelverse/guides",
+    chapterMd: "content/books/eec/C07/chapter.md",
+    flag: null as FlagName | null,
+  },
+  C08: {
+    manifestDir: "artifacts/eec/C08/v1.0/feelverse/guides",
+    chapterMd: "content/books/eec/C08/chapter.md",
+    flag: null as FlagName | null,
+  },
+  C09: {
+    manifestDir: "artifacts/eec/C09/v1.0/feelverse/guides",
+    chapterMd: "content/books/eec/C09/chapter.md",
+    flag: null as FlagName | null,
+  },
+  C10: {
+    manifestDir: "artifacts/eec/C10/v1.0/feelverse/guides",
+    chapterMd: "content/books/eec/C10/chapter.md",
+    flag: null as FlagName | null,
+  },
 } as const;
 
 export type ChapterCode = keyof typeof CHAPTERS;

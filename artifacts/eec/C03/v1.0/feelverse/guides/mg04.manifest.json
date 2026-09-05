@@ -1,0 +1,149 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "EEC-C03-MG04",
+  "bookSlug": "emociones-en-construccion",
+  "editionKey": "emociones-en-construccion-1e",
+  "chapterCode": "EEC-C03",
+  "chapterOrder": 3,
+  "unitKey": "f1fd8e4d-39ac-547f-908a-cb97c7f9170b",
+  "canonicalVersion": "EEC_C03_v1.0_TEXT_LOCKED_2026-08-25",
+  "canonicalSha256": "79c427f56089ba693e8c836d737ac0b3dd5c5ab54dbfc8746a02799bbe28beb1",
+  "sourceArtifact": "artifacts/eec/C03/v1.0/feelverse/unit-payload.json",
+  "experienceKey": "eec-c3-no-hay-boton-de-miedo",
+  "experienceVersion": 1,
+  "guideKey": "eec-c3-no-hay-boton-de-miedo",
+  "guideVersion": 1,
+  "conceptKey": "eec-no-hay-boton-de-miedo",
+  "practiceKey": "eec-c3-practice-region-y-emocion",
+  "practiceKind": "belief_lens",
+  "recallKey": "eec-c3-recall-no-hay-boton-de-miedo",
+  "anchors": {
+    "primary": {
+      "reference": "eec-c3-patrones-sin-botones",
+      "heading": "Patrones sin botones",
+      "fingerprint": "sin que haya una huella universal, única e invariable para cada emoción",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "«Se activa una región»",
+      "body": [
+        "«Se encendió la amígdala» suena a explicación completa. Vas a mirar cuatro afirmaciones sobre cerebro y emoción y a separar qué se observó, qué se infiere y qué añadió la divulgación."
+      ],
+      "note": "Trabajaremos con afirmaciones de ejemplo. Puedes salir y volver cuando quieras.",
+      "actionLabel": "Comenzar"
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "Patrones sin botones",
+      "body": [
+        "Lee la sección donde el capítulo compara el reconocimiento de una canción con la actividad distribuida y matiza qué muestran las técnicas multivariadas."
+      ],
+      "actionLabel": "Leí el pasaje",
+      "anchorRef": "eec-c3-patrones-sin-botones"
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "Que haya patrones no significa que haya botones",
+      "body": [
+        "Que una emoción no viva en un único botón cerebral no convierte al cerebro en un caos sin regularidades. Pueden existir configuraciones distinguibles sin que exista una huella única e invariable para cada emoción.",
+        "El salto que conviene no dar es este: que una región participe no demuestra que esa región produzca por sí sola la experiencia. Participar en un patrón y ser su causa completa son afirmaciones distintas."
+      ],
+      "note": "Marcar esta escena registra que exploraste la idea; no evalúa lo que sabes ni infiere nada sobre ti.",
+      "actionLabel": "He explorado la idea",
+      "stepKey": "explorar-no-hay-boton-de-miedo"
+    },
+    {
+      "order": 4,
+      "kind": "EXAMPLE",
+      "title": "Reconocer una canción",
+      "body": [
+        "Una canción no está guardada en una sola nota. Se reconoce por un patrón: notas, ritmo, pausas y relaciones entre ellas.",
+        "Señalar una nota y decir «ahí está la canción» describe mal lo que ocurre, aunque esa nota realmente suene."
+      ]
+    },
+    {
+      "order": 5,
+      "kind": "PRACTICE",
+      "title": "Una región y una emoción",
+      "body": [
+        "Mira una afirmación frecuente sobre el cerebro emocional y sepárala en lo que observa, lo que supone y lo que faltaría para sostenerla."
+      ],
+      "note": "Puedes elegir entre las opciones sugeridas. Si prefieres escribir, tu texto se queda en tu dispositivo.",
+      "actionLabel": "Ya hice la práctica",
+      "stepKey": "practicar-region-y-emocion",
+      "practiceKind": "belief_lens"
+    },
+    {
+      "order": 6,
+      "kind": "RECALL",
+      "title": "Si una región se activa, ¿qué queda demostrado?",
+      "body": [
+        "Recupera la idea central de esta microguía."
+      ],
+      "stepKey": "recordar-no-hay-boton-de-miedo"
+    },
+    {
+      "order": 7,
+      "kind": "SUMMARY",
+      "title": "Lo que te llevas",
+      "body": [
+        "Los episodios emocionales involucran procesos distribuidos. Puede haber patrones reconocibles sin que exista un botón único, y una región que participa no es por eso la causa completa de lo que sientes."
+      ],
+      "actionLabel": "Finalizar"
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-no-hay-boton-de-miedo",
+      "targetKey": "eec-no-hay-boton-de-miedo"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-region-y-emocion",
+      "targetKey": "eec-c3-practice-region-y-emocion"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-no-hay-boton-de-miedo",
+      "targetKey": "eec-c3-recall-no-hay-boton-de-miedo"
+    }
+  ],
+  "media": {
+    "audio": null,
+    "video": null
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Navegación completa por teclado, con foco visible y orden de tabulación lógico.",
+    "Toda reordenación anunciada por lector de pantalla mediante aria-live.",
+    "Alternativa sin arrastrar para cualquier interacción de ordenamiento.",
+    "Respeta prefers-reduced-motion.",
+    "El color nunca es la única señal de estado.",
+    "Ninguna reproducción automática y ningún audio o vídeo obligatorio."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "eec-c03-no-hay-boton-de-miedo-v1-1bd78d6a0ff4997e",
+  "approvalReferences": [
+    "https://app.notion.com/p/3d2cbb1031a081149d97ca054012b276",
+    "APROBAR ARQUITECTURA C03-C10 — decisión autoral 2026-09-04."
+  ],
+  "manifestSha256": "5e14619f9c7394fb4270bff9b9a541c280dc37da328a25d3e2bf1e6c0a080ec5",
+  "title": "No hay un botón de miedo"
+}

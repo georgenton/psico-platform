@@ -1,5 +1,7 @@
 import type { PracticeInteraction, PracticeKind } from "@psico/types";
 
+import { EXERCISE_CATALOG_C03_C10 } from "./exercise-catalog-c03-c10";
+
 /**
  * CC-7.4B.2 — CLOSED, server-side catalog of the Exercise rows the Content Core
  * backfill materializes for the FIRST Guide V1 unit.
@@ -1091,6 +1093,7 @@ export const EXERCISE_INGESTION_CATALOG: Readonly<
         },
       },
     },
+    ...EXERCISE_CATALOG_C03_C10,
   ],
   // Demo Guide for Parejas que perduran (David Jaramillo, used with the
   // author's authorization). The book's chapter 1 is PLATFORM order 2 — the

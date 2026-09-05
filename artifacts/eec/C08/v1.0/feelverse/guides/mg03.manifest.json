@@ -1,0 +1,149 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "EEC-C08-MG03",
+  "bookSlug": "emociones-en-construccion",
+  "editionKey": "emociones-en-construccion-1e",
+  "chapterCode": "EEC-C08",
+  "chapterOrder": 8,
+  "unitKey": "cd8e1f8e-e19a-5c90-b0f0-5acd5d0a3163",
+  "canonicalVersion": "EEC_C08_v1.0_TEXT_LOCKED_2026-08-26",
+  "canonicalSha256": "6b71342e0117f4243022ff66e8af2e3b41caec0f4a978b50c48fbad3e0e336c2",
+  "sourceArtifact": "artifacts/eec/C08/v1.0/feelverse/unit-payload.json",
+  "experienceKey": "eec-c8-pista-evidencia-veredicto",
+  "experienceVersion": 1,
+  "guideKey": "eec-c8-pista-evidencia-veredicto",
+  "guideVersion": 1,
+  "conceptKey": "eec-pista-evidencia-veredicto",
+  "practiceKey": "eec-c8-practice-clasificar-pista-evidencia-veredicto",
+  "practiceKind": "context_plausibility",
+  "recallKey": "eec-c8-recall-pista-evidencia-veredicto",
+  "anchors": {
+    "primary": {
+      "reference": "eec-c8-pista-evidencia-veredicto",
+      "heading": "Pista, evidencia y veredicto no son lo mismo",
+      "fingerprint": "Comprender esa historia explica por qué apareció la emoción",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "Una pista merece examen",
+      "body": [
+        "Que una reacción tenga una historia explica su aparición y no confirma su contenido. Vas a clasificar afirmaciones como pista, evidencia adicional o veredicto todavía no justificado."
+      ],
+      "note": "Trabajaremos con la escena del capítulo. Puedes salir y volver cuando quieras.",
+      "actionLabel": "Comenzar"
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "Pista, evidencia y veredicto no son lo mismo",
+      "body": [
+        "Lee la escena de la entrevista de trabajo y el gesto de mirar el reloj."
+      ],
+      "actionLabel": "Leí el pasaje",
+      "anchorRef": "eec-c8-pista-evidencia-veredicto"
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "Explicar el origen no confirma el contenido",
+      "body": [
+        "Quizá una experiencia anterior enseñó a asociar ese gesto con desaprobación. Comprender esa historia explica por qué apareció la emoción, y no demuestra que la interpretación sea correcta esta vez.",
+        "Las emociones influyen en lo que atendemos, recordamos y elegimos: a veces ayudan y a veces sesgan. Por eso una pista pide investigación, no sentencia."
+      ],
+      "note": "Marcar esta escena registra que exploraste la idea; no evalúa lo que sabes ni infiere nada sobre ti.",
+      "actionLabel": "He explorado la idea",
+      "stepKey": "explorar-pista-evidencia-veredicto"
+    },
+    {
+      "order": 4,
+      "kind": "EXAMPLE",
+      "title": "El reloj en la entrevista",
+      "body": [
+        "Quien entrevista mira el reloj. Aparece ansiedad y una lectura: «lo estoy haciendo mal».",
+        "El gesto también cabe en una reunión que empieza tarde. La punzada es real; la conclusión sigue pendiente de comprobación."
+      ]
+    },
+    {
+      "order": 5,
+      "kind": "PRACTICE",
+      "title": "¿Pista, evidencia o veredicto?",
+      "body": [
+        "Clasifica varias afirmaciones y marca qué haría falta antes de convertir una pista en una creencia firme."
+      ],
+      "note": "Puedes elegir entre las opciones sugeridas. Si prefieres escribir, tu texto se queda en tu dispositivo.",
+      "actionLabel": "Ya hice la práctica",
+      "stepKey": "practicar-clasificar-pista-evidencia-veredicto",
+      "practiceKind": "context_plausibility"
+    },
+    {
+      "order": 6,
+      "kind": "RECALL",
+      "title": "Si una reacción tiene una historia, ¿qué demuestra?",
+      "body": [
+        "Recupera la idea central de esta microguía."
+      ],
+      "stepKey": "recordar-pista-evidencia-veredicto"
+    },
+    {
+      "order": 7,
+      "kind": "SUMMARY",
+      "title": "Lo que te llevas",
+      "body": [
+        "Una emoción funciona como pista evaluativa. Comprender de dónde viene explica su aparición sin certificar su contenido: entre la pista y el veredicto falta la investigación."
+      ],
+      "actionLabel": "Finalizar"
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-pista-evidencia-veredicto",
+      "targetKey": "eec-pista-evidencia-veredicto"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-clasificar-pista-evidencia-veredicto",
+      "targetKey": "eec-c8-practice-clasificar-pista-evidencia-veredicto"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-pista-evidencia-veredicto",
+      "targetKey": "eec-c8-recall-pista-evidencia-veredicto"
+    }
+  ],
+  "media": {
+    "audio": null,
+    "video": null
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Navegación completa por teclado, con foco visible y orden de tabulación lógico.",
+    "Toda reordenación anunciada por lector de pantalla mediante aria-live.",
+    "Alternativa sin arrastrar para cualquier interacción de ordenamiento.",
+    "Respeta prefers-reduced-motion.",
+    "El color nunca es la única señal de estado.",
+    "Ninguna reproducción automática y ningún audio o vídeo obligatorio."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "eec-c08-pista-evidencia-veredicto-v1-342386f2365bcdf7",
+  "approvalReferences": [
+    "https://app.notion.com/p/3d2cbb1031a081149d97ca054012b276",
+    "APROBAR ARQUITECTURA C03-C10 — decisión autoral 2026-09-04."
+  ],
+  "manifestSha256": "3acb797b5393ba40450f9176569f5096555eff1d023aaa471ccbb0e67cda308a",
+  "title": "Pista, evidencia y veredicto son distintos"
+}

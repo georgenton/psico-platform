@@ -1,6 +1,11 @@
 import type { Prisma } from "@prisma/client";
 import { blockKeyFromLegacyId } from "./lib/block-key";
 import {
+  ownerColumns,
+  sameOwner,
+  type ExerciseOwner,
+} from "./lib/exercise-owner";
+import {
   EXERCISE_INGESTION_CATALOG,
   type ObjectiveRecallDefinition,
   type PracticeExerciseDefinition,
@@ -165,7 +170,7 @@ export function practiceContentFor(
 
 interface ExerciseRow {
   id: string;
-  chapterId: string;
+  owner: ExerciseOwner;
   order: number;
   title: string;
   type: "REFLECTION" | "QUIZ";
@@ -174,17 +179,24 @@ interface ExerciseRow {
 
 /**
  * Create-or-verify one Exercise row by its stable id:
- *   absent → insert; present + identical (chapterId, order, title, type,
- *   content) → no-op replay; present + any difference → throw DRIFT.
+ *   absent → insert; present + identical (owner, order, title, type, content)
+ *   → no-op replay; present + any difference → throw DRIFT.
+ *
+ * The OWNER is part of that identity, not just the content. An exercise that
+ * silently changed from belonging to a legacy chapter to belonging to a native
+ * unit would keep its key and its words while resolving to a different unit —
+ * which is a migration, and a migration is not something a replay may perform.
  */
 async function upsertExerciseClosed(
   tx: ExerciseIngestDb,
   row: ExerciseRow,
 ): Promise<void> {
+  const owner = ownerColumns(row.owner);
   const existing = await tx.exercise.findUnique({
     where: { id: row.id },
     select: {
       chapterId: true,
+      contentUnitId: true,
       order: true,
       title: true,
       type: true,
@@ -195,7 +207,8 @@ async function upsertExerciseClosed(
     await tx.exercise.create({
       data: {
         id: row.id,
-        chapterId: row.chapterId,
+        chapterId: owner.chapterId,
+        contentUnitId: owner.contentUnitId,
         order: row.order,
         title: row.title,
         type: row.type,
@@ -205,7 +218,7 @@ async function upsertExerciseClosed(
     return;
   }
   const identical =
-    existing.chapterId === row.chapterId &&
+    sameOwner(existing, owner) &&
     existing.order === row.order &&
     existing.title === row.title &&
     existing.type === row.type &&
@@ -239,10 +252,20 @@ export interface PracticeSourceInspection {
  */
 export async function inspectPracticeSource(
   tx: ExerciseIngestDb,
-  chapterId: string,
+  /**
+   * The legacy chapter to look in, or null for a natively-owned unit.
+   *
+   * Null goes STRAIGHT to Content Core rather than querying `ChapterBlock` with
+   * a null id: a native chapter has no legacy blocks, so asking would return
+   * zero rows and reach the same place by a more confusing route.
+   */
+  chapterId: string | null,
   unitId: string,
   sourceHeading: string,
 ): Promise<PracticeSourceInspection> {
+  if (chapterId === null) {
+    return inspectCoreOwnedPracticeSource(tx, unitId, sourceHeading);
+  }
   const blocks = await tx.chapterBlock.findMany({
     where: { chapterId, kind: "HEADING", content: sourceHeading },
     select: { id: true },
@@ -311,7 +334,7 @@ async function inspectCoreOwnedPracticeSource(
 
 async function resolvePracticeSourceBlockKey(
   tx: ExerciseIngestDb,
-  chapterId: string,
+  chapterId: string | null,
   unitId: string,
   sourceHeading: string,
 ): Promise<string> {
@@ -352,15 +375,22 @@ export function recallContentFor(
 }
 
 /**
- * Ingest the catalog's Exercise rows for one Book, using the units already
- * resolved by the backfill. `chapterIdByOrder` / `unitIdByOrder` come from the
- * chapter loop; `tx` is the Book's transaction so any failure rolls the whole
- * Book back.
+ * Ingest the catalog's Exercise rows for one Book, using the units and owners
+ * already resolved by the caller.
+ *
+ * `ownerByOrder` replaces the old `chapterIdByOrder`: the caller decides, from
+ * the published manifest, whether a position is served by an adopted legacy
+ * chapter or by a native unit. This function no longer requires a `Chapter` to
+ * exist — requiring one is what made a natively-published chapter impossible to
+ * give a practice to. `unitIdByOrder` is still separate because the unit is
+ * needed for the source lookup even when the owner is legacy.
+ *
+ * `tx` is the Book's transaction, so any failure rolls the whole Book back.
  */
 export async function ingestUnitExercises(
   tx: ExerciseIngestDb,
   bookSlug: string,
-  chapterIdByOrder: ReadonlyMap<number, string>,
+  ownerByOrder: ReadonlyMap<number, ExerciseOwner>,
   unitIdByOrder: ReadonlyMap<number, string>,
 ): Promise<void> {
   const pairs = EXERCISE_INGESTION_CATALOG[bookSlug];
@@ -370,24 +400,24 @@ export async function ingestUnitExercises(
     assertPairValid(bookSlug, pair); // pure, before any DB touch
     const { practice, recall } = pair;
 
-    const chapterId = chapterIdByOrder.get(practice.chapterOrder);
+    const owner = ownerByOrder.get(practice.chapterOrder);
     const unitId = unitIdByOrder.get(practice.chapterOrder);
-    // An approved production definition whose chapter/unit is absent is an
+    // An approved production definition whose owner/unit is absent is an
     // inconsistency — fail closed, never a silent skip.
-    if (!chapterId || !unitId) {
+    if (!owner || !unitId) {
       throw new ExerciseIngestError("EXERCISE_INGEST_SOURCE_MISSING");
     }
 
     const sourceBlockKey = await resolvePracticeSourceBlockKey(
       tx,
-      chapterId,
+      owner.kind === "legacy" ? owner.chapterId : null,
       unitId,
       practice.sourceHeading,
     );
 
     await upsertExerciseClosed(tx, {
       id: practice.exerciseKey,
-      chapterId,
+      owner,
       order: practice.order,
       title: practice.title,
       type: "REFLECTION",
@@ -396,7 +426,7 @@ export async function ingestUnitExercises(
 
     await upsertExerciseClosed(tx, {
       id: recall.exerciseKey,
-      chapterId,
+      owner,
       order: recall.order,
       title: recall.title,
       type: "QUIZ",

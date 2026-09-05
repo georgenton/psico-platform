@@ -462,7 +462,7 @@ suite(
         ingestUnitExercises(
           db,
           BOOK_SLUG,
-          new Map([[1, chapterId]]),
+          new Map([[1, { kind: "legacy", chapterId } as const]]),
           new Map([[1, "unit-x"]]),
         ),
         "EXERCISE_INGEST_SOURCE_MISSING",
@@ -485,7 +485,7 @@ suite(
         ingestUnitExercises(
           db,
           BOOK_SLUG,
-          new Map([[1, chapterId]]),
+          new Map([[1, { kind: "legacy", chapterId } as const]]),
           new Map([[1, "unit-x"]]),
         ),
         "EXERCISE_INGEST_SOURCE_MISSING",
@@ -515,7 +515,7 @@ suite(
         ingestUnitExercises(
           db,
           BOOK_SLUG,
-          new Map([[1, chapterId]]),
+          new Map([[1, { kind: "legacy", chapterId } as const]]),
           new Map([[1, "unit-x"]]),
         ),
         "EXERCISE_INGEST_SOURCE_AMBIGUOUS",

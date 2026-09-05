@@ -8,7 +8,7 @@ import {
   type LearningCatalogDb,
   type ResolvedUnitContext,
 } from "../learning/learning-catalog.resolver";
-import { unitKeyFromLegacyChapterId } from "../content-core/lib/block-key";
+import { exerciseUnitKey } from "../content-core/lib/exercise-owner";
 import { GuideCatalogError, productionGuideRegistry } from "./guide-catalog";
 import { classifyCatalogError, guideFail } from "./guide-errors";
 
@@ -214,7 +214,9 @@ export class GuideTargetContextService {
     interface ExRow {
       id: string;
       type: string;
-      chapterId: string;
+      // Exactly one of the two is set; the DB enforces it.
+      chapterId: string | null;
+      contentUnitId: string | null;
       content: unknown;
     }
     const exRows: ExRow[] =
@@ -222,7 +224,13 @@ export class GuideTargetContextService {
         ? []
         : ((await client.exercise.findMany({
             where: { id: { in: [...exerciseIds] } },
-            select: { id: true, type: true, chapterId: true, content: true },
+            select: {
+              id: true,
+              type: true,
+              chapterId: true,
+              contentUnitId: true,
+              content: true,
+            },
           })) as unknown as ExRow[]);
     const exercises = new Map<string, ExRow>();
     for (const e of exRows) exercises.set(e.id, e);
@@ -266,11 +274,17 @@ export class GuideTargetContextService {
     }
 
     // ── 3. the units those targets name ─────────────────────────────────────
+    //
+    // An exercise names its unit in one of two ways: a legacy owner through the
+    // derived key, a native owner by id. Both are collected here so the single
+    // bounded query below still fetches everything in one round trip.
     const wantedKeys = new Set<string>();
-    for (const e of exercises.values()) {
-      wantedKeys.add(unitKeyFromLegacyChapterId(e.chapterId));
-    }
     const wantedIds = new Set<string>();
+    for (const e of exercises.values()) {
+      const key = exerciseUnitKey(e);
+      if (key !== null) wantedKeys.add(key);
+      else if (e.contentUnitId !== null) wantedIds.add(e.contentUnitId);
+    }
     for (const id of conceptUnit.values()) if (id) wantedIds.add(id);
 
     const units =
@@ -344,6 +358,22 @@ export class GuideTargetContextService {
     const unitById = (id: string): string | null =>
       known.has(id) && published.has(id) ? id : null;
 
+    /**
+     * The published unit an exercise belongs to, whichever way it names one.
+     *
+     * Both paths end at the same servability test, so a native-owned exercise
+     * is no more reachable than a legacy one: the unit still has to sit in its
+     * own edition's published revision.
+     */
+    const unitOfExercise = (e: {
+      chapterId: string | null;
+      contentUnitId: string | null;
+    }): string | null => {
+      const key = exerciseUnitKey(e);
+      if (key !== null) return unitByKey(key);
+      return e.contentUnitId === null ? null : unitById(e.contentUnitId);
+    };
+
     const out: TargetContextResult[] = [];
     const decided: { pin: GuidePin; unitId: string }[] = [];
     for (const def of uniq.values()) {
@@ -372,7 +402,7 @@ export class GuideTargetContextService {
             failure = "GUIDE_CONTEXT_UNRESOLVED";
             break;
           }
-          const unit = unitByKey(unitKeyFromLegacyChapterId(e.chapterId));
+          const unit = unitOfExercise(e);
           if (!unit) {
             failure = "GUIDE_CONTEXT_UNRESOLVED";
             break;
@@ -394,7 +424,7 @@ export class GuideTargetContextService {
             failure = "GUIDE_CONTEXT_UNRESOLVED";
             break;
           }
-          const unit = unitByKey(unitKeyFromLegacyChapterId(e.chapterId));
+          const unit = unitOfExercise(e);
           if (!unit) {
             failure = "GUIDE_CONTEXT_UNRESOLVED";
             break;

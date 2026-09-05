@@ -2,7 +2,7 @@ import { Injectable } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { PrismaService } from "../prisma";
-import { unitKeyFromLegacyChapterId } from "../content-core/lib/block-key";
+import { exerciseUnitWhere } from "../content-core/lib/exercise-owner";
 import { learningException } from "./learning-errors";
 
 /**
@@ -217,9 +217,14 @@ export class LearningCatalogResolver {
   }
 
   /**
-   * `exerciseKey (Exercise.id) → Chapter → unit (canonical key bridge) →
-   * published revision → edition → book`. A QUIZ is a recall item, not a
-   * completable practice — it never resolves here.
+   * `exerciseKey (Exercise.id) → owning unit → published revision → edition →
+   * book`. A QUIZ is a recall item, not a completable practice — it never
+   * resolves here.
+   *
+   * The owning unit is a legacy chapter's (through the canonical key bridge) or
+   * the native unit the exercise names directly. `exerciseUnitWhere` is the one
+   * place that decides which; deriving it here is what used to assume every
+   * unit came from a chapter.
    */
   async resolveExercise(
     exerciseKey: string,
@@ -228,13 +233,19 @@ export class LearningCatalogResolver {
     const client = db ?? this.prisma;
     const exercise = await client.exercise.findUnique({
       where: { id: exerciseKey },
-      select: { id: true, type: true, chapterId: true },
+      select: { id: true, type: true, chapterId: true, contentUnitId: true },
     });
     if (!exercise || exercise.type === "QUIZ") {
       throw learningException("LEARNING_EVENT_UNRESOLVED_CONTENT_CONTEXT");
     }
+    const where = exerciseUnitWhere(exercise);
+    if (where === null) {
+      // A row that carries neither owner or both. The CHECK makes it
+      // unreachable; if it ever is, it is unresolved context, not a crash.
+      throw learningException("LEARNING_EVENT_UNRESOLVED_CONTENT_CONTEXT");
+    }
     const ctx = await this.resolveUnitByWhere(
-      { unitKey: unitKeyFromLegacyChapterId(exercise.chapterId) },
+      where,
       // The exercise exists; a missing/unpublished unit is a context problem.
       "LEARNING_EVENT_UNRESOLVED_CONTENT_CONTEXT",
       db,
@@ -254,7 +265,13 @@ export class LearningCatalogResolver {
     const client = db ?? this.prisma;
     const exercise = await client.exercise.findUnique({
       where: { id: itemKey },
-      select: { id: true, type: true, chapterId: true, content: true },
+      select: {
+        id: true,
+        type: true,
+        chapterId: true,
+        contentUnitId: true,
+        content: true,
+      },
     });
     if (!exercise || exercise.type !== "QUIZ") {
       throw learningException("LEARNING_EVENT_UNKNOWN_ITEM");
@@ -266,10 +283,14 @@ export class LearningCatalogResolver {
       throw learningException("LEARNING_EVENT_UNRESOLVED_CONTENT_CONTEXT");
     }
 
+    const where = exerciseUnitWhere(exercise);
+    if (where === null) {
+      throw learningException("LEARNING_EVENT_UNRESOLVED_CONTENT_CONTEXT");
+    }
     // The ITEM's full editorial context resolves FIRST — everything the
     // concept binding claims is then verified against it.
     const ctx = await this.resolveUnitByWhere(
-      { unitKey: unitKeyFromLegacyChapterId(exercise.chapterId) },
+      where,
       "LEARNING_EVENT_UNRESOLVED_CONTENT_CONTEXT",
       db,
     );

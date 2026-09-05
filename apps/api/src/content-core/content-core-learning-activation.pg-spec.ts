@@ -453,12 +453,50 @@ suite("Content Core · learning activation (real PostgreSQL)", () => {
     expect(await learningCensus(prisma)).toEqual(before);
   }, 60_000);
 
-  it("16 · a missing chapter 2 fails closed", async () => {
+  it("16 · a missing chapter 2 is served natively, not refused", async () => {
+    // CHANGED, deliberately. This used to assert that a catalogued order with
+    // no `Chapter` row fails closed — the rule that made a natively-published
+    // chapter impossible to give a practice to, since such a chapter has no
+    // legacy row and cannot be given one (adoption is `uuidv5(chapter.id)`).
+    //
+    // What matters is that the position still has an OWNER. The unit is still
+    // in the published revision, so it owns its own exercises now.
+    await prisma.chapter.deleteMany({ where: { order: CHAPTER_ORDER } });
+
+    const plan = await planBookLearningActivation(prisma, SLUG);
+    // Reported, because it is true and worth seeing…
+    expect(plan.chapter_missing_count).toBe(1);
+    // …but the position is owned, so it is not a refusal.
+    expect(plan.owner_missing_count).toBe(0);
+    expect(plan.native_owner_count).toBe(1);
+    expect(plan.legacy_owner_count).toBe(0);
+    expect(plan.activation_safe).toBe(true);
+
+    await activateBookLearningCatalog(prisma, SLUG);
+    const practice = await prisma.exercise.findUniqueOrThrow({
+      where: { id: PAIR.practice.exerciseKey },
+      select: { chapterId: true, contentUnitId: true },
+    });
+    expect(practice.chapterId).toBeNull();
+    expect(practice.contentUnitId).not.toBeNull();
+  });
+
+  it("16b · an order with neither a placement nor a chapter still fails closed", async () => {
+    // The guard test 16 used to provide, restated on the thing that actually
+    // decides: no owner at all, rather than no legacy row.
+    // Same teardown order as test 17: `ContentBlock` is RESTRICT, so the unit
+    // cannot go until its blocks have.
+    await prisma.revisionUnit.deleteMany({});
+    await prisma.blockVersion.deleteMany({});
+    await prisma.contentBlock.deleteMany({});
+    await prisma.contentUnitVersion.deleteMany({});
+    await prisma.contentUnit.deleteMany({});
     await prisma.chapter.deleteMany({ where: { order: CHAPTER_ORDER } });
     const before = await learningCensus(prisma);
 
     const plan = await planBookLearningActivation(prisma, SLUG);
-    expect(plan.chapter_missing_count).toBe(1);
+    expect(plan.owner_missing_count).toBe(1);
+    expect(plan.unit_missing_count).toBe(1);
     expect(plan.activation_safe).toBe(false);
 
     await expect(activateBookLearningCatalog(prisma, SLUG)).rejects.toThrow();

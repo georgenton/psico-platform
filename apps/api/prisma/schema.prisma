@@ -568,18 +568,41 @@ model Audio {
   @@index([chapterId])
 }
 
+/// A catalog practice or recall item.
+///
+/// ── Ownership: legacy Chapter XOR native ContentUnit ──────────────────────
+///
+/// `chapterId` was NOT NULL, which quietly asserted that every chapter a
+/// practice could belong to had come from the legacy table. That stopped being
+/// true when Content Studio began publishing chapters natively: those units
+/// have no `Chapter` row and no way to acquire one, because adoption is
+/// `uuidv5(chapter.id)` and a hash cannot be inverted to match a minted key.
+///
+/// So the owner is now one of two, never both and never neither. A CHECK
+/// enforces it (`num_nonnulls(...) = 1`), because "exactly one" is the whole
+/// point and Prisma cannot express it. Existing rows were untouched by the
+/// migration: they keep `chapterId` and get `contentUnitId = NULL`.
+///
+/// Everything downstream resolves the owning unit through one helper
+/// (`exerciseUnitWhere`) rather than deriving the key inline, so there is a
+/// single answer to "which unit is this exercise's?".
 model Exercise {
-  id        String       @id @default(cuid())
-  chapterId String
-  order     Int
-  title     String
-  type      ExerciseType
-  content   Json
-  createdAt DateTime     @default(now())
+  id            String       @id @default(cuid())
+  /// Legacy owner. Null for an exercise on a natively-published chapter.
+  chapterId     String?
+  /// Native owner. Null for an exercise on a legacy (or adopted) chapter.
+  contentUnitId String?
+  order         Int
+  title         String
+  type          ExerciseType
+  content       Json
+  createdAt     DateTime     @default(now())
 
-  chapter Chapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  chapter     Chapter?     @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  contentUnit ContentUnit? @relation(fields: [contentUnitId], references: [id], onDelete: Cascade)
 
   @@index([chapterId])
+  @@index([contentUnitId])
 }
 
 model UserProgress {
@@ -2358,6 +2381,8 @@ model ContentUnit {
   conceptLinks    ConceptLink[]
   readingSessions ReadingSession[]
   progress        UserProgress[]
+  /// Exercises a NATIVE chapter owns directly (see `Exercise`).
+  exercises       Exercise[]
   /// C.3A — the guide bindings reserved inside this chapter.
   guideReservations ExperienceGuideReservation[]
   /// C.3A — every experience version that names this unit, reserving or not.

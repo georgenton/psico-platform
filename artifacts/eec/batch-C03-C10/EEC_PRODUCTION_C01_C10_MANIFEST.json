@@ -1,0 +1,320 @@
+{
+  "manifest": "EEC_PRODUCTION_C01_C10_MANIFEST",
+  "schema_version": "1.0",
+  "generatedAt": "2026-09-05T01:34:29+00:00",
+  "work": {
+    "id": "cms54lbmk0000lnrtj51e1tqx",
+    "workKey": "emociones-en-construccion",
+    "title": "Emociones en Construcción"
+  },
+  "edition": {
+    "id": "cms54lbmv0001lnrto8llr2hb",
+    "editionKey": "emociones-en-construccion-1e",
+    "slug": "emociones-en-construccion",
+    "label": "Primera edición",
+    "publishedRevisionId": "cmtnpi0cd0000j6n1ohdc7ufc"
+  },
+  "publishedRevision": {
+    "id": "cmtnpi0cd0000j6n1ohdc7ufc",
+    "number": 19,
+    "status": "PUBLISHED",
+    "publishedAt": "2026-09-05T01:30:53.842Z"
+  },
+  "revisionRange": {
+    "before": 11,
+    "after": 19
+  },
+  "chapters": [
+    {
+      "chapter": "C01",
+      "order": 1,
+      "title": "¿Realmente sabemos qué es una emoción?",
+      "partNumber": 1,
+      "partTitle": "Deconstruyendo lo que sabíamos",
+      "canonicalVersion": "EEC_C01_v1.0_TEXT_LOCKED_2026-08-20",
+      "canonicalSha256": "e10f42cedf881838578b7337355887c0e8cb2fe37b75dfa4204db509ac023018",
+      "unitKey": "dce92620-2398-5efb-80a4-b90b180a01ae",
+      "unitId": "cms54lbnt0003lnrtax9tnjhx",
+      "unitVersionId": "cmtkup2hs000127m1zwp2onyn",
+      "blocks": 188,
+      "bibliography": {
+        "file": "bibliography/eec-library.bib",
+        "status": "ORIGINAL",
+        "entries": null,
+        "sha256": null
+      },
+      "citations": "PARTIAL_9_RESOLVED_19_UNRESOLVED",
+      "recovery": {
+        "status": "PUBLISHED_BEFORE_THIS_BATCH"
+      }
+    },
+    {
+      "chapter": "C02",
+      "order": 2,
+      "title": "¿Existen realmente las emociones universales?",
+      "partNumber": 1,
+      "partTitle": "Deconstruyendo lo que sabíamos",
+      "canonicalVersion": "EEC_C02_v1.0_TEXT_LOCKED_2026-08-21",
+      "canonicalSha256": "f137ee10fb80a3ea91af42d93d7262b98de7101a5eeae37051d765dc12a2188a",
+      "unitKey": "f58df2e8-4203-5aa2-83b0-1a8ab79a885a",
+      "unitId": "cms54ld4j007blnrt9dunicjl",
+      "unitVersionId": "cmtn7tmxq00012aqhet4p0wkn",
+      "blocks": 230,
+      "bibliography": {
+        "file": "bibliography/eec-c02.bib",
+        "status": "ORIGINAL",
+        "entries": 29,
+        "sha256": "c13f040401797329aa3945d6f1358cdf1a67a1b83cf6fc029b31cc7854abd2fa"
+      },
+      "citations": "NONE_RESOLVED_29_UNRESOLVED",
+      "recovery": {
+        "status": "PUBLISHED_BEFORE_THIS_BATCH"
+      }
+    },
+    {
+      "chapter": "C03",
+      "order": 3,
+      "title": "Tu cerebro inventa emociones",
+      "partNumber": 1,
+      "partTitle": "Deconstruyendo lo que sabíamos",
+      "canonicalVersion": "EEC_C03_v1.0_TEXT_LOCKED_2026-08-25",
+      "canonicalSha256": "79c427f56089ba693e8c836d737ac0b3dd5c5ab54dbfc8746a02799bbe28beb1",
+      "unitKey": "f1fd8e4d-39ac-547f-908a-cb97c7f9170b",
+      "unitId": "cms54lf9600hnlnrtdfecefhq",
+      "unitVersionId": "cmtnpg50m0001ecn1kwbkof8t",
+      "blocks": 264,
+      "bibliography": {
+        "file": "bibliography/eec-c03.bib",
+        "status": "ORIGINAL",
+        "entries": 23,
+        "sha256": "86fb70f69bbea6467ca7cdd0429566e1db26b08d7bd7745a0ba81b0b868ba12d"
+      },
+      "citations": "NONE_RESOLVED_23_UNRESOLVED",
+      "recovery": {
+        "status": "CANONICAL_ORIGINAL_VERIFIED",
+        "method": "LOCAL_MD",
+        "sourceFile": "EEC_C03_v1.0_TEXT_LOCKED_2026-08-25.md",
+        "historicalShaMatch": true
+      },
+      "publishedInRevision": 12
+    },
+    {
+      "chapter": "C04",
+      "order": 4,
+      "title": "Tu cuerpo tiene la primera palabra",
+      "partNumber": 2,
+      "partTitle": "Construyendo tus emociones",
+      "canonicalVersion": "EEC_C04_v1.0_TEXT_LOCKED_2026-08-25",
+      "canonicalSha256": "7f22cfb9859bc3309d6a410e9b1c80080c6b55ad6109b83d62a0852e8e6fe1ce",
+      "unitKey": "3540539f-72d6-5191-a5e8-447737410922",
+      "unitId": "cmtnpdnbj00003an1bzhzbvau",
+      "unitVersionId": "cmtnpgxyp0001fin10nahglwt",
+      "blocks": 225,
+      "bibliography": {
+        "file": "bibliography/eec-c04.bib",
+        "status": "RECONSTRUCTED_FROM_EDITORIAL_RECORD",
+        "entries": 29,
+        "sha256": "aad9766a63f4b7bb316db1560b950e702df7caf70fdfe22d5ad2f39aa9f668af"
+      },
+      "citations": "NONE_RESOLVED_29_UNRESOLVED",
+      "recovery": {
+        "status": "CANONICAL_ORIGINAL_VERIFIED",
+        "method": "LOCAL_MD",
+        "sourceFile": "EEC_C04_v1.0_TEXT_LOCKED_2026-08-25.md",
+        "historicalShaMatch": true
+      },
+      "publishedInRevision": 13
+    },
+    {
+      "chapter": "C05",
+      "order": 5,
+      "title": "Las historias que te cuentas también influyen en lo que sientes",
+      "partNumber": 2,
+      "partTitle": "Construyendo tus emociones",
+      "canonicalVersion": "EEC_C05_v1.0_TEXT_LOCKED_2026-08-26",
+      "canonicalSha256": "0f35f0d0f498ef0d6d1970709c1cbfdf939dfd9f3d6ab8f01aecc1bba1a1c956",
+      "unitKey": "231166b5-f48e-506a-9edc-474a26795e4c",
+      "unitId": "cmtnpdnbr00013an1t5qrftg6",
+      "unitVersionId": "cmtnph2as0001g4n1emucmg40",
+      "blocks": 432,
+      "bibliography": {
+        "file": "bibliography/eec-c05.bib",
+        "status": "ORIGINAL",
+        "entries": 25,
+        "sha256": "edee717f1d4fb95131663f8ac026384254ee01513d3ee369a43b64b38e0a6e56"
+      },
+      "citations": "NONE_RESOLVED_25_UNRESOLVED",
+      "recovery": {
+        "status": "CANONICAL_ORIGINAL_VERIFIED",
+        "method": "LOCAL_MD",
+        "sourceFile": "EEC_C05_v1.0_TEXT_LOCKED_2026-08-26.md",
+        "historicalShaMatch": true
+      },
+      "publishedInRevision": 14
+    },
+    {
+      "chapter": "C06",
+      "order": 6,
+      "title": "Sentir también se aprende con otros",
+      "partNumber": 2,
+      "partTitle": "Construyendo tus emociones",
+      "canonicalVersion": "EEC_C06_v1.1_TEXT_LOCKED_2026-09-01",
+      "canonicalSha256": "ac963f730925fc347e0ab91b9df09902af05f5febd73c830f099f3b82c7a4d7a",
+      "unitKey": "170e6699-0507-5784-8ecc-c9994b8dbf7e",
+      "unitId": "cmtnpdnbu00023an17uqnu3k7",
+      "unitVersionId": "cmtnph80w0001gqn1it0lujxa",
+      "blocks": 333,
+      "bibliography": {
+        "file": "bibliography/eec-c06.bib",
+        "status": "ORIGINAL",
+        "entries": 37,
+        "sha256": "9993d1bedf57e32b2e85e191d25316becd98265e6cc792c431179aec2f6c49fa"
+      },
+      "citations": "NONE_RESOLVED_37_UNRESOLVED",
+      "recovery": {
+        "status": "CANONICAL_ORIGINAL_VERIFIED",
+        "method": "LOCAL_MD",
+        "sourceFile": "EEC_C06_v1.1_TEXT_LOCKED_2026-09-01.md",
+        "historicalShaMatch": true
+      },
+      "publishedInRevision": 15
+    },
+    {
+      "chapter": "C07",
+      "order": 7,
+      "title": "Cuando las emociones necesitan traducción",
+      "partNumber": 2,
+      "partTitle": "Construyendo tus emociones",
+      "canonicalVersion": "EEC_C07_v1.0_TEXT_LOCKED_2026-08-26",
+      "canonicalSha256": "26a9b18738f0534a8c172bb22827f92e8f3745d70e91ea0a5923733b4bac8bd9",
+      "unitKey": "e98cb79d-5f04-514a-9efd-735254285958",
+      "unitId": "cmtnpdnby00033an1qzoz6wuy",
+      "unitVersionId": "cmtnphd8b0001hcn1k6jemglk",
+      "blocks": 286,
+      "bibliography": {
+        "file": "bibliography/eec-c07.bib",
+        "status": "RECONSTRUCTED_FROM_EDITORIAL_RECORD",
+        "entries": 41,
+        "sha256": "40d37b6f45bbe4b9aba52c9ca5e7e558a55343ffe308bf5ad90f2bc194424b49"
+      },
+      "citations": "NONE_RESOLVED_41_UNRESOLVED",
+      "recovery": {
+        "status": "CANONICAL_ORIGINAL_VERIFIED",
+        "method": "LOCAL_MD",
+        "sourceFile": "EEC_C07_v1.0_TEXT_LOCKED_2026-08-26.md",
+        "historicalShaMatch": true
+      },
+      "publishedInRevision": 16
+    },
+    {
+      "chapter": "C08",
+      "order": 8,
+      "title": "Escuchar no es obedecer",
+      "partNumber": 3,
+      "partTitle": "Vivir emocionalmente despierto",
+      "canonicalVersion": "EEC_C08_v1.0_TEXT_LOCKED_2026-08-26",
+      "canonicalSha256": "6b71342e0117f4243022ff66e8af2e3b41caec0f4a978b50c48fbad3e0e336c2",
+      "unitKey": "cd8e1f8e-e19a-5c90-b0f0-5acd5d0a3163",
+      "unitId": "cmtnpdnc200043an17vl1i53j",
+      "unitVersionId": "cmtnphmso0001hyn1kyc9ox1t",
+      "blocks": 428,
+      "bibliography": {
+        "file": "bibliography/eec-c08.bib",
+        "status": "ORIGINAL",
+        "entries": 39,
+        "sha256": "9ed8a0e370b497977770477ef5b91ec3d3831c31ac8a9104d10a8fa164ac1e5e"
+      },
+      "citations": "NONE_RESOLVED_39_UNRESOLVED",
+      "recovery": {
+        "status": "CANONICAL_ORIGINAL_VERIFIED",
+        "method": "LOCAL_MD",
+        "sourceFile": "EEC_C08_v1.0_TEXT_LOCKED_2026-08-26.md",
+        "historicalShaMatch": true
+      },
+      "publishedInRevision": 17
+    },
+    {
+      "chapter": "C09",
+      "order": 9,
+      "title": "Repensar lo que sientes",
+      "partNumber": 3,
+      "partTitle": "Vivir emocionalmente despierto",
+      "canonicalVersion": "EEC_C09_v1.0_TEXT_LOCKED_2026-08-27",
+      "canonicalSha256": "02b42dbdeef1136c560207d597b4c010250e19216dcb0e4c0592684914f1a956",
+      "unitKey": "a1c44e40-de0b-5bac-9946-ed7655e4140e",
+      "unitId": "cmtnpdnc600053an158uapawt",
+      "unitVersionId": "cmtnphsot0001ikn18dn5lcpt",
+      "blocks": 624,
+      "bibliography": {
+        "file": "bibliography/eec-c09.bib",
+        "status": "ORIGINAL",
+        "entries": 49,
+        "sha256": "b6480837a8912441d9eb1726937c0acbaa5ad5095cab183ce52dd5ecac248347"
+      },
+      "citations": "NONE_RESOLVED_49_UNRESOLVED",
+      "recovery": {
+        "status": "CANONICAL_ORIGINAL_VERIFIED",
+        "method": "LOCAL_MD",
+        "sourceFile": "EEC_C09_v1.0_TEXT_LOCKED_2026-08-27.md",
+        "historicalShaMatch": true
+      },
+      "publishedInRevision": 18
+    },
+    {
+      "chapter": "C10",
+      "order": 10,
+      "title": "Lo que enseñamos cuando alguien siente",
+      "partNumber": 3,
+      "partTitle": "Vivir emocionalmente despierto",
+      "canonicalVersion": "EEC_C10_v1.0_TEXT_LOCKED_2026-08-27",
+      "canonicalSha256": "a732ccb428e46787850b646c75e36a160cafbeb3280ff596d95d6297a0623c9b",
+      "unitKey": "1e7704be-0297-5124-90f7-ebff5ef0caeb",
+      "unitId": "cmtnpdnca00063an1d0oyfry0",
+      "unitVersionId": "cmtnpi0ci0001j6n1vztt1caa",
+      "blocks": 375,
+      "bibliography": {
+        "file": "bibliography/eec-c10.bib",
+        "status": "ORIGINAL",
+        "entries": 29,
+        "sha256": "f46a77db563d06632c1a404667dcf326264f69c3291215bc04250b025d2190c3"
+      },
+      "citations": "NONE_RESOLVED_29_UNRESOLVED",
+      "recovery": {
+        "status": "CANONICAL_ORIGINAL_VERIFIED",
+        "method": "LOCAL_MD",
+        "sourceFile": "EEC_C10_v1.0_TEXT_LOCKED_2026-08-27.md",
+        "historicalShaMatch": true
+      },
+      "publishedInRevision": 19
+    }
+  ],
+  "verification": {
+    "blockByBlockBuildVsReader": "0 diferencias en los 10 capítulos (3.385 bloques)",
+    "readerSmoke": "10/10 capítulos abren con 200 y sirven el recuento esperado",
+    "webSmoke": "la biblioteca lista 10 capítulos en 3 partes; C03 y C09 renderizan; 0 errores de consola",
+    "reproducibility": "dos builds limpios · 40 artefactos de contenido byte-idénticos"
+  },
+  "preservation": {
+    "preimage": {
+      "highlights": 11,
+      "annotations": 2,
+      "readingSessions": 33,
+      "userProgress": 5,
+      "contentBlocksTotal": 1965,
+      "blockVersionsTotal": 3002,
+      "chapterBlocksTotal": 1550
+    },
+    "postimage": {
+      "highlights": 11,
+      "annotations": 2,
+      "readingSessions": 33,
+      "userProgress": 5,
+      "contentBlocksTotal": 4931,
+      "blockVersionsTotal": 5969,
+      "chapterBlocksTotal": 1550
+    },
+    "highlightsAnnotationsSessionsProgress": "intactos",
+    "legacyChapterBlocks": "intactos (1550 antes y después)",
+    "historicalRevisions": "ninguna borrada (11 → 19)"
+  }
+}

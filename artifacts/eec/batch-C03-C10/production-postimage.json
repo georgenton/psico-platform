@@ -1,0 +1,380 @@
+{
+  "observedAt": "2026-09-05T01:31:10.784Z",
+  "readOnly": true,
+  "work": {
+    "id": "cms54lbmk0000lnrtj51e1tqx",
+    "workKey": "emociones-en-construccion",
+    "title": "Emociones en Construcción"
+  },
+  "edition": {
+    "id": "cms54lbmv0001lnrto8llr2hb",
+    "editionKey": "emociones-en-construccion-1e",
+    "slug": "emociones-en-construccion",
+    "label": "Primera edición",
+    "publishedRevisionId": "cmtnpi0cd0000j6n1ohdc7ufc"
+  },
+  "revisions": [
+    {
+      "id": "cms54lbnh0002lnrtuq1ajwlu",
+      "number": 1,
+      "status": "PUBLISHED",
+      "publishedAt": "2026-07-28T20:46:05.465Z",
+      "note": "cc3-backfill"
+    },
+    {
+      "id": "cmsmj8816000601o7lk6wzc8o",
+      "number": 2,
+      "status": "ARCHIVED",
+      "publishedAt": null,
+      "note": "content-studio"
+    },
+    {
+      "id": "cmsmj8j9m003w01o7ddrzcckv",
+      "number": 3,
+      "status": "PUBLISHED",
+      "publishedAt": "2026-08-10T01:15:16.456Z",
+      "note": "content-studio"
+    },
+    {
+      "id": "cmsmnmj8c000u01nzix8ni7wz",
+      "number": 4,
+      "status": "ARCHIVED",
+      "publishedAt": null,
+      "note": "content-studio"
+    },
+    {
+      "id": "cmsmnml67004k01nzcmwxw8yy",
+      "number": 5,
+      "status": "PUBLISHED",
+      "publishedAt": "2026-08-10T03:12:03.038Z",
+      "note": "content-studio"
+    },
+    {
+      "id": "cmsowzyh3000301mpvn0wos82",
+      "number": 6,
+      "status": "ARCHIVED",
+      "publishedAt": null,
+      "note": "content-studio"
+    },
+    {
+      "id": "cmsox1kju003v01mpk4n8ilfy",
+      "number": 7,
+      "status": "PUBLISHED",
+      "publishedAt": "2026-08-11T17:10:24.443Z",
+      "note": "content-studio"
+    },
+    {
+      "id": "cmsp3hb06000501sv11d6dcnl",
+      "number": 8,
+      "status": "PUBLISHED",
+      "publishedAt": "2026-08-11T20:10:28.782Z",
+      "note": "content-studio"
+    },
+    {
+      "id": "cmsp5d6pb000201o21j3yl075",
+      "number": 9,
+      "status": "PUBLISHED",
+      "publishedAt": "2026-08-11T21:04:26.451Z",
+      "note": "content-studio"
+    },
+    {
+      "id": "cmtkup2hi000027m10jvn18sj",
+      "number": 10,
+      "status": "PUBLISHED",
+      "publishedAt": "2026-09-03T01:33:07.084Z",
+      "note": "ingest-v2"
+    },
+    {
+      "id": "cmtn7tmxh00002aqhfo00ct5e",
+      "number": 11,
+      "status": "PUBLISHED",
+      "publishedAt": "2026-09-04T17:16:14.661Z",
+      "note": "ingest-v2"
+    },
+    {
+      "id": "cmtnpg50j0000ecn1k1puplq9",
+      "number": 12,
+      "status": "PUBLISHED",
+      "publishedAt": "2026-09-05T01:29:33.528Z",
+      "note": "ingest-v2"
+    },
+    {
+      "id": "cmtnpgxyl0000fin1mknwwgu8",
+      "number": 13,
+      "status": "PUBLISHED",
+      "publishedAt": "2026-09-05T01:30:02.668Z",
+      "note": "ingest-v2"
+    },
+    {
+      "id": "cmtnph2ao0000g4n1y5l9bbch",
+      "number": 14,
+      "status": "PUBLISHED",
+      "publishedAt": "2026-09-05T01:30:10.171Z",
+      "note": "ingest-v2"
+    },
+    {
+      "id": "cmtnph80s0000gqn1codtuk39",
+      "number": 15,
+      "status": "PUBLISHED",
+      "publishedAt": "2026-09-05T01:30:16.525Z",
+      "note": "ingest-v2"
+    },
+    {
+      "id": "cmtnphd870000hcn1vr4diboy",
+      "number": 16,
+      "status": "PUBLISHED",
+      "publishedAt": "2026-09-05T01:30:22.933Z",
+      "note": "ingest-v2"
+    },
+    {
+      "id": "cmtnphmsk0000hyn1qmd90f4v",
+      "number": 17,
+      "status": "PUBLISHED",
+      "publishedAt": "2026-09-05T01:30:36.784Z",
+      "note": "ingest-v2"
+    },
+    {
+      "id": "cmtnphsop0000ikn1x1uehekr",
+      "number": 18,
+      "status": "PUBLISHED",
+      "publishedAt": "2026-09-05T01:30:46.004Z",
+      "note": "ingest-v2"
+    },
+    {
+      "id": "cmtnpi0cd0000j6n1ohdc7ufc",
+      "number": 19,
+      "status": "PUBLISHED",
+      "publishedAt": "2026-09-05T01:30:53.842Z",
+      "note": "ingest-v2"
+    }
+  ],
+  "publishedRevision": {
+    "id": "cmtnpi0cd0000j6n1ohdc7ufc",
+    "number": 19,
+    "status": "PUBLISHED",
+    "publishedAt": "2026-09-05T01:30:53.842Z"
+  },
+  "manifest": [
+    {
+      "order": 1,
+      "unitId": "cms54lbnt0003lnrtax9tnjhx",
+      "unitVersionId": "cmtkup2hs000127m1zwp2onyn",
+      "partNumber": 1,
+      "partTitle": "Deconstruyendo lo que sabíamos",
+      "unitKey": "dce92620-2398-5efb-80a4-b90b180a01ae",
+      "isFreePreview": true,
+      "title": "¿Realmente sabemos qué es una emoción?",
+      "blocks": 188
+    },
+    {
+      "order": 2,
+      "unitId": "cms54ld4j007blnrt9dunicjl",
+      "unitVersionId": "cmtn7tmxq00012aqhet4p0wkn",
+      "partNumber": 1,
+      "partTitle": "Deconstruyendo lo que sabíamos",
+      "unitKey": "f58df2e8-4203-5aa2-83b0-1a8ab79a885a",
+      "isFreePreview": false,
+      "title": "¿Existen realmente las emociones universales?",
+      "blocks": 230
+    },
+    {
+      "order": 3,
+      "unitId": "cms54lf9600hnlnrtdfecefhq",
+      "unitVersionId": "cmtnpg50m0001ecn1kwbkof8t",
+      "partNumber": 1,
+      "partTitle": "Deconstruyendo lo que sabíamos",
+      "unitKey": "f1fd8e4d-39ac-547f-908a-cb97c7f9170b",
+      "isFreePreview": false,
+      "title": "Tu cerebro inventa emociones",
+      "blocks": 264
+    },
+    {
+      "order": 4,
+      "unitId": "cmtnpdnbj00003an1bzhzbvau",
+      "unitVersionId": "cmtnpgxyp0001fin10nahglwt",
+      "partNumber": 2,
+      "partTitle": "Construyendo tus emociones",
+      "unitKey": "3540539f-72d6-5191-a5e8-447737410922",
+      "isFreePreview": false,
+      "title": "Tu cuerpo tiene la primera palabra",
+      "blocks": 225
+    },
+    {
+      "order": 5,
+      "unitId": "cmtnpdnbr00013an1t5qrftg6",
+      "unitVersionId": "cmtnph2as0001g4n1emucmg40",
+      "partNumber": 2,
+      "partTitle": "Construyendo tus emociones",
+      "unitKey": "231166b5-f48e-506a-9edc-474a26795e4c",
+      "isFreePreview": false,
+      "title": "Las historias que te cuentas también influyen en lo que sientes",
+      "blocks": 432
+    },
+    {
+      "order": 6,
+      "unitId": "cmtnpdnbu00023an17uqnu3k7",
+      "unitVersionId": "cmtnph80w0001gqn1it0lujxa",
+      "partNumber": 2,
+      "partTitle": "Construyendo tus emociones",
+      "unitKey": "170e6699-0507-5784-8ecc-c9994b8dbf7e",
+      "isFreePreview": false,
+      "title": "Sentir también se aprende con otros",
+      "blocks": 333
+    },
+    {
+      "order": 7,
+      "unitId": "cmtnpdnby00033an1qzoz6wuy",
+      "unitVersionId": "cmtnphd8b0001hcn1k6jemglk",
+      "partNumber": 2,
+      "partTitle": "Construyendo tus emociones",
+      "unitKey": "e98cb79d-5f04-514a-9efd-735254285958",
+      "isFreePreview": false,
+      "title": "Cuando las emociones necesitan traducción",
+      "blocks": 286
+    },
+    {
+      "order": 8,
+      "unitId": "cmtnpdnc200043an17vl1i53j",
+      "unitVersionId": "cmtnphmso0001hyn1kyc9ox1t",
+      "partNumber": 3,
+      "partTitle": "Vivir emocionalmente despierto",
+      "unitKey": "cd8e1f8e-e19a-5c90-b0f0-5acd5d0a3163",
+      "isFreePreview": false,
+      "title": "Escuchar no es obedecer",
+      "blocks": 428
+    },
+    {
+      "order": 9,
+      "unitId": "cmtnpdnc600053an158uapawt",
+      "unitVersionId": "cmtnphsot0001ikn18dn5lcpt",
+      "partNumber": 3,
+      "partTitle": "Vivir emocionalmente despierto",
+      "unitKey": "a1c44e40-de0b-5bac-9946-ed7655e4140e",
+      "isFreePreview": false,
+      "title": "Repensar lo que sientes",
+      "blocks": 624
+    },
+    {
+      "order": 10,
+      "unitId": "cmtnpdnca00063an1d0oyfry0",
+      "unitVersionId": "cmtnpi0ci0001j6n1vztt1caa",
+      "partNumber": 3,
+      "partTitle": "Vivir emocionalmente despierto",
+      "unitKey": "1e7704be-0297-5124-90f7-ebff5ef0caeb",
+      "isFreePreview": false,
+      "title": "Lo que enseñamos cuando alguien siente",
+      "blocks": 375
+    }
+  ],
+  "allUnits": [
+    {
+      "id": "cmtnpdnbu00023an17uqnu3k7",
+      "unitKey": "170e6699-0507-5784-8ecc-c9994b8dbf7e",
+      "isFreePreview": false,
+      "contentBlocks": 333,
+      "versions": 1
+    },
+    {
+      "id": "cmtnpdnca00063an1d0oyfry0",
+      "unitKey": "1e7704be-0297-5124-90f7-ebff5ef0caeb",
+      "isFreePreview": false,
+      "contentBlocks": 375,
+      "versions": 1
+    },
+    {
+      "id": "cmtnpdnbr00013an1t5qrftg6",
+      "unitKey": "231166b5-f48e-506a-9edc-474a26795e4c",
+      "isFreePreview": false,
+      "contentBlocks": 432,
+      "versions": 1
+    },
+    {
+      "id": "cmtnpdnbj00003an1bzhzbvau",
+      "unitKey": "3540539f-72d6-5191-a5e8-447737410922",
+      "isFreePreview": false,
+      "contentBlocks": 225,
+      "versions": 1
+    },
+    {
+      "id": "cmtnpdnc600053an158uapawt",
+      "unitKey": "a1c44e40-de0b-5bac-9946-ed7655e4140e",
+      "isFreePreview": false,
+      "contentBlocks": 624,
+      "versions": 1
+    },
+    {
+      "id": "cmtnpdnc200043an17vl1i53j",
+      "unitKey": "cd8e1f8e-e19a-5c90-b0f0-5acd5d0a3163",
+      "isFreePreview": false,
+      "contentBlocks": 428,
+      "versions": 1
+    },
+    {
+      "id": "cms54lbnt0003lnrtax9tnjhx",
+      "unitKey": "dce92620-2398-5efb-80a4-b90b180a01ae",
+      "isFreePreview": true,
+      "contentBlocks": 316,
+      "versions": 10
+    },
+    {
+      "id": "cmtnpdnby00033an1qzoz6wuy",
+      "unitKey": "e98cb79d-5f04-514a-9efd-735254285958",
+      "isFreePreview": false,
+      "contentBlocks": 286,
+      "versions": 1
+    },
+    {
+      "id": "cms54lf9600hnlnrtdfecefhq",
+      "unitKey": "f1fd8e4d-39ac-547f-908a-cb97c7f9170b",
+      "isFreePreview": false,
+      "contentBlocks": 331,
+      "versions": 2
+    },
+    {
+      "id": "cms54ld4j007blnrt9dunicjl",
+      "unitKey": "f58df2e8-4203-5aa2-83b0-1a8ab79a885a",
+      "isFreePreview": false,
+      "contentBlocks": 413,
+      "versions": 2
+    }
+  ],
+  "legacyChapters": [
+    {
+      "id": "cmql50rvm00025nvvwpft991k",
+      "order": 1,
+      "title": "¿Realmente sabemos qué es una emoción?",
+      "chapterBlocks": 129
+    },
+    {
+      "id": "cmql50s0300035nvvaq6j3mt1",
+      "order": 2,
+      "title": "¿Existen realmente las emociones universales?",
+      "chapterBlocks": 185
+    },
+    {
+      "id": "cmredpw6l008s0nprp3uomtwx",
+      "order": 3,
+      "title": "Tu cerebro inventa emociones",
+      "chapterBlocks": 68
+    }
+  ],
+  "preservation": {
+    "highlights": 11,
+    "annotations": 2,
+    "readingSessions": 33,
+    "userProgress": 5,
+    "contentBlocksTotal": 4931,
+    "blockVersionsTotal": 5969,
+    "chapterBlocksTotal": 1550
+  },
+  "experiences": [
+    {
+      "status": "DRAFT",
+      "n": 1
+    },
+    {
+      "status": "PUBLISHED",
+      "n": 10
+    }
+  ]
+}

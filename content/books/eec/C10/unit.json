@@ -18,8 +18,15 @@
     "workKey": "emociones-en-construccion",
     "editionKey": "emociones-en-construccion-1e",
     "unitKey": "1e7704be-0297-5124-90f7-ebff5ef0caeb",
-    "unitExistsInProduction": false,
-    "unitKeyDerivation": "uuidv5('emociones-en-construccion-1e/EEC-CXX') con el namespace de Content Core. Determinista a propósito: el bootstrap y la ingesta pueden repetirse sin crear una segunda unidad. Content Studio usa randomUUID() para unidades nativas, que no es reproducible entre un dry-run y su apply."
+    "unitExistsInProduction": true,
+    "unitKeyDerivation": "uuidv5('emociones-en-construccion-1e/EEC-CXX') con el namespace de Content Core. Determinista a propósito: el bootstrap y la ingesta pueden repetirse sin crear una segunda unidad. Content Studio usa randomUUID() para unidades nativas, que no es reproducible entre un dry-run y su apply.",
+    "editionId": "cms54lbmv0001lnrto8llr2hb",
+    "contentUnitId": "cmtnpdnca00063an1d0oyfry0",
+    "publishedRevisionNumber": 19,
+    "previousPublishedRevisionNumber": 18,
+    "publishedUnitVersionId": "cmtnpi0ci0001j6n1vztt1caa",
+    "publishedBlocks": 375,
+    "publishedAt": "2026-09-04"
   },
   "placement": {
     "order": 10,
@@ -52,6 +59,6 @@
   "gates": {
     "text_locked": "PASS",
     "citations": "NONE_RESOLVED_29_UNRESOLVED",
-    "reader_projection": "PENDING"
+    "reader_projection": "PASS"
   }
 }

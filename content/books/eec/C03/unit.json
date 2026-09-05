@@ -21,7 +21,13 @@
     "unitExistsInProduction": true,
     "unitKeyDerivation": "uuidv5(legacy Chapter.id) — unidad YA existente en la edición (orden 3)",
     "contentUnitId": "cms54lf9600hnlnrtdfecefhq",
-    "legacyChapterId": "cmredpw6l008s0nprp3uomtwx"
+    "legacyChapterId": "cmredpw6l008s0nprp3uomtwx",
+    "editionId": "cms54lbmv0001lnrto8llr2hb",
+    "publishedRevisionNumber": 12,
+    "previousPublishedRevisionNumber": 11,
+    "publishedUnitVersionId": "cmtnpg50m0001ecn1kwbkof8t",
+    "publishedBlocks": 264,
+    "publishedAt": "2026-09-04"
   },
   "placement": {
     "order": 3,
@@ -54,6 +60,6 @@
   "gates": {
     "text_locked": "PASS",
     "citations": "NONE_RESOLVED_23_UNRESOLVED",
-    "reader_projection": "PENDING"
+    "reader_projection": "PASS"
   }
 }

@@ -1,0 +1,561 @@
+{
+  "schema_version": "0.1-draft",
+  "chapter_id": "EEC-C08",
+  "canonical_version": "EEC_C08_v1.0_TEXT_LOCKED_2026-08-26",
+  "source_sha256_expected": "6b71342e0117f4243022ff66e8af2e3b41caec0f4a978b50c48fbad3e0e336c2",
+  "_comment": "Un ancla por encabezado REAL del texto canónico, en su orden. `heading_exact` se coteja contra el bloque HEADING durante el build: si el texto cambiara, el ancla falla en vez de desplazarse en silencio.",
+  "anchors": [
+    {
+      "anchor_id": "eec-c8-escuchar-no-es-obedecer",
+      "sequence": 1,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "Escuchar no es obedecer",
+      "section_key": "ESCUCHAR_NO_ES_OBEDECER"
+    },
+    {
+      "anchor_id": "eec-c8-lo-que-tus-emociones-pueden-mostrarte-y-lo-que-todavia-necesitas-exami",
+      "sequence": 2,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "*Lo que tus emociones pueden mostrarte —y lo que todavía necesitas examinar*",
+      "section_key": "LO_QUE_TUS_EMOCIONES_PUEDEN_MOSTRARTE_Y_LO_QUE_TODAVIA_NECES"
+    },
+    {
+      "anchor_id": "eec-c8-que-significa-esta-culpa",
+      "sequence": 3,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "**¿Qué significa esta culpa?**",
+      "section_key": "QUE_SIGNIFICA_ESTA_CULPA"
+    },
+    {
+      "anchor_id": "eec-c8-el-derecho-a-formular-una-pregunta",
+      "sequence": 4,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "**el derecho a formular una pregunta.**",
+      "section_key": "EL_DERECHO_A_FORMULAR_UNA_PREGUNTA"
+    },
+    {
+      "anchor_id": "eec-c8-la-emocion-no-viene-con-subtitulos",
+      "sequence": 5,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "La emoción no viene con subtítulos",
+      "section_key": "LA_EMOCION_NO_VIENE_CON_SUBTITULOS"
+    },
+    {
+      "anchor_id": "eec-c8-miedo-existe-peligro",
+      "sequence": 6,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "*Miedo: existe peligro.*",
+      "section_key": "MIEDO_EXISTE_PELIGRO"
+    },
+    {
+      "anchor_id": "eec-c8-ira-alguien-cometio-una-injusticia",
+      "sequence": 7,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "*Ira: alguien cometió una injusticia.*",
+      "section_key": "IRA_ALGUIEN_COMETIO_UNA_INJUSTICIA"
+    },
+    {
+      "anchor_id": "eec-c8-culpa-hiciste-algo-malo",
+      "sequence": 8,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "*Culpa: hiciste algo malo.*",
+      "section_key": "CULPA_HICISTE_ALGO_MALO"
+    },
+    {
+      "anchor_id": "eec-c8-celos-tu-relacion-esta-amenazada",
+      "sequence": 9,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "*Celos: tu relación está amenazada.*",
+      "section_key": "CELOS_TU_RELACION_ESTA_AMENAZADA"
+    },
+    {
+      "anchor_id": "eec-c8-tristeza-perdiste-algo-que-necesitas-recuperar",
+      "sequence": 10,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "*Tristeza: perdiste algo que necesitas recuperar.*",
+      "section_key": "TRISTEZA_PERDISTE_ALGO_QUE_NECESITAS_RECUPERAR"
+    },
+    {
+      "anchor_id": "eec-c8-asco-aquello-que-tienes-enfrente-es-malo-o-impuro",
+      "sequence": 11,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "*Asco: aquello que tienes enfrente es malo o impuro.*",
+      "section_key": "ASCO_AQUELLO_QUE_TIENES_ENFRENTE_ES_MALO_O_IMPURO"
+    },
+    {
+      "anchor_id": "eec-c8-paz-elegiste-correctamente",
+      "sequence": 12,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "*Paz: elegiste correctamente.*",
+      "section_key": "PAZ_ELEGISTE_CORRECTAMENTE"
+    },
+    {
+      "anchor_id": "eec-c8-familiaridad-y-verdad-no-son-lo-mismo",
+      "sequence": 13,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "**familiaridad y verdad no son lo mismo.**",
+      "section_key": "FAMILIARIDAD_Y_VERDAD_NO_SON_LO_MISMO"
+    },
+    {
+      "anchor_id": "eec-c8-la-vieja-guerra-entre-razon-y-emocion-no-alcanza",
+      "sequence": 14,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "La vieja guerra entre razón y emoción no alcanza",
+      "section_key": "LA_VIEJA_GUERRA_ENTRE_RAZON_Y_EMOCION_NO_ALCANZA"
+    },
+    {
+      "anchor_id": "eec-c8-debo-seguir-a-la-razon-o-a-la-emocion",
+      "sequence": 15,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "**¿Debo seguir a la razón o a la emoción?**",
+      "section_key": "DEBO_SEGUIR_A_LA_RAZON_O_A_LA_EMOCION"
+    },
+    {
+      "anchor_id": "eec-c8-como-debe-relacionarse-lo-que-siento-con-lo-que-creo-valoro-y-hago",
+      "sequence": 16,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "**¿Cómo debe relacionarse lo que siento con lo que creo, valoro y hago?**",
+      "section_key": "COMO_DEBE_RELACIONARSE_LO_QUE_SIENTO_CON_LO_QUE_CREO_VALORO_"
+    },
+    {
+      "anchor_id": "eec-c8-cuando-sentir-tambien-es-valorar",
+      "sequence": 17,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "Cuando sentir también es valorar",
+      "section_key": "CUANDO_SENTIR_TAMBIEN_ES_VALORAR"
+    },
+    {
+      "anchor_id": "eec-c8-una-emocion-puede-expresar-una-evaluacion-de-valor",
+      "sequence": 18,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "**una emoción puede expresar una evaluación de valor.**",
+      "section_key": "UNA_EMOCION_PUEDE_EXPRESAR_UNA_EVALUACION_DE_VALOR"
+    },
+    {
+      "anchor_id": "eec-c8-esa-evaluacion-es-necesariamente-correcta",
+      "sequence": 19,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "**esa evaluación es necesariamente correcta.**",
+      "section_key": "ESA_EVALUACION_ES_NECESARIAMENTE_CORRECTA"
+    },
+    {
+      "anchor_id": "eec-c8-valor-percibido-no-es-lo-mismo-que-valor-elegido",
+      "sequence": 20,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "**valor percibido no es lo mismo que valor elegido.**",
+      "section_key": "VALOR_PERCIBIDO_NO_ES_LO_MISMO_QUE_VALOR_ELEGIDO"
+    },
+    {
+      "anchor_id": "eec-c8-pista-evidencia-y-veredicto-no-son-lo-mismo",
+      "sequence": 21,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "Pista, evidencia y veredicto no son lo mismo",
+      "section_key": "PISTA_EVIDENCIA_Y_VEREDICTO_NO_SON_LO_MISMO"
+    },
+    {
+      "anchor_id": "eec-c8-la-emocion-es-una-experiencia",
+      "sequence": 22,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "**La emoción es una experiencia.**",
+      "section_key": "LA_EMOCION_ES_UNA_EXPERIENCIA"
+    },
+    {
+      "anchor_id": "eec-c8-no-certifica-la-interpretacion-que-la-acompana",
+      "sequence": 23,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "**No certifica la interpretación que la acompaña.**",
+      "section_key": "NO_CERTIFICA_LA_INTERPRETACION_QUE_LA_ACOMPANA"
+    },
+    {
+      "anchor_id": "eec-c8-cuatro-emociones-morales-bajo-auditoria",
+      "sequence": 24,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "Cuatro emociones morales bajo auditoría",
+      "section_key": "CUATRO_EMOCIONES_MORALES_BAJO_AUDITORIA"
+    },
+    {
+      "anchor_id": "eec-c8-esto-esta-bien",
+      "sequence": 25,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "*esto está bien,*",
+      "section_key": "ESTO_ESTA_BIEN"
+    },
+    {
+      "anchor_id": "eec-c8-esto-esta-mal",
+      "sequence": 26,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "*esto está mal,*",
+      "section_key": "ESTO_ESTA_MAL"
+    },
+    {
+      "anchor_id": "eec-c8-yo-soy-culpable",
+      "sequence": 27,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "*yo soy culpable,*",
+      "section_key": "YO_SOY_CULPABLE"
+    },
+    {
+      "anchor_id": "eec-c8-esa-persona-es-injusta",
+      "sequence": 28,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "*esa persona es injusta,*",
+      "section_key": "ESA_PERSONA_ES_INJUSTA"
+    },
+    {
+      "anchor_id": "eec-c8-alguien-merece-cuidado",
+      "sequence": 29,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "*alguien merece cuidado,*",
+      "section_key": "ALGUIEN_MERECE_CUIDADO"
+    },
+    {
+      "anchor_id": "eec-c8-alguien-merece-rechazo",
+      "sequence": 30,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "*alguien merece rechazo.*",
+      "section_key": "ALGUIEN_MERECE_RECHAZO"
+    },
+    {
+      "anchor_id": "eec-c8-culpa-el-malestar-no-es-una-sentencia",
+      "sequence": 31,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "Culpa: el malestar no es una sentencia",
+      "section_key": "CULPA_EL_MALESTAR_NO_ES_UNA_SENTENCIA"
+    },
+    {
+      "anchor_id": "eec-c8-hay-algo-que-necesite-reparacion",
+      "sequence": 32,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "**¿Hay algo que necesite reparación?**",
+      "section_key": "HAY_ALGO_QUE_NECESITE_REPARACION"
+    },
+    {
+      "anchor_id": "eec-c8-la-norma-que-creo-haber-violado-merece-mi-lealtad",
+      "sequence": 33,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "**¿La norma que creo haber violado merece mi lealtad?**",
+      "section_key": "LA_NORMA_QUE_CREO_HABER_VIOLADO_MERECE_MI_LEALTAD"
+    },
+    {
+      "anchor_id": "eec-c8-ira-una-alarma-que-tambien-puede-proteger-una-expectativa-injusta",
+      "sequence": 34,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "Ira: una alarma que también puede proteger una expectativa injusta",
+      "section_key": "IRA_UNA_ALARMA_QUE_TAMBIEN_PUEDE_PROTEGER_UNA_EXPECTATIVA_IN"
+    },
+    {
+      "anchor_id": "eec-c8-que-me-hicieron",
+      "sequence": 35,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "**¿Qué me hicieron?**",
+      "section_key": "QUE_ME_HICIERON"
+    },
+    {
+      "anchor_id": "eec-c8-que-considero-que-me-debian-y-por-que",
+      "sequence": 36,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "**¿Qué considero que me debían, y por qué?**",
+      "section_key": "QUE_CONSIDERO_QUE_ME_DEBIAN_Y_POR_QUE"
+    },
+    {
+      "anchor_id": "eec-c8-asco-cuando-el-rechazo-se-disfraza-de-evidencia-moral",
+      "sequence": 37,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "Asco: cuando el rechazo se disfraza de evidencia moral",
+      "section_key": "ASCO_CUANDO_EL_RECHAZO_SE_DISFRAZA_DE_EVIDENCIA_MORAL"
+    },
+    {
+      "anchor_id": "eec-c8-si-me-repugna-algo-malo-debe-haber-ahi",
+      "sequence": 38,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "*si me repugna, algo malo debe haber ahí.*",
+      "section_key": "SI_ME_REPUGNA_ALGO_MALO_DEBE_HABER_AHI"
+    },
+    {
+      "anchor_id": "eec-c8-que-siento",
+      "sequence": 39,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "**qué siento**",
+      "section_key": "QUE_SIENTO"
+    },
+    {
+      "anchor_id": "eec-c8-de",
+      "sequence": 40,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "de",
+      "section_key": "DE"
+    },
+    {
+      "anchor_id": "eec-c8-que-puedo-justificar-acerca-del-otro",
+      "sequence": 41,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "**qué puedo justificar acerca del otro.**",
+      "section_key": "QUE_PUEDO_JUSTIFICAR_ACERCA_DEL_OTRO"
+    },
+    {
+      "anchor_id": "eec-c8-empatia-y-compasion-acercarse-no-es-verlo-todo",
+      "sequence": 42,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "Empatía y compasión: acercarse no es verlo todo",
+      "section_key": "EMPATIA_Y_COMPASION_ACERCARSE_NO_ES_VERLO_TODO"
+    },
+    {
+      "anchor_id": "eec-c8-puedo-sentir-lo-que-siente-el-otro",
+      "sequence": 43,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "**¿Puedo sentir lo que siente el otro?**",
+      "section_key": "PUEDO_SENTIR_LO_QUE_SIENTE_EL_OTRO"
+    },
+    {
+      "anchor_id": "eec-c8-a-quien-no-estoy-viendo",
+      "sequence": 44,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "**¿A quién no estoy viendo?**",
+      "section_key": "A_QUIEN_NO_ESTOY_VIENDO"
+    },
+    {
+      "anchor_id": "eec-c8-quien-te-enseno-lo-que-significa-sentir-esto",
+      "sequence": 45,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "¿Quién te enseñó lo que significa sentir esto?",
+      "section_key": "QUIEN_TE_ENSENO_LO_QUE_SIGNIFICA_SENTIR_ESTO"
+    },
+    {
+      "anchor_id": "eec-c8-religion-cuando-una-emocion-entra-en-un-mundo-de-significado",
+      "sequence": 46,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "Religión: cuando una emoción entra en un mundo de significado",
+      "section_key": "RELIGION_CUANDO_UNA_EMOCION_ENTRA_EN_UN_MUNDO_DE_SIGNIFICADO"
+    },
+    {
+      "anchor_id": "eec-c8-compartir-pantallas-no-significa-compartir-valores",
+      "sequence": 47,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "Compartir pantallas no significa compartir valores",
+      "section_key": "COMPARTIR_PANTALLAS_NO_SIGNIFICA_COMPARTIR_VALORES"
+    },
+    {
+      "anchor_id": "eec-c8-el-significado-sigue-teniendo-historia",
+      "sequence": 48,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "**El significado sigue teniendo historia.**",
+      "section_key": "EL_SIGNIFICADO_SIGUE_TENIENDO_HISTORIA"
+    },
+    {
+      "anchor_id": "eec-c8-quien-me-enseno-esta-traduccion",
+      "sequence": 49,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "**¿Quién me enseñó esta traducción?**",
+      "section_key": "QUIEN_ME_ENSENO_ESTA_TRADUCCION"
+    },
+    {
+      "anchor_id": "eec-c8-nuevos-interpretes-redes-algoritmos-e-inteligencia-artificial",
+      "sequence": 50,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "Nuevos intérpretes: redes, algoritmos e inteligencia artificial",
+      "section_key": "NUEVOS_INTERPRETES_REDES_ALGORITMOS_E_INTELIGENCIA_ARTIFICIA"
+    },
+    {
+      "anchor_id": "eec-c8-la-claridad-de-la-respuesta-demuestra-que-la-explicacion-es-correcta",
+      "sequence": 51,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "**¿La claridad de la respuesta demuestra que la explicación es correcta?**",
+      "section_key": "LA_CLARIDAD_DE_LA_RESPUESTA_DEMUESTRA_QUE_LA_EXPLICACION_ES_"
+    },
+    {
+      "anchor_id": "eec-c8-la-etica-empieza-cuando-aparece-el-otro",
+      "sequence": 52,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "La ética empieza cuando aparece el otro",
+      "section_key": "LA_ETICA_EMPIEZA_CUANDO_APARECE_EL_OTRO"
+    },
+    {
+      "anchor_id": "eec-c8-como-importa-en-relacion-con-los-demas",
+      "sequence": 53,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "**cómo importa en relación con los demás.**",
+      "section_key": "COMO_IMPORTA_EN_RELACION_CON_LOS_DEMAS"
+    },
+    {
+      "anchor_id": "eec-c8-actividad-escuchar-sin-obedecer",
+      "sequence": 54,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "Actividad — Escuchar sin obedecer",
+      "section_key": "ACTIVIDAD_ESCUCHAR_SIN_OBEDECER"
+    },
+    {
+      "anchor_id": "eec-c8-mesa-de-discernimiento-emocional",
+      "sequence": 55,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "Mesa de discernimiento emocional",
+      "section_key": "MESA_DE_DISCERNIMIENTO_EMOCIONAL"
+    },
+    {
+      "anchor_id": "eec-c8-1-que-ocurrio",
+      "sequence": 56,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "1. ¿Qué ocurrió?",
+      "section_key": "1_QUE_OCURRIO"
+    },
+    {
+      "anchor_id": "eec-c8-2-que-emocion-aparecio",
+      "sequence": 57,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "2. ¿Qué emoción apareció?",
+      "section_key": "2_QUE_EMOCION_APARECIO"
+    },
+    {
+      "anchor_id": "eec-c8-3-que-parece-poner-en-primer-plano",
+      "sequence": 58,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "3. ¿Qué parece poner en primer plano?",
+      "section_key": "3_QUE_PARECE_PONER_EN_PRIMER_PLANO"
+    },
+    {
+      "anchor_id": "eec-c8-que-esta-siendo-tratado-como-importante-aqui",
+      "sequence": 59,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "**¿Qué está siendo tratado como importante aquí?**",
+      "section_key": "QUE_ESTA_SIENDO_TRATADO_COMO_IMPORTANTE_AQUI"
+    },
+    {
+      "anchor_id": "eec-c8-4-que-subtitulo-acompana-a-la-emocion",
+      "sequence": 60,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "4. ¿Qué subtítulo acompaña a la emoción?",
+      "section_key": "4_QUE_SUBTITULO_ACOMPANA_A_LA_EMOCION"
+    },
+    {
+      "anchor_id": "eec-c8-5-quien-te-enseno-esa-interpretacion",
+      "sequence": 61,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "5. ¿Quién te enseñó esa interpretación?",
+      "section_key": "5_QUIEN_TE_ENSENO_ESA_INTERPRETACION"
+    },
+    {
+      "anchor_id": "eec-c8-6-que-evidencia-la-apoya-y-que-podria-contradecirla",
+      "sequence": 62,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "6. ¿Qué evidencia la apoya y qué podría contradecirla?",
+      "section_key": "6_QUE_EVIDENCIA_LA_APOYA_Y_QUE_PODRIA_CONTRADECIRLA"
+    },
+    {
+      "anchor_id": "eec-c8-7-que-impulso-de-accion-aparecio",
+      "sequence": 63,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "7. ¿Qué impulso de acción apareció?",
+      "section_key": "7_QUE_IMPULSO_DE_ACCION_APARECIO"
+    },
+    {
+      "anchor_id": "eec-c8-quien-podria-resultar-afectado-si-obedezco-inmediatamente",
+      "sequence": 64,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "**¿Quién podría resultar afectado si obedezco inmediatamente?**",
+      "section_key": "QUIEN_PODRIA_RESULTAR_AFECTADO_SI_OBEDEZCO_INMEDIATAMENTE"
+    },
+    {
+      "anchor_id": "eec-c8-8-que-parte-merece-validacion-y-que-parte-necesita-examen",
+      "sequence": 65,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "8. ¿Qué parte merece validación y qué parte necesita examen?",
+      "section_key": "8_QUE_PARTE_MERECE_VALIDACION_Y_QUE_PARTE_NECESITA_EXAMEN"
+    },
+    {
+      "anchor_id": "eec-c8-9-que-respuesta-puedes-justificar",
+      "sequence": 66,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "9. ¿Qué respuesta puedes justificar?",
+      "section_key": "9_QUE_RESPUESTA_PUEDES_JUSTIFICAR"
+    },
+    {
+      "anchor_id": "eec-c8-un-testigo-importante-no-el-juez-final",
+      "sequence": 67,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "Un testigo importante, no el juez final",
+      "section_key": "UN_TESTIGO_IMPORTANTE_NO_EL_JUEZ_FINAL"
+    },
+    {
+      "anchor_id": "eec-c8-mira-aqui",
+      "sequence": 68,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "**mira aquí.**",
+      "section_key": "MIRA_AQUI"
+    },
+    {
+      "anchor_id": "eec-c8-ese-espacio-es-el-discernimiento",
+      "sequence": 69,
+      "chapter_id": "EEC-C08",
+      "anchor_type": "heading",
+      "heading_exact": "**Ese espacio es el discernimiento.**",
+      "section_key": "ESE_ESPACIO_ES_EL_DISCERNIMIENTO"
+    }
+  ]
+}

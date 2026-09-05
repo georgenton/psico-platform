@@ -1,0 +1,53 @@
+{
+  "unit_id": "EEC-C05",
+  "canonical_version": "EEC_C05_v1.0_TEXT_LOCKED_2026-08-26",
+  "canonical_sha256": "0f35f0d0f498ef0d6d1970709c1cbfdf939dfd9f3d6ab8f01aecc1bba1a1c956",
+  "title": "Las historias que te cuentas también influyen en lo que sientes",
+  "placement": {
+    "order": 5,
+    "partNumber": 2,
+    "partTitle": "Construyendo tus emociones"
+  },
+  "blocks": 432,
+  "notes": [],
+  "bibliography": [
+    "Bruner, Jerome. «Life as Narrative». Social Research 54, n.o 1 (1987): 11-32. https://narrativestudies.lib.unb.ca/bibcite/reference/16610.",
+    "Capella, Claudia. «Una propuesta para el estudio de la identidad con aportes del análisis narrativo». Psicoperspectivas 12, n.o 2 (2013): 117-28. https://doi.org/10.5027/psicoperspectivas-Vol12-Issue2-fulltext-281.",
+    "Çetiner, Emine, Selma Turan Kavradim, y Zeynep Özer. «Effect of narrative interventions on psychological outcomes, sleep quality and quality of life in patients with cancer: Systematic review and meta-analysis of randomized controlled trials». European Journal of Oncology Nursing 83 (2026): 103259. https://doi.org/10.1016/j.ejon.2026.103259.",
+    "Chen, Mark Shuquan, Qiyue Cai, Deemah Omari, Drishti Enna Sanghvi, Shibo Lyu, y George A. Bonanno. «Emotion regulation and mental health across cultures: a systematic review and meta-analysis». Nature Human Behaviour 9, n.o 6 (2025): 1176-200. https://doi.org/10.1038/s41562-025-02168-8.",
+    "Ferré, Pilar, Isabel Fraga, y José Antonio Hinojosa. «The interplay between language and emotion: A narrative review». Cognition and Emotion 39, n.o 7 (2025): 1418-45. https://doi.org/10.1080/02699931.2025.2549965.",
+    "Fivush, Robyn, y Azriel Grysman. «Accuracy and reconstruction in autobiographical memory: (Re)consolidating neuroscience and sociocultural developmental approaches». WIREs Cognitive Science 14, n.o 3 (2023): e1620. https://doi.org/10.1002/wcs.1620.",
+    "Fivush, Robyn, Tilmann Habermas, Theodore E. A. Waters, y Widaad Zaman. «The making of autobiographical memory: Intersections of culture, narratives and identity». International Journal of Psychology 46, n.o 5 (2011): 321-45. https://doi.org/10.1080/00207594.2011.596541.",
+    "Gehrt, Tine B., Niels Peter Nielsen, Rick H. Hoyle, David C. Rubin, y Dorthe Berntsen. «Narrative identity does not predict well-being when controlling for emotional valence». Memory 31, n.o 8 (2023): 1051-61. https://doi.org/10.1080/09658211.2023.2218632.",
+    "Gerger, Heike, Christoph Patrick Werner, Jens Gaab, y Pim Cuijpers. «Comparative efficacy and acceptability of expressive writing treatments compared with psychotherapy, other writing treatments, and waiting list control for adult trauma survivors: A systematic review and network meta-analysis». Psychological Medicine 52, n.o 15 (2022): 3484-96. https://doi.org/10.1017/S0033291721000143.",
+    "Guo, Lin. «Reflect on emotional events from an observer’s perspective: a meta-analysis of experimental studies». Cognition and Emotion 36, n.o 8 (2022): 1531-54. https://doi.org/10.1080/02699931.2022.2134094.",
+    "Guo, Lin. «The delayed, durable effect of expressive writing on depression, anxiety and stress: A meta-analytic review of studies with long-term follow-ups». British Journal of Clinical Psychology 62, n.o 1 (2023): 272-97. https://doi.org/10.1111/bjc.12408.",
+    "Hu, Guannan, Bingyue Han, Hayley Gains, y Yong Jia. «Effectiveness of narrative therapy for depressive symptoms in adults with somatic disorders: A systematic review and meta-analysis». International Journal of Clinical and Health Psychology 24, n.o 4 (2024): 100520. https://doi.org/10.1016/j.ijchp.2024.100520.",
+    "Jones, Mitchell A., Amanda D. Hutchinson, y Liberty Barry. «Narrative Therapy: A Systematic Review of Efficacy and Effectiveness for Improving Biopsychosocial Outcomes in People With Cancer». Psycho-Oncology 35, n.o 4 (2026): e70460. https://doi.org/10.1002/pon.70460.",
+    "Lind, Majse, Sebnem Ture, Dan P. McAdams, y Henry R. Cowan. «Narrative Identity, Traits, and Trajectories of Depression and Well-Being: A 9-Year Longitudinal Study». Psychological Science 35, n.o 12 (2024): 1325-39. https://doi.org/10.1177/09567976241296512.",
+    "Lopes, Rodrigo T., Miguel M. Gonçalves, Paulo P. P. Machado, Dana Sinai, Tiago Bento, y João Salgado. «Narrative therapy vs. cognitive-behavioral therapy for moderate depression: Empirical evidence from a controlled clinical trial». Psychotherapy Research 24, n.o 6 (2014): 662-74. https://doi.org/10.1080/10503307.2013.874052.",
+    "Mata, Manuel L. de la, Andrés Santamaría, y Lucía Ruiz. «Cultura y memoria autobiográfica: concepciones del yo en estudiantes universitarios mexicanos y españoles». Estudios de Psicología 31, n.o 1 (2010): 21-38. https://doi.org/10.1174/021093910790744491.",
+    "McAdams, Dan P. «The Psychological Self as Actor, Agent, and Author». Perspectives on Psychological Science 8, n.o 3 (2013): 272-95. https://doi.org/10.1177/1745691612464657.",
+    "McAdams, Dan P., y Kate C. McLean. «Narrative Identity». Current Directions in Psychological Science 22, n.o 3 (2013): 233-38. https://doi.org/10.1177/0963721413475622.",
+    "McLean, Kate C., Monisha Pasupathi, y Moin Syed. «Cognitive scripts and narrative identity are shaped by structures of power». Trends in Cognitive Sciences 27, n.o 9 (2023): 805-13. https://doi.org/10.1016/j.tics.2023.03.006.",
+    "Park, Crystal L. «Making sense of the meaning literature: An integrative review of meaning making and its effects on adjustment to stressful life events». Psychological Bulletin 136, n.o 2 (2010): 257-301. https://doi.org/10.1037/a0018301.",
+    "Peters, Isabel, Florian Schmiedek, y Tilmann Habermas. «Narrating lives across 16 years: Developmental trajectories of coherence and relations to well-being in a lifespan sample». Developmental Psychology 61, n.o 5 (2025): 857-74. https://doi.org/10.1037/dev0001775.",
+    "Vromans, Lynette P., y Robert D. Schweitzer. «Narrative therapy for adults with major depressive disorder: Improved symptom and interpersonal outcomes». Psychotherapy Research 21, n.o 1 (2011): 4-15. https://doi.org/10.1080/10503301003591792.",
+    "Webb, Thomas L., Eleanor Miles, y Paschal Sheeran. «Dealing with feeling: A meta-analysis of the effectiveness of strategies derived from the process model of emotion regulation». Psychological Bulletin 138, n.o 4 (2012): 775-808. https://doi.org/10.1037/a0027600.",
+    "White, Michael. Maps of Narrative Practice. W. W. Norton, 2007. https://books.google.com/books?id=qDdoLhCr7PgC.",
+    "White, Michael, y David Epston. Narrative Means to Therapeutic Ends. W. W. Norton, 1990. https://books.google.com/books?id=bhyFFL4uHZQC."
+  ],
+  "citation_system": {
+    "manual": "Chicago Manual of Style",
+    "edition": 18,
+    "system": "shortened-notes-and-bibliography",
+    "csl_file": "chicago-shortened-notes-bibliography.csl",
+    "bibliography": "bibliography/eec-c05.bib",
+    "bibliography_status": "ORIGINAL",
+    "bibliography_sha256": "edee717f1d4fb95131663f8ac026384254ee01513d3ee369a43b64b38e0a6e56",
+    "bibliography_entries_expected": 25,
+    "callouts": "superscript",
+    "numbering": "generated-at-build-time",
+    "numbering_resets_each_chapter": true
+  }
+}

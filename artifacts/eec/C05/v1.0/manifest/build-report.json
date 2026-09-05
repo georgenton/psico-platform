@@ -1,0 +1,53 @@
+{
+  "chapter": "C05",
+  "canonicalVersion": "EEC_C05_v1.0_TEXT_LOCKED_2026-08-26",
+  "builtAt": "2026-09-05T00:34:50.279Z",
+  "checks": {
+    "canonicalSha256": "0f35f0d0f498ef0d6d1970709c1cbfdf939dfd9f3d6ab8f01aecc1bba1a1c956",
+    "canonicalShaMatches": true,
+    "parsedTitle": "Cuando las emociones se vuelven historia: el enfoque narrativo",
+    "titleMatchesUnit": false,
+    "blocks": 432,
+    "blockKinds": {
+      "HEADING": 102,
+      "PARAGRAPH": 324,
+      "QUOTE": 2,
+      "PAUSE": 1,
+      "EXERCISE": 2,
+      "VIDEO": 1
+    },
+    "bibliographySha256": "edee717f1d4fb95131663f8ac026384254ee01513d3ee369a43b64b38e0a6e56",
+    "bibliographyShaMatches": true,
+    "bibliographyEntriesExpected": 25,
+    "citationKeysInBib": 25,
+    "notes": 0,
+    "citationProblems": [],
+    "numberingIsAutomatic": true,
+    "bibliographyEntries": 25,
+    "citationStyle": {
+      "csl": "chicago-shortened-notes-bibliography.csl",
+      "locale": "locales-es-ES.xml",
+      "processor": "citeproc-js 1.4.61"
+    },
+    "pdfEngine": null
+  },
+  "outputs": {
+    "feelverse": [
+      "artifacts/eec/C05/v1.0/feelverse/unit-payload.json",
+      "artifacts/eec/C05/v1.0/feelverse/chapter.json"
+    ],
+    "docx": "artifacts/eec/C05/v1.0/print/EEC_C05_PRINT_v1.0_READY.docx",
+    "epub": "artifacts/eec/C05/v1.0/epub/EEC_C05_v1.0.epub",
+    "pdf": null
+  },
+  "blockers": [
+    {
+      "code": "CITATIONS_NOT_MAPPED",
+      "detail": "citations.json llega con `citations: []`. Las 25 Citation Keys existen en el .bib, pero no existe el mapa afirmación → ancla → Zotero Key → localizador, así que no hay notas que numerar. No se inventa."
+    },
+    {
+      "code": "SKIPPED_NO_RELIABLE_PDF_ENGINE",
+      "detail": "Ni pandoc/LaTeX ni LibreOffice en este entorno. El DOCX es válido y abre en Word; generar el PDF con un conversor improvisado — o llamando a uno real con los argumentos de otro — daría un fichero que parece de imprenta y no lo es."
+    }
+  ]
+}

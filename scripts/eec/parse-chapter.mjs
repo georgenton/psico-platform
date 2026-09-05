@@ -65,10 +65,19 @@ const EXERCISE_MOCK = (heading) =>
  * narrative opening).
  */
 export function parseChapter(raw, titleFallback) {
-  const lines = raw
+  let lines = raw
     .replace(/\r\n/g, "\n")
     .split("\n")
     .map((l) => l.trim());
+
+  // YAML front matter is how the manuscript file records ITSELF (project,
+  // chapter number, version, lock date) — it is not prose the reader ever saw.
+  // Only a `---` on the very first line opens one; a `---` anywhere else is a
+  // thematic break. C01/C02 have none, so this cannot move their blocks.
+  if (lines[0] === "---") {
+    const close = lines.indexOf("---", 1);
+    if (close > 0) lines = lines.slice(close + 1);
+  }
 
   let title = null;
   const blocks = [];
@@ -98,6 +107,11 @@ export function parseChapter(raw, titleFallback) {
 
   for (const line of lines) {
     if (!line) continue;
+
+    // A Markdown thematic break separates sections; it carries no words. Left
+    // alone it would pass `isImplicitHeading` (short, no terminal punctuation)
+    // and ship as a HEADING block reading "---". C01/C02 contain none.
+    if (/^(-{3,}|\*{3,}|_{3,})$/.test(line)) continue;
 
     // ::: fenced specials (forward-compat with curated Markdown).
     if (fence) {

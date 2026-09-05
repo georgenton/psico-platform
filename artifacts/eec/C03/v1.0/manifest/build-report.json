@@ -1,0 +1,52 @@
+{
+  "chapter": "C03",
+  "canonicalVersion": "EEC_C03_v1.0_TEXT_LOCKED_2026-08-25",
+  "builtAt": "2026-09-05T00:34:48.590Z",
+  "checks": {
+    "canonicalSha256": "79c427f56089ba693e8c836d737ac0b3dd5c5ab54dbfc8746a02799bbe28beb1",
+    "canonicalShaMatches": true,
+    "parsedTitle": "Capítulo 3 — El cerebro como arquitecto: emociones desde la neurociencia predictiva",
+    "titleMatchesUnit": false,
+    "blocks": 264,
+    "blockKinds": {
+      "HEADING": 42,
+      "PARAGRAPH": 219,
+      "PAUSE": 1,
+      "EXERCISE": 1,
+      "VIDEO": 1
+    },
+    "bibliographySha256": "86fb70f69bbea6467ca7cdd0429566e1db26b08d7bd7745a0ba81b0b868ba12d",
+    "bibliographyShaMatches": true,
+    "bibliographyEntriesExpected": 23,
+    "citationKeysInBib": 23,
+    "notes": 0,
+    "citationProblems": [],
+    "numberingIsAutomatic": true,
+    "bibliographyEntries": 23,
+    "citationStyle": {
+      "csl": "chicago-shortened-notes-bibliography.csl",
+      "locale": "locales-es-ES.xml",
+      "processor": "citeproc-js 1.4.61"
+    },
+    "pdfEngine": null
+  },
+  "outputs": {
+    "feelverse": [
+      "artifacts/eec/C03/v1.0/feelverse/unit-payload.json",
+      "artifacts/eec/C03/v1.0/feelverse/chapter.json"
+    ],
+    "docx": "artifacts/eec/C03/v1.0/print/EEC_C03_PRINT_v1.0_READY.docx",
+    "epub": "artifacts/eec/C03/v1.0/epub/EEC_C03_v1.0.epub",
+    "pdf": null
+  },
+  "blockers": [
+    {
+      "code": "CITATIONS_NOT_MAPPED",
+      "detail": "citations.json llega con `citations: []`. Las 23 Citation Keys existen en el .bib, pero no existe el mapa afirmación → ancla → Zotero Key → localizador, así que no hay notas que numerar. No se inventa."
+    },
+    {
+      "code": "SKIPPED_NO_RELIABLE_PDF_ENGINE",
+      "detail": "Ni pandoc/LaTeX ni LibreOffice en este entorno. El DOCX es válido y abre en Word; generar el PDF con un conversor improvisado — o llamando a uno real con los argumentos de otro — daría un fichero que parece de imprenta y no lo es."
+    }
+  ]
+}

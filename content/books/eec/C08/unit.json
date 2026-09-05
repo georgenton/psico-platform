@@ -1,0 +1,57 @@
+{
+  "schema_version": "1.0",
+  "unit_id": "EEC-C08",
+  "canonical_version": "EEC_C08_v1.0_TEXT_LOCKED_2026-08-26",
+  "canonical_sha256": "6b71342e0117f4243022ff66e8af2e3b41caec0f4a978b50c48fbad3e0e336c2",
+  "title": "Escuchar no es obedecer",
+  "title_academic": "Emociones, valores y discernimiento: enfoque filosófico y ético",
+  "_comment_recovery": "Bytes ORIGINALES del cierre editorial, recuperados del corpus local del autor el 2026-09-04 y verificados contra el SHA-256 declarado en Notion y en el manifiesto de cierre. No es un snapshot reconstruido: CANONICAL_ORIGINAL_VERIFIED.",
+  "recovery": {
+    "status": "CANONICAL_ORIGINAL_VERIFIED",
+    "method": "LOCAL_MD",
+    "historical_sha256": "6b71342e0117f4243022ff66e8af2e3b41caec0f4a978b50c48fbad3e0e336c2",
+    "sha_match": true,
+    "recovered_at": "2026-09-04",
+    "manifest_evidence": true
+  },
+  "production": {
+    "workKey": "emociones-en-construccion",
+    "editionKey": "emociones-en-construccion-1e",
+    "unitKey": "cd8e1f8e-e19a-5c90-b0f0-5acd5d0a3163",
+    "unitExistsInProduction": false,
+    "unitKeyDerivation": "uuidv5('emociones-en-construccion-1e/EEC-CXX') con el namespace de Content Core. Determinista a propósito: el bootstrap y la ingesta pueden repetirse sin crear una segunda unidad. Content Studio usa randomUUID() para unidades nativas, que no es reproducible entre un dry-run y su apply."
+  },
+  "placement": {
+    "order": 8,
+    "partNumber": 3,
+    "partTitle": "Vivir emocionalmente despierto"
+  },
+  "isFreePreview": false,
+  "files": {
+    "canonical_markdown": "chapter.md",
+    "anchors": "anchors.json",
+    "citations": "citations.json",
+    "figures": "figures.json",
+    "microguides": "microguides.json",
+    "activities": "activities.json",
+    "assets": "assets-manifest.json"
+  },
+  "citation_system": {
+    "manual": "Chicago Manual of Style",
+    "edition": 18,
+    "system": "shortened-notes-and-bibliography",
+    "csl_file": "chicago-shortened-notes-bibliography.csl",
+    "bibliography": "bibliography/eec-c08.bib",
+    "bibliography_status": "ORIGINAL",
+    "bibliography_sha256": "9ed8a0e370b497977770477ef5b91ec3d3831c31ac8a9104d10a8fa164ac1e5e",
+    "bibliography_entries_expected": 39,
+    "callouts": "superscript",
+    "numbering": "generated-at-build-time",
+    "numbering_resets_each_chapter": true
+  },
+  "gates": {
+    "text_locked": "PASS",
+    "citations": "NONE_RESOLVED_39_UNRESOLVED",
+    "reader_projection": "PENDING"
+  }
+}

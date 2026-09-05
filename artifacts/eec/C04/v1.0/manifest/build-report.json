@@ -1,0 +1,53 @@
+{
+  "chapter": "C04",
+  "canonicalVersion": "EEC_C04_v1.0_TEXT_LOCKED_2026-08-25",
+  "builtAt": "2026-09-05T00:34:49.423Z",
+  "checks": {
+    "canonicalSha256": "7f22cfb9859bc3309d6a410e9b1c80080c6b55ad6109b83d62a0852e8e6fe1ce",
+    "canonicalShaMatches": true,
+    "parsedTitle": "Capítulo 4 — Tu cuerpo habla antes que tú: el enfoque somático",
+    "titleMatchesUnit": false,
+    "blocks": 225,
+    "blockKinds": {
+      "HEADING": 30,
+      "PARAGRAPH": 186,
+      "PAUSE": 1,
+      "EXERCISE": 1,
+      "QUOTE": 6,
+      "VIDEO": 1
+    },
+    "bibliographySha256": "aad9766a63f4b7bb316db1560b950e702df7caf70fdfe22d5ad2f39aa9f668af",
+    "bibliographyShaMatches": true,
+    "bibliographyEntriesExpected": 29,
+    "citationKeysInBib": 29,
+    "notes": 0,
+    "citationProblems": [],
+    "numberingIsAutomatic": true,
+    "bibliographyEntries": 29,
+    "citationStyle": {
+      "csl": "chicago-shortened-notes-bibliography.csl",
+      "locale": "locales-es-ES.xml",
+      "processor": "citeproc-js 1.4.61"
+    },
+    "pdfEngine": null
+  },
+  "outputs": {
+    "feelverse": [
+      "artifacts/eec/C04/v1.0/feelverse/unit-payload.json",
+      "artifacts/eec/C04/v1.0/feelverse/chapter.json"
+    ],
+    "docx": "artifacts/eec/C04/v1.0/print/EEC_C04_PRINT_v1.0_READY.docx",
+    "epub": "artifacts/eec/C04/v1.0/epub/EEC_C04_v1.0.epub",
+    "pdf": null
+  },
+  "blockers": [
+    {
+      "code": "CITATIONS_NOT_MAPPED",
+      "detail": "citations.json llega con `citations: []`. Las 29 Citation Keys existen en el .bib, pero no existe el mapa afirmación → ancla → Zotero Key → localizador, así que no hay notas que numerar. No se inventa."
+    },
+    {
+      "code": "SKIPPED_NO_RELIABLE_PDF_ENGINE",
+      "detail": "Ni pandoc/LaTeX ni LibreOffice en este entorno. El DOCX es válido y abre en Word; generar el PDF con un conversor improvisado — o llamando a uno real con los argumentos de otro — daría un fichero que parece de imprenta y no lo es."
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+chapter: EEC-C10
+canonical_version: EEC_C10_v1.0_TEXT_LOCKED_2026-08-27
+canonical_sha256: a732ccb428e46787850b646c75e36a160cafbeb3280ff596d95d6297a0623c9b
+title: Lo que enseñamos cuando alguien siente
+built_at: 2026-09-05T00:34:54.827Z
+citation_style: Chicago Manual of Style 18 · shortened-notes-and-bibliography
+csl: chicago-shortened-notes-bibliography.csl
+bibliography_entries: 29
+notes: 0
+numbering: generated-at-build-time
+blocks: 375
+outputs:
+  - artifacts/eec/C10/v1.0/feelverse/unit-payload.json
+  - artifacts/eec/C10/v1.0/feelverse/chapter.json
+  - artifacts/eec/C10/v1.0/print/EEC_C10_PRINT_v1.0_READY.docx
+  - artifacts/eec/C10/v1.0/epub/EEC_C10_v1.0.epub
+blockers:
+  - CITATIONS_NOT_MAPPED
+  - SKIPPED_NO_RELIABLE_PDF_ENGINE

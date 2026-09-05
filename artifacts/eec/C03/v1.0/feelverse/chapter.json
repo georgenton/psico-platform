@@ -1,0 +1,51 @@
+{
+  "unit_id": "EEC-C03",
+  "canonical_version": "EEC_C03_v1.0_TEXT_LOCKED_2026-08-25",
+  "canonical_sha256": "79c427f56089ba693e8c836d737ac0b3dd5c5ab54dbfc8746a02799bbe28beb1",
+  "title": "Tu cerebro inventa emociones",
+  "placement": {
+    "order": 3,
+    "partNumber": 1,
+    "partTitle": "Deconstruyendo lo que sabíamos"
+  },
+  "blocks": 264,
+  "notes": [],
+  "bibliography": [
+    "Adolphs, Ralph. «How should neuroscience study emotions? By distinguishing emotion states, concepts, and experiences». Social Cognitive and Affective Neuroscience 12, n.o 1 (2017): 24-31. https://doi.org/10.1093/scan/nsw153.",
+    "Barrett, Lisa Feldman. «The theory of constructed emotion: An active inference account of interoception and categorization». Social Cognitive and Affective Neuroscience 12, n.o 1 (2017): 1-23. https://doi.org/10.1093/scan/nsw154.",
+    "Barrett, Lisa Feldman, Shir Atzil, Eliza Bliss-Moreau, et al. «The theory of constructed emotion: More than a feeling». Perspectives on Psychological Science 20, n.o 3 (2025): 392-420. https://doi.org/10.1177/17456916251319045.",
+    "Barrett, Lisa Feldman, y W. Kyle Simmons. «Interoceptive predictions in the brain». Nature Reviews Neuroscience 16, n.o 7 (2015): 419-29. https://doi.org/10.1038/nrn3950.",
+    "Critchley, Hugo D., y Sarah N. Garfinkel. «Interoception and emotion». Current Opinion in Psychology 17 (2017): 7-14. https://doi.org/10.1016/j.copsyc.2017.04.020.",
+    "Friston, Karl. «The free-energy principle: A unified brain theory?» Nature Reviews Neuroscience 11, n.o 2 (2010): 127-38. https://doi.org/10.1038/nrn2787.",
+    "Furutachi, Shohei, y Sonja B. Hofer. «Rethinking predictive processing». Annual Review of Neuroscience 49 (2026): 471-94. https://doi.org/10.1146/annurev-neuro-102124-031410.",
+    "Heijst, Karlijn van, Mariska E. Kret, y Annemie Ploeger. «Basic emotions or constructed emotions: Insights from taking an evolutionary perspective». Perspectives on Psychological Science 20, n.o 3 (2025): 377-91. https://doi.org/10.1177/17456916231205186.",
+    "Hodson, Rowan, Marishka Mehta, y Ryan Smith. «The empirical status of predictive coding and active inference». Neuroscience \\& Biobehavioral Reviews 157 (2024): 105473. https://doi.org/10.1016/j.neubiorev.2023.105473.",
+    "Khalsa, Sahib S., Ralph Adolphs, Oliver G. Cameron, et al. «Interoception and mental health: A roadmap». Biological Psychiatry: Cognitive Neuroscience and Neuroimaging 3, n.o 6 (2018): 501-13. https://doi.org/10.1016/j.bpsc.2017.12.004.",
+    "Kleckner, Ian R., Jiahe Zhang, Alexandra Touroutoglou, et al. «Evidence for a large-scale brain system supporting allostasis and interoception in humans». Nature Human Behaviour 1 (2017): 0069. https://doi.org/10.1038/s41562-017-0069.",
+    "Kragel, Philip A., y Kevin S. LaBar. «Multivariate neural biomarkers of emotional states are categorically distinct». Social Cognitive and Affective Neuroscience 10, n.o 11 (2015): 1437-48. https://doi.org/10.1093/scan/nsv032.",
+    "LeDoux, Joseph E. «Coming to terms with fear». Proceedings of the National Academy of Sciences 111, n.o 8 (2014): 2871-78. https://doi.org/10.1073/pnas.1400335111.",
+    "LeDoux, Joseph E., y Daniel S. Pine. «Using neuroscience to help understand fear and anxiety: A two-system framework». American Journal of Psychiatry 173, n.o 11 (2016): 1083-93. https://doi.org/10.1176/appi.ajp.2016.16030353.",
+    "Lindquist, Kristen A., Ajay B. Satpute, y Maria Gendron. «Does language do more than communicate emotion?» Current Directions in Psychological Science 24, n.o 2 (2015): 99-108. https://doi.org/10.1177/0963721414553440.",
+    "Lindquist, Kristen A., Tor D. Wager, Hedy Kober, Eliza Bliss-Moreau, y Lisa Feldman Barrett. «The brain basis of emotion: A meta-analytic review». Behavioral and Brain Sciences 35, n.o 3 (2012): 121-43. https://doi.org/10.1017/S0140525X11000446.",
+    "Pessoa, Luiz. «A network model of the emotional brain». Trends in Cognitive Sciences 21, n.o 5 (2017): 357-71. https://doi.org/10.1016/j.tics.2017.03.002.",
+    "Pessoa, Luiz, y Ralph Adolphs. «Emotion processing and the amygdala: From a “low road” to “many roads” of evaluating biological significance». Nature Reviews Neuroscience 11, n.o 11 (2010): 773-82. https://doi.org/10.1038/nrn2920.",
+    "Poldrack, Russell A. «Can cognitive processes be inferred from neuroimaging data?» Trends in Cognitive Sciences 10, n.o 2 (2006): 59-63. https://doi.org/10.1016/j.tics.2005.12.004.",
+    "Rao, Rajesh P. N., y Dana H. Ballard. «Predictive coding in the visual cortex: A functional interpretation of some extra-classical receptive-field effects». Nature Neuroscience 2, n.o 1 (1999): 79-87. https://doi.org/10.1038/4580.",
+    "Seth, Anil K. «Interoceptive inference, emotion, and the embodied self». Trends in Cognitive Sciences 17, n.o 11 (2013): 565-73. https://doi.org/10.1016/j.tics.2013.09.007.",
+    "Steffen, Patrick R., Dawson Hedges, y Rebekka Matheson. «The brain is adaptive not triune: How the brain responds to threat, challenge, and change». Frontiers in Psychiatry 13 (2022): 802606. https://doi.org/10.3389/fpsyt.2022.802606.",
+    "Zhang, Jiahe, Danlei Chen, Philip Deming, et al. «Cortical and subcortical mapping of the human allostatic–interoceptive system using 7 Tesla fMRI». Nature Neuroscience 28, n.o 11 (2025): 2380-91. https://doi.org/10.1038/s41593-025-02087-x."
+  ],
+  "citation_system": {
+    "manual": "Chicago Manual of Style",
+    "edition": 18,
+    "system": "shortened-notes-and-bibliography",
+    "csl_file": "chicago-shortened-notes-bibliography.csl",
+    "bibliography": "bibliography/eec-c03.bib",
+    "bibliography_status": "ORIGINAL",
+    "bibliography_sha256": "86fb70f69bbea6467ca7cdd0429566e1db26b08d7bd7745a0ba81b0b868ba12d",
+    "bibliography_entries_expected": 23,
+    "callouts": "superscript",
+    "numbering": "generated-at-build-time",
+    "numbering_resets_each_chapter": true
+  }
+}

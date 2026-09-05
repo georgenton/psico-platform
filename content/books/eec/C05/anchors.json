@@ -1,0 +1,825 @@
+{
+  "schema_version": "0.1-draft",
+  "chapter_id": "EEC-C05",
+  "canonical_version": "EEC_C05_v1.0_TEXT_LOCKED_2026-08-26",
+  "source_sha256_expected": "0f35f0d0f498ef0d6d1970709c1cbfdf939dfd9f3d6ab8f01aecc1bba1a1c956",
+  "_comment": "Un ancla por encabezado REAL del texto canónico, en su orden. `heading_exact` se coteja contra el bloque HEADING durante el build: si el texto cambiara, el ancla falla en vez de desplazarse en silencio.",
+  "anchors": [
+    {
+      "anchor_id": "eec-c5-las-historias-que-te-cuentas-tambien-influyen-en-lo-que-sientes",
+      "sequence": 1,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "Las historias que te cuentas también influyen en lo que sientes",
+      "section_key": "LAS_HISTORIAS_QUE_TE_CUENTAS_TAMBIEN_INFLUYEN_EN_LO_QUE_SIEN"
+    },
+    {
+      "anchor_id": "eec-c5-como-el-lenguaje-la-memoria-y-el-significado-organizan-lo-vivido",
+      "sequence": 2,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "Cómo el lenguaje, la memoria y el significado organizan lo vivido",
+      "section_key": "COMO_EL_LENGUAJE_LA_MEMORIA_Y_EL_SIGNIFICADO_ORGANIZAN_LO_VI"
+    },
+    {
+      "anchor_id": "eec-c5-podemos-hablar-esta-noche",
+      "sequence": 3,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "**«¿Podemos hablar esta noche?»**",
+      "section_key": "PODEMOS_HABLAR_ESTA_NOCHE"
+    },
+    {
+      "anchor_id": "eec-c5-seguro-esta-molesto-conmigo",
+      "sequence": 4,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "*Seguro está molesto conmigo.*",
+      "section_key": "SEGURO_ESTA_MOLESTO_CONMIGO"
+    },
+    {
+      "anchor_id": "eec-c5-tal-vez-dije-algo-que-no-debia",
+      "sequence": 5,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "*Tal vez dije algo que no debía.*",
+      "section_key": "TAL_VEZ_DIJE_ALGO_QUE_NO_DEBIA"
+    },
+    {
+      "anchor_id": "eec-c5-quiza-ya-esta-cansado-de-esta-relacion",
+      "sequence": 6,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "*Quizá ya está cansado de esta relación.*",
+      "section_key": "QUIZA_YA_ESTA_CANSADO_DE_ESTA_RELACION"
+    },
+    {
+      "anchor_id": "eec-c5-1-de-la-escena-al-relato",
+      "sequence": 7,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "1. De la escena al relato",
+      "section_key": "1_DE_LA_ESCENA_AL_RELATO"
+    },
+    {
+      "anchor_id": "eec-c5-se-dio-cuenta-de-que-no-estoy-preparado",
+      "sequence": 8,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "*Se dio cuenta de que no estoy preparado.*",
+      "section_key": "SE_DIO_CUENTA_DE_QUE_NO_ESTOY_PREPARADO"
+    },
+    {
+      "anchor_id": "eec-c5-seguro-cometi-un-error",
+      "sequence": 9,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "*Seguro cometí un error.*",
+      "section_key": "SEGURO_COMETI_UN_ERROR"
+    },
+    {
+      "anchor_id": "eec-c5-siempre-termino-decepcionando-a-alguien-cuando-esperan-demasiado-de-mi",
+      "sequence": 10,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "*Siempre termino decepcionando a alguien cuando esperan demasiado de mí.*",
+      "section_key": "SIEMPRE_TERMINO_DECEPCIONANDO_A_ALGUIEN_CUANDO_ESPERAN_DEMAS"
+    },
+    {
+      "anchor_id": "eec-c5-las-palabras-participan-pero-no-gobiernan",
+      "sequence": 11,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "Las palabras participan, pero no gobiernan",
+      "section_key": "LAS_PALABRAS_PARTICIPAN_PERO_NO_GOBIERNAN"
+    },
+    {
+      "anchor_id": "eec-c5-esto-fue-incomodo",
+      "sequence": 12,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "*«Esto fue incómodo»*",
+      "section_key": "ESTO_FUE_INCOMODO"
+    },
+    {
+      "anchor_id": "eec-c5-esto-fue-una-humillacion-imperdonable",
+      "sequence": 13,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "*«Esto fue una humillación imperdonable».*",
+      "section_key": "ESTO_FUE_UNA_HUMILLACION_IMPERDONABLE"
+    },
+    {
+      "anchor_id": "eec-c5-cometi-un-error",
+      "sequence": 14,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "*«Cometí un error»*",
+      "section_key": "COMETI_UN_ERROR"
+    },
+    {
+      "anchor_id": "eec-c5-soy-un-fracaso",
+      "sequence": 15,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "*«Soy un fracaso».*",
+      "section_key": "SOY_UN_FRACASO"
+    },
+    {
+      "anchor_id": "eec-c5-que-historia-debo-inventar-para-dejar-de-sentir-esto",
+      "sequence": 16,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "**«¿Qué historia debo inventar para dejar de sentir esto?»**",
+      "section_key": "QUE_HISTORIA_DEBO_INVENTAR_PARA_DEJAR_DE_SENTIR_ESTO"
+    },
+    {
+      "anchor_id": "eec-c5-2-cuando-un-episodio-empieza-a-decir-quien-eres",
+      "sequence": 17,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "2. Cuando un episodio empieza a decir quién eres",
+      "section_key": "2_CUANDO_UN_EPISODIO_EMPIEZA_A_DECIR_QUIEN_ERES"
+    },
+    {
+      "anchor_id": "eec-c5-soy-el-que-siempre-arruina-las-cosas",
+      "sequence": 18,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "*Soy el que siempre arruina las cosas.*",
+      "section_key": "SOY_EL_QUE_SIEMPRE_ARRUINA_LAS_COSAS"
+    },
+    {
+      "anchor_id": "eec-c5-yo-soy-la-fuerte-de-la-familia",
+      "sequence": 19,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "*Yo soy la fuerte de la familia.*",
+      "section_key": "YO_SOY_LA_FUERTE_DE_LA_FAMILIA"
+    },
+    {
+      "anchor_id": "eec-c5-en-las-relaciones-siempre-termino-abandonado",
+      "sequence": 20,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "*En las relaciones siempre termino abandonado.*",
+      "section_key": "EN_LAS_RELACIONES_SIEMPRE_TERMINO_ABANDONADO"
+    },
+    {
+      "anchor_id": "eec-c5-no-sirvo-para-estudiar",
+      "sequence": 21,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "*No sirvo para estudiar.*",
+      "section_key": "NO_SIRVO_PARA_ESTUDIAR"
+    },
+    {
+      "anchor_id": "eec-c5-nadie-me-toma-en-serio",
+      "sequence": 22,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "*Nadie me toma en serio.*",
+      "section_key": "NADIE_ME_TOMA_EN_SERIO"
+    },
+    {
+      "anchor_id": "eec-c5-recordar-no-es-reproducir-una-grabacion-exacta",
+      "sequence": 23,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "**Recordar no es reproducir una grabación exacta.**",
+      "section_key": "RECORDAR_NO_ES_REPRODUCIR_UNA_GRABACION_EXACTA"
+    },
+    {
+      "anchor_id": "eec-c5-reinterpretar-un-recuerdo-no-equivale-a-cambiar-los-hechos",
+      "sequence": 24,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "**Reinterpretar un recuerdo no equivale a cambiar los hechos.**",
+      "section_key": "REINTERPRETAR_UN_RECUERDO_NO_EQUIVALE_A_CAMBIAR_LOS_HECHOS"
+    },
+    {
+      "anchor_id": "eec-c5-tres-ventanas-sobre-el-self-actor-agente-y-autor",
+      "sequence": 25,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "Tres ventanas sobre el self: actor, agente y autor",
+      "section_key": "TRES_VENTANAS_SOBRE_EL_SELF_ACTOR_AGENTE_Y_AUTOR"
+    },
+    {
+      "anchor_id": "eec-c5-una-historia-mas-coherente-siempre-hace-bien",
+      "sequence": 26,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "¿Una historia más coherente siempre hace bien?",
+      "section_key": "UNA_HISTORIA_MAS_COHERENTE_SIEMPRE_HACE_BIEN"
+    },
+    {
+      "anchor_id": "eec-c5-no-se-todavia-que-lugar-tendra-esto-en-mi-vida",
+      "sequence": 27,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "*No sé todavía qué lugar tendrá esto en mi vida.*",
+      "section_key": "NO_SE_TODAVIA_QUE_LUGAR_TENDRA_ESTO_EN_MI_VIDA"
+    },
+    {
+      "anchor_id": "eec-c5-aplicacion-breve",
+      "sequence": 28,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "**Aplicación breve**",
+      "section_key": "APLICACION_BREVE"
+    },
+    {
+      "anchor_id": "eec-c5-3-white-y-epston-cuando-la-persona-deja-de-ser-el-problema",
+      "sequence": 29,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "3. White y Epston: cuando la persona deja de ser el problema",
+      "section_key": "3_WHITE_Y_EPSTON_CUANDO_LA_PERSONA_DEJA_DE_SER_EL_PROBLEMA"
+    },
+    {
+      "anchor_id": "eec-c5-externalizar-crear-espacio-sin-borrar-responsabilidad",
+      "sequence": 30,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "Externalizar: crear espacio sin borrar responsabilidad",
+      "section_key": "EXTERNALIZAR_CREAR_ESPACIO_SIN_BORRAR_RESPONSABILIDAD"
+    },
+    {
+      "anchor_id": "eec-c5-tu-no-hiciste-nada-el-problema-lo-hizo",
+      "sequence": 31,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "*«Tú no hiciste nada; el problema lo hizo».*",
+      "section_key": "TU_NO_HICISTE_NADA_EL_PROBLEMA_LO_HIZO"
+    },
+    {
+      "anchor_id": "eec-c5-historias-dominantes-y-acontecimientos-que-no-encajan",
+      "sequence": 32,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "Historias dominantes y acontecimientos que no encajan",
+      "section_key": "HISTORIAS_DOMINANTES_Y_ACONTECIMIENTOS_QUE_NO_ENCAJAN"
+    },
+    {
+      "anchor_id": "eec-c5-revisar-el-indice-no-equivale-a-imprimir-un-pasado-diferente",
+      "sequence": 33,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "**Revisar el índice no equivale a imprimir un pasado diferente.**",
+      "section_key": "REVISAR_EL_INDICE_NO_EQUIVALE_A_IMPRIMIR_UN_PASADO_DIFERENTE"
+    },
+    {
+      "anchor_id": "eec-c5-que-tan-solida-es-la-evidencia",
+      "sequence": 34,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "¿Qué tan sólida es la evidencia?",
+      "section_key": "QUE_TAN_SOLIDA_ES_LA_EVIDENCIA"
+    },
+    {
+      "anchor_id": "eec-c5-",
+      "sequence": 35,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": ">",
+      "section_key": ""
+    },
+    {
+      "anchor_id": "eec-c5-4-cuatro-herramientas-que-suelen-confundirse",
+      "sequence": 36,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "4. Cuatro herramientas que suelen confundirse",
+      "section_key": "4_CUATRO_HERRAMIENTAS_QUE_SUELEN_CONFUNDIRSE"
+    },
+    {
+      "anchor_id": "eec-c5-lo-leyo-y-no-responde-porque-esta-cansado-de-mi",
+      "sequence": 37,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "*Lo leyó y no responde porque está cansado de mí.*",
+      "section_key": "LO_LEYO_Y_NO_RESPONDE_PORQUE_ESTA_CANSADO_DE_MI"
+    },
+    {
+      "anchor_id": "eec-c5-se-que-lo-leyo",
+      "sequence": 38,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "*Sé que lo leyó.*",
+      "section_key": "SE_QUE_LO_LEYO"
+    },
+    {
+      "anchor_id": "eec-c5-se-que-todavia-no-respondio",
+      "sequence": 39,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "*Sé que todavía no respondió.*",
+      "section_key": "SE_QUE_TODAVIA_NO_RESPONDIO"
+    },
+    {
+      "anchor_id": "eec-c5-no-se-por-que",
+      "sequence": 40,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "*No sé por qué.*",
+      "section_key": "NO_SE_POR_QUE"
+    },
+    {
+      "anchor_id": "eec-c5-1-reevaluacion-cognitiva-probar-otra-hipotesis",
+      "sequence": 41,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "1. Reevaluación cognitiva: probar otra hipótesis",
+      "section_key": "1_REEVALUACION_COGNITIVA_PROBAR_OTRA_HIPOTESIS"
+    },
+    {
+      "anchor_id": "eec-c5-si-cambias-tu-pensamiento-eliges-lo-que-sientes",
+      "sequence": 42,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "*«Si cambias tu pensamiento, eliges lo que sientes».*",
+      "section_key": "SI_CAMBIAS_TU_PENSAMIENTO_ELIGES_LO_QUE_SIENTES"
+    },
+    {
+      "anchor_id": "eec-c5-2-autodistanciamiento-mover-la-camara",
+      "sequence": 43,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "2. Autodistanciamiento: mover la cámara",
+      "section_key": "2_AUTODISTANCIAMIENTO_MOVER_LA_CAMARA"
+    },
+    {
+      "anchor_id": "eec-c5-por-que-me-esta-haciendo-esto",
+      "sequence": 44,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "*«¿Por qué me está haciendo esto?»*",
+      "section_key": "POR_QUE_ME_ESTA_HACIENDO_ESTO"
+    },
+    {
+      "anchor_id": "eec-c5-3-construccion-de-significado-ubicar-el-acontecimiento-en-el-mapa",
+      "sequence": 45,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "3. Construcción de significado: ubicar el acontecimiento en el mapa",
+      "section_key": "3_CONSTRUCCION_DE_SIGNIFICADO_UBICAR_EL_ACONTECIMIENTO_EN_EL"
+    },
+    {
+      "anchor_id": "eec-c5-como-encaja-esto-con-lo-que-yo-creia-sobre-mi-vida",
+      "sequence": 46,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "*¿Cómo encaja esto con lo que yo creía sobre mi vida?*",
+      "section_key": "COMO_ENCAJA_ESTO_CON_LO_QUE_YO_CREIA_SOBRE_MI_VIDA"
+    },
+    {
+      "anchor_id": "eec-c5-que-cambia-ahora",
+      "sequence": 47,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "*¿Qué cambia ahora?*",
+      "section_key": "QUE_CAMBIA_AHORA"
+    },
+    {
+      "anchor_id": "eec-c5-que-significa-para-mi",
+      "sequence": 48,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "*¿Qué significa para mí?*",
+      "section_key": "QUE_SIGNIFICA_PARA_MI"
+    },
+    {
+      "anchor_id": "eec-c5-esto-fue-injusto-no-lo-habria-elegido-y-todavia-no-se-que-significa-pa",
+      "sequence": 49,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "*Esto fue injusto, no lo habría elegido y todavía no sé qué significa para mí.*",
+      "section_key": "ESTO_FUE_INJUSTO_NO_LO_HABRIA_ELEGIDO_Y_TODAVIA_NO_SE_QUE_SI"
+    },
+    {
+      "anchor_id": "eec-c5-esto-demuestra-que-nunca-podre-confiar-en-nadie",
+      "sequence": 50,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "*«Esto demuestra que nunca podré confiar en nadie»*",
+      "section_key": "ESTO_DEMUESTRA_QUE_NUNCA_PODRE_CONFIAR_EN_NADIE"
+    },
+    {
+      "anchor_id": "eec-c5-4-re-autoria-conectar-de-otra-forma-acontecimientos-reales",
+      "sequence": 51,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "4. Re-autoría: conectar de otra forma acontecimientos reales",
+      "section_key": "4_RE_AUTORIA_CONECTAR_DE_OTRA_FORMA_ACONTECIMIENTOS_REALES"
+    },
+    {
+      "anchor_id": "eec-c5-cuatro-resultados-posibles",
+      "sequence": 52,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "Cuatro resultados posibles",
+      "section_key": "CUATRO_RESULTADOS_POSIBLES"
+    },
+    {
+      "anchor_id": "eec-c5-3-la-emocion-permanece-pero-comprendes-mejor-por-que-esta-alli",
+      "sequence": 53,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "3. **La emoción permanece, pero comprendes mejor por qué está allí.**",
+      "section_key": "3_LA_EMOCION_PERMANECE_PERO_COMPRENDES_MEJOR_POR_QUE_ESTA_AL"
+    },
+    {
+      "anchor_id": "eec-c5-aplicacion-breve-2",
+      "sequence": 54,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "**Aplicación breve**",
+      "section_key": "APLICACION_BREVE"
+    },
+    {
+      "anchor_id": "eec-c5-5-la-memoria-no-es-una-grabacion-ni-una-pagina-en-blanco",
+      "sequence": 55,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "5. La memoria no es una grabación ni una página en blanco",
+      "section_key": "5_LA_MEMORIA_NO_ES_UNA_GRABACION_NI_UNA_PAGINA_EN_BLANCO"
+    },
+    {
+      "anchor_id": "eec-c5-no-lo-se",
+      "sequence": 56,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "**«No lo sé».**",
+      "section_key": "NO_LO_SE"
+    },
+    {
+      "anchor_id": "eec-c5-escritura-expresiva-una-herramienta-no-una-medicina-universal",
+      "sequence": 57,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "Escritura expresiva: una herramienta, no una medicina universal",
+      "section_key": "ESCRITURA_EXPRESIVA_UNA_HERRAMIENTA_NO_UNA_MEDICINA_UNIVERSA"
+    },
+    {
+      "anchor_id": "eec-c5-6-nadie-escribe-su-historia-a-solas",
+      "sequence": 58,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "6. Nadie escribe su historia a solas",
+      "section_key": "6_NADIE_ESCRIBE_SU_HISTORIA_A_SOLAS"
+    },
+    {
+      "anchor_id": "eec-c5-tengo-que-poder-solo",
+      "sequence": 59,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "*«Tengo que poder solo».*",
+      "section_key": "TENGO_QUE_PODER_SOLO"
+    },
+    {
+      "anchor_id": "eec-c5-una-buena-hija-no-deja-a-sus-padres",
+      "sequence": 60,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "*«Una buena hija no deja a sus padres».*",
+      "section_key": "UNA_BUENA_HIJA_NO_DEJA_A_SUS_PADRES"
+    },
+    {
+      "anchor_id": "eec-c5-si-regreso-despues-de-migrar-significa-que-fracase",
+      "sequence": 61,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "*«Si regreso después de migrar, significa que fracasé».*",
+      "section_key": "SI_REGRESO_DESPUES_DE_MIGRAR_SIGNIFICA_QUE_FRACASE"
+    },
+    {
+      "anchor_id": "eec-c5-los-problemas-de-pareja-se-quedan-en-casa",
+      "sequence": 62,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "*«Los problemas de pareja se quedan en casa».*",
+      "section_key": "LOS_PROBLEMAS_DE_PAREJA_SE_QUEDAN_EN_CASA"
+    },
+    {
+      "anchor_id": "eec-c5-si-digo-que-estoy-cansada-soy-una-mala-madre",
+      "sequence": 63,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "*«Si digo que estoy cansada, soy una mala madre».*",
+      "section_key": "SI_DIGO_QUE_ESTOY_CANSADA_SOY_UNA_MALA_MADRE"
+    },
+    {
+      "anchor_id": "eec-c5-no-escribimos-nuestra-vida-en-una-habitacion-vacia",
+      "sequence": 64,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "**no escribimos nuestra vida en una habitación vacía.**",
+      "section_key": "NO_ESCRIBIMOS_NUESTRA_VIDA_EN_UNA_HABITACION_VACIA"
+    },
+    {
+      "anchor_id": "eec-c5-aplicacion-breve-3",
+      "sequence": 65,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "**Aplicación breve**",
+      "section_key": "APLICACION_BREVE"
+    },
+    {
+      "anchor_id": "eec-c5-actividad-principal-mapa-de-una-historia-emocional",
+      "sequence": 66,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "Actividad principal — Mapa de una historia emocional",
+      "section_key": "ACTIVIDAD_PRINCIPAL_MAPA_DE_UNA_HISTORIA_EMOCIONAL"
+    },
+    {
+      "anchor_id": "eec-c5-paso-1-la-escena-y-los-espacios-en-blanco",
+      "sequence": 67,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "Paso 1. La escena y los espacios en blanco",
+      "section_key": "PASO_1_LA_ESCENA_Y_LOS_ESPACIOS_EN_BLANCO"
+    },
+    {
+      "anchor_id": "eec-c5-mi-amiga-me-ignoro",
+      "sequence": 68,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "*«Mi amiga me ignoró».*",
+      "section_key": "MI_AMIGA_ME_IGNORO"
+    },
+    {
+      "anchor_id": "eec-c5-lo-que-se-o-recuerdo-con-razonable-certeza",
+      "sequence": 69,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "**Lo que sé o recuerdo con razonable certeza**",
+      "section_key": "LO_QUE_SE_O_RECUERDO_CON_RAZONABLE_CERTEZA"
+    },
+    {
+      "anchor_id": "eec-c5-lo-que-no-se-o-no-recuerdo",
+      "sequence": 70,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "**Lo que no sé o no recuerdo**",
+      "section_key": "LO_QUE_NO_SE_O_NO_RECUERDO"
+    },
+    {
+      "anchor_id": "eec-c5-paso-2-las-senales-del-cuerpo",
+      "sequence": 71,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "Paso 2. Las señales del cuerpo",
+      "section_key": "PASO_2_LAS_SENALES_DEL_CUERPO"
+    },
+    {
+      "anchor_id": "eec-c5-paso-3-la-primera-interpretacion-y-sus-palabras",
+      "sequence": 72,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "Paso 3. La primera interpretación y sus palabras",
+      "section_key": "PASO_3_LA_PRIMERA_INTERPRETACION_Y_SUS_PALABRAS"
+    },
+    {
+      "anchor_id": "eec-c5-en-ese-momento-pense-que-esto-significaba",
+      "sequence": 73,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "**«En ese momento pensé que esto significaba…»**",
+      "section_key": "EN_ESE_MOMENTO_PENSE_QUE_ESTO_SIGNIFICABA"
+    },
+    {
+      "anchor_id": "eec-c5-error-fracaso-abandono-falta-de-respeto-desastre-injusticia-rechazo",
+      "sequence": 74,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "*error, fracaso, abandono, falta de respeto, desastre, injusticia, rechazo.*",
+      "section_key": "ERROR_FRACASO_ABANDONO_FALTA_DE_RESPETO_DESASTRE_INJUSTICIA_"
+    },
+    {
+      "anchor_id": "eec-c5-paso-4-el-titulo-de-la-historia",
+      "sequence": 75,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "Paso 4. El título de la historia",
+      "section_key": "PASO_4_EL_TITULO_DE_LA_HISTORIA"
+    },
+    {
+      "anchor_id": "eec-c5-cuando-necesito-a-alguien-termino-solo",
+      "sequence": 76,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "*«Cuando necesito a alguien, termino solo».*",
+      "section_key": "CUANDO_NECESITO_A_ALGUIEN_TERMINO_SOLO"
+    },
+    {
+      "anchor_id": "eec-c5-nunca-hago-nada-suficientemente-bien",
+      "sequence": 77,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "*«Nunca hago nada suficientemente bien».*",
+      "section_key": "NUNCA_HAGO_NADA_SUFICIENTEMENTE_BIEN"
+    },
+    {
+      "anchor_id": "eec-c5-si-me-critican-significa-que-no-valgo",
+      "sequence": 78,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "*«Si me critican, significa que no valgo».*",
+      "section_key": "SI_ME_CRITICAN_SIGNIFICA_QUE_NO_VALGO"
+    },
+    {
+      "anchor_id": "eec-c5-tengo-que-evitar-el-conflicto-para-que-me-quieran",
+      "sequence": 79,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "*«Tengo que evitar el conflicto para que me quieran».*",
+      "section_key": "TENGO_QUE_EVITAR_EL_CONFLICTO_PARA_QUE_ME_QUIERAN"
+    },
+    {
+      "anchor_id": "eec-c5-la-historia-del-rechazo",
+      "sequence": 80,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "**La historia del rechazo**",
+      "section_key": "LA_HISTORIA_DEL_RECHAZO"
+    },
+    {
+      "anchor_id": "eec-c5-el-relato-de-tener-que-hacerlo-perfecto",
+      "sequence": 81,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "**El relato de tener que hacerlo perfecto**",
+      "section_key": "EL_RELATO_DE_TENER_QUE_HACERLO_PERFECTO"
+    },
+    {
+      "anchor_id": "eec-c5-la-historia-de-quedarme-fuera",
+      "sequence": 82,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "**La historia de quedarme fuera**",
+      "section_key": "LA_HISTORIA_DE_QUEDARME_FUERA"
+    },
+    {
+      "anchor_id": "eec-c5-paso-5-lo-que-la-historia-incluye-y-lo-que-deja-fuera",
+      "sequence": 83,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "Paso 5. Lo que la historia incluye y lo que deja fuera",
+      "section_key": "PASO_5_LO_QUE_LA_HISTORIA_INCLUYE_Y_LO_QUE_DEJA_FUERA"
+    },
+    {
+      "anchor_id": "eec-c5-que-hechos-apoyan-esta-historia",
+      "sequence": 84,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "**¿Qué hechos apoyan esta historia?**",
+      "section_key": "QUE_HECHOS_APOYAN_ESTA_HISTORIA"
+    },
+    {
+      "anchor_id": "eec-c5-que-hechos-excepciones-o-datos-no-encajan-del-todo",
+      "sequence": 85,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "**¿Qué hechos, excepciones o datos no encajan del todo?**",
+      "section_key": "QUE_HECHOS_EXCEPCIONES_O_DATOS_NO_ENCAJAN_DEL_TODO"
+    },
+    {
+      "anchor_id": "eec-c5-paso-6-una-perspectiva-posible-y-honesta",
+      "sequence": 86,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "Paso 6. Una perspectiva posible y honesta",
+      "section_key": "PASO_6_UNA_PERSPECTIVA_POSIBLE_Y_HONESTA"
+    },
+    {
+      "anchor_id": "eec-c5-seguro-no-respondio-porque-estaba-ocupado",
+      "sequence": 87,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "*«Seguro no respondió porque estaba ocupado».*",
+      "section_key": "SEGURO_NO_RESPONDIO_PORQUE_ESTABA_OCUPADO"
+    },
+    {
+      "anchor_id": "eec-c5-paso-7-comprueba-que-cambio-y-que-no",
+      "sequence": 88,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "Paso 7. Comprueba qué cambió y qué no",
+      "section_key": "PASO_7_COMPRUEBA_QUE_CAMBIO_Y_QUE_NO"
+    },
+    {
+      "anchor_id": "eec-c5-el-ejercicio-no-se-aprueba-sintiendote-mejor",
+      "sequence": 89,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "**El ejercicio no se aprueba sintiéndote mejor.**",
+      "section_key": "EL_EJERCICIO_NO_SE_APRUEBA_SINTIENDOTE_MEJOR"
+    },
+    {
+      "anchor_id": "eec-c5-paso-8-la-accion-que-eliges",
+      "sequence": 90,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "Paso 8. La acción que eliges",
+      "section_key": "PASO_8_LA_ACCION_QUE_ELIGES"
+    },
+    {
+      "anchor_id": "eec-c5-antes-de-cerrar-el-mapa",
+      "sequence": 91,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "Antes de cerrar el mapa",
+      "section_key": "ANTES_DE_CERRAR_EL_MAPA"
+    },
+    {
+      "anchor_id": "eec-c5-lo-que-ocurrio-no-depende-de-que-yo-lo-narre-de-otra-manera",
+      "sequence": 92,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "- **Lo que ocurrió no depende de que yo lo narre de otra manera.**",
+      "section_key": "LO_QUE_OCURRIO_NO_DEPENDE_DE_QUE_YO_LO_NARRE_DE_OTRA_MANERA"
+    },
+    {
+      "anchor_id": "eec-c5-no-necesito-inventar-una-historia-positiva-para-ampliar-mis-opciones",
+      "sequence": 93,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "- **No necesito inventar una historia positiva para ampliar mis opciones.**",
+      "section_key": "NO_NECESITO_INVENTAR_UNA_HISTORIA_POSITIVA_PARA_AMPLIAR_MIS_"
+    },
+    {
+      "anchor_id": "eec-c5-7-puedes-revisar-el-relato-sin-borrar-la-pagina",
+      "sequence": 94,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "7. Puedes revisar el relato sin borrar la página",
+      "section_key": "7_PUEDES_REVISAR_EL_RELATO_SIN_BORRAR_LA_PAGINA"
+    },
+    {
+      "anchor_id": "eec-c5-una-historia-puede-sentirse-verdadera-sin-contener-toda-la-realidad",
+      "sequence": 95,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "**una historia puede sentirse verdadera sin contener toda la realidad.**",
+      "section_key": "UNA_HISTORIA_PUEDE_SENTIRSE_VERDADERA_SIN_CONTENER_TODA_LA_R"
+    },
+    {
+      "anchor_id": "eec-c5-que-ocurrio",
+      "sequence": 96,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "*¿Qué ocurrió?*",
+      "section_key": "QUE_OCURRIO"
+    },
+    {
+      "anchor_id": "eec-c5-que-estoy-suponiendo",
+      "sequence": 97,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "*¿Qué estoy suponiendo?*",
+      "section_key": "QUE_ESTOY_SUPONIENDO"
+    },
+    {
+      "anchor_id": "eec-c5-que-recuerda-mi-memoria-y-que-esta-reconstruyendo",
+      "sequence": 98,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "*¿Qué recuerda mi memoria y qué está reconstruyendo?*",
+      "section_key": "QUE_RECUERDA_MI_MEMORIA_Y_QUE_ESTA_RECONSTRUYENDO"
+    },
+    {
+      "anchor_id": "eec-c5-que-palabras-aprendi-para-contar-algo-asi",
+      "sequence": 99,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "*¿Qué palabras aprendí para contar algo así?*",
+      "section_key": "QUE_PALABRAS_APRENDI_PARA_CONTAR_ALGO_ASI"
+    },
+    {
+      "anchor_id": "eec-c5-que-partes-de-mi-experiencia-quedan-fuera-de-este-relato",
+      "sequence": 100,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "*¿Qué partes de mi experiencia quedan fuera de este relato?*",
+      "section_key": "QUE_PARTES_DE_MI_EXPERIENCIA_QUEDAN_FUERA_DE_ESTE_RELATO"
+    },
+    {
+      "anchor_id": "eec-c5-que-no-se-todavia",
+      "sequence": 101,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "*¿Qué no sé todavía?*",
+      "section_key": "QUE_NO_SE_TODAVIA"
+    },
+    {
+      "anchor_id": "eec-c5-que-accion-quiero-elegir-incluso-si-la-emocion-no-cambia-de-inmediato",
+      "sequence": 102,
+      "chapter_id": "EEC-C05",
+      "anchor_type": "heading",
+      "heading_exact": "*¿Qué acción quiero elegir, incluso si la emoción no cambia de inmediato?*",
+      "section_key": "QUE_ACCION_QUIERO_ELEGIR_INCLUSO_SI_LA_EMOCION_NO_CAMBIA_DE_"
+    }
+  ]
+}

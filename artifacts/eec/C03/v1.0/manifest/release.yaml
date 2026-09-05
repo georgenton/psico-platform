@@ -1,0 +1,19 @@
+chapter: EEC-C03
+canonical_version: EEC_C03_v1.0_TEXT_LOCKED_2026-08-25
+canonical_sha256: 79c427f56089ba693e8c836d737ac0b3dd5c5ab54dbfc8746a02799bbe28beb1
+title: Tu cerebro inventa emociones
+built_at: 2026-09-05T00:34:48.590Z
+citation_style: Chicago Manual of Style 18 · shortened-notes-and-bibliography
+csl: chicago-shortened-notes-bibliography.csl
+bibliography_entries: 23
+notes: 0
+numbering: generated-at-build-time
+blocks: 264
+outputs:
+  - artifacts/eec/C03/v1.0/feelverse/unit-payload.json
+  - artifacts/eec/C03/v1.0/feelverse/chapter.json
+  - artifacts/eec/C03/v1.0/print/EEC_C03_PRINT_v1.0_READY.docx
+  - artifacts/eec/C03/v1.0/epub/EEC_C03_v1.0.epub
+blockers:
+  - CITATIONS_NOT_MAPPED
+  - SKIPPED_NO_RELIABLE_PDF_ENGINE

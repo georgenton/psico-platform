@@ -1,0 +1,19 @@
+chapter: EEC-C08
+canonical_version: EEC_C08_v1.0_TEXT_LOCKED_2026-08-26
+canonical_sha256: 6b71342e0117f4243022ff66e8af2e3b41caec0f4a978b50c48fbad3e0e336c2
+title: Escuchar no es obedecer
+built_at: 2026-09-05T00:34:52.810Z
+citation_style: Chicago Manual of Style 18 · shortened-notes-and-bibliography
+csl: chicago-shortened-notes-bibliography.csl
+bibliography_entries: 39
+notes: 0
+numbering: generated-at-build-time
+blocks: 428
+outputs:
+  - artifacts/eec/C08/v1.0/feelverse/unit-payload.json
+  - artifacts/eec/C08/v1.0/feelverse/chapter.json
+  - artifacts/eec/C08/v1.0/print/EEC_C08_PRINT_v1.0_READY.docx
+  - artifacts/eec/C08/v1.0/epub/EEC_C08_v1.0.epub
+blockers:
+  - CITATIONS_NOT_MAPPED
+  - SKIPPED_NO_RELIABLE_PDF_ENGINE

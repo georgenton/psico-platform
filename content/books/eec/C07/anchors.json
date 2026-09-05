@@ -1,0 +1,401 @@
+{
+  "schema_version": "0.1-draft",
+  "chapter_id": "EEC-C07",
+  "canonical_version": "EEC_C07_v1.0_TEXT_LOCKED_2026-08-26",
+  "source_sha256_expected": "26a9b18738f0534a8c172bb22827f92e8f3745d70e91ea0a5923733b4bac8bd9",
+  "_comment": "Un ancla por encabezado REAL del texto canónico, en su orden. `heading_exact` se coteja contra el bloque HEADING durante el build: si el texto cambiara, el ancla falla en vez de desplazarse en silencio.",
+  "anchors": [
+    {
+      "anchor_id": "eec-c7-culturas-emocionales-repertorios-interpretacion-y-encuentro-intercultu",
+      "sequence": 1,
+      "chapter_id": "EEC-C07",
+      "anchor_type": "heading",
+      "heading_exact": "Culturas emocionales: repertorios, interpretación y encuentro intercultural",
+      "section_key": "CULTURAS_EMOCIONALES_REPERTORIOS_INTERPRETACION_Y_ENCUENTRO_"
+    },
+    {
+      "anchor_id": "eec-c7-cambiar-de-mundo-sin-salir-del-pais",
+      "sequence": 2,
+      "chapter_id": "EEC-C07",
+      "anchor_type": "heading",
+      "heading_exact": "Cambiar de mundo sin salir del país",
+      "section_key": "CAMBIAR_DE_MUNDO_SIN_SALIR_DEL_PAIS"
+    },
+    {
+      "anchor_id": "eec-c7-por-que-la-cultura-importa-cuando-hablamos-de-emociones",
+      "sequence": 3,
+      "chapter_id": "EEC-C07",
+      "anchor_type": "heading",
+      "heading_exact": "Por qué la cultura importa cuando hablamos de emociones",
+      "section_key": "POR_QUE_LA_CULTURA_IMPORTA_CUANDO_HABLAMOS_DE_EMOCIONES"
+    },
+    {
+      "anchor_id": "eec-c7-cuando-la-diferencia-se-convierte-en-defecto",
+      "sequence": 4,
+      "chapter_id": "EEC-C07",
+      "anchor_type": "heading",
+      "heading_exact": "Cuando la diferencia se convierte en defecto",
+      "section_key": "CUANDO_LA_DIFERENCIA_SE_CONVIERTE_EN_DEFECTO"
+    },
+    {
+      "anchor_id": "eec-c7-cuando-el-acento-se-convierte-en-personalidad",
+      "sequence": 5,
+      "chapter_id": "EEC-C07",
+      "anchor_type": "heading",
+      "heading_exact": "Cuando el acento se convierte en personalidad",
+      "section_key": "CUANDO_EL_ACENTO_SE_CONVIERTE_EN_PERSONALIDAD"
+    },
+    {
+      "anchor_id": "eec-c7-cuando-el-estereotipo-siente-antes-que-nosotros",
+      "sequence": 6,
+      "chapter_id": "EEC-C07",
+      "anchor_type": "heading",
+      "heading_exact": "Cuando el estereotipo siente antes que nosotros",
+      "section_key": "CUANDO_EL_ESTEREOTIPO_SIENTE_ANTES_QUE_NOSOTROS"
+    },
+    {
+      "anchor_id": "eec-c7-la-cultura-no-es-una-maleta-es-un-repertorio",
+      "sequence": 7,
+      "chapter_id": "EEC-C07",
+      "anchor_type": "heading",
+      "heading_exact": "La cultura no es una maleta: es un repertorio",
+      "section_key": "LA_CULTURA_NO_ES_UNA_MALETA_ES_UN_REPERTORIO"
+    },
+    {
+      "anchor_id": "eec-c7-como-siente-esta-cultura",
+      "sequence": 8,
+      "chapter_id": "EEC-C07",
+      "anchor_type": "heading",
+      "heading_exact": "*¿Cómo siente esta cultura?*",
+      "section_key": "COMO_SIENTE_ESTA_CULTURA"
+    },
+    {
+      "anchor_id": "eec-c7-un-pais-no-es-una-variable-magica",
+      "sequence": 9,
+      "chapter_id": "EEC-C07",
+      "anchor_type": "heading",
+      "heading_exact": "Un país no es una variable mágica",
+      "section_key": "UN_PAIS_NO_ES_UNA_VARIABLE_MAGICA"
+    },
+    {
+      "anchor_id": "eec-c7-la-ayuda-que-no-parece-ayuda",
+      "sequence": 10,
+      "chapter_id": "EEC-C07",
+      "anchor_type": "heading",
+      "heading_exact": "La ayuda que no parece ayuda",
+      "section_key": "LA_AYUDA_QUE_NO_PARECE_AYUDA"
+    },
+    {
+      "anchor_id": "eec-c7-antes-de-traducir-separar-capas",
+      "sequence": 11,
+      "chapter_id": "EEC-C07",
+      "anchor_type": "heading",
+      "heading_exact": "Antes de traducir, separar capas",
+      "section_key": "ANTES_DE_TRADUCIR_SEPARAR_CAPAS"
+    },
+    {
+      "anchor_id": "eec-c7-una-pista-no-es-un-veredicto",
+      "sequence": 12,
+      "chapter_id": "EEC-C07",
+      "anchor_type": "heading",
+      "heading_exact": "Una pista no es un veredicto",
+      "section_key": "UNA_PISTA_NO_ES_UN_VEREDICTO"
+    },
+    {
+      "anchor_id": "eec-c7-senal-observada-emocion-segura-causa-segura-intencion-segura",
+      "sequence": 13,
+      "chapter_id": "EEC-C07",
+      "anchor_type": "heading",
+      "heading_exact": "**señal observada ≠ emoción segura ≠ causa segura ≠ intención segura.**",
+      "section_key": "SENAL_OBSERVADA_EMOCION_SEGURA_CAUSA_SEGURA_INTENCION_SEGURA"
+    },
+    {
+      "anchor_id": "eec-c7-quiza-esta-incomodo",
+      "sequence": 14,
+      "chapter_id": "EEC-C07",
+      "anchor_type": "heading",
+      "heading_exact": "*Quizá está incómodo.*",
+      "section_key": "QUIZA_ESTA_INCOMODO"
+    },
+    {
+      "anchor_id": "eec-c7-cuando-las-palabras-no-encajan-una-sobre-otra",
+      "sequence": 15,
+      "chapter_id": "EEC-C07",
+      "anchor_type": "heading",
+      "heading_exact": "Cuando las palabras no encajan una sobre otra",
+      "section_key": "CUANDO_LAS_PALABRAS_NO_ENCAJAN_UNA_SOBRE_OTRA"
+    },
+    {
+      "anchor_id": "eec-c7-tienen-una-emocion-que-yo-soy-incapaz-de-sentir",
+      "sequence": 16,
+      "chapter_id": "EEC-C07",
+      "anchor_type": "heading",
+      "heading_exact": "*¿Tienen una emoción que yo soy incapaz de sentir?*",
+      "section_key": "TIENEN_UNA_EMOCION_QUE_YO_SOY_INCAPAZ_DE_SENTIR"
+    },
+    {
+      "anchor_id": "eec-c7-migrar-tambien-es-aprender-a-ser-leido-de-nuevo",
+      "sequence": 17,
+      "chapter_id": "EEC-C07",
+      "anchor_type": "heading",
+      "heading_exact": "Migrar también es aprender a ser leído de nuevo",
+      "section_key": "MIGRAR_TAMBIEN_ES_APRENDER_A_SER_LEIDO_DE_NUEVO"
+    },
+    {
+      "anchor_id": "eec-c7-hablar-el-mismo-idioma-no-elimina-la-traduccion",
+      "sequence": 18,
+      "chapter_id": "EEC-C07",
+      "anchor_type": "heading",
+      "heading_exact": "Hablar el mismo idioma no elimina la traducción",
+      "section_key": "HABLAR_EL_MISMO_IDIOMA_NO_ELIMINA_LA_TRADUCCION"
+    },
+    {
+      "anchor_id": "eec-c7-a-veces-lo-que-parece-distancia-es-proteccion",
+      "sequence": 19,
+      "chapter_id": "EEC-C07",
+      "anchor_type": "heading",
+      "heading_exact": "A veces lo que parece distancia es protección",
+      "section_key": "A_VECES_LO_QUE_PARECE_DISTANCIA_ES_PROTECCION"
+    },
+    {
+      "anchor_id": "eec-c7-la-sociedad-de-acogida-tambien-interpreta-y-tambien-debe-cambiar",
+      "sequence": 20,
+      "chapter_id": "EEC-C07",
+      "anchor_type": "heading",
+      "heading_exact": "La sociedad de acogida también interpreta y también debe cambiar",
+      "section_key": "LA_SOCIEDAD_DE_ACOGIDA_TAMBIEN_INTERPRETA_Y_TAMBIEN_DEBE_CAM"
+    },
+    {
+      "anchor_id": "eec-c7-ajustar-el-oido-sin-perder-la-propia-voz",
+      "sequence": 21,
+      "chapter_id": "EEC-C07",
+      "anchor_type": "heading",
+      "heading_exact": "Ajustar el oído sin perder la propia voz",
+      "section_key": "AJUSTAR_EL_OIDO_SIN_PERDER_LA_PROPIA_VOZ"
+    },
+    {
+      "anchor_id": "eec-c7-preguntar-antes-de-interpretar",
+      "sequence": 22,
+      "chapter_id": "EEC-C07",
+      "anchor_type": "heading",
+      "heading_exact": "Preguntar antes de interpretar",
+      "section_key": "PREGUNTAR_ANTES_DE_INTERPRETAR"
+    },
+    {
+      "anchor_id": "eec-c7-si-te-importara-hablarias-ahora",
+      "sequence": 23,
+      "chapter_id": "EEC-C07",
+      "anchor_type": "heading",
+      "heading_exact": "*Si te importara, hablarías ahora.*",
+      "section_key": "SI_TE_IMPORTARA_HABLARIAS_AHORA"
+    },
+    {
+      "anchor_id": "eec-c7-no-me-mira-porque-no-respeta-mi-autoridad",
+      "sequence": 24,
+      "chapter_id": "EEC-C07",
+      "anchor_type": "heading",
+      "heading_exact": "*No me mira porque no respeta mi autoridad.*",
+      "section_key": "NO_ME_MIRA_PORQUE_NO_RESPETA_MI_AUTORIDAD"
+    },
+    {
+      "anchor_id": "eec-c7-no-se-todavia-que-significa-ese-comportamiento-para-esta-persona",
+      "sequence": 25,
+      "chapter_id": "EEC-C07",
+      "anchor_type": "heading",
+      "heading_exact": "*No sé todavía qué significa ese comportamiento para esta persona.*",
+      "section_key": "NO_SE_TODAVIA_QUE_SIGNIFICA_ESE_COMPORTAMIENTO_PARA_ESTA_PER"
+    },
+    {
+      "anchor_id": "eec-c7-mi-hijo-esta-perdiendo-nuestras-costumbres",
+      "sequence": 26,
+      "chapter_id": "EEC-C07",
+      "anchor_type": "heading",
+      "heading_exact": "*Mi hijo está perdiendo nuestras costumbres.*",
+      "section_key": "MI_HIJO_ESTA_PERDIENDO_NUESTRAS_COSTUMBRES"
+    },
+    {
+      "anchor_id": "eec-c7-comprender-el-contexto-no-significa-justificar-el-dano",
+      "sequence": 27,
+      "chapter_id": "EEC-C07",
+      "anchor_type": "heading",
+      "heading_exact": "**comprender el contexto no significa justificar el daño.**",
+      "section_key": "COMPRENDER_EL_CONTEXTO_NO_SIGNIFICA_JUSTIFICAR_EL_DANO"
+    },
+    {
+      "anchor_id": "eec-c7-actividad-mapa-de-traduccion-emocional",
+      "sequence": 28,
+      "chapter_id": "EEC-C07",
+      "anchor_type": "heading",
+      "heading_exact": "Actividad: Mapa de traducción emocional",
+      "section_key": "ACTIVIDAD_MAPA_DE_TRADUCCION_EMOCIONAL"
+    },
+    {
+      "anchor_id": "eec-c7-alguna-vez-cambiaste-de-mundo-cultural-sin-cambiar-de-pais",
+      "sequence": 29,
+      "chapter_id": "EEC-C07",
+      "anchor_type": "heading",
+      "heading_exact": "**¿Alguna vez cambiaste de mundo cultural sin cambiar de país?**",
+      "section_key": "ALGUNA_VEZ_CAMBIASTE_DE_MUNDO_CULTURAL_SIN_CAMBIAR_DE_PAIS"
+    },
+    {
+      "anchor_id": "eec-c7-1-describe-la-escena-sin-adjetivos",
+      "sequence": 30,
+      "chapter_id": "EEC-C07",
+      "anchor_type": "heading",
+      "heading_exact": "1. Describe la escena sin adjetivos",
+      "section_key": "1_DESCRIBE_LA_ESCENA_SIN_ADJETIVOS"
+    },
+    {
+      "anchor_id": "eec-c7-guardo-silencio",
+      "sequence": 31,
+      "chapter_id": "EEC-C07",
+      "anchor_type": "heading",
+      "heading_exact": "*Guardó silencio.*",
+      "section_key": "GUARDO_SILENCIO"
+    },
+    {
+      "anchor_id": "eec-c7-levanto-la-voz",
+      "sequence": 32,
+      "chapter_id": "EEC-C07",
+      "anchor_type": "heading",
+      "heading_exact": "*Levantó la voz.*",
+      "section_key": "LEVANTO_LA_VOZ"
+    },
+    {
+      "anchor_id": "eec-c7-no-sostuvo-la-mirada",
+      "sequence": 33,
+      "chapter_id": "EEC-C07",
+      "anchor_type": "heading",
+      "heading_exact": "*No sostuvo la mirada.*",
+      "section_key": "NO_SOSTUVO_LA_MIRADA"
+    },
+    {
+      "anchor_id": "eec-c7-cambio-de-tema",
+      "sequence": 34,
+      "chapter_id": "EEC-C07",
+      "anchor_type": "heading",
+      "heading_exact": "*Cambió de tema.*",
+      "section_key": "CAMBIO_DE_TEMA"
+    },
+    {
+      "anchor_id": "eec-c7-sonrio",
+      "sequence": 35,
+      "chapter_id": "EEC-C07",
+      "anchor_type": "heading",
+      "heading_exact": "*Sonrió.*",
+      "section_key": "SONRIO"
+    },
+    {
+      "anchor_id": "eec-c7-se-retiro",
+      "sequence": 36,
+      "chapter_id": "EEC-C07",
+      "anchor_type": "heading",
+      "heading_exact": "*Se retiró.*",
+      "section_key": "SE_RETIRO"
+    },
+    {
+      "anchor_id": "eec-c7-2-nombra-tu-reaccion",
+      "sequence": 37,
+      "chapter_id": "EEC-C07",
+      "anchor_type": "heading",
+      "heading_exact": "2. Nombra tu reacción",
+      "section_key": "2_NOMBRA_TU_REACCION"
+    },
+    {
+      "anchor_id": "eec-c7-3-identifica-tu-primera-traduccion",
+      "sequence": 38,
+      "chapter_id": "EEC-C07",
+      "anchor_type": "heading",
+      "heading_exact": "3. Identifica tu primera traducción",
+      "section_key": "3_IDENTIFICA_TU_PRIMERA_TRADUCCION"
+    },
+    {
+      "anchor_id": "eec-c7-cuando-hizo-eso-yo-entendi-que",
+      "sequence": 39,
+      "chapter_id": "EEC-C07",
+      "anchor_type": "heading",
+      "heading_exact": "*Cuando hizo eso, yo entendí que…*",
+      "section_key": "CUANDO_HIZO_ESO_YO_ENTENDI_QUE"
+    },
+    {
+      "anchor_id": "eec-c7-4-encuentra-la-regla-invisible",
+      "sequence": 40,
+      "chapter_id": "EEC-C07",
+      "anchor_type": "heading",
+      "heading_exact": "4. Encuentra la regla invisible",
+      "section_key": "4_ENCUENTRA_LA_REGLA_INVISIBLE"
+    },
+    {
+      "anchor_id": "eec-c7-5-pregunta-de-donde-aprendiste-esa-expectativa",
+      "sequence": 41,
+      "chapter_id": "EEC-C07",
+      "anchor_type": "heading",
+      "heading_exact": "5. Pregunta de dónde aprendiste esa expectativa",
+      "section_key": "5_PREGUNTA_DE_DONDE_APRENDISTE_ESA_EXPECTATIVA"
+    },
+    {
+      "anchor_id": "eec-c7-6-genera-explicaciones-alternativas",
+      "sequence": 42,
+      "chapter_id": "EEC-C07",
+      "anchor_type": "heading",
+      "heading_exact": "6. Genera explicaciones alternativas",
+      "section_key": "6_GENERA_EXPLICACIONES_ALTERNATIVAS"
+    },
+    {
+      "anchor_id": "eec-c7-7-separa-evidencia-de-suposicion",
+      "sequence": 43,
+      "chapter_id": "EEC-C07",
+      "anchor_type": "heading",
+      "heading_exact": "7. Separa evidencia de suposición",
+      "section_key": "7_SEPARA_EVIDENCIA_DE_SUPOSICION"
+    },
+    {
+      "anchor_id": "eec-c7-8-evalua-la-hipotesis-cultural",
+      "sequence": 44,
+      "chapter_id": "EEC-C07",
+      "anchor_type": "heading",
+      "heading_exact": "8. Evalúa la hipótesis cultural",
+      "section_key": "8_EVALUA_LA_HIPOTESIS_CULTURAL"
+    },
+    {
+      "anchor_id": "eec-c7-9-formula-una-pregunta-que-no-contenga-la-respuesta",
+      "sequence": 45,
+      "chapter_id": "EEC-C07",
+      "anchor_type": "heading",
+      "heading_exact": "9. Formula una pregunta que no contenga la respuesta",
+      "section_key": "9_FORMULA_UNA_PREGUNTA_QUE_NO_CONTENGA_LA_RESPUESTA"
+    },
+    {
+      "anchor_id": "eec-c7-por-que-fuiste-tan-indiferente",
+      "sequence": 46,
+      "chapter_id": "EEC-C07",
+      "anchor_type": "heading",
+      "heading_exact": "*¿Por qué fuiste tan indiferente?*",
+      "section_key": "POR_QUE_FUISTE_TAN_INDIFERENTE"
+    },
+    {
+      "anchor_id": "eec-c7-10-decide-que-hacer-con-la-nueva-informacion",
+      "sequence": 47,
+      "chapter_id": "EEC-C07",
+      "anchor_type": "heading",
+      "heading_exact": "10. Decide qué hacer con la nueva información",
+      "section_key": "10_DECIDE_QUE_HACER_CON_LA_NUEVA_INFORMACION"
+    },
+    {
+      "anchor_id": "eec-c7-un-puente-no-borra-las-orillas",
+      "sequence": 48,
+      "chapter_id": "EEC-C07",
+      "anchor_type": "heading",
+      "heading_exact": "Un puente no borra las orillas",
+      "section_key": "UN_PUENTE_NO_BORRA_LAS_ORILLAS"
+    },
+    {
+      "anchor_id": "eec-c7-tu-primera-interpretacion-no-es-el-hecho-es-una-hipotesis-sobre-el-hec",
+      "sequence": 49,
+      "chapter_id": "EEC-C07",
+      "anchor_type": "heading",
+      "heading_exact": "**tu primera interpretación no es el hecho; es una hipótesis sobre el hecho.**",
+      "section_key": "TU_PRIMERA_INTERPRETACION_NO_ES_EL_HECHO_ES_UNA_HIPOTESIS_SO"
+    }
+  ]
+}

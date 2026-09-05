@@ -1,0 +1,137 @@
+[
+  {
+    "chapter": "C03",
+    "canonical_filename": "EEC_C03_v1.0_TEXT_LOCKED_2026-08-25.md",
+    "source_path": "source/EEC_C03_v1.0_TEXT_LOCKED_2026-08-25.md",
+    "parent_archive": null,
+    "sha256": "79c427f56089ba693e8c836d737ac0b3dd5c5ab54dbfc8746a02799bbe28beb1",
+    "historical_sha256": "79c427f56089ba693e8c836d737ac0b3dd5c5ab54dbfc8746a02799bbe28beb1",
+    "sha_match": true,
+    "bytes": 50276,
+    "words_local": 7341,
+    "words_notion": 7274,
+    "status": "CANONICAL_ORIGINAL_VERIFIED",
+    "recovery_method": "LOCAL_MD",
+    "aliases": [
+      "expanded/437dafa0202f-EEC_C03_PAQUETE_FINAL_TEXT_LOCKED_2026-08-25.zip/EEC_C03_v1.0_TEXT_LOCKED_2026-08-25.md"
+    ]
+  },
+  {
+    "chapter": "C04",
+    "canonical_filename": "EEC_C04_v1.0_TEXT_LOCKED_2026-08-25.md",
+    "source_path": "source/EEC_C04_v1.0_TEXT_LOCKED_2026-08-25.md",
+    "parent_archive": null,
+    "sha256": "7f22cfb9859bc3309d6a410e9b1c80080c6b55ad6109b83d62a0852e8e6fe1ce",
+    "historical_sha256": "7f22cfb9859bc3309d6a410e9b1c80080c6b55ad6109b83d62a0852e8e6fe1ce",
+    "sha_match": true,
+    "bytes": 37455,
+    "words_local": 5526,
+    "words_notion": 5446,
+    "status": "CANONICAL_ORIGINAL_VERIFIED",
+    "recovery_method": "LOCAL_MD",
+    "aliases": []
+  },
+  {
+    "chapter": "C05",
+    "canonical_filename": "EEC_C05_v1.0_TEXT_LOCKED_2026-08-26.md",
+    "source_path": "source/EEC_C05_v1.0_TEXT_LOCKED_2026-08-26.md",
+    "parent_archive": null,
+    "sha256": "0f35f0d0f498ef0d6d1970709c1cbfdf939dfd9f3d6ab8f01aecc1bba1a1c956",
+    "historical_sha256": "0f35f0d0f498ef0d6d1970709c1cbfdf939dfd9f3d6ab8f01aecc1bba1a1c956",
+    "sha_match": true,
+    "bytes": 44030,
+    "words_local": 6454,
+    "words_notion": 6454,
+    "status": "CANONICAL_ORIGINAL_VERIFIED",
+    "recovery_method": "LOCAL_MD",
+    "aliases": [
+      "expanded/31ca5c88bb30-EEC_C05_PAQUETE_CIERRE_v1.0_2026-08-26.zip/EEC_C05_v1.0_TEXT_LOCKED_2026-08-26.md",
+      "expanded/798b4735c00b-EEC_C05_INTEGRACION_SCRIVENER_v1.0_2026-08-26.zip/EEC_C05_v1.0_TEXT_LOCKED_2026-08-26.md"
+    ]
+  },
+  {
+    "chapter": "C06",
+    "canonical_filename": "EEC_C06_v1.1_TEXT_LOCKED_2026-09-01.md",
+    "source_path": "source/EEC_C06_v1.1_TEXT_LOCKED_2026-09-01.md",
+    "parent_archive": null,
+    "sha256": "ac963f730925fc347e0ab91b9df09902af05f5febd73c830f099f3b82c7a4d7a",
+    "historical_sha256": "ac963f730925fc347e0ab91b9df09902af05f5febd73c830f099f3b82c7a4d7a",
+    "sha_match": true,
+    "bytes": 42452,
+    "words_local": 6387,
+    "words_notion": 6339,
+    "status": "CANONICAL_ORIGINAL_VERIFIED",
+    "recovery_method": "LOCAL_MD",
+    "aliases": [
+      "expanded/34d4844c40fb-EEC_C06_SCRIVENER_RTF_v1.1_TEXT_LOCKED_2026-09-01.zip/EEC_C06_v1.1_TEXT_LOCKED_2026-09-01.md",
+      "expanded/5867583a0719-EEC_C06_PAQUETE_CANONICO_v1.1_TEXT_LOCKED_2026-09-01.zip/EEC_C06_v1.1_TEXT_LOCKED_2026-09-01.md",
+      "expanded/5867583a0719-EEC_C06_PAQUETE_CANONICO_v1.1_TEXT_LOCKED_2026-09-01__1_.zip/EEC_C06_v1.1_TEXT_LOCKED_2026-09-01.md"
+    ]
+  },
+  {
+    "chapter": "C07",
+    "canonical_filename": "EEC_C07_v1.0_TEXT_LOCKED_2026-08-26.md",
+    "source_path": "source/EEC_C07_v1.0_TEXT_LOCKED_2026-08-26.md",
+    "parent_archive": null,
+    "sha256": "26a9b18738f0534a8c172bb22827f92e8f3745d70e91ea0a5923733b4bac8bd9",
+    "historical_sha256": "26a9b18738f0534a8c172bb22827f92e8f3745d70e91ea0a5923733b4bac8bd9",
+    "sha_match": true,
+    "bytes": 40840,
+    "words_local": 6089,
+    "words_notion": 6089,
+    "status": "CANONICAL_ORIGINAL_VERIFIED",
+    "recovery_method": "LOCAL_MD",
+    "aliases": [
+      "source/EEC_C07_v1.0_TEXT_LOCKED_2026-08-26 (1).md"
+    ]
+  },
+  {
+    "chapter": "C08",
+    "canonical_filename": "EEC_C08_v1.0_TEXT_LOCKED_2026-08-26.md",
+    "source_path": "source/EEC_C08_v1.0_TEXT_LOCKED_2026-08-26.md",
+    "parent_archive": null,
+    "sha256": "6b71342e0117f4243022ff66e8af2e3b41caec0f4a978b50c48fbad3e0e336c2",
+    "historical_sha256": "6b71342e0117f4243022ff66e8af2e3b41caec0f4a978b50c48fbad3e0e336c2",
+    "sha_match": true,
+    "bytes": 37898,
+    "words_local": 5659,
+    "words_notion": 5659,
+    "status": "CANONICAL_ORIGINAL_VERIFIED",
+    "recovery_method": "LOCAL_MD",
+    "aliases": [
+      "expanded/da18fef2d055-EEC_C08_PAQUETE_FINAL_v1.0_2026-08-26.zip/EEC_C08_v1.0_TEXT_LOCKED_2026-08-26.md"
+    ]
+  },
+  {
+    "chapter": "C09",
+    "canonical_filename": "EEC_C09_v1.0_TEXT_LOCKED_2026-08-27.md",
+    "source_path": "source/EEC_C09_v1.0_TEXT_LOCKED_2026-08-27.md",
+    "parent_archive": null,
+    "sha256": "02b42dbdeef1136c560207d597b4c010250e19216dcb0e4c0592684914f1a956",
+    "historical_sha256": "02b42dbdeef1136c560207d597b4c010250e19216dcb0e4c0592684914f1a956",
+    "sha_match": true,
+    "bytes": 38430,
+    "words_local": 5614,
+    "words_notion": 5614,
+    "status": "CANONICAL_ORIGINAL_VERIFIED",
+    "recovery_method": "LOCAL_MD",
+    "aliases": [
+      "expanded/00565b61cd18-EEC_C09_PAQUETE_FINAL_v1.0_2026-08-27.zip/01_MANUSCRITO_CANONICO/EEC_C09_v1.0_TEXT_LOCKED_2026-08-27.md"
+    ]
+  },
+  {
+    "chapter": "C10",
+    "canonical_filename": "EEC_C10_v1.0_TEXT_LOCKED_2026-08-27.md",
+    "source_path": "expanded/78713f96e3f7-EEC_C10_PAQUETE_FINAL_v1.0_2026-08-27.zip/EEC_C10_PAQUETE_FINAL_v1.0_2026-08-27/00_CANONICO/EEC_C10_v1.0_TEXT_LOCKED_2026-08-27.md",
+    "parent_archive": "source/EEC_C10_PAQUETE_FINAL_v1.0_2026-08-27.zip",
+    "sha256": "a732ccb428e46787850b646c75e36a160cafbeb3280ff596d95d6297a0623c9b",
+    "historical_sha256": "a732ccb428e46787850b646c75e36a160cafbeb3280ff596d95d6297a0623c9b",
+    "sha_match": true,
+    "bytes": 32638,
+    "words_local": 4897,
+    "words_notion": 4897,
+    "status": "CANONICAL_ORIGINAL_VERIFIED",
+    "recovery_method": "LOCAL_MD",
+    "aliases": []
+  }
+]

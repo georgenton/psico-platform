@@ -1,0 +1,19 @@
+chapter: EEC-C06
+canonical_version: EEC_C06_v1.1_TEXT_LOCKED_2026-09-01
+canonical_sha256: ac963f730925fc347e0ab91b9df09902af05f5febd73c830f099f3b82c7a4d7a
+title: Sentir también se aprende con otros
+built_at: 2026-09-05T00:34:51.071Z
+citation_style: Chicago Manual of Style 18 · shortened-notes-and-bibliography
+csl: chicago-shortened-notes-bibliography.csl
+bibliography_entries: 37
+notes: 0
+numbering: generated-at-build-time
+blocks: 333
+outputs:
+  - artifacts/eec/C06/v1.1/feelverse/unit-payload.json
+  - artifacts/eec/C06/v1.1/feelverse/chapter.json
+  - artifacts/eec/C06/v1.1/print/EEC_C06_PRINT_v1.1_READY.docx
+  - artifacts/eec/C06/v1.1/epub/EEC_C06_v1.1.epub
+blockers:
+  - CITATIONS_NOT_MAPPED
+  - SKIPPED_NO_RELIABLE_PDF_ENGINE

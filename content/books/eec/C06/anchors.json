@@ -1,0 +1,369 @@
+{
+  "schema_version": "0.1-draft",
+  "chapter_id": "EEC-C06",
+  "canonical_version": "EEC_C06_v1.1_TEXT_LOCKED_2026-09-01",
+  "source_sha256_expected": "ac963f730925fc347e0ab91b9df09902af05f5febd73c830f099f3b82c7a4d7a",
+  "_comment": "Un ancla por encabezado REAL del texto canónico, en su orden. `heading_exact` se coteja contra el bloque HEADING durante el build: si el texto cambiara, el ancla falla en vez de desplazarse en silencio.",
+  "anchors": [
+    {
+      "anchor_id": "eec-c6-1-una-emocion-cambia-cuando-entra-alguien-mas",
+      "sequence": 1,
+      "chapter_id": "EEC-C06",
+      "anchor_type": "heading",
+      "heading_exact": "1. Una emoción cambia cuando entra alguien más",
+      "section_key": "1_UNA_EMOCION_CAMBIA_CUANDO_ENTRA_ALGUIEN_MAS"
+    },
+    {
+      "anchor_id": "eec-c6-que-esta-ocurriendo-entre-nosotros",
+      "sequence": 2,
+      "chapter_id": "EEC-C06",
+      "anchor_type": "heading",
+      "heading_exact": "**¿Qué está ocurriendo entre nosotros?**",
+      "section_key": "QUE_ESTA_OCURRIENDO_ENTRE_NOSOTROS"
+    },
+    {
+      "anchor_id": "eec-c6-2-de-lo-que-pasa-en-mi-a-lo-que-pasa-entre-nosotros",
+      "sequence": 3,
+      "chapter_id": "EEC-C06",
+      "anchor_type": "heading",
+      "heading_exact": "2. De lo que pasa en mí a lo que pasa entre nosotros",
+      "section_key": "2_DE_LO_QUE_PASA_EN_MI_A_LO_QUE_PASA_ENTRE_NOSOTROS"
+    },
+    {
+      "anchor_id": "eec-c6-influencia-no-es-lo-mismo-que-control",
+      "sequence": 4,
+      "chapter_id": "EEC-C06",
+      "anchor_type": "heading",
+      "heading_exact": "**Influencia no es lo mismo que control.**",
+      "section_key": "INFLUENCIA_NO_ES_LO_MISMO_QUE_CONTROL"
+    },
+    {
+      "anchor_id": "eec-c6-3-lo-que-aprendemos-en-compania",
+      "sequence": 5,
+      "chapter_id": "EEC-C06",
+      "anchor_type": "heading",
+      "heading_exact": "3. Lo que aprendemos en compañía",
+      "section_key": "3_LO_QUE_APRENDEMOS_EN_COMPANIA"
+    },
+    {
+      "anchor_id": "eec-c6-4-cuando-otra-persona-ayuda-o-empeora-lo-que-sientes",
+      "sequence": 6,
+      "chapter_id": "EEC-C06",
+      "anchor_type": "heading",
+      "heading_exact": "4. Cuando otra persona ayuda —o empeora— lo que sientes",
+      "section_key": "4_CUANDO_OTRA_PERSONA_AYUDA_O_EMPEORA_LO_QUE_SIENTES"
+    },
+    {
+      "anchor_id": "eec-c6-que-necesitas-de-mi-ahora",
+      "sequence": 7,
+      "chapter_id": "EEC-C06",
+      "anchor_type": "heading",
+      "heading_exact": "**«¿Qué necesitas de mí ahora?»**",
+      "section_key": "QUE_NECESITAS_DE_MI_AHORA"
+    },
+    {
+      "anchor_id": "eec-c6-5-cuando-una-respuesta-prepara-la-siguiente",
+      "sequence": 8,
+      "chapter_id": "EEC-C06",
+      "anchor_type": "heading",
+      "heading_exact": "5. Cuando una respuesta prepara la siguiente",
+      "section_key": "5_CUANDO_UNA_RESPUESTA_PREPARA_LA_SIGUIENTE"
+    },
+    {
+      "anchor_id": "eec-c6-como-mantiene-cada-respuesta-las-condiciones-para-la-siguiente",
+      "sequence": 9,
+      "chapter_id": "EEC-C06",
+      "anchor_type": "heading",
+      "heading_exact": "**¿Cómo mantiene cada respuesta las condiciones para la siguiente?**",
+      "section_key": "COMO_MANTIENE_CADA_RESPUESTA_LAS_CONDICIONES_PARA_LA_SIGUIEN"
+    },
+    {
+      "anchor_id": "eec-c6-6-palabras-vecinas-que-no-viven-en-la-misma-casa",
+      "sequence": 10,
+      "chapter_id": "EEC-C06",
+      "anchor_type": "heading",
+      "heading_exact": "6. Palabras vecinas que no viven en la misma casa",
+      "section_key": "6_PALABRAS_VECINAS_QUE_NO_VIVEN_EN_LA_MISMA_CASA"
+    },
+    {
+      "anchor_id": "eec-c6-senal-emocional",
+      "sequence": 11,
+      "chapter_id": "EEC-C06",
+      "anchor_type": "heading",
+      "heading_exact": "Señal emocional",
+      "section_key": "SENAL_EMOCIONAL"
+    },
+    {
+      "anchor_id": "eec-c6-empatia",
+      "sequence": 12,
+      "chapter_id": "EEC-C06",
+      "anchor_type": "heading",
+      "heading_exact": "Empatía",
+      "section_key": "EMPATIA"
+    },
+    {
+      "anchor_id": "eec-c6-contagio-emocional",
+      "sequence": 13,
+      "chapter_id": "EEC-C06",
+      "anchor_type": "heading",
+      "heading_exact": "Contagio emocional",
+      "section_key": "CONTAGIO_EMOCIONAL"
+    },
+    {
+      "anchor_id": "eec-c6-imitacion",
+      "sequence": 14,
+      "chapter_id": "EEC-C06",
+      "anchor_type": "heading",
+      "heading_exact": "Imitación",
+      "section_key": "IMITACION"
+    },
+    {
+      "anchor_id": "eec-c6-sincronia",
+      "sequence": 15,
+      "chapter_id": "EEC-C06",
+      "anchor_type": "heading",
+      "heading_exact": "Sincronía",
+      "section_key": "SINCRONIA"
+    },
+    {
+      "anchor_id": "eec-c6-regulacion-interpersonal",
+      "sequence": 16,
+      "chapter_id": "EEC-C06",
+      "anchor_type": "heading",
+      "heading_exact": "Regulación interpersonal",
+      "section_key": "REGULACION_INTERPERSONAL"
+    },
+    {
+      "anchor_id": "eec-c6-7-tres-mapas-para-observar-la-misma-mesa",
+      "sequence": 17,
+      "chapter_id": "EEC-C06",
+      "anchor_type": "heading",
+      "heading_exact": "7. Tres mapas para observar la misma mesa",
+      "section_key": "7_TRES_MAPAS_PARA_OBSERVAR_LA_MISMA_MESA"
+    },
+    {
+      "anchor_id": "eec-c6-el-mapa-de-bowen-tension-diferenciacion-y-triangulos",
+      "sequence": 18,
+      "chapter_id": "EEC-C06",
+      "anchor_type": "heading",
+      "heading_exact": "El mapa de Bowen: tensión, diferenciación y triángulos",
+      "section_key": "EL_MAPA_DE_BOWEN_TENSION_DIFERENCIACION_Y_TRIANGULOS"
+    },
+    {
+      "anchor_id": "eec-c6-el-mapa-de-minuchin-estructura-limites-y-subsistemas",
+      "sequence": 19,
+      "chapter_id": "EEC-C06",
+      "anchor_type": "heading",
+      "heading_exact": "El mapa de Minuchin: estructura, límites y subsistemas",
+      "section_key": "EL_MAPA_DE_MINUCHIN_ESTRUCTURA_LIMITES_Y_SUBSISTEMAS"
+    },
+    {
+      "anchor_id": "eec-c6-el-mapa-de-satir-comunicacion-y-congruencia",
+      "sequence": 20,
+      "chapter_id": "EEC-C06",
+      "anchor_type": "heading",
+      "heading_exact": "El mapa de Satir: comunicación y congruencia",
+      "section_key": "EL_MAPA_DE_SATIR_COMUNICACION_Y_CONGRUENCIA"
+    },
+    {
+      "anchor_id": "eec-c6-8-las-redes-tienen-contexto-poder-y-limites",
+      "sequence": 21,
+      "chapter_id": "EEC-C06",
+      "anchor_type": "heading",
+      "heading_exact": "8. Las redes tienen contexto, poder y límites",
+      "section_key": "8_LAS_REDES_TIENEN_CONTEXTO_PODER_Y_LIMITES"
+    },
+    {
+      "anchor_id": "eec-c6-las-familias-no-tienen-una-sola-forma",
+      "sequence": 22,
+      "chapter_id": "EEC-C06",
+      "anchor_type": "heading",
+      "heading_exact": "Las familias no tienen una sola forma",
+      "section_key": "LAS_FAMILIAS_NO_TIENEN_UNA_SOLA_FORMA"
+    },
+    {
+      "anchor_id": "eec-c6-cuando-la-familia-vive-en-mas-de-un-pais",
+      "sequence": 23,
+      "chapter_id": "EEC-C06",
+      "anchor_type": "heading",
+      "heading_exact": "Cuando la familia vive en más de un país",
+      "section_key": "CUANDO_LA_FAMILIA_VIVE_EN_MAS_DE_UN_PAIS"
+    },
+    {
+      "anchor_id": "eec-c6-una-relacion-tambien-puede-caber-en-una-pantalla",
+      "sequence": 24,
+      "chapter_id": "EEC-C06",
+      "anchor_type": "heading",
+      "heading_exact": "Una relación también puede caber en una pantalla",
+      "section_key": "UNA_RELACION_TAMBIEN_PUEDE_CABER_EN_UNA_PANTALLA"
+    },
+    {
+      "anchor_id": "eec-c6-cuando-el-ritmo-se-vuelve-un-nosotros",
+      "sequence": 25,
+      "chapter_id": "EEC-C06",
+      "anchor_type": "heading",
+      "heading_exact": "Cuando el ritmo se vuelve un nosotros",
+      "section_key": "CUANDO_EL_RITMO_SE_VUELVE_UN_NOSOTROS"
+    },
+    {
+      "anchor_id": "eec-c6-y-no-todos-los-ciclos-son-simetricos",
+      "sequence": 26,
+      "chapter_id": "EEC-C06",
+      "anchor_type": "heading",
+      "heading_exact": "Y no todos los ciclos son simétricos",
+      "section_key": "Y_NO_TODOS_LOS_CICLOS_SON_SIMETRICOS"
+    },
+    {
+      "anchor_id": "eec-c6-9-actividad-mapa-de-un-ciclo-relacional",
+      "sequence": 27,
+      "chapter_id": "EEC-C06",
+      "anchor_type": "heading",
+      "heading_exact": "9. Actividad: Mapa de un ciclo relacional",
+      "section_key": "9_ACTIVIDAD_MAPA_DE_UN_CICLO_RELACIONAL"
+    },
+    {
+      "anchor_id": "eec-c6-estacion-1-lo-que-ocurrio-y-lo-que-paso-en-ti",
+      "sequence": 28,
+      "chapter_id": "EEC-C06",
+      "anchor_type": "heading",
+      "heading_exact": "Estación 1. Lo que ocurrió y lo que pasó en ti",
+      "section_key": "ESTACION_1_LO_QUE_OCURRIO_Y_LO_QUE_PASO_EN_TI"
+    },
+    {
+      "anchor_id": "eec-c6-1-describe-la-situacion-observable",
+      "sequence": 29,
+      "chapter_id": "EEC-C06",
+      "anchor_type": "heading",
+      "heading_exact": "**1. Describe la situación observable.**",
+      "section_key": "1_DESCRIBE_LA_SITUACION_OBSERVABLE"
+    },
+    {
+      "anchor_id": "eec-c6-2-anota-lo-que-notaste-en-ti",
+      "sequence": 30,
+      "chapter_id": "EEC-C06",
+      "anchor_type": "heading",
+      "heading_exact": "**2. Anota lo que notaste en ti.**",
+      "section_key": "2_ANOTA_LO_QUE_NOTASTE_EN_TI"
+    },
+    {
+      "anchor_id": "eec-c6-3-identifica-la-interpretacion",
+      "sequence": 31,
+      "chapter_id": "EEC-C06",
+      "anchor_type": "heading",
+      "heading_exact": "**3. Identifica la interpretación.**",
+      "section_key": "3_IDENTIFICA_LA_INTERPRETACION"
+    },
+    {
+      "anchor_id": "eec-c6-estacion-2-la-secuencia-entre-las-dos-personas",
+      "sequence": 32,
+      "chapter_id": "EEC-C06",
+      "anchor_type": "heading",
+      "heading_exact": "Estación 2. La secuencia entre las dos personas",
+      "section_key": "ESTACION_2_LA_SECUENCIA_ENTRE_LAS_DOS_PERSONAS"
+    },
+    {
+      "anchor_id": "eec-c6-4-describe-lo-que-hiciste-o-dijiste",
+      "sequence": 33,
+      "chapter_id": "EEC-C06",
+      "anchor_type": "heading",
+      "heading_exact": "**4. Describe lo que hiciste o dijiste.**",
+      "section_key": "4_DESCRIBE_LO_QUE_HICISTE_O_DIJISTE"
+    },
+    {
+      "anchor_id": "eec-c6-5-describe-la-respuesta-observable-de-la-otra-persona",
+      "sequence": 34,
+      "chapter_id": "EEC-C06",
+      "anchor_type": "heading",
+      "heading_exact": "**5. Describe la respuesta observable de la otra persona.**",
+      "section_key": "5_DESCRIBE_LA_RESPUESTA_OBSERVABLE_DE_LA_OTRA_PERSONA"
+    },
+    {
+      "anchor_id": "eec-c6-6-anota-el-efecto-que-esa-respuesta-tuvo-en-ti",
+      "sequence": 35,
+      "chapter_id": "EEC-C06",
+      "anchor_type": "heading",
+      "heading_exact": "**6. Anota el efecto que esa respuesta tuvo en ti.**",
+      "section_key": "6_ANOTA_EL_EFECTO_QUE_ESA_RESPUESTA_TUVO_EN_TI"
+    },
+    {
+      "anchor_id": "eec-c6-estacion-3-lo-que-sabes-lo-que-infieres-y-lo-que-puedes-preguntar",
+      "sequence": 36,
+      "chapter_id": "EEC-C06",
+      "anchor_type": "heading",
+      "heading_exact": "Estación 3. Lo que sabes, lo que infieres y lo que puedes preguntar",
+      "section_key": "ESTACION_3_LO_QUE_SABES_LO_QUE_INFIERES_Y_LO_QUE_PUEDES_PREG"
+    },
+    {
+      "anchor_id": "eec-c6-7-separa-lo-que-sabes-de-lo-que-infieres",
+      "sequence": 37,
+      "chapter_id": "EEC-C06",
+      "anchor_type": "heading",
+      "heading_exact": "**7. Separa lo que sabes de lo que infieres.**",
+      "section_key": "7_SEPARA_LO_QUE_SABES_DE_LO_QUE_INFIERES"
+    },
+    {
+      "anchor_id": "eec-c6-8-pregunta-que-podrias-comprobar-mediante-comunicacion",
+      "sequence": 38,
+      "chapter_id": "EEC-C06",
+      "anchor_type": "heading",
+      "heading_exact": "**8. Pregunta qué podrías comprobar mediante comunicación.**",
+      "section_key": "8_PREGUNTA_QUE_PODRIAS_COMPROBAR_MEDIANTE_COMUNICACION"
+    },
+    {
+      "anchor_id": "eec-c6-9-dibuja-el-ciclo",
+      "sequence": 39,
+      "chapter_id": "EEC-C06",
+      "anchor_type": "heading",
+      "heading_exact": "**9. Dibuja el ciclo.**",
+      "section_key": "9_DIBUJA_EL_CICLO"
+    },
+    {
+      "anchor_id": "eec-c6-estacion-4-agencia-limites-y-siguiente-paso",
+      "sequence": 40,
+      "chapter_id": "EEC-C06",
+      "anchor_type": "heading",
+      "heading_exact": "Estación 4. Agencia, límites y siguiente paso",
+      "section_key": "ESTACION_4_AGENCIA_LIMITES_Y_SIGUIENTE_PASO"
+    },
+    {
+      "anchor_id": "eec-c6-10-busca-un-punto-de-interrupcion",
+      "sequence": 41,
+      "chapter_id": "EEC-C06",
+      "anchor_type": "heading",
+      "heading_exact": "**10. Busca un punto de interrupción.**",
+      "section_key": "10_BUSCA_UN_PUNTO_DE_INTERRUPCION"
+    },
+    {
+      "anchor_id": "eec-c6-en-que-punto-tengo-yo-una-opcion-distinta",
+      "sequence": 42,
+      "chapter_id": "EEC-C06",
+      "anchor_type": "heading",
+      "heading_exact": "**¿En qué punto tengo yo una opción distinta?**",
+      "section_key": "EN_QUE_PUNTO_TENGO_YO_UNA_OPCION_DISTINTA"
+    },
+    {
+      "anchor_id": "eec-c6-11-distingue-que-depende-de-ti-y-que-no",
+      "sequence": 43,
+      "chapter_id": "EEC-C06",
+      "anchor_type": "heading",
+      "heading_exact": "**11. Distingue qué depende de ti y qué no.**",
+      "section_key": "11_DISTINGUE_QUE_DEPENDE_DE_TI_Y_QUE_NO"
+    },
+    {
+      "anchor_id": "eec-c6-12-elige-una-conducta-aunque-la-emocion-permanezca",
+      "sequence": 44,
+      "chapter_id": "EEC-C06",
+      "anchor_type": "heading",
+      "heading_exact": "**12. Elige una conducta aunque la emoción permanezca.**",
+      "section_key": "12_ELIGE_UNA_CONDUCTA_AUNQUE_LA_EMOCION_PERMANEZCA"
+    },
+    {
+      "anchor_id": "eec-c6-influencia-no-es-destino",
+      "sequence": 45,
+      "chapter_id": "EEC-C06",
+      "anchor_type": "heading",
+      "heading_exact": "Influencia no es destino",
+      "section_key": "INFLUENCIA_NO_ES_DESTINO"
+    }
+  ]
+}

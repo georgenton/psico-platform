@@ -1,0 +1,57 @@
+{
+  "schema_version": "1.0",
+  "unit_id": "EEC-C06",
+  "canonical_version": "EEC_C06_v1.1_TEXT_LOCKED_2026-09-01",
+  "canonical_sha256": "ac963f730925fc347e0ab91b9df09902af05f5febd73c830f099f3b82c7a4d7a",
+  "title": "Sentir también se aprende con otros",
+  "title_academic": "Emociones en red: enfoque sistémico y relacional",
+  "_comment_recovery": "Bytes ORIGINALES del cierre editorial, recuperados del corpus local del autor el 2026-09-04 y verificados contra el SHA-256 declarado en Notion y en el manifiesto de cierre. No es un snapshot reconstruido: CANONICAL_ORIGINAL_VERIFIED.",
+  "recovery": {
+    "status": "CANONICAL_ORIGINAL_VERIFIED",
+    "method": "LOCAL_MD",
+    "historical_sha256": "ac963f730925fc347e0ab91b9df09902af05f5febd73c830f099f3b82c7a4d7a",
+    "sha_match": true,
+    "recovered_at": "2026-09-04",
+    "manifest_evidence": true
+  },
+  "production": {
+    "workKey": "emociones-en-construccion",
+    "editionKey": "emociones-en-construccion-1e",
+    "unitKey": "170e6699-0507-5784-8ecc-c9994b8dbf7e",
+    "unitExistsInProduction": false,
+    "unitKeyDerivation": "uuidv5('emociones-en-construccion-1e/EEC-CXX') con el namespace de Content Core. Determinista a propósito: el bootstrap y la ingesta pueden repetirse sin crear una segunda unidad. Content Studio usa randomUUID() para unidades nativas, que no es reproducible entre un dry-run y su apply."
+  },
+  "placement": {
+    "order": 6,
+    "partNumber": 2,
+    "partTitle": "Construyendo tus emociones"
+  },
+  "isFreePreview": false,
+  "files": {
+    "canonical_markdown": "chapter.md",
+    "anchors": "anchors.json",
+    "citations": "citations.json",
+    "figures": "figures.json",
+    "microguides": "microguides.json",
+    "activities": "activities.json",
+    "assets": "assets-manifest.json"
+  },
+  "citation_system": {
+    "manual": "Chicago Manual of Style",
+    "edition": 18,
+    "system": "shortened-notes-and-bibliography",
+    "csl_file": "chicago-shortened-notes-bibliography.csl",
+    "bibliography": "bibliography/eec-c06.bib",
+    "bibliography_status": "ORIGINAL",
+    "bibliography_sha256": "9993d1bedf57e32b2e85e191d25316becd98265e6cc792c431179aec2f6c49fa",
+    "bibliography_entries_expected": 37,
+    "callouts": "superscript",
+    "numbering": "generated-at-build-time",
+    "numbering_resets_each_chapter": true
+  },
+  "gates": {
+    "text_locked": "PASS",
+    "citations": "NONE_RESOLVED_37_UNRESOLVED",
+    "reader_projection": "PENDING"
+  }
+}

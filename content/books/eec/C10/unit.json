@@ -1,0 +1,57 @@
+{
+  "schema_version": "1.0",
+  "unit_id": "EEC-C10",
+  "canonical_version": "EEC_C10_v1.0_TEXT_LOCKED_2026-08-27",
+  "canonical_sha256": "a732ccb428e46787850b646c75e36a160cafbeb3280ff596d95d6297a0623c9b",
+  "title": "Lo que enseñamos cuando alguien siente",
+  "title_academic": "Aplicaciones del aprendizaje emocional en contexto: crianza, educación, trabajo y entornos digitales",
+  "_comment_recovery": "Bytes ORIGINALES del cierre editorial, recuperados del corpus local del autor el 2026-09-04 y verificados contra el SHA-256 declarado en Notion y en el manifiesto de cierre. No es un snapshot reconstruido: CANONICAL_ORIGINAL_VERIFIED.",
+  "recovery": {
+    "status": "CANONICAL_ORIGINAL_VERIFIED",
+    "method": "LOCAL_MD",
+    "historical_sha256": "a732ccb428e46787850b646c75e36a160cafbeb3280ff596d95d6297a0623c9b",
+    "sha_match": true,
+    "recovered_at": "2026-09-04",
+    "manifest_evidence": true
+  },
+  "production": {
+    "workKey": "emociones-en-construccion",
+    "editionKey": "emociones-en-construccion-1e",
+    "unitKey": "1e7704be-0297-5124-90f7-ebff5ef0caeb",
+    "unitExistsInProduction": false,
+    "unitKeyDerivation": "uuidv5('emociones-en-construccion-1e/EEC-CXX') con el namespace de Content Core. Determinista a propósito: el bootstrap y la ingesta pueden repetirse sin crear una segunda unidad. Content Studio usa randomUUID() para unidades nativas, que no es reproducible entre un dry-run y su apply."
+  },
+  "placement": {
+    "order": 10,
+    "partNumber": 3,
+    "partTitle": "Vivir emocionalmente despierto"
+  },
+  "isFreePreview": false,
+  "files": {
+    "canonical_markdown": "chapter.md",
+    "anchors": "anchors.json",
+    "citations": "citations.json",
+    "figures": "figures.json",
+    "microguides": "microguides.json",
+    "activities": "activities.json",
+    "assets": "assets-manifest.json"
+  },
+  "citation_system": {
+    "manual": "Chicago Manual of Style",
+    "edition": 18,
+    "system": "shortened-notes-and-bibliography",
+    "csl_file": "chicago-shortened-notes-bibliography.csl",
+    "bibliography": "bibliography/eec-c10.bib",
+    "bibliography_status": "ORIGINAL",
+    "bibliography_sha256": "f46a77db563d06632c1a404667dcf326264f69c3291215bc04250b025d2190c3",
+    "bibliography_entries_expected": 29,
+    "callouts": "superscript",
+    "numbering": "generated-at-build-time",
+    "numbering_resets_each_chapter": true
+  },
+  "gates": {
+    "text_locked": "PASS",
+    "citations": "NONE_RESOLVED_29_UNRESOLVED",
+    "reader_projection": "PENDING"
+  }
+}

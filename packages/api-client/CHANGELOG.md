@@ -1,5 +1,78 @@
 # @psico/api-client
 
+## 0.3.0
+
+### Minor Changes
+
+- c7295cd: CC-7.R1 — Guide V1 server-owned pilot rollout gate. Adds
+  `GuideAvailabilityResponse` and the `GUIDE_UNAVAILABLE` error code to
+  `@psico/types`, and a `guideApi.getGuideAvailability()` client for the new
+  opaque `GET /api/guide/availability` endpoint.
+- 94618ee: The generated client gains Content Studio's chapter media administration:
+  listing a chapter's audiobook, podcast and video with their provenance and
+  editorial state, adopting a code-owned definition into the CMS, editing its
+  editorial copy, and publishing it. Definitions only — no uploads.
+- df0527a: CMS V1 (#637): chapter experience definitions can now live in the database.
+
+  `@psico/types` gains the back-office view shapes (`AdminChapterExperiences`,
+  `AdminExperienceRow`, `AdminExperienceDraft`); the generated client picks up the
+  ADMIN-only endpoints that create, save and publish them. The runtime read
+  contract is unchanged — `ChapterExperienceDefinition` is still exactly what the
+  Player consumes, which is why the editor can store it verbatim.
+
+- d1ce951: Content Studio admin endpoints reach the generated client: list books, read a
+  book's editorial state, read and save a chapter draft, preview the active draft,
+  and publish a book's draft. All ADMIN-only, and all identity resolution stays
+  server-side — the routes carry only a book slug and a chapter number.
+- c07d1cf: Chapter illustrations get a shared contract. `imageBlockInfo` reads an IMAGE
+  block's metadata the same way in the web reader, the mobile reader and the
+  Content Studio preview, and refuses an image without alt text rather than
+  rendering one a screen reader cannot describe. The generated client gains the
+  two Content Studio upload endpoints — a book's catalog cover and a chapter's
+  illustration bytes.
+- b96cb9f: Experience Player V2 — the presentation contract (ADR 0021) and server-owned
+  session recovery.
+
+  Adds `ExperienceSceneKind` (twelve ordered panels) alongside the four
+  `GuideStepKind` values, which are unchanged. A scene may bind to at most one
+  pinned Guide step; six of the twelve kinds can never bind at all, so a summary
+  or an intro is structurally incapable of moving somebody's record.
+
+  Also adds `ChapterExperienceDefinition`, `ExperiencePin` and the
+  scene/step binding matrix as data.
+
+  Adds `RecoverableGuideSessionResponse` and
+  `guideApi.getRecoverableSession({ guideKey, guideVersion })` — the read that
+  lets a reader pick a journey back up on another device. The answer is derived
+  from the accepted-step ledger rather than from anything a client stored, and
+  "not recoverable" is one indistinguishable answer for every situation that
+  produces it, so the read cannot be used to learn about sessions that are not
+  the caller's.
+
+- 50752c5: Add the contextual Guide discovery response and its client method.
+
+  `GuideDiscoveryResponse` is a closed union: the unavailable arm carries no pin,
+  so a negative answer cannot be mined for a guide key. `getGuideDiscovery`
+  validates the slug and chapter order before building the route and never emits
+  a request for malformed input.
+
+  Additive: no existing Guide type or command changes.
+
+- 558acd2: Content Studio can upload audiobook and podcast masters. Two multipart endpoints
+  stage a master privately, and a third publishes it — for an audiobook, after
+  freezing the previous version to the exact bytes it already resolved to, so an
+  older version never starts playing a newer recording. Upload never publishes.
+
+### Patch Changes
+
+- Updated dependencies [c7295cd]
+- Updated dependencies [df0527a]
+- Updated dependencies [c07d1cf]
+- Updated dependencies [b96cb9f]
+- Updated dependencies [50752c5]
+- Updated dependencies [d232f06]
+  - @psico/types@0.11.0
+
 ## 0.2.0
 
 ### Minor Changes

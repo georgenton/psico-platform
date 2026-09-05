@@ -74,6 +74,7 @@ suite("Content Core · CC-3 backfill · creation + idempotency", () => {
   let pool: Pool;
   let ch1Id: string;
   let seededBlocks: number;
+  let seededChapters: number;
   let firstRun: BackfillStats;
   let secondRun: BackfillStats;
 
@@ -159,6 +160,10 @@ suite("Content Core · CC-3 backfill · creation + idempotency", () => {
     // catálogo. Se cuenta en vez de escribirse: así añadir una microguía no
     // convierte esta prueba de idempotencia en una prueba de aritmética.
     seededBlocks = await prisma.chapterBlock.count();
+    // Igual que los bloques: el catálogo decide cuántos capítulos existen, así
+    // que se cuentan. Fijar el número aquí convertiría «una unidad por
+    // capítulo» en «exactamente dos unidades», que es otra afirmación.
+    seededChapters = await prisma.chapter.count();
     firstRun = await backfillContentCore(prisma);
     secondRun = await backfillContentCore(prisma);
   }, 180_000);
@@ -199,12 +204,15 @@ suite("Content Core · CC-3 backfill · creation + idempotency", () => {
     const edition = await prisma.edition.findUnique({
       where: { editionKey: "emociones-en-construccion-1e" },
     });
-    expect(await prisma.contentUnit.count()).toBe(2);
+    expect(await prisma.contentUnit.count()).toBe(seededChapters);
     const rus = await prisma.revisionUnit.findMany({
       where: { revisionId: edition!.publishedRevisionId! },
       orderBy: { order: "asc" },
     });
-    expect(rus.map((r) => r.order)).toEqual([1, 2]);
+    // Una entrada por capítulo, en orden y sin huecos.
+    expect(rus.map((r) => r.order)).toEqual(
+      Array.from({ length: seededChapters }, (_, i) => i + 1),
+    );
     expect(rus[0].partTitle).toBe("Parte I");
   });
 
@@ -237,8 +245,8 @@ suite("Content Core · CC-3 backfill · creation + idempotency", () => {
     expect(secondRun).toEqual(firstRun);
     expect(await prisma.contentBlock.count()).toBe(seededBlocks);
     expect(await prisma.blockVersion.count()).toBe(seededBlocks);
-    expect(await prisma.contentUnit.count()).toBe(2);
-    expect(await prisma.revisionUnit.count()).toBe(2);
+    expect(await prisma.contentUnit.count()).toBe(seededChapters);
+    expect(await prisma.revisionUnit.count()).toBe(seededChapters);
     // Un enlace por concepto catalogado: el de cada capítulo más los cinco
     // conceptos de la ruta guiada de C01.
     expect(await prisma.conceptLink.count()).toBe(await prisma.concept.count());
@@ -248,7 +256,7 @@ suite("Content Core · CC-3 backfill · creation + idempotency", () => {
 
   it("performs zero DELETE — the legacy rows remain intact", async () => {
     expect(await prisma.book.count()).toBe(1);
-    expect(await prisma.chapter.count()).toBe(2);
+    expect(await prisma.chapter.count()).toBe(seededChapters);
     expect(await prisma.chapterBlock.count()).toBe(seededBlocks);
   });
 });

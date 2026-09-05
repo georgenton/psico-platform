@@ -1,0 +1,149 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "EEC-C06-MG05",
+  "bookSlug": "emociones-en-construccion",
+  "editionKey": "emociones-en-construccion-1e",
+  "chapterCode": "EEC-C06",
+  "chapterOrder": 6,
+  "unitKey": "170e6699-0507-5784-8ecc-c9994b8dbf7e",
+  "canonicalVersion": "EEC_C06_v1.1_TEXT_LOCKED_2026-09-01",
+  "canonicalSha256": "ac963f730925fc347e0ab91b9df09902af05f5febd73c830f099f3b82c7a4d7a",
+  "sourceArtifact": "artifacts/eec/C06/v1.1/feelverse/unit-payload.json",
+  "experienceKey": "eec-c6-influencia-no-es-destino",
+  "experienceVersion": 1,
+  "guideKey": "eec-c6-influencia-no-es-destino",
+  "guideVersion": 1,
+  "conceptKey": "eec-influencia-no-es-destino",
+  "practiceKey": "eec-c6-practice-mi-parte-la-otra-el-contexto-el-limite",
+  "practiceKind": "four_part_distinction",
+  "recallKey": "eec-c6-recall-influencia-no-es-destino",
+  "anchors": {
+    "primary": {
+      "reference": "eec-c6-influencia-no-es-destino",
+      "heading": "Influencia no es destino",
+      "fingerprint": "tampoco somos marionetas de nuestras relaciones",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "Ni islas ni marionetas",
+      "body": [
+        "Las relaciones influyen y no deciden. Vas a separar qué depende de ti, qué de la otra persona, qué del contexto y qué límite pide la situación."
+      ],
+      "note": "Trabajaremos con un caso cotidiano de baja intensidad, no con una situación de riesgo.",
+      "actionLabel": "Comenzar"
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "Influencia no es destino",
+      "body": [
+        "Lee el cierre del capítulo, donde reconoce todo lo que aprendemos con otros y marca el límite de esa idea."
+      ],
+      "actionLabel": "Leí el pasaje",
+      "anchorRef": "eec-c6-influencia-no-es-destino"
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "Influencia real, agencia real",
+      "body": [
+        "Aprendemos palabras con otros, recibimos señales, interpretamos silencios, nos contagiamos de un ambiente. No somos islas.",
+        "Y tampoco somos marionetas de nuestras relaciones. Comprender un ciclo no garantiza que alguien encuentre las palabras perfectas, y hay situaciones —coerción, violencia, asimetría grave— donde hablar de responsabilidad recíproca sería un error."
+      ],
+      "note": "Si una situación implica violencia o coerción, no es material para este ejercicio: la seguridad y el apoyo tienen prioridad.",
+      "actionLabel": "He explorado la idea",
+      "stepKey": "explorar-influencia-no-es-destino"
+    },
+    {
+      "order": 4,
+      "kind": "EXAMPLE",
+      "title": "El tono que se hereda",
+      "body": [
+        "Alguien nota que discute como discutían en su casa: subiendo la voz para que lo escuchen.",
+        "Reconocer de dónde viene ese aprendizaje explica su origen y no decide lo que hará la próxima vez."
+      ]
+    },
+    {
+      "order": 5,
+      "kind": "PRACTICE",
+      "title": "Mi parte, la del otro, el contexto y el límite",
+      "body": [
+        "Separa una situación cotidiana en cuatro campos, incluido el límite o la condición de seguridad que la situación requiere."
+      ],
+      "note": "Puedes elegir entre las opciones sugeridas. Si prefieres escribir, tu texto se queda en tu dispositivo.",
+      "actionLabel": "Ya hice la práctica",
+      "stepKey": "practicar-mi-parte-la-otra-el-contexto-el-limite",
+      "practiceKind": "four_part_distinction"
+    },
+    {
+      "order": 6,
+      "kind": "RECALL",
+      "title": "¿Dónde deja de aplicarse la idea de circularidad?",
+      "body": [
+        "Recupera la idea central de esta microguía."
+      ],
+      "stepKey": "recordar-influencia-no-es-destino"
+    },
+    {
+      "order": 7,
+      "kind": "SUMMARY",
+      "title": "Lo que te llevas",
+      "body": [
+        "Pertenencia y grupo influyen, y la agencia sigue existiendo. Donde hay coerción o asimetría grave, describir un ciclo recíproco deja de ser una descripción justa."
+      ],
+      "actionLabel": "Finalizar"
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-influencia-no-es-destino",
+      "targetKey": "eec-influencia-no-es-destino"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-mi-parte-la-otra-el-contexto-el-limite",
+      "targetKey": "eec-c6-practice-mi-parte-la-otra-el-contexto-el-limite"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-influencia-no-es-destino",
+      "targetKey": "eec-c6-recall-influencia-no-es-destino"
+    }
+  ],
+  "media": {
+    "audio": null,
+    "video": null
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Navegación completa por teclado, con foco visible y orden de tabulación lógico.",
+    "Toda reordenación anunciada por lector de pantalla mediante aria-live.",
+    "Alternativa sin arrastrar para cualquier interacción de ordenamiento.",
+    "Respeta prefers-reduced-motion.",
+    "El color nunca es la única señal de estado.",
+    "Ninguna reproducción automática y ningún audio o vídeo obligatorio."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "eec-c06-influencia-no-es-destino-v1-79c9fe9ee691e803",
+  "approvalReferences": [
+    "https://app.notion.com/p/3d2cbb1031a081149d97ca054012b276",
+    "APROBAR ARQUITECTURA C03-C10 — decisión autoral 2026-09-04."
+  ],
+  "manifestSha256": "b041650aefe842845d237e1b21807b34381ecf0ff8b8132d871bba87c63c1fed",
+  "title": "Influencia no es destino"
+}

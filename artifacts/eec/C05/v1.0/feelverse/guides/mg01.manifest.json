@@ -1,0 +1,149 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "EEC-C05-MG01",
+  "bookSlug": "emociones-en-construccion",
+  "editionKey": "emociones-en-construccion-1e",
+  "chapterCode": "EEC-C05",
+  "chapterOrder": 5,
+  "unitKey": "231166b5-f48e-506a-9edc-474a26795e4c",
+  "canonicalVersion": "EEC_C05_v1.0_TEXT_LOCKED_2026-08-26",
+  "canonicalSha256": "0f35f0d0f498ef0d6d1970709c1cbfdf939dfd9f3d6ab8f01aecc1bba1a1c956",
+  "sourceArtifact": "artifacts/eec/C05/v1.0/feelverse/unit-payload.json",
+  "experienceKey": "eec-c5-emocion-no-es-historia",
+  "experienceVersion": 1,
+  "guideKey": "eec-c5-emocion-no-es-historia",
+  "guideVersion": 1,
+  "conceptKey": "eec-emocion-no-es-historia",
+  "practiceKey": "eec-c5-practice-cambia-la-historia-cambia-la-emocion",
+  "practiceKind": "belief_lens",
+  "recallKey": "eec-c5-recall-emocion-no-es-historia",
+  "anchors": {
+    "primary": {
+      "reference": "eec-c5-historia-coherente",
+      "heading": "¿Una historia más coherente siempre hace bien?",
+      "fingerprint": "construye una historia coherente y estarás bien",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "Una frase que promete demasiado",
+      "body": [
+        "«Cambia la historia y cambiarás la emoción» circula mucho. Vas a mirarla de cerca: en qué acierta, qué simplifica y qué deja fuera."
+      ],
+      "note": "Trabajaremos con la afirmación, no con tu historia personal. Puedes salir y volver cuando quieras.",
+      "actionLabel": "Comenzar"
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "¿Una historia más coherente siempre hace bien?",
+      "body": [
+        "Lee la sección donde el capítulo revisa la investigación sobre identidad narrativa, sus hallazgos y sus matices."
+      ],
+      "actionLabel": "Leí el pasaje",
+      "anchorRef": "eec-c5-historia-coherente"
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "El relato participa; no es toda la explicación",
+      "body": [
+        "La manera de narrarnos puede relacionarse con cómo vivimos: algunos estudios asocian temas como agencia y comunión con el bienestar. Pero otros resultados obligan a matizar, y varias relaciones se atenúan al controlar el tono emocional del relato.",
+        "Por eso el capítulo no concluye «construye una historia coherente y estarás bien». Cuerpo, contexto, aprendizaje y procesos no conscientes también participan en lo que sientes."
+      ],
+      "note": "Marcar esta escena registra que exploraste la idea; no evalúa lo que sabes ni infiere nada sobre ti.",
+      "actionLabel": "He explorado la idea",
+      "stepKey": "explorar-emocion-no-es-historia"
+    },
+    {
+      "order": 4,
+      "kind": "EXAMPLE",
+      "title": "Dos relatos, una noche sin dormir",
+      "body": [
+        "Alguien puede contarse una versión más amable de un conflicto y aun así dormir mal, porque el cuerpo sigue activado y el asunto sigue sin resolverse.",
+        "El relato no es irrelevante; simplemente no es el único ingrediente de la experiencia."
+      ]
+    },
+    {
+      "order": 5,
+      "kind": "PRACTICE",
+      "title": "«Cambia la historia y cambia la emoción»",
+      "body": [
+        "Separa esa afirmación en lo que observa, lo que supone y lo que faltaría para sostenerla tal como suena."
+      ],
+      "note": "Puedes elegir entre las opciones sugeridas. Si prefieres escribir, tu texto se queda en tu dispositivo.",
+      "actionLabel": "Ya hice la práctica",
+      "stepKey": "practicar-cambia-la-historia-cambia-la-emocion",
+      "practiceKind": "belief_lens"
+    },
+    {
+      "order": 6,
+      "kind": "RECALL",
+      "title": "¿Qué relación describe el capítulo entre relato y emoción?",
+      "body": [
+        "Recupera la idea central de esta microguía."
+      ],
+      "stepKey": "recordar-emocion-no-es-historia"
+    },
+    {
+      "order": 7,
+      "kind": "SUMMARY",
+      "title": "Lo que te llevas",
+      "body": [
+        "Una emoción no es una historia. El relato puede organizar, sostener o abrir lo que sentimos, y sigue conviviendo con el cuerpo, el contexto y lo aprendido. Reconocerlo evita prometer un cambio que no depende solo de narrar distinto."
+      ],
+      "actionLabel": "Finalizar"
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-emocion-no-es-historia",
+      "targetKey": "eec-emocion-no-es-historia"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-cambia-la-historia-cambia-la-emocion",
+      "targetKey": "eec-c5-practice-cambia-la-historia-cambia-la-emocion"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-emocion-no-es-historia",
+      "targetKey": "eec-c5-recall-emocion-no-es-historia"
+    }
+  ],
+  "media": {
+    "audio": null,
+    "video": null
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Navegación completa por teclado, con foco visible y orden de tabulación lógico.",
+    "Toda reordenación anunciada por lector de pantalla mediante aria-live.",
+    "Alternativa sin arrastrar para cualquier interacción de ordenamiento.",
+    "Respeta prefers-reduced-motion.",
+    "El color nunca es la única señal de estado.",
+    "Ninguna reproducción automática y ningún audio o vídeo obligatorio."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "eec-c05-emocion-no-es-historia-v1-683c973f00da1762",
+  "approvalReferences": [
+    "https://app.notion.com/p/3d2cbb1031a081149d97ca054012b276",
+    "APROBAR ARQUITECTURA C03-C10 — decisión autoral 2026-09-04."
+  ],
+  "manifestSha256": "d4e3014a6c94326b9210ae3ddfe591037c04e915e6de0f27d4c0a9403f0c81f5",
+  "title": "Una emoción no es una historia"
+}

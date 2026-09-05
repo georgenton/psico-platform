@@ -1,0 +1,149 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "EEC-C04-MG05",
+  "bookSlug": "emociones-en-construccion",
+  "editionKey": "emociones-en-construccion-1e",
+  "chapterCode": "EEC-C04",
+  "chapterOrder": 4,
+  "unitKey": "3540539f-72d6-5191-a5e8-447737410922",
+  "canonicalVersion": "EEC_C04_v1.0_TEXT_LOCKED_2026-08-25",
+  "canonicalSha256": "7f22cfb9859bc3309d6a410e9b1c80080c6b55ad6109b83d62a0852e8e6fe1ce",
+  "sourceArtifact": "artifacts/eec/C04/v1.0/feelverse/unit-payload.json",
+  "experienceKey": "eec-c4-observar-requiere-eleccion",
+  "experienceVersion": 1,
+  "guideKey": "eec-c4-observar-requiere-eleccion",
+  "guideVersion": 1,
+  "conceptKey": "eec-observar-requiere-eleccion",
+  "practiceKey": "eec-c4-practice-elegir-como-observar",
+  "practiceKind": "context_plausibility",
+  "recallKey": "eec-c4-recall-observar-requiere-eleccion",
+  "anchors": {
+    "primary": {
+      "reference": "eec-c4-conciencia-corporal-condiciones",
+      "heading": "La conciencia corporal puede ayudar; también necesita condiciones",
+      "fingerprint": "«útil» no significa «beneficioso para todas las personas en cualquier momento»",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "Atender al cuerpo es una opción, no un deber",
+      "body": [
+        "Mirar hacia adentro ayuda a algunas personas en algunos momentos, y no a todas siempre. Vas a elegir entre varias formas seguras de atención para una escena hipotética."
+      ],
+      "note": "No tendrás que cerrar los ojos ni cambiar la respiración. Puedes detenerte en cualquier momento.",
+      "actionLabel": "Comenzar"
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "La conciencia corporal puede ayudar; también necesita condiciones",
+      "body": [
+        "Lee la sección donde el capítulo revisa mindfulness y body scan, menciona experiencias adversas documentadas y fija las tres reglas de su actividad."
+      ],
+      "actionLabel": "Leí el pasaje",
+      "anchorRef": "eec-c4-conciencia-corporal-condiciones"
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "Útil para algunas personas, no universalmente regulador",
+      "body": [
+        "El capítulo reconoce que estas prácticas pueden ser experiencias útiles, y evita el salto siguiente: «útil» no significa beneficioso para cualquier persona en cualquier momento. La literatura sobre meditación también documenta efectos no deseados.",
+        "De ahí sus tres reglas: no trabajar deliberadamente con algo traumático o muy intenso, no obligar a cerrar los ojos ni a cambiar la respiración, y poder detenerse en cualquier momento."
+      ],
+      "note": "Esta microguía no propone una técnica de regulación ni sustituye una consulta cuando hace falta.",
+      "actionLabel": "He explorado la idea",
+      "stepKey": "explorar-observar-requiere-eleccion"
+    },
+    {
+      "order": 4,
+      "kind": "EXAMPLE",
+      "title": "Dos personas, la misma indicación",
+      "body": [
+        "«Cierra los ojos y siente tu pecho» puede resultar tranquilizador para alguien y aumentar la alarma en quien ya vigila su ritmo cardíaco con preocupación.",
+        "La indicación no cambió; cambió a quién se le da y en qué momento. Por eso conviene que existan alternativas y que detenerse sea una opción legítima."
+      ]
+    },
+    {
+      "order": 5,
+      "kind": "PRACTICE",
+      "title": "Elegir cómo observar",
+      "body": [
+        "Ante una escena hipotética, elige entre atención al entorno, una observación corporal breve o una pausa. Ninguna opción es obligatoria ni mejor que las otras."
+      ],
+      "note": "Puedes elegir entre las opciones sugeridas. Si prefieres escribir, tu texto se queda en tu dispositivo.",
+      "actionLabel": "Ya hice la práctica",
+      "stepKey": "practicar-elegir-como-observar",
+      "practiceKind": "context_plausibility"
+    },
+    {
+      "order": 6,
+      "kind": "RECALL",
+      "title": "¿Qué se puede concluir de que una práctica ayude a alguien?",
+      "body": [
+        "Recupera la idea central de esta microguía."
+      ],
+      "stepKey": "recordar-observar-requiere-eleccion"
+    },
+    {
+      "order": 7,
+      "kind": "SUMMARY",
+      "title": "Lo que te llevas",
+      "body": [
+        "Observar el cuerpo puede ayudar y también necesita condiciones. La meta no es sentir más, sino distinguir mejor y conservar la posibilidad de elegir —incluida la de parar."
+      ],
+      "actionLabel": "Finalizar"
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-observar-requiere-eleccion",
+      "targetKey": "eec-observar-requiere-eleccion"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-elegir-como-observar",
+      "targetKey": "eec-c4-practice-elegir-como-observar"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-observar-requiere-eleccion",
+      "targetKey": "eec-c4-recall-observar-requiere-eleccion"
+    }
+  ],
+  "media": {
+    "audio": null,
+    "video": null
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Navegación completa por teclado, con foco visible y orden de tabulación lógico.",
+    "Toda reordenación anunciada por lector de pantalla mediante aria-live.",
+    "Alternativa sin arrastrar para cualquier interacción de ordenamiento.",
+    "Respeta prefers-reduced-motion.",
+    "El color nunca es la única señal de estado.",
+    "Ninguna reproducción automática y ningún audio o vídeo obligatorio."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "eec-c04-observar-requiere-eleccion-v1-6f7a7064e59587e8",
+  "approvalReferences": [
+    "https://app.notion.com/p/3d2cbb1031a081149d97ca054012b276",
+    "APROBAR ARQUITECTURA C03-C10 — decisión autoral 2026-09-04."
+  ],
+  "manifestSha256": "3cbe0aeb8d0d3db13e50620852a64d6289c48cb8f519e575923b2e448d836a6b",
+  "title": "Observar el cuerpo también requiere elección"
+}

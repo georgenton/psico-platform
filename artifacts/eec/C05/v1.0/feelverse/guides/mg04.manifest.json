@@ -1,0 +1,149 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "EEC-C05-MG04",
+  "bookSlug": "emociones-en-construccion",
+  "editionKey": "emociones-en-construccion-1e",
+  "chapterCode": "EEC-C05",
+  "chapterOrder": 5,
+  "unitKey": "231166b5-f48e-506a-9edc-474a26795e4c",
+  "canonicalVersion": "EEC_C05_v1.0_TEXT_LOCKED_2026-08-26",
+  "canonicalSha256": "0f35f0d0f498ef0d6d1970709c1cbfdf939dfd9f3d6ab8f01aecc1bba1a1c956",
+  "sourceArtifact": "artifacts/eec/C05/v1.0/feelverse/unit-payload.json",
+  "experienceKey": "eec-c5-recordar-reconstruye",
+  "experienceVersion": 1,
+  "guideKey": "eec-c5-recordar-reconstruye",
+  "guideVersion": 1,
+  "conceptKey": "eec-recordar-reconstruye",
+  "practiceKey": "eec-c5-practice-dato-interpretacion-informacion-nueva",
+  "practiceKind": "signal_context_compare",
+  "recallKey": "eec-c5-recall-recordar-reconstruye",
+  "anchors": {
+    "primary": {
+      "reference": "eec-c5-memoria-no-es-grabacion",
+      "heading": "5. La memoria no es una grabación ni una página en blanco",
+      "fingerprint": "La memoria autobiográfica selecciona, reconstruye e integra",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "Dos hermanas, una cena",
+      "body": [
+        "Que la memoria se reconstruya no significa que podamos reescribir los hechos a voluntad. Vas a comparar qué permanece como dato, qué es interpretación actual y qué podría cambiar el significado."
+      ],
+      "note": "Usaremos el ejemplo del capítulo. Puedes salir y volver cuando quieras.",
+      "actionLabel": "Comenzar"
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "La memoria no es una grabación ni una página en blanco",
+      "body": [
+        "Lee la sección de las dos hermanas que recuerdan la misma cena y el cuidado que el capítulo pide después."
+      ],
+      "actionLabel": "Leí el pasaje",
+      "anchorRef": "eec-c5-memoria-no-es-grabacion"
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "Reconstruir no es fabricar",
+      "body": [
+        "La memoria autobiográfica selecciona, reconstruye e integra; las conversaciones posteriores también vuelven algunos detalles más accesibles que otros. Dos personas pueden recordar la misma noche de maneras distintas sin que una mienta.",
+        "Su maleabilidad exige cuidado en la dirección contraria: si hoy no recuerdas con certeza lo que alguien dijo, una narración convincente no convierte esa frase en un hecho histórico."
+      ],
+      "note": "Marcar esta escena registra que exploraste la idea; no evalúa lo que sabes ni infiere nada sobre ti.",
+      "actionLabel": "He explorado la idea",
+      "stepKey": "explorar-recordar-reconstruye"
+    },
+    {
+      "order": 4,
+      "kind": "EXAMPLE",
+      "title": "La risa y el comentario",
+      "body": [
+        "Una hermana recuerda una noche divertida; la otra recuerda un comentario sobre su peso y la vergüenza que sintió.",
+        "Es posible que ambas cosas hayan ocurrido. Preguntar cuál es «el recuerdo verdadero» puede estar mal planteado desde el principio."
+      ]
+    },
+    {
+      "order": 5,
+      "kind": "PRACTICE",
+      "title": "Dato, interpretación e información nueva",
+      "body": [
+        "Compara qué se sostiene como dato, qué es lectura actual y qué información nueva podría cambiar el significado sin cambiar lo ocurrido."
+      ],
+      "note": "Es una comparación entre ejemplos; nada se marca como incorrecto.",
+      "actionLabel": "Ya hice la práctica",
+      "stepKey": "practicar-dato-interpretacion-informacion-nueva",
+      "practiceKind": "signal_context_compare"
+    },
+    {
+      "order": 6,
+      "kind": "RECALL",
+      "title": "Si la memoria es reconstructiva, ¿qué se sigue de ahí?",
+      "body": [
+        "Recupera la idea central de esta microguía."
+      ],
+      "stepKey": "recordar-recordar-reconstruye"
+    },
+    {
+      "order": 7,
+      "kind": "SUMMARY",
+      "title": "Lo que te llevas",
+      "body": [
+        "Recordar reconstruye, y eso no autoriza a reescribir los hechos. Conviene sostener una categoría que a veces se olvida: «no lo sé con certeza»."
+      ],
+      "actionLabel": "Finalizar"
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-recordar-reconstruye",
+      "targetKey": "eec-recordar-reconstruye"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-dato-interpretacion-informacion-nueva",
+      "targetKey": "eec-c5-practice-dato-interpretacion-informacion-nueva"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-recordar-reconstruye",
+      "targetKey": "eec-c5-recall-recordar-reconstruye"
+    }
+  ],
+  "media": {
+    "audio": null,
+    "video": null
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Navegación completa por teclado, con foco visible y orden de tabulación lógico.",
+    "Toda reordenación anunciada por lector de pantalla mediante aria-live.",
+    "Alternativa sin arrastrar para cualquier interacción de ordenamiento.",
+    "Respeta prefers-reduced-motion.",
+    "El color nunca es la única señal de estado.",
+    "Ninguna reproducción automática y ningún audio o vídeo obligatorio."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "eec-c05-recordar-reconstruye-v1-9ad4d42cf0e052bd",
+  "approvalReferences": [
+    "https://app.notion.com/p/3d2cbb1031a081149d97ca054012b276",
+    "APROBAR ARQUITECTURA C03-C10 — decisión autoral 2026-09-04."
+  ],
+  "manifestSha256": "ad8355a1a93c9393c028b35a5e2c0f96526f9331a7894728390846521d5136ec",
+  "title": "Recordar reconstruye; no inventa libremente"
+}

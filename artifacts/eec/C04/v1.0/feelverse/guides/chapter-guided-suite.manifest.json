@@ -1,0 +1,52 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "EEC-C04-SUITE",
+  "bookSlug": "emociones-en-construccion",
+  "editionKey": "emociones-en-construccion-1e",
+  "chapterCode": "EEC-C04",
+  "chapterOrder": 4,
+  "unitKey": "3540539f-72d6-5191-a5e8-447737410922",
+  "canonicalVersion": "EEC_C04_v1.0_TEXT_LOCKED_2026-08-25",
+  "canonicalSha256": "7f22cfb9859bc3309d6a410e9b1c80080c6b55ad6109b83d62a0852e8e6fe1ce",
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "approvalReferences": [
+    "https://app.notion.com/p/3d2cbb1031a081149d97ca054012b276",
+    "APROBAR ARQUITECTURA C03-C10 — decisión autoral 2026-09-04."
+  ],
+  "featureFlag": null,
+  "featureFlagDefault": "off",
+  "legacyPilot": null,
+  "route": [
+    {
+      "order": 1,
+      "manifestId": "EEC-C04-MG01",
+      "guideKey": "eec-c4-cuerpo-datos-no-veredictos",
+      "guideVersion": 1
+    },
+    {
+      "order": 2,
+      "manifestId": "EEC-C04-MG02",
+      "guideKey": "eec-c4-notar-interpretar-nombrar",
+      "guideVersion": 1
+    },
+    {
+      "order": 3,
+      "manifestId": "EEC-C04-MG03",
+      "guideKey": "eec-c4-cuerpo-y-cerebro-no-hacen-fila",
+      "guideVersion": 1
+    },
+    {
+      "order": 4,
+      "manifestId": "EEC-C04-MG04",
+      "guideKey": "eec-c4-metafora-teoria-evidencia",
+      "guideVersion": 1
+    },
+    {
+      "order": 5,
+      "manifestId": "EEC-C04-MG05",
+      "guideKey": "eec-c4-observar-requiere-eleccion",
+      "guideVersion": 1
+    }
+  ]
+}

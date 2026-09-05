@@ -1,0 +1,52 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "EEC-C10-SUITE",
+  "bookSlug": "emociones-en-construccion",
+  "editionKey": "emociones-en-construccion-1e",
+  "chapterCode": "EEC-C10",
+  "chapterOrder": 10,
+  "unitKey": "1e7704be-0297-5124-90f7-ebff5ef0caeb",
+  "canonicalVersion": "EEC_C10_v1.0_TEXT_LOCKED_2026-08-27",
+  "canonicalSha256": "a732ccb428e46787850b646c75e36a160cafbeb3280ff596d95d6297a0623c9b",
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "approvalReferences": [
+    "https://app.notion.com/p/3d2cbb1031a081149d97ca054012b276",
+    "APROBAR ARQUITECTURA C03-C10 — decisión autoral 2026-09-04."
+  ],
+  "featureFlag": null,
+  "featureFlagDefault": "off",
+  "legacyPilot": null,
+  "route": [
+    {
+      "order": 1,
+      "manifestId": "EEC-C10-MG01",
+      "guideKey": "eec-c10-hacer-espacio-no-es-confirmar",
+      "guideVersion": 1
+    },
+    {
+      "order": 2,
+      "manifestId": "EEC-C10-MG02",
+      "guideKey": "eec-c10-no-narrador-de-la-mente-ajena",
+      "guideVersion": 1
+    },
+    {
+      "order": 3,
+      "manifestId": "EEC-C10-MG03",
+      "guideKey": "eec-c10-emocion-si-conducta-con-limites",
+      "guideVersion": 1
+    },
+    {
+      "order": 4,
+      "manifestId": "EEC-C10-MG04",
+      "guideKey": "eec-c10-ayudar-sin-borrar-la-agencia",
+      "guideVersion": 1
+    },
+    {
+      "order": 5,
+      "manifestId": "EEC-C10-MG05",
+      "guideKey": "eec-c10-cambiar-el-escenario",
+      "guideVersion": 1
+    }
+  ]
+}

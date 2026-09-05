@@ -1,0 +1,149 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "EEC-C10-MG01",
+  "bookSlug": "emociones-en-construccion",
+  "editionKey": "emociones-en-construccion-1e",
+  "chapterCode": "EEC-C10",
+  "chapterOrder": 10,
+  "unitKey": "1e7704be-0297-5124-90f7-ebff5ef0caeb",
+  "canonicalVersion": "EEC_C10_v1.0_TEXT_LOCKED_2026-08-27",
+  "canonicalSha256": "a732ccb428e46787850b646c75e36a160cafbeb3280ff596d95d6297a0623c9b",
+  "sourceArtifact": "artifacts/eec/C10/v1.0/feelverse/unit-payload.json",
+  "experienceKey": "eec-c10-hacer-espacio-no-es-confirmar",
+  "experienceVersion": 1,
+  "guideKey": "eec-c10-hacer-espacio-no-es-confirmar",
+  "guideVersion": 1,
+  "conceptKey": "eec-hacer-espacio-no-es-confirmar",
+  "practiceKey": "eec-c10-practice-de-minimizar-a-hacer-espacio",
+  "practiceKind": "context_plausibility",
+  "recallKey": "eec-c10-recall-hacer-espacio-no-es-confirmar",
+  "anchors": {
+    "primary": {
+      "reference": "eec-c10-hacer-espacio",
+      "heading": "1. Hacer espacio a la experiencia",
+      "fingerprint": "Hacer espacio no significa confirmar toda la historia",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "Reconocer antes de corregir",
+      "body": [
+        "Corregir demasiado pronto puede dejar intacta la experiencia principal. Vas a transformar respuestas que minimizan o escalan en respuestas que hacen espacio."
+      ],
+      "note": "Trabajaremos con la escena del capítulo. Puedes salir y volver cuando quieras.",
+      "actionLabel": "Comenzar"
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "Hacer espacio a la experiencia",
+      "body": [
+        "Lee la sección donde el capítulo muestra qué pasa cuando se empieza discutiendo la interpretación."
+      ],
+      "actionLabel": "Leí el pasaje",
+      "anchorRef": "eec-c10-hacer-espacio"
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "Validar la experiencia no valida la interpretación",
+      "body": [
+        "«Seguro no todos se ríen de ti» puede ser cierto y, dicho demasiado pronto, deja sin atender lo principal: algo ocurrió y dolió.",
+        "Hacer espacio no significa confirmar toda la historia. Reconocer que algo afectó a alguien puede ocurrir antes de decidir si su interpretación es correcta."
+      ],
+      "note": "Marcar esta escena registra que exploraste la idea; no evalúa lo que sabes ni infiere nada sobre ti.",
+      "actionLabel": "He explorado la idea",
+      "stepKey": "explorar-hacer-espacio-no-es-confirmar"
+    },
+    {
+      "order": 4,
+      "kind": "EXAMPLE",
+      "title": "«Quiero entender qué pasó»",
+      "body": [
+        "«Veo que esto te afectó mucho. Quiero entender qué pasó» no confirma que todos se rieran.",
+        "Reconoce el impacto y deja abierta la conversación sobre lo ocurrido."
+      ]
+    },
+    {
+      "order": 5,
+      "kind": "PRACTICE",
+      "title": "De minimizar a hacer espacio",
+      "body": [
+        "Ordena varias respuestas según cuánto reconocen la experiencia sin cerrar la interpretación, y marca cuándo falta información."
+      ],
+      "note": "Puedes elegir entre las opciones sugeridas. Si prefieres escribir, tu texto se queda en tu dispositivo.",
+      "actionLabel": "Ya hice la práctica",
+      "stepKey": "practicar-de-minimizar-a-hacer-espacio",
+      "practiceKind": "context_plausibility"
+    },
+    {
+      "order": 6,
+      "kind": "RECALL",
+      "title": "¿Qué valida hacer espacio a la experiencia?",
+      "body": [
+        "Recupera la idea central de esta microguía."
+      ],
+      "stepKey": "recordar-hacer-espacio-no-es-confirmar"
+    },
+    {
+      "order": 7,
+      "kind": "SUMMARY",
+      "title": "Lo que te llevas",
+      "body": [
+        "Hacer espacio no es confirmar toda la historia. Reconocer el impacto y examinar la interpretación son dos momentos distintos, y el primero no obliga al segundo."
+      ],
+      "actionLabel": "Finalizar"
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-hacer-espacio-no-es-confirmar",
+      "targetKey": "eec-hacer-espacio-no-es-confirmar"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-de-minimizar-a-hacer-espacio",
+      "targetKey": "eec-c10-practice-de-minimizar-a-hacer-espacio"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-hacer-espacio-no-es-confirmar",
+      "targetKey": "eec-c10-recall-hacer-espacio-no-es-confirmar"
+    }
+  ],
+  "media": {
+    "audio": null,
+    "video": null
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Navegación completa por teclado, con foco visible y orden de tabulación lógico.",
+    "Toda reordenación anunciada por lector de pantalla mediante aria-live.",
+    "Alternativa sin arrastrar para cualquier interacción de ordenamiento.",
+    "Respeta prefers-reduced-motion.",
+    "El color nunca es la única señal de estado.",
+    "Ninguna reproducción automática y ningún audio o vídeo obligatorio."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "eec-c10-hacer-espacio-no-es-confirmar-v1-4bb6f7ba27c251d1",
+  "approvalReferences": [
+    "https://app.notion.com/p/3d2cbb1031a081149d97ca054012b276",
+    "APROBAR ARQUITECTURA C03-C10 — decisión autoral 2026-09-04."
+  ],
+  "manifestSha256": "ecbcc44ec3ad4b62211a3f58ad90d00e614908ce43e71b804cdb3c0b8832af50",
+  "title": "Hacer espacio no es confirmar toda la historia"
+}

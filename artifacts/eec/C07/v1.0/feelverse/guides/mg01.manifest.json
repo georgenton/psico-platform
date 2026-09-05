@@ -1,0 +1,149 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "EEC-C07-MG01",
+  "bookSlug": "emociones-en-construccion",
+  "editionKey": "emociones-en-construccion-1e",
+  "chapterCode": "EEC-C07",
+  "chapterOrder": 7,
+  "unitKey": "e98cb79d-5f04-514a-9efd-735254285958",
+  "canonicalVersion": "EEC_C07_v1.0_TEXT_LOCKED_2026-08-26",
+  "canonicalSha256": "26a9b18738f0534a8c172bb22827f92e8f3745d70e91ea0a5923733b4bac8bd9",
+  "sourceArtifact": "artifacts/eec/C07/v1.0/feelverse/unit-payload.json",
+  "experienceKey": "eec-c7-suspender-equivalencias",
+  "experienceVersion": 1,
+  "guideKey": "eec-c7-suspender-equivalencias",
+  "guideVersion": 1,
+  "conceptKey": "eec-suspender-equivalencias",
+  "practiceKey": "eec-c7-practice-separar-capas-de-una-escena",
+  "practiceKind": "signal_context_compare",
+  "recallKey": "eec-c7-recall-suspender-equivalencias",
+  "anchors": {
+    "primary": {
+      "reference": "eec-c7-separar-capas",
+      "heading": "Antes de traducir, separar capas",
+      "fingerprint": "Una persona puede sentir tristeza y mostrar irritación",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "Varias pistas de sonido a la vez",
+      "body": [
+        "En una conversación emocional se mezclan cosas distintas: lo que alguien experimenta, cómo lo valora, qué expresa, qué intenta regular y qué interpreta el otro. Vas a separarlas."
+      ],
+      "note": "Trabajaremos con escenas de ejemplo, no con tu experiencia migratoria o familiar.",
+      "actionLabel": "Comenzar"
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "Antes de traducir, separar capas",
+      "body": [
+        "Lee la sección donde el capítulo distingue experimentar, valorar, expresar, regular e interpretar, con la imagen de las pistas de sonido."
+      ],
+      "actionLabel": "Leí el pasaje",
+      "anchorRef": "eec-c7-separar-capas"
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "Una señal no equivale a una emoción segura",
+      "body": [
+        "Una persona puede sentir tristeza y mostrar irritación, o experimentar miedo y sonreír por nervios. Lo que se ve es una capa; lo que ocurre son varias.",
+        "Traducir empieza por suspender la equivalencia automática entre la señal observada y la emoción, la causa o la intención. Suspenderla no es renunciar a entender: es no dar por cerrado lo que todavía es hipótesis."
+      ],
+      "note": "Marcar esta escena registra que exploraste la idea; no evalúa lo que sabes ni infiere nada sobre ti.",
+      "actionLabel": "He explorado la idea",
+      "stepKey": "explorar-suspender-equivalencias"
+    },
+    {
+      "order": 4,
+      "kind": "EXAMPLE",
+      "title": "Un silencio en la mesa",
+      "body": [
+        "Alguien deja de hablar en una comida. Puede estar molesto, cansado, concentrado en escuchar o siguiendo una regla aprendida sobre cuándo conviene callar.",
+        "La señal es una; los repertorios desde los que se lee pueden ser varios."
+      ]
+    },
+    {
+      "order": 5,
+      "kind": "PRACTICE",
+      "title": "Separar las capas de una escena",
+      "body": [
+        "Compara una misma señal leída desde dos repertorios y marca qué interpretación es posible, cuál requiere comprobación y qué no se puede concluir."
+      ],
+      "note": "Es una comparación entre ejemplos; no infiere nada sobre culturas ni sobre personas concretas.",
+      "actionLabel": "Ya hice la práctica",
+      "stepKey": "practicar-separar-capas-de-una-escena",
+      "practiceKind": "signal_context_compare"
+    },
+    {
+      "order": 6,
+      "kind": "RECALL",
+      "title": "¿Qué significa suspender una equivalencia?",
+      "body": [
+        "Recupera la idea central de esta microguía."
+      ],
+      "stepKey": "recordar-suspender-equivalencias"
+    },
+    {
+      "order": 7,
+      "kind": "SUMMARY",
+      "title": "Lo que te llevas",
+      "body": [
+        "Una palabra, un gesto o una forma de cuidado no tienen por qué corresponder exactamente al repertorio de la otra persona. Una diferencia de repertorio no es ausencia de emoción ni mala intención."
+      ],
+      "actionLabel": "Finalizar"
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-suspender-equivalencias",
+      "targetKey": "eec-suspender-equivalencias"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-separar-capas-de-una-escena",
+      "targetKey": "eec-c7-practice-separar-capas-de-una-escena"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-suspender-equivalencias",
+      "targetKey": "eec-c7-recall-suspender-equivalencias"
+    }
+  ],
+  "media": {
+    "audio": null,
+    "video": null
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Navegación completa por teclado, con foco visible y orden de tabulación lógico.",
+    "Toda reordenación anunciada por lector de pantalla mediante aria-live.",
+    "Alternativa sin arrastrar para cualquier interacción de ordenamiento.",
+    "Respeta prefers-reduced-motion.",
+    "El color nunca es la única señal de estado.",
+    "Ninguna reproducción automática y ningún audio o vídeo obligatorio."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "eec-c07-suspender-equivalencias-v1-a84dfa504abbf1fc",
+  "approvalReferences": [
+    "https://app.notion.com/p/3d2cbb1031a081149d97ca054012b276",
+    "APROBAR ARQUITECTURA C03-C10 — decisión autoral 2026-09-04."
+  ],
+  "manifestSha256": "ae23dbbc30be1b6a708260bcd44ae11b904fb4e5ebae8e70d2a19d07b095202c",
+  "title": "Traducir empieza por suspender equivalencias"
+}

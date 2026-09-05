@@ -1,0 +1,149 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "EEC-C06-MG04",
+  "bookSlug": "emociones-en-construccion",
+  "editionKey": "emociones-en-construccion-1e",
+  "chapterCode": "EEC-C06",
+  "chapterOrder": 6,
+  "unitKey": "170e6699-0507-5784-8ecc-c9994b8dbf7e",
+  "canonicalVersion": "EEC_C06_v1.1_TEXT_LOCKED_2026-09-01",
+  "canonicalSha256": "ac963f730925fc347e0ab91b9df09902af05f5febd73c830f099f3b82c7a4d7a",
+  "sourceArtifact": "artifacts/eec/C06/v1.1/feelverse/unit-payload.json",
+  "experienceKey": "eec-c6-parecidos-que-no-son-sinonimos",
+  "experienceVersion": 1,
+  "guideKey": "eec-c6-parecidos-que-no-son-sinonimos",
+  "guideVersion": 1,
+  "conceptKey": "eec-parecidos-que-no-son-sinonimos",
+  "practiceKey": "eec-c6-practice-empatia-contagio-sincronia",
+  "practiceKind": "context_plausibility",
+  "recallKey": "eec-c6-recall-parecidos-que-no-son-sinonimos",
+  "anchors": {
+    "primary": {
+      "reference": "eec-c6-regulacion-interpersonal",
+      "heading": "Regulación interpersonal",
+      "fingerprint": "Es lo que impide que cualquier experiencia de conexión termine descrita con una sola palabra nebulosa",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "Casas del mismo barrio",
+      "body": [
+        "Empatía, contagio, sincronía y regulación interpersonal se parecen y no son lo mismo. Vas a clasificar mini-escenas según el fenómeno que mejor las describe."
+      ],
+      "note": "Trabajaremos con escenas de ejemplo. Puedes salir y volver cuando quieras.",
+      "actionLabel": "Comenzar"
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "Regulación interpersonal",
+      "body": [
+        "Lee el cierre de la sección donde el capítulo distingue estas palabras vecinas y explica por qué la precisión importa."
+      ],
+      "actionLabel": "Leí el pasaje",
+      "anchorRef": "eec-c6-regulacion-interpersonal"
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "Nombrar con precisión permite preguntar con precisión",
+      "body": [
+        "Distinguir estas palabras no es pedantería: es lo que impide que cualquier experiencia de conexión termine descrita con una sola palabra nebulosa.",
+        "Cuando se nombra con precisión se puede preguntar con precisión: si estamos observando una señal o haciendo una inferencia. Y parecerse emocionalmente no demuestra por sí solo empatía, vínculo sano o comprensión."
+      ],
+      "note": "Marcar esta escena registra que exploraste la idea; no evalúa lo que sabes ni infiere nada sobre ti.",
+      "actionLabel": "He explorado la idea",
+      "stepKey": "explorar-parecidos-que-no-son-sinonimos"
+    },
+    {
+      "order": 4,
+      "kind": "EXAMPLE",
+      "title": "Reírse a la vez",
+      "body": [
+        "Dos personas ríen al mismo tiempo en una reunión. Puede ser contagio, complicidad, alivio compartido o simple cortesía.",
+        "La coincidencia es real; lo que demuestra sobre el vínculo es mucho menos de lo que parece."
+      ]
+    },
+    {
+      "order": 5,
+      "kind": "PRACTICE",
+      "title": "Empatía, contagio, sincronía o regulación",
+      "body": [
+        "Clasifica mini-escenas según el fenómeno mejor descrito y marca cuándo falta información para decidir."
+      ],
+      "note": "Puedes elegir entre las opciones sugeridas. Si prefieres escribir, tu texto se queda en tu dispositivo.",
+      "actionLabel": "Ya hice la práctica",
+      "stepKey": "practicar-empatia-contagio-sincronia",
+      "practiceKind": "context_plausibility"
+    },
+    {
+      "order": 6,
+      "kind": "RECALL",
+      "title": "¿Qué demuestra sentir algo parecido al mismo tiempo?",
+      "body": [
+        "Recupera la idea central de esta microguía."
+      ],
+      "stepKey": "recordar-parecidos-que-no-son-sinonimos"
+    },
+    {
+      "order": 7,
+      "kind": "SUMMARY",
+      "title": "Lo que te llevas",
+      "body": [
+        "Empatía, contagio, imitación, sincronía y regulación interpersonal no son el mismo mecanismo. Sincronía o parecido emocional no demuestran amor, empatía ni salud relacional."
+      ],
+      "actionLabel": "Finalizar"
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-parecidos-que-no-son-sinonimos",
+      "targetKey": "eec-parecidos-que-no-son-sinonimos"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-empatia-contagio-sincronia",
+      "targetKey": "eec-c6-practice-empatia-contagio-sincronia"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-parecidos-que-no-son-sinonimos",
+      "targetKey": "eec-c6-recall-parecidos-que-no-son-sinonimos"
+    }
+  ],
+  "media": {
+    "audio": null,
+    "video": null
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Navegación completa por teclado, con foco visible y orden de tabulación lógico.",
+    "Toda reordenación anunciada por lector de pantalla mediante aria-live.",
+    "Alternativa sin arrastrar para cualquier interacción de ordenamiento.",
+    "Respeta prefers-reduced-motion.",
+    "El color nunca es la única señal de estado.",
+    "Ninguna reproducción automática y ningún audio o vídeo obligatorio."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "eec-c06-parecidos-que-no-son-sinonimos-v1-e0a43fb61658eb17",
+  "approvalReferences": [
+    "https://app.notion.com/p/3d2cbb1031a081149d97ca054012b276",
+    "APROBAR ARQUITECTURA C03-C10 — decisión autoral 2026-09-04."
+  ],
+  "manifestSha256": "d1f631fe5494977138c9ca09f7ba0196eaecfffccc9ccc5b4f8c10bf593d9109",
+  "title": "Parecidos que no son sinónimos"
+}

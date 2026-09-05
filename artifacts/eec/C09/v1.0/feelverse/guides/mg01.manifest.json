@@ -1,0 +1,149 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "EEC-C09-MG01",
+  "bookSlug": "emociones-en-construccion",
+  "editionKey": "emociones-en-construccion-1e",
+  "chapterCode": "EEC-C09",
+  "chapterOrder": 9,
+  "unitKey": "a1c44e40-de0b-5bac-9946-ed7655e4140e",
+  "canonicalVersion": "EEC_C09_v1.0_TEXT_LOCKED_2026-08-27",
+  "canonicalSha256": "02b42dbdeef1136c560207d597b4c010250e19216dcb0e4c0592684914f1a956",
+  "sourceArtifact": "artifacts/eec/C09/v1.0/feelverse/unit-payload.json",
+  "experienceKey": "eec-c9-construido-no-significa-elegido",
+  "experienceVersion": 1,
+  "guideKey": "eec-c9-construido-no-significa-elegido",
+  "guideVersion": 1,
+  "conceptKey": "eec-construido-no-significa-elegido",
+  "practiceKey": "eec-c9-practice-influencia-o-voluntarismo",
+  "practiceKind": "belief_lens",
+  "recallKey": "eec-c9-recall-construido-no-significa-elegido",
+  "anchors": {
+    "primary": {
+      "reference": "eec-c9-construccion-no-es-fabricacion",
+      "heading": "**Construcción no es sinónimo de fabricación consciente.**",
+      "fingerprint": "Algunas nunca fueron reglas universales, aunque tu cerebro aprendiera a tratarlas como si lo fueran.",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "Si se construye, ¿puedo elegirla?",
+      "body": [
+        "«Si las emociones se construyen, puedo construir la que quiera» suena esperanzador. Vas a mirar esa afirmación y separar la influencia posible del voluntarismo."
+      ],
+      "note": "Trabajaremos con afirmaciones de ejemplo. Puedes salir y volver cuando quieras.",
+      "actionLabel": "Comenzar"
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "Construcción no es sinónimo de fabricación consciente",
+      "body": [
+        "Lee el punto donde el capítulo enumera lo que el sistema aprendió sin que lo recordemos con claridad, y lo que ocurre con esas lecciones."
+      ],
+      "actionLabel": "Leí el pasaje",
+      "anchorRef": "eec-c9-construccion-no-es-fabricacion"
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "Aprendido no es lo mismo que elegido",
+      "body": [
+        "Buena parte de lo aprendido se adquirió en experiencias que quizá ya no se recuerdan: qué tono anuncia conflicto, qué pasa cuando dices que no, qué emociones se consideran aceptables.",
+        "Algunas de esas lecciones siguen sirviendo, otras pertenecen a situaciones terminadas, y algunas nunca fueron reglas universales aunque se aprendieran como si lo fueran. Que algo se construya no significa que puedas fabricarlo o apagarlo a voluntad."
+      ],
+      "note": "Marcar esta escena registra que exploraste la idea; no evalúa lo que sabes ni infiere nada sobre ti.",
+      "actionLabel": "He explorado la idea",
+      "stepKey": "explorar-construido-no-significa-elegido"
+    },
+    {
+      "order": 4,
+      "kind": "EXAMPLE",
+      "title": "Una lengua y un hábito",
+      "body": [
+        "Una lengua es una construcción cultural y nadie eligió conscientemente cada regla que usa al hablar.",
+        "Un hábito fue aprendido y puede ejecutarse antes de recordar que se había decidido cambiarlo. Construido y elegido no son la misma palabra."
+      ]
+    },
+    {
+      "order": 5,
+      "kind": "PRACTICE",
+      "title": "¿Influencia posible o voluntarismo?",
+      "body": [
+        "Toma una afirmación sobre control emocional y sepárala en lo que observa, lo que supone y lo que faltaría para sostenerla."
+      ],
+      "note": "Puedes elegir entre las opciones sugeridas. Si prefieres escribir, tu texto se queda en tu dispositivo.",
+      "actionLabel": "Ya hice la práctica",
+      "stepKey": "practicar-influencia-o-voluntarismo",
+      "practiceKind": "belief_lens"
+    },
+    {
+      "order": 6,
+      "kind": "RECALL",
+      "title": "Si una emoción se construye, ¿qué se sigue de ahí?",
+      "body": [
+        "Recupera la idea central de esta microguía."
+      ],
+      "stepKey": "recordar-construido-no-significa-elegido"
+    },
+    {
+      "order": 7,
+      "kind": "SUMMARY",
+      "title": "Lo que te llevas",
+      "body": [
+        "Construido no significa elegido. Se puede influir y seguir aprendiendo sin que eso equivalga a decidir directamente lo que se siente."
+      ],
+      "actionLabel": "Finalizar"
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-construido-no-significa-elegido",
+      "targetKey": "eec-construido-no-significa-elegido"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-influencia-o-voluntarismo",
+      "targetKey": "eec-c9-practice-influencia-o-voluntarismo"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-construido-no-significa-elegido",
+      "targetKey": "eec-c9-recall-construido-no-significa-elegido"
+    }
+  ],
+  "media": {
+    "audio": null,
+    "video": null
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Navegación completa por teclado, con foco visible y orden de tabulación lógico.",
+    "Toda reordenación anunciada por lector de pantalla mediante aria-live.",
+    "Alternativa sin arrastrar para cualquier interacción de ordenamiento.",
+    "Respeta prefers-reduced-motion.",
+    "El color nunca es la única señal de estado.",
+    "Ninguna reproducción automática y ningún audio o vídeo obligatorio."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "eec-c09-construido-no-significa-elegido-v1-48fefe3ca5b59ef4",
+  "approvalReferences": [
+    "https://app.notion.com/p/3d2cbb1031a081149d97ca054012b276",
+    "APROBAR ARQUITECTURA C03-C10 — decisión autoral 2026-09-04."
+  ],
+  "manifestSha256": "0ed827ec1b376820ae2f239e3687fe8da4e5386290495de0885a9682ca537960",
+  "title": "Construido no significa elegido"
+}

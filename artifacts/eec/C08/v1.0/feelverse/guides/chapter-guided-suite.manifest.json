@@ -1,0 +1,52 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "EEC-C08-SUITE",
+  "bookSlug": "emociones-en-construccion",
+  "editionKey": "emociones-en-construccion-1e",
+  "chapterCode": "EEC-C08",
+  "chapterOrder": 8,
+  "unitKey": "cd8e1f8e-e19a-5c90-b0f0-5acd5d0a3163",
+  "canonicalVersion": "EEC_C08_v1.0_TEXT_LOCKED_2026-08-26",
+  "canonicalSha256": "6b71342e0117f4243022ff66e8af2e3b41caec0f4a978b50c48fbad3e0e336c2",
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "approvalReferences": [
+    "https://app.notion.com/p/3d2cbb1031a081149d97ca054012b276",
+    "APROBAR ARQUITECTURA C03-C10 — decisión autoral 2026-09-04."
+  ],
+  "featureFlag": null,
+  "featureFlagDefault": "off",
+  "legacyPilot": null,
+  "route": [
+    {
+      "order": 1,
+      "manifestId": "EEC-C08-MG01",
+      "guideKey": "eec-c8-sentirlo-no-lo-vuelve-verdad",
+      "guideVersion": 1
+    },
+    {
+      "order": 2,
+      "manifestId": "EEC-C08-MG02",
+      "guideKey": "eec-c8-muestra-lo-que-importa-no-que-hacer",
+      "guideVersion": 1
+    },
+    {
+      "order": 3,
+      "manifestId": "EEC-C08-MG03",
+      "guideKey": "eec-c8-pista-evidencia-veredicto",
+      "guideVersion": 1
+    },
+    {
+      "order": 4,
+      "manifestId": "EEC-C08-MG04",
+      "guideKey": "eec-c8-validar-no-es-dar-la-razon",
+      "guideVersion": 1
+    },
+    {
+      "order": 5,
+      "manifestId": "EEC-C08-MG05",
+      "guideKey": "eec-c8-antes-de-actuar-amplia-el-examen",
+      "guideVersion": 1
+    }
+  ]
+}

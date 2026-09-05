@@ -1,0 +1,149 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "EEC-C09-MG03",
+  "bookSlug": "emociones-en-construccion",
+  "editionKey": "emociones-en-construccion-1e",
+  "chapterCode": "EEC-C09",
+  "chapterOrder": 9,
+  "unitKey": "a1c44e40-de0b-5bac-9946-ed7655e4140e",
+  "canonicalVersion": "EEC_C09_v1.0_TEXT_LOCKED_2026-08-27",
+  "canonicalSha256": "02b42dbdeef1136c560207d597b4c010250e19216dcb0e4c0592684914f1a956",
+  "sourceArtifact": "artifacts/eec/C09/v1.0/feelverse/unit-payload.json",
+  "experienceKey": "eec-c9-define-que-quieres-cambiar",
+  "experienceVersion": 1,
+  "guideKey": "eec-c9-define-que-quieres-cambiar",
+  "guideVersion": 1,
+  "conceptKey": "eec-define-que-quieres-cambiar",
+  "practiceKey": "eec-c9-practice-objetivo-influencia-estrategia-senal",
+  "practiceKind": "four_part_distinction",
+  "recallKey": "eec-c9-recall-define-que-quieres-cambiar",
+  "anchors": {
+    "primary": {
+      "reference": "eec-c9-sentirse-mejor-responder-mejor",
+      "heading": "1. No siempre necesitas sentirte mejor para responder mejor",
+      "fingerprint": "las personas regulamos nuestras emociones con objetivos distintos",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "Antes de elegir una estrategia",
+      "body": [
+        "Una estrategia se evalúa contra un objetivo. Vas a separar el objetivo, lo que puedes influir, la estrategia candidata y cómo sabrías si ayudó."
+      ],
+      "note": "Trabajaremos con una situación de ejemplo. Puedes salir y volver cuando quieras.",
+      "actionLabel": "Comenzar"
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "No siempre necesitas sentirte mejor para responder mejor",
+      "body": [
+        "Lee la sección donde el capítulo separa «¿cómo quiero sentirme?» de «¿qué necesito lograr?»."
+      ],
+      "actionLabel": "Leí el pasaje",
+      "anchorRef": "eec-c9-sentirse-mejor-responder-mejor"
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "Sentirse mejor no es el único criterio",
+      "body": [
+        "Solemos imaginar una sola meta: bajar una emoción desagradable. Pero regulamos con objetivos distintos: tolerar algo durante una conversación, prepararnos, no convertir un impulso en conducta, comprender, descansar o pedir ayuda.",
+        "A veces la situación que provoca la emoción es lo que necesita cambiar. Se puede seguir sintiendo culpa y aun así conseguir una conversación más honesta."
+      ],
+      "note": "Marcar esta escena registra que exploraste la idea; no evalúa lo que sabes ni infiere nada sobre ti.",
+      "actionLabel": "He explorado la idea",
+      "stepKey": "explorar-define-que-quieres-cambiar"
+    },
+    {
+      "order": 4,
+      "kind": "EXAMPLE",
+      "title": "Nervios y presentación",
+      "body": [
+        "Alguien puede seguir nervioso y hacer la presentación igual.",
+        "Si el objetivo era presentar, la estrategia funcionó aunque el nerviosismo no bajara. Medirlo solo por «¿me siento menos mal?» habría dicho lo contrario."
+      ]
+    },
+    {
+      "order": 5,
+      "kind": "PRACTICE",
+      "title": "Objetivo, influencia, estrategia y señal",
+      "body": [
+        "Separa una situación en cuatro campos, incluido cómo sabrías si la estrategia ayudó."
+      ],
+      "note": "Puedes elegir entre las opciones sugeridas. Si prefieres escribir, tu texto se queda en tu dispositivo.",
+      "actionLabel": "Ya hice la práctica",
+      "stepKey": "practicar-objetivo-influencia-estrategia-senal",
+      "practiceKind": "four_part_distinction"
+    },
+    {
+      "order": 6,
+      "kind": "RECALL",
+      "title": "¿Contra qué se evalúa una estrategia de regulación?",
+      "body": [
+        "Recupera la idea central de esta microguía."
+      ],
+      "stepKey": "recordar-define-que-quieres-cambiar"
+    },
+    {
+      "order": 7,
+      "kind": "SUMMARY",
+      "title": "Lo que te llevas",
+      "body": [
+        "Definir qué quieres lograr cambia qué estrategia tiene sentido. «Sentirme mejor ya» es un criterio posible, y no el único."
+      ],
+      "actionLabel": "Finalizar"
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-define-que-quieres-cambiar",
+      "targetKey": "eec-define-que-quieres-cambiar"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-objetivo-influencia-estrategia-senal",
+      "targetKey": "eec-c9-practice-objetivo-influencia-estrategia-senal"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-define-que-quieres-cambiar",
+      "targetKey": "eec-c9-recall-define-que-quieres-cambiar"
+    }
+  ],
+  "media": {
+    "audio": null,
+    "video": null
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Navegación completa por teclado, con foco visible y orden de tabulación lógico.",
+    "Toda reordenación anunciada por lector de pantalla mediante aria-live.",
+    "Alternativa sin arrastrar para cualquier interacción de ordenamiento.",
+    "Respeta prefers-reduced-motion.",
+    "El color nunca es la única señal de estado.",
+    "Ninguna reproducción automática y ningún audio o vídeo obligatorio."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "eec-c09-define-que-quieres-cambiar-v1-51598a13112ac3da",
+  "approvalReferences": [
+    "https://app.notion.com/p/3d2cbb1031a081149d97ca054012b276",
+    "APROBAR ARQUITECTURA C03-C10 — decisión autoral 2026-09-04."
+  ],
+  "manifestSha256": "07e306cf31cce6bba3da7eb5de5312f5d72905c235cabec38a48275afabb054f",
+  "title": "Define qué quieres cambiar antes de regular"
+}

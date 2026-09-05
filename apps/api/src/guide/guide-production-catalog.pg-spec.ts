@@ -205,7 +205,7 @@ suite("CC-7.4B.3 · first production GuideDefinition (real PostgreSQL)", () => {
     expect(productionGuideRegistry.size).toBe(
       PRODUCTION_GUIDE_DEFINITIONS.length,
     );
-    expect(PRODUCTION_GUIDE_DEFINITIONS.length).toBe(12);
+    expect(PRODUCTION_GUIDE_DEFINITIONS.length).toBe(52);
     expect(productionGuideRegistry.latestStartableVersion(GUIDE_KEY)).toBe(1);
     expect(productionGuideRegistry.getExact(GUIDE_KEY, 1)).toEqual(
       PRODUCTION_GUIDE_DEFINITIONS[0],

@@ -1,0 +1,52 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "EEC-C03-SUITE",
+  "bookSlug": "emociones-en-construccion",
+  "editionKey": "emociones-en-construccion-1e",
+  "chapterCode": "EEC-C03",
+  "chapterOrder": 3,
+  "unitKey": "f1fd8e4d-39ac-547f-908a-cb97c7f9170b",
+  "canonicalVersion": "EEC_C03_v1.0_TEXT_LOCKED_2026-08-25",
+  "canonicalSha256": "79c427f56089ba693e8c836d737ac0b3dd5c5ab54dbfc8746a02799bbe28beb1",
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "approvalReferences": [
+    "https://app.notion.com/p/3d2cbb1031a081149d97ca054012b276",
+    "APROBAR ARQUITECTURA C03-C10 — decisión autoral 2026-09-04."
+  ],
+  "featureFlag": null,
+  "featureFlagDefault": "off",
+  "legacyPilot": null,
+  "route": [
+    {
+      "order": 1,
+      "manifestId": "EEC-C03-MG01",
+      "guideKey": "eec-c3-predecir-no-es-adivinar",
+      "guideVersion": 1
+    },
+    {
+      "order": 2,
+      "manifestId": "EEC-C03-MG02",
+      "guideKey": "eec-c3-senal-corporal-sin-etiqueta",
+      "guideVersion": 1
+    },
+    {
+      "order": 3,
+      "manifestId": "EEC-C03-MG03",
+      "guideKey": "eec-c3-contexto-para-categorizar",
+      "guideVersion": 1
+    },
+    {
+      "order": 4,
+      "manifestId": "EEC-C03-MG04",
+      "guideKey": "eec-c3-no-hay-boton-de-miedo",
+      "guideVersion": 1
+    },
+    {
+      "order": 5,
+      "manifestId": "EEC-C03-MG05",
+      "guideKey": "eec-c3-modelo-puede-actualizarse",
+      "guideVersion": 1
+    }
+  ]
+}

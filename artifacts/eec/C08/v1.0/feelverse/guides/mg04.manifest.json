@@ -1,0 +1,149 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "EEC-C08-MG04",
+  "bookSlug": "emociones-en-construccion",
+  "editionKey": "emociones-en-construccion-1e",
+  "chapterCode": "EEC-C08",
+  "chapterOrder": 8,
+  "unitKey": "cd8e1f8e-e19a-5c90-b0f0-5acd5d0a3163",
+  "canonicalVersion": "EEC_C08_v1.0_TEXT_LOCKED_2026-08-26",
+  "canonicalSha256": "6b71342e0117f4243022ff66e8af2e3b41caec0f4a978b50c48fbad3e0e336c2",
+  "sourceArtifact": "artifacts/eec/C08/v1.0/feelverse/unit-payload.json",
+  "experienceKey": "eec-c8-validar-no-es-dar-la-razon",
+  "experienceVersion": 1,
+  "guideKey": "eec-c8-validar-no-es-dar-la-razon",
+  "guideVersion": 1,
+  "conceptKey": "eec-validar-no-es-dar-la-razon",
+  "practiceKey": "eec-c8-practice-experiencia-interpretacion-impulso-conducta",
+  "practiceKind": "four_part_distinction",
+  "recallKey": "eec-c8-recall-validar-no-es-dar-la-razon",
+  "anchors": {
+    "primary": {
+      "reference": "eec-c8-no-certifica-la-interpretacion",
+      "heading": "**No certifica la interpretación que la acompaña.**",
+      "fingerprint": "Escucha la pista. Después investiga.",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "Entre dos extremos",
+      "body": [
+        "«No le hagas caso a lo que sientes» y «tu emoción ya sabe la verdad» fallan por lados distintos. Vas a separar experiencia, interpretación, impulso y conducta."
+      ],
+      "note": "Trabajaremos con escenas de ejemplo. Puedes salir y volver cuando quieras.",
+      "actionLabel": "Comenzar"
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "No certifica la interpretación que la acompaña",
+      "body": [
+        "Lee el punto donde el capítulo compara la emoción con una pista en una escena y propone su alternativa a los dos extremos."
+      ],
+      "actionLabel": "Leí el pasaje",
+      "anchorRef": "eec-c8-no-certifica-la-interpretacion"
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "Validar la experiencia, examinar la interpretación",
+      "body": [
+        "Una pista merece atención y puede cambiar por completo el rumbo de una investigación. Lo que no hace es certificar la interpretación que llega con ella.",
+        "Por eso el capítulo propone algo más exigente que cualquiera de los dos extremos: escuchar la pista y después investigar. Reconocer que alguien está furioso no equivale a aceptar su acusación ni a autorizar cualquier conducta."
+      ],
+      "note": "Marcar esta escena registra que exploraste la idea; no evalúa lo que sabes ni infiere nada sobre ti.",
+      "actionLabel": "He explorado la idea",
+      "stepKey": "explorar-validar-no-es-dar-la-razon"
+    },
+    {
+      "order": 4,
+      "kind": "EXAMPLE",
+      "title": "«Entiendo que estés furioso»",
+      "body": [
+        "La frase reconoce la experiencia. No dice que la acusación sea cierta ni que dar un portazo esté bien.",
+        "Son tres decisiones distintas, y suelen tomarse como si fueran una sola."
+      ]
+    },
+    {
+      "order": 5,
+      "kind": "PRACTICE",
+      "title": "Experiencia, interpretación, impulso y conducta",
+      "body": [
+        "Separa una escena en cuatro campos y observa cuál de ellos estabas validando sin darte cuenta."
+      ],
+      "note": "Puedes elegir entre las opciones sugeridas. Si prefieres escribir, tu texto se queda en tu dispositivo.",
+      "actionLabel": "Ya hice la práctica",
+      "stepKey": "practicar-experiencia-interpretacion-impulso-conducta",
+      "practiceKind": "four_part_distinction"
+    },
+    {
+      "order": 6,
+      "kind": "RECALL",
+      "title": "¿Qué valida reconocer una emoción ajena?",
+      "body": [
+        "Recupera la idea central de esta microguía."
+      ],
+      "stepKey": "recordar-validar-no-es-dar-la-razon"
+    },
+    {
+      "order": 7,
+      "kind": "SUMMARY",
+      "title": "Lo que te llevas",
+      "body": [
+        "Validar la experiencia, aceptar la interpretación y justificar la conducta son decisiones distintas. Escucha la pista; después investiga."
+      ],
+      "actionLabel": "Finalizar"
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-validar-no-es-dar-la-razon",
+      "targetKey": "eec-validar-no-es-dar-la-razon"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-experiencia-interpretacion-impulso-conducta",
+      "targetKey": "eec-c8-practice-experiencia-interpretacion-impulso-conducta"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-validar-no-es-dar-la-razon",
+      "targetKey": "eec-c8-recall-validar-no-es-dar-la-razon"
+    }
+  ],
+  "media": {
+    "audio": null,
+    "video": null
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Navegación completa por teclado, con foco visible y orden de tabulación lógico.",
+    "Toda reordenación anunciada por lector de pantalla mediante aria-live.",
+    "Alternativa sin arrastrar para cualquier interacción de ordenamiento.",
+    "Respeta prefers-reduced-motion.",
+    "El color nunca es la única señal de estado.",
+    "Ninguna reproducción automática y ningún audio o vídeo obligatorio."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "eec-c08-validar-no-es-dar-la-razon-v1-8f8b4713d4b926f9",
+  "approvalReferences": [
+    "https://app.notion.com/p/3d2cbb1031a081149d97ca054012b276",
+    "APROBAR ARQUITECTURA C03-C10 — decisión autoral 2026-09-04."
+  ],
+  "manifestSha256": "017d2d24d931f88865c276f3c23d60239541b5c05113dbb5a0bc25be5e189352",
+  "title": "Validar no es dar la razón en todo"
+}

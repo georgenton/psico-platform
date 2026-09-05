@@ -1,0 +1,52 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "EEC-C09-SUITE",
+  "bookSlug": "emociones-en-construccion",
+  "editionKey": "emociones-en-construccion-1e",
+  "chapterCode": "EEC-C09",
+  "chapterOrder": 9,
+  "unitKey": "a1c44e40-de0b-5bac-9946-ed7655e4140e",
+  "canonicalVersion": "EEC_C09_v1.0_TEXT_LOCKED_2026-08-27",
+  "canonicalSha256": "02b42dbdeef1136c560207d597b4c010250e19216dcb0e4c0592684914f1a956",
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "approvalReferences": [
+    "https://app.notion.com/p/3d2cbb1031a081149d97ca054012b276",
+    "APROBAR ARQUITECTURA C03-C10 — decisión autoral 2026-09-04."
+  ],
+  "featureFlag": null,
+  "featureFlagDefault": "off",
+  "legacyPilot": null,
+  "route": [
+    {
+      "order": 1,
+      "manifestId": "EEC-C09-MG01",
+      "guideKey": "eec-c9-construido-no-significa-elegido",
+      "guideVersion": 1
+    },
+    {
+      "order": 2,
+      "manifestId": "EEC-C09-MG02",
+      "guideKey": "eec-c9-tecnica-util-no-es-universal",
+      "guideVersion": 1
+    },
+    {
+      "order": 3,
+      "manifestId": "EEC-C09-MG03",
+      "guideKey": "eec-c9-define-que-quieres-cambiar",
+      "guideVersion": 1
+    },
+    {
+      "order": 4,
+      "manifestId": "EEC-C09-MG04",
+      "guideKey": "eec-c9-cuatro-puertas",
+      "guideVersion": 1
+    },
+    {
+      "order": 5,
+      "manifestId": "EEC-C09-MG05",
+      "guideKey": "eec-c9-repensar-ocurre-despues",
+      "guideVersion": 1
+    }
+  ]
+}

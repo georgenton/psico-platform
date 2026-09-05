@@ -1,0 +1,52 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "EEC-C06-SUITE",
+  "bookSlug": "emociones-en-construccion",
+  "editionKey": "emociones-en-construccion-1e",
+  "chapterCode": "EEC-C06",
+  "chapterOrder": 6,
+  "unitKey": "170e6699-0507-5784-8ecc-c9994b8dbf7e",
+  "canonicalVersion": "EEC_C06_v1.1_TEXT_LOCKED_2026-09-01",
+  "canonicalSha256": "ac963f730925fc347e0ab91b9df09902af05f5febd73c830f099f3b82c7a4d7a",
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "approvalReferences": [
+    "https://app.notion.com/p/3d2cbb1031a081149d97ca054012b276",
+    "APROBAR ARQUITECTURA C03-C10 — decisión autoral 2026-09-04."
+  ],
+  "featureFlag": null,
+  "featureFlagDefault": "off",
+  "legacyPilot": null,
+  "route": [
+    {
+      "order": 1,
+      "manifestId": "EEC-C06-MG01",
+      "guideKey": "eec-c6-sentir-se-aprende-con-otros",
+      "guideVersion": 1
+    },
+    {
+      "order": 2,
+      "manifestId": "EEC-C06-MG02",
+      "guideKey": "eec-c6-regular-juntos-no-es-controlar",
+      "guideVersion": 1
+    },
+    {
+      "order": 3,
+      "manifestId": "EEC-C06-MG03",
+      "guideKey": "eec-c6-ciclo-no-es-culpa-compartida",
+      "guideVersion": 1
+    },
+    {
+      "order": 4,
+      "manifestId": "EEC-C06-MG04",
+      "guideKey": "eec-c6-parecidos-que-no-son-sinonimos",
+      "guideVersion": 1
+    },
+    {
+      "order": 5,
+      "manifestId": "EEC-C06-MG05",
+      "guideKey": "eec-c6-influencia-no-es-destino",
+      "guideVersion": 1
+    }
+  ]
+}

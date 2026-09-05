@@ -322,6 +322,482 @@ export const EEC_C2_MG05_ANCHOR: GuideReaderAnchorLocator = {
   expectedMatchCount: 1,
 };
 
+/**
+ * EEC-C3 — las cinco anclas de «EEC-C03» (aprobación autoral 2026-09-04).
+ *
+ * Cada `passageLastSentence` es texto REAL del capítulo publicado, verificado
+ * 1:1 contra la unidad productiva antes de existir aquí.
+ */
+export const EEC_C3_MG01_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "eec-c3-predecir-no-es-adivinar",
+  guideVersion: 1,
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 3,
+  sourceHeading: "Predecir no es adivinar",
+  passageLastSentence:
+    "La experiencia previa permite que el sistema nervioso no empiece desde cero en cada instante.",
+  expectedMatchCount: 1,
+};
+
+export const EEC_C3_MG02_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "eec-c3-senal-corporal-sin-etiqueta",
+  guideVersion: 1,
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 3,
+  sourceHeading: "El cuerpo no espera al final de la historia",
+  passageLastSentence:
+    "las señales del cuerpo son ingredientes; todavía no son la receta completa",
+  expectedMatchCount: 1,
+};
+
+export const EEC_C3_MG03_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "eec-c3-contexto-para-categorizar",
+  guideVersion: 1,
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 3,
+  sourceHeading: "Construcción no significa arbitrariedad",
+  passageLastSentence: "ni libertad absoluta ni reacción mecánica",
+  expectedMatchCount: 1,
+};
+
+export const EEC_C3_MG04_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "eec-c3-no-hay-boton-de-miedo",
+  guideVersion: 1,
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 3,
+  sourceHeading: "Patrones sin botones",
+  passageLastSentence:
+    "sin que haya una huella universal, única e invariable para cada emoción",
+  expectedMatchCount: 1,
+};
+
+export const EEC_C3_MG05_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "eec-c3-modelo-puede-actualizarse",
+  guideVersion: 1,
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 3,
+  sourceHeading: "Cuando la predicción no encaja",
+  passageLastSentence:
+    "La nueva información obliga a corregir la interpretación inicial.",
+  expectedMatchCount: 1,
+};
+
+/**
+ * EEC-C4 — las cinco anclas de «EEC-C04» (aprobación autoral 2026-09-04).
+ *
+ * Cada `passageLastSentence` es texto REAL del capítulo publicado, verificado
+ * 1:1 contra la unidad productiva antes de existir aquí.
+ */
+export const EEC_C4_MG01_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "eec-c4-cuerpo-datos-no-veredictos",
+  guideVersion: 1,
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 4,
+  sourceHeading: "No existe un diccionario corporal de las emociones",
+  passageLastSentence:
+    "El problema empieza cuando convertimos esas posibilidades en traducciones rígidas",
+  expectedMatchCount: 1,
+};
+
+export const EEC_C4_MG02_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "eec-c4-notar-interpretar-nombrar",
+  guideVersion: 1,
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 4,
+  sourceHeading: "Interocepción: notar no es lo mismo que interpretar",
+  passageLastSentence:
+    "notar una señal, detectarla con precisión y comprender qué significa son cosas diferentes",
+  expectedMatchCount: 1,
+};
+
+export const EEC_C4_MG03_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "eec-c4-cuerpo-y-cerebro-no-hacen-fila",
+  guideVersion: 1,
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 4,
+  sourceHeading: "El frenazo antes del nombre",
+  passageLastSentence:
+    "Que hayas notado primero el corazón acelerado no significa que el corazón haya pronunciado la palabra",
+  expectedMatchCount: 1,
+};
+
+export const EEC_C4_MG04_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "eec-c4-metafora-teoria-evidencia",
+  guideVersion: 1,
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 4,
+  sourceHeading: "Neurocepción: una idea influyente bajo examen",
+  passageLastSentence:
+    "una explicación puede ser intuitiva, popular y útil para conversar, pero cada uno de sus mecanismos necesita evidencia independiente",
+  expectedMatchCount: 1,
+};
+
+export const EEC_C4_MG05_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "eec-c4-observar-requiere-eleccion",
+  guideVersion: 1,
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 4,
+  sourceHeading:
+    "La conciencia corporal puede ayudar; también necesita condiciones",
+  passageLastSentence:
+    "«útil» no significa «beneficioso para todas las personas en cualquier momento»",
+  expectedMatchCount: 1,
+};
+
+/**
+ * EEC-C5 — las cinco anclas de «EEC-C05» (aprobación autoral 2026-09-04).
+ *
+ * Cada `passageLastSentence` es texto REAL del capítulo publicado, verificado
+ * 1:1 contra la unidad productiva antes de existir aquí.
+ */
+export const EEC_C5_MG01_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "eec-c5-emocion-no-es-historia",
+  guideVersion: 1,
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 5,
+  sourceHeading: "¿Una historia más coherente siempre hace bien?",
+  passageLastSentence: "construye una historia coherente y estarás bien",
+  expectedMatchCount: 1,
+};
+
+export const EEC_C5_MG02_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "eec-c5-silencio-sin-subtitulos",
+  guideVersion: 1,
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 5,
+  sourceHeading: "**«¿Qué historia debo inventar para dejar de sentir esto?»**",
+  passageLastSentence: "¿Qué subtítulos estoy añadiendo a esta escena",
+  expectedMatchCount: 1,
+};
+
+export const EEC_C5_MG03_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "eec-c5-historia-dominante-no-es-identidad",
+  guideVersion: 1,
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 5,
+  sourceHeading: "Historias dominantes y acontecimientos que no encajan",
+  passageLastSentence:
+    "Re-autoría no significa inventar capítulos nuevos ni cambiar el pasado",
+  expectedMatchCount: 1,
+};
+
+export const EEC_C5_MG04_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "eec-c5-recordar-reconstruye",
+  guideVersion: 1,
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 5,
+  sourceHeading: "5. La memoria no es una grabación ni una página en blanco",
+  passageLastSentence:
+    "La memoria autobiográfica selecciona, reconstruye e integra",
+  expectedMatchCount: 1,
+};
+
+export const EEC_C5_MG05_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "eec-c5-reescribir-abre-opciones",
+  guideVersion: 1,
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 5,
+  sourceHeading: "7. Puedes revisar el relato sin borrar la página",
+  passageLastSentence:
+    "El objetivo no era convencerla de que «seguro todo está bien»",
+  expectedMatchCount: 1,
+};
+
+/**
+ * EEC-C6 — las cinco anclas de «EEC-C06» (aprobación autoral 2026-09-04).
+ *
+ * Cada `passageLastSentence` es texto REAL del capítulo publicado, verificado
+ * 1:1 contra la unidad productiva antes de existir aquí.
+ */
+export const EEC_C6_MG01_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "eec-c6-sentir-se-aprende-con-otros",
+  guideVersion: 1,
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 6,
+  sourceHeading: "2. De lo que pasa en mí a lo que pasa entre nosotros",
+  passageLastSentence:
+    "añadir el nivel relacional no elimina el nivel individual",
+  expectedMatchCount: 1,
+};
+
+export const EEC_C6_MG02_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "eec-c6-regular-juntos-no-es-controlar",
+  guideVersion: 1,
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 6,
+  sourceHeading: "4. Cuando otra persona ayuda —o empeora— lo que sientes",
+  passageLastSentence: "regular no siempre significa reducir una emoción",
+  expectedMatchCount: 1,
+};
+
+export const EEC_C6_MG03_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "eec-c6-ciclo-no-es-culpa-compartida",
+  guideVersion: 1,
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 6,
+  sourceHeading: "5. Cuando una respuesta prepara la siguiente",
+  passageLastSentence:
+    "Un ciclo no es una criatura invisible que controla a la familia",
+  expectedMatchCount: 1,
+};
+
+export const EEC_C6_MG04_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "eec-c6-parecidos-que-no-son-sinonimos",
+  guideVersion: 1,
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 6,
+  sourceHeading: "Regulación interpersonal",
+  passageLastSentence:
+    "Es lo que impide que cualquier experiencia de conexión termine descrita con una sola palabra nebulosa",
+  expectedMatchCount: 1,
+};
+
+export const EEC_C6_MG05_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "eec-c6-influencia-no-es-destino",
+  guideVersion: 1,
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 6,
+  sourceHeading: "Influencia no es destino",
+  passageLastSentence: "tampoco somos marionetas de nuestras relaciones",
+  expectedMatchCount: 1,
+};
+
+/**
+ * EEC-C7 — las cinco anclas de «EEC-C07» (aprobación autoral 2026-09-04).
+ *
+ * Cada `passageLastSentence` es texto REAL del capítulo publicado, verificado
+ * 1:1 contra la unidad productiva antes de existir aquí.
+ */
+export const EEC_C7_MG01_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "eec-c7-suspender-equivalencias",
+  guideVersion: 1,
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 7,
+  sourceHeading: "Antes de traducir, separar capas",
+  passageLastSentence: "Una persona puede sentir tristeza y mostrar irritación",
+  expectedMatchCount: 1,
+};
+
+export const EEC_C7_MG02_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "eec-c7-expectativa-cambia-la-lectura",
+  guideVersion: 1,
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 7,
+  sourceHeading: "La ayuda que no parece ayuda",
+  passageLastSentence:
+    "dos personas pueden querer cuidar y no coincidir por completo en qué aspecto debería tener el cuidado",
+  expectedMatchCount: 1,
+};
+
+export const EEC_C7_MG03_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "eec-c7-diferencia-no-es-excusa",
+  guideVersion: 1,
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 7,
+  sourceHeading: "**comprender el contexto no significa justificar el daño.**",
+  passageLastSentence:
+    "¿Tengo razones para pensar que la cultura es relevante aquí",
+  expectedMatchCount: 1,
+};
+
+export const EEC_C7_MG04_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "eec-c7-muchos-repertorios-dentro",
+  guideVersion: 1,
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 7,
+  sourceHeading: "Un país no es una variable mágica",
+  passageLastSentence: "La cultura importa. Pero no explica todo por decreto.",
+  expectedMatchCount: 1,
+};
+
+export const EEC_C7_MG05_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "eec-c7-preguntar-es-traducir",
+  guideVersion: 1,
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 7,
+  sourceHeading: "Preguntar antes de interpretar",
+  passageLastSentence:
+    "Significa reconocer que nuestro mapa puede estar incompleto",
+  expectedMatchCount: 1,
+};
+
+/**
+ * EEC-C8 — las cinco anclas de «EEC-C08» (aprobación autoral 2026-09-04).
+ *
+ * Cada `passageLastSentence` es texto REAL del capítulo publicado, verificado
+ * 1:1 contra la unidad productiva antes de existir aquí.
+ */
+export const EEC_C8_MG01_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "eec-c8-sentirlo-no-lo-vuelve-verdad",
+  guideVersion: 1,
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 8,
+  sourceHeading: "Cuando sentir también es valorar",
+  passageLastSentence: "La emoción habla de una relación de importancia.",
+  expectedMatchCount: 1,
+};
+
+export const EEC_C8_MG02_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "eec-c8-muestra-lo-que-importa-no-que-hacer",
+  guideVersion: 1,
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 8,
+  sourceHeading: "La ética empieza cuando aparece el otro",
+  passageLastSentence:
+    "no otorgan automáticamente derecho a revisar el teléfono de otra persona",
+  expectedMatchCount: 1,
+};
+
+export const EEC_C8_MG03_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "eec-c8-pista-evidencia-veredicto",
+  guideVersion: 1,
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 8,
+  sourceHeading: "Pista, evidencia y veredicto no son lo mismo",
+  passageLastSentence:
+    "Comprender esa historia explica por qué apareció la emoción",
+  expectedMatchCount: 1,
+};
+
+export const EEC_C8_MG04_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "eec-c8-validar-no-es-dar-la-razon",
+  guideVersion: 1,
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 8,
+  sourceHeading: "**No certifica la interpretación que la acompaña.**",
+  passageLastSentence: "Escucha la pista. Después investiga.",
+  expectedMatchCount: 1,
+};
+
+export const EEC_C8_MG05_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "eec-c8-antes-de-actuar-amplia-el-examen",
+  guideVersion: 1,
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 8,
+  sourceHeading: "9. ¿Qué respuesta puedes justificar?",
+  passageLastSentence:
+    "No pienses únicamente en qué acción reduciría el malestar más rápido.",
+  expectedMatchCount: 1,
+};
+
+/**
+ * EEC-C9 — las cinco anclas de «EEC-C09» (aprobación autoral 2026-09-04).
+ *
+ * Cada `passageLastSentence` es texto REAL del capítulo publicado, verificado
+ * 1:1 contra la unidad productiva antes de existir aquí.
+ */
+export const EEC_C9_MG01_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "eec-c9-construido-no-significa-elegido",
+  guideVersion: 1,
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 9,
+  sourceHeading: "**Construcción no es sinónimo de fabricación consciente.**",
+  passageLastSentence:
+    "Algunas nunca fueron reglas universales, aunque tu cerebro aprendiera a tratarlas como si lo fueran.",
+  expectedMatchCount: 1,
+};
+
+export const EEC_C9_MG02_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "eec-c9-tecnica-util-no-es-universal",
+  guideVersion: 1,
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 9,
+  sourceHeading: "9. Tomar lo mejor sin convertir una herramienta en religión",
+  passageLastSentence:
+    "Las escuelas terapéuticas no son enemigas que compiten por explicar toda la vida emocional.",
+  expectedMatchCount: 1,
+};
+
+export const EEC_C9_MG03_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "eec-c9-define-que-quieres-cambiar",
+  guideVersion: 1,
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 9,
+  sourceHeading: "1. No siempre necesitas sentirte mejor para responder mejor",
+  passageLastSentence:
+    "las personas regulamos nuestras emociones con objetivos distintos",
+  expectedMatchCount: 1,
+};
+
+export const EEC_C9_MG04_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "eec-c9-cuatro-puertas",
+  guideVersion: 1,
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 9,
+  sourceHeading: "Puerta 1: cambiar algo afuera",
+  passageLastSentence:
+    "La regulación se vuelve injusta cuando enseña a las personas a adaptarse indefinidamente a condiciones que deberían cambiar.",
+  expectedMatchCount: 1,
+};
+
+export const EEC_C9_MG05_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "eec-c9-repensar-ocurre-despues",
+  guideVersion: 1,
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 9,
+  sourceHeading: "15. Repensar también es aprender para la próxima vez",
+  passageLastSentence: "La regulación no termina cuando baja la intensidad.",
+  expectedMatchCount: 1,
+};
+
+/**
+ * EEC-C10 — las cinco anclas de «EEC-C10» (aprobación autoral 2026-09-04).
+ *
+ * Cada `passageLastSentence` es texto REAL del capítulo publicado, verificado
+ * 1:1 contra la unidad productiva antes de existir aquí.
+ */
+export const EEC_C10_MG01_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "eec-c10-hacer-espacio-no-es-confirmar",
+  guideVersion: 1,
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 10,
+  sourceHeading: "1. Hacer espacio a la experiencia",
+  passageLastSentence: "Hacer espacio no significa confirmar toda la historia",
+  expectedMatchCount: 1,
+};
+
+export const EEC_C10_MG02_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "eec-c10-no-narrador-de-la-mente-ajena",
+  guideVersion: 1,
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 10,
+  sourceHeading: "*Mi hijo llora porque intenta manipularme.*",
+  passageLastSentence:
+    "reconoce la experiencia sin convertirte demasiado pronto en narrador oficial de la mente ajena",
+  expectedMatchCount: 1,
+};
+
+export const EEC_C10_MG03_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "eec-c10-emocion-si-conducta-con-limites",
+  guideVersion: 1,
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 10,
+  sourceHeading: "3. Poner límites a la conducta sin castigar la emoción",
+  passageLastSentence: "Puedes estar furioso. No vamos a enviar amenazas.",
+  expectedMatchCount: 1,
+};
+
+export const EEC_C10_MG04_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "eec-c10-ayudar-sin-borrar-la-agencia",
+  guideVersion: 1,
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 10,
+  sourceHeading: "4. Ajustar ayuda y agencia",
+  passageLastSentence: "La prisa por ayudar también puede quitar algo.",
+  expectedMatchCount: 1,
+};
+
+export const EEC_C10_MG05_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "eec-c10-cambiar-el-escenario",
+  guideVersion: 1,
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 10,
+  sourceHeading: "5. Mirar también el escenario",
+  passageLastSentence:
+    "Es como enseñar equilibrio mientras el suelo continúa mojado.",
+  expectedMatchCount: 1,
+};
+
 /** The anchors this build ships. Adding a guide means adding a line here. */
 export const guideAnchorRegistry = new GuideAnchorRegistry([
   GUIDE_READER_ANCHOR,
@@ -335,6 +811,46 @@ export const guideAnchorRegistry = new GuideAnchorRegistry([
   EEC_C2_MG03_ANCHOR,
   EEC_C2_MG04_ANCHOR,
   EEC_C2_MG05_ANCHOR,
+  EEC_C3_MG01_ANCHOR,
+  EEC_C3_MG02_ANCHOR,
+  EEC_C3_MG03_ANCHOR,
+  EEC_C3_MG04_ANCHOR,
+  EEC_C3_MG05_ANCHOR,
+  EEC_C4_MG01_ANCHOR,
+  EEC_C4_MG02_ANCHOR,
+  EEC_C4_MG03_ANCHOR,
+  EEC_C4_MG04_ANCHOR,
+  EEC_C4_MG05_ANCHOR,
+  EEC_C5_MG01_ANCHOR,
+  EEC_C5_MG02_ANCHOR,
+  EEC_C5_MG03_ANCHOR,
+  EEC_C5_MG04_ANCHOR,
+  EEC_C5_MG05_ANCHOR,
+  EEC_C6_MG01_ANCHOR,
+  EEC_C6_MG02_ANCHOR,
+  EEC_C6_MG03_ANCHOR,
+  EEC_C6_MG04_ANCHOR,
+  EEC_C6_MG05_ANCHOR,
+  EEC_C7_MG01_ANCHOR,
+  EEC_C7_MG02_ANCHOR,
+  EEC_C7_MG03_ANCHOR,
+  EEC_C7_MG04_ANCHOR,
+  EEC_C7_MG05_ANCHOR,
+  EEC_C8_MG01_ANCHOR,
+  EEC_C8_MG02_ANCHOR,
+  EEC_C8_MG03_ANCHOR,
+  EEC_C8_MG04_ANCHOR,
+  EEC_C8_MG05_ANCHOR,
+  EEC_C9_MG01_ANCHOR,
+  EEC_C9_MG02_ANCHOR,
+  EEC_C9_MG03_ANCHOR,
+  EEC_C9_MG04_ANCHOR,
+  EEC_C9_MG05_ANCHOR,
+  EEC_C10_MG01_ANCHOR,
+  EEC_C10_MG02_ANCHOR,
+  EEC_C10_MG03_ANCHOR,
+  EEC_C10_MG04_ANCHOR,
+  EEC_C10_MG05_ANCHOR,
   PAREJAS_READER_ANCHOR,
 ]);
 

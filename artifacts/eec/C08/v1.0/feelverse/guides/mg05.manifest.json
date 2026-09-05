@@ -1,0 +1,149 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "EEC-C08-MG05",
+  "bookSlug": "emociones-en-construccion",
+  "editionKey": "emociones-en-construccion-1e",
+  "chapterCode": "EEC-C08",
+  "chapterOrder": 8,
+  "unitKey": "cd8e1f8e-e19a-5c90-b0f0-5acd5d0a3163",
+  "canonicalVersion": "EEC_C08_v1.0_TEXT_LOCKED_2026-08-26",
+  "canonicalSha256": "6b71342e0117f4243022ff66e8af2e3b41caec0f4a978b50c48fbad3e0e336c2",
+  "sourceArtifact": "artifacts/eec/C08/v1.0/feelverse/unit-payload.json",
+  "experienceKey": "eec-c8-antes-de-actuar-amplia-el-examen",
+  "experienceVersion": 1,
+  "guideKey": "eec-c8-antes-de-actuar-amplia-el-examen",
+  "guideVersion": 1,
+  "conceptKey": "eec-antes-de-actuar-amplia-el-examen",
+  "practiceKey": "eec-c8-practice-que-respuesta-puedo-justificar",
+  "practiceKind": "belief_lens",
+  "recallKey": "eec-c8-recall-antes-de-actuar-amplia-el-examen",
+  "anchors": {
+    "primary": {
+      "reference": "eec-c8-que-respuesta-puedes-justificar",
+      "heading": "9. ¿Qué respuesta puedes justificar?",
+      "fingerprint": "No pienses únicamente en qué acción reduciría el malestar más rápido.",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "Más preguntas antes de actuar",
+      "body": [
+        "Discernir no es encontrar «la emoción correcta». Vas a revisar una decisión con las preguntas que el capítulo propone."
+      ],
+      "note": "Trabajaremos con una decisión de ejemplo, no con una tuya.",
+      "actionLabel": "Comenzar"
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "¿Qué respuesta puedes justificar?",
+      "body": [
+        "Lee el paso donde el capítulo enumera qué considerar antes de elegir una respuesta."
+      ],
+      "actionLabel": "Leí el pasaje",
+      "anchorRef": "eec-c8-que-respuesta-puedes-justificar"
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "La respuesta más rápida no es la más justificada",
+      "body": [
+        "El capítulo pide no pensar únicamente en qué acción reduciría el malestar más rápido, y considerar la evidencia disponible, los valores elegidos, los derechos propios y ajenos, las consecuencias previsibles, las perspectivas que faltan y la propia responsabilidad.",
+        "Escuchar una emoción, entonces, abre preguntas antes de cerrar una decisión."
+      ],
+      "note": "Marcar esta escena registra que exploraste la idea; no evalúa lo que sabes ni infiere nada sobre ti.",
+      "actionLabel": "He explorado la idea",
+      "stepKey": "explorar-antes-de-actuar-amplia-el-examen"
+    },
+    {
+      "order": 4,
+      "kind": "EXAMPLE",
+      "title": "Responder ahora o mañana",
+      "body": [
+        "Contestar de inmediato un mensaje que molestó puede bajar la tensión enseguida.",
+        "Es un criterio, y no el único: también cuentan qué evidencia hay, a quién afecta y qué se podrá sostener después."
+      ]
+    },
+    {
+      "order": 5,
+      "kind": "PRACTICE",
+      "title": "¿Qué respuesta puedo justificar?",
+      "body": [
+        "Toma una conclusión rápida sobre qué hacer y sepárala en lo que observa, lo que supone y lo que faltaría para sostenerla."
+      ],
+      "note": "Puedes elegir entre las opciones sugeridas. Si prefieres escribir, tu texto se queda en tu dispositivo.",
+      "actionLabel": "Ya hice la práctica",
+      "stepKey": "practicar-que-respuesta-puedo-justificar",
+      "practiceKind": "belief_lens"
+    },
+    {
+      "order": 6,
+      "kind": "RECALL",
+      "title": "¿Qué añade el discernimiento antes de actuar?",
+      "body": [
+        "Recupera la idea central de esta microguía."
+      ],
+      "stepKey": "recordar-antes-de-actuar-amplia-el-examen"
+    },
+    {
+      "order": 7,
+      "kind": "SUMMARY",
+      "title": "Lo que te llevas",
+      "body": [
+        "Antes de actuar conviene ampliar el examen: evidencia, valores elegidos, derechos, consecuencias, perspectivas que faltan y responsabilidad. Escuchar una emoción pide más preguntas, no menos."
+      ],
+      "actionLabel": "Finalizar"
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-antes-de-actuar-amplia-el-examen",
+      "targetKey": "eec-antes-de-actuar-amplia-el-examen"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-que-respuesta-puedo-justificar",
+      "targetKey": "eec-c8-practice-que-respuesta-puedo-justificar"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-antes-de-actuar-amplia-el-examen",
+      "targetKey": "eec-c8-recall-antes-de-actuar-amplia-el-examen"
+    }
+  ],
+  "media": {
+    "audio": null,
+    "video": null
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Navegación completa por teclado, con foco visible y orden de tabulación lógico.",
+    "Toda reordenación anunciada por lector de pantalla mediante aria-live.",
+    "Alternativa sin arrastrar para cualquier interacción de ordenamiento.",
+    "Respeta prefers-reduced-motion.",
+    "El color nunca es la única señal de estado.",
+    "Ninguna reproducción automática y ningún audio o vídeo obligatorio."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "eec-c08-antes-de-actuar-amplia-el-examen-v1-177fb2fbc527fe7e",
+  "approvalReferences": [
+    "https://app.notion.com/p/3d2cbb1031a081149d97ca054012b276",
+    "APROBAR ARQUITECTURA C03-C10 — decisión autoral 2026-09-04."
+  ],
+  "manifestSha256": "fa9d2c822fdf9652dc99083aa16a66b771ef451515daa1d7999f82d4c0e2c8eb",
+  "title": "Antes de actuar, amplía el examen"
+}

@@ -21,6 +21,14 @@
 import { guidePinKey, type GuidePin } from "./guide-pin";
 import { EEC_C01_PRESENTATIONS } from "./eec-c01-microguides";
 import { EEC_C02_PRESENTATIONS } from "./eec-c02-microguides";
+import { EEC_C03_PRESENTATIONS } from "./eec-c03-microguides";
+import { EEC_C04_PRESENTATIONS } from "./eec-c04-microguides";
+import { EEC_C05_PRESENTATIONS } from "./eec-c05-microguides";
+import { EEC_C06_PRESENTATIONS } from "./eec-c06-microguides";
+import { EEC_C07_PRESENTATIONS } from "./eec-c07-microguides";
+import { EEC_C08_PRESENTATIONS } from "./eec-c08-microguides";
+import { EEC_C09_PRESENTATIONS } from "./eec-c09-microguides";
+import { EEC_C10_PRESENTATIONS } from "./eec-c10-microguides";
 
 /**
  * Where the reader panel opens inside a checkpoint.
@@ -398,6 +406,14 @@ export const PRODUCTION_GUIDE_PRESENTATIONS: readonly GuidePresentation[] = [
   // still DRAFT: a draft the CMS cannot draw is a draft nobody can review, and
   // a presentation is what the player reads to draw one.
   ...EEC_C02_PRESENTATIONS,
+  ...EEC_C03_PRESENTATIONS,
+  ...EEC_C04_PRESENTATIONS,
+  ...EEC_C05_PRESENTATIONS,
+  ...EEC_C06_PRESENTATIONS,
+  ...EEC_C07_PRESENTATIONS,
+  ...EEC_C08_PRESENTATIONS,
+  ...EEC_C09_PRESENTATIONS,
+  ...EEC_C10_PRESENTATIONS,
 ];
 
 export const guidePresentationRegistry = new GuidePresentationRegistry(

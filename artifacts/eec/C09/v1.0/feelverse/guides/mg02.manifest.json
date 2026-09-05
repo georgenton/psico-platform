@@ -1,0 +1,149 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "EEC-C09-MG02",
+  "bookSlug": "emociones-en-construccion",
+  "editionKey": "emociones-en-construccion-1e",
+  "chapterCode": "EEC-C09",
+  "chapterOrder": 9,
+  "unitKey": "a1c44e40-de0b-5bac-9946-ed7655e4140e",
+  "canonicalVersion": "EEC_C09_v1.0_TEXT_LOCKED_2026-08-27",
+  "canonicalSha256": "02b42dbdeef1136c560207d597b4c010250e19216dcb0e4c0592684914f1a956",
+  "sourceArtifact": "artifacts/eec/C09/v1.0/feelverse/unit-payload.json",
+  "experienceKey": "eec-c9-tecnica-util-no-es-universal",
+  "experienceVersion": 1,
+  "guideKey": "eec-c9-tecnica-util-no-es-universal",
+  "guideVersion": 1,
+  "conceptKey": "eec-tecnica-util-no-es-universal",
+  "practiceKey": "eec-c9-practice-objetivo-y-herramienta",
+  "practiceKind": "context_plausibility",
+  "recallKey": "eec-c9-recall-tecnica-util-no-es-universal",
+  "anchors": {
+    "primary": {
+      "reference": "eec-c9-tomar-lo-mejor",
+      "heading": "9. Tomar lo mejor sin convertir una herramienta en religión",
+      "fingerprint": "Las escuelas terapéuticas no son enemigas que compiten por explicar toda la vida emocional.",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "Cada herramienta responde a un problema",
+      "body": [
+        "Respirar, aceptar, reevaluar, distraerse o expresarse no hacen el mismo trabajo. Vas a emparejar situaciones con la herramienta que podría responder a ese objetivo."
+      ],
+      "note": "No es una recomendación clínica ni una indicación para tu caso.",
+      "actionLabel": "Comenzar"
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "Tomar lo mejor sin convertir una herramienta en religión",
+      "body": [
+        "Lee la sección donde el capítulo recorre varios enfoques y señala el límite de cada uno."
+      ],
+      "actionLabel": "Leí el pasaje",
+      "anchorRef": "eec-c9-tomar-lo-mejor"
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "Sacar una herramienta de contexto puede volverla inútil",
+      "body": [
+        "Las escuelas terapéuticas no son enemigas que compiten por explicar toda la vida emocional: con frecuencia iluminan partes diferentes del mapa.",
+        "Cada enfoque hace preguntas distintas y ofrece herramientas para problemas distintos. Se puede tomar lo mejor de una sin exigirle que resuelva aquello para lo que no fue diseñada."
+      ],
+      "note": "Marcar esta escena registra que exploraste la idea; no evalúa lo que sabes ni infiere nada sobre ti.",
+      "actionLabel": "He explorado la idea",
+      "stepKey": "explorar-tecnica-util-no-es-universal"
+    },
+    {
+      "order": 4,
+      "kind": "EXAMPLE",
+      "title": "Respirar antes de una conversación difícil",
+      "body": [
+        "Respirar más lento puede abrir un poco de margen antes de responder.",
+        "No decide qué decir ni reparte una responsabilidad familiar. Sirve para lo que sirve, y ese límite no la vuelve mala."
+      ]
+    },
+    {
+      "order": 5,
+      "kind": "PRACTICE",
+      "title": "Objetivo y herramienta",
+      "body": [
+        "Empareja situaciones con la herramienta que podría responder a ese objetivo y marca cuándo falta información para decidir."
+      ],
+      "note": "Puedes elegir entre las opciones sugeridas. Si prefieres escribir, tu texto se queda en tu dispositivo.",
+      "actionLabel": "Ya hice la práctica",
+      "stepKey": "practicar-objetivo-y-herramienta",
+      "practiceKind": "context_plausibility"
+    },
+    {
+      "order": 6,
+      "kind": "RECALL",
+      "title": "¿Qué significa que una técnica «funcione»?",
+      "body": [
+        "Recupera la idea central de esta microguía."
+      ],
+      "stepKey": "recordar-tecnica-util-no-es-universal"
+    },
+    {
+      "order": 7,
+      "kind": "SUMMARY",
+      "title": "Lo que te llevas",
+      "body": [
+        "Una técnica útil no es una técnica universal. «Funciona en promedio» no significa «es la respuesta correcta para todo», y la regulación flexible no es la terapia que gana."
+      ],
+      "actionLabel": "Finalizar"
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-tecnica-util-no-es-universal",
+      "targetKey": "eec-tecnica-util-no-es-universal"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-objetivo-y-herramienta",
+      "targetKey": "eec-c9-practice-objetivo-y-herramienta"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-tecnica-util-no-es-universal",
+      "targetKey": "eec-c9-recall-tecnica-util-no-es-universal"
+    }
+  ],
+  "media": {
+    "audio": null,
+    "video": null
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Navegación completa por teclado, con foco visible y orden de tabulación lógico.",
+    "Toda reordenación anunciada por lector de pantalla mediante aria-live.",
+    "Alternativa sin arrastrar para cualquier interacción de ordenamiento.",
+    "Respeta prefers-reduced-motion.",
+    "El color nunca es la única señal de estado.",
+    "Ninguna reproducción automática y ningún audio o vídeo obligatorio."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "eec-c09-tecnica-util-no-es-universal-v1-75424652a9914f4b",
+  "approvalReferences": [
+    "https://app.notion.com/p/3d2cbb1031a081149d97ca054012b276",
+    "APROBAR ARQUITECTURA C03-C10 — decisión autoral 2026-09-04."
+  ],
+  "manifestSha256": "a3a20733e6a58b29f2c919445ba3b6038cb64d6310516664da29c2f1a23e9f92",
+  "title": "Una técnica útil no es una técnica universal"
+}

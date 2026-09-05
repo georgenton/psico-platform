@@ -1,0 +1,149 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "EEC-C03-MG03",
+  "bookSlug": "emociones-en-construccion",
+  "editionKey": "emociones-en-construccion-1e",
+  "chapterCode": "EEC-C03",
+  "chapterOrder": 3,
+  "unitKey": "f1fd8e4d-39ac-547f-908a-cb97c7f9170b",
+  "canonicalVersion": "EEC_C03_v1.0_TEXT_LOCKED_2026-08-25",
+  "canonicalSha256": "79c427f56089ba693e8c836d737ac0b3dd5c5ab54dbfc8746a02799bbe28beb1",
+  "sourceArtifact": "artifacts/eec/C03/v1.0/feelverse/unit-payload.json",
+  "experienceKey": "eec-c3-contexto-para-categorizar",
+  "experienceVersion": 1,
+  "guideKey": "eec-c3-contexto-para-categorizar",
+  "guideVersion": 1,
+  "conceptKey": "eec-contexto-para-categorizar",
+  "practiceKey": "eec-c3-practice-escena-antes-y-despues",
+  "practiceKind": "context_plausibility",
+  "recallKey": "eec-c3-recall-contexto-para-categorizar",
+  "anchors": {
+    "primary": {
+      "reference": "eec-c3-construccion-no-arbitrariedad",
+      "heading": "Construcción no significa arbitrariedad",
+      "fingerprint": "ni libertad absoluta ni reacción mecánica",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "Cuando aparece un dato nuevo",
+      "body": [
+        "Categorizar no es pegar una palabra al azar. Vas a ordenar interpretaciones de una escena ambigua por plausibilidad, y luego a repetirlo cuando aparezca información nueva."
+      ],
+      "note": "La escena es de ejemplo. Puedes salir y volver cuando quieras.",
+      "actionLabel": "Comenzar"
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "Construcción no significa arbitrariedad",
+      "body": [
+        "Lee la sección donde el capítulo enumera las restricciones bajo las que ocurre la construcción y cierra entre dos fronteras."
+      ],
+      "actionLabel": "Leí el pasaje",
+      "anchorRef": "eec-c3-construccion-no-arbitrariedad"
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "Construir no es elegir cualquier cosa",
+      "body": [
+        "Que una experiencia se construya no significa que cualquier interpretación sea igualmente posible. El capítulo enumera restricciones: las propiedades reales de la situación, el estado del organismo, la información disponible, la historia de aprendizaje, los conceptos accesibles, las metas y las normas.",
+        "Por eso el trabajo se sitúa entre dos fronteras: ni libertad absoluta para sentir lo que se decida, ni reacción mecánica fijada de antemano."
+      ],
+      "note": "Marcar esta escena registra que exploraste la idea; no evalúa lo que sabes ni infiere nada sobre ti.",
+      "actionLabel": "He explorado la idea",
+      "stepKey": "explorar-contexto-para-categorizar"
+    },
+    {
+      "order": 4,
+      "kind": "EXAMPLE",
+      "title": "La puerta que se cierra fuerte",
+      "body": [
+        "Un portazo en la habitación de al lado admite varias lecturas: enojo, prisa, una corriente de aire. Todas caben mientras la información sea escasa.",
+        "Si después aparece alguien con las manos ocupadas pidiendo ayuda, algunas lecturas pierden fuerza y otras la ganan. La escena no cambió; cambió el contexto disponible."
+      ]
+    },
+    {
+      "order": 5,
+      "kind": "PRACTICE",
+      "title": "La escena, antes y después del contexto",
+      "body": [
+        "Ordena las interpretaciones posibles de una escena ambigua y observa qué se mantiene y qué se mueve cuando llega información nueva."
+      ],
+      "note": "Puedes elegir entre las opciones sugeridas. Si prefieres escribir, tu texto se queda en tu dispositivo.",
+      "actionLabel": "Ya hice la práctica",
+      "stepKey": "practicar-escena-antes-y-despues",
+      "practiceKind": "context_plausibility"
+    },
+    {
+      "order": 6,
+      "kind": "RECALL",
+      "title": "¿Por qué una misma escena admite lecturas distintas?",
+      "body": [
+        "Recupera la idea central de esta microguía."
+      ],
+      "stepKey": "recordar-contexto-para-categorizar"
+    },
+    {
+      "order": 7,
+      "kind": "SUMMARY",
+      "title": "Lo que te llevas",
+      "body": [
+        "Categorizar es dar significado situado con el contexto, la experiencia y los conceptos disponibles. Que haya más de una lectura posible no vuelve falsa la experiencia, y tampoco significa que todas valgan lo mismo."
+      ],
+      "actionLabel": "Finalizar"
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-contexto-para-categorizar",
+      "targetKey": "eec-contexto-para-categorizar"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-escena-antes-y-despues",
+      "targetKey": "eec-c3-practice-escena-antes-y-despues"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-contexto-para-categorizar",
+      "targetKey": "eec-c3-recall-contexto-para-categorizar"
+    }
+  ],
+  "media": {
+    "audio": null,
+    "video": null
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Navegación completa por teclado, con foco visible y orden de tabulación lógico.",
+    "Toda reordenación anunciada por lector de pantalla mediante aria-live.",
+    "Alternativa sin arrastrar para cualquier interacción de ordenamiento.",
+    "Respeta prefers-reduced-motion.",
+    "El color nunca es la única señal de estado.",
+    "Ninguna reproducción automática y ningún audio o vídeo obligatorio."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "eec-c03-contexto-para-categorizar-v1-ce00ab4727fe3e50",
+  "approvalReferences": [
+    "https://app.notion.com/p/3d2cbb1031a081149d97ca054012b276",
+    "APROBAR ARQUITECTURA C03-C10 — decisión autoral 2026-09-04."
+  ],
+  "manifestSha256": "d0840c3a3aada19cc05199fcff6aee8d83d84c8b31c1ea1868c2861932b389c9",
+  "title": "El cerebro también necesita contexto para categorizar"
+}

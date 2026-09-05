@@ -247,15 +247,16 @@ describe("guide catalog · registry", () => {
 });
 
 describe("ratchet · guide catalog contract", () => {
-  it("GUIDE_PRODUCTION_REGISTRY_ENTRIES=12 — exactly the approved definitions", () => {
+  it("GUIDE_PRODUCTION_REGISTRY_ENTRIES=52 — exactly the approved definitions", () => {
     // 2 → 7 with the EEC-C01 five-microguide route (author decision 2026-09-03),
-    // 7 → 12 with the EEC-C02 five (author decision 2026-09-04). The count is a
-    // ratchet on purpose: registering a guide is an editorial act, so growth
-    // has to be typed here by whoever approved it.
+    // 7 → 12 with the EEC-C02 five (author decision 2026-09-04), and 12 → 52
+    // with the forty of EEC-C03 → C10 (`APROBAR ARQUITECTURA C03-C10`, same
+    // day). The count is a ratchet on purpose: registering a guide is an
+    // editorial act, so growth has to be typed here by whoever approved it.
     // The V1 pilot stays in the registry although discovery retired it: a
     // session pinned to it must keep resolving.
-    expect(PRODUCTION_GUIDE_DEFINITIONS).toHaveLength(12);
-    expect(productionGuideRegistry.size).toBe(12);
+    expect(PRODUCTION_GUIDE_DEFINITIONS).toHaveLength(52);
+    expect(productionGuideRegistry.size).toBe(52);
     expect(PRODUCTION_GUIDE_DEFINITIONS.map((d) => d.guideKey)).toEqual([
       "eec-c1-cuerpo-antes-que-mente",
       "eec-c1-teorias-como-lentes",
@@ -268,17 +269,64 @@ describe("ratchet · guide catalog contract", () => {
       "eec-c2-gesto-necesita-contexto",
       "eec-c2-palabras-dan-contorno",
       "eec-c2-rituales-dan-marco-no-guion",
+      "eec-c3-predecir-no-es-adivinar",
+      "eec-c3-senal-corporal-sin-etiqueta",
+      "eec-c3-contexto-para-categorizar",
+      "eec-c3-no-hay-boton-de-miedo",
+      "eec-c3-modelo-puede-actualizarse",
+      "eec-c4-cuerpo-datos-no-veredictos",
+      "eec-c4-notar-interpretar-nombrar",
+      "eec-c4-cuerpo-y-cerebro-no-hacen-fila",
+      "eec-c4-metafora-teoria-evidencia",
+      "eec-c4-observar-requiere-eleccion",
+      "eec-c5-emocion-no-es-historia",
+      "eec-c5-silencio-sin-subtitulos",
+      "eec-c5-historia-dominante-no-es-identidad",
+      "eec-c5-recordar-reconstruye",
+      "eec-c5-reescribir-abre-opciones",
+      "eec-c6-sentir-se-aprende-con-otros",
+      "eec-c6-regular-juntos-no-es-controlar",
+      "eec-c6-ciclo-no-es-culpa-compartida",
+      "eec-c6-parecidos-que-no-son-sinonimos",
+      "eec-c6-influencia-no-es-destino",
+      "eec-c7-suspender-equivalencias",
+      "eec-c7-expectativa-cambia-la-lectura",
+      "eec-c7-diferencia-no-es-excusa",
+      "eec-c7-muchos-repertorios-dentro",
+      "eec-c7-preguntar-es-traducir",
+      "eec-c8-sentirlo-no-lo-vuelve-verdad",
+      "eec-c8-muestra-lo-que-importa-no-que-hacer",
+      "eec-c8-pista-evidencia-veredicto",
+      "eec-c8-validar-no-es-dar-la-razon",
+      "eec-c8-antes-de-actuar-amplia-el-examen",
+      "eec-c9-construido-no-significa-elegido",
+      "eec-c9-tecnica-util-no-es-universal",
+      "eec-c9-define-que-quieres-cambiar",
+      "eec-c9-cuatro-puertas",
+      "eec-c9-repensar-ocurre-despues",
+      "eec-c10-hacer-espacio-no-es-confirmar",
+      "eec-c10-no-narrador-de-la-mente-ajena",
+      "eec-c10-emocion-si-conducta-con-limites",
+      "eec-c10-ayudar-sin-borrar-la-agencia",
+      "eec-c10-cambiar-el-escenario",
       "pqp-c1-contacto-sostenido",
     ]);
-    // No chapter's guide may target another chapter's teaching rows: five
-    // sessions on C02 completing a C01 step would merge two readings' progress.
-    for (const d of PRODUCTION_GUIDE_DEFINITIONS.filter((g) =>
-      g.guideKey.startsWith("eec-c2-"),
-    )) {
-      const targets = JSON.stringify(d.steps);
-      expect(targets).not.toContain("eec-c1-");
-      expect(targets).toContain("eec-c2-practice-");
-      expect(targets).toContain("eec-c2-recall-");
+    // No chapter's guide may target another chapter's teaching rows: a session
+    // on C02 completing a C01 step would merge two readings' progress. Checked
+    // for all ten chapters, not just the two that first needed it.
+    for (let n = 2; n <= 10; n++) {
+      const prefix = `eec-c${n}-`;
+      for (const d of PRODUCTION_GUIDE_DEFINITIONS.filter((g) =>
+        g.guideKey.startsWith(prefix),
+      )) {
+        const targets = JSON.stringify(d.steps);
+        for (let other = 1; other <= 10; other++) {
+          if (other === n) continue;
+          expect(targets, d.guideKey).not.toContain(`eec-c${other}-`);
+        }
+        expect(targets, d.guideKey).toContain(`${prefix}practice-`);
+        expect(targets, d.guideKey).toContain(`${prefix}recall-`);
+      }
     }
     // Every microguide carries the same three obligatory steps, in order.
     for (const d of PRODUCTION_GUIDE_DEFINITIONS) {

@@ -1,0 +1,149 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "EEC-C03-MG02",
+  "bookSlug": "emociones-en-construccion",
+  "editionKey": "emociones-en-construccion-1e",
+  "chapterCode": "EEC-C03",
+  "chapterOrder": 3,
+  "unitKey": "f1fd8e4d-39ac-547f-908a-cb97c7f9170b",
+  "canonicalVersion": "EEC_C03_v1.0_TEXT_LOCKED_2026-08-25",
+  "canonicalSha256": "79c427f56089ba693e8c836d737ac0b3dd5c5ab54dbfc8746a02799bbe28beb1",
+  "sourceArtifact": "artifacts/eec/C03/v1.0/feelverse/unit-payload.json",
+  "experienceKey": "eec-c3-senal-corporal-sin-etiqueta",
+  "experienceVersion": 1,
+  "guideKey": "eec-c3-senal-corporal-sin-etiqueta",
+  "guideVersion": 1,
+  "conceptKey": "eec-senal-corporal-sin-etiqueta",
+  "practiceKey": "eec-c3-practice-misma-senal-tres-contextos",
+  "practiceKind": "signal_context_compare",
+  "recallKey": "eec-c3-recall-senal-corporal-sin-etiqueta",
+  "anchors": {
+    "primary": {
+      "reference": "eec-c3-cuerpo-no-espera",
+      "heading": "El cuerpo no espera al final de la historia",
+      "fingerprint": "las señales del cuerpo son ingredientes; todavía no son la receta completa",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "La misma señal, tres situaciones",
+      "body": [
+        "El corazón acelerado no llega con un nombre puesto. Vas a comparar una misma activación corporal en tres situaciones cotidianas y a ver qué cambia —y qué no— en lo que se puede concluir."
+      ],
+      "note": "No vamos a pedirte que observes tu cuerpo ahora ni que recuerdes un episodio intenso. Trabajaremos con escenas de ejemplo.",
+      "actionLabel": "Comenzar"
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "El cuerpo no espera al final de la historia",
+      "body": [
+        "Lee la sección sobre interocepción y estado corporal, donde el capítulo llega a la imagen de los ingredientes y la receta."
+      ],
+      "actionLabel": "Leí el pasaje",
+      "anchorRef": "eec-c3-cuerpo-no-espera"
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "Una señal es ingrediente, no receta",
+      "body": [
+        "El pulso, la respiración y la tensión forman parte de lo que ocurre, pero por sí solos no nombran una emoción. La misma aceleración puede acompañar una carrera, un encuentro esperado, una discusión o demasiado café.",
+        "El capítulo propone entender la experiencia emocional como una coordinación entre el estado del cuerpo, la situación, la memoria y los conceptos disponibles, no como la lectura directa de una sola señal."
+      ],
+      "note": "Marcar esta escena registra que exploraste la idea; no evalúa lo que sabes ni infiere nada sobre ti.",
+      "actionLabel": "He explorado la idea",
+      "stepKey": "explorar-senal-corporal-sin-etiqueta"
+    },
+    {
+      "order": 4,
+      "kind": "EXAMPLE",
+      "title": "Subir escaleras y esperar una respuesta",
+      "body": [
+        "Después de subir dos pisos, el corazón golpea. Esperando una respuesta importante, el corazón también golpea.",
+        "La señal se parece; lo que permite decir es distinto. Sin la situación, la misma información corporal no alcanza para nombrar lo que pasa."
+      ]
+    },
+    {
+      "order": 5,
+      "kind": "PRACTICE",
+      "title": "Misma señal, tres contextos",
+      "body": [
+        "Observa un mismo conjunto de señales corporales en tres situaciones y elige qué factores podrían cambiar su significado. Ninguna combinación se marca como incorrecta."
+      ],
+      "note": "Es un ejercicio de comparación entre ejemplos; no interpreta tus sensaciones ni saca conclusiones sobre ti.",
+      "actionLabel": "Ya hice la práctica",
+      "stepKey": "practicar-misma-senal-tres-contextos",
+      "practiceKind": "signal_context_compare"
+    },
+    {
+      "order": 6,
+      "kind": "RECALL",
+      "title": "¿Qué hace falta además de la señal corporal?",
+      "body": [
+        "Recupera la idea central de esta microguía."
+      ],
+      "stepKey": "recordar-senal-corporal-sin-etiqueta"
+    },
+    {
+      "order": 7,
+      "kind": "SUMMARY",
+      "title": "Lo que te llevas",
+      "body": [
+        "Las señales del cuerpo aportan información real y no vienen etiquetadas. Para que adquieran un significado emocional situado hacen falta el contexto, la memoria y los conceptos con los que cuentas."
+      ],
+      "actionLabel": "Finalizar"
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-senal-corporal-sin-etiqueta",
+      "targetKey": "eec-senal-corporal-sin-etiqueta"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-misma-senal-tres-contextos",
+      "targetKey": "eec-c3-practice-misma-senal-tres-contextos"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-senal-corporal-sin-etiqueta",
+      "targetKey": "eec-c3-recall-senal-corporal-sin-etiqueta"
+    }
+  ],
+  "media": {
+    "audio": null,
+    "video": null
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Navegación completa por teclado, con foco visible y orden de tabulación lógico.",
+    "Toda reordenación anunciada por lector de pantalla mediante aria-live.",
+    "Alternativa sin arrastrar para cualquier interacción de ordenamiento.",
+    "Respeta prefers-reduced-motion.",
+    "El color nunca es la única señal de estado.",
+    "Ninguna reproducción automática y ningún audio o vídeo obligatorio."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "eec-c03-senal-corporal-sin-etiqueta-v1-8d764055ff8e3b46",
+  "approvalReferences": [
+    "https://app.notion.com/p/3d2cbb1031a081149d97ca054012b276",
+    "APROBAR ARQUITECTURA C03-C10 — decisión autoral 2026-09-04."
+  ],
+  "manifestSha256": "962f544f26fcfdc5adca87ffafb3206a0320c299d64ad3b64fde3428c9e76393",
+  "title": "Una señal corporal no viene con etiqueta"
+}

@@ -1,0 +1,869 @@
+{
+  "eec-c1-recall-cuerpo-antes-que-mente": {
+    "question": "Según el capítulo 1, ¿cómo describe el libro la relación temporal entre la reacción del cuerpo y la comprensión consciente de una emoción?",
+    "options": [
+      {
+        "optionKey": "opcion-cuerpo-primero",
+        "label": "El cuerpo puede reaccionar antes de que la mente alcance a identificar o nombrar lo que está sintiendo."
+      },
+      {
+        "optionKey": "opcion-mente-primero",
+        "label": "La mente identifica primero la emoción y solamente después el cuerpo comienza a reaccionar."
+      },
+      {
+        "optionKey": "opcion-simultanea",
+        "label": "El cuerpo y la mente siempre reaccionan de manera simultánea, consciente y perfectamente coordinada."
+      }
+    ]
+  },
+  "eec-c1-recall-teorias-como-lentes": {
+    "question": "Según el capítulo 1, ¿por qué comparar dos teorías de la emoción no consiste en buscar de inmediato una ganadora?",
+    "options": [
+      {
+        "optionKey": "opcion-preguntas-distintas",
+        "label": "Porque cada una se organizó alrededor de preguntas, observaciones y métodos distintos, así que primero hay que entender qué problema intentaba resolver cada una."
+      },
+      {
+        "optionKey": "opcion-todas-igual-validas",
+        "label": "Porque todas las teorías son igualmente válidas y elegir entre ellas es solo cuestión de preferencia personal."
+      },
+      {
+        "optionKey": "opcion-falta-evidencia",
+        "label": "Porque todavía no existe evidencia suficiente sobre las emociones y por eso ninguna teoría puede compararse con otra."
+      }
+    ]
+  },
+  "eec-c1-recall-rostro-como-pista": {
+    "question": "Según el capítulo 1, ¿qué nos permite y qué no nos permite concluir una expresión facial?",
+    "options": [
+      {
+        "optionKey": "opcion-pista-sin-lectura",
+        "label": "Aporta información útil sobre lo que puede estar ocurriendo, pero no entrega por sí sola una lectura completa de la experiencia de esa persona."
+      },
+      {
+        "optionKey": "opcion-diccionario-universal",
+        "label": "Permite identificar la emoción exacta que siente la persona, porque las expresiones significan lo mismo en todas las culturas."
+      },
+      {
+        "optionKey": "opcion-no-informa-nada",
+        "label": "No aporta ninguna información fiable, porque el rostro se controla voluntariamente casi siempre."
+      }
+    ]
+  },
+  "eec-c1-recall-alarma-antes-del-relato": {
+    "question": "Según el capítulo 1, ¿qué diferencia hay entre una respuesta rápida de protección y sentir miedo?",
+    "options": [
+      {
+        "optionKey": "opcion-reconocer-esto-me-asusta",
+        "label": "La respuesta de protección puede empezar antes de entender qué pasa; sentir miedo incluye además reconocer de alguna manera «esto me asusta»."
+      },
+      {
+        "optionKey": "opcion-amigdala-produce-miedo",
+        "label": "No hay diferencia: la amígdala produce el miedo y la reacción del cuerpo es ese mismo miedo."
+      },
+      {
+        "optionKey": "opcion-miedo-primero",
+        "label": "Primero se siente el miedo de forma consciente y solo después el cuerpo organiza una respuesta de protección."
+      }
+    ]
+  },
+  "eec-c1-recall-emocion-informa-no-manda": {
+    "question": "Según el capítulo 1, ¿qué relación hay entre una emoción y la conducta que sigue?",
+    "options": [
+      {
+        "optionKey": "opcion-informa-no-dicta",
+        "label": "La emoción aporta información y señala qué es relevante, pero no dicta por sí sola la decisión: sentir, interpretar, tener un impulso y elegir son procesos distintos."
+      },
+      {
+        "optionKey": "opcion-emocion-determina",
+        "label": "La emoción determina la conducta: si la señal es intensa, la acción que sigue es la única posible."
+      },
+      {
+        "optionKey": "opcion-ignorar-emocion",
+        "label": "Para decidir bien conviene dejar la emoción fuera, porque interfiere con el razonamiento."
+      }
+    ]
+  },
+  "eec-c1-recall-construida-no-significa-falsa": {
+    "question": "Según el capítulo 1, ¿qué quiere decir que una emoción sea «construida»?",
+    "options": [
+      {
+        "optionKey": "opcion-real-y-no-elegida",
+        "label": "Que se forma con señales reales del cuerpo, memoria, conceptos aprendidos y contexto — sigue siendo real y no se elige a voluntad."
+      },
+      {
+        "optionKey": "opcion-inventada",
+        "label": "Que en realidad es imaginaria: si la construimos nosotros, no corresponde a nada que esté ocurriendo de verdad."
+      },
+      {
+        "optionKey": "opcion-controlable",
+        "label": "Que podemos decidir conscientemente qué emoción sentir en cada momento si nos lo proponemos."
+      }
+    ]
+  },
+  "eec-c2-recall-universal-no-significa-uniforme": {
+    "question": "Según el capítulo 2, si un estudio encuentra que cierta expresión facial se reconoce de forma parecida en varios países, ¿qué queda demostrado?",
+    "options": [
+      {
+        "optionKey": "opcion-solo-ese-nivel",
+        "label": "Solo una semejanza en ese nivel: no demuestra que las categorías, el significado, la interpretación ni las reglas sociales sean iguales."
+      },
+      {
+        "optionKey": "opcion-todo-uniforme",
+        "label": "Que esa emoción se vive, se nombra y se expresa de la misma manera en todas esas culturas."
+      },
+      {
+        "optionKey": "opcion-nada",
+        "label": "Que las expresiones faciales no aportan ninguna información sobre lo que siente una persona."
+      }
+    ]
+  },
+  "eec-c2-recall-cultura-gramatica-no-destino": {
+    "question": "Según el capítulo 2, ¿qué quiere decir que la cultura emocional funcione como una gramática?",
+    "options": [
+      {
+        "optionKey": "opcion-influye-no-determina",
+        "label": "Que ofrece estructuras que vuelven ciertas respuestas familiares y otras extrañas, sin decidir mecánicamente lo que cada persona siente."
+      },
+      {
+        "optionKey": "opcion-determina",
+        "label": "Que fija de antemano qué siente cada integrante del grupo y vuelve homogénea a la sociedad."
+      },
+      {
+        "optionKey": "opcion-irrelevante",
+        "label": "Que la cultura solo afecta modales y costumbres visibles, sin relación con la vida emocional."
+      }
+    ]
+  },
+  "eec-c2-recall-gesto-necesita-contexto": {
+    "question": "Según el capítulo 2, si alguien suaviza su rostro por una regla de expresión aprendida, ¿qué se puede concluir sobre lo que siente?",
+    "options": [
+      {
+        "optionKey": "opcion-regula-no-niega",
+        "label": "Que la regla puede modificar lo que se muestra; no demuestra que la experiencia esté ausente, ni cuál es."
+      },
+      {
+        "optionKey": "opcion-no-siente",
+        "label": "Que no está sintiendo nada: si lo sintiera, se le notaría en la cara."
+      },
+      {
+        "optionKey": "opcion-oculta-tristeza",
+        "label": "Que detrás de esa expresión suave hay tristeza que la persona está reprimiendo."
+      }
+    ]
+  },
+  "eec-c2-recall-palabras-dan-contorno": {
+    "question": "Según el capítulo 2, ¿qué papel cumplen las palabras y los conceptos emocionales?",
+    "options": [
+      {
+        "optionKey": "opcion-ayudan-y-dependen",
+        "label": "Los conceptos y palabras pueden ayudarnos a diferenciar y comunicar experiencias, pero su significado también depende del contexto."
+      },
+      {
+        "optionKey": "opcion-sin-palabra-no-hay",
+        "label": "Sin una palabra precisa no puede existir la experiencia: el lenguaje crea toda emoción."
+      },
+      {
+        "optionKey": "opcion-significado-universal",
+        "label": "Cada palabra emocional tiene un significado universal, igual en cualquier región y en cualquier familia."
+      }
+    ]
+  },
+  "eec-c2-recall-rituales-dan-marco-no-guion": {
+    "question": "Según el capítulo 2, ¿qué se puede concluir del hecho de que alguien participe o no participe en un ritual de duelo?",
+    "options": [
+      {
+        "optionKey": "opcion-no-demuestra",
+        "label": "Por sí solo no demuestra amor, negación, intensidad del duelo ni recuperación: el ritual ofrece marco y testigos, no un guion de cómo sentir."
+      },
+      {
+        "optionKey": "opcion-participar-sana",
+        "label": "Que participar garantiza alivio y que no participar indica que la persona está negando la pérdida."
+      },
+      {
+        "optionKey": "opcion-ritual-irrelevante",
+        "label": "Que los rituales no cumplen ninguna función y son una formalidad social sin efecto."
+      }
+    ]
+  },
+  "eec-c3-recall-predecir-no-es-adivinar": {
+    "question": "Según el capítulo 3, cuando se dice que «el cerebro predice», ¿a qué se refiere?",
+    "options": [
+      {
+        "optionKey": "opcion-anticipar-con-lo-aprendido",
+        "label": "A que usa la experiencia previa para anticipar y no empezar de cero en cada instante."
+      },
+      {
+        "optionKey": "opcion-adivinar",
+        "label": "A que puede anticipar acontecimientos futuros con más acierto del que reconocemos."
+      },
+      {
+        "optionKey": "opcion-decidir",
+        "label": "A que decidimos de antemano, aunque sea sin darnos cuenta, qué vamos a sentir."
+      }
+    ]
+  },
+  "eec-c3-recall-senal-corporal-sin-etiqueta": {
+    "question": "Según el capítulo 3, ¿qué hace falta además de una señal corporal para que haya una emoción situada?",
+    "options": [
+      {
+        "optionKey": "opcion-contexto-y-categoria",
+        "label": "El contexto, la memoria y los conceptos disponibles: la señal es ingrediente, no receta completa."
+      },
+      {
+        "optionKey": "opcion-mas-atencion",
+        "label": "Prestar más atención a la señal, porque con suficiente precisión el cuerpo indica la emoción."
+      },
+      {
+        "optionKey": "opcion-nada",
+        "label": "Nada más: cada señal corporal corresponde a una emoción concreta."
+      }
+    ]
+  },
+  "eec-c3-recall-contexto-para-categorizar": {
+    "question": "Según el capítulo 3, que una experiencia emocional se construya significa que…",
+    "options": [
+      {
+        "optionKey": "opcion-bajo-restricciones",
+        "label": "Se ensambla bajo restricciones reales: la situación, el estado del cuerpo, lo aprendido y los conceptos disponibles."
+      },
+      {
+        "optionKey": "opcion-cualquier-cosa",
+        "label": "Cualquier interpretación es igualmente posible, porque nada la limita."
+      },
+      {
+        "optionKey": "opcion-falsa",
+        "label": "Es inventada, y por eso menos real que una reacción automática."
+      }
+    ]
+  },
+  "eec-c3-recall-no-hay-boton-de-miedo": {
+    "question": "Según el capítulo 3, si una región del cerebro se activa durante un episodio emocional, ¿qué queda demostrado?",
+    "options": [
+      {
+        "optionKey": "opcion-participa",
+        "label": "Que esa región participa; no que produzca por sí sola la emoción ni que sea su botón."
+      },
+      {
+        "optionKey": "opcion-produce",
+        "label": "Que esa región es la responsable de esa emoción en particular."
+      },
+      {
+        "optionKey": "opcion-sin-regularidad",
+        "label": "Que el cerebro no tiene ninguna regularidad reconocible al sentir."
+      }
+    ]
+  },
+  "eec-c3-recall-modelo-puede-actualizarse": {
+    "question": "Según el capítulo 3, cuando la información nueva no encaja con lo que se esperaba, ¿qué ocurre?",
+    "options": [
+      {
+        "optionKey": "opcion-puede-actualizarse",
+        "label": "Ese desajuste puede favorecer una revisión, sin garantizar que el aprendizaje anterior desaparezca."
+      },
+      {
+        "optionKey": "opcion-reescribe",
+        "label": "El sistema reescribe sus expectativas cada vez que algo lo sorprende."
+      },
+      {
+        "optionKey": "opcion-nada",
+        "label": "No cambia nada: una interpretación emocional no puede corregirse con información."
+      }
+    ]
+  },
+  "eec-c4-recall-cuerpo-datos-no-veredictos": {
+    "question": "Según el capítulo 4, ¿qué aporta por sí sola una sensación corporal?",
+    "options": [
+      {
+        "optionKey": "opcion-informa",
+        "label": "Informa que algo ocurre, sin determinar qué emoción es ni cuál es su causa."
+      },
+      {
+        "optionKey": "opcion-traduce",
+        "label": "Indica la emoción correspondiente, porque cada sensación tiene su equivalente."
+      },
+      {
+        "optionKey": "opcion-nada",
+        "label": "No aporta nada útil: para saber lo que sentimos hay que ignorar el cuerpo."
+      }
+    ]
+  },
+  "eec-c4-recall-notar-interpretar-nombrar": {
+    "question": "Según el capítulo 4, notar una sensación corporal con mucha intensidad significa que…",
+    "options": [
+      {
+        "optionKey": "opcion-notar-no-es-interpretar",
+        "label": "Se notó una señal; notar, medir con precisión e interpretar siguen siendo cosas distintas."
+      },
+      {
+        "optionKey": "opcion-mas-precision",
+        "label": "Se conoce con más exactitud qué emoción es y de dónde viene."
+      },
+      {
+        "optionKey": "opcion-exagera",
+        "label": "La sensación probablemente se está exagerando y conviene ignorarla."
+      }
+    ]
+  },
+  "eec-c4-recall-cuerpo-y-cerebro-no-hacen-fila": {
+    "question": "Según el capítulo 4, notar el cambio corporal antes que el nombre demuestra que…",
+    "options": [
+      {
+        "optionKey": "opcion-reciprocidad",
+        "label": "El cuerpo cambió antes de que hubiera una frase; no que exista una fila fija cuerpo-primero."
+      },
+      {
+        "optionKey": "opcion-cuerpo-primero",
+        "label": "El cuerpo produce la emoción y la mente solo la nombra después."
+      },
+      {
+        "optionKey": "opcion-mente-primero",
+        "label": "La interpretación siempre ocurre antes de cualquier cambio corporal."
+      }
+    ]
+  },
+  "eec-c4-recall-metafora-teoria-evidencia": {
+    "question": "Según el capítulo 4, que una explicación sobre el cuerpo sea intuitiva y popular demuestra que…",
+    "options": [
+      {
+        "optionKey": "opcion-cada-mecanismo",
+        "label": "Nada por sí solo: cada uno de sus mecanismos necesita evidencia independiente."
+      },
+      {
+        "optionKey": "opcion-confirmada",
+        "label": "Que ha sido confirmada, porque de otro modo no se habría extendido tanto."
+      },
+      {
+        "optionKey": "opcion-inutil",
+        "label": "Que es inútil para conversar y conviene descartarla por completo."
+      }
+    ]
+  },
+  "eec-c4-recall-observar-requiere-eleccion": {
+    "question": "Según el capítulo 4, que una práctica de atención corporal ayude a alguien permite concluir que…",
+    "options": [
+      {
+        "optionKey": "opcion-no-universal",
+        "label": "Le ayudó a esa persona en ese momento: «útil» no significa beneficioso para cualquiera siempre."
+      },
+      {
+        "optionKey": "opcion-universal",
+        "label": "Es una técnica reguladora que conviene recomendar a todo el mundo."
+      },
+      {
+        "optionKey": "opcion-peligrosa",
+        "label": "Es una práctica peligrosa que debería evitarse por precaución."
+      }
+    ]
+  },
+  "eec-c5-recall-emocion-no-es-historia": {
+    "question": "Según el capítulo 5, ¿qué relación describe la evidencia entre el relato y lo que sentimos?",
+    "options": [
+      {
+        "optionKey": "opcion-participa",
+        "label": "El relato participa junto al cuerpo, el contexto y lo aprendido; no equivale por sí solo a la emoción."
+      },
+      {
+        "optionKey": "opcion-determina",
+        "label": "Construir una historia coherente basta para mejorar cómo nos sentimos."
+      },
+      {
+        "optionKey": "opcion-irrelevante",
+        "label": "La forma de narrarnos no guarda ninguna relación con el bienestar."
+      }
+    ]
+  },
+  "eec-c5-recall-silencio-sin-subtitulos": {
+    "question": "Según el capítulo 5, un hecho ambiguo como un mensaje leído sin respuesta trae consigo…",
+    "options": [
+      {
+        "optionKey": "opcion-sin-explicacion",
+        "label": "Solo el hecho: la explicación es un subtítulo que añadimos nosotros."
+      },
+      {
+        "optionKey": "opcion-con-significado",
+        "label": "Su significado, si prestamos suficiente atención a los detalles."
+      },
+      {
+        "optionKey": "opcion-nada-que-pensar",
+        "label": "Nada relevante: interpretar un silencio siempre es un error que conviene evitar."
+      }
+    ]
+  },
+  "eec-c5-recall-historia-dominante-no-es-identidad": {
+    "question": "Según el capítulo 5, la re-autoría en el enfoque narrativo consiste en…",
+    "options": [
+      {
+        "optionKey": "opcion-revisar-indice",
+        "label": "Revisar el índice de un libro ya escrito: incorporar hechos que el relato dominante había dejado fuera."
+      },
+      {
+        "optionKey": "opcion-inventar",
+        "label": "Inventar capítulos nuevos que reemplacen los recuerdos difíciles."
+      },
+      {
+        "optionKey": "opcion-positivo",
+        "label": "Demostrar que la conclusión negativa siempre fue falsa desde el principio."
+      }
+    ]
+  },
+  "eec-c5-recall-recordar-reconstruye": {
+    "question": "Según el capítulo 5, que la memoria autobiográfica sea reconstructiva significa que…",
+    "options": [
+      {
+        "optionKey": "opcion-selecciona",
+        "label": "Selecciona, reconstruye e integra; eso no autoriza a reescribir los hechos a voluntad."
+      },
+      {
+        "optionKey": "opcion-libre",
+        "label": "Podemos reinterpretar el pasado libremente, porque ningún recuerdo es fiable."
+      },
+      {
+        "optionKey": "opcion-grabacion",
+        "label": "Funciona como una grabación: si el recuerdo es vívido, ocurrió tal cual."
+      }
+    ]
+  },
+  "eec-c5-recall-reescribir-abre-opciones": {
+    "question": "Según el capítulo 5, ¿qué promete revisar el relato de una situación?",
+    "options": [
+      {
+        "optionKey": "opcion-abre-opciones",
+        "label": "Puede ampliar significado, preguntas y acciones posibles; no garantiza otra emoción."
+      },
+      {
+        "optionKey": "opcion-calma",
+        "label": "Que la emoción difícil disminuya si la nueva versión es suficientemente amable."
+      },
+      {
+        "optionKey": "opcion-aprendizaje",
+        "label": "Que el dolor se convierta en aprendizaje si se cuenta de la manera correcta."
+      }
+    ]
+  },
+  "eec-c6-recall-sentir-se-aprende-con-otros": {
+    "question": "Según el capítulo 6, añadir el plano relacional al análisis de una emoción…",
+    "options": [
+      {
+        "optionKey": "opcion-no-elimina",
+        "label": "Añade información sin eliminar el plano individual: cuerpo, historia y conceptos siguen participando."
+      },
+      {
+        "optionKey": "opcion-sustituye",
+        "label": "Sustituye al plano individual, porque las emociones ocurren realmente entre personas."
+      },
+      {
+        "optionKey": "opcion-determina",
+        "label": "Demuestra que la relación determina lo que cada persona sentirá."
+      }
+    ]
+  },
+  "eec-c6-recall-regular-juntos-no-es-controlar": {
+    "question": "Según el capítulo 6, co-regular con otra persona significa…",
+    "options": [
+      {
+        "optionKey": "opcion-ajuste-mutuo",
+        "label": "Un ajuste mutuo que puede estabilizar o intensificar; no lograr que el otro sienta lo que queremos."
+      },
+      {
+        "optionKey": "opcion-prestar-calma",
+        "label": "Prestarle calma a alguien para que su emoción difícil disminuya."
+      },
+      {
+        "optionKey": "opcion-siempre-bueno",
+        "label": "Un proceso que, por definición, mejora el estado emocional de ambas personas."
+      }
+    ]
+  },
+  "eec-c6-recall-ciclo-no-es-culpa-compartida": {
+    "question": "Según el capítulo 6, describir un ciclo recíproco entre dos personas significa…",
+    "options": [
+      {
+        "optionKey": "opcion-como-se-sostiene",
+        "label": "Mostrar cómo cada respuesta vuelve más probable la siguiente; no repartir la culpa a medias."
+      },
+      {
+        "optionKey": "opcion-50-50",
+        "label": "Que ambas personas son igualmente responsables de lo que ocurre."
+      },
+      {
+        "optionKey": "opcion-nadie",
+        "label": "Que nadie es responsable, porque el ciclo actúa por encima de las personas."
+      }
+    ]
+  },
+  "eec-c6-recall-parecidos-que-no-son-sinonimos": {
+    "question": "Según el capítulo 6, que dos personas sientan algo parecido al mismo tiempo demuestra…",
+    "options": [
+      {
+        "optionKey": "opcion-solo-coincidencia",
+        "label": "Que hubo coincidencia: no demuestra por sí solo empatía, amor ni salud relacional."
+      },
+      {
+        "optionKey": "opcion-empatia",
+        "label": "Que existe empatía entre ellas, porque sentir lo mismo es comprender al otro."
+      },
+      {
+        "optionKey": "opcion-nada-real",
+        "label": "Que ninguna de las dos siente realmente nada propio en ese momento."
+      }
+    ]
+  },
+  "eec-c6-recall-influencia-no-es-destino": {
+    "question": "Según el capítulo 6, ¿dónde deja de aplicarse con justicia la idea de circularidad?",
+    "options": [
+      {
+        "optionKey": "opcion-coercion",
+        "label": "Donde hay coerción, violencia o asimetría grave de poder: ahí no se lee como responsabilidad recíproca."
+      },
+      {
+        "optionKey": "opcion-siempre",
+        "label": "En ningún caso: todo vínculo puede describirse como un ciclo entre iguales."
+      },
+      {
+        "optionKey": "opcion-familia",
+        "label": "Solo dentro de la familia; fuera de ella las relaciones no forman ciclos."
+      }
+    ]
+  },
+  "eec-c7-recall-suspender-equivalencias": {
+    "question": "Según el capítulo 7, cuando alguien expresa una emoción de forma distinta a la esperada, lo primero que conviene hacer es…",
+    "options": [
+      {
+        "optionKey": "opcion-suspender",
+        "label": "Suspender la equivalencia automática entre la señal y la emoción, la causa o la intención."
+      },
+      {
+        "optionKey": "opcion-manual",
+        "label": "Consultar qué significa ese gesto en la cultura de esa persona."
+      },
+      {
+        "optionKey": "opcion-ignorar",
+        "label": "Ignorar la señal, porque las expresiones no aportan información fiable."
+      }
+    ]
+  },
+  "eec-c7-recall-expectativa-cambia-la-lectura": {
+    "question": "Según el capítulo 7, ¿qué papel juega la expectativa propia al leer la conducta de alguien cercano?",
+    "options": [
+      {
+        "optionKey": "opcion-influye",
+        "label": "Influye en la interpretación: si la ayuda no se parece a la esperada, es fácil leerla como desinterés."
+      },
+      {
+        "optionKey": "opcion-no-influye",
+        "label": "Ninguno: la conducta observable habla por sí misma y no depende de quien mira."
+      },
+      {
+        "optionKey": "opcion-explica-todo",
+        "label": "Explica por completo el malentendido, sin que haga falta comprobar nada más."
+      }
+    ]
+  },
+  "eec-c7-recall-diferencia-no-es-excusa": {
+    "question": "Según el capítulo 7, ¿qué permite y qué no permite explicar una conducta por el contexto cultural?",
+    "options": [
+      {
+        "optionKey": "opcion-explica-no-justifica",
+        "label": "Puede explicar parte de la conducta; no convierte el daño, la coerción o la discriminación en algo incuestionable."
+      },
+      {
+        "optionKey": "opcion-justifica",
+        "label": "Si una conducta pertenece a la cultura de alguien, cuestionarla sería imponer la propia."
+      },
+      {
+        "optionKey": "opcion-irrelevante",
+        "label": "El contexto cultural nunca aporta nada útil para entender un desacuerdo."
+      }
+    ]
+  },
+  "eec-c7-recall-muchos-repertorios-dentro": {
+    "question": "Según el capítulo 7, encontrar una diferencia promedio entre dos países demuestra…",
+    "options": [
+      {
+        "optionKey": "opcion-solo-promedio",
+        "label": "Una diferencia entre esas muestras: no que la causa sea la cultura ni que describa a cada persona."
+      },
+      {
+        "optionKey": "opcion-cultura",
+        "label": "Que la cultura de esos países produce esa diferencia emocional."
+      },
+      {
+        "optionKey": "opcion-nada",
+        "label": "Nada en absoluto: las comparaciones entre países no aportan información."
+      }
+    ]
+  },
+  "eec-c7-recall-preguntar-es-traducir": {
+    "question": "Según el capítulo 7, la humildad cultural implica…",
+    "options": [
+      {
+        "optionKey": "opcion-mapa-incompleto",
+        "label": "Reconocer que nuestro mapa puede estar incompleto y atender a la persona concreta, no al estereotipo."
+      },
+      {
+        "optionKey": "opcion-no-saber",
+        "label": "Fingir que no sabemos nada sobre las diferencias culturales para no ofender."
+      },
+      {
+        "optionKey": "opcion-aceptar-todo",
+        "label": "Aceptar cualquier conducta con tal de no imponer la propia manera de sentir."
+      }
+    ]
+  },
+  "eec-c8-recall-sentirlo-no-lo-vuelve-verdad": {
+    "question": "Según el capítulo 8, sentir culpa después de poner un límite establece que…",
+    "options": [
+      {
+        "optionKey": "opcion-importa",
+        "label": "Algo importa en esa relación; no que se haya hecho daño ni que la negativa fuera injusta."
+      },
+      {
+        "optionKey": "opcion-culpable",
+        "label": "Que probablemente se hizo algo mal, porque la culpa no aparece sin motivo."
+      },
+      {
+        "optionKey": "opcion-irrelevante",
+        "label": "Nada: la culpa es una emoción que conviene descartar al tomar decisiones."
+      }
+    ]
+  },
+  "eec-c8-recall-muestra-lo-que-importa-no-que-hacer": {
+    "question": "Según el capítulo 8, ¿qué autoriza la intensidad de una emoción como los celos?",
+    "options": [
+      {
+        "optionKey": "opcion-no-autoriza",
+        "label": "Nada por sí sola: puede señalar que algo importa, y no da derecho a revisar el teléfono de alguien ni a controlarlo."
+      },
+      {
+        "optionKey": "opcion-autoriza",
+        "label": "Justifica comprobar lo que ocurre, porque una emoción tan fuerte suele tener razón."
+      },
+      {
+        "optionKey": "opcion-reprimir",
+        "label": "Indica que la emoción debe reprimirse hasta que desaparezca."
+      }
+    ]
+  },
+  "eec-c8-recall-pista-evidencia-veredicto": {
+    "question": "Según el capítulo 8, comprender por qué apareció una emoción demuestra que…",
+    "options": [
+      {
+        "optionKey": "opcion-explica-no-confirma",
+        "label": "Explica su aparición; no demuestra que la interpretación que la acompaña sea correcta esta vez."
+      },
+      {
+        "optionKey": "opcion-confirma",
+        "label": "Confirma la interpretación, porque una reacción con historia responde a algo real."
+      },
+      {
+        "optionKey": "opcion-invalida",
+        "label": "La invalida: si viene del pasado, la emoción no aporta información sobre el presente."
+      }
+    ]
+  },
+  "eec-c8-recall-validar-no-es-dar-la-razon": {
+    "question": "Según el capítulo 8, decir «entiendo que estés furioso» valida…",
+    "options": [
+      {
+        "optionKey": "opcion-solo-experiencia",
+        "label": "La experiencia de esa persona; no su interpretación de los hechos ni cualquier conducta."
+      },
+      {
+        "optionKey": "opcion-todo",
+        "label": "Su versión completa de lo ocurrido, porque validar implica dar la razón."
+      },
+      {
+        "optionKey": "opcion-nada",
+        "label": "Nada relevante: es una fórmula de cortesía sin efecto real."
+      }
+    ]
+  },
+  "eec-c8-recall-antes-de-actuar-amplia-el-examen": {
+    "question": "Según el capítulo 8, ¿qué añade el discernimiento antes de elegir una respuesta?",
+    "options": [
+      {
+        "optionKey": "opcion-amplia",
+        "label": "Evidencia, valores elegidos, derechos, consecuencias, perspectivas que faltan y responsabilidad."
+      },
+      {
+        "optionKey": "opcion-emocion-correcta",
+        "label": "Una manera de identificar cuál era la emoción correcta en esa situación."
+      },
+      {
+        "optionKey": "opcion-rapidez",
+        "label": "Un criterio para elegir la acción que reduzca el malestar más rápido."
+      }
+    ]
+  },
+  "eec-c9-recall-construido-no-significa-elegido": {
+    "question": "Según el capítulo 9, que una emoción dependa de aprendizaje y construcción significa que…",
+    "options": [
+      {
+        "optionKey": "opcion-influir",
+        "label": "Se puede influir en ella y seguir aprendiendo; no que se pueda elegir directamente lo que se siente."
+      },
+      {
+        "optionKey": "opcion-elegir",
+        "label": "Se puede decidir qué sentir, si se aprende la técnica adecuada."
+      },
+      {
+        "optionKey": "opcion-fija",
+        "label": "No se puede cambiar nada, porque lo aprendido queda fijado para siempre."
+      }
+    ]
+  },
+  "eec-c9-recall-tecnica-util-no-es-universal": {
+    "question": "Según el capítulo 9, que una técnica de regulación funcione en promedio significa que…",
+    "options": [
+      {
+        "optionKey": "opcion-segun-problema",
+        "label": "Responde a cierto problema en cierto contexto; no es la respuesta correcta para todo."
+      },
+      {
+        "optionKey": "opcion-universal",
+        "label": "Conviene aplicarla siempre que aparezca una emoción difícil."
+      },
+      {
+        "optionKey": "opcion-inutil",
+        "label": "No sirve realmente, porque los promedios no describen a nadie."
+      }
+    ]
+  },
+  "eec-c9-recall-define-que-quieres-cambiar": {
+    "question": "Según el capítulo 9, ¿contra qué se evalúa una estrategia de regulación?",
+    "options": [
+      {
+        "optionKey": "opcion-objetivo",
+        "label": "Contra el objetivo que se perseguía, que no siempre es sentirse mejor."
+      },
+      {
+        "optionKey": "opcion-intensidad",
+        "label": "Contra cuánto bajó la intensidad de la emoción desagradable."
+      },
+      {
+        "optionKey": "opcion-rapidez",
+        "label": "Contra la rapidez con que la emoción desapareció."
+      }
+    ]
+  },
+  "eec-c9-recall-cuatro-puertas": {
+    "question": "Según el capítulo 9, elegir una de las cuatro puertas de intervención garantiza…",
+    "options": [
+      {
+        "optionKey": "opcion-no-garantiza",
+        "label": "Nada por sí solo: identifica dónde se está interviniendo, sin prometer que la emoción cambie."
+      },
+      {
+        "optionKey": "opcion-resultado",
+        "label": "Que la emoción disminuya, si la puerta elegida es la adecuada."
+      },
+      {
+        "optionKey": "opcion-unica",
+        "label": "Que ya no hará falta usar ninguna de las otras tres."
+      }
+    ]
+  },
+  "eec-c9-recall-repensar-ocurre-despues": {
+    "question": "Según el capítulo 9, la regulación emocional termina…",
+    "options": [
+      {
+        "optionKey": "opcion-no-termina",
+        "label": "No termina cuando baja la intensidad: cada episodio deja información que puede alimentar predicciones nuevas."
+      },
+      {
+        "optionKey": "opcion-baja",
+        "label": "Cuando la emoción baja de intensidad y se recupera la calma."
+      },
+      {
+        "optionKey": "opcion-nunca-cambia",
+        "label": "Nunca produce aprendizaje, porque las expectativas antiguas siempre vuelven."
+      }
+    ]
+  },
+  "eec-c10-recall-hacer-espacio-no-es-confirmar": {
+    "question": "Según el capítulo 10, hacer espacio a la experiencia de alguien valida…",
+    "options": [
+      {
+        "optionKey": "opcion-experiencia",
+        "label": "Que algo le afectó; no confirma que su interpretación de lo ocurrido sea correcta."
+      },
+      {
+        "optionKey": "opcion-toda-historia",
+        "label": "Toda su versión de los hechos, porque de otro modo no se sentiría acompañado."
+      },
+      {
+        "optionKey": "opcion-nada",
+        "label": "Nada todavía: primero hay que averiguar si la interpretación es correcta."
+      }
+    ]
+  },
+  "eec-c10-recall-no-narrador-de-la-mente-ajena": {
+    "question": "Según el capítulo 10, ¿qué evita quien acompaña sin convertirse en narrador de la mente ajena?",
+    "options": [
+      {
+        "optionKey": "opcion-no-cierra",
+        "label": "Cerrar la historia antes de conocerla, atribuyendo intenciones a terceros que nadie ha comprobado."
+      },
+      {
+        "optionKey": "opcion-no-nombra",
+        "label": "Nombrar cualquier emoción, porque hacerlo siempre condiciona a la otra persona."
+      },
+      {
+        "optionKey": "opcion-no-pregunta",
+        "label": "Hacer preguntas, ya que preguntar puede parecer una duda sobre su relato."
+      }
+    ]
+  },
+  "eec-c10-recall-emocion-si-conducta-con-limites": {
+    "question": "Según el capítulo 10, ¿qué relación hay entre validar una emoción y permitir una conducta?",
+    "options": [
+      {
+        "optionKey": "opcion-distintas",
+        "label": "Son cosas distintas: la emoción puede estar presente y la conducta seguir teniendo límites."
+      },
+      {
+        "optionKey": "opcion-implica",
+        "label": "Validar la emoción implica aceptar la conducta que viene con ella."
+      },
+      {
+        "optionKey": "opcion-castigar",
+        "label": "Para poner un límite eficaz hay que dejar claro que esa emoción no corresponde."
+      }
+    ]
+  },
+  "eec-c10-recall-ayudar-sin-borrar-la-agencia": {
+    "question": "Según el capítulo 10, ¿de qué depende el nivel de ayuda adecuado al acompañar a alguien?",
+    "options": [
+      {
+        "optionKey": "opcion-contexto",
+        "label": "De la edad, el riesgo, el poder y el contexto: escuchar, ofrecer opciones o intervenir no son intercambiables."
+      },
+      {
+        "optionKey": "opcion-maximo",
+        "label": "Conviene siempre el nivel máximo: resolverlo evita sufrimiento innecesario."
+      },
+      {
+        "optionKey": "opcion-minimo",
+        "label": "Conviene siempre escuchar sin intervenir, para no quitar autonomía."
+      }
+    ]
+  },
+  "eec-c10-recall-cambiar-el-escenario": {
+    "question": "Según el capítulo 10, enseñar a alguien a regularse mejor ante un problema que se repite…",
+    "options": [
+      {
+        "optionKey": "opcion-no-sustituye",
+        "label": "Puede ayudar y no sustituye modificar la condición que genera el problema una y otra vez."
+      },
+      {
+        "optionKey": "opcion-suficiente",
+        "label": "Es suficiente: con la habilidad adecuada, cualquier entorno se vuelve manejable."
+      },
+      {
+        "optionKey": "opcion-inutil",
+        "label": "Es inútil mientras el entorno no cambie, así que conviene no enseñar nada."
+      }
+    ]
+  }
+}

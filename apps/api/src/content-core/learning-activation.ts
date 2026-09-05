@@ -17,6 +17,11 @@ import {
   type ConceptIngestStats,
 } from "./concept-ingestion";
 import { unitKeyFromLegacyChapterId } from "./lib/block-key";
+import {
+  ownerColumns,
+  sameOwner,
+  type ExerciseOwner,
+} from "./lib/exercise-owner";
 
 /**
  * Content Core — materialize the LEARNING targets of a book that already
@@ -153,7 +158,17 @@ export interface LearningActivationPlan {
   catalog_exercise_count: number;
   /** Catalogued chapter orders — the ONLY ones this activator needs. */
   catalog_chapter_orders: string;
+  /**
+   * Catalogued orders with no legacy `Chapter` row. INFORMATIVE — a natively
+   * published chapter has none and needs none. `owner_missing_count` is the
+   * one that gates safety.
+   */
   chapter_missing_count: number;
+  /** Catalogued orders with neither a placed unit nor an adopted chapter. */
+  owner_missing_count: number;
+  /** How the resolved orders split between the two ownership kinds. */
+  legacy_owner_count: number;
+  native_owner_count: number;
   unit_missing_count: number;
   unit_not_in_revision_count: number;
 
@@ -210,7 +225,13 @@ export function catalogChapterOrders(bookSlug: string): number[] {
 interface ResolvedContext {
   editionId: string;
   publishedRevisionId: string;
-  chapterIdByOrder: Map<number, string>;
+  /**
+   * Who owns the exercises at each catalogued order — an adopted legacy
+   * chapter, or the native unit itself. Replaces the old `chapterIdByOrder`,
+   * which could only express the first of those.
+   */
+  ownerByOrder: Map<number, ExerciseOwner>;
+  /** Still separate: the source heading is looked up in the unit either way. */
   unitIdByOrder: Map<number, string>;
 }
 
@@ -219,9 +240,22 @@ interface ContextResolution {
   bookExists: boolean;
   editionExists: boolean;
   publishedRevisionExists: boolean;
+  /**
+   * Catalogued orders with no legacy `Chapter` row.
+   *
+   * INFORMATIVE ONLY. It used to gate `activation_safe`, which is precisely the
+   * rule that made a natively-published chapter unservable: it has no legacy
+   * row and cannot be given one. The gate is now `ownerMissing`, which asks the
+   * question that actually matters — is there an owner at all?
+   */
   chapterMissing: number;
+  /** Catalogued orders with neither a placed unit nor an adopted chapter. */
+  ownerMissing: number;
   unitMissing: number;
   unitNotInRevision: number;
+  /** How the resolved orders split, for the report. */
+  legacyOwnerCount: number;
+  nativeOwnerCount: number;
 }
 
 /**
@@ -244,8 +278,11 @@ async function resolveActivationContext(
     editionExists: false,
     publishedRevisionExists: false,
     chapterMissing: 0,
+    ownerMissing: 0,
     unitMissing: 0,
     unitNotInRevision: 0,
+    legacyOwnerCount: 0,
+    nativeOwnerCount: 0,
   };
 
   const book = await db.book.findUnique({
@@ -286,67 +323,107 @@ async function resolveActivationContext(
     return { ...miss, bookExists: true, editionExists: true };
   }
 
-  const chapterIdByOrder = new Map<number, string>();
+  // ── The published manifest is the authority for "what is at position N" ──
+  //
+  // Read once, not per order: this used to be a query per catalogued chapter,
+  // which is also how the old rule hid — each iteration started from a
+  // `Chapter` row and could not proceed without one.
+  const placements = await db.revisionUnit.findMany({
+    where: { revisionId: revision.id },
+    select: { order: true, unitId: true, unit: { select: { unitKey: true } } },
+  });
+  const placementByOrder = new Map(placements.map((p) => [p.order, p]));
+
+  const chapters = await db.chapter.findMany({
+    where: { bookId: book.id },
+    select: { id: true, order: true },
+  });
+  // Adoption is identity, never position: a chapter owns the unit whose key is
+  // `uuidv5(chapter.id)`. Keyed that way so a stale `Chapter.order` cannot make
+  // a chapter look like the owner of a unit it has nothing to do with.
+  const chapterByUnitKey = new Map(
+    chapters.map((c) => [unitKeyFromLegacyChapterId(c.id), c]),
+  );
+  const chapterOrders = new Set(chapters.map((c) => c.order));
+
+  const ownerByOrder = new Map<number, ExerciseOwner>();
   const unitIdByOrder = new Map<number, string>();
   let chapterMissing = 0;
+  let ownerMissing = 0;
   let unitMissing = 0;
   let unitNotInRevision = 0;
+  let legacyOwnerCount = 0;
+  let nativeOwnerCount = 0;
 
   for (const order of catalogChapterOrders(bookSlug)) {
-    const chapter = await db.chapter.findFirst({
-      where: { bookId: book.id, order },
-      select: { id: true },
-    });
-    if (!chapter) {
-      if (strict) throw new Error(ACTIVATION_CHAPTER_NOT_FOUND);
-      chapterMissing += 1;
-      continue;
-    }
-    chapterIdByOrder.set(order, chapter.id);
+    if (!chapterOrders.has(order)) chapterMissing += 1;
 
-    const unit = await db.contentUnit.findUnique({
-      where: {
-        editionId_unitKey: {
-          editionId: edition.id,
-          unitKey: unitKeyFromLegacyChapterId(chapter.id),
+    const placement = placementByOrder.get(order);
+    if (!placement) {
+      // Nothing published at this position. Distinguish the two reasons, as
+      // before: a catalogued chapter whose unit was never created is a
+      // different failure from one deliberately left out of the revision.
+      const chapter = chapters.find((c) => c.order === order);
+      if (!chapter) {
+        if (strict) throw new Error(ACTIVATION_UNIT_NOT_FOUND);
+        ownerMissing += 1;
+        unitMissing += 1;
+        continue;
+      }
+      const unit = await db.contentUnit.findUnique({
+        where: {
+          editionId_unitKey: {
+            editionId: edition.id,
+            unitKey: unitKeyFromLegacyChapterId(chapter.id),
+          },
         },
-      },
-      select: { id: true },
-    });
-    if (!unit) {
-      if (strict) throw new Error(ACTIVATION_UNIT_NOT_FOUND);
-      unitMissing += 1;
-      continue;
-    }
-
-    const inRevision = await db.revisionUnit.findUnique({
-      where: {
-        revisionId_unitId: { revisionId: revision.id, unitId: unit.id },
-      },
-      select: { id: true },
-    });
-    if (!inRevision) {
+        select: { id: true },
+      });
+      if (!unit) {
+        if (strict) throw new Error(ACTIVATION_UNIT_NOT_FOUND);
+        ownerMissing += 1;
+        unitMissing += 1;
+        continue;
+      }
       if (strict) throw new Error(ACTIVATION_UNIT_NOT_IN_REVISION);
+      ownerMissing += 1;
       unitNotInRevision += 1;
       continue;
     }
 
-    unitIdByOrder.set(order, unit.id);
+    // A unit IS published here. Whether it is served through an adopted legacy
+    // chapter or natively is what decides ownership — and a native unit needs
+    // no `Chapter`, which is the entire point of this change.
+    const adopted = chapterByUnitKey.get(placement.unit.unitKey);
+    if (adopted) {
+      ownerByOrder.set(order, { kind: "legacy", chapterId: adopted.id });
+      legacyOwnerCount += 1;
+    } else {
+      ownerByOrder.set(order, {
+        kind: "native",
+        contentUnitId: placement.unitId,
+      });
+      nativeOwnerCount += 1;
+    }
+    unitIdByOrder.set(order, placement.unitId);
   }
 
   return {
     ctx: {
       editionId: edition.id,
       publishedRevisionId: revision.id,
-      chapterIdByOrder,
+      ownerByOrder,
       unitIdByOrder,
     },
     bookExists: true,
     editionExists: true,
     publishedRevisionExists: true,
     chapterMissing,
+    ownerMissing,
     unitMissing,
     unitNotInRevision,
+    legacyOwnerCount,
+    nativeOwnerCount,
   };
 }
 
@@ -420,6 +497,9 @@ export async function planBookLearningActivation(
     catalog_exercise_count: pairs.length * 2,
     catalog_chapter_orders: catalogChapterOrders(bookSlug).join("|") || "none",
     chapter_missing_count: 0,
+    owner_missing_count: 0,
+    legacy_owner_count: 0,
+    native_owner_count: 0,
     unit_missing_count: 0,
     unit_not_in_revision_count: 0,
     source_pair_count: pairs.length,
@@ -458,11 +538,14 @@ export async function planBookLearningActivation(
   plan.edition_exists = resolved.editionExists;
   plan.published_revision_exists = resolved.publishedRevisionExists;
   plan.chapter_missing_count = resolved.chapterMissing;
+  plan.owner_missing_count = resolved.ownerMissing;
+  plan.legacy_owner_count = resolved.legacyOwnerCount;
+  plan.native_owner_count = resolved.nativeOwnerCount;
   plan.unit_missing_count = resolved.unitMissing;
   plan.unit_not_in_revision_count = resolved.unitNotInRevision;
   if (!resolved.ctx) return plan;
 
-  const { chapterIdByOrder, unitIdByOrder } = resolved.ctx;
+  const { ownerByOrder, unitIdByOrder } = resolved.ctx;
 
   // ── Concept + link ────────────────────────────────────────────────────────
   for (const [orderStr, concept] of Object.entries(concepts)) {
@@ -490,16 +573,17 @@ export async function planBookLearningActivation(
   // ── Practice + recall, compared on the FULL stored semantics ──────────────
   for (const pair of pairs) {
     const order = pair.practice.chapterOrder;
-    const chapterId = chapterIdByOrder.get(order);
+    const owner = ownerByOrder.get(order);
     const unitId = unitIdByOrder.get(order);
+    const ownerCols = owner ? ownerColumns(owner) : null;
 
     // Per pair, never a global sum: one pair with 0 matches and another with 2
     // would total the pair count and read as safe.
     let sourceBlockKey: string | null = null;
-    if (chapterId && unitId) {
+    if (owner && unitId) {
       const found = await inspectPracticeSource(
         prisma,
-        chapterId,
+        owner.kind === "legacy" ? owner.chapterId : null,
         unitId,
         pair.practice.sourceHeading,
       );
@@ -518,6 +602,7 @@ export async function planBookLearningActivation(
       where: { id: pair.practice.exerciseKey },
       select: {
         chapterId: true,
+        contentUnitId: true,
         order: true,
         title: true,
         type: true,
@@ -526,7 +611,8 @@ export async function planBookLearningActivation(
     });
     if (!practice) bump(practiceC, "create");
     else if (
-      practice.chapterId !== chapterId ||
+      ownerCols === null ||
+      !sameOwner(practice, ownerCols) ||
       practice.order !== pair.practice.order ||
       practice.title !== pair.practice.title ||
       practice.type !== "REFLECTION" ||
@@ -545,6 +631,7 @@ export async function planBookLearningActivation(
       where: { id: pair.recall.exerciseKey },
       select: {
         chapterId: true,
+        contentUnitId: true,
         order: true,
         title: true,
         type: true,
@@ -553,7 +640,8 @@ export async function planBookLearningActivation(
     });
     if (!recall) bump(recallC, "create");
     else if (
-      recall.chapterId !== chapterId ||
+      ownerCols === null ||
+      !sameOwner(recall, ownerCols) ||
       recall.order !== pair.recall.order ||
       recall.title !== pair.recall.title ||
       recall.type !== "QUIZ" ||
@@ -582,7 +670,10 @@ export async function planBookLearningActivation(
     plan.book_exists &&
     plan.edition_exists &&
     plan.published_revision_exists &&
-    plan.chapter_missing_count === 0 &&
+    // NOT `chapter_missing_count`. A catalogued position needs an OWNER, and a
+    // natively-published chapter is its own — demanding a legacy row here is
+    // the rule that made such a chapter impossible to give a practice to.
+    plan.owner_missing_count === 0 &&
     plan.unit_missing_count === 0 &&
     plan.unit_not_in_revision_count === 0 &&
     plan.catalog_concept_count > 0 &&
@@ -657,7 +748,7 @@ export async function activateBookLearningCatalog(
       await ingestUnitExercises(
         tx,
         bookSlug,
-        ctx.chapterIdByOrder,
+        ctx.ownerByOrder,
         ctx.unitIdByOrder,
       );
 
@@ -678,13 +769,19 @@ export async function activateBookLearningCatalog(
       }
 
       for (const pair of pairs) {
-        const chapterId = ctx.chapterIdByOrder.get(pair.practice.chapterOrder);
+        const owner = ctx.ownerByOrder.get(pair.practice.chapterOrder);
+        const expected = owner ? ownerColumns(owner) : null;
         for (const def of [pair.practice, pair.recall]) {
           const row = await tx.exercise.findUnique({
             where: { id: def.exerciseKey },
-            select: { chapterId: true, type: true },
+            select: { chapterId: true, contentUnitId: true, type: true },
           });
-          if (!row || row.chapterId !== chapterId || row.type !== def.type) {
+          if (
+            !row ||
+            expected === null ||
+            !sameOwner(row, expected) ||
+            row.type !== def.type
+          ) {
             throw new Error(ACTIVATION_VERIFICATION_FAILED);
           }
         }

@@ -295,12 +295,17 @@ export async function backfillContentCore(
         // failure rolls the whole Book back; inert only for books absent from
         // the catalog. For catalog-listed books, missing chapter/unit/source
         // fails closed and rolls the Book transaction back.
-        await ingestUnitExercises(
-          tx,
-          book.slug,
-          chapterIdByOrder,
-          unitIdByOrder,
+        // Every owner here is legacy by construction: the backfill's whole job
+        // is adopting existing `Chapter` rows, so each order it resolved has
+        // one. Native ownership arrives through the learning activation path,
+        // which reads the published manifest instead of this chapter loop.
+        const ownerByOrder = new Map(
+          [...chapterIdByOrder].map(
+            ([order, chapterId]) =>
+              [order, { kind: "legacy", chapterId }] as const,
+          ),
         );
+        await ingestUnitExercises(tx, book.slug, ownerByOrder, unitIdByOrder);
 
         // 9. Verify expected counts before publishing.
         const ruCount = await tx.revisionUnit.count({

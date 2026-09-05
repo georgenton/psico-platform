@@ -345,7 +345,15 @@ export class BooksService {
         select: { id: true },
       }),
       this.prisma.exercise.findFirst({
-        where: { chapter: { bookId: book.id } },
+        // Either ownership counts. Asking only about legacy chapters would say
+        // "no exercises" for a book whose chapters are natively published,
+        // which is exactly the blind spot this change removes.
+        where: {
+          OR: [
+            { chapter: { bookId: book.id } },
+            { contentUnit: { edition: { slug: book.slug } } },
+          ],
+        },
         select: { id: true },
       }),
     ]);

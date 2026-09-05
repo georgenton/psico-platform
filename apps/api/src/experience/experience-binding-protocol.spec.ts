@@ -911,8 +911,11 @@ describe("ratchet · the cutover migrations say what they do", () => {
       "20260820010000_c3c_experience_archived_status",
       "20260820020000_c3c_experience_binding_shape",
     ]);
-    // 59 on `main` (C.3A's included), plus these two. C.3R adds none at all.
-    expect(dirs).toHaveLength(61);
+    // 59 on `main` (C.3A's included), plus these two, plus the one that gave
+    // `Exercise` a native owner — which is why this is 62 and not 61. That one
+    // is named here too, so the bump cannot be spent on something else.
+    expect(dirs).toContain("20260905120000_native_exercise_ownership");
+    expect(dirs).toHaveLength(62);
     expect(dirs.filter((d) => d.includes("c3r"))).toEqual([]);
   });
 

@@ -1,0 +1,737 @@
+{
+  "schema_version": "0.1-draft",
+  "chapter_id": "EEC-C09",
+  "canonical_version": "EEC_C09_v1.0_TEXT_LOCKED_2026-08-27",
+  "source_sha256_expected": "02b42dbdeef1136c560207d597b4c010250e19216dcb0e4c0592684914f1a956",
+  "_comment": "Un ancla por encabezado REAL del texto canónico, en su orden. `heading_exact` se coteja contra el bloque HEADING durante el build: si el texto cambiara, el ancla falla en vez de desplazarse en silencio.",
+  "anchors": [
+    {
+      "anchor_id": "eec-c9-repensar-lo-que-sientes",
+      "sequence": 1,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "Repensar lo que sientes",
+      "section_key": "REPENSAR_LO_QUE_SIENTES"
+    },
+    {
+      "anchor_id": "eec-c9-como-ampliar-tus-opciones-cuando-una-emocion-aparece",
+      "sequence": 2,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "Cómo ampliar tus opciones cuando una emoción aparece",
+      "section_key": "COMO_AMPLIAR_TUS_OPCIONES_CUANDO_UNA_EMOCION_APARECE"
+    },
+    {
+      "anchor_id": "eec-c9-que-necesito-hacer-aqui",
+      "sequence": 3,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "**¿Qué necesito hacer aquí?**",
+      "section_key": "QUE_NECESITO_HACER_AQUI"
+    },
+    {
+      "anchor_id": "eec-c9-respira",
+      "sequence": 4,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "*Respira.*",
+      "section_key": "RESPIRA"
+    },
+    {
+      "anchor_id": "eec-c9-no-sobrepienses",
+      "sequence": 5,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "*No sobrepienses.*",
+      "section_key": "NO_SOBREPIENSES"
+    },
+    {
+      "anchor_id": "eec-c9-cambia-tu-pensamiento",
+      "sequence": 6,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "*Cambia tu pensamiento.*",
+      "section_key": "CAMBIA_TU_PENSAMIENTO"
+    },
+    {
+      "anchor_id": "eec-c9-acepta",
+      "sequence": 7,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "*Acepta.*",
+      "section_key": "ACEPTA"
+    },
+    {
+      "anchor_id": "eec-c9-no-reprimas",
+      "sequence": 8,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "*No reprimas.*",
+      "section_key": "NO_REPRIMAS"
+    },
+    {
+      "anchor_id": "eec-c9-medita",
+      "sequence": 9,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "*Medita.*",
+      "section_key": "MEDITA"
+    },
+    {
+      "anchor_id": "eec-c9-se-agradecido",
+      "sequence": 10,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "*Sé agradecido.*",
+      "section_key": "SE_AGRADECIDO"
+    },
+    {
+      "anchor_id": "eec-c9-desarrolla-inteligencia-emocional",
+      "sequence": 11,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "*Desarrolla inteligencia emocional.*",
+      "section_key": "DESARROLLA_INTELIGENCIA_EMOCIONAL"
+    },
+    {
+      "anchor_id": "eec-c9-1-no-siempre-necesitas-sentirte-mejor-para-responder-mejor",
+      "sequence": 12,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "1. No siempre necesitas sentirte mejor para responder mejor",
+      "section_key": "1_NO_SIEMPRE_NECESITAS_SENTIRTE_MEJOR_PARA_RESPONDER_MEJOR"
+    },
+    {
+      "anchor_id": "eec-c9-como-quiero-sentirme",
+      "sequence": 13,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "**¿Cómo quiero sentirme?**",
+      "section_key": "COMO_QUIERO_SENTIRME"
+    },
+    {
+      "anchor_id": "eec-c9-y",
+      "sequence": 14,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "y",
+      "section_key": "Y"
+    },
+    {
+      "anchor_id": "eec-c9-que-necesito-lograr",
+      "sequence": 15,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "**¿Qué necesito lograr?**",
+      "section_key": "QUE_NECESITO_LOGRAR"
+    },
+    {
+      "anchor_id": "eec-c9-2-tu-cerebro-no-espera-a-tener-toda-la-informacion",
+      "sequence": 16,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "2. Tu cerebro no espera a tener toda la información",
+      "section_key": "2_TU_CEREBRO_NO_ESPERA_A_TENER_TODA_LA_INFORMACION"
+    },
+    {
+      "anchor_id": "eec-c9-si-no-aceptas-dejaremos-de-quererte",
+      "sequence": 17,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "*Si no aceptas, dejaremos de quererte.*",
+      "section_key": "SI_NO_ACEPTAS_DEJAREMOS_DE_QUERERTE"
+    },
+    {
+      "anchor_id": "eec-c9-3-una-comparacion-con-la-inteligencia-artificial-y-donde-termina",
+      "sequence": 18,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "3. Una comparación con la inteligencia artificial —y dónde termina",
+      "section_key": "3_UNA_COMPARACION_CON_LA_INTELIGENCIA_ARTIFICIAL_Y_DONDE_TER"
+    },
+    {
+      "anchor_id": "eec-c9-culpa-false",
+      "sequence": 19,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "`culpa = false`",
+      "section_key": "CULPA_FALSE"
+    },
+    {
+      "anchor_id": "eec-c9-4-construido-no-significa-elegido",
+      "sequence": 20,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "4. Construido no significa elegido",
+      "section_key": "4_CONSTRUIDO_NO_SIGNIFICA_ELEGIDO"
+    },
+    {
+      "anchor_id": "eec-c9-entonces-puedo-construir-la-que-quiera",
+      "sequence": 21,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "*Entonces puedo construir la que quiera.*",
+      "section_key": "ENTONCES_PUEDO_CONSTRUIR_LA_QUE_QUIERA"
+    },
+    {
+      "anchor_id": "eec-c9-entonces-puedo-ensenarle-a-predecir-solamente-cosas-buenas",
+      "sequence": 22,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "*Entonces puedo enseñarle a predecir solamente cosas buenas.*",
+      "section_key": "ENTONCES_PUEDO_ENSENARLE_A_PREDECIR_SOLAMENTE_COSAS_BUENAS"
+    },
+    {
+      "anchor_id": "eec-c9-entonces-puedo-reprogramarlo",
+      "sequence": 23,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "*Entonces puedo reprogramarlo.*",
+      "section_key": "ENTONCES_PUEDO_REPROGRAMARLO"
+    },
+    {
+      "anchor_id": "eec-c9-construccion-no-es-sinonimo-de-fabricacion-consciente",
+      "sequence": 24,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "**Construcción no es sinónimo de fabricación consciente.**",
+      "section_key": "CONSTRUCCION_NO_ES_SINONIMO_DE_FABRICACION_CONSCIENTE"
+    },
+    {
+      "anchor_id": "eec-c9-repensar",
+      "sequence": 25,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "**Repensar**",
+      "section_key": "REPENSAR"
+    },
+    {
+      "anchor_id": "eec-c9-5-repensar-no-es-pensar-positivo",
+      "sequence": 26,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "5. Repensar no es pensar positivo",
+      "section_key": "5_REPENSAR_NO_ES_PENSAR_POSITIVO"
+    },
+    {
+      "anchor_id": "eec-c9-modo-predicador",
+      "sequence": 27,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "Modo predicador",
+      "section_key": "MODO_PREDICADOR"
+    },
+    {
+      "anchor_id": "eec-c9-una-buena-hija-siempre-cuida-a-su-madre-decir-que-no-seria-egoista",
+      "sequence": 28,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "*Una buena hija siempre cuida a su madre. Decir que no sería egoísta.*",
+      "section_key": "UNA_BUENA_HIJA_SIEMPRE_CUIDA_A_SU_MADRE_DECIR_QUE_NO_SERIA_E"
+    },
+    {
+      "anchor_id": "eec-c9-modo-fiscal",
+      "sequence": 29,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "Modo fiscal",
+      "section_key": "MODO_FISCAL"
+    },
+    {
+      "anchor_id": "eec-c9-modo-politico",
+      "sequence": 30,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "Modo político",
+      "section_key": "MODO_POLITICO"
+    },
+    {
+      "anchor_id": "eec-c9-dire-que-si-para-que-nadie-se-moleste-conmigo",
+      "sequence": 31,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "*Diré que sí para que nadie se moleste conmigo.*",
+      "section_key": "DIRE_QUE_SI_PARA_QUE_NADIE_SE_MOLESTE_CONMIGO"
+    },
+    {
+      "anchor_id": "eec-c9-modo-investigador",
+      "sequence": 32,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "Modo investigador",
+      "section_key": "MODO_INVESTIGADOR"
+    },
+    {
+      "anchor_id": "eec-c9-si-digo-que-no-me-rechazaran",
+      "sequence": 33,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "*Si digo que no, me rechazarán.*",
+      "section_key": "SI_DIGO_QUE_NO_ME_RECHAZARAN"
+    },
+    {
+      "anchor_id": "eec-c9-todos-me-comprenderan",
+      "sequence": 34,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "*Todos me comprenderán.*",
+      "section_key": "TODOS_ME_COMPRENDERAN"
+    },
+    {
+      "anchor_id": "eec-c9-6-desaprender-no-es-borrar",
+      "sequence": 35,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "6. Desaprender no es borrar",
+      "section_key": "6_DESAPRENDER_NO_ES_BORRAR"
+    },
+    {
+      "anchor_id": "eec-c9-poner-limites-conflicto-culpa-ceder",
+      "sequence": 36,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "**poner límites → conflicto → culpa → ceder.**",
+      "section_key": "PONER_LIMITES_CONFLICTO_CULPA_CEDER"
+    },
+    {
+      "anchor_id": "eec-c9-poner-limites-incomodidad-conversacion-reparto-mas-justo",
+      "sequence": 37,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "**poner límites → incomodidad → conversación → reparto más justo.**",
+      "section_key": "PONER_LIMITES_INCOMODIDAD_CONVERSACION_REPARTO_MAS_JUSTO"
+    },
+    {
+      "anchor_id": "eec-c9-7-esperaba-a-ocurrio-b",
+      "sequence": 38,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "7. Esperaba A. Ocurrió B.",
+      "section_key": "7_ESPERABA_A_OCURRIO_B"
+    },
+    {
+      "anchor_id": "eec-c9-esperaba-a",
+      "sequence": 39,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "Esperaba A",
+      "section_key": "ESPERABA_A"
+    },
+    {
+      "anchor_id": "eec-c9-ocurrio-b",
+      "sequence": 40,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "Ocurrió B",
+      "section_key": "OCURRIO_B"
+    },
+    {
+      "anchor_id": "eec-c9-si-pongo-un-limite-perdere-el-vinculo",
+      "sequence": 41,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "**si pongo un límite, perderé el vínculo.**",
+      "section_key": "SI_PONGO_UN_LIMITE_PERDERE_EL_VINCULO"
+    },
+    {
+      "anchor_id": "eec-c9-8-la-sobremesa-que-sigue-dentro-de-tu-cabeza",
+      "sequence": 42,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "8. La sobremesa que sigue dentro de tu cabeza",
+      "section_key": "8_LA_SOBREMESA_QUE_SIGUE_DENTRO_DE_TU_CABEZA"
+    },
+    {
+      "anchor_id": "eec-c9-no-se",
+      "sequence": 43,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "**no sé.**",
+      "section_key": "NO_SE"
+    },
+    {
+      "anchor_id": "eec-c9-estoy-pensando-demasiado",
+      "sequence": 44,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "*¿Estoy pensando demasiado?*",
+      "section_key": "ESTOY_PENSANDO_DEMASIADO"
+    },
+    {
+      "anchor_id": "eec-c9-9-tomar-lo-mejor-sin-convertir-una-herramienta-en-religion",
+      "sequence": 45,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "9. Tomar lo mejor sin convertir una herramienta en religión",
+      "section_key": "9_TOMAR_LO_MEJOR_SIN_CONVERTIR_UNA_HERRAMIENTA_EN_RELIGION"
+    },
+    {
+      "anchor_id": "eec-c9-10-un-tablero-de-navegacion-no-un-control-remoto",
+      "sequence": 46,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "10. Un tablero de navegación, no un control remoto",
+      "section_key": "10_UN_TABLERO_DE_NAVEGACION_NO_UN_CONTROL_REMOTO"
+    },
+    {
+      "anchor_id": "eec-c9-calma",
+      "sequence": 47,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "*calma.*",
+      "section_key": "CALMA"
+    },
+    {
+      "anchor_id": "eec-c9-gratitud",
+      "sequence": 48,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "*gratitud.*",
+      "section_key": "GRATITUD"
+    },
+    {
+      "anchor_id": "eec-c9-confianza",
+      "sequence": 49,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "*confianza.*",
+      "section_key": "CONFIANZA"
+    },
+    {
+      "anchor_id": "eec-c9-motivacion",
+      "sequence": 50,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "*motivación.*",
+      "section_key": "MOTIVACION"
+    },
+    {
+      "anchor_id": "eec-c9-1-donde-estoy",
+      "sequence": 51,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "1. **¿Dónde estoy?**",
+      "section_key": "1_DONDE_ESTOY"
+    },
+    {
+      "anchor_id": "eec-c9-2-que-necesito-lograr",
+      "sequence": 52,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "2. **¿Qué necesito lograr?**",
+      "section_key": "2_QUE_NECESITO_LOGRAR"
+    },
+    {
+      "anchor_id": "eec-c9-3-que-puedo-modificar",
+      "sequence": 53,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "3. **¿Qué puedo modificar?**",
+      "section_key": "3_QUE_PUEDO_MODIFICAR"
+    },
+    {
+      "anchor_id": "eec-c9-4-que-ruta-probare",
+      "sequence": 54,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "4. **¿Qué ruta probaré?**",
+      "section_key": "4_QUE_RUTA_PROBARE"
+    },
+    {
+      "anchor_id": "eec-c9-5-que-ocurrio-y-necesito-recalcular",
+      "sequence": 55,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "5. **¿Qué ocurrió y necesito recalcular?**",
+      "section_key": "5_QUE_OCURRIO_Y_NECESITO_RECALCULAR"
+    },
+    {
+      "anchor_id": "eec-c9-11-tres-preguntas-antes-de-cualquier-tecnica",
+      "sequence": 56,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "11. Tres preguntas antes de cualquier técnica",
+      "section_key": "11_TRES_PREGUNTAS_ANTES_DE_CUALQUIER_TECNICA"
+    },
+    {
+      "anchor_id": "eec-c9-1-que-necesito-lograr",
+      "sequence": 57,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "1. ¿Qué necesito lograr?",
+      "section_key": "1_QUE_NECESITO_LOGRAR"
+    },
+    {
+      "anchor_id": "eec-c9-como-dejo-de-sentir-esto",
+      "sequence": 58,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "*¿Cómo dejo de sentir esto?*",
+      "section_key": "COMO_DEJO_DE_SENTIR_ESTO"
+    },
+    {
+      "anchor_id": "eec-c9-2-que-puedo-modificar",
+      "sequence": 59,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "2. ¿Qué puedo modificar?",
+      "section_key": "2_QUE_PUEDO_MODIFICAR"
+    },
+    {
+      "anchor_id": "eec-c9-3-como-sabre-si-ayudo",
+      "sequence": 60,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "3. ¿Cómo sabré si ayudó?",
+      "section_key": "3_COMO_SABRE_SI_AYUDO"
+    },
+    {
+      "anchor_id": "eec-c9-me-siento-menos-mal",
+      "sequence": 61,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "*¿me siento menos mal?*",
+      "section_key": "ME_SIENTO_MENOS_MAL"
+    },
+    {
+      "anchor_id": "eec-c9-12-cuatro-puertas",
+      "sequence": 62,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "12. Cuatro puertas",
+      "section_key": "12_CUATRO_PUERTAS"
+    },
+    {
+      "anchor_id": "eec-c9-puerta-1-cambiar-algo-afuera",
+      "sequence": 63,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "Puerta 1: cambiar algo afuera",
+      "section_key": "PUERTA_1_CAMBIAR_ALGO_AFUERA"
+    },
+    {
+      "anchor_id": "eec-c9-puerta-2-cambiar-cuanto-espacio-ocupa-ahora",
+      "sequence": 64,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "Puerta 2: cambiar cuánto espacio ocupa ahora",
+      "section_key": "PUERTA_2_CAMBIAR_CUANTO_ESPACIO_OCUPA_AHORA"
+    },
+    {
+      "anchor_id": "eec-c9-puerta-3-revisar-lo-que-estas-interpretando",
+      "sequence": 65,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "Puerta 3: revisar lo que estás interpretando",
+      "section_key": "PUERTA_3_REVISAR_LO_QUE_ESTAS_INTERPRETANDO"
+    },
+    {
+      "anchor_id": "eec-c9-puerta-4-no-cambiar-la-emocion-ahora-pero-si-elegir-que-hago",
+      "sequence": 66,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "Puerta 4: no cambiar la emoción ahora, pero sí elegir qué hago",
+      "section_key": "PUERTA_4_NO_CAMBIAR_LA_EMOCION_AHORA_PERO_SI_ELEGIR_QUE_HAGO"
+    },
+    {
+      "anchor_id": "eec-c9-13-la-misma-escena-cuatro-rutas",
+      "sequence": 67,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "13. La misma escena, cuatro rutas",
+      "section_key": "13_LA_MISMA_ESCENA_CUATRO_RUTAS"
+    },
+    {
+      "anchor_id": "eec-c9-ruta-a-cambiar-algo-afuera",
+      "sequence": 68,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "Ruta A — Cambiar algo afuera",
+      "section_key": "RUTA_A_CAMBIAR_ALGO_AFUERA"
+    },
+    {
+      "anchor_id": "eec-c9-ruta-b-reducir-el-espacio-que-ocupa-la-activacion",
+      "sequence": 69,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "Ruta B — Reducir el espacio que ocupa la activación",
+      "section_key": "RUTA_B_REDUCIR_EL_ESPACIO_QUE_OCUPA_LA_ACTIVACION"
+    },
+    {
+      "anchor_id": "eec-c9-ruta-c-revisar-la-interpretacion",
+      "sequence": 70,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "Ruta C — Revisar la interpretación",
+      "section_key": "RUTA_C_REVISAR_LA_INTERPRETACION"
+    },
+    {
+      "anchor_id": "eec-c9-ruta-d-elegir-la-conducta-aunque-la-emocion-continue",
+      "sequence": 71,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "Ruta D — Elegir la conducta aunque la emoción continúe",
+      "section_key": "RUTA_D_ELEGIR_LA_CONDUCTA_AUNQUE_LA_EMOCION_CONTINUE"
+    },
+    {
+      "anchor_id": "eec-c9-14-y-si-mi-estrategia-favorita-falla",
+      "sequence": 72,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "14. ¿Y si mi estrategia favorita falla?",
+      "section_key": "14_Y_SI_MI_ESTRATEGIA_FAVORITA_FALLA"
+    },
+    {
+      "anchor_id": "eec-c9-esta-estrategia-es-buena-o-mala",
+      "sequence": 73,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "*¿Esta estrategia es buena o mala?*",
+      "section_key": "ESTA_ESTRATEGIA_ES_BUENA_O_MALA"
+    },
+    {
+      "anchor_id": "eec-c9-15-repensar-tambien-es-aprender-para-la-proxima-vez",
+      "sequence": 74,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "15. Repensar también es aprender para la próxima vez",
+      "section_key": "15_REPENSAR_TAMBIEN_ES_APRENDER_PARA_LA_PROXIMA_VEZ"
+    },
+    {
+      "anchor_id": "eec-c9-puedes-crear-el-cerebro-que-quieras",
+      "sequence": 75,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "*“Puedes crear el cerebro que quieras.”*",
+      "section_key": "PUEDES_CREAR_EL_CEREBRO_QUE_QUIERAS"
+    },
+    {
+      "anchor_id": "eec-c9-puedes-sentir-lo-que-decidas",
+      "sequence": 76,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "**Puedes sentir lo que decidas.**",
+      "section_key": "PUEDES_SENTIR_LO_QUE_DECIDAS"
+    },
+    {
+      "anchor_id": "eec-c9-16-una-version-mas-precisa-de-desaprender",
+      "sequence": 77,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "16. Una versión más precisa de desaprender",
+      "section_key": "16_UNA_VERSION_MAS_PRECISA_DE_DESAPRENDER"
+    },
+    {
+      "anchor_id": "eec-c9-por-que-no-lo-supere-de-una-vez",
+      "sequence": 78,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "*¿Por qué no lo superé de una vez?*",
+      "section_key": "POR_QUE_NO_LO_SUPERE_DE_UNA_VEZ"
+    },
+    {
+      "anchor_id": "eec-c9-actividad-mapa-de-navegacion-emocional",
+      "sequence": 79,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "Actividad: Mapa de navegación emocional",
+      "section_key": "ACTIVIDAD_MAPA_DE_NAVEGACION_EMOCIONAL"
+    },
+    {
+      "anchor_id": "eec-c9-notar-elegir-probar-recalcular",
+      "sequence": 80,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "**NOTAR → ELEGIR → PROBAR → RECALCULAR**",
+      "section_key": "NOTAR_ELEGIR_PROBAR_RECALCULAR"
+    },
+    {
+      "anchor_id": "eec-c9-1-notar",
+      "sequence": 81,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "1. NOTAR",
+      "section_key": "1_NOTAR"
+    },
+    {
+      "anchor_id": "eec-c9-no-me-respondio-porque-no-le-importo",
+      "sequence": 82,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "*“No me respondió porque no le importo.”*",
+      "section_key": "NO_ME_RESPONDIO_PORQUE_NO_LE_IMPORTO"
+    },
+    {
+      "anchor_id": "eec-c9-le-hable-ayer-y-todavia-no-recibo-respuesta",
+      "sequence": 83,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "*“Le hablé ayer y todavía no recibo respuesta.”*",
+      "section_key": "LE_HABLE_AYER_Y_TODAVIA_NO_RECIBO_RESPUESTA"
+    },
+    {
+      "anchor_id": "eec-c9-2-elegir",
+      "sequence": 84,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "2. ELEGIR",
+      "section_key": "2_ELEGIR"
+    },
+    {
+      "anchor_id": "eec-c9-3-probar",
+      "sequence": 85,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "3. PROBAR",
+      "section_key": "3_PROBAR"
+    },
+    {
+      "anchor_id": "eec-c9-esperaba-a-2",
+      "sequence": 86,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "Esperaba A",
+      "section_key": "ESPERABA_A"
+    },
+    {
+      "anchor_id": "eec-c9-4-recalcular",
+      "sequence": 87,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "4. RECALCULAR",
+      "section_key": "4_RECALCULAR"
+    },
+    {
+      "anchor_id": "eec-c9-ocurrio-b-2",
+      "sequence": 88,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "Ocurrió B",
+      "section_key": "OCURRIO_B"
+    },
+    {
+      "anchor_id": "eec-c9-17-sigues-en-construccion",
+      "sequence": 89,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "17. Sigues en construcción",
+      "section_key": "17_SIGUES_EN_CONSTRUCCION"
+    },
+    {
+      "anchor_id": "eec-c9-emociones-en-construccion",
+      "sequence": 90,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "*Emociones en construcción.*",
+      "section_key": "EMOCIONES_EN_CONSTRUCCION"
+    },
+    {
+      "anchor_id": "eec-c9-sigues-en-construccion",
+      "sequence": 91,
+      "chapter_id": "EEC-C09",
+      "anchor_type": "heading",
+      "heading_exact": "**Sigues en construcción.**",
+      "section_key": "SIGUES_EN_CONSTRUCCION"
+    }
+  ]
+}

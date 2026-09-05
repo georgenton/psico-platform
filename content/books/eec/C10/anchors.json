@@ -1,0 +1,273 @@
+{
+  "schema_version": "0.1-draft",
+  "chapter_id": "EEC-C10",
+  "canonical_version": "EEC_C10_v1.0_TEXT_LOCKED_2026-08-27",
+  "source_sha256_expected": "a732ccb428e46787850b646c75e36a160cafbeb3280ff596d95d6297a0623c9b",
+  "_comment": "Un ancla por encabezado REAL del texto canónico, en su orden. `heading_exact` se coteja contra el bloque HEADING durante el build: si el texto cambiara, el ancla falla en vez de desplazarse en silencio.",
+  "anchors": [
+    {
+      "anchor_id": "eec-c10-lo-que-ensenamos-cuando-alguien-siente",
+      "sequence": 1,
+      "chapter_id": "EEC-C10",
+      "anchor_type": "heading",
+      "heading_exact": "Lo que enseñamos cuando alguien siente",
+      "section_key": "LO_QUE_ENSENAMOS_CUANDO_ALGUIEN_SIENTE"
+    },
+    {
+      "anchor_id": "eec-c10-puede-aparecer-indignacion-como-se-atreven",
+      "sequence": 2,
+      "chapter_id": "EEC-C10",
+      "anchor_type": "heading",
+      "heading_exact": "Puede aparecer indignación: *¿cómo se atreven?*",
+      "section_key": "PUEDE_APARECER_INDIGNACION_COMO_SE_ATREVEN"
+    },
+    {
+      "anchor_id": "eec-c10-puede-aparecer-miedo-y-si-esto-empeora",
+      "sequence": 3,
+      "chapter_id": "EEC-C10",
+      "anchor_type": "heading",
+      "heading_exact": "Puede aparecer miedo: *¿y si esto empeora?*",
+      "section_key": "PUEDE_APARECER_MIEDO_Y_SI_ESTO_EMPEORA"
+    },
+    {
+      "anchor_id": "eec-c10-puede-aparecer-culpa-por-que-no-me-di-cuenta-antes",
+      "sequence": 4,
+      "chapter_id": "EEC-C10",
+      "anchor_type": "heading",
+      "heading_exact": "Puede aparecer culpa: *¿por qué no me di cuenta antes?*",
+      "section_key": "PUEDE_APARECER_CULPA_POR_QUE_NO_ME_DI_CUENTA_ANTES"
+    },
+    {
+      "anchor_id": "eec-c10-que-pasa-aqui-cuando-alguien-siente-algo-dificil",
+      "sequence": 5,
+      "chapter_id": "EEC-C10",
+      "anchor_type": "heading",
+      "heading_exact": "**¿Qué pasa aquí cuando alguien siente algo difícil?**",
+      "section_key": "QUE_PASA_AQUI_CUANDO_ALGUIEN_SIENTE_ALGO_DIFICIL"
+    },
+    {
+      "anchor_id": "eec-c10-no-escribimos-el-guion-pero-participamos-en-el-escenario",
+      "sequence": 6,
+      "chapter_id": "EEC-C10",
+      "anchor_type": "heading",
+      "heading_exact": "No escribimos el guion, pero participamos en el escenario",
+      "section_key": "NO_ESCRIBIMOS_EL_GUION_PERO_PARTICIPAMOS_EN_EL_ESCENARIO"
+    },
+    {
+      "anchor_id": "eec-c10-una-respuesta-puede-cumplir-cinco-tareas",
+      "sequence": 7,
+      "chapter_id": "EEC-C10",
+      "anchor_type": "heading",
+      "heading_exact": "Una respuesta puede cumplir cinco tareas",
+      "section_key": "UNA_RESPUESTA_PUEDE_CUMPLIR_CINCO_TAREAS"
+    },
+    {
+      "anchor_id": "eec-c10-1-hacer-espacio-a-la-experiencia",
+      "sequence": 8,
+      "chapter_id": "EEC-C10",
+      "anchor_type": "heading",
+      "heading_exact": "1. Hacer espacio a la experiencia",
+      "section_key": "1_HACER_ESPACIO_A_LA_EXPERIENCIA"
+    },
+    {
+      "anchor_id": "eec-c10-2-no-cerrar-la-historia-demasiado-pronto",
+      "sequence": 9,
+      "chapter_id": "EEC-C10",
+      "anchor_type": "heading",
+      "heading_exact": "2. No cerrar la historia demasiado pronto",
+      "section_key": "2_NO_CERRAR_LA_HISTORIA_DEMASIADO_PRONTO"
+    },
+    {
+      "anchor_id": "eec-c10-se-burlaron-porque-nadie-me-soporta",
+      "sequence": 10,
+      "chapter_id": "EEC-C10",
+      "anchor_type": "heading",
+      "heading_exact": "*Se burlaron porque nadie me soporta.*",
+      "section_key": "SE_BURLARON_PORQUE_NADIE_ME_SOPORTA"
+    },
+    {
+      "anchor_id": "eec-c10-esta-celoso-porque-sabe-que-me-engana",
+      "sequence": 11,
+      "chapter_id": "EEC-C10",
+      "anchor_type": "heading",
+      "heading_exact": "*Está celoso porque sabe que me engaña.*",
+      "section_key": "ESTA_CELOSO_PORQUE_SABE_QUE_ME_ENGANA"
+    },
+    {
+      "anchor_id": "eec-c10-mi-jefa-no-respondio-porque-quiere-despedirme",
+      "sequence": 12,
+      "chapter_id": "EEC-C10",
+      "anchor_type": "heading",
+      "heading_exact": "*Mi jefa no respondió porque quiere despedirme.*",
+      "section_key": "MI_JEFA_NO_RESPONDIO_PORQUE_QUIERE_DESPEDIRME"
+    },
+    {
+      "anchor_id": "eec-c10-mi-hijo-llora-porque-intenta-manipularme",
+      "sequence": 13,
+      "chapter_id": "EEC-C10",
+      "anchor_type": "heading",
+      "heading_exact": "*Mi hijo llora porque intenta manipularme.*",
+      "section_key": "MI_HIJO_LLORA_PORQUE_INTENTA_MANIPULARME"
+    },
+    {
+      "anchor_id": "eec-c10-3-poner-limites-a-la-conducta-sin-castigar-la-emocion",
+      "sequence": 14,
+      "chapter_id": "EEC-C10",
+      "anchor_type": "heading",
+      "heading_exact": "3. Poner límites a la conducta sin castigar la emoción",
+      "section_key": "3_PONER_LIMITES_A_LA_CONDUCTA_SIN_CASTIGAR_LA_EMOCION"
+    },
+    {
+      "anchor_id": "eec-c10-4-ajustar-ayuda-y-agencia",
+      "sequence": 15,
+      "chapter_id": "EEC-C10",
+      "anchor_type": "heading",
+      "heading_exact": "4. Ajustar ayuda y agencia",
+      "section_key": "4_AJUSTAR_AYUDA_Y_AGENCIA"
+    },
+    {
+      "anchor_id": "eec-c10-5-mirar-tambien-el-escenario",
+      "sequence": 16,
+      "chapter_id": "EEC-C10",
+      "anchor_type": "heading",
+      "heading_exact": "5. Mirar también el escenario",
+      "section_key": "5_MIRAR_TAMBIEN_EL_ESCENARIO"
+    },
+    {
+      "anchor_id": "eec-c10-que-pasa-aqui-cuando-alguien-siente-algo-dificil-2",
+      "sequence": 17,
+      "chapter_id": "EEC-C10",
+      "anchor_type": "heading",
+      "heading_exact": "**¿Qué pasa aquí cuando alguien siente algo difícil?**",
+      "section_key": "QUE_PASA_AQUI_CUANDO_ALGUIEN_SIENTE_ALGO_DIFICIL"
+    },
+    {
+      "anchor_id": "eec-c10-en-casa-lo-cotidiano-ensena-mas-que-una-clase-perfecta",
+      "sequence": 18,
+      "chapter_id": "EEC-C10",
+      "anchor_type": "heading",
+      "heading_exact": "En casa: lo cotidiano enseña más que una clase perfecta",
+      "section_key": "EN_CASA_LO_COTIDIANO_ENSENA_MAS_QUE_UNA_CLASE_PERFECTA"
+    },
+    {
+      "anchor_id": "eec-c10-en-el-aula-la-leccion-explicita-y-la-leccion-escondida",
+      "sequence": 19,
+      "chapter_id": "EEC-C10",
+      "anchor_type": "heading",
+      "heading_exact": "En el aula: la lección explícita y la lección escondida",
+      "section_key": "EN_EL_AULA_LA_LECCION_EXPLICITA_Y_LA_LECCION_ESCONDIDA"
+    },
+    {
+      "anchor_id": "eec-c10-que-tuvo-que-ocurrir-para-que-una-buena-idea-funcionara-aqui",
+      "sequence": 20,
+      "chapter_id": "EEC-C10",
+      "anchor_type": "heading",
+      "heading_exact": "**¿qué tuvo que ocurrir para que una buena idea funcionara aquí?**",
+      "section_key": "QUE_TUVO_QUE_OCURRIR_PARA_QUE_UNA_BUENA_IDEA_FUNCIONARA_AQUI"
+    },
+    {
+      "anchor_id": "eec-c10-en-el-trabajo-ensenar-equilibrio-o-secar-el-suelo",
+      "sequence": 21,
+      "chapter_id": "EEC-C10",
+      "anchor_type": "heading",
+      "heading_exact": "En el trabajo: enseñar equilibrio o secar el suelo",
+      "section_key": "EN_EL_TRABAJO_ENSENAR_EQUILIBRIO_O_SECAR_EL_SUELO"
+    },
+    {
+      "anchor_id": "eec-c10-cuando-el-entorno-responde-sin-ser-humano",
+      "sequence": 22,
+      "chapter_id": "EEC-C10",
+      "anchor_type": "heading",
+      "heading_exact": "Cuando el entorno responde sin ser humano",
+      "section_key": "CUANDO_EL_ENTORNO_RESPONDE_SIN_SER_HUMANO"
+    },
+    {
+      "anchor_id": "eec-c10-recompensar-lo-que-recibe-aplausos-se-vuelve-mas-visible",
+      "sequence": 23,
+      "chapter_id": "EEC-C10",
+      "anchor_type": "heading",
+      "heading_exact": "Recompensar: lo que recibe aplausos se vuelve más visible",
+      "section_key": "RECOMPENSAR_LO_QUE_RECIBE_APLAUSOS_SE_VUELVE_MAS_VISIBLE"
+    },
+    {
+      "anchor_id": "eec-c10-inferir-detectar-una-senal-no-es-conocer-la-historia",
+      "sequence": 24,
+      "chapter_id": "EEC-C10",
+      "anchor_type": "heading",
+      "heading_exact": "Inferir: detectar una señal no es conocer la historia",
+      "section_key": "INFERIR_DETECTAR_UNA_SENAL_NO_ES_CONOCER_LA_HISTORIA"
+    },
+    {
+      "anchor_id": "eec-c10-conversar-una-respuesta-calida-no-es-una-relacion-equivalente",
+      "sequence": 25,
+      "chapter_id": "EEC-C10",
+      "anchor_type": "heading",
+      "heading_exact": "Conversar: una respuesta cálida no es una relación equivalente",
+      "section_key": "CONVERSAR_UNA_RESPUESTA_CALIDA_NO_ES_UNA_RELACION_EQUIVALENT"
+    },
+    {
+      "anchor_id": "eec-c10-1-que-observa-realmente-y-que-esta-infiriendo",
+      "sequence": 26,
+      "chapter_id": "EEC-C10",
+      "anchor_type": "heading",
+      "heading_exact": "1. **¿Qué observa realmente y qué está infiriendo?**",
+      "section_key": "1_QUE_OBSERVA_REALMENTE_Y_QUE_ESTA_INFIRIENDO"
+    },
+    {
+      "anchor_id": "eec-c10-2-que-ocurre-si-se-equivoca",
+      "sequence": 27,
+      "chapter_id": "EEC-C10",
+      "anchor_type": "heading",
+      "heading_exact": "2. **¿Qué ocurre si se equivoca?**",
+      "section_key": "2_QUE_OCURRE_SI_SE_EQUIVOCA"
+    },
+    {
+      "anchor_id": "eec-c10-3-quien-controla-los-datos-y-las-consecuencias",
+      "sequence": 28,
+      "chapter_id": "EEC-C10",
+      "anchor_type": "heading",
+      "heading_exact": "3. **¿Quién controla los datos y las consecuencias?**",
+      "section_key": "3_QUIEN_CONTROLA_LOS_DATOS_Y_LAS_CONSECUENCIAS"
+    },
+    {
+      "anchor_id": "eec-c10-cuando-acompanar-deja-de-ser-suficiente",
+      "sequence": 29,
+      "chapter_id": "EEC-C10",
+      "anchor_type": "heading",
+      "heading_exact": "Cuando acompañar deja de ser suficiente",
+      "section_key": "CUANDO_ACOMPANAR_DEJA_DE_SER_SUFICIENTE"
+    },
+    {
+      "anchor_id": "eec-c10-actividad-audita-el-escenario-no-a-la-persona",
+      "sequence": 30,
+      "chapter_id": "EEC-C10",
+      "anchor_type": "heading",
+      "heading_exact": "Actividad: audita el escenario, no a la persona",
+      "section_key": "ACTIVIDAD_AUDITA_EL_ESCENARIO_NO_A_LA_PERSONA"
+    },
+    {
+      "anchor_id": "eec-c10-3-que-conductas-necesitan-un-limite-claro-sin-negar-la-emocion",
+      "sequence": 31,
+      "chapter_id": "EEC-C10",
+      "anchor_type": "heading",
+      "heading_exact": "3. **¿Qué conductas necesitan un límite claro sin negar la emoción?**",
+      "section_key": "3_QUE_CONDUCTAS_NECESITAN_UN_LIMITE_CLARO_SIN_NEGAR_LA_EMOCI"
+    },
+    {
+      "anchor_id": "eec-c10-cuando-ocurra-x-cambiaremos-y-condicion",
+      "sequence": 32,
+      "chapter_id": "EEC-C10",
+      "anchor_type": "heading",
+      "heading_exact": "**Cuando ocurra X, cambiaremos Y condición.**",
+      "section_key": "CUANDO_OCURRA_X_CAMBIAREMOS_Y_CONDICION"
+    },
+    {
+      "anchor_id": "eec-c10-participar-sin-controlar",
+      "sequence": 33,
+      "chapter_id": "EEC-C10",
+      "anchor_type": "heading",
+      "heading_exact": "Participar sin controlar",
+      "section_key": "PARTICIPAR_SIN_CONTROLAR"
+    }
+  ]
+}

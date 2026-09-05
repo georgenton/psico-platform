@@ -1,0 +1,206 @@
+{
+  "schema_version": "1.0",
+  "chapter_id": "EEC-C06",
+  "canonical_version": "EEC_C06_v1.1_TEXT_LOCKED_2026-09-01",
+  "publication_reference_layer": "EEC_C06_PUBREF_v1.0",
+  "citation_style": {
+    "manual": "Chicago Manual of Style",
+    "edition": 18,
+    "system": "shortened-notes-and-bibliography",
+    "csl_file": "chicago-shortened-notes-bibliography.csl",
+    "callouts": "superscript",
+    "numbering": "generated-at-build-time",
+    "numbering_resets_each_chapter": true,
+    "bibliography_scope": "book"
+  },
+  "generated_by": "scripts/eec/build-chapter.mjs (lote C03–C10)",
+  "generated_at": "2026-09-04",
+  "citations": [],
+  "unresolved": [
+    {
+      "citation_key": "C06-F001",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "C06-F002",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "C06-F003",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "C06-F004",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "C06-F005",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "C06-F006",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "C06-F007",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "C06-F008",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "C06-F009",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "C06-F010",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "C06-F011",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "C06-F012",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "C06-F013",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "C06-F014",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "C06-F015",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "C06-F016",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "C06-F017",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "C06-F018",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "C06-F019",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "C06-F020",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "C06-F021",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "C06-F022",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "C06-F023",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "C06-F024",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "C06-F025",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "C06-F026",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "C06-F027",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "C06-F028",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "C06-F029",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "C06-F030",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "C06-F031",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "C06-F032",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "C06-F033",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "C06-F034",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "C06-F035",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "C06-F036",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "C06-F037",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    }
+  ]
+}

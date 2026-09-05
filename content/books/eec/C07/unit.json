@@ -1,0 +1,57 @@
+{
+  "schema_version": "1.0",
+  "unit_id": "EEC-C07",
+  "canonical_version": "EEC_C07_v1.0_TEXT_LOCKED_2026-08-26",
+  "canonical_sha256": "26a9b18738f0534a8c172bb22827f92e8f3745d70e91ea0a5923733b4bac8bd9",
+  "title": "Cuando las emociones necesitan traducción",
+  "title_academic": "Culturas emocionales: repertorios, interpretación y encuentro intercultural",
+  "_comment_recovery": "Bytes ORIGINALES del cierre editorial, recuperados del corpus local del autor el 2026-09-04 y verificados contra el SHA-256 declarado en Notion y en el manifiesto de cierre. No es un snapshot reconstruido: CANONICAL_ORIGINAL_VERIFIED.",
+  "recovery": {
+    "status": "CANONICAL_ORIGINAL_VERIFIED",
+    "method": "LOCAL_MD",
+    "historical_sha256": "26a9b18738f0534a8c172bb22827f92e8f3745d70e91ea0a5923733b4bac8bd9",
+    "sha_match": true,
+    "recovered_at": "2026-09-04",
+    "manifest_evidence": true
+  },
+  "production": {
+    "workKey": "emociones-en-construccion",
+    "editionKey": "emociones-en-construccion-1e",
+    "unitKey": "e98cb79d-5f04-514a-9efd-735254285958",
+    "unitExistsInProduction": false,
+    "unitKeyDerivation": "uuidv5('emociones-en-construccion-1e/EEC-CXX') con el namespace de Content Core. Determinista a propósito: el bootstrap y la ingesta pueden repetirse sin crear una segunda unidad. Content Studio usa randomUUID() para unidades nativas, que no es reproducible entre un dry-run y su apply."
+  },
+  "placement": {
+    "order": 7,
+    "partNumber": 2,
+    "partTitle": "Construyendo tus emociones"
+  },
+  "isFreePreview": false,
+  "files": {
+    "canonical_markdown": "chapter.md",
+    "anchors": "anchors.json",
+    "citations": "citations.json",
+    "figures": "figures.json",
+    "microguides": "microguides.json",
+    "activities": "activities.json",
+    "assets": "assets-manifest.json"
+  },
+  "citation_system": {
+    "manual": "Chicago Manual of Style",
+    "edition": 18,
+    "system": "shortened-notes-and-bibliography",
+    "csl_file": "chicago-shortened-notes-bibliography.csl",
+    "bibliography": "bibliography/eec-c07.bib",
+    "bibliography_status": "RECONSTRUCTED_FROM_EDITORIAL_RECORD",
+    "bibliography_sha256": "40d37b6f45bbe4b9aba52c9ca5e7e558a55343ffe308bf5ad90f2bc194424b49",
+    "bibliography_entries_expected": 41,
+    "callouts": "superscript",
+    "numbering": "generated-at-build-time",
+    "numbering_resets_each_chapter": true
+  },
+  "gates": {
+    "text_locked": "PASS",
+    "citations": "NONE_RESOLVED_41_UNRESOLVED",
+    "reader_projection": "PENDING"
+  }
+}

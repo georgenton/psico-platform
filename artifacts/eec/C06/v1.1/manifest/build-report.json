@@ -1,0 +1,52 @@
+{
+  "chapter": "C06",
+  "canonicalVersion": "EEC_C06_v1.1_TEXT_LOCKED_2026-09-01",
+  "builtAt": "2026-09-05T00:34:51.071Z",
+  "checks": {
+    "canonicalSha256": "ac963f730925fc347e0ab91b9df09902af05f5febd73c830f099f3b82c7a4d7a",
+    "canonicalShaMatches": true,
+    "parsedTitle": "Sentir también se aprende con otros",
+    "titleMatchesUnit": true,
+    "blocks": 333,
+    "blockKinds": {
+      "HEADING": 45,
+      "PARAGRAPH": 285,
+      "PAUSE": 1,
+      "EXERCISE": 1,
+      "VIDEO": 1
+    },
+    "bibliographySha256": "9993d1bedf57e32b2e85e191d25316becd98265e6cc792c431179aec2f6c49fa",
+    "bibliographyShaMatches": true,
+    "bibliographyEntriesExpected": 37,
+    "citationKeysInBib": 37,
+    "notes": 0,
+    "citationProblems": [],
+    "numberingIsAutomatic": true,
+    "bibliographyEntries": 37,
+    "citationStyle": {
+      "csl": "chicago-shortened-notes-bibliography.csl",
+      "locale": "locales-es-ES.xml",
+      "processor": "citeproc-js 1.4.61"
+    },
+    "pdfEngine": null
+  },
+  "outputs": {
+    "feelverse": [
+      "artifacts/eec/C06/v1.1/feelverse/unit-payload.json",
+      "artifacts/eec/C06/v1.1/feelverse/chapter.json"
+    ],
+    "docx": "artifacts/eec/C06/v1.1/print/EEC_C06_PRINT_v1.1_READY.docx",
+    "epub": "artifacts/eec/C06/v1.1/epub/EEC_C06_v1.1.epub",
+    "pdf": null
+  },
+  "blockers": [
+    {
+      "code": "CITATIONS_NOT_MAPPED",
+      "detail": "citations.json llega con `citations: []`. Las 37 Citation Keys existen en el .bib, pero no existe el mapa afirmación → ancla → Zotero Key → localizador, así que no hay notas que numerar. No se inventa."
+    },
+    {
+      "code": "SKIPPED_NO_RELIABLE_PDF_ENGINE",
+      "detail": "Ni pandoc/LaTeX ni LibreOffice en este entorno. El DOCX es válido y abre en Word; generar el PDF con un conversor improvisado — o llamando a uno real con los argumentos de otro — daría un fichero que parece de imprenta y no lo es."
+    }
+  ]
+}

@@ -1,0 +1,57 @@
+{
+  "schema_version": "1.0",
+  "unit_id": "EEC-C05",
+  "canonical_version": "EEC_C05_v1.0_TEXT_LOCKED_2026-08-26",
+  "canonical_sha256": "0f35f0d0f498ef0d6d1970709c1cbfdf939dfd9f3d6ab8f01aecc1bba1a1c956",
+  "title": "Las historias que te cuentas también influyen en lo que sientes",
+  "title_academic": "Cuando las emociones se vuelven historia: el enfoque narrativo",
+  "_comment_recovery": "Bytes ORIGINALES del cierre editorial, recuperados del corpus local del autor el 2026-09-04 y verificados contra el SHA-256 declarado en Notion y en el manifiesto de cierre. No es un snapshot reconstruido: CANONICAL_ORIGINAL_VERIFIED.",
+  "recovery": {
+    "status": "CANONICAL_ORIGINAL_VERIFIED",
+    "method": "LOCAL_MD",
+    "historical_sha256": "0f35f0d0f498ef0d6d1970709c1cbfdf939dfd9f3d6ab8f01aecc1bba1a1c956",
+    "sha_match": true,
+    "recovered_at": "2026-09-04",
+    "manifest_evidence": true
+  },
+  "production": {
+    "workKey": "emociones-en-construccion",
+    "editionKey": "emociones-en-construccion-1e",
+    "unitKey": "231166b5-f48e-506a-9edc-474a26795e4c",
+    "unitExistsInProduction": false,
+    "unitKeyDerivation": "uuidv5('emociones-en-construccion-1e/EEC-CXX') con el namespace de Content Core. Determinista a propósito: el bootstrap y la ingesta pueden repetirse sin crear una segunda unidad. Content Studio usa randomUUID() para unidades nativas, que no es reproducible entre un dry-run y su apply."
+  },
+  "placement": {
+    "order": 5,
+    "partNumber": 2,
+    "partTitle": "Construyendo tus emociones"
+  },
+  "isFreePreview": false,
+  "files": {
+    "canonical_markdown": "chapter.md",
+    "anchors": "anchors.json",
+    "citations": "citations.json",
+    "figures": "figures.json",
+    "microguides": "microguides.json",
+    "activities": "activities.json",
+    "assets": "assets-manifest.json"
+  },
+  "citation_system": {
+    "manual": "Chicago Manual of Style",
+    "edition": 18,
+    "system": "shortened-notes-and-bibliography",
+    "csl_file": "chicago-shortened-notes-bibliography.csl",
+    "bibliography": "bibliography/eec-c05.bib",
+    "bibliography_status": "ORIGINAL",
+    "bibliography_sha256": "edee717f1d4fb95131663f8ac026384254ee01513d3ee369a43b64b38e0a6e56",
+    "bibliography_entries_expected": 25,
+    "callouts": "superscript",
+    "numbering": "generated-at-build-time",
+    "numbering_resets_each_chapter": true
+  },
+  "gates": {
+    "text_locked": "PASS",
+    "citations": "NONE_RESOLVED_25_UNRESOLVED",
+    "reader_projection": "PENDING"
+  }
+}

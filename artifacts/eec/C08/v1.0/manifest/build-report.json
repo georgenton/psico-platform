@@ -1,0 +1,53 @@
+{
+  "chapter": "C08",
+  "canonicalVersion": "EEC_C08_v1.0_TEXT_LOCKED_2026-08-26",
+  "builtAt": "2026-09-05T00:34:52.810Z",
+  "checks": {
+    "canonicalSha256": "6b71342e0117f4243022ff66e8af2e3b41caec0f4a978b50c48fbad3e0e336c2",
+    "canonicalShaMatches": true,
+    "parsedTitle": "Emociones, valores y discernimiento: enfoque filosófico y ético",
+    "titleMatchesUnit": false,
+    "blocks": 428,
+    "blockKinds": {
+      "HEADING": 69,
+      "PARAGRAPH": 352,
+      "QUOTE": 4,
+      "PAUSE": 1,
+      "EXERCISE": 1,
+      "VIDEO": 1
+    },
+    "bibliographySha256": "9ed8a0e370b497977770477ef5b91ec3d3831c31ac8a9104d10a8fa164ac1e5e",
+    "bibliographyShaMatches": true,
+    "bibliographyEntriesExpected": 39,
+    "citationKeysInBib": 39,
+    "notes": 0,
+    "citationProblems": [],
+    "numberingIsAutomatic": true,
+    "bibliographyEntries": 39,
+    "citationStyle": {
+      "csl": "chicago-shortened-notes-bibliography.csl",
+      "locale": "locales-es-ES.xml",
+      "processor": "citeproc-js 1.4.61"
+    },
+    "pdfEngine": null
+  },
+  "outputs": {
+    "feelverse": [
+      "artifacts/eec/C08/v1.0/feelverse/unit-payload.json",
+      "artifacts/eec/C08/v1.0/feelverse/chapter.json"
+    ],
+    "docx": "artifacts/eec/C08/v1.0/print/EEC_C08_PRINT_v1.0_READY.docx",
+    "epub": "artifacts/eec/C08/v1.0/epub/EEC_C08_v1.0.epub",
+    "pdf": null
+  },
+  "blockers": [
+    {
+      "code": "CITATIONS_NOT_MAPPED",
+      "detail": "citations.json llega con `citations: []`. Las 39 Citation Keys existen en el .bib, pero no existe el mapa afirmación → ancla → Zotero Key → localizador, así que no hay notas que numerar. No se inventa."
+    },
+    {
+      "code": "SKIPPED_NO_RELIABLE_PDF_ENGINE",
+      "detail": "Ni pandoc/LaTeX ni LibreOffice en este entorno. El DOCX es válido y abre en Word; generar el PDF con un conversor improvisado — o llamando a uno real con los argumentos de otro — daría un fichero que parece de imprenta y no lo es."
+    }
+  ]
+}

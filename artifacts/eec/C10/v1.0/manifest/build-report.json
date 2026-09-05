@@ -1,0 +1,52 @@
+{
+  "chapter": "C10",
+  "canonicalVersion": "EEC_C10_v1.0_TEXT_LOCKED_2026-08-27",
+  "builtAt": "2026-09-05T00:34:54.827Z",
+  "checks": {
+    "canonicalSha256": "a732ccb428e46787850b646c75e36a160cafbeb3280ff596d95d6297a0623c9b",
+    "canonicalShaMatches": true,
+    "parsedTitle": "Aplicaciones del aprendizaje emocional en contexto: crianza, educación, trabajo y entornos digitales",
+    "titleMatchesUnit": false,
+    "blocks": 375,
+    "blockKinds": {
+      "HEADING": 33,
+      "PARAGRAPH": 339,
+      "PAUSE": 1,
+      "EXERCISE": 1,
+      "VIDEO": 1
+    },
+    "bibliographySha256": "f46a77db563d06632c1a404667dcf326264f69c3291215bc04250b025d2190c3",
+    "bibliographyShaMatches": true,
+    "bibliographyEntriesExpected": 29,
+    "citationKeysInBib": 29,
+    "notes": 0,
+    "citationProblems": [],
+    "numberingIsAutomatic": true,
+    "bibliographyEntries": 29,
+    "citationStyle": {
+      "csl": "chicago-shortened-notes-bibliography.csl",
+      "locale": "locales-es-ES.xml",
+      "processor": "citeproc-js 1.4.61"
+    },
+    "pdfEngine": null
+  },
+  "outputs": {
+    "feelverse": [
+      "artifacts/eec/C10/v1.0/feelverse/unit-payload.json",
+      "artifacts/eec/C10/v1.0/feelverse/chapter.json"
+    ],
+    "docx": "artifacts/eec/C10/v1.0/print/EEC_C10_PRINT_v1.0_READY.docx",
+    "epub": "artifacts/eec/C10/v1.0/epub/EEC_C10_v1.0.epub",
+    "pdf": null
+  },
+  "blockers": [
+    {
+      "code": "CITATIONS_NOT_MAPPED",
+      "detail": "citations.json llega con `citations: []`. Las 29 Citation Keys existen en el .bib, pero no existe el mapa afirmación → ancla → Zotero Key → localizador, así que no hay notas que numerar. No se inventa."
+    },
+    {
+      "code": "SKIPPED_NO_RELIABLE_PDF_ENGINE",
+      "detail": "Ni pandoc/LaTeX ni LibreOffice en este entorno. El DOCX es válido y abre en Word; generar el PDF con un conversor improvisado — o llamando a uno real con los argumentos de otro — daría un fichero que parece de imprenta y no lo es."
+    }
+  ]
+}

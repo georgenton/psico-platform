@@ -1,0 +1,136 @@
+{
+  "schema_version": "1.0",
+  "chapter_id": "EEC-C03",
+  "canonical_version": "EEC_C03_v1.0_TEXT_LOCKED_2026-08-25",
+  "publication_reference_layer": "EEC_C03_PUBREF_v1.0",
+  "citation_style": {
+    "manual": "Chicago Manual of Style",
+    "edition": 18,
+    "system": "shortened-notes-and-bibliography",
+    "csl_file": "chicago-shortened-notes-bibliography.csl",
+    "callouts": "superscript",
+    "numbering": "generated-at-build-time",
+    "numbering_resets_each_chapter": true,
+    "bibliography_scope": "book"
+  },
+  "generated_by": "scripts/eec/build-chapter.mjs (lote C03–C10)",
+  "generated_at": "2026-09-04",
+  "citations": [],
+  "unresolved": [
+    {
+      "citation_key": "SRC-BARRETT-2017-CONSTRUCTED",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "SRC-BARRETT-ETAL-2025-TCE",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "SRC-KHALSA-ETAL-2018-INTEROCEPTION",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "SRC-CRITCHLEY-GARFINKEL-2017-INTEROCEPTION",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "SRC-KLECKNER-ETAL-2017-ALLOSTASIS",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "SRC-ZHANG-ETAL-2025-ALLOSTATIC",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "SRC-LINDQUIST-ETAL-2012",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "SRC-KRAGEL-LABAR-2015-CATEGORIES",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "SRC-LEDOUX-2014-FEAR",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "SRC-LEDOUX-PINE-2016",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "SRC-ADOLPHS-2017-DISTINCTIONS",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "SRC-LINDQUIST-SATPUTE-GENDRON-2015-LANGUAGE",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "SRC-HODSON-ETAL-2024-PREDICTIVE",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "SRC-FURUTACHI-HOFER-2026-PREDICTIVE",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "SRC-VANHEIJST-KRET-PLOEGER-2025-DEBATE",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "SRC-RAO-BALLARD-1999-PREDICTIVE-CODING",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "SRC-POLDRACK-2006-REVERSE-INFERENCE",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "SRC-FRISTON-2010-FREE-ENERGY",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "SRC-PESSOA-ADOLPHS-2010-MANY-ROADS",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "SRC-SETH-2013-INTEROCEPTIVE-INFERENCE",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "SRC-BARRETT-SIMMONS-2015-INTEROCEPTIVE-PREDICTIONS",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "SRC-PESSOA-2017-NETWORK-MODEL",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    },
+    {
+      "citation_key": "SRC-STEFFEN-HEDGES-MATHESON-2022-TRIUNE",
+      "reason": "NO_ANCHOR",
+      "detail": "El manuscrito TEXT_LOCKED no lleva marcadores de cita y ningún encabezado nombra a esta autoría. Dónde va la llamada lo decide quien escribe (EEC-REF-OPS-001 §4)."
+    }
+  ]
+}

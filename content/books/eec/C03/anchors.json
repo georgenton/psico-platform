@@ -1,0 +1,345 @@
+{
+  "schema_version": "0.1-draft",
+  "chapter_id": "EEC-C03",
+  "canonical_version": "EEC_C03_v1.0_TEXT_LOCKED_2026-08-25",
+  "source_sha256_expected": "79c427f56089ba693e8c836d737ac0b3dd5c5ab54dbfc8746a02799bbe28beb1",
+  "_comment": "Un ancla por encabezado REAL del texto canónico, en su orden. `heading_exact` se coteja contra el bloque HEADING durante el build: si el texto cambiara, el ancla falla en vez de desplazarse en silencio.",
+  "anchors": [
+    {
+      "anchor_id": "eec-c3-tu-cerebro-inventa-emociones",
+      "sequence": 1,
+      "chapter_id": "EEC-C03",
+      "anchor_type": "heading",
+      "heading_exact": "Tu cerebro inventa emociones",
+      "section_key": "TU_CEREBRO_INVENTA_EMOCIONES"
+    },
+    {
+      "anchor_id": "eec-c3-por-que-sentir-no-es-solo-reaccionar-tu-cerebro-tambien-predice",
+      "sequence": 2,
+      "chapter_id": "EEC-C03",
+      "anchor_type": "heading",
+      "heading_exact": "*Por qué sentir no es solo reaccionar: tu cerebro también predice*",
+      "section_key": "POR_QUE_SENTIR_NO_ES_SOLO_REACCIONAR_TU_CEREBRO_TAMBIEN_PRED"
+    },
+    {
+      "anchor_id": "eec-c3-predecir-no-es-adivinar",
+      "sequence": 3,
+      "chapter_id": "EEC-C03",
+      "anchor_type": "heading",
+      "heading_exact": "Predecir no es adivinar",
+      "section_key": "PREDECIR_NO_ES_ADIVINAR"
+    },
+    {
+      "anchor_id": "eec-c3-la-teoria-construccionista-en-camara-lenta",
+      "sequence": 4,
+      "chapter_id": "EEC-C03",
+      "anchor_type": "heading",
+      "heading_exact": "La teoría construccionista, en cámara lenta",
+      "section_key": "LA_TEORIA_CONSTRUCCIONISTA_EN_CAMARA_LENTA"
+    },
+    {
+      "anchor_id": "eec-c3-el-afecto-un-tono-corporal-antes-de-una-historia-precisa",
+      "sequence": 5,
+      "chapter_id": "EEC-C03",
+      "anchor_type": "heading",
+      "heading_exact": "El afecto: un tono corporal antes de una historia precisa",
+      "section_key": "EL_AFECTO_UN_TONO_CORPORAL_ANTES_DE_UNA_HISTORIA_PRECISA"
+    },
+    {
+      "anchor_id": "eec-c3-cinco-ideas-tecnicas-llevadas-a-tierra",
+      "sequence": 6,
+      "chapter_id": "EEC-C03",
+      "anchor_type": "heading",
+      "heading_exact": "Cinco ideas técnicas, llevadas a tierra",
+      "section_key": "CINCO_IDEAS_TECNICAS_LLEVADAS_A_TIERRA"
+    },
+    {
+      "anchor_id": "eec-c3-1-procesamiento-predictivo",
+      "sequence": 7,
+      "chapter_id": "EEC-C03",
+      "anchor_type": "heading",
+      "heading_exact": "#### 1. Procesamiento predictivo",
+      "section_key": "1_PROCESAMIENTO_PREDICTIVO"
+    },
+    {
+      "anchor_id": "eec-c3-2-codificacion-predictiva-o-predictive-coding",
+      "sequence": 8,
+      "chapter_id": "EEC-C03",
+      "anchor_type": "heading",
+      "heading_exact": "#### 2. Codificación predictiva o *predictive coding*",
+      "section_key": "2_CODIFICACION_PREDICTIVA_O_PREDICTIVE_CODING"
+    },
+    {
+      "anchor_id": "eec-c3-3-precision",
+      "sequence": 9,
+      "chapter_id": "EEC-C03",
+      "anchor_type": "heading",
+      "heading_exact": "#### 3. Precisión",
+      "section_key": "3_PRECISION"
+    },
+    {
+      "anchor_id": "eec-c3-4-inferencia-activa",
+      "sequence": 10,
+      "chapter_id": "EEC-C03",
+      "anchor_type": "heading",
+      "heading_exact": "#### 4. Inferencia activa",
+      "section_key": "4_INFERENCIA_ACTIVA"
+    },
+    {
+      "anchor_id": "eec-c3-5-inferencia-interoceptiva",
+      "sequence": 11,
+      "chapter_id": "EEC-C03",
+      "anchor_type": "heading",
+      "heading_exact": "#### 5. Inferencia interoceptiva",
+      "section_key": "5_INFERENCIA_INTEROCEPTIVA"
+    },
+    {
+      "anchor_id": "eec-c3-dos-maneras-de-contar-la-misma-escena",
+      "sequence": 12,
+      "chapter_id": "EEC-C03",
+      "anchor_type": "heading",
+      "heading_exact": "Dos maneras de contar la misma escena",
+      "section_key": "DOS_MANERAS_DE_CONTAR_LA_MISMA_ESCENA"
+    },
+    {
+      "anchor_id": "eec-c3-el-cuerpo-no-espera-al-final-de-la-historia",
+      "sequence": 13,
+      "chapter_id": "EEC-C03",
+      "anchor_type": "heading",
+      "heading_exact": "El cuerpo no espera al final de la historia",
+      "section_key": "EL_CUERPO_NO_ESPERA_AL_FINAL_DE_LA_HISTORIA"
+    },
+    {
+      "anchor_id": "eec-c3-cuando-una-sensacion-adquiere-significado",
+      "sequence": 14,
+      "chapter_id": "EEC-C03",
+      "anchor_type": "heading",
+      "heading_exact": "Cuando una sensación adquiere significado",
+      "section_key": "CUANDO_UNA_SENSACION_ADQUIERE_SIGNIFICADO"
+    },
+    {
+      "anchor_id": "eec-c3-una-persona-puede-pensar-estoy-entrando-en-panico-esto-va-a-salir-mal",
+      "sequence": 15,
+      "chapter_id": "EEC-C03",
+      "anchor_type": "heading",
+      "heading_exact": "Una persona puede pensar: *Estoy entrando en pánico; esto va a salir mal.*",
+      "section_key": "UNA_PERSONA_PUEDE_PENSAR_ESTOY_ENTRANDO_EN_PANICO_ESTO_VA_A_"
+    },
+    {
+      "anchor_id": "eec-c3-y-una-tercera-quiza-apenas-piense-que-nervios",
+      "sequence": 16,
+      "chapter_id": "EEC-C03",
+      "anchor_type": "heading",
+      "heading_exact": "Y una tercera quizá apenas piense: *Qué nervios.*",
+      "section_key": "Y_UNA_TERCERA_QUIZA_APENAS_PIENSE_QUE_NERVIOS"
+    },
+    {
+      "anchor_id": "eec-c3-la-presentacion-vista-desde-dentro",
+      "sequence": 17,
+      "chapter_id": "EEC-C03",
+      "anchor_type": "heading",
+      "heading_exact": "La presentación, vista desde dentro",
+      "section_key": "LA_PRESENTACION_VISTA_DESDE_DENTRO"
+    },
+    {
+      "anchor_id": "eec-c3-construccion-no-significa-arbitrariedad",
+      "sequence": 18,
+      "chapter_id": "EEC-C03",
+      "anchor_type": "heading",
+      "heading_exact": "Construcción no significa arbitrariedad",
+      "section_key": "CONSTRUCCION_NO_SIGNIFICA_ARBITRARIEDAD"
+    },
+    {
+      "anchor_id": "eec-c3-patrones-sin-botones",
+      "sequence": 19,
+      "chapter_id": "EEC-C03",
+      "anchor_type": "heading",
+      "heading_exact": "Patrones sin botones",
+      "section_key": "PATRONES_SIN_BOTONES"
+    },
+    {
+      "anchor_id": "eec-c3-los-planos-vienen-de-algun-lugar",
+      "sequence": 20,
+      "chapter_id": "EEC-C03",
+      "anchor_type": "heading",
+      "heading_exact": "Los planos vienen de algún lugar",
+      "section_key": "LOS_PLANOS_VIENEN_DE_ALGUN_LUGAR"
+    },
+    {
+      "anchor_id": "eec-c3-piensa-en-un-mensaje-de-whatsapp-que-diga-solamente-podemos-hablar",
+      "sequence": 21,
+      "chapter_id": "EEC-C03",
+      "anchor_type": "heading",
+      "heading_exact": "Piensa en un mensaje de WhatsApp que diga solamente: **«¿Podemos hablar?»**",
+      "section_key": "PIENSA_EN_UN_MENSAJE_DE_WHATSAPP_QUE_DIGA_SOLAMENTE_PODEMOS_"
+    },
+    {
+      "anchor_id": "eec-c3-no-hay-un-boton-de-miedo",
+      "sequence": 22,
+      "chapter_id": "EEC-C03",
+      "anchor_type": "heading",
+      "heading_exact": "No hay un botón de miedo",
+      "section_key": "NO_HAY_UN_BOTON_DE_MIEDO"
+    },
+    {
+      "anchor_id": "eec-c3-por-que-gano-terreno-la-idea-de-una-region-una-emocion",
+      "sequence": 23,
+      "chapter_id": "EEC-C03",
+      "anchor_type": "heading",
+      "heading_exact": "Por qué ganó terreno la idea de «una región, una emoción»",
+      "section_key": "POR_QUE_GANO_TERRENO_LA_IDEA_DE_UNA_REGION_UNA_EMOCION"
+    },
+    {
+      "anchor_id": "eec-c3-especializacion-no-significa-aislamiento",
+      "sequence": 24,
+      "chapter_id": "EEC-C03",
+      "anchor_type": "heading",
+      "heading_exact": "Especialización no significa aislamiento",
+      "section_key": "ESPECIALIZACION_NO_SIGNIFICA_AISLAMIENTO"
+    },
+    {
+      "anchor_id": "eec-c3-de-la-via-rapida-a-muchas-rutas",
+      "sequence": 25,
+      "chapter_id": "EEC-C03",
+      "anchor_type": "heading",
+      "heading_exact": "De la «vía rápida» a muchas rutas",
+      "section_key": "DE_LA_VIA_RAPIDA_A_MUCHAS_RUTAS"
+    },
+    {
+      "anchor_id": "eec-c3-de-puntos-aislados-a-redes-dinamicas",
+      "sequence": 26,
+      "chapter_id": "EEC-C03",
+      "anchor_type": "heading",
+      "heading_exact": "De puntos aislados a redes dinámicas",
+      "section_key": "DE_PUNTOS_AISLADOS_A_REDES_DINAMICAS"
+    },
+    {
+      "anchor_id": "eec-c3-cuando-la-prediccion-no-encaja",
+      "sequence": 27,
+      "chapter_id": "EEC-C03",
+      "anchor_type": "heading",
+      "heading_exact": "Cuando la predicción no encaja",
+      "section_key": "CUANDO_LA_PREDICCION_NO_ENCAJA"
+    },
+    {
+      "anchor_id": "eec-c3-actividad-detecta-tus-predicciones-emocionales",
+      "sequence": 28,
+      "chapter_id": "EEC-C03",
+      "anchor_type": "heading",
+      "heading_exact": "Actividad — Detecta tus predicciones emocionales",
+      "section_key": "ACTIVIDAD_DETECTA_TUS_PREDICCIONES_EMOCIONALES"
+    },
+    {
+      "anchor_id": "eec-c3-1-describe-la-situacion-sin-interpretar",
+      "sequence": 29,
+      "chapter_id": "EEC-C03",
+      "anchor_type": "heading",
+      "heading_exact": "1. Describe la situación sin interpretar",
+      "section_key": "1_DESCRIBE_LA_SITUACION_SIN_INTERPRETAR"
+    },
+    {
+      "anchor_id": "eec-c3-prueba-la-salude-al-entrar-miro-hacia-la-pantalla-y-no-respondio",
+      "sequence": 30,
+      "chapter_id": "EEC-C03",
+      "anchor_type": "heading",
+      "heading_exact": "Prueba: *La saludé al entrar. Miró hacia la pantalla y no respondió.*",
+      "section_key": "PRUEBA_LA_SALUDE_AL_ENTRAR_MIRO_HACIA_LA_PANTALLA_Y_NO_RESPO"
+    },
+    {
+      "anchor_id": "eec-c3-2-observa-el-cuerpo",
+      "sequence": 31,
+      "chapter_id": "EEC-C03",
+      "anchor_type": "heading",
+      "heading_exact": "2. Observa el cuerpo",
+      "section_key": "2_OBSERVA_EL_CUERPO"
+    },
+    {
+      "anchor_id": "eec-c3-3-identifica-la-primera-historia-que-aparecio",
+      "sequence": 32,
+      "chapter_id": "EEC-C03",
+      "anchor_type": "heading",
+      "heading_exact": "3. Identifica la primera historia que apareció",
+      "section_key": "3_IDENTIFICA_LA_PRIMERA_HISTORIA_QUE_APARECIO"
+    },
+    {
+      "anchor_id": "eec-c3-mi-cerebro-parece-estar-suponiendo-que",
+      "sequence": 33,
+      "chapter_id": "EEC-C03",
+      "anchor_type": "heading",
+      "heading_exact": "**«Mi cerebro parece estar suponiendo que…»**",
+      "section_key": "MI_CEREBRO_PARECE_ESTAR_SUPONIENDO_QUE"
+    },
+    {
+      "anchor_id": "eec-c3-por-ejemplo-esta-molesta-conmigo",
+      "sequence": 34,
+      "chapter_id": "EEC-C03",
+      "anchor_type": "heading",
+      "heading_exact": "Por ejemplo: *…está molesta conmigo.*",
+      "section_key": "POR_EJEMPLO_ESTA_MOLESTA_CONMIGO"
+    },
+    {
+      "anchor_id": "eec-c3-4-pon-uno-o-varios-nombres-a-lo-que-sientes",
+      "sequence": 35,
+      "chapter_id": "EEC-C03",
+      "anchor_type": "heading",
+      "heading_exact": "4. Pon uno o varios nombres a lo que sientes",
+      "section_key": "4_PON_UNO_O_VARIOS_NOMBRES_A_LO_QUE_SIENTES"
+    },
+    {
+      "anchor_id": "eec-c3-5-pregunta-que-informacion-sostiene-esa-interpretacion",
+      "sequence": 36,
+      "chapter_id": "EEC-C03",
+      "anchor_type": "heading",
+      "heading_exact": "5. Pregunta qué información sostiene esa interpretación",
+      "section_key": "5_PREGUNTA_QUE_INFORMACION_SOSTIENE_ESA_INTERPRETACION"
+    },
+    {
+      "anchor_id": "eec-c3-6-formula-una-segunda-hipotesis-plausible",
+      "sequence": 37,
+      "chapter_id": "EEC-C03",
+      "anchor_type": "heading",
+      "heading_exact": "6. Formula una segunda hipótesis plausible",
+      "section_key": "6_FORMULA_UNA_SEGUNDA_HIPOTESIS_PLAUSIBLE"
+    },
+    {
+      "anchor_id": "eec-c3-puede-estar-molesta-conmigo",
+      "sequence": 38,
+      "chapter_id": "EEC-C03",
+      "anchor_type": "heading",
+      "heading_exact": "*Puede estar molesta conmigo.*",
+      "section_key": "PUEDE_ESTAR_MOLESTA_CONMIGO"
+    },
+    {
+      "anchor_id": "eec-c3-7-separa-impulso-y-accion",
+      "sequence": 39,
+      "chapter_id": "EEC-C03",
+      "anchor_type": "heading",
+      "heading_exact": "7. Separa impulso y acción",
+      "section_key": "7_SEPARA_IMPULSO_Y_ACCION"
+    },
+    {
+      "anchor_id": "eec-c3-8-revisa-que-ocurrio-despues",
+      "sequence": 40,
+      "chapter_id": "EEC-C03",
+      "anchor_type": "heading",
+      "heading_exact": "8. Revisa qué ocurrió después",
+      "section_key": "8_REVISA_QUE_OCURRIO_DESPUES"
+    },
+    {
+      "anchor_id": "eec-c3-mini-historia-interactiva",
+      "sequence": 41,
+      "chapter_id": "EEC-C03",
+      "anchor_type": "heading",
+      "heading_exact": "Mini historia interactiva",
+      "section_key": "MINI_HISTORIA_INTERACTIVA"
+    },
+    {
+      "anchor_id": "eec-c3-el-arquitecto-trabaja-con-planos-revisables",
+      "sequence": 42,
+      "chapter_id": "EEC-C03",
+      "anchor_type": "heading",
+      "heading_exact": "El arquitecto trabaja con planos revisables",
+      "section_key": "EL_ARQUITECTO_TRABAJA_CON_PLANOS_REVISABLES"
+    }
+  ]
+}

@@ -1,0 +1,249 @@
+{
+  "schema_version": "0.1-draft",
+  "chapter_id": "EEC-C04",
+  "canonical_version": "EEC_C04_v1.0_TEXT_LOCKED_2026-08-25",
+  "source_sha256_expected": "7f22cfb9859bc3309d6a410e9b1c80080c6b55ad6109b83d62a0852e8e6fe1ce",
+  "_comment": "Un ancla por encabezado REAL del texto canónico, en su orden. `heading_exact` se coteja contra el bloque HEADING durante el build: si el texto cambiara, el ancla falla en vez de desplazarse en silencio.",
+  "anchors": [
+    {
+      "anchor_id": "eec-c4-como-las-senales-del-cuerpo-participan-en-lo-que-sientes-y-por-que-no-",
+      "sequence": 1,
+      "chapter_id": "EEC-C04",
+      "anchor_type": "heading",
+      "heading_exact": "Cómo las señales del cuerpo participan en lo que sientes —y por qué no son un diccionario emocional",
+      "section_key": "COMO_LAS_SENALES_DEL_CUERPO_PARTICIPAN_EN_LO_QUE_SIENTES_Y_P"
+    },
+    {
+      "anchor_id": "eec-c4-el-frenazo-antes-del-nombre",
+      "sequence": 2,
+      "chapter_id": "EEC-C04",
+      "anchor_type": "heading",
+      "heading_exact": "El frenazo antes del nombre",
+      "section_key": "EL_FRENAZO_ANTES_DEL_NOMBRE"
+    },
+    {
+      "anchor_id": "eec-c4-tu-cuerpo-cambia-aunque-no-lo-estes-narrando",
+      "sequence": 3,
+      "chapter_id": "EEC-C04",
+      "anchor_type": "heading",
+      "heading_exact": "Tu cuerpo cambia aunque no lo estés narrando",
+      "section_key": "TU_CUERPO_CAMBIA_AUNQUE_NO_LO_ESTES_NARRANDO"
+    },
+    {
+      "anchor_id": "eec-c4-interocepcion-notar-no-es-lo-mismo-que-interpretar",
+      "sequence": 4,
+      "chapter_id": "EEC-C04",
+      "anchor_type": "heading",
+      "heading_exact": "Interocepción: notar no es lo mismo que interpretar",
+      "section_key": "INTEROCEPCION_NOTAR_NO_ES_LO_MISMO_QUE_INTERPRETAR"
+    },
+    {
+      "anchor_id": "eec-c4-no-existe-un-diccionario-corporal-de-las-emociones",
+      "sequence": 5,
+      "chapter_id": "EEC-C04",
+      "anchor_type": "heading",
+      "heading_exact": "No existe un diccionario corporal de las emociones",
+      "section_key": "NO_EXISTE_UN_DICCIONARIO_CORPORAL_DE_LAS_EMOCIONES"
+    },
+    {
+      "anchor_id": "eec-c4-corazon-acelerado-miedo",
+      "sequence": 6,
+      "chapter_id": "EEC-C04",
+      "anchor_type": "heading",
+      "heading_exact": "*corazón acelerado = miedo*",
+      "section_key": "CORAZON_ACELERADO_MIEDO"
+    },
+    {
+      "anchor_id": "eec-c4-mandibula-tensa-ira",
+      "sequence": 7,
+      "chapter_id": "EEC-C04",
+      "anchor_type": "heading",
+      "heading_exact": "*mandíbula tensa = ira*",
+      "section_key": "MANDIBULA_TENSA_IRA"
+    },
+    {
+      "anchor_id": "eec-c4-hombros-caidos-tristeza",
+      "sequence": 8,
+      "chapter_id": "EEC-C04",
+      "anchor_type": "heading",
+      "heading_exact": "*hombros caídos = tristeza*",
+      "section_key": "HOMBROS_CAIDOS_TRISTEZA"
+    },
+    {
+      "anchor_id": "eec-c4-pecho-abierto-seguridad",
+      "sequence": 9,
+      "chapter_id": "EEC-C04",
+      "anchor_type": "heading",
+      "heading_exact": "*pecho abierto = seguridad*",
+      "section_key": "PECHO_ABIERTO_SEGURIDAD"
+    },
+    {
+      "anchor_id": "eec-c4-el-sistema-nervioso-autonomo-no-tiene-solo-un-boton-de-alarma-y-otro-d",
+      "sequence": 10,
+      "chapter_id": "EEC-C04",
+      "anchor_type": "heading",
+      "heading_exact": "El sistema nervioso autónomo no tiene solo un botón de alarma y otro de calma",
+      "section_key": "EL_SISTEMA_NERVIOSO_AUTONOMO_NO_TIENE_SOLO_UN_BOTON_DE_ALARM"
+    },
+    {
+      "anchor_id": "eec-c4-neurocepcion-una-idea-influyente-bajo-examen",
+      "sequence": 11,
+      "chapter_id": "EEC-C04",
+      "anchor_type": "heading",
+      "heading_exact": "Neurocepción: una idea influyente bajo examen",
+      "section_key": "NEUROCEPCION_UNA_IDEA_INFLUYENTE_BAJO_EXAMEN"
+    },
+    {
+      "anchor_id": "eec-c4-trauma-cuando-el-pasado-modifica-las-respuestas-del-presente",
+      "sequence": 12,
+      "chapter_id": "EEC-C04",
+      "anchor_type": "heading",
+      "heading_exact": "Trauma: cuando el pasado modifica las respuestas del presente",
+      "section_key": "TRAUMA_CUANDO_EL_PASADO_MODIFICA_LAS_RESPUESTAS_DEL_PRESENTE"
+    },
+    {
+      "anchor_id": "eec-c4-focusing-escuchar-una-sensacion-sin-convertirla-en-oraculo",
+      "sequence": 13,
+      "chapter_id": "EEC-C04",
+      "anchor_type": "heading",
+      "heading_exact": "Focusing: escuchar una sensación sin convertirla en oráculo",
+      "section_key": "FOCUSING_ESCUCHAR_UNA_SENSACION_SIN_CONVERTIRLA_EN_ORACULO"
+    },
+    {
+      "anchor_id": "eec-c4-respirar-no-es-apretar-un-interruptor",
+      "sequence": 14,
+      "chapter_id": "EEC-C04",
+      "anchor_type": "heading",
+      "heading_exact": "Respirar no es apretar un interruptor",
+      "section_key": "RESPIRAR_NO_ES_APRETAR_UN_INTERRUPTOR"
+    },
+    {
+      "anchor_id": "eec-c4-la-conciencia-corporal-puede-ayudar-tambien-necesita-condiciones",
+      "sequence": 15,
+      "chapter_id": "EEC-C04",
+      "anchor_type": "heading",
+      "heading_exact": "La conciencia corporal puede ayudar; también necesita condiciones",
+      "section_key": "LA_CONCIENCIA_CORPORAL_PUEDE_AYUDAR_TAMBIEN_NECESITA_CONDICI"
+    },
+    {
+      "anchor_id": "eec-c4-actividad-del-cuerpo-al-significado",
+      "sequence": 16,
+      "chapter_id": "EEC-C04",
+      "anchor_type": "heading",
+      "heading_exact": "Actividad — Del cuerpo al significado",
+      "section_key": "ACTIVIDAD_DEL_CUERPO_AL_SIGNIFICADO"
+    },
+    {
+      "anchor_id": "eec-c4-1-empieza-por-la-situacion",
+      "sequence": 17,
+      "chapter_id": "EEC-C04",
+      "anchor_type": "heading",
+      "heading_exact": "1. Empieza por la situación",
+      "section_key": "1_EMPIEZA_POR_LA_SITUACION"
+    },
+    {
+      "anchor_id": "eec-c4-2-registra-la-sensacion-corporal",
+      "sequence": 18,
+      "chapter_id": "EEC-C04",
+      "anchor_type": "heading",
+      "heading_exact": "2. Registra la sensación corporal",
+      "section_key": "2_REGISTRA_LA_SENSACION_CORPORAL"
+    },
+    {
+      "anchor_id": "eec-c4-3-observa-donde-fue-tu-atencion",
+      "sequence": 19,
+      "chapter_id": "EEC-C04",
+      "anchor_type": "heading",
+      "heading_exact": "3. Observa dónde fue tu atención",
+      "section_key": "3_OBSERVA_DONDE_FUE_TU_ATENCION"
+    },
+    {
+      "anchor_id": "eec-c4-que-parte-de-todo-lo-que-ocurria-capturo-mi-atencion",
+      "sequence": 20,
+      "chapter_id": "EEC-C04",
+      "anchor_type": "heading",
+      "heading_exact": "**¿Qué parte de todo lo que ocurría capturó mi atención?**",
+      "section_key": "QUE_PARTE_DE_TODO_LO_QUE_OCURRIA_CAPTURO_MI_ATENCION"
+    },
+    {
+      "anchor_id": "eec-c4-4-escribe-al-menos-dos-interpretaciones-posibles",
+      "sequence": 21,
+      "chapter_id": "EEC-C04",
+      "anchor_type": "heading",
+      "heading_exact": "4. Escribe al menos dos interpretaciones posibles",
+      "section_key": "4_ESCRIBE_AL_MENOS_DOS_INTERPRETACIONES_POSIBLES"
+    },
+    {
+      "anchor_id": "eec-c4-5-nombra-la-emocion-si-un-nombre-ayuda",
+      "sequence": 22,
+      "chapter_id": "EEC-C04",
+      "anchor_type": "heading",
+      "heading_exact": "5. Nombra la emoción, si un nombre ayuda",
+      "section_key": "5_NOMBRA_LA_EMOCION_SI_UN_NOMBRE_AYUDA"
+    },
+    {
+      "anchor_id": "eec-c4-6-separa-impulso-de-accion",
+      "sequence": 23,
+      "chapter_id": "EEC-C04",
+      "anchor_type": "heading",
+      "heading_exact": "6. Separa impulso de acción",
+      "section_key": "6_SEPARA_IMPULSO_DE_ACCION"
+    },
+    {
+      "anchor_id": "eec-c4-un-impulso-es-informacion-sobre-preparacion-para-actuar-no-es-una-orde",
+      "sequence": 24,
+      "chapter_id": "EEC-C04",
+      "anchor_type": "heading",
+      "heading_exact": "Un impulso es información sobre preparación para actuar. **No es una orden.**",
+      "section_key": "UN_IMPULSO_ES_INFORMACION_SOBRE_PREPARACION_PARA_ACTUAR_NO_E"
+    },
+    {
+      "anchor_id": "eec-c4-que-accion-elegi-realmente-que-otras-acciones-eran-posibles",
+      "sequence": 25,
+      "chapter_id": "EEC-C04",
+      "anchor_type": "heading",
+      "heading_exact": "**¿Qué acción elegí realmente? ¿Qué otras acciones eran posibles?**",
+      "section_key": "QUE_ACCION_ELEGI_REALMENTE_QUE_OTRAS_ACCIONES_ERAN_POSIBLES"
+    },
+    {
+      "anchor_id": "eec-c4-7-anade-informacion-nueva",
+      "sequence": 26,
+      "chapter_id": "EEC-C04",
+      "anchor_type": "heading",
+      "heading_exact": "7. Añade información nueva",
+      "section_key": "7_ANADE_INFORMACION_NUEVA"
+    },
+    {
+      "anchor_id": "eec-c4-que-cambia-ahora-en-mi-interpretacion-del-cuerpo-y-de-la-emocion",
+      "sequence": 27,
+      "chapter_id": "EEC-C04",
+      "anchor_type": "heading",
+      "heading_exact": "**¿Qué cambia ahora en mi interpretación del cuerpo y de la emoción?**",
+      "section_key": "QUE_CAMBIA_AHORA_EN_MI_INTERPRETACION_DEL_CUERPO_Y_DE_LA_EMO"
+    },
+    {
+      "anchor_id": "eec-c4-8-cierra-volviendo-al-presente",
+      "sequence": 28,
+      "chapter_id": "EEC-C04",
+      "anchor_type": "heading",
+      "heading_exact": "8. Cierra volviendo al presente",
+      "section_key": "8_CIERRA_VOLVIENDO_AL_PRESENTE"
+    },
+    {
+      "anchor_id": "eec-c4-escuchar-no-es-obedecer",
+      "sequence": 29,
+      "chapter_id": "EEC-C04",
+      "anchor_type": "heading",
+      "heading_exact": "Escuchar no es obedecer",
+      "section_key": "ESCUCHAR_NO_ES_OBEDECER"
+    },
+    {
+      "anchor_id": "eec-c4-darle-un-lugar-a-la-senal-sin-entregarle-toda-la-decision",
+      "sequence": 30,
+      "chapter_id": "EEC-C04",
+      "anchor_type": "heading",
+      "heading_exact": "**darle un lugar a la señal sin entregarle toda la decisión.**",
+      "section_key": "DARLE_UN_LUGAR_A_LA_SENAL_SIN_ENTREGARLE_TODA_LA_DECISION"
+    }
+  ]
+}

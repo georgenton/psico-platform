@@ -1,0 +1,70 @@
+{
+  "editionKey": "emociones-en-construccion-1e",
+  "_comment": "Alta de las unidades que faltan para publicar C03–C10. C03 ya existe en la edición (orden 3, backfill del capítulo legado) y aparece aquí para que el plan describa el lote completo: el comando la reconoce y no la toca. Las claves de C04–C10 son uuidv5('emociones-en-construccion-1e/EEC-CXX') con el namespace de Content Core — deterministas, para que dry-run y apply coincidan y el comando pueda repetirse.",
+  "units": [
+    {
+      "unitId": "EEC-C03",
+      "unitKey": "f1fd8e4d-39ac-547f-908a-cb97c7f9170b",
+      "order": 3,
+      "partNumber": 1,
+      "partTitle": "Deconstruyendo lo que sabíamos",
+      "title": "Tu cerebro inventa emociones"
+    },
+    {
+      "unitId": "EEC-C04",
+      "unitKey": "3540539f-72d6-5191-a5e8-447737410922",
+      "order": 4,
+      "partNumber": 2,
+      "partTitle": "Construyendo tus emociones",
+      "title": "Tu cuerpo tiene la primera palabra"
+    },
+    {
+      "unitId": "EEC-C05",
+      "unitKey": "231166b5-f48e-506a-9edc-474a26795e4c",
+      "order": 5,
+      "partNumber": 2,
+      "partTitle": "Construyendo tus emociones",
+      "title": "Las historias que te cuentas también influyen en lo que sientes"
+    },
+    {
+      "unitId": "EEC-C06",
+      "unitKey": "170e6699-0507-5784-8ecc-c9994b8dbf7e",
+      "order": 6,
+      "partNumber": 2,
+      "partTitle": "Construyendo tus emociones",
+      "title": "Sentir también se aprende con otros"
+    },
+    {
+      "unitId": "EEC-C07",
+      "unitKey": "e98cb79d-5f04-514a-9efd-735254285958",
+      "order": 7,
+      "partNumber": 2,
+      "partTitle": "Construyendo tus emociones",
+      "title": "Cuando las emociones necesitan traducción"
+    },
+    {
+      "unitId": "EEC-C08",
+      "unitKey": "cd8e1f8e-e19a-5c90-b0f0-5acd5d0a3163",
+      "order": 8,
+      "partNumber": 3,
+      "partTitle": "Vivir emocionalmente despierto",
+      "title": "Escuchar no es obedecer"
+    },
+    {
+      "unitId": "EEC-C09",
+      "unitKey": "a1c44e40-de0b-5bac-9946-ed7655e4140e",
+      "order": 9,
+      "partNumber": 3,
+      "partTitle": "Vivir emocionalmente despierto",
+      "title": "Repensar lo que sientes"
+    },
+    {
+      "unitId": "EEC-C10",
+      "unitKey": "1e7704be-0297-5124-90f7-ebff5ef0caeb",
+      "order": 10,
+      "partNumber": 3,
+      "partTitle": "Vivir emocionalmente despierto",
+      "title": "Lo que enseñamos cuando alguien siente"
+    }
+  ]
+}

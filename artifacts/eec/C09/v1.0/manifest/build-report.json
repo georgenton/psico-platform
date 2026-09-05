@@ -1,0 +1,53 @@
+{
+  "chapter": "C09",
+  "canonicalVersion": "EEC_C09_v1.0_TEXT_LOCKED_2026-08-27",
+  "builtAt": "2026-09-05T00:34:53.714Z",
+  "checks": {
+    "canonicalSha256": "02b42dbdeef1136c560207d597b4c010250e19216dcb0e4c0592684914f1a956",
+    "canonicalShaMatches": true,
+    "parsedTitle": "Capítulo 9",
+    "titleMatchesUnit": false,
+    "blocks": 624,
+    "blockKinds": {
+      "HEADING": 91,
+      "PARAGRAPH": 517,
+      "QUOTE": 13,
+      "PAUSE": 1,
+      "EXERCISE": 1,
+      "VIDEO": 1
+    },
+    "bibliographySha256": "b6480837a8912441d9eb1726937c0acbaa5ad5095cab183ce52dd5ecac248347",
+    "bibliographyShaMatches": true,
+    "bibliographyEntriesExpected": 49,
+    "citationKeysInBib": 49,
+    "notes": 0,
+    "citationProblems": [],
+    "numberingIsAutomatic": true,
+    "bibliographyEntries": 49,
+    "citationStyle": {
+      "csl": "chicago-shortened-notes-bibliography.csl",
+      "locale": "locales-es-ES.xml",
+      "processor": "citeproc-js 1.4.61"
+    },
+    "pdfEngine": null
+  },
+  "outputs": {
+    "feelverse": [
+      "artifacts/eec/C09/v1.0/feelverse/unit-payload.json",
+      "artifacts/eec/C09/v1.0/feelverse/chapter.json"
+    ],
+    "docx": "artifacts/eec/C09/v1.0/print/EEC_C09_PRINT_v1.0_READY.docx",
+    "epub": "artifacts/eec/C09/v1.0/epub/EEC_C09_v1.0.epub",
+    "pdf": null
+  },
+  "blockers": [
+    {
+      "code": "CITATIONS_NOT_MAPPED",
+      "detail": "citations.json llega con `citations: []`. Las 49 Citation Keys existen en el .bib, pero no existe el mapa afirmación → ancla → Zotero Key → localizador, así que no hay notas que numerar. No se inventa."
+    },
+    {
+      "code": "SKIPPED_NO_RELIABLE_PDF_ENGINE",
+      "detail": "Ni pandoc/LaTeX ni LibreOffice en este entorno. El DOCX es válido y abre en Word; generar el PDF con un conversor improvisado — o llamando a uno real con los argumentos de otro — daría un fichero que parece de imprenta y no lo es."
+    }
+  ]
+}

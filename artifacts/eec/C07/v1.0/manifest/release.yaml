@@ -1,0 +1,19 @@
+chapter: EEC-C07
+canonical_version: EEC_C07_v1.0_TEXT_LOCKED_2026-08-26
+canonical_sha256: 26a9b18738f0534a8c172bb22827f92e8f3745d70e91ea0a5923733b4bac8bd9
+title: Cuando las emociones necesitan traducción
+built_at: 2026-09-05T00:34:51.914Z
+citation_style: Chicago Manual of Style 18 · shortened-notes-and-bibliography
+csl: chicago-shortened-notes-bibliography.csl
+bibliography_entries: 41
+notes: 0
+numbering: generated-at-build-time
+blocks: 286
+outputs:
+  - artifacts/eec/C07/v1.0/feelverse/unit-payload.json
+  - artifacts/eec/C07/v1.0/feelverse/chapter.json
+  - artifacts/eec/C07/v1.0/print/EEC_C07_PRINT_v1.0_READY.docx
+  - artifacts/eec/C07/v1.0/epub/EEC_C07_v1.0.epub
+blockers:
+  - CITATIONS_NOT_MAPPED
+  - SKIPPED_NO_RELIABLE_PDF_ENGINE

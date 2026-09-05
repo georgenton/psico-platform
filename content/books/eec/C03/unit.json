@@ -1,0 +1,59 @@
+{
+  "schema_version": "1.0",
+  "unit_id": "EEC-C03",
+  "canonical_version": "EEC_C03_v1.0_TEXT_LOCKED_2026-08-25",
+  "canonical_sha256": "79c427f56089ba693e8c836d737ac0b3dd5c5ab54dbfc8746a02799bbe28beb1",
+  "title": "Tu cerebro inventa emociones",
+  "title_academic": "El cerebro como arquitecto: emociones desde la neurociencia predictiva",
+  "_comment_recovery": "Bytes ORIGINALES del cierre editorial, recuperados del corpus local del autor el 2026-09-04 y verificados contra el SHA-256 declarado en Notion y en el manifiesto de cierre. No es un snapshot reconstruido: CANONICAL_ORIGINAL_VERIFIED.",
+  "recovery": {
+    "status": "CANONICAL_ORIGINAL_VERIFIED",
+    "method": "LOCAL_MD",
+    "historical_sha256": "79c427f56089ba693e8c836d737ac0b3dd5c5ab54dbfc8746a02799bbe28beb1",
+    "sha_match": true,
+    "recovered_at": "2026-09-04",
+    "manifest_evidence": true
+  },
+  "production": {
+    "workKey": "emociones-en-construccion",
+    "editionKey": "emociones-en-construccion-1e",
+    "unitKey": "f1fd8e4d-39ac-547f-908a-cb97c7f9170b",
+    "unitExistsInProduction": true,
+    "unitKeyDerivation": "uuidv5(legacy Chapter.id) — unidad YA existente en la edición (orden 3)",
+    "contentUnitId": "cms54lf9600hnlnrtdfecefhq",
+    "legacyChapterId": "cmredpw6l008s0nprp3uomtwx"
+  },
+  "placement": {
+    "order": 3,
+    "partNumber": 1,
+    "partTitle": "Deconstruyendo lo que sabíamos"
+  },
+  "isFreePreview": false,
+  "files": {
+    "canonical_markdown": "chapter.md",
+    "anchors": "anchors.json",
+    "citations": "citations.json",
+    "figures": "figures.json",
+    "microguides": "microguides.json",
+    "activities": "activities.json",
+    "assets": "assets-manifest.json"
+  },
+  "citation_system": {
+    "manual": "Chicago Manual of Style",
+    "edition": 18,
+    "system": "shortened-notes-and-bibliography",
+    "csl_file": "chicago-shortened-notes-bibliography.csl",
+    "bibliography": "bibliography/eec-c03.bib",
+    "bibliography_status": "ORIGINAL",
+    "bibliography_sha256": "86fb70f69bbea6467ca7cdd0429566e1db26b08d7bd7745a0ba81b0b868ba12d",
+    "bibliography_entries_expected": 23,
+    "callouts": "superscript",
+    "numbering": "generated-at-build-time",
+    "numbering_resets_each_chapter": true
+  },
+  "gates": {
+    "text_locked": "PASS",
+    "citations": "NONE_RESOLVED_23_UNRESOLVED",
+    "reader_projection": "PENDING"
+  }
+}

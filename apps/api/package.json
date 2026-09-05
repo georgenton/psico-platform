@@ -26,6 +26,7 @@
     "content:book:activate-learning": "ts-node src/content-core/learning-activation-cli.ts",
     "smoke:r2": "node --env-file-if-exists=.env scripts/r2-smoke.mjs",
     "content:experience:reserve": "ts-node src/experience/reservation-backfill-cli.ts",
+    "content:unit:bootstrap": "ts-node src/content-core/unit-bootstrap-cli.ts",
     "content:unit:ingest": "ts-node src/content-core/unit-ingest-cli.ts",
     "content:eec:c01:guides": "ts-node src/content-core/eec-c01-guides-main.ts",
     "content:eec:c01:e2e-seed": "ts-node src/content-core/eec-c01-e2e-seed.ts",

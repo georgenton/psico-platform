@@ -1,0 +1,4 @@
+a2ee62e027f91d02710ae8419deabe033cc29f5d65aac02a341728ef887e2152  artifacts/eec/C10/v1.0/feelverse/unit-payload.json
+b5aef2bad9166f6449d01838adf2fa9cf4a0e574ba90c279098142b7f3b391b3  artifacts/eec/C10/v1.0/feelverse/chapter.json
+d90bb3481ce269d5066f3c68ff743f1c0a3bf9795c05f746acc749e4fdac446d  artifacts/eec/C10/v1.0/print/EEC_C10_PRINT_v1.0_READY.docx
+cc7c99ca0b37b0055ba67b7b5c18077601d73a6c35ac39dc970afe338014028f  artifacts/eec/C10/v1.0/epub/EEC_C10_v1.0.epub

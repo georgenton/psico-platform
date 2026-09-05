@@ -1,0 +1,19 @@
+chapter: EEC-C04
+canonical_version: EEC_C04_v1.0_TEXT_LOCKED_2026-08-25
+canonical_sha256: 7f22cfb9859bc3309d6a410e9b1c80080c6b55ad6109b83d62a0852e8e6fe1ce
+title: Tu cuerpo tiene la primera palabra
+built_at: 2026-09-05T00:34:49.423Z
+citation_style: Chicago Manual of Style 18 · shortened-notes-and-bibliography
+csl: chicago-shortened-notes-bibliography.csl
+bibliography_entries: 29
+notes: 0
+numbering: generated-at-build-time
+blocks: 225
+outputs:
+  - artifacts/eec/C04/v1.0/feelverse/unit-payload.json
+  - artifacts/eec/C04/v1.0/feelverse/chapter.json
+  - artifacts/eec/C04/v1.0/print/EEC_C04_PRINT_v1.0_READY.docx
+  - artifacts/eec/C04/v1.0/epub/EEC_C04_v1.0.epub
+blockers:
+  - CITATIONS_NOT_MAPPED
+  - SKIPPED_NO_RELIABLE_PDF_ENGINE

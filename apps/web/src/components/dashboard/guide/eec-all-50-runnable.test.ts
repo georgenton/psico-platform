@@ -23,23 +23,19 @@ import { EEC_C10_MICROGUIDES } from "./eec-c10-microguides";
  * the reader is about to be offered the whole book at once, so "every chapter
  * opens" became a single claim rather than ten separate ones.
  *
- * ── One known defect, pinned rather than hidden ───────────────────────────
+ * ── The defect this list used to carry ────────────────────────────────────
  *
- * `eec-c1-construida-no-significa-falsa` does NOT resolve. Its locator names
- * the heading «Lisa Feldman Barrett: la emoción como construcción», whose
- * section ends at «Un vaso que cambia la experiencia» — and the approved
- * passage sits after that boundary, inside the NEXT section. The chapter text
- * is fine; the locator points one section short.
+ * `eec-c1-construida-no-significa-falsa` did not resolve: its locator named
+ * «Lisa Feldman Barrett: la emoción como construcción», whose section ends
+ * where «Un vaso que cambia la experiencia» begins, and the approved passage
+ * sits after that boundary. `canRunPin` requires RESOLVED, so the card
+ * rendered and its click returned early — visible, unopenable.
  *
- * That matters because `LectorShell.canRunPin` requires RESOLVED, so the card
- * renders and its click returns early: visible, unopenable. C01's own suite
- * never caught it because it only asserts the anchor is REGISTERED.
- *
- * It is listed here so the count stays honest. Correcting the locator is an
- * editorial change nobody has authorised yet; when it happens, this list goes
- * empty and the expectation below starts failing until it is emptied too.
+ * Fixed by moving the LOCATOR, not the text. The set stays here, empty, so
+ * that admitting a future exception is a deliberate edit rather than a silent
+ * skip.
  */
-const KNOWN_UNRESOLVED = new Set(["eec-c1-construida-no-significa-falsa"]);
+const KNOWN_UNRESOLVED = new Set<string>();
 
 const ROOT = join(__dirname, "..", "..", "..", "..", "..", "..");
 
@@ -85,11 +81,11 @@ describe("EEC · the fifty the reader is now offered", () => {
     expect(CHAPTERS.reduce((n, c) => n + c.table.length, 0)).toBe(50);
   });
 
-  it("forty-nine of the fifty are runnable, and the exception is named", () => {
-    // A single number somebody has to change deliberately, rather than a
-    // silent skip. 50 minus the one locator that points a section short.
-    expect(KNOWN_UNRESOLVED.size).toBe(1);
-    expect(50 - KNOWN_UNRESOLVED.size).toBe(49);
+  it("all fifty are runnable, with no exceptions carried", () => {
+    // The number somebody would have to change deliberately to reintroduce a
+    // card that renders and does not open.
+    expect(KNOWN_UNRESOLVED.size).toBe(0);
+    expect(50 - KNOWN_UNRESOLVED.size).toBe(50);
   });
 
   for (const chapter of CHAPTERS) {

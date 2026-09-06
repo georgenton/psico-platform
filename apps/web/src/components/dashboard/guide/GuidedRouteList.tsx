@@ -27,22 +27,16 @@
 import type { CSSProperties } from "react";
 import type { GuideRouteItem } from "@psico/types";
 import type { GuideRouteState } from "./use-guide-route";
+import {
+  ROUTE_CTA as CTA,
+  ROUTE_STATUS as STATUS,
+  routeItemPinKey,
+  type RouteCardVerdict,
+} from "./guide-route-verdict";
 
-export type RouteCardVerdict = "unknown" | "start" | "continue" | "completed";
-
-const CTA: Record<RouteCardVerdict, string> = {
-  unknown: "No disponible ahora",
-  start: "Empezar",
-  continue: "Continuar",
-  completed: "Revisar",
-};
-
-const STATUS: Record<RouteCardVerdict, string> = {
-  unknown: "",
-  start: "Sin empezar",
-  continue: "En curso",
-  completed: "Completada",
-};
+// Re-exported so existing importers keep working; the definition moved to
+// `guide-route-verdict` because the reader panel draws the same route.
+export type { RouteCardVerdict };
 
 export interface GuidedRouteListProps {
   state: GuideRouteState;
@@ -52,7 +46,7 @@ export interface GuidedRouteListProps {
   onRetry?: () => void;
 }
 
-const pinOf = (i: GuideRouteItem) => `${i.guideKey}@${i.guideVersion}`;
+const pinOf = routeItemPinKey;
 
 export function GuidedRouteList({
   state,

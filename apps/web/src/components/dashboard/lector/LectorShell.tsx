@@ -637,7 +637,12 @@ export function LectorShell({
   });
 
   useEffect(() => {
-    if (surface !== "home") return;
+    // Chapter Home is no longer the only screen that DISPLAYS these verdicts:
+    // the guided panel now carries the chapter's route beside the player, and
+    // a route that cannot be re-asked would keep describing the run the reader
+    // just finished. Same question, same batch, one more place it is needed —
+    // not a second source of truth.
+    if (surface !== "home" && !guideOpen) return;
     const askedFor = experienceRequestKey;
     const generation = experienceGenerationRef.current;
     // No context, no question. The screen that lacks one renders no cards, so
@@ -695,6 +700,7 @@ export function LectorShell({
     };
   }, [
     surface,
+    guideOpen,
     experiencePins,
     experienceRequestKey,
     experienceGeneration,
@@ -846,6 +852,34 @@ export function LectorShell({
       return resolveGuideAnchor(blocks, locator).status === "RESOLVED";
     },
     [blocks],
+  );
+
+  /**
+   * Open one reading of the chapter's route — from Chapter Home OR from the
+   * navigator inside the reader panel.
+   *
+   * ONE implementation on purpose. The two surfaces used to be two call sites
+   * of the same rules, and the rules are the delicate part: a verdict must
+   * exist, and the pin that runs is the SERVER's `resumePin` — never the
+   * published pin re-derived here, which is how a reader mid-run gets handed a
+   * fresh session instead of their own.
+   *
+   * Selecting another reading does not touch the one already running: no
+   * cancel, no complete, no session cleared. `pickedPin` moves, the panel
+   * remounts on the new pin, and the previous journey keeps its checkpoint.
+   */
+  const openRouteGuide = useCallback(
+    (item: { guideKey: string; guideVersion: number }) => {
+      if (experienceLoad.status !== "ready") return;
+      const state = experienceLoad.states.get(
+        `${item.guideKey}@${item.guideVersion}`,
+      );
+      if (!state || !canRunPin(state.resumePin)) return;
+      setPickedPin(state.resumePin);
+      openReaderSurface();
+      setGuideOpen(true);
+    },
+    [experienceLoad, canRunPin, openReaderSurface],
   );
 
   /**
@@ -1830,6 +1864,14 @@ export function LectorShell({
           apiBase={apiBase}
           token={token}
           experience={pickedExperience}
+          routeState={route}
+          routeVerdicts={routeVerdicts}
+          onOpenRouteGuide={openRouteGuide}
+          onRetryRoute={revalidateExperienceStates}
+          // The server said COMPLETED. Re-ask for every pin so the route
+          // beside the player stops describing the run that just ended.
+          // It writes nothing; the ledger remains the authority.
+          onCompleted={revalidateExperienceStates}
           {...(chapterExperiences.items.length > 1
             ? {
                 onPickAnotherExperience: () => {
@@ -1948,18 +1990,7 @@ export function LectorShell({
           routeState={route}
           routeVerdicts={routeVerdicts}
           onRetryRoute={revalidateExperienceStates}
-          onOpenRouteGuide={(item) => {
-            // Same guard the published cards apply: a verdict must exist, and
-            // the pin a click would run must belong to this chapter.
-            if (experienceLoad.status !== "ready") return;
-            const state = experienceLoad.states.get(
-              `${item.guideKey}@${item.guideVersion}`,
-            );
-            if (!state || !canRunPin(state.resumePin)) return;
-            setPickedPin(state.resumePin);
-            openReaderSurface();
-            setGuideOpen(true);
-          }}
+          onOpenRouteGuide={openRouteGuide}
           activityCount={activityCount}
           onContinueReading={() => {
             changeMode("leer");

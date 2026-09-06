@@ -78,6 +78,15 @@ export interface ExperiencePlayerProps {
    * Summary never offers a door with nothing behind it.
    */
   onPickAnotherExperience?: () => void;
+  /**
+   * The run reached COMPLETED, as the SERVER sees it.
+   *
+   * Presentational only: the player reports the transition and writes nothing.
+   * The reader's frame uses it to re-ask for every pin's state, so the route
+   * beside the player stops saying «En curso» about the journey just finished.
+   * Fires once per transition, not once per render.
+   */
+  onCompleted?: () => void;
 }
 
 /**
@@ -129,6 +138,7 @@ export function ExperiencePlayerSurface({
   onClose,
   onConfirmResonance,
   onPickAnotherExperience,
+  onCompleted,
   run,
   persistSceneCursor = true,
 }: ExperiencePlayerSurfaceProps) {
@@ -181,6 +191,28 @@ export function ExperiencePlayerSurface({
       }),
     [definition, run.session, run.recoverable, localSceneKey],
   );
+
+  /**
+   * Tell the frame, ONCE, that this run finished.
+   *
+   * Keyed on the transition rather than on the render: `completed` is a
+   * terminal state, so without the ref this would fire on every subsequent
+   * render of the summary and re-ask the server each time.
+   *
+   * It reports; it never decides. The state it reports on comes from
+   * `run.session`, which is the server's, so this cannot claim a completion
+   * the ledger has not recorded.
+   */
+  const completionReported = useRef(false);
+  useEffect(() => {
+    if (state.status !== "completed") {
+      completionReported.current = false;
+      return;
+    }
+    if (completionReported.current) return;
+    completionReported.current = true;
+    onCompleted?.();
+  }, [state.status, onCompleted]);
 
   const headingRef = useRef<HTMLDivElement>(null);
   useEffect(() => {

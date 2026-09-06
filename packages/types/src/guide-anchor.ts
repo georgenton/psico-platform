@@ -249,12 +249,27 @@ export const EEC_C1_MG04_ANCHOR: GuideReaderAnchorLocator = {
   },
 };
 
+/**
+ * The heading was one section short, and the card would not open.
+ *
+ * It named «Lisa Feldman Barrett: la emoción como construcción», whose section
+ * ends where «Un vaso que cambia la experiencia» begins — and the approved
+ * passage sits after that boundary. `resolveGuideAnchor` searches the named
+ * section only, so it found nothing, and `LectorShell.canRunPin` requires a
+ * RESOLVED anchor: the card rendered and its click returned early.
+ *
+ * Only the LOCATOR moved. The chapter text, the block, the fingerprint and the
+ * microguide's copy are untouched — the passage was always where it is; the
+ * pointer was wrong. Verified against production revision 19: the new heading
+ * occurs exactly once in the unit, and the fingerprint occurs exactly once,
+ * inside that heading's section.
+ */
 export const EEC_C1_MG05_ANCHOR: GuideReaderAnchorLocator = {
   guideKey: "eec-c1-construida-no-significa-falsa",
   guideVersion: 1,
   bookSlug: "emociones-en-construccion",
   chapterOrder: 1,
-  sourceHeading: "Lisa Feldman Barrett: la emoción como construcción",
+  sourceHeading: "Un vaso que cambia la experiencia",
   passageLastSentence: "construir una emoción no significa inventarla",
   expectedMatchCount: 1,
 };

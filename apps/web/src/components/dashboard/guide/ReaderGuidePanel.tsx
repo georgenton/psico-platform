@@ -1,9 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useRef } from "react";
-import type { ChapterConcept } from "@psico/types";
+import type { ChapterConcept, GuideRouteItem } from "@psico/types";
 import type { GuideWebBundle } from "./guide-web-bundle";
 import type { GuideAnchorResolution } from "./guide-anchor";
+import { GuidedRouteNavigator } from "./GuidedRouteNavigator";
+import type { GuideRouteState } from "./use-guide-route";
+import type { RouteCardVerdict } from "./guide-route-verdict";
 import { ExperiencePlayer } from "../experience/ExperiencePlayer";
 import { useChapterExperience } from "../experience/use-chapter-experience";
 import type { ChapterExperiencePublicView } from "@psico/types";
@@ -58,6 +61,26 @@ export interface ReaderGuidePanelProps {
    * "the latest" and never the first one as a fallback.
    */
   experience?: ChapterExperiencePublicView | null;
+  /**
+   * The chapter's guided route, kept visible while a journey plays.
+   *
+   * Optional because a chapter may publish exactly one experience and have no
+   * route at all; the panel is then what it always was. When present, the
+   * verdicts come from the caller's ALREADY batched per-pin request — this
+   * panel asks nothing on its own.
+   */
+  routeState?: GuideRouteState;
+  routeVerdicts?: ReadonlyMap<string, RouteCardVerdict>;
+  onOpenRouteGuide?: (item: GuideRouteItem) => void;
+  onRetryRoute?: () => void;
+  /**
+   * The server confirmed this run is COMPLETED.
+   *
+   * The caller re-asks for every pin's state; it writes nothing. Without this
+   * the route beside the player kept saying «En curso» about the journey the
+   * reader had just finished.
+   */
+  onCompleted?: () => void;
   /** Back to Chapter Home to choose a different journey. */
   onPickAnotherExperience?: () => void;
   onClose: () => void;
@@ -77,6 +100,11 @@ export function ReaderGuidePanel({
   apiBase,
   token,
   experience,
+  routeState,
+  routeVerdicts,
+  onOpenRouteGuide,
+  onRetryRoute,
+  onCompleted,
   onPickAnotherExperience,
   onClose,
   onGoToPassage,
@@ -84,6 +112,25 @@ export function ReaderGuidePanel({
   onOpenExplicitCheckin,
 }: ReaderGuidePanelProps) {
   const panelRef = useRef<HTMLElement>(null);
+  const routeRef = useRef<HTMLDivElement>(null);
+
+  /** Is there a real, listable route beside the player right now? */
+  const hasRoute =
+    routeState !== undefined &&
+    routeVerdicts !== undefined &&
+    onOpenRouteGuide !== undefined &&
+    routeState.status === "available";
+
+  /**
+   * «Ver otra experiencia», when the other experiences are already on screen.
+   *
+   * Moving focus is the whole action: selecting one is still an explicit tap,
+   * and nothing starts by itself.
+   */
+  const focusRoute = useCallback(() => {
+    routeRef.current?.focus();
+    routeRef.current?.scrollIntoView({ block: "nearest" });
+  }, []);
 
   /**
    * The explicit resonance write.
@@ -221,6 +268,25 @@ export function ReaderGuidePanel({
         </button>
       </div>
 
+      {/* The route lives in the FRAME, above the player and outside it. A
+          reader who finishes one journey can see the other four without
+          closing anything, which is the whole repair. */}
+      {routeState && routeVerdicts && onOpenRouteGuide ? (
+        <div ref={routeRef} tabIndex={-1} className="rgp-route-slot">
+          <GuidedRouteNavigator
+            state={routeState}
+            verdicts={routeVerdicts}
+            activePin={bundle.pin}
+            onOpen={onOpenRouteGuide}
+            {...(onRetryRoute ? { onRetry: onRetryRoute } : {})}
+          />
+        </div>
+      ) : null}
+
+      {/* With a route on screen, «Ver otra experiencia» must not close the
+          panel to go pick one on Chapter Home — the list is right here, so it
+          moves focus to the route instead. Chapters with no route keep the old
+          door, which is still the only one they have. */}
       <div className="rgp-body">
         <ExperiencePlayer
           actorScope={actorScope}
@@ -233,7 +299,12 @@ export function ReaderGuidePanel({
           onContinueReading={onContinueReading}
           onClose={onClose}
           onConfirmResonance={confirmResonance}
-          {...(onPickAnotherExperience ? { onPickAnotherExperience } : {})}
+          {...(onCompleted ? { onCompleted } : {})}
+          {...(hasRoute
+            ? { onPickAnotherExperience: focusRoute }
+            : onPickAnotherExperience
+              ? { onPickAnotherExperience }
+              : {})}
         />
       </div>
     </aside>

@@ -242,13 +242,19 @@ suite("C.3R · discovery resolves the reader's unit from the manifest", () => {
     });
   });
 
-  it("a different chapter of the same book offers nothing", async () => {
-    // Order 2 of Emociones is a real, published unit — it is simply not the
-    // unit this guide is about. The index has no pin there either, so the
-    // negative is opaque for two independent reasons at once.
+  it("a different chapter of the same book offers its OWN route", async () => {
+    // This asserted `available: false` for as long as order 2 had no route,
+    // and the reason given was that the index pinned nothing there. C02 is a
+    // guided route now, so what the case still proves is the part that
+    // matters: each chapter answers with its own first reading, never with
+    // another chapter's.
     await expect(
       makeService().discover(USER, { bookSlug: EEC, chapterOrder: 2 }),
-    ).resolves.toEqual({ available: false });
+    ).resolves.toEqual({
+      available: true,
+      guideKey: "eec-c2-universal-no-significa-uniforme",
+      guideVersion: 1,
+    });
   });
 
   it("a position that names no published unit offers nothing", async () => {

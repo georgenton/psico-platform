@@ -89,15 +89,10 @@ describe("EEC-C03 → C10 · the guided routes on offer", () => {
 });
 
 describe("EEC-C03 → C10 · what the route must NOT disturb", () => {
-  it("C01 still answers exactly as it did — behind its own flag", () => {
-    // Unchanged: the five are declared but gated by EEC_C01_GUIDED_SUITE_V1,
-    // which is off. This asserts the GATE still applies, not that C01 is empty.
-    expect(productionGuideDiscoveryCatalog.listContext(BOOK, 1)).toEqual([]);
-  });
-
-  it("C02 is still offered by nobody", () => {
-    expect(productionGuideDiscoveryCatalog.listContext(BOOK, 2)).toEqual([]);
-  });
+  // C01's gate and C02's route are asserted in `eec-c01-c02-discovery.spec.ts`,
+  // which owns both states of the kill switch. What matters HERE is only that
+  // adding those two did not disturb C03–C10 — so this file no longer pins
+  // their emptiness, which stopped being true when they were offered.
 
   it("Parejas keeps its single guided reading", () => {
     const list = productionGuideDiscoveryCatalog.listContext(

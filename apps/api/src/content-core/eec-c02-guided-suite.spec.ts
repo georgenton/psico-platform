@@ -88,16 +88,25 @@ describe("EEC-C02 · manifests", () => {
     }
   });
 
-  it("stay out of the reader's route: nothing offers them yet", () => {
-    expect(productionGuideDiscoveryCatalog.listContext(BOOK, 2)).toEqual([]);
+  it("are the five the reader's route offers, and only those", () => {
+    // This used to assert the opposite — "nothing offers them yet" — which was
+    // true for as long as C02 had no route. Now that it has one, the check
+    // worth keeping is the PAIRING: every manifest is on offer at its own
+    // position, and the route holds nothing beyond them.
+    const route = productionGuideDiscoveryCatalog.listContext(BOOK, 2);
+    expect(route).toHaveLength(manifests.length);
     for (const m of manifests) {
       expect(
         productionGuideDiscoveryCatalog.offersPin(BOOK, 2, {
           guideKey: m.guideKey,
           guideVersion: 1,
         }),
-      ).toBe(false);
+        m.guideKey,
+      ).toBe(true);
     }
+    expect(route.map((i) => i.pin.guideKey).sort()).toEqual(
+      manifests.map((m) => m.guideKey).sort(),
+    );
   });
 });
 

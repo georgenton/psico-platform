@@ -1,5 +1,6 @@
 import { productionGuideRegistry } from "./guide-catalog";
 import { flagEnabled } from "../shared/flags";
+import { EEC_C02_DISCOVERY_ENTRIES } from "./eec-c02-discovery";
 import { EEC_C03_C10_DISCOVERY_ENTRIES } from "./eec-c03-c10-discovery";
 
 /**
@@ -470,6 +471,12 @@ export const PRODUCTION_LEGACY_GUIDE_PINS: readonly GuideLegacyPinEntry[] = [
 export const productionGuideDiscoveryCatalog = new GuideDiscoveryCatalog(
   [
     ...PRODUCTION_GUIDE_DISCOVERY_ENTRIES,
+    // C02 · its five have been PUBLISHED since September 2026 and nothing
+    // offered them. Generated, like C03–C10, though from a different
+    // authority — see `eec-c02-discovery.ts`. No flag: C02 has no kill switch
+    // of its own, and inventing one to match C01 would add a lever nobody
+    // asked for.
+    ...EEC_C02_DISCOVERY_ENTRIES,
     // C03–C10 · the forty guided readings, offered now that their Experiences
     // are PUBLISHED. Generated from the manifests rather than restated here —
     // see `eec-c03-c10-discovery.ts`.

@@ -86,14 +86,14 @@ describe("normalizers", () => {
 });
 
 describe("production discovery catalog", () => {
-  it("maps ten contexts and offers forty-six guided readings", () => {
+  it("maps eleven contexts and offers fifty-one guided readings", () => {
     // The hand-written table still holds exactly its original six: EEC-C01's
-    // five plus Parejas. C03–C10 add eight contexts and forty entries, and
-    // they live in their own GENERATED table, so this count stays a statement
+    // five plus Parejas. Everything since is GENERATED and lives in its own
+    // table — C02's five and C03–C10's forty — so this count stays a statement
     // about what was typed by hand.
     expect(PRODUCTION_GUIDE_DISCOVERY_ENTRIES).toHaveLength(6);
-    expect(productionGuideDiscoveryCatalog.size).toBe(2 + 8);
-    expect(productionGuideDiscoveryCatalog.entryCount).toBe(6 + 40);
+    expect(productionGuideDiscoveryCatalog.size).toBe(2 + 1 + 8);
+    expect(productionGuideDiscoveryCatalog.entryCount).toBe(6 + 5 + 40);
   });
 
   it("offers EEC chapter 1 the five microguides, in route order", () => {
@@ -184,9 +184,12 @@ describe("production discovery catalog", () => {
     ).toBeNull();
   });
 
+  // "a later Emociones chapter" used to mean order 2. It is a guided route
+  // now, so the example moved past the end of the book rather than being
+  // deleted — the case being made is still "a position nobody listed".
   it.each([
     ["a later Parejas chapter", "parejas-que-perduran", 3],
-    ["a later Emociones chapter", "emociones-en-construccion", 2],
+    ["a chapter past the end of Emociones", "emociones-en-construccion", 11],
     ["an unknown book", "libro-inexistente", 1],
   ])("offers nothing for %s", (_why, slug, order) => {
     expect(

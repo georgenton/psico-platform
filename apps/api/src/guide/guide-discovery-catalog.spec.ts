@@ -86,10 +86,14 @@ describe("normalizers", () => {
 });
 
 describe("production discovery catalog", () => {
-  it("maps two contexts and offers six guided readings", () => {
+  it("maps ten contexts and offers forty-six guided readings", () => {
+    // The hand-written table still holds exactly its original six: EEC-C01's
+    // five plus Parejas. C03–C10 add eight contexts and forty entries, and
+    // they live in their own GENERATED table, so this count stays a statement
+    // about what was typed by hand.
     expect(PRODUCTION_GUIDE_DISCOVERY_ENTRIES).toHaveLength(6);
-    expect(productionGuideDiscoveryCatalog.size).toBe(2);
-    expect(productionGuideDiscoveryCatalog.entryCount).toBe(6);
+    expect(productionGuideDiscoveryCatalog.size).toBe(2 + 8);
+    expect(productionGuideDiscoveryCatalog.entryCount).toBe(6 + 40);
   });
 
   it("offers EEC chapter 1 the five microguides, in route order", () => {

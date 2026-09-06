@@ -1,5 +1,6 @@
 import { productionGuideRegistry } from "./guide-catalog";
 import { flagEnabled } from "../shared/flags";
+import { EEC_C03_C10_DISCOVERY_ENTRIES } from "./eec-c03-c10-discovery";
 
 /**
  * GR-4 — the SERVER-OWNED map from a reading context to its guided readings.
@@ -467,6 +468,18 @@ export const PRODUCTION_LEGACY_GUIDE_PINS: readonly GuideLegacyPinEntry[] = [
 ];
 
 export const productionGuideDiscoveryCatalog = new GuideDiscoveryCatalog(
-  PRODUCTION_GUIDE_DISCOVERY_ENTRIES,
+  [
+    ...PRODUCTION_GUIDE_DISCOVERY_ENTRIES,
+    // C03–C10 · the forty guided readings, offered now that their Experiences
+    // are PUBLISHED. Generated from the manifests rather than restated here —
+    // see `eec-c03-c10-discovery.ts`.
+    //
+    // Deliberately NOT added to `PRODUCTION_LEGACY_GUIDE_PINS`: the previous
+    // binary never knew these chapters, and giving it a pin to bind would be
+    // inventing a compatibility claim rather than honouring one. The new route
+    // reaches them through `listContext` / `offersPin`, which is the contract
+    // they were built for.
+    ...EEC_C03_C10_DISCOVERY_ENTRIES,
+  ],
   PRODUCTION_LEGACY_GUIDE_PINS,
 );

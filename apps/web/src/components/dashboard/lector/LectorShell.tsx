@@ -717,6 +717,16 @@ export function LectorShell({
    * An answer that has lapsed reads as `loading`, because that is what is
    * true: we are asking again.
    */
+
+  const experienceAuthority: ExperienceStatesLoad = useMemo(() => {
+    if (experienceLoad.status === "idle") return experienceLoad;
+    if (experienceLoad.status === "loading") return experienceLoad;
+    const current =
+      experienceLoad.requestKey === experienceRequestKey &&
+      experienceLoad.generation === experienceGeneration;
+    return current ? experienceLoad : { status: "loading" };
+  }, [experienceLoad, experienceRequestKey, experienceGeneration]);
+
   /**
    * The route cards' verdicts, read out of the SAME authority the published
    * cards use. A pin with no answer is deliberately absent from this map: the
@@ -725,11 +735,15 @@ export function LectorShell({
    */
   const routeVerdicts = useMemo(() => {
     const out = new Map<string, RouteCardVerdict>();
-    if (experienceLoad.status !== "ready") return out;
+    // The CURRENT authority, never the last answer that happened to arrive.
+    // Reading `experienceLoad` here is what left a stale card clickable while
+    // the strict side had already gone pending: the click stored a pin nothing
+    // could vouch for, and the run unmounted itself a frame later.
+    if (experienceAuthority.status !== "ready") return out;
     if (route.status !== "available") return out;
     for (const g of route.guides) {
       const key = `${g.guideKey}@${g.guideVersion}`;
-      const state = experienceLoad.states.get(key);
+      const state = experienceAuthority.states.get(key);
       if (!state) continue;
       out.set(
         key,
@@ -741,16 +755,29 @@ export function LectorShell({
       );
     }
     return out;
-  }, [experienceLoad, route]);
+  }, [experienceAuthority, route]);
 
-  const experienceAuthority: ExperienceStatesLoad = useMemo(() => {
-    if (experienceLoad.status === "idle") return experienceLoad;
-    if (experienceLoad.status === "loading") return experienceLoad;
-    const current =
-      experienceLoad.requestKey === experienceRequestKey &&
-      experienceLoad.generation === experienceGeneration;
-    return current ? experienceLoad : { status: "loading" };
-  }, [experienceLoad, experienceRequestKey, experienceGeneration]);
+  /**
+   * A run the authority has ALREADY vouched for, bounded to the context that
+   * vouched for it.
+   *
+   * Two different questions were being answered with one value. «May the
+   * reader START something now?» must use the strictly current authority, so a
+   * superseded answer never offers a click. «May the run already on screen
+   * stay on screen?» is not the same: it was admitted against a fresh,
+   * APPLIES verdict for this exact reader context, and a routine refresh of
+   * that same context is not evidence against it.
+   *
+   * Ephemeral by design — no storage, no server. It carries only what is
+   * needed to prove the admission still belongs here: which pin, and which
+   * question it was granted under. `experienceRequestKey` already encodes the
+   * book, the chapter and the unit, so a context change invalidates it by
+   * construction rather than by remembering to clear it.
+   */
+  const [admittedRun, setAdmittedRun] = useState<{
+    pinKey: string;
+    requestKey: string;
+  } | null>(null);
 
   /**
    * Ask again when the reader comes back to the tab or the window.
@@ -816,6 +843,25 @@ export function LectorShell({
   );
 
   /**
+   * Does the admission still cover the run on screen?
+   *
+   * THREE things must hold, and they are the three ways an admission dies:
+   * the pin must still be the one running, the context must still be the one
+   * it was granted under (`experienceRequestKey` carries book, chapter and
+   * unit), and the authority must be genuinely unable to answer right now.
+   *
+   * That last clause is what keeps this from becoming a bypass. The moment a
+   * fresh answer arrives it decides — including when it says UNAVAILABLE, or
+   * says nothing about this pin at all.
+   */
+  const activeAdmission =
+    admittedRun !== null &&
+    runPin !== null &&
+    admittedRun.pinKey === experiencePinKey(runPin) &&
+    admittedRun.requestKey === experienceRequestKey &&
+    experienceAuthority.status !== "ready";
+
+  /**
    * C.2 — can THIS pin actually be run, on this screen, by this build?
    *
    * The same four authorities the guided surface itself consults, asked one
@@ -870,16 +916,28 @@ export function LectorShell({
    */
   const openRouteGuide = useCallback(
     (item: { guideKey: string; guideVersion: number }) => {
-      if (experienceLoad.status !== "ready") return;
-      const state = experienceLoad.states.get(
+      // Only the CURRENT authority may admit a run. A superseded answer is not
+      // permission — it is the answer to a question nobody is asking any more.
+      if (experienceAuthority.status !== "ready") return;
+      const state = experienceAuthority.states.get(
         `${item.guideKey}@${item.guideVersion}`,
       );
-      if (!state || !canRunPin(state.resumePin)) return;
+      if (!state) return;
+      // The server's verdict, asked for explicitly rather than inferred from
+      // the presence of a row. `null` is «we could not tell», not «yes».
+      if (state.applicability !== "APPLIES") return;
+      if (!canRunPin(state.resumePin)) return;
+      // The pin that RUNS is the server's resume pin. Re-deriving the
+      // published one here is how a reader mid-run gets a fresh session.
+      setAdmittedRun({
+        pinKey: experiencePinKey(state.resumePin),
+        requestKey: experienceRequestKey,
+      });
       setPickedPin(state.resumePin);
       openReaderSurface();
       setGuideOpen(true);
     },
-    [experienceLoad, canRunPin, openReaderSurface],
+    [experienceAuthority, experienceRequestKey, canRunPin, openReaderSurface],
   );
 
   /**
@@ -902,11 +960,26 @@ export function LectorShell({
     // resolution below would usually fail on the wrong chapter anyway, since
     // the passage is not in those blocks — "usually" being exactly the word
     // that does not belong in a guard.
-    if (serverVerdictFor(runPin) !== "APPLIES") return { status: "UNRESOLVED" };
+    // Two ways a run may stand here, and only two.
+    //
+    //   a fresh APPLIES for this pin — how a run is ADMITTED; or
+    //   an admission already granted for this exact context, while the
+    //   authority is momentarily unable to answer.
+    //
+    // The second is not a weaker version of the first. A refresh of the SAME
+    // question is not evidence against a verdict that question already gave,
+    // and treating it as one is what unmounted a reader mid-journey. It is
+    // scoped to the pin actually running: it never vouches for another card,
+    // and a FRESH answer always decides — an authority that is `ready` and
+    // does not say APPLIES revokes it, which is the case below falling
+    // through to UNRESOLVED.
+    if (serverVerdictFor(runPin) !== "APPLIES" && !activeAdmission) {
+      return { status: "UNRESOLVED" };
+    }
     const locator = guideAnchorRegistry.getExact(runPin);
     if (!locator) return { status: "UNRESOLVED" };
     return resolveGuideAnchor(blocks, locator);
-  }, [blocks, runPin, serverVerdictFor]);
+  }, [blocks, runPin, serverVerdictFor, activeAdmission]);
 
   /**
    * Scroll the anchored paragraph into view and focus it. Deliberately does
@@ -1978,10 +2051,19 @@ export function LectorShell({
               experiencePinKey(experience.guidePin),
             );
             if (!state) return;
+            // The same verdict the route's own opener demands. Chapter Home
+            // and the reader's navigator must not run two policies: a card
+            // that opens from one screen and refuses from the other is the
+            // kind of difference nobody can see until it strands somebody.
+            if (state.applicability !== "APPLIES") return;
             // And the pin has to be runnable HERE. Storing a pick the panel
             // will refuse is worse than doing nothing: the button reads as
             // broken and the selection lingers.
             if (!canRunPin(state.resumePin)) return;
+            setAdmittedRun({
+              pinKey: experiencePinKey(state.resumePin),
+              requestKey: currentExperienceKeyRef.current,
+            });
             setPickedPin(state.resumePin);
             setPickedExperience(experience);
             openReaderSurface();

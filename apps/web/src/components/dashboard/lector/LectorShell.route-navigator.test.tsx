@@ -280,6 +280,21 @@ async function openFromHome(index: number) {
 /** The compact navigator's rows, in order. */
 const navRows = () => screen.getAllByTestId("rgp-route-item");
 const navText = () => navRows().map((li) => li.textContent ?? "");
+const navButton = (i: number) =>
+  navRows()[i].querySelector("button") as HTMLButtonElement;
+const activePin = () => screen.getByTestId("player-pin").textContent;
+const panelMounted = () => screen.queryByTestId("reader-guide-panel") !== null;
+
+/** A promise this test resolves by hand, to hold a request open. */
+function deferred<T>() {
+  let resolve!: (v: T) => void;
+  let reject!: (e: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
 
 describe("the chapter's route stays inside the reader", () => {
   it("shows all five readings while one is playing, and marks the active one", async () => {
@@ -419,5 +434,223 @@ describe("a verdict the server never gave", () => {
     const buttons = navRows().map((li) => li.querySelector("button"));
     expect(buttons[0]).not.toBeDisabled();
     for (const b of buttons.slice(1)) expect(b).toBeDisabled();
+  });
+});
+
+/**
+ * The authority race — the defect the production smoke found.
+ *
+ * Two different things were both called "the state": the LAST answer that
+ * arrived, and the answer that still speaks for what is on screen. The route's
+ * controls read the first; the anchor, the runtime gate and the panel's own
+ * visibility read the second. So a revalidation opened a window in which a
+ * stale card looked clickable, the click stored the pin, and the strict side
+ * — already pending — could not vouch for it. The panel then unmounted itself.
+ *
+ * MG01 hid all of this, because `serverVerdictFor` has a fallback for the
+ * chapter's discovery pin. Every case below therefore uses a NON-discovery pin.
+ */
+describe("authority during a revalidation", () => {
+  it("CASE 1 · a stale card is inert, and becomes actionable only when fresh authority lands", async () => {
+    renderReader();
+    await settle();
+    await openFromHome(0);
+    expect(activePin()).toBe(KEYS[0]);
+
+    // Hold the next answer open: this is the window the bug lived in.
+    const pending = deferred<{ items: GuideExperienceCardState[] }>();
+    getExperienceCardStates.mockReturnValue(pending.promise);
+    fireEvent.click(screen.getByText("Simular COMPLETED"));
+    await settle();
+
+    // The run already admitted stays on screen…
+    expect(panelMounted()).toBe(true);
+    expect(activePin()).toBe(KEYS[0]);
+    // …but nothing may be STARTED on an answer that no longer speaks.
+    for (const [i] of KEYS.entries()) {
+      expect(navButton(i).disabled, `row ${i + 1} during refresh`).toBe(true);
+    }
+
+    // A click in that window must not move the run.
+    fireEvent.click(navButton(1));
+    await settle();
+    expect(activePin()).toBe(KEYS[0]);
+
+    pending.resolve(cards(["COMPLETED", "START", "START", "START", "START"]));
+    await settle();
+
+    expect(navButton(1).disabled).toBe(false);
+    fireEvent.click(navButton(1));
+    await waitFor(() => expect(activePin()).toBe(KEYS[1]));
+    expect(panelMounted()).toBe(true);
+  });
+
+  it("CASE 2 · a non-discovery run stays mounted while its context is revalidated", async () => {
+    renderReader();
+    await settle();
+    // MG02 is NOT the chapter's discovery pin, so nothing vouches for it but
+    // the authority itself. This is the exact production failure.
+    await openFromHome(1);
+    expect(activePin()).toBe(KEYS[1]);
+
+    const pending = deferred<{ items: GuideExperienceCardState[] }>();
+    getExperienceCardStates.mockReturnValue(pending.promise);
+    fireEvent.click(screen.getByText("Simular COMPLETED"));
+    await settle();
+
+    expect(panelMounted()).toBe(true);
+    expect(activePin()).toBe(KEYS[1]);
+
+    pending.resolve(cards(["START", "COMPLETED", "START", "START", "START"]));
+    await settle();
+    expect(panelMounted()).toBe(true);
+    expect(activePin()).toBe(KEYS[1]);
+  });
+
+  it("CASE 3 · a failed refresh does not evict a run already admitted", async () => {
+    renderReader();
+    await settle();
+    await openFromHome(1);
+
+    const failing = deferred<{ items: GuideExperienceCardState[] }>();
+    getExperienceCardStates.mockReturnValue(failing.promise);
+    fireEvent.click(screen.getByText("Simular COMPLETED"));
+    await settle();
+    failing.reject(new Error("network"));
+    await settle();
+
+    // The reader keeps the journey they were in…
+    expect(panelMounted()).toBe(true);
+    expect(activePin()).toBe(KEYS[1]);
+    // …and the route offers nothing it cannot vouch for.
+    for (const [i] of KEYS.entries()) expect(navButton(i).disabled).toBe(true);
+
+    getExperienceCardStates.mockResolvedValue(
+      cards(["START", "CONTINUE", "START", "START", "START"]),
+    );
+    fireEvent.click(screen.getByText("Simular COMPLETED"));
+    await settle();
+    expect(panelMounted()).toBe(true);
+    expect(navButton(0).disabled).toBe(false);
+  });
+
+  it("CASE 4 · a fresh UNAVAILABLE revokes the admission", async () => {
+    renderReader();
+    await settle();
+    await openFromHome(1);
+    expect(activePin()).toBe(KEYS[1]);
+
+    // The server, asked again, says this guide is not for here.
+    getExperienceCardStates.mockResolvedValue({
+      items: cards(["START", "START", "START", "START", "START"]).items.map(
+        (c, i) => (i === 1 ? { ...c, applicability: "UNAVAILABLE" } : c),
+      ) as GuideExperienceCardState[],
+    });
+    fireEvent.click(screen.getByText("Simular COMPLETED"));
+    await settle();
+
+    // Continuity is not a bypass: a fresh denial ends it.
+    await waitFor(() => expect(panelMounted()).toBe(false));
+  });
+
+  it("CASE 5 · an admission never crosses into another context", async () => {
+    const { rerender } = renderReader();
+    await settle();
+    await openFromHome(1);
+    expect(activePin()).toBe(KEYS[1]);
+
+    // The reader walks to another chapter while the answer is in flight. The
+    // admission was granted for the previous context and must not keep a run
+    // alive here — `experienceRequestKey` carries book, chapter and unit, so
+    // it stops matching by construction.
+    const pending = deferred<{ items: GuideExperienceCardState[] }>();
+    getExperienceCardStates.mockReturnValue(pending.promise);
+    rerender(
+      <GuideAvailabilityProvider available>
+        <GuideActorScopeProvider scope={"A".repeat(43)}>
+          <LectorShell
+            apiBase="https://api.example/api"
+            token="tok"
+            bookSlug="emociones-en-construccion"
+            initial={
+              {
+                ...initial,
+                chapter: { ...initial.chapter, id: "ch-4", order: 4 },
+              } as unknown as LectorChapterResponse
+            }
+            unit={
+              {
+                ...unitWithFiveAnchors(),
+                unitKey: "unit-4",
+                order: 4,
+              } as unknown as ContentUnitRead
+            }
+            marks={null}
+          />
+        </GuideActorScopeProvider>
+      </GuideAvailabilityProvider>,
+    );
+    await settle();
+    await waitFor(() => expect(panelMounted()).toBe(false));
+  });
+
+  it("CASE 6 · switching away and back resumes, never restarts", async () => {
+    getExperienceCardStates.mockResolvedValue(
+      cards(["CONTINUE", "START", "START", "START", "START"]),
+    );
+    renderReader();
+    await settle();
+    await openFromHome(0);
+    expect(navText()[0]).toContain("En curso");
+
+    fireEvent.click(navButton(1));
+    await waitFor(() => expect(activePin()).toBe(KEYS[1]));
+    expect(navText()[0]).toContain("En curso");
+
+    fireEvent.click(navButton(0));
+    await waitFor(() => expect(activePin()).toBe(KEYS[0]));
+    // Still its own session: the row says «En curso», not «Sin empezar».
+    expect(navText()[0]).toContain("En curso");
+    expect(panelMounted()).toBe(true);
+  });
+});
+
+describe("Chapter Home applies the same rule", () => {
+  it("opens a NON-discovery card, and keeps it open", async () => {
+    renderReader();
+    await settle();
+    await openFromHome(1);
+
+    expect(panelMounted()).toBe(true);
+    expect(activePin()).toBe(KEYS[1]);
+  });
+
+  it("refuses a card whose authority has not arrived", async () => {
+    // The answer never lands while the reader is looking at the list, so every
+    // control is inert. "We could not ask" must never read as "not started".
+    const pending = deferred<{ items: GuideExperienceCardState[] }>();
+    getExperienceCardStates.mockReturnValue(pending.promise);
+    renderReader();
+    await settle();
+    fireEvent.click(await screen.findByTestId("reader-open-chapter-home"));
+    await screen.findAllByTestId("route-card");
+
+    const stale = screen
+      .getAllByTestId("route-card")[1]
+      .querySelector("button") as HTMLButtonElement;
+    expect(stale.disabled).toBe(true);
+    fireEvent.click(stale);
+    await settle();
+    expect(panelMounted()).toBe(false);
+
+    pending.resolve(cards(["START", "START", "START", "START", "START"]));
+    await settle();
+
+    const fresh = screen
+      .getAllByTestId("route-card")[1]
+      .querySelector("button") as HTMLButtonElement;
+    expect(fresh.disabled).toBe(false);
+    fireEvent.click(fresh);
+    await waitFor(() => expect(activePin()).toBe(KEYS[1]));
   });
 });

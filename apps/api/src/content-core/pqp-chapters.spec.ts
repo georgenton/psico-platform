@@ -1,3 +1,5 @@
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { guideAnchorRegistry, guidedChapterConcepts } from "@psico/types";
 import { productionGuideRegistry } from "../guide/guide-catalog";
@@ -330,5 +332,55 @@ describe("PQP · book-wide invariants", () => {
       .listContext(BOOK, 2)
       .map((i) => i.pin.guideKey);
     expect(offered).toEqual([PILOT_GUIDE_KEY]);
+  });
+});
+
+/**
+ * The stored definition validator bounds editorial copy, and a manifest that
+ * exceeds a bound is refused at `createDraft` time with
+ * EXPERIENCE_CATALOG_INVALID_DEFINITION — after some of its siblings have
+ * already been written. Measured the hard way on C03 and C04, whose longest
+ * safety notes ran 328 and 368 characters against a limit of 300.
+ *
+ * Checking the manifests here turns that into a failing test before anything
+ * reaches production. The numbers mirror `experience-catalog.ts`; if they ever
+ * diverge, this is the file that should be corrected to match it.
+ */
+describe("PQP · manifests fit the definition validator's bounds", () => {
+  const ROOT = join(process.cwd(), "../..", "artifacts/pqp");
+  const LIMITS = { title: 160, note: 300, actionLabel: 60, body: 600 };
+
+  const manifests = readdirSync(ROOT).flatMap((code) => {
+    const dir = join(ROOT, code, "v1.0/feelverse/guides");
+    return readdirSync(dir)
+      .filter((n) => /^mg0\d\.manifest\.json$/.test(n))
+      .map((n) => JSON.parse(readFileSync(join(dir, n), "utf8")));
+  });
+
+  it("has manifests to check", () => {
+    expect(manifests.length).toBeGreaterThan(0);
+  });
+
+  it("keeps every scene's copy inside the stored limits", () => {
+    const over: string[] = [];
+    for (const m of manifests) {
+      for (const scene of m.scenes) {
+        for (const field of ["title", "note", "actionLabel"] as const) {
+          const value = scene[field];
+          if (typeof value === "string" && value.length > LIMITS[field]) {
+            over.push(`${m.manifestId}/${scene.kind}/${field}=${value.length}`);
+          }
+        }
+        for (const line of scene.body ?? []) {
+          if (line.length > LIMITS.body) {
+            over.push(`${m.manifestId}/${scene.kind}/body=${line.length}`);
+          }
+        }
+      }
+      // `toDefinition` uses the first scene's title as the Experience title,
+      // which the validator bounds more tightly than a scene title.
+      expect(m.scenes[0].title.length).toBeLessThanOrEqual(120);
+    }
+    expect(over).toEqual([]);
   });
 });

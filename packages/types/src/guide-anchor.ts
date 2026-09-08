@@ -1220,6 +1220,16 @@ export const PQP_C8_MG04_ANCHOR: GuideReaderAnchorLocator = {
   expectedMatchCount: 1,
 };
 
+/**
+ * The fingerprint is deliberately NOT «pasión, intimidad y compromiso».
+ *
+ * That phrase reads like the obvious one, and it is the only fingerprint in
+ * either book that is not unique across its unit: the chapter's conclusion
+ * repeats it verbatim, so `plan` reported `fingerprintMatches: 2`. The runtime
+ * resolver searches inside the section and would have resolved correctly, but
+ * an anchor is supposed to be unambiguous by construction rather than by where
+ * the search happens to start.
+ */
 export const PQP_C8_MG05_ANCHOR: GuideReaderAnchorLocator = {
   guideKey: "pqp-c8-triangulo-de-sternberg",
   guideVersion: 1,
@@ -1227,7 +1237,7 @@ export const PQP_C8_MG05_ANCHOR: GuideReaderAnchorLocator = {
   chapterOrder: 9,
   sourceHeading:
     "El triángulo del amor de Sternberg: una clave para comprender el afecto",
-  passageLastSentence: "pasión, intimidad y compromiso",
+  passageLastSentence: "un triángulo compuesto por tres elementos",
   expectedMatchCount: 1,
 };
 

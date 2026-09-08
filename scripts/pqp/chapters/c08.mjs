@@ -472,9 +472,14 @@ export const MICROGUIDES = [
     practiceSlug: "que-vertice-sostiene-la-escena",
     practiceKind: "context_plausibility",
     anchor: {
+      // NOT «pasión, intimidad y compromiso», the obvious phrase: the chapter's
+      // conclusion repeats it, so `plan` counted it twice across the unit. The
+      // runtime resolver searches within the section and would have resolved
+      // either way, but an anchor whose fingerprint is unique unit-wide is what
+      // every other route in this book has, and ambiguity here fails closed.
       heading:
         "El triángulo del amor de Sternberg: una clave para comprender el afecto",
-      fingerprint: "pasión, intimidad y compromiso",
+      fingerprint: "un triángulo compuesto por tres elementos",
     },
     scenes: [
       {

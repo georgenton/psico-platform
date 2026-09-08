@@ -21,7 +21,7 @@
     "primary": {
       "reference": "pqp-c8-triangulo-de-sternberg",
       "heading": "El triángulo del amor de Sternberg: una clave para comprender el afecto",
-      "fingerprint": "pasión, intimidad y compromiso",
+      "fingerprint": "un triángulo compuesto por tres elementos",
       "expectedMatchCount": 1
     }
   },
@@ -134,5 +134,5 @@
   "approvalReferences": [
     "PQP-C08 — Inventario editorial y selección de microguías (2026-09-08)"
   ],
-  "manifestSha256": "9df3a0b4eb94639163ed893999dcfa47105606d1cf219d00d4a6c07d082a71bc"
+  "manifestSha256": "f62706b8ac32c01374cbef65fbaea6fc2d77ade7097c4a2ae1dad5ef3cb45bf3"
 }

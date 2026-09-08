@@ -180,7 +180,20 @@ export const PQP_C1_EXPERIENCE = validateExperienceDefinition({
   summary:
     "Diez minutos de contacto y lo que cambia cuando nadie tiene que resolver nada.",
   estimatedMinutes: 15,
-  status: "PUBLISHED",
+  /**
+   * ARCHIVED, and that is how the pilot is preserved rather than deleted.
+   *
+   * The repository lists only PUBLISHED definitions and resolves ANY status by
+   * exact pin, so archiving does exactly what was wanted: chapter 1 stops
+   * offering a fifth card that duplicates what the four microguides now cover,
+   * while the two sessions already walking this pin keep resolving — including
+   * the one still ACTIVE. Deleting the definition would have broken that
+   * session; leaving it PUBLISHED would have kept it in front of new readers.
+   *
+   * Its guide stays registered and stays the compatibility answer in
+   * `PRODUCTION_LEGACY_GUIDE_PINS`. Nothing about the historical run is lost.
+   */
+  status: "ARCHIVED",
   guidePin: {
     guideKey: "pqp-c1-contacto-sostenido",
     guideVersion: 1,

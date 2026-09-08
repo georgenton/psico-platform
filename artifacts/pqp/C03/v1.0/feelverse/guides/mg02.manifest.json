@@ -1,0 +1,138 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "PQP-C03-MG02",
+  "bookSlug": "parejas-que-perduran",
+  "editionKey": "parejas-que-perduran-1e",
+  "chapterCode": "C03",
+  "chapterOrder": 4,
+  "unitKey": "83a96f4b-b9af-52a0-8c76-5e0cce6e6455",
+  "canonicalVersion": "PQP_PRINTED_v1.0_TEXT_LOCKED_2026-09-07",
+  "canonicalSha256": "6151a1ca2d88529ca1ca959997d04b681255d4e9f00510a0510651ddf65b616f",
+  "sourceArtifact": "Pareja que perduran_final.docx",
+  "experienceKey": "pqp-c3-priorizar-es-agenda",
+  "experienceVersion": 1,
+  "guideKey": "pqp-c3-priorizar-es-agenda",
+  "guideVersion": 1,
+  "conceptKey": "pqp-c3-priorizar-es-agenda",
+  "practiceKey": "pqp-c3-practice-lo-que-se-mueve-y-lo-que-no",
+  "practiceKind": "signal_context_compare",
+  "recallKey": "pqp-c3-recall-priorizar-es-agenda",
+  "anchors": {
+    "primary": {
+      "reference": "pqp-c3-priorizar-es-agenda",
+      "heading": "2. Priorizar la relación",
+      "fingerprint": "tiempo no negociable",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "Priorizar se ve en la agenda",
+      "body": [
+        "Casi nadie diría que su relación no es una prioridad. El capítulo propone mirar dónde se nota eso, y no es en la intención."
+      ],
+      "note": "Trabajaremos con una agenda inventada para el ejercicio. Puedes salir y volver cuando quieras. Nada de lo que escribas sale de tu dispositivo.",
+      "actionLabel": "Comenzar"
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "2. Priorizar la relación",
+      "body": [
+        "Lee la sección sobre reservar tiempo, y fíjate en qué hace que ese tiempo sea distinto del que queda libre."
+      ]
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "Lo que no se mueve",
+      "body": [
+        "El capítulo describe la prioridad como algo que se reserva antes, no como lo que queda después. Un tiempo que no se negocia frente a lo urgente es lo que distingue una prioridad de una intención.",
+        "No dice cuánto tiene que ser ni con qué frecuencia. Dice que exista y que se sostenga."
+      ],
+      "note": "Marcar esta escena registra que exploraste la idea; no evalúa cómo repartes tu tiempo ni infiere nada sobre tu relación.",
+      "actionLabel": "He explorado la idea"
+    },
+    {
+      "order": 4,
+      "kind": "PRACTICE",
+      "title": "Lo que se mueve y lo que no",
+      "body": [
+        "Una misma semana inventada, en dos versiones. Observa qué cambia según qué se considera movible."
+      ],
+      "note": "Es una agenda editorial, no la tuya. Nada se marca como correcto o incorrecto.",
+      "actionLabel": "Ya hice la práctica"
+    },
+    {
+      "order": 5,
+      "kind": "REFLECTION",
+      "title": "Un momento para ti",
+      "body": [
+        "¿Qué cosa de tu semana no se mueve nunca? ¿Y qué se mueve siempre que aparece algo urgente?"
+      ],
+      "note": "Privado y opcional. No se guarda ni viaja con tu progreso.",
+      "optional": true
+    },
+    {
+      "order": 6,
+      "kind": "RECALL",
+      "title": "Recordar lo leído",
+      "body": [
+        "Elige la opción que corresponde a lo que dice el capítulo."
+      ],
+      "actionLabel": "Registrar respuesta"
+    },
+    {
+      "order": 7,
+      "kind": "SUMMARY",
+      "title": "Antes, no después",
+      "body": [
+        "Una prioridad se reconoce en lo que se reserva de antemano y en lo que no se mueve cuando aparece lo urgente."
+      ]
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-priorizar-es-agenda",
+      "targetKey": "pqp-c3-priorizar-es-agenda"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-lo-que-se-mueve-y-lo-que-no",
+      "targetKey": "pqp-c3-practice-lo-que-se-mueve-y-lo-que-no"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-priorizar-es-agenda",
+      "targetKey": "pqp-c3-recall-priorizar-es-agenda"
+    }
+  ],
+  "media": {
+    "authorVideoPending": false
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Toda práctica ofrece un camino sin arrastrar y sin depender del color.",
+    "Ninguna escena comunica su estado únicamente con un icono.",
+    "Las escenas opcionales se pueden omitir con el teclado."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "pqp-c03-priorizar-es-agenda-v1",
+  "approvalReferences": [
+    "PQP-C03 — Inventario editorial y selección de microguías (2026-09-08)"
+  ],
+  "manifestSha256": "ec62010beab2404d4ee1cf5a94f435ef0344c954ba89f69da42f2a638dd0f691"
+}

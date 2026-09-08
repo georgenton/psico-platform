@@ -208,7 +208,7 @@ suite("CC-7.4B.3 · first production GuideDefinition (real PostgreSQL)", () => {
     // 52 → 56 with PQP-C01's four canonical microguides (editorial approval
     // 2026-09-07). Growth is typed here on purpose: registering a guide is an
     // editorial act.
-    expect(PRODUCTION_GUIDE_DEFINITIONS.length).toBe(56);
+    expect(PRODUCTION_GUIDE_DEFINITIONS.length).toBe(65);
     expect(productionGuideRegistry.latestStartableVersion(GUIDE_KEY)).toBe(1);
     expect(productionGuideRegistry.getExact(GUIDE_KEY, 1)).toEqual(
       PRODUCTION_GUIDE_DEFINITIONS[0],

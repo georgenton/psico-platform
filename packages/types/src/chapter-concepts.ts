@@ -557,9 +557,85 @@ export const GUIDED_CHAPTER_CONCEPTS: readonly GuidedChapterConcept[] = [
     editionKey: "parejas-que-perduran-1e",
     unitKey: "a8f009c0-1660-5f1e-a435-b8bc4ebbb7d4",
   },
+  // ── PQP-C02 · the five-microguide route (approved 2026-09-08) ────────────
+  // PLATFORM order 3 — the book's chapter 2.
+  {
+    key: "pqp-c2-queja-no-es-critica",
+    label: "Una queja no es una crítica",
+    bookSlug: "parejas-que-perduran",
+    chapterOrder: 3,
+    editionKey: "parejas-que-perduran-1e",
+    unitKey: "9f291999-9a47-5fec-b791-0d17aa5a8c74",
+  },
+  {
+    key: "pqp-c2-lo-pequeno-es-grande",
+    label: "Las invitaciones pequeñas",
+    bookSlug: "parejas-que-perduran",
+    chapterOrder: 3,
+    editionKey: "parejas-que-perduran-1e",
+    unitKey: "9f291999-9a47-5fec-b791-0d17aa5a8c74",
+  },
+  {
+    key: "pqp-c2-aceptar-influencia",
+    label: "Aceptar influencia no es ceder",
+    bookSlug: "parejas-que-perduran",
+    chapterOrder: 3,
+    editionKey: "parejas-que-perduran-1e",
+    unitKey: "9f291999-9a47-5fec-b791-0d17aa5a8c74",
+  },
+  {
+    key: "pqp-c2-desacuerdos-perpetuos",
+    label: "Desacuerdos que vuelven",
+    bookSlug: "parejas-que-perduran",
+    chapterOrder: 3,
+    editionKey: "parejas-que-perduran-1e",
+    unitKey: "9f291999-9a47-5fec-b791-0d17aa5a8c74",
+  },
+  {
+    key: "pqp-c2-sueno-detras-del-desacuerdo",
+    label: "Lo que hay debajo de una postura",
+    bookSlug: "parejas-que-perduran",
+    chapterOrder: 3,
+    editionKey: "parejas-que-perduran-1e",
+    unitKey: "9f291999-9a47-5fec-b791-0d17aa5a8c74",
+  },
+  // ── PQP-C03 · the four-microguide route (approved 2026-09-08) ────────────
+  // PLATFORM order 4 — the book's chapter 3.
+  {
+    key: "pqp-c3-elegir-cada-dia",
+    label: "Elegir, no solo permanecer",
+    bookSlug: "parejas-que-perduran",
+    chapterOrder: 4,
+    editionKey: "parejas-que-perduran-1e",
+    unitKey: "83a96f4b-b9af-52a0-8c76-5e0cce6e6455",
+  },
+  {
+    key: "pqp-c3-priorizar-es-agenda",
+    label: "Priorizar se ve en la agenda",
+    bookSlug: "parejas-que-perduran",
+    chapterOrder: 4,
+    editionKey: "parejas-que-perduran-1e",
+    unitKey: "83a96f4b-b9af-52a0-8c76-5e0cce6e6455",
+  },
+  {
+    key: "pqp-c3-aceptar-sin-coincidir",
+    label: "Aceptar no es coincidir",
+    bookSlug: "parejas-que-perduran",
+    chapterOrder: 4,
+    editionKey: "parejas-que-perduran-1e",
+    unitKey: "83a96f4b-b9af-52a0-8c76-5e0cce6e6455",
+  },
+  {
+    key: "pqp-c3-apoyar-el-crecimiento",
+    label: "Apoyar lo que le hace crecer",
+    bookSlug: "parejas-que-perduran",
+    chapterOrder: 4,
+    editionKey: "parejas-que-perduran-1e",
+    unitKey: "83a96f4b-b9af-52a0-8c76-5e0cce6e6455",
+  },
 ];
 
-/** Every guided concept of one chapter, in catalog order. Empty is normal. */
+/** Every guided concept of one chapter, in catalog order. */
 export function guidedChapterConcepts(
   bookSlug: string,
   chapterOrder: number,

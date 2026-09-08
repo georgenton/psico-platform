@@ -22,6 +22,8 @@ import { guidePinKey, type GuidePin } from "./guide-pin";
 import { EEC_C01_PRESENTATIONS } from "./eec-c01-microguides";
 import { EEC_C02_PRESENTATIONS } from "./eec-c02-microguides";
 import { PQP_C01_PRESENTATIONS } from "./pqp-c01-microguides";
+import { PQP_C02_PRESENTATIONS } from "./pqp-c02-microguides";
+import { PQP_C03_PRESENTATIONS } from "./pqp-c03-microguides";
 import { EEC_C03_PRESENTATIONS } from "./eec-c03-microguides";
 import { EEC_C04_PRESENTATIONS } from "./eec-c04-microguides";
 import { EEC_C05_PRESENTATIONS } from "./eec-c05-microguides";
@@ -412,6 +414,9 @@ export const PRODUCTION_GUIDE_PRESENTATIONS: readonly GuidePresentation[] = [
   // draft nobody can review. The V1 pilot's presentation stays above,
   // untouched — these do not replace it, they sit beside it.
   ...PQP_C01_PRESENTATIONS,
+  // PQP-C02's five, also DRAFT and also dark until somebody publishes them.
+  ...PQP_C02_PRESENTATIONS,
+  ...PQP_C03_PRESENTATIONS,
   ...EEC_C03_PRESENTATIONS,
   ...EEC_C04_PRESENTATIONS,
   ...EEC_C05_PRESENTATIONS,

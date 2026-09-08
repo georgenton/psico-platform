@@ -879,12 +879,132 @@ export const PQP_C1_MG04_ANCHOR: GuideReaderAnchorLocator = {
   expectedMatchCount: 1,
 };
 
+/**
+ * PQP-C02 · the five-microguide route (approved 2026-09-08).
+ *
+ * Same rule as C01: every heading and locator below was measured against
+ * published revision #10 before being written here — heading present exactly
+ * once, sentence appearing exactly once — with the counts scoped to the
+ * PUBLISHED unit version (the bug PR #701 fixed).
+ *
+ * Two headings of this chapter are deliberately unusable as anchors: the
+ * chapter repeats «Pregunta guía para tu relación:» four times and its plural
+ * twice, so neither can identify a section. None of these five uses them.
+ */
+export const PQP_C2_MG01_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "pqp-c2-queja-no-es-critica",
+  guideVersion: 1,
+  bookSlug: "parejas-que-perduran",
+  // The book's chapter 2 is PLATFORM order 3 — order 1 is the front matter.
+  chapterOrder: 3,
+  sourceHeading: "Primer Jinete: La Crítica",
+  passageLastSentence: "no es simplemente expresar una molestia",
+  expectedMatchCount: 1,
+};
+
+export const PQP_C2_MG02_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "pqp-c2-lo-pequeno-es-grande",
+  guideVersion: 1,
+  bookSlug: "parejas-que-perduran",
+  chapterOrder: 3,
+  sourceHeading: "Principio 3: Acercarse en lugar de alejarse",
+  passageLastSentence: "Lo pequeño se volvió poderoso",
+  expectedMatchCount: 1,
+};
+
+export const PQP_C2_MG03_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "pqp-c2-aceptar-influencia",
+  guideVersion: 1,
+  bookSlug: "parejas-que-perduran",
+  chapterOrder: 3,
+  sourceHeading: "Principio 4: Aceptar la influencia de tu pareja",
+  passageLastSentence: "no era perder poder",
+  expectedMatchCount: 1,
+};
+
+export const PQP_C2_MG04_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "pqp-c2-desacuerdos-perpetuos",
+  guideVersion: 1,
+  bookSlug: "parejas-que-perduran",
+  chapterOrder: 3,
+  sourceHeading: "Principio 5: Resolver los conflictos de manera efectiva",
+  passageLastSentence: "El objetivo no es eliminar los conflictos",
+  expectedMatchCount: 1,
+};
+
+export const PQP_C2_MG05_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "pqp-c2-sueno-detras-del-desacuerdo",
+  guideVersion: 1,
+  bookSlug: "parejas-que-perduran",
+  chapterOrder: 3,
+  sourceHeading: "Principio 6: Superar los obstáculos",
+  passageLastSentence: "más allá del problema aparente",
+  expectedMatchCount: 1,
+};
+
+/**
+ * PQP-C03 · the four-microguide route (approved 2026-09-08).
+ *
+ * Measured against published revision #10 before being written, with the counts
+ * scoped to the PUBLISHED unit version: heading exactly once, sentence exactly
+ * once inside it.
+ */
+export const PQP_C3_MG01_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "pqp-c3-elegir-cada-dia",
+  guideVersion: 1,
+  bookSlug: "parejas-que-perduran",
+  // The book's chapter 3 is PLATFORM order 4 — order 1 is the front matter.
+  chapterOrder: 4,
+  sourceHeading: "El verdadero significado del compromiso",
+  passageLastSentence: "va mucho más allá de sentir amor",
+  expectedMatchCount: 1,
+};
+
+export const PQP_C3_MG02_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "pqp-c3-priorizar-es-agenda",
+  guideVersion: 1,
+  bookSlug: "parejas-que-perduran",
+  chapterOrder: 4,
+  sourceHeading: "2. Priorizar la relación",
+  passageLastSentence: "tiempo no negociable",
+  expectedMatchCount: 1,
+};
+
+export const PQP_C3_MG03_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "pqp-c3-aceptar-sin-coincidir",
+  guideVersion: 1,
+  bookSlug: "parejas-que-perduran",
+  chapterOrder: 4,
+  sourceHeading: "2. Practiquen la aceptación y el respeto mutuo",
+  passageLastSentence: "No se trata de estar de acuerdo en todo",
+  expectedMatchCount: 1,
+};
+
+export const PQP_C3_MG04_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "pqp-c3-apoyar-el-crecimiento",
+  guideVersion: 1,
+  bookSlug: "parejas-que-perduran",
+  chapterOrder: 4,
+  sourceHeading: "6. Sean apoyo para el crecimiento personal del otro",
+  passageLastSentence: "no te encierra ni te limita",
+  expectedMatchCount: 1,
+};
+
 export const guideAnchorRegistry = new GuideAnchorRegistry([
   GUIDE_READER_ANCHOR,
   PQP_C1_MG01_ANCHOR,
   PQP_C1_MG02_ANCHOR,
   PQP_C1_MG03_ANCHOR,
   PQP_C1_MG04_ANCHOR,
+  PQP_C2_MG01_ANCHOR,
+  PQP_C2_MG02_ANCHOR,
+  PQP_C2_MG03_ANCHOR,
+  PQP_C2_MG04_ANCHOR,
+  PQP_C2_MG05_ANCHOR,
+  PQP_C3_MG01_ANCHOR,
+  PQP_C3_MG02_ANCHOR,
+  PQP_C3_MG03_ANCHOR,
+  PQP_C3_MG04_ANCHOR,
   EEC_C1_MG01_ANCHOR,
   EEC_C1_MG02_ANCHOR,
   EEC_C1_MG03_ANCHOR,

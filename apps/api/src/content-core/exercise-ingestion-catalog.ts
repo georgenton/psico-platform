@@ -2,6 +2,8 @@ import type { PracticeInteraction, PracticeKind } from "@psico/types";
 
 import { EXERCISE_CATALOG_C03_C10 } from "./exercise-catalog-c03-c10";
 import { EXERCISE_CATALOG_PQP_C01 } from "./exercise-catalog-pqp-c01";
+import { EXERCISE_CATALOG_PQP_C02 } from "./exercise-catalog-pqp-c02";
+import { EXERCISE_CATALOG_PQP_C03 } from "./exercise-catalog-pqp-c03";
 
 /**
  * CC-7.4B.2 — CLOSED, server-side catalog of the Exercise rows the Content Core
@@ -1156,6 +1158,8 @@ export const EXERCISE_INGESTION_CATALOG: Readonly<
     // replaced the OCR one. The pilot pair above keeps orders 1–2 and is not
     // renumbered: its recall is already answerable by a pinned session.
     ...EXERCISE_CATALOG_PQP_C01,
+    ...EXERCISE_CATALOG_PQP_C02,
+    ...EXERCISE_CATALOG_PQP_C03,
   ],
 };
 

@@ -1,0 +1,50 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "PQP-C02-SUITE",
+  "bookSlug": "parejas-que-perduran",
+  "editionKey": "parejas-que-perduran-1e",
+  "chapterCode": "C02",
+  "chapterOrder": 3,
+  "unitKey": "9f291999-9a47-5fec-b791-0d17aa5a8c74",
+  "canonicalVersion": "PQP_PRINTED_v1.0_TEXT_LOCKED_2026-09-07",
+  "canonicalSha256": "6151a1ca2d88529ca1ca959997d04b681255d4e9f00510a0510651ddf65b616f",
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "approvalReferences": [
+    "PQP-C02 — Inventario editorial y selección de microguías (2026-09-08)"
+  ],
+  "featureFlag": null,
+  "featureFlagDefault": "off",
+  "route": [
+    {
+      "order": 1,
+      "manifestId": "PQP-C02-MG01",
+      "guideKey": "pqp-c2-queja-no-es-critica",
+      "guideVersion": 1
+    },
+    {
+      "order": 2,
+      "manifestId": "PQP-C02-MG02",
+      "guideKey": "pqp-c2-lo-pequeno-es-grande",
+      "guideVersion": 1
+    },
+    {
+      "order": 3,
+      "manifestId": "PQP-C02-MG03",
+      "guideKey": "pqp-c2-aceptar-influencia",
+      "guideVersion": 1
+    },
+    {
+      "order": 4,
+      "manifestId": "PQP-C02-MG04",
+      "guideKey": "pqp-c2-desacuerdos-perpetuos",
+      "guideVersion": 1
+    },
+    {
+      "order": 5,
+      "manifestId": "PQP-C02-MG05",
+      "guideKey": "pqp-c2-sueno-detras-del-desacuerdo",
+      "guideVersion": 1
+    }
+  ]
+}

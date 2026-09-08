@@ -1,0 +1,139 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "PQP-C02-MG03",
+  "bookSlug": "parejas-que-perduran",
+  "editionKey": "parejas-que-perduran-1e",
+  "chapterCode": "C02",
+  "chapterOrder": 3,
+  "unitKey": "9f291999-9a47-5fec-b791-0d17aa5a8c74",
+  "canonicalVersion": "PQP_PRINTED_v1.0_TEXT_LOCKED_2026-09-07",
+  "canonicalSha256": "6151a1ca2d88529ca1ca959997d04b681255d4e9f00510a0510651ddf65b616f",
+  "sourceArtifact": "Pareja que perduran_final.docx",
+  "experienceKey": "pqp-c2-aceptar-influencia",
+  "experienceVersion": 1,
+  "guideKey": "pqp-c2-aceptar-influencia",
+  "guideVersion": 1,
+  "conceptKey": "pqp-c2-aceptar-influencia",
+  "practiceKey": "pqp-c2-practice-una-decision-tomada-entre-dos",
+  "practiceKind": "sequence_ordering",
+  "recallKey": "pqp-c2-recall-aceptar-influencia",
+  "anchors": {
+    "primary": {
+      "reference": "pqp-c2-aceptar-influencia",
+      "heading": "Principio 4: Aceptar la influencia de tu pareja",
+      "fingerprint": "no era perder poder",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "Aceptar influencia no es ceder",
+      "body": [
+        "Dejar que la opinión de alguien cambie la tuya suele confundirse con perder. El capítulo propone leerlo al revés."
+      ],
+      "note": "Trabajaremos con una decisión inventada para el ejercicio. Puedes salir y volver cuando quieras. Nada de lo que escribas sale de tu dispositivo.",
+      "actionLabel": "Comenzar"
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "Principio 4: Aceptar la influencia de tu pareja",
+      "body": [
+        "Lee la sección sobre compartir el poder de decidir, y fíjate en la distinción entre aceptar influencia y renunciar a lo propio."
+      ]
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "Dejarse afectar, sin desaparecer",
+      "body": [
+        "Aceptar influencia es permitir que lo que el otro piensa cuente de verdad en una decisión. No es ceder siempre, y no es dejar de tener criterio: es que la decisión final pueda cambiar de forma porque hubo dos personas pensándola.",
+        "Esto describe una relación entre dos personas que pueden decir que no. Cuando alguien no puede negarse sin temer las consecuencias, lo que está ocurriendo no es un problema de influencia y no se arregla cediendo más terreno."
+      ],
+      "note": "Esa última distinción es importante: esta guía no propone ceder ante presión, control o miedo. Marcar la escena registra que exploraste la idea; no evalúa cómo deciden ustedes.",
+      "actionLabel": "He explorado la idea"
+    },
+    {
+      "order": 4,
+      "kind": "PRACTICE",
+      "title": "Una decisión tomada entre dos",
+      "body": [
+        "Ordena los pasos de una decisión inventada y fíjate en dónde entra realmente la opinión del otro."
+      ],
+      "note": "Es un caso editorial, no una decisión tuya.",
+      "actionLabel": "Ya hice la práctica"
+    },
+    {
+      "order": 5,
+      "kind": "REFLECTION",
+      "title": "Un momento para ti",
+      "body": [
+        "¿Recuerdas alguna decisión que cambiara de forma porque otra persona la pensó contigo? Solo si te apetece recordarla."
+      ],
+      "note": "Privado y opcional. No se guarda ni viaja con tu progreso.",
+      "optional": true
+    },
+    {
+      "order": 6,
+      "kind": "RECALL",
+      "title": "Recordar lo leído",
+      "body": [
+        "Elige la opción que corresponde a lo que dice el capítulo."
+      ],
+      "actionLabel": "Registrar respuesta"
+    },
+    {
+      "order": 7,
+      "kind": "SUMMARY",
+      "title": "Dos criterios, una decisión",
+      "body": [
+        "Aceptar influencia describe una decisión que pudo cambiar de forma porque la pensaron dos, no una en la que uno de los dos deja de opinar.",
+        "Y solo describe eso cuando ambos pueden decir que no."
+      ]
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-aceptar-influencia",
+      "targetKey": "pqp-c2-aceptar-influencia"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-una-decision-tomada-entre-dos",
+      "targetKey": "pqp-c2-practice-una-decision-tomada-entre-dos"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-aceptar-influencia",
+      "targetKey": "pqp-c2-recall-aceptar-influencia"
+    }
+  ],
+  "media": {
+    "authorVideoPending": false
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Toda práctica ofrece un camino sin arrastrar y sin depender del color.",
+    "Ninguna escena comunica su estado únicamente con un icono.",
+    "Las escenas opcionales se pueden omitir con el teclado."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "pqp-c02-aceptar-influencia-v1",
+  "approvalReferences": [
+    "PQP-C02 — Inventario editorial y selección de microguías (2026-09-08)"
+  ],
+  "manifestSha256": "07badc8b07faa80d251bc1bf9b197f489a97a39214d2d3b8491f6ba12dc09957"
+}

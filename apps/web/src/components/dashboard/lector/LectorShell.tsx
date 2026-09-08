@@ -41,6 +41,7 @@ import { ChapterExperienceHome } from "./ChapterExperienceHome";
 import { guideApi } from "@psico/api-client";
 import { useChapterExperience } from "../experience/use-chapter-experience";
 import { chapterHeading } from "./chapter-label";
+import { chapterEditorialLabel } from "@psico/types";
 import {
   ReaderExperienceView,
   READER_ACTIVITIES_ANCHOR_ID,
@@ -1680,7 +1681,12 @@ export function LectorShell({
               className="truncate text-[13px] font-semibold"
               style={{ color: "var(--reader-text, var(--color-warm-900))" }}
             >
-              {chapterHeading({ title: chapter.title })}
+              {chapterHeading({
+                title: chapter.title,
+                // The edition's own number when the book declares one;
+                // `chapter.order` is never shown as a number.
+                editorialLabel: chapterEditorialLabel(bookSlug, chapter.order),
+              })}
             </div>
           </div>
           <div className="flex items-center gap-2">

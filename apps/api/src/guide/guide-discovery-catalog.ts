@@ -2,6 +2,7 @@ import { productionGuideRegistry } from "./guide-catalog";
 import { flagEnabled } from "../shared/flags";
 import { EEC_C02_DISCOVERY_ENTRIES } from "./eec-c02-discovery";
 import { EEC_C03_C10_DISCOVERY_ENTRIES } from "./eec-c03-c10-discovery";
+import { PQP_C01_C08_DISCOVERY_ENTRIES } from "./pqp-c01-c08-discovery";
 
 /**
  * GR-4 — the SERVER-OWNED map from a reading context to its guided readings.
@@ -428,16 +429,12 @@ export const PRODUCTION_GUIDE_DISCOVERY_ENTRIES: readonly GuideDiscoveryEntry[] 
         "Las mismas señales del cuerpo pueden significar cosas distintas según el contexto. Eso no vuelve la emoción irreal ni voluntaria.",
       estimatedMinutes: "9–11",
     },
-    {
-      bookSlug: "parejas-que-perduran",
-      chapterOrder: 2,
-      order: 1,
-      pin: { guideKey: "pqp-c1-contacto-sostenido", guideVersion: 1 },
-      title: "El contacto sostenido en silencio",
-      description:
-        "Diez minutos de contacto, sin disculpas ni soluciones: qué cambia cuando el cuerpo llega antes que las palabras.",
-      estimatedMinutes: "10–12",
-    },
+    // Parejas is offered through `PQP_C01_C08_DISCOVERY_ENTRIES` below. The V1
+    // pilot used to be the single entry here; it is not a route any more, and
+    // leaving it would put a fifth card in front of the book's chapter 1 that
+    // duplicates what the four microguides now cover. It stays REGISTERED and
+    // stays in `PRODUCTION_LEGACY_GUIDE_PINS`, so its two existing sessions
+    // keep resolving exactly as before — preserved, not offered.
   ];
 
 /**
@@ -487,6 +484,15 @@ export const productionGuideDiscoveryCatalog = new GuideDiscoveryCatalog(
     // reaches them through `listContext` / `offersPin`, which is the contract
     // they were built for.
     ...EEC_C03_C10_DISCOVERY_ENTRIES,
+    // Parejas C01–C08 · the thirty-three guided readings, offered now that
+    // their Experiences are PUBLISHED. Generated from the manifests rather
+    // than restated here — see `pqp-c01-c08-discovery.ts`.
+    //
+    // Their contexts are PLATFORM orders 2–9, which are the book's printed
+    // chapters 1–8. Order 1 is the front matter and is offered nothing: the
+    // dedication, preface and introduction have no guided reading, and
+    // inventing one for them would be inventing content.
+    ...PQP_C01_C08_DISCOVERY_ENTRIES,
   ],
   PRODUCTION_LEGACY_GUIDE_PINS,
 );

@@ -168,13 +168,18 @@ describe("EEC · the whole book on offer", () => {
     });
   });
 
-  it("leaves Parejas and unknown contexts exactly as they were", () => {
+  it("leaves Parejas to its own route and unknown contexts empty", () => {
+    // Parejas now offers four microguides on this context rather than the one
+    // pilot. What this EEC file cares about is unchanged: adding EEC routes
+    // does not reach into another book.
     const parejas = productionGuideDiscoveryCatalog.listContext(
       "parejas-que-perduran",
       2,
     );
-    expect(parejas).toHaveLength(1);
-    expect(parejas[0].pin.guideKey).toBe("pqp-c1-contacto-sostenido");
+    expect(parejas).toHaveLength(4);
+    expect(parejas.every((e) => e.pin.guideKey.startsWith("pqp-c1-"))).toBe(
+      true,
+    );
     expect(productionGuideDiscoveryCatalog.listContext(BOOK, 99)).toEqual([]);
     expect(
       productionGuideDiscoveryCatalog.listContext("no-such-book", 2),

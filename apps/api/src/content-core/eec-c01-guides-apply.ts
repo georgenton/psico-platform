@@ -245,6 +245,139 @@ export interface DraftPublisher {
   ): Promise<{ id: string; publishedAt: string }>;
 }
 
+export const PUBLISH_NOT_AUTHORISED = "EEC_C01_PUBLISH_NOT_AUTHORISED";
+export const PUBLISH_SUITE_INCOMPLETE = "EEC_C01_PUBLISH_SUITE_INCOMPLETE";
+
+export interface PublishGuidesRow {
+  manifestId: string;
+  experienceKey: string;
+  id: string;
+  action: "PUBLISHED" | "ALREADY_PUBLISHED";
+}
+
+export interface PublishGuidesResult {
+  ok: boolean;
+  environment: string;
+  outcome: "APPLIED" | "DRY_RUN" | "REFUSED";
+  published: PublishGuidesRow[];
+  /** Manifests with no row, or a row in a status that cannot be published. */
+  blocked: { manifestId: string; reason: string }[];
+}
+
+/**
+ * `publish-guides` — move a chapter's DRAFTs to PUBLISHED, on any environment.
+ *
+ * `publishTestSuite` refuses deployed boxes and that was right for the phase it
+ * was written in: nothing had been reviewed, so the only safe production answer
+ * was "no". Publishing is now a decision somebody makes, so it needs a path
+ * rather than an exception — and the path is this one, built to the same shape
+ * as `create-drafts`:
+ *
+ *   - `assertWriteAllowed` still applies at the call site, so production needs
+ *     `--environment=production --confirm-production-draft`;
+ *   - AND the caller must have typed `--confirm-publish`. Two separate
+ *     confirmations because publishing is not the same decision as writing:
+ *     a DRAFT is reversible and a published route is what a reader sees;
+ *   - it publishes through `ExperienceAdminService.publish`, so the guide
+ *     revalidation, the binding lock and the immutability rule all run exactly
+ *     as they do behind the CMS. This is not a second publish path — it is the
+ *     same one with a different entry point.
+ *
+ * Whole-set before any write, like `createDrafts`: a suite missing a row is
+ * refused rather than half-published, because "some of the chapter is live" is
+ * a state nobody chose.
+ *
+ * Idempotent. An already-PUBLISHED row is reported and not touched, so a rerun
+ * after a partial failure finishes the job instead of erroring on the rows that
+ * already landed.
+ */
+export async function publishGuides(
+  prisma: Pick<PrismaClient, "chapterExperienceVersion">,
+  publisher: DraftPublisher,
+  manifests: readonly GuideManifest[],
+  environment: string,
+  apply: boolean,
+  confirmed: boolean,
+): Promise<PublishGuidesResult> {
+  if (!confirmed) throw new Error(PUBLISH_NOT_AUTHORISED);
+
+  // ── Pass 1: read every row, write nothing ────────────────────────────────
+  const rows: { m: GuideManifest; id: string; status: string }[] = [];
+  const blocked: { manifestId: string; reason: string }[] = [];
+  for (const m of manifests) {
+    const row = await prisma.chapterExperienceVersion.findUnique({
+      where: {
+        experienceKey_experienceVersion: {
+          experienceKey: m.experienceKey,
+          experienceVersion: m.experienceVersion,
+        },
+      },
+      select: { id: true, status: true },
+    });
+    if (!row) {
+      blocked.push({ manifestId: m.manifestId, reason: "NO_DRAFT" });
+      continue;
+    }
+    if (row.status !== "DRAFT" && row.status !== "PUBLISHED") {
+      blocked.push({ manifestId: m.manifestId, reason: row.status });
+      continue;
+    }
+    rows.push({ m, id: row.id, status: row.status });
+  }
+  if (blocked.length > 0) {
+    return {
+      ok: false,
+      environment,
+      outcome: "REFUSED",
+      published: [],
+      blocked,
+    };
+  }
+
+  if (!apply) {
+    return {
+      ok: true,
+      environment,
+      outcome: "DRY_RUN",
+      published: rows.map((r) => ({
+        manifestId: r.m.manifestId,
+        experienceKey: r.m.experienceKey,
+        id: r.id,
+        action: r.status === "PUBLISHED" ? "ALREADY_PUBLISHED" : "PUBLISHED",
+      })),
+      blocked: [],
+    };
+  }
+
+  // ── Pass 2: publish ──────────────────────────────────────────────────────
+  const published: PublishGuidesRow[] = [];
+  for (const r of rows) {
+    if (r.status === "PUBLISHED") {
+      published.push({
+        manifestId: r.m.manifestId,
+        experienceKey: r.m.experienceKey,
+        id: r.id,
+        action: "ALREADY_PUBLISHED",
+      });
+      continue;
+    }
+    await publisher.publish(r.id);
+    published.push({
+      manifestId: r.m.manifestId,
+      experienceKey: r.m.experienceKey,
+      id: r.id,
+      action: "PUBLISHED",
+    });
+  }
+  return {
+    ok: published.length === manifests.length,
+    environment,
+    outcome: "APPLIED",
+    published,
+    blocked: [],
+  };
+}
+
 export const PUBLISH_REFUSED_ON_DEPLOYED =
   "EEC_C01_PUBLISH_REFUSED_ON_DEPLOYED";
 
@@ -633,6 +766,24 @@ export async function runPublishTestSuite(
     buildDraftCreator(prisma) as unknown as DraftPublisher,
     manifests,
     resolveEnvironment(),
+    confirmed,
+  );
+}
+
+export async function runPublishGuides(
+  prisma: PrismaClient,
+  manifests: readonly GuideManifest[],
+  apply: boolean,
+  confirmed: boolean,
+): Promise<PublishGuidesResult> {
+  const { buildDraftCreator } = await import("./eec-c01-guides-runtime");
+  const { resolveEnvironment } = await import("../shared/psico-environment");
+  return publishGuides(
+    prisma,
+    buildDraftCreator(prisma) as unknown as DraftPublisher,
+    manifests,
+    resolveEnvironment(),
+    apply,
     confirmed,
   );
 }

@@ -94,13 +94,15 @@ describe("EEC-C03 → C10 · what the route must NOT disturb", () => {
   // adding those two did not disturb C03–C10 — so this file no longer pins
   // their emptiness, which stopped being true when they were offered.
 
-  it("Parejas keeps its single guided reading", () => {
+  it("Parejas keeps its own route, untouched by these entries", () => {
     const list = productionGuideDiscoveryCatalog.listContext(
       "parejas-que-perduran",
       2,
     );
-    expect(list).toHaveLength(1);
-    expect(list[0].pin.guideKey).toBe("pqp-c1-contacto-sostenido");
+    // Four since Parejas published its own C01 route. The point of this
+    // assertion is unchanged: no EEC entry leaks into another book.
+    expect(list).toHaveLength(4);
+    expect(list.every((e) => e.pin.guideKey.startsWith("pqp-"))).toBe(true);
   });
 
   it("the retired C01 pilot is not newly offered anywhere", () => {

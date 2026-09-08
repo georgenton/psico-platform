@@ -70,14 +70,28 @@ describe("PAREJAS_BOOK_DETAIL_DOES_NOT_SHOW_CHAPTER_2_FOR_EDITORIAL_CHAPTER_1", 
     chapter({ n: 3, title: "Amenazas silenciosas" }),
   ];
 
-  it("names each chapter by its title and numbers none of them", () => {
+  it("numbers each chapter the way the EDITION does, never by platform order", () => {
+    // This pin was written when no editorial metadata existed, and it said
+    // «number nothing» — the honest answer while the only number available was
+    // the wrong one. `@psico/types/book-structure` now declares what the
+    // edition prints, so the rule it protects is stated the way it was always
+    // meant: the platform order must never be shown as an editorial number.
+    // Numbering correctly is the fix, not a regression against this file.
+    render(<ChaptersList bookSlug="parejas-que-perduran" chapters={parejas} />);
+    const row = screen.getByText(PAREJAS_CH1_TITLE).closest("a")!;
+    // The book's chapter 1 sits at platform order 2. It must read «Capítulo 1».
+    expect(row.textContent).toMatch(/Capítulo\s*1(?!\d)/);
+    expect(row.textContent).not.toMatch(/Capítulo\s*2(?!\d)/);
+    // The front matter is no longer numbered at all.
+    const preface = screen.getByText("Prefacio").closest("a")!;
+    expect(preface.textContent).not.toMatch(/Capítulo/);
+  });
+
+  it("still numbers nothing for a book that declares no structure", () => {
     const { container } = render(
-      <ChaptersList bookSlug="parejas-que-perduran" chapters={parejas} />,
+      <ChaptersList bookSlug="emociones-en-construccion" chapters={parejas} />,
     );
-    expect(screen.getByText(PAREJAS_CH1_TITLE)).toBeInTheDocument();
     expectNoEditorialNumber(container.textContent ?? "");
-    // The specific defect: a badge reading «2» beside the book's chapter 1.
-    expect(screen.queryByText("2")).toBeNull();
   });
 
   it("ROUTE_REACHES_THE_SAME_CHAPTER — now by stable identity, not position", () => {
@@ -98,13 +112,20 @@ describe("PAREJAS_BOOK_DETAIL_DOES_NOT_SHOW_CHAPTER_2_FOR_EDITORIAL_CHAPTER_1", 
       <ChaptersList bookSlug="parejas-que-perduran" chapters={parejas} />,
     );
     const titles = [...container.querySelectorAll("a")].map((a) =>
-      a.querySelector("div > div")?.textContent?.trim(),
+      a.querySelectorAll("div > div")[0]?.textContent?.trim(),
     );
+    // Unit 1 is the front matter, and the edition names its three parts rather
+    // than calling the container a chapter. Reading sequence is unchanged:
+    // preliminaries first, then the book's chapter 1, then its chapter 2.
     expect(titles).toEqual([
-      PAREJAS_PREFACE_TITLE,
-      PAREJAS_CH1_TITLE,
-      "Amenazas silenciosas",
+      "Dedicatoria",
+      "Prefacio",
+      "Introducción",
+      "Capítulo 1",
+      "Capítulo 2",
     ]);
+    expect(container.textContent).toContain(PAREJAS_CH1_TITLE);
+    expect(container.textContent).not.toContain(PAREJAS_PREFACE_TITLE);
   });
 });
 
@@ -221,6 +242,19 @@ describe("NO_SLUG_SPECIAL_CASES", () => {
     "lector/ChapterExperienceHome.tsx",
     "lector/LectorShell.tsx",
   ];
+
+  it("the editorial declaration states numbers, it never derives them", () => {
+    // `book-structure.ts` is the one place allowed to name a book — that is
+    // what a per-book declaration IS. What stays banned everywhere, here
+    // included, is arithmetic on the platform order: `order - 1` would be a
+    // rule that happens to fit one book and lies about the next.
+    const src = readFileSync(
+      join(__dirname, "../../../../../packages/types/src/book-structure.ts"),
+      "utf8",
+    );
+    const code = src.replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, "");
+    expect(code).not.toMatch(/(order|chapterN|chapterOrder)\s*[-+]\s*1\b/);
+  });
 
   it("no surface derives an editorial number from the platform order", () => {
     for (const file of SURFACES) {

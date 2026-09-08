@@ -95,6 +95,44 @@ const CHAPTERS: readonly ChapterUnderTest[] = [
     ],
     firstExerciseOrder: 21,
   },
+  {
+    code: "C04",
+    chapterOrder: 5,
+    keyPrefix: "pqp-c4",
+    unitKey: "39d09b0d-98a0-5b53-9844-364eaae4d0dc",
+    slugs: [
+      "hablar-no-es-comunicarse",
+      "armonia-no-es-salud",
+      "pensar-distinto-sin-dividirse",
+      "validar-no-es-dar-la-razon",
+    ],
+    practiceSlugs: [
+      "en-que-nivel-ocurre",
+      "armonia-o-distancia",
+      "el-miedo-debajo-de-la-opinion",
+      "validar-o-ceder",
+    ],
+    firstExerciseOrder: 29,
+  },
+  {
+    code: "C05",
+    chapterOrder: 6,
+    keyPrefix: "pqp-c5",
+    unitKey: "c96b9981-e319-57de-a290-8214caaa38f4",
+    slugs: [
+      "conflicto-no-es-control",
+      "una-cosa-a-la-vez",
+      "el-momento-importa",
+      "acuerdo-no-es-victoria",
+    ],
+    practiceSlugs: [
+      "desacuerdo-o-senales-de-control",
+      "hoy-o-el-historial",
+      "cuando-abrir-la-conversacion",
+      "de-la-postura-al-acuerdo",
+    ],
+    firstExerciseOrder: 37,
+  },
 ];
 
 /** The generic catalog shapes. The other two carry EEC-bound field keys. */

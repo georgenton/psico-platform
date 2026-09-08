@@ -247,7 +247,7 @@ describe("guide catalog · registry", () => {
 });
 
 describe("ratchet · guide catalog contract", () => {
-  it("GUIDE_PRODUCTION_REGISTRY_ENTRIES=65 — exactly the approved definitions", () => {
+  it("GUIDE_PRODUCTION_REGISTRY_ENTRIES=73 — exactly the approved definitions", () => {
     // 2 → 7 with the EEC-C01 five-microguide route (author decision 2026-09-03),
     // 7 → 12 with the EEC-C02 five (author decision 2026-09-04), and 12 → 52
     // with the forty of EEC-C03 → C10 (`APROBAR ARQUITECTURA C03-C10`, same
@@ -258,10 +258,10 @@ describe("ratchet · guide catalog contract", () => {
     // (editorial approval 2026-09-07) — a SECOND book's first route. Its own V1
     // pilot stays registered for the same reason, and none of the four reuses
     // its lineage.
-    // 56 → 61 with PQP-C02's five, 61 → 65 with PQP-C03's four (editorial
-    // approval 2026-09-08).
-    expect(PRODUCTION_GUIDE_DEFINITIONS).toHaveLength(65);
-    expect(productionGuideRegistry.size).toBe(65);
+    // 56 → 61 (C02's five), → 65 (C03's four), → 73 (C04's and C05's four
+    // each). Editorial approval 2026-09-08.
+    expect(PRODUCTION_GUIDE_DEFINITIONS).toHaveLength(73);
+    expect(productionGuideRegistry.size).toBe(73);
     expect(PRODUCTION_GUIDE_DEFINITIONS.map((d) => d.guideKey)).toEqual([
       "eec-c1-cuerpo-antes-que-mente",
       "eec-c1-teorias-como-lentes",
@@ -328,6 +328,14 @@ describe("ratchet · guide catalog contract", () => {
       "pqp-c3-priorizar-es-agenda",
       "pqp-c3-aceptar-sin-coincidir",
       "pqp-c3-apoyar-el-crecimiento",
+      "pqp-c4-hablar-no-es-comunicarse",
+      "pqp-c4-armonia-no-es-salud",
+      "pqp-c4-pensar-distinto-sin-dividirse",
+      "pqp-c4-validar-no-es-dar-la-razon",
+      "pqp-c5-conflicto-no-es-control",
+      "pqp-c5-una-cosa-a-la-vez",
+      "pqp-c5-el-momento-importa",
+      "pqp-c5-acuerdo-no-es-victoria",
     ]);
     // No chapter's guide may target another chapter's teaching rows: a session
     // on C02 completing a C01 step would merge two readings' progress. Checked

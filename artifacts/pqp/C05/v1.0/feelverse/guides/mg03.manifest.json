@@ -1,0 +1,138 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "PQP-C05-MG03",
+  "bookSlug": "parejas-que-perduran",
+  "editionKey": "parejas-que-perduran-1e",
+  "chapterCode": "C05",
+  "chapterOrder": 6,
+  "unitKey": "c96b9981-e319-57de-a290-8214caaa38f4",
+  "canonicalVersion": "PQP_PRINTED_v1.0_TEXT_LOCKED_2026-09-07",
+  "canonicalSha256": "6151a1ca2d88529ca1ca959997d04b681255d4e9f00510a0510651ddf65b616f",
+  "sourceArtifact": "Pareja que perduran_final.docx",
+  "experienceKey": "pqp-c5-el-momento-importa",
+  "experienceVersion": 1,
+  "guideKey": "pqp-c5-el-momento-importa",
+  "guideVersion": 1,
+  "conceptKey": "pqp-c5-el-momento-importa",
+  "practiceKey": "pqp-c5-practice-cuando-abrir-la-conversacion",
+  "practiceKind": "signal_context_compare",
+  "recallKey": "pqp-c5-recall-el-momento-importa",
+  "anchors": {
+    "primary": {
+      "reference": "pqp-c5-el-momento-importa",
+      "heading": "9. Elige bien el momento",
+      "fingerprint": "no por el contenido",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "El momento importa",
+      "body": [
+        "La misma frase, dicha en dos momentos distintos, puede abrir una conversación o una discusión. El capítulo se detiene en eso."
+      ],
+      "note": "Trabajaremos con una escena inventada para el ejercicio. Puedes salir y volver cuando quieras. Nada de lo que escribas sale de tu dispositivo.",
+      "actionLabel": "Comenzar"
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "9. Elige bien el momento",
+      "body": [
+        "Lee la sección sobre cuándo plantear un tema, y fíjate en qué dice el capítulo que agrava muchas discusiones."
+      ]
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "Elegir cuándo también es parte",
+      "body": [
+        "El capítulo señala que muchas conversaciones se tuercen no por lo que se dice sino por cuándo se dice: al llegar agotados, delante de otras personas, en mitad de otra cosa.",
+        "Elegir el momento no es evitar el tema. Es lo contrario: es darle una oportunidad razonable de que se pueda hablar."
+      ],
+      "note": "Marcar esta escena registra que exploraste la idea; no evalúa cuándo hablas ni infiere nada sobre tu relación.",
+      "actionLabel": "He explorado la idea"
+    },
+    {
+      "order": 4,
+      "kind": "PRACTICE",
+      "title": "Cuándo abrir la conversación",
+      "body": [
+        "El mismo tema planteado en dos momentos distintos. Observa qué cambia en lo que puede ocurrir después."
+      ],
+      "note": "Es un caso editorial. Nada se marca como correcto: no existe un momento perfecto.",
+      "actionLabel": "Ya hice la práctica"
+    },
+    {
+      "order": 5,
+      "kind": "REFLECTION",
+      "title": "Un momento para ti",
+      "body": [
+        "¿Cuándo sueles plantear las cosas difíciles? ¿Es un momento que elegiste o el primero que aparece?"
+      ],
+      "note": "Privado y opcional. No se guarda ni viaja con tu progreso.",
+      "optional": true
+    },
+    {
+      "order": 6,
+      "kind": "RECALL",
+      "title": "Recordar lo leído",
+      "body": [
+        "Elige la opción que corresponde a lo que dice el capítulo."
+      ],
+      "actionLabel": "Registrar respuesta"
+    },
+    {
+      "order": 7,
+      "kind": "SUMMARY",
+      "title": "Cuándo, no solo qué",
+      "body": [
+        "Elegir el momento no aplaza la conversación: le da una oportunidad de ocurrir."
+      ]
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-el-momento-importa",
+      "targetKey": "pqp-c5-el-momento-importa"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-cuando-abrir-la-conversacion",
+      "targetKey": "pqp-c5-practice-cuando-abrir-la-conversacion"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-el-momento-importa",
+      "targetKey": "pqp-c5-recall-el-momento-importa"
+    }
+  ],
+  "media": {
+    "authorVideoPending": false
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Toda práctica ofrece un camino sin arrastrar y sin depender del color.",
+    "Ninguna escena comunica su estado únicamente con un icono.",
+    "Las escenas opcionales se pueden omitir con el teclado."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "pqp-c05-el-momento-importa-v1",
+  "approvalReferences": [
+    "PQP-C05 — Inventario editorial y selección de microguías (2026-09-08)"
+  ],
+  "manifestSha256": "5d763497916786baef4480fe3a5b845a5023a85a3457ed62cdc222e9d34cdad4"
+}

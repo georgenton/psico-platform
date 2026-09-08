@@ -238,7 +238,9 @@ describe("catalogChapterOrders", () => {
   it("returns the union the two catalogs declare, sorted", () => {
     // Grows as each chapter's route lands. Platform orders, so the book's
     // chapter N is N+1.
-    expect(catalogChapterOrders("parejas-que-perduran")).toEqual([2, 3, 4]);
+    expect(catalogChapterOrders("parejas-que-perduran")).toEqual([
+      2, 3, 4, 5, 6,
+    ]);
     // Ten chapters since the C03–C10 guided suites landed: the catalog now
     // covers the whole book, and this list is what the activation walks.
     expect(catalogChapterOrders("emociones-en-construccion")).toEqual([

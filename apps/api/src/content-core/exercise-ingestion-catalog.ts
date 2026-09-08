@@ -4,6 +4,8 @@ import { EXERCISE_CATALOG_C03_C10 } from "./exercise-catalog-c03-c10";
 import { EXERCISE_CATALOG_PQP_C01 } from "./exercise-catalog-pqp-c01";
 import { EXERCISE_CATALOG_PQP_C02 } from "./exercise-catalog-pqp-c02";
 import { EXERCISE_CATALOG_PQP_C03 } from "./exercise-catalog-pqp-c03";
+import { EXERCISE_CATALOG_PQP_C04 } from "./exercise-catalog-pqp-c04";
+import { EXERCISE_CATALOG_PQP_C05 } from "./exercise-catalog-pqp-c05";
 
 /**
  * CC-7.4B.2 — CLOSED, server-side catalog of the Exercise rows the Content Core
@@ -1160,6 +1162,8 @@ export const EXERCISE_INGESTION_CATALOG: Readonly<
     ...EXERCISE_CATALOG_PQP_C01,
     ...EXERCISE_CATALOG_PQP_C02,
     ...EXERCISE_CATALOG_PQP_C03,
+    ...EXERCISE_CATALOG_PQP_C04,
+    ...EXERCISE_CATALOG_PQP_C05,
   ],
 };
 

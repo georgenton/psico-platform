@@ -734,6 +734,58 @@ export const PQP_C3_MG04_GUIDE = pqpC3Guide(
   "acompanar-un-proyecto",
 );
 
+const pqpC4Guide = pqpChapterGuide(4);
+/** C04-MG01 */
+export const PQP_C4_MG01_GUIDE = pqpC4Guide(
+  "hablar-no-es-comunicarse",
+  "pqp-c4-hablar-no-es-comunicarse",
+  "en-que-nivel-ocurre",
+);
+/** C04-MG02 */
+export const PQP_C4_MG02_GUIDE = pqpC4Guide(
+  "armonia-no-es-salud",
+  "pqp-c4-armonia-no-es-salud",
+  "armonia-o-distancia",
+);
+/** C04-MG03 */
+export const PQP_C4_MG03_GUIDE = pqpC4Guide(
+  "pensar-distinto-sin-dividirse",
+  "pqp-c4-pensar-distinto-sin-dividirse",
+  "el-miedo-debajo-de-la-opinion",
+);
+/** C04-MG04 */
+export const PQP_C4_MG04_GUIDE = pqpC4Guide(
+  "validar-no-es-dar-la-razon",
+  "pqp-c4-validar-no-es-dar-la-razon",
+  "validar-o-ceder",
+);
+
+const pqpC5Guide = pqpChapterGuide(5);
+/** C05-MG01 */
+export const PQP_C5_MG01_GUIDE = pqpC5Guide(
+  "conflicto-no-es-control",
+  "pqp-c5-conflicto-no-es-control",
+  "desacuerdo-o-senales-de-control",
+);
+/** C05-MG02 */
+export const PQP_C5_MG02_GUIDE = pqpC5Guide(
+  "una-cosa-a-la-vez",
+  "pqp-c5-una-cosa-a-la-vez",
+  "hoy-o-el-historial",
+);
+/** C05-MG03 */
+export const PQP_C5_MG03_GUIDE = pqpC5Guide(
+  "el-momento-importa",
+  "pqp-c5-el-momento-importa",
+  "cuando-abrir-la-conversacion",
+);
+/** C05-MG04 */
+export const PQP_C5_MG04_GUIDE = pqpC5Guide(
+  "acuerdo-no-es-victoria",
+  "pqp-c5-acuerdo-no-es-victoria",
+  "de-la-postura-al-acuerdo",
+);
+
 const eecC3Guide = eecChapterGuide(3);
 /** MG01 — Predecir no es adivinar */
 export const EEC_C3_MG01_GUIDE = eecC3Guide(
@@ -1066,6 +1118,14 @@ export const PRODUCTION_GUIDE_DEFINITIONS: readonly GuideDefinition[] = [
   PQP_C3_MG02_GUIDE,
   PQP_C3_MG03_GUIDE,
   PQP_C3_MG04_GUIDE,
+  PQP_C4_MG01_GUIDE,
+  PQP_C4_MG02_GUIDE,
+  PQP_C4_MG03_GUIDE,
+  PQP_C4_MG04_GUIDE,
+  PQP_C5_MG01_GUIDE,
+  PQP_C5_MG02_GUIDE,
+  PQP_C5_MG03_GUIDE,
+  PQP_C5_MG04_GUIDE,
 ];
 
 export const productionGuideRegistry = new GuideCatalogRegistry(

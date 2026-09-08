@@ -76,10 +76,10 @@ describe("Parejas que perduran — demo Guide catalog", () => {
     // four microguides (editorial approval 2026-09-07). The pilot's pair stays
     // FIRST and keeps orders 1–2: its recall is still answerable by a session
     // pinned to `pqp-c1-contacto-sostenido@1`.
-    // 1 → 5 (C01), → 10 (C02), → 14 (C03). The pilot's pair stays
+    // 1 → 5 (C01), → 10 (C02), → 14 (C03), → 18 (C04), → 22 (C05). The pilot stays
     // FIRST and keeps orders 1–2: its recall is still answerable by a pinned
     // session.
-    expect(pairs).toHaveLength(14);
+    expect(pairs).toHaveLength(22);
     expect(pairs[0].practice.exerciseKey).toBe(
       "pqp-c1-practice-diez-minutos-de-contacto",
     );

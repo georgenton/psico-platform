@@ -451,19 +451,40 @@ export async function planGuides(
   const unit = { id: unitId };
 
   // Anchors, resolved against the blocks the reader is actually served.
+  //
+  // "Actually served" means the PUBLISHED unit version, not every version the
+  // unit has ever had. Scoping only by `unitId` counted historical rows too,
+  // so a unit with more than one version reported a sentence once per version
+  // and a perfectly unambiguous anchor looked ambiguous. Measured on PQP-C01
+  // after the printed edition replaced the OCR one: `fingerprintMatches: 2`
+  // for a sentence that appears exactly once in what the reader reads, because
+  // that sentence survived the re-ingest unchanged. The three whose wording
+  // differed between editions still read 1, which is why the bug stayed
+  // invisible until a re-ingested book met an anchor that did not move.
+  const publishedUnit = await db.revisionUnit.findFirst({
+    where: { revisionId: edition.publishedRevisionId, unitId: unit.id },
+    select: { unitVersionId: true },
+  });
+  const servedBlocks = publishedUnit
+    ? { unitVersionId: publishedUnit.unitVersionId }
+    : // No placement in the published revision: nothing is served, so nothing
+      // can match. Counting unit-wide here would invent matches for text the
+      // reader cannot reach.
+      { unitVersionId: "__unit-not-in-published-revision__" };
+
   const anchors: GuidesPlan["anchors"] = [];
   for (const m of manifests) {
     const headings = await db.blockVersion.count({
       where: {
+        ...servedBlocks,
         kind: "HEADING",
         content: m.anchors.primary.heading,
-        contentBlock: { unitId: unit.id },
       },
     });
     const fingerprints = await db.blockVersion.count({
       where: {
+        ...servedBlocks,
         content: { contains: m.anchors.primary.fingerprint },
-        contentBlock: { unitId: unit.id },
       },
     });
     anchors.push({

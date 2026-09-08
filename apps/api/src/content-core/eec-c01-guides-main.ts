@@ -106,6 +106,22 @@ const CHAPTERS = {
     chapterMd: "content/books/eec/C10/chapter.md",
     flag: null as FlagName | null,
   },
+  /**
+   * PQP-C01 · the first chapter of a SECOND book (approved 2026-09-07).
+   *
+   * It needs `canonicalSha256` rather than `chapterMd` because its canonical
+   * source is not a markdown file in this repository: it is the printed
+   * edition David Jaramillo delivered as a .docx, which lives in the operator's
+   * ingest package and never enters git. The SHA below is that file's, and it
+   * is the same value the nine unit payloads were built from — so a manifest
+   * still cannot claim to describe a text nobody can identify.
+   */
+  PQP_C01: {
+    manifestDir: "artifacts/pqp/C01/v1.0/feelverse/guides",
+    canonicalSha256:
+      "6151a1ca2d88529ca1ca959997d04b681255d4e9f00510a0510651ddf65b616f",
+    flag: null as FlagName | null,
+  },
 } as const;
 
 export type ChapterCode = keyof typeof CHAPTERS;
@@ -189,7 +205,13 @@ async function main(): Promise<number> {
   const manifests: GuideManifest[] = loadManifests(
     join(ROOT, chapter.manifestDir),
   );
-  const canonical = sha256(readFileSync(join(ROOT, chapter.chapterMd), "utf8"));
+  // Two ways to know WHICH text these manifests describe, and both end in the
+  // same string: hash the chapter's markdown when the book has one in the repo,
+  // or take the declared SHA of a canonical source that lives outside it.
+  const canonical =
+    "chapterMd" in chapter
+      ? sha256(readFileSync(join(ROOT, chapter.chapterMd), "utf8"))
+      : chapter.canonicalSha256;
 
   if (args.command === "validate") {
     const issues = validateManifests(manifests, canonical);

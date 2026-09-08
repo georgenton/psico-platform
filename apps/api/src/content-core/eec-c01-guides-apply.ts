@@ -24,10 +24,20 @@ import type { GuideManifest } from "./eec-c01-guides-cli";
  * one the manifest declared.
  */
 
-const BOOK = "emociones-en-construccion";
-/** The historical lineage. Named here so the checks can say so out loud. */
-const PILOT_EXPERIENCE_KEY = "eec-c1-cuerpo-antes-que-mente";
-const PILOT_GUIDE_KEY = "eec-c1-cuerpo-antes-que-mente";
+/**
+ * The historical lineage of each book, named here so the checks can say so out
+ * loud. Both are V1 pilots that a newer route replaced without touching them:
+ * each still has pinned sessions, and neither may be re-pinned by a draft.
+ */
+const PILOT_KEY_BY_BOOK: Readonly<Record<string, string>> = {
+  "emociones-en-construccion": "eec-c1-cuerpo-antes-que-mente",
+  "parejas-que-perduran": "pqp-c1-contacto-sostenido",
+};
+
+/** The pilot this run must leave alone, or null for a book without one. */
+export function pilotKeyOf(bookSlug: string): string | null {
+  return PILOT_KEY_BY_BOOK[bookSlug] ?? null;
+}
 
 /** Manifest scene → the typed scene the definition validator accepts. */
 function toScene(
@@ -160,17 +170,31 @@ export async function runApplyTargets(
   manifests: readonly GuideManifest[],
   apply: boolean,
 ): Promise<ApplyTargetsResult> {
-  void manifests;
+  const book = bookOf(manifests);
   const planned = (await planBookLearningActivation(
     prisma,
-    BOOK,
+    book,
   )) as unknown as Record<string, unknown>;
   if (!apply) return { ok: true, applied: false, planned, stats: null };
   const stats = (await activateBookLearningCatalog(
     prisma,
-    BOOK,
+    book,
   )) as unknown as Record<string, unknown>;
   return { ok: true, applied: true, planned, stats };
+}
+
+/**
+ * Which book this run activates, READ from the manifests rather than fixed in a
+ * constant. A second book arrived (Parejas que perduran) and a hardcoded slug
+ * would have activated the first one's catalog while reporting the second one's
+ * name. Manifests that disagree are a packaging error, so this refuses instead
+ * of picking one.
+ */
+export function bookOf(manifests: readonly GuideManifest[]): string {
+  const slugs = new Set(manifests.map((m) => m.bookSlug));
+  if (slugs.size !== 1) throw new Error("GUIDE_MANIFEST_BOOK_MISMATCH");
+  const [only] = [...slugs];
+  return only;
 }
 
 export interface DraftRow {
@@ -457,17 +481,23 @@ export async function verifyDrafts(
   // fresh database does not, because there the pilot lives only in the shipped
   // catalog. So the check is not "the row looks like production's" — that would
   // fail everywhere else and say nothing — but "nothing here re-pinned it".
-  const pilotRows = await prisma.chapterExperienceVersion.findMany({
-    where: { experienceKey: PILOT_EXPERIENCE_KEY },
-    select: { status: true, experienceVersion: true, guideKey: true },
-  });
+  const pilotKey = pilotKeyOf(bookOf(manifests));
+  const pilotRows = pilotKey
+    ? await prisma.chapterExperienceVersion.findMany({
+        where: { experienceKey: pilotKey },
+        select: { status: true, experienceVersion: true, guideKey: true },
+      })
+    : [];
   const ourGuides = new Set(manifests.map((m) => m.guideKey));
 
   const units = new Set(rows.map((r) => r.contentUnitId));
   const serialized = JSON.stringify(rows.map((r) => r.definitionJson));
 
   const checks = {
-    fiveDrafts: rows.length === 5,
+    // One row per manifest. It was `=== 5` while every route had five
+    // microguides; PQP-C01's has four, and a route is complete when it has as
+    // many drafts as the package declares, not when it reaches a magic number.
+    allDraftsPresent: rows.length === manifests.length,
     allDraft: rows.every((r) => r.status === "DRAFT"),
     versionOne: rows.every((r) => r.experienceVersion === 1),
     pinsMatchManifests: manifests.every((m) =>
@@ -482,7 +512,8 @@ export async function verifyDrafts(
     pilotUntouched: pilotRows.every(
       (r) => r.guideKey === null || !ourGuides.has(r.guideKey),
     ),
-    noDraftClaimsPilotGuide: rows.every((r) => r.guideKey !== PILOT_GUIDE_KEY),
+    noDraftClaimsPilotGuide:
+      pilotKey === null || rows.every((r) => r.guideKey !== pilotKey),
     noCorrectOptionInDefinitions: !serialized.includes("correctOptionKey"),
   };
 

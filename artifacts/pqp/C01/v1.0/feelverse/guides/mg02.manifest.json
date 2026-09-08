@@ -1,0 +1,140 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "PQP-C01-MG02",
+  "bookSlug": "parejas-que-perduran",
+  "editionKey": "parejas-que-perduran-1e",
+  "chapterCode": "C01",
+  "chapterOrder": 2,
+  "unitKey": "a8f009c0-1660-5f1e-a435-b8bc4ebbb7d4",
+  "canonicalVersion": "PQP_PRINTED_v1.0_TEXT_LOCKED_2026-09-07",
+  "canonicalSha256": "6151a1ca2d88529ca1ca959997d04b681255d4e9f00510a0510651ddf65b616f",
+  "sourceArtifact": "Pareja que perduran_final.docx",
+  "experienceKey": "pqp-c1-presencia-sin-acuerdo",
+  "experienceVersion": 1,
+  "guideKey": "pqp-c1-presencia-sin-acuerdo",
+  "guideVersion": 1,
+  "conceptKey": "pqp-c1-presencia-sin-acuerdo",
+  "practiceKey": "pqp-c1-practice-lo-que-se-y-lo-que-supongo",
+  "practiceKind": "context_plausibility",
+  "recallKey": "pqp-c1-recall-presencia-sin-acuerdo",
+  "anchors": {
+    "primary": {
+      "reference": "pqp-c1-presencia-sin-acuerdo",
+      "heading": "El Cerebro Enamorado",
+      "fingerprint": "La hormona no requería consenso, solo presencia (Scheele et al., 2016).",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "Presencia sin acuerdo",
+      "body": [
+        "Cuando hay un desacuerdo, lo primero que suele aparecer es la urgencia de resolverlo. Esta guía trabaja una distinción que el capítulo propone: permanecer presente y resolver no son la misma cosa."
+      ],
+      "note": "Trabajaremos con una escena inventada para el ejercicio. Puedes salir y volver cuando quieras. Nada de lo que escribas sale de tu dispositivo.",
+      "actionLabel": "Comenzar"
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "El Cerebro Enamorado",
+      "body": [
+        "Lee la sección donde el capítulo describe un estudio hecho con parejas que estaban en conflicto, y fíjate en qué se les pidió y en qué NO se les pidió."
+      ]
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "Estar no es haber arreglado",
+      "body": [
+        "En un desacuerdo, mantener señales de conexión y presencia puede ser distinto de resolver de inmediato el problema. Son dos cosas separadas, y confundirlas hace que una pareja sienta que no puede acercarse hasta tener razón.",
+        "Conflicto y conexión tampoco son necesariamente opuestos: se puede estar en desacuerdo y a la vez sostener señales de vínculo y de respeto."
+      ],
+      "note": "Marcar esta escena registra que exploraste la idea; no evalúa tu forma de discutir ni infiere nada sobre tu relación.",
+      "actionLabel": "He explorado la idea"
+    },
+    {
+      "order": 4,
+      "kind": "PRACTICE",
+      "title": "Lo que sé y lo que supongo",
+      "body": [
+        "Una escena breve: alguien se sienta cerca de su pareja después de una discusión sin resolver, y no dice nada. Separa lo que la escena dice de lo que estarías añadiendo tú."
+      ],
+      "note": "Es un caso editorial, no tu relación. Ninguna lectura se marca como equivocada: el ejercicio es notar cuáles no están en la escena.",
+      "actionLabel": "Ya hice la práctica"
+    },
+    {
+      "order": 5,
+      "kind": "REFLECTION",
+      "title": "La última vez",
+      "body": [
+        "Recuerda la última vez que estuviste realmente presente con alguien, sin pantalla de por medio y sin estar haciendo otra cosa. ¿Qué hizo que fuera posible?"
+      ],
+      "note": "Privado y opcional. No se guarda ni viaja con tu progreso.",
+      "optional": true
+    },
+    {
+      "order": 6,
+      "kind": "RECALL",
+      "title": "Recordar lo leído",
+      "body": [
+        "Elige la opción que corresponde a lo que dice el capítulo."
+      ],
+      "actionLabel": "Registrar respuesta"
+    },
+    {
+      "order": 7,
+      "kind": "SUMMARY",
+      "title": "Estar, antes que arreglar",
+      "body": [
+        "Presencia y resolución son cosas distintas, y una relación puede atravesar un desacuerdo sin renunciar a todas las señales de vínculo.",
+        "Si algo de esto te resultó difícil de leer, es información sobre el momento, no un diagnóstico de tu relación."
+      ]
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-presencia-sin-acuerdo",
+      "targetKey": "pqp-c1-presencia-sin-acuerdo"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-lo-que-se-y-lo-que-supongo",
+      "targetKey": "pqp-c1-practice-lo-que-se-y-lo-que-supongo"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-presencia-sin-acuerdo",
+      "targetKey": "pqp-c1-recall-presencia-sin-acuerdo"
+    }
+  ],
+  "media": {
+    "authorVideoPending": true,
+    "authorVideoScope": "MG01 · clip de apertura propuesto por el autor"
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Toda práctica ofrece un camino sin arrastrar y sin depender del color.",
+    "Ninguna escena comunica su estado únicamente con un icono.",
+    "Las escenas opcionales se pueden omitir con el teclado."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "pqp-c01-presencia-sin-acuerdo-v1",
+  "approvalReferences": [
+    "PQP-C01 — Inventario editorial y diseño de experiencia v0.1 (2026-09-07)"
+  ],
+  "manifestSha256": "f21aa100d8a7b80227d368aabb63bd33593bc0e80f65488193435d10a513b39e"
+}

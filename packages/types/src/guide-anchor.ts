@@ -814,8 +814,77 @@ export const EEC_C10_MG05_ANCHOR: GuideReaderAnchorLocator = {
 };
 
 /** The anchors this build ships. Adding a guide means adding a line here. */
+/**
+ * PQP-C01 · the four-microguide route (approved 2026-09-07).
+ *
+ * Every heading and every sentence below is verbatim from
+ * `PQP_PRINTED_v1.0_TEXT_LOCKED_2026-09-07` (SHA-256 `6151a1ca…5b616f`), and
+ * each locator was measured against published revision #10 before being
+ * written here: heading present exactly once, sentence appearing EXACTLY ONCE
+ * inside that heading's section.
+ *
+ * These are NEW lineages. The V1 pilot (`PAREJAS_READER_ANCHOR`,
+ * `pqp-c1-contacto-sostenido@1`) stays registered and untouched a few hundred
+ * lines above: its heading was a mangled OCR line that the printed edition does
+ * not contain, so it no longer resolves. Rebuilding its idea under a new key
+ * rather than publishing a v2 keeps its two pinned sessions readable as history
+ * instead of stranding them against a definition written for another edition.
+ */
+export const PQP_C1_MG01_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "pqp-c1-amor-como-practica",
+  guideVersion: 1,
+  bookSlug: "parejas-que-perduran",
+  // The book's chapter 1 is PLATFORM order 2 — order 1 is the front matter.
+  chapterOrder: 2,
+  sourceHeading: "El Amor como Medicina",
+  passageLastSentence: "el amor es un verbo, no un sustantivo",
+  expectedMatchCount: 1,
+};
+
+export const PQP_C1_MG02_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "pqp-c1-presencia-sin-acuerdo",
+  guideVersion: 1,
+  bookSlug: "parejas-que-perduran",
+  chapterOrder: 2,
+  sourceHeading: "El Cerebro Enamorado",
+  passageLastSentence:
+    "La hormona no requería consenso, solo presencia (Scheele et al., 2016).",
+  expectedMatchCount: 1,
+};
+
+export const PQP_C1_MG03_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "pqp-c1-clima-que-aprenden",
+  guideVersion: 1,
+  bookSlug: "parejas-que-perduran",
+  chapterOrder: 2,
+  sourceHeading: "Los Hijos",
+  passageLastSentence: "inició un estudio pionero",
+  expectedMatchCount: 1,
+};
+
+/**
+ * ⚠️ The heading is the COMPLETE printed line. Measured: with it truncated to
+ * «Un Testimonio Personal» the exact match count is 0, because the resolver
+ * compares whole normalized headings rather than prefixes. Shortening this
+ * string for readability would silently unresolve the anchor.
+ */
+export const PQP_C1_MG04_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "pqp-c1-reinventar-el-vinculo",
+  guideVersion: 1,
+  bookSlug: "parejas-que-perduran",
+  chapterOrder: 2,
+  sourceHeading:
+    "Un Testimonio Personal: Mireya y Yo – Los Abrazos que Cruzaron el Dolor",
+  passageLastSentence: "sino lo que reinventas juntos",
+  expectedMatchCount: 1,
+};
+
 export const guideAnchorRegistry = new GuideAnchorRegistry([
   GUIDE_READER_ANCHOR,
+  PQP_C1_MG01_ANCHOR,
+  PQP_C1_MG02_ANCHOR,
+  PQP_C1_MG03_ANCHOR,
+  PQP_C1_MG04_ANCHOR,
   EEC_C1_MG01_ANCHOR,
   EEC_C1_MG02_ANCHOR,
   EEC_C1_MG03_ANCHOR,

@@ -14,6 +14,7 @@
 import { guidePinKey, type GuidePin } from "./guide-pin";
 import { EEC_C01_READER_COPY } from "./eec-c01-microguides";
 import { EEC_C02_READER_COPY } from "./eec-c02-microguides";
+import { PQP_C01_READER_COPY } from "./pqp-c01-microguides";
 import { EEC_C03_READER_COPY } from "./eec-c03-microguides";
 import { EEC_C04_READER_COPY } from "./eec-c04-microguides";
 import { EEC_C05_READER_COPY } from "./eec-c05-microguides";
@@ -417,6 +418,8 @@ export const PRODUCTION_GUIDE_READER_COPY: readonly GuideReaderCopy[] = [
   ...EEC_C01_READER_COPY,
   // EEC-C02's five, from theirs.
   ...EEC_C02_READER_COPY,
+  // PQP-C01's four.
+  ...PQP_C01_READER_COPY,
   ...EEC_C03_READER_COPY,
   ...EEC_C04_READER_COPY,
   ...EEC_C05_READER_COPY,

@@ -516,6 +516,47 @@ export const GUIDED_CHAPTER_CONCEPTS: readonly GuidedChapterConcept[] = [
     editionKey: "emociones-en-construccion-1e",
     unitKey: "1e7704be-0297-5124-90f7-ebff5ef0caeb",
   },
+  // ── PQP-C01 · the four-microguide route (approved 2026-09-07) ─────────────
+  //
+  // Four NEW keys. `pqp-c1-contacto-sostenido` is deliberately NOT reused here
+  // even though MG02 rebuilds its idea: that key is the V1 pilot's, it is
+  // already materialised as a Concept and it may sit on Resonance rows a reader
+  // confirmed against the OCR edition. Giving MG02 its own key leaves the
+  // pilot's confirmations meaning exactly what they meant when they were made.
+  //
+  // PLATFORM order 2 — the book's chapter 1. Order 1 is the front matter.
+  {
+    key: "pqp-c1-amor-como-practica",
+    label: "El amor se practica",
+    bookSlug: "parejas-que-perduran",
+    chapterOrder: 2,
+    editionKey: "parejas-que-perduran-1e",
+    unitKey: "a8f009c0-1660-5f1e-a435-b8bc4ebbb7d4",
+  },
+  {
+    key: "pqp-c1-presencia-sin-acuerdo",
+    label: "Presencia y resolución no son lo mismo",
+    bookSlug: "parejas-que-perduran",
+    chapterOrder: 2,
+    editionKey: "parejas-que-perduran-1e",
+    unitKey: "a8f009c0-1660-5f1e-a435-b8bc4ebbb7d4",
+  },
+  {
+    key: "pqp-c1-clima-que-aprenden",
+    label: "Lo que se aprende mirando",
+    bookSlug: "parejas-que-perduran",
+    chapterOrder: 2,
+    editionKey: "parejas-que-perduran-1e",
+    unitKey: "a8f009c0-1660-5f1e-a435-b8bc4ebbb7d4",
+  },
+  {
+    key: "pqp-c1-reinventar-el-vinculo",
+    label: "Reinventar la forma de cuidarse",
+    bookSlug: "parejas-que-perduran",
+    chapterOrder: 2,
+    editionKey: "parejas-que-perduran-1e",
+    unitKey: "a8f009c0-1660-5f1e-a435-b8bc4ebbb7d4",
+  },
 ];
 
 /** Every guided concept of one chapter, in catalog order. Empty is normal. */

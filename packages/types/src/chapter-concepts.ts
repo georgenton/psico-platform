@@ -633,6 +633,74 @@ export const GUIDED_CHAPTER_CONCEPTS: readonly GuidedChapterConcept[] = [
     editionKey: "parejas-que-perduran-1e",
     unitKey: "83a96f4b-b9af-52a0-8c76-5e0cce6e6455",
   },
+  // ── PQP-C04 · the four-microguide route (approved 2026-09-08) ────────────
+  // PLATFORM order 5 — the book's chapter 4.
+  {
+    key: "pqp-c4-hablar-no-es-comunicarse",
+    label: "Hablar no es comunicarse",
+    bookSlug: "parejas-que-perduran",
+    chapterOrder: 5,
+    editionKey: "parejas-que-perduran-1e",
+    unitKey: "39d09b0d-98a0-5b53-9844-364eaae4d0dc",
+  },
+  {
+    key: "pqp-c4-armonia-no-es-salud",
+    label: "No pelear no es estar conectados",
+    bookSlug: "parejas-que-perduran",
+    chapterOrder: 5,
+    editionKey: "parejas-que-perduran-1e",
+    unitKey: "39d09b0d-98a0-5b53-9844-364eaae4d0dc",
+  },
+  {
+    key: "pqp-c4-pensar-distinto-sin-dividirse",
+    label: "Pensar distinto no divide",
+    bookSlug: "parejas-que-perduran",
+    chapterOrder: 5,
+    editionKey: "parejas-que-perduran-1e",
+    unitKey: "39d09b0d-98a0-5b53-9844-364eaae4d0dc",
+  },
+  {
+    key: "pqp-c4-validar-no-es-dar-la-razon",
+    label: "Validar no es dar la razón",
+    bookSlug: "parejas-que-perduran",
+    chapterOrder: 5,
+    editionKey: "parejas-que-perduran-1e",
+    unitKey: "39d09b0d-98a0-5b53-9844-364eaae4d0dc",
+  },
+  // ── PQP-C05 · the four-microguide route (approved 2026-09-08) ────────────
+  // PLATFORM order 6 — the book's chapter 5.
+  {
+    key: "pqp-c5-conflicto-no-es-control",
+    label: "Un desacuerdo no es control",
+    bookSlug: "parejas-que-perduran",
+    chapterOrder: 6,
+    editionKey: "parejas-que-perduran-1e",
+    unitKey: "c96b9981-e319-57de-a290-8214caaa38f4",
+  },
+  {
+    key: "pqp-c5-una-cosa-a-la-vez",
+    label: "Una cosa a la vez",
+    bookSlug: "parejas-que-perduran",
+    chapterOrder: 6,
+    editionKey: "parejas-que-perduran-1e",
+    unitKey: "c96b9981-e319-57de-a290-8214caaa38f4",
+  },
+  {
+    key: "pqp-c5-el-momento-importa",
+    label: "El momento importa",
+    bookSlug: "parejas-que-perduran",
+    chapterOrder: 6,
+    editionKey: "parejas-que-perduran-1e",
+    unitKey: "c96b9981-e319-57de-a290-8214caaa38f4",
+  },
+  {
+    key: "pqp-c5-acuerdo-no-es-victoria",
+    label: "Un acuerdo no es una victoria",
+    bookSlug: "parejas-que-perduran",
+    chapterOrder: 6,
+    editionKey: "parejas-que-perduran-1e",
+    unitKey: "c96b9981-e319-57de-a290-8214caaa38f4",
+  },
 ];
 
 /** Every guided concept of one chapter, in catalog order. */

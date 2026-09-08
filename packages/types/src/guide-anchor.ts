@@ -990,6 +990,105 @@ export const PQP_C3_MG04_ANCHOR: GuideReaderAnchorLocator = {
   expectedMatchCount: 1,
 };
 
+/**
+ * PQP-C04 · the four-microguide route (approved 2026-09-08).
+ *
+ * Measured against published revision #10 before being written, scoped to the
+ * PUBLISHED unit version: heading once, sentence once inside it.
+ */
+export const PQP_C4_MG01_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "pqp-c4-hablar-no-es-comunicarse",
+  guideVersion: 1,
+  bookSlug: "parejas-que-perduran",
+  chapterOrder: 5,
+  sourceHeading: "Los niveles de la comunicación".replace(/^"|"$/g, ""),
+  passageLastSentence: "El silencio no siempre es ausencia de palabras",
+  expectedMatchCount: 1,
+};
+
+export const PQP_C4_MG02_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "pqp-c4-armonia-no-es-salud",
+  guideVersion: 1,
+  bookSlug: "parejas-que-perduran",
+  chapterOrder: 5,
+  sourceHeading: "2. Comunicación de hechos: la crónica del día".replace(
+    /^"|"$/g,
+    "",
+  ),
+  passageLastSentence: "la armonía es sinónimo de salud",
+  expectedMatchCount: 1,
+};
+
+export const PQP_C4_MG03_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "pqp-c4-pensar-distinto-sin-dividirse",
+  guideVersion: 1,
+  bookSlug: "parejas-que-perduran",
+  chapterOrder: 5,
+  sourceHeading:
+    "3. Comunicación de ideas: pensar distinto sin dividirse".replace(
+      /^"|"$/g,
+      "",
+    ),
+  passageLastSentence: "no los dividió",
+  expectedMatchCount: 1,
+};
+
+export const PQP_C4_MG04_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "pqp-c4-validar-no-es-dar-la-razon",
+  guideVersion: 1,
+  bookSlug: "parejas-que-perduran",
+  chapterOrder: 5,
+  sourceHeading: "7. Valida al otro".replace(/^"|"$/g, ""),
+  passageLastSentence: "Validar no es lo mismo que estar de acuerdo",
+  expectedMatchCount: 1,
+};
+
+/**
+ * PQP-C05 · the four-microguide route (approved 2026-09-08).
+ *
+ * Measured against published revision #10 before being written, scoped to the
+ * PUBLISHED unit version: heading once, sentence once inside it.
+ */
+export const PQP_C5_MG01_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "pqp-c5-conflicto-no-es-control",
+  guideVersion: 1,
+  bookSlug: "parejas-que-perduran",
+  chapterOrder: 6,
+  sourceHeading: "1. Poder y dominio",
+  passageLastSentence: "busca controlar decisiones",
+  expectedMatchCount: 1,
+};
+
+export const PQP_C5_MG02_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "pqp-c5-una-cosa-a-la-vez",
+  guideVersion: 1,
+  bookSlug: "parejas-que-perduran",
+  chapterOrder: 6,
+  sourceHeading: "4. Enfócate en el presente",
+  passageLastSentence: "archivo histórico",
+  expectedMatchCount: 1,
+};
+
+export const PQP_C5_MG03_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "pqp-c5-el-momento-importa",
+  guideVersion: 1,
+  bookSlug: "parejas-que-perduran",
+  chapterOrder: 6,
+  sourceHeading: "9. Elige bien el momento",
+  passageLastSentence: "no por el contenido",
+  expectedMatchCount: 1,
+};
+
+export const PQP_C5_MG04_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "pqp-c5-acuerdo-no-es-victoria",
+  guideVersion: 1,
+  bookSlug: "parejas-que-perduran",
+  chapterOrder: 6,
+  sourceHeading: "10. Lleguen a acuerdos",
+  passageLastSentence: "cuando uno gana y otro pierde",
+  expectedMatchCount: 1,
+};
+
 export const guideAnchorRegistry = new GuideAnchorRegistry([
   GUIDE_READER_ANCHOR,
   PQP_C1_MG01_ANCHOR,
@@ -1005,6 +1104,14 @@ export const guideAnchorRegistry = new GuideAnchorRegistry([
   PQP_C3_MG02_ANCHOR,
   PQP_C3_MG03_ANCHOR,
   PQP_C3_MG04_ANCHOR,
+  PQP_C4_MG01_ANCHOR,
+  PQP_C4_MG02_ANCHOR,
+  PQP_C4_MG03_ANCHOR,
+  PQP_C4_MG04_ANCHOR,
+  PQP_C5_MG01_ANCHOR,
+  PQP_C5_MG02_ANCHOR,
+  PQP_C5_MG03_ANCHOR,
+  PQP_C5_MG04_ANCHOR,
   EEC_C1_MG01_ANCHOR,
   EEC_C1_MG02_ANCHOR,
   EEC_C1_MG03_ANCHOR,

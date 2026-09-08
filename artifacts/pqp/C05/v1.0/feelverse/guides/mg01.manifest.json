@@ -1,0 +1,130 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "PQP-C05-MG01",
+  "bookSlug": "parejas-que-perduran",
+  "editionKey": "parejas-que-perduran-1e",
+  "chapterCode": "C05",
+  "chapterOrder": 6,
+  "unitKey": "c96b9981-e319-57de-a290-8214caaa38f4",
+  "canonicalVersion": "PQP_PRINTED_v1.0_TEXT_LOCKED_2026-09-07",
+  "canonicalSha256": "6151a1ca2d88529ca1ca959997d04b681255d4e9f00510a0510651ddf65b616f",
+  "sourceArtifact": "Pareja que perduran_final.docx",
+  "experienceKey": "pqp-c5-conflicto-no-es-control",
+  "experienceVersion": 1,
+  "guideKey": "pqp-c5-conflicto-no-es-control",
+  "guideVersion": 1,
+  "conceptKey": "pqp-c5-conflicto-no-es-control",
+  "practiceKey": "pqp-c5-practice-desacuerdo-o-senales-de-control",
+  "practiceKind": "context_plausibility",
+  "recallKey": "pqp-c5-recall-conflicto-no-es-control",
+  "anchors": {
+    "primary": {
+      "reference": "pqp-c5-conflicto-no-es-control",
+      "heading": "1. Poder y dominio",
+      "fingerprint": "busca controlar decisiones",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "Un desacuerdo no es una dinámica de control",
+      "body": [
+        "El capítulo abre su lista de causas de conflicto con el poder y el dominio. Esta guía se detiene ahí, porque no todo lo que parece una discusión lo es."
+      ],
+      "note": "Trabajaremos solo con escenas inventadas. No se te pedirá describir tu situación, y nada de lo que pienses aquí se guarda. Puedes salir y volver cuando quieras. Nada de lo que escribas sale de tu dispositivo.",
+      "actionLabel": "Comenzar"
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "1. Poder y dominio",
+      "body": [
+        "Lee la sección donde el capítulo describe lo que ocurre cuando uno de los dos busca imponer, y fíjate en cómo lo distingue de una diferencia de criterio."
+      ]
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "Quién puede decir que no",
+      "body": [
+        "En un desacuerdo, las dos personas pueden sostener su postura, negarse y seguir estando. La conversación puede ser incómoda y aun así ninguna de las dos pierde nada por opinar.",
+        "Hay situaciones distintas: cuando una persona no puede negarse, opinar o decidir sin que haya consecuencias —enfado sostenido, castigo, vigilancia, aislamiento, miedo—, lo que está ocurriendo no es un desacuerdo mal llevado. Es otra cosa, y tiene otro nombre.",
+        "La diferencia importa por lo práctico: las herramientas de este capítulo —elegir el momento, hablar en presente, buscar acuerdos— sirven para desacuerdos. No sirven para el control, y aplicarlas ahí puede dejar a alguien intentando negociar algo que no se negocia."
+      ],
+      "note": "Si algo de esto se parece a tu situación, lo que corresponde no es una técnica de conversación sino apoyo: alguien de confianza, un profesional o un servicio especializado de tu país. Esta guía no evalúa tu relación ni saca conclusiones sobre ella.",
+      "actionLabel": "He explorado la idea"
+    },
+    {
+      "order": 4,
+      "kind": "PRACTICE",
+      "title": "¿Desacuerdo o señales de control?",
+      "body": [
+        "Cuatro escenas inventadas. Distingue las que describen una diferencia entre dos personas de las que muestran señales de control."
+      ],
+      "note": "Son escenas editoriales, nunca tu relación, y el ejercicio clasifica situaciones, no personas. Reconocer señales de control en una escena no dice nada sobre nadie que conozcas.",
+      "actionLabel": "Ya hice la práctica"
+    },
+    {
+      "order": 5,
+      "kind": "RECALL",
+      "title": "Recordar lo leído",
+      "body": [
+        "Elige la opción que corresponde a la distinción trabajada."
+      ],
+      "actionLabel": "Registrar respuesta"
+    },
+    {
+      "order": 6,
+      "kind": "SUMMARY",
+      "title": "Dos cosas distintas, dos respuestas distintas",
+      "body": [
+        "Un desacuerdo se trabaja conversando. Una dinámica de control no se resuelve conversando mejor, y proponerlo así puede dejar a alguien sola con el problema.",
+        "Distinguirlas es lo que esta guía enseña. Para lo segundo, lo que ayuda es apoyo."
+      ]
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-conflicto-no-es-control",
+      "targetKey": "pqp-c5-conflicto-no-es-control"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-desacuerdo-o-senales-de-control",
+      "targetKey": "pqp-c5-practice-desacuerdo-o-senales-de-control"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-conflicto-no-es-control",
+      "targetKey": "pqp-c5-recall-conflicto-no-es-control"
+    }
+  ],
+  "media": {
+    "authorVideoPending": false
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Toda práctica ofrece un camino sin arrastrar y sin depender del color.",
+    "Ninguna escena comunica su estado únicamente con un icono.",
+    "Las escenas opcionales se pueden omitir con el teclado."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "pqp-c05-conflicto-no-es-control-v1",
+  "approvalReferences": [
+    "PQP-C05 — Inventario editorial y selección de microguías (2026-09-08)"
+  ],
+  "manifestSha256": "6eb37bdc36dc99f5efa8a9c3d3e1223b4070360cb066dfaf459ab7dee30117cf"
+}

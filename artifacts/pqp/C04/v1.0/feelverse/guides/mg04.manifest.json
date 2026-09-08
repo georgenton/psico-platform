@@ -1,0 +1,139 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "PQP-C04-MG04",
+  "bookSlug": "parejas-que-perduran",
+  "editionKey": "parejas-que-perduran-1e",
+  "chapterCode": "C04",
+  "chapterOrder": 5,
+  "unitKey": "39d09b0d-98a0-5b53-9844-364eaae4d0dc",
+  "canonicalVersion": "PQP_PRINTED_v1.0_TEXT_LOCKED_2026-09-07",
+  "canonicalSha256": "6151a1ca2d88529ca1ca959997d04b681255d4e9f00510a0510651ddf65b616f",
+  "sourceArtifact": "Pareja que perduran_final.docx",
+  "experienceKey": "pqp-c4-validar-no-es-dar-la-razon",
+  "experienceVersion": 1,
+  "guideKey": "pqp-c4-validar-no-es-dar-la-razon",
+  "guideVersion": 1,
+  "conceptKey": "pqp-c4-validar-no-es-dar-la-razon",
+  "practiceKey": "pqp-c4-practice-validar-o-ceder",
+  "practiceKind": "context_plausibility",
+  "recallKey": "pqp-c4-recall-validar-no-es-dar-la-razon",
+  "anchors": {
+    "primary": {
+      "reference": "pqp-c4-validar-no-es-dar-la-razon",
+      "heading": "7. Valida al otro",
+      "fingerprint": "Validar no es lo mismo que estar de acuerdo",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "Validar no es dar la razón",
+      "body": [
+        "Reconocer lo que alguien siente suele confundirse con aceptar que tiene razón. Son cosas distintas, y el capítulo las separa."
+      ],
+      "note": "Trabajaremos con respuestas inventadas para el ejercicio. Puedes salir y volver cuando quieras. Nada de lo que escribas sale de tu dispositivo.",
+      "actionLabel": "Comenzar"
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "7. Valida al otro",
+      "body": [
+        "Lee la sección sobre validar, y fíjate en la primera frase: dice explícitamente qué NO es."
+      ]
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "Reconocer sin renunciar",
+      "body": [
+        "Validar es decirle a alguien que lo que siente tiene sentido desde donde está. No exige compartir su interpretación, ni retirar la propia, ni aceptar lo que pide.",
+        "Es una distinción útil porque hace posible acercarse sin ceder: se puede reconocer lo que el otro siente y seguir sosteniendo una postura distinta."
+      ],
+      "note": "Un límite importante: hablar mejor ayuda con los malentendidos, no con el daño. Si alguien intimida, amenaza, controla o agrede, eso no es un problema de comunicación y no se resuelve eligiendo mejor las palabras — ahí lo que hace falta es protección y apoyo, no una técnica. Validar no es una forma de acomodarse a quien hace daño, y esta guía no lo propone para eso.",
+      "actionLabel": "He explorado la idea"
+    },
+    {
+      "order": 4,
+      "kind": "PRACTICE",
+      "title": "¿Validar o ceder?",
+      "body": [
+        "Varias respuestas inventadas a una misma escena. Distingue las que reconocen lo que el otro siente de las que renuncian a la propia postura."
+      ],
+      "note": "Son respuestas editoriales, no las tuyas. Ninguna está prohibida: el ejercicio es notar qué hace cada una.",
+      "actionLabel": "Ya hice la práctica"
+    },
+    {
+      "order": 5,
+      "kind": "REFLECTION",
+      "title": "Un momento para ti",
+      "body": [
+        "¿Reconoces la diferencia entre las veces que has reconocido lo que alguien sentía y las veces que simplemente cediste?"
+      ],
+      "note": "Privado y opcional. No se guarda ni viaja con tu progreso.",
+      "optional": true
+    },
+    {
+      "order": 6,
+      "kind": "RECALL",
+      "title": "Recordar lo leído",
+      "body": [
+        "Elige la opción que corresponde a lo que dice el capítulo."
+      ],
+      "actionLabel": "Registrar respuesta"
+    },
+    {
+      "order": 7,
+      "kind": "SUMMARY",
+      "title": "Acercarse sin ceder",
+      "body": [
+        "Validar reconoce lo que el otro siente y deja intacta la propia postura. No es dar la razón ni callarse.",
+        "Y no es una herramienta para sostener una situación que hace daño."
+      ]
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-validar-no-es-dar-la-razon",
+      "targetKey": "pqp-c4-validar-no-es-dar-la-razon"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-validar-o-ceder",
+      "targetKey": "pqp-c4-practice-validar-o-ceder"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-validar-no-es-dar-la-razon",
+      "targetKey": "pqp-c4-recall-validar-no-es-dar-la-razon"
+    }
+  ],
+  "media": {
+    "authorVideoPending": false
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Toda práctica ofrece un camino sin arrastrar y sin depender del color.",
+    "Ninguna escena comunica su estado únicamente con un icono.",
+    "Las escenas opcionales se pueden omitir con el teclado."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "pqp-c04-validar-no-es-dar-la-razon-v1",
+  "approvalReferences": [
+    "PQP-C04 — Inventario editorial y selección de microguías (2026-09-08)"
+  ],
+  "manifestSha256": "77b01f4ef1b599c5914f9b9da746b51fd8f804d8e4082467365fcac83d226fe2"
+}

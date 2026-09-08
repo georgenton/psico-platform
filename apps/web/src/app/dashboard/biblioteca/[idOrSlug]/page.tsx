@@ -14,6 +14,7 @@ import { BookActionsBar } from "@/components/dashboard/detalle/BookActionsBar";
 import { BookHero } from "@/components/dashboard/detalle/BookHero";
 import { ChaptersList } from "@/components/dashboard/detalle/ChaptersList";
 import { ReviewsSection } from "@/components/dashboard/detalle/ReviewsSection";
+import { bookEditionLabel, showsStoredBlurb } from "@psico/types";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +33,13 @@ export async function generateMetadata({
     );
     return {
       title: detail.book.title,
-      description: detail.book.subtitle ?? detail.book.description ?? undefined,
+      // The declared edition name first: the stored subtitle and description
+      // still describe the OCR edition this one replaced.
+      description:
+        bookEditionLabel(detail.book.slug) ??
+        detail.book.subtitle ??
+        detail.book.description ??
+        undefined,
     };
   } catch (err) {
     // Don't swallow Next.js redirect/notFound throws — see api.server.ts.
@@ -97,7 +104,9 @@ export default async function BookDetailPage({ params }: { params: Params }) {
       />
 
       {/* About */}
-      {detail.book.summary || detail.book.description ? (
+      {detail.book.summary ||
+      (detail.book.description && showsStoredBlurb(detail.book.slug)) ||
+      bookEditionLabel(detail.book.slug) ? (
         <section className="mt-10">
           <h2
             className="mb-3 text-[12px] font-bold uppercase tracking-[0.14em]"
@@ -117,7 +126,19 @@ export default async function BookDetailPage({ params }: { params: Params }) {
                 {detail.book.summary}
               </p>
             ) : null}
+            {/* The declared edition name when the stored blurb is stale
+                metadata about the edition this one replaced. */}
+            {bookEditionLabel(detail.book.slug) &&
+            !showsStoredBlurb(detail.book.slug) ? (
+              <p
+                className="mt-3 text-[13.5px] leading-relaxed"
+                style={{ color: "var(--color-warm-600)" }}
+              >
+                {bookEditionLabel(detail.book.slug)}
+              </p>
+            ) : null}
             {detail.book.description &&
+            showsStoredBlurb(detail.book.slug) &&
             detail.book.description !== detail.book.summary ? (
               <p
                 className="mt-3 text-[13.5px] leading-relaxed"

@@ -615,41 +615,41 @@ const eecChapterGuide =
  * put a definition written for one edition underneath sessions opened against
  * another; a new key leaves the pilot readable as history.
  */
-const pqpC1Guide = (
-  slug: string,
-  conceptKey: string,
-  practiceSlug: string,
-): GuideDefinition =>
-  validateGuideDefinition({
-    guideKey: `pqp-c1-${slug}`,
-    guideVersion: 1,
-    steps: [
-      {
-        stepKey: `explorar-${slug}`,
-        order: 1,
-        required: true,
-        kind: "CONCEPT_EXPLORATION",
-        completionPolicy: "explicit_confirmation",
-        conceptKey,
-      },
-      {
-        stepKey: `practicar-${practiceSlug}`,
-        order: 2,
-        required: true,
-        kind: "CATALOG_PRACTICE",
-        completionPolicy: "catalog_practice_confirmation",
-        exerciseKey: `pqp-c1-practice-${practiceSlug}`,
-      },
-      {
-        stepKey: `recordar-${slug}`,
-        order: 3,
-        required: true,
-        kind: "ACTIVE_RECALL",
-        completionPolicy: "objective_recall",
-        itemKey: `pqp-c1-recall-${slug}`,
-      },
-    ],
-  });
+const pqpChapterGuide =
+  (chapter: number) =>
+  (slug: string, conceptKey: string, practiceSlug: string): GuideDefinition =>
+    validateGuideDefinition({
+      guideKey: `pqp-c${chapter}-${slug}`,
+      guideVersion: 1,
+      steps: [
+        {
+          stepKey: `explorar-${slug}`,
+          order: 1,
+          required: true,
+          kind: "CONCEPT_EXPLORATION",
+          completionPolicy: "explicit_confirmation",
+          conceptKey,
+        },
+        {
+          stepKey: `practicar-${practiceSlug}`,
+          order: 2,
+          required: true,
+          kind: "CATALOG_PRACTICE",
+          completionPolicy: "catalog_practice_confirmation",
+          exerciseKey: `pqp-c${chapter}-practice-${practiceSlug}`,
+        },
+        {
+          stepKey: `recordar-${slug}`,
+          order: 3,
+          required: true,
+          kind: "ACTIVE_RECALL",
+          completionPolicy: "objective_recall",
+          itemKey: `pqp-c${chapter}-recall-${slug}`,
+        },
+      ],
+    });
+
+const pqpC1Guide = pqpChapterGuide(1);
 
 /** MG01 — El amor se practica */
 export const PQP_C1_MG01_GUIDE = pqpC1Guide(
@@ -674,6 +674,64 @@ export const PQP_C1_MG04_GUIDE = pqpC1Guide(
   "reinventar-el-vinculo",
   "pqp-c1-reinventar-el-vinculo",
   "lo-que-dejo-de-funcionar",
+);
+
+const pqpC2Guide = pqpChapterGuide(2);
+/** C02-MG01 — Una queja no es una crítica */
+export const PQP_C2_MG01_GUIDE = pqpC2Guide(
+  "queja-no-es-critica",
+  "pqp-c2-queja-no-es-critica",
+  "sobre-el-hecho-o-sobre-la-persona",
+);
+/** C02-MG02 — Lo pequeño es grande */
+export const PQP_C2_MG02_GUIDE = pqpC2Guide(
+  "lo-pequeno-es-grande",
+  "pqp-c2-lo-pequeno-es-grande",
+  "una-invitacion-y-tres-respuestas",
+);
+/** C02-MG03 — Aceptar influencia no es ceder */
+export const PQP_C2_MG03_GUIDE = pqpC2Guide(
+  "aceptar-influencia",
+  "pqp-c2-aceptar-influencia",
+  "una-decision-tomada-entre-dos",
+);
+/** C02-MG04 — Desacuerdos que no se resuelven */
+export const PQP_C2_MG04_GUIDE = pqpC2Guide(
+  "desacuerdos-perpetuos",
+  "pqp-c2-desacuerdos-perpetuos",
+  "resoluble-o-recurrente",
+);
+/** C02-MG05 — El sueño detrás del desacuerdo */
+export const PQP_C2_MG05_GUIDE = pqpC2Guide(
+  "sueno-detras-del-desacuerdo",
+  "pqp-c2-sueno-detras-del-desacuerdo",
+  "lo-que-hay-debajo",
+);
+
+const pqpC3Guide = pqpChapterGuide(3);
+/** C03-MG01 — Elegir, no solo permanecer */
+export const PQP_C3_MG01_GUIDE = pqpC3Guide(
+  "elegir-cada-dia",
+  "pqp-c3-elegir-cada-dia",
+  "eleccion-o-inercia",
+);
+/** C03-MG02 — Priorizar se ve en la agenda */
+export const PQP_C3_MG02_GUIDE = pqpC3Guide(
+  "priorizar-es-agenda",
+  "pqp-c3-priorizar-es-agenda",
+  "lo-que-se-mueve-y-lo-que-no",
+);
+/** C03-MG03 — Aceptar no es coincidir */
+export const PQP_C3_MG03_GUIDE = pqpC3Guide(
+  "aceptar-sin-coincidir",
+  "pqp-c3-aceptar-sin-coincidir",
+  "diferencia-o-desacuerdo",
+);
+/** C03-MG04 — Apoyar lo que le hace crecer */
+export const PQP_C3_MG04_GUIDE = pqpC3Guide(
+  "apoyar-el-crecimiento",
+  "pqp-c3-apoyar-el-crecimiento",
+  "acompanar-un-proyecto",
 );
 
 const eecC3Guide = eecChapterGuide(3);
@@ -999,6 +1057,15 @@ export const PRODUCTION_GUIDE_DEFINITIONS: readonly GuideDefinition[] = [
   PQP_C1_MG02_GUIDE,
   PQP_C1_MG03_GUIDE,
   PQP_C1_MG04_GUIDE,
+  PQP_C2_MG01_GUIDE,
+  PQP_C2_MG02_GUIDE,
+  PQP_C2_MG03_GUIDE,
+  PQP_C2_MG04_GUIDE,
+  PQP_C2_MG05_GUIDE,
+  PQP_C3_MG01_GUIDE,
+  PQP_C3_MG02_GUIDE,
+  PQP_C3_MG03_GUIDE,
+  PQP_C3_MG04_GUIDE,
 ];
 
 export const productionGuideRegistry = new GuideCatalogRegistry(

@@ -63,7 +63,49 @@ function withDatabase(url: string, dbName: string): string {
 }
 
 /** Preface at order 1, the guide's chapter at order 2 with the real heading. */
+/**
+ * Platform orders the catalog declares for this book, each with the practice
+ * headings its own pairs anchor to. Derived rather than listed: the book went
+ * from one catalogued chapter to three as C02 and C03 landed, and a fixture
+ * with a fixed chapter list reports ACTIVATION_UNIT_NOT_FOUND for content that
+ * is perfectly fine in production.
+ */
+function cataloguedChapters(): Map<number, string[]> {
+  const byOrder = new Map<number, string[]>();
+  for (const pair of EXERCISE_INGESTION_CATALOG[SLUG] ?? []) {
+    const order = pair.practice.chapterOrder;
+    byOrder.set(order, [
+      ...(byOrder.get(order) ?? []),
+      pair.practice.sourceHeading,
+    ]);
+  }
+  return byOrder;
+}
+
 function parejasInput(): BootstrapInput {
+  const chapters: BootstrapInput["chapters"] = [
+    {
+      order: 1,
+      title: "Prefacio",
+      blocks: [{ kind: "PARAGRAPH" as const, content: "Prefacio." }],
+    },
+  ];
+  for (const [order, headings] of [...cataloguedChapters().entries()].sort(
+    (a, b) => a[0] - b[0],
+  )) {
+    chapters.push({
+      order,
+      title: `Capítulo ${order - 1}`,
+      blocks: [
+        { kind: "PARAGRAPH" as const, content: "Párrafo de apertura." },
+        ...headings.flatMap((content) => [
+          { kind: "HEADING" as const, content },
+          { kind: "PARAGRAPH" as const, content: "Consigna." },
+        ]),
+        { kind: "PARAGRAPH" as const, content: "Cierre." },
+      ],
+    });
+  }
   return {
     manifest: {
       slug: SLUG,
@@ -73,34 +115,13 @@ function parejasInput(): BootstrapInput {
       categorySlug: "vinculos",
       editionLabel: "Edición de prueba OCR",
       sourceQuality: "OCR_UNFINALIZED",
-      chapters: [
-        { order: 1, title: "Prefacio", file: "01.md" },
-        { order: 2, title: "Capítulo uno", file: "02.md" },
-      ],
+      chapters: chapters.map((c) => ({
+        order: c.order,
+        title: c.title,
+        file: `${String(c.order).padStart(2, "0")}.md`,
+      })),
     },
-    chapters: [
-      {
-        order: 1,
-        title: "Prefacio",
-        blocks: [{ kind: "PARAGRAPH" as const, content: "Prefacio." }],
-      },
-      {
-        order: 2,
-        title: "Capítulo uno",
-        blocks: [
-          { kind: "PARAGRAPH" as const, content: "Párrafo de apertura." },
-          // Every heading the catalog's practices anchor to. PQP went from one
-          // pair to five with C01's canonical route, and seeding only the
-          // first makes the activation fail closed on the other four.
-          ...practiceSourceHeadings(SLUG).map((content) => ({
-            kind: "HEADING" as const,
-            content,
-          })),
-          { kind: "PARAGRAPH" as const, content: "Consigna." },
-          { kind: "PARAGRAPH" as const, content: "Cierre." },
-        ],
-      },
-    ],
+    chapters,
   } satisfies BootstrapInput;
 }
 

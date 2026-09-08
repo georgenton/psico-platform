@@ -214,8 +214,13 @@ describe("PQP-C01 · practices", () => {
 
   it("numbers the new pairs after the pilot's, without renumbering it", () => {
     const all = EXERCISE_INGESTION_CATALOG[BOOK] ?? [];
-    const orders = all.flatMap((p) => [p.practice.order, p.recall.order]);
-    expect(orders).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    // C01's own eight, after the pilot's two. The book-wide contiguity check
+    // lives in `pqp-chapters.spec.ts`, which sees every chapter.
+    const orders = EXERCISE_CATALOG_PQP_C01.flatMap((p) => [
+      p.practice.order,
+      p.recall.order,
+    ]);
+    expect(orders).toEqual([3, 4, 5, 6, 7, 8, 9, 10]);
     // The pilot keeps 1–2 and its keys.
     expect(all[0].practice.exerciseKey).toBe(
       "pqp-c1-practice-diez-minutos-de-contacto",

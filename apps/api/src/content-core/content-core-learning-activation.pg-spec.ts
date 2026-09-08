@@ -3,7 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { CHAPTER_CONCEPTS } from "@psico/types";
+import { CHAPTER_CONCEPTS, guidedChapterConcepts } from "@psico/types";
 import { bootstrapBook, type BootstrapInput } from "./bootstrap-book";
 import {
   EXERCISE_INGESTION_CATALOG,
@@ -57,34 +57,85 @@ function withDatabase(url: string, dbName: string): string {
  * chapter 1 at order 2, the latter carrying the approved practice heading.
  * Prose is filler — the manuscript never enters the repository.
  */
+/**
+ * Platform orders this book's catalog declares, and the practice headings each
+ * one needs. Derived, never listed: the book grew from one catalogued chapter
+ * to three as C02 and C03 landed, and a fixture with a fixed chapter list would
+ * report ACTIVATION_UNIT_NOT_FOUND for content that is fine in production.
+ */
+function cataloguedChapters(): Map<number, string[]> {
+  const byOrder = new Map<number, string[]>();
+  for (const pair of EXERCISE_INGESTION_CATALOG[SLUG] ?? []) {
+    const order = pair.practice.chapterOrder;
+    const headings = byOrder.get(order) ?? [];
+    headings.push(pair.practice.sourceHeading);
+    byOrder.set(order, headings);
+  }
+  return byOrder;
+}
+
+/** How many pairs the catalog declares for this book. */
+const PAIR_COUNT = (EXERCISE_INGESTION_CATALOG[SLUG] ?? []).length;
+/** How many chapters it spreads them over. */
+const CATALOGUED_ORDER_COUNT = cataloguedChapters().size;
+/** Those orders, in the string shape the plan reports them. */
+const CATALOGUED_ORDERS = [...cataloguedChapters().keys()]
+  .sort((a, b) => a - b)
+  .join("|");
+/**
+ * Every concept the activation materialises for this book: the per-chapter one
+ * of each catalogued order, plus that order's guided concepts.
+ */
+const CHAPTER_CONCEPT_COUNT = Object.keys(CHAPTER_CONCEPTS[SLUG] ?? {}).length;
+const CONCEPT_COUNT = [...cataloguedChapters().keys()].reduce(
+  (n, order) =>
+    n +
+    (CHAPTER_CONCEPTS[SLUG]?.[order] ? 1 : 0) +
+    guidedChapterConcepts(SLUG, order).length,
+  0,
+);
+
+/**
+ * A Parejas-shaped bootstrap input: a preface at order 1 plus one chapter per
+ * catalogued platform order, each carrying its own practice headings.
+ *
+ * `opts` targets exactly ONE heading — the pilot's, the first of order 2 — so
+ * the missing/ambiguous cases stay worth one pair each while every other pair
+ * keeps resolving. Prose is filler; the manuscript never enters the repository.
+ */
 function parejasInput(
   opts: { heading?: string | null; duplicate?: boolean } = {},
 ) {
-  // Every heading the catalog's practices anchor to, derived rather than
-  // listed: the book went from one pair to five when PQP-C01 got its canonical
-  // route, and a fixture that seeded only the first would report
-  // SOURCE_MISSING for four pairs that are perfectly fine in production.
-  //
-  // `opts` still targets exactly ONE of them — the pilot's, the first — so the
-  // missing/ambiguous cases stay worth one pair each and the other four keep
-  // resolving normally.
   const targeted = PAIR.practice.sourceHeading;
-  const headings = practiceSourceHeadings(SLUG);
-  const chapterBlocks: BootstrapInput["chapters"][number]["blocks"] = [
-    { kind: "PARAGRAPH" as const, content: "Párrafo de apertura." },
+  const byOrder = cataloguedChapters();
+
+  const chapters: BootstrapInput["chapters"] = [
+    {
+      order: 1,
+      title: "Prefacio",
+      blocks: [{ kind: "PARAGRAPH" as const, content: "Prefacio." }],
+    },
   ];
-  for (const heading of headings) {
-    const isTargeted = heading === targeted;
-    if (isTargeted && opts.heading === null) continue;
-    const content = isTargeted && opts.heading ? opts.heading : heading;
-    chapterBlocks.push({ kind: "HEADING" as const, content });
-    chapterBlocks.push({ kind: "PARAGRAPH" as const, content: "Consigna." });
-    if (isTargeted && opts.duplicate) {
-      chapterBlocks.push({ kind: "HEADING" as const, content });
-      chapterBlocks.push({ kind: "PARAGRAPH" as const, content: "Repetido." });
+  for (const [order, headings] of [...byOrder.entries()].sort(
+    (a, b) => a[0] - b[0],
+  )) {
+    const blocks: BootstrapInput["chapters"][number]["blocks"] = [
+      { kind: "PARAGRAPH" as const, content: "Párrafo de apertura." },
+    ];
+    for (const heading of headings) {
+      const isTargeted = heading === targeted;
+      if (isTargeted && opts.heading === null) continue;
+      const content = isTargeted && opts.heading ? opts.heading : heading;
+      blocks.push({ kind: "HEADING" as const, content });
+      blocks.push({ kind: "PARAGRAPH" as const, content: "Consigna." });
+      if (isTargeted && opts.duplicate) {
+        blocks.push({ kind: "HEADING" as const, content });
+        blocks.push({ kind: "PARAGRAPH" as const, content: "Repetido." });
+      }
     }
+    blocks.push({ kind: "PARAGRAPH" as const, content: "Cierre." });
+    chapters.push({ order, title: `Capítulo ${order - 1}`, blocks });
   }
-  chapterBlocks.push({ kind: "PARAGRAPH" as const, content: "Cierre." });
 
   return {
     manifest: {
@@ -95,19 +146,13 @@ function parejasInput(
       categorySlug: "vinculos",
       editionLabel: "Edición de prueba OCR",
       sourceQuality: "OCR_UNFINALIZED",
-      chapters: [
-        { order: 1, title: "Prefacio", file: "01.md" },
-        { order: 2, title: "Capítulo uno", file: "02.md" },
-      ],
+      chapters: chapters.map((c) => ({
+        order: c.order,
+        title: c.title,
+        file: `${String(c.order).padStart(2, "0")}.md`,
+      })),
     },
-    chapters: [
-      {
-        order: 1,
-        title: "Prefacio",
-        blocks: [{ kind: "PARAGRAPH" as const, content: "Prefacio." }],
-      },
-      { order: 2, title: "Capítulo uno", blocks: chapterBlocks },
-    ],
+    chapters,
   } satisfies BootstrapInput;
 }
 
@@ -220,7 +265,7 @@ suite("Content Core · learning activation (real PostgreSQL)", () => {
 
   it("2 · dry-run identifies the chapter at platform order 2", async () => {
     const plan = await planBookLearningActivation(prisma, SLUG);
-    expect(plan.catalog_chapter_orders).toBe(String(CHAPTER_ORDER));
+    expect(plan.catalog_chapter_orders).toBe(CATALOGUED_ORDERS);
     expect(plan.chapter_missing_count).toBe(0);
     expect(plan.unit_missing_count).toBe(0);
     expect(plan.unit_not_in_revision_count).toBe(0);
@@ -234,17 +279,17 @@ suite("Content Core · learning activation (real PostgreSQL)", () => {
   // are the measured numbers, not a relaxed expectation.
   it("3 · dry-run resolves every practice source heading", async () => {
     const plan = await planBookLearningActivation(prisma, SLUG);
-    expect(plan.source_pair_count).toBe(5);
-    expect(plan.source_exact_match_pair_count).toBe(5);
+    expect(plan.source_pair_count).toBe(PAIR_COUNT);
+    expect(plan.source_exact_match_pair_count).toBe(PAIR_COUNT);
     expect(plan.source_missing_pair_count).toBe(0);
     expect(plan.source_ambiguous_pair_count).toBe(0);
     expect(plan.catalog_valid).toBe(true);
-    expect(plan.catalog_concept_count).toBe(1);
-    expect(plan.catalog_exercise_count).toBe(10);
-    expect(plan.concept_create_count).toBe(1);
-    expect(plan.concept_link_create_count).toBe(1);
-    expect(plan.practice_create_count).toBe(5);
-    expect(plan.recall_create_count).toBe(5);
+    expect(plan.catalog_concept_count).toBe(CHAPTER_CONCEPT_COUNT);
+    expect(plan.catalog_exercise_count).toBe(PAIR_COUNT * 2);
+    expect(plan.concept_create_count).toBe(CHAPTER_CONCEPT_COUNT);
+    expect(plan.concept_link_create_count).toBe(CHAPTER_CONCEPT_COUNT);
+    expect(plan.practice_create_count).toBe(PAIR_COUNT);
+    expect(plan.recall_create_count).toBe(PAIR_COUNT);
     expect(plan.activation_safe).toBe(true);
   });
 
@@ -252,7 +297,7 @@ suite("Content Core · learning activation (real PostgreSQL)", () => {
 
   it("4 · apply creates the Concept", async () => {
     const stats = await activateBookLearningCatalog(prisma, SLUG);
-    expect(stats.conceptsCreated).toBe(5);
+    expect(stats.conceptsCreated).toBe(CONCEPT_COUNT);
     const row = await prisma.concept.findUnique({
       where: { conceptKey: CONCEPT.key },
     });
@@ -261,7 +306,7 @@ suite("Content Core · learning activation (real PostgreSQL)", () => {
 
   it("5 · apply creates the ConceptLink as PRIMARY on the unit", async () => {
     const stats = await activateBookLearningCatalog(prisma, SLUG);
-    expect(stats.conceptLinksCreated).toBe(5);
+    expect(stats.conceptLinksCreated).toBe(CONCEPT_COUNT);
     const link = await prisma.conceptLink.findUnique({
       where: { id: conceptLinkId(CONCEPT.key) },
     });
@@ -284,7 +329,7 @@ suite("Content Core · learning activation (real PostgreSQL)", () => {
 
   it("7 · apply creates the recall with its options and server-side answer", async () => {
     const stats = await activateBookLearningCatalog(prisma, SLUG);
-    expect(stats.exercisesCreated).toBe(10);
+    expect(stats.exercisesCreated).toBe(PAIR_COUNT * 2);
     const recall = await prisma.exercise.findUnique({
       where: { id: PAIR.recall.exerciseKey },
     });
@@ -333,9 +378,9 @@ suite("Content Core · learning activation (real PostgreSQL)", () => {
     expect(stats.conceptsCreated).toBe(0);
     expect(stats.conceptLinksCreated).toBe(0);
     expect(stats.exercisesCreated).toBe(0);
-    expect(stats.conceptsVerified).toBe(5);
-    expect(stats.conceptLinksVerified).toBe(5);
-    expect(stats.exercisesVerified).toBe(10);
+    expect(stats.conceptsVerified).toBe(CONCEPT_COUNT);
+    expect(stats.conceptLinksVerified).toBe(CONCEPT_COUNT);
+    expect(stats.exercisesVerified).toBe(PAIR_COUNT * 2);
     expect(await learningCensus(prisma)).toEqual(after);
   });
 
@@ -446,7 +491,7 @@ suite("Content Core · learning activation (real PostgreSQL)", () => {
 
     const plan = await planBookLearningActivation(prisma, SLUG);
     expect(plan.source_missing_pair_count).toBe(1);
-    expect(plan.source_exact_match_pair_count).toBe(4);
+    expect(plan.source_exact_match_pair_count).toBe(PAIR_COUNT - 1);
     expect(plan.activation_safe).toBe(false);
 
     await expect(activateBookLearningCatalog(prisma, SLUG)).rejects.toThrow(
@@ -461,7 +506,7 @@ suite("Content Core · learning activation (real PostgreSQL)", () => {
 
     const plan = await planBookLearningActivation(prisma, SLUG);
     expect(plan.source_ambiguous_pair_count).toBe(1);
-    expect(plan.source_exact_match_pair_count).toBe(4);
+    expect(plan.source_exact_match_pair_count).toBe(PAIR_COUNT - 1);
     expect(plan.activation_safe).toBe(false);
 
     await expect(activateBookLearningCatalog(prisma, SLUG)).rejects.toThrow(
@@ -486,7 +531,8 @@ suite("Content Core · learning activation (real PostgreSQL)", () => {
     // …but the position is owned, so it is not a refusal.
     expect(plan.owner_missing_count).toBe(0);
     expect(plan.native_owner_count).toBe(1);
-    expect(plan.legacy_owner_count).toBe(0);
+    // The other catalogued orders still have their legacy chapters.
+    expect(plan.legacy_owner_count).toBe(CATALOGUED_ORDER_COUNT - 1);
     expect(plan.activation_safe).toBe(true);
 
     await activateBookLearningCatalog(prisma, SLUG);
@@ -512,8 +558,8 @@ suite("Content Core · learning activation (real PostgreSQL)", () => {
     const before = await learningCensus(prisma);
 
     const plan = await planBookLearningActivation(prisma, SLUG);
-    expect(plan.owner_missing_count).toBe(1);
-    expect(plan.unit_missing_count).toBe(1);
+    expect(plan.owner_missing_count).toBe(CATALOGUED_ORDER_COUNT);
+    expect(plan.unit_missing_count).toBe(CATALOGUED_ORDER_COUNT);
     expect(plan.activation_safe).toBe(false);
 
     await expect(activateBookLearningCatalog(prisma, SLUG)).rejects.toThrow();
@@ -530,7 +576,8 @@ suite("Content Core · learning activation (real PostgreSQL)", () => {
     const before = await learningCensus(prisma);
 
     const plan = await planBookLearningActivation(prisma, SLUG);
-    expect(plan.unit_missing_count).toBe(1);
+    // Every unit went, so every catalogued order lost its own.
+    expect(plan.unit_missing_count).toBe(CATALOGUED_ORDER_COUNT);
     expect(plan.activation_safe).toBe(false);
 
     await expect(activateBookLearningCatalog(prisma, SLUG)).rejects.toThrow(
@@ -757,8 +804,8 @@ suite("Content Core · learning activation (real PostgreSQL)", () => {
     await activateBookLearningCatalog(prisma, SLUG);
     const plan = await planBookLearningActivation(prisma, SLUG);
 
-    expect(plan.practice_verify_count).toBe(5);
-    expect(plan.recall_verify_count).toBe(5);
+    expect(plan.practice_verify_count).toBe(PAIR_COUNT);
+    expect(plan.recall_verify_count).toBe(PAIR_COUNT);
     expect(plan.concept_verify_count).toBe(1);
     expect(plan.concept_link_verify_count).toBe(1);
     expect(plan.practice_conflict_count).toBe(0);
@@ -842,8 +889,8 @@ suite("Content Core · learning activation (real PostgreSQL)", () => {
     expect(plan.activation_safe).toBe(true);
 
     const stats = await activateBookLearningCatalog(prisma, SLUG);
-    expect(stats.conceptsCreated).toBe(5);
-    expect(stats.exercisesCreated).toBe(10);
+    expect(stats.conceptsCreated).toBe(CONCEPT_COUNT);
+    expect(stats.exercisesCreated).toBe(PAIR_COUNT * 2);
   });
 
   it("31 · a CATALOGUED chapter outside the published revision blocks it", async () => {
@@ -920,7 +967,7 @@ suite("Content Core · learning activation (real PostgreSQL)", () => {
     ).toBeNull();
 
     const plan = await planBookLearningActivation(prisma, SLUG);
-    expect(plan.concept_create_count).toBe(1);
+    expect(plan.concept_create_count).toBe(CHAPTER_CONCEPT_COUNT);
     expect(plan.concept_link_conflict_count).toBe(1);
     expect(plan.concept_link_verify_count).toBe(0);
     expect(plan.activation_safe).toBe(false);

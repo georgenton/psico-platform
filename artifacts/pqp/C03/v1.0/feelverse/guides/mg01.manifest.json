@@ -1,0 +1,139 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "PQP-C03-MG01",
+  "bookSlug": "parejas-que-perduran",
+  "editionKey": "parejas-que-perduran-1e",
+  "chapterCode": "C03",
+  "chapterOrder": 4,
+  "unitKey": "83a96f4b-b9af-52a0-8c76-5e0cce6e6455",
+  "canonicalVersion": "PQP_PRINTED_v1.0_TEXT_LOCKED_2026-09-07",
+  "canonicalSha256": "6151a1ca2d88529ca1ca959997d04b681255d4e9f00510a0510651ddf65b616f",
+  "sourceArtifact": "Pareja que perduran_final.docx",
+  "experienceKey": "pqp-c3-elegir-cada-dia",
+  "experienceVersion": 1,
+  "guideKey": "pqp-c3-elegir-cada-dia",
+  "guideVersion": 1,
+  "conceptKey": "pqp-c3-elegir-cada-dia",
+  "practiceKey": "pqp-c3-practice-eleccion-o-inercia",
+  "practiceKind": "context_plausibility",
+  "recallKey": "pqp-c3-recall-elegir-cada-dia",
+  "anchors": {
+    "primary": {
+      "reference": "pqp-c3-elegir-cada-dia",
+      "heading": "El verdadero significado del compromiso",
+      "fingerprint": "va mucho más allá de sentir amor",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "Elegir, no solo permanecer",
+      "body": [
+        "«Seguimos juntos» y «nos elegimos» pueden describir la misma situación y significar cosas distintas. El capítulo empieza por separarlas."
+      ],
+      "note": "Trabajaremos con casos inventados para el ejercicio, no con tu historia. Puedes salir y volver cuando quieras. Nada de lo que escribas sale de tu dispositivo.",
+      "actionLabel": "Comenzar"
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "El verdadero significado del compromiso",
+      "body": [
+        "Lee la sección donde el capítulo define el compromiso, y fíjate en qué lo distingue de un sentimiento intenso."
+      ]
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "Una elección que se renueva",
+      "body": [
+        "El capítulo describe el compromiso como algo que se sostiene con conductas: cuidar el vínculo, atravesar dificultades juntos, mantener la confianza. No como un estado que, una vez alcanzado, se conserva solo.",
+        "De ahí la distinción que da nombre al capítulo: permanecer es una situación; elegirse es algo que se hace, y se puede volver a hacer."
+      ],
+      "note": "Una precisión de FeelVerse, no del capítulo: elegir no significa quedarse pase lo que pase. Nada de esta guía sostiene permanecer donde hay violencia, coerción, control o miedo, y ahí la pregunta no es cuánto compromiso hay sino qué protección hace falta. Marcar la escena registra que exploraste la idea; no evalúa tu relación.",
+      "actionLabel": "He explorado la idea"
+    },
+    {
+      "order": 4,
+      "kind": "PRACTICE",
+      "title": "¿Elección o inercia?",
+      "body": [
+        "Cuatro situaciones inventadas. Distingue en cuáles se describe una elección sostenida y en cuáles simplemente una continuidad."
+      ],
+      "note": "Son casos editoriales. La clasificación no juzga a las parejas descritas: nombra qué se ve en cada escena.",
+      "actionLabel": "Ya hice la práctica"
+    },
+    {
+      "order": 5,
+      "kind": "REFLECTION",
+      "title": "Un momento para ti",
+      "body": [
+        "Si pensaras en tu vínculo más cercano, ¿qué cosas concretas dirías que sostienen la elección, más allá de que sigan juntos? Basta con pensarlo."
+      ],
+      "note": "Privado y opcional. No se guarda, no puntúa nada y no viaja con tu progreso.",
+      "optional": true
+    },
+    {
+      "order": 6,
+      "kind": "RECALL",
+      "title": "Recordar lo leído",
+      "body": [
+        "Elige la opción que corresponde a lo que dice el capítulo."
+      ],
+      "actionLabel": "Registrar respuesta"
+    },
+    {
+      "order": 7,
+      "kind": "SUMMARY",
+      "title": "Elegirse es un verbo",
+      "body": [
+        "El compromiso, tal como lo describe el capítulo, se parece más a algo que se hace que a algo que se tiene.",
+        "Y no equivale a permanecer a cualquier precio: eso es otra cosa, y no es lo que esta guía propone."
+      ]
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-elegir-cada-dia",
+      "targetKey": "pqp-c3-elegir-cada-dia"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-eleccion-o-inercia",
+      "targetKey": "pqp-c3-practice-eleccion-o-inercia"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-elegir-cada-dia",
+      "targetKey": "pqp-c3-recall-elegir-cada-dia"
+    }
+  ],
+  "media": {
+    "authorVideoPending": false
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Toda práctica ofrece un camino sin arrastrar y sin depender del color.",
+    "Ninguna escena comunica su estado únicamente con un icono.",
+    "Las escenas opcionales se pueden omitir con el teclado."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "pqp-c03-elegir-cada-dia-v1",
+  "approvalReferences": [
+    "PQP-C03 — Inventario editorial y selección de microguías (2026-09-08)"
+  ],
+  "manifestSha256": "e46f8aa58988f7d219692a9ed3d061e91a0aca1119d122ed47c9f62a0e77191f"
+}

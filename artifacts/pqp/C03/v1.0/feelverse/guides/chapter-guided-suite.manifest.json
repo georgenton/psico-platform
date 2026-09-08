@@ -1,0 +1,44 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "PQP-C03-SUITE",
+  "bookSlug": "parejas-que-perduran",
+  "editionKey": "parejas-que-perduran-1e",
+  "chapterCode": "C03",
+  "chapterOrder": 4,
+  "unitKey": "83a96f4b-b9af-52a0-8c76-5e0cce6e6455",
+  "canonicalVersion": "PQP_PRINTED_v1.0_TEXT_LOCKED_2026-09-07",
+  "canonicalSha256": "6151a1ca2d88529ca1ca959997d04b681255d4e9f00510a0510651ddf65b616f",
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "approvalReferences": [
+    "PQP-C03 — Inventario editorial y selección de microguías (2026-09-08)"
+  ],
+  "featureFlag": null,
+  "featureFlagDefault": "off",
+  "route": [
+    {
+      "order": 1,
+      "manifestId": "PQP-C03-MG01",
+      "guideKey": "pqp-c3-elegir-cada-dia",
+      "guideVersion": 1
+    },
+    {
+      "order": 2,
+      "manifestId": "PQP-C03-MG02",
+      "guideKey": "pqp-c3-priorizar-es-agenda",
+      "guideVersion": 1
+    },
+    {
+      "order": 3,
+      "manifestId": "PQP-C03-MG03",
+      "guideKey": "pqp-c3-aceptar-sin-coincidir",
+      "guideVersion": 1
+    },
+    {
+      "order": 4,
+      "manifestId": "PQP-C03-MG04",
+      "guideKey": "pqp-c3-apoyar-el-crecimiento",
+      "guideVersion": 1
+    }
+  ]
+}

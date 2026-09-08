@@ -1,0 +1,139 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "PQP-C03-MG03",
+  "bookSlug": "parejas-que-perduran",
+  "editionKey": "parejas-que-perduran-1e",
+  "chapterCode": "C03",
+  "chapterOrder": 4,
+  "unitKey": "83a96f4b-b9af-52a0-8c76-5e0cce6e6455",
+  "canonicalVersion": "PQP_PRINTED_v1.0_TEXT_LOCKED_2026-09-07",
+  "canonicalSha256": "6151a1ca2d88529ca1ca959997d04b681255d4e9f00510a0510651ddf65b616f",
+  "sourceArtifact": "Pareja que perduran_final.docx",
+  "experienceKey": "pqp-c3-aceptar-sin-coincidir",
+  "experienceVersion": 1,
+  "guideKey": "pqp-c3-aceptar-sin-coincidir",
+  "guideVersion": 1,
+  "conceptKey": "pqp-c3-aceptar-sin-coincidir",
+  "practiceKey": "pqp-c3-practice-diferencia-o-desacuerdo",
+  "practiceKind": "context_plausibility",
+  "recallKey": "pqp-c3-recall-aceptar-sin-coincidir",
+  "anchors": {
+    "primary": {
+      "reference": "pqp-c3-aceptar-sin-coincidir",
+      "heading": "2. Practiquen la aceptación y el respeto mutuo",
+      "fingerprint": "No se trata de estar de acuerdo en todo",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "Aceptar no es coincidir",
+      "body": [
+        "Aceptar a alguien suele confundirse con darle la razón. El capítulo separa las dos cosas."
+      ],
+      "note": "Trabajaremos con ejemplos inventados para el ejercicio. Puedes salir y volver cuando quieras. Nada de lo que escribas sale de tu dispositivo.",
+      "actionLabel": "Comenzar"
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "2. Practiquen la aceptación y el respeto mutuo",
+      "body": [
+        "Lee la sección sobre aceptar las diferencias, y fíjate en qué NO exige."
+      ]
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "Diferencia no es desacuerdo",
+      "body": [
+        "Aceptar, tal como lo plantea el capítulo, es respetar que la otra persona sea distinta: en gustos, en ritmo, en forma de ver las cosas. No pide coincidir, y no pide dejar de tener criterio.",
+        "Conviene separarlo también de otra cosa: aceptar una diferencia de carácter no es lo mismo que aceptar cualquier conducta. Se puede respetar a alguien y a la vez objetar lo que hace."
+      ],
+      "note": "Esa segunda distinción es de FeelVerse, no del capítulo, y está aquí a propósito: «aceptación» no significa renunciar a poner límites. Marcar la escena registra que exploraste la idea.",
+      "actionLabel": "He explorado la idea"
+    },
+    {
+      "order": 4,
+      "kind": "PRACTICE",
+      "title": "¿Diferencia o desacuerdo?",
+      "body": [
+        "Varias situaciones inventadas. Distingue lo que es una diferencia entre dos personas de lo que es un desacuerdo sobre algo concreto."
+      ],
+      "note": "Son casos editoriales. Distinguirlos no dice cuál importa más: dice qué tipo de conversación pide cada uno.",
+      "actionLabel": "Ya hice la práctica"
+    },
+    {
+      "order": 5,
+      "kind": "REFLECTION",
+      "title": "Un momento para ti",
+      "body": [
+        "¿Hay alguna diferencia que hayas estado tratando como si fuera un desacuerdo por resolver?"
+      ],
+      "note": "Privado y opcional. No se guarda ni viaja con tu progreso.",
+      "optional": true
+    },
+    {
+      "order": 6,
+      "kind": "RECALL",
+      "title": "Recordar lo leído",
+      "body": [
+        "Elige la opción que corresponde a lo que dice el capítulo."
+      ],
+      "actionLabel": "Registrar respuesta"
+    },
+    {
+      "order": 7,
+      "kind": "SUMMARY",
+      "title": "Respetar sin coincidir",
+      "body": [
+        "Aceptar es respetar que alguien sea distinto, no llegar a pensar igual.",
+        "Y respetar a una persona sigue siendo compatible con objetar algo que hace."
+      ]
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-aceptar-sin-coincidir",
+      "targetKey": "pqp-c3-aceptar-sin-coincidir"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-diferencia-o-desacuerdo",
+      "targetKey": "pqp-c3-practice-diferencia-o-desacuerdo"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-aceptar-sin-coincidir",
+      "targetKey": "pqp-c3-recall-aceptar-sin-coincidir"
+    }
+  ],
+  "media": {
+    "authorVideoPending": false
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Toda práctica ofrece un camino sin arrastrar y sin depender del color.",
+    "Ninguna escena comunica su estado únicamente con un icono.",
+    "Las escenas opcionales se pueden omitir con el teclado."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "pqp-c03-aceptar-sin-coincidir-v1",
+  "approvalReferences": [
+    "PQP-C03 — Inventario editorial y selección de microguías (2026-09-08)"
+  ],
+  "manifestSha256": "9d4d399a27b8f47392a3ad71d237fab4082e2f1910b8b2a8b4b244789b724547"
+}

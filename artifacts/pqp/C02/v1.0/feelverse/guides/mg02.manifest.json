@@ -1,0 +1,138 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "PQP-C02-MG02",
+  "bookSlug": "parejas-que-perduran",
+  "editionKey": "parejas-que-perduran-1e",
+  "chapterCode": "C02",
+  "chapterOrder": 3,
+  "unitKey": "9f291999-9a47-5fec-b791-0d17aa5a8c74",
+  "canonicalVersion": "PQP_PRINTED_v1.0_TEXT_LOCKED_2026-09-07",
+  "canonicalSha256": "6151a1ca2d88529ca1ca959997d04b681255d4e9f00510a0510651ddf65b616f",
+  "sourceArtifact": "Pareja que perduran_final.docx",
+  "experienceKey": "pqp-c2-lo-pequeno-es-grande",
+  "experienceVersion": 1,
+  "guideKey": "pqp-c2-lo-pequeno-es-grande",
+  "guideVersion": 1,
+  "conceptKey": "pqp-c2-lo-pequeno-es-grande",
+  "practiceKey": "pqp-c2-practice-una-invitacion-y-tres-respuestas",
+  "practiceKind": "signal_context_compare",
+  "recallKey": "pqp-c2-recall-lo-pequeno-es-grande",
+  "anchors": {
+    "primary": {
+      "reference": "pqp-c2-lo-pequeno-es-grande",
+      "heading": "Principio 3: Acercarse en lugar de alejarse",
+      "fingerprint": "Lo pequeño se volvió poderoso",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "Lo pequeño es grande",
+      "body": [
+        "Buena parte de lo que sostiene un vínculo no ocurre en las conversaciones importantes, sino en intercambios de tres segundos que casi nadie registra."
+      ],
+      "note": "Trabajaremos con una escena inventada para el ejercicio. Puedes salir y volver cuando quieras. Nada de lo que escribas sale de tu dispositivo.",
+      "actionLabel": "Comenzar"
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "Principio 3: Acercarse en lugar de alejarse",
+      "body": [
+        "Lee la sección sobre las pequeñas invitaciones que dos personas se lanzan a lo largo del día, y qué ocurre cuando se responden o se dejan pasar."
+      ]
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "Invitaciones que duran tres segundos",
+      "body": [
+        "Un comentario sobre algo que se vio, una pregunta suelta, un roce al pasar: el capítulo los describe como pequeñas invitaciones a conectar. Casi nunca vienen anunciadas como tales.",
+        "Responderlas o dejarlas pasar es una decisión diaria y repetida. No decide nada por sí sola; es su acumulación la que va dando forma al clima entre dos personas."
+      ],
+      "note": "Marcar esta escena registra que exploraste la idea; no evalúa cuántas invitaciones respondes ni infiere nada sobre tu relación.",
+      "actionLabel": "He explorado la idea"
+    },
+    {
+      "order": 4,
+      "kind": "PRACTICE",
+      "title": "Una invitación, tres respuestas",
+      "body": [
+        "La misma invitación breve en dos situaciones distintas. Observa qué podría cambiar en lo que la otra persona alcanza a entender."
+      ],
+      "note": "Es un caso editorial. Nada se marca como correcto o incorrecto: el ejercicio es notar que la misma respuesta no significa lo mismo en cualquier momento.",
+      "actionLabel": "Ya hice la práctica"
+    },
+    {
+      "order": 5,
+      "kind": "REFLECTION",
+      "title": "Un momento para ti",
+      "body": [
+        "Durante el resto del día, ¿qué invitaciones pequeñas podrías notar que normalmente pasarían inadvertidas? Basta con que lo pienses."
+      ],
+      "note": "Privado y opcional. No se guarda ni viaja con tu progreso.",
+      "optional": true
+    },
+    {
+      "order": 6,
+      "kind": "RECALL",
+      "title": "Recordar lo leído",
+      "body": [
+        "Elige la opción que corresponde a lo que dice el capítulo."
+      ],
+      "actionLabel": "Registrar respuesta"
+    },
+    {
+      "order": 7,
+      "kind": "SUMMARY",
+      "title": "La suma, no el gesto",
+      "body": [
+        "Ninguna invitación aislada decide nada. Lo que el capítulo sitúa en el centro es la acumulación: muchas respuestas pequeñas, repetidas."
+      ]
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-lo-pequeno-es-grande",
+      "targetKey": "pqp-c2-lo-pequeno-es-grande"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-una-invitacion-y-tres-respuestas",
+      "targetKey": "pqp-c2-practice-una-invitacion-y-tres-respuestas"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-lo-pequeno-es-grande",
+      "targetKey": "pqp-c2-recall-lo-pequeno-es-grande"
+    }
+  ],
+  "media": {
+    "authorVideoPending": false
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Toda práctica ofrece un camino sin arrastrar y sin depender del color.",
+    "Ninguna escena comunica su estado únicamente con un icono.",
+    "Las escenas opcionales se pueden omitir con el teclado."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "pqp-c02-lo-pequeno-es-grande-v1",
+  "approvalReferences": [
+    "PQP-C02 — Inventario editorial y selección de microguías (2026-09-08)"
+  ],
+  "manifestSha256": "254e21d234c92d65a03e5ba30a18456d17b8ceedcb9d327485a8b3f347c036bc"
+}

@@ -243,7 +243,7 @@ export const PQP_C04_MICROGUIDES: readonly MicroguideEntry[] = [
         "Validar es decirle a alguien que lo que siente tiene sentido desde donde está. No exige compartir su interpretación, ni retirar la propia, ni aceptar lo que pide.",
         "Es una distinción útil porque hace posible acercarse sin ceder: se puede reconocer lo que el otro siente y seguir sosteniendo una postura distinta.",
       ],
-      note: "Un límite importante: hablar mejor ayuda con los malentendidos, no con el daño. Si alguien intimida, amenaza, controla o agrede, eso no es un problema de comunicación y no se resuelve eligiendo mejor las palabras — ahí lo que hace falta es protección y apoyo, no una técnica. Validar no es una forma de acomodarse a quien hace daño, y esta guía no lo propone para eso.",
+      note: "Hablar mejor ayuda con los malentendidos, no con el daño. Si alguien intimida, amenaza, controla o agrede, eso no es un problema de comunicación: validar no es una forma de acomodarse a quien hace daño, y esta guía no lo propone para eso.",
     },
     practice: {
       title: "¿Validar o ceder?",

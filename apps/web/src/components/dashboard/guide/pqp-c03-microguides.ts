@@ -58,7 +58,7 @@ export const PQP_C03_MICROGUIDES: readonly MicroguideEntry[] = [
         "El capítulo describe el compromiso como algo que se sostiene con conductas: cuidar el vínculo, atravesar dificultades juntos, mantener la confianza. No como un estado que, una vez alcanzado, se conserva solo.",
         "De ahí la distinción que da nombre al capítulo: permanecer es una situación; elegirse es algo que se hace, y se puede volver a hacer.",
       ],
-      note: "Una precisión de FeelVerse, no del capítulo: elegir no significa quedarse pase lo que pase. Nada de esta guía sostiene permanecer donde hay violencia, coerción, control o miedo, y ahí la pregunta no es cuánto compromiso hay sino qué protección hace falta. Marcar la escena registra que exploraste la idea; no evalúa tu relación.",
+      note: "Precisión de FeelVerse: elegir no es quedarse pase lo que pase. Nada aquí sostiene permanecer donde hay violencia, coerción, control o miedo; ahí la pregunta no es cuánto compromiso hay, sino qué protección hace falta. Marcar la escena no evalúa tu relación.",
     },
     practice: {
       title: "¿Elección o inercia?",

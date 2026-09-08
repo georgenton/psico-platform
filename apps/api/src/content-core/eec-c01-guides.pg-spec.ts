@@ -453,7 +453,9 @@ suite("EEC-C01 · manifests → targets → five DRAFTs (real PostgreSQL)", () =
 
   it("11 · verify-drafts passes with the flag off", async () => {
     const r = await verifyDrafts(prisma, manifests, false);
-    expect(r.checks.fiveDrafts).toBe(true);
+    // Renamed from `fiveDrafts`: a route is complete when it has as many
+    // drafts as its package declares, and PQP-C01's declares four.
+    expect(r.checks.allDraftsPresent).toBe(true);
     expect(r.checks.allDraft).toBe(true);
     expect(r.checks.versionOne).toBe(true);
     expect(r.checks.pinsMatchManifests).toBe(true);

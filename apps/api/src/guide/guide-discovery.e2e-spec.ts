@@ -10,7 +10,10 @@ import {
   type BootstrapInput,
 } from "../content-core/bootstrap-book";
 import { activateBookLearningCatalog } from "../content-core/learning-activation";
-import { EXERCISE_INGESTION_CATALOG } from "../content-core/exercise-ingestion-catalog";
+import {
+  EXERCISE_INGESTION_CATALOG,
+  practiceSourceHeadings,
+} from "../content-core/exercise-ingestion-catalog";
 import { createE2EApp, closeE2EApp, type E2EHarness } from "../test/e2e-app";
 
 /**
@@ -86,7 +89,13 @@ function parejasInput(): BootstrapInput {
         title: "Capítulo uno",
         blocks: [
           { kind: "PARAGRAPH" as const, content: "Párrafo de apertura." },
-          { kind: "HEADING" as const, content: PAIR.practice.sourceHeading },
+          // Every heading the catalog's practices anchor to. PQP went from one
+          // pair to five with C01's canonical route, and seeding only the
+          // first makes the activation fail closed on the other four.
+          ...practiceSourceHeadings(SLUG).map((content) => ({
+            kind: "HEADING" as const,
+            content,
+          })),
           { kind: "PARAGRAPH" as const, content: "Consigna." },
           { kind: "PARAGRAPH" as const, content: "Cierre." },
         ],

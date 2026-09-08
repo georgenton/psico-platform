@@ -5,7 +5,10 @@ import { Pool } from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { CHAPTER_CONCEPTS } from "@psico/types";
 import { bootstrapBook, type BootstrapInput } from "./bootstrap-book";
-import { EXERCISE_INGESTION_CATALOG } from "./exercise-ingestion-catalog";
+import {
+  EXERCISE_INGESTION_CATALOG,
+  practiceSourceHeadings,
+} from "./exercise-ingestion-catalog";
 import { conceptLinkId } from "./concept-ingestion";
 import {
   blockKeyFromLegacyId,
@@ -57,16 +60,27 @@ function withDatabase(url: string, dbName: string): string {
 function parejasInput(
   opts: { heading?: string | null; duplicate?: boolean } = {},
 ) {
-  const heading =
-    opts.heading === undefined ? PAIR.practice.sourceHeading : opts.heading;
+  // Every heading the catalog's practices anchor to, derived rather than
+  // listed: the book went from one pair to five when PQP-C01 got its canonical
+  // route, and a fixture that seeded only the first would report
+  // SOURCE_MISSING for four pairs that are perfectly fine in production.
+  //
+  // `opts` still targets exactly ONE of them — the pilot's, the first — so the
+  // missing/ambiguous cases stay worth one pair each and the other four keep
+  // resolving normally.
+  const targeted = PAIR.practice.sourceHeading;
+  const headings = practiceSourceHeadings(SLUG);
   const chapterBlocks: BootstrapInput["chapters"][number]["blocks"] = [
     { kind: "PARAGRAPH" as const, content: "Párrafo de apertura." },
   ];
-  if (heading !== null) {
-    chapterBlocks.push({ kind: "HEADING" as const, content: heading });
+  for (const heading of headings) {
+    const isTargeted = heading === targeted;
+    if (isTargeted && opts.heading === null) continue;
+    const content = isTargeted && opts.heading ? opts.heading : heading;
+    chapterBlocks.push({ kind: "HEADING" as const, content });
     chapterBlocks.push({ kind: "PARAGRAPH" as const, content: "Consigna." });
-    if (opts.duplicate) {
-      chapterBlocks.push({ kind: "HEADING" as const, content: heading });
+    if (isTargeted && opts.duplicate) {
+      chapterBlocks.push({ kind: "HEADING" as const, content });
       chapterBlocks.push({ kind: "PARAGRAPH" as const, content: "Repetido." });
     }
   }
@@ -215,19 +229,22 @@ suite("Content Core · learning activation (real PostgreSQL)", () => {
     expect(plan.published_revision_exists).toBe(true);
   });
 
-  it("3 · dry-run resolves exactly one practice source heading", async () => {
+  // Counts moved from one pair to five when PQP-C01's canonical route was
+  // added (2026-09-07). The fixture seeds what the catalog declares, so these
+  // are the measured numbers, not a relaxed expectation.
+  it("3 · dry-run resolves every practice source heading", async () => {
     const plan = await planBookLearningActivation(prisma, SLUG);
-    expect(plan.source_pair_count).toBe(1);
-    expect(plan.source_exact_match_pair_count).toBe(1);
+    expect(plan.source_pair_count).toBe(5);
+    expect(plan.source_exact_match_pair_count).toBe(5);
     expect(plan.source_missing_pair_count).toBe(0);
     expect(plan.source_ambiguous_pair_count).toBe(0);
     expect(plan.catalog_valid).toBe(true);
     expect(plan.catalog_concept_count).toBe(1);
-    expect(plan.catalog_exercise_count).toBe(2);
+    expect(plan.catalog_exercise_count).toBe(10);
     expect(plan.concept_create_count).toBe(1);
     expect(plan.concept_link_create_count).toBe(1);
-    expect(plan.practice_create_count).toBe(1);
-    expect(plan.recall_create_count).toBe(1);
+    expect(plan.practice_create_count).toBe(5);
+    expect(plan.recall_create_count).toBe(5);
     expect(plan.activation_safe).toBe(true);
   });
 
@@ -235,7 +252,7 @@ suite("Content Core · learning activation (real PostgreSQL)", () => {
 
   it("4 · apply creates the Concept", async () => {
     const stats = await activateBookLearningCatalog(prisma, SLUG);
-    expect(stats.conceptsCreated).toBe(1);
+    expect(stats.conceptsCreated).toBe(5);
     const row = await prisma.concept.findUnique({
       where: { conceptKey: CONCEPT.key },
     });
@@ -244,7 +261,7 @@ suite("Content Core · learning activation (real PostgreSQL)", () => {
 
   it("5 · apply creates the ConceptLink as PRIMARY on the unit", async () => {
     const stats = await activateBookLearningCatalog(prisma, SLUG);
-    expect(stats.conceptLinksCreated).toBe(1);
+    expect(stats.conceptLinksCreated).toBe(5);
     const link = await prisma.conceptLink.findUnique({
       where: { id: conceptLinkId(CONCEPT.key) },
     });
@@ -267,7 +284,7 @@ suite("Content Core · learning activation (real PostgreSQL)", () => {
 
   it("7 · apply creates the recall with its options and server-side answer", async () => {
     const stats = await activateBookLearningCatalog(prisma, SLUG);
-    expect(stats.exercisesCreated).toBe(2);
+    expect(stats.exercisesCreated).toBe(10);
     const recall = await prisma.exercise.findUnique({
       where: { id: PAIR.recall.exerciseKey },
     });
@@ -316,9 +333,9 @@ suite("Content Core · learning activation (real PostgreSQL)", () => {
     expect(stats.conceptsCreated).toBe(0);
     expect(stats.conceptLinksCreated).toBe(0);
     expect(stats.exercisesCreated).toBe(0);
-    expect(stats.conceptsVerified).toBe(1);
-    expect(stats.conceptLinksVerified).toBe(1);
-    expect(stats.exercisesVerified).toBe(2);
+    expect(stats.conceptsVerified).toBe(5);
+    expect(stats.conceptLinksVerified).toBe(5);
+    expect(stats.exercisesVerified).toBe(10);
     expect(await learningCensus(prisma)).toEqual(after);
   });
 
@@ -429,7 +446,7 @@ suite("Content Core · learning activation (real PostgreSQL)", () => {
 
     const plan = await planBookLearningActivation(prisma, SLUG);
     expect(plan.source_missing_pair_count).toBe(1);
-    expect(plan.source_exact_match_pair_count).toBe(0);
+    expect(plan.source_exact_match_pair_count).toBe(4);
     expect(plan.activation_safe).toBe(false);
 
     await expect(activateBookLearningCatalog(prisma, SLUG)).rejects.toThrow(
@@ -444,7 +461,7 @@ suite("Content Core · learning activation (real PostgreSQL)", () => {
 
     const plan = await planBookLearningActivation(prisma, SLUG);
     expect(plan.source_ambiguous_pair_count).toBe(1);
-    expect(plan.source_exact_match_pair_count).toBe(0);
+    expect(plan.source_exact_match_pair_count).toBe(4);
     expect(plan.activation_safe).toBe(false);
 
     await expect(activateBookLearningCatalog(prisma, SLUG)).rejects.toThrow(
@@ -740,8 +757,8 @@ suite("Content Core · learning activation (real PostgreSQL)", () => {
     await activateBookLearningCatalog(prisma, SLUG);
     const plan = await planBookLearningActivation(prisma, SLUG);
 
-    expect(plan.practice_verify_count).toBe(1);
-    expect(plan.recall_verify_count).toBe(1);
+    expect(plan.practice_verify_count).toBe(5);
+    expect(plan.recall_verify_count).toBe(5);
     expect(plan.concept_verify_count).toBe(1);
     expect(plan.concept_link_verify_count).toBe(1);
     expect(plan.practice_conflict_count).toBe(0);
@@ -825,8 +842,8 @@ suite("Content Core · learning activation (real PostgreSQL)", () => {
     expect(plan.activation_safe).toBe(true);
 
     const stats = await activateBookLearningCatalog(prisma, SLUG);
-    expect(stats.conceptsCreated).toBe(1);
-    expect(stats.exercisesCreated).toBe(2);
+    expect(stats.conceptsCreated).toBe(5);
+    expect(stats.exercisesCreated).toBe(10);
   });
 
   it("31 · a CATALOGUED chapter outside the published revision blocks it", async () => {

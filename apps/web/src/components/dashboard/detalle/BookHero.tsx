@@ -12,6 +12,7 @@ import { readerChapterPath } from "@psico/types";
 import { bookEditionLabel } from "@psico/types";
 import { coverGradient } from "../cover-gradients";
 import { assetUrl } from "@/lib/asset-url";
+import { numberedChapterCount } from "@psico/types";
 
 /**
  * BookHero — top section of /dashboard/biblioteca/[idOrSlug].
@@ -217,7 +218,13 @@ export function BookHero({
           className="mt-5 flex flex-wrap items-center gap-4 rounded-2xl border-[1.5px] bg-white px-5 py-3.5"
           style={{ borderColor: "var(--color-warm-200)" }}
         >
-          <Stat value={book.chapters} label="Capítulos" />
+          {/* The count of NUMBERED chapters, when the book declares its
+              structure. `book.chapters` counts stored units, which includes
+              front matter — nine for an edition that prints eight. */}
+          <Stat
+            value={numberedChapterCount(book.slug) ?? book.chapters}
+            label="Capítulos"
+          />
           {book.durationMinutes > 0 ? (
             <Stat value={`${book.durationMinutes}m`} label="Lectura" />
           ) : null}

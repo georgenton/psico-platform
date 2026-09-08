@@ -423,12 +423,30 @@ describe("Experience V2 — the production catalog", () => {
       }),
     ).resolves.toHaveLength(1);
 
+    // Parejas lists NOTHING from the code-owned catalog now. Its chapter 1 is
+    // served by the four published microguides in the database; the V1 pilot
+    // here is ARCHIVED so it stops being offered alongside them.
     await expect(
       productionExperienceRepository.listPublishedForChapter({
         bookSlug: "parejas-que-perduran",
         chapterOrder: 2,
       }),
-    ).resolves.toHaveLength(1);
+    ).resolves.toHaveLength(0);
+  });
+
+  it("keeps the archived pilot resolvable for the sessions already on it", async () => {
+    // The point of ARCHIVED rather than deleted: two sessions exist against
+    // this pin, one of them still ACTIVE, and an unresolvable definition would
+    // strand them mid-journey.
+    await expect(
+      productionExperienceRepository.getExact({
+        experienceKey: "pqp-c1-contacto-sostenido",
+        experienceVersion: 1,
+      }),
+    ).resolves.toMatchObject({
+      experienceKey: "pqp-c1-contacto-sostenido",
+      status: "ARCHIVED",
+    });
   });
 
   it("binds exactly the three existing checkpoints — no new domain steps", () => {

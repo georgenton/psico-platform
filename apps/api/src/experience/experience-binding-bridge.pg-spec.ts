@@ -1266,7 +1266,11 @@ suite("C.3A · the binding bridge", () => {
     // one editorial context → `ContentUnit.id`. No position anywhere.
     const claims = await prisma.$transaction((tx) => codeOwnedClaimsByUnit(tx));
     expect(claims.get(unitA)?.map((c) => c.guideKey)).toEqual([EEC_GUIDE_KEY]);
-    expect(claims.get(unitB)).toHaveLength(1);
+    // Parejas claims nothing from CODE any more: the only definition the build
+    // ships for it is the V1 pilot, now ARCHIVED, and an archived definition
+    // must not reserve a lineage on a unit. Its chapter is served by the
+    // published database rows instead.
+    expect(claims.get(unitB)).toBeUndefined();
 
     // And it FOLLOWS the unit when the number moves.
     let restore: string | null = null;

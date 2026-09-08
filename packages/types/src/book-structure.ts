@@ -90,6 +90,16 @@ export interface BookEditorialStructure {
    * from being shown without inventing a migration or a write endpoint for it.
    */
   readonly editionLabel?: string;
+  /**
+   * True when the stored `Book.description` is not a description at all.
+   *
+   * «Parejas que perduran» stores «Edición de prueba OCR · OCR_UNFINALIZED»
+   * there: edition metadata for the edition this one replaced, shown to the
+   * reader under «Sobre este libro». Declaring it stale keeps it off the page
+   * without string-matching «OCR» anywhere, and without hiding a real blurb
+   * from any other book. It is per book and defaults to false.
+   */
+  readonly storedBlurbIsStaleEditionMetadata?: boolean;
   readonly units: readonly EditorialUnit[];
 }
 
@@ -110,6 +120,7 @@ export interface BookEditorialStructure {
 const PAREJAS_QUE_PERDURAN: BookEditorialStructure = {
   bookSlug: "parejas-que-perduran",
   editionLabel: "Edición impresa canónica",
+  storedBlurbIsStaleEditionMetadata: true,
   units: [
     {
       order: 1,
@@ -307,6 +318,16 @@ export function bookOutline<T extends { n: number; title: string }>(
   }
 
   return { frontMatter, chapters: chapterRows, backMatter, declared: true };
+}
+
+/**
+ * Whether the stored blurb still describes this edition.
+ *
+ * True for every book that declares nothing, so no existing description
+ * disappears because this module was added.
+ */
+export function showsStoredBlurb(bookSlug: string): boolean {
+  return !bookEditorialStructure(bookSlug)?.storedBlurbIsStaleEditionMetadata;
 }
 
 /** How many numbered chapters the edition prints, or null if undeclared. */

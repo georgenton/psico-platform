@@ -11,7 +11,12 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { booksApi } from "@psico/api-client";
 import type { BookDetailResponse, ChapterListItem } from "@psico/types";
-import { bookEditionLabel, bookOutline } from "@psico/types";
+import {
+  bookEditionLabel,
+  bookOutline,
+  numberedChapterCount,
+  showsStoredBlurb,
+} from "@psico/types";
 import { useAuth } from "@/context/auth";
 import { coverColor } from "@/components/dashboard/cover-colors";
 import { Colors, Radius, Spacing } from "@/theme";
@@ -244,7 +249,13 @@ export default function BookDetailScreen() {
 
         {/* Stats row */}
         <View style={styles.statsRow}>
-          <StatItem value={book.chapters} label="Capítulos" />
+          {/* NUMBERED chapters when the book declares its structure.
+              `book.chapters` counts stored units, front matter included —
+              nine for an edition that prints eight. */}
+          <StatItem
+            value={numberedChapterCount(book.slug) ?? book.chapters}
+            label="Capítulos"
+          />
           {book.durationMinutes > 0 ? (
             <StatItem value={`${book.durationMinutes}m`} label="Lectura" />
           ) : null}
@@ -264,7 +275,11 @@ export default function BookDetailScreen() {
                 <Text style={styles.progressLabelBold}>{pct}%</Text>
               </Text>
               <Text style={styles.progressMetaText}>
-                {Math.round((book.chapters * pct) / 100)} de {book.chapters}
+                {Math.round(
+                  ((numberedChapterCount(book.slug) ?? book.chapters) * pct) /
+                    100,
+                )}{" "}
+                de {numberedChapterCount(book.slug) ?? book.chapters}
               </Text>
             </View>
             <View style={styles.progressBar}>
@@ -360,14 +375,25 @@ export default function BookDetailScreen() {
         </View>
 
         {/* About */}
-        {book.summary || book.description ? (
+        {book.summary ||
+        (book.description && showsStoredBlurb(book.slug)) ||
+        bookEditionLabel(book.slug) ? (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Sobre este libro</Text>
             <View style={styles.card}>
               {book.summary ? (
                 <Text style={styles.aboutText}>{book.summary}</Text>
               ) : null}
-              {book.description && book.description !== book.summary ? (
+              {/* The declared edition name when the stored blurb is stale
+                  metadata about the edition this one replaced. */}
+              {bookEditionLabel(book.slug) && !showsStoredBlurb(book.slug) ? (
+                <Text style={[styles.aboutText, styles.aboutSecondary]}>
+                  {bookEditionLabel(book.slug)}
+                </Text>
+              ) : null}
+              {book.description &&
+              showsStoredBlurb(book.slug) &&
+              book.description !== book.summary ? (
                 <Text style={[styles.aboutText, styles.aboutSecondary]}>
                   {book.description}
                 </Text>

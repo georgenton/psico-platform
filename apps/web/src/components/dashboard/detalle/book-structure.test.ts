@@ -6,6 +6,7 @@ import {
   bookOutline,
   chapterEditorialLabel,
   numberedChapterCount,
+  showsStoredBlurb,
 } from "@psico/types";
 
 /**
@@ -128,6 +129,22 @@ describe("book structure · the outline a reader sees", () => {
     ].map((e) => e.title);
     expect(titles).not.toContain("Preliminares");
     expect(titles).not.toContain("Prefacio e introducción");
+  });
+
+  it("counts the chapters the edition prints, not the units stored", () => {
+    // `Book.totalChapters` is 9 for this book: nine units, of which one is the
+    // front matter. The hero stat used to read «9 Capítulos» under a title page
+    // that says eight.
+    expect(numberedChapterCount("parejas-que-perduran")).toBe(8);
+  });
+
+  it("declares the stored blurb stale rather than string-matching «OCR»", () => {
+    // `Book.description` reads «Edición de prueba OCR · OCR_UNFINALIZED» —
+    // metadata about the edition this one replaced, shown under «Sobre este
+    // libro». A book that declares nothing keeps showing its own blurb.
+    expect(showsStoredBlurb("parejas-que-perduran")).toBe(false);
+    expect(showsStoredBlurb("emociones-en-construccion")).toBe(true);
+    expect(showsStoredBlurb("cualquier-otro-libro")).toBe(true);
   });
 
   it("names the printed edition instead of the retired OCR one", () => {

@@ -71,8 +71,15 @@ describe("EXERCISE_INGESTION_CATALOG — global invariants", () => {
 describe("Parejas que perduran — demo Guide catalog", () => {
   const pairs = EXERCISE_INGESTION_CATALOG[PAREJAS];
 
-  it("declares exactly one pair", () => {
-    expect(pairs).toHaveLength(1);
+  it("declares the pilot pair plus the four of the canonical route", () => {
+    // 1 → 5 when the printed edition replaced the OCR one and PQP-C01 got its
+    // four microguides (editorial approval 2026-09-07). The pilot's pair stays
+    // FIRST and keeps orders 1–2: its recall is still answerable by a session
+    // pinned to `pqp-c1-contacto-sostenido@1`.
+    expect(pairs).toHaveLength(5);
+    expect(pairs[0].practice.exerciseKey).toBe(
+      "pqp-c1-practice-diez-minutos-de-contacto",
+    );
   });
 
   it("targets platform chapter order 2, not the preface", () => {

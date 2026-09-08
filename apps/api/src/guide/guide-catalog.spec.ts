@@ -247,16 +247,19 @@ describe("guide catalog · registry", () => {
 });
 
 describe("ratchet · guide catalog contract", () => {
-  it("GUIDE_PRODUCTION_REGISTRY_ENTRIES=52 — exactly the approved definitions", () => {
+  it("GUIDE_PRODUCTION_REGISTRY_ENTRIES=56 — exactly the approved definitions", () => {
     // 2 → 7 with the EEC-C01 five-microguide route (author decision 2026-09-03),
     // 7 → 12 with the EEC-C02 five (author decision 2026-09-04), and 12 → 52
     // with the forty of EEC-C03 → C10 (`APROBAR ARQUITECTURA C03-C10`, same
     // day). The count is a ratchet on purpose: registering a guide is an
     // editorial act, so growth has to be typed here by whoever approved it.
     // The V1 pilot stays in the registry although discovery retired it: a
-    // session pinned to it must keep resolving.
-    expect(PRODUCTION_GUIDE_DEFINITIONS).toHaveLength(52);
-    expect(productionGuideRegistry.size).toBe(52);
+    // session pinned to it must keep resolving. 52 → 56 with PQP-C01's four
+    // (editorial approval 2026-09-07) — a SECOND book's first route. Its own V1
+    // pilot stays registered for the same reason, and none of the four reuses
+    // its lineage.
+    expect(PRODUCTION_GUIDE_DEFINITIONS).toHaveLength(56);
+    expect(productionGuideRegistry.size).toBe(56);
     expect(PRODUCTION_GUIDE_DEFINITIONS.map((d) => d.guideKey)).toEqual([
       "eec-c1-cuerpo-antes-que-mente",
       "eec-c1-teorias-como-lentes",
@@ -310,6 +313,10 @@ describe("ratchet · guide catalog contract", () => {
       "eec-c10-ayudar-sin-borrar-la-agencia",
       "eec-c10-cambiar-el-escenario",
       "pqp-c1-contacto-sostenido",
+      "pqp-c1-amor-como-practica",
+      "pqp-c1-presencia-sin-acuerdo",
+      "pqp-c1-clima-que-aprenden",
+      "pqp-c1-reinventar-el-vinculo",
     ]);
     // No chapter's guide may target another chapter's teaching rows: a session
     // on C02 completing a C01 step would merge two readings' progress. Checked

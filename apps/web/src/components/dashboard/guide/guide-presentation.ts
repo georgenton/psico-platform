@@ -21,6 +21,7 @@
 import { guidePinKey, type GuidePin } from "./guide-pin";
 import { EEC_C01_PRESENTATIONS } from "./eec-c01-microguides";
 import { EEC_C02_PRESENTATIONS } from "./eec-c02-microguides";
+import { PQP_C01_PRESENTATIONS } from "./pqp-c01-microguides";
 import { EEC_C03_PRESENTATIONS } from "./eec-c03-microguides";
 import { EEC_C04_PRESENTATIONS } from "./eec-c04-microguides";
 import { EEC_C05_PRESENTATIONS } from "./eec-c05-microguides";
@@ -406,6 +407,11 @@ export const PRODUCTION_GUIDE_PRESENTATIONS: readonly GuidePresentation[] = [
   // still DRAFT: a draft the CMS cannot draw is a draft nobody can review, and
   // a presentation is what the player reads to draw one.
   ...EEC_C02_PRESENTATIONS,
+  // PQP-C01's four, from theirs. Registered while the four Experiences are
+  // still DRAFT, for the same reason C02's were: a draft nobody can draw is a
+  // draft nobody can review. The V1 pilot's presentation stays above,
+  // untouched — these do not replace it, they sit beside it.
+  ...PQP_C01_PRESENTATIONS,
   ...EEC_C03_PRESENTATIONS,
   ...EEC_C04_PRESENTATIONS,
   ...EEC_C05_PRESENTATIONS,

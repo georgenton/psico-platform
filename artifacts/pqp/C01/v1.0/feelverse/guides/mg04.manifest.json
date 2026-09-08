@@ -1,0 +1,141 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "PQP-C01-MG04",
+  "bookSlug": "parejas-que-perduran",
+  "editionKey": "parejas-que-perduran-1e",
+  "chapterCode": "C01",
+  "chapterOrder": 2,
+  "unitKey": "a8f009c0-1660-5f1e-a435-b8bc4ebbb7d4",
+  "canonicalVersion": "PQP_PRINTED_v1.0_TEXT_LOCKED_2026-09-07",
+  "canonicalSha256": "6151a1ca2d88529ca1ca959997d04b681255d4e9f00510a0510651ddf65b616f",
+  "sourceArtifact": "Pareja que perduran_final.docx",
+  "experienceKey": "pqp-c1-reinventar-el-vinculo",
+  "experienceVersion": 1,
+  "guideKey": "pqp-c1-reinventar-el-vinculo",
+  "guideVersion": 1,
+  "conceptKey": "pqp-c1-reinventar-el-vinculo",
+  "practiceKey": "pqp-c1-practice-lo-que-dejo-de-funcionar",
+  "practiceKind": "sequence_ordering",
+  "recallKey": "pqp-c1-recall-reinventar-el-vinculo",
+  "anchors": {
+    "primary": {
+      "reference": "pqp-c1-reinventar-el-vinculo",
+      "heading": "Un Testimonio Personal: Mireya y Yo – Los Abrazos que Cruzaron el Dolor",
+      "fingerprint": "sino lo que reinventas juntos",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "Cuando el amor se reinventa",
+      "body": [
+        "Esta guía trabaja qué puede ocurrir cuando una forma habitual de estar cerca deja de ser posible."
+      ],
+      "note": "Puede tocar recuerdos difíciles. Todas las preguntas son opcionales y puedes salir y volver cuando quieras. nada de lo que escribas sale de tu dispositivo.",
+      "actionLabel": "Comenzar"
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "Un testimonio del autor",
+      "body": [
+        "Lee el testimonio en primera persona con el que el autor cierra el capítulo, y fíjate en la frase final."
+      ]
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "Otra forma de sostener lo mismo",
+      "body": [
+        "Cuando una forma habitual de expresar conexión deja de ser posible, una pareja puede buscar otras maneras de cuidar el vínculo.",
+        "Es una posibilidad, no una obligación ni una receta que sirva igual en toda situación. Hay circunstancias en las que lo que hace falta no es reinventar nada, sino tiempo o ayuda."
+      ],
+      "note": "Marcar esta escena registra que exploraste la idea; no evalúa cómo atravesaste tus propias crisis.",
+      "actionLabel": "He explorado la idea"
+    },
+    {
+      "order": 4,
+      "kind": "PRACTICE",
+      "title": "Cuando una forma deja de ser posible",
+      "body": [
+        "Ordena la secuencia de una pareja inventada para este ejercicio, y fíjate especialmente en el paso que suele saltarse."
+      ],
+      "note": "Es un caso editorial, no tu historia.",
+      "actionLabel": "Ya hice la práctica"
+    },
+    {
+      "order": 5,
+      "kind": "REFLECTION",
+      "title": "Dos preguntas, si quieres",
+      "body": [
+        "¿Hubo alguna forma de estar cerca que dejó de funcionar en algún momento?",
+        "¿Qué necesitarían reinventar hoy?"
+      ],
+      "note": "Privado y opcional; puedes omitirlo entero. No se guarda ni viaja con tu progreso, y no hace falta escribir sobre pérdidas o enfermedades.",
+      "optional": true
+    },
+    {
+      "order": 6,
+      "kind": "RECALL",
+      "title": "Recordar lo leído",
+      "body": [
+        "Elige la opción que corresponde a lo que dice el capítulo."
+      ],
+      "actionLabel": "Registrar respuesta"
+    },
+    {
+      "order": 7,
+      "kind": "SUMMARY",
+      "title": "Inventar, no volver",
+      "body": [
+        "Cuando una forma de cuidarse deja de ser posible, puede aparecer otra. Buscarla es una opción disponible, no una prueba que haya que aprobar.",
+        "Con esto cierras el recorrido del capítulo."
+      ]
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-reinventar-el-vinculo",
+      "targetKey": "pqp-c1-reinventar-el-vinculo"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-lo-que-dejo-de-funcionar",
+      "targetKey": "pqp-c1-practice-lo-que-dejo-de-funcionar"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-reinventar-el-vinculo",
+      "targetKey": "pqp-c1-recall-reinventar-el-vinculo"
+    }
+  ],
+  "media": {
+    "authorVideoPending": true,
+    "authorVideoScope": "MG01 · clip de apertura propuesto por el autor"
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Toda práctica ofrece un camino sin arrastrar y sin depender del color.",
+    "Ninguna escena comunica su estado únicamente con un icono.",
+    "Las escenas opcionales se pueden omitir con el teclado."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "pqp-c01-reinventar-el-vinculo-v1",
+  "approvalReferences": [
+    "PQP-C01 — Inventario editorial y diseño de experiencia v0.1 (2026-09-07)"
+  ],
+  "manifestSha256": "85e6ac10d371bc59a28937cb7b5313be29efc3a529d74d727911a212b3935c2d"
+}

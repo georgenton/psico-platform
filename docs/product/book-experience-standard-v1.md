@@ -1,10 +1,10 @@
 # Book Experience Standard V1
 
 ```
-BOOK_EXPERIENCE_STANDARD_VERSION=1.1
+BOOK_EXPERIENCE_STANDARD_VERSION=1.2
 STATUS=APPROVED_FOR_IMPLEMENTATION
 AUTHORIZED_BY_JORGE=true
-LAST_UPDATED=2026-08-03
+LAST_UPDATED=2026-09-07
 CANONICAL_PRODUCT_AUTHORITY=true
 ```
 
@@ -247,8 +247,20 @@ BADGE = «Guía breve»
 SCOPE = «1 idea del capítulo»
 ```
 
-El roadmap multi-microguía está **aprobado en diseño y pendiente de
-implementación**: existe como prototipo visual, no como runtime.
+El roadmap multi-microguía **ya es runtime**. Lo era desde el recorrido de
+EEC-C01 y hoy hay cincuenta microguías vivas en EEC-C01 → C10, con el navegador
+de ruta dentro del propio `ReaderGuidePanel`: se cambia de microguía sin cerrar
+el panel y el progreso de cada una es independiente. PQP-C01 añade cuatro más
+en estado DRAFT.
+
+Lo que sigue siendo cierto de la frase original es el alcance de **una**
+microguía: una idea, un pasaje, una práctica, un recall. Lo que cambió es que un
+capítulo ya no está limitado a una sola.
+
+```
+MULTI_MICROGUIDE_RUNTIME=IMPLEMENTED
+CHAPTER_ROUTE_INSIDE_READER_PANEL=true
+```
 
 ---
 
@@ -372,6 +384,7 @@ del servidor (GR-4).
 
 | Fecha      | Versión | Cambio                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | ---------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-09-07 | 1.2     | Corrección de estado, no de diseño. La §7 seguía afirmando que el recorrido multi-microguía era un prototipo visual; es runtime desde EEC-C01 y hoy sirve cincuenta microguías en EEC-C01 → C10 con el navegador de ruta dentro del panel del lector. PQP-C01 suma cuatro en DRAFT. El alcance de una microguía (una idea, un pasaje, una práctica, un recall) no cambia.                                                                                                                                                                                                          |
 | 2026-08-03 | 1.1     | Gating real y evidencia visual. El manifest deja de declarar `AVAILABLE` un audiolibro `CHAPTER_AUDIO` sin fila `Audio`. El lector separa modo pedido de modo efectivo, no monta medios mientras el manifest está en vuelo y limpia la preferencia guardada cuando el modo no existe. Los subformatos de Escuchar (Audiolibro · Podcast) quedan gateados por el mismo view model. La pestaña de experiencia guiada solo aparece cuando la guía está lista. La portada de cada guía declara su alcance («1 idea del capítulo»). Tres capturas del prototipo con manifiesto y sumas. |
 | 2026-08-03 | 1.0     | Estándar inicial aprobado por Jorge tras la demostración con David Jaramillo. Define los cinco modos y su contenido primario, los tres estados de superficie, el gating real por activo reproducible, la clasificación de la Guide actual como microguía y el roadmap de una experiencia guiada con varias microguías. Sin CMS, sin migración, sin schema, sin endpoints. El prototipo visual vive en `/prototipos/book-experience` y no es accesible en producción.                                                                                                               |
 

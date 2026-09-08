@@ -115,15 +115,30 @@ const REQUIRED_STEP_KINDS = [
 const sha256 = (s: string) =>
   createHash("sha256").update(s, "utf8").digest("hex");
 
-/** Load the five manifests, in route order. */
+/**
+ * Load a chapter's microguide manifests, in route order.
+ *
+ * The count is whatever the package ships rather than a fixed five. Every EEC
+ * route has five; PQP-C01's has four, because four ideas were what that chapter
+ * sustained. What must stay true is that the files are contiguous from `mg01`:
+ * a gap means a manifest was lost, and loading "the four that survived" would
+ * create a route silently missing a step.
+ */
 export function loadManifests(dir: string): GuideManifest[] {
   const names = readdirSync(dir)
-    .filter((n) => /^mg0[1-5]\.manifest\.json$/.test(n))
+    .filter((n) => /^mg0[1-9]\.manifest\.json$/.test(n))
     .sort();
-  if (names.length !== 5) {
+  if (names.length < 3) {
     throw new EecGuidesCliError(
       CLI_ERRORS.manifestInvalid,
-      `expected 5 manifests, found ${names.length}`,
+      `expected at least 3 manifests, found ${names.length}`,
+    );
+  }
+  const expected = names.map((_, i) => `mg0${i + 1}.manifest.json`);
+  if (names.join(",") !== expected.join(",")) {
+    throw new EecGuidesCliError(
+      CLI_ERRORS.manifestInvalid,
+      `manifests must run mg01..mg0${names.length} without gaps`,
     );
   }
   return names.map(
@@ -302,7 +317,15 @@ export function validateManifests(
     .listContext(bookSlug, chapterOrder)
     .map((i) => i.pin.guideKey);
   const manifestKeys = manifests.map((m) => m.guideKey);
-  if (routeKeys.length > 0 && routeKeys.join(",") !== manifestKeys.join(",")) {
+  // A route that offers NONE of these manifests is the pre-publication state,
+  // not an error: the chapter may still be offering an older lineage while the
+  // new set sits in DRAFT. That is exactly PQP-C01 today — discovery answers
+  // with the V1 pilot, and the four canonical microguides are dark until
+  // somebody publishes them. What must never happen is a route that offers
+  // SOME of them, or all of them in another order, because then the manifests
+  // and what a reader is served have genuinely diverged.
+  const routeTouchesOurs = routeKeys.some((k) => manifestKeys.includes(k));
+  if (routeTouchesOurs && routeKeys.join(",") !== manifestKeys.join(",")) {
     issues.push({
       manifestId: suiteId,
       code: CLI_ERRORS.manifestInvalid,

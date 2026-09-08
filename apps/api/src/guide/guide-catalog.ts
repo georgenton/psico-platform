@@ -600,6 +600,82 @@ const eecChapterGuide =
       ],
     });
 
+/**
+ * PQP-C01 · the four microguides of the canonical route (approved 2026-09-07).
+ *
+ * Same three obligatory steps as every other guide — a guide is a guide — with
+ * the book's own prefix. The chapter number in the key is the EDITORIAL one
+ * (`c1`), matching the pilot's key and the book's own numbering; the platform
+ * order of that unit is 2, and only the anchors and the exercise catalog need
+ * to know that.
+ *
+ * None of these reuses `pqp-c1-contacto-sostenido`. That lineage belongs to the
+ * V1 pilot, which has two pinned sessions and an anchor that stopped resolving
+ * when the printed edition replaced the OCR one. Publishing a v2 over it would
+ * put a definition written for one edition underneath sessions opened against
+ * another; a new key leaves the pilot readable as history.
+ */
+const pqpC1Guide = (
+  slug: string,
+  conceptKey: string,
+  practiceSlug: string,
+): GuideDefinition =>
+  validateGuideDefinition({
+    guideKey: `pqp-c1-${slug}`,
+    guideVersion: 1,
+    steps: [
+      {
+        stepKey: `explorar-${slug}`,
+        order: 1,
+        required: true,
+        kind: "CONCEPT_EXPLORATION",
+        completionPolicy: "explicit_confirmation",
+        conceptKey,
+      },
+      {
+        stepKey: `practicar-${practiceSlug}`,
+        order: 2,
+        required: true,
+        kind: "CATALOG_PRACTICE",
+        completionPolicy: "catalog_practice_confirmation",
+        exerciseKey: `pqp-c1-practice-${practiceSlug}`,
+      },
+      {
+        stepKey: `recordar-${slug}`,
+        order: 3,
+        required: true,
+        kind: "ACTIVE_RECALL",
+        completionPolicy: "objective_recall",
+        itemKey: `pqp-c1-recall-${slug}`,
+      },
+    ],
+  });
+
+/** MG01 — El amor se practica */
+export const PQP_C1_MG01_GUIDE = pqpC1Guide(
+  "amor-como-practica",
+  "pqp-c1-amor-como-practica",
+  "orden-de-lo-cotidiano",
+);
+/** MG02 — Presencia sin acuerdo */
+export const PQP_C1_MG02_GUIDE = pqpC1Guide(
+  "presencia-sin-acuerdo",
+  "pqp-c1-presencia-sin-acuerdo",
+  "lo-que-se-y-lo-que-supongo",
+);
+/** MG03 — Lo que aprenden mirando */
+export const PQP_C1_MG03_GUIDE = pqpC1Guide(
+  "clima-que-aprenden",
+  "pqp-c1-clima-que-aprenden",
+  "misma-escena-dos-lecturas",
+);
+/** MG04 — Cuando el amor se reinventa */
+export const PQP_C1_MG04_GUIDE = pqpC1Guide(
+  "reinventar-el-vinculo",
+  "pqp-c1-reinventar-el-vinculo",
+  "lo-que-dejo-de-funcionar",
+);
+
 const eecC3Guide = eecChapterGuide(3);
 /** MG01 — Predecir no es adivinar */
 export const EEC_C3_MG01_GUIDE = eecC3Guide(
@@ -919,6 +995,10 @@ export const PRODUCTION_GUIDE_DEFINITIONS: readonly GuideDefinition[] = [
   EEC_C10_MG04_GUIDE,
   EEC_C10_MG05_GUIDE,
   PQP_C1_SUSTAINED_CONTACT_GUIDE,
+  PQP_C1_MG01_GUIDE,
+  PQP_C1_MG02_GUIDE,
+  PQP_C1_MG03_GUIDE,
+  PQP_C1_MG04_GUIDE,
 ];
 
 export const productionGuideRegistry = new GuideCatalogRegistry(

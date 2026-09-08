@@ -243,14 +243,16 @@ describe("PQP-C01 · concepts and resonance", () => {
   });
 });
 
-describe("PQP-C01 · the route stays dark until somebody publishes it", () => {
-  it("is absent from the discovery catalog, which still answers with the pilot", () => {
+describe("PQP-C01 · the route the chapter offers", () => {
+  it("offers the four microguides, and no longer the pilot", () => {
+    // This pin held the route dark while the Experiences were unreviewed
+    // DRAFTs. They are published now, so it flips to the state that replaced
+    // it: the four ARE the route, and the pilot is preserved without being
+    // offered — its lineage and its legacy pin are asserted below.
     const offered = productionGuideDiscoveryCatalog
       .listContext(BOOK, CHAPTER_ORDER)
       .map((i) => i.pin.guideKey);
-    for (const key of ROUTE) expect(offered).not.toContain(key);
-    // Unchanged: the pilot is what this chapter offers today. Publication is a
-    // separate, human decision.
-    expect(offered).toEqual([PILOT_GUIDE_KEY]);
+    expect(offered).toEqual([...ROUTE]);
+    expect(offered).not.toContain(PILOT_GUIDE_KEY);
   });
 });

@@ -176,11 +176,12 @@ describe("kill switch · EEC_C01_GUIDED_SUITE_V1", () => {
 
   it("off: no other chapter loses its guided reading", () => {
     process.env.EEC_C01_GUIDED_SUITE_V1 = "off";
-    expect(
-      productionGuideDiscoveryCatalog
-        .listContext("parejas-que-perduran", 2)
-        .map((i) => i.pin.guideKey),
-    ).toEqual(["pqp-c1-contacto-sostenido"]);
+    // Parejas offers its own four here, and this switch is not theirs.
+    const offered = productionGuideDiscoveryCatalog
+      .listContext("parejas-que-perduran", 2)
+      .map((i) => i.pin.guideKey);
+    expect(offered).toHaveLength(4);
+    expect(offered.every((k) => k.startsWith("pqp-c1-"))).toBe(true);
   });
 
   it("on again: the route comes back whole, without republishing anything", () => {

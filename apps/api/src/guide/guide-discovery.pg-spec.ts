@@ -235,9 +235,12 @@ suite("C.3R · discovery resolves the reader's unit from the manifest", () => {
   });
 
   it("the other canonical book offers its own exact pin", async () => {
+    // Parejas published its own C01 route, so the first pin of this context is
+    // the first of those four rather than the retired V1 pilot. The pilot is
+    // still reachable as the compatibility answer (`getExactContext`).
     await expect(makeService().discover(USER, PQP_CTX)).resolves.toEqual({
       available: true,
-      guideKey: "pqp-c1-contacto-sostenido",
+      guideKey: "pqp-c1-amor-como-practica",
       guideVersion: 1,
     });
   });

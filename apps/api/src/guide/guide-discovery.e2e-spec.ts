@@ -54,7 +54,12 @@ const SLUG = "parejas-que-perduran";
 const PAIR = EXERCISE_INGESTION_CATALOG[SLUG][0];
 /** The book's chapter 1 — platform order 2, because order 1 is the preface. */
 const CHAPTER_ORDER = 2;
-const GUIDE_KEY = "pqp-c1-contacto-sostenido";
+/**
+ * The first pin of the book's chapter 1 route. It was the V1 pilot until
+ * Parejas published its own four microguides; the pilot is preserved and
+ * still answers `getExactContext`, but it is no longer what discovery offers.
+ */
+const GUIDE_KEY = "pqp-c1-amor-como-practica";
 
 function withDatabase(url: string, dbName: string): string {
   const u = new URL(url);
@@ -236,8 +241,12 @@ suite("GR-4 · guide discovery is read-only", () => {
   });
 
   it.each([
-    ["the preface", 1],
-    ["a chapter that does not exist", 3],
+    // Platform order 1 is the front matter — dedication, preface and
+    // introduction — and it is offered nothing on purpose.
+    ["the front matter", 1],
+    // Past the end of the book. Order 3 used to stand in for "does not exist"
+    // and stopped being empty when the book's chapter 2 published its route.
+    ["a chapter that does not exist", 10],
   ])("offers nothing on %s", async (_why, order) => {
     const res = await http()
       .get(`/api/guide/discovery/${SLUG}/${order}`)

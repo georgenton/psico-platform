@@ -3885,6 +3885,7 @@ export * from "./eco-chapter-prompts";
 export * from "./chapter-exercises";
 
 // ─── Fase E (V2) — ARC cycle: chapter concepts + resonance wire types ─────
+export * from "./book-structure";
 export * from "./chapter-concepts";
 
 // ─── GR-2 — chapter media (audiobook · podcast · video explainer) ─────────

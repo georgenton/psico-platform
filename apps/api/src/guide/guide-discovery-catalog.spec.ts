@@ -86,14 +86,16 @@ describe("normalizers", () => {
 });
 
 describe("production discovery catalog", () => {
-  it("maps eleven contexts and offers fifty-one guided readings", () => {
-    // The hand-written table still holds exactly its original six: EEC-C01's
-    // five plus Parejas. Everything since is GENERATED and lives in its own
-    // table — C02's five and C03–C10's forty — so this count stays a statement
-    // about what was typed by hand.
-    expect(PRODUCTION_GUIDE_DISCOVERY_ENTRIES).toHaveLength(6);
-    expect(productionGuideDiscoveryCatalog.size).toBe(2 + 1 + 8);
-    expect(productionGuideDiscoveryCatalog.entryCount).toBe(6 + 5 + 40);
+  it("maps eighteen contexts and offers eighty-three guided readings", () => {
+    // The hand-written table now holds EEC-C01's five and nothing else: the
+    // Parejas pilot left it when that book published its own routes. Everything
+    // else is GENERATED and lives in its own table — EEC C02's five, EEC
+    // C03–C10's forty, and Parejas C01–C08's thirty-three — so this count stays
+    // a statement about what was typed by hand.
+    expect(PRODUCTION_GUIDE_DISCOVERY_ENTRIES).toHaveLength(5);
+    // 1 EEC-C01 + 1 EEC-C02 + 8 EEC-C03–C10 + 8 Parejas chapters.
+    expect(productionGuideDiscoveryCatalog.size).toBe(1 + 1 + 8 + 8);
+    expect(productionGuideDiscoveryCatalog.entryCount).toBe(5 + 5 + 40 + 33);
   });
 
   it("offers EEC chapter 1 the five microguides, in route order", () => {
@@ -188,7 +190,10 @@ describe("production discovery catalog", () => {
   // now, so the example moved past the end of the book rather than being
   // deleted — the case being made is still "a position nobody listed".
   it.each([
-    ["a later Parejas chapter", "parejas-que-perduran", 3],
+    // Parejas platform order 1 is its front matter: the dedication, preface
+    // and introduction have no guided reading, and none was invented.
+    ["the Parejas front matter", "parejas-que-perduran", 1],
+    ["a Parejas order past the end", "parejas-que-perduran", 10],
     ["a chapter past the end of Emociones", "emociones-en-construccion", 11],
     ["an unknown book", "libro-inexistente", 1],
   ])("offers nothing for %s", (_why, slug, order) => {

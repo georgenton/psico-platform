@@ -14,7 +14,7 @@ import { EXERCISE_INGESTION_CATALOG } from "./exercise-ingestion-catalog";
  * the same for all of them: unique lineages, three obligatory steps, targets
  * that exist, anchors registered against the right platform order, three-option
  * recalls whose correct key stays server-side, practices built from editorial
- * material, and a route that is still dark.
+ * material, and a route that offers exactly its own microguides.
  *
  * The chapter-specific reasoning (why THESE microguides) lives in the chapter's
  * data module; what lives here is what must be true regardless.
@@ -350,11 +350,16 @@ describe.each(CHAPTERS)("PQP-$code · guided route", (chapter) => {
     }
   });
 
-  it("stays out of the discovery catalog until somebody publishes it", () => {
+  it("is what its chapter offers, in route order and nothing else", () => {
+    // This pin used to assert the opposite — that the route was dark — which
+    // was correct while the Experiences were DRAFT and unreviewed. They are
+    // published now, so the invariant flips to the one that matters from here:
+    // a chapter offers EXACTLY its own microguides, in the order the route
+    // declares, and never a guide belonging to another chapter.
     const offered = productionGuideDiscoveryCatalog
       .listContext(BOOK, chapter.chapterOrder)
       .map((i) => i.pin.guideKey);
-    for (const key of guideKeys) expect(offered).not.toContain(key);
+    expect(offered).toEqual(guideKeys);
   });
 });
 
@@ -384,11 +389,31 @@ describe("PQP · book-wide invariants", () => {
     expect(
       productionGuideRegistry.latestStartableVersion(PILOT_GUIDE_KEY),
     ).toBe(1);
-    // And it is still what chapter 1 offers today.
+    // PRESERVED, NOT OFFERED. The pilot keeps its lineage and its legacy pin,
+    // so the two sessions that exist against it keep resolving — but the route
+    // a reader is offered for the book's chapter 1 is now the four microguides.
     const offered = productionGuideDiscoveryCatalog
       .listContext(BOOK, 2)
       .map((i) => i.pin.guideKey);
-    expect(offered).toEqual([PILOT_GUIDE_KEY]);
+    expect(offered).not.toContain(PILOT_GUIDE_KEY);
+    expect(offered).toHaveLength(4);
+    // The compatibility answer the previous binary binds is untouched.
+    expect(
+      productionGuideDiscoveryCatalog.getExactContext(BOOK, 2)?.guideKey,
+    ).toBe(PILOT_GUIDE_KEY);
+  });
+
+  it("offers all thirty-three, and offers the front matter nothing", () => {
+    const perChapter = CHAPTERS.map(
+      (c) =>
+        productionGuideDiscoveryCatalog.listContext(BOOK, c.chapterOrder)
+          .length,
+    );
+    expect(perChapter).toEqual([4, 5, 4, 4, 4, 3, 4, 5]);
+    expect(perChapter.reduce((a, b) => a + b, 0)).toBe(33);
+    // Platform order 1 is the dedication, preface and introduction. They have
+    // no guided reading and none is invented for them.
+    expect(productionGuideDiscoveryCatalog.listContext(BOOK, 1)).toEqual([]);
   });
 });
 
@@ -416,6 +441,30 @@ describe("PQP · manifests fit the definition validator's bounds", () => {
 
   it("has manifests to check", () => {
     expect(manifests.length).toBeGreaterThan(0);
+  });
+
+  /**
+   * The route card and the experience it opens come from one source.
+   *
+   * `pqp-c01-c08-discovery.ts` is generated from these same manifests, so a
+   * hand edit to either side would make the reader see one promise on the card
+   * and meet another inside. That is the whole reason the file is generated,
+   * and this is what makes the generation binding rather than customary.
+   */
+  it("offers exactly what the manifests say, with no hand-edited drift", () => {
+    for (const m of manifests) {
+      const offered = productionGuideDiscoveryCatalog
+        .listContext(BOOK, m.chapterOrder)
+        .find((e) => e.pin.guideKey === m.guideKey);
+      if (!m.guideKey.startsWith("pqp-")) continue;
+      expect(offered, m.manifestId).toBeDefined();
+      const intro = (
+        m.scenes as { kind: string; title: string; body: string[] }[]
+      ).find((s) => s.kind === "INTRO")!;
+      expect(offered!.title, m.manifestId).toBe(intro.title);
+      expect(offered!.description, m.manifestId).toBe(intro.body[0]);
+      expect(offered!.pin.guideVersion, m.manifestId).toBe(m.guideVersion);
+    }
   });
 
   it("keeps every scene's copy inside the stored limits", () => {

@@ -10,7 +10,8 @@ import {
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { booksApi } from "@psico/api-client";
-import type { BookDetailResponse } from "@psico/types";
+import type { BookDetailResponse, ChapterListItem } from "@psico/types";
+import { bookEditionLabel, bookOutline } from "@psico/types";
 import { useAuth } from "@/context/auth";
 import { coverColor } from "@/components/dashboard/cover-colors";
 import { Colors, Radius, Spacing } from "@/theme";
@@ -26,6 +27,54 @@ import { readerRoutePath } from "@/components/dashboard/lector/reader-route";
  * The reader page does not exist yet; tapping a chapter row navigates back
  * to the detail (placeholder behavior). Sprint S?-reader will wire it.
  */
+/**
+ * The rows the table of contents actually shows.
+ *
+ * A book that declares an editorial structure is presented the way its edition
+ * prints — front matter by name, chapters by the edition's own number, back
+ * matter after them. A book that declares none keeps exactly what it had: its
+ * chapters in order, grouped by book part, with no number anywhere.
+ */
+function tocRows(
+  bookSlug: string,
+  chapters: ChapterListItem[],
+): {
+  ch: ChapterListItem;
+  label: string | null;
+  rowTitle: string;
+  heading: string | null;
+}[] {
+  const outline = bookOutline(bookSlug, chapters);
+  if (outline.declared) {
+    const group = (entries: typeof outline.chapters, heading: string) =>
+      entries.map((e, i) => ({
+        ch: e.target,
+        label: e.label,
+        rowTitle: e.kind === "SECTION" ? e.title : e.target.title,
+        heading: i === 0 ? heading : null,
+      }));
+    return [
+      ...group(outline.frontMatter, "Antes de empezar"),
+      ...group(outline.chapters, "Capítulos"),
+      ...group(outline.backMatter, "Para cerrar"),
+    ];
+  }
+  return chapters.map((ch, idx) => {
+    const prev = chapters[idx - 1];
+    const showPart =
+      ch.partNumber != null &&
+      (idx === 0 || prev?.partNumber !== ch.partNumber);
+    return {
+      ch,
+      label: null,
+      rowTitle: ch.title,
+      heading: showPart
+        ? `Parte ${romanize(ch.partNumber as number)}${ch.partTitle ? ` · ${ch.partTitle}` : ""}`
+        : null,
+    };
+  });
+}
+
 export default function BookDetailScreen() {
   const { slug } = useLocalSearchParams<{ slug: string }>();
   const { user } = useAuth();
@@ -163,8 +212,12 @@ export default function BookDetailScreen() {
 
         {/* Title */}
         <Text style={styles.title}>{book.title}</Text>
-        {book.subtitle ? (
-          <Text style={styles.subtitle}>{book.subtitle}</Text>
+        {/* The edition the BOOK declares wins over the stored subtitle — see
+            `bookEditionLabel`. A book that declares nothing is unchanged. */}
+        {(bookEditionLabel(book.slug) ?? book.subtitle) ? (
+          <Text style={styles.subtitle}>
+            {bookEditionLabel(book.slug) ?? book.subtitle}
+          </Text>
         ) : null}
 
         {/* Author */}
@@ -334,97 +387,105 @@ export default function BookDetailScreen() {
             </View>
           ) : (
             <View style={styles.chaptersCard}>
-              {detail.chaptersList.map((ch, idx) => {
-                const isLast = idx === detail.chaptersList.length - 1;
-                const prev = detail.chaptersList[idx - 1];
-                const showPartHeading =
-                  ch.partNumber != null &&
-                  (idx === 0 || prev?.partNumber !== ch.partNumber);
-                return (
-                  <Fragment key={`${ch.n}-${idx}`}>
-                    {showPartHeading ? (
-                      <Text style={styles.partHeading}>
-                        {`Parte ${romanize(ch.partNumber as number)}${ch.partTitle ? ` · ${ch.partTitle}` : ""}`}
-                      </Text>
-                    ) : null}
-                    <Pressable
-                      key={`row-${ch.n}-${idx}`}
-                      onPress={() =>
-                        router.push(
-                          // The row's own identity, decided by the server.
-                          // `ch.n` numbers the row; it does not choose it.
-                          readerRoutePath(
-                            detail.book.slug,
-                            ch.readerRef,
-                          ) as never,
-                        )
-                      }
-                      style={[
-                        styles.chapterRow,
-                        !isLast && styles.chapterDivider,
-                      ]}
-                    >
-                      <View
+              {tocRows(detail.book.slug, detail.chaptersList).map(
+                ({ ch, label, rowTitle, heading }, idx, all) => {
+                  const isLast = idx === all.length - 1;
+                  return (
+                    <Fragment key={`${ch.n}-${idx}`}>
+                      {heading ? (
+                        <Text style={styles.partHeading}>{heading}</Text>
+                      ) : null}
+                      <Pressable
+                        key={`row-${ch.n}-${idx}`}
+                        onPress={() =>
+                          router.push(
+                            // The row's own identity, decided by the server.
+                            // `ch.n` numbers the row; it does not choose it.
+                            readerRoutePath(
+                              detail.book.slug,
+                              ch.readerRef,
+                            ) as never,
+                          )
+                        }
                         style={[
-                          styles.chapterBadge,
-                          {
-                            backgroundColor:
-                              ch.userProgress.status === "completed"
-                                ? Colors.sage[100]
-                                : ch.userProgress.status === "started"
-                                  ? Colors.lavender[100]
-                                  : Colors.warm[100],
-                          },
+                          styles.chapterRow,
+                          !isLast && styles.chapterDivider,
                         ]}
                       >
-                        <Text
+                        <View
                           style={[
-                            styles.chapterBadgeText,
+                            styles.chapterBadge,
                             {
-                              color:
+                              backgroundColor:
                                 ch.userProgress.status === "completed"
-                                  ? Colors.sage[600]
+                                  ? Colors.sage[100]
                                   : ch.userProgress.status === "started"
-                                    ? Colors.lavender[700]
-                                    : Colors.warm[500],
+                                    ? Colors.lavender[100]
+                                    : Colors.warm[100],
                             },
                           ]}
                         >
-                          {ch.userProgress.status === "completed" ? "✓" : ch.n}
-                        </Text>
-                      </View>
-                      <View style={{ flex: 1, minWidth: 0 }}>
-                        <Text style={styles.chapterTitle} numberOfLines={2}>
-                          {ch.title}
-                        </Text>
-                        <Text style={styles.chapterMeta}>
-                          {ch.durationMinutes
-                            ? `${ch.durationMinutes} min`
-                            : "Sin duración"}
-                          {ch.userProgress.status === "started"
-                            ? ` · ${ch.userProgress.progressPct}%`
-                            : ""}
-                        </Text>
-                      </View>
-                      {ch.lockedByTier ? (
-                        <Ionicons
-                          name="lock-closed"
-                          size={13}
-                          color={Colors.warm[400]}
-                        />
-                      ) : ch.userProgress.status === "started" ? (
-                        <Text style={styles.chapterCta}>Continuar →</Text>
-                      ) : (
-                        <Ionicons
-                          name="chevron-forward"
-                          size={14}
-                          color={Colors.warm[400]}
-                        />
-                      )}
-                    </Pressable>
-                  </Fragment>
-                );
-              })}
+                          <Text
+                            style={[
+                              styles.chapterBadgeText,
+                              {
+                                color:
+                                  ch.userProgress.status === "completed"
+                                    ? Colors.sage[600]
+                                    : ch.userProgress.status === "started"
+                                      ? Colors.lavender[700]
+                                      : Colors.warm[500],
+                              },
+                            ]}
+                          >
+                            {/* Reading status, never `ch.n`. The platform order
+                              is one ahead of the printed number on a book whose
+                              first unit is front matter, so this badge used to
+                              announce «9» for an eight-chapter edition. The
+                              real number is the eyebrow below. */}
+                            {ch.userProgress.status === "completed"
+                              ? "✓"
+                              : ch.userProgress.status === "started"
+                                ? "◍"
+                                : "·"}
+                          </Text>
+                        </View>
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          {label ? (
+                            <Text style={styles.chapterEyebrow}>{label}</Text>
+                          ) : null}
+                          <Text style={styles.chapterTitle} numberOfLines={2}>
+                            {rowTitle}
+                          </Text>
+                          <Text style={styles.chapterMeta}>
+                            {ch.durationMinutes
+                              ? `${ch.durationMinutes} min`
+                              : "Sin duración"}
+                            {ch.userProgress.status === "started"
+                              ? ` · ${ch.userProgress.progressPct}%`
+                              : ""}
+                          </Text>
+                        </View>
+                        {ch.lockedByTier ? (
+                          <Ionicons
+                            name="lock-closed"
+                            size={13}
+                            color={Colors.warm[400]}
+                          />
+                        ) : ch.userProgress.status === "started" ? (
+                          <Text style={styles.chapterCta}>Continuar →</Text>
+                        ) : (
+                          <Ionicons
+                            name="chevron-forward"
+                            size={14}
+                            color={Colors.warm[400]}
+                          />
+                        )}
+                      </Pressable>
+                    </Fragment>
+                  );
+                },
+              )}
             </View>
           )}
         </View>
@@ -844,6 +905,14 @@ const styles = StyleSheet.create({
   chapterBadgeText: {
     fontSize: 11,
     fontWeight: "700",
+  },
+  chapterEyebrow: {
+    fontSize: 9.5,
+    fontWeight: "700",
+    letterSpacing: 1,
+    textTransform: "uppercase",
+    color: Colors.lavender[700],
+    marginBottom: 2,
   },
   chapterTitle: {
     fontSize: 13,

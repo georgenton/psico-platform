@@ -9,6 +9,7 @@ import type {
   ReaderChapterRef,
 } from "@psico/types";
 import { readerChapterPath } from "@psico/types";
+import { bookEditionLabel } from "@psico/types";
 import { coverGradient } from "../cover-gradients";
 import { assetUrl } from "@/lib/asset-url";
 
@@ -158,12 +159,18 @@ export function BookHero({
         >
           {book.title}
         </h1>
-        {book.subtitle ? (
+        {/* The edition name the BOOK declares wins over the stored subtitle.
+            «Parejas que perduran» still carries «Edición de prueba OCR» in
+            `Book.subtitle` — true of the OCR edition that was replaced, false
+            of the printed one being served, and with no supported write path
+            for that column on a platform book. A book that declares nothing
+            keeps showing its subtitle exactly as before. */}
+        {(bookEditionLabel(book.slug) ?? book.subtitle) ? (
           <p
             className="mt-1.5 text-[16px] leading-relaxed"
             style={{ color: "var(--color-warm-500)" }}
           >
-            {book.subtitle}
+            {bookEditionLabel(book.slug) ?? book.subtitle}
           </p>
         ) : null}
 

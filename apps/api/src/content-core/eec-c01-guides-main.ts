@@ -21,6 +21,8 @@ import {
  *   node dist/content-core/eec-c01-guides-main.js plan
  *   node dist/content-core/eec-c01-guides-main.js apply-targets --apply
  *   node dist/content-core/eec-c01-guides-main.js create-drafts --apply
+ *   node dist/content-core/eec-c01-guides-main.js publish-guides --apply \
+ *     --environment=production --confirm-production-draft --confirm-publish
  *   node dist/content-core/eec-c01-guides-main.js verify-drafts
  *   node dist/content-core/eec-c01-guides-main.js preview-report
  *
@@ -180,6 +182,11 @@ export interface CliArgs {
   confirmProductionDraft: boolean;
   /** Only ever meaningful off a deployed box; see `publishTestSuite`. */
   confirmNonProductionPublish: boolean;
+  /**
+   * Publishing is a SECOND decision on top of `--confirm-production-draft`.
+   * A draft is reversible; a published route is what a reader sees.
+   */
+  confirmPublish: boolean;
   out: string | null;
 }
 
@@ -207,6 +214,7 @@ export function parseArgs(argv: readonly string[]): CliArgs {
     confirmNonProductionPublish: argv.includes(
       "--confirm-nonproduction-publish",
     ),
+    confirmPublish: argv.includes("--confirm-publish"),
     out: get("out"),
   };
 }
@@ -307,6 +315,7 @@ async function main(): Promise<number> {
       runVerifyDrafts,
       runPreviewReport,
       runPublishTestSuite,
+      runPublishGuides,
     } = await import("./eec-c01-guides-apply");
 
     switch (args.command) {
@@ -327,6 +336,26 @@ async function main(): Promise<number> {
         // remedy is to run the command again, not to investigate a conflict.
         if (r.outcome === "PARTIAL_APPLY") return 3;
         return r.ok ? 0 : r.drift ? 2 : 1;
+      }
+      /**
+       * `publish-guides` — the governed publish, on any environment.
+       *
+       * `assertWriteAllowed` has already run, so on production this needed
+       * `--environment=production --confirm-production-draft`. `--confirm-publish`
+       * is required ON TOP of that: writing a draft and putting a route in
+       * front of a reader are different decisions and are confirmed separately.
+       */
+      case "publish-guides": {
+        const r = await runPublishGuides(
+          prisma,
+          manifests,
+          args.apply,
+          args.confirmPublish,
+        );
+        console.log(
+          JSON.stringify({ command: "publish-guides", ...r }, null, 2),
+        );
+        return r.ok ? 0 : 1;
       }
       // Publishing, for a throwaway environment only. `publishTestSuite`
       // refuses production and staging before it reads anything.

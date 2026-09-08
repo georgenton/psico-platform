@@ -196,9 +196,13 @@ describe("GuideDiscoveryService", () => {
   it("returns the EXACT Parejas pin when everything converges", async () => {
     const { svc } = makeDeps(coherentParejas());
     const res = await svc.discover(USER, PQP_CTX);
+    // The V1 answer is the FIRST pin of the context's route. That route is now
+    // the book's own four microguides rather than the retired pilot, so the
+    // first pin moved with it — the pilot stays reachable through
+    // `getExactContext`, which is the compatibility answer, not this one.
     expect(res).toEqual({
       available: true,
-      guideKey: "pqp-c1-contacto-sostenido",
+      guideKey: "pqp-c1-amor-como-practica",
       guideVersion: 1,
     });
     // Exactly three properties — no context, no ids, no target keys.

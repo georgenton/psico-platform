@@ -1,0 +1,138 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "PQP-C08-MG05",
+  "bookSlug": "parejas-que-perduran",
+  "editionKey": "parejas-que-perduran-1e",
+  "chapterCode": "C08",
+  "chapterOrder": 9,
+  "unitKey": "2220570a-826b-5a90-99be-b8dbe28cf540",
+  "canonicalVersion": "PQP_PRINTED_v1.0_TEXT_LOCKED_2026-09-07",
+  "canonicalSha256": "6151a1ca2d88529ca1ca959997d04b681255d4e9f00510a0510651ddf65b616f",
+  "sourceArtifact": "Pareja que perduran_final.docx",
+  "experienceKey": "pqp-c8-triangulo-de-sternberg",
+  "experienceVersion": 1,
+  "guideKey": "pqp-c8-triangulo-de-sternberg",
+  "guideVersion": 1,
+  "conceptKey": "pqp-c8-triangulo-de-sternberg",
+  "practiceKey": "pqp-c8-practice-que-vertice-sostiene-la-escena",
+  "practiceKind": "context_plausibility",
+  "recallKey": "pqp-c8-recall-triangulo-de-sternberg",
+  "anchors": {
+    "primary": {
+      "reference": "pqp-c8-triangulo-de-sternberg",
+      "heading": "El triángulo del amor de Sternberg: una clave para comprender el afecto",
+      "fingerprint": "pasión, intimidad y compromiso",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "Tres vértices para describir el amor",
+      "body": [
+        "El capítulo cierra con un modelo clásico. Vale la pena saber qué es un modelo antes de usarlo."
+      ],
+      "note": "Trabajaremos con descripciones inventadas para el ejercicio. Puedes salir y volver cuando quieras. Nada de lo que escribas sale de tu dispositivo.",
+      "actionLabel": "Comenzar"
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "El triángulo del amor de Sternberg",
+      "body": [
+        "Lee la sección final del capítulo, donde describe los tres vértices y qué ocurre cuando uno solo sostiene la relación."
+      ]
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "Un modelo, no una medida",
+      "body": [
+        "El capítulo recoge el modelo que Robert Sternberg propuso en 1986: describir el amor como un triángulo de tres componentes —pasión, intimidad y compromiso— y observar que una relación sostenida por uno solo tiende a quedarse corta.",
+        "Es un modelo teórico: una manera de describir y conversar sobre el amor, no un instrumento que mida el de nadie. No hay una combinación correcta de los tres, ni un reparto que prediga cómo terminará una relación."
+      ],
+      "note": "Marcar esta escena registra que exploraste la idea. El modelo describe; no puntúa relaciones ni anticipa lo que va a pasar con la tuya.",
+      "actionLabel": "He explorado la idea"
+    },
+    {
+      "order": 4,
+      "kind": "PRACTICE",
+      "title": "¿Qué vértice sostiene la escena?",
+      "body": [
+        "Tres descripciones inventadas de tres parejas. Reconoce qué vértice describe cada una."
+      ],
+      "note": "Se clasifican descripciones, no relaciones. No hay respuesta correcta ni puntaje, y ninguna combinación es mejor ni predice nada.",
+      "actionLabel": "Ya hice la práctica"
+    },
+    {
+      "order": 5,
+      "kind": "REFLECTION",
+      "title": "Un momento para ti",
+      "body": [
+        "De esos tres, ¿cuál te resulta hoy más fácil de reconocer en tu vida? No hace falta que sean los tres."
+      ],
+      "note": "Privado y opcional. No se guarda, no se puntúa y no viaja con tu progreso.",
+      "optional": true
+    },
+    {
+      "order": 6,
+      "kind": "RECALL",
+      "title": "Recordar lo leído",
+      "body": [
+        "Elige la opción que corresponde a lo que dice el capítulo."
+      ],
+      "actionLabel": "Registrar respuesta"
+    },
+    {
+      "order": 7,
+      "kind": "SUMMARY",
+      "title": "Para describir, no para calificar",
+      "body": [
+        "Los tres vértices son un vocabulario para hablar del amor. Sirven para nombrar lo que hay, no para calificar lo que falta."
+      ]
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-triangulo-de-sternberg",
+      "targetKey": "pqp-c8-triangulo-de-sternberg"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-que-vertice-sostiene-la-escena",
+      "targetKey": "pqp-c8-practice-que-vertice-sostiene-la-escena"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-triangulo-de-sternberg",
+      "targetKey": "pqp-c8-recall-triangulo-de-sternberg"
+    }
+  ],
+  "media": {
+    "authorVideoPending": false
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Toda práctica ofrece un camino sin arrastrar y sin depender del color.",
+    "Ninguna escena comunica su estado únicamente con un icono.",
+    "Las escenas opcionales se pueden omitir con el teclado."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "pqp-c08-triangulo-de-sternberg-v1",
+  "approvalReferences": [
+    "PQP-C08 — Inventario editorial y selección de microguías (2026-09-08)"
+  ],
+  "manifestSha256": "9df3a0b4eb94639163ed893999dcfa47105606d1cf219d00d4a6c07d082a71bc"
+}

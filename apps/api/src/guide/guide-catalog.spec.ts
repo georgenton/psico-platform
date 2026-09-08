@@ -259,9 +259,12 @@ describe("ratchet · guide catalog contract", () => {
     // pilot stays registered for the same reason, and none of the four reuses
     // its lineage.
     // 56 → 61 (C02's five), → 65 (C03's four), → 73 (C04's and C05's four
-    // each). Editorial approval 2026-09-08.
-    expect(PRODUCTION_GUIDE_DEFINITIONS).toHaveLength(73);
-    expect(productionGuideRegistry.size).toBe(73);
+    // each), → 76 (C06's three — a short chapter carrying three defensible
+    // ideas; the rules say not to force five), → 80 (C07's four, one of which
+    // is that chapter's reinforced gate), → 85 (C08's five, which close the
+    // book). Editorial approval 2026-09-08.
+    expect(PRODUCTION_GUIDE_DEFINITIONS).toHaveLength(85);
+    expect(productionGuideRegistry.size).toBe(85);
     expect(PRODUCTION_GUIDE_DEFINITIONS.map((d) => d.guideKey)).toEqual([
       "eec-c1-cuerpo-antes-que-mente",
       "eec-c1-teorias-como-lentes",
@@ -336,6 +339,18 @@ describe("ratchet · guide catalog contract", () => {
       "pqp-c5-una-cosa-a-la-vez",
       "pqp-c5-el-momento-importa",
       "pqp-c5-acuerdo-no-es-victoria",
+      "pqp-c6-senales-de-crisis",
+      "pqp-c6-pedir-ayuda-no-es-debilidad",
+      "pqp-c6-crecimiento-posible-no-obligatorio",
+      "pqp-c7-limite-no-es-rechazo",
+      "pqp-c7-hablar-del-otro-sin-testigos",
+      "pqp-c7-quien-decide-en-casa",
+      "pqp-c7-reconocer-la-violencia",
+      "pqp-c8-cinco-lenguajes-como-mapa",
+      "pqp-c8-aprender-el-idioma-del-otro",
+      "pqp-c8-aceptar-no-es-aguantar",
+      "pqp-c8-amar-tambien-es-actuar",
+      "pqp-c8-triangulo-de-sternberg",
     ]);
     // No chapter's guide may target another chapter's teaching rows: a session
     // on C02 completing a C01 step would merge two readings' progress. Checked

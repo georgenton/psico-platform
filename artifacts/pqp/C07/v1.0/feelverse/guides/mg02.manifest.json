@@ -1,0 +1,138 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "PQP-C07-MG02",
+  "bookSlug": "parejas-que-perduran",
+  "editionKey": "parejas-que-perduran-1e",
+  "chapterCode": "C07",
+  "chapterOrder": 8,
+  "unitKey": "f1bfc773-ee4e-5499-a24b-5a9369fb770c",
+  "canonicalVersion": "PQP_PRINTED_v1.0_TEXT_LOCKED_2026-09-07",
+  "canonicalSha256": "6151a1ca2d88529ca1ca959997d04b681255d4e9f00510a0510651ddf65b616f",
+  "sourceArtifact": "Pareja que perduran_final.docx",
+  "experienceKey": "pqp-c7-hablar-del-otro-sin-testigos",
+  "experienceVersion": 1,
+  "guideKey": "pqp-c7-hablar-del-otro-sin-testigos",
+  "guideVersion": 1,
+  "conceptKey": "pqp-c7-hablar-del-otro-sin-testigos",
+  "practiceKey": "pqp-c7-practice-la-misma-broma-en-dos-mesas",
+  "practiceKind": "signal_context_compare",
+  "recallKey": "pqp-c7-recall-hablar-del-otro-sin-testigos",
+  "anchors": {
+    "primary": {
+      "reference": "pqp-c7-hablar-del-otro-sin-testigos",
+      "heading": "Comunicación y cuidado como expresión de respeto",
+      "fingerprint": "cuando no hay testigos",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "Cómo hablas de tu pareja cuando no está",
+      "body": [
+        "El respeto no se mide solo en la intimidad. El capítulo se detiene en lo que pasa delante de otros."
+      ],
+      "note": "Trabajaremos con una escena inventada para el ejercicio. Puedes salir y volver cuando quieras. Nada de lo que escribas sale de tu dispositivo.",
+      "actionLabel": "Comenzar"
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "Comunicación y cuidado como expresión de respeto",
+      "body": [
+        "Lee esa sección, y en particular la parte sobre cómo hablas del otro cuando no te escucha."
+      ]
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "El chiste que no era solo un chiste",
+      "body": [
+        "El capítulo señala que el sarcasmo puede ser una forma encubierta de desprecio, y que ridiculizar al otro —aunque sea en broma y aunque todos se rían— puede dañar la autoestima y romper la complicidad.",
+        "Y añade una pregunta que no depende de estar delante: cómo hablas de tu pareja cuando no está. Hablar bien del otro sin testigos es cuidar el vínculo cuando nadie lo está mirando."
+      ],
+      "note": "No todo el humor compartido es desprecio, y el capítulo no propone dejar de bromear. Marcar esta escena registra que exploraste la idea; no evalúa tu relación ni la de nadie.",
+      "actionLabel": "He explorado la idea"
+    },
+    {
+      "order": 4,
+      "kind": "PRACTICE",
+      "title": "La misma broma en dos mesas",
+      "body": [
+        "La misma broma de una pareja inventada, en dos situaciones. Observa qué podría cambiar."
+      ],
+      "note": "Es un caso editorial. Nada se marca como correcto: el ejercicio solo pregunta qué haría falta saber.",
+      "actionLabel": "Ya hice la práctica"
+    },
+    {
+      "order": 5,
+      "kind": "REFLECTION",
+      "title": "Un momento para ti",
+      "body": [
+        "Si alguien repitiera mañana algo que dijiste ayer sobre tu pareja, ¿te gustaría que lo escuchara?"
+      ],
+      "note": "Privado y opcional. No se guarda ni viaja con tu progreso.",
+      "optional": true
+    },
+    {
+      "order": 6,
+      "kind": "RECALL",
+      "title": "Recordar lo leído",
+      "body": [
+        "Elige la opción que corresponde a lo que dice el capítulo."
+      ],
+      "actionLabel": "Registrar respuesta"
+    },
+    {
+      "order": 7,
+      "kind": "SUMMARY",
+      "title": "También cuando nadie mira",
+      "body": [
+        "Lo que se dice del otro en su ausencia forma parte del vínculo, aunque el otro no llegue a enterarse."
+      ]
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-hablar-del-otro-sin-testigos",
+      "targetKey": "pqp-c7-hablar-del-otro-sin-testigos"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-la-misma-broma-en-dos-mesas",
+      "targetKey": "pqp-c7-practice-la-misma-broma-en-dos-mesas"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-hablar-del-otro-sin-testigos",
+      "targetKey": "pqp-c7-recall-hablar-del-otro-sin-testigos"
+    }
+  ],
+  "media": {
+    "authorVideoPending": false
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Toda práctica ofrece un camino sin arrastrar y sin depender del color.",
+    "Ninguna escena comunica su estado únicamente con un icono.",
+    "Las escenas opcionales se pueden omitir con el teclado."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "pqp-c07-hablar-del-otro-sin-testigos-v1",
+  "approvalReferences": [
+    "PQP-C07 — Inventario editorial y selección de microguías (2026-09-08)"
+  ],
+  "manifestSha256": "1fb69ed0f9a8068b55f6097f273f3e063c8fab292347241eb263597b327cf4a5"
+}

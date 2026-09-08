@@ -19,6 +19,9 @@ import { PQP_C02_READER_COPY } from "./pqp-c02-microguides";
 import { PQP_C03_READER_COPY } from "./pqp-c03-microguides";
 import { PQP_C04_READER_COPY } from "./pqp-c04-microguides";
 import { PQP_C05_READER_COPY } from "./pqp-c05-microguides";
+import { PQP_C06_READER_COPY } from "./pqp-c06-microguides";
+import { PQP_C07_READER_COPY } from "./pqp-c07-microguides";
+import { PQP_C08_READER_COPY } from "./pqp-c08-microguides";
 import { EEC_C03_READER_COPY } from "./eec-c03-microguides";
 import { EEC_C04_READER_COPY } from "./eec-c04-microguides";
 import { EEC_C05_READER_COPY } from "./eec-c05-microguides";
@@ -429,6 +432,9 @@ export const PRODUCTION_GUIDE_READER_COPY: readonly GuideReaderCopy[] = [
   ...PQP_C03_READER_COPY,
   ...PQP_C04_READER_COPY,
   ...PQP_C05_READER_COPY,
+  ...PQP_C06_READER_COPY,
+  ...PQP_C07_READER_COPY,
+  ...PQP_C08_READER_COPY,
   ...EEC_C03_READER_COPY,
   ...EEC_C04_READER_COPY,
   ...EEC_C05_READER_COPY,

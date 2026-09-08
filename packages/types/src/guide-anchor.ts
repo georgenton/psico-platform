@@ -1089,6 +1089,148 @@ export const PQP_C5_MG04_ANCHOR: GuideReaderAnchorLocator = {
   expectedMatchCount: 1,
 };
 
+/**
+ * PQP-C06 · the three-microguide route (approved 2026-09-08).
+ *
+ * Measured against published revision #10 before being written, scoped to the
+ * PUBLISHED unit version: heading once, sentence once inside it.
+ */
+export const PQP_C6_MG01_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "pqp-c6-senales-de-crisis",
+  guideVersion: 1,
+  bookSlug: "parejas-que-perduran",
+  chapterOrder: 7,
+  sourceHeading: "Detectar las señales de una crisis",
+  passageLastSentence: "Reconocer estas señales tempranas",
+  expectedMatchCount: 1,
+};
+
+export const PQP_C6_MG02_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "pqp-c6-pedir-ayuda-no-es-debilidad",
+  guideVersion: 1,
+  bookSlug: "parejas-que-perduran",
+  chapterOrder: 7,
+  sourceHeading: "Buscar ayuda no es debilidad, es sabiduría",
+  passageLastSentence: "necesitan intervención externa",
+  expectedMatchCount: 1,
+};
+
+export const PQP_C6_MG03_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "pqp-c6-crecimiento-posible-no-obligatorio",
+  guideVersion: 1,
+  bookSlug: "parejas-que-perduran",
+  chapterOrder: 7,
+  sourceHeading: "La crisis como umbral de crecimiento",
+  passageLastSentence: "con apertura, humildad",
+  expectedMatchCount: 1,
+};
+
+/**
+ * PQP-C07 · the four-microguide route (approved 2026-09-08).
+ *
+ * Measured against published revision #10 before being written, scoped to the
+ * PUBLISHED unit version: heading once, sentence once inside it.
+ */
+export const PQP_C7_MG01_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "pqp-c7-limite-no-es-rechazo",
+  guideVersion: 1,
+  bookSlug: "parejas-que-perduran",
+  chapterOrder: 8,
+  sourceHeading: "El respeto empieza con los límites",
+  passageLastSentence: "en la claridad hay seguridad",
+  expectedMatchCount: 1,
+};
+
+export const PQP_C7_MG02_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "pqp-c7-hablar-del-otro-sin-testigos",
+  guideVersion: 1,
+  bookSlug: "parejas-que-perduran",
+  chapterOrder: 8,
+  sourceHeading: "Comunicación y cuidado como expresión de respeto",
+  passageLastSentence: "cuando no hay testigos",
+  expectedMatchCount: 1,
+};
+
+export const PQP_C7_MG03_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "pqp-c7-quien-decide-en-casa",
+  guideVersion: 1,
+  bookSlug: "parejas-que-perduran",
+  chapterOrder: 8,
+  sourceHeading: "Dinámicas de poder: machismo, dinero y decisiones",
+  passageLastSentence: "distribuye el poder",
+  expectedMatchCount: 1,
+};
+
+/** The chapter's reinforced gate. Its anchor lands on the section the route
+ * exists to carry, not on a softer neighbour. */
+export const PQP_C7_MG04_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "pqp-c7-reconocer-la-violencia",
+  guideVersion: 1,
+  bookSlug: "parejas-que-perduran",
+  chapterOrder: 8,
+  sourceHeading: "Violencia: la línea que nunca debe cruzarse",
+  passageLastSentence: "garantizar la seguridad",
+  expectedMatchCount: 1,
+};
+
+/**
+ * PQP-C08 · the five-microguide route (approved 2026-09-08).
+ *
+ * Measured against published revision #10 before being written, scoped to the
+ * PUBLISHED unit version: heading once, sentence once inside it.
+ */
+export const PQP_C8_MG01_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "pqp-c8-cinco-lenguajes-como-mapa",
+  guideVersion: 1,
+  bookSlug: "parejas-que-perduran",
+  chapterOrder: 9,
+  sourceHeading: "Los cinco lenguajes del amor",
+  passageLastSentence:
+    "cinco formas principales en que las personas dan y reciben amor",
+  expectedMatchCount: 1,
+};
+
+export const PQP_C8_MG02_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "pqp-c8-aprender-el-idioma-del-otro",
+  guideVersion: 1,
+  bookSlug: "parejas-que-perduran",
+  chapterOrder: 9,
+  sourceHeading: "Aprender el lenguaje del otro: un puente de ida y vuelta",
+  passageLastSentence: "bilingües emocionales",
+  expectedMatchCount: 1,
+};
+
+export const PQP_C8_MG03_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "pqp-c8-aceptar-no-es-aguantar",
+  guideVersion: 1,
+  bookSlug: "parejas-que-perduran",
+  chapterOrder: 9,
+  sourceHeading: "Otras formas esenciales de afecto",
+  passageLastSentence: "No es resignarse ni tolerar todo",
+  expectedMatchCount: 1,
+};
+
+export const PQP_C8_MG04_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "pqp-c8-amar-tambien-es-actuar",
+  guideVersion: 1,
+  bookSlug: "parejas-que-perduran",
+  chapterOrder: 9,
+  sourceHeading: "¿Por qué es tan importante el afecto?",
+  passageLastSentence: "no basta solo con estar",
+  expectedMatchCount: 1,
+};
+
+export const PQP_C8_MG05_ANCHOR: GuideReaderAnchorLocator = {
+  guideKey: "pqp-c8-triangulo-de-sternberg",
+  guideVersion: 1,
+  bookSlug: "parejas-que-perduran",
+  chapterOrder: 9,
+  sourceHeading:
+    "El triángulo del amor de Sternberg: una clave para comprender el afecto",
+  passageLastSentence: "pasión, intimidad y compromiso",
+  expectedMatchCount: 1,
+};
+
 export const guideAnchorRegistry = new GuideAnchorRegistry([
   GUIDE_READER_ANCHOR,
   PQP_C1_MG01_ANCHOR,
@@ -1112,6 +1254,18 @@ export const guideAnchorRegistry = new GuideAnchorRegistry([
   PQP_C5_MG02_ANCHOR,
   PQP_C5_MG03_ANCHOR,
   PQP_C5_MG04_ANCHOR,
+  PQP_C6_MG01_ANCHOR,
+  PQP_C6_MG02_ANCHOR,
+  PQP_C6_MG03_ANCHOR,
+  PQP_C7_MG01_ANCHOR,
+  PQP_C7_MG02_ANCHOR,
+  PQP_C7_MG03_ANCHOR,
+  PQP_C7_MG04_ANCHOR,
+  PQP_C8_MG01_ANCHOR,
+  PQP_C8_MG02_ANCHOR,
+  PQP_C8_MG03_ANCHOR,
+  PQP_C8_MG04_ANCHOR,
+  PQP_C8_MG05_ANCHOR,
   EEC_C1_MG01_ANCHOR,
   EEC_C1_MG02_ANCHOR,
   EEC_C1_MG03_ANCHOR,

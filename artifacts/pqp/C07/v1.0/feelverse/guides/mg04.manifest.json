@@ -1,0 +1,129 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "PQP-C07-MG04",
+  "bookSlug": "parejas-que-perduran",
+  "editionKey": "parejas-que-perduran-1e",
+  "chapterCode": "C07",
+  "chapterOrder": 8,
+  "unitKey": "f1bfc773-ee4e-5499-a24b-5a9369fb770c",
+  "canonicalVersion": "PQP_PRINTED_v1.0_TEXT_LOCKED_2026-09-07",
+  "canonicalSha256": "6151a1ca2d88529ca1ca959997d04b681255d4e9f00510a0510651ddf65b616f",
+  "sourceArtifact": "Pareja que perduran_final.docx",
+  "experienceKey": "pqp-c7-reconocer-la-violencia",
+  "experienceVersion": 1,
+  "guideKey": "pqp-c7-reconocer-la-violencia",
+  "guideVersion": 1,
+  "conceptKey": "pqp-c7-reconocer-la-violencia",
+  "practiceKey": "pqp-c7-practice-las-formas-que-nombra-el-capitulo",
+  "practiceKind": "context_plausibility",
+  "recallKey": "pqp-c7-recall-reconocer-la-violencia",
+  "anchors": {
+    "primary": {
+      "reference": "pqp-c7-reconocer-la-violencia",
+      "heading": "Violencia: la línea que nunca debe cruzarse",
+      "fingerprint": "garantizar la seguridad",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "La línea que no se cruza",
+      "body": [
+        "El capítulo dedica una sección entera a esto y no la suaviza. Esta guía tampoco."
+      ],
+      "note": "Puede ser difícil de leer. No se te pedirá contar nada tuyo en ningún momento, y puedes salir y volver cuando quieras.",
+      "actionLabel": "Comenzar"
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "Violencia: la línea que nunca debe cruzarse",
+      "body": [
+        "Lee la sección completa, incluidas las cinco formas que enumera y los dos párrafos que la cierran."
+      ]
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "No empieza con un golpe",
+      "body": [
+        "El capítulo es explícito: la violencia no es «una pérdida momentánea de control» ni «una forma intensa de discutir». Y no siempre empieza con un golpe — puede instalarse en el desprecio, la manipulación, el control del dinero, el aislamiento o las amenazas disfrazadas de preocupación.",
+        "Nombra cinco formas: física, verbal, emocional, sexual y económica. Y cierra con dos frases que conviene leer despacio: si esa línea se ha cruzado, la prioridad es buscar ayuda profesional y garantizar la seguridad, no salvar la relación. Nadie merece quedarse donde es maltratado."
+      ],
+      "note": "Esta guía no evalúa tu situación ni la clasifica. Si algo de esto describe tu vida, tienes derecho a pedir ayuda ahora: alguien de confianza, un profesional o un servicio de atención de tu país.",
+      "actionLabel": "He explorado la idea"
+    },
+    {
+      "order": 4,
+      "kind": "PRACTICE",
+      "title": "Las formas que nombra el capítulo",
+      "body": [
+        "Cuatro escenas inventadas, ninguna con un golpe. Reconoce cuál de las formas del capítulo nombra cada una."
+      ],
+      "note": "No hay respuesta correcta ni puntaje: es un ejercicio de reconocimiento. Ninguna de estas formas es más leve que otra, y no se te pide contar nada tuyo.",
+      "actionLabel": "Ya hice la práctica"
+    },
+    {
+      "order": 5,
+      "kind": "RECALL",
+      "title": "Recordar lo leído",
+      "body": [
+        "Elige la opción que corresponde a lo que dice el capítulo."
+      ],
+      "actionLabel": "Registrar respuesta"
+    },
+    {
+      "order": 6,
+      "kind": "SUMMARY",
+      "title": "Primero la seguridad",
+      "body": [
+        "El capítulo lo deja dicho sin condiciones: por mucha historia compartida que haya, nadie merece quedarse en una relación donde es maltratado o maltratada.",
+        "Si necesitas hablarlo, pedir ayuda es una opción disponible ahora — alguien de confianza, un profesional o un servicio de atención de tu país. No hace falta tener pruebas ni estar seguro para preguntar."
+      ]
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-reconocer-la-violencia",
+      "targetKey": "pqp-c7-reconocer-la-violencia"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-las-formas-que-nombra-el-capitulo",
+      "targetKey": "pqp-c7-practice-las-formas-que-nombra-el-capitulo"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-reconocer-la-violencia",
+      "targetKey": "pqp-c7-recall-reconocer-la-violencia"
+    }
+  ],
+  "media": {
+    "authorVideoPending": false
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Toda práctica ofrece un camino sin arrastrar y sin depender del color.",
+    "Ninguna escena comunica su estado únicamente con un icono.",
+    "Las escenas opcionales se pueden omitir con el teclado."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "pqp-c07-reconocer-la-violencia-v1",
+  "approvalReferences": [
+    "PQP-C07 — Inventario editorial y selección de microguías (2026-09-08)"
+  ],
+  "manifestSha256": "9b0725b1da30288120831e19983eb2ba50d1724991f40dbc67369f04d05c23e6"
+}

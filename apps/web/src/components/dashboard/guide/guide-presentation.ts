@@ -26,6 +26,9 @@ import { PQP_C02_PRESENTATIONS } from "./pqp-c02-microguides";
 import { PQP_C03_PRESENTATIONS } from "./pqp-c03-microguides";
 import { PQP_C04_PRESENTATIONS } from "./pqp-c04-microguides";
 import { PQP_C05_PRESENTATIONS } from "./pqp-c05-microguides";
+import { PQP_C06_PRESENTATIONS } from "./pqp-c06-microguides";
+import { PQP_C07_PRESENTATIONS } from "./pqp-c07-microguides";
+import { PQP_C08_PRESENTATIONS } from "./pqp-c08-microguides";
 import { EEC_C03_PRESENTATIONS } from "./eec-c03-microguides";
 import { EEC_C04_PRESENTATIONS } from "./eec-c04-microguides";
 import { EEC_C05_PRESENTATIONS } from "./eec-c05-microguides";
@@ -421,6 +424,9 @@ export const PRODUCTION_GUIDE_PRESENTATIONS: readonly GuidePresentation[] = [
   ...PQP_C03_PRESENTATIONS,
   ...PQP_C04_PRESENTATIONS,
   ...PQP_C05_PRESENTATIONS,
+  ...PQP_C06_PRESENTATIONS,
+  ...PQP_C07_PRESENTATIONS,
+  ...PQP_C08_PRESENTATIONS,
   ...EEC_C03_PRESENTATIONS,
   ...EEC_C04_PRESENTATIONS,
   ...EEC_C05_PRESENTATIONS,

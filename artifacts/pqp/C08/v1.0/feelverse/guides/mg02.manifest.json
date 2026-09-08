@@ -1,0 +1,138 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "PQP-C08-MG02",
+  "bookSlug": "parejas-que-perduran",
+  "editionKey": "parejas-que-perduran-1e",
+  "chapterCode": "C08",
+  "chapterOrder": 9,
+  "unitKey": "2220570a-826b-5a90-99be-b8dbe28cf540",
+  "canonicalVersion": "PQP_PRINTED_v1.0_TEXT_LOCKED_2026-09-07",
+  "canonicalSha256": "6151a1ca2d88529ca1ca959997d04b681255d4e9f00510a0510651ddf65b616f",
+  "sourceArtifact": "Pareja que perduran_final.docx",
+  "experienceKey": "pqp-c8-aprender-el-idioma-del-otro",
+  "experienceVersion": 1,
+  "guideKey": "pqp-c8-aprender-el-idioma-del-otro",
+  "guideVersion": 1,
+  "conceptKey": "pqp-c8-aprender-el-idioma-del-otro",
+  "practiceKey": "pqp-c8-practice-el-mismo-gesto-en-dos-manos",
+  "practiceKind": "signal_context_compare",
+  "recallKey": "pqp-c8-recall-aprender-el-idioma-del-otro",
+  "anchors": {
+    "primary": {
+      "reference": "pqp-c8-aprender-el-idioma-del-otro",
+      "heading": "Aprender el lenguaje del otro: un puente de ida y vuelta",
+      "fingerprint": "bilingües emocionales",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "Aprender el idioma del otro",
+      "body": [
+        "El capítulo dice algo incómodo y útil: no basta con decir «así soy yo» y esperar que el otro traduzca."
+      ],
+      "note": "Trabajaremos con una escena inventada para el ejercicio. Puedes salir y volver cuando quieras. Nada de lo que escribas sale de tu dispositivo.",
+      "actionLabel": "Comenzar"
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "Aprender el lenguaje del otro: un puente de ida y vuelta",
+      "body": [
+        "Lee esa sección y fíjate en la imagen que propone: ser bilingües emocionales."
+      ]
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "Lo que sale fácil y lo que llega",
+      "body": [
+        "El capítulo describe dos pasos: conocer qué necesita uno para sentirse querido, y aprender a expresarlo en la forma en que al otro le llega. Un gesto dado en el idioma propio puede ser sincero y aun así no aterrizar.",
+        "Y aclara qué no es esto: no se trata de anular quién eres ni de renunciar a tu forma. La imagen que usa es la de dos personas que hablan su idioma, entienden el del otro y arman algo entre los dos."
+      ],
+      "note": "Marcar esta escena registra que exploraste la idea; no evalúa tu relación. Y esto describe a dos personas que quieren acercarse — no es una tarea que le corresponda a uno solo.",
+      "actionLabel": "He explorado la idea"
+    },
+    {
+      "order": 4,
+      "kind": "PRACTICE",
+      "title": "El mismo gesto en dos manos",
+      "body": [
+        "El mismo gesto de una pareja inventada, recibido por dos personas distintas. Observa qué cambia."
+      ],
+      "note": "Es un caso editorial. Nada se marca como correcto: ningún gesto es mejor que otro, y el ejercicio solo pregunta qué haría falta saber.",
+      "actionLabel": "Ya hice la práctica"
+    },
+    {
+      "order": 5,
+      "kind": "REFLECTION",
+      "title": "Un momento para ti",
+      "body": [
+        "¿Qué gesto de otra persona te ha hecho sentir visto últimamente? Basta con recordarlo."
+      ],
+      "note": "Privado y opcional. No se guarda ni viaja con tu progreso.",
+      "optional": true
+    },
+    {
+      "order": 6,
+      "kind": "RECALL",
+      "title": "Recordar lo leído",
+      "body": [
+        "Elige la opción que corresponde a lo que dice el capítulo."
+      ],
+      "actionLabel": "Registrar respuesta"
+    },
+    {
+      "order": 7,
+      "kind": "SUMMARY",
+      "title": "Ida y vuelta",
+      "body": [
+        "Hablar el idioma del otro no es dejar de hablar el propio. Es que el gesto llegue a donde iba."
+      ]
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-aprender-el-idioma-del-otro",
+      "targetKey": "pqp-c8-aprender-el-idioma-del-otro"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-el-mismo-gesto-en-dos-manos",
+      "targetKey": "pqp-c8-practice-el-mismo-gesto-en-dos-manos"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-aprender-el-idioma-del-otro",
+      "targetKey": "pqp-c8-recall-aprender-el-idioma-del-otro"
+    }
+  ],
+  "media": {
+    "authorVideoPending": false
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Toda práctica ofrece un camino sin arrastrar y sin depender del color.",
+    "Ninguna escena comunica su estado únicamente con un icono.",
+    "Las escenas opcionales se pueden omitir con el teclado."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "pqp-c08-aprender-el-idioma-del-otro-v1",
+  "approvalReferences": [
+    "PQP-C08 — Inventario editorial y selección de microguías (2026-09-08)"
+  ],
+  "manifestSha256": "24c9990f959fbd1a7840b290b23f2617dabd776eb4517c10c3c40d48d3f61cfc"
+}

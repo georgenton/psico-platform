@@ -1,0 +1,138 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "PQP-C06-MG01",
+  "bookSlug": "parejas-que-perduran",
+  "editionKey": "parejas-que-perduran-1e",
+  "chapterCode": "C06",
+  "chapterOrder": 7,
+  "unitKey": "a5bd7c6b-666f-58f8-b96e-abca82405a7c",
+  "canonicalVersion": "PQP_PRINTED_v1.0_TEXT_LOCKED_2026-09-07",
+  "canonicalSha256": "6151a1ca2d88529ca1ca959997d04b681255d4e9f00510a0510651ddf65b616f",
+  "sourceArtifact": "Pareja que perduran_final.docx",
+  "experienceKey": "pqp-c6-senales-de-crisis",
+  "experienceVersion": 1,
+  "guideKey": "pqp-c6-senales-de-crisis",
+  "guideVersion": 1,
+  "conceptKey": "pqp-c6-senales-de-crisis",
+  "practiceKey": "pqp-c6-practice-una-senal-en-dos-momentos",
+  "practiceKind": "signal_context_compare",
+  "recallKey": "pqp-c6-recall-senales-de-crisis",
+  "anchors": {
+    "primary": {
+      "reference": "pqp-c6-senales-de-crisis",
+      "heading": "Detectar las señales de una crisis",
+      "fingerprint": "Reconocer estas señales tempranas",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "Las señales tempranas",
+      "body": [
+        "No todas las crisis llegan de golpe. El capítulo describe las que se instalan sin ruido, y por qué cuesta tanto verlas a tiempo."
+      ],
+      "note": "Trabajaremos con una escena inventada para el ejercicio. Puedes salir y volver cuando quieras. Nada de lo que escribas sale de tu dispositivo.",
+      "actionLabel": "Comenzar"
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "Detectar las señales de una crisis",
+      "body": [
+        "Lee la sección donde el capítulo enumera señales tempranas, y fíjate en cuáles no parecen graves vistas de una en una."
+      ]
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "Lo que se normaliza deja de verse",
+      "body": [
+        "Muchas de las señales que describe el capítulo son discretas: menos conversación de la que había, menos gestos de afecto, planes que dejan de compartirse, una sensación difusa de que algo falta.",
+        "Cada una por separado puede no significar nada. Lo que las vuelve significativas es que se sostengan y que nadie las nombre, porque a lo que dura mucho tiempo se le deja de prestar atención."
+      ],
+      "note": "Marcar esta escena registra que exploraste la idea; no evalúa tu relación ni concluye nada sobre ella. Reconocer una señal en una lista no es un diagnóstico.",
+      "actionLabel": "He explorado la idea"
+    },
+    {
+      "order": 4,
+      "kind": "PRACTICE",
+      "title": "Una señal en dos momentos",
+      "body": [
+        "Las mismas señales de una pareja inventada, en dos situaciones distintas. Observa qué haría falta saber para interpretarlas."
+      ],
+      "note": "Es un caso editorial, no tu relación. Nada se marca como correcto: el ejercicio es notar qué información falta.",
+      "actionLabel": "Ya hice la práctica"
+    },
+    {
+      "order": 5,
+      "kind": "REFLECTION",
+      "title": "Un momento para ti",
+      "body": [
+        "¿Hay algo que antes hacían y que hace tiempo dejó de ocurrir, sin que nadie lo mencionara? Basta con pensarlo."
+      ],
+      "note": "Privado y opcional. No se guarda, no puntúa nada y no viaja con tu progreso.",
+      "optional": true
+    },
+    {
+      "order": 6,
+      "kind": "RECALL",
+      "title": "Recordar lo leído",
+      "body": [
+        "Elige la opción que corresponde a lo que dice el capítulo."
+      ],
+      "actionLabel": "Registrar respuesta"
+    },
+    {
+      "order": 7,
+      "kind": "SUMMARY",
+      "title": "Nombrarlo antes",
+      "body": [
+        "Las señales que describe el capítulo casi nunca son dramáticas. Lo que las vuelve importantes es que duren y que nadie las diga en voz alta."
+      ]
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-senales-de-crisis",
+      "targetKey": "pqp-c6-senales-de-crisis"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-una-senal-en-dos-momentos",
+      "targetKey": "pqp-c6-practice-una-senal-en-dos-momentos"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-senales-de-crisis",
+      "targetKey": "pqp-c6-recall-senales-de-crisis"
+    }
+  ],
+  "media": {
+    "authorVideoPending": false
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Toda práctica ofrece un camino sin arrastrar y sin depender del color.",
+    "Ninguna escena comunica su estado únicamente con un icono.",
+    "Las escenas opcionales se pueden omitir con el teclado."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "pqp-c06-senales-de-crisis-v1",
+  "approvalReferences": [
+    "PQP-C06 — Inventario editorial y selección de microguías (2026-09-08)"
+  ],
+  "manifestSha256": "9248cff767741d6f12bd92ba3e1997558d587ae176afd82acb89d4c10fc10aaa"
+}

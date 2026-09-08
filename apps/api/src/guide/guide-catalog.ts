@@ -786,6 +786,94 @@ export const PQP_C5_MG04_GUIDE = pqpC5Guide(
   "de-la-postura-al-acuerdo",
 );
 
+/**
+ * C06 ships three routes rather than four or five. The chapter is short and
+ * carries three ideas that can each stand on their own; the rest stays in
+ * reading. See `scripts/pqp/chapters/c06.mjs`.
+ */
+const pqpC6Guide = pqpChapterGuide(6);
+/** C06-MG01 */
+export const PQP_C6_MG01_GUIDE = pqpC6Guide(
+  "senales-de-crisis",
+  "pqp-c6-senales-de-crisis",
+  "una-senal-en-dos-momentos",
+);
+/** C06-MG02 */
+export const PQP_C6_MG02_GUIDE = pqpC6Guide(
+  "pedir-ayuda-no-es-debilidad",
+  "pqp-c6-pedir-ayuda-no-es-debilidad",
+  "de-la-idea-a-la-consulta",
+);
+/** C06-MG03 */
+export const PQP_C6_MG03_GUIDE = pqpC6Guide(
+  "crecimiento-posible-no-obligatorio",
+  "pqp-c6-crecimiento-posible-no-obligatorio",
+  "que-dejo-esta-crisis",
+);
+
+const pqpC7Guide = pqpChapterGuide(7);
+/** C07-MG01 */
+export const PQP_C7_MG01_GUIDE = pqpC7Guide(
+  "limite-no-es-rechazo",
+  "pqp-c7-limite-no-es-rechazo",
+  "un-limite-o-un-reproche",
+);
+/** C07-MG02 */
+export const PQP_C7_MG02_GUIDE = pqpC7Guide(
+  "hablar-del-otro-sin-testigos",
+  "pqp-c7-hablar-del-otro-sin-testigos",
+  "la-misma-broma-en-dos-mesas",
+);
+/** C07-MG03 */
+export const PQP_C7_MG03_GUIDE = pqpC7Guide(
+  "quien-decide-en-casa",
+  "pqp-c7-quien-decide-en-casa",
+  "de-quien-decide-a-como-decidimos",
+);
+/**
+ * C07-MG04 — the chapter's reinforced gate. It ships DRAFT like the rest and
+ * carries no extra machinery; what makes it different is its copy, and that
+ * lives in the manifests and the exercise catalog.
+ */
+export const PQP_C7_MG04_GUIDE = pqpC7Guide(
+  "reconocer-la-violencia",
+  "pqp-c7-reconocer-la-violencia",
+  "las-formas-que-nombra-el-capitulo",
+);
+
+/** C08 closes the book. Its two model-based routes name what a model is. */
+const pqpC8Guide = pqpChapterGuide(8);
+/** C08-MG01 */
+export const PQP_C8_MG01_GUIDE = pqpC8Guide(
+  "cinco-lenguajes-como-mapa",
+  "pqp-c8-cinco-lenguajes-como-mapa",
+  "que-idioma-habla-cada-gesto",
+);
+/** C08-MG02 */
+export const PQP_C8_MG02_GUIDE = pqpC8Guide(
+  "aprender-el-idioma-del-otro",
+  "pqp-c8-aprender-el-idioma-del-otro",
+  "el-mismo-gesto-en-dos-manos",
+);
+/** C08-MG03 */
+export const PQP_C8_MG03_GUIDE = pqpC8Guide(
+  "aceptar-no-es-aguantar",
+  "pqp-c8-aceptar-no-es-aguantar",
+  "lo-que-la-aceptacion-cubre",
+);
+/** C08-MG04 */
+export const PQP_C8_MG04_GUIDE = pqpC8Guide(
+  "amar-tambien-es-actuar",
+  "pqp-c8-amar-tambien-es-actuar",
+  "del-sentir-al-gesto-que-llega",
+);
+/** C08-MG05 */
+export const PQP_C8_MG05_GUIDE = pqpC8Guide(
+  "triangulo-de-sternberg",
+  "pqp-c8-triangulo-de-sternberg",
+  "que-vertice-sostiene-la-escena",
+);
+
 const eecC3Guide = eecChapterGuide(3);
 /** MG01 — Predecir no es adivinar */
 export const EEC_C3_MG01_GUIDE = eecC3Guide(
@@ -1126,6 +1214,18 @@ export const PRODUCTION_GUIDE_DEFINITIONS: readonly GuideDefinition[] = [
   PQP_C5_MG02_GUIDE,
   PQP_C5_MG03_GUIDE,
   PQP_C5_MG04_GUIDE,
+  PQP_C6_MG01_GUIDE,
+  PQP_C6_MG02_GUIDE,
+  PQP_C6_MG03_GUIDE,
+  PQP_C7_MG01_GUIDE,
+  PQP_C7_MG02_GUIDE,
+  PQP_C7_MG03_GUIDE,
+  PQP_C7_MG04_GUIDE,
+  PQP_C8_MG01_GUIDE,
+  PQP_C8_MG02_GUIDE,
+  PQP_C8_MG03_GUIDE,
+  PQP_C8_MG04_GUIDE,
+  PQP_C8_MG05_GUIDE,
 ];
 
 export const productionGuideRegistry = new GuideCatalogRegistry(

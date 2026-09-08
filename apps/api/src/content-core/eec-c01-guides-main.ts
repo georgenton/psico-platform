@@ -116,6 +116,24 @@ const CHAPTERS = {
    * is the same value the nine unit payloads were built from — so a manifest
    * still cannot claim to describe a text nobody can identify.
    */
+  PQP_C08: {
+    manifestDir: "artifacts/pqp/C08/v1.0/feelverse/guides",
+    canonicalSha256:
+      "6151a1ca2d88529ca1ca959997d04b681255d4e9f00510a0510651ddf65b616f",
+    flag: null as FlagName | null,
+  },
+  PQP_C07: {
+    manifestDir: "artifacts/pqp/C07/v1.0/feelverse/guides",
+    canonicalSha256:
+      "6151a1ca2d88529ca1ca959997d04b681255d4e9f00510a0510651ddf65b616f",
+    flag: null as FlagName | null,
+  },
+  PQP_C06: {
+    manifestDir: "artifacts/pqp/C06/v1.0/feelverse/guides",
+    canonicalSha256:
+      "6151a1ca2d88529ca1ca959997d04b681255d4e9f00510a0510651ddf65b616f",
+    flag: null as FlagName | null,
+  },
   PQP_C05: {
     manifestDir: "artifacts/pqp/C05/v1.0/feelverse/guides",
     canonicalSha256:

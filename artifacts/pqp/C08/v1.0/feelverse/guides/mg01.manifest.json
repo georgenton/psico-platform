@@ -1,0 +1,138 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "PQP-C08-MG01",
+  "bookSlug": "parejas-que-perduran",
+  "editionKey": "parejas-que-perduran-1e",
+  "chapterCode": "C08",
+  "chapterOrder": 9,
+  "unitKey": "2220570a-826b-5a90-99be-b8dbe28cf540",
+  "canonicalVersion": "PQP_PRINTED_v1.0_TEXT_LOCKED_2026-09-07",
+  "canonicalSha256": "6151a1ca2d88529ca1ca959997d04b681255d4e9f00510a0510651ddf65b616f",
+  "sourceArtifact": "Pareja que perduran_final.docx",
+  "experienceKey": "pqp-c8-cinco-lenguajes-como-mapa",
+  "experienceVersion": 1,
+  "guideKey": "pqp-c8-cinco-lenguajes-como-mapa",
+  "guideVersion": 1,
+  "conceptKey": "pqp-c8-cinco-lenguajes-como-mapa",
+  "practiceKey": "pqp-c8-practice-que-idioma-habla-cada-gesto",
+  "practiceKind": "context_plausibility",
+  "recallKey": "pqp-c8-recall-cinco-lenguajes-como-mapa",
+  "anchors": {
+    "primary": {
+      "reference": "pqp-c8-cinco-lenguajes-como-mapa",
+      "heading": "Los cinco lenguajes del amor",
+      "fingerprint": "cinco formas principales en que las personas dan y reciben amor",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "Un mapa de preferencias, no una etiqueta",
+      "body": [
+        "Palabras, tiempo, detalles, actos y contacto. El capítulo los usa como mapa; esta guía se detiene en para qué sirve un mapa y para qué no."
+      ],
+      "note": "Trabajaremos con gestos inventados para el ejercicio. Puedes salir y volver cuando quieras. Nada de lo que escribas sale de tu dispositivo.",
+      "actionLabel": "Comenzar"
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "Los cinco lenguajes del amor",
+      "body": [
+        "Lee la sección donde el capítulo describe los cinco, con los ejemplos que da de cada uno."
+      ]
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "Cinco formas, no cinco tipos de persona",
+      "body": [
+        "El capítulo recoge la propuesta de Gary Chapman: cinco formas principales en que las personas dan y reciben amor —palabras de afirmación, tiempo de calidad, detalles y regalos, actos de servicio y contacto físico.",
+        "Conviene decir qué clase de herramienta es. Es un marco divulgativo sobre preferencias, muy útil para nombrar lo que a cada quien le llega, y no una clasificación validada ni un diagnóstico. Nadie «es» un lenguaje: las preferencias conviven, cambian con el tiempo y no encasillan a nadie."
+      ],
+      "note": "Marcar esta escena registra que exploraste la idea. No te asigna un lenguaje, no clasifica a nadie y no mide compatibilidad.",
+      "actionLabel": "He explorado la idea"
+    },
+    {
+      "order": 4,
+      "kind": "PRACTICE",
+      "title": "¿Qué idioma habla cada gesto?",
+      "body": [
+        "Cinco gestos inventados. Reconoce cuál de los cinco lenguajes habla cada uno."
+      ],
+      "note": "Se clasifican gestos, no personas. No hay respuesta correcta ni puntaje: un mismo gesto puede hablar más de un idioma, y eso también es información.",
+      "actionLabel": "Ya hice la práctica"
+    },
+    {
+      "order": 5,
+      "kind": "REFLECTION",
+      "title": "Un momento para ti",
+      "body": [
+        "¿Cuál de esas cinco formas te llega más a ti? Y si te llegan varias, también está bien."
+      ],
+      "note": "Privado y opcional. No se guarda, no te asigna ningún perfil y no viaja con tu progreso.",
+      "optional": true
+    },
+    {
+      "order": 6,
+      "kind": "RECALL",
+      "title": "Recordar lo leído",
+      "body": [
+        "Elige la opción que corresponde a lo que dice el capítulo."
+      ],
+      "actionLabel": "Registrar respuesta"
+    },
+    {
+      "order": 7,
+      "kind": "SUMMARY",
+      "title": "Un vocabulario, no una casilla",
+      "body": [
+        "Los cinco lenguajes sirven para poner nombre a lo que a cada quien le llega. Sirven menos como etiqueta, y nadie está obligado a caber en una."
+      ]
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-cinco-lenguajes-como-mapa",
+      "targetKey": "pqp-c8-cinco-lenguajes-como-mapa"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-que-idioma-habla-cada-gesto",
+      "targetKey": "pqp-c8-practice-que-idioma-habla-cada-gesto"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-cinco-lenguajes-como-mapa",
+      "targetKey": "pqp-c8-recall-cinco-lenguajes-como-mapa"
+    }
+  ],
+  "media": {
+    "authorVideoPending": false
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Toda práctica ofrece un camino sin arrastrar y sin depender del color.",
+    "Ninguna escena comunica su estado únicamente con un icono.",
+    "Las escenas opcionales se pueden omitir con el teclado."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "pqp-c08-cinco-lenguajes-como-mapa-v1",
+  "approvalReferences": [
+    "PQP-C08 — Inventario editorial y selección de microguías (2026-09-08)"
+  ],
+  "manifestSha256": "581ecf7287ebf9e0d63b56ffae6710102d8bedff48b8d484a8a51bdebce8a140"
+}

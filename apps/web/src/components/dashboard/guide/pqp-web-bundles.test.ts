@@ -24,6 +24,21 @@ import {
   PQP_C05_PRESENTATIONS,
   PQP_C05_READER_COPY,
 } from "./pqp-c05-microguides";
+import {
+  PQP_C06_MICROGUIDES,
+  PQP_C06_PRESENTATIONS,
+  PQP_C06_READER_COPY,
+} from "./pqp-c06-microguides";
+import {
+  PQP_C07_MICROGUIDES,
+  PQP_C07_PRESENTATIONS,
+  PQP_C07_READER_COPY,
+} from "./pqp-c07-microguides";
+import {
+  PQP_C08_MICROGUIDES,
+  PQP_C08_PRESENTATIONS,
+  PQP_C08_READER_COPY,
+} from "./pqp-c08-microguides";
 import { PRODUCTION_GUIDE_PRESENTATIONS } from "./guide-presentation";
 import { PRODUCTION_GUIDE_READER_COPY } from "./guide-reader-copy";
 import type { MicroguideEntry } from "./guide-microguide-bundle";
@@ -86,6 +101,27 @@ const CHAPTERS: readonly BundleUnderTest[] = [
     entries: PQP_C05_MICROGUIDES,
     presentations: PQP_C05_PRESENTATIONS,
     readerCopy: PQP_C05_READER_COPY,
+  },
+  {
+    code: "C06",
+    keyPrefix: "pqp-c6",
+    entries: PQP_C06_MICROGUIDES,
+    presentations: PQP_C06_PRESENTATIONS,
+    readerCopy: PQP_C06_READER_COPY,
+  },
+  {
+    code: "C07",
+    keyPrefix: "pqp-c7",
+    entries: PQP_C07_MICROGUIDES,
+    presentations: PQP_C07_PRESENTATIONS,
+    readerCopy: PQP_C07_READER_COPY,
+  },
+  {
+    code: "C08",
+    keyPrefix: "pqp-c8",
+    entries: PQP_C08_MICROGUIDES,
+    presentations: PQP_C08_PRESENTATIONS,
+    readerCopy: PQP_C08_READER_COPY,
   },
 ];
 

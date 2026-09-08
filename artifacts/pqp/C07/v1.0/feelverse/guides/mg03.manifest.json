@@ -1,0 +1,138 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "PQP-C07-MG03",
+  "bookSlug": "parejas-que-perduran",
+  "editionKey": "parejas-que-perduran-1e",
+  "chapterCode": "C07",
+  "chapterOrder": 8,
+  "unitKey": "f1bfc773-ee4e-5499-a24b-5a9369fb770c",
+  "canonicalVersion": "PQP_PRINTED_v1.0_TEXT_LOCKED_2026-09-07",
+  "canonicalSha256": "6151a1ca2d88529ca1ca959997d04b681255d4e9f00510a0510651ddf65b616f",
+  "sourceArtifact": "Pareja que perduran_final.docx",
+  "experienceKey": "pqp-c7-quien-decide-en-casa",
+  "experienceVersion": 1,
+  "guideKey": "pqp-c7-quien-decide-en-casa",
+  "guideVersion": 1,
+  "conceptKey": "pqp-c7-quien-decide-en-casa",
+  "practiceKey": "pqp-c7-practice-de-quien-decide-a-como-decidimos",
+  "practiceKind": "sequence_ordering",
+  "recallKey": "pqp-c7-recall-quien-decide-en-casa",
+  "anchors": {
+    "primary": {
+      "reference": "pqp-c7-quien-decide-en-casa",
+      "heading": "Dinámicas de poder: machismo, dinero y decisiones",
+      "fingerprint": "distribuye el poder",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "Quién decide, y sobre qué",
+      "body": [
+        "El dinero, la casa, los hijos, las vacaciones. El capítulo mira quién decide y qué deja eso."
+      ],
+      "note": "Trabajaremos con un caso inventado para el ejercicio. Puedes salir y volver cuando quieras. Nada de lo que escribas sale de tu dispositivo.",
+      "actionLabel": "Comenzar"
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "Dinámicas de poder: machismo, dinero y decisiones",
+      "body": [
+        "Lee esa sección y fíjate en cómo describe el capítulo lo que parece práctico y no lo es."
+      ]
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "Lo que parece práctico",
+      "body": [
+        "El capítulo describe cómo, en muchas parejas y sin que nadie lo note, uno de los dos empieza a decidir casi todo. Puede parecer eficiencia, y aun sin mala intención los efectos son reales: uno se siente solo o infantilizado, el otro carga un peso excesivo.",
+        "Nombra también el machismo operando en silencio —«eso es cosa de mujeres», el cuidado como responsabilidad de una sola parte— y dice que cuestionar esos patrones no es un ataque."
+      ],
+      "note": "Esto describe arreglos que dos personas pueden mirar juntas. Si plantearlo trajera castigo, silencio prolongado o miedo, ya no es un problema de reparto: la última guía de este capítulo habla de eso.",
+      "actionLabel": "He explorado la idea"
+    },
+    {
+      "order": 4,
+      "kind": "PRACTICE",
+      "title": "De «quién decide» a «cómo decidimos»",
+      "body": [
+        "Ordena los pasos de un caso inventado, desde que nadie lo ha nombrado hasta que hay algo concreto."
+      ],
+      "note": "Es un caso editorial, no tu casa. Y describe un arreglo entre dos personas que pueden hablar con libertad — no toda situación lo es.",
+      "actionLabel": "Ya hice la práctica"
+    },
+    {
+      "order": 5,
+      "kind": "REFLECTION",
+      "title": "Un momento para ti",
+      "body": [
+        "De las decisiones que se toman en tu casa, ¿hay alguna que hace mucho que no se conversa? Basta con pensarlo."
+      ],
+      "note": "Privado y opcional. No se guarda, no se interpreta y no viaja con tu progreso.",
+      "optional": true
+    },
+    {
+      "order": 6,
+      "kind": "RECALL",
+      "title": "Recordar lo leído",
+      "body": [
+        "Elige la opción que corresponde a lo que dice el capítulo."
+      ],
+      "actionLabel": "Registrar respuesta"
+    },
+    {
+      "order": 7,
+      "kind": "SUMMARY",
+      "title": "El reparto se nota tarde",
+      "body": [
+        "Un reparto desigual rara vez se ve a simple vista. Sus efectos aparecen después, y son reales aunque nadie lo haya querido así."
+      ]
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-quien-decide-en-casa",
+      "targetKey": "pqp-c7-quien-decide-en-casa"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-de-quien-decide-a-como-decidimos",
+      "targetKey": "pqp-c7-practice-de-quien-decide-a-como-decidimos"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-quien-decide-en-casa",
+      "targetKey": "pqp-c7-recall-quien-decide-en-casa"
+    }
+  ],
+  "media": {
+    "authorVideoPending": false
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Toda práctica ofrece un camino sin arrastrar y sin depender del color.",
+    "Ninguna escena comunica su estado únicamente con un icono.",
+    "Las escenas opcionales se pueden omitir con el teclado."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "pqp-c07-quien-decide-en-casa-v1",
+  "approvalReferences": [
+    "PQP-C07 — Inventario editorial y selección de microguías (2026-09-08)"
+  ],
+  "manifestSha256": "b33db602d2e09ae383cfecc4d7523fee6fa5c2b4b6b7ec1e7b96ee409cca4cfe"
+}

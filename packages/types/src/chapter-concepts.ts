@@ -701,6 +701,111 @@ export const GUIDED_CHAPTER_CONCEPTS: readonly GuidedChapterConcept[] = [
     editionKey: "parejas-que-perduran-1e",
     unitKey: "c96b9981-e319-57de-a290-8214caaa38f4",
   },
+  // ── PQP-C06 · the three-microguide route (approved 2026-09-08) ───────────
+  // PLATFORM order 7 — the book's chapter 6. Three, not five: a short chapter
+  // with three ideas that can each be practised on their own.
+  {
+    key: "pqp-c6-senales-de-crisis",
+    label: "Las señales tempranas",
+    bookSlug: "parejas-que-perduran",
+    chapterOrder: 7,
+    editionKey: "parejas-que-perduran-1e",
+    unitKey: "a5bd7c6b-666f-58f8-b96e-abca82405a7c",
+  },
+  {
+    key: "pqp-c6-pedir-ayuda-no-es-debilidad",
+    label: "Pedir ayuda no es debilidad",
+    bookSlug: "parejas-que-perduran",
+    chapterOrder: 7,
+    editionKey: "parejas-que-perduran-1e",
+    unitKey: "a5bd7c6b-666f-58f8-b96e-abca82405a7c",
+  },
+  {
+    key: "pqp-c6-crecimiento-posible-no-obligatorio",
+    label: "A veces se aprende, y a veces se pierde",
+    bookSlug: "parejas-que-perduran",
+    chapterOrder: 7,
+    editionKey: "parejas-que-perduran-1e",
+    unitKey: "a5bd7c6b-666f-58f8-b96e-abca82405a7c",
+  },
+  // ── PQP-C07 · the four-microguide route (approved 2026-09-08) ────────────
+  // PLATFORM order 8 — the book's chapter 7. The last concept is the chapter's
+  // reinforced gate and is not optional; see `scripts/pqp/chapters/c07.mjs`.
+  {
+    key: "pqp-c7-limite-no-es-rechazo",
+    label: "Un límite no es un rechazo",
+    bookSlug: "parejas-que-perduran",
+    chapterOrder: 8,
+    editionKey: "parejas-que-perduran-1e",
+    unitKey: "f1bfc773-ee4e-5499-a24b-5a9369fb770c",
+  },
+  {
+    key: "pqp-c7-hablar-del-otro-sin-testigos",
+    label: "Cómo hablas de tu pareja cuando no está",
+    bookSlug: "parejas-que-perduran",
+    chapterOrder: 8,
+    editionKey: "parejas-que-perduran-1e",
+    unitKey: "f1bfc773-ee4e-5499-a24b-5a9369fb770c",
+  },
+  {
+    key: "pqp-c7-quien-decide-en-casa",
+    label: "Quién decide, y sobre qué",
+    bookSlug: "parejas-que-perduran",
+    chapterOrder: 8,
+    editionKey: "parejas-que-perduran-1e",
+    unitKey: "f1bfc773-ee4e-5499-a24b-5a9369fb770c",
+  },
+  {
+    key: "pqp-c7-reconocer-la-violencia",
+    label: "La línea que no se cruza",
+    bookSlug: "parejas-que-perduran",
+    chapterOrder: 8,
+    editionKey: "parejas-que-perduran-1e",
+    unitKey: "f1bfc773-ee4e-5499-a24b-5a9369fb770c",
+  },
+  // ── PQP-C08 · the five-microguide route (approved 2026-09-08) ───────────
+  // PLATFORM order 9 — the book's chapter 8, and the last one. Two of the
+  // five rest on named models; both name what a model is.
+  {
+    key: "pqp-c8-cinco-lenguajes-como-mapa",
+    label: "Un mapa de preferencias, no una etiqueta",
+    bookSlug: "parejas-que-perduran",
+    chapterOrder: 9,
+    editionKey: "parejas-que-perduran-1e",
+    unitKey: "2220570a-826b-5a90-99be-b8dbe28cf540",
+  },
+  {
+    key: "pqp-c8-aprender-el-idioma-del-otro",
+    label: "Aprender el idioma del otro",
+    bookSlug: "parejas-que-perduran",
+    chapterOrder: 9,
+    editionKey: "parejas-que-perduran-1e",
+    unitKey: "2220570a-826b-5a90-99be-b8dbe28cf540",
+  },
+  {
+    key: "pqp-c8-aceptar-no-es-aguantar",
+    label: "Aceptar no es aguantar",
+    bookSlug: "parejas-que-perduran",
+    chapterOrder: 9,
+    editionKey: "parejas-que-perduran-1e",
+    unitKey: "2220570a-826b-5a90-99be-b8dbe28cf540",
+  },
+  {
+    key: "pqp-c8-amar-tambien-es-actuar",
+    label: "No basta con estar",
+    bookSlug: "parejas-que-perduran",
+    chapterOrder: 9,
+    editionKey: "parejas-que-perduran-1e",
+    unitKey: "2220570a-826b-5a90-99be-b8dbe28cf540",
+  },
+  {
+    key: "pqp-c8-triangulo-de-sternberg",
+    label: "Tres vértices para describir el amor",
+    bookSlug: "parejas-que-perduran",
+    chapterOrder: 9,
+    editionKey: "parejas-que-perduran-1e",
+    unitKey: "2220570a-826b-5a90-99be-b8dbe28cf540",
+  },
 ];
 
 /** Every guided concept of one chapter, in catalog order. */

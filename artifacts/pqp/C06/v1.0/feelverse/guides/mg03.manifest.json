@@ -1,0 +1,138 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "PQP-C06-MG03",
+  "bookSlug": "parejas-que-perduran",
+  "editionKey": "parejas-que-perduran-1e",
+  "chapterCode": "C06",
+  "chapterOrder": 7,
+  "unitKey": "a5bd7c6b-666f-58f8-b96e-abca82405a7c",
+  "canonicalVersion": "PQP_PRINTED_v1.0_TEXT_LOCKED_2026-09-07",
+  "canonicalSha256": "6151a1ca2d88529ca1ca959997d04b681255d4e9f00510a0510651ddf65b616f",
+  "sourceArtifact": "Pareja que perduran_final.docx",
+  "experienceKey": "pqp-c6-crecimiento-posible-no-obligatorio",
+  "experienceVersion": 1,
+  "guideKey": "pqp-c6-crecimiento-posible-no-obligatorio",
+  "guideVersion": 1,
+  "conceptKey": "pqp-c6-crecimiento-posible-no-obligatorio",
+  "practiceKey": "pqp-c6-practice-que-dejo-esta-crisis",
+  "practiceKind": "context_plausibility",
+  "recallKey": "pqp-c6-recall-crecimiento-posible-no-obligatorio",
+  "anchors": {
+    "primary": {
+      "reference": "pqp-c6-crecimiento-posible-no-obligatorio",
+      "heading": "La crisis como umbral de crecimiento",
+      "fingerprint": "con apertura, humildad",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "A veces se aprende, y a veces se pierde",
+      "body": [
+        "El capítulo cuenta cómo una crisis puede dejar algo valioso. Esta guía se detiene también en lo que eso no significa."
+      ],
+      "note": "Puede tocar recuerdos difíciles; todas las preguntas son opcionales. Puedes salir y volver cuando quieras. Nada de lo que escribas sale de tu dispositivo.",
+      "actionLabel": "Comenzar"
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "La crisis como umbral de crecimiento",
+      "body": [
+        "Lee la sección final, donde el autor describe lo que una dificultad dejó en su propia historia."
+      ]
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "Posible, no obligatorio",
+      "body": [
+        "El capítulo describe que una pareja que atraviesa una crisis con apertura y trabajo puede salir de ella con algo que antes no tenía. Es una posibilidad real, y vale la pena conocerla.",
+        "Conviene decir con la misma claridad lo que no se sigue de ahí. Hay crisis que dejan aprendizaje, otras que dejan pérdida, y otras que siguen abiertas mucho tiempo. Ninguna de esas salidas dice nada sobre lo que valen las personas que la atraviesan, y nadie está obligado a encontrarle un sentido a lo que le dolió."
+      ],
+      "note": "Esta precisión es de FeelVerse: una crisis no ocurre para enseñar nada, y no crecer no es un fallo. Marcar la escena no evalúa tu situación.",
+      "actionLabel": "He explorado la idea"
+    },
+    {
+      "order": 4,
+      "kind": "PRACTICE",
+      "title": "¿Qué dejó esta crisis?",
+      "body": [
+        "Cuatro desenlaces inventados de cuatro parejas distintas. Distingue lo que cada escena muestra de lo que estaríamos suponiendo."
+      ],
+      "note": "Son casos editoriales. Ninguno es un modelo a seguir ni un pronóstico: incluyen desenlaces en los que nada mejoró, porque también ocurren.",
+      "actionLabel": "Ya hice la práctica"
+    },
+    {
+      "order": 5,
+      "kind": "REFLECTION",
+      "title": "Un momento para ti, si quieres",
+      "body": [
+        "Si has atravesado algo difícil, ¿hay algo que hoy sepas y antes no? Y si la respuesta es que no, o que todavía no toca, también está bien."
+      ],
+      "note": "Privado, opcional y saltable entero. No se guarda, no se interpreta y no viaja con tu progreso.",
+      "optional": true
+    },
+    {
+      "order": 6,
+      "kind": "RECALL",
+      "title": "Recordar lo leído",
+      "body": [
+        "Elige la opción que corresponde a la idea trabajada."
+      ],
+      "actionLabel": "Registrar respuesta"
+    },
+    {
+      "order": 7,
+      "kind": "SUMMARY",
+      "title": "Sin deberes",
+      "body": [
+        "Una crisis puede dejar aprendizaje. No tiene que hacerlo, y no haberlo encontrado no es una tarea pendiente."
+      ]
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-crecimiento-posible-no-obligatorio",
+      "targetKey": "pqp-c6-crecimiento-posible-no-obligatorio"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-que-dejo-esta-crisis",
+      "targetKey": "pqp-c6-practice-que-dejo-esta-crisis"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-crecimiento-posible-no-obligatorio",
+      "targetKey": "pqp-c6-recall-crecimiento-posible-no-obligatorio"
+    }
+  ],
+  "media": {
+    "authorVideoPending": false
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Toda práctica ofrece un camino sin arrastrar y sin depender del color.",
+    "Ninguna escena comunica su estado únicamente con un icono.",
+    "Las escenas opcionales se pueden omitir con el teclado."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "pqp-c06-crecimiento-posible-no-obligatorio-v1",
+  "approvalReferences": [
+    "PQP-C06 — Inventario editorial y selección de microguías (2026-09-08)"
+  ],
+  "manifestSha256": "65c8c84d781905074bdbdcb42230d0469006ea6d2d81c55bd38a96916ff923d4"
+}

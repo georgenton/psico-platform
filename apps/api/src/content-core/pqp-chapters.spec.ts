@@ -135,6 +135,63 @@ const CHAPTERS: readonly ChapterUnderTest[] = [
     ],
     firstExerciseOrder: 37,
   },
+  {
+    code: "C06",
+    chapterOrder: 7,
+    keyPrefix: "pqp-c6",
+    unitKey: "a5bd7c6b-666f-58f8-b96e-abca82405a7c",
+    slugs: [
+      "senales-de-crisis",
+      "pedir-ayuda-no-es-debilidad",
+      "crecimiento-posible-no-obligatorio",
+    ],
+    practiceSlugs: [
+      "una-senal-en-dos-momentos",
+      "de-la-idea-a-la-consulta",
+      "que-dejo-esta-crisis",
+    ],
+    firstExerciseOrder: 45,
+  },
+  {
+    code: "C07",
+    chapterOrder: 8,
+    keyPrefix: "pqp-c7",
+    unitKey: "f1bfc773-ee4e-5499-a24b-5a9369fb770c",
+    slugs: [
+      "limite-no-es-rechazo",
+      "hablar-del-otro-sin-testigos",
+      "quien-decide-en-casa",
+      "reconocer-la-violencia",
+    ],
+    practiceSlugs: [
+      "un-limite-o-un-reproche",
+      "la-misma-broma-en-dos-mesas",
+      "de-quien-decide-a-como-decidimos",
+      "las-formas-que-nombra-el-capitulo",
+    ],
+    firstExerciseOrder: 51,
+  },
+  {
+    code: "C08",
+    chapterOrder: 9,
+    keyPrefix: "pqp-c8",
+    unitKey: "2220570a-826b-5a90-99be-b8dbe28cf540",
+    slugs: [
+      "cinco-lenguajes-como-mapa",
+      "aprender-el-idioma-del-otro",
+      "aceptar-no-es-aguantar",
+      "amar-tambien-es-actuar",
+      "triangulo-de-sternberg",
+    ],
+    practiceSlugs: [
+      "que-idioma-habla-cada-gesto",
+      "el-mismo-gesto-en-dos-manos",
+      "lo-que-la-aceptacion-cubre",
+      "del-sentir-al-gesto-que-llega",
+      "que-vertice-sostiene-la-escena",
+    ],
+    firstExerciseOrder: 59,
+  },
 ];
 
 /** The generic catalog shapes. The other two carry EEC-bound field keys. */

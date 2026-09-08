@@ -1,0 +1,139 @@
+{
+  "schemaVersion": "1.0",
+  "manifestId": "PQP-C04-MG03",
+  "bookSlug": "parejas-que-perduran",
+  "editionKey": "parejas-que-perduran-1e",
+  "chapterCode": "C04",
+  "chapterOrder": 5,
+  "unitKey": "39d09b0d-98a0-5b53-9844-364eaae4d0dc",
+  "canonicalVersion": "PQP_PRINTED_v1.0_TEXT_LOCKED_2026-09-07",
+  "canonicalSha256": "6151a1ca2d88529ca1ca959997d04b681255d4e9f00510a0510651ddf65b616f",
+  "sourceArtifact": "Pareja que perduran_final.docx",
+  "experienceKey": "pqp-c4-pensar-distinto-sin-dividirse",
+  "experienceVersion": 1,
+  "guideKey": "pqp-c4-pensar-distinto-sin-dividirse",
+  "guideVersion": 1,
+  "conceptKey": "pqp-c4-pensar-distinto-sin-dividirse",
+  "practiceKey": "pqp-c4-practice-el-miedo-debajo-de-la-opinion",
+  "practiceKind": "sequence_ordering",
+  "recallKey": "pqp-c4-recall-pensar-distinto-sin-dividirse",
+  "anchors": {
+    "primary": {
+      "reference": "pqp-c4-pensar-distinto-sin-dividirse",
+      "heading": "3. Comunicación de ideas: pensar distinto sin dividirse",
+      "fingerprint": "no los dividió",
+      "expectedMatchCount": 1
+    }
+  },
+  "scenes": [
+    {
+      "order": 1,
+      "kind": "INTRO",
+      "title": "Pensar distinto no divide",
+      "body": [
+        "Hay opiniones que no se dicen por miedo a lo que revelarían. El capítulo cuenta qué pasó cuando se dijeron."
+      ],
+      "note": "Trabajaremos con un caso inventado para el ejercicio. Puedes salir y volver cuando quieras. Nada de lo que escribas sale de tu dispositivo.",
+      "actionLabel": "Comenzar"
+    },
+    {
+      "order": 2,
+      "kind": "PASSAGE",
+      "title": "3. Comunicación de ideas: pensar distinto sin dividirse",
+      "body": [
+        "Lee la sección sobre mostrar las propias ideas, y fíjate en qué temía cada uno antes de hacerlo."
+      ]
+    },
+    {
+      "order": 3,
+      "kind": "CONCEPT",
+      "title": "El miedo suele estar debajo",
+      "body": [
+        "Cuando dos personas evitan un tema de fondo, muchas veces no es el tema lo que evitan: es lo que temen que su postura diga de ellas.",
+        "El capítulo describe que nombrar ese temor cambió la conversación, y que mostrar la diferencia no separó a la pareja sino que les permitió conocerse mejor."
+      ],
+      "note": "Marcar esta escena registra que exploraste la idea; no interpreta tus silencios ni te atribuye ningún miedo.",
+      "actionLabel": "He explorado la idea"
+    },
+    {
+      "order": 4,
+      "kind": "PRACTICE",
+      "title": "El miedo debajo de la opinión",
+      "body": [
+        "Ordena los pasos de un caso inventado, desde el tema que no se saca hasta lo que aparece cuando sí se saca."
+      ],
+      "note": "Es un caso editorial, no tu historia.",
+      "actionLabel": "Ya hice la práctica"
+    },
+    {
+      "order": 5,
+      "kind": "REFLECTION",
+      "title": "Un momento para ti",
+      "body": [
+        "Si hay una opinión tuya que no has compartido, ¿qué temes que se entienda si la dices?"
+      ],
+      "note": "Privado y opcional. No se guarda, no se interpreta y no viaja con tu progreso.",
+      "optional": true
+    },
+    {
+      "order": 6,
+      "kind": "RECALL",
+      "title": "Recordar lo leído",
+      "body": [
+        "Elige la opción que corresponde a lo que dice el capítulo."
+      ],
+      "actionLabel": "Registrar respuesta"
+    },
+    {
+      "order": 7,
+      "kind": "SUMMARY",
+      "title": "Mostrar la diferencia",
+      "body": [
+        "Mostrar una opinión distinta no separó a la pareja del capítulo: les permitió conocerse mejor.",
+        "El objetivo no era convencer a nadie."
+      ]
+    }
+  ],
+  "guideSteps": [
+    {
+      "order": 1,
+      "kind": "CONCEPT_EXPLORATION",
+      "stepKey": "explorar-pensar-distinto-sin-dividirse",
+      "targetKey": "pqp-c4-pensar-distinto-sin-dividirse"
+    },
+    {
+      "order": 2,
+      "kind": "CATALOG_PRACTICE",
+      "stepKey": "practicar-el-miedo-debajo-de-la-opinion",
+      "targetKey": "pqp-c4-practice-el-miedo-debajo-de-la-opinion"
+    },
+    {
+      "order": 3,
+      "kind": "ACTIVE_RECALL",
+      "stepKey": "recordar-pensar-distinto-sin-dividirse",
+      "targetKey": "pqp-c4-recall-pensar-distinto-sin-dividirse"
+    }
+  ],
+  "media": {
+    "authorVideoPending": false
+  },
+  "privacyPolicy": {
+    "freeTextLeavesDevice": false,
+    "freeTextInProgress": false,
+    "emotionalInference": false,
+    "diagnosis": false,
+    "requiresIntenseEmotion": false
+  },
+  "accessibilityRequirements": [
+    "Toda práctica ofrece un camino sin arrastrar y sin depender del color.",
+    "Ninguna escena comunica su estado únicamente con un icono.",
+    "Las escenas opcionales se pueden omitir con el teclado."
+  ],
+  "status": "DRAFT",
+  "publishAllowed": false,
+  "idempotencyKey": "pqp-c04-pensar-distinto-sin-dividirse-v1",
+  "approvalReferences": [
+    "PQP-C04 — Inventario editorial y selección de microguías (2026-09-08)"
+  ],
+  "manifestSha256": "2d2fa927d543da3d5eb897a63f35fc7e938be70888cfd27ceaac50d634a32007"
+}

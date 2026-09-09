@@ -618,7 +618,218 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
     );
   });
 
+  it("gives each identity exactly one seat per activity", async () => {
+    const activityId = await newActivity();
+    await insertParticipant({ id: "p-seat-a", activityId, memberId: MEMBER });
+    const twice = await refusalOf(() =>
+      insertParticipant({ id: "p-seat-b", activityId, memberId: MEMBER }),
+    );
+    expect(twice.code).toBe("23505");
+
+    await insertInvitation({
+      id: "inv-seat",
+      activityId,
+      tokenHash: fakeHash(30),
+    });
+    await insertParticipant({
+      id: "p-seat-guest",
+      activityId,
+      invitationId: "inv-seat",
+    });
+    const guestTwice = await refusalOf(() =>
+      insertParticipant({
+        id: "p-seat-guest-2",
+        activityId,
+        invitationId: "inv-seat",
+      }),
+    );
+    expect(guestTwice.code).toBe("23505");
+  });
+
+  // ── The remaining CHECKs, named one by one ────────────────────────────────
+  //
+  // Written as a table because the interesting thing about each is the same:
+  // the DATABASE refuses it. `Circle_kind_duo_only` is deliberately absent —
+  // `CircleKind` has exactly one value today, so there is no second value to
+  // insert, and the CHECK exists for the day somebody adds one. That is a
+  // constraint whose test is the enum itself.
+
+  it.each([
+    [
+      "a DUO circle with room for three",
+      "Circle_duo_two_participants",
+      () =>
+        pool.query(
+          `INSERT INTO "Circle" ("id","kind","status","createdByUserId","maxParticipants","updatedAt")
+           VALUES ('c-three','DUO','ACTIVE',$1,3,now())`,
+          [U1],
+        ),
+    ],
+    [
+      "a CLOSED circle with no closing time",
+      "Circle_closed_has_timestamp",
+      () =>
+        pool.query(
+          `INSERT INTO "Circle" ("id","kind","status","createdByUserId","maxParticipants","updatedAt")
+           VALUES ('c-closed','DUO','CLOSED',$1,2,now())`,
+          [U1],
+        ),
+    ],
+    [
+      "a member who LEFT at no particular time",
+      "CircleMember_left_has_timestamp",
+      () =>
+        pool.query(
+          `INSERT INTO "CircleMember" ("id","circleId","userId","role","status")
+           VALUES ('m-left-nots',$1,$2,'MEMBER','LEFT')`,
+          [CIRCLE, U1],
+        ),
+    ],
+    [
+      "an activity pinned to template version zero",
+      "CircleActivity_template_version_positive",
+      () =>
+        pool.query(
+          `INSERT INTO "CircleActivity"
+             ("id","circleId","templateKey","templateVersion","status",
+              "requiredParticipants","updatedAt")
+           VALUES ('act-v0',$1,'fixture-duo-template',0,'INVITING',2,now())`,
+          [CIRCLE],
+        ),
+    ],
+    [
+      "a shared activity that requires one participant",
+      "CircleActivity_required_participants_min_two",
+      () =>
+        pool.query(
+          `INSERT INTO "CircleActivity"
+             ("id","circleId","templateKey","templateVersion","status",
+              "requiredParticipants","updatedAt")
+           VALUES ('act-solo',$1,'fixture-duo-template',1,'INVITING',1,now())`,
+          [CIRCLE],
+        ),
+    ],
+    [
+      "a REVEALED activity with no reveal time",
+      "CircleActivity_revealed_has_timestamp",
+      () =>
+        pool.query(
+          `INSERT INTO "CircleActivity"
+             ("id","circleId","templateKey","templateVersion","status",
+              "requiredParticipants","updatedAt")
+           VALUES ('act-revealed',$1,'fixture-duo-template',1,'REVEALED',2,now())`,
+          [CIRCLE],
+        ),
+    ],
+    [
+      "a CANCELLED activity with no cancellation time",
+      "CircleActivity_cancelled_has_timestamp",
+      () =>
+        pool.query(
+          `INSERT INTO "CircleActivity"
+             ("id","circleId","templateKey","templateVersion","status",
+              "requiredParticipants","updatedAt")
+           VALUES ('act-cancelled',$1,'fixture-duo-template',1,'CANCELLED',2,now())`,
+          [CIRCLE],
+        ),
+    ],
+  ])("refuses %s", async (_label, constraint, insert) => {
+    const refusal = await refusalOf(insert);
+    expect(refusal.constraint).toBe(constraint);
+  });
+
+  // ── Artifacts: one live result, versions that only go up ──────────────────
+
+  it("keeps one active artifact per activity, versioned monotonically", async () => {
+    const activityId = await newActivity();
+    await insertParticipant({
+      id: "p-artifact",
+      activityId,
+      memberId: MEMBER,
+    });
+    const artifact = (id: string, version: number, status: string) =>
+      pool.query(
+        `INSERT INTO "CircleArtifact"
+           ("id","activityId","version","kind","status","ciphertext","nonce",
+            "keyVersion","createdByParticipantId","updatedAt","agreedAt")
+         VALUES ($1,$2,$3,'AGREEMENT',$4::"CircleArtifactStatus",'ct','nonce',1,
+                 'p-artifact',now(),$5)`,
+        [
+          id,
+          activityId,
+          version,
+          status,
+          status === "AGREED" ? new Date() : null,
+        ],
+      );
+
+    await artifact("art-1", 1, "PROPOSED");
+
+    // A second live artifact would make "the result of this activity" ambiguous.
+    const second = await refusalOf(() => artifact("art-2", 2, "PROPOSED"));
+    expect(second.code).toBe("23505");
+
+    // Superseding the first frees the slot; the version has to move forward.
+    await pool.query(
+      `UPDATE "CircleArtifact" SET "status"='SUPERSEDED' WHERE id='art-1'`,
+    );
+    await artifact("art-3", 2, "AGREED");
+    const reused = await refusalOf(() => artifact("art-4", 2, "PROPOSED"));
+    expect(reused.code).toBe("23505");
+
+    const zero = await refusalOf(() => artifact("art-0", 0, "PROPOSED"));
+    expect(zero.constraint).toBe("CircleArtifact_version_positive");
+
+    const unagreed = await refusalOf(() =>
+      pool.query(
+        `INSERT INTO "CircleArtifact"
+           ("id","activityId","version","kind","status","ciphertext","nonce",
+            "keyVersion","createdByParticipantId","updatedAt","agreedAt")
+         VALUES ('art-5',$1,9,'AGREEMENT','AGREED','ct','nonce',1,'p-artifact',
+                 now(),NULL)`,
+        [activityId],
+      ),
+    );
+    expect(unagreed.constraint).toBe("CircleArtifact_agreed_has_timestamp");
+  });
+
   // ── Guest sessions: pinned to one activity, structurally ──────────────────
+
+  it("refuses a guest session whose invitation belongs elsewhere", async () => {
+    // The second composite key. The participant can be right and the invitation
+    // still wrong, and that combination has to be refused too — otherwise a
+    // session could be minted from an invitation into a different activity.
+    const activityId = await newActivity();
+    const elsewhere = await newActivity();
+    await insertInvitation({
+      id: "inv-elsewhere",
+      activityId: elsewhere,
+      tokenHash: fakeHash(31),
+    });
+    await insertInvitation({
+      id: "inv-here",
+      activityId,
+      tokenHash: fakeHash(32),
+    });
+    await insertParticipant({
+      id: "p-here",
+      activityId,
+      invitationId: "inv-here",
+    });
+    const refusal = await refusalOf(() =>
+      insertGuestSession({
+        id: "gs-wrong-invitation",
+        invitationId: "inv-elsewhere",
+        activityId,
+        participantId: "p-here",
+        tokenHash: fakeHash(33),
+      }),
+    );
+    expect(refusal.constraint).toBe(
+      "CircleGuestSession_invitation_in_same_activity",
+    );
+    expect(refusal.code).toBe("23503");
+  });
 
   it("refuses a guest session pointing at another activity's participant", async () => {
     // The whole scoping story in one refusal. Without the composite key,

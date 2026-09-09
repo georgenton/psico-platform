@@ -201,6 +201,60 @@ describe("circles · PR2 — nothing outside its own tables moved", () => {
     }
   });
 
+  it("never lets Redis become the correctness authority", () => {
+    // Redis is allowed to make retries cheap. It is not allowed to decide
+    // whether an invitation was used, whether a session is live, or whether a
+    // command already ran — a Redis outage or a desynchronised replica must not
+    // be able to revive a revoked permission or spend an invitation twice.
+    //
+    // Rate limiting is the one place Redis legitimately appears, and it appears
+    // through `@Throttle`, which is a decorator on the controller and not a
+    // client this module holds.
+    for (const file of circlesSources()) {
+      const src = code(read(file));
+      for (const forbidden of [
+        "REDIS_CLIENT",
+        "ioredis",
+        "IoRedis",
+        "redis.get",
+        "redis.set",
+        "RedisService",
+      ]) {
+        expect(src, `${file} · ${forbidden}`).not.toContain(forbidden);
+      }
+    }
+  });
+
+  it("leaves the Guide domain byte-identical to what it found", () => {
+    // #639's arc is complete and FROZEN, and `GUIDE_SESSION_FILES_CHANGED=0` is
+    // a claim this PR makes in its report. The claim is only worth something if
+    // something checks it, so the model's column list is pinned here: adding,
+    // removing or renaming one fails this test, whoever does it and for
+    // whatever reason.
+    const schema = read("apps/api/prisma/schema.prisma");
+    const model = schema.slice(schema.indexOf("model GuideSession {"));
+    const body = model.slice(0, model.indexOf("\n}"));
+    const fields = [...body.matchAll(/^ {2}(\w+)\s+\w/gm)].map((m) => m[1]);
+    expect(fields).toEqual([
+      "id",
+      "userId",
+      "guideKey",
+      "guideVersion",
+      "status",
+      "editionId",
+      "unitId",
+      "stepsCompleted",
+      "totalSteps",
+      "currentStepKey",
+      "startedAt",
+      "completedAt",
+      "cancelledAt",
+      "user",
+      "steps",
+      "receipts",
+    ]);
+  });
+
   it("leaves the production catalog empty", () => {
     // Publishing a template is an editorial decision. It cannot become a side
     // effect of wiring a module.

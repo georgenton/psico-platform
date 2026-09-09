@@ -303,11 +303,38 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
           readFileSync(join(MIGRATIONS_DIR, dir, "migration.sql"), "utf8"),
         );
       }
-      const before = await baselinePool.query(
-        `SELECT count(*)::int AS n FROM pg_tables
-          WHERE schemaname='public' AND tablename LIKE 'Circle%'`,
-      );
-      expect(before.rows[0].n, "the baseline has no Círculos table").toBe(0);
+      /**
+       * Everything in `public`, so "unchanged" means unchanged.
+       *
+       * The `::text` casts are load-bearing: `pg_tables.tablename` is `name`,
+       * and node-pg has no parser for `name[]` — the column would arrive as a
+       * raw string and every array comparison below would quietly become a
+       * string comparison that passes for the wrong reason.
+       */
+      const snapshot = async () => {
+        const { rows } = await baselinePool.query(
+          `SELECT
+             (SELECT array_agg(tablename::text ORDER BY tablename)
+                FROM pg_tables WHERE schemaname='public') AS tables,
+             (SELECT array_agg(t.typname::text ORDER BY t.typname)
+                FROM pg_type t JOIN pg_namespace n ON n.oid=t.typnamespace
+               WHERE n.nspname='public' AND t.typtype='e') AS enums,
+             (SELECT array_agg(p.proname::text ORDER BY p.proname)
+                FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+               WHERE n.nspname='public') AS functions`,
+        );
+        return rows[0] as {
+          tables: string[];
+          enums: string[];
+          functions: string[] | null;
+        };
+      };
+
+      const beforeState = await snapshot();
+      expect(
+        beforeState.tables.filter((t) => t.startsWith("Circle")),
+        "the baseline has no Círculos table",
+      ).toEqual([]);
 
       await baselinePool.query(
         readFileSync(
@@ -316,11 +343,8 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
         ),
       );
 
-      const after = await baselinePool.query(
-        `SELECT tablename FROM pg_tables
-          WHERE schemaname='public' AND tablename LIKE 'Circle%' ORDER BY 1`,
-      );
-      expect(after.rows.map((r) => r.tablename)).toEqual([
+      const afterState = await snapshot();
+      expect(afterState.tables.filter((t) => t.startsWith("Circle"))).toEqual([
         "Circle",
         "CircleActivity",
         "CircleActivityParticipant",
@@ -330,6 +354,42 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
         "CircleInvitation",
         "CircleMember",
       ]);
+      // Additive means additive: not one pre-existing table disappeared and not
+      // one pre-existing enum changed.
+      expect(afterState.tables).toEqual(
+        expect.arrayContaining(beforeState.tables),
+      );
+      expect(afterState.enums).toEqual(
+        expect.arrayContaining(beforeState.enums),
+      );
+
+      // ── The logical rollback ─────────────────────────────────────────────
+      //
+      // Prisma writes no DOWN migration, so "we can roll this back" would
+      // otherwise be a claim with nothing behind it. Here it is exercised, on a
+      // database this test created and will drop — never on a persistent one.
+      //
+      // Dropping only what the migration added has to leave the baseline EXACTLY
+      // as it was. If the migration had quietly altered something pre-existing,
+      // this comparison is where it would show up, because undoing the additions
+      // would not undo that.
+      await baselinePool.query(`
+        DROP TABLE IF EXISTS
+          "CircleEvent", "CircleArtifact", "CircleGuestSession",
+          "CircleActivityParticipant", "CircleActivity", "CircleInvitation",
+          "CircleMember", "Circle" CASCADE;
+        DROP FUNCTION IF EXISTS "circle_activity_pin_is_immutable"() CASCADE;
+        DROP TYPE IF EXISTS
+          "CircleEventType", "CircleFollowUpDecision", "CircleArtifactStatus",
+          "CircleArtifactKind", "CircleSharingMode", "CircleParticipantStatus",
+          "CircleActivityStatus", "CircleMemberStatus", "CircleMemberRole",
+          "CircleStatus", "CircleKind";
+      `);
+
+      const rolledBack = await snapshot();
+      expect(rolledBack.tables).toEqual(beforeState.tables);
+      expect(rolledBack.enums).toEqual(beforeState.enums);
+      expect(rolledBack.functions).toEqual(beforeState.functions);
     } finally {
       await baselinePool.end().catch(() => undefined);
     }

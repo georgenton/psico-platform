@@ -9,6 +9,7 @@ import { CircleInvitationRepository } from "./circle-invitation.repository";
 import { CircleGuestSessionRepository } from "./circle-guest-session.repository";
 import { CircleEventRepository } from "./circle-event.repository";
 import { CircleMemberRepository } from "./circle-member.repository";
+import type { CircleMemberDb } from "./circle-member.repository";
 import { CirclesService } from "./circles.service";
 import { CirclesRolloutService } from "./circles-rollout.service";
 import { resolveCirclesRolloutConfig } from "./circles-rollout";
@@ -1531,6 +1532,80 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
       expect(sessions.rows[0].n).toBe(0);
       const seat = await pool.query(
         `SELECT "status" FROM "CircleActivityParticipant" WHERE "activityId"='act-pilot-window'`,
+      );
+      expect(seat.rows[0].status).toBe("INVITED");
+    } finally {
+      await pool.query(
+        `UPDATE "CircleMember" SET "status"='ACTIVE', "leftAt"=NULL WHERE id=$1`,
+        [MEMBER],
+      );
+    }
+  });
+
+  it("catches a member who leaves DURING the exchange", async () => {
+    // The previous test proves the canje is refused. It does not prove WHERE:
+    // the check outside the transaction already catches a member who left
+    // before the call, so removing the in-transaction one would not fail it.
+    //
+    // This forces the actual window. The member repository is wrapped so that
+    // the FIRST read — the one outside the transaction — returns an ACTIVE row
+    // and then, before returning, commits the member as LEFT from a separate
+    // connection. The outside check therefore passes on a row that is already
+    // stale by the time it is used, and only the read inside the transaction
+    // can catch it.
+    const minted = await mintIn("act-pilot-race");
+
+    let reads = 0;
+    class FlipsAfterFirstRead extends CircleMemberRepository {
+      async findById(memberId: string, db?: CircleMemberDb) {
+        const row = await super.findById(memberId, db);
+        reads += 1;
+        if (reads === 1) {
+          // A separate connection, committed: READ COMMITTED means the read
+          // inside the open transaction will see it.
+          await pool.query(
+            `UPDATE "CircleMember" SET "status"='LEFT', "leftAt"=now() WHERE id=$1`,
+            [MEMBER],
+          );
+        }
+        return row;
+      }
+    }
+
+    const racing = new CirclesService(
+      prisma as unknown as ConstructorParameters<typeof CirclesService>[0],
+      invitations,
+      guestSessions,
+      events,
+      new FlipsAfterFirstRead(prisma),
+      new CirclesRolloutService(
+        resolveCirclesRolloutConfig({
+          CIRCLES_ROLLOUT_MODE: "pilot",
+          CIRCLES_PILOT_USER_IDS: U1,
+        }),
+      ),
+    );
+
+    try {
+      expect(await unusableCodeOf(() => racing.exchange(minted.rawToken))).toBe(
+        "CIRCLE_INVITATION_UNUSABLE",
+      );
+      expect(reads, "both checks ran").toBeGreaterThanOrEqual(2);
+
+      // And the transaction unwound: the invitation is untouched, no session
+      // exists, and the seat never moved.
+      const inv = await pool.query(
+        `SELECT "consumedAt","acceptedAt" FROM "CircleInvitation" WHERE id=$1`,
+        [minted.invitationId],
+      );
+      expect(inv.rows[0].consumedAt).toBeNull();
+      expect(inv.rows[0].acceptedAt).toBeNull();
+      const sessions = await pool.query(
+        `SELECT count(*)::int AS n FROM "CircleGuestSession" WHERE "activityId"='act-pilot-race'`,
+      );
+      expect(sessions.rows[0].n).toBe(0);
+      const seat = await pool.query(
+        `SELECT "status" FROM "CircleActivityParticipant" WHERE "activityId"='act-pilot-race'`,
       );
       expect(seat.rows[0].status).toBe("INVITED");
     } finally {

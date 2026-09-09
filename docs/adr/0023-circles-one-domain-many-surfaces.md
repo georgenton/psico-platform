@@ -237,16 +237,41 @@ matriz de permisos, dos máquinas de estados, threat model y fixtures.
 
 - los ocho modelos de [`circles-v1.md` §5](../architecture/circles-v1.md) y una
   migración **estrictamente aditiva** que además materializa en SQL lo que
-  TypeScript no puede sostener solo — CHECKs, índices únicos parciales, dos
-  claves foráneas compuestas y un trigger de inmutabilidad del pin;
+  TypeScript no puede sostener solo — 25 CHECKs, 7 índices únicos parciales,
+  **10 claves foráneas compuestas** y cuatro triggers;
+- **ninguna fila puede nombrar dos mundos a la vez**: las nueve relaciones que
+  cruzan círculo o actividad son claves compuestas declarativas, no invariantes
+  confiadas a un repositorio. `CircleActivityParticipant.circleId` existe como
+  columna de ámbito precisamente para que la pertenencia del miembro sea una
+  clave y no un join que alguien deba recordar;
+- **Dúo es 2/2/2 exacto**, no un mínimo: `kind=DUO`, `maxParticipants=2` y
+  `requiredParticipants=2` por CHECK. Ensancharlo es editar la restricción;
+- **el ledger es append-only por trigger** (UPDATE, DELETE y TRUNCATE), y su
+  `metadata` está cerrado por gramática — dos valores, en un solo tipo de
+  evento — en lugar de por un tope de tamaño que fingía ser esa garantía;
 - `CirclesModule` con cuatro repositorios de un solo escritor;
 - rollout `off|pilot|on` que, a diferencia del de Guide, **nunca lanza**:
   ausente e inválido resuelven a `off`, que ya es el estado cerrado;
+- bajo `pilot`, **el invitado hereda la habilitación de quien invita** y no
+  puede excederla: la elegibilidad del miembro que emitió la invitación se
+  vuelve a derivar en el servidor en cada uso —y otra vez dentro de la
+  transacción del canje— y cualquiera de sus cuatro formas de fallar produce
+  exactamente `CIRCLE_INVITATION_UNUSABLE`;
 - creación, almacenamiento y consumo de invitaciones — solo hashes, un uso,
   vencimiento, revocación y **una única respuesta** para todo lo inutilizable;
 - intercambio por sesión opaca de invitado, ligada a una actividad y a un
   participante por clave foránea compuesta;
-- construcción server-side de `CircleActor` y los guards que la hacen.
+- construcción server-side de `CircleActor` y los guards que la hacen;
+- el canje **verifica que el asiento pasó de `INVITED` a `ACCEPTED` en
+  exactamente una fila**; cero o más de una aborta la transacción completa, sin
+  invitación consumida, sin sesión y sin evento.
+
+Una consecuencia se declara aquí en vez de descubrirse después: con el ledger
+append-only, un `Circle` con eventos ya no puede borrarse, y una cuenta nombrada
+por un evento tampoco. Es coherente con el dominio —cerrar un círculo es un
+cambio de estado, no un borrado— pero el borrado de cuenta necesitará, cuando
+Círculos se encienda, una vía de limpieza sancionada que sea a su vez una
+migración. No un bypass de aplicación.
 
 No entrega creación funcional de Dúo, `confirm-share`, barrera de revelación,
 artefactos, seguimiento, cifrado operativo, worker, Eco, UI, rutas web, CTA ni

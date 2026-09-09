@@ -11,6 +11,11 @@ import {
 import { CircleGuestSessionRepository } from "./circle-guest-session.repository";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { CircleEventRepository } from "./circle-event.repository";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { CircleMemberRepository } from "./circle-member.repository";
+import type { CircleMemberDb } from "./circle-member.repository";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { CirclesRolloutService } from "./circles-rollout.service";
 import { CirclesError } from "./circles-http-errors";
 import {
   hashSecret,
@@ -28,6 +33,15 @@ import {
  * check a link without spending it. Creating a Dúo, confirming a share, the
  * reveal barrier, artifacts and withdrawal all belong to PR3 and are absent
  * rather than stubbed.
+ *
+ * Under `pilot`, being handed a valid secret is not enough. The invitation has
+ * to have been minted by a member who is still `ACTIVE`, in the circle the
+ * invitation names, whose user is in the allowlist RIGHT NOW. A guest inherits
+ * the inviter's enablement and cannot exceed it — which is what makes "the
+ * guest surface is up under pilot" safe rather than a hole. The check runs in
+ * `inspect` AND again inside the exchange transaction, because an allowlist
+ * change or a member leaving between the two would otherwise slip a canje
+ * through.
  *
  * The invariant the whole file is arranged around: **a negative answer is one
  * answer**. A secret that never existed, one that expired, one already used and
@@ -79,6 +93,8 @@ export class CirclesService {
     private readonly invitations: CircleInvitationRepository,
     private readonly guestSessions: CircleGuestSessionRepository,
     private readonly events: CircleEventRepository,
+    private readonly members: CircleMemberRepository,
+    private readonly rollout: CirclesRolloutService,
   ) {}
 
   /**
@@ -173,8 +189,17 @@ export class CirclesService {
           throw new CirclesError("CIRCLE_INVITATION_UNUSABLE");
         }
 
+        // Re-derive the inviter's eligibility HERE, inside the transaction and
+        // after the row lock the consume took. The check in
+        // `resolveUsableInvitation` answered a question about a moment that has
+        // already passed; a member who left, or an allowlist that changed,
+        // between then and now would otherwise let this canje through.
+        await this.assertInviterEligible(invitation, tx);
+
         // The seat was created with the invitation, so it exists. If it somehow
-        // does not, that is a storage failure and not an authorization verdict.
+        // does not, that is an invariant failure and not an authorization
+        // verdict — which is why it leaves as a storage error rather than as
+        // the uniform "unusable", and why the whole transaction unwinds.
         const seat = await tx.circleActivityParticipant.findFirst({
           where: {
             invitationId: invitation.id,
@@ -184,10 +209,23 @@ export class CirclesService {
         });
         if (!seat) throw new CircleStorageError();
 
-        await tx.circleActivityParticipant.updateMany({
-          where: { id: seat.id, status: "INVITED" },
+        // EXACTLY one row, and the count is checked rather than assumed.
+        //
+        // Zero means the seat was not `INVITED` — already accepted, withdrawn,
+        // declined — and more than one would mean the predicate matched
+        // something it should not. Both are states in which continuing would
+        // mint a guest session for a seat that never agreed to receive one, so
+        // both abort: the invitation stays unconsumed, no session is created,
+        // no event is appended, because the transaction never commits.
+        const moved = await tx.circleActivityParticipant.updateMany({
+          where: {
+            id: seat.id,
+            activityId: invitation.activityId,
+            status: "INVITED",
+          },
           data: { status: "ACCEPTED" },
         });
+        if (moved.count !== 1) throw new CircleStorageError();
 
         const session = await this.guestSessions.create(
           {
@@ -263,6 +301,56 @@ export class CirclesService {
     }
 
     if (!row || !invitationIsUsable(row, now)) throw unusable;
+    await this.assertInviterEligible(row);
     return row;
+  }
+
+  /**
+   * Under `pilot`, an invitation is only usable if the person who minted it is
+   * still allowed to be minting invitations.
+   *
+   * The rollout answers "is Círculos on for a USER". A guest has no user, so
+   * without this the guest surface would be a way around the allowlist: mint a
+   * link while enabled, hand it to anybody, and it keeps working forever. The
+   * guest instead INHERITS the inviter's enablement, re-derived server-side on
+   * every use, and can never exceed it.
+   *
+   * Four conditions, one answer. The member must exist, be in the circle the
+   * invitation names, still be `ACTIVE`, and their user must be in the
+   * allowlist right now. Any of them failing produces exactly
+   * `CIRCLE_INVITATION_UNUSABLE` — the same error, the same status, the same
+   * body as a secret that never existed. Nothing distinguishes "your inviter
+   * was removed from the pilot" from "you guessed wrong", because the first
+   * would confirm the invitation is real.
+   *
+   * `on` skips the check: general availability is general. `off` never reaches
+   * here (the guard refuses first), and if it somehow did, it fails closed.
+   */
+  private async assertInviterEligible(
+    invitation: {
+      readonly circleId: string;
+      readonly createdByMemberId: string;
+    },
+    db?: CircleMemberDb,
+  ): Promise<void> {
+    const mode = this.rollout.currentMode();
+    if (mode === "on") return;
+    if (mode === "off") throw new CirclesError("CIRCLE_INVITATION_UNUSABLE");
+
+    let member;
+    try {
+      member = await this.members.findById(invitation.createdByMemberId, db);
+    } catch {
+      throw new CirclesError("CIRCLE_STORAGE_FAILURE");
+    }
+
+    if (
+      !member ||
+      member.circleId !== invitation.circleId ||
+      member.status !== "ACTIVE" ||
+      !this.rollout.isAvailable(member.userId)
+    ) {
+      throw new CirclesError("CIRCLE_INVITATION_UNUSABLE");
+    }
   }
 }

@@ -38,6 +38,8 @@ export interface CircleInvitationRow {
   id: string;
   circleId: string;
   activityId: string;
+  /** Who minted it. The pilot gate re-derives eligibility from this member. */
+  createdByMemberId: string;
   tokenHash: string;
   codeHash: string | null;
   expiresAt: Date;
@@ -51,6 +53,7 @@ const SELECT = {
   id: true,
   circleId: true,
   activityId: true,
+  createdByMemberId: true,
   tokenHash: true,
   codeHash: true,
   expiresAt: true,
@@ -88,7 +91,10 @@ export class CircleInvitationRepository {
    * write that might not have happened.
    *
    * The seat sets `invitationId` and leaves `memberId` null, which is the half
-   * of `num_nonnulls(memberId, invitationId) = 1` that a guest occupies.
+   * of `num_nonnulls(memberId, invitationId) = 1` that a guest occupies. Its
+   * `circleId` is the scope column: the composite key to `CircleActivity`
+   * refuses it unless it matches the activity's own circle, so passing the
+   * wrong one is a failed write rather than a seat in two worlds.
    */
   async create(
     input: CreateInvitationInput,
@@ -108,6 +114,7 @@ export class CircleInvitationRepository {
       });
       const participant = await db.circleActivityParticipant.create({
         data: {
+          circleId: input.circleId,
           activityId: input.activityId,
           invitationId: invitation.id,
           status: "INVITED",

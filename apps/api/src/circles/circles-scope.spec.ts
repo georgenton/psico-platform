@@ -148,6 +148,64 @@ describe("circles · PR2 — secrets never become columns", () => {
   });
 });
 
+describe("circles · PR2 — the event ledger cannot be rewritten or filled", () => {
+  const MIGRATION =
+    "apps/api/prisma/migrations/20260909180000_circles_domain_foundation/migration.sql";
+
+  it("keeps the append-only protection in the migration, not in a service", () => {
+    // A ledger the application merely promises not to rewrite is one bug away
+    // from being rewritten. The protection has to be where an application bug
+    // cannot reach it, and turning it off has to be a reviewed migration.
+    const sql = read(MIGRATION);
+    for (const trigger of [
+      'CREATE TRIGGER "CircleEvent_no_update"',
+      'CREATE TRIGGER "CircleEvent_no_delete"',
+      'CREATE TRIGGER "CircleEvent_no_truncate"',
+    ]) {
+      expect(sql, trigger).toContain(trigger);
+    }
+    // TRUNCATE needs its own statement-level trigger: row triggers do not see
+    // it, and a table closed to DELETE but open to TRUNCATE is not closed.
+    expect(sql).toMatch(
+      /BEFORE TRUNCATE ON "CircleEvent"[\s\S]*FOR EACH STATEMENT/,
+    );
+  });
+
+  it("closes metadata by grammar rather than by size", () => {
+    const sql = read(MIGRATION);
+    // The constraint that was removed, and why: 2 kB is several paragraphs, and
+    // a paragraph is exactly what must never land in an audit row.
+    expect(sql).not.toContain("CircleEvent_metadata_is_small");
+    expect(sql).not.toMatch(/length\("metadata"::text\)/);
+    expect(sql).toContain("CircleEvent_metadata_closed_grammar");
+    expect(sql).toContain(`'{"hasCode": true}'::jsonb`);
+    expect(sql).toContain(`'{"hasCode": false}'::jsonb`);
+  });
+
+  it("types metadata as a closed union, not a bag", () => {
+    const src = code(read(`${CIRCLES_DIR}/circle-event.repository.ts`));
+    // `Record<string, …>` admits any key, and a key is all somebody needs.
+    expect(src).not.toMatch(/Record<\s*string\s*,/);
+    expect(src).toContain("CircleEventTypeWithMetadata");
+    expect(src).toContain("readonly metadata?: undefined");
+  });
+
+  it("gives no Círculos source a way to update or delete an event", () => {
+    for (const file of circlesSources()) {
+      const src = code(read(file));
+      for (const forbidden of [
+        "circleEvent.update",
+        "circleEvent.delete",
+        "circleEvent.upsert",
+        "session_replication_role",
+        "DISABLE TRIGGER",
+      ]) {
+        expect(src, `${file} · ${forbidden}`).not.toContain(forbidden);
+      }
+    }
+  });
+});
+
 describe("circles · PR2 — the client never asserts who it is", () => {
   it("declares no identity or role field in any DTO", () => {
     const dtoDir = `${CIRCLES_DIR}/dto`;

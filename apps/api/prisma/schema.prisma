@@ -163,6 +163,7 @@ model User {
   // scoped to one circle and carries no platform capability.
   circlesCreated            Circle[]                   @relation("CircleCreatedBy")
   circleMemberships         CircleMember[]
+  circleEventsActed         CircleEvent[]              @relation("CircleEventActor")
 
   // Sprint S43: last time we sent a re-engagement nudge (any channel). The
   // InactiveNudgeProcessor uses this to avoid spamming the same user
@@ -2973,8 +2974,10 @@ model Circle {
   kind            CircleKind   @default(DUO)
   status          CircleStatus @default(ACTIVE)
   createdByUserId String
-  /// Pinned to 2 for DUO by SQL CHECK. The column exists so the domain is
-  /// multi-participant by shape; the product exposes only Dúo in v1.
+  /// Exactly 2 in v1, by SQL CHECK. The column exists so the domain is
+  /// multi-participant by shape; the product admits only Dúo, and widening it
+  /// has to be a deliberate edit to the constraint rather than a value nobody
+  /// noticed.
   maxParticipants Int
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
@@ -3005,6 +3008,10 @@ model CircleMember {
   participants CircleActivityParticipant[]
   invitations  CircleInvitation[]          @relation("CircleInvitationCreatedBy")
 
+  /// The target of every composite foreign key that has to prove "this member
+  /// belongs to THAT circle". Redundant with the primary key on its own; not
+  /// redundant as a reference target, which is what PostgreSQL requires.
+  @@unique([id, circleId])
   /// One ACTIVE membership per (circle, user) — a PARTIAL unique index in the
   /// migration, so leaving and rejoining stays possible without a second row
   /// being able to exist while the first is active.
@@ -3032,17 +3039,23 @@ model CircleInvitation {
   revokedAt         DateTime?
   createdAt         DateTime  @default(now())
 
-  circle          Circle                      @relation(fields: [circleId], references: [id], onDelete: Cascade)
-  activity        CircleActivity              @relation(fields: [activityId], references: [id], onDelete: Cascade)
-  createdByMember CircleMember                @relation("CircleInvitationCreatedBy", fields: [createdByMemberId], references: [id], onDelete: Restrict)
+  circle Circle @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  /// COMPOSITE: the activity must live in THIS invitation's circle. Without the
+  /// second column an invitation could point at a circle it belongs to and an
+  /// activity belonging to somebody else's, and every read that trusted either
+  /// column would be reading a different world.
+  activity CircleActivity @relation(fields: [activityId, circleId], references: [id, circleId], onDelete: Cascade)
+  /// COMPOSITE: so does the member who created it.
+  createdByMember CircleMember                @relation("CircleInvitationCreatedBy", fields: [createdByMemberId, circleId], references: [id, circleId], onDelete: Restrict)
   guestSessions   CircleGuestSession[]
   participants    CircleActivityParticipant[]
 
-  /// Same reason: a guest session's invitation must belong to the very
-  /// activity the session is scoped to.
+  /// Reference target for the guest-session and seat composite keys: both must
+  /// prove the invitation belongs to the very activity they are scoped to.
   @@unique([id, activityId])
   @@index([activityId])
   @@index([circleId])
+  @@index([createdByMemberId])
   @@index([expiresAt])
 }
 
@@ -3062,12 +3075,16 @@ model CircleGuestSession {
   lastSeenAt    DateTime?
   createdAt     DateTime  @default(now())
 
-  invitation  CircleInvitation          @relation(fields: [invitationId], references: [id], onDelete: Cascade)
-  activity    CircleActivity            @relation(fields: [activityId], references: [id], onDelete: Cascade)
-  participant CircleActivityParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  activity CircleActivity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  /// COMPOSITE ×2: the invitation and the seat must both belong to the activity
+  /// this session is pinned to. The guest actor is built out of these columns,
+  /// so a mismatch here would be an actor scoped to a world it does not live in.
+  invitation  CircleInvitation          @relation(fields: [invitationId, activityId], references: [id, activityId], onDelete: Cascade)
+  participant CircleActivityParticipant @relation(fields: [participantId, activityId], references: [id, activityId], onDelete: Cascade)
 
   @@index([invitationId])
   @@index([activityId])
+  @@index([participantId])
   @@index([expiresAt])
 }
 
@@ -3082,6 +3099,7 @@ model CircleActivity {
   templateKey          String
   templateVersion      Int
   status               CircleActivityStatus @default(INVITING)
+  /// Exactly 2 in v1, by SQL CHECK — the contractual shape of Dúo, not a floor.
   requiredParticipants Int
   revealedAt           DateTime?
   followUpDueAt        DateTime?
@@ -3097,13 +3115,21 @@ model CircleActivity {
   artifacts     CircleArtifact[]
   events        CircleEvent[]
 
+  /// Reference target for every composite key that has to prove "this activity
+  /// belongs to THAT circle".
+  @@unique([id, circleId])
   @@index([circleId, status])
   @@index([templateKey, templateVersion])
   @@index([followUpDueAt])
 }
 
 model CircleActivityParticipant {
-  id           String                  @id @default(cuid())
+  id String @id @default(cuid())
+  /// Scope column, carried so the member check can be a declarative foreign key
+  /// instead of a join somebody has to remember. It is not free-floating: the
+  /// composite key to `CircleActivity` forces it to agree with the activity's
+  /// own circle, so it cannot drift into naming a different one.
+  circleId     String
   activityId   String
   /// EXACTLY ONE identity: a member (authenticated) or an invitation (guest).
   /// `num_nonnulls(memberId, invitationId) = 1` is a SQL CHECK.
@@ -3132,16 +3158,21 @@ model CircleActivityParticipant {
   createdAt        DateTime                @default(now())
   updatedAt        DateTime                @updatedAt
 
-  activity      CircleActivity       @relation(fields: [activityId], references: [id], onDelete: Cascade)
-  member        CircleMember?        @relation(fields: [memberId], references: [id], onDelete: Restrict)
-  invitation    CircleInvitation?    @relation(fields: [invitationId], references: [id], onDelete: Restrict)
+  /// COMPOSITE ×3. The activity pins the circle; the member must be of that
+  /// same circle; the invitation must be for this same activity. Three ways a
+  /// seat could have belonged to two worlds at once, closed declaratively.
+  activity      CircleActivity       @relation(fields: [activityId, circleId], references: [id, circleId], onDelete: Cascade)
+  member        CircleMember?        @relation(fields: [memberId, circleId], references: [id, circleId], onDelete: Restrict)
+  invitation    CircleInvitation?    @relation(fields: [invitationId, activityId], references: [id, activityId], onDelete: Restrict)
   guestSessions CircleGuestSession[]
   artifacts     CircleArtifact[]     @relation("CircleArtifactCreatedBy")
+  /// Events this seat is recorded as the actor of.
+  actedEvents   CircleEvent[]        @relation("CircleEventActorParticipant")
 
-  /// Ownership target for the guest-session composite FK: a session can only
-  /// reference a participant OF ITS OWN activity (DB-enforced, see migration).
+  /// Reference target for the guest-session and artifact composite keys.
   @@unique([id, activityId])
   @@index([activityId, status])
+  @@index([circleId])
   @@index([memberId])
   @@index([invitationId])
 }
@@ -3163,13 +3194,17 @@ model CircleArtifact {
   updatedAt              DateTime  @updatedAt
   agreedAt               DateTime?
 
-  activity             CircleActivity            @relation(fields: [activityId], references: [id], onDelete: Cascade)
-  createdByParticipant CircleActivityParticipant @relation("CircleArtifactCreatedBy", fields: [createdByParticipantId], references: [id], onDelete: Restrict)
+  activity CircleActivity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  /// COMPOSITE: an artifact cannot be attributed to a seat from a different
+  /// activity — which is the shape of "somebody else's answer appearing in your
+  /// result", and the reason this is a key and not a code review.
+  createdByParticipant CircleActivityParticipant @relation("CircleArtifactCreatedBy", fields: [createdByParticipantId, activityId], references: [id, activityId], onDelete: Restrict)
 
   /// Monotonic per activity; at most one non-SUPERSEDED artifact per activity
   /// (partial unique index in the migration).
   @@unique([activityId, version])
   @@index([activityId, status])
+  @@index([createdByParticipantId])
 }
 
 model CircleEvent {
@@ -3179,22 +3214,45 @@ model CircleEvent {
   type       CircleEventType
 
   /// WHO acted, as the server resolved them. Exactly one of the two, or
-  /// neither for a SYSTEM event (SQL CHECK).
+  /// neither for a SYSTEM event (SQL CHECK). Both are real foreign keys: an
+  /// event naming an actor that does not exist is not an audit record.
   actorUserId        String?
   actorParticipantId String?
 
   /// The receipt key. Unique per (actor, command, key) so a replay is a NOOP
   /// rather than a second event — PostgreSQL is the authority, not Redis.
   idempotencyKey String?
-  /// Closed metadata: counters, ids and versions. NEVER free text, never a
-  /// reason, never anything a person wrote (SQL CHECK caps its size).
+  /// CLOSED grammar, not a bag. A SQL CHECK admits exactly two values, and only
+  /// for `INVITATION_CREATED`: `{"hasCode": true}` or `{"hasCode": false}`.
+  /// Every other event type must be null. There is no key an answer could be
+  /// smuggled under, and no size limit pretending to be that guarantee.
   metadata       Json?
   occurredAt     DateTime @default(now())
 
-  circle   Circle          @relation(fields: [circleId], references: [id], onDelete: Cascade)
-  activity CircleActivity? @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  circle Circle @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  /// COMPOSITE: the activity must belong to the circle the event names.
+  activity CircleActivity? @relation(fields: [activityId, circleId], references: [id, circleId], onDelete: Cascade)
+  /// Restrict, and the reasoning is worth writing down.
+  ///
+  /// `SetNull` would be the friendlier choice, except that setting a column to
+  /// null IS an UPDATE, and this table refuses updates by trigger. A deletion
+  /// would then fail with `CIRCLE_EVENT_APPEND_ONLY` from inside a foreign-key
+  /// action — a confusing error for a coherent refusal. `Restrict` says the
+  /// same thing plainly: while the ledger names this account, the account
+  /// cannot be deleted.
+  ///
+  /// CONSEQUENCE, stated rather than discovered later: once Círculos is on,
+  /// account deletion needs a sanctioned way to scrub or detach these rows.
+  /// That is a migration PR3+ owes, not an application bypass.
+  actorUser User? @relation("CircleEventActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+  /// COMPOSITE: an acting seat must belong to the activity the event names. A
+  /// SQL CHECK makes `activityId` mandatory whenever this is set, so the key
+  /// cannot be skipped by leaving the second column null.
+  actorParticipant CircleActivityParticipant? @relation("CircleEventActorParticipant", fields: [actorParticipantId, activityId], references: [id, activityId], onDelete: Restrict)
 
   @@index([circleId, occurredAt])
   @@index([activityId, occurredAt])
+  @@index([actorUserId])
+  @@index([actorParticipantId])
   @@index([type])
 }

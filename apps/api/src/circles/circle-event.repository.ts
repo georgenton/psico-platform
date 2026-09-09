@@ -5,9 +5,15 @@ import { CircleStorageError } from "./circle-invitation.repository";
  * The single authorized writer of `CircleEvent` (PR2).
  *
  * An event records THAT something happened. There is no column for a reason, a
- * note or anything a person wrote — the table has no free-text column at all,
- * and `metadata` is a JSON bag the migration caps at 2 kB with a CHECK, which
- * is small enough that nobody fits an answer into it by accident.
+ * note or anything a person wrote, and `metadata` is not a bag: a SQL CHECK
+ * enumerates the two values it may ever hold, on the one event type that takes
+ * it. The previous version capped its serialised size at 2 kB and called that a
+ * guarantee — 2 kB is several paragraphs, and a paragraph is precisely what
+ * must never land here.
+ *
+ * The table is also APPEND-ONLY, enforced by triggers on UPDATE, DELETE and
+ * TRUNCATE. This repository has one write primitive and no update or delete
+ * method, but that is a convention; the triggers are what make it true.
  *
  * It is also the receipt. The migration adds two partial unique indexes over
  * `(actor, type, idempotencyKey)`, one per actor kind, so a replayed command
@@ -19,25 +25,45 @@ import { CircleStorageError } from "./circle-invitation.repository";
 export type CircleEventDb = Pick<PrismaClient, "circleEvent">;
 
 /**
- * Closed metadata: only these primitives, only at the top level. No nested
- * object, no array of objects, and — enforced by construction, not by review —
- * no place to put a sentence.
+ * The metadata grammar, as a CLOSED discriminated union rather than a bag.
+ *
+ * `Record<string, string | number | boolean>` was the wrong shape: it admits
+ * any key, and a key is all somebody needs to put a sentence somewhere. This
+ * admits one key, on one event type, holding one boolean — and the union makes
+ * "metadata on an event that does not take metadata" a type error rather than a
+ * runtime discovery. The SQL CHECK enumerates the same two values, so the type
+ * and the column cannot drift into disagreeing.
+ *
+ * Widening this is a three-place edit — this union, the CHECK, and the specs —
+ * which is the point: it should not be possible to add a field to an audit
+ * ledger by accident.
  */
-export type CircleEventMetadata = Readonly<
-  Record<string, string | number | boolean>
+export type CircleEventTypeWithMetadata = "INVITATION_CREATED";
+export type CircleEventTypeWithoutMetadata = Exclude<
+  CircleEventType,
+  CircleEventTypeWithMetadata
 >;
 
-export interface AppendEventInput {
+export type CircleEventShape =
+  | {
+      readonly type: CircleEventTypeWithMetadata;
+      /** Whether a short code exists — a fact its recipient already knows. */
+      readonly metadata: { readonly hasCode: boolean };
+    }
+  | {
+      readonly type: CircleEventTypeWithoutMetadata;
+      readonly metadata?: undefined;
+    };
+
+export type AppendEventInput = CircleEventShape & {
   readonly circleId: string;
   readonly activityId?: string | null;
-  readonly type: CircleEventType;
   /** Exactly one of these, or neither for a SYSTEM event (SQL CHECK). */
   readonly actorUserId?: string | null;
   readonly actorParticipantId?: string | null;
   readonly idempotencyKey?: string | null;
-  readonly metadata?: CircleEventMetadata;
   readonly occurredAt?: Date;
-}
+};
 
 export type AppendEventResult =
   /** This call wrote the event. */
@@ -75,6 +101,8 @@ export class CircleEventRepository {
           actorUserId: input.actorUserId ?? null,
           actorParticipantId: input.actorParticipantId ?? null,
           idempotencyKey: input.idempotencyKey ?? null,
+          // `undefined` omits the column, which lands as SQL NULL — the only
+          // value the CHECK admits for every type but `INVITATION_CREATED`.
           metadata: input.metadata ?? undefined,
           ...(input.occurredAt ? { occurredAt: input.occurredAt } : {}),
         },

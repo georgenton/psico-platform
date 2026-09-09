@@ -1,15 +1,49 @@
 -- FeelVerse Círculos — the relational domain (PR2 · ADR 0023).
 --
--- STRICTLY ADDITIVE. Nothing existing is renamed, dropped or altered: every
--- statement below creates a new type, table, index or constraint. The eight
--- models are inert on arrival because `CIRCLES_ROLLOUT_MODE` defaults to `off`.
+-- STRICTLY ADDITIVE. Nothing existing is renamed, dropped or altered: eight new
+-- tables, eleven new enums, and the constraints that hold them together. A
+-- deploy that applies this to a database with no Círculos rows changes nothing
+-- a reader can see, because `CIRCLES_ROLLOUT_MODE` defaults to `off`.
 --
--- The second half of this file is the part that matters. Prisma can express
--- tables, simple foreign keys and total unique indexes; it cannot express a
--- CHECK, a partial unique index, a composite foreign key or a trigger. Every
--- invariant the architecture calls non-negotiable is written there, in SQL,
--- because an invariant that lives only in a TypeScript `if` is one refactor
--- away from not existing.
+-- ── The second half of this file is the part that matters ──────────────────
+--
+-- Prisma can express tables, foreign keys — including composite ones — and
+-- total unique indexes. It cannot express a CHECK, a partial unique index or a
+-- trigger. Every invariant the architecture calls non-negotiable that Prisma
+-- cannot carry is written there, in SQL, because an invariant that lives only
+-- in a TypeScript `if` is one refactor away from not existing.
+--
+-- ── What the composite keys buy ────────────────────────────────────────────
+--
+-- Nine relationships in this domain span two rows that must agree about which
+-- circle or which activity they belong to. Every one of them is a declarative
+-- composite foreign key in the DDL below, targeting a supporting UNIQUE index:
+--
+--   invitation → activity            same circle
+--   invitation → creating member     same circle
+--   seat       → activity            pins the seat's circle
+--   seat       → member              same circle as the activity
+--   seat       → invitation          same activity
+--   artifact   → creating seat       same activity
+--   event      → activity            same circle
+--   event      → acting seat         same activity
+--   event      → acting user         a real account
+--
+-- Without them, `circleId` and `activityId` would be denormalised columns that
+-- two writers could disagree about — and the guest actor is BUILT from those
+-- columns, so a disagreement is an actor scoped to a world it does not live in.
+--
+-- `CircleActivityParticipant.circleId` exists for exactly this: it is a scope
+-- column, not free-floating data. The composite key to `CircleActivity` forces
+-- it to agree with the activity's own circle, so it cannot drift.
+--
+-- ── This migration is rewritten rather than amended ────────────────────────
+--
+-- It has never been applied outside ephemeral test databases created and
+-- dropped by the suite that uses them. Amending it with a second migration that
+-- DROPs constraints added moments earlier would leave a chain whose first half
+-- states an invariant the second half withdraws. One file, one truth.
+
 -- CreateEnum
 CREATE TYPE "CircleKind" AS ENUM ('DUO');
 
@@ -125,6 +159,7 @@ CREATE TABLE "CircleActivity" (
 -- CreateTable
 CREATE TABLE "CircleActivityParticipant" (
     "id" TEXT NOT NULL,
+    "circleId" TEXT NOT NULL,
     "activityId" TEXT NOT NULL,
     "memberId" TEXT,
     "invitationId" TEXT,
@@ -190,6 +225,9 @@ CREATE INDEX "CircleMember_circleId_userId_idx" ON "CircleMember"("circleId", "u
 CREATE INDEX "CircleMember_userId_status_idx" ON "CircleMember"("userId", "status");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "CircleMember_id_circleId_key" ON "CircleMember"("id", "circleId");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "CircleInvitation_tokenHash_key" ON "CircleInvitation"("tokenHash");
 
 -- CreateIndex
@@ -200,6 +238,9 @@ CREATE INDEX "CircleInvitation_activityId_idx" ON "CircleInvitation"("activityId
 
 -- CreateIndex
 CREATE INDEX "CircleInvitation_circleId_idx" ON "CircleInvitation"("circleId");
+
+-- CreateIndex
+CREATE INDEX "CircleInvitation_createdByMemberId_idx" ON "CircleInvitation"("createdByMemberId");
 
 -- CreateIndex
 CREATE INDEX "CircleInvitation_expiresAt_idx" ON "CircleInvitation"("expiresAt");
@@ -217,6 +258,9 @@ CREATE INDEX "CircleGuestSession_invitationId_idx" ON "CircleGuestSession"("invi
 CREATE INDEX "CircleGuestSession_activityId_idx" ON "CircleGuestSession"("activityId");
 
 -- CreateIndex
+CREATE INDEX "CircleGuestSession_participantId_idx" ON "CircleGuestSession"("participantId");
+
+-- CreateIndex
 CREATE INDEX "CircleGuestSession_expiresAt_idx" ON "CircleGuestSession"("expiresAt");
 
 -- CreateIndex
@@ -229,7 +273,13 @@ CREATE INDEX "CircleActivity_templateKey_templateVersion_idx" ON "CircleActivity
 CREATE INDEX "CircleActivity_followUpDueAt_idx" ON "CircleActivity"("followUpDueAt");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "CircleActivity_id_circleId_key" ON "CircleActivity"("id", "circleId");
+
+-- CreateIndex
 CREATE INDEX "CircleActivityParticipant_activityId_status_idx" ON "CircleActivityParticipant"("activityId", "status");
+
+-- CreateIndex
+CREATE INDEX "CircleActivityParticipant_circleId_idx" ON "CircleActivityParticipant"("circleId");
 
 -- CreateIndex
 CREATE INDEX "CircleActivityParticipant_memberId_idx" ON "CircleActivityParticipant"("memberId");
@@ -244,6 +294,9 @@ CREATE UNIQUE INDEX "CircleActivityParticipant_id_activityId_key" ON "CircleActi
 CREATE INDEX "CircleArtifact_activityId_status_idx" ON "CircleArtifact"("activityId", "status");
 
 -- CreateIndex
+CREATE INDEX "CircleArtifact_createdByParticipantId_idx" ON "CircleArtifact"("createdByParticipantId");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "CircleArtifact_activityId_version_key" ON "CircleArtifact"("activityId", "version");
 
 -- CreateIndex
@@ -251,6 +304,12 @@ CREATE INDEX "CircleEvent_circleId_occurredAt_idx" ON "CircleEvent"("circleId", 
 
 -- CreateIndex
 CREATE INDEX "CircleEvent_activityId_occurredAt_idx" ON "CircleEvent"("activityId", "occurredAt");
+
+-- CreateIndex
+CREATE INDEX "CircleEvent_actorUserId_idx" ON "CircleEvent"("actorUserId");
+
+-- CreateIndex
+CREATE INDEX "CircleEvent_actorParticipantId_idx" ON "CircleEvent"("actorParticipantId");
 
 -- CreateIndex
 CREATE INDEX "CircleEvent_type_idx" ON "CircleEvent"("type");
@@ -268,58 +327,68 @@ ALTER TABLE "CircleMember" ADD CONSTRAINT "CircleMember_userId_fkey" FOREIGN KEY
 ALTER TABLE "CircleInvitation" ADD CONSTRAINT "CircleInvitation_circleId_fkey" FOREIGN KEY ("circleId") REFERENCES "Circle"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "CircleInvitation" ADD CONSTRAINT "CircleInvitation_activityId_fkey" FOREIGN KEY ("activityId") REFERENCES "CircleActivity"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "CircleInvitation" ADD CONSTRAINT "CircleInvitation_activityId_circleId_fkey" FOREIGN KEY ("activityId", "circleId") REFERENCES "CircleActivity"("id", "circleId") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "CircleInvitation" ADD CONSTRAINT "CircleInvitation_createdByMemberId_fkey" FOREIGN KEY ("createdByMemberId") REFERENCES "CircleMember"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "CircleGuestSession" ADD CONSTRAINT "CircleGuestSession_invitationId_fkey" FOREIGN KEY ("invitationId") REFERENCES "CircleInvitation"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "CircleInvitation" ADD CONSTRAINT "CircleInvitation_createdByMemberId_circleId_fkey" FOREIGN KEY ("createdByMemberId", "circleId") REFERENCES "CircleMember"("id", "circleId") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "CircleGuestSession" ADD CONSTRAINT "CircleGuestSession_activityId_fkey" FOREIGN KEY ("activityId") REFERENCES "CircleActivity"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "CircleGuestSession" ADD CONSTRAINT "CircleGuestSession_participantId_fkey" FOREIGN KEY ("participantId") REFERENCES "CircleActivityParticipant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "CircleGuestSession" ADD CONSTRAINT "CircleGuestSession_invitationId_activityId_fkey" FOREIGN KEY ("invitationId", "activityId") REFERENCES "CircleInvitation"("id", "activityId") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "CircleGuestSession" ADD CONSTRAINT "CircleGuestSession_participantId_activityId_fkey" FOREIGN KEY ("participantId", "activityId") REFERENCES "CircleActivityParticipant"("id", "activityId") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "CircleActivity" ADD CONSTRAINT "CircleActivity_circleId_fkey" FOREIGN KEY ("circleId") REFERENCES "Circle"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "CircleActivityParticipant" ADD CONSTRAINT "CircleActivityParticipant_activityId_fkey" FOREIGN KEY ("activityId") REFERENCES "CircleActivity"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "CircleActivityParticipant" ADD CONSTRAINT "CircleActivityParticipant_activityId_circleId_fkey" FOREIGN KEY ("activityId", "circleId") REFERENCES "CircleActivity"("id", "circleId") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "CircleActivityParticipant" ADD CONSTRAINT "CircleActivityParticipant_memberId_fkey" FOREIGN KEY ("memberId") REFERENCES "CircleMember"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "CircleActivityParticipant" ADD CONSTRAINT "CircleActivityParticipant_memberId_circleId_fkey" FOREIGN KEY ("memberId", "circleId") REFERENCES "CircleMember"("id", "circleId") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "CircleActivityParticipant" ADD CONSTRAINT "CircleActivityParticipant_invitationId_fkey" FOREIGN KEY ("invitationId") REFERENCES "CircleInvitation"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "CircleActivityParticipant" ADD CONSTRAINT "CircleActivityParticipant_invitationId_activityId_fkey" FOREIGN KEY ("invitationId", "activityId") REFERENCES "CircleInvitation"("id", "activityId") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "CircleArtifact" ADD CONSTRAINT "CircleArtifact_activityId_fkey" FOREIGN KEY ("activityId") REFERENCES "CircleActivity"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "CircleArtifact" ADD CONSTRAINT "CircleArtifact_createdByParticipantId_fkey" FOREIGN KEY ("createdByParticipantId") REFERENCES "CircleActivityParticipant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "CircleArtifact" ADD CONSTRAINT "CircleArtifact_createdByParticipantId_activityId_fkey" FOREIGN KEY ("createdByParticipantId", "activityId") REFERENCES "CircleActivityParticipant"("id", "activityId") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "CircleEvent" ADD CONSTRAINT "CircleEvent_circleId_fkey" FOREIGN KEY ("circleId") REFERENCES "Circle"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "CircleEvent" ADD CONSTRAINT "CircleEvent_activityId_fkey" FOREIGN KEY ("activityId") REFERENCES "CircleActivity"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "CircleEvent" ADD CONSTRAINT "CircleEvent_activityId_circleId_fkey" FOREIGN KEY ("activityId", "circleId") REFERENCES "CircleActivity"("id", "circleId") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "CircleEvent" ADD CONSTRAINT "CircleEvent_actorUserId_fkey" FOREIGN KEY ("actorUserId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "CircleEvent" ADD CONSTRAINT "CircleEvent_actorParticipantId_activityId_fkey" FOREIGN KEY ("actorParticipantId", "activityId") REFERENCES "CircleActivityParticipant"("id", "activityId") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- Invariants PostgreSQL enforces, because TypeScript cannot be trusted to
 -- ═══════════════════════════════════════════════════════════════════════════
 
--- ── Circle · Dúo is the only shape v1 admits ───────────────────────────────
--- The enum already has one value; this survives the day a second is added for
--- a later audience, so enabling Familia has to be a deliberate edit here.
+-- ── Dúo is 2/2/2, exactly ──────────────────────────────────────────────────
+-- Not a floor. v1 admits one shape, and widening it has to be an edit to these
+-- three lines rather than a value somebody passed without anybody noticing.
 ALTER TABLE "Circle"
   ADD CONSTRAINT "Circle_kind_duo_only" CHECK ("kind" = 'DUO');
 
 ALTER TABLE "Circle"
   ADD CONSTRAINT "Circle_duo_two_participants"
   CHECK ("kind" <> 'DUO' OR "maxParticipants" = 2);
+
+ALTER TABLE "CircleActivity"
+  ADD CONSTRAINT "CircleActivity_required_participants_exactly_two"
+  CHECK ("requiredParticipants" = 2);
 
 ALTER TABLE "Circle"
   ADD CONSTRAINT "Circle_closed_has_timestamp"
@@ -369,7 +438,10 @@ CREATE UNIQUE INDEX "CircleInvitation_one_live_per_activity"
   ON "CircleInvitation" ("activityId")
   WHERE "consumedAt" IS NULL AND "revokedAt" IS NULL AND "declinedAt" IS NULL;
 
--- ── CircleGuestSession · opaque, and scoped to one activity ────────────────
+-- ── CircleGuestSession · opaque, and scoped by composite key ───────────────
+-- The scoping itself is now two composite foreign keys in the DDL above
+-- (`(invitationId, activityId)` and `(participantId, activityId)`). What is
+-- left here is the shape of the secret and the life of the session.
 ALTER TABLE "CircleGuestSession"
   ADD CONSTRAINT "CircleGuestSession_token_hash_is_sha256"
   CHECK ("tokenHash" ~ '^[0-9a-f]{64}$');
@@ -378,30 +450,10 @@ ALTER TABLE "CircleGuestSession"
   ADD CONSTRAINT "CircleGuestSession_expires_after_creation"
   CHECK ("expiresAt" > "createdAt");
 
--- The composite foreign keys are the whole point of this block: a session
--- cannot point at a participant or an invitation belonging to a DIFFERENT
--- activity. Without them, `activityId` would be a denormalised column that
--- two writers could disagree about, and the guest actor is built from it.
-ALTER TABLE "CircleGuestSession"
-  ADD CONSTRAINT "CircleGuestSession_participant_in_same_activity"
-  FOREIGN KEY ("participantId", "activityId")
-  REFERENCES "CircleActivityParticipant" ("id", "activityId")
-  ON DELETE CASCADE ON UPDATE CASCADE;
-
-ALTER TABLE "CircleGuestSession"
-  ADD CONSTRAINT "CircleGuestSession_invitation_in_same_activity"
-  FOREIGN KEY ("invitationId", "activityId")
-  REFERENCES "CircleInvitation" ("id", "activityId")
-  ON DELETE CASCADE ON UPDATE CASCADE;
-
 -- ── CircleActivity · an immutable template pin ─────────────────────────────
 ALTER TABLE "CircleActivity"
   ADD CONSTRAINT "CircleActivity_template_version_positive"
   CHECK ("templateVersion" >= 1);
-
-ALTER TABLE "CircleActivity"
-  ADD CONSTRAINT "CircleActivity_required_participants_min_two"
-  CHECK ("requiredParticipants" >= 2);
 
 -- `revealedAt` is not a column anybody sets by hand: it is the reveal barrier's
 -- output. Here it is only bound to the status, so a REVEALED row without a
@@ -432,7 +484,7 @@ CREATE TRIGGER "CircleActivity_pin_immutable"
   BEFORE UPDATE ON "CircleActivity"
   FOR EACH ROW EXECUTE FUNCTION "circle_activity_pin_is_immutable"();
 
--- ── CircleActivityParticipant · exactly one identity, whole envelopes ──────
+-- ── CircleActivityParticipant · one identity, whole envelopes ──────────────
 ALTER TABLE "CircleActivityParticipant"
   ADD CONSTRAINT "CircleActivityParticipant_exactly_one_identity"
   CHECK (num_nonnulls("memberId", "invitationId") = 1);
@@ -476,17 +528,21 @@ CREATE UNIQUE INDEX "CircleArtifact_one_active_per_activity"
   ON "CircleArtifact" ("activityId")
   WHERE "status" <> 'SUPERSEDED';
 
--- ── CircleEvent · append-only receipts with no room for prose ──────────────
+-- ═══════════════════════════════════════════════════════════════════════════
+-- CircleEvent — append-only, and with a closed grammar rather than a size cap
+-- ═══════════════════════════════════════════════════════════════════════════
+
 ALTER TABLE "CircleEvent"
   ADD CONSTRAINT "CircleEvent_at_most_one_actor"
   CHECK (num_nonnulls("actorUserId", "actorParticipantId") <= 1);
 
--- The metadata column is for counters, ids and versions. Capping its serialised
--- size is a blunt instrument, and that is what makes it useful: nobody will fit
--- somebody's answer into 2 kB by accident, and there is no text column at all.
+-- A composite foreign key is only enforced when every column is non-null
+-- (MATCH SIMPLE). Without this, an event could name an acting seat and leave
+-- `activityId` null, and the key that proves the seat belongs to the activity
+-- would simply not run.
 ALTER TABLE "CircleEvent"
-  ADD CONSTRAINT "CircleEvent_metadata_is_small"
-  CHECK ("metadata" IS NULL OR length("metadata"::text) <= 2048);
+  ADD CONSTRAINT "CircleEvent_participant_actor_needs_activity"
+  CHECK ("actorParticipantId" IS NULL OR "activityId" IS NOT NULL);
 
 -- The receipt. A replayed command finds its own event and becomes a NOOP —
 -- PostgreSQL is the authority for that, never Redis.
@@ -497,3 +553,62 @@ CREATE UNIQUE INDEX "CircleEvent_receipt_per_user_actor"
 CREATE UNIQUE INDEX "CircleEvent_receipt_per_participant_actor"
   ON "CircleEvent" ("actorParticipantId", "type", "idempotencyKey")
   WHERE "idempotencyKey" IS NOT NULL AND "actorParticipantId" IS NOT NULL;
+
+-- ── The metadata grammar ───────────────────────────────────────────────────
+--
+-- The previous version of this constraint capped `length(metadata::text)` at
+-- 2 kB and called that a guarantee it was not: 2 kB is several paragraphs, and
+-- a paragraph is exactly the thing this column must never hold. A size limit
+-- says "not too much of whatever you like"; this says "these two values".
+--
+-- Closed by ENUMERATION, per event type. `INVITATION_CREATED` carries whether
+-- a short code exists — a fact its recipient already knows — and every other
+-- event type in PR2 carries nothing. Adding a third shape is an edit here.
+--
+-- Note the explicit `IS NOT NULL`: a CHECK whose expression evaluates to NULL
+-- PASSES, so `metadata IN (...)` alone would silently admit a null.
+ALTER TABLE "CircleEvent"
+  ADD CONSTRAINT "CircleEvent_metadata_closed_grammar"
+  CHECK (
+    CASE "type"
+      WHEN 'INVITATION_CREATED' THEN
+        "metadata" IS NOT NULL
+        AND "metadata" IN ('{"hasCode": true}'::jsonb, '{"hasCode": false}'::jsonb)
+      ELSE "metadata" IS NULL
+    END
+  );
+
+-- ── Append-only, enforced by the database ──────────────────────────────────
+--
+-- An audit ledger that the application merely promises not to rewrite is a
+-- ledger one bug away from being rewritten. There is deliberately NO
+-- application-level escape: turning this off means dropping the triggers in a
+-- future migration somebody reviews, or destroying an ephemeral test database.
+--
+-- TRUNCATE gets its own statement-level trigger because row triggers do not see
+-- it — a table protected against DELETE and open to TRUNCATE is not protected.
+--
+-- CONSEQUENCE, stated rather than discovered later: a `Circle` whose events
+-- exist can no longer be deleted, because the cascade would have to delete
+-- them. That is consistent with the domain — closing a circle is a status
+-- change, not a deletion (see `Circle_closed_has_timestamp`) — and account
+-- deletion, once Círculos is on, will need a sanctioned scrub path that is
+-- itself a migration.
+CREATE OR REPLACE FUNCTION "circle_event_is_append_only"()
+RETURNS TRIGGER AS $$
+BEGIN
+  RAISE EXCEPTION 'CIRCLE_EVENT_APPEND_ONLY';
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER "CircleEvent_no_update"
+  BEFORE UPDATE ON "CircleEvent"
+  FOR EACH ROW EXECUTE FUNCTION "circle_event_is_append_only"();
+
+CREATE TRIGGER "CircleEvent_no_delete"
+  BEFORE DELETE ON "CircleEvent"
+  FOR EACH ROW EXECUTE FUNCTION "circle_event_is_append_only"();
+
+CREATE TRIGGER "CircleEvent_no_truncate"
+  BEFORE TRUNCATE ON "CircleEvent"
+  FOR EACH STATEMENT EXECUTE FUNCTION "circle_event_is_append_only"();

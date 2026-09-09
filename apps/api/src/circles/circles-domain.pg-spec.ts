@@ -8,7 +8,10 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { CircleInvitationRepository } from "./circle-invitation.repository";
 import { CircleGuestSessionRepository } from "./circle-guest-session.repository";
 import { CircleEventRepository } from "./circle-event.repository";
+import { CircleMemberRepository } from "./circle-member.repository";
 import { CirclesService } from "./circles.service";
+import { CirclesRolloutService } from "./circles-rollout.service";
+import { resolveCirclesRolloutConfig } from "./circles-rollout";
 import { CirclesError } from "./circles-http-errors";
 import { hashSecret, mintInvitationToken } from "./circles-secrets";
 
@@ -49,8 +52,13 @@ function withDatabase(url: string, dbName: string): string {
 }
 
 const U1 = "u-circles-owner";
+const U2 = "u-circles-other";
 const CIRCLE = "c-circles-one";
+/** Somebody else's circle. Every cross-aggregate case points at this one. */
+const OTHER_CIRCLE = "c-circles-two";
 const MEMBER = "m-circles-one";
+const OTHER_MEMBER = "m-circles-two";
+const OTHER_ACTIVITY_IN_OTHER_CIRCLE = "act-circles-other-circle";
 const ACTIVITY = "act-circles-one";
 const OTHER_ACTIVITY = "act-circles-two";
 
@@ -81,7 +89,30 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
   let invitations: CircleInvitationRepository;
   let guestSessions: CircleGuestSessionRepository;
   let events: CircleEventRepository;
+  let members: CircleMemberRepository;
   let service: CirclesService;
+
+  /**
+   * A service wired to a specific rollout posture, over the SAME database.
+   *
+   * The pilot gate is a property of the service, not of the rows, so the only
+   * honest way to test it is to build a second service with a different
+   * allowlist and point it at the same invitations.
+   */
+  const serviceWith = (mode: string, allowlist?: string) =>
+    new CirclesService(
+      prisma as unknown as ConstructorParameters<typeof CirclesService>[0],
+      invitations,
+      guestSessions,
+      events,
+      members,
+      new CirclesRolloutService(
+        resolveCirclesRolloutConfig({
+          CIRCLES_ROLLOUT_MODE: mode,
+          CIRCLES_PILOT_USER_IDS: allowlist,
+        }),
+      ),
+    );
 
   /**
    * A fresh activity per fixture. `CircleInvitation_one_live_per_activity` is
@@ -139,6 +170,7 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
 
   const insertParticipant = (cols: {
     id: string;
+    circleId?: string;
     activityId?: string;
     memberId?: string | null;
     invitationId?: string | null;
@@ -151,11 +183,12 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
   }) =>
     pool.query(
       `INSERT INTO "CircleActivityParticipant"
-         ("id","activityId","memberId","invitationId","status",
+         ("id","circleId","activityId","memberId","invitationId","status",
           "ciphertext","nonce","keyVersion","readyAt","withdrawnAt","updatedAt")
-       VALUES ($1,$2,$3,$4,$5::"CircleParticipantStatus",$6,$7,$8,$9,$10,now())`,
+       VALUES ($1,$2,$3,$4,$5,$6::"CircleParticipantStatus",$7,$8,$9,$10,$11,now())`,
       [
         cols.id,
+        cols.circleId ?? CIRCLE,
         cols.activityId ?? ACTIVITY,
         cols.memberId ?? null,
         cols.invitationId ?? null,
@@ -225,19 +258,15 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
     invitations = new CircleInvitationRepository(prisma);
     guestSessions = new CircleGuestSessionRepository(prisma);
     events = new CircleEventRepository(prisma);
-    service = new CirclesService(
-      prisma as unknown as ConstructorParameters<typeof CirclesService>[0],
-      invitations,
-      guestSessions,
-      events,
-    );
+    members = new CircleMemberRepository(prisma);
+    // The default service runs under `on`: the pilot gate has its own block.
+    service = serviceWith("on");
 
-    await prisma.user.create({
-      data: {
-        id: U1,
-        email: "circles-owner@test.local",
-        name: "Circles Owner",
-      },
+    await prisma.user.createMany({
+      data: [
+        { id: U1, email: "circles-owner@test.local", name: "Circles Owner" },
+        { id: U2, email: "circles-other@test.local", name: "Circles Other" },
+      ],
     });
     await pool.query(
       `INSERT INTO "Circle" ("id","kind","status","createdByUserId","maxParticipants","updatedAt")
@@ -245,9 +274,26 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
       [CIRCLE, U1],
     );
     await pool.query(
+      `INSERT INTO "Circle" ("id","kind","status","createdByUserId","maxParticipants","updatedAt")
+       VALUES ($1,'DUO','ACTIVE',$2,2,now())`,
+      [OTHER_CIRCLE, U2],
+    );
+    await pool.query(
       `INSERT INTO "CircleMember" ("id","circleId","userId","role","status")
        VALUES ($1,$2,$3,'ORGANIZER','ACTIVE')`,
       [MEMBER, CIRCLE, U1],
+    );
+    await pool.query(
+      `INSERT INTO "CircleMember" ("id","circleId","userId","role","status")
+       VALUES ($1,$2,$3,'ORGANIZER','ACTIVE')`,
+      [OTHER_MEMBER, OTHER_CIRCLE, U2],
+    );
+    await pool.query(
+      `INSERT INTO "CircleActivity"
+         ("id","circleId","templateKey","templateVersion","status",
+          "requiredParticipants","updatedAt")
+       VALUES ($1,$2,'fixture-duo-template',1,'INVITING',2,now())`,
+      [OTHER_ACTIVITY_IN_OTHER_CIRCLE, OTHER_CIRCLE],
     );
     for (const id of [ACTIVITY, OTHER_ACTIVITY]) {
       await pool.query(
@@ -379,6 +425,7 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
           "CircleActivityParticipant", "CircleActivity", "CircleInvitation",
           "CircleMember", "Circle" CASCADE;
         DROP FUNCTION IF EXISTS "circle_activity_pin_is_immutable"() CASCADE;
+        DROP FUNCTION IF EXISTS "circle_event_is_append_only"() CASCADE;
         DROP TYPE IF EXISTS
           "CircleEventType", "CircleFollowUpDecision", "CircleArtifactStatus",
           "CircleArtifactKind", "CircleSharingMode", "CircleParticipantStatus",
@@ -699,7 +746,7 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
     ],
     [
       "a shared activity that requires one participant",
-      "CircleActivity_required_participants_min_two",
+      "CircleActivity_required_participants_exactly_two",
       () =>
         pool.query(
           `INSERT INTO "CircleActivity"
@@ -795,65 +842,86 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
 
   // ── Guest sessions: pinned to one activity, structurally ──────────────────
 
-  it("refuses a guest session whose invitation belongs elsewhere", async () => {
-    // The second composite key. The participant can be right and the invitation
-    // still wrong, and that combination has to be refused too — otherwise a
-    // session could be minted from an invitation into a different activity.
-    const activityId = await newActivity();
-    const elsewhere = await newActivity();
+  /**
+   * Two whole, internally consistent activities. Building the cross-activity
+   * cases needs them, because the seat-to-invitation composite key now refuses
+   * the shortcut of pointing one seat at another activity's invitation — which
+   * is itself the improvement, and is asserted separately below.
+   */
+  const twoConsistentActivities = async () => {
+    const seq = 500 + activitySeq * 10;
+    const a = await newActivity();
+    const b = await newActivity();
     await insertInvitation({
-      id: "inv-elsewhere",
-      activityId: elsewhere,
-      tokenHash: fakeHash(31),
+      id: `inv-a-${seq}`,
+      activityId: a,
+      tokenHash: fakeHash(seq + 1),
     });
     await insertInvitation({
-      id: "inv-here",
-      activityId,
-      tokenHash: fakeHash(32),
+      id: `inv-b-${seq}`,
+      activityId: b,
+      tokenHash: fakeHash(seq + 2),
     });
     await insertParticipant({
-      id: "p-here",
-      activityId,
-      invitationId: "inv-here",
+      id: `p-a-${seq}`,
+      activityId: a,
+      invitationId: `inv-a-${seq}`,
     });
+    await insertParticipant({
+      id: `p-b-${seq}`,
+      activityId: b,
+      invitationId: `inv-b-${seq}`,
+    });
+    return {
+      a,
+      b,
+      invA: `inv-a-${seq}`,
+      invB: `inv-b-${seq}`,
+      seatA: `p-a-${seq}`,
+      seatB: `p-b-${seq}`,
+      seq,
+    };
+  };
+
+  it("refuses a guest session whose invitation belongs elsewhere", async () => {
+    // The seat is right and the invitation is wrong. That combination has to be
+    // refused on its own: otherwise a session could be minted from a link into
+    // a different activity, and the actor built from it would be scoped to a
+    // world it does not live in.
+    const w = await twoConsistentActivities();
     const refusal = await refusalOf(() =>
       insertGuestSession({
-        id: "gs-wrong-invitation",
-        invitationId: "inv-elsewhere",
-        activityId,
-        participantId: "p-here",
-        tokenHash: fakeHash(33),
+        id: `gs-wrong-inv-${w.seq}`,
+        invitationId: w.invB,
+        activityId: w.a,
+        participantId: w.seatA,
+        tokenHash: fakeHash(w.seq + 3),
       }),
     );
     expect(refusal.constraint).toBe(
-      "CircleGuestSession_invitation_in_same_activity",
+      "CircleGuestSession_invitationId_activityId_fkey",
     );
     expect(refusal.code).toBe("23503");
   });
 
   it("refuses a guest session pointing at another activity's participant", async () => {
-    // The whole scoping story in one refusal. Without the composite key,
-    // `activityId` would be a denormalised column two writers could disagree
-    // about — and the actor is built from it.
-    await insertInvitation({ id: "inv-scope", tokenHash: fakeHash(12) });
-    await insertParticipant({
-      id: "p-other-activity",
-      activityId: OTHER_ACTIVITY,
-      invitationId: "inv-scope",
-    });
+    // And the mirror: the invitation is right and the seat is wrong. Without
+    // these two keys, `activityId` would be a denormalised column two writers
+    // could disagree about — and the guest actor is built from it.
+    const w = await twoConsistentActivities();
     const refusal = await refusalOf(() =>
       insertGuestSession({
-        id: "gs-crossed",
-        invitationId: "inv-scope",
-        activityId: ACTIVITY, // …but the participant lives in OTHER_ACTIVITY.
-        participantId: "p-other-activity",
-        tokenHash: fakeHash(13),
+        id: `gs-wrong-seat-${w.seq}`,
+        invitationId: w.invA,
+        activityId: w.a,
+        participantId: w.seatB,
+        tokenHash: fakeHash(w.seq + 4),
       }),
     );
-    expect(refusal.constraint).toBe(
-      "CircleGuestSession_participant_in_same_activity",
-    );
     expect(refusal.code).toBe("23503"); // foreign_key_violation
+    expect(refusal.constraint).toBe(
+      "CircleGuestSession_participantId_activityId_fkey",
+    );
   });
 
   it("refuses a raw guest secret where a hash belongs", async () => {
@@ -930,28 +998,104 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
   // ── The event ledger as a receipt ─────────────────────────────────────────
 
   it("refuses an event with two actors", async () => {
-    await insertInvitation({ id: "inv-ev", tokenHash: fakeHash(15) });
-    await insertParticipant({ id: "p-ev", invitationId: "inv-ev" });
+    const activityId = await newActivity();
+    await insertInvitation({
+      id: "inv-ev",
+      activityId,
+      tokenHash: fakeHash(15),
+    });
+    await insertParticipant({ id: "p-ev", activityId, invitationId: "inv-ev" });
     const refusal = await refusalOf(() =>
       pool.query(
         `INSERT INTO "CircleEvent"
            ("id","circleId","activityId","type","actorUserId","actorParticipantId")
          VALUES ('ev-two',$1,$2,'ACTIVITY_CREATED',$3,'p-ev')`,
-        [CIRCLE, ACTIVITY, U1],
+        [CIRCLE, activityId, U1],
       ),
     );
     expect(refusal.constraint).toBe("CircleEvent_at_most_one_actor");
   });
 
-  it("refuses metadata large enough to hold prose", async () => {
+  // ── The metadata grammar ──────────────────────────────────────────────────
+  //
+  // The old constraint capped `length(metadata::text)` at 2 kB and called that
+  // a guarantee. 2 kB is several paragraphs, and every case below fits inside
+  // it comfortably — which is exactly why a size cap was never the guarantee it
+  // looked like.
+
+  it.each([
+    ["a bare string", "ACTIVITY_CREATED", JSON.stringify("una respuesta")],
+    [
+      "an answer under a plausible key",
+      "ACTIVITY_CREATED",
+      JSON.stringify({ hasCode: true, note: "me senti sola esa semana" }),
+    ],
+    [
+      "an unknown key on its own",
+      "INVITATION_CREATED",
+      JSON.stringify({ reason: "porque si" }),
+    ],
+    [
+      "the right key with the wrong type",
+      "INVITATION_CREATED",
+      JSON.stringify({ hasCode: "true" }),
+    ],
+    [
+      "an extra key alongside the right one",
+      "INVITATION_CREATED",
+      JSON.stringify({ hasCode: true, extra: 1 }),
+    ],
+    [
+      "a nested object",
+      "INVITATION_CREATED",
+      JSON.stringify({ hasCode: { value: true } }),
+    ],
+    ["an array", "INVITATION_CREATED", JSON.stringify([{ hasCode: true }])],
+    [
+      "metadata on a type that takes none",
+      "GUEST_SESSION_CREATED",
+      JSON.stringify({ hasCode: true }),
+    ],
+    ["a number", "ACTIVITY_CREATED", "1"],
+  ])("refuses %s as metadata", async (label, type, metadata) => {
     const refusal = await refusalOf(() =>
       pool.query(
         `INSERT INTO "CircleEvent" ("id","circleId","type","metadata")
-         VALUES ('ev-big',$1,'ACTIVITY_CREATED',$2::jsonb)`,
-        [CIRCLE, JSON.stringify({ smuggled: "x".repeat(4000) })],
+         VALUES ($1,$2,$3::"CircleEventType",$4::jsonb)`,
+        [`ev-meta-${label.replace(/[^a-z]+/gi, "-")}`, CIRCLE, type, metadata],
       ),
     );
-    expect(refusal.constraint).toBe("CircleEvent_metadata_is_small");
+    expect(refusal.constraint).toBe("CircleEvent_metadata_closed_grammar");
+  });
+
+  it("refuses INVITATION_CREATED carrying no metadata at all", async () => {
+    // The trap this constraint is written around: a CHECK whose expression
+    // evaluates to NULL PASSES. `metadata IN (...)` on its own would have
+    // admitted a null here, and the grammar would have had a hole in it from
+    // the first day.
+    const refusal = await refusalOf(() =>
+      pool.query(
+        `INSERT INTO "CircleEvent" ("id","circleId","type","metadata")
+         VALUES ('ev-meta-missing',$1,'INVITATION_CREATED',NULL)`,
+        [CIRCLE],
+      ),
+    );
+    expect(refusal.constraint).toBe("CircleEvent_metadata_closed_grammar");
+  });
+
+  it("accepts exactly the two values the grammar names", async () => {
+    for (const [i, hasCode] of [true, false].entries()) {
+      await pool.query(
+        `INSERT INTO "CircleEvent" ("id","circleId","type","metadata")
+         VALUES ($1,$2,'INVITATION_CREATED',$3::jsonb)`,
+        [`ev-meta-ok-${i}`, CIRCLE, JSON.stringify({ hasCode })],
+      );
+    }
+    await pool.query(
+      `INSERT INTO "CircleEvent" ("id","circleId","type","metadata")
+       VALUES ('ev-meta-ok-null',$1,'ACTIVITY_CREATED',NULL)`,
+      [CIRCLE],
+    );
   });
 
   it("makes a replayed command a NOOP through a unique index, not a read", async () => {
@@ -961,6 +1105,7 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
       type: "INVITATION_CREATED",
       actorUserId: U1,
       idempotencyKey: "receipt-key-1",
+      metadata: { hasCode: true },
     });
     expect(first.outcome).toBe("APPENDED");
 
@@ -970,6 +1115,7 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
       type: "INVITATION_CREATED",
       actorUserId: U1,
       idempotencyKey: "receipt-key-1",
+      metadata: { hasCode: true },
     });
     expect(replay.outcome).toBe("REPLAY");
 
@@ -994,6 +1140,525 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
       });
       expect(r.outcome).toBe("APPENDED");
     }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // Aggregate integrity — no row may name two worlds at once
+  // ═══════════════════════════════════════════════════════════════════════
+  //
+  // Nine relationships span two rows that must agree about which circle or
+  // which activity they belong to. Each is a composite foreign key, and each
+  // gets a case here that goes around Prisma entirely: raw SQL, so what refuses
+  // it is the database and not a branch somebody could delete.
+
+  it("refuses an invitation whose circle and activity disagree", async () => {
+    const refusal = await refusalOf(() =>
+      pool.query(
+        `INSERT INTO "CircleInvitation"
+           ("id","circleId","activityId","createdByMemberId","tokenHash",
+            "expiresAt","createdAt")
+         VALUES ('inv-cross-circle',$1,$2,$3,$4,$5,$6)`,
+        [
+          CIRCLE,
+          OTHER_ACTIVITY_IN_OTHER_CIRCLE, // …an activity of a different circle.
+          MEMBER,
+          fakeHash(60),
+          pgTs(future()),
+          pgTs(new Date()),
+        ],
+      ),
+    );
+    expect(refusal.constraint).toBe(
+      "CircleInvitation_activityId_circleId_fkey",
+    );
+    expect(refusal.code).toBe("23503");
+  });
+
+  it("refuses an invitation minted by a member of another circle", async () => {
+    const activityId = await newActivity();
+    const refusal = await refusalOf(() =>
+      pool.query(
+        `INSERT INTO "CircleInvitation"
+           ("id","circleId","activityId","createdByMemberId","tokenHash",
+            "expiresAt","createdAt")
+         VALUES ('inv-cross-member',$1,$2,$3,$4,$5,$6)`,
+        [
+          CIRCLE,
+          activityId,
+          OTHER_MEMBER, // …who belongs to OTHER_CIRCLE.
+          fakeHash(61),
+          pgTs(future()),
+          pgTs(new Date()),
+        ],
+      ),
+    );
+    expect(refusal.constraint).toBe(
+      "CircleInvitation_createdByMemberId_circleId_fkey",
+    );
+  });
+
+  it("refuses a seat held by a member of another circle", async () => {
+    const activityId = await newActivity();
+    const refusal = await refusalOf(() =>
+      insertParticipant({
+        id: "p-cross-member",
+        activityId,
+        memberId: OTHER_MEMBER,
+      }),
+    );
+    expect(refusal.constraint).toBe(
+      "CircleActivityParticipant_memberId_circleId_fkey",
+    );
+  });
+
+  it("refuses a seat whose circle disagrees with its activity", async () => {
+    // The scope column is not free-floating: the composite key to the activity
+    // forces it to agree, so it cannot drift into naming a different circle.
+    const activityId = await newActivity();
+    const refusal = await refusalOf(() =>
+      insertParticipant({
+        id: "p-cross-scope",
+        circleId: OTHER_CIRCLE,
+        activityId,
+        memberId: OTHER_MEMBER,
+      }),
+    );
+    expect(refusal.constraint).toBe(
+      "CircleActivityParticipant_activityId_circleId_fkey",
+    );
+  });
+
+  it("refuses a seat holding another activity's invitation", async () => {
+    const here = await newActivity();
+    const elsewhere = await newActivity();
+    await insertInvitation({
+      id: "inv-seat-cross",
+      activityId: elsewhere,
+      tokenHash: fakeHash(62),
+    });
+    const refusal = await refusalOf(() =>
+      insertParticipant({
+        id: "p-seat-cross",
+        activityId: here,
+        invitationId: "inv-seat-cross",
+      }),
+    );
+    expect(refusal.constraint).toBe(
+      "CircleActivityParticipant_invitationId_activityId_fkey",
+    );
+  });
+
+  it("refuses an artifact attributed to another activity's seat", async () => {
+    // This is the shape of "somebody else's answer appearing in your result",
+    // which is why it is a key and not a code review.
+    const w = await twoConsistentActivities();
+    const refusal = await refusalOf(() =>
+      pool.query(
+        `INSERT INTO "CircleArtifact"
+           ("id","activityId","version","kind","status","ciphertext","nonce",
+            "keyVersion","createdByParticipantId","updatedAt")
+         VALUES ($1,$2,1,'AGREEMENT','PROPOSED','ct','nonce',1,$3,now())`,
+        [`art-cross-${w.seq}`, w.a, w.seatB],
+      ),
+    );
+    expect(refusal.constraint).toBe(
+      "CircleArtifact_createdByParticipantId_activityId_fkey",
+    );
+  });
+
+  it("refuses an event naming an activity from another circle", async () => {
+    const refusal = await refusalOf(() =>
+      pool.query(
+        `INSERT INTO "CircleEvent" ("id","circleId","activityId","type")
+         VALUES ('ev-cross-circle',$1,$2,'ACTIVITY_CREATED')`,
+        [CIRCLE, OTHER_ACTIVITY_IN_OTHER_CIRCLE],
+      ),
+    );
+    expect(refusal.constraint).toBe("CircleEvent_activityId_circleId_fkey");
+  });
+
+  it("refuses an event whose acting seat is from another activity", async () => {
+    const w = await twoConsistentActivities();
+    const refusal = await refusalOf(() =>
+      pool.query(
+        `INSERT INTO "CircleEvent"
+           ("id","circleId","activityId","type","actorParticipantId")
+         VALUES ($1,$2,$3,'PARTICIPANT_READY',$4)`,
+        [`ev-cross-seat-${w.seq}`, CIRCLE, w.a, w.seatB],
+      ),
+    );
+    expect(refusal.constraint).toBe(
+      "CircleEvent_actorParticipantId_activityId_fkey",
+    );
+  });
+
+  it("refuses an acting seat without an activity to scope it", async () => {
+    // A composite key is only enforced when every column is non-null. Leaving
+    // `activityId` null would skip the key that proves the seat belongs to the
+    // activity — so the CHECK closes that door before the key is even asked.
+    const w = await twoConsistentActivities();
+    const refusal = await refusalOf(() =>
+      pool.query(
+        `INSERT INTO "CircleEvent"
+           ("id","circleId","activityId","type","actorParticipantId")
+         VALUES ($1,$2,NULL,'PARTICIPANT_READY',$3)`,
+        [`ev-noactivity-${w.seq}`, CIRCLE, w.seatA],
+      ),
+    );
+    expect(refusal.constraint).toBe(
+      "CircleEvent_participant_actor_needs_activity",
+    );
+  });
+
+  it("refuses an event naming a user who does not exist", async () => {
+    const refusal = await refusalOf(() =>
+      pool.query(
+        `INSERT INTO "CircleEvent" ("id","circleId","type","actorUserId")
+         VALUES ('ev-ghost-actor',$1,'ACTIVITY_CREATED','u-does-not-exist')`,
+        [CIRCLE],
+      ),
+    );
+    expect(refusal.constraint).toBe("CircleEvent_actorUserId_fkey");
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // Dúo is 2/2/2, exactly
+  // ═══════════════════════════════════════════════════════════════════════
+
+  it.each([1, 3, 4, 99])(
+    "refuses an activity requiring %i participants",
+    async (n) => {
+      const refusal = await refusalOf(() =>
+        pool.query(
+          `INSERT INTO "CircleActivity"
+             ("id","circleId","templateKey","templateVersion","status",
+              "requiredParticipants","updatedAt")
+           VALUES ($1,$2,'fixture-duo-template',1,'INVITING',$3,now())`,
+          [`act-req-${n}`, CIRCLE, n],
+        ),
+      );
+      expect(refusal.constraint).toBe(
+        "CircleActivity_required_participants_exactly_two",
+      );
+    },
+  );
+
+  it.each([1, 3, 10])("refuses a circle with room for %i", async (n) => {
+    const refusal = await refusalOf(() =>
+      pool.query(
+        `INSERT INTO "Circle" ("id","kind","status","createdByUserId","maxParticipants","updatedAt")
+         VALUES ($1,'DUO','ACTIVE',$2,$3,now())`,
+        [`c-max-${n}`, U1, n],
+      ),
+    );
+    expect(refusal.constraint).toBe("Circle_duo_two_participants");
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // The ledger is append-only, and the database is what says so
+  // ═══════════════════════════════════════════════════════════════════════
+
+  it("refuses UPDATE, DELETE and TRUNCATE on the event ledger", async () => {
+    await pool.query(
+      `INSERT INTO "CircleEvent" ("id","circleId","type")
+       VALUES ('ev-immutable',$1,'ACTIVITY_CREATED')`,
+      [CIRCLE],
+    );
+
+    const updated = await refusalOf(() =>
+      pool.query(
+        `UPDATE "CircleEvent" SET "type"='ACTIVITY_CLOSED' WHERE id='ev-immutable'`,
+      ),
+    );
+    expect(updated.message).toContain("CIRCLE_EVENT_APPEND_ONLY");
+
+    const deleted = await refusalOf(() =>
+      pool.query(`DELETE FROM "CircleEvent" WHERE id='ev-immutable'`),
+    );
+    expect(deleted.message).toContain("CIRCLE_EVENT_APPEND_ONLY");
+
+    // Row triggers do not see TRUNCATE. A table protected against DELETE and
+    // open to TRUNCATE is not protected.
+    const truncated = await refusalOf(() =>
+      pool.query(`TRUNCATE TABLE "CircleEvent" CASCADE`),
+    );
+    expect(truncated.message).toContain("CIRCLE_EVENT_APPEND_ONLY");
+
+    const { rows } = await pool.query(
+      `SELECT count(*)::int AS n FROM "CircleEvent" WHERE id='ev-immutable'`,
+    );
+    expect(rows[0].n).toBe(1);
+  });
+
+  it("has no application path that could turn the protection off", async () => {
+    // The instruction is that disabling this needs a reviewed migration or the
+    // destruction of an ephemeral test database — not a flag, not a repository
+    // method, not a `session_replication_role` toggle somebody found.
+    const src = readFileSync(
+      join(API_DIR, "src/circles/circle-event.repository.ts"),
+      "utf8",
+    );
+    for (const forbidden of [
+      "circleEvent.update",
+      "circleEvent.delete",
+      "circleEvent.deleteMany",
+      "circleEvent.updateMany",
+      "session_replication_role",
+      "ALTER TABLE",
+      "DISABLE TRIGGER",
+    ]) {
+      expect(src, forbidden).not.toContain(forbidden);
+    }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // The pilot gate — a guest inherits the inviter's enablement
+  // ═══════════════════════════════════════════════════════════════════════
+  //
+  // The rollout answers "is Círculos on for a USER". A guest has no user, so
+  // without this the guest surface would be the way around the allowlist: mint
+  // a link while enabled, hand it to anybody, and it works forever. The gate
+  // re-derives the inviter's eligibility on every use, and every way it can
+  // fail produces the SAME answer as a secret that never existed.
+
+  /** Mint through a service under `on`, so the fixture is never the thing under test. */
+  const mintIn = async (activityId: string, memberId = MEMBER) => {
+    await newActivity(activityId);
+    return serviceWith("on").mintInvitation({
+      circleId: memberId === MEMBER ? CIRCLE : OTHER_CIRCLE,
+      activityId,
+      createdByMemberId: memberId,
+    });
+  };
+
+  const unusableCodeOf = async (fn: () => Promise<unknown>) => {
+    try {
+      await fn();
+    } catch (err) {
+      return (err as CirclesError).code;
+    }
+    return "RESOLVED";
+  };
+
+  it("lets an allowlisted, active inviter through under pilot", async () => {
+    const minted = await mintIn("act-pilot-ok");
+    const pilot = serviceWith("pilot", U1);
+    await expect(pilot.inspect(minted.rawToken)).resolves.toBe(true);
+    const session = await pilot.exchange(minted.rawToken);
+    expect(session.rawGuestToken).toBeTruthy();
+  });
+
+  it("refuses an inviter who is not in the allowlist", async () => {
+    const minted = await mintIn("act-pilot-outside");
+    const pilot = serviceWith("pilot", "somebody_else");
+    expect(await unusableCodeOf(() => pilot.inspect(minted.rawToken))).toBe(
+      "CIRCLE_INVITATION_UNUSABLE",
+    );
+    expect(await unusableCodeOf(() => pilot.exchange(minted.rawToken))).toBe(
+      "CIRCLE_INVITATION_UNUSABLE",
+    );
+    // And the refusal did not spend it.
+    const { rows } = await pool.query(
+      `SELECT "consumedAt" FROM "CircleInvitation" WHERE id=$1`,
+      [minted.invitationId],
+    );
+    expect(rows[0].consumedAt).toBeNull();
+  });
+
+  it("stops working when the inviter is removed from the allowlist", async () => {
+    // Minted while enabled. The link does not carry the enablement with it.
+    const minted = await mintIn("act-pilot-removed");
+    await expect(
+      serviceWith("pilot", U1).inspect(minted.rawToken),
+    ).resolves.toBe(true);
+
+    const afterRemoval = serviceWith("pilot", "someone_new");
+    expect(
+      await unusableCodeOf(() => afterRemoval.exchange(minted.rawToken)),
+    ).toBe("CIRCLE_INVITATION_UNUSABLE");
+  });
+
+  it("refuses an inviter who has left the circle", async () => {
+    const minted = await mintIn("act-pilot-left");
+    const pilot = serviceWith("pilot", U1);
+    await expect(pilot.inspect(minted.rawToken)).resolves.toBe(true);
+
+    await pool.query(
+      `UPDATE "CircleMember" SET "status"='LEFT', "leftAt"=now() WHERE id=$1`,
+      [MEMBER],
+    );
+    try {
+      expect(await unusableCodeOf(() => pilot.inspect(minted.rawToken))).toBe(
+        "CIRCLE_INVITATION_UNUSABLE",
+      );
+      expect(await unusableCodeOf(() => pilot.exchange(minted.rawToken))).toBe(
+        "CIRCLE_INVITATION_UNUSABLE",
+      );
+    } finally {
+      await pool.query(
+        `UPDATE "CircleMember" SET "status"='ACTIVE', "leftAt"=NULL WHERE id=$1`,
+        [MEMBER],
+      );
+    }
+  });
+
+  it("re-checks inside the exchange transaction, not only before it", async () => {
+    // The window this closes: `inspect` said yes, and by the time the canje ran
+    // the member had left. The check inside the transaction sees the row under
+    // the same lock the consume took, so the canje unwinds instead of landing.
+    const minted = await mintIn("act-pilot-window");
+    const pilot = serviceWith("pilot", U1);
+    await expect(pilot.inspect(minted.rawToken)).resolves.toBe(true);
+
+    await pool.query(
+      `UPDATE "CircleMember" SET "status"='LEFT', "leftAt"=now() WHERE id=$1`,
+      [MEMBER],
+    );
+    try {
+      expect(await unusableCodeOf(() => pilot.exchange(minted.rawToken))).toBe(
+        "CIRCLE_INVITATION_UNUSABLE",
+      );
+      // Nothing landed: not consumed, no session, no guest-session event.
+      const inv = await pool.query(
+        `SELECT "consumedAt","acceptedAt" FROM "CircleInvitation" WHERE id=$1`,
+        [minted.invitationId],
+      );
+      expect(inv.rows[0].consumedAt).toBeNull();
+      expect(inv.rows[0].acceptedAt).toBeNull();
+      const sessions = await pool.query(
+        `SELECT count(*)::int AS n FROM "CircleGuestSession" WHERE "activityId"='act-pilot-window'`,
+      );
+      expect(sessions.rows[0].n).toBe(0);
+      const seat = await pool.query(
+        `SELECT "status" FROM "CircleActivityParticipant" WHERE "activityId"='act-pilot-window'`,
+      );
+      expect(seat.rows[0].status).toBe("INVITED");
+    } finally {
+      await pool.query(
+        `UPDATE "CircleMember" SET "status"='ACTIVE', "leftAt"=NULL WHERE id=$1`,
+        [MEMBER],
+      );
+    }
+  });
+
+  it("needs no allowlist under `on`", async () => {
+    const minted = await mintIn("act-pilot-on");
+    const open = serviceWith("on");
+    await expect(open.inspect(minted.rawToken)).resolves.toBe(true);
+    await expect(open.exchange(minted.rawToken)).resolves.toBeTruthy();
+  });
+
+  it("answers identically however the inviter fails", async () => {
+    // Four causes — not allowlisted, left the circle, both, and a secret that
+    // never existed — and one answer. A difference here would confirm that the
+    // invitation is real, which is the one thing a guesser wants to know.
+    const notListed = await mintIn("act-pilot-same-a");
+    const left = await mintIn("act-pilot-same-b");
+    await pool.query(
+      `UPDATE "CircleMember" SET "status"='LEFT', "leftAt"=now() WHERE id=$1`,
+      [MEMBER],
+    );
+    let codes: string[];
+    try {
+      const pilot = serviceWith("pilot", U1);
+      const outside = serviceWith("pilot", "nobody_here");
+      codes = [
+        await unusableCodeOf(() => outside.inspect(notListed.rawToken)),
+        await unusableCodeOf(() => pilot.inspect(left.rawToken)),
+        await unusableCodeOf(() => outside.inspect(left.rawToken)),
+        await unusableCodeOf(() => pilot.inspect(mintInvitationToken().raw)),
+      ];
+    } finally {
+      await pool.query(
+        `UPDATE "CircleMember" SET "status"='ACTIVE', "leftAt"=NULL WHERE id=$1`,
+        [MEMBER],
+      );
+    }
+    expect(new Set(codes)).toEqual(new Set(["CIRCLE_INVITATION_UNUSABLE"]));
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // The seat has to actually move from INVITED to ACCEPTED
+  // ═══════════════════════════════════════════════════════════════════════
+
+  it("aborts the whole exchange when the seat is gone", async () => {
+    const minted = await mintIn("act-seat-missing");
+    await pool.query(`DELETE FROM "CircleActivityParticipant" WHERE id=$1`, [
+      minted.participantId,
+    ]);
+
+    expect(await unusableCodeOf(() => service.exchange(minted.rawToken))).toBe(
+      "CIRCLE_STORAGE_FAILURE",
+    );
+
+    // Rolled back completely: the invitation is still usable, and nothing else
+    // was written. A half-applied exchange is the state this check exists for.
+    const inv = await pool.query(
+      `SELECT "consumedAt","acceptedAt" FROM "CircleInvitation" WHERE id=$1`,
+      [minted.invitationId],
+    );
+    expect(inv.rows[0].consumedAt).toBeNull();
+    expect(inv.rows[0].acceptedAt).toBeNull();
+    const sessions = await pool.query(
+      `SELECT count(*)::int AS n FROM "CircleGuestSession" WHERE "activityId"='act-seat-missing'`,
+    );
+    expect(sessions.rows[0].n).toBe(0);
+    const events = await pool.query(
+      `SELECT count(*)::int AS n FROM "CircleEvent"
+        WHERE "activityId"='act-seat-missing' AND "type"='GUEST_SESSION_CREATED'`,
+    );
+    expect(events.rows[0].n).toBe(0);
+  });
+
+  it("aborts when the seat is in any state but INVITED", async () => {
+    const minted = await mintIn("act-seat-declined");
+    await pool.query(
+      `UPDATE "CircleActivityParticipant" SET "status"='DECLINED' WHERE id=$1`,
+      [minted.participantId],
+    );
+
+    expect(await unusableCodeOf(() => service.exchange(minted.rawToken))).toBe(
+      "CIRCLE_STORAGE_FAILURE",
+    );
+
+    const inv = await pool.query(
+      `SELECT "consumedAt" FROM "CircleInvitation" WHERE id=$1`,
+      [minted.invitationId],
+    );
+    expect(inv.rows[0].consumedAt).toBeNull();
+    const seat = await pool.query(
+      `SELECT "status" FROM "CircleActivityParticipant" WHERE id=$1`,
+      [minted.participantId],
+    );
+    expect(seat.rows[0].status).toBe("DECLINED");
+    const sessions = await pool.query(
+      `SELECT count(*)::int AS n FROM "CircleGuestSession" WHERE "activityId"='act-seat-declined'`,
+    );
+    expect(sessions.rows[0].n).toBe(0);
+  });
+
+  it("cannot be handed a seat from an incompatible activity", async () => {
+    // There is no test for "the service rejects a seat from another activity",
+    // because the composite key makes such a seat unstorable — the refusal
+    // happens two layers earlier. This asserts THAT, so the absence of the
+    // service-level case is a recorded fact rather than a gap.
+    const here = await newActivity();
+    const elsewhere = await newActivity();
+    await insertInvitation({
+      id: "inv-incompatible",
+      activityId: elsewhere,
+      tokenHash: fakeHash(70),
+    });
+    const refusal = await refusalOf(() =>
+      insertParticipant({
+        id: "p-incompatible",
+        activityId: here,
+        invitationId: "inv-incompatible",
+      }),
+    );
+    expect(refusal.constraint).toBe(
+      "CircleActivityParticipant_invitationId_activityId_fkey",
+    );
   });
 
   // ── Concurrency: the part a single-threaded test cannot show ──────────────

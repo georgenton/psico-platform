@@ -28,6 +28,7 @@ import { ContentCoreModule } from "./content-core/content-core.module";
 import { LearningModule } from "./learning/learning.module";
 import { GuideModule } from "./guide/guide.module";
 import { ExperienceModule } from "./experience/experience.module";
+import { CirclesModule } from "./circles/circles.module";
 import { ContentStudioModule } from "./content-studio/content-studio.module";
 import { PatronesModule } from "./patrones";
 import { EmotionalMapModule } from "./emotional-map";
@@ -83,6 +84,9 @@ import { AppThrottlerModule, IdempotencyInterceptor } from "./shared";
     LiveActivitiesModule, // Sprint E.5 — /api/push/live-activity/* (iOS 16.1+)
     TerapiaModule, // Sprint S62 — /api/terapia/* (Crisis público + Hub auth)
     AuthorModule, // Sprint S71 — /api/autor/* (Editor de autor B2B, AUTHOR role)
+    // PR2 — /api/circles/* access spine (ADR 0023). Inert until
+    // CIRCLES_ROLLOUT_MODE says otherwise; `off` is the default everywhere.
+    CirclesModule,
     // TODO senior: register remaining feature modules here
     // AnalyticsModule, TerapiaModule (S13)
   ],

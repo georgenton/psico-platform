@@ -159,6 +159,10 @@ model User {
   guideCommandReceipts      GuideCommandReceipt[]
   chapterExperienceVersions ChapterExperienceVersion[]
   chapterMediaVersions      ChapterMediaVersion[]
+  // Círculos (PR2). A circle role never touches `User.role`: membership is
+  // scoped to one circle and carries no platform capability.
+  circlesCreated            Circle[]                   @relation("CircleCreatedBy")
+  circleMemberships         CircleMember[]
 
   // Sprint S43: last time we sent a re-engagement nudge (any channel). The
   // InactiveNudgeProcessor uses this to avoid spamming the same user
@@ -2855,4 +2859,342 @@ enum ExperienceVersionStatus {
   /// is never reused, and its `contentUnitId` is kept: identity is history.
   /// What archiving gives back is the guide.
   ARCHIVED
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FeelVerse Círculos — the relational domain (PR2 · ADR 0023).
+//
+// Eight models, additive, and inert: `CIRCLES_ROLLOUT_MODE` defaults to `off`,
+// so nothing here is reachable by a reader. What this cut buys is that the
+// invariants live in PostgreSQL — CHECKs, partial unique indexes and composite
+// foreign keys in the migration — rather than in TypeScript `if`s that a later
+// refactor can walk around.
+//
+// Two absences are the point:
+//
+//   · There is NO column for a private draft, a private response or a
+//     preparation answer, and there never will be. Preparation happens on the
+//     device; the server has nowhere to put it. A ratchet asserts the absence.
+//   · There is NO raw token or code column. Invitations persist SHA-256 hashes
+//     only; the raw secret exists during generation and exchange and nowhere
+//     else — not in a row, a log, an error or an event.
+//
+// The `ciphertext`/`nonce`/`keyVersion` columns on participant and artifact
+// prepare PR3. PR2 never writes them, and they are NOT end-to-end encryption:
+// the API holds the key. Said plainly here so no later reader assumes otherwise.
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum CircleKind {
+  DUO
+}
+
+enum CircleStatus {
+  ACTIVE
+  CLOSED
+}
+
+enum CircleMemberRole {
+  ORGANIZER
+  MEMBER
+}
+
+enum CircleMemberStatus {
+  ACTIVE
+  LEFT
+}
+
+enum CircleActivityStatus {
+  INVITING
+  PREPARING
+  REVEALED
+  FOLLOW_UP
+  CLOSED
+  CANCELLED
+}
+
+enum CircleParticipantStatus {
+  INVITED
+  ACCEPTED
+  READY
+  WITHDRAWN
+  DECLINED
+}
+
+enum CircleSharingMode {
+  SELECTED_FIELDS
+  EDITED_SUMMARY
+  KEEP_PRIVATE
+  WITHDRAW
+}
+
+enum CircleArtifactKind {
+  AGREEMENT
+  REQUEST
+  RECOGNITION
+  ECO_SUMMARY
+}
+
+enum CircleArtifactStatus {
+  PROPOSED
+  AGREED
+  SUPERSEDED
+}
+
+enum CircleFollowUpDecision {
+  KEEP
+  ADJUST
+  CLOSE
+}
+
+/// Closed vocabulary. A `CircleEvent` records THAT something happened, never
+/// what anybody wrote — there is no free-text column to hold a reason.
+enum CircleEventType {
+  CIRCLE_CREATED
+  ACTIVITY_CREATED
+  INVITATION_CREATED
+  INVITATION_EXCHANGED
+  INVITATION_ACCEPTED
+  INVITATION_DECLINED
+  INVITATION_REVOKED
+  GUEST_SESSION_CREATED
+  GUEST_SESSION_REVOKED
+  PARTICIPANT_READY
+  ACTIVITY_REVEALED
+  PARTICIPANT_WITHDRAWN
+  ARTIFACT_PROPOSED
+  ARTIFACT_CONFIRMED
+  FOLLOW_UP_RECORDED
+  ACTIVITY_CLOSED
+  ACTIVITY_CANCELLED
+}
+
+model Circle {
+  id              String       @id @default(cuid())
+  kind            CircleKind   @default(DUO)
+  status          CircleStatus @default(ACTIVE)
+  createdByUserId String
+  /// Pinned to 2 for DUO by SQL CHECK. The column exists so the domain is
+  /// multi-participant by shape; the product exposes only Dúo in v1.
+  maxParticipants Int
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  closedAt        DateTime?
+
+  /// Restrict: closing a circle is not deleting one, and audit outlives it.
+  createdBy   User               @relation("CircleCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  members     CircleMember[]
+  activities  CircleActivity[]
+  invitations CircleInvitation[]
+  events      CircleEvent[]
+
+  @@index([createdByUserId])
+  @@index([status])
+}
+
+model CircleMember {
+  id       String             @id @default(cuid())
+  circleId String
+  userId   String
+  role     CircleMemberRole
+  status   CircleMemberStatus @default(ACTIVE)
+  joinedAt DateTime           @default(now())
+  leftAt   DateTime?
+
+  circle       Circle                      @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  user         User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  participants CircleActivityParticipant[]
+  invitations  CircleInvitation[]          @relation("CircleInvitationCreatedBy")
+
+  /// One ACTIVE membership per (circle, user) — a PARTIAL unique index in the
+  /// migration, so leaving and rejoining stays possible without a second row
+  /// being able to exist while the first is active.
+  @@index([circleId, userId])
+  @@index([userId, status])
+}
+
+model CircleInvitation {
+  id                String    @id @default(cuid())
+  circleId          String
+  activityId        String
+  createdByMemberId String
+  /// SHA-256 of the raw token. The raw value NEVER reaches a column, a log,
+  /// an error, an event or a metric.
+  tokenHash         String    @unique
+  /// SHA-256 of the alternative short code. Optional: an invitation may be
+  /// link-only.
+  codeHash          String?   @unique
+  expiresAt         DateTime
+  /// Single use in Dúo: set once, and a partial unique index keeps at most one
+  /// unconsumed counterpart invitation per activity.
+  consumedAt        DateTime?
+  acceptedAt        DateTime?
+  declinedAt        DateTime?
+  revokedAt         DateTime?
+  createdAt         DateTime  @default(now())
+
+  circle          Circle                      @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  activity        CircleActivity              @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  createdByMember CircleMember                @relation("CircleInvitationCreatedBy", fields: [createdByMemberId], references: [id], onDelete: Restrict)
+  guestSessions   CircleGuestSession[]
+  participants    CircleActivityParticipant[]
+
+  /// Same reason: a guest session's invitation must belong to the very
+  /// activity the session is scoped to.
+  @@unique([id, activityId])
+  @@index([activityId])
+  @@index([circleId])
+  @@index([expiresAt])
+}
+
+model CircleGuestSession {
+  id            String    @id @default(cuid())
+  invitationId  String
+  /// The ONE activity this session may ever touch. Denormalised on purpose:
+  /// the actor is built from this row, so scoping is structural rather than a
+  /// join somebody must remember to write.
+  activityId    String
+  participantId String
+  /// SHA-256 of the opaque session secret. Same rule as the invitation.
+  tokenHash     String    @unique
+  expiresAt     DateTime
+  acceptedAt    DateTime?
+  revokedAt     DateTime?
+  lastSeenAt    DateTime?
+  createdAt     DateTime  @default(now())
+
+  invitation  CircleInvitation          @relation(fields: [invitationId], references: [id], onDelete: Cascade)
+  activity    CircleActivity            @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  participant CircleActivityParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+
+  @@index([invitationId])
+  @@index([activityId])
+  @@index([expiresAt])
+}
+
+model CircleActivity {
+  id                   String               @id @default(cuid())
+  circleId             String
+  /// The template pin. Immutable after creation, enforced by a SQL trigger —
+  /// re-pointing a running activity at different copy is not something a
+  /// convention should be trusted to prevent. `contentUnitId` is deliberately
+  /// absent: editorial identity is resolved server-side, never carried in a
+  /// contract the Web can see.
+  templateKey          String
+  templateVersion      Int
+  status               CircleActivityStatus @default(INVITING)
+  requiredParticipants Int
+  revealedAt           DateTime?
+  followUpDueAt        DateTime?
+  closedAt             DateTime?
+  cancelledAt          DateTime?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+
+  circle        Circle                      @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  participants  CircleActivityParticipant[]
+  invitations   CircleInvitation[]
+  guestSessions CircleGuestSession[]
+  artifacts     CircleArtifact[]
+  events        CircleEvent[]
+
+  @@index([circleId, status])
+  @@index([templateKey, templateVersion])
+  @@index([followUpDueAt])
+}
+
+model CircleActivityParticipant {
+  id           String                  @id @default(cuid())
+  activityId   String
+  /// EXACTLY ONE identity: a member (authenticated) or an invitation (guest).
+  /// `num_nonnulls(memberId, invitationId) = 1` is a SQL CHECK.
+  memberId     String?
+  invitationId String?
+  status       CircleParticipantStatus @default(INVITED)
+
+  /// The confirmed snapshot. PR3 writes these; PR2 never does. All four are
+  /// present together or absent together (SQL CHECK) — a half-written envelope
+  /// is not a state the reveal barrier should ever have to interpret.
+  ///
+  /// NOT end-to-end encryption: the API holds the key.
+  ciphertext String?
+  nonce      String?
+  keyVersion Int?
+  readyAt    DateTime?
+
+  sharingMode CircleSharingMode?
+  /// Which template fields the person chose to share. Keys only — never values.
+  fieldKeys   String[]           @default([])
+  /// Integrity of the confirmed snapshot, for replay detection. Never content.
+  payloadHash String?
+
+  withdrawnAt      DateTime?
+  followUpDecision CircleFollowUpDecision?
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+
+  activity      CircleActivity       @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  member        CircleMember?        @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  invitation    CircleInvitation?    @relation(fields: [invitationId], references: [id], onDelete: Restrict)
+  guestSessions CircleGuestSession[]
+  artifacts     CircleArtifact[]     @relation("CircleArtifactCreatedBy")
+
+  /// Ownership target for the guest-session composite FK: a session can only
+  /// reference a participant OF ITS OWN activity (DB-enforced, see migration).
+  @@unique([id, activityId])
+  @@index([activityId, status])
+  @@index([memberId])
+  @@index([invitationId])
+}
+
+model CircleArtifact {
+  id         String               @id @default(cuid())
+  activityId String
+  version    Int
+  kind       CircleArtifactKind
+  status     CircleArtifactStatus @default(PROPOSED)
+
+  /// Same shape and the same honesty as the participant snapshot.
+  ciphertext String
+  nonce      String
+  keyVersion Int
+
+  createdByParticipantId String
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+  agreedAt               DateTime?
+
+  activity             CircleActivity            @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  createdByParticipant CircleActivityParticipant @relation("CircleArtifactCreatedBy", fields: [createdByParticipantId], references: [id], onDelete: Restrict)
+
+  /// Monotonic per activity; at most one non-SUPERSEDED artifact per activity
+  /// (partial unique index in the migration).
+  @@unique([activityId, version])
+  @@index([activityId, status])
+}
+
+model CircleEvent {
+  id         String          @id @default(cuid())
+  circleId   String
+  activityId String?
+  type       CircleEventType
+
+  /// WHO acted, as the server resolved them. Exactly one of the two, or
+  /// neither for a SYSTEM event (SQL CHECK).
+  actorUserId        String?
+  actorParticipantId String?
+
+  /// The receipt key. Unique per (actor, command, key) so a replay is a NOOP
+  /// rather than a second event — PostgreSQL is the authority, not Redis.
+  idempotencyKey String?
+  /// Closed metadata: counters, ids and versions. NEVER free text, never a
+  /// reason, never anything a person wrote (SQL CHECK caps its size).
+  metadata       Json?
+  occurredAt     DateTime @default(now())
+
+  circle   Circle          @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  activity CircleActivity? @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  @@index([circleId, occurredAt])
+  @@index([activityId, occurredAt])
+  @@index([type])
 }

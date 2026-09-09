@@ -23880,6 +23880,98 @@
           "autor"
         ]
       }
+    },
+    "/api/circles/access": {
+      "get": {
+        "operationId": "CirclesController_access",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Enabled."
+          },
+          "503": {
+            "description": "CIRCLES_UNAVAILABLE."
+          }
+        },
+        "summary": "Whether Círculos is enabled for the caller",
+        "tags": [
+          "circles"
+        ]
+      }
+    },
+    "/api/circles/invitations/inspect": {
+      "post": {
+        "operationId": "CirclesController_inspect",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InspectInvitationDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The invitation is usable."
+          },
+          "404": {
+            "description": "CIRCLE_INVITATION_UNUSABLE — one answer for nonexistent, malformed, expired, already used, declined and revoked alike."
+          }
+        },
+        "summary": "Check an invitation without consuming it",
+        "tags": [
+          "circles"
+        ]
+      }
+    },
+    "/api/circles/invitations/accept": {
+      "post": {
+        "operationId": "CirclesController_accept",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptInvitationDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The guest session was created."
+          },
+          "404": {
+            "description": "CIRCLE_INVITATION_UNUSABLE — the same single answer."
+          }
+        },
+        "summary": "Trade an invitation for a guest session",
+        "tags": [
+          "circles"
+        ]
+      }
+    },
+    "/api/circles/guest/session": {
+      "get": {
+        "operationId": "CirclesController_guestSession",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The resolved guest actor."
+          },
+          "401": {
+            "description": "CIRCLE_GUEST_SESSION_INVALID — one answer for missing, unknown, expired and revoked alike."
+          }
+        },
+        "summary": "The scope of the presented guest session",
+        "tags": [
+          "circles"
+        ]
+      }
     }
   },
   "info": {
@@ -27373,6 +27465,42 @@
         },
         "required": [
           "method"
+        ]
+      },
+      "InspectInvitationDto": {
+        "type": "object",
+        "properties": {
+          "secret": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "description": "The invitation link token, or the short code, exactly as received. Never stored; hashed on arrival."
+          }
+        },
+        "required": [
+          "secret"
+        ]
+      },
+      "AcceptInvitationDto": {
+        "type": "object",
+        "properties": {
+          "secret": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "description": "The invitation link token, or the short code, exactly as received. Never stored; hashed on arrival."
+          },
+          "accept": {
+            "description": "Must be literally true. Explicit acceptance, distinct from opening or inspecting the invitation.",
+            "type": "number",
+            "enum": [
+              true
+            ]
+          }
+        },
+        "required": [
+          "secret",
+          "accept"
         ]
       }
     }

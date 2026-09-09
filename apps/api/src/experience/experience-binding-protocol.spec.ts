@@ -912,10 +912,13 @@ describe("ratchet · the cutover migrations say what they do", () => {
       "20260820020000_c3c_experience_binding_shape",
     ]);
     // 59 on `main` (C.3A's included), plus these two, plus the one that gave
-    // `Exercise` a native owner — which is why this is 62 and not 61. That one
-    // is named here too, so the bump cannot be spent on something else.
+    // `Exercise` a native owner — which is why this was 62 — plus FeelVerse
+    // Círculos' single additive migration (PR2, ADR 0023), which is why it is
+    // now 63. Both extras are named here, so a bump cannot be spent on
+    // something else: raising the number without adding a name fails.
     expect(dirs).toContain("20260905120000_native_exercise_ownership");
-    expect(dirs).toHaveLength(62);
+    expect(dirs).toContain("20260909180000_circles_domain_foundation");
+    expect(dirs).toHaveLength(63);
     expect(dirs.filter((d) => d.includes("c3r"))).toEqual([]);
   });
 

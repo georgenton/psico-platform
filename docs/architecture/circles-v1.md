@@ -72,7 +72,7 @@ pruebas en [`apps/api/src/circles/`](../../apps/api/src/circles/).
 
 |              |                                                                                                                                               |
 | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Añade**    | Contratos compartidos, validator, registro, catálogo vacío, matriz de permisos, dos máquinas de estados, threat model, fixtures y 49 pruebas. |
+| **Añade**    | Contratos compartidos, validator, registro, catálogo vacío, matriz de permisos, dos máquinas de estados, threat model, fixtures y 55 pruebas. |
 | **No añade** | Modelo Prisma, migración, `CirclesModule`, controladores, guards, rutas web, rollout, cifrado, worker, Eco, CTA y plantillas publicadas.      |
 
 `apps/api/src/circles/` contiene únicamente specs y fixtures. Está ahí porque
@@ -86,18 +86,18 @@ y porque es donde el módulo aterrizará en PR2.
 Las diez decisiones vienen de la especificación. Aquí se registran con su
 consecuencia sobre el código de este corte.
 
-| ADR         | Decisión                                                                    | Dónde se ve en PR1                                                                         |
-| ----------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| **CIR-001** | Un dominio (`CirclesModule`), varias superficies. Dúo es `Circle.kind=DUO`. | `participants {min,max,required}` en vez de suponer dos; `audience` con un único valor.    |
-| **CIR-002** | No tocar `GuideSession`. Una `CircleActivity` tiene lifecycle propio.       | Máquina de estados propia; cero ficheros de Guide modificados.                             |
-| **CIR-003** | Preview público ≠ sala pública. Dos URL, dos contratos.                     | `CircleTemplatePreview` + `toCircleTemplatePreview`, con test de lo que no puede contener. |
-| **CIR-004** | Preparación privada local; no se persiste.                                  | No existe tipo para una respuesta; ratchet de ausencia.                                    |
-| **CIR-005** | Se cifra lo deliberadamente compartido (`ciphertext+nonce+keyVersion`).     | Fuera del contrato compartido: es forma de dominio (PR3). Documentado en §5.               |
-| **CIR-006** | PostgreSQL manda; Redis ayuda.                                              | Documental en este corte; se implementa en PR2/PR3.                                        |
-| **CIR-007** | Plantillas versionadas en código; sin CMS.                                  | `CircleTemplateRegistry` + catálogo vacío.                                                 |
-| **CIR-008** | Sin tiempo real. Polling 8–12 s.                                            | Documental; sin superficie en PR1.                                                         |
-| **CIR-009** | Rollout `off\|pilot\|on`, fail-closed.                                      | **No implementado aquí**: llega en PR2 siguiendo `guide-rollout.ts`.                       |
-| **CIR-010** | FeelVerse en copy; identificadores técnicos estables.                       | Rutas/tipos nuevos usan «Circle»; `@psico/*` y `psico-platform` sin tocar.                 |
+| ADR         | Decisión                                                                    | Dónde se ve en PR1                                                                                                                        |
+| ----------- | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| **CIR-001** | Un dominio (`CirclesModule`), varias superficies. Dúo es `Circle.kind=DUO`. | `participants {min,max,required}` en vez de suponer dos; `audience` con un único valor.                                                   |
+| **CIR-002** | No tocar `GuideSession`. Una `CircleActivity` tiene lifecycle propio.       | Máquina de estados propia; cero ficheros de Guide modificados.                                                                            |
+| **CIR-003** | Preview público ≠ sala pública. Dos URL, dos contratos.                     | `CircleTemplatePreview` + `toCircleTemplatePreview`, que **rechaza** DRAFT y ARCHIVED por sí mismo, con test de lo que no puede contener. |
+| **CIR-004** | Preparación privada local; no se persiste.                                  | No existe tipo para una respuesta; ratchet de ausencia.                                                                                   |
+| **CIR-005** | Se cifra lo deliberadamente compartido (`ciphertext+nonce+keyVersion`).     | Fuera del contrato compartido: es forma de dominio (PR3). Documentado en §5.                                                              |
+| **CIR-006** | PostgreSQL manda; Redis ayuda.                                              | Documental en este corte; se implementa en PR2/PR3.                                                                                       |
+| **CIR-007** | Plantillas versionadas en código; sin CMS.                                  | `CircleTemplateRegistry` + catálogo vacío.                                                                                                |
+| **CIR-008** | Sin tiempo real. Polling 8–12 s.                                            | Documental; sin superficie en PR1.                                                                                                        |
+| **CIR-009** | Rollout `off\|pilot\|on`, fail-closed.                                      | **No implementado aquí**: llega en PR2 siguiendo `guide-rollout.ts`.                                                                      |
+| **CIR-010** | FeelVerse en copy; identificadores técnicos estables.                       | Rutas/tipos nuevos usan «Circle»; `@psico/*` y `psico-platform` sin tocar.                                                                |
 
 ---
 
@@ -199,7 +199,7 @@ Declaradas exhaustivamente en `CIRCLE_ACTIVITY_TRANSITIONS` y
 stateDiagram-v2
     [*] --> INVITING
     INVITING --> PREPARING: aceptar invitación
-    INVITING --> CANCELLED: rechazo o vencimiento
+    INVITING --> CANCELLED: rechazo, retiro del organizador o vencimiento
     PREPARING --> REVEALED: SYSTEM · barrera
     PREPARING --> CANCELLED: retiro antes de revelar
     REVEALED --> FOLLOW_UP: SYSTEM · fecha
@@ -217,9 +217,17 @@ Propiedades que las pruebas fijan sobre el grafo completo, no caso a caso:
   `REVEALED` tiene trigger `SYSTEM`: nadie puede _pedir_ que se revele.
 - **`CONFIRM_SHARE` no aparece en la tabla de la actividad.** Mueve al
   participante; la actividad se mueve cuando la barrera cuenta a todos.
-- **`WITHDRAW` tiene dos desenlaces.** Antes de revelar → `CANCELLED` y se
-  destruyen los sobres pendientes. Después → `CLOSED`: se corta el acceso
-  futuro, y el producto nunca promete que la otra persona olvide lo que ya vio.
+- **`WITHDRAW` tiene un desenlace explícito en cada etapa, y solo tres.**
+  Desde `INVITING` → `CANCELLED`: el organizador retira una invitación que
+  nadie aceptó todavía; es terminal, silenciosa y no pide ni comunica una
+  razón. Desde `PREPARING` → `CANCELLED` y se destruyen los sobres pendientes.
+  Desde `REVEALED` → `CLOSED`: se corta el acceso futuro, y el producto nunca
+  promete que la otra persona olvide lo que ya vio. No hay una cuarta.
+
+  Sin la primera arista, una actividad podía quedarse atrapada en `INVITING`
+  para siempre —basta con que la contraparte no conteste nunca— y el
+  organizador no tenía forma de retirarla. Lo detectó la auditoría.
+
 - **Se puede salir desde cualquier estado no terminal.** Un estado sin salida
   atraparía a una persona dentro de una actividad.
 - **`PREPARING` no significa que el servidor tenga un borrador.** Significa que
@@ -242,8 +250,16 @@ duplicados, prototipos exóticos y versiones no positivas. El error lleva un
 
 El registro resuelve por pin exacto `key@version`, sin «latest» ni vecinos.
 `DRAFT` y `ARCHIVED` **sí** resuelven por pin —una actividad ya en curso debe
-seguir funcionando— pero no se pueden previsualizar ni instanciar, y la negativa
-distingue «no publicada» de «no existe».
+seguir funcionando— pero no se pueden listar, previsualizar ni instanciar, y la
+negativa distingue «no publicada» de «no existe».
+
+**La frontera pública falla cerrada por sí misma.** `toCircleTemplatePreview`
+comprueba el estado él mismo y lanza `CIRCLE_CATALOG_NOT_PUBLISHED` ante un
+DRAFT o un ARCHIVED, en vez de confiar en que quien llama haya pasado antes por
+`getPublished()`. Dos guardas que deben ponerse de acuerdo son más débiles que
+una que no se puede esquivar: un `map()` distraído bastaría para poner un
+borrador sin revisar delante de una persona desconocida. Lo detectó la
+auditoría.
 
 ### El catálogo está vacío, y eso es el entregable
 
@@ -323,7 +339,7 @@ no tiene runner y añadirle uno significaría tocar CI en una PR de contratos.
 ## 11. Fuera de alcance del programa
 
 Microservicio · apps separadas · rename masivo `psico`→`FeelVerse` ·
-modificación de `GuideSession` o del cierre congelado de #639 ·
+modificación de `GuideSession` o del arco congelado de #639 ·
 `PrivateResponse` persistente · cripto E2E multiparte · CMS de plantillas ·
 WebSockets, chat, presencia o feed · policy DSL · jerarquías de círculos ·
 perfiles de menores · facilitadores profesionales o panel B2B · app nativa ·

@@ -308,6 +308,64 @@ describe("circles · template registry", () => {
 });
 
 describe("circles · public preview projection", () => {
+  it("refuses to project a DRAFT, whatever the caller did first", () => {
+    // The projector does not trust its caller to have gone through
+    // `getPublished()`. A DRAFT is unreviewed writing; one forgetful `map()`
+    // is all it would take to put it in front of a stranger.
+    try {
+      toCircleTemplatePreview(
+        validateCircleActivityDefinition(VALID_DUO_TEMPLATE),
+      );
+      expect.unreachable("a DRAFT must never project");
+    } catch (err) {
+      expect(err).toBeInstanceOf(CircleCatalogError);
+      expect((err as CircleCatalogError).code).toBe(
+        "CIRCLE_CATALOG_NOT_PUBLISHED",
+      );
+      // The refusal names a status, never the template's editorial copy.
+      expect((err as Error).message).toBe("CIRCLE_CATALOG_NOT_PUBLISHED");
+      expect((err as Error).message).not.toContain("Plantilla");
+    }
+  });
+
+  it("refuses to project an ARCHIVED template", () => {
+    // Archiving is how a template is withdrawn from the product. If it could
+    // still be previewed, withdrawing it would mean nothing publicly.
+    const archived = validateCircleActivityDefinition({
+      ...PUBLISHED_DUO_TEMPLATE,
+      status: "ARCHIVED",
+    });
+    try {
+      toCircleTemplatePreview(archived);
+      expect.unreachable("an ARCHIVED template must never project");
+    } catch (err) {
+      expect((err as CircleCatalogError).code).toBe(
+        "CIRCLE_CATALOG_NOT_PUBLISHED",
+      );
+    }
+  });
+
+  it("projects a PUBLISHED template", () => {
+    expect(
+      toCircleTemplatePreview(
+        validateCircleActivityDefinition(PUBLISHED_DUO_TEMPLATE),
+      ).templateKey,
+    ).toBe("fixture-duo-published");
+  });
+
+  it("leaves DRAFT and ARCHIVED resolvable internally", () => {
+    // The boundary closed for the public; it did not close for an activity
+    // already running on one of these templates.
+    const archived = { ...VALID_DUO_TEMPLATE, templateKey: "fixture-arch" };
+    const registry = new CircleTemplateRegistry([
+      VALID_DUO_TEMPLATE,
+      { ...archived, status: "ARCHIVED" as const },
+    ]);
+    expect(registry.getExact("fixture-duo-template", 1).status).toBe("DRAFT");
+    expect(registry.getExact("fixture-arch", 1).status).toBe("ARCHIVED");
+    expect(registry.listPublished()).toEqual([]);
+  });
+
   it("carries what the public may see and nothing about an instance", () => {
     const preview = toCircleTemplatePreview(
       validateCircleActivityDefinition(PUBLISHED_DUO_TEMPLATE),

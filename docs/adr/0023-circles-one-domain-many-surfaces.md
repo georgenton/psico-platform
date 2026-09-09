@@ -16,6 +16,10 @@ REDIS_CORRECTNESS_AUTHORITY=false
 TEMPLATE_CMS_BUILT=false
 PUBLISHED_TEMPLATES=0
 IMPLEMENTATION_AUTHORIZED=false
+
+ISSUE_639_IMPLEMENTATION_COMPLETE=true
+ISSUE_639_FROZEN=true
+ISSUE_639_CLOSED=false
 ```
 
 La arquitectura completa —modelo de datos, máquinas de estados, matriz de
@@ -49,6 +53,11 @@ declaran en su propio comentario.
 
 La pregunta a decidir era dónde vive ese dominio.
 
+> **Estado de #639.** Su arco de implementación está completo y **congelado**,
+> y el issue sigue **abierto**. Congelado no es cerrado: este ADR no lo cierra,
+> no lo reabre y no toca el issue remoto. Lo único que afirma es que Círculos
+> no debe apoyarse en `GuideSession` — ver §2.1.
+
 ---
 
 ## 2. Decisión
@@ -61,7 +70,8 @@ actual. Dúo es su primera configuración (`Circle.kind = DUO`), no otro backend
 La alternativa seria era injertarlo en `GuideSession`, y se descarta: esa sesión
 representa **progreso individual autenticado** —está ligada a `userId`, su
 idempotencia es por usuario y su unicidad `ACTIVE` es por lineage (ADR 0022,
-issue #639, cerrado y congelado)—. Círculos necesita invitaciones, participantes,
+issue #639: implementación completa, congelada y **todavía abierta**)—. Círculos
+necesita invitaciones, participantes,
 consentimiento, barrera de revelación, artefactos compartidos, retiro y acceso
 temporal **sin cuenta**. Convertir `GuideSession` en un actor genérico
 reabriría trabajo congelado y mezclaría progreso individual con consentimiento
@@ -133,17 +143,21 @@ Dúo revela **solo** cuando los dos participantes requeridos han confirmado, en
 una transición atómica bajo locks. La única arista hacia `REVEALED` tiene
 trigger `SYSTEM`: nadie puede _pedir_ que se revele.
 
-Retirarse antes de revelar cancela la actividad y **destruye** los sobres
-cifrados pendientes. Retirarse después revoca el acceso futuro y activa la
-purga — y el producto **nunca** promete que la otra persona olvide lo que ya
-vio.
+`WITHDRAW` tiene un desenlace explícito en cada etapa, y solo tres. Retirar una
+invitación que nadie aceptó cancela la actividad de forma terminal y silenciosa,
+sin pedir ni comunicar una razón. Retirarse antes de revelar cancela y
+**destruye** los sobres cifrados pendientes. Retirarse después revoca el acceso
+futuro y activa la purga — y el producto **nunca** promete que la otra persona
+olvide lo que ya vio.
 
 ### 2.8 Plantillas versionadas en código, catálogo vacío
 
 `CircleActivityDefinition` es un contrato validado en un catálogo de código; el
 CMS queda fuera del programa. Solo `PUBLISHED` se previsualiza o instancia;
 `DRAFT` y `ARCHIVED` resuelven por pin exacto para no romper actividades en
-curso.
+curso, pero el proyector público los **rechaza él mismo** con
+`CIRCLE_CATALOG_NOT_PUBLISHED`: la frontera no depende de que quien llama se
+acuerde de usar `getPublished()`.
 
 `PRODUCTION_CIRCLE_TEMPLATES` se entrega **vacío**. La especificación permitía
 incorporar dos candidatas como DRAFT _si hubiese copy aprobado verificable_; ese

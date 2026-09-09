@@ -80,18 +80,45 @@ describe("circles · activity state machine", () => {
     expect(intoRevealed[0].trigger).toBe("SYSTEM");
   });
 
-  it("gives WITHDRAW two different outcomes, before and after reveal", () => {
-    // Before reveal, leaving cancels the activity and the pending envelopes are
-    // destroyed. After reveal it can only close future access: the product must
-    // never promise to make another person unsee something.
-    const before = activityEdges("PREPARING").find(
+  it("lets the organizer retract a pending invitation", () => {
+    // Without this edge an activity could be created and then never leave
+    // INVITING: the counterpart may simply never answer, and the organizer had
+    // no way to take the invitation back. The retraction is terminal, reveals
+    // nothing, and asks for no reason.
+    const retract = activityEdges("INVITING").find(
       (t) => t.trigger === "WITHDRAW",
     );
-    const after = activityEdges("REVEALED").find(
+    expect(retract).toBeDefined();
+    expect(retract?.to).toBe("CANCELLED");
+    // Terminal: nothing leaves CANCELLED, so a retracted invitation cannot be
+    // revived into a running activity. Covered again by the terminal test.
+    expect(activityEdges("CANCELLED")).toEqual([]);
+  });
+
+  it("gives WITHDRAW an explicit outcome at every stage", () => {
+    // Three stages, three answers, none of them implicit:
+    //   INVITING  → CANCELLED  the invitation is retracted before anyone accepted;
+    //   PREPARING → CANCELLED  leaving destroys the pending envelopes;
+    //   REVEALED  → CLOSED     only future access can be closed, because the
+    //                          product must never promise to make another
+    //                          person unsee something.
+    const outcome = (from: CircleActivityStatus) =>
+      activityEdges(from).find((t) => t.trigger === "WITHDRAW")?.to;
+
+    expect(outcome("INVITING")).toBe("CANCELLED");
+    expect(outcome("PREPARING")).toBe("CANCELLED");
+    expect(outcome("REVEALED")).toBe("CLOSED");
+
+    // And nowhere else: a WITHDRAW edge out of FOLLOW_UP or a terminal state
+    // would be a fourth meaning nobody decided.
+    const withdrawFrom = CIRCLE_ACTIVITY_TRANSITIONS.filter(
       (t) => t.trigger === "WITHDRAW",
-    );
-    expect(before?.to).toBe("CANCELLED");
-    expect(after?.to).toBe("CLOSED");
+    ).map((t) => t.from);
+    expect([...withdrawFrom].sort()).toEqual([
+      "INVITING",
+      "PREPARING",
+      "REVEALED",
+    ]);
   });
 
   it("never lets a confirmation command reach the activity directly", () => {

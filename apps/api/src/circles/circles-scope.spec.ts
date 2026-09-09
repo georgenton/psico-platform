@@ -115,6 +115,41 @@ describe("circles · invariants that hold for every future cut", () => {
     }
   });
 
+  it("never states that issue #639 is closed", () => {
+    // Frozen is not closed. #639's implementation arc is complete and frozen,
+    // and the issue itself is still open — an ADR that called it closed would
+    // be recording a fact about GitHub that is not true, and the next reader
+    // would plan around it.
+    //
+    // The ratchet is focused: it reads every line that mentions 639 and
+    // refuses a closure claim on any of them. The three canonical status
+    // declarations are the one place the word may appear, because that is
+    // where the truthful value lives.
+    const CANONICAL = [
+      "ISSUE_639_IMPLEMENTATION_COMPLETE=true",
+      "ISSUE_639_FROZEN=true",
+      "ISSUE_639_CLOSED=false",
+    ];
+    for (const file of [
+      "docs/adr/0023-circles-one-domain-many-surfaces.md",
+      "docs/architecture/circles-v1.md",
+    ]) {
+      const src = read(file);
+      for (const line of src.split("\n")) {
+        if (!line.includes("639")) continue;
+        if (CANONICAL.some((c) => line.includes(c))) continue;
+        expect(line, `${file} · ${line.trim()}`).not.toMatch(
+          /cerrad\w*|closed/i,
+        );
+      }
+    }
+    // And the ADR must state the status rather than leave it to inference.
+    const adr = read("docs/adr/0023-circles-one-domain-many-surfaces.md");
+    for (const declaration of CANONICAL) {
+      expect(adr, declaration).toContain(declaration);
+    }
+  });
+
   it("leaves PQP C07 without a Dúo candidate", () => {
     // The chapter that names violence and coercive control ships an empty list
     // on purpose: a bilateral activity is the wrong instrument there. Every

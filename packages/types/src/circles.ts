@@ -176,6 +176,12 @@ export const CIRCLE_ACTIVITY_TRANSITIONS: readonly CircleActivityTransition[] =
     {
       from: "INVITING",
       to: "CANCELLED",
+      trigger: "WITHDRAW",
+      note: "The organizer retracts a pending invitation. Terminal, silent, and it reveals nothing — the counterpart is never told a reason and never owes one.",
+    },
+    {
+      from: "INVITING",
+      to: "CANCELLED",
       trigger: "SYSTEM",
       note: "The invitation expired without being accepted.",
     },
@@ -552,22 +558,13 @@ export interface CircleTemplatePreview {
   readonly conversationTurns: readonly string[];
 }
 
-/** Project a definition to exactly what the public may see. */
-export function toCircleTemplatePreview(
-  definition: CircleActivityDefinition,
-): CircleTemplatePreview {
-  return Object.freeze({
-    templateKey: definition.templateKey,
-    templateVersion: definition.templateVersion,
-    title: definition.title,
-    summary: definition.summary,
-    estimatedMinutes: definition.estimatedMinutes,
-    audience: definition.audience,
-    participants: Object.freeze({
-      required: definition.participants.required,
-    }),
-    outcomeKind: definition.outcome.kind,
-    safetyLevel: definition.safety.level,
-    conversationTurns: Object.freeze([...definition.conversation.turns]),
-  });
-}
+/**
+ * The projector lives in `circles-catalog.ts`, next to the refusal it raises.
+ *
+ * `toCircleTemplatePreview` does not merely narrow a definition: it enforces
+ * that only a PUBLISHED template can be shown to the public, and it throws
+ * `CIRCLE_CATALOG_NOT_PUBLISHED` otherwise. That makes it part of the catalog
+ * boundary rather than a shape helper, and it keeps this module free of the
+ * error class — which would otherwise import back from the catalog and close a
+ * cycle.
+ */

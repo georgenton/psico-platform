@@ -41,6 +41,7 @@
 import type {
   CircleActivityDefinition,
   CircleAudience,
+  CircleTemplatePreview,
   CircleOutcomeKind,
   CirclePreparationField,
   CirclePreparationFieldKind,
@@ -457,6 +458,50 @@ export class CircleTemplateRegistry {
       [...this.byPin.values()].filter((d) => d.status === "PUBLISHED"),
     );
   }
+}
+
+// ─── The public boundary ─────────────────────────────────────────────────────
+
+/**
+ * Project a definition to exactly what the public may see — and refuse to
+ * project one the public may not see at all.
+ *
+ * The status check lives HERE rather than at the call site on purpose. A
+ * projector that trusts its caller to have gone through `getPublished()` is
+ * one forgetful `map()` away from putting an unreviewed DRAFT — or a template
+ * withdrawn as ARCHIVED — in front of a stranger. Two guards that must agree
+ * are weaker than one that cannot be bypassed, so the boundary fails closed by
+ * itself:
+ *
+ *   PUBLISHED → preview
+ *   DRAFT     → CIRCLE_CATALOG_NOT_PUBLISHED
+ *   ARCHIVED  → CIRCLE_CATALOG_NOT_PUBLISHED
+ *
+ * This does NOT change internal resolution: `getExact` still returns DRAFT and
+ * ARCHIVED definitions by pin, because an activity already running on one has
+ * to keep working. What it removes is the path from those definitions to a
+ * public surface. The refusal carries a code and never any editorial copy.
+ */
+export function toCircleTemplatePreview(
+  definition: CircleActivityDefinition,
+): CircleTemplatePreview {
+  if (definition.status !== "PUBLISHED") {
+    throw new CircleCatalogError("CIRCLE_CATALOG_NOT_PUBLISHED");
+  }
+  return Object.freeze({
+    templateKey: definition.templateKey,
+    templateVersion: definition.templateVersion,
+    title: definition.title,
+    summary: definition.summary,
+    estimatedMinutes: definition.estimatedMinutes,
+    audience: definition.audience,
+    participants: Object.freeze({
+      required: definition.participants.required,
+    }),
+    outcomeKind: definition.outcome.kind,
+    safetyLevel: definition.safety.level,
+    conversationTurns: Object.freeze([...definition.conversation.turns]),
+  });
 }
 
 /**

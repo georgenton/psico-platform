@@ -9,7 +9,10 @@ import { CircleInvitationRepository } from "./circle-invitation.repository";
 import { CircleGuestSessionRepository } from "./circle-guest-session.repository";
 import { CircleEventRepository } from "./circle-event.repository";
 import { CircleMemberRepository } from "./circle-member.repository";
-import type { CircleMemberDb } from "./circle-member.repository";
+import type {
+  CircleMemberDb,
+  CircleMemberTx,
+} from "./circle-member.repository";
 import { CirclesService } from "./circles.service";
 import { CirclesRolloutService } from "./circles-rollout.service";
 import { resolveCirclesRolloutConfig } from "./circles-rollout";
@@ -100,13 +103,17 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
    * honest way to test it is to build a second service with a different
    * allowlist and point it at the same invitations.
    */
-  const serviceWith = (mode: string, allowlist?: string) =>
+  const serviceWith = (
+    mode: string,
+    allowlist?: string,
+    membersRepo?: CircleMemberRepository,
+  ) =>
     new CirclesService(
       prisma as unknown as ConstructorParameters<typeof CirclesService>[0],
       invitations,
       guestSessions,
       events,
-      members,
+      membersRepo ?? members,
       new CirclesRolloutService(
         resolveCirclesRolloutConfig({
           CIRCLES_ROLLOUT_MODE: mode,
@@ -1572,25 +1579,17 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
       }
     }
 
-    const racing = new CirclesService(
-      prisma as unknown as ConstructorParameters<typeof CirclesService>[0],
-      invitations,
-      guestSessions,
-      events,
-      new FlipsAfterFirstRead(prisma),
-      new CirclesRolloutService(
-        resolveCirclesRolloutConfig({
-          CIRCLES_ROLLOUT_MODE: "pilot",
-          CIRCLES_PILOT_USER_IDS: U1,
-        }),
-      ),
-    );
+    const racing = serviceWith("pilot", U1, new FlipsAfterFirstRead(prisma));
 
     try {
       expect(await unusableCodeOf(() => racing.exchange(minted.rawToken))).toBe(
         "CIRCLE_INVITATION_UNUSABLE",
       );
-      expect(reads, "both checks ran").toBeGreaterThanOrEqual(2);
+      // `findById` is the read OUTSIDE the transaction; the one inside is
+      // `lockById`. One call here means the fast exit saw an ACTIVE row and
+      // waved it through — so the rejection came from the locked read, which is
+      // the whole point of the test.
+      expect(reads, "the fast exit saw a stale ACTIVE row").toBe(1);
 
       // And the transaction unwound: the invitation is untouched, no session
       // exists, and the seat never moved.
@@ -1650,6 +1649,224 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
       );
     }
     expect(new Set(codes)).toEqual(new Set(["CIRCLE_INVITATION_UNUSABLE"]));
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // The inviter's row is LOCKED until the exchange commits
+  // ═══════════════════════════════════════════════════════════════════════
+  //
+  // Re-reading inside the transaction stops T1 from acting on a fact it learned
+  // before the transaction opened. It does NOT keep that fact true until the
+  // commit — an unlocked `SELECT` under READ COMMITTED leaves this sequence
+  // open, and every statement in it is individually correct:
+  //
+  //     T1  SELECT member -> ACTIVE
+  //     T2  UPDATE member -> LEFT ; COMMIT
+  //     T1  consume, create session, COMMIT
+  //
+  // `FOR UPDATE` is what closes it. These two tests are the exclusion and the
+  // race that follows from it, driven by two real connections rather than by
+  // sleeps: the second writer's `lock_timeout` expiring IS the evidence that it
+  // was waiting.
+
+  /** A promise the test resolves by hand. No timers, no guessing. */
+  const deferred = <T = void>() => {
+    let resolve!: (value: T) => void;
+    const promise = new Promise<T>((r) => {
+      resolve = r;
+    });
+    return { promise, resolve };
+  };
+
+  /**
+   * Try `ACTIVE -> LEFT` on its own connection with a bounded `lock_timeout`,
+   * and report whether PostgreSQL made it wait. Always rolls back: the point is
+   * whether the write COULD proceed, never that it did.
+   *
+   * The timeout is short on purpose. `lock_timeout` is a hard bound, and T1 is
+   * parked holding the row for the whole window, so a longer wait proves
+   * nothing extra and only holds a connection and a transaction open while
+   * sibling suites are running.
+   */
+  const tryLeaveWithTimeout = async (
+    ms = 300,
+  ): Promise<"blocked" | "went-through"> => {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(`SET LOCAL lock_timeout = '${ms}ms'`);
+      try {
+        await client.query(
+          `UPDATE "CircleMember" SET "status"='LEFT', "leftAt"=now() WHERE id=$1`,
+          [MEMBER],
+        );
+        await client.query("ROLLBACK");
+        return "went-through";
+      } catch (err) {
+        await client.query("ROLLBACK").catch(() => undefined);
+        // 55P03 = lock_not_available. Not "the statement failed" — "the
+        // statement waited for the whole timeout and never got the lock".
+        if ((err as { code?: string }).code === "55P03") return "blocked";
+        throw err;
+      }
+    } finally {
+      client.release();
+    }
+  };
+
+  it("makes a concurrent leave wait for the exchange to commit", async () => {
+    const minted = await mintIn("act-lock-hold");
+
+    const locked = deferred();
+    const release = deferred();
+
+    /** Stops with the lock held, so the test can act while it is held. */
+    class HoldsTheLock extends CircleMemberRepository {
+      async lockById(memberId: string, tx: CircleMemberTx) {
+        const row = await super.lockById(memberId, tx);
+        locked.resolve();
+        await release.promise;
+        return row;
+      }
+    }
+
+    const exchanging = serviceWith(
+      "pilot",
+      U1,
+      new HoldsTheLock(prisma),
+    ).exchange(minted.rawToken);
+
+    await locked.promise;
+
+    // T1 is inside its transaction holding the row. T2's write has to wait.
+    expect(await tryLeaveWithTimeout(), "the leave was made to wait").toBe(
+      "blocked",
+    );
+
+    release.resolve();
+    await expect(exchanging).resolves.toBeTruthy();
+
+    // …and once T1 has committed, the identical write goes straight through.
+    expect(await tryLeaveWithTimeout(), "the lock was released on commit").toBe(
+      "went-through",
+    );
+
+    // The exchange really did land: this is not a test of a refusal.
+    const inv = await pool.query(
+      `SELECT "consumedAt" FROM "CircleInvitation" WHERE id=$1`,
+      [minted.invitationId],
+    );
+    expect(inv.rows[0].consumedAt).not.toBeNull();
+  }, 30_000);
+
+  it("rejects the exchange when the leave commits first", async () => {
+    // The mirror. T2 wins the race outright, and T1's locked read sees the
+    // committed truth rather than the one it started from.
+    const minted = await mintIn("act-lock-lost");
+
+    const locked = deferred();
+    const proceed = deferred();
+
+    /**
+     * Pauses BEFORE taking the lock, so the test can commit the leave in the
+     * window. Without this seam the fast exit outside the transaction would
+     * catch it, and the locked read — the thing under test — would never run.
+     */
+    class PausesBeforeLocking extends CircleMemberRepository {
+      async lockById(memberId: string, tx: CircleMemberTx) {
+        locked.resolve();
+        await proceed.promise;
+        return super.lockById(memberId, tx);
+      }
+    }
+
+    const exchanging = serviceWith(
+      "pilot",
+      U1,
+      new PausesBeforeLocking(prisma),
+    ).exchange(minted.rawToken);
+
+    await locked.promise;
+    // Committed, on another connection, while T1 is between its fast exit and
+    // its locked read.
+    await pool.query(
+      `UPDATE "CircleMember" SET "status"='LEFT', "leftAt"=now() WHERE id=$1`,
+      [MEMBER],
+    );
+    proceed.resolve();
+
+    try {
+      let code = "RESOLVED";
+      try {
+        await exchanging;
+      } catch (err) {
+        code = (err as CirclesError).code;
+      }
+      expect(code).toBe("CIRCLE_INVITATION_UNUSABLE");
+
+      // Nothing landed. Four separate facts, because "it threw" is not the
+      // property that matters — the property is that the transaction unwound.
+      const inv = await pool.query(
+        `SELECT "consumedAt","acceptedAt" FROM "CircleInvitation" WHERE id=$1`,
+        [minted.invitationId],
+      );
+      expect(inv.rows[0].consumedAt, "invitation not consumed").toBeNull();
+      expect(inv.rows[0].acceptedAt, "invitation not accepted").toBeNull();
+
+      const seat = await pool.query(
+        `SELECT "status" FROM "CircleActivityParticipant" WHERE "activityId"='act-lock-lost'`,
+      );
+      expect(
+        seat.rows.map((r) => r.status),
+        "seat still INVITED",
+      ).toEqual(["INVITED"]);
+
+      const sessions = await pool.query(
+        `SELECT count(*)::int AS n FROM "CircleGuestSession" WHERE "activityId"='act-lock-lost'`,
+      );
+      expect(sessions.rows[0].n, "no guest session").toBe(0);
+
+      const events = await pool.query(
+        `SELECT count(*)::int AS n FROM "CircleEvent"
+          WHERE "activityId"='act-lock-lost' AND "type"='GUEST_SESSION_CREATED'`,
+      );
+      expect(events.rows[0].n, "no event").toBe(0);
+    } finally {
+      await pool.query(
+        `UPDATE "CircleMember" SET "status"='ACTIVE', "leftAt"=NULL WHERE id=$1`,
+        [MEMBER],
+      );
+    }
+  }, 30_000);
+
+  it("takes its locks in the documented order", () => {
+    // CircleMember -> CircleInvitation -> CircleActivityParticipant.
+    //
+    // Two commands taking the same rows in opposite orders deadlock under
+    // contention, and it surfaces as a random 500 on a Dúo two people are using
+    // at once. PR3 adds withdraw and revoke; this pins the order they inherit,
+    // by reading the source rather than by trusting the comment above it.
+    const src = readFileSync(
+      join(API_DIR, "src/circles/circles.service.ts"),
+      "utf8",
+    );
+    const body = src.slice(src.indexOf("async exchange("));
+    const order = [
+      body.indexOf("lockAndAssertInviter"),
+      body.indexOf("this.invitations.consume"),
+      body.indexOf("circleActivityParticipant.findFirst"),
+    ];
+    expect(
+      order.every((i) => i > 0),
+      "all three steps present",
+    ).toBe(true);
+    expect(order, "member, then invitation, then seat").toEqual(
+      [...order].sort((a, b) => a - b),
+    );
+    // And the rule is written down where the next author will read it.
+    expect(src).toContain(
+      "CircleMember  ->  CircleInvitation  ->  CircleActivityParticipant",
+    );
   });
 
   // ═══════════════════════════════════════════════════════════════════════

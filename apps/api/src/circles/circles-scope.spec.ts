@@ -148,6 +148,31 @@ describe("circles · PR2 — secrets never become columns", () => {
   });
 });
 
+describe("circles · PR2 — the inviter is locked, in a fixed order", () => {
+  it("reads the inviter FOR UPDATE, and only inside a transaction", () => {
+    const repo = code(read(`${CIRCLES_DIR}/circle-member.repository.ts`));
+    // Prisma's fluent API cannot express a row lock, so this one read is raw —
+    // and fully parameterised, which the assertion below pins.
+    expect(repo).toMatch(/FOR UPDATE/);
+    expect(repo).toMatch(/WHERE "id" = \$\{memberId\}/);
+    // `lockById` takes its client as a REQUIRED argument. A default would make
+    // it callable outside a transaction, where the lock is taken and dropped at
+    // the end of the statement — protection-shaped, and not protection.
+    expect(repo).toMatch(
+      /lockById\(\s*memberId: string,\s*tx: CircleMemberTx,\s*\)/,
+    );
+    expect(repo).not.toMatch(/tx: CircleMemberTx = /);
+  });
+
+  it("states the lock order where the next author will read it", () => {
+    const src = code(read(`${CIRCLES_DIR}/circles.service.ts`));
+    expect(src).toContain("lockAndAssertInviter");
+    expect(read(`${CIRCLES_DIR}/circles.service.ts`)).toContain(
+      "CircleMember  ->  CircleInvitation  ->  CircleActivityParticipant",
+    );
+  });
+});
+
 describe("circles · PR2 — the event ledger cannot be rewritten or filled", () => {
   const MIGRATION =
     "apps/api/prisma/migrations/20260909180000_circles_domain_foundation/migration.sql";

@@ -18,6 +18,9 @@ PUBLISHED_TEMPLATES=0
 IMPLEMENTATION_AUTHORIZED=PR2
 CIRCLES_ROLLOUT_MODE=off
 PUBLIC_ACCESS_ENABLED=false
+EXCHANGE_LOCK_ORDER=CircleMember>CircleInvitation>CircleActivityParticipant
+ACCOUNT_DELETION_WITH_CIRCLE_EVENTS=blocked_pending_sanctioned_scrub_design
+REQUIRED_BEFORE_PILOT=true
 
 ISSUE_639_IMPLEMENTATION_COMPLETE=true
 ISSUE_639_FROZEN=true
@@ -264,11 +267,31 @@ matriz de permisos, dos máquinas de estados, threat model y fixtures.
 - construcción server-side de `CircleActor` y los guards que la hacen;
 - el canje **verifica que el asiento pasó de `INVITED` a `ACCEPTED` en
   exactamente una fila**; cero o más de una aborta la transacción completa, sin
-  invitación consumida, sin sesión y sin evento.
+  invitación consumida, sin sesión y sin evento;
+- el canje **bloquea la fila del invitante con `FOR UPDATE`** antes de tocar
+  nada más. Releer dentro de la transacción impide actuar sobre un dato
+  anterior a ella, pero no mantiene la condición verdadera hasta el commit:
+  bajo READ COMMITTED, un `SELECT` sin lock deja abierta la secuencia
+  «T1 lee ACTIVE · T2 escribe LEFT y comitea · T1 comitea». El lock la cierra.
 
-Una consecuencia se declara aquí en vez de descubrirse después: con el ledger
-append-only, un `Circle` con eventos ya no puede borrarse, y una cuenta nombrada
-por un evento tampoco. Es coherente con el dominio —cerrar un círculo es un
+### Orden de locks — obligatorio para todo comando futuro
+
+```text
+CircleMember  ->  CircleInvitation  ->  CircleActivityParticipant
+```
+
+`exchange` los toma en ese orden y también deben hacerlo retiro, revocación,
+rechazo y cualquier otro comando que PR3 añada. No es una preferencia de
+estilo: dos comandos que toman las mismas filas en órdenes opuestos producen
+deadlocks bajo contención, y el fallo aparece como un 500 aleatorio en un Dúo
+que dos personas están usando a la vez. Si un comando futuro necesita de verdad
+otro orden, lo que se cambia es la regla y todos los comandos con ella, no se
+hace una excepción.
+
+Una consecuencia se declara aquí en vez de descubrirse después
+(`ACCOUNT_DELETION_WITH_CIRCLE_EVENTS=blocked_pending_sanctioned_scrub_design`,
+`REQUIRED_BEFORE_PILOT=true`): con el ledger append-only, un `Circle` con
+eventos ya no puede borrarse, y una cuenta nombrada por un evento tampoco. Es coherente con el dominio —cerrar un círculo es un
 cambio de estado, no un borrado— pero el borrado de cuenta necesitará, cuando
 Círculos se encienda, una vía de limpieza sancionada que sea a su vez una
 migración. No un bypass de aplicación.

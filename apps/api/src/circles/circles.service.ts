@@ -13,7 +13,10 @@ import { CircleGuestSessionRepository } from "./circle-guest-session.repository"
 import { CircleEventRepository } from "./circle-event.repository";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { CircleMemberRepository } from "./circle-member.repository";
-import type { CircleMemberDb } from "./circle-member.repository";
+import type {
+  CircleMemberDb,
+  CircleMemberTx,
+} from "./circle-member.repository";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { CirclesRolloutService } from "./circles-rollout.service";
 import { CirclesError } from "./circles-http-errors";
@@ -42,6 +45,19 @@ import {
  * `inspect` AND again inside the exchange transaction, because an allowlist
  * change or a member leaving between the two would otherwise slip a canje
  * through.
+ *
+ * ── LOCK ORDER — MANDATORY for every future Círculos command ──────────────
+ *
+ *     CircleMember  ->  CircleInvitation  ->  CircleActivityParticipant
+ *
+ * `exchange` takes them in that order and so must withdraw, revoke, decline and
+ * anything else PR3 adds. This is not a style preference: two commands that
+ * take the same two rows in opposite orders deadlock under contention, and the
+ * failure surfaces as a random 500 on a Dúo that two people are using at the
+ * same time — the hardest kind of bug to reproduce and the easiest to avoid.
+ *
+ * If a future command genuinely needs a different order, the fix is to change
+ * this rule and every command with it, not to make an exception.
  *
  * The invariant the whole file is arranged around: **a negative answer is one
  * answer**. A secret that never existed, one that expired, one already used and
@@ -181,6 +197,14 @@ export class CirclesService {
 
     try {
       return await this.prisma.$transaction(async (tx) => {
+        // ── 1. CircleMember, LOCKED ────────────────────────────────────────
+        //
+        // First, and with `FOR UPDATE`. The check in `resolveUsableInvitation`
+        // is a fast exit, not the authority: an unlocked read answers "was this
+        // true a moment ago", and a moment ago is not when this commits.
+        await this.lockAndAssertInviter(invitation, tx);
+
+        // ── 2. CircleInvitation ───────────────────────────────────────────
         const won = await this.invitations.consume(invitation.id, now, tx);
         if (!won) {
           // Somebody else consumed it between the read and here — including,
@@ -189,13 +213,8 @@ export class CirclesService {
           throw new CirclesError("CIRCLE_INVITATION_UNUSABLE");
         }
 
-        // Re-derive the inviter's eligibility HERE, inside the transaction and
-        // after the row lock the consume took. The check in
-        // `resolveUsableInvitation` answered a question about a moment that has
-        // already passed; a member who left, or an allowlist that changed,
-        // between then and now would otherwise let this canje through.
-        await this.assertInviterEligible(invitation, tx);
-
+        // ── 3. CircleActivityParticipant ──────────────────────────────────
+        //
         // The seat was created with the invitation, so it exists. If it somehow
         // does not, that is an invariant failure and not an authorization
         // verdict — which is why it leaves as a storage error rather than as
@@ -326,6 +345,58 @@ export class CirclesService {
    * `on` skips the check: general availability is general. `off` never reaches
    * here (the guard refuses first), and if it somehow did, it fails closed.
    */
+  /**
+   * The inviter, LOCKED, and the decision that actually counts.
+   *
+   * `assertInviterEligible` outside the transaction is a fast exit: it lets an
+   * obviously dead invitation fail without opening one. It is NOT authority,
+   * because an unlocked read under READ COMMITTED leaves this open:
+   *
+   *     T1  SELECT member -> ACTIVE
+   *     T2  UPDATE member -> LEFT ; COMMIT
+   *     T1  consume, create session, COMMIT
+   *
+   * Every statement there is correct and the outcome is wrong. This method is
+   * the one whose answer survives to the commit.
+   *
+   * The row is locked in EVERY mode, including `on`, even though `on` has no
+   * predicate to hold. The lock ORDER is a property of the command, not of the
+   * configuration, and a rule that applies in two modes out of three is a rule
+   * somebody will get wrong.
+   */
+  private async lockAndAssertInviter(
+    invitation: {
+      readonly circleId: string;
+      readonly createdByMemberId: string;
+    },
+    tx: CircleMemberTx,
+  ): Promise<void> {
+    const mode = this.rollout.currentMode();
+    // Unreachable: the guard refuses before the route runs. Fails closed anyway.
+    if (mode === "off") throw new CirclesError("CIRCLE_INVITATION_UNUSABLE");
+
+    let member;
+    try {
+      member = await this.members.lockById(invitation.createdByMemberId, tx);
+    } catch {
+      throw new CirclesError("CIRCLE_STORAGE_FAILURE");
+    }
+
+    // `on` is general availability: there is no inviter predicate to enforce,
+    // and the allowlist is not consulted. The lock is still held, so the
+    // ordering rule above holds uniformly.
+    if (mode === "on") return;
+
+    if (
+      !member ||
+      member.circleId !== invitation.circleId ||
+      member.status !== "ACTIVE" ||
+      !this.rollout.isAvailable(member.userId)
+    ) {
+      throw new CirclesError("CIRCLE_INVITATION_UNUSABLE");
+    }
+  }
+
   private async assertInviterEligible(
     invitation: {
       readonly circleId: string;

@@ -169,6 +169,8 @@ suite("circles · participation (real PostgreSQL)", () => {
     readonly guestSessions?: CircleGuestSessionRepository;
     readonly members?: CircleMemberRepository;
     readonly rolloutOverride?: CirclesRolloutService;
+    /** Swap the catalogue, to model editorial archiving a live version. */
+    readonly registry?: CircleTemplateRegistry;
   }
 
   const build = (mode = "on", seams: Seams = {}) => {
@@ -195,7 +197,7 @@ suite("circles · participation (real PostgreSQL)", () => {
         invitations,
         seams.rolloutOverride ?? rollout(mode),
         cipher,
-        registry,
+        seams.registry ?? registry,
       ),
       accessService: new CirclesService(
         p,
@@ -1225,7 +1227,17 @@ suite("circles · participation (real PostgreSQL)", () => {
     ).toBe("CIRCLE_ACTIVITY_UNAVAILABLE");
   }, 30_000);
 
-  it("counts one confirmation per seat per artifact, however many times it is sent", async () => {
+  it("counts one confirmation per seat per artifact, replayed under its own key", async () => {
+    // This test used to send the SECOND confirmation under a fresh key and
+    // assert `replayed: true`. That assertion pinned the defect: a key that
+    // received a successful response was never written to any receipt, so it
+    // stayed free to be spent on a different artifact later. The refusal for
+    // that case is covered in "refuses a second confirmation of the same
+    // artifact under a new key".
+    //
+    // What survives is the claim that was always true and is worth keeping
+    // separate: replaying under the ORIGINAL key resolves, and the ledger
+    // still holds exactly one confirmation.
     const duo = await revealedDuo();
     const proposal = await service.proposeArtifact(
       duo.organizer,
@@ -1233,19 +1245,21 @@ suite("circles · participation (real PostgreSQL)", () => {
       "una vez",
       randomUUID(),
     );
-    await service.confirmArtifact(
+    const key = randomUUID();
+    const first = await service.confirmArtifact(
       duo.organizer,
       duo.activityId,
       proposal.artifactId,
       proposal.version,
-      randomUUID(),
+      key,
     );
+    expect(first.replayed).toBe(false);
     const replay = await service.confirmArtifact(
       duo.organizer,
       duo.activityId,
       proposal.artifactId,
       proposal.version,
-      randomUUID(),
+      key,
     );
     expect(replay.replayed).toBe(true);
     const rows = await pool.query(
@@ -1814,20 +1828,61 @@ suite("circles · participation (real PostgreSQL)", () => {
   }, 40_000);
 
   it("keeps a guest working past the invitation's own expiry", async () => {
-    // Deliberate, and the one place this build does NOT re-derive an expiry.
-    // The invitation's window governs whether the LINK can still be
-    // exchanged; the session lives longer on purpose, because a Dúo runs over
-    // days and the link has already done its job. Enforcing invitation expiry
-    // per command would cut somebody off mid-conversation, silently, behind a
-    // 404. Pinned as a test so the behaviour is a decision and not an
-    // oversight — if the policy changes, this is what has to change with it.
+    // Deliberate, and the one place this build does NOT re-derive an expiry:
+    //
+    //   INVITATION_EXPIRY_GOVERNS_EXCHANGE=true
+    //   GUEST_SESSION_EXPIRY_GOVERNS_POST_EXCHANGE_COMMANDS=true
+    //   INVITATION_EXPIRY_RECHECKED_AFTER_EXCHANGE=false
+    //
+    // The link's window governs whether it can still be exchanged; the
+    // session lives longer on purpose, because a Dúo runs over days and the
+    // link has already done its job. Enforcing invitation expiry per command
+    // would cut somebody off mid-conversation, silently, behind a 404.
     const duo = await fastDuo();
+
+    // The previous version of this test set `expiresAt = createdAt + 1s` and
+    // then asserted the command works. That proves nothing: `createdAt` is
+    // `now()` at fixture time, so the invitation may well still be LIVE when
+    // the command runs, and the test would pass for a build that DID
+    // re-check expiry. The precondition has to be established, not assumed.
+    // `createdAt` moves back too: `CircleInvitation_expires_after_creation`
+    // requires `expiresAt > createdAt`, and an invitation that expired
+    // before it was created is not a state to test with — it is one the
+    // database is right to refuse.
     await pool.query(
       `UPDATE "CircleInvitation"
-          SET "expiresAt" = "createdAt" + interval '1 second'
+          SET "createdAt" = now() - interval '20 days',
+              "expiresAt" = now() - interval '1 second'
         WHERE "activityId"=$1`,
       [duo.activityId],
     );
+
+    // Asserted from PostgreSQL, against the same clock the service reads, and
+    // BEFORE the command runs.
+    const pre = await pool.query(
+      `SELECT
+         (SELECT "expiresAt" < now() FROM "CircleInvitation"
+           WHERE "activityId"=$1) AS invitation_expired,
+         (SELECT "expiresAt" > now() FROM "CircleGuestSession"
+           WHERE id=$2) AS session_live,
+         (SELECT "revokedAt" IS NULL FROM "CircleGuestSession"
+           WHERE id=$2) AS session_not_revoked,
+         now() AS command_now`,
+      [duo.activityId, duo.guestSessionId],
+    );
+    expect(pre.rows[0].invitation_expired, "invitation.expiresAt < now()").toBe(
+      true,
+    );
+    expect(pre.rows[0].session_live, "guestSession.expiresAt > now()").toBe(
+      true,
+    );
+    expect(
+      pre.rows[0].session_not_revoked,
+      "guestSession.revokedAt IS NULL",
+    ).toBe(true);
+
+    // Only now is the outcome meaningful: it succeeds BECAUSE the session is
+    // live, not because the invitation happened to still be valid.
     const done = await service.confirmShare(
       duo.guest,
       duo.activityId,
@@ -1836,7 +1891,29 @@ suite("circles · participation (real PostgreSQL)", () => {
     );
     expect(done.replayed).toBe(false);
     expect((await footprint(duo.activityId)).ready).toBe(1);
-  }, 30_000);
+
+    // And the control on the other side: the session, not the invitation, is
+    // what governs. Expire the SESSION and the same command is refused.
+    const other = await fastDuo();
+    await pool.query(
+      `UPDATE "CircleGuestSession"
+          SET "createdAt" = now() - interval '40 days',
+              "expiresAt" = now() - interval '1 second'
+        WHERE id=$1`,
+      [other.guestSessionId],
+    );
+    expect(
+      await codeOf(() =>
+        service.confirmShare(
+          other.guest,
+          other.activityId,
+          share("esta no debería entrar"),
+          randomUUID(),
+        ),
+      ),
+    ).toBe("CIRCLE_ACTIVITY_UNAVAILABLE");
+    expect((await footprint(other.activityId)).ready).toBe(0);
+  }, 40_000);
 
   it("refuses a seat that belongs to another circle", async () => {
     // The composite foreign keys make this unrepresentable at the storage
@@ -1861,6 +1938,173 @@ suite("circles · participation (real PostgreSQL)", () => {
     expect((await footprint(a.activityId)).ready).toBe(0);
     expect((await footprint(b.activityId)).ready).toBe(0);
   }, 30_000);
+
+  // ══ The inviter's membership is checked in EVERY mode ═══════════════════
+
+  /**
+   * A Dúo that has been created but NOT accepted, with its raw token.
+   *
+   * `fastDuo` builds an already-exchanged pair, which is the wrong shape for
+   * testing `inspect` and `exchange` — those need a live invitation nobody
+   * has spent.
+   */
+  async function invitedDuo(): Promise<{
+    circleId: string;
+    activityId: string;
+    token: string;
+    guestSeatId: string;
+  }> {
+    const token = mintToken();
+    const created = await service.createDuo({
+      userId: U1,
+      templateKey: TEMPLATE.templateKey,
+      templateVersion: TEMPLATE.templateVersion,
+      invitationToken: token,
+      idempotencyKey: randomUUID(),
+    });
+    const seats = await pool.query(
+      `SELECT "id","memberId" FROM "CircleActivityParticipant"
+        WHERE "activityId"=$1`,
+      [created.activityId],
+    );
+    return {
+      circleId: created.circleId,
+      activityId: created.activityId,
+      token,
+      guestSeatId: seats.rows.find((r) => r.memberId === null)!.id,
+    };
+  }
+
+  it.each(["on", "pilot"] as const)(
+    "refuses inspect and exchange under `%s` when the inviter has LEFT",
+    async (mode) => {
+      // Under `on` this used to pass. `assertInviterEligible` and
+      // `lockAndAssertInviter` both returned early — "no allowlist to
+      // consult" was read as "nothing to check" — while PR3's participation
+      // path revalidates the inviter in every mode. The system contradicted
+      // itself where a person would feel it: the link inspects as usable,
+      // the exchange commits everything, and the guest's first command is
+      // refused with the Dúo already reported as started.
+      const duo = await invitedDuo();
+      await pool.query(
+        `UPDATE "CircleMember" SET "status"='LEFT', "leftAt"=now()
+          WHERE "circleId"=$1`,
+        [duo.circleId],
+      );
+      const { participation: _p, accessService } = build(mode);
+
+      expect(
+        await codeOf(() => accessService.inspect(duo.token)),
+        `${mode}: inspect`,
+      ).toBe("CIRCLE_INVITATION_UNUSABLE");
+      expect(
+        await codeOf(() => accessService.exchange(duo.token)),
+        `${mode}: exchange`,
+      ).toBe("CIRCLE_INVITATION_UNUSABLE");
+
+      const after = await pool.query(
+        `SELECT
+           (SELECT "consumedAt" IS NOT NULL FROM "CircleInvitation"
+             WHERE "activityId"=$1) AS consumed,
+           (SELECT "acceptedAt" IS NOT NULL FROM "CircleInvitation"
+             WHERE "activityId"=$1) AS accepted,
+           (SELECT count(*)::int FROM "CircleGuestSession"
+             WHERE "activityId"=$1) AS sessions,
+           (SELECT "status"::text FROM "CircleActivityParticipant"
+             WHERE id=$2) AS seat,
+           (SELECT "status"::text FROM "CircleActivity" WHERE id=$1) AS activity,
+           (SELECT count(*)::int FROM "CircleEvent"
+             WHERE "activityId"=$1
+               AND "type" IN ('INVITATION_ACCEPTED','GUEST_SESSION_CREATED'))
+             AS events`,
+        [duo.activityId, duo.guestSeatId],
+      );
+      expect(after.rows[0], mode).toMatchObject({
+        consumed: false, // INVITATION_CONSUMED=false
+        accepted: false, // INVITATION_ACCEPTED=false
+        sessions: 0, // GUEST_SESSIONS_CREATED=0
+        seat: "INVITED", // SEAT_STATUS=INVITED
+        activity: "INVITING", // ACTIVITY_STATUS=INVITING
+        events: 0, // EVENTS_CREATED=0
+      });
+    },
+    60_000,
+  );
+
+  it("serializes a member leaving against an exchange under `on`", async () => {
+    // The authoritative check is `lockAndAssertInviter`, which takes
+    // `CircleMember FOR UPDATE`. The departure commits while the exchange is
+    // parked immediately before that lock, so the lock is the only thing
+    // standing between "usable a moment ago" and the commit.
+    const duo = await invitedDuo();
+
+    class PausingMembers extends CircleMemberRepository {
+      private armed = true;
+      constructor(
+        db: ConstructorParameters<typeof CircleMemberRepository>[0],
+        private readonly hook: () => Promise<void>,
+      ) {
+        super(db);
+      }
+      override async lockById(
+        id: string,
+        tx: Parameters<CircleMemberRepository["lockById"]>[1],
+      ) {
+        if (this.armed) {
+          this.armed = false;
+          await this.hook();
+        }
+        return super.lockById(id, tx);
+      }
+    }
+
+    const seam = new PausingMembers(prisma, async () => {
+      await pool.query(
+        `UPDATE "CircleMember" SET "status"='LEFT', "leftAt"=now()
+          WHERE "circleId"=$1`,
+        [duo.circleId],
+      );
+    });
+    const { accessService } = build("on", { members: seam });
+
+    expect(await codeOf(() => accessService.exchange(duo.token))).toBe(
+      "CIRCLE_INVITATION_UNUSABLE",
+    );
+    const after = await pool.query(
+      `SELECT
+         (SELECT "consumedAt" IS NOT NULL FROM "CircleInvitation"
+           WHERE "activityId"=$1) AS consumed,
+         (SELECT count(*)::int FROM "CircleGuestSession"
+           WHERE "activityId"=$1) AS sessions,
+         (SELECT "status"::text FROM "CircleActivity" WHERE id=$1) AS activity`,
+      [duo.activityId],
+    );
+    expect(after.rows[0]).toMatchObject({
+      consumed: false,
+      sessions: 0,
+      activity: "INVITING",
+    });
+  }, 60_000);
+
+  it("still exchanges under `on` while the inviter is ACTIVE", async () => {
+    // The counterpart the two tests above need: the membership check must
+    // refuse a LEFT inviter without refusing everybody.
+    const duo = await invitedDuo();
+    const { accessService } = build("on");
+    const exchanged = await accessService.exchange(duo.token);
+    expect(exchanged.guestSessionId).toBeTruthy();
+    const after = await pool.query(
+      `SELECT
+         (SELECT "consumedAt" IS NOT NULL FROM "CircleInvitation"
+           WHERE "activityId"=$1) AS consumed,
+         (SELECT "status"::text FROM "CircleActivity" WHERE id=$1) AS activity`,
+      [duo.activityId],
+    );
+    expect(after.rows[0]).toMatchObject({
+      consumed: true,
+      activity: "PREPARING",
+    });
+  }, 60_000);
 
   // ══ Idempotency is per-command, and compares the payload ═════════════════
 
@@ -2228,6 +2472,197 @@ suite("circles · participation (real PostgreSQL)", () => {
     };
     expect((await events.append(shapeB)).outcome).toBe("APPENDED");
     expect((await events.append(shapeB)).outcome).toBe("REPLAY");
+  }, 60_000);
+
+  it("refuses a second confirmation of the same artifact under a new key", async () => {
+    // The hole this closes was an accounting one. Confirming A with K1 and
+    // then again with K2 returned `{ replayed: true }` — a SUCCESS — while
+    // skipping the append, so K2 was never recorded anywhere. The caller
+    // could reasonably believe K2 now stood for "I confirmed A"; nothing
+    // did, and the same K2 was still free to be spent on artifact B.
+    const duo = await revealedDuo();
+    const a = await service.proposeArtifact(
+      duo.organizer,
+      duo.activityId,
+      "artefacto A",
+      randomUUID(),
+    );
+    const k1 = randomUUID();
+    const k2 = randomUUID();
+
+    // 1 — confirm A with K1.
+    const first = await service.confirmArtifact(
+      duo.organizer,
+      duo.activityId,
+      a.artifactId,
+      a.version,
+      k1,
+    );
+    expect(first.replayed).toBe(false);
+
+    const eventsAfterK1 = await pool.query(
+      `SELECT count(*)::int AS n FROM "CircleEvent"
+        WHERE "activityId"=$1 AND "type"='ARTIFACT_CONFIRMED'`,
+      [duo.activityId],
+    );
+    expect(eventsAfterK1.rows[0].n).toBe(1);
+
+    // 2/3 — the same act under K2 is NOT a success and NOT a replay.
+    expect(
+      await codeOf(() =>
+        service.confirmArtifact(
+          duo.organizer,
+          duo.activityId,
+          a.artifactId,
+          a.version,
+          k2,
+        ),
+      ),
+    ).toBe("CIRCLE_IDEMPOTENCY_CONFLICT");
+
+    // 4 — and no second event was written.
+    const eventsAfterK2 = await pool.query(
+      `SELECT count(*)::int AS n FROM "CircleEvent"
+        WHERE "activityId"=$1 AND "type"='ARTIFACT_CONFIRMED'`,
+      [duo.activityId],
+    );
+    expect(eventsAfterK2.rows[0].n, "no second confirmation event").toBe(1);
+
+    // 5 — K1 is bound to A. Pointed at B it conflicts.
+    const b = await service.proposeArtifact(
+      duo.organizer,
+      duo.activityId,
+      "artefacto B",
+      randomUUID(),
+    );
+    expect(b.artifactId).not.toBe(a.artifactId);
+    expect(
+      await codeOf(() =>
+        service.confirmArtifact(
+          duo.organizer,
+          duo.activityId,
+          b.artifactId,
+          b.version,
+          k1,
+        ),
+      ),
+    ).toBe("CIRCLE_IDEMPOTENCY_CONFLICT");
+
+    // 6 — nothing the refusals touched actually moved.
+    const state = await pool.query(
+      `SELECT id, "version", "status"::text AS status FROM "CircleArtifact"
+        WHERE "activityId"=$1 ORDER BY "version"`,
+      [duo.activityId],
+    );
+    expect(state.rows).toEqual([
+      { id: a.artifactId, version: a.version, status: "SUPERSEDED" },
+      { id: b.artifactId, version: b.version, status: "PROPOSED" },
+    ]);
+    const finalEvents = await pool.query(
+      `SELECT count(*)::int AS n FROM "CircleEvent"
+        WHERE "activityId"=$1 AND "type"='ARTIFACT_CONFIRMED'`,
+      [duo.activityId],
+    );
+    expect(finalEvents.rows[0].n).toBe(1);
+
+    // And K1's original replay still resolves, unchanged.
+    const replay = await service.confirmArtifact(
+      duo.organizer,
+      duo.activityId,
+      a.artifactId,
+      a.version,
+      k1,
+    );
+    expect(replay.replayed).toBe(true);
+  }, 60_000);
+
+  it("replays a creation whose template was archived afterwards", async () => {
+    // Idempotency was expiring with the catalogue. `getPublished` ran before
+    // the receipt was consulted, so a request that had ALREADY created a Dúo
+    // stopped being reproducible the moment editorial archived that version
+    // — the caller retried a timeout and got `CIRCLE_TEMPLATE_UNAVAILABLE`
+    // for a resource that exists. A replay instantiates nothing, so it does
+    // not need the template to be instantiable; the committed activity
+    // carries the pin that decides replay from conflict.
+    const key = randomUUID();
+    const token = mintToken();
+    const req = {
+      userId: U1,
+      templateKey: TEMPLATE.templateKey,
+      templateVersion: TEMPLATE.templateVersion,
+      invitationToken: token,
+      idempotencyKey: key,
+    };
+    const first = await service.createDuo(req);
+    expect(first.replayed).toBe(false);
+
+    // Archive that exact version by swapping the injected registry.
+    const archivedNow: CircleActivityDefinition = {
+      ...TEMPLATE,
+      status: "ARCHIVED",
+    };
+    const registryWithArchived = new CircleTemplateRegistry([
+      archivedNow,
+      DRAFT_TEMPLATE,
+      ARCHIVED_TEMPLATE,
+      NO_OUTCOME_TEMPLATE,
+      ALT_TEMPLATE,
+      TEMPLATE_V2,
+    ]);
+    const archivedBuild = build("on", { registry: registryWithArchived });
+    const svc = archivedBuild.participation;
+
+    // Exact replay → the original aggregate, template state notwithstanding.
+    const replay = await svc.createDuo(req);
+    expect(replay.replayed).toBe(true);
+    expect(replay.circleId).toBe(first.circleId);
+    expect(replay.activityId).toBe(first.activityId);
+
+    // Same key, different request → the CONFLICT must be the observed cause,
+    // so the other request names a template that is PUBLISHED in this
+    // registry. Using an invalid template here would let
+    // `CIRCLE_TEMPLATE_UNAVAILABLE` masquerade as the answer.
+    expect(
+      await codeOf(() =>
+        svc.createDuo({
+          ...req,
+          templateKey: ALT_TEMPLATE.templateKey,
+          templateVersion: ALT_TEMPLATE.templateVersion,
+        }),
+      ),
+      "same key, other published template",
+    ).toBe("CIRCLE_IDEMPOTENCY_CONFLICT");
+
+    // A NEW key on the archived template is a real creation, and refused.
+    expect(
+      await codeOf(() =>
+        svc.createDuo({
+          ...req,
+          invitationToken: mintToken(),
+          idempotencyKey: randomUUID(),
+        }),
+      ),
+      "new key, archived template",
+    ).toBe("CIRCLE_TEMPLATE_UNAVAILABLE");
+
+    // Exactly one aggregate, one receipt, and nothing extra.
+    const rows = await pool.query(
+      `SELECT
+         (SELECT count(*)::int FROM "CircleEvent"
+           WHERE "type"='CIRCLE_CREATED' AND "idempotencyKey"=$1) AS receipts,
+         (SELECT count(*)::int FROM "CircleActivity" WHERE "circleId"=$2) AS activities,
+         (SELECT count(*)::int FROM "CircleActivityParticipant"
+           WHERE "activityId"=$3) AS seats,
+         (SELECT count(*)::int FROM "CircleInvitation"
+           WHERE "activityId"=$3) AS invitations`,
+      [key, first.circleId, first.activityId],
+    );
+    expect(rows.rows[0]).toMatchObject({
+      receipts: 1,
+      activities: 1,
+      seats: 2,
+      invitations: 1,
+    });
   }, 60_000);
 
   // ══ Stages, outcomes and the exact-seat barrier ══════════════════════════

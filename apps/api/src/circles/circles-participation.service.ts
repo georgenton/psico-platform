@@ -417,19 +417,20 @@ export class CirclesParticipationService {
   async createDuo(input: CreateDuoInput): Promise<CreatedDuo> {
     const now = input.now ?? new Date();
 
-    // Only a PUBLISHED template can be instantiated. DRAFT and ARCHIVED
-    // resolve by exact pin — a running activity must keep working — but
-    // neither may start a new one.
-    let definition: CircleActivityDefinition;
-    try {
-      definition = this.registry.getPublished(
-        input.templateKey,
-        input.templateVersion,
-      );
-    } catch {
-      throw new CirclesError("CIRCLE_TEMPLATE_UNAVAILABLE");
-    }
-
+    // ── The template is resolved AFTER the receipt, not before ────────────
+    //
+    // It used to be the first thing this method did, which quietly made
+    // idempotency expire. A caller creates a Dúo on template v3; editorial
+    // archives v3 a week later; the caller retries the very same request
+    // after a timeout — and instead of the aggregate it already committed,
+    // it got `CIRCLE_TEMPLATE_UNAVAILABLE`. Nothing was wrong with the
+    // request; the world had moved on around a resource that already exists.
+    //
+    // A replay does not instantiate anything, so it does not need the
+    // template to be instantiable. It does not need the template at all: the
+    // committed activity carries its own pin, and comparing THAT against the
+    // request is what decides replay from conflict. `getPublished` is a
+    // precondition for CREATING, so it runs where creation happens.
     const { hashSecret } = await import("./circles-secrets");
     const tokenHash = hashSecret(input.invitationToken);
 
@@ -500,6 +501,20 @@ export class CirclesParticipationService {
             activityId: priorActivity.id,
             replayed: true,
           };
+        }
+
+        // No receipt: this is a real creation, so the template must be
+        // instantiable right now. DRAFT and ARCHIVED still resolve by exact
+        // pin — a running activity keeps working — but neither may start a
+        // new one.
+        let definition: CircleActivityDefinition;
+        try {
+          definition = this.registry.getPublished(
+            input.templateKey,
+            input.templateVersion,
+          );
+        } catch {
+          throw new CirclesError("CIRCLE_TEMPLATE_UNAVAILABLE");
         }
 
         const circle = await tx.circle.create({
@@ -1104,12 +1119,31 @@ export class CirclesParticipationService {
           throw new CirclesError(UNUSABLE);
         if (target.status === "SUPERSEDED") throw new CirclesError(UNUSABLE);
 
-        // A second confirmation of the same artifact by the same seat under a
-        // DIFFERENT key. Not a replay of this key — the receipt above said so
-        // — and not an error either: the seat has already agreed, and saying
-        // so again changes nothing.
+        // ── Already confirmed, under a DIFFERENT key ─────────────────────
+        //
+        // This used to return `{ replayed: true }`, and that was a quiet
+        // accounting hole rather than a convenience.
+        //
+        // The seat confirmed this artifact with K1, so the ledger holds K1's
+        // receipt. Presenting K2 for the same act got a SUCCESS response —
+        // and K2 was never written anywhere, because the append was skipped.
+        // A key that has produced a successful response is spent: the caller
+        // may reasonably believe K2 now stands for "I confirmed artifact A".
+        // But nothing recorded that, so K2 stayed free, and the same K2 could
+        // afterwards be used against artifact B and be accepted as a fresh
+        // command. One key, two successful meanings, no record of the first.
+        //
+        // Refusing keeps the invariant simple: a key is spent only when a
+        // receipt records it. K2 never succeeded here, so K2 is not spent,
+        // and nothing is inconsistent. The transaction rolls back, so no
+        // second `ARTIFACT_CONFIRMED` event is written either.
+        //
+        // `CIRCLE_IDEMPOTENCY_CONFLICT` and not a replay: the key is new, so
+        // there is nothing to replay, and the committed state cannot satisfy
+        // it. Opaque, like every other refusal here — though the seat is the
+        // actor and already knows it confirmed.
         if (await this.artifacts.hasConfirmed(target.id, ctx.self.id, tx)) {
-          return { agreed: target.status === "AGREED", replayed: true };
+          throw new CirclesError("CIRCLE_IDEMPOTENCY_CONFLICT");
         }
 
         const appended = await this.events.append(

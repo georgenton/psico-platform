@@ -37,6 +37,16 @@ DECRYPTED_PAYLOAD_REVALIDATED_AGAINST_TEMPLATE=true
 REVEAL_REQUIRES_EXACT_TOTAL_SEATS=2
 OFF_WITH_VALID_KEY_RETURNS_CIPHER=false
 GENERIC_P2002_IS_REPLAY=false
+
+# Auditoría de PR3, ronda 2
+ON_REVALIDATES_INVITER_MEMBERSHIP=true
+ON_SKIPS_ONLY_ALLOWLIST=true
+SECOND_ARTIFACT_CONFIRMATION_KEY_RETURNS_SUCCESS=false
+UNRECORDED_SUCCESSFUL_IDEMPOTENCY_KEY=false
+ARCHIVED_TEMPLATE_EXACT_CREATE_REPLAY=true
+INVITATION_EXPIRY_GOVERNS_EXCHANGE=true
+GUEST_SESSION_EXPIRY_GOVERNS_POST_EXCHANGE_COMMANDS=true
+INVITATION_EXPIRY_RECHECKED_AFTER_EXCHANGE=false
 ACCOUNT_DELETION_WITH_CIRCLE_EVENTS=blocked_pending_sanctioned_scrub_design
 REQUIRED_BEFORE_PILOT=true
 WEB_ROUTES_ADDED=0
@@ -449,6 +459,49 @@ lo rechaza el guard. Igualar las dos respuestas exigiría mantener usable una
 sesión revocada una llamada más, y no hay forma de acotar «una llamada más» a
 la inofensiva: la ventana que se abre para un retiro repetido es la misma que
 usa un enlace robado. Gana la revocación.
+
+---
+
+## 9-ter. Segunda ronda de auditoría
+
+Cuatro hallazgos más, corregidos en el mismo Draft.
+
+**`on` omitía la membresía del invitante.** `assertInviterEligible` y
+`lockAndAssertInviter` retornaban temprano bajo `on` — «no hay allowlist que
+consultar» se leyó como «no hay nada que comprobar» — mientras la ruta de
+participación de PR3 sí revalida al invitante en todos los modos. El sistema se
+contradecía donde una persona lo nota: el enlace inspecciona como usable, el
+canje consume la invitación, acepta el asiento, mueve la actividad a
+`PREPARING`, crea la sesión y escribe eventos, y el primer comando del invitado
+lo rechaza. Alguien acepta, ve en la pantalla del otro que el Dúo empezó, y no
+puede hacer nada — con todo ya escrito. La membresía es hoy independiente del
+modo; sólo la allowlist es exclusiva de `pilot`, y ambas rutas comparten un
+único predicado para que no puedan volver a divergir.
+
+**Una confirmación exitosa no comprometía su clave.** Confirmar el artefacto A
+con K1 y repetirlo con K2 devolvía éxito saltándose el append, así que K2 nunca
+quedaba registrada: el llamante podía creer razonablemente que K2 significaba
+«confirmé A», y K2 seguía libre para gastarse después en el artefacto B. Una
+clave, dos significados exitosos, ningún registro del primero. Hoy se rechaza
+con `CIRCLE_IDEMPOTENCY_CONFLICT`: una clave se gasta sólo cuando un recibo la
+registra, K2 nunca tuvo éxito, y no hay nada inconsistente.
+
+**La idempotencia caducaba con el catálogo.** `createDuo` resolvía la plantilla
+antes de consultar el recibo, así que una petición que ya había creado un Dúo
+dejaba de ser reproducible en cuanto editorial archivaba esa versión. Un replay
+no instancia nada; no necesita que la plantilla sea instanciable, ni la
+necesita en absoluto: la actividad comprometida lleva su propio pin, y
+compararlo contra la petición es lo que decide replay de conflicto.
+`getPublished` corre ahora donde ocurre la creación.
+
+**El test de expiración no demostraba su precondición.** Fijaba
+`expiresAt = createdAt + 1s` y afirmaba que el comando funciona — lo que pasa
+igual en una construcción que SÍ re-verifica la expiración, porque la
+invitación podía seguir vigente. Hoy la fecha se mueve inequívocamente al
+pasado y el test afirma desde PostgreSQL, antes de ejecutar el comando, que la
+invitación está vencida, que la sesión está vigente y que no está revocada; y
+un control complementario expira la sesión para demostrar que es ella la que
+gobierna.
 
 ---
 

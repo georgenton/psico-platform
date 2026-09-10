@@ -8,9 +8,14 @@
  * Three absences carry over from PR1 and are re-asserted by ratchet here:
  *
  *   1. **No private draft.** `CircleShareConfirmation` is a closed union of
- *      four answers. The one that carries content carries a SELECTION the
- *      person previewed — never a keystroke, never a draft, and there is no
- *      variant that could hold one.
+ *      exactly THREE answers — `SELECTED_FIELDS`, `EDITED_SUMMARY` and
+ *      `KEEP_PRIVATE`. (An earlier version of this comment said four, which
+ *      was wrong: `WITHDRAW` is a `CircleSharingMode` a template may OFFER as
+ *      an exit, and it is deliberately not a member of this union. Leaving is
+ *      not a kind of sharing — it has its own route, and a database
+ *      constraint refuses to store it as a `sharingMode`.) The two variants
+ *      that carry content carry a SELECTION the person previewed — never a
+ *      keystroke, never a draft, and there is no variant that could hold one.
  *   2. **No client-asserted identity.** Nothing in this file has `userId`,
  *      `participantId`, `circleId` or a role. The actor is server-resolved.
  *   3. **No editorial internals.** `contentUnitId` is absent by construction.

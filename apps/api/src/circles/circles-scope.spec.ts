@@ -206,7 +206,10 @@ describe("circles · PR2 — the inviter is locked, in a fixed order", () => {
     const src = code(read(`${CIRCLES_DIR}/circles.service.ts`));
     expect(src).toContain("lockAndAssertInviter");
     expect(read(`${CIRCLES_DIR}/circles.service.ts`)).toContain(
-      "CircleMember  ->  CircleInvitation  ->  CircleActivityParticipant",
+      "CircleMember  ->  CircleInvitation  ->  CircleGuestSession  ->",
+    );
+    expect(read(`${CIRCLES_DIR}/circles.service.ts`)).toContain(
+      "CircleActivity  ->  CircleActivityParticipant  ->  CircleArtifact",
     );
   });
 });
@@ -270,6 +273,17 @@ describe("circles · PR2 — the event ledger cannot be rewritten or filled", ()
 });
 
 describe("circles · PR2 — the client never asserts who it is", () => {
+  it("never lets a Content Core id into a DTO", () => {
+    const dtoDir = `${CIRCLES_DIR}/dto`;
+    for (const file of readdirSync(join(ROOT, dtoDir)).filter((f) =>
+      f.endsWith(".ts"),
+    )) {
+      expect(code(read(`${dtoDir}/${file}`)), file).not.toContain(
+        "contentUnitId",
+      );
+    }
+  });
+
   it("declares no identity or role field in any DTO", () => {
     const dtoDir = `${CIRCLES_DIR}/dto`;
     const files = readdirSync(join(ROOT, dtoDir)).filter((f) =>
@@ -302,6 +316,85 @@ describe("circles · PR2 — the client never asserts who it is", () => {
     expect(actor).toMatch(/export function buildGuestActor\(row: \{/);
     expect(actor).toMatch(/export function buildUserActor\(userId: string\)/);
     expect(actor).not.toMatch(/req\.body|request\.body|dto\./);
+  });
+});
+
+describe("circles · PR3 — participation keeps every earlier promise", () => {
+  it("offers no admin, payer or support path to content", () => {
+    // The matrix says ADMIN is `NEVER` for revealed content. That is only worth
+    // something if there is no route that skips the matrix — no "support view",
+    // no billing-scoped read, no impersonation.
+    for (const file of circlesSources()) {
+      const src = code(read(file));
+      for (const forbidden of [
+        "RolesGuard",
+        "RequiredRole",
+        "RequiredPlan",
+        "PlanGuard",
+        "impersonat",
+        "supportView",
+        "adminRead",
+      ]) {
+        expect(src, `${file} · ${forbidden}`).not.toContain(forbidden);
+      }
+    }
+  });
+
+  it("never lets WITHDRAW arrive as a sharing mode", () => {
+    // Leaving is not a kind of sharing. It has its own route, its own
+    // semantics, and a CHECK that refuses to store it as a `sharingMode`.
+    const dto = code(read(`${CIRCLES_DIR}/dto/participation.dto.ts`));
+    expect(dto).not.toMatch(/Equals\("WITHDRAW"\)|"WITHDRAW"/);
+    const migration = read(
+      "apps/api/prisma/migrations/20260910030000_circles_participation_invariants/migration.sql",
+    );
+    expect(migration).toContain(
+      "CircleActivityParticipant_withdraw_is_not_a_share",
+    );
+  });
+
+  it("closes every route before encrypting or writing when the flag is off", () => {
+    // Under `off` the cipher is `null` and the guard refuses first. The service
+    // still checks, so a future rewiring that lost the guard fails closed
+    // rather than writing plaintext.
+    const service = code(
+      read(`${CIRCLES_DIR}/circles-participation.service.ts`),
+    );
+    expect(service).toContain("requireCipher");
+    expect(service).toMatch(/if \(!this\.cipher\) throw new CirclesError/);
+    const controller = code(
+      read(`${CIRCLES_DIR}/circles-participation.controller.ts`),
+    );
+    // Both surfaces carry a rollout-aware guard at the class level.
+    expect(controller).toMatch(
+      /@UseGuards\(JwtAuthGuard, CirclesRolloutGuard\)/,
+    );
+    expect(controller).toMatch(/@UseGuards\(CirclesGuestGuard\)/);
+  });
+
+  it("marks every content response private and uncacheable", () => {
+    const controller = code(
+      read(`${CIRCLES_DIR}/circles-participation.controller.ts`),
+    );
+    expect(controller).toContain('"private, no-store"');
+    // Every handler calls it: a shared snapshot sitting in an intermediary's
+    // cache is the same leak as serving it to the wrong person.
+    const handlers = [...controller.matchAll(/@(Get|Post|Put)\(/g)].length;
+    const noStores = [...controller.matchAll(/noStore\(res\)/g)].length;
+    expect(noStores, "one noStore per handler").toBe(handlers);
+  });
+
+  it("requires a canonical idempotency key on every command", () => {
+    const controller = code(
+      read(`${CIRCLES_DIR}/circles-participation.controller.ts`),
+    );
+    const commands = [...controller.matchAll(/@(Post|Put)\(/g)].length;
+    const keys = [...controller.matchAll(/requireIdempotencyKey\(key\)/g)]
+      .length;
+    expect(keys, "one key check per command").toBe(commands);
+    // Canonical, not normalised into existence: a key the server repairs is a
+    // key two clients can collide on by accident.
+    expect(controller).toMatch(/\[0-9a-f\]\{8\}-/);
   });
 });
 

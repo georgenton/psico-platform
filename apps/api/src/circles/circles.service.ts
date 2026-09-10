@@ -12,6 +12,8 @@ import { CircleGuestSessionRepository } from "./circle-guest-session.repository"
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { CircleEventRepository } from "./circle-event.repository";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { CircleActivityRepository } from "./circle-activity.repository";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { CircleMemberRepository } from "./circle-member.repository";
 import type {
   CircleMemberDb,
@@ -48,13 +50,15 @@ import {
  *
  * ── LOCK ORDER — MANDATORY for every future Círculos command ──────────────
  *
- *     CircleMember  ->  CircleInvitation  ->  CircleActivityParticipant
+ *     CircleMember  ->  CircleInvitation  ->  CircleGuestSession  ->
+ *     CircleActivity  ->  CircleActivityParticipant  ->  CircleArtifact
  *
- * `exchange` takes them in that order and so must withdraw, revoke, decline and
- * anything else PR3 adds. This is not a style preference: two commands that
- * take the same two rows in opposite orders deadlock under contention, and the
- * failure surfaces as a random 500 on a Dúo that two people are using at the
- * same time — the hardest kind of bug to reproduce and the easiest to avoid.
+ * `exchange` takes the rows it needs in that order, and so does every command
+ * in `circles-participation.service.ts`. This is not a style preference: two
+ * commands that take the same rows in opposite orders deadlock under
+ * contention, and the failure surfaces as a random 500 on a Dúo that two people
+ * are using at the same time — the hardest kind of bug to reproduce and the
+ * easiest to avoid.
  *
  * If a future command genuinely needs a different order, the fix is to change
  * this rule and every command with it, not to make an exception.
@@ -111,6 +115,7 @@ export class CirclesService {
     private readonly events: CircleEventRepository,
     private readonly members: CircleMemberRepository,
     private readonly rollout: CirclesRolloutService,
+    private readonly activities: CircleActivityRepository,
   ) {}
 
   /**
@@ -213,7 +218,30 @@ export class CirclesService {
           throw new CirclesError("CIRCLE_INVITATION_UNUSABLE");
         }
 
-        // ── 3. CircleActivityParticipant ──────────────────────────────────
+        // ── 4. CircleActivity ─────────────────────────────────────────────
+        //
+        // Locked BEFORE the seat, and advanced to `PREPARING` in this same
+        // transaction. Accepting an invitation and the activity becoming open
+        // for participation are one event in the product; splitting them across
+        // two transactions would create a moment in which somebody has accepted
+        // an activity that is still `INVITING` — a state the counterpart's
+        // screen would have to explain.
+        //
+        // The transition is conditional. If a withdrawal cancelled the activity
+        // between the fast exit and here, `startPreparing` moves nothing and the
+        // acceptance unwinds rather than resurrecting a cancelled Dúo.
+        const activity = await this.activities.lockById(
+          invitation.activityId,
+          tx,
+        );
+        if (!activity) throw new CircleStorageError();
+        if (activity.status !== "INVITING") {
+          throw new CirclesError("CIRCLE_INVITATION_UNUSABLE");
+        }
+        const started = await this.activities.startPreparing(activity.id, tx);
+        if (!started) throw new CirclesError("CIRCLE_INVITATION_UNUSABLE");
+
+        // ── 5. CircleActivityParticipant ──────────────────────────────────
         //
         // The seat was created with the invitation, so it exists. If it somehow
         // does not, that is an invariant failure and not an authorization
@@ -258,6 +286,15 @@ export class CirclesService {
           tx,
         );
 
+        await this.events.append(
+          {
+            circleId: invitation.circleId,
+            activityId: invitation.activityId,
+            type: "INVITATION_ACCEPTED",
+            actorParticipantId: seat.id,
+          },
+          tx,
+        );
         await this.events.append(
           {
             circleId: invitation.circleId,

@@ -21,6 +21,22 @@ CIRCLE_EVENT_APPEND_ONLY=true
 CIRCLE_EVENT_FREE_TEXT_ALLOWED=false
 INVITER_ROW_LOCKED_UNTIL_EXCHANGE_COMMIT=true
 LOCK_ORDER=CircleMember>CircleInvitation>CircleGuestSession>CircleActivity>CircleActivityParticipant>CircleArtifact
+
+# Auditoría de PR3, ronda 1 — corregido dentro del mismo Draft
+CONFIRM_SHARE_RUNTIME_DISCRIMINATOR=true
+CONFIRM_SHARE_OPENAPI_ONE_OF=true
+UNKNOWN_MODE_REJECTED=true
+INVITATION_TOKEN_BASE64URL_VALIDATED=true
+GUEST_SESSION_ROW_LOCKED=true
+GUEST_ACTOR_SESSION_MATCH_REVALIDATED=true
+PILOT_INVITER_REVALIDATED_IN_TRANSACTION=true
+IDEMPOTENCY_COMPARES_REQUEST_PER_COMMAND=true
+SNAPSHOT_HMAC_VERIFIED_ON_OPEN=true
+ARTIFACT_HMAC_PERSISTED_AND_VERIFIED=true
+DECRYPTED_PAYLOAD_REVALIDATED_AGAINST_TEMPLATE=true
+REVEAL_REQUIRES_EXACT_TOTAL_SEATS=2
+OFF_WITH_VALID_KEY_RETURNS_CIPHER=false
+GENERIC_P2002_IS_REPLAY=false
 ACCOUNT_DELETION_WITH_CIRCLE_EVENTS=blocked_pending_sanctioned_scrub_design
 REQUIRED_BEFORE_PILOT=true
 WEB_ROUTES_ADDED=0
@@ -361,6 +377,78 @@ para que la auditoría pueda rechazarlas, no para colarlas.
 Una tercera desviación es de ubicación, no de fondo: las pruebas del contrato
 viven en `apps/api/src/circles/` y no junto a los tipos, porque `@psico/types`
 no tiene runner y añadirle uno significaría tocar CI en una PR de contratos.
+
+---
+
+## 9-bis. Lo que la auditoría de PR3 encontró, y qué cambió
+
+Siete hallazgos, corregidos dentro del mismo Draft. Se listan con el fallo real
+—no con la regla que lo habría evitado— porque la regla ya estaba escrita en
+las tres versiones anteriores de este documento y no impidió ninguno.
+
+**El cuerpo de `confirm-share` nunca se validaba.** El handler declaraba una
+unión de TypeScript, que se borra en runtime: Nest veía el metatipo `Object`,
+`ValidationPipe` saltaba el cuerpo entero, y las reglas de las tres clases DTO
+eran inertes. El síntoma visible era que OpenAPI no publicaba `requestBody`
+para ninguna de las dos rutas. Peor: el helper que estrechaba la unión
+terminaba en `return { mode: "KEEP_PRIVATE" }`, así que cualquier modo no
+reconocido se registraba como la decisión deliberada de no compartir — la única
+respuesta que el producto jamás debe inventar por alguien. Hoy hay un pipe
+sobre `unknown` que reconstruye la unión cerrada con `whitelist` +
+`forbidNonWhitelisted`, y el contrato la publica como `oneOf` con
+discriminador. La frontera se prueba con una app Nest real, no llamando al
+servicio.
+
+**La autoridad del invitado se comprobaba una vez, en la puerta.** Un invitado
+no tiene membresía; la suya es prestada del invitante a través de la
+invitación. Nada la re-derivaba dentro de la transacción, así que un invitado
+conservaba acceso completo después de que su invitante dejara el círculo, y
+bajo `pilot` después de que ese miembro saliera de la allowlist. La sesión se
+leía sin bloqueo, de modo que una revocación en paralelo podía perder la
+carrera. Hoy miembro, invitación y sesión se bloquean en el orden canónico y
+las tres se re-verifican, incluida la correspondencia entre el asiento que
+nombra la sesión y el del actor.
+
+**Las claves de idempotencia no comparaban la petición.** Una clave representa
+UNA petición; los cinco comandos trataban «esta clave ya se usó» como «esta es
+la misma llamada». Misma clave con otra plantilla devolvía el primer Dúo; con
+otro `share`, éxito mientras el snapshot original seguía en su sitio; una
+propuesta reintentada subía la versión e invalidaba confirmaciones de un texto
+ya acordado. Hoy cada comando compara lo que la clave comprometió.
+
+**`payloadHash` se escribía y no se leía nunca.** Una columna que nadie lee no
+es un control de integridad; es un comentario guardado en PostgreSQL.
+`openEnvelope` pasaba `?? ""` y el string vacío atravesaba sin ruido. Hoy
+`open()` lo verifica en tiempo constante, el artefacto tiene el suyo propio, y
+un cuerpo descifrado se reconstruye cerrado y se re-valida contra la plantilla
+fijada y contra el modo y las claves de campo de la fila.
+
+**Estados.** Confirmar sólo en `REVEALED` o `FOLLOW_UP`. `outcome: NONE` se
+respeta en vez de convertirse en `AGREEMENT`. El contenido revelado exige
+asiento `READY`, y la proyección lo decide desde la fila y no desde si quien
+llama le entregó un cuerpo. La barrera exige el total exacto de asientos, así
+que dos-de-tres no puede revelar.
+
+**`off` significa ausente.** El cipher es `null` bajo `off` incluso con una
+clave válida configurada. Una capacidad sin uso sigue siendo una superficie
+cargada.
+
+**No todo `P2002` es un replay.** El ledger verifica que exista el recibo
+exacto antes de decirlo; el índice de confirmación de artefacto conserva su
+propia semántica.
+
+Semántica del replay de `withdraw`, declarada porque es asimétrica a propósito:
+
+```
+MEMBER_WITHDRAW_REPLAY=response_idempotent
+GUEST_WITHDRAW_REPLAY=effect_idempotent_but_credential_is_revoked
+```
+
+Retirarse revoca la sesión del invitado — para eso existe. El segundo intento
+lo rechaza el guard. Igualar las dos respuestas exigiría mantener usable una
+sesión revocada una llamada más, y no hay forma de acotar «una llamada más» a
+la inofensiva: la ventana que se abre para un retiro repetido es la misma que
+usa un enlace robado. Gana la revocación.
 
 ---
 

@@ -106,6 +106,24 @@ const ARCHIVED_TEMPLATE: CircleActivityDefinition = {
   status: "ARCHIVED",
 };
 /**
+ * A SECOND published template, and a published v2 of the first.
+ *
+ * Both exist for one reason: to make "same key, different request" reachable.
+ * A DRAFT or ARCHIVED key is rejected by `getPublished` before the replay
+ * comparison runs, so a test built on those two would assert the registry's
+ * behaviour and call it idempotency — which is exactly what the negative
+ * control caught the first version of this suite doing.
+ */
+const ALT_TEMPLATE: CircleActivityDefinition = {
+  ...TEMPLATE,
+  templateKey: "fixture-participation-alt",
+};
+const TEMPLATE_V2: CircleActivityDefinition = {
+  ...TEMPLATE,
+  templateVersion: 2,
+};
+
+/**
  * A published template that produces NO shared result.
  *
  * `outcome.kind: "NONE"` is an editorial decision — some conversations are
@@ -215,6 +233,8 @@ suite("circles · participation (real PostgreSQL)", () => {
       DRAFT_TEMPLATE,
       ARCHIVED_TEMPLATE,
       NO_OUTCOME_TEMPLATE,
+      ALT_TEMPLATE,
+      TEMPLATE_V2,
     ]);
     cipher = new CirclesCipher(Buffer.from(KEY, "base64"));
     const built = build();
@@ -1542,6 +1562,86 @@ suite("circles · participation (real PostgreSQL)", () => {
     expect(after.status, "the activity did not move").toBe("PREPARING");
   }, 30_000);
 
+  /**
+   * Wait until SOMETHING in this database is blocked on a row lock.
+   *
+   * A condition, not a sleep: it returns as soon as PostgreSQL itself reports
+   * a waiter, and gives up with a named failure if none appears. That failure
+   * IS the assertion — a command that does not block on the session row is a
+   * command reading a snapshot somebody else is in the middle of changing.
+   *
+   * The deadline is generous because it is not measuring anything. On an idle
+   * machine the waiter appears in milliseconds; a tight bound would only add
+   * a way for a loaded machine to fail a test about locking, which is the
+   * kind of flake that teaches people to distrust the suite.
+   */
+  async function waitUntilBlockedOnALock(deadlineMs = 45_000): Promise<void> {
+    const until = Date.now() + deadlineMs;
+    for (;;) {
+      const r = await pool.query(
+        `SELECT count(*)::int AS n FROM pg_stat_activity
+          WHERE datname = current_database()
+            AND wait_event_type = 'Lock'`,
+      );
+      if (r.rows[0].n > 0) return;
+      if (Date.now() > until) {
+        throw new Error(
+          "the command never blocked on a row lock — it read a snapshot " +
+            "another transaction was in the middle of changing",
+        );
+      }
+      await new Promise((r2) => setImmediate(r2));
+    }
+  }
+
+  it("blocks on the guest session row while a revocation is uncommitted", async () => {
+    const duo = await fastDuo();
+    // A revocation that has taken the row lock and NOT committed. This is the
+    // window the `FOR UPDATE` exists for: an unlocked read here returns the
+    // pre-revocation snapshot and the command proceeds on a credential that
+    // is being destroyed.
+    const revoker = await pool.connect();
+    await revoker.query("BEGIN");
+    await revoker.query(
+      `UPDATE "CircleGuestSession" SET "revokedAt"=now() WHERE id=$1`,
+      [duo.guestSessionId],
+    );
+
+    let reachedLock = () => {};
+    const atLock = new Promise<void>((r) => (reachedLock = r));
+    const seam = new PausingGuestSessions(
+      prisma,
+      async () => {
+        reachedLock();
+      },
+      "lock",
+    );
+    const { participation } = build("on", { guestSessions: seam });
+
+    const outcome = participation
+      .confirmShare(
+        duo.guest,
+        duo.activityId,
+        share("en la ventana"),
+        randomUUID(),
+      )
+      .then(() => "RESOLVED")
+      .catch((err: CirclesError) => err.code);
+
+    await atLock;
+    await waitUntilBlockedOnALock();
+    await revoker.query("COMMIT");
+    revoker.release();
+
+    expect(await outcome).toBe("CIRCLE_ACTIVITY_UNAVAILABLE");
+    const after = await footprint(duo.activityId);
+    expect(after.ready, "PARTICIPANT_READY_EVENTS").toBe(0);
+    expect(after.artifact, "ARTIFACT_EVENTS").toBe(0);
+    expect(after.followup, "FOLLOW_UP_EVENTS").toBe(0);
+    expect(after.movedseats, "STATE_CHANGES").toBe(0);
+    expect(after.envelopes).toBe(0);
+  }, 40_000);
+
   it("refuses a guest whose inviter leaves while the command is in flight", async () => {
     const duo = await fastDuo();
     const seam = new PausingGuestSessions(
@@ -1680,32 +1780,38 @@ suite("circles · participation (real PostgreSQL)", () => {
     // A different TEMPLATE under the same key used to replay happily and
     // return the first activity — so a caller who fixed a typo and retried
     // was told their correction had succeeded.
+    //
+    // Both cases below use PUBLISHED templates on purpose. An ARCHIVED key or
+    // an unknown version is refused by the registry with
+    // `CIRCLE_TEMPLATE_UNAVAILABLE` before the replay comparison is reached,
+    // so a test written that way passes whether or not the comparison exists.
+    // The exact code is asserted for the same reason.
     expect(
       await codeOf(() =>
         service.createDuo({
           userId: U1,
-          templateKey: ARCHIVED_TEMPLATE.templateKey,
-          templateVersion: 1,
+          templateKey: ALT_TEMPLATE.templateKey,
+          templateVersion: ALT_TEMPLATE.templateVersion,
           invitationToken: token,
           idempotencyKey: key,
         }),
       ),
       "different template",
-    ).not.toBe("RESOLVED");
+    ).toBe("CIRCLE_IDEMPOTENCY_CONFLICT");
 
-    // A different VERSION of the same template.
+    // A different VERSION of the same template, also published.
     expect(
       await codeOf(() =>
         service.createDuo({
           userId: U1,
-          templateKey: TEMPLATE.templateKey,
-          templateVersion: TEMPLATE.templateVersion + 1,
+          templateKey: TEMPLATE_V2.templateKey,
+          templateVersion: TEMPLATE_V2.templateVersion,
           invitationToken: token,
           idempotencyKey: key,
         }),
       ),
       "different version",
-    ).not.toBe("RESOLVED");
+    ).toBe("CIRCLE_IDEMPOTENCY_CONFLICT");
 
     // A different TOKEN.
     expect(

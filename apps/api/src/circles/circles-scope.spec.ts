@@ -38,7 +38,7 @@ const circlesSources = () =>
     )
     .map((f) => `${CIRCLES_DIR}/${f}`);
 
-describe("circles · PR2 scope — the access spine, and only that", () => {
+describe("circles · PR3 scope — access and participation", () => {
   it("declares the eight models", () => {
     const schema = read("apps/api/prisma/schema.prisma");
     for (const model of [
@@ -57,22 +57,43 @@ describe("circles · PR2 scope — the access spine, and only that", () => {
     }
   });
 
-  it("ships exactly one migration, and it is additive", () => {
-    const dirs = readdirSync(join(ROOT, "apps/api/prisma/migrations")).filter(
-      (d) => /circle/i.test(d),
-    );
-    expect(dirs).toEqual(["20260909180000_circles_domain_foundation"]);
-    const sql = read(`apps/api/prisma/migrations/${dirs[0]}/migration.sql`);
-    // The hazard that broke production on 2026-06-01: Prisma CLI chatter as
-    // the first line of a file Postgres is about to execute.
-    expect(sql.split("\n")[0]).toMatch(/^--/);
-    for (const line of sql
-      .split("\n")
-      .filter((l) => !l.trimStart().startsWith("--"))) {
-      expect(line, line).not.toMatch(
-        /\bDROP\s+(TABLE|COLUMN|CONSTRAINT|INDEX)\b|\bALTER\s+COLUMN\b|\bRENAME\b/i,
-      );
+  it("ships exactly two migrations, both additive", () => {
+    // PR2 added the domain; PR3 adds the invariants participation needs. PR2's
+    // has been applied to production, so it is not edited — a migration that
+    // has run is a fact, not a draft.
+    const dirs = readdirSync(join(ROOT, "apps/api/prisma/migrations"))
+      .filter((d) => /circle/i.test(d))
+      .sort();
+    expect(dirs).toEqual([
+      "20260909180000_circles_domain_foundation",
+      "20260910030000_circles_participation_invariants",
+    ]);
+    for (const dir of dirs) {
+      const sql = read(`apps/api/prisma/migrations/${dir}/migration.sql`);
+      // The hazard that broke production on 2026-06-01: Prisma CLI chatter as
+      // the first line of a file Postgres is about to execute.
+      expect(sql.split("\n")[0], dir).toMatch(/^--/);
+      for (const line of sql
+        .split("\n")
+        .filter((l) => !l.trimStart().startsWith("--"))) {
+        expect(line, `${dir} · ${line}`).not.toMatch(
+          /\bDROP\s+(TABLE|COLUMN|CONSTRAINT|INDEX)\b|\bALTER\s+COLUMN\b|\bRENAME\b/i,
+        );
+      }
     }
+  });
+
+  it("leaves PR2's applied migration byte-identical", () => {
+    // It ran in production on 2026-09-10. Editing it now would mean the file in
+    // the repository and the schema in the database describe different things,
+    // and the difference would be invisible until the next fresh environment.
+    const sql = read(
+      "apps/api/prisma/migrations/20260909180000_circles_domain_foundation/migration.sql",
+    );
+    expect(sql).toContain('CREATE TRIGGER "CircleEvent_no_update"');
+    expect(sql).toContain("CircleEvent_metadata_closed_grammar");
+    expect(sql).toContain('CHECK ("requiredParticipants" = 2)');
+    expect(sql).not.toContain("artifactId");
   });
 
   it("wires the Nest module", () => {
@@ -80,23 +101,40 @@ describe("circles · PR2 scope — the access spine, and only that", () => {
     expect(appModule).toMatch(/CirclesModule/);
   });
 
-  it("implements none of PR3's surface", () => {
-    // The limits in §C, as a check rather than a promise. Reveal, confirm-share,
-    // artifacts, withdrawal and the worker are absent — not stubbed, not behind
-    // a second flag.
+  it("implements none of PR4's surface", () => {
+    // PR3's limits, as a check rather than a promise. Web, BFF, the fragment
+    // flow, Eco and the worker are absent — not stubbed, not behind a second
+    // flag. PR2's version of this test named PR3's commands; those now exist,
+    // and updating it is part of this cut exactly as PR1 said it would be.
     const sources = circlesSources()
       .map((f) => code(read(f)))
       .join("\n");
     for (const forbidden of [
-      "confirmShare",
-      "confirm-share",
-      "revealActivity",
-      "revealBarrier",
-      "proposeArtifact",
-      "recordFollowUp",
-      "withdrawParticipant",
+      "ecoFacilitator",
+      "EcoFacilitator",
+      "cookie",
+      "setCookie",
+      "BullMQ",
+      "Queue",
+      "publicPreviewPage",
+      "next/navigation",
     ]) {
       expect(sources, forbidden).not.toContain(forbidden);
+    }
+  });
+
+  it("touches no Web, Mobile or worker file", () => {
+    // The scope of PR3 is `apps/api/src/circles/**`, the contracts, the schema,
+    // one migration and the docs. These directories are not in it.
+    for (const dir of [
+      "apps/web/src/app/dashboard",
+      "apps/mobile/app",
+      "apps/api/src/jobs/processors",
+    ]) {
+      const hits = readdirSync(join(ROOT, dir), { recursive: true } as never)
+        .filter((f): f is string => typeof f === "string")
+        .filter((f) => /circle/i.test(f));
+      expect(hits, dir).toEqual([]);
     }
   });
 

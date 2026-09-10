@@ -91,6 +91,27 @@ export class CircleGuestSessionRepository {
   }
 
   /**
+   * The session by its own id, in ANY state.
+   *
+   * The guard already resolved this session from a token; a command re-reads it
+   * by id inside its transaction because the guard answered about a moment that
+   * has passed. Revocation has to bite on the command, not only on the door.
+   */
+  async findById(
+    id: string,
+    db: CircleGuestSessionDb = this.prisma,
+  ): Promise<CircleGuestSessionRow | null> {
+    try {
+      return await db.circleGuestSession.findUnique({
+        where: { id },
+        select: SELECT,
+      });
+    } catch {
+      throw new CircleStorageError();
+    }
+  }
+
+  /**
    * Best-effort liveness marker. Deliberately fire-and-forget and deliberately
    * NOT part of authorization: a failure to record that somebody was seen must
    * never turn into a failure to authorize them, and vice versa.

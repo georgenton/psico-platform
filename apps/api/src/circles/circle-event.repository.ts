@@ -23,6 +23,7 @@ import { CircleStorageError } from "./circle-invitation.repository";
  */
 
 export type CircleEventDb = Pick<PrismaClient, "circleEvent">;
+export type CircleEventTx = CircleEventDb;
 
 /**
  * The metadata grammar, as a CLOSED discriminated union rather than a bag.
@@ -39,9 +40,23 @@ export type CircleEventDb = Pick<PrismaClient, "circleEvent">;
  * ledger by accident.
  */
 export type CircleEventTypeWithMetadata = "INVITATION_CREATED";
-export type CircleEventTypeWithoutMetadata = Exclude<
+
+/**
+ * The two event types that are ABOUT an artifact (PR3).
+ *
+ * Both carry `artifactId`, and both require the activity and the acting seat —
+ * the activity because the composite foreign key needs both columns to run, and
+ * the seat because "somebody confirmed this" without a somebody is not a
+ * confirmation. A SQL CHECK enforces the same three, so the type and the column
+ * cannot drift into disagreeing.
+ */
+export type CircleEventTypeWithArtifact =
+  | "ARTIFACT_PROPOSED"
+  | "ARTIFACT_CONFIRMED";
+
+export type CircleEventTypePlain = Exclude<
   CircleEventType,
-  CircleEventTypeWithMetadata
+  CircleEventTypeWithMetadata | CircleEventTypeWithArtifact
 >;
 
 export type CircleEventShape =
@@ -49,10 +64,20 @@ export type CircleEventShape =
       readonly type: CircleEventTypeWithMetadata;
       /** Whether a short code exists — a fact its recipient already knows. */
       readonly metadata: { readonly hasCode: boolean };
+      readonly artifactId?: undefined;
     }
   | {
-      readonly type: CircleEventTypeWithoutMetadata;
+      readonly type: CircleEventTypeWithArtifact;
+      /** The EXACT artifact row, which pins the version with it. */
+      readonly artifactId: string;
+      readonly activityId: string;
+      readonly actorParticipantId: string;
       readonly metadata?: undefined;
+    }
+  | {
+      readonly type: CircleEventTypePlain;
+      readonly metadata?: undefined;
+      readonly artifactId?: undefined;
     };
 
 export type AppendEventInput = CircleEventShape & {
@@ -101,6 +126,7 @@ export class CircleEventRepository {
           actorUserId: input.actorUserId ?? null,
           actorParticipantId: input.actorParticipantId ?? null,
           idempotencyKey: input.idempotencyKey ?? null,
+          artifactId: input.artifactId ?? null,
           // `undefined` omits the column, which lands as SQL NULL — the only
           // value the CHECK admits for every type but `INVITATION_CREATED`.
           metadata: input.metadata ?? undefined,

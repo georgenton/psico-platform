@@ -23972,6 +23972,399 @@
           "circles"
         ]
       }
+    },
+    "/api/circles/duo": {
+      "post": {
+        "operationId": "CirclesMemberParticipationController_createDuo",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDuoDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created, or replayed unchanged."
+          },
+          "409": {
+            "description": "CIRCLE_IDEMPOTENCY_CONFLICT."
+          },
+          "422": {
+            "description": "CIRCLE_TEMPLATE_UNAVAILABLE."
+          }
+        },
+        "summary": "Create a Dúo and its first activity",
+        "tags": [
+          "circles"
+        ]
+      }
+    },
+    "/api/circles/activities/{activityId}": {
+      "get": {
+        "operationId": "CirclesMemberParticipationController_activity",
+        "parameters": [
+          {
+            "name": "activityId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "summary": "The activity, filtered for this actor",
+        "tags": [
+          "circles"
+        ]
+      }
+    },
+    "/api/circles/activities/{activityId}/share-confirmations": {
+      "post": {
+        "operationId": "CirclesMemberParticipationController_confirmShare",
+        "parameters": [
+          {
+            "name": "activityId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Confirm what you share; may trigger the reveal",
+        "tags": [
+          "circles"
+        ]
+      }
+    },
+    "/api/circles/activities/{activityId}/withdraw": {
+      "post": {
+        "operationId": "CirclesMemberParticipationController_withdraw",
+        "parameters": [
+          {
+            "name": "activityId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Leave. No reason is accepted.",
+        "tags": [
+          "circles"
+        ]
+      }
+    },
+    "/api/circles/activities/{activityId}/artifact": {
+      "put": {
+        "operationId": "CirclesMemberParticipationController_proposeArtifact",
+        "parameters": [
+          {
+            "name": "activityId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProposeArtifactDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Propose or edit the shared result",
+        "tags": [
+          "circles"
+        ]
+      }
+    },
+    "/api/circles/activities/{activityId}/artifact/confirm": {
+      "post": {
+        "operationId": "CirclesMemberParticipationController_confirmArtifact",
+        "parameters": [
+          {
+            "name": "activityId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmArtifactDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Confirm an exact artifact and version",
+        "tags": [
+          "circles"
+        ]
+      }
+    },
+    "/api/circles/activities/{activityId}/follow-up": {
+      "post": {
+        "operationId": "CirclesMemberParticipationController_followUp",
+        "parameters": [
+          {
+            "name": "activityId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordFollowUpDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Record KEEP | ADJUST | CLOSE",
+        "tags": [
+          "circles"
+        ]
+      }
+    },
+    "/api/circles/guest/activities/{activityId}": {
+      "get": {
+        "operationId": "CirclesGuestParticipationController_activity",
+        "parameters": [
+          {
+            "name": "activityId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "summary": "The activity, filtered for this guest",
+        "tags": [
+          "circles"
+        ]
+      }
+    },
+    "/api/circles/guest/activities/{activityId}/share-confirmations": {
+      "post": {
+        "operationId": "CirclesGuestParticipationController_confirmShare",
+        "parameters": [
+          {
+            "name": "activityId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Confirm what you share; may trigger the reveal",
+        "tags": [
+          "circles"
+        ]
+      }
+    },
+    "/api/circles/guest/activities/{activityId}/withdraw": {
+      "post": {
+        "operationId": "CirclesGuestParticipationController_withdraw",
+        "parameters": [
+          {
+            "name": "activityId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Leave. No reason is accepted.",
+        "tags": [
+          "circles"
+        ]
+      }
+    },
+    "/api/circles/guest/activities/{activityId}/artifact": {
+      "put": {
+        "operationId": "CirclesGuestParticipationController_proposeArtifact",
+        "parameters": [
+          {
+            "name": "activityId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProposeArtifactDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Propose or edit the shared result",
+        "tags": [
+          "circles"
+        ]
+      }
+    },
+    "/api/circles/guest/activities/{activityId}/artifact/confirm": {
+      "post": {
+        "operationId": "CirclesGuestParticipationController_confirmArtifact",
+        "parameters": [
+          {
+            "name": "activityId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmArtifactDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Confirm an exact artifact and version",
+        "tags": [
+          "circles"
+        ]
+      }
+    },
+    "/api/circles/guest/activities/{activityId}/follow-up": {
+      "post": {
+        "operationId": "CirclesGuestParticipationController_followUp",
+        "parameters": [
+          {
+            "name": "activityId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordFollowUpDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Record KEEP | ADJUST | CLOSE",
+        "tags": [
+          "circles"
+        ]
+      }
     }
   },
   "info": {
@@ -27501,6 +27894,82 @@
         "required": [
           "secret",
           "accept"
+        ]
+      },
+      "CreateDuoDto": {
+        "type": "object",
+        "properties": {
+          "templateKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Template key. Must resolve to PUBLISHED."
+          },
+          "templateVersion": {
+            "type": "number",
+            "minimum": 1
+          },
+          "invitationToken": {
+            "type": "string",
+            "description": "43-character base64url token, 256 bits. Hashed on arrival; never stored raw.",
+            "minLength": 43,
+            "maxLength": 43
+          }
+        },
+        "required": [
+          "templateKey",
+          "templateVersion",
+          "invitationToken"
+        ]
+      },
+      "ProposeArtifactDto": {
+        "type": "object",
+        "properties": {
+          "body": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000,
+            "description": "The shared result, as the pair agreed it."
+          }
+        },
+        "required": [
+          "body"
+        ]
+      },
+      "ConfirmArtifactDto": {
+        "type": "object",
+        "properties": {
+          "artifactId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "The exact artifact being confirmed."
+          },
+          "version": {
+            "type": "number",
+            "description": "The version, required and checked.\n\nNot a hint: a client holding stale copy must not be able to agree to text\nit never saw. Confirming a version that is no longer the live one is\nrefused rather than helpfully redirected to the current version.",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "artifactId",
+          "version"
+        ]
+      },
+      "RecordFollowUpDto": {
+        "type": "object",
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": [
+              "KEEP",
+              "ADJUST",
+              "CLOSE"
+            ]
+          }
+        },
+        "required": [
+          "decision"
         ]
       }
     }

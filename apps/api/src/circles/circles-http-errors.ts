@@ -31,6 +31,19 @@ export type CirclesApiErrorCode =
   | "CIRCLE_GUEST_SESSION_INVALID"
   /** A resolved actor that may not act on this resource. */
   | "CIRCLE_FORBIDDEN"
+  /**
+   * The ONE answer for every activity a caller may not act on right now:
+   * unknown, another circle's, another guest's, a stage that does not accept
+   * this command, a seat that already withdrew, a revoked session. Naming the
+   * reason would confirm the activity exists.
+   */
+  | "CIRCLE_ACTIVITY_UNAVAILABLE"
+  /** The template cannot be instantiated: unknown, DRAFT or ARCHIVED. */
+  | "CIRCLE_TEMPLATE_UNAVAILABLE"
+  /** The confirmation does not fit the template that defines the activity. */
+  | "CIRCLE_SHARE_INVALID"
+  /** Same idempotency key, different request. Never treated as a replay. */
+  | "CIRCLE_IDEMPOTENCY_CONFLICT"
   /** Infrastructure — never an editorial or authorization verdict. */
   | "CIRCLE_STORAGE_FAILURE";
 
@@ -42,6 +55,12 @@ const CODE_STATUS: Record<CirclesApiErrorCode, HttpStatus> = {
   CIRCLE_INVITATION_UNUSABLE: HttpStatus.NOT_FOUND,
   CIRCLE_GUEST_SESSION_INVALID: HttpStatus.UNAUTHORIZED,
   CIRCLE_FORBIDDEN: HttpStatus.FORBIDDEN,
+  // 404, like the invitation: "there is nothing here for you" is all a caller
+  // learns, whatever the real reason.
+  CIRCLE_ACTIVITY_UNAVAILABLE: HttpStatus.NOT_FOUND,
+  CIRCLE_TEMPLATE_UNAVAILABLE: HttpStatus.UNPROCESSABLE_ENTITY,
+  CIRCLE_SHARE_INVALID: HttpStatus.UNPROCESSABLE_ENTITY,
+  CIRCLE_IDEMPOTENCY_CONFLICT: HttpStatus.CONFLICT,
   CIRCLE_STORAGE_FAILURE: HttpStatus.INTERNAL_SERVER_ERROR,
 };
 

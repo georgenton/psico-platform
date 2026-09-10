@@ -3889,6 +3889,7 @@ export * from "./book-structure";
 export * from "./chapter-concepts";
 export * from "./circles";
 export * from "./circles-catalog";
+export * from "./circles-participation";
 
 // ─── GR-2 — chapter media (audiobook · podcast · video explainer) ─────────
 export * from "./chapter-media";

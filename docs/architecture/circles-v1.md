@@ -2,13 +2,17 @@
 
 ```
 STATUS=PROPOSED
-CUT=PR2 · feat/circles-domain-foundation
-BASE_SHA=c824a6a4ebb50c9dc619c29ddb896e60f3efcdd3
+CUT=PR3 · feat/circles-participation-state
+BASE_SHA=ab6dceac1dc8f7e8c25d92d2f509196b9e6d8e31
 SPEC_SHA256=e94ff50cebd1b99bec3281f33880e6c41ec6b131e8cadb2847b176a793ce1b3d
 
-RUNTIME_SCOPE=access_only
+PR1_MERGED=true
+PR2_MERGED=true
+PR3_IN_PROGRESS=true
+
+RUNTIME_SCOPE=access_and_participation
 PRISMA_MODELS_ADDED=8
-MIGRATIONS_ADDED=1
+MIGRATIONS_ADDED=2
 CROSS_CIRCLE_REFERENCES_REJECTED=true
 CROSS_ACTIVITY_REFERENCES_REJECTED=true
 DUO_REQUIRED_PARTICIPANTS_EXACTLY_TWO=true
@@ -16,15 +20,15 @@ PILOT_GUEST_REVALIDATES_INVITER=true
 CIRCLE_EVENT_APPEND_ONLY=true
 CIRCLE_EVENT_FREE_TEXT_ALLOWED=false
 INVITER_ROW_LOCKED_UNTIL_EXCHANGE_COMMIT=true
-EXCHANGE_LOCK_ORDER=CircleMember>CircleInvitation>CircleActivityParticipant
+LOCK_ORDER=CircleMember>CircleInvitation>CircleGuestSession>CircleActivity>CircleActivityParticipant>CircleArtifact
 ACCOUNT_DELETION_WITH_CIRCLE_EVENTS=blocked_pending_sanctioned_scrub_design
 REQUIRED_BEFORE_PILOT=true
-API_ROUTES_ADDED=3
 WEB_ROUTES_ADDED=0
 PUBLISHED_TEMPLATES=0
-CIRCLES_ROLLOUT_MODE=off
+CIRCLES_PRODUCTION_ROWS=0
+CIRCLES_ROLLOUT_MODE=off_or_absent
 PUBLIC_ACCESS_ENABLED=false
-IMPLEMENTATION_AUTHORIZED=PR2
+IMPLEMENTATION_AUTHORIZED=PR3
 ```
 
 Este documento es la mitad **contractual** del programa Círculos. Fija qué es
@@ -88,16 +92,37 @@ y el módulo con sus pruebas en
 
 ---
 
-## 2. Qué añade este corte y qué no
+## 2. Qué hay fusionado y qué añade este corte
 
-|              |                                                                                                                                               |
-| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Añade**    | Contratos compartidos, validator, registro, catálogo vacío, matriz de permisos, dos máquinas de estados, threat model, fixtures y 55 pruebas. |
-| **No añade** | Modelo Prisma, migración, `CirclesModule`, controladores, guards, rutas web, rollout, cifrado, worker, Eco, CTA y plantillas publicadas.      |
+Este documento se corrige **en su sitio** conforme avanza el tren. Lo que sigue
+es el estado real del código en `main`, no el de un corte anterior.
 
-`apps/api/src/circles/` contiene únicamente specs y fixtures. Está ahí porque
-`@psico/types` no tiene runner de pruebas y `apps/api` sí las ejecuta en CI —
-y porque es donde el módulo aterrizará en PR2.
+| Corte | Estado         | Qué dejó en `main`                                                                                                                                |
+| ----- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PR1   | **fusionada**  | Contratos compartidos, validator, registro, catálogo vacío, matriz de permisos, dos máquinas de estados, threat model y fixtures.                 |
+| PR2   | **fusionada**  | Los ocho modelos Prisma, la migración aditiva con sus invariantes SQL, `CirclesModule`, el rollout, invitaciones solo-hash y guest auth.          |
+| PR3   | **este corte** | Participación: creación de Dúo, `confirm-share`, barrera de revelación, retiro, artefacto versionado, seguimiento, receipts y lecturas filtradas. |
+| PR4–6 | pendientes     | Web/BFF, entradas desde los libros, Eco facilitador y rollout operativo.                                                                          |
+
+Los ocho modelos **existen** en `main` y están vacíos; el flag cerrado es la
+única razón por la que nadie los alcanza. Lo que sigue sin existir tras este
+corte: rutas o componentes Web, BFF, Mobile, worker, Eco, CMS y plantillas
+publicadas.
+
+```text
+CIRCLES_ROLLOUT_MODE=off_or_absent
+PUBLISHED_TEMPLATES=0
+CIRCLES_PRODUCTION_ROWS=0
+ACCOUNT_DELETION_WITH_CIRCLE_EVENTS=blocked_pending_sanctioned_scrub_design
+REQUIRED_BEFORE_PILOT=true
+```
+
+La deuda de borrado de cuenta con eventos de Círculos **bloquea cualquier
+piloto futuro** y no se resuelve en PR3.
+
+`apps/api/src/circles/` contiene hoy el módulo, sus repositorios, sus servicios,
+sus controladores y sus pruebas. Está ahí porque `@psico/types` no tiene runner
+de pruebas y `apps/api` sí las ejecuta en CI.
 
 ---
 
@@ -113,7 +138,7 @@ consecuencia sobre el código de este corte.
 | **CIR-003** | Preview público ≠ sala pública. Dos URL, dos contratos.                     | `CircleTemplatePreview` + `toCircleTemplatePreview`, que **rechaza** DRAFT y ARCHIVED por sí mismo, con test de lo que no puede contener. |
 | **CIR-004** | Preparación privada local; no se persiste.                                  | No existe tipo para una respuesta; ratchet de ausencia.                                                                                   |
 | **CIR-005** | Se cifra lo deliberadamente compartido (`ciphertext+nonce+keyVersion`).     | Fuera del contrato compartido: es forma de dominio (PR3). Documentado en §5.                                                              |
-| **CIR-006** | PostgreSQL manda; Redis ayuda.                                              | Documental en este corte; se implementa en PR2/PR3.                                                                                       |
+| **CIR-006** | PostgreSQL manda; Redis ayuda.                                              | Implementado: constraints, locks `FOR UPDATE` y receipts en PR2/PR3. Redis nunca autoriza ni revela.                                      |
 | **CIR-007** | Plantillas versionadas en código; sin CMS.                                  | `CircleTemplateRegistry` + catálogo vacío.                                                                                                |
 | **CIR-008** | Sin tiempo real. Polling 8–12 s.                                            | Documental; sin superficie en PR1.                                                                                                        |
 | **CIR-009** | Rollout `off\|pilot\|on`, fail-closed.                                      | **No implementado aquí**: llega en PR2 siguiendo `guide-rollout.ts`.                                                                      |
@@ -180,10 +205,14 @@ futura, por eso `DENIED` y no `NEVER`.
 
 ---
 
-## 5. Modelo de datos objetivo (PR2, aquí solo documentado)
+## 5. Modelo de datos (fusionado en PR2, extendido en PR3)
 
-Ocho modelos. **Ninguno existe todavía**; se registran para que la migración de
-PR2 se audite contra algo escrito antes.
+Ocho modelos, **todos existentes en `main`** desde la migración
+`20260909180000_circles_domain_foundation`, y ninguno con una sola fila en
+producción. La tabla se conserva porque es contra ella que se auditó esa
+migración; PR3 añade una segunda migración aditiva que cierra las invariantes
+que la participación real necesita — confirmación ligada al artefacto y versión
+exactos, sobre `READY` completo, y retiro que no deja sobre.
 
 | Modelo                      | Invariantes que deben ser CHECK/UNIQUE/FK en PostgreSQL, no `if` en TypeScript                                                                      |
 | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -374,8 +403,8 @@ automática de los `DUO_CANDIDATES`.
 | PR    | Rama                               | Contenido                                                                                           | Estado         |
 | ----- | ---------------------------------- | --------------------------------------------------------------------------------------------------- | -------------- |
 | **1** | `docs/circles-v1-contract`         | ADR, contratos, validator, catálogo, permisos, estados, threat model, fixtures                      | fusionada      |
-| **2** | `feat/circles-domain-foundation`   | Migración aditiva, `CirclesModule`, rollout, invitaciones y guest auth. Flag `off`, sin UI          | **este corte** |
-| 3     | `feat/circles-participation-state` | Crear Dúo, `confirm-share`, locks, reveal, retiro, artefacto, seguimiento, receipts. PG concurrente | pendiente      |
+| **2** | `feat/circles-domain-foundation`   | Migración aditiva, `CirclesModule`, rollout, invitaciones y guest auth. Flag `off`, sin UI          | fusionada      |
+| **3** | `feat/circles-participation-state` | Crear Dúo, `confirm-share`, locks, reveal, retiro, artefacto, seguimiento, receipts. PG concurrente | **este corte** |
 | 4     | `feat/circles-web-guest-flow`      | Preview, intercambio por fragmento, BFF, cookie, sala, preparación local, salida                    | pendiente      |
 | 5     | `feat/circles-book-entrypoints`    | Catálogo de elegibilidad, CTA, manifests DRAFT                                                      | pendiente      |
 | 6     | `feat/circles-facilitator-rollout` | Eco shared-only, worker, métricas, hardening, runbook                                               | pendiente      |

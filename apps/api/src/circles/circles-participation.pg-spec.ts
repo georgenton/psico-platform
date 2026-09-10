@@ -1571,16 +1571,21 @@ suite("circles · participation (real PostgreSQL)", () => {
    * so what satisfies this function is PostgreSQL reporting a real waiter on
    * the real table, and nothing else can.
    *
-   * A generous deadline, because it is not measuring anything: on an idle
-   * machine the waiter appears in milliseconds. A tight bound would only give
-   * a loaded machine a way to fail a test about locking, which is the kind of
-   * flake that teaches people to distrust a suite. If the deadline is ever
-   * reached, the thrown message IS the assertion — a command that does not
-   * block here is a command reading a snapshot another transaction is in the
-   * middle of changing.
+   * The deadline measures nothing — on an idle machine the waiter appears in
+   * milliseconds — but it must sit WELL INSIDE the surrounding test's own
+   * timeout, and that is a lesson from getting it wrong. At 45s against a 40s
+   * test timeout vitest aborted first, so the failure arrived as a bare "Test
+   * timed out": the cause was right and the message said nothing, and the
+   * negative control for `FOR UPDATE` could not be counted. 20s inside a 90s
+   * test leaves the named error room to win, and still gives a loaded machine
+   * far more time than it needs.
+   *
+   * If the deadline IS reached, the thrown message is the assertion: a
+   * command that does not block here is a command reading a snapshot another
+   * transaction is in the middle of changing.
    */
   async function waitUntilBlockedOnGuestSessionRow(
-    deadlineMs = 45_000,
+    deadlineMs = 20_000,
   ): Promise<void> {
     const until = Date.now() + deadlineMs;
     for (;;) {
@@ -1647,10 +1652,18 @@ suite("circles · participation (real PostgreSQL)", () => {
       .then(() => "RESOLVED")
       .catch((err: CirclesError) => err.code);
 
-    await atLock;
-    await waitUntilBlockedOnGuestSessionRow();
-    await revoker.query("COMMIT");
-    revoker.release();
+    // `finally`, because the interesting case is the one where the wait
+    // THROWS. Leaving the revoker's transaction open there strands a pooled
+    // connection, `afterAll` blocks on `pool.end()`, and the suite reports a
+    // hook timeout stacked on top of the real failure — which is how one
+    // honest red turns into two confusing ones.
+    try {
+      await atLock;
+      await waitUntilBlockedOnGuestSessionRow();
+    } finally {
+      await revoker.query("COMMIT").catch(() => undefined);
+      revoker.release();
+    }
 
     expect(await outcome).toBe("CIRCLE_ACTIVITY_UNAVAILABLE");
     const after = await footprint(duo.activityId);
@@ -1659,7 +1672,7 @@ suite("circles · participation (real PostgreSQL)", () => {
     expect(after.followup, "FOLLOW_UP_EVENTS").toBe(0);
     expect(after.movedseats, "STATE_CHANGES").toBe(0);
     expect(after.envelopes).toBe(0);
-  }, 40_000);
+  }, 90_000);
 
   it("refuses a guest whose inviter leaves while the command is in flight", async () => {
     const duo = await fastDuo();

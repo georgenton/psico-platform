@@ -1,9 +1,9 @@
 # ADR 0023 — FeelVerse Círculos: un dominio relacional, Dúo como primera superficie
 
 ```
-STATUS=PROPOSED
-CUT=PR1 · docs/circles-v1-contract
-BASE_SHA=ed237654d2c61874316303c34948924ad422bb06
+STATUS=ACCEPTED
+CUT=PR2 · feat/circles-domain-foundation
+BASE_SHA=c824a6a4ebb50c9dc619c29ddb896e60f3efcdd3
 
 CIRCLES_IS_ITS_OWN_AGGREGATE=true
 GUIDE_SESSION_REUSED_AS_SHARED_SESSION=false
@@ -15,7 +15,12 @@ POSTGRES_IS_CORRECTNESS_AUTHORITY=true
 REDIS_CORRECTNESS_AUTHORITY=false
 TEMPLATE_CMS_BUILT=false
 PUBLISHED_TEMPLATES=0
-IMPLEMENTATION_AUTHORIZED=false
+IMPLEMENTATION_AUTHORIZED=PR2
+CIRCLES_ROLLOUT_MODE=off
+PUBLIC_ACCESS_ENABLED=false
+EXCHANGE_LOCK_ORDER=CircleMember>CircleInvitation>CircleActivityParticipant
+ACCOUNT_DELETION_WITH_CIRCLE_EVENTS=blocked_pending_sanctioned_scrub_design
+REQUIRED_BEFORE_PILOT=true
 
 ISSUE_639_IMPLEMENTATION_COMPLETE=true
 ISSUE_639_FROZEN=true
@@ -27,8 +32,9 @@ permisos, threat model, tren de PRs y decisiones pendientes— vive en
 [`docs/architecture/circles-v1.md`](../architecture/circles-v1.md). Este ADR
 registra las **decisiones** y por qué se tomaron así.
 
-El merge de este ADR constituye **aprobación de contrato**. No autoriza
-migración, runtime, API, UI ni despliegue.
+El merge de este ADR constituyó **aprobación de contrato**. PR2 añade la base
+persistente y de acceso descrita en §6; no autoriza participación, revelación,
+artefactos, UI ni despliegue habilitado.
 
 Relacionados: [ADR 0007](./0007-e2e-encryption-diario-eco.md) ·
 [ADR 0016](./0016-content-core-work-edition-revision.md) ·
@@ -227,10 +233,72 @@ Se declaran para que la auditoría pueda rechazarlas, no para colarlas:
 
 ## 6. Estado de implementación
 
-Este corte entrega **contrato y pruebas**: tipos, validator, registro, catálogo
-vacío, matriz de permisos, dos máquinas de estados, threat model y fixtures.
+**PR1** entregó contrato y pruebas: tipos, validator, registro, catálogo vacío,
+matriz de permisos, dos máquinas de estados, threat model y fixtures.
 
-No entrega modelo Prisma, migración, módulo Nest, rutas, guards, rollout,
-cifrado, worker, Eco, CTA ni plantillas publicadas.
-`apps/api/src/circles/circles-scope.spec.ts` verifica esa ausencia en lugar de
-afirmarla, y se espera que PR2 actualice sus tres asserts de «todavía no».
+**PR2** entrega la base persistente y de acceso:
+
+- los ocho modelos de [`circles-v1.md` §5](../architecture/circles-v1.md) y una
+  migración **estrictamente aditiva** que además materializa en SQL lo que
+  TypeScript no puede sostener solo — 25 CHECKs, 7 índices únicos parciales,
+  **10 claves foráneas compuestas** y cuatro triggers;
+- **ninguna fila puede nombrar dos mundos a la vez**: las nueve relaciones que
+  cruzan círculo o actividad son claves compuestas declarativas, no invariantes
+  confiadas a un repositorio. `CircleActivityParticipant.circleId` existe como
+  columna de ámbito precisamente para que la pertenencia del miembro sea una
+  clave y no un join que alguien deba recordar;
+- **Dúo es 2/2/2 exacto**, no un mínimo: `kind=DUO`, `maxParticipants=2` y
+  `requiredParticipants=2` por CHECK. Ensancharlo es editar la restricción;
+- **el ledger es append-only por trigger** (UPDATE, DELETE y TRUNCATE), y su
+  `metadata` está cerrado por gramática — dos valores, en un solo tipo de
+  evento — en lugar de por un tope de tamaño que fingía ser esa garantía;
+- `CirclesModule` con cuatro repositorios de un solo escritor;
+- rollout `off|pilot|on` que, a diferencia del de Guide, **nunca lanza**:
+  ausente e inválido resuelven a `off`, que ya es el estado cerrado;
+- bajo `pilot`, **el invitado hereda la habilitación de quien invita** y no
+  puede excederla: la elegibilidad del miembro que emitió la invitación se
+  vuelve a derivar en el servidor en cada uso —y otra vez dentro de la
+  transacción del canje— y cualquiera de sus cuatro formas de fallar produce
+  exactamente `CIRCLE_INVITATION_UNUSABLE`;
+- creación, almacenamiento y consumo de invitaciones — solo hashes, un uso,
+  vencimiento, revocación y **una única respuesta** para todo lo inutilizable;
+- intercambio por sesión opaca de invitado, ligada a una actividad y a un
+  participante por clave foránea compuesta;
+- construcción server-side de `CircleActor` y los guards que la hacen;
+- el canje **verifica que el asiento pasó de `INVITED` a `ACCEPTED` en
+  exactamente una fila**; cero o más de una aborta la transacción completa, sin
+  invitación consumida, sin sesión y sin evento;
+- el canje **bloquea la fila del invitante con `FOR UPDATE`** antes de tocar
+  nada más. Releer dentro de la transacción impide actuar sobre un dato
+  anterior a ella, pero no mantiene la condición verdadera hasta el commit:
+  bajo READ COMMITTED, un `SELECT` sin lock deja abierta la secuencia
+  «T1 lee ACTIVE · T2 escribe LEFT y comitea · T1 comitea». El lock la cierra.
+
+### Orden de locks — obligatorio para todo comando futuro
+
+```text
+CircleMember  ->  CircleInvitation  ->  CircleActivityParticipant
+```
+
+`exchange` los toma en ese orden y también deben hacerlo retiro, revocación,
+rechazo y cualquier otro comando que PR3 añada. No es una preferencia de
+estilo: dos comandos que toman las mismas filas en órdenes opuestos producen
+deadlocks bajo contención, y el fallo aparece como un 500 aleatorio en un Dúo
+que dos personas están usando a la vez. Si un comando futuro necesita de verdad
+otro orden, lo que se cambia es la regla y todos los comandos con ella, no se
+hace una excepción.
+
+Una consecuencia se declara aquí en vez de descubrirse después
+(`ACCOUNT_DELETION_WITH_CIRCLE_EVENTS=blocked_pending_sanctioned_scrub_design`,
+`REQUIRED_BEFORE_PILOT=true`): con el ledger append-only, un `Circle` con
+eventos ya no puede borrarse, y una cuenta nombrada por un evento tampoco. Es coherente con el dominio —cerrar un círculo es un
+cambio de estado, no un borrado— pero el borrado de cuenta necesitará, cuando
+Círculos se encienda, una vía de limpieza sancionada que sea a su vez una
+migración. No un bypass de aplicación.
+
+No entrega creación funcional de Dúo, `confirm-share`, barrera de revelación,
+artefactos, seguimiento, cifrado operativo, worker, Eco, UI, rutas web, CTA ni
+plantillas publicadas. `apps/api/src/circles/circles-scope.spec.ts` verifica esa
+ausencia en lugar de afirmarla; sus tres asserts de «todavía no» se
+convirtieron en esta PR en sus contrapartes positivas, que es exactamente lo
+que PR1 anunció que ocurriría.

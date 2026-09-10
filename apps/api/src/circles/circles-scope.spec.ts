@@ -3,21 +3,21 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 /**
- * The PR1 cut, asserted rather than promised.
+ * The Círculos cut, asserted rather than promised.
  *
- * The report for this PR claims `RUNTIME_SCOPE=none`, no Prisma model, no
- * migration and no private-draft field. Those are checkable facts, so they are
- * checked here: an auditor should not have to take a summary's word for what a
- * diff contains.
+ * ── Updated for PR2, exactly as PR1 said it would be ───────────────────────
  *
- * ── This file is expected to change in PR2 ─────────────────────────────────
+ * PR1 shipped three "not yet" assertions — no Prisma model, no migration, no
+ * Nest module — and said in this comment that `feat/circles-domain-foundation`
+ * would have to change them deliberately rather than let them rot. This is that
+ * edit. Each one is now its positive counterpart, so the file still fails if
+ * the models, the migration or the wiring disappear.
  *
- * `feat/circles-domain-foundation` adds the migration, the models and the Nest
- * module. The three "not yet" assertions below will fail then, and updating
- * them is part of that cut — the point is that the change becomes a visible,
- * deliberate edit instead of drift nobody noticed. The assertions about
- * private drafts, Content Core ids and PQP C07 are NOT of that kind: those
- * hold for every future cut.
+ * The rest of the assertions were never of that kind. Private drafts, Content
+ * Core ids, personal-data imports, the editorial candidates, #639's status and
+ * PQP C07 hold for every cut, and PR2 adds the ones its own scope makes
+ * checkable: no raw secret in a column, no client-asserted identity in a DTO,
+ * an empty production catalog, and a frozen `GuideSession`.
  */
 
 const ROOT = join(process.cwd(), "../..");
@@ -30,30 +30,321 @@ const CONTRACT_FILES = [
   "packages/types/src/circles-catalog.ts",
 ];
 
-describe("circles · PR1 scope — contract only, no runtime", () => {
-  it("adds no Prisma model", () => {
+const CIRCLES_DIR = "apps/api/src/circles";
+const circlesSources = () =>
+  readdirSync(join(ROOT, CIRCLES_DIR))
+    .filter(
+      (f) => f.endsWith(".ts") && !/\.(spec|pg-spec|fixtures)\.ts$/.test(f),
+    )
+    .map((f) => `${CIRCLES_DIR}/${f}`);
+
+describe("circles · PR2 scope — the access spine, and only that", () => {
+  it("declares the eight models", () => {
     const schema = read("apps/api/prisma/schema.prisma");
-    expect(schema).not.toMatch(/^model\s+Circle\w*\s*\{/m);
-  });
-
-  it("adds no migration", () => {
-    const dirs = readdirSync(join(ROOT, "apps/api/prisma/migrations"));
-    expect(dirs.filter((d) => /circle/i.test(d))).toEqual([]);
-  });
-
-  it("wires no Nest module", () => {
-    const appModule = read("apps/api/src/app.module.ts");
-    expect(appModule).not.toMatch(/CirclesModule/);
-  });
-
-  it("ships only specs and fixtures in this directory", () => {
-    // The executable form of RUNTIME_SCOPE=none: no controller, no service, no
-    // module, no repository, no guard.
-    const files = readdirSync(join(ROOT, "apps/api/src/circles")).sort();
-    for (const file of files) {
-      expect(file, file).toMatch(/\.(spec|fixtures)\.ts$/);
+    for (const model of [
+      "Circle",
+      "CircleMember",
+      "CircleInvitation",
+      "CircleGuestSession",
+      "CircleActivity",
+      "CircleActivityParticipant",
+      "CircleArtifact",
+      "CircleEvent",
+    ]) {
+      expect(schema, model).toMatch(
+        new RegExp(`^model\\s+${model}\\s*\\{`, "m"),
+      );
     }
+  });
+
+  it("ships exactly one migration, and it is additive", () => {
+    const dirs = readdirSync(join(ROOT, "apps/api/prisma/migrations")).filter(
+      (d) => /circle/i.test(d),
+    );
+    expect(dirs).toEqual(["20260909180000_circles_domain_foundation"]);
+    const sql = read(`apps/api/prisma/migrations/${dirs[0]}/migration.sql`);
+    // The hazard that broke production on 2026-06-01: Prisma CLI chatter as
+    // the first line of a file Postgres is about to execute.
+    expect(sql.split("\n")[0]).toMatch(/^--/);
+    for (const line of sql
+      .split("\n")
+      .filter((l) => !l.trimStart().startsWith("--"))) {
+      expect(line, line).not.toMatch(
+        /\bDROP\s+(TABLE|COLUMN|CONSTRAINT|INDEX)\b|\bALTER\s+COLUMN\b|\bRENAME\b/i,
+      );
+    }
+  });
+
+  it("wires the Nest module", () => {
+    const appModule = read("apps/api/src/app.module.ts");
+    expect(appModule).toMatch(/CirclesModule/);
+  });
+
+  it("implements none of PR3's surface", () => {
+    // The limits in §C, as a check rather than a promise. Reveal, confirm-share,
+    // artifacts, withdrawal and the worker are absent — not stubbed, not behind
+    // a second flag.
+    const sources = circlesSources()
+      .map((f) => code(read(f)))
+      .join("\n");
+    for (const forbidden of [
+      "confirmShare",
+      "confirm-share",
+      "revealActivity",
+      "revealBarrier",
+      "proposeArtifact",
+      "recordFollowUp",
+      "withdrawParticipant",
+    ]) {
+      expect(sources, forbidden).not.toContain(forbidden);
+    }
+  });
+
+  it("keeps the rollout closed by default", () => {
+    // No default anywhere in the module turns Círculos on. The resolver's own
+    // behaviour is covered in `circles-rollout.spec.ts`; this is the textual
+    // ratchet against somebody adding `?? "on"` later.
+    for (const file of circlesSources()) {
+      const src = code(read(file));
+      // A DEFAULT of "on" — `?? "on"`, `|| "on"`, `= "on"`. Deliberately not
+      // `=== "on"`, which is how the service reads the mode it was given.
+      expect(src, file).not.toMatch(
+        /\?\?\s*"on"|\|\|\s*"on"|(?<![=!<>])=\s*"on"/,
+      );
+    }
+  });
+});
+
+describe("circles · PR2 — secrets never become columns", () => {
+  it("has no raw token or code column in the schema", () => {
+    const schema = code(read("apps/api/prisma/schema.prisma"));
+    const circlesSection = schema.slice(schema.indexOf("model Circle "));
+    for (const [, field] of circlesSection.matchAll(/^\s{2}(\w+)\s+\w/gm)) {
+      // `tokenHash` and `codeHash` are fine. A bare `token`, `code`, `secret`
+      // or `plaintext` is the thing that must never appear.
+      expect(field, field).not.toMatch(
+        /^(token|code|secret|rawToken|rawCode|plaintext)$/i,
+      );
+    }
+  });
+
+  it("never persists what the minting functions return", () => {
+    // `raw` leaves `circles-secrets.ts` and reaches the caller. Nothing in the
+    // module may put it in a Prisma `data` object or a log line.
+    for (const file of circlesSources()) {
+      const src = code(read(file));
+      expect(src, `${file} · logs`).not.toMatch(
+        /console\.(log|info|warn|error)|logger\.\w+\(/,
+      );
+      // `input.tokenHash` is the correct assignment and must not trip this;
+      // `input.token` — the raw value — must. Hence the word boundary.
+      expect(src, `${file} · tokenHash assignment`).not.toMatch(
+        /tokenHash:\s*(raw\b|presented\b|input\.token\b|dto\.)/,
+      );
+      expect(src, `${file} · codeHash assignment`).not.toMatch(
+        /codeHash:\s*(raw\b|presented\b|input\.code\b|dto\.)/,
+      );
+    }
+  });
+});
+
+describe("circles · PR2 — the inviter is locked, in a fixed order", () => {
+  it("reads the inviter FOR UPDATE, and only inside a transaction", () => {
+    const repo = code(read(`${CIRCLES_DIR}/circle-member.repository.ts`));
+    // Prisma's fluent API cannot express a row lock, so this one read is raw —
+    // and fully parameterised, which the assertion below pins.
+    expect(repo).toMatch(/FOR UPDATE/);
+    expect(repo).toMatch(/WHERE "id" = \$\{memberId\}/);
+    // `lockById` takes its client as a REQUIRED argument. A default would make
+    // it callable outside a transaction, where the lock is taken and dropped at
+    // the end of the statement — protection-shaped, and not protection.
+    expect(repo).toMatch(
+      /lockById\(\s*memberId: string,\s*tx: CircleMemberTx,\s*\)/,
+    );
+    expect(repo).not.toMatch(/tx: CircleMemberTx = /);
+  });
+
+  it("states the lock order where the next author will read it", () => {
+    const src = code(read(`${CIRCLES_DIR}/circles.service.ts`));
+    expect(src).toContain("lockAndAssertInviter");
+    expect(read(`${CIRCLES_DIR}/circles.service.ts`)).toContain(
+      "CircleMember  ->  CircleInvitation  ->  CircleActivityParticipant",
+    );
+  });
+});
+
+describe("circles · PR2 — the event ledger cannot be rewritten or filled", () => {
+  const MIGRATION =
+    "apps/api/prisma/migrations/20260909180000_circles_domain_foundation/migration.sql";
+
+  it("keeps the append-only protection in the migration, not in a service", () => {
+    // A ledger the application merely promises not to rewrite is one bug away
+    // from being rewritten. The protection has to be where an application bug
+    // cannot reach it, and turning it off has to be a reviewed migration.
+    const sql = read(MIGRATION);
+    for (const trigger of [
+      'CREATE TRIGGER "CircleEvent_no_update"',
+      'CREATE TRIGGER "CircleEvent_no_delete"',
+      'CREATE TRIGGER "CircleEvent_no_truncate"',
+    ]) {
+      expect(sql, trigger).toContain(trigger);
+    }
+    // TRUNCATE needs its own statement-level trigger: row triggers do not see
+    // it, and a table closed to DELETE but open to TRUNCATE is not closed.
+    expect(sql).toMatch(
+      /BEFORE TRUNCATE ON "CircleEvent"[\s\S]*FOR EACH STATEMENT/,
+    );
+  });
+
+  it("closes metadata by grammar rather than by size", () => {
+    const sql = read(MIGRATION);
+    // The constraint that was removed, and why: 2 kB is several paragraphs, and
+    // a paragraph is exactly what must never land in an audit row.
+    expect(sql).not.toContain("CircleEvent_metadata_is_small");
+    expect(sql).not.toMatch(/length\("metadata"::text\)/);
+    expect(sql).toContain("CircleEvent_metadata_closed_grammar");
+    expect(sql).toContain(`'{"hasCode": true}'::jsonb`);
+    expect(sql).toContain(`'{"hasCode": false}'::jsonb`);
+  });
+
+  it("types metadata as a closed union, not a bag", () => {
+    const src = code(read(`${CIRCLES_DIR}/circle-event.repository.ts`));
+    // `Record<string, …>` admits any key, and a key is all somebody needs.
+    expect(src).not.toMatch(/Record<\s*string\s*,/);
+    expect(src).toContain("CircleEventTypeWithMetadata");
+    expect(src).toContain("readonly metadata?: undefined");
+  });
+
+  it("gives no Círculos source a way to update or delete an event", () => {
+    for (const file of circlesSources()) {
+      const src = code(read(file));
+      for (const forbidden of [
+        "circleEvent.update",
+        "circleEvent.delete",
+        "circleEvent.upsert",
+        "session_replication_role",
+        "DISABLE TRIGGER",
+      ]) {
+        expect(src, `${file} · ${forbidden}`).not.toContain(forbidden);
+      }
+    }
+  });
+});
+
+describe("circles · PR2 — the client never asserts who it is", () => {
+  it("declares no identity or role field in any DTO", () => {
+    const dtoDir = `${CIRCLES_DIR}/dto`;
+    const files = readdirSync(join(ROOT, dtoDir)).filter((f) =>
+      f.endsWith(".ts"),
+    );
     expect(files.length).toBeGreaterThan(0);
+    for (const file of files) {
+      const src = code(read(`${dtoDir}/${file}`));
+      for (const forbidden of [
+        "userId",
+        "participantId",
+        "activityId",
+        "circleId",
+        "memberId",
+        "role",
+      ]) {
+        // Not "ignored" — absent. The global pipe runs `forbidNonWhitelisted`,
+        // so a body carrying one is rejected before a handler sees it.
+        expect(src, `${dtoDir}/${file} · ${forbidden}`).not.toMatch(
+          new RegExp(`\\b${forbidden}\\b`),
+        );
+      }
+    }
+  });
+
+  it("builds every actor from a server-side value", () => {
+    const actor = code(read(`${CIRCLES_DIR}/circles-actor.ts`));
+    // The two constructors take a row and a verified subject. Neither signature
+    // has a parameter a request body could flow into.
+    expect(actor).toMatch(/export function buildGuestActor\(row: \{/);
+    expect(actor).toMatch(/export function buildUserActor\(userId: string\)/);
+    expect(actor).not.toMatch(/req\.body|request\.body|dto\./);
+  });
+});
+
+describe("circles · PR2 — nothing outside its own tables moved", () => {
+  it("never touches GuideSession", () => {
+    // #639's arc is complete and frozen. Círculos referencing `guideSession`
+    // anywhere would be the first step of exactly the merge ADR 0023 §2.1
+    // rejected.
+    for (const file of [...circlesSources(), ...CONTRACT_FILES]) {
+      const src = code(read(file));
+      for (const forbidden of [
+        "guideSession",
+        "GuideSession",
+        "GuideCommandReceipt",
+      ]) {
+        expect(src, `${file} · ${forbidden}`).not.toContain(forbidden);
+      }
+    }
+  });
+
+  it("never lets Redis become the correctness authority", () => {
+    // Redis is allowed to make retries cheap. It is not allowed to decide
+    // whether an invitation was used, whether a session is live, or whether a
+    // command already ran — a Redis outage or a desynchronised replica must not
+    // be able to revive a revoked permission or spend an invitation twice.
+    //
+    // Rate limiting is the one place Redis legitimately appears, and it appears
+    // through `@Throttle`, which is a decorator on the controller and not a
+    // client this module holds.
+    for (const file of circlesSources()) {
+      const src = code(read(file));
+      for (const forbidden of [
+        "REDIS_CLIENT",
+        "ioredis",
+        "IoRedis",
+        "redis.get",
+        "redis.set",
+        "RedisService",
+      ]) {
+        expect(src, `${file} · ${forbidden}`).not.toContain(forbidden);
+      }
+    }
+  });
+
+  it("leaves the Guide domain byte-identical to what it found", () => {
+    // #639's arc is complete and FROZEN, and `GUIDE_SESSION_FILES_CHANGED=0` is
+    // a claim this PR makes in its report. The claim is only worth something if
+    // something checks it, so the model's column list is pinned here: adding,
+    // removing or renaming one fails this test, whoever does it and for
+    // whatever reason.
+    const schema = read("apps/api/prisma/schema.prisma");
+    const model = schema.slice(schema.indexOf("model GuideSession {"));
+    const body = model.slice(0, model.indexOf("\n}"));
+    const fields = [...body.matchAll(/^ {2}(\w+)\s+\w/gm)].map((m) => m[1]);
+    expect(fields).toEqual([
+      "id",
+      "userId",
+      "guideKey",
+      "guideVersion",
+      "status",
+      "editionId",
+      "unitId",
+      "stepsCompleted",
+      "totalSteps",
+      "currentStepKey",
+      "startedAt",
+      "completedAt",
+      "cancelledAt",
+      "user",
+      "steps",
+      "receipts",
+    ]);
+  });
+
+  it("leaves the production catalog empty", () => {
+    // Publishing a template is an editorial decision. It cannot become a side
+    // effect of wiring a module.
+    const catalog = read("packages/types/src/circles-catalog.ts");
+    expect(catalog).toMatch(
+      /PRODUCTION_CIRCLE_TEMPLATES:\s*readonly CircleActivityDefinition\[\]\s*=\s*\[\]/,
+    );
   });
 });
 
@@ -73,8 +364,8 @@ describe("circles · invariants that hold for every future cut", () => {
         expect(src, `${file} · ${forbidden}`).not.toContain(forbidden);
       }
     }
-    // And not in the Prisma schema either, in case a model lands before this
-    // spec is read again.
+    // And not in the Prisma schema either — the models landed in PR2, so this
+    // is now checking a real table list rather than an empty possibility.
     expect(code(read("apps/api/prisma/schema.prisma"))).not.toMatch(
       /privateResponse|draftText/,
     );

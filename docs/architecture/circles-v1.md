@@ -2,17 +2,29 @@
 
 ```
 STATUS=PROPOSED
-CUT=PR1 · docs/circles-v1-contract
-BASE_SHA=ed237654d2c61874316303c34948924ad422bb06
+CUT=PR2 · feat/circles-domain-foundation
+BASE_SHA=c824a6a4ebb50c9dc619c29ddb896e60f3efcdd3
 SPEC_SHA256=e94ff50cebd1b99bec3281f33880e6c41ec6b131e8cadb2847b176a793ce1b3d
 
-RUNTIME_SCOPE=none
-PRISMA_MODELS_ADDED=0
-MIGRATIONS_ADDED=0
-API_ROUTES_ADDED=0
+RUNTIME_SCOPE=access_only
+PRISMA_MODELS_ADDED=8
+MIGRATIONS_ADDED=1
+CROSS_CIRCLE_REFERENCES_REJECTED=true
+CROSS_ACTIVITY_REFERENCES_REJECTED=true
+DUO_REQUIRED_PARTICIPANTS_EXACTLY_TWO=true
+PILOT_GUEST_REVALIDATES_INVITER=true
+CIRCLE_EVENT_APPEND_ONLY=true
+CIRCLE_EVENT_FREE_TEXT_ALLOWED=false
+INVITER_ROW_LOCKED_UNTIL_EXCHANGE_COMMIT=true
+EXCHANGE_LOCK_ORDER=CircleMember>CircleInvitation>CircleActivityParticipant
+ACCOUNT_DELETION_WITH_CIRCLE_EVENTS=blocked_pending_sanctioned_scrub_design
+REQUIRED_BEFORE_PILOT=true
+API_ROUTES_ADDED=3
 WEB_ROUTES_ADDED=0
 PUBLISHED_TEMPLATES=0
-IMPLEMENTATION_AUTHORIZED=false
+CIRCLES_ROLLOUT_MODE=off
+PUBLIC_ACCESS_ENABLED=false
+IMPLEMENTATION_AUTHORIZED=PR2
 ```
 
 Este documento es la mitad **contractual** del programa Círculos. Fija qué es
@@ -24,19 +36,27 @@ La especificación autoritativa del programa es
 documento no la reemplaza: la reconcilia con el código real y la vuelve
 ejecutable. Donde se aparta de ella, lo dice en voz alta — ver §9.
 
-El merge de este corte constituye **aprobación de contrato**. No autoriza
-migración, runtime, API, UI ni despliegue: cada fase posterior requiere su
-propia instrucción.
+El merge de PR1 constituyó **aprobación de contrato**. PR2 añade la base
+persistente y de acceso —los ocho modelos, la migración aditiva, el módulo
+Nest, el rollout, las invitaciones y la sesión de invitado— con
+`CIRCLES_ROLLOUT_MODE=off`, que es la única razón por la que nada de eso es
+alcanzable todavía. Participación, revelación, artefactos y UI siguen sin
+autorizar: cada fase posterior requiere su propia instrucción.
 
 Relacionados: [ADR 0023](../adr/0023-circles-one-domain-many-surfaces.md) ·
 [ADR 0007](../adr/0007-e2e-encryption-diario-eco.md) (cifrado) ·
 [ADR 0016](../adr/0016-content-core-work-edition-revision.md) (identidad editorial) ·
 [ADR 0022](../adr/0022-guide-lineage-active-scope.md) (Guide, congelado).
 
-Código de este corte:
+Código del contrato:
 [`packages/types/src/circles.ts`](../../packages/types/src/circles.ts) ·
-[`packages/types/src/circles-catalog.ts`](../../packages/types/src/circles-catalog.ts) ·
-pruebas en [`apps/api/src/circles/`](../../apps/api/src/circles/).
+[`packages/types/src/circles-catalog.ts`](../../packages/types/src/circles-catalog.ts).
+Código de la base de acceso (PR2): los ocho modelos en
+[`apps/api/prisma/schema.prisma`](../../apps/api/prisma/schema.prisma), sus
+invariantes en
+[`20260909180000_circles_domain_foundation`](../../apps/api/prisma/migrations/20260909180000_circles_domain_foundation/migration.sql)
+y el módulo con sus pruebas en
+[`apps/api/src/circles/`](../../apps/api/src/circles/).
 
 ---
 
@@ -353,8 +373,8 @@ automática de los `DUO_CANDIDATES`.
 
 | PR    | Rama                               | Contenido                                                                                           | Estado         |
 | ----- | ---------------------------------- | --------------------------------------------------------------------------------------------------- | -------------- |
-| **1** | `docs/circles-v1-contract`         | ADR, contratos, validator, catálogo, permisos, estados, threat model, fixtures                      | **este corte** |
-| 2     | `feat/circles-domain-foundation`   | Migración aditiva, `CirclesModule`, rollout, invitaciones y guest auth. Flag `off`, sin UI          | pendiente      |
+| **1** | `docs/circles-v1-contract`         | ADR, contratos, validator, catálogo, permisos, estados, threat model, fixtures                      | fusionada      |
+| **2** | `feat/circles-domain-foundation`   | Migración aditiva, `CirclesModule`, rollout, invitaciones y guest auth. Flag `off`, sin UI          | **este corte** |
 | 3     | `feat/circles-participation-state` | Crear Dúo, `confirm-share`, locks, reveal, retiro, artefacto, seguimiento, receipts. PG concurrente | pendiente      |
 | 4     | `feat/circles-web-guest-flow`      | Preview, intercambio por fragmento, BFF, cookie, sala, preparación local, salida                    | pendiente      |
 | 5     | `feat/circles-book-entrypoints`    | Catálogo de elegibilidad, CTA, manifests DRAFT                                                      | pendiente      |

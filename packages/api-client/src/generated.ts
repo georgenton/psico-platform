@@ -3812,6 +3812,74 @@ export interface paths {
         patch: operations["AuthorController_updatePayoutSettings"];
         trace?: never;
     };
+    "/api/circles/access": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Whether Círculos is enabled for the caller */
+        get: operations["CirclesController_access"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/circles/invitations/inspect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Check an invitation without consuming it */
+        post: operations["CirclesController_inspect"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/circles/invitations/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Trade an invitation for a guest session */
+        post: operations["CirclesController_accept"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/circles/guest/session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The scope of the presented guest session */
+        get: operations["CirclesController_guestSession"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -5615,6 +5683,19 @@ export interface components {
             taxId?: string;
             legalName?: string;
             legalAddress?: string;
+        };
+        InspectInvitationDto: {
+            /** @description The invitation link token, or the short code, exactly as received. Never stored; hashed on arrival. */
+            secret: string;
+        };
+        AcceptInvitationDto: {
+            /** @description The invitation link token, or the short code, exactly as received. Never stored; hashed on arrival. */
+            secret: string;
+            /**
+             * @description Must be literally true. Explicit acceptance, distinct from opening or inspecting the invitation.
+             * @enum {number}
+             */
+            accept: true;
         };
     };
     responses: never;
@@ -18742,6 +18823,114 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ErrorEnvelopeDto"];
                 };
+            };
+        };
+    };
+    CirclesController_access: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Enabled. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description CIRCLES_UNAVAILABLE. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    CirclesController_inspect: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InspectInvitationDto"];
+            };
+        };
+        responses: {
+            /** @description The invitation is usable. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description CIRCLE_INVITATION_UNUSABLE — one answer for nonexistent, malformed, expired, already used, declined and revoked alike. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    CirclesController_accept: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AcceptInvitationDto"];
+            };
+        };
+        responses: {
+            /** @description The guest session was created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description CIRCLE_INVITATION_UNUSABLE — the same single answer. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    CirclesController_guestSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The resolved guest actor. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description CIRCLE_GUEST_SESSION_INVALID — one answer for missing, unknown, expired and revoked alike. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

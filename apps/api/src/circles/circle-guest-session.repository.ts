@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import type { PrismaClient } from "@prisma/client";
 import { CircleStorageError } from "./circle-invitation.repository";
 
@@ -17,7 +18,12 @@ import { CircleStorageError } from "./circle-invitation.repository";
  * not a bug to catch in review; it is a row PostgreSQL refuses to store.
  */
 
-export type CircleGuestSessionDb = Pick<PrismaClient, "circleGuestSession">;
+export type CircleGuestSessionDb = Pick<
+  PrismaClient,
+  "circleGuestSession" | "$queryRaw"
+>;
+/** A transaction client. Same shape; the alias marks the requirement. */
+export type CircleGuestSessionTx = CircleGuestSessionDb;
 
 export interface CreateGuestSessionInput {
   readonly invitationId: string;
@@ -31,6 +37,16 @@ export interface CreateGuestSessionInput {
 /** Exactly the columns an actor is built from, and nothing else. */
 export interface CircleGuestSessionRow {
   id: string;
+  /**
+   * The invitation this session was minted from.
+   *
+   * Carried because the guest's authority is DERIVED from the inviter, and the
+   * invitation is the only edge from a session to the member who created it.
+   * Without it, a command could revalidate that the session is live and still
+   * miss that the person who issued it has since left the circle or dropped
+   * out of the pilot allowlist.
+   */
+  invitationId: string;
   activityId: string;
   participantId: string;
   tokenHash: string;
@@ -40,6 +56,7 @@ export interface CircleGuestSessionRow {
 
 const SELECT = {
   id: true,
+  invitationId: true,
   activityId: true,
   participantId: true,
   tokenHash: true,
@@ -106,6 +123,43 @@ export class CircleGuestSessionRepository {
         where: { id },
         select: SELECT,
       });
+    } catch {
+      throw new CircleStorageError();
+    }
+  }
+
+  /**
+   * The session by its own id, LOCKED until the surrounding transaction commits.
+   *
+   * `findById` answers "was this session live a moment ago". Under contention a
+   * moment ago is not when the command commits: a withdrawal running in
+   * parallel revokes sessions with an `updateMany`, and an unlocked read racing
+   * it can return `revokedAt: null` for a row that is being revoked right then.
+   * The command would go on to write a `PARTICIPANT_READY` event, an envelope
+   * and possibly a reveal — all on a credential that no longer exists by the
+   * time either transaction commits.
+   *
+   * `FOR UPDATE` makes the two orders: whichever transaction takes the row
+   * first finishes, and the other sees the committed result. If revocation
+   * wins, the re-read here returns a revoked row and the command refuses,
+   * having written nothing.
+   *
+   * `tx` is REQUIRED. Outside a transaction the lock is taken and released at
+   * the end of the statement, which looks like protection and is not.
+   */
+  async lockById(
+    id: string,
+    tx: CircleGuestSessionTx,
+  ): Promise<CircleGuestSessionRow | null> {
+    try {
+      const rows = await tx.$queryRaw<CircleGuestSessionRow[]>(Prisma.sql`
+        SELECT "id", "invitationId", "activityId", "participantId",
+               "tokenHash", "expiresAt", "revokedAt"
+          FROM "CircleGuestSession"
+         WHERE "id" = ${id}
+           FOR UPDATE
+      `);
+      return rows[0] ?? null;
     } catch {
       throw new CircleStorageError();
     }

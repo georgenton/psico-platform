@@ -3188,6 +3188,14 @@ model CircleArtifact {
   ciphertext String
   nonce      String
   keyVersion Int
+  /// Keyed digest of the artifact body, bound to the same AAD context.
+  ///
+  /// Required, not optional. The participant snapshot carries one and the
+  /// artifact did not, which meant `open()` was handed `payloadHash: ""` and
+  /// had nothing to verify. It is also what makes proposal idempotency
+  /// decidable: "same key, same content" is a comparison against this column,
+  /// not against a plaintext nobody kept.
+  payloadHash String
 
   createdByParticipantId String
   createdAt              DateTime  @default(now())

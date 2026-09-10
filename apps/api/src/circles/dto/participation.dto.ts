@@ -10,10 +10,18 @@ import {
   IsString,
   IsUUID,
   Length,
+  Matches,
   Min,
   ValidateNested,
 } from "class-validator";
 import { CIRCLE_FOLLOW_UP_DECISIONS, CIRCLE_SHARE_LIMITS } from "@psico/types";
+
+/**
+ * 256 bits, base64url, unpadded — exactly 43 characters from the URL-safe
+ * alphabet. Anchored at both ends so a longer string with a valid prefix is
+ * not a match.
+ */
+export const BASE64URL_256 = /^[A-Za-z0-9_-]{43}$/;
 
 /**
  * The participation request bodies (PR3).
@@ -141,11 +149,18 @@ export class CreateDuoDto {
   @ApiProperty({
     description:
       "43-character base64url token, 256 bits. Hashed on arrival; never stored raw.",
+    pattern: BASE64URL_256.source,
     minLength: 43,
     maxLength: 43,
   })
   @IsString()
-  @Length(43, 43)
+  // `@Length(43, 43)` alone proved only that the string is 43 characters —
+  // 43 spaces satisfied it. Length is a consequence of the encoding, not the
+  // property worth checking: what makes this 256 bits is that all 43
+  // characters are base64url. The alphabet is the assertion; the length falls
+  // out of it, and is kept as a bound so the pattern cannot be widened by
+  // accident.
+  @Matches(BASE64URL_256)
   invitationToken!: string;
 }
 

@@ -105,6 +105,17 @@ const ARCHIVED_TEMPLATE: CircleActivityDefinition = {
   templateKey: "fixture-participation-archived",
   status: "ARCHIVED",
 };
+/**
+ * A published template that produces NO shared result.
+ *
+ * `outcome.kind: "NONE"` is an editorial decision — some conversations are
+ * meant to end as a conversation. It is not a gap for the API to fill.
+ */
+const NO_OUTCOME_TEMPLATE: CircleActivityDefinition = {
+  ...TEMPLATE,
+  templateKey: "fixture-participation-no-outcome",
+  outcome: { kind: "NONE" },
+};
 
 const KEY = randomBytes(32).toString("base64");
 const U1 = "u-part-organizer";
@@ -126,11 +137,28 @@ suite("circles · participation (real PostgreSQL)", () => {
       resolveCirclesRolloutConfig({ CIRCLES_ROLLOUT_MODE: mode }),
     );
 
-  const build = (mode = "on") => {
+  /**
+   * Assemble the domain, optionally with a seam in place of one collaborator.
+   *
+   * The seams exist because the properties under test are about WHEN a check
+   * runs, and a test that cannot control the interleaving can only observe
+   * that the check exists somewhere. Passing a wrapped repository lets a test
+   * stop the command at an exact point, commit an interfering change on
+   * another connection, and then let it continue — deterministically, with no
+   * sleeps and no reliance on which transaction the scheduler picks.
+   */
+  interface Seams {
+    readonly guestSessions?: CircleGuestSessionRepository;
+    readonly members?: CircleMemberRepository;
+    readonly rolloutOverride?: CirclesRolloutService;
+  }
+
+  const build = (mode = "on", seams: Seams = {}) => {
     const invitations = new CircleInvitationRepository(prisma);
-    const guestSessions = new CircleGuestSessionRepository(prisma);
+    const guestSessions =
+      seams.guestSessions ?? new CircleGuestSessionRepository(prisma);
     const events = new CircleEventRepository(prisma);
-    const members = new CircleMemberRepository(prisma);
+    const members = seams.members ?? new CircleMemberRepository(prisma);
     const activities = new CircleActivityRepository(prisma);
     const participants = new CircleParticipantRepository(prisma);
     const artifacts = new CircleArtifactRepository(prisma);
@@ -146,6 +174,8 @@ suite("circles · participation (real PostgreSQL)", () => {
         events,
         members,
         guestSessions,
+        invitations,
+        seams.rolloutOverride ?? rollout(mode),
         cipher,
         registry,
       ),
@@ -184,6 +214,7 @@ suite("circles · participation (real PostgreSQL)", () => {
       TEMPLATE,
       DRAFT_TEMPLATE,
       ARCHIVED_TEMPLATE,
+      NO_OUTCOME_TEMPLATE,
     ]);
     cipher = new CirclesCipher(Buffer.from(KEY, "base64"));
     const built = build();
@@ -272,7 +303,9 @@ suite("circles · participation (real PostgreSQL)", () => {
    * The tests that are ABOUT creation and acceptance still use `makeDuo`.
    */
   let fastSeq = 0;
-  async function fastDuo(): Promise<Duo> {
+  async function fastDuo(
+    templateKey: string = TEMPLATE.templateKey,
+  ): Promise<Duo> {
     const n = ++fastSeq;
     const id = {
       circle: `fc-${n}`,
@@ -301,7 +334,7 @@ suite("circles · participation (real PostgreSQL)", () => {
          ("id","circleId","templateKey","templateVersion","status",
           "requiredParticipants","updatedAt")
        VALUES ($1,$2,$3,1,'PREPARING',2,now())`,
-      [id.activity, id.circle, TEMPLATE.templateKey],
+      [id.activity, id.circle, templateKey],
     );
     await pool.query(
       `INSERT INTO "CircleInvitation"
@@ -357,6 +390,7 @@ suite("circles · participation (real PostgreSQL)", () => {
       await fn();
       return "RESOLVED";
     } catch (err) {
+      if (process.env.CIRCLES_SPEC_TRACE) console.error("[trace]", err);
       return (err as CirclesError).code ?? "UNKNOWN";
     }
   };
@@ -927,9 +961,10 @@ suite("circles · participation (real PostgreSQL)", () => {
     const counterpartBody = service.openEnvelope(
       ctx.counterpart!,
       ctx.activity,
+      ctx.definition,
     );
     expect(counterpartBody).toContain("lo del invitado");
-    const own = service.openEnvelope(ctx.self, ctx.activity);
+    const own = service.openEnvelope(ctx.self, ctx.activity, ctx.definition);
     expect(own).toContain("lo del organizador");
   }, 30_000);
 
@@ -948,7 +983,11 @@ suite("circles · participation (real PostgreSQL)", () => {
       randomUUID(),
     );
     const { ctx } = await service.readActivity(duo.organizer, duo.activityId);
-    const body = service.openEnvelope(ctx.counterpart!, ctx.activity);
+    const body = service.openEnvelope(
+      ctx.counterpart!,
+      ctx.activity,
+      ctx.definition,
+    );
     expect(body).toBe(JSON.stringify({ mode: "KEEP_PRIVATE" }));
     const row = await pool.query(
       `SELECT "fieldKeys","sharingMode"::text AS m FROM "CircleActivityParticipant" WHERE id=$1`,
@@ -984,7 +1023,9 @@ suite("circles · participation (real PostgreSQL)", () => {
     ).not.toContain(written);
     // What IS there decrypts back, so this is encryption and not deletion.
     const { ctx } = await service.readActivity(duo.organizer, duo.activityId);
-    expect(service.openEnvelope(ctx.self, ctx.activity)).toContain(written);
+    expect(
+      service.openEnvelope(ctx.self, ctx.activity, ctx.definition),
+    ).toContain(written);
   }, 30_000);
 
   it("refuses a guest reading another activity, and a revoked session", async () => {
@@ -1380,5 +1421,828 @@ suite("circles · participation (real PostgreSQL)", () => {
     expect(refusal.constraint).toBe(
       "CircleActivityParticipant_withdrawn_has_no_envelope",
     );
+  }, 30_000);
+
+  // ══ The guest's authority is serialized, not merely checked ══════════════
+
+  /**
+   * A guest-session repository that stops the command at a chosen point.
+   *
+   * `lockById` is where the command commits to a decision, so pausing just
+   * before it is the exact window an attacker — or an unlucky retry — lives
+   * in. The hook runs on the FIRST lock only: `resolveAuthority` is called
+   * once per command, and re-pausing would deadlock the test rather than the
+   * subject.
+   */
+  class PausingGuestSessions extends CircleGuestSessionRepository {
+    private armed = true;
+    constructor(
+      db: ConstructorParameters<typeof CircleGuestSessionRepository>[0],
+      private readonly hook: () => Promise<void>,
+      /**
+       * WHERE to stop, and it matters.
+       *
+       * `"lock"` parks the command after the member and invitation are
+       * locked — the right window for revoking the SESSION, which those
+       * locks do not cover.
+       *
+       * `"peek"` parks it at the very first unlocked read, before any lock
+       * exists. That is the only usable window for interfering with the
+       * MEMBER or the INVITATION: at `"lock"` the command already holds both
+       * rows, so an UPDATE from the test's own connection would block on the
+       * transaction it is trying to race and the test would time out —
+       * proving nothing except that `FOR UPDATE` works.
+       */
+      private readonly at: "peek" | "lock" = "lock",
+    ) {
+      super(db);
+    }
+    private async fire(when: "peek" | "lock") {
+      if (this.at !== when || !this.armed) return;
+      this.armed = false;
+      await this.hook();
+    }
+    override async findById(
+      id: string,
+      db?: Parameters<CircleGuestSessionRepository["findById"]>[1],
+    ) {
+      await this.fire("peek");
+      return super.findById(id, db);
+    }
+    override async lockById(
+      id: string,
+      tx: Parameters<CircleGuestSessionRepository["lockById"]>[1],
+    ) {
+      await this.fire("lock");
+      return super.lockById(id, tx);
+    }
+  }
+
+  /** Every write a participation command could possibly have made. */
+  async function footprint(activityId: string) {
+    const r = await pool.query(
+      `SELECT
+         (SELECT count(*)::int FROM "CircleEvent"
+           WHERE "activityId"=$1 AND "type"='PARTICIPANT_READY') AS ready,
+         (SELECT count(*)::int FROM "CircleEvent"
+           WHERE "activityId"=$1
+             AND "type" IN ('ARTIFACT_PROPOSED','ARTIFACT_CONFIRMED')) AS artifact,
+         (SELECT count(*)::int FROM "CircleEvent"
+           WHERE "activityId"=$1 AND "type"='FOLLOW_UP_RECORDED') AS followUp,
+         (SELECT count(*)::int FROM "CircleActivityParticipant"
+           WHERE "activityId"=$1 AND "status"<>'ACCEPTED') AS movedSeats,
+         (SELECT count(*)::int FROM "CircleActivityParticipant"
+           WHERE "activityId"=$1 AND "ciphertext" IS NOT NULL) AS envelopes,
+         (SELECT count(*)::int FROM "CircleArtifact" WHERE "activityId"=$1) AS artifacts,
+         (SELECT "status"::text FROM "CircleActivity" WHERE id=$1) AS status`,
+      [activityId],
+    );
+    return r.rows[0] as {
+      ready: number;
+      artifact: number;
+      followup: number;
+      movedseats: number;
+      envelopes: number;
+      artifacts: number;
+      status: string;
+    };
+  }
+
+  it("refuses a guest whose session is revoked while the command is in flight", async () => {
+    const duo = await fastDuo();
+    // The revocation commits on a DIFFERENT connection, while the command is
+    // parked immediately before it takes the session lock. No sleep decides
+    // the order: the hook does.
+    const seam = new PausingGuestSessions(prisma, async () => {
+      await pool.query(
+        `UPDATE "CircleGuestSession" SET "revokedAt"=now() WHERE id=$1`,
+        [duo.guestSessionId],
+      );
+    });
+    const { participation } = build("on", { guestSessions: seam });
+
+    expect(
+      await codeOf(() =>
+        participation.confirmShare(
+          duo.guest,
+          duo.activityId,
+          share("lo que el invitado iba a decir"),
+          randomUUID(),
+        ),
+      ),
+    ).toBe("CIRCLE_ACTIVITY_UNAVAILABLE");
+
+    // Revocation won, so the command left NOTHING behind.
+    const after = await footprint(duo.activityId);
+    expect(after.ready, "PARTICIPANT_READY_EVENTS").toBe(0);
+    expect(after.artifact, "ARTIFACT_EVENTS").toBe(0);
+    expect(after.followup, "FOLLOW_UP_EVENTS").toBe(0);
+    expect(after.movedseats, "STATE_CHANGES").toBe(0);
+    expect(after.envelopes, "no envelope was written").toBe(0);
+    expect(after.status, "the activity did not move").toBe("PREPARING");
+  }, 30_000);
+
+  it("refuses a guest whose inviter leaves while the command is in flight", async () => {
+    const duo = await fastDuo();
+    const seam = new PausingGuestSessions(
+      prisma,
+      async () => {
+        // The member who issued the invitation walks out. A guest holds no
+        // membership of their own, so this removes the only thing their
+        // authority rested on.
+        // `CircleMember_left_has_timestamp` requires both columns to move
+        // together — leaving without a moment of leaving is not a state.
+        await pool.query(
+          `UPDATE "CircleMember" SET "status"='LEFT', "leftAt"=now()
+          WHERE "circleId"=$1`,
+          [duo.circleId],
+        );
+      },
+      "peek",
+    );
+    const { participation } = build("on", { guestSessions: seam });
+
+    expect(
+      await codeOf(() =>
+        participation.confirmShare(
+          duo.guest,
+          duo.activityId,
+          share("no debería quedar"),
+          randomUUID(),
+        ),
+      ),
+    ).toBe("CIRCLE_ACTIVITY_UNAVAILABLE");
+    const after = await footprint(duo.activityId);
+    expect(after.ready).toBe(0);
+    expect(after.envelopes).toBe(0);
+    expect(after.status).toBe("PREPARING");
+  }, 30_000);
+
+  it("refuses a guest whose inviter drops out of the pilot allowlist mid-command", async () => {
+    const duo = await fastDuo();
+    // The seam is the ROLLOUT, not the clock: `isAvailable` answers yes the
+    // first time — standing in for the coarse check at the door — and no
+    // afterwards. That isolates the in-transaction re-derivation: a build
+    // that only consulted the allowlist at the guard would still pass.
+    let asked = 0;
+    const flipping = {
+      currentMode: () => "pilot" as const,
+      isAvailable: () => ++asked === 1,
+      isGuestSurfaceAvailable: () => true,
+    } as unknown as CirclesRolloutService;
+    const { participation } = build("pilot", { rolloutOverride: flipping });
+
+    // Warm the first `true` so the command's own call gets the `false`.
+    expect(flipping.isAvailable(U1)).toBe(true);
+
+    expect(
+      await codeOf(() =>
+        participation.confirmShare(
+          duo.guest,
+          duo.activityId,
+          share("tampoco debería quedar"),
+          randomUUID(),
+        ),
+      ),
+    ).toBe("CIRCLE_ACTIVITY_UNAVAILABLE");
+    expect(asked, "the command asked the allowlist itself").toBeGreaterThan(1);
+    const after = await footprint(duo.activityId);
+    expect(after.ready).toBe(0);
+    expect(after.envelopes).toBe(0);
+  }, 30_000);
+
+  it("refuses an actor whose participant id is not the one its session names", async () => {
+    const a = await fastDuo();
+    const b = await fastDuo();
+    // A guest actor carrying somebody else's seat. The guard builds the actor
+    // from the session, so the two normally agree — which is exactly the
+    // assumption worth attacking.
+    const impostor = { ...a.guest, participantId: b.guestSeatId };
+    expect(
+      await codeOf(() =>
+        service.confirmShare(
+          impostor,
+          a.activityId,
+          share("de otro asiento"),
+          randomUUID(),
+        ),
+      ),
+    ).toBe("CIRCLE_ACTIVITY_UNAVAILABLE");
+    // And the organizer's own seat on the OTHER activity is untouched too.
+    expect((await footprint(a.activityId)).ready).toBe(0);
+    expect((await footprint(b.activityId)).ready).toBe(0);
+  }, 30_000);
+
+  it("refuses a guest whose invitation was revoked, session still live", async () => {
+    const duo = await fastDuo();
+    await pool.query(
+      `UPDATE "CircleInvitation" SET "revokedAt"=now() WHERE "activityId"=$1`,
+      [duo.activityId],
+    );
+    expect(
+      await codeOf(() =>
+        service.confirmShare(
+          duo.guest,
+          duo.activityId,
+          share("invitación revocada"),
+          randomUUID(),
+        ),
+      ),
+    ).toBe("CIRCLE_ACTIVITY_UNAVAILABLE");
+    expect((await footprint(duo.activityId)).ready).toBe(0);
+  }, 30_000);
+
+  // ══ Idempotency is per-command, and compares the payload ═════════════════
+
+  it("replays a Dúo creation only when template, version and token all match", async () => {
+    const key = randomUUID();
+    const token = mintToken();
+    const first = await service.createDuo({
+      userId: U1,
+      templateKey: TEMPLATE.templateKey,
+      templateVersion: TEMPLATE.templateVersion,
+      invitationToken: token,
+      idempotencyKey: key,
+    });
+
+    // Same everything → the same aggregate, nothing new.
+    const replay = await service.createDuo({
+      userId: U1,
+      templateKey: TEMPLATE.templateKey,
+      templateVersion: TEMPLATE.templateVersion,
+      invitationToken: token,
+      idempotencyKey: key,
+    });
+    expect(replay.circleId).toBe(first.circleId);
+    expect(replay.activityId).toBe(first.activityId);
+    expect(replay.replayed).toBe(true);
+
+    // A different TEMPLATE under the same key used to replay happily and
+    // return the first activity — so a caller who fixed a typo and retried
+    // was told their correction had succeeded.
+    expect(
+      await codeOf(() =>
+        service.createDuo({
+          userId: U1,
+          templateKey: ARCHIVED_TEMPLATE.templateKey,
+          templateVersion: 1,
+          invitationToken: token,
+          idempotencyKey: key,
+        }),
+      ),
+      "different template",
+    ).not.toBe("RESOLVED");
+
+    // A different VERSION of the same template.
+    expect(
+      await codeOf(() =>
+        service.createDuo({
+          userId: U1,
+          templateKey: TEMPLATE.templateKey,
+          templateVersion: TEMPLATE.templateVersion + 1,
+          invitationToken: token,
+          idempotencyKey: key,
+        }),
+      ),
+      "different version",
+    ).not.toBe("RESOLVED");
+
+    // A different TOKEN.
+    expect(
+      await codeOf(() =>
+        service.createDuo({
+          userId: U1,
+          templateKey: TEMPLATE.templateKey,
+          templateVersion: TEMPLATE.templateVersion,
+          invitationToken: mintToken(),
+          idempotencyKey: key,
+        }),
+      ),
+      "different token",
+    ).toBe("CIRCLE_IDEMPOTENCY_CONFLICT");
+
+    // And exactly one circle exists for that key.
+    const n = await pool.query(
+      `SELECT count(*)::int AS n FROM "CircleEvent"
+        WHERE "type"='CIRCLE_CREATED' AND "idempotencyKey"=$1`,
+      [key],
+    );
+    expect(n.rows[0].n).toBe(1);
+  }, 30_000);
+
+  it("serializes two simultaneous creations under one key into one Dúo", async () => {
+    const key = randomUUID();
+    const token = mintToken();
+    const call = () =>
+      service.createDuo({
+        userId: U1,
+        templateKey: TEMPLATE.templateKey,
+        templateVersion: TEMPLATE.templateVersion,
+        invitationToken: token,
+        idempotencyKey: key,
+      });
+
+    // Both start before either commits. Without the `User` row lock they both
+    // find no receipt, both build a whole aggregate, and the loser dies on
+    // the unique index at the very end — a storage error where the caller
+    // should have received the same resource.
+    const [a, b] = await Promise.all([call(), call()]);
+    expect(a.circleId).toBe(b.circleId);
+    expect(a.activityId).toBe(b.activityId);
+    expect([a.replayed, b.replayed].filter(Boolean).length).toBe(1);
+
+    const rows = await pool.query(
+      `SELECT
+         (SELECT count(*)::int FROM "CircleEvent"
+           WHERE "type"='CIRCLE_CREATED' AND "idempotencyKey"=$1) AS receipts,
+         (SELECT count(*)::int FROM "Circle" WHERE id=$2) AS circles,
+         (SELECT count(*)::int FROM "CircleActivityParticipant"
+           WHERE "activityId"=$3) AS seats`,
+      [key, a.circleId, a.activityId],
+    );
+    expect(rows.rows[0]).toMatchObject({ receipts: 1, circles: 1, seats: 2 });
+  }, 30_000);
+
+  it("refuses a share replay whose payload is not the one the key committed", async () => {
+    const duo = await fastDuo();
+    const key = randomUUID();
+    await service.confirmShare(
+      duo.organizer,
+      duo.activityId,
+      share("lo que dije de verdad"),
+      key,
+    );
+
+    // Same key, different answer. This used to return `replayed: true` while
+    // the ORIGINAL snapshot stayed on the server — the caller believed it had
+    // changed what it shares, and it had not.
+    expect(
+      await codeOf(() =>
+        service.confirmShare(
+          duo.organizer,
+          duo.activityId,
+          share("algo completamente distinto"),
+          key,
+        ),
+      ),
+    ).toBe("CIRCLE_IDEMPOTENCY_CONFLICT");
+
+    // A different MODE under the same key is a conflict too.
+    expect(
+      await codeOf(() =>
+        service.confirmShare(
+          duo.organizer,
+          duo.activityId,
+          { mode: "KEEP_PRIVATE" },
+          key,
+        ),
+      ),
+    ).toBe("CIRCLE_IDEMPOTENCY_CONFLICT");
+
+    // The exact same payload still replays.
+    const again = await service.confirmShare(
+      duo.organizer,
+      duo.activityId,
+      share("lo que dije de verdad"),
+      key,
+    );
+    expect(again.replayed).toBe(true);
+
+    // And the stored snapshot is still the first one.
+    const { ctx } = await service.readActivity(duo.organizer, duo.activityId);
+    expect(
+      service.openEnvelope(ctx.self, ctx.activity, ctx.definition),
+    ).toContain("lo que dije de verdad");
+  }, 30_000);
+
+  it("replays an artifact proposal without creating a new version", async () => {
+    const duo = await revealedDuo();
+    const key = randomUUID();
+    const first = await service.proposeArtifact(
+      duo.organizer,
+      duo.activityId,
+      "el acuerdo",
+      key,
+    );
+    const replay = await service.proposeArtifact(
+      duo.organizer,
+      duo.activityId,
+      "el acuerdo",
+      key,
+    );
+    expect(replay).toEqual(first);
+
+    const rows = await pool.query(
+      `SELECT count(*)::int AS n,
+              count(*) FILTER (WHERE "status"='SUPERSEDED')::int AS superseded
+         FROM "CircleArtifact" WHERE "activityId"=$1`,
+      [duo.activityId],
+    );
+    expect(rows.rows[0].n, "no second row").toBe(1);
+    expect(rows.rows[0].superseded, "the live version was not disturbed").toBe(
+      0,
+    );
+  }, 30_000);
+
+  it("refuses an artifact proposal whose key committed different text", async () => {
+    const duo = await revealedDuo();
+    const key = randomUUID();
+    await service.proposeArtifact(
+      duo.organizer,
+      duo.activityId,
+      "texto A",
+      key,
+    );
+    expect(
+      await codeOf(() =>
+        service.proposeArtifact(duo.organizer, duo.activityId, "texto B", key),
+      ),
+    ).toBe("CIRCLE_IDEMPOTENCY_CONFLICT");
+    // Nothing was superseded on the way to the refusal.
+    const rows = await pool.query(
+      `SELECT count(*)::int AS n FROM "CircleArtifact" WHERE "activityId"=$1`,
+      [duo.activityId],
+    );
+    expect(rows.rows[0].n).toBe(1);
+  }, 30_000);
+
+  it("binds an artifact confirmation key to the exact artifact and version", async () => {
+    const duo = await revealedDuo();
+    const v1 = await service.proposeArtifact(
+      duo.organizer,
+      duo.activityId,
+      "primera versión",
+      randomUUID(),
+    );
+    const key = randomUUID();
+    await service.confirmArtifact(
+      duo.organizer,
+      duo.activityId,
+      v1.artifactId,
+      v1.version,
+      key,
+    );
+
+    // Editing produces a new artifact; the old key must not confirm it.
+    const v2 = await service.proposeArtifact(
+      duo.organizer,
+      duo.activityId,
+      "segunda versión",
+      randomUUID(),
+    );
+    expect(v2.artifactId).not.toBe(v1.artifactId);
+    expect(
+      await codeOf(() =>
+        service.confirmArtifact(
+          duo.organizer,
+          duo.activityId,
+          v2.artifactId,
+          v2.version,
+          key,
+        ),
+      ),
+      "same key, other artifact",
+    ).toBe("CIRCLE_IDEMPOTENCY_CONFLICT");
+
+    // Same key, right artifact, wrong version.
+    expect(
+      await codeOf(() =>
+        service.confirmArtifact(
+          duo.organizer,
+          duo.activityId,
+          v1.artifactId,
+          v1.version + 1,
+          key,
+        ),
+      ),
+      "same key, other version",
+    ).toBe("CIRCLE_IDEMPOTENCY_CONFLICT");
+
+    // And the original replay still works.
+    const replay = await service.confirmArtifact(
+      duo.organizer,
+      duo.activityId,
+      v1.artifactId,
+      v1.version,
+      key,
+    );
+    expect(replay.replayed).toBe(true);
+  }, 30_000);
+
+  it("refuses a follow-up replay that carries a different decision", async () => {
+    const duo = await revealedDuo();
+    await pool.query(
+      `UPDATE "CircleActivity" SET "followUpDueAt"=now() - interval '1 hour'
+        WHERE id=$1`,
+      [duo.activityId],
+    );
+    const key = randomUUID();
+    await service.recordFollowUp(duo.organizer, duo.activityId, "KEEP", key);
+
+    expect(
+      await codeOf(() =>
+        service.recordFollowUp(duo.organizer, duo.activityId, "CLOSE", key),
+      ),
+    ).toBe("CIRCLE_IDEMPOTENCY_CONFLICT");
+
+    const same = await service.recordFollowUp(
+      duo.organizer,
+      duo.activityId,
+      "KEEP",
+      key,
+    );
+    expect(same.replayed).toBe(true);
+
+    const stored = await pool.query(
+      `SELECT "followUpDecision"::text AS d FROM "CircleActivityParticipant"
+        WHERE id=$1`,
+      [duo.organizerSeatId],
+    );
+    expect(stored.rows[0].d, "the first decision stands").toBe("KEEP");
+  }, 30_000);
+
+  it("does not classify an unrelated unique violation as a replay", async () => {
+    // The artifact-confirmation index enforces "one confirmation per seat per
+    // artifact" and has nothing to do with idempotency. Treating every P2002
+    // as a replay turned a genuinely refused second confirmation — under a
+    // DIFFERENT key, so a different command — into a silent success.
+    const duo = await revealedDuo();
+    const proposal = await service.proposeArtifact(
+      duo.organizer,
+      duo.activityId,
+      "para confirmar",
+      randomUUID(),
+    );
+    const events = new CircleEventRepository(prisma);
+    const shape = {
+      circleId: duo.circleId,
+      activityId: duo.activityId,
+      type: "ARTIFACT_CONFIRMED" as const,
+      artifactId: proposal.artifactId,
+      actorParticipantId: duo.organizerSeatId,
+    };
+    const first = await events.append({
+      ...shape,
+      idempotencyKey: randomUUID(),
+    });
+    expect(first.outcome).toBe("APPENDED");
+
+    // Same seat, same artifact, DIFFERENT key: the confirmation index fires,
+    // and the honest answer is a failure, not "REPLAY".
+    await expect(
+      events.append({ ...shape, idempotencyKey: randomUUID() }),
+    ).rejects.toThrow();
+
+    // Whereas the same key genuinely is a replay.
+    const key = randomUUID();
+    const other = await revealedDuo();
+    const otherProposal = await service.proposeArtifact(
+      other.organizer,
+      other.activityId,
+      "otro",
+      randomUUID(),
+    );
+    const shapeB = {
+      circleId: other.circleId,
+      activityId: other.activityId,
+      type: "ARTIFACT_CONFIRMED" as const,
+      artifactId: otherProposal.artifactId,
+      actorParticipantId: other.organizerSeatId,
+      idempotencyKey: key,
+    };
+    expect((await events.append(shapeB)).outcome).toBe("APPENDED");
+    expect((await events.append(shapeB)).outcome).toBe("REPLAY");
+  }, 60_000);
+
+  // ══ Stages, outcomes and the exact-seat barrier ══════════════════════════
+
+  it("refuses an artifact confirmation once the activity is closed", async () => {
+    const duo = await revealedDuo();
+    const proposal = await service.proposeArtifact(
+      duo.organizer,
+      duo.activityId,
+      "algo acordado",
+      randomUUID(),
+    );
+    await pool.query(
+      `UPDATE "CircleActivity" SET "status"='CLOSED', "closedAt"=now() WHERE id=$1`,
+      [duo.activityId],
+    );
+    expect(
+      await codeOf(() =>
+        service.confirmArtifact(
+          duo.organizer,
+          duo.activityId,
+          proposal.artifactId,
+          proposal.version,
+          randomUUID(),
+        ),
+      ),
+    ).toBe("CIRCLE_ACTIVITY_UNAVAILABLE");
+    const n = await pool.query(
+      `SELECT count(*)::int AS n FROM "CircleEvent"
+        WHERE "activityId"=$1 AND "type"='ARTIFACT_CONFIRMED'`,
+      [duo.activityId],
+    );
+    expect(n.rows[0].n).toBe(0);
+  }, 30_000);
+
+  it("refuses an artifact when the template's outcome is NONE", async () => {
+    // Pinned to the no-outcome template from birth. The pin is immutable —
+    // `circle_activity_pin_is_immutable()` refuses an UPDATE — which is the
+    // right behaviour and means the fixture has to be built this way.
+    const duo = await fastDuo(NO_OUTCOME_TEMPLATE.templateKey);
+    await service.confirmShare(
+      duo.organizer,
+      duo.activityId,
+      share("uno"),
+      randomUUID(),
+    );
+    await service.confirmShare(
+      duo.guest,
+      duo.activityId,
+      share("dos"),
+      randomUUID(),
+    );
+    expect(
+      await codeOf(() =>
+        service.proposeArtifact(
+          duo.organizer,
+          duo.activityId,
+          "un acuerdo que nadie pidió",
+          randomUUID(),
+        ),
+      ),
+    ).toBe("CIRCLE_ACTIVITY_UNAVAILABLE");
+    const n = await pool.query(
+      `SELECT count(*)::int AS n FROM "CircleArtifact" WHERE "activityId"=$1`,
+      [duo.activityId],
+    );
+    expect(n.rows[0].n, "no AGREEMENT was invented").toBe(0);
+  }, 30_000);
+
+  it("refuses to reveal two-of-three, even with two READY seats", async () => {
+    const duo = await fastDuo();
+    // An anomalous third row. It should be impossible; the barrier is the
+    // statement that decides whether two people's private answers become
+    // visible, so it does not rely on that.
+    // Two constraints shape what an anomalous third seat can even look like:
+    // `_exactly_one_identity` demands exactly one of member/invitation, and
+    // `_one_per_invitation` forbids reusing the guest's. So it gets a member
+    // of its own. It is still a third seat on a two-seat activity, which is
+    // the only property this test is about.
+    const extraMember = `xm-${duo.activityId}`;
+    await pool.query(
+      `INSERT INTO "CircleMember" ("id","circleId","userId","role","status")
+       VALUES ($1,$2,$3,'MEMBER','ACTIVE')`,
+      [extraMember, duo.circleId, U2],
+    );
+    await pool.query(
+      `INSERT INTO "CircleActivityParticipant"
+         ("id","circleId","activityId","memberId","status","updatedAt")
+       VALUES ($1,$2,$3,$4,'ACCEPTED',now())`,
+      [`extra-${duo.activityId}`, duo.circleId, duo.activityId, extraMember],
+    );
+
+    await service.confirmShare(
+      duo.organizer,
+      duo.activityId,
+      share("uno"),
+      randomUUID(),
+    );
+    const second = await service.confirmShare(
+      duo.guest,
+      duo.activityId,
+      share("dos"),
+      randomUUID(),
+    );
+    expect(second.revealed, "two of three is not all of them").toBe(false);
+
+    const row = await pool.query(
+      `SELECT "status"::text AS s, "revealedAt" FROM "CircleActivity" WHERE id=$1`,
+      [duo.activityId],
+    );
+    expect(row.rows[0].s).toBe("PREPARING");
+    expect(row.rows[0].revealedAt).toBeNull();
+    const events = await pool.query(
+      `SELECT count(*)::int AS n FROM "CircleEvent"
+        WHERE "activityId"=$1 AND "type"='ACTIVITY_REVEALED'`,
+      [duo.activityId],
+    );
+    expect(events.rows[0].n).toBe(0);
+  }, 30_000);
+
+  // ══ The stored MAC is load-bearing ═══════════════════════════════════════
+
+  it("refuses to open a snapshot whose payload hash was tampered with", async () => {
+    const duo = await fastDuo();
+    await service.confirmShare(
+      duo.organizer,
+      duo.activityId,
+      share("algo que sí escribí"),
+      randomUUID(),
+    );
+    const before = await service.readActivity(duo.organizer, duo.activityId);
+    expect(
+      service.openEnvelope(
+        before.ctx.self,
+        before.ctx.activity,
+        before.ctx.definition,
+      ),
+    ).toContain("algo que sí escribí");
+
+    await pool.query(
+      `UPDATE "CircleActivityParticipant" SET "payloadHash"=$2 WHERE id=$1`,
+      [duo.organizerSeatId, "0".repeat(64)],
+    );
+    const after = await service.readActivity(duo.organizer, duo.activityId);
+    expect(
+      service.openEnvelope(
+        after.ctx.self,
+        after.ctx.activity,
+        after.ctx.definition,
+      ),
+      "an altered hash is a refusal, not a shrug",
+    ).toBeNull();
+  }, 30_000);
+
+  it("persists and verifies the artifact's own payload hash", async () => {
+    const duo = await revealedDuo();
+    const proposal = await service.proposeArtifact(
+      duo.organizer,
+      duo.activityId,
+      "el resultado que ambos firman",
+      randomUUID(),
+    );
+    const stored = await pool.query(
+      `SELECT "payloadHash" AS h FROM "CircleArtifact" WHERE id=$1`,
+      [proposal.artifactId],
+    );
+    expect(stored.rows[0].h, "a real HMAC, not an empty string").toMatch(
+      /^[0-9a-f]{64}$/,
+    );
+
+    const { ctx, artifact } = await service.readActivity(
+      duo.organizer,
+      duo.activityId,
+    );
+    expect(service.openArtifact(artifact!, ctx.activity)).toBe(
+      "el resultado que ambos firman",
+    );
+
+    await pool.query(
+      `UPDATE "CircleArtifact" SET "payloadHash"=$2 WHERE id=$1`,
+      [proposal.artifactId, "a".repeat(64)],
+    );
+    const tampered = await service.readActivity(duo.organizer, duo.activityId);
+    expect(
+      service.openArtifact(tampered.artifact!, tampered.ctx.activity),
+    ).toBeNull();
+  }, 30_000);
+
+  it("refuses a decrypted payload carrying a field key the template never declared", async () => {
+    const duo = await fastDuo();
+    await service.confirmShare(
+      duo.organizer,
+      duo.activityId,
+      share("legítimo"),
+      randomUUID(),
+    );
+    // Re-seal a body the cipher will happily authenticate — same key, same
+    // AAD, same everything — but whose field key the pinned template does not
+    // declare. Authentic, and not a valid answer to any question that was
+    // asked.
+    const forged = JSON.stringify({
+      mode: "SELECTED_FIELDS",
+      fields: [{ fieldKey: "campo-inventado", value: "inyectado" }],
+    });
+    const context = {
+      circleId: duo.circleId,
+      activityId: duo.activityId,
+      participantId: duo.organizerSeatId,
+      templateKey: TEMPLATE.templateKey,
+      templateVersion: TEMPLATE.templateVersion,
+      sharingMode: "SELECTED_FIELDS",
+      fieldKeys: ["campo-inventado"],
+    };
+    const envelope = cipher.seal(forged, context);
+    await pool.query(
+      `UPDATE "CircleActivityParticipant"
+          SET "ciphertext"=$2,"nonce"=$3,"payloadHash"=$4,"fieldKeys"=$5
+        WHERE id=$1`,
+      [
+        duo.organizerSeatId,
+        envelope.ciphertext,
+        envelope.nonce,
+        envelope.payloadHash,
+        ["campo-inventado"],
+      ],
+    );
+
+    const { ctx } = await service.readActivity(duo.organizer, duo.activityId);
+    expect(
+      service.openEnvelope(ctx.self, ctx.activity, ctx.definition),
+      "it decrypts, and it is still refused",
+    ).toBeNull();
   }, 30_000);
 });

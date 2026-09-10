@@ -136,11 +136,51 @@ export class CircleEventRepository {
       });
       return { outcome: "APPENDED", id: row.id };
     } catch (err) {
-      // A receipt collision is the mechanism working, not a failure. Anything
-      // else becomes the value-free storage error.
-      if (isUniqueViolation(err) && input.idempotencyKey) {
-        return { outcome: "REPLAY" };
-      }
+      if (!isUniqueViolation(err)) throw new CircleStorageError();
+      // A unique violation is only a REPLAY if the receipt index is the index
+      // that fired. `CircleEvent` carries more than one: PR3 adds
+      // `CircleEvent_one_confirmation_per_artifact_actor`, which enforces "one
+      // confirmation per seat per artifact" and has nothing to do with
+      // idempotency. Treating every P2002 as a replay would have turned a
+      // second confirmation of an artifact under a DIFFERENT key — a distinct
+      // command, correctly refused by that index — into a silent success.
+      //
+      // So the collision is not interpreted; it is verified. If the exact
+      // receipt exists, this was a replay. If it does not, some other unique
+      // constraint fired and its own semantics apply — which, at this layer,
+      // means the value-free storage error rather than a guess.
+      if (await this.receiptExists(input, db)) return { outcome: "REPLAY" };
+      throw new CircleStorageError();
+    }
+  }
+
+  /**
+   * Whether the exact receipt — actor, event type, idempotency key — is
+   * already in the ledger.
+   *
+   * The actor half is deliberately exact rather than "either column set":
+   * `actorUserId` and `actorParticipantId` are the two partial unique indexes,
+   * and matching the wrong one would let a member's key claim a seat's
+   * receipt.
+   */
+  private async receiptExists(
+    input: AppendEventInput,
+    db: CircleEventDb,
+  ): Promise<boolean> {
+    if (!input.idempotencyKey) return false;
+    if (!input.actorUserId && !input.actorParticipantId) return false;
+    try {
+      const found = await db.circleEvent.findFirst({
+        where: {
+          type: input.type,
+          idempotencyKey: input.idempotencyKey,
+          actorUserId: input.actorUserId ?? null,
+          actorParticipantId: input.actorParticipantId ?? null,
+        },
+        select: { id: true },
+      });
+      return found !== null;
+    } catch {
       throw new CircleStorageError();
     }
   }

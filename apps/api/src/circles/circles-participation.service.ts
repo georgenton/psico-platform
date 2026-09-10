@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import type {
   CircleActivityDefinition,
   CircleActor,
@@ -9,6 +9,10 @@ import type {
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { PrismaService } from "../prisma";
 import { CircleStorageError } from "./circle-invitation.repository";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { CircleInvitationRepository } from "./circle-invitation.repository";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { CirclesRolloutService } from "./circles-rollout.service";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { CircleActivityRepository } from "./circle-activity.repository";
 import type { CircleActivityRow } from "./circle-activity.repository";
@@ -36,6 +40,7 @@ import type { CirclesTemplateRegistryRef } from "./circles-template-registry";
 import {
   canonicalShareBody,
   validateShareAgainstTemplate,
+  verifyDecryptedShare,
 } from "./circles-share";
 
 /**
@@ -119,6 +124,8 @@ export class CirclesParticipationService {
     private readonly events: CircleEventRepository,
     private readonly members: CircleMemberRepository,
     private readonly guestSessions: CircleGuestSessionRepository,
+    private readonly invitations: CircleInvitationRepository,
+    private readonly rollout: CirclesRolloutService,
     @Inject(CIRCLES_CIPHER) private readonly cipher: CirclesCipherRef,
     @Inject(CIRCLES_TEMPLATE_REGISTRY)
     private readonly registry: CirclesTemplateRegistryRef,
@@ -141,17 +148,43 @@ export class CirclesParticipationService {
   /**
    * Re-derive, under lock, that this actor may still act on this activity.
    *
-   * USER: an ACTIVE membership of the activity's circle, locked first.
-   * GUEST: a live session whose `activityId` matches, locked third.
+   * ── Why the whole chain is locked, not just the actor's own row ────────────
    *
-   * Returns the actor's own seat. A `null` anywhere on the path produces the
-   * same opaque refusal as an activity that does not exist, so probing an id
-   * teaches nothing.
+   * The guard proved who is calling. It did not prove they may still act, and
+   * for a GUEST it could not: a guest holds no membership of their own. Their
+   * entire authority is borrowed from the member who invited them, through the
+   * invitation that minted their session. Three rows, and any one of them can
+   * change between the guard and the commit — the session revoked, the
+   * invitation revoked, the inviter leaving the circle or dropping out of the
+   * pilot allowlist.
+   *
+   * An earlier version read the session with `findById` and checked nothing
+   * above it. Two consequences, both real:
+   *
+   *   · a revocation committing in parallel could lose the race, so a command
+   *     wrote an envelope and a `PARTICIPANT_READY` event on a credential that
+   *     no longer existed;
+   *   · nothing re-derived the inviter at all, so a guest kept full command
+   *     access after the member who invited them left, and under `pilot` after
+   *     that member was removed from the allowlist. The invitation exchange
+   *     (PR2) revalidates the inviter under lock; every command after it did
+   *     not, which made the check a door policy rather than an invariant.
+   *
+   * Preliminary reads below resolve IDS ONLY. Nothing is decided from them:
+   * every value they produce is read again under `FOR UPDATE`, in the
+   * canonical order, and only the locked read is allowed to authorize.
+   *
+   *     CircleMember → CircleInvitation → CircleGuestSession →
+   *     CircleActivity → CircleActivityParticipant → CircleArtifact
+   *
+   * A `null` anywhere on the path produces the same opaque refusal as an
+   * activity that does not exist, so probing an id teaches nothing.
    */
   private async resolveAuthority(
     actor: CircleActor,
     activityId: string,
     tx: CirclesTx,
+    now: Date = new Date(),
   ): Promise<ActivityContext> {
     if (actor.kind === "GUEST" && actor.activityId !== activityId) {
       // A guest's actor names its one activity. Asking about another is not an
@@ -159,9 +192,11 @@ export class CirclesParticipationService {
       throw new CirclesError(UNUSABLE);
     }
 
-    // ── 1. CircleMember (USER only) ──────────────────────────────────────
     let membership: { id: string; circleId: string } | null = null;
+    let guestSeatId: string | null = null;
+
     if (actor.kind === "USER") {
+      // ── 1. CircleMember ────────────────────────────────────────────────
       const activityPeek = await this.activities.findById(activityId, tx);
       if (!activityPeek) throw new CirclesError(UNUSABLE);
       // Resolve which row, then lock THAT row. Two statements because the
@@ -181,18 +216,13 @@ export class CirclesParticipationService {
         throw new CirclesError(UNUSABLE);
       }
       membership = { id: member.id, circleId: member.circleId };
-    }
-
-    // ── 3. CircleGuestSession (GUEST only) ───────────────────────────────
-    if (actor.kind === "GUEST") {
-      const session = await this.guestSessions.findById(
-        actor.guestSessionId,
+    } else {
+      guestSeatId = await this.resolveGuestAuthority(
+        actor,
+        activityId,
         tx,
+        now,
       );
-      if (!session || !guestSessionIsLive(session, new Date())) {
-        throw new CirclesError(UNUSABLE);
-      }
-      if (session.activityId !== activityId) throw new CirclesError(UNUSABLE);
     }
 
     // ── 4. CircleActivity ────────────────────────────────────────────────
@@ -204,9 +234,11 @@ export class CirclesParticipationService {
       activityId,
       tx,
     );
+    // For a guest the seat comes from the LOCKED session, never from the
+    // actor the guard assembled — see `resolveGuestAuthority`.
     const self =
       actor.kind === "GUEST"
-        ? participants.find((p) => p.id === actor.participantId)
+        ? participants.find((p) => p.id === guestSeatId)
         : participants.find((p) => p.memberId === membership?.id);
     if (!self) throw new CirclesError(UNUSABLE);
     const counterpart = participants.find((p) => p.id !== self.id) ?? null;
@@ -224,6 +256,103 @@ export class CirclesParticipationService {
     }
 
     return { activity, participants, self, counterpart, definition };
+  }
+
+  /**
+   * The guest half of the authority path: member, invitation, session — locked,
+   * in that order, and every one of them re-checked afterwards.
+   *
+   * Returns the seat id the SESSION names. That return value matters as much as
+   * the checks: the caller must resolve the guest's seat from this row and not
+   * from `actor.participantId`. The actor was assembled by the guard from the
+   * same session a moment earlier, so the two agree in the normal case — and
+   * "agrees in the normal case" is exactly the property an attacker works on.
+   * Comparing them here, and then using the locked one, means a mismatch is a
+   * refusal rather than a silent choice of which to trust.
+   *
+   * Order of operations, and why it cannot be simplified:
+   *
+   *   1. read session (unlocked) — for its `invitationId` only;
+   *   2. read invitation (unlocked) — for its `createdByMemberId` only;
+   *   3. LOCK member, then invitation, then session — canonical order;
+   *   4. decide, using only the locked rows.
+   *
+   * Steps 1 and 2 look like the checks they precede, and are not: their values
+   * are used to address rows, never to authorize. Locking in the canonical
+   * order requires knowing the member id before the session is locked, and the
+   * only path to it runs through both unlocked reads. Doing it the other way —
+   * lock the session first because that is what we have an id for — would put
+   * two commands in opposite lock orders and deadlock them under contention.
+   */
+  private async resolveGuestAuthority(
+    actor: Extract<CircleActor, { kind: "GUEST" }>,
+    activityId: string,
+    tx: CirclesTx,
+    now: Date,
+  ): Promise<string> {
+    // ── Preliminary: ids only. Nothing here authorizes anything. ─────────
+    const sessionPeek = await this.guestSessions.findById(
+      actor.guestSessionId,
+      tx,
+    );
+    if (!sessionPeek) throw new CirclesError(UNUSABLE);
+    const invitationPeek = await this.invitations.findById(
+      sessionPeek.invitationId,
+      tx,
+    );
+    if (!invitationPeek) throw new CirclesError(UNUSABLE);
+
+    // ── 1. CircleMember — the inviter, whose eligibility the guest borrows ─
+    const inviter = await this.members.lockById(
+      invitationPeek.createdByMemberId,
+      tx,
+    );
+    if (
+      !inviter ||
+      inviter.status !== "ACTIVE" ||
+      inviter.circleId !== invitationPeek.circleId
+    ) {
+      throw new CirclesError(UNUSABLE);
+    }
+
+    // The pilot allowlist, re-derived from the LOCKED inviter row. PR2 checks
+    // this when the invitation is exchanged; a guest session outlives that
+    // moment by up to its whole lifetime, so a member removed from the pilot
+    // would otherwise keep a working guest attached to them.
+    const mode = this.rollout.currentMode();
+    // Unreachable: the guest guard refuses under `off`. Fails closed anyway.
+    if (mode === "off") throw new CirclesError(UNUSABLE);
+    if (mode === "pilot" && !this.rollout.isAvailable(inviter.userId)) {
+      throw new CirclesError(UNUSABLE);
+    }
+
+    // ── 2. CircleInvitation ──────────────────────────────────────────────
+    const invitation = await this.invitations.lockById(invitationPeek.id, tx);
+    if (
+      !invitation ||
+      invitation.revokedAt !== null ||
+      invitation.activityId !== activityId ||
+      invitation.createdByMemberId !== inviter.id
+    ) {
+      throw new CirclesError(UNUSABLE);
+    }
+
+    // ── 3. CircleGuestSession ────────────────────────────────────────────
+    const session = await this.guestSessions.lockById(actor.guestSessionId, tx);
+    if (!session || !guestSessionIsLive(session, now)) {
+      throw new CirclesError(UNUSABLE);
+    }
+    if (session.activityId !== activityId) throw new CirclesError(UNUSABLE);
+    if (session.invitationId !== invitation.id) {
+      throw new CirclesError(UNUSABLE);
+    }
+    // The actor the guard built must name the seat this session names. If it
+    // does not, something between the two disagrees and the safe reading of a
+    // disagreement about identity is: no.
+    if (session.participantId !== actor.participantId) {
+      throw new CirclesError(UNUSABLE);
+    }
+    return session.participantId;
   }
 
   // ══ Create ═══════════════════════════════════════════════════════════════
@@ -268,9 +397,32 @@ export class CirclesParticipationService {
 
     try {
       return await this.prisma.$transaction(async (tx) => {
+        // ── Serialize this user's creations against each other ────────────
+        //
+        // The receipt read below is only decisive once a receipt EXISTS. Two
+        // requests carrying the same key that arrive together both find
+        // nothing, both proceed, and both create a Dúo — the unique index on
+        // `CIRCLE_CREATED` then fails one of them at the very end, after two
+        // circles, two activities, four seats and two invitations have been
+        // written. One transaction rolls back, so no garbage survives; but
+        // the loser gets a storage error where it should have got the same
+        // resource as the winner, and a caller retrying a timeout is exactly
+        // the caller most likely to hit it.
+        //
+        // Locking the actor's own `User` row first makes the two orders. The
+        // second transaction blocks here, and by the time it reads the
+        // receipt the first has committed one — so it replays. The row is a
+        // natural choice: every creation by this user needs it, no other
+        // user contends for it, and it is taken before any Círculos row, so
+        // it cannot invert the lock order.
+        await tx.$executeRaw(
+          Prisma.sql`SELECT "id" FROM "User" WHERE "id" = ${input.userId} FOR UPDATE`,
+        );
+
         // A replay is decided by the receipt, in PostgreSQL, before anything
-        // is written. `CIRCLE_CREATED` carries the idempotency key; the token
-        // hash is what tells a replay from a conflict.
+        // is written. `CIRCLE_CREATED` carries the idempotency key; what
+        // tells a replay from a conflict is whether the request that key
+        // stands for is the SAME request.
         const prior = await tx.circleEvent.findFirst({
           where: {
             type: "CIRCLE_CREATED",
@@ -280,14 +432,34 @@ export class CirclesParticipationService {
           select: { circleId: true, activityId: true },
         });
         if (prior) {
+          // All three, not just the token.
+          //
+          // An idempotency key stands for ONE request. Comparing only the
+          // token meant the same key with a different template replayed
+          // happily and returned the first activity — so a caller that fixed
+          // a typo in `templateKey` and retried received a Dúo running the
+          // template they had just corrected away from, reported as success.
+          // Template key, template version and token hash together are the
+          // request; any of them differing is a different request wearing a
+          // used key, which is the definition of a conflict.
           const sameToken = await tx.circleInvitation.findFirst({
             where: { circleId: prior.circleId, tokenHash },
             select: { id: true },
           });
-          if (!sameToken) throw new CirclesError("CIRCLE_IDEMPOTENCY_CONFLICT");
+          const priorActivity = prior.activityId
+            ? await this.activities.findById(prior.activityId, tx)
+            : null;
+          if (
+            !sameToken ||
+            !priorActivity ||
+            priorActivity.templateKey !== input.templateKey ||
+            priorActivity.templateVersion !== input.templateVersion
+          ) {
+            throw new CirclesError("CIRCLE_IDEMPOTENCY_CONFLICT");
+          }
           return {
             circleId: prior.circleId,
-            activityId: prior.activityId as string,
+            activityId: priorActivity.id,
             replayed: true,
           };
         }
@@ -415,27 +587,22 @@ export class CirclesParticipationService {
     const cipher = this.requireCipher();
     try {
       return await this.prisma.$transaction(async (tx) => {
-        const ctx = await this.resolveAuthority(actor, activityId, tx);
+        const ctx = await this.resolveAuthority(actor, activityId, tx, now);
 
-        const receipt = await tx.circleEvent.findFirst({
-          where: {
-            type: "PARTICIPANT_READY",
-            actorParticipantId: ctx.self.id,
-            idempotencyKey,
-          },
-          select: { id: true },
-        });
-        if (receipt) {
-          return {
-            revealed: ctx.activity.status !== "PREPARING",
-            replayed: true,
-          };
-        }
-
-        if (ctx.activity.status !== "PREPARING")
-          throw new CirclesError(UNUSABLE);
-        if (ctx.self.status !== "ACCEPTED") throw new CirclesError(UNUSABLE);
-
+        // ── Validate and MAC the candidate BEFORE consulting the receipt ──
+        //
+        // A receipt says "this key has been used". It does not say what for,
+        // and the previous version did not ask: finding one returned success
+        // whatever the body was. So the same key with a completely different
+        // answer — different fields, different mode, a summary instead of a
+        // selection — was reported as a successful replay while the ORIGINAL
+        // snapshot stayed on the server. The caller believed it had changed
+        // what it shares. It had not.
+        //
+        // Computing the candidate first gives the comparison something to
+        // compare against: `payloadHash` is a keyed digest over the canonical
+        // body AND the AAD context, so two requests match here only if they
+        // mean the same thing under the same mode and the same field keys.
         const shape = validateShareAgainstTemplate(
           confirmation,
           ctx.definition,
@@ -449,7 +616,39 @@ export class CirclesParticipationService {
           sharingMode: shape.mode,
           fieldKeys: shape.fieldKeys,
         };
-        const envelope = cipher.seal(canonicalShareBody(confirmation), context);
+        const canonical = canonicalShareBody(confirmation);
+        const candidateHash = cipher.macOf(canonical, context);
+
+        const receipt = await tx.circleEvent.findFirst({
+          where: {
+            type: "PARTICIPANT_READY",
+            actorParticipantId: ctx.self.id,
+            idempotencyKey,
+          },
+          select: { id: true },
+        });
+        if (receipt) {
+          // The stored hash is the authority on what this key committed. A
+          // seat that has since withdrawn has no hash at all, and that is a
+          // conflict too: the key stands for a confirmation that no longer
+          // exists, so replaying it cannot return the same resource.
+          if (
+            ctx.self.payloadHash === null ||
+            !cipher.macMatches(ctx.self.payloadHash, candidateHash)
+          ) {
+            throw new CirclesError("CIRCLE_IDEMPOTENCY_CONFLICT");
+          }
+          return {
+            revealed: ctx.activity.status !== "PREPARING",
+            replayed: true,
+          };
+        }
+
+        if (ctx.activity.status !== "PREPARING")
+          throw new CirclesError(UNUSABLE);
+        if (ctx.self.status !== "ACCEPTED") throw new CirclesError(UNUSABLE);
+
+        const envelope = cipher.seal(canonical, context);
 
         const moved = await this.participants.confirmShare(
           {
@@ -464,7 +663,7 @@ export class CirclesParticipationService {
         );
         if (!moved) throw new CircleStorageError();
 
-        await this.events.append(
+        const readyEvent = await this.events.append(
           {
             circleId: ctx.activity.circleId,
             activityId: ctx.activity.id,
@@ -474,6 +673,10 @@ export class CirclesParticipationService {
           },
           tx,
         );
+        // The receipt was checked above under this seat's lock, so a REPLAY
+        // here would mean the snapshot was just overwritten for a key that
+        // already had one. Refusing rolls the whole transaction back.
+        if (readyEvent.outcome !== "APPENDED") throw new CircleStorageError();
 
         // The barrier. One statement; its predicate is the whole condition.
         const revealed = await this.activities.revealIfAllReady(
@@ -515,6 +718,28 @@ export class CirclesParticipationService {
    *     `FOLLOW_UP` — closes it and revokes future access. The withdrawer's own
    *                   envelope is purged; nothing pretends the other person can
    *                   un-see what they already read.
+   *
+   * ── Replay semantics differ by actor, and that is not a defect ────────────
+   *
+   *     MEMBER_WITHDRAW_REPLAY = response_idempotent
+   *     GUEST_WITHDRAW_REPLAY  = effect_idempotent_but_credential_is_revoked
+   *
+   * A member retrying their withdrawal reaches this method, finds the receipt
+   * and gets the same answer as the first call.
+   *
+   * A guest cannot, and must not. Withdrawing revokes the guest session — that
+   * is the point of it — so the second attempt is refused by the guard with
+   * `CIRCLE_GUEST_SESSION_INVALID` before this method runs. The EFFECT is
+   * idempotent (leaving twice leaves once; nothing is written the second
+   * time); the RESPONSE is not, because the credential that would have
+   * produced it no longer exists.
+   *
+   * Making the two responses identical would mean keeping a revoked session
+   * usable for one more call, and there is no way to scope "one more call" to
+   * the harmless one: whatever window is opened for a replayed withdrawal is
+   * the same window a stolen link uses. An imperfect response shape is worth
+   * far less than an unconditional revocation, so the revocation wins and the
+   * asymmetry is documented instead of engineered away.
    */
   async withdraw(
     actor: CircleActor,
@@ -600,7 +825,7 @@ export class CirclesParticipationService {
           outcome = "CLOSED";
         }
 
-        await this.events.append(
+        const withdrawEvent = await this.events.append(
           {
             circleId: ctx.activity.circleId,
             activityId: ctx.activity.id,
@@ -610,6 +835,9 @@ export class CirclesParticipationService {
           },
           tx,
         );
+        if (withdrawEvent.outcome !== "APPENDED") {
+          throw new CircleStorageError();
+        }
         await this.events.append(
           {
             circleId: ctx.activity.circleId,
@@ -649,39 +877,78 @@ export class CirclesParticipationService {
         }
         if (ctx.self.status !== "READY") throw new CirclesError(UNUSABLE);
 
+        // A template whose outcome is NONE has no shared result. It was being
+        // coerced to `AGREEMENT` — inventing a kind of outcome the reviewed
+        // template deliberately does not offer, and then storing two people's
+        // words under it. "There is nothing to produce here" is an editorial
+        // decision; the API's job is to honour it, not to substitute one.
+        if (ctx.definition.outcome.kind === "NONE") {
+          throw new CirclesError(UNUSABLE);
+        }
+
         // ── 6. CircleArtifact ────────────────────────────────────────────
         const existing = await this.artifacts.lockForActivity(
           ctx.activity.id,
           tx,
         );
+
+        // ── The receipt is resolved BEFORE anything is superseded ─────────
+        //
+        // The previous order superseded the live artifact, created a new row
+        // and only then appended the event — so a retried proposal bumped the
+        // version, invalidated both confirmations of text that had already
+        // been agreed, and the receipt collision at the end rolled it back
+        // only if the append happened to be reached. A replay must not be
+        // able to disturb the live version at all, which means deciding that
+        // it IS a replay before touching anything.
+        const prior = await tx.circleEvent.findFirst({
+          where: {
+            type: "ARTIFACT_PROPOSED",
+            actorParticipantId: ctx.self.id,
+            idempotencyKey,
+          },
+          select: { artifactId: true },
+        });
+        if (prior?.artifactId) {
+          const already =
+            existing.find((a) => a.id === prior.artifactId) ?? null;
+          // Same key, same content → the same artifact and version, and no
+          // new row. Same key, different content → a conflict: the key stands
+          // for the text that was proposed under it, and honouring the second
+          // body would silently replace what the other person may already
+          // have confirmed.
+          if (
+            !already ||
+            !cipher.macMatches(
+              already.payloadHash,
+              cipher.macOf(body, this.artifactContext(ctx, already.version)),
+            )
+          ) {
+            throw new CirclesError("CIRCLE_IDEMPOTENCY_CONFLICT");
+          }
+          return { artifactId: already.id, version: already.version };
+        }
+
         const live = existing.find((a) => a.status !== "SUPERSEDED") ?? null;
         const nextVersion =
           existing.reduce((max, a) => Math.max(max, a.version), 0) + 1;
         if (live) await this.artifacts.supersede(live.id, tx);
 
-        const envelope = cipher.seal(body, {
-          circleId: ctx.activity.circleId,
-          activityId: ctx.activity.id,
-          participantId: ctx.self.id,
-          templateKey: ctx.activity.templateKey,
-          templateVersion: ctx.activity.templateVersion,
-          sharingMode: `ARTIFACT:v${nextVersion}`,
-          fieldKeys: [],
-        });
+        const envelope = cipher.seal(
+          body,
+          this.artifactContext(ctx, nextVersion),
+        );
         const created = await this.artifacts.create(
           {
             activityId: ctx.activity.id,
             version: nextVersion,
-            kind:
-              ctx.definition.outcome.kind === "NONE"
-                ? "AGREEMENT"
-                : ctx.definition.outcome.kind,
+            kind: ctx.definition.outcome.kind,
             envelope,
             createdByParticipantId: ctx.self.id,
           },
           tx,
         );
-        await this.events.append(
+        const appended = await this.events.append(
           {
             circleId: ctx.activity.circleId,
             activityId: ctx.activity.id,
@@ -692,11 +959,44 @@ export class CirclesParticipationService {
           },
           tx,
         );
+        // Unreachable under the artifact lock this transaction holds, and
+        // checked anyway: a REPLAY here would mean the row above was written
+        // for a key that already had one, which is the state this whole
+        // section exists to prevent.
+        if (appended.outcome !== "APPENDED") throw new CircleStorageError();
         return { artifactId: created.id, version: nextVersion };
       });
     } catch (err) {
       throw this.asCirclesError(err);
     }
+  }
+
+  /**
+   * The AAD context for an artifact of a given version.
+   *
+   * The version is inside `sharingMode`, so an envelope sealed for v2 cannot
+   * be opened as v3 even if somebody moved the row. It also means the payload
+   * MAC is version-specific, which is what makes "same key, same content" a
+   * comparison against the version that key actually produced.
+   *
+   * `participantId` is the ACTOR's seat, not the artifact's author: the caller
+   * passes its own context, and every read re-derives it from
+   * `createdByParticipantId` on the stored row. Both paths are exercised in
+   * `circles-participation.pg-spec.ts`.
+   */
+  private artifactContext(
+    ctx: ActivityContext,
+    version: number,
+  ): CircleEnvelopeContext {
+    return {
+      circleId: ctx.activity.circleId,
+      activityId: ctx.activity.id,
+      participantId: ctx.self.id,
+      templateKey: ctx.activity.templateKey,
+      templateVersion: ctx.activity.templateVersion,
+      sharingMode: `ARTIFACT:v${version}`,
+      fieldKeys: [],
+    };
   }
 
   /** Confirm an EXACT artifact and version. Agreement needs both seats. */
@@ -711,6 +1011,18 @@ export class CirclesParticipationService {
     try {
       return await this.prisma.$transaction(async (tx) => {
         const ctx = await this.resolveAuthority(actor, activityId, tx);
+        // The stage was never checked here. `CLOSED`, `CANCELLED`, `INVITING`
+        // and `PREPARING` all accepted confirmations, so an artifact could be
+        // agreed after the Dúo had ended — including by somebody confirming
+        // into an activity the other person had already closed by leaving.
+        // Agreement is a live act between two people; it does not happen to a
+        // finished conversation.
+        if (
+          ctx.activity.status !== "REVEALED" &&
+          ctx.activity.status !== "FOLLOW_UP"
+        ) {
+          throw new CirclesError(UNUSABLE);
+        }
         if (ctx.self.status !== "READY") throw new CirclesError(UNUSABLE);
 
         const artifacts = await this.artifacts.lockForActivity(
@@ -718,17 +1030,51 @@ export class CirclesParticipationService {
           tx,
         );
         const target = artifacts.find((a) => a.id === artifactId) ?? null;
+
+        // ── The key is bound to the exact artifact and version ────────────
+        //
+        // A confirmation key stands for "I agree to THIS text". Reusing it
+        // against a different artifact — or the same artifact at another
+        // version — is a different statement, and the ledger already holds
+        // what the key was spent on. Checked before the target is validated,
+        // so a reused key is a conflict rather than a 404 about the artifact
+        // it was pointed at.
+        const prior = await tx.circleEvent.findFirst({
+          where: {
+            type: "ARTIFACT_CONFIRMED",
+            actorParticipantId: ctx.self.id,
+            idempotencyKey,
+          },
+          select: { artifactId: true },
+        });
+        if (prior) {
+          const confirmed =
+            artifacts.find((a) => a.id === prior.artifactId) ?? null;
+          if (
+            !confirmed ||
+            confirmed.id !== artifactId ||
+            confirmed.version !== version
+          ) {
+            throw new CirclesError("CIRCLE_IDEMPOTENCY_CONFLICT");
+          }
+          return { agreed: confirmed.status === "AGREED", replayed: true };
+        }
+
         // The version is part of what is being confirmed, not a hint: a client
         // holding stale copy must not be able to agree to text it never saw.
         if (!target || target.version !== version)
           throw new CirclesError(UNUSABLE);
         if (target.status === "SUPERSEDED") throw new CirclesError(UNUSABLE);
 
+        // A second confirmation of the same artifact by the same seat under a
+        // DIFFERENT key. Not a replay of this key — the receipt above said so
+        // — and not an error either: the seat has already agreed, and saying
+        // so again changes nothing.
         if (await this.artifacts.hasConfirmed(target.id, ctx.self.id, tx)) {
           return { agreed: target.status === "AGREED", replayed: true };
         }
 
-        await this.events.append(
+        const appended = await this.events.append(
           {
             circleId: ctx.activity.circleId,
             activityId: ctx.activity.id,
@@ -739,6 +1085,7 @@ export class CirclesParticipationService {
           },
           tx,
         );
+        if (appended.outcome !== "APPENDED") throw new CircleStorageError();
 
         const confirmations = await this.artifacts.countConfirmations(
           target.id,
@@ -784,6 +1131,14 @@ export class CirclesParticipationService {
           select: { id: true },
         });
         if (receipt) {
+          // The decision is what the key committed to. Returning success for
+          // a DIFFERENT decision under the same key told a caller their
+          // `CLOSE` had been recorded when the stored answer was still
+          // `KEEP` — and the seat's decision is single-write, so no later
+          // request could have corrected it either.
+          if (ctx.self.followUpDecision !== decision) {
+            throw new CirclesError("CIRCLE_IDEMPOTENCY_CONFLICT");
+          }
           return { closed: ctx.activity.status === "CLOSED", replayed: true };
         }
 
@@ -803,7 +1158,7 @@ export class CirclesParticipationService {
           tx,
         );
         if (!recorded) throw new CirclesError(UNUSABLE);
-        await this.events.append(
+        const followUpEvent = await this.events.append(
           {
             circleId: ctx.activity.circleId,
             activityId: ctx.activity.id,
@@ -813,6 +1168,9 @@ export class CirclesParticipationService {
           },
           tx,
         );
+        if (followUpEvent.outcome !== "APPENDED") {
+          throw new CircleStorageError();
+        }
 
         const seats = await this.participants.lockForActivity(
           ctx.activity.id,
@@ -876,25 +1234,41 @@ export class CirclesParticipationService {
     }
   }
 
-  /** Open an envelope for the actor entitled to it. */
+  /**
+   * Open an envelope for the actor entitled to it, and prove it still means
+   * what it claims.
+   *
+   * `open()` now verifies the payload MAC, so a stripped or altered
+   * `payloadHash` refuses here instead of sailing through as the empty string
+   * the previous version passed in. `verifyDecryptedShare` then re-checks the
+   * plaintext against the pinned template and against the mode and field keys
+   * stored on the row — see its comment for why authentication alone is not
+   * the same as validity.
+   *
+   * `definition` is REQUIRED, which is the point: there is no overload that
+   * skips the template check.
+   */
   openEnvelope(
     participant: CircleParticipantRow,
     activity: CircleActivityRow,
+    definition: CircleActivityDefinition,
   ): string | null {
     if (
       !participant.ciphertext ||
       !participant.nonce ||
-      !participant.sharingMode
+      !participant.sharingMode ||
+      !participant.payloadHash
     ) {
       return null;
     }
+    let plaintext: string;
     try {
-      return this.requireCipher().open(
+      plaintext = this.requireCipher().open(
         {
           ciphertext: participant.ciphertext,
           nonce: participant.nonce,
           keyVersion: participant.keyVersion ?? 0,
-          payloadHash: participant.payloadHash ?? "",
+          payloadHash: participant.payloadHash,
         },
         {
           circleId: activity.circleId,
@@ -909,9 +1283,21 @@ export class CirclesParticipationService {
     } catch {
       return null;
     }
+    const verified = verifyDecryptedShare(plaintext, definition, participant);
+    // Re-canonicalised rather than returned as read: the caller receives the
+    // bytes this build would have produced for that meaning, so nothing that
+    // survived parsing but is not part of the shape can reach a response.
+    return verified ? canonicalShareBody(verified) : null;
   }
 
-  /** Open an artifact body for a participant of its activity. */
+  /**
+   * Open an artifact body for a participant of its activity.
+   *
+   * `payloadHash` is a real column now. It used to be passed as `""`, which
+   * `open()` ignored — so the artifact, the one piece of content BOTH people
+   * put their name to, was the only envelope in the system with no integrity
+   * check at all.
+   */
   openArtifact(
     artifact: {
       id: string;
@@ -919,6 +1305,7 @@ export class CirclesParticipationService {
       ciphertext: string;
       nonce: string;
       keyVersion: number;
+      payloadHash: string;
       createdByParticipantId: string;
     },
     activity: CircleActivityRow,
@@ -929,7 +1316,7 @@ export class CirclesParticipationService {
           ciphertext: artifact.ciphertext,
           nonce: artifact.nonce,
           keyVersion: artifact.keyVersion,
-          payloadHash: "",
+          payloadHash: artifact.payloadHash,
         },
         {
           circleId: activity.circleId,

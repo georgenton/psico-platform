@@ -5918,6 +5918,36 @@ export interface components {
              */
             accept: true;
         };
+        SelectedFieldDto: {
+            /** @description A field key the template declares. */
+            fieldKey: string;
+            /** @description The text the person previewed and confirmed. */
+            value: string;
+        };
+        ConfirmSelectedFieldsDto: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            mode: ConfirmSelectedFieldsDtoMode;
+            fields: components["schemas"]["SelectedFieldDto"][];
+        };
+        ConfirmEditedSummaryDto: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            mode: ConfirmEditedSummaryDtoMode;
+            summary: string;
+        };
+        ConfirmKeepPrivateDto: {
+            /**
+             * @description The whole body. There is nowhere to put a reason, which is the design:
+             *     "I am not sharing this" is an answer, and answers do not owe explanations. (enum property replaced by openapi-typescript)
+             * @enum {string}
+             */
+            mode: ConfirmKeepPrivateDtoMode;
+        };
         CreateDuoDto: {
             /** @description Template key. Must resolve to PUBLISHED. */
             templateKey: string;
@@ -19248,9 +19278,27 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfirmSelectedFieldsDto"] | components["schemas"]["ConfirmEditedSummaryDto"] | components["schemas"]["ConfirmKeepPrivateDto"];
+            };
+        };
         responses: {
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description CIRCLE_INVALID_PAYLOAD. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description CIRCLE_IDEMPOTENCY_CONFLICT. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -19376,9 +19424,27 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfirmSelectedFieldsDto"] | components["schemas"]["ConfirmEditedSummaryDto"] | components["schemas"]["ConfirmKeepPrivateDto"];
+            };
+        };
         responses: {
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description CIRCLE_INVALID_PAYLOAD. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description CIRCLE_IDEMPOTENCY_CONFLICT. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -20616,6 +20682,15 @@ export enum UpdatePayoutSettingsDtoMethod {
     paypal = "paypal",
     payphone = "payphone",
     manual = "manual"
+}
+export enum ConfirmSelectedFieldsDtoMode {
+    SELECTED_FIELDS = "SELECTED_FIELDS"
+}
+export enum ConfirmEditedSummaryDtoMode {
+    EDITED_SUMMARY = "EDITED_SUMMARY"
+}
+export enum ConfirmKeepPrivateDtoMode {
+    KEEP_PRIVATE = "KEEP_PRIVATE"
 }
 export enum RecordFollowUpDtoDecision {
     KEEP = "KEEP",

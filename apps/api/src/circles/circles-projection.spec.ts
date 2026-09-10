@@ -235,3 +235,106 @@ describe("circles projection · after the reveal", () => {
     expect(JSON.stringify(view)).not.toContain(SECRET);
   });
 });
+
+describe("circles projection · entitlement is decided from the seat's own row", () => {
+  const revealed = activity({ status: "REVEALED", revealedAt: new Date() });
+  const other = seat({
+    id: "p-other",
+    status: "READY",
+    sharingMode: "SELECTED_FIELDS",
+    fieldKeys: ["campo-a"],
+    ciphertext: "ct",
+    nonce: "n",
+    keyVersion: 1,
+    payloadHash: "hash",
+    readyAt: new Date(),
+  });
+  const counterpartBody = JSON.stringify({
+    mode: "SELECTED_FIELDS",
+    fields: [{ fieldKey: "campo-a", value: SECRET }],
+  });
+  const artifact = {
+    id: "art-1",
+    version: 1,
+    status: "PROPOSED" as const,
+    body: "el resultado compartido",
+    confirmations: 1,
+    confirmedByYou: false,
+  };
+
+  /**
+   * Every case below hands the projection bodies it should NOT serve.
+   *
+   * That is deliberate and it is the whole point of these tests. In production
+   * the facade refuses to decrypt for an unentitled seat, so `counterpartBody`
+   * arrives `null` — which means a bug in the facade would go unnoticed by any
+   * test that mirrors the facade's own behaviour. The projection is the last
+   * thing between a decrypted sentence and the network, so it is asked the
+   * hostile question directly: given the plaintext, do you still refuse?
+   */
+  const project = (self: CircleParticipantRow) =>
+    projectActivity({
+      activity: revealed,
+      definition: DEFINITION,
+      self,
+      counterpart: other,
+      readyCount: 2,
+      artifact,
+      selfBody: null,
+      counterpartBody,
+    });
+
+  it("serves the reveal and the artifact to a READY seat", () => {
+    const view = project(seat({ id: "p-self", status: "READY" }));
+    expect(JSON.stringify(view)).toContain(SECRET);
+    expect(view.artifact?.body).toBe("el resultado compartido");
+  });
+
+  it("suppresses both for a WITHDRAWN seat, even handed the plaintext", () => {
+    const view = project(seat({ id: "p-self", status: "WITHDRAWN" }));
+    expect(view.revealed, "no counterpart share").toBeNull();
+    expect(view.artifact, "and no shared result either").toBeNull();
+    expect(
+      JSON.stringify(view),
+      "the sentence appears nowhere in the response",
+    ).not.toContain(SECRET);
+    expect(JSON.stringify(view)).not.toContain("el resultado compartido");
+  });
+
+  it("suppresses both for an ACCEPTED seat that never confirmed", () => {
+    // The reveal is a trade. `ACCEPTED` after the barrier means a seat with
+    // no confirmed snapshot — it either never confirmed, or its envelope was
+    // purged when the counterpart withdrew. Reading the other person's answer
+    // from that position is receiving without giving.
+    const view = project(seat({ id: "p-self", status: "ACCEPTED" }));
+    expect(view.revealed).toBeNull();
+    expect(view.artifact).toBeNull();
+    expect(JSON.stringify(view)).not.toContain(SECRET);
+  });
+
+  it("suppresses both for INVITED and DECLINED seats", () => {
+    for (const status of ["INVITED", "DECLINED"] as const) {
+      const view = project(seat({ id: "p-self", status }));
+      expect(view.revealed, status).toBeNull();
+      expect(view.artifact, status).toBeNull();
+      expect(JSON.stringify(view), status).not.toContain(SECRET);
+    }
+  });
+
+  it("leaks no forbidden key in any of those states", () => {
+    for (const status of [
+      "READY",
+      "ACCEPTED",
+      "WITHDRAWN",
+      "INVITED",
+      "DECLINED",
+    ] as const) {
+      const keys = allKeys(
+        JSON.parse(JSON.stringify(project(seat({ id: "p-self", status })))),
+      );
+      for (const forbidden of CIRCLE_VIEW_FORBIDDEN_KEYS) {
+        expect(keys.has(forbidden), `${status}: ${forbidden}`).toBe(false);
+      }
+    }
+  });
+});

@@ -54,6 +54,8 @@ export const CIRCLES_KEY_VERSION = 1;
 const KEY_BYTES = 32;
 const NONCE_BYTES = 12;
 const TAG_BYTES = 16;
+/** HMAC-SHA256, hex. Fixed, so an absent hash cannot pass as a short one. */
+const MAC_HEX_LENGTH = 64;
 
 /** Domain separation, so the AEAD key and the MAC key can never be the same. */
 const AEAD_INFO = "feelverse.circles.v1.aead";
@@ -186,16 +188,33 @@ export class CirclesCipher {
   }
 
   /**
-   * Decrypt, or refuse.
+   * Decrypt, verify the payload MAC, or refuse.
    *
    * Every failure — wrong key, wrong version, tampered ciphertext, an AAD that
-   * does not match the row it was read from — leaves through the same
+   * does not match the row it was read from, a `payloadHash` that is absent,
+   * altered, or was computed for a different context — leaves through the same
    * `CIRCLES_ENVELOPE_UNREADABLE`. There is nothing to learn from which.
+   *
+   * ── Why the MAC is checked here and not by the caller ──────────────────────
+   *
+   * The previous version computed `payloadHash` on the way in and never looked
+   * at it again. A column nobody reads is not an integrity check; it is a
+   * comment stored in PostgreSQL. Worse, it read as one — `openEnvelope` passed
+   * `payloadHash: participant.payloadHash ?? ""` and the empty string sailed
+   * straight through, so a row whose hash had been stripped opened exactly like
+   * a row whose hash was right.
+   *
+   * Verifying it inside `open` means no caller can forget. The GCM tag already
+   * covers the ciphertext under the AAD, so this is defence in depth rather
+   * than the only line — but the two fail independently, and the MAC is what
+   * detects a whole envelope (ciphertext AND nonce AND tag) replayed from
+   * another row whose context happens to build the same AAD.
    */
   open(envelope: CircleEnvelope, context: CircleEnvelopeContext): string {
     if (envelope.keyVersion !== CIRCLES_KEY_VERSION) {
       throw new CirclesCryptoError("CIRCLES_ENVELOPE_UNREADABLE");
     }
+    let plaintext: string;
     try {
       const raw = Buffer.from(envelope.ciphertext, "base64");
       if (raw.length <= TAG_BYTES) {
@@ -210,12 +229,22 @@ export class CirclesCipher {
       );
       decipher.setAAD(buildAad(context));
       decipher.setAuthTag(tag);
-      return Buffer.concat([decipher.update(body), decipher.final()]).toString(
-        "utf8",
-      );
+      plaintext = Buffer.concat([
+        decipher.update(body),
+        decipher.final(),
+      ]).toString("utf8");
     } catch {
       throw new CirclesCryptoError("CIRCLES_ENVELOPE_UNREADABLE");
     }
+
+    // Constant-time, and refusing an absent hash rather than treating "no
+    // hash" as "nothing to check".
+    if (
+      !this.macMatches(this.macOf(plaintext, context), envelope.payloadHash)
+    ) {
+      throw new CirclesCryptoError("CIRCLES_ENVELOPE_UNREADABLE");
+    }
+    return plaintext;
   }
 
   /** Keyed digest of the confirmed payload, bound to the same context. */
@@ -227,9 +256,19 @@ export class CirclesCipher {
       .digest("hex");
   }
 
-  /** Constant-time comparison of two payload hashes. */
+  /**
+   * Constant-time comparison of two payload hashes.
+   *
+   * The explicit length requirement is not redundant with the equality check.
+   * Without it, `macMatches("", "")` compares two empty buffers and returns
+   * TRUE — so a row with a stripped hash, compared against another stripped
+   * hash, would "verify". Requiring the exact digest width makes the absent
+   * case a refusal instead of a coincidence.
+   */
   macMatches(a: string, b: string): boolean {
-    if (a.length !== b.length) return false;
+    if (a.length !== MAC_HEX_LENGTH || b.length !== MAC_HEX_LENGTH) {
+      return false;
+    }
     return timingSafeEqual(Buffer.from(a, "utf8"), Buffer.from(b, "utf8"));
   }
 }
@@ -245,11 +284,18 @@ export type CirclesCipherRef = CirclesCipher | null;
  *
  * Two behaviours, and the asymmetry is deliberate:
  *
- *   · `off`   — never throws. A deployment with Círculos closed must boot
- *               whether or not somebody has configured a key it will not use,
- *               and returning `null` is honest about that. Every route is
- *               already refused by the rollout guard before anything would
- *               reach for the cipher.
+ *   · `off`   — ALWAYS `null`, and never throws. Not "null if the key is
+ *               missing": null even when a perfectly valid key is configured.
+ *
+ *               The earlier version built a cipher whenever it could, on the
+ *               theory that an unused object is harmless. It is not harmless —
+ *               it is a loaded surface waiting for one lost guard. `off` is
+ *               supposed to mean the capability does not exist in this process,
+ *               and a capability that exists "but nothing calls it" is a
+ *               statement about today's call graph, not about the deployment.
+ *               With `null`, a route that somehow escaped the rollout guard
+ *               hits `requireCipher()` and refuses, instead of quietly
+ *               encrypting something in a deployment where Círculos is closed.
  *   · `pilot`
  *     / `on`  — a missing or malformed key fails the BOOT. Not the first
  *               request, and certainly not silently: a surface that is
@@ -263,13 +309,9 @@ export function resolveCirclesCipher(
   env: NodeJS.ProcessEnv | Record<string, string | undefined>,
   mode: "off" | "pilot" | "on",
 ): CirclesCipherRef {
-  const raw = env[CIRCLES_KEY_ENV];
-  if (mode === "off") {
-    try {
-      return new CirclesCipher(parseCirclesKey(raw));
-    } catch {
-      return null;
-    }
-  }
-  return new CirclesCipher(parseCirclesKey(raw));
+  // `off` short-circuits before the key is even read. Nothing about the
+  // environment can produce a cipher here, which is what makes "off" a
+  // property of the deployment rather than of whether somebody set a variable.
+  if (mode === "off") return null;
+  return new CirclesCipher(parseCirclesKey(env[CIRCLES_KEY_ENV]));
 }

@@ -11,7 +11,14 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import type { Response } from "express";
-import { ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
+import {
+  ApiBody,
+  ApiExtraModels,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+  getSchemaPath,
+} from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 import type {
   CircleActivityView,
@@ -34,6 +41,7 @@ import {
   ProposeArtifactDto,
   RecordFollowUpDto,
 } from "./dto/participation.dto";
+import { ParseShareConfirmationPipe } from "./dto/confirm-share.pipe";
 
 /**
  * The participation surface (PR3), as two thin controllers over one facade.
@@ -82,29 +90,46 @@ function requireIdempotencyKey(raw: string | undefined): string {
 }
 
 /**
- * The confirmation body, narrowed to the closed union.
+ * The confirmation request body, as OpenAPI.
  *
- * The pipe has already validated ONE of the three DTOs; this is what turns the
- * validated object into the domain's type without a cast that could let a
- * fourth shape through.
+ * A TypeScript union in `@Body()` is erased, so the generator emitted no
+ * `requestBody` at all for either `share-confirmations` route — the three
+ * variants existed in the code and nowhere in the contract. `oneOf` plus a
+ * `discriminator` states the same closed union in a form a generator, a client
+ * and a reviewer can all read, and `@ApiExtraModels` is what makes the three
+ * schemas exist to be referenced: nothing else in the surface names them, so
+ * without it the `$ref`s would dangle.
+ *
+ * The runtime boundary is `ParseShareConfirmationPipe`. This decorator
+ * describes it; it does not enforce it. Keeping them in agreement is the job of
+ * `circles-contract.spec.ts`, which reads the generated document.
  */
-function asConfirmation(
-  dto:
-    | ConfirmSelectedFieldsDto
-    | ConfirmEditedSummaryDto
-    | ConfirmKeepPrivateDto,
-): CircleShareConfirmation {
-  if (dto.mode === "SELECTED_FIELDS") {
-    return { mode: "SELECTED_FIELDS", fields: dto.fields };
-  }
-  if (dto.mode === "EDITED_SUMMARY") {
-    return { mode: "EDITED_SUMMARY", summary: dto.summary };
-  }
-  return { mode: "KEEP_PRIVATE" };
-}
+const SHARE_CONFIRMATION_BODY = {
+  required: true,
+  schema: {
+    oneOf: [
+      { $ref: getSchemaPath(ConfirmSelectedFieldsDto) },
+      { $ref: getSchemaPath(ConfirmEditedSummaryDto) },
+      { $ref: getSchemaPath(ConfirmKeepPrivateDto) },
+    ],
+    discriminator: {
+      propertyName: "mode",
+      mapping: {
+        SELECTED_FIELDS: getSchemaPath(ConfirmSelectedFieldsDto),
+        EDITED_SUMMARY: getSchemaPath(ConfirmEditedSummaryDto),
+        KEEP_PRIVATE: getSchemaPath(ConfirmKeepPrivateDto),
+      },
+    },
+  },
+} as const;
 
 // ─── The authenticated surface ───────────────────────────────────────────────
 
+@ApiExtraModels(
+  ConfirmSelectedFieldsDto,
+  ConfirmEditedSummaryDto,
+  ConfirmKeepPrivateDto,
+)
 @ApiTags("circles")
 @Controller("circles")
 @UseGuards(JwtAuthGuard, CirclesRolloutGuard)
@@ -146,26 +171,20 @@ export class CirclesMemberParticipationController {
   @HttpCode(201)
   @Throttle(COMMAND_THROTTLE)
   @ApiOperation({ summary: "Confirm what you share; may trigger the reveal" })
+  @ApiBody(SHARE_CONFIRMATION_BODY)
+  @ApiResponse({ status: 400, description: "CIRCLE_INVALID_PAYLOAD." })
+  @ApiResponse({ status: 409, description: "CIRCLE_IDEMPOTENCY_CONFLICT." })
   confirmShare(
     @CurrentCircleActor() actor: CircleActor,
     @Param("activityId") activityId: string,
-    @Body()
-    dto:
-      | ConfirmSelectedFieldsDto
-      | ConfirmEditedSummaryDto
-      | ConfirmKeepPrivateDto,
+    @Body(ParseShareConfirmationPipe) confirmation: CircleShareConfirmation,
     @Headers("idempotency-key") key: string | undefined,
     @Res({ passthrough: true }) res: Response,
   ) {
     noStore(res);
     const idempotencyKey = requireIdempotencyKey(key);
     return mapCirclesErrors(() =>
-      this.facade.confirmShare(
-        actor,
-        activityId,
-        asConfirmation(dto),
-        idempotencyKey,
-      ),
+      this.facade.confirmShare(actor, activityId, confirmation, idempotencyKey),
     );
   }
 
@@ -261,6 +280,11 @@ export class CirclesMemberParticipationController {
  * `POST /guest/duo`: creating a circle is an authenticated act, and a guest has
  * no circle to create one in.
  */
+@ApiExtraModels(
+  ConfirmSelectedFieldsDto,
+  ConfirmEditedSummaryDto,
+  ConfirmKeepPrivateDto,
+)
 @ApiTags("circles")
 @Controller("circles/guest")
 @UseGuards(CirclesGuestGuard)
@@ -282,26 +306,20 @@ export class CirclesGuestParticipationController {
   @HttpCode(201)
   @Throttle(COMMAND_THROTTLE)
   @ApiOperation({ summary: "Confirm what you share; may trigger the reveal" })
+  @ApiBody(SHARE_CONFIRMATION_BODY)
+  @ApiResponse({ status: 400, description: "CIRCLE_INVALID_PAYLOAD." })
+  @ApiResponse({ status: 409, description: "CIRCLE_IDEMPOTENCY_CONFLICT." })
   confirmShare(
     @CurrentCircleActor() actor: CircleActor,
     @Param("activityId") activityId: string,
-    @Body()
-    dto:
-      | ConfirmSelectedFieldsDto
-      | ConfirmEditedSummaryDto
-      | ConfirmKeepPrivateDto,
+    @Body(ParseShareConfirmationPipe) confirmation: CircleShareConfirmation,
     @Headers("idempotency-key") key: string | undefined,
     @Res({ passthrough: true }) res: Response,
   ) {
     noStore(res);
     const idempotencyKey = requireIdempotencyKey(key);
     return mapCirclesErrors(() =>
-      this.facade.confirmShare(
-        actor,
-        activityId,
-        asConfirmation(dto),
-        idempotencyKey,
-      ),
+      this.facade.confirmShare(actor, activityId, confirmation, idempotencyKey),
     );
   }
 

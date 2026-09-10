@@ -61,14 +61,21 @@ export class CirclesParticipationFacade {
       ctx.activity.status === "REVEALED" ||
       ctx.activity.status === "FOLLOW_UP" ||
       (ctx.activity.status === "CLOSED" && ctx.activity.revealedAt !== null);
-    const selfStillIn =
-      ctx.self.status === "READY" || ctx.self.status === "ACCEPTED";
+    // `READY` only. `ACCEPTED` used to qualify, which after the barrier means
+    // a seat with no confirmed snapshot reading the other person's — receiving
+    // without giving. The projection enforces the same rule independently; see
+    // `mayReadRevealedContent`.
+    const selfStillIn = ctx.self.status === "READY";
 
     // The counterpart's envelope is not merely hidden before the reveal — it is
     // never decrypted. There is nothing in memory for a later bug to serialize.
     const counterpartBody =
       revealedStage && selfStillIn && ctx.counterpart
-        ? this.domain.openEnvelope(ctx.counterpart, ctx.activity)
+        ? this.domain.openEnvelope(
+            ctx.counterpart,
+            ctx.activity,
+            ctx.definition,
+          )
         : null;
 
     return projectActivity({
@@ -77,7 +84,11 @@ export class CirclesParticipationFacade {
       self: ctx.self,
       counterpart: ctx.counterpart,
       readyCount: ctx.participants.filter((p) => p.status === "READY").length,
-      selfBody: this.domain.openEnvelope(ctx.self, ctx.activity),
+      selfBody: this.domain.openEnvelope(
+        ctx.self,
+        ctx.activity,
+        ctx.definition,
+      ),
       counterpartBody,
       artifact:
         artifact && revealedStage && selfStillIn

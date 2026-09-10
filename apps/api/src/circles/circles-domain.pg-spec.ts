@@ -94,6 +94,14 @@ const pgTs = (d: Date) => d.toISOString().replace("Z", "");
 /** A 64-hex value that is not a real hash — enough to satisfy the shape CHECK. */
 const fakeHash = (n: number) => String(n).padStart(64, "a");
 
+/**
+ * A syntactically valid payload MAC for fixtures that only care about other
+ * columns. `CircleArtifact_payload_hash_is_hmac_hex` requires 64 hex
+ * characters, so "" or NULL is not an option even where the value is beside
+ * the point — which is the constraint doing its job.
+ */
+const HMAC_HEX = "0".repeat(64);
+
 suite("circles · SQL invariants (real PostgreSQL)", () => {
   let pool: Pool;
   let prisma: PrismaClient;
@@ -834,9 +842,10 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
       pool.query(
         `INSERT INTO "CircleArtifact"
            ("id","activityId","version","kind","status","ciphertext","nonce",
-            "keyVersion","createdByParticipantId","updatedAt","agreedAt")
+            "keyVersion","payloadHash","createdByParticipantId","updatedAt",
+            "agreedAt")
          VALUES ($1,$2,$3,'AGREEMENT',$4::"CircleArtifactStatus",'ct','nonce',1,
-                 'p-artifact',now(),$5)`,
+                 '${HMAC_HEX}', 'p-artifact',now(),$5)`,
         [
           id,
           activityId,
@@ -867,9 +876,10 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
       pool.query(
         `INSERT INTO "CircleArtifact"
            ("id","activityId","version","kind","status","ciphertext","nonce",
-            "keyVersion","createdByParticipantId","updatedAt","agreedAt")
-         VALUES ('art-5',$1,9,'AGREEMENT','AGREED','ct','nonce',1,'p-artifact',
-                 now(),NULL)`,
+            "keyVersion","payloadHash","createdByParticipantId","updatedAt",
+            "agreedAt")
+         VALUES ('art-5',$1,9,'AGREEMENT','AGREED','ct','nonce',1,'${HMAC_HEX}',
+                 'p-artifact',now(),NULL)`,
         [activityId],
       ),
     );
@@ -1292,8 +1302,9 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
       pool.query(
         `INSERT INTO "CircleArtifact"
            ("id","activityId","version","kind","status","ciphertext","nonce",
-            "keyVersion","createdByParticipantId","updatedAt")
-         VALUES ($1,$2,1,'AGREEMENT','PROPOSED','ct','nonce',1,$3,now())`,
+            "keyVersion","payloadHash","createdByParticipantId","updatedAt")
+         VALUES ($1,$2,1,'AGREEMENT','PROPOSED','ct','nonce',1,'${HMAC_HEX}',
+                 $3,now())`,
         [`art-cross-${w.seq}`, w.a, w.seatB],
       ),
     );

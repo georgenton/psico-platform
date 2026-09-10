@@ -149,3 +149,99 @@ describe("circles crypto · the key, and the posture that decides it", () => {
     }
   });
 });
+
+describe("circles crypto · the payload MAC is verified, not merely stored", () => {
+  const unreadable = (fn: () => unknown) => {
+    try {
+      fn();
+    } catch (err) {
+      expect(err).toBeInstanceOf(CirclesCryptoError);
+      return (err as CirclesCryptoError).code;
+    }
+    throw new Error("expected a refusal");
+  };
+
+  it("refuses an envelope whose payload hash was stripped", () => {
+    // The shape the previous code produced on every read: `openEnvelope`
+    // passed `payloadHash ?? ""`, and `open()` never looked at it. An empty
+    // hash opened exactly like a correct one.
+    const sealed = cipher.seal(BODY, context());
+    expect(
+      unreadable(() => cipher.open({ ...sealed, payloadHash: "" }, context())),
+    ).toBe("CIRCLES_ENVELOPE_UNREADABLE");
+  });
+
+  it("refuses an altered payload hash", () => {
+    const sealed = cipher.seal(BODY, context());
+    const flipped =
+      (sealed.payloadHash[0] === "a" ? "b" : "a") + sealed.payloadHash.slice(1);
+    expect(
+      unreadable(() =>
+        cipher.open({ ...sealed, payloadHash: flipped }, context()),
+      ),
+    ).toBe("CIRCLES_ENVELOPE_UNREADABLE");
+  });
+
+  it("refuses a hash computed for another context", () => {
+    // The MAC covers the AAD as well as the body, so a hash lifted from
+    // another seat's envelope does not verify here even though it is a
+    // perfectly well-formed digest of the same sentence.
+    const sealed = cipher.seal(BODY, context());
+    const elsewhere = cipher.macOf(BODY, context({ participantId: "p-2" }));
+    expect(elsewhere).not.toBe(sealed.payloadHash);
+    expect(
+      unreadable(() =>
+        cipher.open({ ...sealed, payloadHash: elsewhere }, context()),
+      ),
+    ).toBe("CIRCLES_ENVELOPE_UNREADABLE");
+  });
+
+  it("still opens when everything agrees", () => {
+    const sealed = cipher.seal(BODY, context());
+    expect(cipher.open(sealed, context())).toBe(BODY);
+  });
+
+  it("does not treat two absent hashes as a match", () => {
+    // `timingSafeEqual` on two empty buffers is TRUE. Without an explicit
+    // width requirement, "no hash" would verify against "no hash".
+    expect(cipher.macMatches("", "")).toBe(false);
+    expect(cipher.macMatches("abc", "abc")).toBe(false);
+    const h = cipher.macOf(BODY, context());
+    expect(cipher.macMatches(h, h)).toBe(true);
+  });
+});
+
+describe("circles crypto · `off` means the capability is absent", () => {
+  it("returns no cipher under `off` EVEN WITH a valid key configured", () => {
+    // The negative control for G. A valid key used to produce a working
+    // cipher under `off` — an unused capability sitting in the process,
+    // one lost guard away from encrypting in a deployment where Círculos is
+    // supposed not to exist.
+    const valid = randomBytes(32).toString("base64");
+    expect(parseCirclesKey(valid)).toHaveLength(32);
+    expect(
+      resolveCirclesCipher({ [CIRCLES_KEY_ENV]: valid }, "off"),
+      "off + valid key",
+    ).toBeNull();
+  });
+
+  it("still boots under `off` with a missing or malformed key", () => {
+    expect(resolveCirclesCipher({}, "off")).toBeNull();
+    expect(
+      resolveCirclesCipher({ [CIRCLES_KEY_ENV]: "   " }, "off"),
+    ).toBeNull();
+    expect(
+      resolveCirclesCipher({ [CIRCLES_KEY_ENV]: "not-base64!!" }, "off"),
+    ).toBeNull();
+  });
+
+  it("still builds one under `pilot` and `on` with that same valid key", () => {
+    const valid = randomBytes(32).toString("base64");
+    expect(
+      resolveCirclesCipher({ [CIRCLES_KEY_ENV]: valid }, "pilot"),
+    ).toBeInstanceOf(CirclesCipher);
+    expect(
+      resolveCirclesCipher({ [CIRCLES_KEY_ENV]: valid }, "on"),
+    ).toBeInstanceOf(CirclesCipher);
+  });
+});

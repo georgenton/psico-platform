@@ -139,9 +139,27 @@ export class CircleActivityRepository {
    * The reveal barrier, as one statement.
    *
    * Everything the barrier means is in the WHERE clause: the activity is still
-   * `PREPARING`, has never been revealed, and the number of seats at `READY`
-   * equals the number required — counted by PostgreSQL, inside this statement,
-   * under the lock this transaction already holds.
+   * `PREPARING`, has never been revealed, and the seats satisfy BOTH counts —
+   * computed by PostgreSQL, inside this statement, under the lock this
+   * transaction already holds.
+   *
+   * ── Why two counts and not one ────────────────────────────────────────────
+   *
+   * The first version asked only "are there `requiredParticipants` seats at
+   * READY". For a Dúo that reads as "both of them confirmed", and it is not
+   * what it says. It says "two seats confirmed" — and if a third row existed
+   * on the activity, two of three confirming would open the reveal while the
+   * third seat sat there unconfirmed. That seat would then be inside a
+   * revealed activity having given nothing, which is the precise failure the
+   * barrier exists to prevent.
+   *
+   * A third row should be impossible: `CircleActivity_duo_requires_two`
+   * pins `requiredParticipants` and PR2's constraints bound the seats. But
+   * "should be impossible" is an argument about other code, and this is the
+   * statement that decides whether two people's private answers become
+   * visible to each other. Requiring the TOTAL to match as well makes an
+   * anomalous row block the reveal rather than ride it: the activity stays
+   * `PREPARING`, nothing is exposed, and somebody has to look.
    *
    * Returns whether THIS caller revealed it. Exactly one of two concurrent
    * confirmations can get `true`, which is what makes "exactly one
@@ -162,6 +180,10 @@ export class CircleActivityRepository {
            AND (
              SELECT count(*) FROM "CircleActivityParticipant" p
               WHERE p."activityId" = a."id" AND p."status" = 'READY'
+           ) = a."requiredParticipants"
+           AND (
+             SELECT count(*) FROM "CircleActivityParticipant" p
+              WHERE p."activityId" = a."id"
            ) = a."requiredParticipants"
       `);
       return updated === 1;

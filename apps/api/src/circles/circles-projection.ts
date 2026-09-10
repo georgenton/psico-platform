@@ -76,15 +76,26 @@ function toRevealedShare(body: string | null): CircleRevealedShare | null {
 }
 
 /**
- * Whether this actor is still entitled to revealed content.
+ * Whether this actor is entitled to revealed content.
  *
- * A withdrawn seat keeps nothing: withdrawing after the reveal revokes future
- * access, and "future" includes the next GET. It cannot un-see what was already
- * read, and the product does not pretend otherwise — but it does not keep
- * serving it either.
+ * `READY` and nothing else. Two things this closes:
+ *
+ *   · A WITHDRAWN seat keeps nothing. Withdrawing after the reveal revokes
+ *     future access, and "future" includes the next GET. It cannot un-see what
+ *     was already read, and the product does not pretend otherwise — but it
+ *     does not keep serving it either.
+ *
+ *   · `ACCEPTED` no longer qualifies. It used to, and after the barrier that
+ *     is exactly wrong: the reveal is a trade. `ACCEPTED` means a seat took
+ *     part but has no confirmed snapshot — either it never confirmed, or its
+ *     envelope was purged when the counterpart withdrew before the reveal. A
+ *     seat in that state reading the other person's answer would be receiving
+ *     without giving, which is the one thing the barrier exists to prevent.
+ *     Before the reveal the question never arises; after it, `READY` is what
+ *     "I am in this exchange" means.
  */
-function stillParticipating(self: CircleParticipantRow): boolean {
-  return self.status === "READY" || self.status === "ACCEPTED";
+function mayReadRevealedContent(self: CircleParticipantRow): boolean {
+  return self.status === "READY";
 }
 
 export function projectActivity(input: ProjectionInput): CircleActivityView {
@@ -94,7 +105,17 @@ export function projectActivity(input: ProjectionInput): CircleActivityView {
     activity.status === "FOLLOW_UP" ||
     (activity.status === "CLOSED" && activity.revealedAt !== null);
 
-  const mayReadRevealed = revealedStage && stillParticipating(self);
+  // Decided HERE, from the seat's own row — not from whether the caller
+  // supplied a body.
+  //
+  // The service already refuses to decrypt for an unentitled seat, so in
+  // practice `counterpartBody` arrives `null`. That is a property of today's
+  // caller, and this function is the last thing between a decrypted sentence
+  // and the network: if a future caller — a batch read, a new surface, a
+  // refactor that hoists the decryption — hands over bodies it should not
+  // have, the answer must still be no. Two independent checks, and the one
+  // closest to the response wins.
+  const mayReadRevealed = revealedStage && mayReadRevealedContent(self);
   const counterpartShare = mayReadRevealed
     ? toRevealedShare(input.counterpartBody)
     : null;
@@ -132,8 +153,12 @@ export function projectActivity(input: ProjectionInput): CircleActivityView {
 
     revealed: counterpartShare ? { counterpart: counterpartShare } : null,
 
+    // The shared result is revealed content too. It is built FROM both
+    // people's answers, so a seat that may not read the reveal may not read
+    // the artifact either — and `mayReadRevealed` is the same gate, applied
+    // to the same row, for the same reason.
     artifact:
-      input.artifact && input.artifact.body !== null
+      mayReadRevealed && input.artifact && input.artifact.body !== null
         ? {
             artifactId: input.artifact.id,
             version: input.artifact.version,

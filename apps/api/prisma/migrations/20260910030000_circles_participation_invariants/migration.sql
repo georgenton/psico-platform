@@ -114,3 +114,25 @@ ALTER TABLE "CircleActivityParticipant"
       AND cardinality("fieldKeys") = 0
     )
   );
+
+-- ── The artifact carries its own payload MAC ───────────────────────────────
+-- The participant snapshot has had `payloadHash` since PR2; the artifact did
+-- not, so `open()` was being handed an empty string and had nothing to verify.
+-- Adding it here makes the two envelope shapes the same shape, and gives
+-- proposal idempotency something to compare: "same key, same content" is a
+-- lookup against this column rather than against a plaintext nobody kept.
+--
+-- NOT NULL with no default, deliberately. `CircleArtifact` has never had a
+-- writer: PR2 created the table and shipped no participation surface, and
+-- every Círculos route has answered 503 under `CIRCLES_ROLLOUT_MODE=off`
+-- since. The table is empty by construction, so a backfill default would only
+-- be there to paper over an assumption — and if the assumption were ever
+-- wrong, failing this migration loudly beats inventing 64 zeros and calling
+-- them an integrity check.
+ALTER TABLE "CircleArtifact" ADD COLUMN "payloadHash" TEXT NOT NULL;
+
+-- The shape of an HMAC-SHA256 in hex, so a truncated or blanked value is a
+-- refusal at write time rather than a silent verification failure at read time.
+ALTER TABLE "CircleArtifact"
+  ADD CONSTRAINT "CircleArtifact_payload_hash_is_hmac_hex"
+  CHECK ("payloadHash" ~ '^[0-9a-f]{64}$');

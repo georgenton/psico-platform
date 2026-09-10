@@ -145,24 +145,111 @@ export function parseShareBody(
   } catch {
     return null;
   }
-  if (typeof parsed !== "object" || parsed === null) return null;
-  const body = parsed as Record<string, unknown>;
-  if (body.mode === "KEEP_PRIVATE" && Object.keys(body).length === 1) {
-    return { mode: "KEEP_PRIVATE" };
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    return null;
   }
-  if (body.mode === "EDITED_SUMMARY" && typeof body.summary === "string") {
+  const body = parsed as Record<string, unknown>;
+
+  if (body.mode === "KEEP_PRIVATE") {
+    // Exactly one key. `KEEP_PRIVATE` means "nothing", and a body carrying a
+    // `reason` alongside it is not a stricter version of nothing — it is the
+    // explanation the type deliberately has no room for.
+    return exactKeys(body, ["mode"]) ? { mode: "KEEP_PRIVATE" } : null;
+  }
+
+  if (body.mode === "EDITED_SUMMARY") {
+    if (!exactKeys(body, ["mode", "summary"])) return null;
+    if (typeof body.summary !== "string") return null;
+    if (body.summary.trim().length === 0) return null;
+    if (body.summary.length > CIRCLE_SHARE_LIMITS.maxSummaryLength) return null;
     return { mode: "EDITED_SUMMARY", summary: body.summary };
   }
-  if (body.mode === "SELECTED_FIELDS" && Array.isArray(body.fields)) {
-    const fields = body.fields.filter(
-      (f): f is { fieldKey: string; value: string } =>
-        typeof f === "object" &&
-        f !== null &&
-        typeof (f as { fieldKey?: unknown }).fieldKey === "string" &&
-        typeof (f as { value?: unknown }).value === "string",
-    );
-    if (fields.length !== body.fields.length) return null;
+
+  if (body.mode === "SELECTED_FIELDS") {
+    if (!exactKeys(body, ["mode", "fields"])) return null;
+    if (!Array.isArray(body.fields)) return null;
+    if (body.fields.length === 0) return null;
+    if (body.fields.length > CIRCLE_SHARE_LIMITS.maxFields) return null;
+    const seen = new Set<string>();
+    const fields: { fieldKey: string; value: string }[] = [];
+    for (const raw of body.fields) {
+      if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+        return null;
+      }
+      const f = raw as Record<string, unknown>;
+      if (!exactKeys(f, ["fieldKey", "value"])) return null;
+      if (typeof f.fieldKey !== "string" || typeof f.value !== "string") {
+        return null;
+      }
+      if (f.fieldKey.length === 0 || f.fieldKey.length > 128) return null;
+      if (f.value.trim().length === 0) return null;
+      if (f.value.length > CIRCLE_SHARE_LIMITS.maxFieldLength) return null;
+      // A duplicate key is not a harmless repeat: it makes "what did they
+      // answer for X" have two answers, and whichever a reader picks is
+      // arbitrary.
+      if (seen.has(f.fieldKey)) return null;
+      seen.add(f.fieldKey);
+      fields.push({ fieldKey: f.fieldKey, value: f.value });
+    }
     return { mode: "SELECTED_FIELDS", fields };
   }
+
   return null;
+}
+
+/** The object has these keys and no others. Order-independent. */
+function exactKeys(obj: Record<string, unknown>, keys: string[]): boolean {
+  const own = Object.keys(obj);
+  return own.length === keys.length && keys.every((k) => own.includes(k));
+}
+
+/**
+ * Everything that must be true of a decrypted snapshot before it is served.
+ *
+ * ── Why authentication is not enough ───────────────────────────────────────
+ *
+ * `open()` proves the bytes are ours, unmodified, and bound to this exact
+ * circle, activity, seat, template pin, sharing mode and field-key set. That
+ * is a strong statement about PROVENANCE and says nothing about MEANING. A bug
+ * on the way in, a template edited between two deployments, or a key rotation
+ * that opened a row written under an older shape all produce bytes that
+ * authenticate perfectly and are not a valid answer to the question that was
+ * asked.
+ *
+ * So the plaintext is put back through the same door it came in:
+ *
+ *   1. `parseShareBody` rebuilds a CLOSED shape — exact keys, no extras, no
+ *      duplicates, no empties, every length inside its limit;
+ *   2. `validateShareAgainstTemplate` re-checks it against the template the
+ *      activity is PINNED to, so a field key the template no longer declares
+ *      stops being served rather than quietly persisting;
+ *   3. the mode and field keys are compared against the values stored on the
+ *      row — the same values the AAD bound. They should agree by construction;
+ *      if they ever do not, the row and its envelope disagree about what the
+ *      person confirmed, and there is no safe way to pick a winner.
+ *
+ * Returns `null` on any failure. A payload that is authentic but semantically
+ * invalid fails closed and is never serialized.
+ */
+export function verifyDecryptedShare(
+  plaintext: string,
+  definition: CircleActivityDefinition,
+  row: { readonly sharingMode: string | null; readonly fieldKeys: string[] },
+): CircleShareConfirmation | null {
+  const parsed = parseShareBody(plaintext);
+  if (!parsed) return null;
+
+  let shape: ValidatedShare;
+  try {
+    shape = validateShareAgainstTemplate(parsed, definition);
+  } catch {
+    return null;
+  }
+
+  if (shape.mode !== row.sharingMode) return null;
+  const stored = [...row.fieldKeys].sort();
+  if (shape.fieldKeys.length !== stored.length) return null;
+  if (shape.fieldKeys.some((k, i) => k !== stored[i])) return null;
+
+  return parsed;
 }

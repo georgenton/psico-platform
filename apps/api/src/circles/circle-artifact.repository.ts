@@ -33,6 +33,8 @@ export interface CircleArtifactRow {
   ciphertext: string;
   nonce: string;
   keyVersion: number;
+  /** Keyed digest of the body, bound to the same AAD. Verified on every open. */
+  payloadHash: string;
   createdByParticipantId: string;
   agreedAt: Date | null;
 }
@@ -46,6 +48,7 @@ const SELECT = {
   ciphertext: true,
   nonce: true,
   keyVersion: true,
+  payloadHash: true,
   createdByParticipantId: true,
   agreedAt: true,
 } as const;
@@ -83,7 +86,8 @@ export class CircleArtifactRepository {
     try {
       return await tx.$queryRaw<CircleArtifactRow[]>(Prisma.sql`
         SELECT "id", "activityId", "version", "kind", "status", "ciphertext",
-               "nonce", "keyVersion", "createdByParticipantId", "agreedAt"
+               "nonce", "keyVersion", "payloadHash", "createdByParticipantId",
+               "agreedAt"
           FROM "CircleArtifact"
          WHERE "activityId" = ${activityId}
          ORDER BY "id"
@@ -126,6 +130,7 @@ export class CircleArtifactRepository {
           ciphertext: input.envelope.ciphertext,
           nonce: input.envelope.nonce,
           keyVersion: input.envelope.keyVersion,
+          payloadHash: input.envelope.payloadHash,
           createdByParticipantId: input.createdByParticipantId,
         },
         select: { id: true },

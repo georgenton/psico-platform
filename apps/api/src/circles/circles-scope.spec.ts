@@ -202,41 +202,107 @@ describe("circles · PR2 — the inviter is locked, in a fixed order", () => {
     expect(repo).not.toMatch(/tx: CircleMemberTx = /);
   });
 
-  it("locks the activity before the seat in every participation command", () => {
+  it("takes every participation lock in the canonical order", () => {
     // The order is a property of the command, and the source is where it is
     // decided. Reading it out of the file rather than trusting the comment
     // above it is what makes this a ratchet instead of documentation.
     const src = read(`${CIRCLES_DIR}/circles-participation.service.ts`);
+    const before = (a: string, b: string, where: string, label: string) => {
+      const i = where.indexOf(a);
+      const j = where.indexOf(b);
+      expect(i, `${label}: "${a}" present`).toBeGreaterThan(-1);
+      expect(j, `${label}: "${b}" present`).toBeGreaterThan(-1);
+      expect(i, `${label}: ${a} before ${b}`).toBeLessThan(j);
+    };
+
+    // ── The shared spine: authority, then activity, then seat ───────────
     const authority = src.slice(
       src.indexOf("private async resolveAuthority"),
+      src.indexOf("private async resolveGuestAuthority"),
+    );
+    before(
+      "this.members.lockById",
+      "this.activities.lockById",
+      authority,
+      "resolveAuthority",
+    );
+    before(
+      "this.activities.lockById",
+      "this.participants.lockForActivity",
+      authority,
+      "resolveAuthority",
+    );
+    // The guest branch is delegated, and it is delegated BEFORE the activity
+    // is locked — otherwise the session lock would come after it.
+    before(
+      "this.resolveGuestAuthority",
+      "this.activities.lockById",
+      authority,
+      "resolveAuthority",
+    );
+
+    // ── The guest chain: member, invitation, session ────────────────────
+    const guest = src.slice(
+      src.indexOf("private async resolveGuestAuthority"),
       src.indexOf("// ══ Create"),
     );
-    const member = authority.indexOf("this.members.lockById");
-    const session = authority.indexOf("this.guestSessions.findById");
-    const activity = authority.indexOf("this.activities.lockById");
-    const seat = authority.indexOf("this.participants.lockForActivity");
-    expect(
-      [member, session, activity, seat].every((i) => i > 0),
-      "all four steps present",
-    ).toBe(true);
-    expect(
-      [member, session, activity, seat],
-      "member, session, activity, then seat",
-    ).toEqual([member, session, activity, seat].sort((a, b) => a - b));
+    before(
+      "this.members.lockById",
+      "this.invitations.lockById",
+      guest,
+      "resolveGuestAuthority",
+    );
+    before(
+      "this.invitations.lockById",
+      "this.guestSessions.lockById",
+      guest,
+      "resolveGuestAuthority",
+    );
+    // The unlocked reads exist ONLY to resolve ids, so they must come before
+    // the first lock — a peek taken after a lock would be a decision made on
+    // stale data while holding something.
+    before(
+      "this.guestSessions.findById",
+      "this.members.lockById",
+      guest,
+      "resolveGuestAuthority",
+    );
 
     // The artifact comes last, in the two commands that touch it.
     for (const command of ["proposeArtifact", "confirmArtifact"]) {
       const body = src.slice(src.indexOf(`async ${command}(`));
-      const auth = body.indexOf("resolveAuthority");
-      const art = body.indexOf("this.artifacts.lockForActivity");
-      expect(
-        [auth, art].every((i) => i > 0),
+      before(
+        "resolveAuthority",
+        "this.artifacts.lockForActivity",
+        body,
         command,
-      ).toBe(true);
-      expect(auth, `${command}: authority before the artifact`).toBeLessThan(
-        art,
       );
     }
+  });
+
+  it("re-derives the guest's inviter inside the transaction", () => {
+    // A guest holds no membership. Their authority is borrowed from the
+    // member who invited them, so a command that does not re-check that
+    // member is trusting a decision made when the session was minted — which
+    // may have been days ago.
+    const guest = read(`${CIRCLES_DIR}/circles-participation.service.ts`).slice(
+      read(`${CIRCLES_DIR}/circles-participation.service.ts`).indexOf(
+        "private async resolveGuestAuthority",
+      ),
+    );
+    const body = guest.slice(0, guest.indexOf("// ══ Create"));
+    expect(body, "inviter must still be ACTIVE").toContain(
+      'inviter.status !== "ACTIVE"',
+    );
+    expect(body, "pilot allowlist re-checked from the locked row").toContain(
+      "this.rollout.isAvailable(inviter.userId)",
+    );
+    expect(body, "the session must name the actor's own seat").toContain(
+      "session.participantId !== actor.participantId",
+    );
+    expect(body, "a revoked invitation is refused").toContain(
+      "invitation.revokedAt !== null",
+    );
   });
 
   it("states the lock order where the next author will read it", () => {

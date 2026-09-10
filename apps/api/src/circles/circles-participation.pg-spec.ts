@@ -957,6 +957,36 @@ suite("circles · participation (real PostgreSQL)", () => {
     expect(row.rows[0]).toMatchObject({ fieldKeys: [], m: "KEEP_PRIVATE" });
   }, 30_000);
 
+  it("stores a sealed envelope, never the confirmed text", async () => {
+    // The row is what an operator, a backup, or somebody with a stolen dump
+    // sees. What must not be there is the sentence the person wrote.
+    const duo = await makeDuo();
+    const written = "una frase que no puede aparecer en la fila";
+    await service.confirmShare(
+      duo.organizer,
+      duo.activityId,
+      {
+        mode: "SELECTED_FIELDS",
+        fields: [{ fieldKey: "campo-a", value: written }],
+      },
+      randomUUID(),
+    );
+    const row = await pool.query(
+      `SELECT to_jsonb(p) AS row FROM "CircleActivityParticipant" p WHERE id=$1`,
+      [duo.organizerSeatId],
+    );
+    const serialized = JSON.stringify(row.rows[0].row);
+    expect(serialized).not.toContain(written);
+    // And the ciphertext is not merely the body in another encoding.
+    const stored = row.rows[0].row as { ciphertext: string };
+    expect(
+      Buffer.from(stored.ciphertext, "base64").toString("utf8"),
+    ).not.toContain(written);
+    // What IS there decrypts back, so this is encryption and not deletion.
+    const { ctx } = await service.readActivity(duo.organizer, duo.activityId);
+    expect(service.openEnvelope(ctx.self, ctx.activity)).toContain(written);
+  }, 30_000);
+
   it("refuses a guest reading another activity, and a revoked session", async () => {
     const a = await makeDuo();
     const b = await makeDuo();

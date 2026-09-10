@@ -202,9 +202,50 @@ describe("circles · PR2 — the inviter is locked, in a fixed order", () => {
     expect(repo).not.toMatch(/tx: CircleMemberTx = /);
   });
 
+  it("locks the activity before the seat in every participation command", () => {
+    // The order is a property of the command, and the source is where it is
+    // decided. Reading it out of the file rather than trusting the comment
+    // above it is what makes this a ratchet instead of documentation.
+    const src = read(`${CIRCLES_DIR}/circles-participation.service.ts`);
+    const authority = src.slice(
+      src.indexOf("private async resolveAuthority"),
+      src.indexOf("// ══ Create"),
+    );
+    const member = authority.indexOf("this.members.lockById");
+    const session = authority.indexOf("this.guestSessions.findById");
+    const activity = authority.indexOf("this.activities.lockById");
+    const seat = authority.indexOf("this.participants.lockForActivity");
+    expect(
+      [member, session, activity, seat].every((i) => i > 0),
+      "all four steps present",
+    ).toBe(true);
+    expect(
+      [member, session, activity, seat],
+      "member, session, activity, then seat",
+    ).toEqual([member, session, activity, seat].sort((a, b) => a - b));
+
+    // The artifact comes last, in the two commands that touch it.
+    for (const command of ["proposeArtifact", "confirmArtifact"]) {
+      const body = src.slice(src.indexOf(`async ${command}(`));
+      const auth = body.indexOf("resolveAuthority");
+      const art = body.indexOf("this.artifacts.lockForActivity");
+      expect(
+        [auth, art].every((i) => i > 0),
+        command,
+      ).toBe(true);
+      expect(auth, `${command}: authority before the artifact`).toBeLessThan(
+        art,
+      );
+    }
+  });
+
   it("states the lock order where the next author will read it", () => {
     const src = code(read(`${CIRCLES_DIR}/circles.service.ts`));
     expect(src).toContain("lockAndAssertInviter");
+    expect(
+      read(`${CIRCLES_DIR}/circles-participation.service.ts`),
+      "the participation service states it too",
+    ).toContain("LOCK ORDER — MANDATORY");
     expect(read(`${CIRCLES_DIR}/circles.service.ts`)).toContain(
       "CircleMember  ->  CircleInvitation  ->  CircleGuestSession  ->",
     );

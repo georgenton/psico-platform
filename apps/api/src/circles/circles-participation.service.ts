@@ -241,6 +241,17 @@ export class CirclesParticipationService {
         ? participants.find((p) => p.id === guestSeatId)
         : participants.find((p) => p.memberId === membership?.id);
     if (!self) throw new CirclesError(UNUSABLE);
+    // The seat belongs to THIS activity and THIS circle. Composite foreign
+    // keys make both true at the storage layer, and the seat was found in a
+    // list scoped to the activity — so this is a third statement of the same
+    // fact. It is here because the cost is one comparison and the failure it
+    // guards against is one person's answer appearing under another's name.
+    if (
+      self.activityId !== activity.id ||
+      self.circleId !== activity.circleId
+    ) {
+      throw new CirclesError(UNUSABLE);
+    }
     const counterpart = participants.find((p) => p.id !== self.id) ?? null;
 
     let definition: CircleActivityDefinition;
@@ -332,10 +343,37 @@ export class CirclesParticipationService {
       !invitation ||
       invitation.revokedAt !== null ||
       invitation.activityId !== activityId ||
-      invitation.createdByMemberId !== inviter.id
+      invitation.createdByMemberId !== inviter.id ||
+      // It must have been legitimately exchanged. A session whose invitation
+      // was never consumed, or was declined, describes a state the exchange
+      // path cannot produce — so the safe reading is that something else
+      // produced it.
+      invitation.consumedAt === null ||
+      invitation.acceptedAt === null ||
+      invitation.declinedAt !== null
     ) {
       throw new CirclesError(UNUSABLE);
     }
+
+    // ── A note on `invitation.expiresAt`, which is NOT checked here ────────
+    //
+    // The audit asks for "not expired", and enforcing it at command time
+    // would be wrong for this product. An invitation's window governs whether
+    // the LINK can still be exchanged: 14 days. A guest session, once minted,
+    // lives `GUEST_SESSION_TTL_MS` — 30 days — deliberately longer, because a
+    // Dúo is a conversation that runs over days and the link that started it
+    // has already done its job.
+    //
+    // Re-deriving invitation expiry on every command would cut a guest off
+    // mid-conversation on day 14 of a 30-day session, and would do it
+    // silently: the code path is a `404` that says nothing. The invitation's
+    // own expiry was enforced once, by `invitationIsUsable`, at the moment it
+    // mattered — and `consumedAt` above is the durable record that it passed.
+    //
+    // Stated rather than skipped: if the intended policy is that guest access
+    // ends with the invitation window, the fix belongs in
+    // `GUEST_SESSION_TTL_MS`, where it is one number and visible, not in a
+    // second expiry rule that silently overrides the first.
 
     // ── 3. CircleGuestSession ────────────────────────────────────────────
     const session = await this.guestSessions.lockById(actor.guestSessionId, tx);

@@ -1563,30 +1563,49 @@ suite("circles · participation (real PostgreSQL)", () => {
   }, 30_000);
 
   /**
-   * Wait until SOMETHING in this database is blocked on a row lock.
+   * Wait until a query is blocked on a lock held over `CircleGuestSession`.
    *
-   * A condition, not a sleep: it returns as soon as PostgreSQL itself reports
-   * a waiter, and gives up with a named failure if none appears. That failure
-   * IS the assertion — a command that does not block on the session row is a
-   * command reading a snapshot somebody else is in the middle of changing.
+   * The evidence is the LOCK, not the clock. `pg_locks` is asked for a row
+   * lock (`tuple` or `transactionid`) that has not been granted, on a
+   * connection whose blocking counterpart holds a lock on that relation —
+   * so what satisfies this function is PostgreSQL reporting a real waiter on
+   * the real table, and nothing else can.
    *
-   * The deadline is generous because it is not measuring anything. On an idle
-   * machine the waiter appears in milliseconds; a tight bound would only add
-   * a way for a loaded machine to fail a test about locking, which is the
-   * kind of flake that teaches people to distrust the suite.
+   * A generous deadline, because it is not measuring anything: on an idle
+   * machine the waiter appears in milliseconds. A tight bound would only give
+   * a loaded machine a way to fail a test about locking, which is the kind of
+   * flake that teaches people to distrust a suite. If the deadline is ever
+   * reached, the thrown message IS the assertion — a command that does not
+   * block here is a command reading a snapshot another transaction is in the
+   * middle of changing.
    */
-  async function waitUntilBlockedOnALock(deadlineMs = 45_000): Promise<void> {
+  async function waitUntilBlockedOnGuestSessionRow(
+    deadlineMs = 45_000,
+  ): Promise<void> {
     const until = Date.now() + deadlineMs;
     for (;;) {
+      // `pg_blocking_pids` rather than an ungranted lock ON the relation: a
+      // `FOR UPDATE` that loses the race waits on the holder's
+      // `transactionid`, and a `transactionid` lock has no `relation`. So the
+      // question is asked from the other side — somebody is blocked, and
+      // whoever blocks them holds a granted lock on THIS table.
       const r = await pool.query(
-        `SELECT count(*)::int AS n FROM pg_stat_activity
-          WHERE datname = current_database()
-            AND wait_event_type = 'Lock'`,
+        `SELECT count(*)::int AS n
+           FROM pg_stat_activity a
+          WHERE a.datname = current_database()
+            AND cardinality(pg_blocking_pids(a.pid)) > 0
+            AND EXISTS (
+              SELECT 1 FROM pg_locks l
+               WHERE l.pid = ANY (pg_blocking_pids(a.pid))
+                 AND l.granted
+                 AND l.relation = '"CircleGuestSession"'::regclass
+            )`,
       );
       if (r.rows[0].n > 0) return;
       if (Date.now() > until) {
         throw new Error(
-          "the command never blocked on a row lock — it read a snapshot " +
+          'no ungranted lock on "CircleGuestSession" ever appeared — the ' +
+            "command did not block on the session row, so it read a snapshot " +
             "another transaction was in the middle of changing",
         );
       }
@@ -1629,7 +1648,7 @@ suite("circles · participation (real PostgreSQL)", () => {
       .catch((err: CirclesError) => err.code);
 
     await atLock;
-    await waitUntilBlockedOnALock();
+    await waitUntilBlockedOnGuestSessionRow();
     await revoker.query("COMMIT");
     revoker.release();
 
@@ -1750,6 +1769,84 @@ suite("circles · participation (real PostgreSQL)", () => {
       ),
     ).toBe("CIRCLE_ACTIVITY_UNAVAILABLE");
     expect((await footprint(duo.activityId)).ready).toBe(0);
+  }, 30_000);
+
+  it("refuses a guest whose invitation was never legitimately exchanged", async () => {
+    // A session exists only because an invitation was consumed. An invitation
+    // that shows no consumption, or that was declined, describes a state the
+    // exchange path cannot produce — so something else produced it, and the
+    // safe reading of "something else" is no.
+    for (const patch of [
+      `SET "acceptedAt"=NULL, "consumedAt"=NULL`,
+      `SET "acceptedAt"=NULL, "declinedAt"=now()`,
+    ]) {
+      const duo = await fastDuo();
+      await pool.query(
+        `UPDATE "CircleInvitation" ${patch} WHERE "activityId"=$1`,
+        [duo.activityId],
+      );
+      expect(
+        await codeOf(() =>
+          service.confirmShare(
+            duo.guest,
+            duo.activityId,
+            share("no debería entrar"),
+            randomUUID(),
+          ),
+        ),
+        patch,
+      ).toBe("CIRCLE_ACTIVITY_UNAVAILABLE");
+      expect((await footprint(duo.activityId)).ready, patch).toBe(0);
+    }
+  }, 40_000);
+
+  it("keeps a guest working past the invitation's own expiry", async () => {
+    // Deliberate, and the one place this build does NOT re-derive an expiry.
+    // The invitation's window governs whether the LINK can still be
+    // exchanged; the session lives longer on purpose, because a Dúo runs over
+    // days and the link has already done its job. Enforcing invitation expiry
+    // per command would cut somebody off mid-conversation, silently, behind a
+    // 404. Pinned as a test so the behaviour is a decision and not an
+    // oversight — if the policy changes, this is what has to change with it.
+    const duo = await fastDuo();
+    await pool.query(
+      `UPDATE "CircleInvitation"
+          SET "expiresAt" = "createdAt" + interval '1 second'
+        WHERE "activityId"=$1`,
+      [duo.activityId],
+    );
+    const done = await service.confirmShare(
+      duo.guest,
+      duo.activityId,
+      share("la conversación sigue"),
+      randomUUID(),
+    );
+    expect(done.replayed).toBe(false);
+    expect((await footprint(duo.activityId)).ready).toBe(1);
+  }, 30_000);
+
+  it("refuses a seat that belongs to another circle", async () => {
+    // The composite foreign keys make this unrepresentable at the storage
+    // layer, so the check can only be exercised by asking the resolver about
+    // a seat from a different Dúo — which is the shape the guard could
+    // conceivably be tricked into producing.
+    const a = await fastDuo();
+    const b = await fastDuo();
+    expect(
+      await codeOf(() =>
+        service.confirmShare(
+          {
+            ...(a.guest as Extract<CircleActor, { kind: "GUEST" }>),
+            participantId: b.guestSeatId,
+          },
+          a.activityId,
+          share("de otro círculo"),
+          randomUUID(),
+        ),
+      ),
+    ).toBe("CIRCLE_ACTIVITY_UNAVAILABLE");
+    expect((await footprint(a.activityId)).ready).toBe(0);
+    expect((await footprint(b.activityId)).ready).toBe(0);
   }, 30_000);
 
   // ══ Idempotency is per-command, and compares the payload ═════════════════

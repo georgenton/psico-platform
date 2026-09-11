@@ -3880,6 +3880,227 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/circles/duo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a Dúo and its first activity */
+        post: operations["CirclesMemberParticipationController_createDuo"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/circles/activities/{activityId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The activity, filtered for this actor */
+        get: operations["CirclesMemberParticipationController_activity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/circles/activities/{activityId}/share-confirmations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm what you share; may trigger the reveal */
+        post: operations["CirclesMemberParticipationController_confirmShare"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/circles/activities/{activityId}/withdraw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Leave. No reason is accepted. */
+        post: operations["CirclesMemberParticipationController_withdraw"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/circles/activities/{activityId}/artifact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Propose or edit the shared result */
+        put: operations["CirclesMemberParticipationController_proposeArtifact"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/circles/activities/{activityId}/artifact/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm an exact artifact and version */
+        post: operations["CirclesMemberParticipationController_confirmArtifact"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/circles/activities/{activityId}/follow-up": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record KEEP | ADJUST | CLOSE */
+        post: operations["CirclesMemberParticipationController_followUp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/circles/guest/activities/{activityId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The activity, filtered for this guest */
+        get: operations["CirclesGuestParticipationController_activity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/circles/guest/activities/{activityId}/share-confirmations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm what you share; may trigger the reveal */
+        post: operations["CirclesGuestParticipationController_confirmShare"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/circles/guest/activities/{activityId}/withdraw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Leave. No reason is accepted. */
+        post: operations["CirclesGuestParticipationController_withdraw"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/circles/guest/activities/{activityId}/artifact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Propose or edit the shared result */
+        put: operations["CirclesGuestParticipationController_proposeArtifact"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/circles/guest/activities/{activityId}/artifact/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm an exact artifact and version */
+        post: operations["CirclesGuestParticipationController_confirmArtifact"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/circles/guest/activities/{activityId}/follow-up": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record KEEP | ADJUST | CLOSE */
+        post: operations["CirclesGuestParticipationController_followUp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -5696,6 +5917,63 @@ export interface components {
              * @enum {number}
              */
             accept: true;
+        };
+        SelectedFieldDto: {
+            /** @description A field key the template declares. */
+            fieldKey: string;
+            /** @description The text the person previewed and confirmed. */
+            value: string;
+        };
+        ConfirmSelectedFieldsDto: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            mode: ConfirmSelectedFieldsDtoMode;
+            fields: components["schemas"]["SelectedFieldDto"][];
+        };
+        ConfirmEditedSummaryDto: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            mode: ConfirmEditedSummaryDtoMode;
+            summary: string;
+        };
+        ConfirmKeepPrivateDto: {
+            /**
+             * @description The whole body. There is nowhere to put a reason, which is the design:
+             *     "I am not sharing this" is an answer, and answers do not owe explanations. (enum property replaced by openapi-typescript)
+             * @enum {string}
+             */
+            mode: ConfirmKeepPrivateDtoMode;
+        };
+        CreateDuoDto: {
+            /** @description Template key. Must resolve to PUBLISHED. */
+            templateKey: string;
+            templateVersion: number;
+            /** @description 43-character base64url token, 256 bits. Hashed on arrival; never stored raw. */
+            invitationToken: string;
+        };
+        ProposeArtifactDto: {
+            /** @description The shared result, as the pair agreed it. */
+            body: string;
+        };
+        ConfirmArtifactDto: {
+            /** @description The exact artifact being confirmed. */
+            artifactId: string;
+            /**
+             * @description The version, required and checked.
+             *
+             *     Not a hint: a client holding stale copy must not be able to agree to text
+             *     it never saw. Confirming a version that is no longer the live one is
+             *     refused rather than helpfully redirected to the current version.
+             */
+            version: number;
+        };
+        RecordFollowUpDto: {
+            /** @enum {string} */
+            decision: RecordFollowUpDtoDecision;
         };
     };
     responses: never;
@@ -18934,6 +19212,334 @@ export interface operations {
             };
         };
     };
+    CirclesMemberParticipationController_createDuo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateDuoDto"];
+            };
+        };
+        responses: {
+            /** @description Created, or replayed unchanged. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description CIRCLE_IDEMPOTENCY_CONFLICT. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description CIRCLE_TEMPLATE_UNAVAILABLE. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    CirclesMemberParticipationController_activity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                activityId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
+    CirclesMemberParticipationController_confirmShare: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                activityId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfirmSelectedFieldsDto"] | components["schemas"]["ConfirmEditedSummaryDto"] | components["schemas"]["ConfirmKeepPrivateDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description CIRCLE_INVALID_PAYLOAD. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description CIRCLE_IDEMPOTENCY_CONFLICT. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    CirclesMemberParticipationController_withdraw: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                activityId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    CirclesMemberParticipationController_proposeArtifact: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                activityId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProposeArtifactDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    CirclesMemberParticipationController_confirmArtifact: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                activityId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfirmArtifactDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    CirclesMemberParticipationController_followUp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                activityId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecordFollowUpDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    CirclesGuestParticipationController_activity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                activityId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+        };
+    };
+    CirclesGuestParticipationController_confirmShare: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                activityId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfirmSelectedFieldsDto"] | components["schemas"]["ConfirmEditedSummaryDto"] | components["schemas"]["ConfirmKeepPrivateDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description CIRCLE_INVALID_PAYLOAD. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description CIRCLE_IDEMPOTENCY_CONFLICT. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    CirclesGuestParticipationController_withdraw: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                activityId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    CirclesGuestParticipationController_proposeArtifact: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                activityId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProposeArtifactDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    CirclesGuestParticipationController_confirmArtifact: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                activityId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfirmArtifactDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    CirclesGuestParticipationController_followUp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                activityId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecordFollowUpDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
 }
 export enum PathsApiBooksGetParametersQueryView {
     catalogo = "catalogo",
@@ -20076,4 +20682,18 @@ export enum UpdatePayoutSettingsDtoMethod {
     paypal = "paypal",
     payphone = "payphone",
     manual = "manual"
+}
+export enum ConfirmSelectedFieldsDtoMode {
+    SELECTED_FIELDS = "SELECTED_FIELDS"
+}
+export enum ConfirmEditedSummaryDtoMode {
+    EDITED_SUMMARY = "EDITED_SUMMARY"
+}
+export enum ConfirmKeepPrivateDtoMode {
+    KEEP_PRIVATE = "KEEP_PRIVATE"
+}
+export enum RecordFollowUpDtoDecision {
+    KEEP = "KEEP",
+    ADJUST = "ADJUST",
+    CLOSE = "CLOSE"
 }

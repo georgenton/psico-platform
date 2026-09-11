@@ -3188,6 +3188,14 @@ model CircleArtifact {
   ciphertext String
   nonce      String
   keyVersion Int
+  /// Keyed digest of the artifact body, bound to the same AAD context.
+  ///
+  /// Required, not optional. The participant snapshot carries one and the
+  /// artifact did not, which meant `open()` was handed `payloadHash: ""` and
+  /// had nothing to verify. It is also what makes proposal idempotency
+  /// decidable: "same key, same content" is a comparison against this column,
+  /// not against a plaintext nobody kept.
+  payloadHash String
 
   createdByParticipantId String
   createdAt              DateTime  @default(now())
@@ -3195,6 +3203,8 @@ model CircleArtifact {
   agreedAt               DateTime?
 
   activity CircleActivity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  /// Events about this artifact: proposals and confirmations.
+  events   CircleEvent[]
   /// COMPOSITE: an artifact cannot be attributed to a seat from a different
   /// activity — which is the shape of "somebody else's answer appearing in your
   /// result", and the reason this is a key and not a code review.
@@ -3203,6 +3213,9 @@ model CircleArtifact {
   /// Monotonic per activity; at most one non-SUPERSEDED artifact per activity
   /// (partial unique index in the migration).
   @@unique([activityId, version])
+  /// Reference target for `CircleEvent`'s composite key: a confirmation event
+  /// can only name an artifact of the very activity it belongs to.
+  @@unique([id, activityId])
   @@index([activityId, status])
   @@index([createdByParticipantId])
 }
@@ -3218,6 +3231,15 @@ model CircleEvent {
   /// event naming an actor that does not exist is not an audit record.
   actorUserId        String?
   actorParticipantId String?
+
+  /// The artifact a PROPOSED/CONFIRMED event is about.
+  ///
+  /// PR3 needs a confirmation to be bound to an EXACT artifact and version, and
+  /// this column plus its composite key is how — rather than a ninth table
+  /// whose only job would be to hold two ids. A CHECK requires it on exactly
+  /// the two artifact event types and forbids it on every other, so no event
+  /// can quietly carry one.
+  artifactId String?
 
   /// The receipt key. Unique per (actor, command, key) so a replay is a NOOP
   /// rather than a second event — PostgreSQL is the authority, not Redis.
@@ -3249,10 +3271,13 @@ model CircleEvent {
   /// SQL CHECK makes `activityId` mandatory whenever this is set, so the key
   /// cannot be skipped by leaving the second column null.
   actorParticipant CircleActivityParticipant? @relation("CircleEventActorParticipant", fields: [actorParticipantId, activityId], references: [id, activityId], onDelete: Restrict)
+  /// COMPOSITE: the artifact must belong to the activity the event names.
+  artifact CircleArtifact? @relation(fields: [artifactId, activityId], references: [id, activityId], onDelete: Restrict)
 
   @@index([circleId, occurredAt])
   @@index([activityId, occurredAt])
   @@index([actorUserId])
   @@index([actorParticipantId])
+  @@index([artifactId])
   @@index([type])
 }

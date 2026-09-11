@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import type { PrismaClient } from "@prisma/client";
 
 /**
@@ -21,8 +22,10 @@ import type { PrismaClient } from "@prisma/client";
 
 export type CircleInvitationDb = Pick<
   PrismaClient,
-  "circleInvitation" | "circleActivityParticipant"
+  "circleInvitation" | "circleActivityParticipant" | "$queryRaw"
 >;
+/** A transaction client. Same shape; the alias marks the requirement. */
+export type CircleInvitationTx = CircleInvitationDb;
 
 /** Sanitized storage failure — the value-free replacement for EVERY upstream error. */
 export class CircleStorageError extends Error {
@@ -178,6 +181,58 @@ export class CircleInvitationRepository {
         data: { consumedAt: now, acceptedAt: now },
       });
       return count === 1;
+    } catch {
+      throw new CircleStorageError();
+    }
+  }
+
+  /**
+   * The invitation by id, in ANY state.
+   *
+   * Used to RESOLVE the inviter's member id before the locks are taken, and
+   * for nothing else. Every value it returns is read again under `lockById`
+   * before anything is decided — see `resolveGuestAuthority`.
+   */
+  async findById(
+    invitationId: string,
+    db: CircleInvitationDb = this.prisma,
+  ): Promise<CircleInvitationRow | null> {
+    try {
+      return await db.circleInvitation.findUnique({
+        where: { id: invitationId },
+        select: SELECT,
+      });
+    } catch {
+      throw new CircleStorageError();
+    }
+  }
+
+  /**
+   * The invitation by id, LOCKED until the surrounding transaction commits.
+   *
+   * Position TWO in the lock order, between the member and the guest session.
+   * A guest command needs it for one reason: the invitation is the edge from
+   * the session to the member who issued it, and a guest's authority is
+   * entirely derived from that member. Reading it unlocked would let a
+   * concurrent revocation slip between the read and the commit — the same race
+   * the session lock closes, one link further up the chain.
+   *
+   * `tx` is REQUIRED, for the same reason it is everywhere else here.
+   */
+  async lockById(
+    invitationId: string,
+    tx: CircleInvitationTx,
+  ): Promise<CircleInvitationRow | null> {
+    try {
+      const rows = await tx.$queryRaw<CircleInvitationRow[]>(Prisma.sql`
+        SELECT "id", "circleId", "activityId", "createdByMemberId", "tokenHash",
+               "codeHash", "expiresAt", "consumedAt", "acceptedAt",
+               "declinedAt", "revokedAt"
+          FROM "CircleInvitation"
+         WHERE "id" = ${invitationId}
+           FOR UPDATE
+      `);
+      return rows[0] ?? null;
     } catch {
       throw new CircleStorageError();
     }

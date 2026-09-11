@@ -12,6 +12,8 @@ import { CircleGuestSessionRepository } from "./circle-guest-session.repository"
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { CircleEventRepository } from "./circle-event.repository";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { CircleActivityRepository } from "./circle-activity.repository";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { CircleMemberRepository } from "./circle-member.repository";
 import type {
   CircleMemberDb,
@@ -48,13 +50,15 @@ import {
  *
  * ── LOCK ORDER — MANDATORY for every future Círculos command ──────────────
  *
- *     CircleMember  ->  CircleInvitation  ->  CircleActivityParticipant
+ *     CircleMember  ->  CircleInvitation  ->  CircleGuestSession  ->
+ *     CircleActivity  ->  CircleActivityParticipant  ->  CircleArtifact
  *
- * `exchange` takes them in that order and so must withdraw, revoke, decline and
- * anything else PR3 adds. This is not a style preference: two commands that
- * take the same two rows in opposite orders deadlock under contention, and the
- * failure surfaces as a random 500 on a Dúo that two people are using at the
- * same time — the hardest kind of bug to reproduce and the easiest to avoid.
+ * `exchange` takes the rows it needs in that order, and so does every command
+ * in `circles-participation.service.ts`. This is not a style preference: two
+ * commands that take the same rows in opposite orders deadlock under
+ * contention, and the failure surfaces as a random 500 on a Dúo that two people
+ * are using at the same time — the hardest kind of bug to reproduce and the
+ * easiest to avoid.
  *
  * If a future command genuinely needs a different order, the fix is to change
  * this rule and every command with it, not to make an exception.
@@ -102,6 +106,47 @@ export interface ExchangedGuestSession {
   readonly expiresAt: Date;
 }
 
+/**
+ * The invitation's author must still be a live member of its circle.
+ *
+ * ── Why this is one function and not two copies ────────────────────────────
+ *
+ * It used to be two, and they drifted. Both `assertInviterEligible` (the fast
+ * exit, used by `inspect`) and `lockAndAssertInviter` (the authoritative one,
+ * used by `exchange`) returned EARLY under `on` — so under general
+ * availability nothing checked that the member existed, belonged to this
+ * circle, or was still `ACTIVE`. The reasoning behind the early return was
+ * "under `on` there is no allowlist to consult", which is true and is not the
+ * same as "there is nothing to check".
+ *
+ * What that produced was not a theoretical hole. PR3's participation path
+ * DOES revalidate the inviter in every mode, so the system contradicted
+ * itself in a way a person would experience:
+ *
+ *   1. a member creates an invitation, then leaves;
+ *   2. under `on`, `inspect` says the link is usable;
+ *   3. `exchange` consumes it, accepts the seat, moves the activity to
+ *      `PREPARING`, mints a guest session and writes events;
+ *   4. the guest's very first command is refused, because participation
+ *      re-derives the inviter and finds them `LEFT`.
+ *
+ * Somebody accepts an invitation, watches the other person's screen say the
+ * Dúo has started, and then cannot do anything — with every write already
+ * committed. The membership predicate is therefore mode-independent, and only
+ * the ALLOWLIST is `pilot`-only.
+ *
+ * Throws the one uniform code. Which of the three conditions failed is not
+ * something the holder of a link gets to learn.
+ */
+function assertInviterMembership(
+  member: { circleId: string; status: string } | null | undefined,
+  circleId: string,
+): void {
+  if (!member || member.circleId !== circleId || member.status !== "ACTIVE") {
+    throw new CirclesError("CIRCLE_INVITATION_UNUSABLE");
+  }
+}
+
 @Injectable()
 export class CirclesService {
   constructor(
@@ -111,6 +156,7 @@ export class CirclesService {
     private readonly events: CircleEventRepository,
     private readonly members: CircleMemberRepository,
     private readonly rollout: CirclesRolloutService,
+    private readonly activities: CircleActivityRepository,
   ) {}
 
   /**
@@ -213,7 +259,30 @@ export class CirclesService {
           throw new CirclesError("CIRCLE_INVITATION_UNUSABLE");
         }
 
-        // ── 3. CircleActivityParticipant ──────────────────────────────────
+        // ── 4. CircleActivity ─────────────────────────────────────────────
+        //
+        // Locked BEFORE the seat, and advanced to `PREPARING` in this same
+        // transaction. Accepting an invitation and the activity becoming open
+        // for participation are one event in the product; splitting them across
+        // two transactions would create a moment in which somebody has accepted
+        // an activity that is still `INVITING` — a state the counterpart's
+        // screen would have to explain.
+        //
+        // The transition is conditional. If a withdrawal cancelled the activity
+        // between the fast exit and here, `startPreparing` moves nothing and the
+        // acceptance unwinds rather than resurrecting a cancelled Dúo.
+        const activity = await this.activities.lockById(
+          invitation.activityId,
+          tx,
+        );
+        if (!activity) throw new CircleStorageError();
+        if (activity.status !== "INVITING") {
+          throw new CirclesError("CIRCLE_INVITATION_UNUSABLE");
+        }
+        const started = await this.activities.startPreparing(activity.id, tx);
+        if (!started) throw new CirclesError("CIRCLE_INVITATION_UNUSABLE");
+
+        // ── 5. CircleActivityParticipant ──────────────────────────────────
         //
         // The seat was created with the invitation, so it exists. If it somehow
         // does not, that is an invariant failure and not an authorization
@@ -258,6 +327,15 @@ export class CirclesService {
           tx,
         );
 
+        await this.events.append(
+          {
+            circleId: invitation.circleId,
+            activityId: invitation.activityId,
+            type: "INVITATION_ACCEPTED",
+            actorParticipantId: seat.id,
+          },
+          tx,
+        );
         await this.events.append(
           {
             circleId: invitation.circleId,
@@ -334,16 +412,32 @@ export class CirclesService {
    * guest instead INHERITS the inviter's enablement, re-derived server-side on
    * every use, and can never exceed it.
    *
-   * Four conditions, one answer. The member must exist, be in the circle the
-   * invitation names, still be `ACTIVE`, and their user must be in the
-   * allowlist right now. Any of them failing produces exactly
-   * `CIRCLE_INVITATION_UNUSABLE` — the same error, the same status, the same
-   * body as a secret that never existed. Nothing distinguishes "your inviter
-   * was removed from the pilot" from "you guessed wrong", because the first
-   * would confirm the invitation is real.
+   * Three conditions in every enabled mode, plus a fourth under `pilot`:
    *
-   * `on` skips the check: general availability is general. `off` never reaches
-   * here (the guard refuses first), and if it somehow did, it fails closed.
+   *     off    refuse
+   *     pilot  member exists + same circle + ACTIVE + in the allowlist
+   *     on     member exists + same circle + ACTIVE
+   *
+   * The membership predicate is NOT mode-dependent. `on` skips the ALLOWLIST
+   * and nothing else — it never skips the member existing, belonging to the
+   * circle the invitation names, or still being `ACTIVE`.
+   *
+   * An earlier version of this comment said "`on` skips the check: general
+   * availability is general", and the code below has never done that. The
+   * sentence was describing a behaviour that would contradict participation,
+   * which re-derives the inviter in every mode: an invitation whose author had
+   * left would inspect as usable, exchange successfully, mint a session and
+   * write events — and then the guest's first command would be refused, with
+   * everything already committed.
+   *
+   * Any condition failing produces exactly `CIRCLE_INVITATION_UNUSABLE` — the
+   * same error, the same status, the same body as a secret that never existed.
+   * Nothing distinguishes "your inviter left" or "your inviter was removed from
+   * the pilot" from "you guessed wrong", because the first would confirm the
+   * invitation is real.
+   *
+   * `off` never reaches here (the guard refuses first), and if it somehow did,
+   * it fails closed.
    */
   /**
    * The inviter, LOCKED, and the decision that actually counts.
@@ -359,10 +453,11 @@ export class CirclesService {
    * Every statement there is correct and the outcome is wrong. This method is
    * the one whose answer survives to the commit.
    *
-   * The row is locked in EVERY mode, including `on`, even though `on` has no
-   * predicate to hold. The lock ORDER is a property of the command, not of the
-   * configuration, and a rule that applies in two modes out of three is a rule
-   * somebody will get wrong.
+   * The row is locked in EVERY enabled mode, including `on` — which has a
+   * predicate of its own to hold: the member must exist, be in this circle and
+   * still be `ACTIVE`. Only the allowlist is `pilot`-only. The lock ORDER is a
+   * property of the command, not of the configuration, and a rule that applies
+   * in two modes out of three is a rule somebody will get wrong.
    */
   private async lockAndAssertInviter(
     invitation: {
@@ -382,17 +477,10 @@ export class CirclesService {
       throw new CirclesError("CIRCLE_STORAGE_FAILURE");
     }
 
-    // `on` is general availability: there is no inviter predicate to enforce,
-    // and the allowlist is not consulted. The lock is still held, so the
-    // ordering rule above holds uniformly.
-    if (mode === "on") return;
-
-    if (
-      !member ||
-      member.circleId !== invitation.circleId ||
-      member.status !== "ACTIVE" ||
-      !this.rollout.isAvailable(member.userId)
-    ) {
+    assertInviterMembership(member, invitation.circleId);
+    // The allowlist is the ONLY part that is `pilot`-only. `on` is general
+    // availability of the FEATURE, not of invitations whose author has left.
+    if (mode === "pilot" && !this.rollout.isAvailable(member!.userId)) {
       throw new CirclesError("CIRCLE_INVITATION_UNUSABLE");
     }
   }
@@ -405,7 +493,6 @@ export class CirclesService {
     db?: CircleMemberDb,
   ): Promise<void> {
     const mode = this.rollout.currentMode();
-    if (mode === "on") return;
     if (mode === "off") throw new CirclesError("CIRCLE_INVITATION_UNUSABLE");
 
     let member;
@@ -415,12 +502,8 @@ export class CirclesService {
       throw new CirclesError("CIRCLE_STORAGE_FAILURE");
     }
 
-    if (
-      !member ||
-      member.circleId !== invitation.circleId ||
-      member.status !== "ACTIVE" ||
-      !this.rollout.isAvailable(member.userId)
-    ) {
+    assertInviterMembership(member, invitation.circleId);
+    if (mode === "pilot" && !this.rollout.isAvailable(member!.userId)) {
       throw new CirclesError("CIRCLE_INVITATION_UNUSABLE");
     }
   }

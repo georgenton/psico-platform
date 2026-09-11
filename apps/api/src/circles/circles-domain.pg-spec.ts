@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { CircleInvitationRepository } from "./circle-invitation.repository";
 import { CircleGuestSessionRepository } from "./circle-guest-session.repository";
 import { CircleEventRepository } from "./circle-event.repository";
+import { CircleActivityRepository } from "./circle-activity.repository";
 import { CircleMemberRepository } from "./circle-member.repository";
 import type {
   CircleMemberDb,
@@ -46,8 +47,14 @@ const DB = "circles_domain_db";
 const BASELINE_DB = "circles_baseline_db";
 const API_DIR = process.cwd();
 const MIGRATIONS_DIR = join(API_DIR, "prisma", "migrations");
-/** The migration this branch adds. Everything before it is the baseline. */
-const THIS_MIGRATION = "20260909180000_circles_domain_foundation";
+/**
+ * The migration this branch adds. Everything before it is the baseline.
+ *
+ * PR2's `20260909180000_circles_domain_foundation` is no longer "the one under
+ * test": it is applied in production and part of `main`. It is now baseline,
+ * and the file below asserts that PR3's migration lands cleanly on top of it.
+ */
+const THIS_MIGRATION = "20260910030000_circles_participation_invariants";
 
 function withDatabase(url: string, dbName: string): string {
   const u = new URL(url);
@@ -87,6 +94,14 @@ const pgTs = (d: Date) => d.toISOString().replace("Z", "");
 /** A 64-hex value that is not a real hash — enough to satisfy the shape CHECK. */
 const fakeHash = (n: number) => String(n).padStart(64, "a");
 
+/**
+ * A syntactically valid payload MAC for fixtures that only care about other
+ * columns. `CircleArtifact_payload_hash_is_hmac_hex` requires 64 hex
+ * characters, so "" or NULL is not an option even where the value is beside
+ * the point — which is the constraint doing its job.
+ */
+const HMAC_HEX = "0".repeat(64);
+
 suite("circles · SQL invariants (real PostgreSQL)", () => {
   let pool: Pool;
   let prisma: PrismaClient;
@@ -94,6 +109,7 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
   let guestSessions: CircleGuestSessionRepository;
   let events: CircleEventRepository;
   let members: CircleMemberRepository;
+  let activities: CircleActivityRepository;
   let service: CirclesService;
 
   /**
@@ -120,6 +136,7 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
           CIRCLES_PILOT_USER_IDS: allowlist,
         }),
       ),
+      activities,
     );
 
   /**
@@ -267,6 +284,7 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
     guestSessions = new CircleGuestSessionRepository(prisma);
     events = new CircleEventRepository(prisma);
     members = new CircleMemberRepository(prisma);
+    activities = new CircleActivityRepository(prisma);
     // The default service runs under `on`: the pilot gate has its own block.
     service = serviceWith("on");
 
@@ -325,7 +343,7 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
 
   // ── The migration, from the branch's actual baseline ──────────────────────
 
-  it("applies on top of the 62 migrations that were already on main", async () => {
+  it("applies on top of the 63 migrations that were already on main", async () => {
     // "It works from zero" and "it works on top of what production has" are
     // different claims. This checks the second one, by replaying the files.
     const dirs = readdirSync(MIGRATIONS_DIR, { withFileTypes: true })
@@ -341,7 +359,7 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
     // It is also the LAST one: a migration that lands before somebody else's
     // would change the order they run in on a box that has neither.
     expect(dirs.slice(index)).toEqual([THIS_MIGRATION]);
-    expect(baseline).toHaveLength(62);
+    expect(baseline).toHaveLength(63);
 
     const admin = new Pool({ connectionString: base });
     await admin.query(`DROP DATABASE IF EXISTS "${BASELINE_DB}" WITH (FORCE)`);
@@ -385,10 +403,12 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
       };
 
       const beforeState = await snapshot();
+      // The baseline now HAS the eight tables — PR2 put them there. What must
+      // be absent before this migration runs is the column it adds.
       expect(
-        beforeState.tables.filter((t) => t.startsWith("Circle")),
-        "the baseline has no Círculos table",
-      ).toEqual([]);
+        beforeState.tables.filter((t) => t.startsWith("Circle")).length,
+        "the baseline already carries PR2's eight tables",
+      ).toBe(8);
 
       await baselinePool.query(
         readFileSync(
@@ -408,6 +428,13 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
         "CircleInvitation",
         "CircleMember",
       ]);
+      // The column PR3 adds is the observable difference.
+      const column = await baselinePool.query(
+        `SELECT count(*)::int AS n FROM information_schema.columns
+          WHERE table_schema='public' AND table_name='CircleEvent'
+            AND column_name='artifactId'`,
+      );
+      expect(column.rows[0].n, "artifactId exists after the migration").toBe(1);
       // Additive means additive: not one pre-existing table disappeared and not
       // one pre-existing enum changed.
       expect(afterState.tables).toEqual(
@@ -419,6 +446,11 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
 
       // ── The logical rollback ─────────────────────────────────────────────
       //
+      // PR3's migration adds a column, an index and four constraints to tables
+      // that already exist, so "undo it" is not "drop the tables". It is
+      // dropping exactly what this file added — and the snapshot comparison is
+      // what proves nothing else moved.
+      //
       // Prisma writes no DOWN migration, so "we can roll this back" would
       // otherwise be a claim with nothing behind it. Here it is exercised, on a
       // database this test created and will drop — never on a persistent one.
@@ -428,17 +460,16 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
       // this comparison is where it would show up, because undoing the additions
       // would not undo that.
       await baselinePool.query(`
-        DROP TABLE IF EXISTS
-          "CircleEvent", "CircleArtifact", "CircleGuestSession",
-          "CircleActivityParticipant", "CircleActivity", "CircleInvitation",
-          "CircleMember", "Circle" CASCADE;
-        DROP FUNCTION IF EXISTS "circle_activity_pin_is_immutable"() CASCADE;
-        DROP FUNCTION IF EXISTS "circle_event_is_append_only"() CASCADE;
-        DROP TYPE IF EXISTS
-          "CircleEventType", "CircleFollowUpDecision", "CircleArtifactStatus",
-          "CircleArtifactKind", "CircleSharingMode", "CircleParticipantStatus",
-          "CircleActivityStatus", "CircleMemberStatus", "CircleMemberRole",
-          "CircleStatus", "CircleKind";
+        ALTER TABLE "CircleEvent"
+          DROP CONSTRAINT IF EXISTS "CircleEvent_artifact_binding",
+          DROP CONSTRAINT IF EXISTS "CircleEvent_artifactId_activityId_fkey",
+          DROP COLUMN IF EXISTS "artifactId";
+        DROP INDEX IF EXISTS "CircleEvent_one_confirmation_per_artifact_actor";
+        DROP INDEX IF EXISTS "CircleArtifact_id_activityId_key";
+        ALTER TABLE "CircleActivityParticipant"
+          DROP CONSTRAINT IF EXISTS "CircleActivityParticipant_ready_is_complete",
+          DROP CONSTRAINT IF EXISTS "CircleActivityParticipant_withdraw_is_not_a_share",
+          DROP CONSTRAINT IF EXISTS "CircleActivityParticipant_withdrawn_has_no_envelope";
       `);
 
       const rolledBack = await snapshot();
@@ -508,10 +539,15 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
       )
       .map((r) => String(r.column_name));
     // Only identifiers survive: no `reason`, no `note`, no `comment`.
+    // Every one of these is an identifier. `artifactId` joins the list in PR3
+    // and is the same kind of thing: a foreign key, not a sentence. What the
+    // test is really pinning is that no column named for a reason, a note or a
+    // comment ever appears here.
     expect(textish.sort()).toEqual([
       "activityId",
       "actorParticipantId",
       "actorUserId",
+      "artifactId",
       "circleId",
       "id",
       "idempotencyKey",
@@ -806,9 +842,10 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
       pool.query(
         `INSERT INTO "CircleArtifact"
            ("id","activityId","version","kind","status","ciphertext","nonce",
-            "keyVersion","createdByParticipantId","updatedAt","agreedAt")
+            "keyVersion","payloadHash","createdByParticipantId","updatedAt",
+            "agreedAt")
          VALUES ($1,$2,$3,'AGREEMENT',$4::"CircleArtifactStatus",'ct','nonce',1,
-                 'p-artifact',now(),$5)`,
+                 '${HMAC_HEX}', 'p-artifact',now(),$5)`,
         [
           id,
           activityId,
@@ -839,9 +876,10 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
       pool.query(
         `INSERT INTO "CircleArtifact"
            ("id","activityId","version","kind","status","ciphertext","nonce",
-            "keyVersion","createdByParticipantId","updatedAt","agreedAt")
-         VALUES ('art-5',$1,9,'AGREEMENT','AGREED','ct','nonce',1,'p-artifact',
-                 now(),NULL)`,
+            "keyVersion","payloadHash","createdByParticipantId","updatedAt",
+            "agreedAt")
+         VALUES ('art-5',$1,9,'AGREEMENT','AGREED','ct','nonce',1,'${HMAC_HEX}',
+                 'p-artifact',now(),NULL)`,
         [activityId],
       ),
     );
@@ -1264,8 +1302,9 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
       pool.query(
         `INSERT INTO "CircleArtifact"
            ("id","activityId","version","kind","status","ciphertext","nonce",
-            "keyVersion","createdByParticipantId","updatedAt")
-         VALUES ($1,$2,1,'AGREEMENT','PROPOSED','ct','nonce',1,$3,now())`,
+            "keyVersion","payloadHash","createdByParticipantId","updatedAt")
+         VALUES ($1,$2,1,'AGREEMENT','PROPOSED','ct','nonce',1,'${HMAC_HEX}',
+                 $3,now())`,
         [`art-cross-${w.seq}`, w.a, w.seatB],
       ),
     );
@@ -1854,18 +1893,22 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
     const order = [
       body.indexOf("lockAndAssertInviter"),
       body.indexOf("this.invitations.consume"),
+      body.indexOf("this.activities.lockById"),
       body.indexOf("circleActivityParticipant.findFirst"),
     ];
     expect(
       order.every((i) => i > 0),
       "all three steps present",
     ).toBe(true);
-    expect(order, "member, then invitation, then seat").toEqual(
+    expect(order, "member, invitation, activity, then seat").toEqual(
       [...order].sort((a, b) => a - b),
     );
     // And the rule is written down where the next author will read it.
     expect(src).toContain(
-      "CircleMember  ->  CircleInvitation  ->  CircleActivityParticipant",
+      "CircleMember  ->  CircleInvitation  ->  CircleGuestSession  ->",
+    );
+    expect(src).toContain(
+      "CircleActivity  ->  CircleActivityParticipant  ->  CircleArtifact",
     );
   });
 

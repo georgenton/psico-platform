@@ -2,13 +2,17 @@
 
 ```
 STATUS=PROPOSED
-CUT=PR2 · feat/circles-domain-foundation
-BASE_SHA=c824a6a4ebb50c9dc619c29ddb896e60f3efcdd3
+CUT=PR3 · feat/circles-participation-state
+BASE_SHA=ab6dceac1dc8f7e8c25d92d2f509196b9e6d8e31
 SPEC_SHA256=e94ff50cebd1b99bec3281f33880e6c41ec6b131e8cadb2847b176a793ce1b3d
 
-RUNTIME_SCOPE=access_only
+PR1_MERGED=true
+PR2_MERGED=true
+PR3_IN_PROGRESS=true
+
+RUNTIME_SCOPE=access_and_participation
 PRISMA_MODELS_ADDED=8
-MIGRATIONS_ADDED=1
+MIGRATIONS_ADDED=2
 CROSS_CIRCLE_REFERENCES_REJECTED=true
 CROSS_ACTIVITY_REFERENCES_REJECTED=true
 DUO_REQUIRED_PARTICIPANTS_EXACTLY_TWO=true
@@ -16,15 +20,41 @@ PILOT_GUEST_REVALIDATES_INVITER=true
 CIRCLE_EVENT_APPEND_ONLY=true
 CIRCLE_EVENT_FREE_TEXT_ALLOWED=false
 INVITER_ROW_LOCKED_UNTIL_EXCHANGE_COMMIT=true
-EXCHANGE_LOCK_ORDER=CircleMember>CircleInvitation>CircleActivityParticipant
+LOCK_ORDER=CircleMember>CircleInvitation>CircleGuestSession>CircleActivity>CircleActivityParticipant>CircleArtifact
+
+# Auditoría de PR3, ronda 1 — corregido dentro del mismo Draft
+CONFIRM_SHARE_RUNTIME_DISCRIMINATOR=true
+CONFIRM_SHARE_OPENAPI_ONE_OF=true
+UNKNOWN_MODE_REJECTED=true
+INVITATION_TOKEN_BASE64URL_VALIDATED=true
+GUEST_SESSION_ROW_LOCKED=true
+GUEST_ACTOR_SESSION_MATCH_REVALIDATED=true
+PILOT_INVITER_REVALIDATED_IN_TRANSACTION=true
+IDEMPOTENCY_COMPARES_REQUEST_PER_COMMAND=true
+SNAPSHOT_HMAC_VERIFIED_ON_OPEN=true
+ARTIFACT_HMAC_PERSISTED_AND_VERIFIED=true
+DECRYPTED_PAYLOAD_REVALIDATED_AGAINST_TEMPLATE=true
+REVEAL_REQUIRES_EXACT_TOTAL_SEATS=2
+OFF_WITH_VALID_KEY_RETURNS_CIPHER=false
+GENERIC_P2002_IS_REPLAY=false
+
+# Auditoría de PR3, ronda 2
+ON_REVALIDATES_INVITER_MEMBERSHIP=true
+ON_SKIPS_ONLY_ALLOWLIST=true
+SECOND_ARTIFACT_CONFIRMATION_KEY_RETURNS_SUCCESS=false
+UNRECORDED_SUCCESSFUL_IDEMPOTENCY_KEY=false
+ARCHIVED_TEMPLATE_EXACT_CREATE_REPLAY=true
+INVITATION_EXPIRY_GOVERNS_EXCHANGE=true
+GUEST_SESSION_EXPIRY_GOVERNS_POST_EXCHANGE_COMMANDS=true
+INVITATION_EXPIRY_RECHECKED_AFTER_EXCHANGE=false
 ACCOUNT_DELETION_WITH_CIRCLE_EVENTS=blocked_pending_sanctioned_scrub_design
 REQUIRED_BEFORE_PILOT=true
-API_ROUTES_ADDED=3
 WEB_ROUTES_ADDED=0
 PUBLISHED_TEMPLATES=0
-CIRCLES_ROLLOUT_MODE=off
+CIRCLES_PRODUCTION_ROWS=0
+CIRCLES_ROLLOUT_MODE=off_or_absent
 PUBLIC_ACCESS_ENABLED=false
-IMPLEMENTATION_AUTHORIZED=PR2
+IMPLEMENTATION_AUTHORIZED=PR3
 ```
 
 Este documento es la mitad **contractual** del programa Círculos. Fija qué es
@@ -88,16 +118,37 @@ y el módulo con sus pruebas en
 
 ---
 
-## 2. Qué añade este corte y qué no
+## 2. Qué hay fusionado y qué añade este corte
 
-|              |                                                                                                                                               |
-| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Añade**    | Contratos compartidos, validator, registro, catálogo vacío, matriz de permisos, dos máquinas de estados, threat model, fixtures y 55 pruebas. |
-| **No añade** | Modelo Prisma, migración, `CirclesModule`, controladores, guards, rutas web, rollout, cifrado, worker, Eco, CTA y plantillas publicadas.      |
+Este documento se corrige **en su sitio** conforme avanza el tren. Lo que sigue
+es el estado real del código en `main`, no el de un corte anterior.
 
-`apps/api/src/circles/` contiene únicamente specs y fixtures. Está ahí porque
-`@psico/types` no tiene runner de pruebas y `apps/api` sí las ejecuta en CI —
-y porque es donde el módulo aterrizará en PR2.
+| Corte | Estado         | Qué dejó en `main`                                                                                                                                |
+| ----- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PR1   | **fusionada**  | Contratos compartidos, validator, registro, catálogo vacío, matriz de permisos, dos máquinas de estados, threat model y fixtures.                 |
+| PR2   | **fusionada**  | Los ocho modelos Prisma, la migración aditiva con sus invariantes SQL, `CirclesModule`, el rollout, invitaciones solo-hash y guest auth.          |
+| PR3   | **este corte** | Participación: creación de Dúo, `confirm-share`, barrera de revelación, retiro, artefacto versionado, seguimiento, receipts y lecturas filtradas. |
+| PR4–6 | pendientes     | Web/BFF, entradas desde los libros, Eco facilitador y rollout operativo.                                                                          |
+
+Los ocho modelos **existen** en `main` y están vacíos; el flag cerrado es la
+única razón por la que nadie los alcanza. Lo que sigue sin existir tras este
+corte: rutas o componentes Web, BFF, Mobile, worker, Eco, CMS y plantillas
+publicadas.
+
+```text
+CIRCLES_ROLLOUT_MODE=off_or_absent
+PUBLISHED_TEMPLATES=0
+CIRCLES_PRODUCTION_ROWS=0
+ACCOUNT_DELETION_WITH_CIRCLE_EVENTS=blocked_pending_sanctioned_scrub_design
+REQUIRED_BEFORE_PILOT=true
+```
+
+La deuda de borrado de cuenta con eventos de Círculos **bloquea cualquier
+piloto futuro** y no se resuelve en PR3.
+
+`apps/api/src/circles/` contiene hoy el módulo, sus repositorios, sus servicios,
+sus controladores y sus pruebas. Está ahí porque `@psico/types` no tiene runner
+de pruebas y `apps/api` sí las ejecuta en CI.
 
 ---
 
@@ -113,7 +164,7 @@ consecuencia sobre el código de este corte.
 | **CIR-003** | Preview público ≠ sala pública. Dos URL, dos contratos.                     | `CircleTemplatePreview` + `toCircleTemplatePreview`, que **rechaza** DRAFT y ARCHIVED por sí mismo, con test de lo que no puede contener. |
 | **CIR-004** | Preparación privada local; no se persiste.                                  | No existe tipo para una respuesta; ratchet de ausencia.                                                                                   |
 | **CIR-005** | Se cifra lo deliberadamente compartido (`ciphertext+nonce+keyVersion`).     | Fuera del contrato compartido: es forma de dominio (PR3). Documentado en §5.                                                              |
-| **CIR-006** | PostgreSQL manda; Redis ayuda.                                              | Documental en este corte; se implementa en PR2/PR3.                                                                                       |
+| **CIR-006** | PostgreSQL manda; Redis ayuda.                                              | Implementado: constraints, locks `FOR UPDATE` y receipts en PR2/PR3. Redis nunca autoriza ni revela.                                      |
 | **CIR-007** | Plantillas versionadas en código; sin CMS.                                  | `CircleTemplateRegistry` + catálogo vacío.                                                                                                |
 | **CIR-008** | Sin tiempo real. Polling 8–12 s.                                            | Documental; sin superficie en PR1.                                                                                                        |
 | **CIR-009** | Rollout `off\|pilot\|on`, fail-closed.                                      | **No implementado aquí**: llega en PR2 siguiendo `guide-rollout.ts`.                                                                      |
@@ -180,10 +231,14 @@ futura, por eso `DENIED` y no `NEVER`.
 
 ---
 
-## 5. Modelo de datos objetivo (PR2, aquí solo documentado)
+## 5. Modelo de datos (fusionado en PR2, extendido en PR3)
 
-Ocho modelos. **Ninguno existe todavía**; se registran para que la migración de
-PR2 se audite contra algo escrito antes.
+Ocho modelos, **todos existentes en `main`** desde la migración
+`20260909180000_circles_domain_foundation`, y ninguno con una sola fila en
+producción. La tabla se conserva porque es contra ella que se auditó esa
+migración; PR3 añade una segunda migración aditiva que cierra las invariantes
+que la participación real necesita — confirmación ligada al artefacto y versión
+exactos, sobre `READY` completo, y retiro que no deja sobre.
 
 | Modelo                      | Invariantes que deben ser CHECK/UNIQUE/FK en PostgreSQL, no `if` en TypeScript                                                                      |
 | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -335,6 +390,121 @@ no tiene runner y añadirle uno significaría tocar CI en una PR de contratos.
 
 ---
 
+## 9-bis. Lo que la auditoría de PR3 encontró, y qué cambió
+
+Siete hallazgos, corregidos dentro del mismo Draft. Se listan con el fallo real
+—no con la regla que lo habría evitado— porque la regla ya estaba escrita en
+las tres versiones anteriores de este documento y no impidió ninguno.
+
+**El cuerpo de `confirm-share` nunca se validaba.** El handler declaraba una
+unión de TypeScript, que se borra en runtime: Nest veía el metatipo `Object`,
+`ValidationPipe` saltaba el cuerpo entero, y las reglas de las tres clases DTO
+eran inertes. El síntoma visible era que OpenAPI no publicaba `requestBody`
+para ninguna de las dos rutas. Peor: el helper que estrechaba la unión
+terminaba en `return { mode: "KEEP_PRIVATE" }`, así que cualquier modo no
+reconocido se registraba como la decisión deliberada de no compartir — la única
+respuesta que el producto jamás debe inventar por alguien. Hoy hay un pipe
+sobre `unknown` que reconstruye la unión cerrada con `whitelist` +
+`forbidNonWhitelisted`, y el contrato la publica como `oneOf` con
+discriminador. La frontera se prueba con una app Nest real, no llamando al
+servicio.
+
+**La autoridad del invitado se comprobaba una vez, en la puerta.** Un invitado
+no tiene membresía; la suya es prestada del invitante a través de la
+invitación. Nada la re-derivaba dentro de la transacción, así que un invitado
+conservaba acceso completo después de que su invitante dejara el círculo, y
+bajo `pilot` después de que ese miembro saliera de la allowlist. La sesión se
+leía sin bloqueo, de modo que una revocación en paralelo podía perder la
+carrera. Hoy miembro, invitación y sesión se bloquean en el orden canónico y
+las tres se re-verifican, incluida la correspondencia entre el asiento que
+nombra la sesión y el del actor.
+
+**Las claves de idempotencia no comparaban la petición.** Una clave representa
+UNA petición; los cinco comandos trataban «esta clave ya se usó» como «esta es
+la misma llamada». Misma clave con otra plantilla devolvía el primer Dúo; con
+otro `share`, éxito mientras el snapshot original seguía en su sitio; una
+propuesta reintentada subía la versión e invalidaba confirmaciones de un texto
+ya acordado. Hoy cada comando compara lo que la clave comprometió.
+
+**`payloadHash` se escribía y no se leía nunca.** Una columna que nadie lee no
+es un control de integridad; es un comentario guardado en PostgreSQL.
+`openEnvelope` pasaba `?? ""` y el string vacío atravesaba sin ruido. Hoy
+`open()` lo verifica en tiempo constante, el artefacto tiene el suyo propio, y
+un cuerpo descifrado se reconstruye cerrado y se re-valida contra la plantilla
+fijada y contra el modo y las claves de campo de la fila.
+
+**Estados.** Confirmar sólo en `REVEALED` o `FOLLOW_UP`. `outcome: NONE` se
+respeta en vez de convertirse en `AGREEMENT`. El contenido revelado exige
+asiento `READY`, y la proyección lo decide desde la fila y no desde si quien
+llama le entregó un cuerpo. La barrera exige el total exacto de asientos, así
+que dos-de-tres no puede revelar.
+
+**`off` significa ausente.** El cipher es `null` bajo `off` incluso con una
+clave válida configurada. Una capacidad sin uso sigue siendo una superficie
+cargada.
+
+**No todo `P2002` es un replay.** El ledger verifica que exista el recibo
+exacto antes de decirlo; el índice de confirmación de artefacto conserva su
+propia semántica.
+
+Semántica del replay de `withdraw`, declarada porque es asimétrica a propósito:
+
+```
+MEMBER_WITHDRAW_REPLAY=response_idempotent
+GUEST_WITHDRAW_REPLAY=effect_idempotent_but_credential_is_revoked
+```
+
+Retirarse revoca la sesión del invitado — para eso existe. El segundo intento
+lo rechaza el guard. Igualar las dos respuestas exigiría mantener usable una
+sesión revocada una llamada más, y no hay forma de acotar «una llamada más» a
+la inofensiva: la ventana que se abre para un retiro repetido es la misma que
+usa un enlace robado. Gana la revocación.
+
+---
+
+## 9-ter. Segunda ronda de auditoría
+
+Cuatro hallazgos más, corregidos en el mismo Draft.
+
+**`on` omitía la membresía del invitante.** `assertInviterEligible` y
+`lockAndAssertInviter` retornaban temprano bajo `on` — «no hay allowlist que
+consultar» se leyó como «no hay nada que comprobar» — mientras la ruta de
+participación de PR3 sí revalida al invitante en todos los modos. El sistema se
+contradecía donde una persona lo nota: el enlace inspecciona como usable, el
+canje consume la invitación, acepta el asiento, mueve la actividad a
+`PREPARING`, crea la sesión y escribe eventos, y el primer comando del invitado
+lo rechaza. Alguien acepta, ve en la pantalla del otro que el Dúo empezó, y no
+puede hacer nada — con todo ya escrito. La membresía es hoy independiente del
+modo; sólo la allowlist es exclusiva de `pilot`, y ambas rutas comparten un
+único predicado para que no puedan volver a divergir.
+
+**Una confirmación exitosa no comprometía su clave.** Confirmar el artefacto A
+con K1 y repetirlo con K2 devolvía éxito saltándose el append, así que K2 nunca
+quedaba registrada: el llamante podía creer razonablemente que K2 significaba
+«confirmé A», y K2 seguía libre para gastarse después en el artefacto B. Una
+clave, dos significados exitosos, ningún registro del primero. Hoy se rechaza
+con `CIRCLE_IDEMPOTENCY_CONFLICT`: una clave se gasta sólo cuando un recibo la
+registra, K2 nunca tuvo éxito, y no hay nada inconsistente.
+
+**La idempotencia caducaba con el catálogo.** `createDuo` resolvía la plantilla
+antes de consultar el recibo, así que una petición que ya había creado un Dúo
+dejaba de ser reproducible en cuanto editorial archivaba esa versión. Un replay
+no instancia nada; no necesita que la plantilla sea instanciable, ni la
+necesita en absoluto: la actividad comprometida lleva su propio pin, y
+compararlo contra la petición es lo que decide replay de conflicto.
+`getPublished` corre ahora donde ocurre la creación.
+
+**El test de expiración no demostraba su precondición.** Fijaba
+`expiresAt = createdAt + 1s` y afirmaba que el comando funciona — lo que pasa
+igual en una construcción que SÍ re-verifica la expiración, porque la
+invitación podía seguir vigente. Hoy la fecha se mueve inequívocamente al
+pasado y el test afirma desde PostgreSQL, antes de ejecutar el comando, que la
+invitación está vencida, que la sesión está vigente y que no está revocada; y
+un control complementario expira la sesión para demostrar que es ella la que
+gobierna.
+
+---
+
 ## 10. Threat model
 
 | Riesgo                       | Control                                                                                                   | Dónde se resuelve        |
@@ -374,8 +544,8 @@ automática de los `DUO_CANDIDATES`.
 | PR    | Rama                               | Contenido                                                                                           | Estado         |
 | ----- | ---------------------------------- | --------------------------------------------------------------------------------------------------- | -------------- |
 | **1** | `docs/circles-v1-contract`         | ADR, contratos, validator, catálogo, permisos, estados, threat model, fixtures                      | fusionada      |
-| **2** | `feat/circles-domain-foundation`   | Migración aditiva, `CirclesModule`, rollout, invitaciones y guest auth. Flag `off`, sin UI          | **este corte** |
-| 3     | `feat/circles-participation-state` | Crear Dúo, `confirm-share`, locks, reveal, retiro, artefacto, seguimiento, receipts. PG concurrente | pendiente      |
+| **2** | `feat/circles-domain-foundation`   | Migración aditiva, `CirclesModule`, rollout, invitaciones y guest auth. Flag `off`, sin UI          | fusionada      |
+| **3** | `feat/circles-participation-state` | Crear Dúo, `confirm-share`, locks, reveal, retiro, artefacto, seguimiento, receipts. PG concurrente | **este corte** |
 | 4     | `feat/circles-web-guest-flow`      | Preview, intercambio por fragmento, BFF, cookie, sala, preparación local, salida                    | pendiente      |
 | 5     | `feat/circles-book-entrypoints`    | Catálogo de elegibilidad, CTA, manifests DRAFT                                                      | pendiente      |
 | 6     | `feat/circles-facilitator-rollout` | Eco shared-only, worker, métricas, hardening, runbook                                               | pendiente      |

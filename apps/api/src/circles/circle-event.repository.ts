@@ -23,6 +23,7 @@ import { CircleStorageError } from "./circle-invitation.repository";
  */
 
 export type CircleEventDb = Pick<PrismaClient, "circleEvent">;
+export type CircleEventTx = CircleEventDb;
 
 /**
  * The metadata grammar, as a CLOSED discriminated union rather than a bag.
@@ -39,9 +40,23 @@ export type CircleEventDb = Pick<PrismaClient, "circleEvent">;
  * ledger by accident.
  */
 export type CircleEventTypeWithMetadata = "INVITATION_CREATED";
-export type CircleEventTypeWithoutMetadata = Exclude<
+
+/**
+ * The two event types that are ABOUT an artifact (PR3).
+ *
+ * Both carry `artifactId`, and both require the activity and the acting seat —
+ * the activity because the composite foreign key needs both columns to run, and
+ * the seat because "somebody confirmed this" without a somebody is not a
+ * confirmation. A SQL CHECK enforces the same three, so the type and the column
+ * cannot drift into disagreeing.
+ */
+export type CircleEventTypeWithArtifact =
+  | "ARTIFACT_PROPOSED"
+  | "ARTIFACT_CONFIRMED";
+
+export type CircleEventTypePlain = Exclude<
   CircleEventType,
-  CircleEventTypeWithMetadata
+  CircleEventTypeWithMetadata | CircleEventTypeWithArtifact
 >;
 
 export type CircleEventShape =
@@ -49,10 +64,20 @@ export type CircleEventShape =
       readonly type: CircleEventTypeWithMetadata;
       /** Whether a short code exists — a fact its recipient already knows. */
       readonly metadata: { readonly hasCode: boolean };
+      readonly artifactId?: undefined;
     }
   | {
-      readonly type: CircleEventTypeWithoutMetadata;
+      readonly type: CircleEventTypeWithArtifact;
+      /** The EXACT artifact row, which pins the version with it. */
+      readonly artifactId: string;
+      readonly activityId: string;
+      readonly actorParticipantId: string;
       readonly metadata?: undefined;
+    }
+  | {
+      readonly type: CircleEventTypePlain;
+      readonly metadata?: undefined;
+      readonly artifactId?: undefined;
     };
 
 export type AppendEventInput = CircleEventShape & {
@@ -101,6 +126,7 @@ export class CircleEventRepository {
           actorUserId: input.actorUserId ?? null,
           actorParticipantId: input.actorParticipantId ?? null,
           idempotencyKey: input.idempotencyKey ?? null,
+          artifactId: input.artifactId ?? null,
           // `undefined` omits the column, which lands as SQL NULL — the only
           // value the CHECK admits for every type but `INVITATION_CREATED`.
           metadata: input.metadata ?? undefined,
@@ -110,11 +136,51 @@ export class CircleEventRepository {
       });
       return { outcome: "APPENDED", id: row.id };
     } catch (err) {
-      // A receipt collision is the mechanism working, not a failure. Anything
-      // else becomes the value-free storage error.
-      if (isUniqueViolation(err) && input.idempotencyKey) {
-        return { outcome: "REPLAY" };
-      }
+      if (!isUniqueViolation(err)) throw new CircleStorageError();
+      // A unique violation is only a REPLAY if the receipt index is the index
+      // that fired. `CircleEvent` carries more than one: PR3 adds
+      // `CircleEvent_one_confirmation_per_artifact_actor`, which enforces "one
+      // confirmation per seat per artifact" and has nothing to do with
+      // idempotency. Treating every P2002 as a replay would have turned a
+      // second confirmation of an artifact under a DIFFERENT key — a distinct
+      // command, correctly refused by that index — into a silent success.
+      //
+      // So the collision is not interpreted; it is verified. If the exact
+      // receipt exists, this was a replay. If it does not, some other unique
+      // constraint fired and its own semantics apply — which, at this layer,
+      // means the value-free storage error rather than a guess.
+      if (await this.receiptExists(input, db)) return { outcome: "REPLAY" };
+      throw new CircleStorageError();
+    }
+  }
+
+  /**
+   * Whether the exact receipt — actor, event type, idempotency key — is
+   * already in the ledger.
+   *
+   * The actor half is deliberately exact rather than "either column set":
+   * `actorUserId` and `actorParticipantId` are the two partial unique indexes,
+   * and matching the wrong one would let a member's key claim a seat's
+   * receipt.
+   */
+  private async receiptExists(
+    input: AppendEventInput,
+    db: CircleEventDb,
+  ): Promise<boolean> {
+    if (!input.idempotencyKey) return false;
+    if (!input.actorUserId && !input.actorParticipantId) return false;
+    try {
+      const found = await db.circleEvent.findFirst({
+        where: {
+          type: input.type,
+          idempotencyKey: input.idempotencyKey,
+          actorUserId: input.actorUserId ?? null,
+          actorParticipantId: input.actorParticipantId ?? null,
+        },
+        select: { id: true },
+      });
+      return found !== null;
+    } catch {
       throw new CircleStorageError();
     }
   }

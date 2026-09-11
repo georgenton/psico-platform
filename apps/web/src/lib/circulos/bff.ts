@@ -4,8 +4,6 @@ import { headers } from "next/headers";
 import type { CircleActivityView, CircleShareConfirmation } from "@psico/types";
 import { CIRCLE_SHARE_LIMITS } from "@psico/types";
 
-import { readGuestToken } from "./guest-cookie";
-
 /**
  * The Círculos back-end-for-front-end.
  *
@@ -217,35 +215,18 @@ export interface CommandInput {
 }
 
 /**
- * Issue one command as the guest.
+ * Issue one command as the guest whose session `resolveActor` already settled.
  *
- * `activityId` reaches the upstream URL only after `guestScope` has said this
- * session owns it. The API enforces the same thing — a guest token is bound to
- * one activity server-side — so this is defence in depth, not the only guard;
- * it exists so a mismatch is refused before we spend an upstream call on it.
+ * The scope check is NOT repeated here. It used to be, and once the resolver
+ * existed that meant two identical lookups per command — the same question
+ * asked twice, one of them wasted against a rate-limited endpoint. Whoever
+ * calls this has already established that this token owns this activity, and
+ * the API enforces the binding again on its own side regardless.
  */
 export async function guestCommand(
+  token: string,
   input: CommandInput,
 ): Promise<BffResult<unknown>> {
-  const token = readGuestToken();
-  if (!token) {
-    return { ok: false, status: 401, code: "CIRCLE_FORBIDDEN", data: null };
-  }
-  const scope = await guestScope(token);
-  if (!scope.ok || !scope.data) {
-    return {
-      ok: false,
-      status: scope.status,
-      code: scope.code,
-      data: null,
-    };
-  }
-  if (scope.data.activityId !== input.activityId) {
-    // Same opaque refusal as "no such activity". Confirming that the activity
-    // exists but is not yours is still telling a stranger it exists.
-    return { ok: false, status: 403, code: "CIRCLE_FORBIDDEN", data: null };
-  }
-
   const route = COMMAND_ROUTES[input.kind];
   return call(
     `/circles/guest/activities/${encodeURIComponent(input.activityId)}${route.path}`,

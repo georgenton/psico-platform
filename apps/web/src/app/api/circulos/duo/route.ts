@@ -47,7 +47,16 @@ export async function POST(request: Request): Promise<NextResponse> {
     payload?: unknown;
     idempotencyKey?: unknown;
   } | null;
-  if (!raw || typeof raw !== "object") {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return refuse(400, "CIRCLE_INVALID_PAYLOAD");
+  }
+  // Exactly two keys. The wrapper is as closed as the payload it carries.
+  const wrapper = Object.keys(raw);
+  if (
+    wrapper.length !== 2 ||
+    !wrapper.includes("payload") ||
+    !wrapper.includes("idempotencyKey")
+  ) {
     return refuse(400, "CIRCLE_INVALID_PAYLOAD");
   }
 

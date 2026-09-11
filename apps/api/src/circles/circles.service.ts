@@ -22,6 +22,9 @@ import type {
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { CirclesRolloutService } from "./circles-rollout.service";
 import { CirclesError } from "./circles-http-errors";
+import { safeInviterFirstName } from "./circles-inviter-name";
+import type { CircleInvitationPreview } from "@psico/types";
+import { productionCircleTemplateRegistry } from "@psico/types";
 import {
   hashSecret,
   mintInvitationCode,
@@ -211,17 +214,102 @@ export class CirclesService {
   }
 
   /**
-   * Is this secret currently usable? A read, and only a read.
+   * Is this secret currently usable, and what is it an invitation TO?
    *
-   * Opening a link must not spend it — somebody who taps a link twice, or whose
-   * browser prefetches it, has not accepted anything. Acceptance is a separate,
-   * explicit call. This returns a bare boolean for the usable case and throws
-   * the uniform error otherwise, so there is no field a caller could read a
-   * reason out of.
+   * A read, and only a read. Opening a link must not spend it — somebody who
+   * taps twice, or whose browser prefetches, has not accepted anything.
+   * Acceptance is a separate, explicit call.
+   *
+   * ── Why this returns more than a boolean ───────────────────────────────────
+   *
+   * It used to return `true`, which made the screen before "Aceptar" generic:
+   * the person was asked to accept something described only as "an invitation",
+   * from nobody in particular. That is consent without information, and on a
+   * surface whose whole point is that accepting is deliberate.
+   *
+   * So it returns the four things needed to decide — who is asking, what it is,
+   * how long it takes — projected from the template the activity is PINNED to,
+   * and nothing else. No ids, no roster, no state, no counts, no answers. See
+   * `CircleInvitationPreview` for what is absent and why.
+   *
+   * ── What is unchanged ─────────────────────────────────────────────────────
+   *
+   * Every refusal is still exactly `CIRCLE_INVITATION_UNUSABLE`: nonexistent,
+   * malformed, expired, consumed, declined, revoked, and an inviter who is no
+   * longer eligible all take the same exit, so the richer success path opens no
+   * oracle. A caller who cannot produce a usable secret learns nothing new.
+   *
+   * The pin is resolved with `getExact`, not `getPublished`: an activity
+   * already running on a template that was later archived has to keep working,
+   * and the person holding its invitation is entitled to know what they are
+   * accepting. That is not a public listing — it is reachable only by holding
+   * the secret — so it does not weaken the rule that DRAFT and ARCHIVED never
+   * appear in the public catalog.
    */
-  async inspect(presented: string, now: Date = new Date()): Promise<true> {
-    await this.resolveUsableInvitation(presented, now);
-    return true;
+  async inspect(
+    presented: string,
+    now: Date = new Date(),
+  ): Promise<CircleInvitationPreview> {
+    const invitation = await this.resolveUsableInvitation(presented, now);
+    return this.previewOf(invitation);
+  }
+
+  /**
+   * Project an invitation to what its holder may see before accepting.
+   *
+   * Any failure here is the same refusal as a bad secret. An invitation we
+   * cannot describe — a pin this build does not carry, an inviter row that
+   * vanished — is one we should not be inviting anybody to accept, and saying
+   * so specifically would confirm the invitation is real.
+   */
+  private async previewOf(invitation: {
+    readonly activityId: string;
+    readonly createdByMemberId: string;
+  }): Promise<CircleInvitationPreview> {
+    const unusable = new CirclesError("CIRCLE_INVITATION_UNUSABLE");
+
+    let activity;
+    let member;
+    try {
+      [activity, member] = await Promise.all([
+        this.activities.findById(invitation.activityId),
+        this.members.findById(invitation.createdByMemberId),
+      ]);
+    } catch {
+      throw new CirclesError("CIRCLE_STORAGE_FAILURE");
+    }
+    if (!activity || !member) throw unusable;
+
+    let definition;
+    try {
+      definition = productionCircleTemplateRegistry.getExact(
+        activity.templateKey,
+        activity.templateVersion,
+      );
+    } catch {
+      throw unusable;
+    }
+
+    let user;
+    try {
+      user = await this.prisma.user.findUnique({
+        where: { id: member.userId },
+        // Exactly the two columns a first name can come from. Selecting the
+        // row would pull an email into memory next to a value we are about to
+        // serialize to somebody holding only a link.
+        select: { firstName: true, name: true },
+      });
+    } catch {
+      throw new CirclesError("CIRCLE_STORAGE_FAILURE");
+    }
+    if (!user) throw unusable;
+
+    return Object.freeze({
+      title: definition.title,
+      summary: definition.summary,
+      estimatedMinutes: definition.estimatedMinutes,
+      inviterFirstName: safeInviterFirstName(user),
+    });
   }
 
   /**

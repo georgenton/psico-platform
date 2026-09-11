@@ -23915,7 +23915,7 @@
         },
         "responses": {
           "200": {
-            "description": "The invitation is usable."
+            "description": "Usable, with the minimum needed to decide: who invites, what it is, how long. No ids, no roster, no state, no content."
           },
           "404": {
             "description": "CIRCLE_INVITATION_UNUSABLE — one answer for nonexistent, malformed, expired, already used, declined and revoked alike."

@@ -76,77 +76,25 @@ describe("BFF · a state-changing call must come from our own page", () => {
   });
 });
 
-describe("BFF · a guest cannot move to another activity", () => {
+describe("BFF · a guest command goes exactly where it was told", () => {
   beforeEach(() => {
     cookieStore.clear();
     vi.restoreAllMocks();
   });
 
-  it("refuses when the session resolves to a different activityId", async () => {
-    cookieStore.set(GUEST_COOKIE, "guest-token");
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          kind: "GUEST",
-          activityId: "act-MINE",
-          participantId: "p1",
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      ),
+  it("forwards to the resolved activity, with the resolved token", async () => {
+    // The scope check that used to live here now lives in `resolveActor`, and
+    // is exercised in `correcciones.test.ts`. Asking the same question twice
+    // per command meant two lookups against a rate-limited endpoint, one of
+    // them wasted.
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
     );
 
-    const result = await guestCommand({
-      kind: "share",
-      activityId: "act-SOMEBODY-ELSE",
-      body: { mode: "KEEP_PRIVATE" },
-      idempotencyKey: "k",
-    });
-
-    expect(result.ok).toBe(false);
-    expect(result.status).toBe(403);
-    expect(result.code).toBe("CIRCLE_FORBIDDEN");
-
-    // The decisive part: the command was never forwarded. Only the scope
-    // lookup happened.
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
-    expect(String(fetchSpy.mock.calls[0]![0])).toContain(
-      "/circles/guest/session",
-    );
-  });
-
-  it("refuses with no cookie at all, without calling upstream", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch");
-    const result = await guestCommand({
-      kind: "withdraw",
-      activityId: "act-1",
-      idempotencyKey: "k",
-    });
-    expect(result.status).toBe(401);
-    expect(fetchSpy).not.toHaveBeenCalled();
-  });
-
-  it("forwards to the activity the session actually names", async () => {
-    cookieStore.set(GUEST_COOKIE, "guest-token");
-    const fetchSpy = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            kind: "GUEST",
-            activityId: "act-1",
-            participantId: "p1",
-          }),
-          { status: 200, headers: { "Content-Type": "application/json" } },
-        ),
-      )
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ ok: true }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }),
-      );
-
-    const result = await guestCommand({
+    const result = await guestCommand("guest-token", {
       kind: "share",
       activityId: "act-1",
       body: { mode: "KEEP_PRIVATE" },
@@ -154,11 +102,11 @@ describe("BFF · a guest cannot move to another activity", () => {
     });
 
     expect(result.ok).toBe(true);
-    const [url, init] = fetchSpy.mock.calls[1]!;
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchSpy.mock.calls[0]!;
     expect(String(url)).toBe(
       "http://localhost:3001/api/circles/guest/activities/act-1/share-confirmations",
     );
-    // The credential is the cookie; the idempotency key is minted server-side.
     const sent = new Headers((init as RequestInit).headers);
     expect(sent.get("Authorization")).toBe("Bearer guest-token");
     expect(sent.get("Idempotency-Key")).toBe("key-1");
@@ -167,20 +115,8 @@ describe("BFF · a guest cannot move to another activity", () => {
 
 describe("BFF · the browser never says who it is", () => {
   it("forwards no identity field even when the body carries one", async () => {
-    cookieStore.clear();
-    cookieStore.set(GUEST_COOKIE, "guest-token");
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            kind: "GUEST",
-            activityId: "act-1",
-            participantId: "p1",
-          }),
-          { status: 200, headers: { "Content-Type": "application/json" } },
-        ),
-      )
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ ok: true }), { status: 200 }),
       );
@@ -195,14 +131,14 @@ describe("BFF · the browser never says who it is", () => {
       }),
     ).toBeNull();
 
-    await guestCommand({
+    await guestCommand("guest-token", {
       kind: "share",
       activityId: "act-1",
       body: { mode: "KEEP_PRIVATE" },
       idempotencyKey: "k",
     });
 
-    const body = String((fetchSpy.mock.calls[1]![1] as RequestInit).body);
+    const body = String((fetchSpy.mock.calls[0]![1] as RequestInit).body);
     for (const claimed of [
       "userId",
       "participantId",

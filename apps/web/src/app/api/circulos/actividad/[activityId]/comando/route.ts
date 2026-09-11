@@ -8,8 +8,7 @@ import {
   parseShareConfirmation,
   sameOrigin,
 } from "@/lib/circulos/bff";
-import { readGuestToken } from "@/lib/circulos/guest-cookie";
-import { getAccessToken } from "@/lib/api.server";
+import { resolveActor } from "@/lib/circulos/actor";
 
 /**
  * The five commands, and nothing else.
@@ -60,6 +59,15 @@ export async function POST(
   const kind = raw.kind;
   if (!isCirculoCommand(kind)) return refuse(400, "CIRCLE_INVALID_PAYLOAD");
 
+  // The WRAPPER is closed too, not just the payload inside it. An unexpected
+  // key here is refused rather than ignored: silently dropping `userId` or
+  // `role` would mean a caller could send them for a long time without anything
+  // saying no, and the day one of them started being read would be the day it
+  // mattered.
+  if (!exactKeys(raw, ["kind", "idempotencyKey", "payload"])) {
+    return refuse(400, "CIRCLE_INVALID_PAYLOAD");
+  }
+
   const payload = buildPayload(kind, raw.payload);
   if (payload === INVALID) return refuse(400, "CIRCLE_INVALID_PAYLOAD");
 
@@ -78,31 +86,28 @@ export async function POST(
 
   const activityId = params.activityId;
 
-  const guestToken = readGuestToken();
-  if (guestToken) {
-    const result = await guestCommand({
-      kind,
-      activityId,
-      body: payload,
-      idempotencyKey,
-    });
-    return noStore(
-      NextResponse.json(
-        result.ok ? { ok: true } : { ok: false, code: result.code },
-        { status: result.status },
-      ),
-    );
-  }
+  // Resolved from credentials BEFORE the command is sent, using reads only.
+  // The command is then issued exactly once, as that actor: there is no path
+  // on which a withdrawal or a share is attempted as one actor and repeated as
+  // another.
+  const actor = await resolveActor(activityId);
+  if (actor.kind === "NONE") return refuse(actor.status, actor.code);
 
-  const accessToken = getAccessToken();
-  if (!accessToken) return refuse(401, "CIRCLE_FORBIDDEN");
+  const result =
+    actor.kind === "GUEST"
+      ? await guestCommand(actor.token, {
+          kind,
+          activityId,
+          body: payload,
+          idempotencyKey,
+        })
+      : await memberCommand(actor.token, {
+          kind,
+          activityId,
+          body: payload,
+          idempotencyKey,
+        });
 
-  const result = await memberCommand(accessToken, {
-    kind,
-    activityId,
-    body: payload,
-    idempotencyKey,
-  });
   return noStore(
     NextResponse.json(
       result.ok ? { ok: true } : { ok: false, code: result.code },
@@ -126,11 +131,17 @@ function buildPayload(
 
     case "withdraw":
       // No reason is accepted. Leaving does not owe an explanation, so there is
-      // no field one could be written into.
-      return {};
+      // no field one could be written into — and a body that tries is refused
+      // rather than emptied, so nobody builds a UI around one.
+      if (raw === undefined || raw === null) return {};
+      if (typeof raw !== "object" || Array.isArray(raw)) return INVALID;
+      return exactKeys(raw as Record<string, unknown>, []) ? {} : INVALID;
 
     case "artifact": {
-      if (typeof raw !== "object" || raw === null) return INVALID;
+      if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+        return INVALID;
+      }
+      if (!exactKeys(raw as Record<string, unknown>, ["body"])) return INVALID;
       const body = (raw as { body?: unknown }).body;
       if (typeof body !== "string") return INVALID;
       if (body.trim().length === 0) return INVALID;
@@ -139,7 +150,14 @@ function buildPayload(
     }
 
     case "artifact-confirm": {
-      if (typeof raw !== "object" || raw === null) return INVALID;
+      if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+        return INVALID;
+      }
+      if (
+        !exactKeys(raw as Record<string, unknown>, ["artifactId", "version"])
+      ) {
+        return INVALID;
+      }
       const { artifactId, version } = raw as {
         artifactId?: unknown;
         version?: unknown;
@@ -157,7 +175,12 @@ function buildPayload(
     }
 
     case "follow-up": {
-      if (typeof raw !== "object" || raw === null) return INVALID;
+      if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+        return INVALID;
+      }
+      if (!exactKeys(raw as Record<string, unknown>, ["decision"])) {
+        return INVALID;
+      }
       const decision = (raw as { decision?: unknown }).decision;
       if (typeof decision !== "string") return INVALID;
       if (!(FOLLOW_UP as readonly string[]).includes(decision)) return INVALID;
@@ -167,4 +190,10 @@ function buildPayload(
     default:
       return INVALID;
   }
+}
+
+/** The object has these keys and no others. Order-independent. */
+function exactKeys(obj: Record<string, unknown>, keys: string[]): boolean {
+  const own = Object.keys(obj);
+  return own.length === keys.length && keys.every((k) => own.includes(k));
 }

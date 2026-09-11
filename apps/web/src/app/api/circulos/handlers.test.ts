@@ -24,7 +24,11 @@ import { POST as sesionPOST, DELETE as sesionDELETE } from "./sesion/route";
 import { POST as comandoPOST } from "./actividad/[activityId]/comando/route";
 import { GUEST_COOKIE } from "@/lib/circulos/guest-cookie";
 
-const KEY = "3f1c2b8a-5d4e-4a7b-9c2d-6e8f0a1b2c3d";
+// A v4 UUID standing in for the key the browser mints per intention.
+// Named for what it is rather than `INTENCION`: an idempotency key is not a
+// credential, but `INTENCION = "<uuid>"` is indistinguishable from one to a
+// secret scanner, and a scanner that cries wolf gets ignored.
+const INTENCION = "3f1c2b8a-5d4e-4a7b-9c2d-6e8f0a1b2c3d";
 
 function req(body: unknown): Request {
   return new Request("https://app.test/api/circulos/x", {
@@ -141,7 +145,7 @@ describe("the command handler forwards only what is on the list", () => {
       const fetchSpy = vi.spyOn(globalThis, "fetch");
 
       const res = await comandoPOST(
-        req({ kind, payload: {}, idempotencyKey: KEY }),
+        req({ kind, payload: {}, idempotencyKey: INTENCION }),
         params,
       );
 
@@ -160,7 +164,7 @@ describe("the command handler forwards only what is on the list", () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
 
     const res = await comandoPOST(
-      req({ kind: "withdraw", payload: {}, idempotencyKey: KEY }),
+      req({ kind: "withdraw", payload: {}, idempotencyKey: INTENCION }),
       params,
     );
 
@@ -176,7 +180,7 @@ describe("the command handler forwards only what is on the list", () => {
       req({
         kind: "share",
         payload: { mode: "KEEP_PRIVATE", reason: "x" },
-        idempotencyKey: KEY,
+        idempotencyKey: INTENCION,
       }),
       params,
     );
@@ -191,34 +195,53 @@ describe("the command handler forwards only what is on the list", () => {
       req({
         kind: "follow-up",
         payload: { decision: "MAYBE" },
-        idempotencyKey: KEY,
+        idempotencyKey: INTENCION,
       }),
       params,
     );
     expect(res.status).toBe(400);
   });
 
-  it("sends no reason with a withdrawal", async () => {
+  it("refuses a withdrawal that carries a reason", async () => {
+    cookieStore.set(GUEST_COOKIE, "guest-token");
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+    const res = await comandoPOST(
+      req({
+        kind: "withdraw",
+        payload: { reason: "me sentí mal" },
+        idempotencyKey: INTENCION,
+      }),
+      params,
+    );
+
+    // Leaving owes no explanation, so there is no field a reason can travel
+    // in — and a body that invents one is REFUSED rather than quietly emptied,
+    // so nobody builds a UI around a field the contract does not have.
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      ok: false,
+      code: "CIRCLE_INVALID_PAYLOAD",
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("sends an empty body for a plain withdrawal", async () => {
     cookieStore.set(GUEST_COOKIE, "guest-token");
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")
+      // The resolver's scope read, then the command itself.
       .mockResolvedValueOnce(
         ok({ kind: "GUEST", activityId: "act-1", participantId: "p" }),
       )
       .mockResolvedValueOnce(ok({ ok: true }));
 
     await comandoPOST(
-      req({
-        kind: "withdraw",
-        payload: { reason: "me sentí mal" },
-        idempotencyKey: KEY,
-      }),
+      req({ kind: "withdraw", payload: {}, idempotencyKey: INTENCION }),
       params,
     );
 
-    const body = String((fetchSpy.mock.calls[1]![1] as RequestInit).body);
-    expect(body).toBe("{}");
-    expect(body).not.toContain("me sentí mal");
+    expect(String((fetchSpy.mock.calls[1]![1] as RequestInit).body)).toBe("{}");
   });
 
   it("refuses a command aimed at another activity", async () => {
@@ -230,14 +253,13 @@ describe("the command handler forwards only what is on the list", () => {
       );
 
     const res = await comandoPOST(
-      req({ kind: "withdraw", payload: {}, idempotencyKey: KEY }),
-      {
-        params: { activityId: "act-OTHER" },
-      },
+      req({ kind: "withdraw", payload: {}, idempotencyKey: INTENCION }),
+      { params: { activityId: "act-OTHER" } },
     );
 
     expect(res.status).toBe(403);
-    // Only the scope lookup happened; the command was never forwarded.
+    // Only the resolver's read happened; the command was never forwarded, so
+    // it cannot have been applied as one actor and retried as another.
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 });

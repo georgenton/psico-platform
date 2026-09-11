@@ -112,22 +112,21 @@ describe("the cost of not storing it is stated, not hidden", () => {
     );
   });
 
-  it("asks the browser to confirm before unloading with text", async () => {
+  it("installs no unload listener of its own", async () => {
     const user = userEvent.setup();
     const addSpy = vi.spyOn(window, "addEventListener");
 
     render(<Harness />);
+    await user.type(screen.getByLabelText("Algo que quieres decir"), "x");
 
-    // No listener while the form is untouched — nothing to lose yet.
+    // The warning belongs to whoever owns the draft, and that is `SalaDuo`.
+    // Here it was torn down by the very navigation it needed to survive:
+    // "Ver qué se compartirá" unmounts this component, so the warning vanished
+    // at exactly the stage where a draft still exists and somebody is most
+    // likely to close the tab. See `SalaDuo.borrador.test.tsx`.
     expect(
       addSpy.mock.calls.filter(([e]) => e === "beforeunload"),
     ).toHaveLength(0);
-
-    await user.type(screen.getByLabelText("Algo que quieres decir"), "x");
-
-    expect(
-      addSpy.mock.calls.filter(([e]) => e === "beforeunload").length,
-    ).toBeGreaterThan(0);
   });
 });
 

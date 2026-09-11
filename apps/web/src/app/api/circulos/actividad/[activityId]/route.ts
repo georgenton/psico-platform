@@ -1,12 +1,6 @@
 import { NextResponse } from "next/server";
 
-import {
-  guestScope,
-  readActivityAsGuest,
-  readActivityAsMember,
-} from "@/lib/circulos/bff";
-import { readGuestToken } from "@/lib/circulos/guest-cookie";
-import { getAccessToken } from "@/lib/api.server";
+import { readActivityAs, resolveActor } from "@/lib/circulos/actor";
 
 /**
  * The activity, as the API filtered it for whoever is asking.
@@ -17,9 +11,9 @@ import { getAccessToken } from "@/lib/api.server";
  * projection, and a web layer that "helpfully" merged in anything else would be
  * undoing it.
  *
- * Which credential is used is decided here, not by the caller. A guest cookie
- * makes it a guest read; otherwise the session cookie makes it a member read.
- * There is no parameter that selects a role.
+ * Which credential is used is decided by `resolveActor` — the same resolver the
+ * room's first render and every command use — never by the caller. There is no
+ * parameter that selects a role.
  */
 export const dynamic = "force-dynamic";
 
@@ -34,51 +28,13 @@ export async function GET(
   _request: Request,
   { params }: { params: { activityId: string } },
 ): Promise<NextResponse> {
-  const activityId = params.activityId;
+  const actor = await resolveActor(params.activityId);
+  const read = await readActivityAs(actor, params.activityId);
 
-  const guestToken = readGuestToken();
-  if (guestToken) {
-    const scope = await guestScope(guestToken);
-    if (!scope.ok || !scope.data) {
-      return noStore(
-        NextResponse.json(
-          { ok: false, code: scope.code ?? "CIRCLE_FORBIDDEN" },
-          { status: scope.status },
-        ),
-      );
-    }
-    if (scope.data.activityId !== activityId) {
-      // The guest holds a session for a different activity. Refuse with the
-      // same shape as "no such activity" — a distinguishable answer would let
-      // somebody enumerate which ids exist.
-      return noStore(
-        NextResponse.json(
-          { ok: false, code: "CIRCLE_FORBIDDEN" },
-          { status: 403 },
-        ),
-      );
-    }
-    const view = await readActivityAsGuest(guestToken, activityId);
-    return noStore(
-      NextResponse.json(view.ok ? view.data : { ok: false, code: view.code }, {
-        status: view.status,
-      }),
-    );
-  }
-
-  const accessToken = getAccessToken();
-  if (!accessToken) {
-    return noStore(
-      NextResponse.json(
-        { ok: false, code: "CIRCLE_FORBIDDEN" },
-        { status: 401 },
-      ),
-    );
-  }
-  const view = await readActivityAsMember(accessToken, activityId);
   return noStore(
-    NextResponse.json(view.ok ? view.data : { ok: false, code: view.code }, {
-      status: view.status,
-    }),
+    NextResponse.json(
+      read.view ?? { ok: false, code: read.code ?? "CIRCLE_FORBIDDEN" },
+      { status: read.view ? 200 : read.status },
+    ),
   );
 }

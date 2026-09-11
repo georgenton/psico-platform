@@ -119,7 +119,7 @@ describe("consent comes before preparation", () => {
       screen.getByRole("heading", { name: /antes de empezar/i }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /ahora no/i }),
+      screen.getByRole("button", { name: /no quiero hacerla/i }),
     ).toBeInTheDocument();
   });
 
@@ -135,42 +135,105 @@ describe("consent comes before preparation", () => {
   });
 });
 
-describe("leaving", () => {
-  it("clears the cookie through the session handler and gives no cause", async () => {
+describe("leaving means withdrawing, not just losing the cookie", () => {
+  it("withdraws BEFORE it clears the cookie, and says so honestly", async () => {
     const user = userEvent.setup();
+    const order: string[] = [];
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")
-      .mockResolvedValue(
-        new Response(JSON.stringify({ ok: true }), { status: 200 }),
-      );
+      .mockImplementation(async (input, init) => {
+        const url = String(input);
+        if (url.includes("/comando")) {
+          order.push("withdraw");
+          return new Response(JSON.stringify({ ok: true }), { status: 200 });
+        }
+        if (
+          url === "/api/circulos/sesion" &&
+          (init as RequestInit | undefined)?.method === "DELETE"
+        ) {
+          order.push("delete-cookie");
+          return new Response(JSON.stringify({ ok: true }), { status: 200 });
+        }
+        return new Response(JSON.stringify(ESPERANDO), { status: 200 });
+      });
 
     render(<SalaDuo {...base} initialView={ESPERANDO} />);
-    await user.click(screen.getByRole("button", { name: /^salir$/i }));
+    await user.click(
+      screen.getByRole("button", { name: /retirarme de la actividad/i }),
+    );
 
-    await waitFor(() => {
-      const call = fetchSpy.mock.calls.find(
-        ([url, init]) =>
-          String(url) === "/api/circulos/sesion" &&
-          (init as RequestInit | undefined)?.method === "DELETE",
-      );
-      expect(call).toBeDefined();
-      // No body: leaving does not owe an explanation, so there is no field a
-      // reason could travel in.
-      expect((call?.[1] as RequestInit | undefined)?.body).toBeUndefined();
-    });
+    await waitFor(() => expect(order).toContain("delete-cookie"));
+    // Deleting the cookie alone used to BE the exit, and it was a lie the
+    // screen told: the seat stayed ACCEPTED, the guest session stayed valid in
+    // PostgreSQL, and the other person waited forever while this screen said
+    // somebody had left. The withdrawal is what changes the aggregate, so it
+    // goes first — and the cookie is cleared only because it succeeded.
+    expect(order).toEqual(["withdraw", "delete-cookie"]);
+
+    const withdrawCall = fetchSpy.mock.calls.find(([u]) =>
+      String(u).includes("/comando"),
+    );
+    expect(
+      JSON.parse(String((withdrawCall![1] as RequestInit).body)).kind,
+    ).toBe("withdraw");
 
     expect(
       await screen.findByRole("heading", {
-        name: /saliste de esta actividad/i,
+        name: /te retiraste de esta actividad/i,
       }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps cookie, screen and access when the withdrawal fails", async () => {
+    const user = userEvent.setup();
+    const calls: string[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url.includes("/comando")) {
+        calls.push("withdraw");
+        return new Response(
+          JSON.stringify({ ok: false, code: "CIRCLE_UNAVAILABLE" }),
+          { status: 503 },
+        );
+      }
+      if ((init as RequestInit | undefined)?.method === "DELETE") {
+        calls.push("delete-cookie");
+        return new Response(JSON.stringify({ ok: true }), { status: 200 });
+      }
+      return new Response(JSON.stringify(ESPERANDO), { status: 200 });
+    });
+
+    render(<SalaDuo {...base} initialView={ESPERANDO} />);
+    await user.click(
+      screen.getByRole("button", { name: /retirarme de la actividad/i }),
+    );
+
+    await screen.findByRole("alert");
+    // Nothing was cleared. The person still has access to the room they failed
+    // to leave, and can try again under the same idempotency key.
+    expect(calls).toEqual(["withdraw"]);
+    expect(screen.queryByRole("heading", { name: /te retiraste/i })).toBeNull();
+    expect(
+      screen.getByRole("heading", { name: /falta la otra persona/i }),
     ).toBeInTheDocument();
   });
 
   it("keeps an exit visible at every non-terminal stage", () => {
     render(<SalaDuo {...base} initialView={REVELADA} />);
     expect(
-      screen.getByRole("button", { name: /salir de la sala/i }),
+      screen.getByRole("button", { name: /retirarme de la actividad/i }),
     ).toBeInTheDocument();
+  });
+
+  it("tells the truth about coming back", () => {
+    render(<SalaDuo {...base} initialView={ESPERANDO} />);
+    // The invitation is single-use; it was spent on the way in. Telling
+    // somebody to "volver con el mismo enlace" sends them to a link that can
+    // only fail.
+    const text = document.body.textContent ?? "";
+    expect(text).toMatch(/dirección de esta sala/i);
+    expect(text).toMatch(/una sola vez/i);
+    expect(text).not.toMatch(/volver con el mismo enlace/i);
   });
 });
 

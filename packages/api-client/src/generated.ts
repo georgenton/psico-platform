@@ -19142,7 +19142,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description The invitation is usable. */
+            /** @description Usable, with the minimum needed to decide: who invites, what it is, how long. No ids, no roster, no state, no content. */
             200: {
                 headers: {
                     [name: string]: unknown;

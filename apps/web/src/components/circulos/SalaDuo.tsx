@@ -11,7 +11,11 @@ import type {
 
 import { estilos as S } from "./estilos";
 import { usePollingActividad } from "./usePollingActividad";
-import { PreparacionPrivada, borradorInicial } from "./PreparacionPrivada";
+import {
+  PreparacionPrivada,
+  borradorInicial,
+  borradorTieneTexto,
+} from "./PreparacionPrivada";
 import type { BorradorPrivado } from "./PreparacionPrivada";
 import { PreviewCompartir } from "./PreviewCompartir";
 import { Reveal } from "./Reveal";
@@ -137,19 +141,59 @@ export function SalaDuo({
     [activityId, refresh, keyFor],
   );
 
-  const leave = useCallback(async () => {
+  /**
+   * Leave permanently: withdraw FIRST, then forget the session.
+   *
+   * Deleting the cookie used to be the whole of "salir", and it was a lie the
+   * screen told on the server's behalf. The seat stayed `ACCEPTED`, the guest
+   * session stayed valid in PostgreSQL, and the other person waited for a
+   * confirmation that was never coming — while this screen said the person had
+   * left. The only thing that actually left was their access.
+   *
+   * `withdraw` is the command that changes the aggregate: it settles the seat,
+   * revokes the guest sessions bound to it, and decides `CANCELLED` or
+   * `CLOSED`. So it runs first, and the local cleanup happens only if it
+   * succeeded. On failure nothing is cleared — cookie, draft, polling and
+   * screen all stay — and the person can retry under the same idempotency key.
+   */
+  const withdrawAndLeave = useCallback(async () => {
+    if (!(await command("withdraw"))) return false;
+
+    setDraft(borradorInicial(allowedModes));
     setBusy(true);
     try {
       await fetch("/api/circulos/sesion", { method: "DELETE" });
     } catch {
-      // The cookie may survive a failed request; the next command still fails
-      // closed upstream. Nothing to tell the person here.
+      // The withdrawal already landed, which is the part that matters: the
+      // seat is settled and the API has revoked the session server-side. A
+      // cookie that outlives it is inert.
     } finally {
       setBusy(false);
       setLocal({ stage: "left" });
       if (!isGuest) router.replace("/dashboard/circulos");
     }
-  }, [isGuest, router]);
+    return true;
+  }, [command, allowedModes, isGuest, router]);
+
+  // Warn before the draft is lost — from wherever in the flow it still exists.
+  //
+  // This lived inside `PreparacionPrivada` and was destroyed by the very
+  // navigation it needed to survive: "Ver qué se compartirá" unmounts the form,
+  // so the warning disappeared at the exact stage where somebody is most likely
+  // to think they are finished and close the tab. Here it is tied to the DRAFT,
+  // not to a screen, so it holds through prepare, through preview, and through
+  // a failed command — and stops the moment a confirmation or a withdrawal has
+  // actually cleared the draft.
+  const hasDraft = borradorTieneTexto(draft);
+  useEffect(() => {
+    if (!hasDraft) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [hasDraft]);
 
   const stageName = view ? derivedStage(view, local) : "loading";
 
@@ -166,10 +210,10 @@ export function SalaDuo({
   if (local.stage === "left") {
     return (
       <main style={S.page}>
-        <h1 style={S.h1}>Saliste de esta actividad</h1>
+        <h1 style={S.h1}>Te retiraste de esta actividad</h1>
         <p style={S.p}>
-          Ya no tienes acceso a esta sala en este dispositivo. Lo que escribiste
-          en privado nunca salió de tu pantalla.
+          La otra persona ya no está esperándote, y esta sala se cerró para ti.
+          Lo que escribiste en privado nunca salió de tu pantalla.
         </p>
         <a href="/" style={S.secondary}>
           Ir al inicio
@@ -238,7 +282,7 @@ export function SalaDuo({
           <p style={S.p}>
             Vas a prepararte por tu cuenta y después decidir qué compartir.
             Nadie ve nada tuyo hasta que tú lo confirmes, y puedes elegir no
-            compartir nada o salir en cualquier momento.
+            compartir nada o retirarte en cualquier momento.
           </p>
           <p style={S.p}>Toma unos {estimado(view)} minutos.</p>
           <div style={S.acciones}>
@@ -252,10 +296,10 @@ export function SalaDuo({
             <button
               type="button"
               style={S.quiet}
-              onClick={leave}
+              onClick={withdrawAndLeave}
               disabled={busy}
             >
-              Ahora no
+              No quiero hacerla
             </button>
           </div>
         </section>
@@ -271,14 +315,7 @@ export function SalaDuo({
           onPreview={(confirmation) =>
             setLocal({ stage: "preview", confirmation })
           }
-          onWithdraw={async () => {
-            // Leaving clears the draft locally. Nothing to erase anywhere
-            // else — it never left this tab.
-            if (await command("withdraw")) {
-              setDraft(borradorInicial(allowedModes));
-              await leave();
-            }
-          }}
+          onWithdraw={withdrawAndLeave}
         />
       )}
 
@@ -314,18 +351,14 @@ export function SalaDuo({
             abren los dos a la vez — ni antes, ni sólo uno.
           </p>
           <p style={S.p}>
-            Puedes cerrar esta página y volver con el mismo enlace.
+            Puedes cerrar esta página y volver a{" "}
+            <strong>la dirección de esta sala</strong> mientras tu sesión siga
+            vigente. El enlace de invitación original ya se usó y sirve una sola
+            vez.
           </p>
-          <div style={S.acciones}>
-            <button
-              type="button"
-              style={S.quiet}
-              onClick={leave}
-              disabled={busy}
-            >
-              Salir
-            </button>
-          </div>
+          {/* No exit button here: the always-visible one below covers this
+              stage, and two identical controls on one screen is a question
+              about which is which, not a convenience. */}
         </section>
       )}
 
@@ -364,8 +397,13 @@ export function SalaDuo({
 
       {stageName !== "consent" && stageName !== "closed" && (
         <div style={S.acciones}>
-          <button type="button" style={S.quiet} onClick={leave} disabled={busy}>
-            Salir de la sala
+          <button
+            type="button"
+            style={S.quiet}
+            onClick={withdrawAndLeave}
+            disabled={busy}
+          >
+            Retirarme de la actividad
           </button>
         </div>
       )}

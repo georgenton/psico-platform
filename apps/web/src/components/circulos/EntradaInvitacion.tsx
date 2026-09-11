@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import type { CircleInvitationPreview } from "@psico/types";
+
 import { estilos as S } from "./estilos";
 
 /**
@@ -50,6 +52,9 @@ export function EntradaInvitacion() {
   const secretRef = useRef<string | null>(null);
   const [phase, setPhase] = useState<Phase>("reading");
   const [manual, setManual] = useState("");
+  // What this invitation IS. Four fields, from the server, shown before the
+  // decision — never an id, a roster, a state or anybody's content.
+  const [preview, setPreview] = useState<CircleInvitationPreview | null>(null);
 
   /** Check the link without spending it. Never creates a session. */
   const inspect = useCallback(async (secret: string) => {
@@ -65,6 +70,8 @@ export function EntradaInvitacion() {
         setPhase("error");
         return;
       }
+      const body = (await res.json()) as { preview?: unknown };
+      setPreview(isPreview(body.preview) ? body.preview : null);
       setPhase("decide");
     } catch {
       secretRef.current = null;
@@ -163,11 +170,52 @@ export function EntradaInvitacion() {
   if (phase === "decide" || phase === "accepting") {
     return (
       <main style={S.page}>
-        <h1 style={S.h1}>Te invitaron a una actividad</h1>
-        <p style={S.p}>
-          Es una actividad para dos: cada quien se prepara por su lado y después
-          decide qué compartir. Nadie ve nada tuyo hasta que tú lo confirmes.
-        </p>
+        <h1 style={S.h1}>
+          {preview
+            ? `${preview.inviterFirstName} te invitó a una actividad`
+            : "Te invitaron a una actividad"}
+        </h1>
+
+        {preview && (
+          <section style={S.section} aria-labelledby="inv-h">
+            <h2 id="inv-h" style={S.h2}>
+              {preview.title}
+            </h2>
+            <p style={S.p}>{preview.summary}</p>
+            <p style={S.p}>Toma unos {preview.estimatedMinutes} minutos.</p>
+          </section>
+        )}
+
+        <section style={S.section} aria-labelledby="como-h">
+          <h2 id="como-h" style={S.h2}>
+            Cómo funciona
+          </h2>
+          <ul
+            style={{
+              margin: 0,
+              paddingLeft: "1.2rem",
+              display: "grid",
+              gap: ".5rem",
+            }}
+          >
+            <li style={S.turno}>
+              Primero te preparas <strong>por tu cuenta</strong>. Lo que
+              escribas se queda en tu pantalla y no se guarda en ningún sitio.
+            </li>
+            <li style={S.turno}>
+              Después decides qué compartir — todo, una parte, o{" "}
+              <strong>nada</strong>.
+            </li>
+            <li style={S.turno}>
+              Se abre para los dos <strong>a la vez</strong>, sólo cuando ambos
+              confirmaron. Nadie ve nada tuyo antes.
+            </li>
+            <li style={S.turno}>
+              Puedes retirarte en cualquier momento, sin dar explicaciones.
+            </li>
+          </ul>
+        </section>
+
         <p style={S.aviso} role="note">
           Esta invitación sirve una sola vez. Al aceptarla se abre tu sala en
           este dispositivo.
@@ -252,4 +300,23 @@ async function resolveActivity(): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+/**
+ * Is this the preview the server promised?
+ *
+ * The screen renders whatever comes back, so a malformed body must produce the
+ * generic wording rather than `undefined` in the middle of a sentence. Checked,
+ * not trusted — and never widened to "whatever fields happen to be present",
+ * because that is how an id ends up on screen.
+ */
+function isPreview(value: unknown): value is CircleInvitationPreview {
+  if (typeof value !== "object" || value === null) return false;
+  const p = value as Partial<CircleInvitationPreview>;
+  return (
+    typeof p.title === "string" &&
+    typeof p.summary === "string" &&
+    typeof p.estimatedMinutes === "number" &&
+    typeof p.inviterFirstName === "string"
+  );
 }

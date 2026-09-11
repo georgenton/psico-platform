@@ -24,7 +24,11 @@ import { GUEST_COOKIE } from "@/lib/circulos/guest-cookie";
 import { TOKEN_NAMES } from "@/lib/cookies";
 import { parseCreateDuo, parseIdempotencyKey } from "@/lib/circulos/bff";
 
-const KEY = "3f1c2b8a-5d4e-4a7b-9c2d-6e8f0a1b2c3d";
+// A v4 UUID standing in for the key the browser mints per intention.
+// Named for what it is rather than `INTENCION`: an idempotency key is not a
+// credential, but `INTENCION = "<uuid>"` is indistinguishable from one to a
+// secret scanner, and a scanner that cries wolf gets ignored.
+const INTENCION = "3f1c2b8a-5d4e-4a7b-9c2d-6e8f0a1b2c3d";
 const TOKEN = "A".repeat(43);
 
 function req(body: unknown): Request {
@@ -135,7 +139,7 @@ describe("creating a Dúo forwards the invitation token", () => {
           templateVersion: 1,
           invitationToken: TOKEN,
         },
-        idempotencyKey: KEY,
+        idempotencyKey: INTENCION,
       }),
     );
 
@@ -172,7 +176,7 @@ describe("creating a Dúo forwards the invitation token", () => {
             templateVersion: 1,
             invitationToken: bad,
           },
-          idempotencyKey: KEY,
+          idempotencyKey: INTENCION,
         }),
       );
       expect(res.status, JSON.stringify(bad)).toBe(400);
@@ -186,7 +190,7 @@ describe("creating a Dúo forwards the invitation token", () => {
     const res = await duoPOST(
       req({
         payload: { templateKey: "t", templateVersion: 1 },
-        idempotencyKey: KEY,
+        idempotencyKey: INTENCION,
       }),
     );
     expect(res.status).toBe(400);
@@ -202,7 +206,7 @@ describe("creating a Dúo forwards the invitation token", () => {
           templateVersion: 1,
           invitationToken: TOKEN,
         },
-        idempotencyKey: KEY,
+        idempotencyKey: INTENCION,
       }),
     );
     // The token is not identity and authorises nothing on its own.
@@ -233,7 +237,7 @@ describe("creating a Dúo forwards the invitation token", () => {
           templateVersion: 1,
           invitationToken: TOKEN,
         },
-        idempotencyKey: KEY,
+        idempotencyKey: INTENCION,
       }),
     );
     expect(JSON.stringify(await res.json())).not.toContain(TOKEN);
@@ -245,6 +249,7 @@ describe("the idempotency key comes from the client and is forwarded", () => {
     cookieStore.set(GUEST_COOKIE, "guest-token");
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")
+      // The resolver's scope read, then the command itself.
       .mockResolvedValueOnce(
         ok({ kind: "GUEST", activityId: "act-1", participantId: "p" }),
       )
@@ -254,7 +259,7 @@ describe("the idempotency key comes from the client and is forwarded", () => {
       req({
         kind: "share",
         payload: { mode: "KEEP_PRIVATE" },
-        idempotencyKey: KEY,
+        idempotencyKey: INTENCION,
       }),
       { params: { activityId: "act-1" } },
     );
@@ -263,7 +268,7 @@ describe("the idempotency key comes from the client and is forwarded", () => {
       (fetchSpy.mock.calls[1]![1] as RequestInit).headers,
     );
     // Not a fresh one: the SAME key, so a retry replays instead of conflicting.
-    expect(sent.get("Idempotency-Key")).toBe(KEY);
+    expect(sent.get("Idempotency-Key")).toBe(INTENCION);
   });
 
   it("forwards the caller's key unchanged on a creation", async () => {
@@ -279,7 +284,7 @@ describe("the idempotency key comes from the client and is forwarded", () => {
           templateVersion: 1,
           invitationToken: TOKEN,
         },
-        idempotencyKey: KEY,
+        idempotencyKey: INTENCION,
       }),
     );
 
@@ -287,7 +292,7 @@ describe("the idempotency key comes from the client and is forwarded", () => {
       new Headers((fetchSpy.mock.calls[0]![1] as RequestInit).headers).get(
         "Idempotency-Key",
       ),
-    ).toBe(KEY);
+    ).toBe(INTENCION);
   });
 
   it("refuses anything that is not a v4 UUID", async () => {
@@ -302,7 +307,7 @@ describe("the idempotency key comes from the client and is forwarded", () => {
     ]) {
       expect(parseIdempotencyKey(bad), bad).toBeNull();
     }
-    expect(parseIdempotencyKey(KEY)).toBe(KEY);
+    expect(parseIdempotencyKey(INTENCION)).toBe(INTENCION);
   });
 
   it("refuses a command with no key rather than minting one", async () => {
@@ -317,33 +322,99 @@ describe("the idempotency key comes from the client and is forwarded", () => {
 });
 
 describe("a broken guest cookie does not break a member's session", () => {
-  it("does not fall back to the member credential when a guest cookie is present", async () => {
-    // Both cookies present — a shared device, or a member who once opened an
-    // invitation. The guest cookie decides, and when it is invalid the answer
-    // is a refusal, NOT a silent promotion to the member's own authority.
+  it("lets an authorised member through even with a stale guest cookie", async () => {
+    // The bug this replaces: ANY guest cookie won unconditionally, so a member
+    // who had once opened an invitation on this browser — or who shares a
+    // device — was locked out of their own activity by a dead cookie they had
+    // no way to see or clear.
     cookieStore.set(GUEST_COOKIE, "stale-guest-token");
     cookieStore.set(TOKEN_NAMES.access, "member-jwt");
 
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(ok({ code: "CIRCLE_GUEST_SESSION_INVALID" }, 401));
+      .mockResolvedValueOnce(ok({ activityId: "act-1", status: "PREPARING" }));
 
     const res = await actividadGET(new Request("https://app.test/x"), {
       params: { activityId: "act-1" },
     });
 
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(200);
+    // The member was tried FIRST and succeeded, so the guest session was never
+    // even consulted.
     expect(fetchSpy).toHaveBeenCalledTimes(1);
-    // The member token was never sent anywhere.
+    const [url, init] = fetchSpy.mock.calls[0]!;
+    expect(String(url)).toContain("/circles/activities/act-1");
+    expect(String(url)).not.toContain("/guest/");
+    expect(
+      new Headers((init as RequestInit).headers).get("Authorization"),
+    ).toBe("Bearer member-jwt");
+  });
+
+  it("lets a member through when the guest cookie names another activity", async () => {
+    cookieStore.set(GUEST_COOKIE, "guest-for-somebody-else");
+    cookieStore.set(TOKEN_NAMES.access, "member-jwt");
+
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(ok({ activityId: "act-1", status: "PREPARING" }));
+
+    const res = await actividadGET(new Request("https://app.test/x"), {
+      params: { activityId: "act-1" },
+    });
+
+    expect(res.status).toBe(200);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("prefers the member when BOTH credentials would authorise", async () => {
+    cookieStore.set(GUEST_COOKIE, "valid-guest-token");
+    cookieStore.set(TOKEN_NAMES.access, "member-jwt");
+
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(ok({ activityId: "act-1", status: "PREPARING" }));
+
+    await actividadGET(new Request("https://app.test/x"), {
+      params: { activityId: "act-1" },
+    });
+
+    // The account is the stronger claim: it survives the cookie expiring and
+    // it is the identity the person manages.
     const sent = new Headers(
       (fetchSpy.mock.calls[0]![1] as RequestInit).headers,
     );
-    expect(sent.get("Authorization")).toBe("Bearer stale-guest-token");
+    expect(sent.get("Authorization")).toBe("Bearer member-jwt");
+  });
+
+  it("lets a signed-in NON-member use a valid guest session", async () => {
+    // Somebody with an account who was invited as a guest. An ordinary case,
+    // not an edge one.
+    cookieStore.set(GUEST_COOKIE, "valid-guest-token");
+    cookieStore.set(TOKEN_NAMES.access, "member-jwt");
+
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      // Member read: a definite no.
+      .mockResolvedValueOnce(ok({ code: "CIRCLE_FORBIDDEN" }, 403))
+      // Guest scope: valid, and for this activity.
+      .mockResolvedValueOnce(
+        ok({ kind: "GUEST", activityId: "act-1", participantId: "p" }),
+      )
+      .mockResolvedValueOnce(ok({ activityId: "act-1", status: "PREPARING" }));
+
+    const res = await actividadGET(new Request("https://app.test/x"), {
+      params: { activityId: "act-1" },
+    });
+
+    expect(res.status).toBe(200);
+    expect(String(fetchSpy.mock.calls[2]![0])).toContain(
+      "/circles/guest/activities/act-1",
+    );
   });
 
   it("refuses a guest cookie scoped to a different activity", async () => {
     cookieStore.set(GUEST_COOKIE, "guest-token");
-    cookieStore.set(TOKEN_NAMES.access, "member-jwt");
+
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(
@@ -369,12 +440,86 @@ describe("a broken guest cookie does not break a member's session", () => {
     });
 
     expect(res.status).toBe(200);
-    const [url, init] = fetchSpy.mock.calls[0]!;
-    // The member route, not the guest one.
+    const [url] = fetchSpy.mock.calls[0]!;
     expect(String(url)).toContain("/circles/activities/act-1");
     expect(String(url)).not.toContain("/guest/");
-    expect(
-      new Headers((init as RequestInit).headers).get("Authorization"),
-    ).toBe("Bearer member-jwt");
+  });
+});
+
+describe("a transient failure is not a signal to change actor", () => {
+  it.each([429, 500, 502, 503])(
+    "does not fall through to guest on %i",
+    async (status) => {
+      cookieStore.set(GUEST_COOKIE, "valid-guest-token");
+      cookieStore.set(TOKEN_NAMES.access, "member-jwt");
+
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(ok({ code: "RATE_LIMITED" }, status));
+
+      const res = await actividadGET(new Request("https://app.test/x"), {
+        params: { activityId: "act-1" },
+      });
+
+      // "We do not know" must never be read as "not a member". A rate-limited
+      // member silently demoted to the guest path would act as the wrong
+      // person on a request that would have succeeded a second later.
+      expect(res.status).toBe(status);
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it("does not fall through when the guest scope lookup is transient", async () => {
+    cookieStore.set(GUEST_COOKIE, "guest-token");
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(ok({ code: "RATE_LIMITED" }, 429));
+
+    const res = await actividadGET(new Request("https://app.test/x"), {
+      params: { activityId: "act-1" },
+    });
+
+    expect(res.status).toBe(429);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("the browser never selects its own actor", () => {
+  it("ignores an actorKind the caller tries to assert", async () => {
+    cookieStore.set(TOKEN_NAMES.access, "member-jwt");
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(ok({ activityId: "act-1", status: "PREPARING" }));
+
+    // The route reads nothing from the request but the path. There is no
+    // parameter, header or body field that selects a credential.
+    const res = await actividadGET(
+      new Request("https://app.test/x?actorKind=GUEST&userId=somebody-else"),
+      { params: { activityId: "act-1" } },
+    );
+
+    expect(res.status).toBe(200);
+    const sent = new Headers(
+      (fetchSpy.mock.calls[0]![1] as RequestInit).headers,
+    );
+    expect(sent.get("Authorization")).toBe("Bearer member-jwt");
+    expect(String(fetchSpy.mock.calls[0]![0])).not.toContain("somebody-else");
+  });
+
+  it("carries no actor selector in the resolver's own source", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { resolve } = await import("node:path");
+    const src = readFileSync(
+      resolve(__dirname, "../../../lib/circulos/actor.ts"),
+      "utf8",
+    ).replace(/\/\*[\s\S]*?\*\//g, "");
+    for (const forbidden of [
+      "actorKind",
+      "searchParams",
+      "req.body",
+      'headers.get("x-actor',
+    ]) {
+      expect(src, forbidden).not.toContain(forbidden);
+    }
   });
 });

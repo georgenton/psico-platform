@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import type {
   CirclePreparationField,
   CircleShareConfirmation,
@@ -113,20 +113,11 @@ export function PreparacionPrivada({
   const setMode = (next: CircleSharingMode) =>
     onDraftChange({ ...draft, mode: next });
 
-  const dirty = borradorTieneTexto(draft);
-
-  // Ask before the draft is lost. The browser shows its own wording; the page
-  // also says it in plain Spanish below, because a native dialog is easy to
-  // dismiss without reading.
-  useEffect(() => {
-    if (!dirty) return;
-    const onBeforeUnload = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      e.returnValue = "";
-    };
-    window.addEventListener("beforeunload", onBeforeUnload);
-    return () => window.removeEventListener("beforeunload", onBeforeUnload);
-  }, [dirty]);
+  // The `beforeunload` listener is NOT here. It lived in this component and was
+  // torn down the moment somebody pressed "Ver qué se compartirá", because that
+  // unmounts the form — so the warning vanished at precisely the stage where a
+  // draft still exists and the person is most likely to close the tab thinking
+  // they are done. It belongs to whoever owns the draft, and that is `SalaDuo`.
 
   const confirmation = useMemo(
     () => confirmacionDe(draft, fields),

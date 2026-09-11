@@ -287,3 +287,123 @@ describe("every command carries a client-minted v4 key", () => {
     expect(document.cookie).toBe("");
   });
 });
+
+describe("the unload warning follows the draft, not the screen", () => {
+  function listenerCount(spy: ReturnType<typeof vi.spyOn>) {
+    return (spy.mock.calls as unknown as [string][]).filter(
+      ([e]) => e === "beforeunload",
+    ).length;
+  }
+
+  it("is absent while there is nothing to lose", async () => {
+    const user = userEvent.setup();
+    wire(okResponse);
+    const addSpy = vi.spyOn(window, "addEventListener");
+    await startPreparing(user);
+
+    expect(listenerCount(addSpy)).toBe(0);
+  });
+
+  it("is installed once the person types", async () => {
+    const user = userEvent.setup();
+    wire(okResponse);
+    const addSpy = vi.spyOn(window, "addEventListener");
+    await startPreparing(user);
+
+    await user.type(screen.getByLabelText("Algo que quieres decir"), "algo");
+    expect(listenerCount(addSpy)).toBeGreaterThan(0);
+  });
+
+  it("SURVIVES the move into the preview", async () => {
+    // The regression this exists for: the listener lived in the form, and
+    // "Ver qué se compartirá" unmounts the form. The warning disappeared at the
+    // exact stage where somebody is most likely to think they are done and
+    // close the tab — with the draft still unsent.
+    const user = userEvent.setup();
+    wire(okResponse);
+    await startPreparing(user);
+    await user.type(screen.getByLabelText("Algo que quieres decir"), "algo");
+
+    const addSpy = vi.spyOn(window, "addEventListener");
+    const removeSpy = vi.spyOn(window, "removeEventListener");
+
+    await user.click(
+      screen.getByRole("button", { name: /ver qué se compartirá/i }),
+    );
+    expect(
+      screen.getByRole("heading", { name: /esto es lo que verá/i }),
+    ).toBeInTheDocument();
+
+    // Net: still armed. Either it was never removed, or it was re-added.
+    expect(
+      listenerCount(addSpy) - listenerCount(removeSpy),
+    ).toBeGreaterThanOrEqual(0);
+    expect(listenerCount(removeSpy)).toBe(0);
+  });
+
+  it("survives coming back from the preview", async () => {
+    const user = userEvent.setup();
+    wire(okResponse);
+    await startPreparing(user);
+    await user.type(screen.getByLabelText("Algo que quieres decir"), "algo");
+    await user.click(
+      screen.getByRole("button", { name: /ver qué se compartirá/i }),
+    );
+
+    const removeSpy = vi.spyOn(window, "removeEventListener");
+    await user.click(screen.getByRole("button", { name: /volver a editar/i }));
+
+    expect(
+      (removeSpy.mock.calls as unknown as [string][]).filter(
+        ([e]) => e === "beforeunload",
+      ),
+    ).toHaveLength(0);
+  });
+
+  it("survives a failed command", async () => {
+    const user = userEvent.setup();
+    wire(failResponse);
+    await startPreparing(user);
+    await user.type(screen.getByLabelText("Algo que quieres decir"), "algo");
+    await user.click(
+      screen.getByRole("button", { name: /ver qué se compartirá/i }),
+    );
+
+    const removeSpy = vi.spyOn(window, "removeEventListener");
+    await user.click(
+      screen.getByRole("button", { name: /confirmar y enviar/i }),
+    );
+    await screen.findByRole("alert");
+
+    // The draft is still there, so the warning must be too.
+    expect(
+      (removeSpy.mock.calls as unknown as [string][]).filter(
+        ([e]) => e === "beforeunload",
+      ),
+    ).toHaveLength(0);
+  });
+
+  it("is removed once a confirmation has cleared the draft", async () => {
+    const user = userEvent.setup();
+    wire(okResponse);
+    await startPreparing(user);
+    await user.type(screen.getByLabelText("Algo que quieres decir"), "algo");
+    await user.click(
+      screen.getByRole("button", { name: /ver qué se compartirá/i }),
+    );
+
+    const removeSpy = vi.spyOn(window, "removeEventListener");
+    await user.click(
+      screen.getByRole("button", { name: /confirmar y enviar/i }),
+    );
+
+    // Nothing left to lose: the text is on the server now.
+    await waitFor(() =>
+      expect(
+        (removeSpy.mock.calls as unknown as [string][]).filter(
+          ([e]) => e === "beforeunload",
+        ).length,
+      ).toBeGreaterThan(0),
+    );
+  });
+});

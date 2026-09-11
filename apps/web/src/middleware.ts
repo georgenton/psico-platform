@@ -148,8 +148,76 @@ async function refreshHandoff(
   return response;
 }
 
+// ── Círculos: a strict CSP that Next.js can still hydrate under ─────────────
+//
+// The guest flow loads nothing from a third party, so it can afford the
+// strictest policy in the app — but `script-src 'self'` alone is NOT it. Next
+// emits inline bootstrap scripts on every App Router page, and a policy without
+// a nonce blocks them: the page renders its server HTML, never hydrates, and
+// every client effect silently fails to run. On `/i` that means the fragment is
+// never read and never erased from the address bar — the page would look fine
+// and do the one thing it exists to prevent.
+//
+// So the nonce is per request, which is why this lives in middleware rather
+// than in `next.config.js` (static headers cannot carry one). `strict-dynamic`
+// lets the nonce'd bootstrap load the chunks it needs without naming each.
+//
+// `'unsafe-eval'` is DEVELOPMENT ONLY: the dev runtime evaluates strings for
+// hot reload. Production gets no eval.
+const CIRCULOS_CSP_PREFIXES = ["/i", "/compartir", "/api/circulos"];
+
+export function isCirculosPath(pathname: string): boolean {
+  // `pathname === p` or a real segment boundary — so `/index` and `/imagenes`
+  // are NOT `/i`.
+  return CIRCULOS_CSP_PREFIXES.some(
+    (p) => pathname === p || pathname.startsWith(`${p}/`),
+  );
+}
+
+/** The policy for a path, or `null` when the path is not one of ours. */
+export function circulosCspFor(
+  pathname: string,
+  nonce: string,
+  env: string | undefined = process.env.NODE_ENV,
+): string | null {
+  if (!isCirculosPath(pathname)) return null;
+
+  const scriptSrc = [
+    "'self'",
+    `'nonce-${nonce}'`,
+    "'strict-dynamic'",
+    env === "development" ? "'unsafe-eval'" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  return [
+    "default-src 'self'",
+    `script-src ${scriptSrc}`,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data:",
+    "font-src 'self'",
+    "connect-src 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+    "base-uri 'none'",
+    "object-src 'none'",
+  ].join("; ");
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  const nonce = crypto.randomUUID().replace(/-/g, "");
+  const csp = circulosCspFor(pathname, nonce);
+  if (csp) {
+    const headers = new Headers(request.headers);
+    // Next reads this to stamp the nonce onto its own inline scripts.
+    headers.set("x-nonce", nonce);
+    const response = NextResponse.next({ request: { headers } });
+    response.headers.set("Content-Security-Policy", csp);
+    return response;
+  }
 
   const accessToken = request.cookies.get(TOKEN_NAMES.access)?.value ?? null;
   const refreshToken = request.cookies.get(TOKEN_NAMES.refresh)?.value ?? null;

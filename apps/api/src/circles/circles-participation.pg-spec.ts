@@ -1991,7 +1991,7 @@ suite("circles · participation (real PostgreSQL)", () => {
           WHERE "circleId"=$1`,
         [duo.circleId],
       );
-      const { participation: _p, accessService } = build(mode);
+      const { accessService } = build(mode);
 
       expect(
         await codeOf(() => accessService.inspect(duo.token)),

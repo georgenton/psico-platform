@@ -412,16 +412,32 @@ export class CirclesService {
    * guest instead INHERITS the inviter's enablement, re-derived server-side on
    * every use, and can never exceed it.
    *
-   * Four conditions, one answer. The member must exist, be in the circle the
-   * invitation names, still be `ACTIVE`, and their user must be in the
-   * allowlist right now. Any of them failing produces exactly
-   * `CIRCLE_INVITATION_UNUSABLE` — the same error, the same status, the same
-   * body as a secret that never existed. Nothing distinguishes "your inviter
-   * was removed from the pilot" from "you guessed wrong", because the first
-   * would confirm the invitation is real.
+   * Three conditions in every enabled mode, plus a fourth under `pilot`:
    *
-   * `on` skips the check: general availability is general. `off` never reaches
-   * here (the guard refuses first), and if it somehow did, it fails closed.
+   *     off    refuse
+   *     pilot  member exists + same circle + ACTIVE + in the allowlist
+   *     on     member exists + same circle + ACTIVE
+   *
+   * The membership predicate is NOT mode-dependent. `on` skips the ALLOWLIST
+   * and nothing else — it never skips the member existing, belonging to the
+   * circle the invitation names, or still being `ACTIVE`.
+   *
+   * An earlier version of this comment said "`on` skips the check: general
+   * availability is general", and the code below has never done that. The
+   * sentence was describing a behaviour that would contradict participation,
+   * which re-derives the inviter in every mode: an invitation whose author had
+   * left would inspect as usable, exchange successfully, mint a session and
+   * write events — and then the guest's first command would be refused, with
+   * everything already committed.
+   *
+   * Any condition failing produces exactly `CIRCLE_INVITATION_UNUSABLE` — the
+   * same error, the same status, the same body as a secret that never existed.
+   * Nothing distinguishes "your inviter left" or "your inviter was removed from
+   * the pilot" from "you guessed wrong", because the first would confirm the
+   * invitation is real.
+   *
+   * `off` never reaches here (the guard refuses first), and if it somehow did,
+   * it fails closed.
    */
   /**
    * The inviter, LOCKED, and the decision that actually counts.
@@ -437,10 +453,11 @@ export class CirclesService {
    * Every statement there is correct and the outcome is wrong. This method is
    * the one whose answer survives to the commit.
    *
-   * The row is locked in EVERY mode, including `on`, even though `on` has no
-   * predicate to hold. The lock ORDER is a property of the command, not of the
-   * configuration, and a rule that applies in two modes out of three is a rule
-   * somebody will get wrong.
+   * The row is locked in EVERY enabled mode, including `on` — which has a
+   * predicate of its own to hold: the member must exist, be in this circle and
+   * still be `ACTIVE`. Only the allowlist is `pilot`-only. The lock ORDER is a
+   * property of the command, not of the configuration, and a rule that applies
+   * in two modes out of three is a rule somebody will get wrong.
    */
   private async lockAndAssertInviter(
     invitation: {

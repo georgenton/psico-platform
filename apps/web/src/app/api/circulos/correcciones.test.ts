@@ -523,3 +523,95 @@ describe("the browser never selects its own actor", () => {
     }
   });
 });
+
+describe("every command shape is closed, not merely trimmed", () => {
+  const params = { params: { activityId: "act-1" } };
+
+  beforeEach(() => cookieStore.set(GUEST_COOKIE, "guest-token"));
+
+  it("refuses a wrapper carrying an unexpected key", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    for (const extra of [
+      { userId: "u-1" },
+      { role: "ADMIN" },
+      { circleId: "c-1" },
+      { participantId: "p-1" },
+      { actorKind: "USER" },
+    ]) {
+      const res = await comandoPOST(
+        req({
+          kind: "withdraw",
+          payload: {},
+          idempotencyKey: INTENCION,
+          ...extra,
+        }),
+        params,
+      );
+      expect(res.status, JSON.stringify(extra)).toBe(400);
+    }
+    // Silently dropping them would let a caller send them for a long time with
+    // nothing saying no — and the day one started being read would be the day
+    // it mattered.
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["withdraw", { reason: "me sentí mal" }],
+    ["artifact", { body: "ok", userId: "u-1" }],
+    ["artifact-confirm", { artifactId: "a", version: 1, role: "ADMIN" }],
+    ["follow-up", { decision: "KEEP", circleId: "c-1" }],
+  ])("refuses an extra key inside a %s payload", async (kind, payload) => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const res = await comandoPOST(
+      req({ kind, payload, idempotencyKey: INTENCION }),
+      params,
+    );
+    expect(res.status).toBe(400);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("still accepts each command's exact shape", async () => {
+    for (const [kind, payload] of [
+      ["withdraw", {}],
+      ["artifact", { body: "nuestro acuerdo" }],
+      ["artifact-confirm", { artifactId: "a", version: 1 }],
+      ["follow-up", { decision: "KEEP" }],
+      ["share", { mode: "KEEP_PRIVATE" }],
+    ] as const) {
+      vi.restoreAllMocks();
+      cookieStore.set(GUEST_COOKIE, "guest-token");
+      vi.spyOn(globalThis, "fetch")
+        .mockResolvedValueOnce(
+          ok({ kind: "GUEST", activityId: "act-1", participantId: "p" }),
+        )
+        .mockResolvedValueOnce(ok({ ok: true }));
+
+      const res = await comandoPOST(
+        req({ kind, payload, idempotencyKey: INTENCION }),
+        params,
+      );
+      expect(res.status, kind).toBe(200);
+    }
+  });
+
+  it("refuses an extra key in the creation wrapper", async () => {
+    cookieStore.clear();
+    cookieStore.set(TOKEN_NAMES.access, "member-jwt");
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+    const res = await duoPOST(
+      req({
+        payload: {
+          templateKey: "t",
+          templateVersion: 1,
+          invitationToken: TOKEN,
+        },
+        idempotencyKey: INTENCION,
+        circleId: "c-somebody-elses",
+      }),
+    );
+
+    expect(res.status).toBe(400);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+});

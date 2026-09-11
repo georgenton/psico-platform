@@ -208,14 +208,18 @@ export function circulosCspFor(
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  const nonce = crypto.randomUUID().replace(/-/g, "");
-  const csp = circulosCspFor(pathname, nonce);
-  if (csp) {
+  // The path check comes first: this middleware runs on every request in the
+  // app, and only these three prefixes need a nonce.
+  if (isCirculosPath(pathname)) {
+    const nonce = crypto.randomUUID().replace(/-/g, "");
     const headers = new Headers(request.headers);
     // Next reads this to stamp the nonce onto its own inline scripts.
     headers.set("x-nonce", nonce);
     const response = NextResponse.next({ request: { headers } });
-    response.headers.set("Content-Security-Policy", csp);
+    response.headers.set(
+      "Content-Security-Policy",
+      circulosCspFor(pathname, nonce)!,
+    );
     return response;
   }
 

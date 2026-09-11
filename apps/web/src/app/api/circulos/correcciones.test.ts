@@ -339,6 +339,10 @@ describe("a broken guest cookie does not break a member's session", () => {
     });
 
     expect(res.status).toBe(200);
+    expect(await res.clone().json()).toEqual({
+      activityId: "act-1",
+      status: "PREPARING",
+    });
     // The member was tried FIRST and succeeded, so the guest session was never
     // even consulted.
     expect(fetchSpy).toHaveBeenCalledTimes(1);
@@ -363,6 +367,13 @@ describe("a broken guest cookie does not break a member's session", () => {
     });
 
     expect(res.status).toBe(200);
+    // The BODY, not just the status. A 200 carrying a refusal would pass a
+    // status-only assertion while the member saw nothing — which is exactly
+    // what a negative control caught here.
+    expect(await res.json()).toEqual({
+      activityId: "act-1",
+      status: "PREPARING",
+    });
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 

@@ -21,7 +21,8 @@ import { estilos as S } from "./estilos";
 export interface ArtefactoProps {
   readonly view: CircleActivityView;
   readonly busy: boolean;
-  readonly onPropose: (body: string) => void | Promise<unknown>;
+  /** Resolves true only when the server accepted the proposal. */
+  readonly onPropose: (body: string) => Promise<boolean>;
   readonly onConfirm: (
     artifactId: string,
     version: number,
@@ -71,9 +72,19 @@ export function Artefacto({
             style={S.primary}
             disabled={busy || draft.trim().length === 0}
             onClick={async () => {
-              await onPropose(draft);
-              setDraft("");
-              setEditing(false);
+              // Clear ONLY on success. Wiping the box after a failed proposal
+              // destroys the one copy of something the person just wrote, at
+              // the exact moment they most need it back — and the failure they
+              // are most likely to hit is a dropped connection, where the text
+              // was never delivered anywhere.
+              //
+              // Retrying the identical text reuses the same idempotency key, so
+              // a proposal that did land and whose response was lost replays
+              // instead of creating a second version.
+              if (await onPropose(draft)) {
+                setDraft("");
+                setEditing(false);
+              }
             }}
           >
             Proponer

@@ -19,6 +19,15 @@ function asProduction() {
 }
 
 describe("the guest cookie is not reachable from JavaScript", () => {
+  it("uses the root path, and does not pretend that is narrow", () => {
+    // `/` is the only common prefix of `/i`, `/compartir` and `/api/circulos`.
+    // A single cookie cannot be scoped tighter without splitting it in three,
+    // so this is a trade-off, not a scoping win: the cookie travels with every
+    // same-site request to this origin. Narrowing it belongs to the pilot
+    // hardening.
+    expect(guestCookieOptions(null).path).toBe("/");
+  });
+
   it("is HttpOnly, and SameSite=Lax", () => {
     const o = guestCookieOptions("2030-01-01T00:00:00.000Z");
     // HttpOnly is the whole reason the raw guest token can live in a cookie at
@@ -53,10 +62,22 @@ describe("the cookie never outlives the session it carries", () => {
     expect(lifetimeSeconds("2026-09-11T01:00:00.000Z")).toBe(3600);
   });
 
-  it("caps at the ceiling when the session claims longer", () => {
+  it("caps at thirty days, which is the session PR3 actually issues", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-09-11T00:00:00.000Z"));
-    expect(lifetimeSeconds("2030-01-01T00:00:00.000Z")).toBe(14 * 24 * 60 * 60);
+    // `GUEST_SESSION_TTL_MS` is 30 days. A shorter ceiling would not be safer:
+    // the server would still honour the session and the person would simply be
+    // shut out of their own activity early, with nothing on screen to explain
+    // it.
+    expect(lifetimeSeconds("2030-01-01T00:00:00.000Z")).toBe(30 * 24 * 60 * 60);
+  });
+
+  it("never outlives the expiresAt the API returned", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-11T00:00:00.000Z"));
+    // The ceiling is a cap, not a floor: a session the API says is shorter
+    // stays shorter.
+    expect(lifetimeSeconds("2026-09-12T00:00:00.000Z")).toBe(24 * 60 * 60);
   });
 
   it("returns zero for an already-expired session", () => {
@@ -68,7 +89,7 @@ describe("the cookie never outlives the session it carries", () => {
   });
 
   it("falls back to the ceiling, never to forever, on garbage", () => {
-    expect(lifetimeSeconds("not-a-date")).toBe(14 * 24 * 60 * 60);
-    expect(lifetimeSeconds(null)).toBe(14 * 24 * 60 * 60);
+    expect(lifetimeSeconds("not-a-date")).toBe(30 * 24 * 60 * 60);
+    expect(lifetimeSeconds(null)).toBe(30 * 24 * 60 * 60);
   });
 });

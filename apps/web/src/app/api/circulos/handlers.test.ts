@@ -24,6 +24,8 @@ import { POST as sesionPOST, DELETE as sesionDELETE } from "./sesion/route";
 import { POST as comandoPOST } from "./actividad/[activityId]/comando/route";
 import { GUEST_COOKIE } from "@/lib/circulos/guest-cookie";
 
+const KEY = "3f1c2b8a-5d4e-4a7b-9c2d-6e8f0a1b2c3d";
+
 function req(body: unknown): Request {
   return new Request("https://app.test/api/circulos/x", {
     method: "POST",
@@ -49,17 +51,15 @@ beforeEach(() => {
 
 describe("the exchange hands the browser a cookie, never a token", () => {
   it("sets an HttpOnly cookie and returns no token in the body", async () => {
-    vi.spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(ok({ usable: true }))
-      .mockResolvedValueOnce(
-        ok(
-          {
-            guestSessionToken: "RAW-GUEST-TOKEN",
-            expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
-          },
-          201,
-        ),
-      );
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      ok(
+        {
+          guestSessionToken: "RAW-GUEST-TOKEN",
+          expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+        },
+        201,
+      ),
+    );
 
     const res = await sesionPOST(req({ secret: "s3cr3t" }));
     expect(res.status).toBe(201);
@@ -75,42 +75,39 @@ describe("the exchange hands the browser a cookie, never a token", () => {
     expect(res.headers.get("Cache-Control")).toBe("private, no-store");
   });
 
-  it("inspects before it accepts, so a scanner does not spend the link", async () => {
-    const fetchSpy = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(ok({ usable: true }))
-      .mockResolvedValueOnce(
-        ok(
-          {
-            guestSessionToken: "t",
-            expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
-          },
-          201,
-        ),
-      );
+  it("goes straight to accept, spending one throttler slot, not two", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      ok(
+        {
+          guestSessionToken: "t",
+          expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+        },
+        201,
+      ),
+    );
 
     await sesionPOST(req({ secret: "s3cr3t" }));
 
+    // Inspection already happened on its own route when the page loaded, and
+    // `accept` revalidates authoritatively inside its own transaction — so a
+    // second `inspect` here would prove nothing and would burn one of the ten
+    // invitation attempts the throttler allows per fifteen minutes.
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
     expect(String(fetchSpy.mock.calls[0]![0])).toContain(
-      "/circles/invitations/inspect",
-    );
-    expect(String(fetchSpy.mock.calls[1]![0])).toContain(
       "/circles/invitations/accept",
     );
   });
 
   it("refuses an already-expired session rather than setting a dead cookie", async () => {
-    vi.spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(ok({ usable: true }))
-      .mockResolvedValueOnce(
-        ok(
-          {
-            guestSessionToken: "t",
-            expiresAt: new Date(Date.now() - 1000).toISOString(),
-          },
-          201,
-        ),
-      );
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      ok(
+        {
+          guestSessionToken: "t",
+          expiresAt: new Date(Date.now() - 1000).toISOString(),
+        },
+        201,
+      ),
+    );
 
     const res = await sesionPOST(req({ secret: "s" }));
     expect(res.status).toBe(404);
@@ -143,7 +140,10 @@ describe("the command handler forwards only what is on the list", () => {
       cookieStore.set(GUEST_COOKIE, "guest-token");
       const fetchSpy = vi.spyOn(globalThis, "fetch");
 
-      const res = await comandoPOST(req({ kind, payload: {} }), params);
+      const res = await comandoPOST(
+        req({ kind, payload: {}, idempotencyKey: KEY }),
+        params,
+      );
 
       expect(res.status).toBe(400);
       expect(await res.json()).toEqual({
@@ -160,7 +160,7 @@ describe("the command handler forwards only what is on the list", () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
 
     const res = await comandoPOST(
-      req({ kind: "withdraw", payload: {} }),
+      req({ kind: "withdraw", payload: {}, idempotencyKey: KEY }),
       params,
     );
 
@@ -173,7 +173,11 @@ describe("the command handler forwards only what is on the list", () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
 
     const res = await comandoPOST(
-      req({ kind: "share", payload: { mode: "KEEP_PRIVATE", reason: "x" } }),
+      req({
+        kind: "share",
+        payload: { mode: "KEEP_PRIVATE", reason: "x" },
+        idempotencyKey: KEY,
+      }),
       params,
     );
 
@@ -184,7 +188,11 @@ describe("the command handler forwards only what is on the list", () => {
   it("refuses a follow-up decision outside the three words", async () => {
     cookieStore.set(GUEST_COOKIE, "guest-token");
     const res = await comandoPOST(
-      req({ kind: "follow-up", payload: { decision: "MAYBE" } }),
+      req({
+        kind: "follow-up",
+        payload: { decision: "MAYBE" },
+        idempotencyKey: KEY,
+      }),
       params,
     );
     expect(res.status).toBe(400);
@@ -200,7 +208,11 @@ describe("the command handler forwards only what is on the list", () => {
       .mockResolvedValueOnce(ok({ ok: true }));
 
     await comandoPOST(
-      req({ kind: "withdraw", payload: { reason: "me sentí mal" } }),
+      req({
+        kind: "withdraw",
+        payload: { reason: "me sentí mal" },
+        idempotencyKey: KEY,
+      }),
       params,
     );
 
@@ -217,9 +229,12 @@ describe("the command handler forwards only what is on the list", () => {
         ok({ kind: "GUEST", activityId: "act-MINE", participantId: "p" }),
       );
 
-    const res = await comandoPOST(req({ kind: "withdraw", payload: {} }), {
-      params: { activityId: "act-OTHER" },
-    });
+    const res = await comandoPOST(
+      req({ kind: "withdraw", payload: {}, idempotencyKey: KEY }),
+      {
+        params: { activityId: "act-OTHER" },
+      },
+    );
 
     expect(res.status).toBe(403);
     // Only the scope lookup happened; the command was never forwarded.

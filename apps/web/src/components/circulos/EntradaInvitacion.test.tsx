@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
 const replace = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace }) }));
@@ -12,6 +13,38 @@ function land(hash: string) {
   window.history.replaceState(null, "", `/i${hash}`);
 }
 
+/** Routes the three endpoints the page can reach, recording what was called. */
+function route(
+  overrides: {
+    inspect?: () => Response;
+    sesion?: () => Response;
+    scope?: () => Response;
+  } = {},
+) {
+  const calls: string[] = [];
+  vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+    const url = String(input);
+    calls.push(url);
+    if (url.includes("/api/circulos/inspeccion")) {
+      return (
+        overrides.inspect?.() ??
+        new Response(JSON.stringify({ usable: true }), { status: 200 })
+      );
+    }
+    if (url.includes("/api/circulos/sesion/scope")) {
+      return (
+        overrides.scope?.() ??
+        new Response(JSON.stringify({ activityId: "act-1" }), { status: 200 })
+      );
+    }
+    return (
+      overrides.sesion?.() ??
+      new Response(JSON.stringify({ ok: true }), { status: 201 })
+    );
+  });
+  return calls;
+}
+
 beforeEach(() => {
   replace.mockReset();
   window.localStorage.clear();
@@ -19,31 +52,101 @@ beforeEach(() => {
   land("");
 });
 
-afterEach(() => {
-  vi.restoreAllMocks();
+afterEach(() => vi.restoreAllMocks());
+
+describe("opening a link is not accepting an invitation", () => {
+  it("inspects on mount and never calls the exchange by itself", async () => {
+    const calls = route();
+    land(`#${SECRET}`);
+    render(<EntradaInvitacion />);
+
+    await screen.findByRole("button", { name: /aceptar invitación/i });
+
+    // The decisive assertion: one call, and it is the one that does NOT spend
+    // the invitation. A preview crawler, a link scanner or a second tap must
+    // leave it exactly as they found it.
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toContain("/api/circulos/inspeccion");
+    expect(calls.some((c) => c.endsWith("/api/circulos/sesion"))).toBe(false);
+  });
+
+  it("asks for an explicit decision before anything is consumed", async () => {
+    route();
+    land(`#${SECRET}`);
+    render(<EntradaInvitacion />);
+
+    expect(
+      await screen.findByRole("button", { name: /aceptar invitación/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /ahora no/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("only the accept button reaches the exchange", async () => {
+    const user = userEvent.setup();
+    const calls = route();
+    land(`#${SECRET}`);
+    render(<EntradaInvitacion />);
+
+    await user.click(
+      await screen.findByRole("button", { name: /aceptar invitación/i }),
+    );
+
+    await waitFor(() =>
+      expect(replace).toHaveBeenCalledWith("/compartir/act-1"),
+    );
+    expect(
+      calls.filter((c) => c.endsWith("/api/circulos/sesion")),
+    ).toHaveLength(1);
+  });
+
+  it("'Ahora no' leaves without accepting or writing anything", async () => {
+    const user = userEvent.setup();
+    const calls = route();
+    land(`#${SECRET}`);
+    render(<EntradaInvitacion />);
+
+    await user.click(await screen.findByRole("button", { name: /ahora no/i }));
+
+    expect(replace).toHaveBeenCalledWith("/");
+    // Still only the inspection. Zero accepts, zero writes.
+    expect(calls).toHaveLength(1);
+    expect(calls.some((c) => c.endsWith("/api/circulos/sesion"))).toBe(false);
+  });
+
+  it("inspects a typed code too, rather than spending it", async () => {
+    const user = userEvent.setup();
+    const calls = route();
+    render(<EntradaInvitacion />);
+
+    await user.type(
+      await screen.findByLabelText(/código de invitación/i),
+      "CODE-123",
+    );
+    await user.click(screen.getByRole("button", { name: /continuar/i }));
+
+    await screen.findByRole("button", { name: /aceptar invitación/i });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toContain("/api/circulos/inspeccion");
+  });
 });
 
 describe("the fragment is gone before anything is sent", () => {
-  it("erases the hash from the address bar before the exchange request", async () => {
+  it("erases the hash from the address bar before the inspection request", async () => {
     let hashAtRequestTime: string | null = null;
-
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
-      const url = String(input);
-      if (url.includes("/api/circulos/sesion/scope")) {
-        return new Response(JSON.stringify({ activityId: "act-1" }), {
-          status: 200,
-        });
+      if (String(input).includes("/inspeccion")) {
+        // Sampled at the moment the request is issued — not afterwards, when a
+        // cleanup would also look like a pass.
+        hashAtRequestTime = window.location.hash;
       }
-      // Sampled at the moment the POST is issued — not afterwards, when a
-      // cleanup would also look like a pass.
-      hashAtRequestTime = window.location.hash;
-      return new Response(JSON.stringify({ ok: true }), { status: 201 });
+      return new Response(JSON.stringify({ usable: true }), { status: 200 });
     });
 
     land(`#${SECRET}`);
     render(<EntradaInvitacion />);
-
-    await waitFor(() => expect(replace).toHaveBeenCalled());
+    await screen.findByRole("button", { name: /aceptar invitación/i });
 
     expect(hashAtRequestTime).toBe("");
     expect(window.location.hash).toBe("");
@@ -51,34 +154,15 @@ describe("the fragment is gone before anything is sent", () => {
   });
 
   it("sends the secret in a POST body, never in the URL", async () => {
-    const fetchSpy = vi
-      .spyOn(globalThis, "fetch")
-      .mockImplementation(async (input) => {
-        if (String(input).includes("/scope")) {
-          return new Response(JSON.stringify({ activityId: "act-1" }), {
-            status: 200,
-          });
-        }
-        return new Response(JSON.stringify({ ok: true }), { status: 201 });
-      });
-
-    land(`#${SECRET}`);
-    render(<EntradaInvitacion />);
-    await waitFor(() => expect(replace).toHaveBeenCalled());
-
-    const [url, init] = fetchSpy.mock.calls[0]!;
-    // A query string is written to access logs, kept in `Referer`, and stored
-    // in history. The body is none of those.
-    expect(String(url)).toBe("/api/circulos/sesion");
-    expect(String(url)).not.toContain(SECRET);
-    expect((init as RequestInit).method).toBe("POST");
-    expect(String((init as RequestInit).body)).toContain(SECRET);
-  });
-
-  it("redirects to the room the SERVER named, not to anything the link said", async () => {
-    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+    const user = userEvent.setup();
+    const seen: { url: string; init?: RequestInit }[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      seen.push({ url: String(input), init: init as RequestInit });
+      if (String(input).includes("/inspeccion")) {
+        return new Response(JSON.stringify({ usable: true }), { status: 200 });
+      }
       if (String(input).includes("/scope")) {
-        return new Response(JSON.stringify({ activityId: "act-from-server" }), {
+        return new Response(JSON.stringify({ activityId: "act-1" }), {
           status: 200,
         });
       }
@@ -87,7 +171,33 @@ describe("the fragment is gone before anything is sent", () => {
 
     land(`#${SECRET}`);
     render(<EntradaInvitacion />);
+    await user.click(
+      await screen.findByRole("button", { name: /aceptar invitación/i }),
+    );
+    await waitFor(() => expect(replace).toHaveBeenCalled());
 
+    // A query string is written to access logs, kept in `Referer`, and stored
+    // in history. The body is none of those.
+    for (const { url } of seen) expect(url).not.toContain(SECRET);
+
+    const bodies = seen.map((c) => String(c.init?.body ?? "")).join("|");
+    expect(bodies).toContain(SECRET);
+  });
+
+  it("redirects to the room the SERVER named, not to anything the link said", async () => {
+    const user = userEvent.setup();
+    route({
+      scope: () =>
+        new Response(JSON.stringify({ activityId: "act-from-server" }), {
+          status: 200,
+        }),
+    });
+    land(`#${SECRET}`);
+    render(<EntradaInvitacion />);
+
+    await user.click(
+      await screen.findByRole("button", { name: /aceptar invitación/i }),
+    );
     await waitFor(() =>
       expect(replace).toHaveBeenCalledWith("/compartir/act-from-server"),
     );
@@ -96,17 +206,14 @@ describe("the fragment is gone before anything is sent", () => {
 
 describe("the token is nowhere durable", () => {
   it("never reaches the DOM, the serialized HTML, or browser storage", async () => {
-    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
-      if (String(input).includes("/scope")) {
-        return new Response(JSON.stringify({ activityId: "act-1" }), {
-          status: 200,
-        });
-      }
-      return new Response(JSON.stringify({ ok: true }), { status: 201 });
-    });
-
+    const user = userEvent.setup();
+    route();
     land(`#${SECRET}`);
     const { container } = render(<EntradaInvitacion />);
+
+    await user.click(
+      await screen.findByRole("button", { name: /aceptar invitación/i }),
+    );
     await waitFor(() => expect(replace).toHaveBeenCalled());
 
     expect(container.innerHTML).not.toContain(SECRET);
@@ -134,23 +241,46 @@ describe("the token is nowhere durable", () => {
 });
 
 describe("a link that no longer works says so, and nothing more", () => {
-  it("shows one opaque refusal for any failure", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ code: "CIRCLE_INVITATION_UNUSABLE" }), {
-        status: 404,
-      }),
-    );
-
+  it("shows one opaque refusal when the inspection refuses", async () => {
+    route({
+      inspect: () =>
+        new Response(JSON.stringify({ code: "CIRCLE_INVITATION_UNUSABLE" }), {
+          status: 404,
+        }),
+    });
     land(`#${SECRET}`);
     render(<EntradaInvitacion />);
 
-    const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent(/ya no sirve/i);
-    // No cause is offered: expired, used, revoked and never-existed are one
-    // answer upstream and must stay one answer here.
-    expect(alert.textContent ?? "").not.toMatch(
-      /caduc[oó]|revocad|ya se us[oó] por/i,
-    );
+    expect(
+      await screen.findByRole("heading", { name: /ya no sirve/i }),
+    ).toBeInTheDocument();
+    // Nothing was consumed on the way to saying so.
+    expect(
+      screen.queryByRole("button", { name: /aceptar invitación/i }),
+    ).toBeNull();
+  });
+
+  it("says exactly the same thing whatever the real cause was", async () => {
+    // This is the property that matters, and the one a wording check would
+    // miss: the copy may LIST the possibilities ("may have expired, may have
+    // been used") because listing all of them discloses none. What it must
+    // never do is differ between them — a screen that said "expired" for one
+    // status and "already used" for another would hand a stranger an oracle
+    // the API deliberately refuses to be.
+    const texts: string[] = [];
+    for (const status of [404, 410, 429, 503]) {
+      route({
+        inspect: () =>
+          new Response(JSON.stringify({ code: "WHATEVER" }), { status }),
+      });
+      land(`#${SECRET}`);
+      const { unmount } = render(<EntradaInvitacion />);
+      await screen.findByRole("alert");
+      texts.push(document.body.innerText || (document.body.textContent ?? ""));
+      unmount();
+      vi.restoreAllMocks();
+    }
+    expect(new Set(texts).size).toBe(1);
   });
 
   it("offers the manual code form when there is no fragment", async () => {

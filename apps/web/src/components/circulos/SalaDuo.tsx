@@ -11,7 +11,8 @@ import type {
 
 import { estilos as S } from "./estilos";
 import { usePollingActividad } from "./usePollingActividad";
-import { PreparacionPrivada } from "./PreparacionPrivada";
+import { PreparacionPrivada, borradorInicial } from "./PreparacionPrivada";
+import type { BorradorPrivado } from "./PreparacionPrivada";
 import { PreviewCompartir } from "./PreviewCompartir";
 import { Reveal } from "./Reveal";
 import { Artefacto } from "./Artefacto";
@@ -67,17 +68,46 @@ export function SalaDuo({
   const headingRef = useRef<HTMLHeadingElement | null>(null);
   const previousStage = useRef<string>("");
 
+  // The draft lives here, not in the form, so "Volver a editar" — which
+  // unmounts the form — cannot discard it. Memory only: no storage, no
+  // autosave, no endpoint.
+  const [draft, setDraft] = useState<BorradorPrivado>(() =>
+    borradorInicial(allowedModes),
+  );
+
+  // One idempotency key per logical INTENTION, held in memory for as long as
+  // the outcome is uncertain.
+  //
+  // The key is what tells the API "this is the same act again" rather than "a
+  // second act". Minting a fresh one per request — which is what this did
+  // before — turned every retry into a new intention: a share confirmed just
+  // as the connection dropped, retried by the person, would arrive under a new
+  // key and come back `CIRCLE_IDEMPOTENCY_CONFLICT`. So the key is derived
+  // from the command AND its payload: retrying the identical thing reuses it,
+  // and changing the text mints a new one because it is genuinely a different
+  // intention.
+  const keys = useRef(new Map<string, string>());
+  const keyFor = useCallback((kind: string, payload: unknown): string => {
+    const intention = `${kind}:${JSON.stringify(payload ?? null)}`;
+    const existing = keys.current.get(intention);
+    if (existing) return existing;
+    const minted = crypto.randomUUID();
+    keys.current.set(intention, minted);
+    return minted;
+  }, []);
+
   const command = useCallback(
     async (kind: string, payload?: unknown): Promise<boolean> => {
       setBusy(true);
       setCommandError(null);
+      const idempotencyKey = keyFor(kind, payload);
       try {
         const res = await fetch(
           `/api/circulos/actividad/${encodeURIComponent(activityId)}/comando`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ kind, payload }),
+            body: JSON.stringify({ kind, payload, idempotencyKey }),
           },
         );
         if (!res.ok) {
@@ -89,16 +119,22 @@ export function SalaDuo({
           );
           return false;
         }
+        // Settled. The key has done its job and a later, genuinely new
+        // intention with the same text should not replay this one.
+        keys.current.delete(`${kind}:${JSON.stringify(payload ?? null)}`);
         refresh();
         return true;
       } catch {
+        // Deliberately KEEPS the key: a network failure is the case where the
+        // command may or may not have landed, and the retry must ask about the
+        // same act rather than start a new one.
         setCommandError("CIRCLE_UNAVAILABLE");
         return false;
       } finally {
         setBusy(false);
       }
     },
-    [activityId, refresh],
+    [activityId, refresh, keyFor],
   );
 
   const leave = useCallback(async () => {
@@ -229,12 +265,19 @@ export function SalaDuo({
         <PreparacionPrivada
           fields={fields}
           allowedModes={allowedModes}
+          draft={draft}
+          onDraftChange={setDraft}
           busy={busy}
           onPreview={(confirmation) =>
             setLocal({ stage: "preview", confirmation })
           }
           onWithdraw={async () => {
-            if (await command("withdraw")) await leave();
+            // Leaving clears the draft locally. Nothing to erase anywhere
+            // else — it never left this tab.
+            if (await command("withdraw")) {
+              setDraft(borradorInicial(allowedModes));
+              await leave();
+            }
           }}
         />
       )}
@@ -244,11 +287,19 @@ export function SalaDuo({
           confirmation={local.confirmation}
           fields={fields}
           busy={busy}
+          // Back to editing with everything intact: the draft is owned above
+          // this component, so unmounting the form does not touch it.
           onBack={() => setLocal({ stage: "prepare" })}
           onConfirm={async () => {
             if (await command("share", local.confirmation)) {
+              // Confirmed. The text is on the server now, so the local copy
+              // has no reason to exist.
+              setDraft(borradorInicial(allowedModes));
               setLocal({ stage: "prepare" });
             }
+            // On failure: stay on the preview, keep the draft, show the error.
+            // The person can retry the identical confirmation under the same
+            // idempotency key, or go back and edit it.
           }}
         />
       )}

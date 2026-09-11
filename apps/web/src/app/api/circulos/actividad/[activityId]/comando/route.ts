@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { randomUUID } from "node:crypto";
 
 import {
   guestCommand,
   isCirculoCommand,
   memberCommand,
+  parseIdempotencyKey,
   parseShareConfirmation,
   sameOrigin,
 } from "@/lib/circulos/bff";
@@ -63,11 +63,19 @@ export async function POST(
   const payload = buildPayload(kind, raw.payload);
   if (payload === INVALID) return refuse(400, "CIRCLE_INVALID_PAYLOAD");
 
-  // One key per command attempt. The API treats a repeat of the SAME key as a
-  // replay and a different key on an already-settled seat as a conflict, so the
-  // key is minted here — per request — rather than taken from the browser,
-  // where a caller could replay somebody else's.
-  const idempotencyKey = randomUUID();
+  // The key the CLIENT minted for this intention, validated but not replaced.
+  //
+  // Minting one here looked safer and was the opposite: it made every retry a
+  // new intention. A share confirmed just before a timeout, retried by the
+  // person, would arrive under a fresh key — and the API, which treats the same
+  // key as a replay and a different key on a settled seat as a conflict, would
+  // answer `CIRCLE_IDEMPOTENCY_CONFLICT` to somebody who had simply pressed the
+  // button twice on a bad connection. The browser holds one key per intention
+  // for as long as the outcome is uncertain, and a new one only when the
+  // command or its payload actually changes.
+  const idempotencyKey = parseIdempotencyKey(raw.idempotencyKey);
+  if (!idempotencyKey) return refuse(400, "CIRCLE_INVALID_PAYLOAD");
+
   const activityId = params.activityId;
 
   const guestToken = readGuestToken();

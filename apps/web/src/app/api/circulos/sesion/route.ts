@@ -1,11 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 
-import {
-  acceptInvitation,
-  inspectInvitation,
-  sameOrigin,
-} from "@/lib/circulos/bff";
+import { acceptInvitation, sameOrigin } from "@/lib/circulos/bff";
 import { GUEST_COOKIE, guestCookieOptions } from "@/lib/circulos/guest-cookie";
 
 /**
@@ -47,15 +43,16 @@ export async function POST(request: Request): Promise<NextResponse> {
     return refuse(404, "CIRCLE_INVITATION_UNUSABLE");
   }
 
-  // Inspect first. Opening a link is not accepting one: a prefetch, a link
-  // scanner in a messaging app or a second tap must leave the invitation
-  // exactly as they found it, and only the explicit consent step below spends
-  // it. The API enforces this too — `inspect` never consumes.
-  const seen = await inspectInvitation(secret);
-  if (!seen.ok) {
-    return refuse(seen.status, seen.code ?? "CIRCLE_INVITATION_UNUSABLE");
-  }
-
+  // Straight to `accept`. This route is reached only from the explicit
+  // "Aceptar invitación" button, and inspection already happened on its own
+  // route when the page loaded.
+  //
+  // Calling `inspect` again here would be worse than redundant: `accept`
+  // revalidates authoritatively inside its own transaction — it is the only
+  // check that can be trusted, because anything learned before the transaction
+  // can be stale by the time it opens — and a second call would spend two of
+  // the ten invitation attempts the throttler allows per fifteen minutes,
+  // halving how many times somebody can legitimately retry a flaky network.
   const session = await acceptInvitation(secret);
   if (!session.ok || !session.data) {
     return refuse(session.status, session.code ?? "CIRCLE_INVITATION_UNUSABLE");

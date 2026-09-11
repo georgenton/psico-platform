@@ -212,14 +212,21 @@ export async function middleware(request: NextRequest) {
   // app, and only these three prefixes need a nonce.
   if (isCirculosPath(pathname)) {
     const nonce = crypto.randomUUID().replace(/-/g, "");
+    const policy = circulosCspFor(pathname, nonce)!;
+
     const headers = new Headers(request.headers);
-    // Next reads this to stamp the nonce onto its own inline scripts.
     headers.set("x-nonce", nonce);
+    // The policy goes on the REQUEST headers as well, and this is the part
+    // that makes the nonce real rather than decorative. Next reads the incoming
+    // `Content-Security-Policy`, finds the nonce in it, and stamps that same
+    // value onto every inline script it emits. Setting it only on the response
+    // produces a header whose nonce matches nothing on the page — the scripts
+    // are still unnonced, still blocked, and the page still fails to hydrate,
+    // while the header reads as if it were working.
+    headers.set("Content-Security-Policy", policy);
+
     const response = NextResponse.next({ request: { headers } });
-    response.headers.set(
-      "Content-Security-Policy",
-      circulosCspFor(pathname, nonce)!,
-    );
+    response.headers.set("Content-Security-Policy", policy);
     return response;
   }
 

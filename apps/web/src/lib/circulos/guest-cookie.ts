@@ -23,8 +23,16 @@ import { cookies } from "next/headers";
  */
 export const GUEST_COOKIE = "fv_circulo_guest";
 
-/** Hard ceiling regardless of what the API says, in seconds. */
-const MAX_LIFETIME_SECONDS = 14 * 24 * 60 * 60;
+/**
+ * Hard ceiling regardless of what the API says, in seconds.
+ *
+ * Thirty days, because that is `GUEST_SESSION_TTL_MS` — the lifetime PR3
+ * actually issues. A shorter ceiling here would not make anything safer: the
+ * server would still honour the session, and the person would simply be logged
+ * out of their own activity early with no way to tell why. The rule that
+ * matters is the one below — never past the `expiresAt` the API returned.
+ */
+const MAX_LIFETIME_SECONDS = 30 * 24 * 60 * 60;
 
 export function guestCookieOptions(expiresAt: string | null): {
   httpOnly: true;
@@ -37,9 +45,13 @@ export function guestCookieOptions(expiresAt: string | null): {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
-    // Scoped as narrowly as the routes that use it allow: the room, the entry
-    // point and the command handlers all live under these prefixes, and "/" is
-    // the only prefix that covers them without listing three cookies.
+    // `/` — and this is the root path, not a narrow one. It is the only common
+    // prefix of `/i`, `/compartir` and `/api/circulos`, so a single cookie
+    // cannot be scoped tighter without splitting it into three. That is a
+    // real trade-off, not a scoping win, and calling it "as narrow as
+    // possible" would be dressing it up: the cookie is sent on every
+    // same-site request to this origin. Narrowing it belongs to the pilot
+    // hardening, with the route layout designed for it.
     path: "/",
     maxAge: lifetimeSeconds(expiresAt),
   };

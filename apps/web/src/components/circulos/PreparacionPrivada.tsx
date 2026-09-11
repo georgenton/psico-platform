@@ -27,9 +27,70 @@ import { estilos as S } from "./estilos";
  * the most a page can do without storing something.
  */
 
+/**
+ * The draft, owned by `SalaDuo`.
+ *
+ * It lives one level up rather than inside this component because "Volver a
+ * editar" unmounts the form: state held here would be discarded by React the
+ * moment somebody looked at the preview and changed their mind, which is the
+ * one point in the flow where losing it is least forgivable — they have just
+ * re-read what they wrote. Lifting it keeps the same guarantee (memory only,
+ * nothing persisted) while letting the person move back and forth.
+ */
+export interface BorradorPrivado {
+  readonly mode: CircleSharingMode;
+  readonly values: Record<string, string>;
+  readonly summary: string;
+}
+
+export function borradorInicial(
+  allowedModes: readonly CircleSharingMode[],
+): BorradorPrivado {
+  return {
+    mode: allowedModes.includes("SELECTED_FIELDS")
+      ? "SELECTED_FIELDS"
+      : (allowedModes[0] ?? "KEEP_PRIVATE"),
+    values: {},
+    summary: "",
+  };
+}
+
+/** Is there anything here worth warning somebody about before they lose it? */
+export function borradorTieneTexto(draft: BorradorPrivado): boolean {
+  return (
+    Object.values(draft.values).some((v) => v.trim().length > 0) ||
+    draft.summary.trim().length > 0
+  );
+}
+
+/** The confirmation this draft would produce, or null when it is not ready. */
+export function confirmacionDe(
+  draft: BorradorPrivado,
+  fields: readonly CirclePreparationField[],
+): CircleShareConfirmation | null {
+  if (draft.mode === "KEEP_PRIVATE") return { mode: "KEEP_PRIVATE" };
+  if (draft.mode === "EDITED_SUMMARY") {
+    if (draft.summary.trim().length === 0) return null;
+    return { mode: "EDITED_SUMMARY", summary: draft.summary };
+  }
+  if (draft.mode === "SELECTED_FIELDS") {
+    const chosen = fields
+      .map((f) => ({
+        fieldKey: f.fieldKey,
+        value: draft.values[f.fieldKey] ?? "",
+      }))
+      .filter((f) => f.value.trim().length > 0);
+    if (chosen.length === 0) return null;
+    return { mode: "SELECTED_FIELDS", fields: chosen };
+  }
+  return null;
+}
+
 export interface PreparacionPrivadaProps {
   readonly fields: readonly CirclePreparationField[];
   readonly allowedModes: readonly CircleSharingMode[];
+  readonly draft: BorradorPrivado;
+  readonly onDraftChange: (draft: BorradorPrivado) => void;
   readonly onPreview: (confirmation: CircleShareConfirmation) => void;
   readonly onWithdraw: () => void;
   readonly busy: boolean;
@@ -38,21 +99,21 @@ export interface PreparacionPrivadaProps {
 export function PreparacionPrivada({
   fields,
   allowedModes,
+  draft,
+  onDraftChange,
   onPreview,
   onWithdraw,
   busy,
 }: PreparacionPrivadaProps) {
-  const [values, setValues] = useState<Record<string, string>>({});
-  const [summary, setSummary] = useState("");
-  const [mode, setMode] = useState<CircleSharingMode>(
-    allowedModes.includes("SELECTED_FIELDS")
-      ? "SELECTED_FIELDS"
-      : (allowedModes[0] ?? "KEEP_PRIVATE"),
-  );
+  const { values, summary, mode } = draft;
+  const setValues = (next: Record<string, string>) =>
+    onDraftChange({ ...draft, values: next });
+  const setSummary = (next: string) =>
+    onDraftChange({ ...draft, summary: next });
+  const setMode = (next: CircleSharingMode) =>
+    onDraftChange({ ...draft, mode: next });
 
-  const dirty =
-    Object.values(values).some((v) => v.trim().length > 0) ||
-    summary.trim().length > 0;
+  const dirty = borradorTieneTexto(draft);
 
   // Ask before the draft is lost. The browser shows its own wording; the page
   // also says it in plain Spanish below, because a native dialog is easy to
@@ -67,22 +128,10 @@ export function PreparacionPrivada({
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, [dirty]);
 
-  const confirmation = useMemo((): CircleShareConfirmation | null => {
-    if (mode === "KEEP_PRIVATE") return { mode: "KEEP_PRIVATE" };
-    if (mode === "EDITED_SUMMARY") {
-      const text = summary.trim();
-      if (text.length === 0) return null;
-      return { mode: "EDITED_SUMMARY", summary };
-    }
-    if (mode === "SELECTED_FIELDS") {
-      const chosen = fields
-        .map((f) => ({ fieldKey: f.fieldKey, value: values[f.fieldKey] ?? "" }))
-        .filter((f) => f.value.trim().length > 0);
-      if (chosen.length === 0) return null;
-      return { mode: "SELECTED_FIELDS", fields: chosen };
-    }
-    return null;
-  }, [mode, summary, fields, values]);
+  const confirmation = useMemo(
+    () => confirmacionDe(draft, fields),
+    [draft, fields],
+  );
 
   return (
     <section style={S.section} aria-labelledby="prep-h">
@@ -133,10 +182,7 @@ export function PreparacionPrivada({
                 maxLength={limit}
                 rows={4}
                 onChange={(e) =>
-                  setValues((prev) => ({
-                    ...prev,
-                    [f.fieldKey]: e.target.value,
-                  }))
+                  setValues({ ...values, [f.fieldKey]: e.target.value })
                 }
                 style={S.textarea}
               />

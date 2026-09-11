@@ -277,7 +277,7 @@ export async function memberCommand(
 
 export function createDuo(
   accessToken: string,
-  body: unknown,
+  body: CreateDuoBody,
   idempotencyKey: string,
 ) {
   return call<{ circleId: string; activityId: string }>("/circles/duo", {
@@ -286,6 +286,89 @@ export function createDuo(
     body,
     idempotencyKey,
   });
+}
+
+// ── The two shapes the browser mints ─────────────────────────────────────────
+
+/**
+ * 256 bits of entropy, base64url, exactly as `CreateDuoDto` requires.
+ *
+ * Length alone proves nothing — 43 spaces are 43 characters. The alphabet is
+ * the assertion; the length falls out of it.
+ */
+const BASE64URL_256 = /^[A-Za-z0-9_-]{43}$/;
+
+/** RFC 4122 version 4, variant 1. */
+const UUID_V4 =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export interface CreateDuoBody {
+  readonly templateKey: string;
+  readonly templateVersion: number;
+  readonly invitationToken: string;
+}
+
+/**
+ * Rebuild a Dúo creation request from untrusted input, or refuse.
+ *
+ * The invitation token is minted by the CALLER, not the server, because a
+ * one-shot secret cannot be handed back twice: a replay has to return the same
+ * resource, and the server keeps only a hash. The browser supplying it is what
+ * makes replay and conflict distinguishable without anything recoverable ever
+ * being stored.
+ *
+ * It is NOT identity and it authorises nothing on its own. The authority to
+ * create a Dúo comes from the authenticated cookie and from nowhere else; this
+ * token only names the invitation that creation will mint. So it is validated
+ * for shape, forwarded once, and never persisted, logged, put in a URL, a
+ * metric or an error.
+ */
+export function parseCreateDuo(raw: unknown): CreateDuoBody | null {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw))
+    return null;
+  const body = raw as Record<string, unknown>;
+
+  // Exact keys: an extra field is refused rather than trimmed, so a caller
+  // cannot smuggle a `userId` or a `circleId` past us and hope the API ignores
+  // it.
+  if (!exact(body, ["templateKey", "templateVersion", "invitationToken"])) {
+    return null;
+  }
+  if (typeof body.templateKey !== "string") return null;
+  if (body.templateKey.length === 0 || body.templateKey.length > 128) {
+    return null;
+  }
+  if (typeof body.templateVersion !== "number") return null;
+  if (!Number.isInteger(body.templateVersion) || body.templateVersion < 1) {
+    return null;
+  }
+  if (typeof body.invitationToken !== "string") return null;
+  if (!BASE64URL_256.test(body.invitationToken)) return null;
+
+  return {
+    templateKey: body.templateKey,
+    templateVersion: body.templateVersion,
+    invitationToken: body.invitationToken,
+  };
+}
+
+/**
+ * The idempotency key the CLIENT minted for this intention.
+ *
+ * It is not regenerated here. A key minted per request would make every retry
+ * a new intention, which is exactly the thing idempotency exists to prevent:
+ * a share confirmed once and retried after a timeout would be a second
+ * confirmation under a fresh key, and the API would answer
+ * `CIRCLE_IDEMPOTENCY_CONFLICT` — or worse, succeed twice — instead of
+ * replaying the first. The browser holds one key per logical intention, in
+ * memory, and reuses it for as long as the outcome is uncertain.
+ *
+ * Validated, never trusted for identity: the API is still the authority on
+ * what a repeat means.
+ */
+export function parseIdempotencyKey(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  return UUID_V4.test(raw) ? raw : null;
 }
 
 // ── The one body the browser may compose ─────────────────────────────────────

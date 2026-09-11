@@ -75,8 +75,9 @@ export class CirclesController {
   @ApiResponse({
     status: 200,
     description:
-      "Usable, with the minimum needed to decide: who invites, what it is, " +
-      "how long. No ids, no roster, no state, no content.",
+      "Usable. `preview` carries the minimum needed to decide — who invites, " +
+      "what it is, how long — or is null when this build cannot describe the " +
+      "invitation. Never ids, roster, state or content.",
   })
   @ApiResponse({
     status: 404,
@@ -86,7 +87,7 @@ export class CirclesController {
   })
   inspect(
     @Body() dto: InspectInvitationDto,
-  ): Promise<{ usable: true; preview: CircleInvitationPreview }> {
+  ): Promise<{ usable: true; preview: CircleInvitationPreview | null }> {
     return mapCirclesErrors(async () => {
       // Being asked to accept something described only as "an invitation" is
       // being asked to agree to an unknown. The preview is what makes the

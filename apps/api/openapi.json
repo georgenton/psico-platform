@@ -23915,7 +23915,7 @@
         },
         "responses": {
           "200": {
-            "description": "Usable, with the minimum needed to decide: who invites, what it is, how long. No ids, no roster, no state, no content."
+            "description": "Usable. `preview` carries the minimum needed to decide — who invites, what it is, how long — or is null when this build cannot describe the invitation. Never ids, roster, state or content."
           },
           "404": {
             "description": "CIRCLE_INVITATION_UNUSABLE — one answer for nonexistent, malformed, expired, already used, declined and revoked alike."

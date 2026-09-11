@@ -1,0 +1,356 @@
+import "server-only";
+
+import { headers } from "next/headers";
+import type { CircleActivityView, CircleShareConfirmation } from "@psico/types";
+import { CIRCLE_SHARE_LIMITS } from "@psico/types";
+
+import { readGuestToken } from "./guest-cookie";
+
+/**
+ * The Círculos back-end-for-front-end.
+ *
+ * This is NOT a proxy. A proxy forwards whatever path the browser names, which
+ * would hand a stranger the whole API surface through our own origin and our
+ * own cookie. What lives here is a closed list: five commands and two reads,
+ * each with its own upstream path written down in this file, so a request for
+ * anything else has nowhere to go.
+ *
+ * Two rules hold everywhere below:
+ *
+ *  1. **The browser never says who it is.** No `userId`, `participantId`,
+ *     `circleId` or role is read from the request — not from the body, not from
+ *     a header, not from a query string. Identity comes from the guest cookie
+ *     or the session cookie, both `HttpOnly`, and the API resolves the actor
+ *     from the credential alone.
+ *  2. **Errors stay opaque.** Upstream status and the `CIRCLE_*` code pass
+ *     through; nothing else does. "Which rule did I break" is information about
+ *     somebody else's Dúo as often as it is about your own request.
+ */
+
+const API_ROOT = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+const API_BASE = `${API_ROOT.replace(/\/$/, "")}/api`;
+
+export interface BffResult<T> {
+  readonly ok: boolean;
+  readonly status: number;
+  readonly code: string | null;
+  readonly data: T | null;
+}
+
+/**
+ * Every command the web guest flow may issue, and nothing else.
+ *
+ * Adding a row here is the only way to widen what the browser can reach, which
+ * is the point: the allow-list is a literal, it is short, and it is reviewed in
+ * a diff. `kind` is matched against these exact strings — an unknown one is not
+ * forwarded anywhere, it is refused.
+ */
+export const CIRCULO_COMMANDS = [
+  "share",
+  "withdraw",
+  "artifact",
+  "artifact-confirm",
+  "follow-up",
+] as const;
+
+export type CirculoCommandKind = (typeof CIRCULO_COMMANDS)[number];
+
+interface CommandRoute {
+  readonly method: "POST" | "PUT";
+  /** Appended to the actor's activity base. Never taken from the request. */
+  readonly path: string;
+}
+
+const COMMAND_ROUTES: Record<CirculoCommandKind, CommandRoute> = {
+  share: { method: "POST", path: "/share-confirmations" },
+  withdraw: { method: "POST", path: "/withdraw" },
+  artifact: { method: "PUT", path: "/artifact" },
+  "artifact-confirm": { method: "POST", path: "/artifact/confirm" },
+  "follow-up": { method: "POST", path: "/follow-up" },
+};
+
+export function isCirculoCommand(value: unknown): value is CirculoCommandKind {
+  return (
+    typeof value === "string" &&
+    (CIRCULO_COMMANDS as readonly string[]).includes(value)
+  );
+}
+
+// ── Origin / CSRF ────────────────────────────────────────────────────────────
+
+/**
+ * A state-changing request must come from our own page.
+ *
+ * `SameSite=Lax` already withholds the guest cookie from cross-site POSTs, so
+ * this is the second of two locks rather than the only one. It is here because
+ * `Lax` is a browser promise and this is a server check: a browser that gets
+ * `SameSite` wrong, or a future handler reached by a method `Lax` does not
+ * cover, still meets a rule that runs on our side.
+ *
+ * A request with no `Origin` at all is refused rather than trusted. Same-origin
+ * `fetch` always sends one, so the only callers this turns away are the ones
+ * that are not the page.
+ */
+export function sameOrigin(): boolean {
+  const h = headers();
+  const origin = h.get("origin");
+  if (!origin) return false;
+  const host = h.get("host");
+  if (!host) return false;
+  try {
+    return new URL(origin).host === host;
+  } catch {
+    return false;
+  }
+}
+
+// ── The upstream call ────────────────────────────────────────────────────────
+
+async function call<T>(
+  path: string,
+  init: {
+    method: "GET" | "POST" | "PUT";
+    token?: string | null;
+    body?: unknown;
+    idempotencyKey?: string;
+  },
+): Promise<BffResult<T>> {
+  const headersOut = new Headers();
+  if (init.body !== undefined) {
+    headersOut.set("Content-Type", "application/json");
+  }
+  if (init.token) headersOut.set("Authorization", `Bearer ${init.token}`);
+  if (init.idempotencyKey) {
+    headersOut.set("Idempotency-Key", init.idempotencyKey);
+  }
+
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      method: init.method,
+      headers: headersOut,
+      body: init.body === undefined ? undefined : JSON.stringify(init.body),
+      cache: "no-store",
+    });
+  } catch {
+    // The network, not the person. No URL, no token, no body in the log.
+    return { ok: false, status: 502, code: "CIRCLE_UNAVAILABLE", data: null };
+  }
+
+  if (res.status === 204) {
+    return { ok: true, status: 204, code: null, data: null };
+  }
+
+  const payload = (await res.json().catch(() => null)) as {
+    code?: unknown;
+  } | null;
+
+  if (!res.ok) {
+    const code =
+      payload && typeof payload.code === "string" ? payload.code : null;
+    return { ok: false, status: res.status, code, data: null };
+  }
+  return { ok: true, status: res.status, code: null, data: payload as T };
+}
+
+// ── Session ──────────────────────────────────────────────────────────────────
+
+export interface GuestScope {
+  readonly kind: "GUEST";
+  readonly activityId: string;
+  readonly participantId: string;
+}
+
+/** Check a link without spending it. */
+export function inspectInvitation(secret: string) {
+  return call<{ usable: true }>("/circles/invitations/inspect", {
+    method: "POST",
+    body: { secret },
+  });
+}
+
+/** Trade the link for a session. The raw token is returned ONCE, to us. */
+export function acceptInvitation(secret: string) {
+  return call<{ guestSessionToken: string; expiresAt: string }>(
+    "/circles/invitations/accept",
+    { method: "POST", body: { secret } },
+  );
+}
+
+/**
+ * What this guest session is, as the SERVER resolved it.
+ *
+ * Load-bearing for more than display: every command handler calls this and
+ * compares the resolved `activityId` against the one in the URL, so a guest who
+ * edits the path reaches a refusal here rather than a forwarded request.
+ */
+export function guestScope(token: string) {
+  return call<GuestScope>("/circles/guest/session", {
+    method: "GET",
+    token,
+  });
+}
+
+// ── Reads ────────────────────────────────────────────────────────────────────
+
+export function readActivityAsGuest(token: string, activityId: string) {
+  return call<CircleActivityView>(
+    `/circles/guest/activities/${encodeURIComponent(activityId)}`,
+    { method: "GET", token },
+  );
+}
+
+export function readActivityAsMember(token: string, activityId: string) {
+  return call<CircleActivityView>(
+    `/circles/activities/${encodeURIComponent(activityId)}`,
+    { method: "GET", token },
+  );
+}
+
+// ── Commands ─────────────────────────────────────────────────────────────────
+
+export interface CommandInput {
+  readonly kind: CirculoCommandKind;
+  readonly activityId: string;
+  readonly body?: unknown;
+  readonly idempotencyKey: string;
+}
+
+/**
+ * Issue one command as the guest.
+ *
+ * `activityId` reaches the upstream URL only after `guestScope` has said this
+ * session owns it. The API enforces the same thing — a guest token is bound to
+ * one activity server-side — so this is defence in depth, not the only guard;
+ * it exists so a mismatch is refused before we spend an upstream call on it.
+ */
+export async function guestCommand(
+  input: CommandInput,
+): Promise<BffResult<unknown>> {
+  const token = readGuestToken();
+  if (!token) {
+    return { ok: false, status: 401, code: "CIRCLE_FORBIDDEN", data: null };
+  }
+  const scope = await guestScope(token);
+  if (!scope.ok || !scope.data) {
+    return {
+      ok: false,
+      status: scope.status,
+      code: scope.code,
+      data: null,
+    };
+  }
+  if (scope.data.activityId !== input.activityId) {
+    // Same opaque refusal as "no such activity". Confirming that the activity
+    // exists but is not yours is still telling a stranger it exists.
+    return { ok: false, status: 403, code: "CIRCLE_FORBIDDEN", data: null };
+  }
+
+  const route = COMMAND_ROUTES[input.kind];
+  return call(
+    `/circles/guest/activities/${encodeURIComponent(input.activityId)}${route.path}`,
+    {
+      method: route.method,
+      token,
+      body: input.body ?? {},
+      idempotencyKey: input.idempotencyKey,
+    },
+  );
+}
+
+/** The same closed list, for somebody with an account. */
+export async function memberCommand(
+  accessToken: string,
+  input: CommandInput,
+): Promise<BffResult<unknown>> {
+  const route = COMMAND_ROUTES[input.kind];
+  return call(
+    `/circles/activities/${encodeURIComponent(input.activityId)}${route.path}`,
+    {
+      method: route.method,
+      token: accessToken,
+      body: input.body ?? {},
+      idempotencyKey: input.idempotencyKey,
+    },
+  );
+}
+
+export function createDuo(
+  accessToken: string,
+  body: unknown,
+  idempotencyKey: string,
+) {
+  return call<{ circleId: string; activityId: string }>("/circles/duo", {
+    method: "POST",
+    token: accessToken,
+    body,
+    idempotencyKey,
+  });
+}
+
+// ── The one body the browser may compose ─────────────────────────────────────
+
+/**
+ * Rebuild a share confirmation from untrusted input, or refuse.
+ *
+ * The API validates this again — it is the authority, and this function is not
+ * trying to be a second one. What it does is refuse to FORWARD a shape we can
+ * already see is not a confirmation, so a malformed or padded body is dropped
+ * at our origin instead of being relayed under our cookie.
+ *
+ * Exactly three modes, and a body carrying anything the mode does not define is
+ * rejected rather than trimmed: `KEEP_PRIVATE` with a `reason` attached is not
+ * a stricter refusal to share, it is the explanation the contract deliberately
+ * has no room for.
+ */
+export function parseShareConfirmation(
+  raw: unknown,
+): CircleShareConfirmation | null {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw))
+    return null;
+  const body = raw as Record<string, unknown>;
+
+  if (body.mode === "KEEP_PRIVATE") {
+    return exact(body, ["mode"]) ? { mode: "KEEP_PRIVATE" } : null;
+  }
+
+  if (body.mode === "EDITED_SUMMARY") {
+    if (!exact(body, ["mode", "summary"])) return null;
+    if (typeof body.summary !== "string") return null;
+    if (body.summary.trim().length === 0) return null;
+    if (body.summary.length > CIRCLE_SHARE_LIMITS.maxSummaryLength) return null;
+    return { mode: "EDITED_SUMMARY", summary: body.summary };
+  }
+
+  if (body.mode === "SELECTED_FIELDS") {
+    if (!exact(body, ["mode", "fields"])) return null;
+    if (!Array.isArray(body.fields)) return null;
+    if (body.fields.length === 0) return null;
+    if (body.fields.length > CIRCLE_SHARE_LIMITS.maxFields) return null;
+    const seen = new Set<string>();
+    const fields: { fieldKey: string; value: string }[] = [];
+    for (const item of body.fields) {
+      if (typeof item !== "object" || item === null || Array.isArray(item)) {
+        return null;
+      }
+      const f = item as Record<string, unknown>;
+      if (!exact(f, ["fieldKey", "value"])) return null;
+      if (typeof f.fieldKey !== "string" || typeof f.value !== "string") {
+        return null;
+      }
+      if (f.value.trim().length === 0) return null;
+      if (f.value.length > CIRCLE_SHARE_LIMITS.maxFieldLength) return null;
+      if (seen.has(f.fieldKey)) return null;
+      seen.add(f.fieldKey);
+      fields.push({ fieldKey: f.fieldKey, value: f.value });
+    }
+    return { mode: "SELECTED_FIELDS", fields };
+  }
+
+  return null;
+}
+
+function exact(obj: Record<string, unknown>, keys: string[]): boolean {
+  const own = Object.keys(obj);
+  return own.length === keys.length && keys.every((k) => own.includes(k));
+}

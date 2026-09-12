@@ -1,7 +1,11 @@
 import "server-only";
 
 import { headers } from "next/headers";
-import type { CircleActivityView, CircleShareConfirmation } from "@psico/types";
+import type {
+  CircleActivityView,
+  CircleInvitationPreview,
+  CircleShareConfirmation,
+} from "@psico/types";
 import { CIRCLE_SHARE_LIMITS } from "@psico/types";
 
 /**
@@ -159,11 +163,65 @@ export interface GuestScope {
   readonly participantId: string;
 }
 
-/** Check a link without spending it. */
+/**
+ * What `inspect` answers.
+ *
+ * `preview` is nullable because being DESCRIBABLE is not a condition of being
+ * USABLE: an invitation pinned to a template this deployment does not carry is
+ * still perfectly acceptable, and the API says so by returning `usable` with a
+ * null preview rather than a refusal.
+ */
+export interface InspectedInvitation {
+  readonly usable: true;
+  readonly preview: CircleInvitationPreview | null;
+}
+
+/**
+ * Check a link without spending it.
+ *
+ * Typed as `{ usable: true }` until now, which silently discarded the preview
+ * the API had already computed — so the screen before "Aceptar" stayed generic
+ * no matter what the server sent. The type WAS the bug; nothing else in the
+ * chain was wrong.
+ */
 export function inspectInvitation(secret: string) {
-  return call<{ usable: true }>("/circles/invitations/inspect", {
+  return call<InspectedInvitation>("/circles/invitations/inspect", {
     method: "POST",
     body: { secret },
+  });
+}
+
+/**
+ * Rebuild the preview from an untrusted upstream body, field by field.
+ *
+ * Explicitly NOT a spread. Spreading would mean anything the API ever added —
+ * an id, a roster, a counter, an email — arrives at the browser the day it is
+ * added, with no diff here to notice. Four fields are named, four are copied,
+ * and everything else has nowhere to go.
+ *
+ * A malformed or absent preview becomes `null`. The invitation stays usable:
+ * losing the description is a worse screen, never a dead link.
+ */
+export function projectInvitationPreview(
+  raw: unknown,
+): CircleInvitationPreview | null {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw))
+    return null;
+  const p = raw as Record<string, unknown>;
+  if (
+    typeof p.title !== "string" ||
+    typeof p.summary !== "string" ||
+    typeof p.estimatedMinutes !== "number" ||
+    !Number.isFinite(p.estimatedMinutes) ||
+    typeof p.inviterFirstName !== "string"
+  ) {
+    return null;
+  }
+  return Object.freeze({
+    title: p.title,
+    summary: p.summary,
+    estimatedMinutes: p.estimatedMinutes,
+    inviterFirstName: p.inviterFirstName,
   });
 }
 

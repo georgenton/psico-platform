@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 
-import { inspectInvitation, sameOrigin } from "@/lib/circulos/bff";
+import {
+  inspectInvitation,
+  projectInvitationPreview,
+  sameOrigin,
+} from "@/lib/circulos/bff";
 
 /**
  * Check an invitation WITHOUT spending it.
@@ -11,12 +15,19 @@ import { inspectInvitation, sameOrigin } from "@/lib/circulos/bff";
  * and only this route. Consuming the invitation is a separate, explicit act
  * behind a button, on `POST /api/circulos/sesion`.
  *
- * The answer is a constant. `{ usable: true }` or a refusal — never the
- * activity, the circle, the participant, who invited whom, when it expires, or
- * which rule was broken. Upstream answers `CIRCLE_INVITATION_UNUSABLE` for
- * nonexistent, malformed, expired, already-used, declined and revoked alike,
- * and a web layer that distinguished them would be undoing that on the one
- * surface a stranger can reach without any credential at all.
+ * The success shape is `{ usable, preview }`, and the preview is exactly four
+ * fields: title, summary, estimated minutes, the inviter's first name. It is
+ * rebuilt field by field from the upstream body rather than spread, so an id, a
+ * roster, an email or a counter added upstream tomorrow has nowhere to land.
+ * `preview` is null when the API could not describe the invitation — losing the
+ * description is a worse screen, never a dead link.
+ *
+ * Every REFUSAL is still a constant: never the activity, the circle, the
+ * participant, who invited whom, when it expires, or which rule was broken.
+ * Upstream answers `CIRCLE_INVITATION_UNUSABLE` for nonexistent, malformed,
+ * expired, already-used, declined and revoked alike, and a web layer that
+ * distinguished them would be undoing that on the one surface a stranger can
+ * reach without any credential at all.
  *
  * The secret travels in the POST body: never a query string, never a path.
  * Those are written to access logs, kept in `Referer` and stored in history.
@@ -65,5 +76,16 @@ export async function POST(request: Request): Promise<NextResponse> {
   const seen = await inspectInvitation(secret);
   if (!seen.ok) return refuse(seen.status);
 
-  return noStore(NextResponse.json({ usable: true }, { status: 200 }));
+  // The preview the API computed, carried through — projected, never spread.
+  // This handler used to collapse the whole answer back to `{ usable: true }`,
+  // which threw away the one thing that makes the next screen a real decision.
+  return noStore(
+    NextResponse.json(
+      {
+        usable: true,
+        preview: projectInvitationPreview(seen.data?.preview),
+      },
+      { status: 200 },
+    ),
+  );
 }

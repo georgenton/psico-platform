@@ -72,18 +72,105 @@ describe("inspection never consumes and never discloses", () => {
     ).toBe(false);
   });
 
-  it("answers a constant, with no activity, participant or cause", async () => {
+  it("carries the API's safe preview through to the Web response", async () => {
+    // The handler used to collapse this to `{ usable: true }`, throwing away
+    // the one thing that makes the next screen a real decision.
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
-      ok({ usable: true, activityId: "act-1", participantId: "p-1" }),
+      ok({
+        usable: true,
+        preview: {
+          title: "Lo que nos cuesta decirnos",
+          summary: "Cada quien se prepara por su lado.",
+          estimatedMinutes: 25,
+          inviterFirstName: "Marina",
+        },
+      }),
+    );
+
+    const res = await inspeccionPOST(req({ secret: "s3cr3t" }));
+
+    expect(await res.json()).toEqual({
+      usable: true,
+      preview: {
+        title: "Lo que nos cuesta decirnos",
+        summary: "Cada quien se prepara por su lado.",
+        estimatedMinutes: 25,
+        inviterFirstName: "Marina",
+      },
+    });
+  });
+
+  it("projects exactly four fields, whatever upstream volunteers", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      ok({
+        usable: true,
+        activityId: "act-LEAK",
+        preview: {
+          title: "t",
+          summary: "s",
+          estimatedMinutes: 10,
+          inviterFirstName: "Marina",
+          activityId: "act-LEAK",
+          circleId: "cir-LEAK",
+          participantId: "par-LEAK",
+          templateKey: "tpl-LEAK",
+          contentUnitId: "cu-LEAK",
+          inviterEmail: "marina@example.com",
+          roster: ["Marina", "Otra"],
+          counterpartAnswer: "algo privado",
+          status: "PREPARING",
+        },
+      }),
     );
 
     const res = await inspeccionPOST(req({ secret: "s3cr3t" }));
     const body = await res.json();
 
-    // Even when upstream volunteers more, the answer stays a constant.
-    expect(body).toEqual({ usable: true });
-    expect(JSON.stringify(body)).not.toContain("act-1");
-    expect(JSON.stringify(body)).not.toContain("p-1");
+    // Field by field, never a spread: anything the API adds tomorrow has
+    // nowhere to land.
+    expect(Object.keys(body).sort()).toEqual(["preview", "usable"]);
+    expect(Object.keys(body.preview).sort()).toEqual([
+      "estimatedMinutes",
+      "inviterFirstName",
+      "summary",
+      "title",
+    ]);
+    const serialized = JSON.stringify(body);
+    for (const leak of [
+      "act-LEAK",
+      "cir-LEAK",
+      "par-LEAK",
+      "tpl-LEAK",
+      "cu-LEAK",
+      "marina@example.com",
+      "Otra",
+      "algo privado",
+      "PREPARING",
+    ]) {
+      expect(serialized, leak).not.toContain(leak);
+    }
+  });
+
+  it.each([
+    ["absent", undefined],
+    ["null", null],
+    ["a string", "nope"],
+    ["an array", []],
+    ["missing a field", { title: "t", summary: "s", estimatedMinutes: 10 }],
+    [
+      "wrongly typed",
+      { title: 1, summary: "s", estimatedMinutes: 10, inviterFirstName: "M" },
+    ],
+  ])("degrades a %s preview to null, still usable", async (_name, preview) => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      ok({ usable: true, preview }),
+    );
+
+    const res = await inspeccionPOST(req({ secret: "s3cr3t" }));
+
+    expect(res.status).toBe(200);
+    // Losing the description is a worse screen, never a dead link.
+    expect(await res.json()).toEqual({ usable: true, preview: null });
   });
 
   it("gives the same opaque refusal whatever the upstream status", async () => {

@@ -1,0 +1,380 @@
+import { describe, expect, it, vi } from "vitest";
+import { readFileSync, readdirSync } from "node:fs";
+import { join, resolve } from "node:path";
+import type { CircleActivityDefinition } from "@psico/types";
+import { CircleTemplateRegistry } from "@psico/types";
+
+vi.mock("server-only", () => ({}));
+
+import {
+  DUO_CTA_LABEL,
+  PRODUCTION_DUO_ELIGIBILITY,
+  resolveDuoEntry,
+  resolvePublishedTemplateByKey,
+  type DuoEligibilityDeps,
+  type DuoEligibilityMapping,
+} from "./eligibility";
+import { PLANTILLA } from "@/components/circulos/__fixtures__/actividad";
+
+/**
+ * Eligibility, exercised against injected catalogs.
+ *
+ * The production catalog is empty and stays empty, so every positive case here
+ * builds its own registry from fixtures. That is the point of the resolver
+ * taking its dependencies: the RULES can be proven without publishing anything.
+ */
+
+/** `src/lib/circulos` → `apps/web`. */
+const WEB = resolve(__dirname, "../../..");
+
+const PIN = { experienceKey: "fixture-experience", experienceVersion: 1 };
+
+/** A template that names the experience back, as a real mapping requires. */
+function template(
+  over: Partial<CircleActivityDefinition> = {},
+): CircleActivityDefinition {
+  return {
+    ...PLANTILLA,
+    source: {
+      bookSlug: "fixture-book",
+      chapterOrder: 1,
+      experiencePin: { ...PIN },
+    },
+    ...over,
+  };
+}
+
+function deps(
+  definitions: CircleActivityDefinition[],
+  catalog: DuoEligibilityMapping[],
+): DuoEligibilityDeps {
+  return { catalog, registry: new CircleTemplateRegistry(definitions) };
+}
+
+const MAPPING: DuoEligibilityMapping = {
+  experienceKey: PIN.experienceKey,
+  experienceVersion: PIN.experienceVersion,
+  templateKey: "fixture-duo",
+  templateVersion: 1,
+};
+
+describe("eligibility is an enumeration, never an inference", () => {
+  it("1 · an exact pin mapped to a PUBLISHED template offers the CTA", () => {
+    const entry = resolveDuoEntry(PIN, deps([template()], [MAPPING]));
+    expect(entry).toEqual({
+      label: DUO_CTA_LABEL,
+      href: "/dashboard/circulos/nuevo/fixture-duo",
+    });
+  });
+
+  it("2 · a different experience VERSION is not the mapped pin", () => {
+    const d = deps([template()], [MAPPING]);
+    // Same key, next version. Publishing a new experience version is how an
+    // experience is edited, so inheriting the old one's mapping would carry an
+    // approval forward onto content nobody reviewed.
+    expect(resolveDuoEntry({ ...PIN, experienceVersion: 2 }, d)).toBeNull();
+
+    // ── The version check must hold ON ITS OWN ──
+    //
+    // Above, the source-agreement guard would also refuse, so the two cannot
+    // be told apart. Here the template DECLARES v2, so agreement would pass
+    // and only the mapping lookup can say no. A lookup that compared keys and
+    // forgot versions turns this green.
+    const v2 = { ...PIN, experienceVersion: 2 };
+    const declaresV2 = deps(
+      [
+        template({
+          source: {
+            bookSlug: "fixture-book",
+            chapterOrder: 1,
+            experiencePin: { ...v2 },
+          },
+        }),
+      ],
+      [MAPPING], // maps v1 only
+    );
+    expect(resolveDuoEntry(v2, declaresV2)).toBeNull();
+  });
+
+  it("3 · a pin with no mapping is not eligible", () => {
+    const d = deps([template()], [MAPPING]);
+    expect(
+      resolveDuoEntry({ experienceKey: "otra-cosa", experienceVersion: 1 }, d),
+    ).toBeNull();
+  });
+
+  it("4 · a DRAFT template is never offered", () => {
+    const d = deps([template({ status: "DRAFT" })], [MAPPING]);
+    expect(resolveDuoEntry(PIN, d)).toBeNull();
+  });
+
+  it("5 · an ARCHIVED template is never offered", () => {
+    const d = deps([template({ status: "ARCHIVED" })], [MAPPING]);
+    expect(resolveDuoEntry(PIN, d)).toBeNull();
+  });
+
+  it("6 · a template whose source names another experience is refused", () => {
+    // The mapping says this experience; the template says a different one.
+    // Two records that disagree are not an approval.
+    const mismatched = template({
+      source: {
+        bookSlug: "fixture-book",
+        chapterOrder: 1,
+        experiencePin: {
+          experienceKey: "otro-experience",
+          experienceVersion: 1,
+        },
+      },
+    });
+    expect(resolveDuoEntry(PIN, deps([mismatched], [MAPPING]))).toBeNull();
+
+    // And a template that names NO experience is likewise unreachable:
+    // absence is not agreement.
+    const silent = template({
+      source: { bookSlug: "fixture-book", chapterOrder: 1 },
+    });
+    expect(resolveDuoEntry(PIN, deps([silent], [MAPPING]))).toBeNull();
+  });
+
+  it("7 · moving the chapter's position changes nothing", () => {
+    // `chapterOrder` is printed-book metadata. It is not unique across books
+    // and it does not even agree with the editorial chapter code, so it must
+    // carry no weight at all.
+    const atOne = resolveDuoEntry(
+      PIN,
+      deps(
+        [
+          template({
+            source: {
+              bookSlug: "fixture-book",
+              chapterOrder: 1,
+              experiencePin: { ...PIN },
+            },
+          }),
+        ],
+        [MAPPING],
+      ),
+    );
+    const atNinety = resolveDuoEntry(
+      PIN,
+      deps(
+        [
+          template({
+            source: {
+              bookSlug: "fixture-book",
+              chapterOrder: 90,
+              experiencePin: { ...PIN },
+            },
+          }),
+        ],
+        [MAPPING],
+      ),
+    );
+    expect(atOne).toEqual(atNinety);
+    expect(atOne).not.toBeNull();
+  });
+
+  it("9 · no fallback turns an unmapped catalog into a permissive one", () => {
+    // An EMPTY catalog with a perfectly good published template offers
+    // nothing. If any default existed, this is where it would show.
+    const d = deps([template()], []);
+    expect(resolveDuoEntry(PIN, d)).toBeNull();
+
+    // And a catalog with one mapping does not spill onto its neighbours.
+    const withOne = deps([template()], [MAPPING]);
+    for (const key of ["vecino-1", "vecino-2", "fixture-experienc"]) {
+      expect(
+        resolveDuoEntry({ experienceKey: key, experienceVersion: 1 }, withOne),
+      ).toBeNull();
+    }
+
+    // ── The LOOKUP must refuse on its own ──
+    //
+    // The cases above are also refused by the source-agreement guard, so they
+    // cannot distinguish "no mapping was found" from "the template disagreed".
+    // Here the catalog's only entry maps a DIFFERENT experience, while the
+    // template it points at declares the pin we are asking about — so
+    // agreement would pass and the lookup is the only thing that can say no.
+    // Any "if nothing matched, take the first entry" fallback turns this green.
+    const asked = { experienceKey: "no-mapeada", experienceVersion: 1 };
+    const spillable = deps(
+      [
+        template({
+          source: {
+            bookSlug: "fixture-book",
+            chapterOrder: 1,
+            experiencePin: { ...asked },
+          },
+        }),
+      ],
+      [
+        {
+          experienceKey: "otra-totalmente",
+          experienceVersion: 1,
+          templateKey: "fixture-duo",
+          templateVersion: 1,
+        },
+      ],
+    );
+    expect(resolveDuoEntry(asked, spillable)).toBeNull();
+  });
+
+  it("production ships zero mappings, matching the empty catalog", () => {
+    expect(PRODUCTION_DUO_ELIGIBILITY).toHaveLength(0);
+    // And with the real (empty) dependencies, nothing resolves.
+    expect(resolveDuoEntry(PIN)).toBeNull();
+  });
+});
+
+describe("a duplicated pin means nothing, not the first one", () => {
+  /** The same pin, mapped twice. Whatever the entries say. */
+  function twice(
+    second: Partial<DuoEligibilityMapping>,
+    definitions = [template()],
+  ): DuoEligibilityDeps {
+    return deps(definitions, [MAPPING, { ...MAPPING, ...second }]);
+  }
+
+  it("refuses two IDENTICAL mappings for one Experience pin", () => {
+    // Identical duplicates look harmless, which is exactly why they must be
+    // refused: a catalog that tolerates them is one edit away from a catalog
+    // where the two entries disagree and order decides.
+    expect(resolveDuoEntry(PIN, twice({}))).toBeNull();
+  });
+
+  it("refuses two mappings that point at DIFFERENT templates", () => {
+    const otro = template({ templateKey: "fixture-otro", templateVersion: 1 });
+    const d = twice({ templateKey: "fixture-otro" }, [template(), otro]);
+    expect(resolveDuoEntry(PIN, d)).toBeNull();
+  });
+
+  it("gives the same answer whichever entry comes first", () => {
+    const otro = template({ templateKey: "fixture-otro", templateVersion: 1 });
+    const competing = { ...MAPPING, templateKey: "fixture-otro" };
+
+    const forward = deps([template(), otro], [MAPPING, competing]);
+    const reversed = deps([template(), otro], [competing, MAPPING]);
+
+    // Array order is not authority: both orders refuse, and they agree.
+    expect(resolveDuoEntry(PIN, forward)).toBeNull();
+    expect(resolveDuoEntry(PIN, reversed)).toBeNull();
+    expect(resolveDuoEntry(PIN, forward)).toEqual(
+      resolveDuoEntry(PIN, reversed),
+    );
+  });
+
+  it("still resolves when exactly one mapping matches", () => {
+    // The duplicate rule is about the MATCHING pin, not the catalog's size: a
+    // second, unrelated entry must not make a valid mapping ambiguous.
+    const withNeighbour = deps(
+      [template()],
+      [
+        MAPPING,
+        {
+          experienceKey: "otra-experiencia",
+          experienceVersion: 1,
+          templateKey: "fixture-duo",
+          templateVersion: 1,
+        },
+      ],
+    );
+    expect(resolveDuoEntry(PIN, withNeighbour)).toEqual({
+      label: DUO_CTA_LABEL,
+      href: "/dashboard/circulos/nuevo/fixture-duo",
+    });
+  });
+
+  it("does not confuse a duplicate pin with a duplicate VERSION", () => {
+    // Same key at two versions is two different pins, not a duplicate. Each
+    // resolves on its own.
+    const v2 = { ...PIN, experienceVersion: 2 };
+    const d = deps(
+      [
+        template(),
+        template({
+          templateKey: "fixture-v2",
+          source: {
+            bookSlug: "fixture-book",
+            chapterOrder: 1,
+            experiencePin: { ...v2 },
+          },
+        }),
+      ],
+      [
+        MAPPING,
+        {
+          ...v2,
+          templateKey: "fixture-v2",
+          templateVersion: 1,
+        },
+      ],
+    );
+    expect(resolveDuoEntry(PIN, d)?.href).toBe(
+      "/dashboard/circulos/nuevo/fixture-duo",
+    );
+    expect(resolveDuoEntry(v2, d)?.href).toBe(
+      "/dashboard/circulos/nuevo/fixture-v2",
+    );
+  });
+});
+
+describe("the organiser route resolves a key to ONE published pin", () => {
+  it("resolves a single published version", () => {
+    const d = deps([template()], [MAPPING]);
+    expect(
+      resolvePublishedTemplateByKey("fixture-duo", d)?.templateVersion,
+    ).toBe(1);
+  });
+
+  it("refuses DRAFT, ARCHIVED, unknown and ambiguous keys alike", () => {
+    expect(
+      resolvePublishedTemplateByKey(
+        "fixture-duo",
+        deps([template({ status: "DRAFT" })], []),
+      ),
+    ).toBeNull();
+    expect(
+      resolvePublishedTemplateByKey(
+        "fixture-duo",
+        deps([template({ status: "ARCHIVED" })], []),
+      ),
+    ).toBeNull();
+    expect(
+      resolvePublishedTemplateByKey("no-existe", deps([template()], [])),
+    ).toBeNull();
+
+    // Two PUBLISHED versions of one key: refused rather than resolved by
+    // picking the higher one. A link written for v1 must never create a v2.
+    const ambiguous = deps(
+      [template(), template({ templateVersion: 2 })],
+      [MAPPING],
+    );
+    expect(resolvePublishedTemplateByKey("fixture-duo", ambiguous)).toBeNull();
+  });
+
+  it("production resolves no key, because nothing is published", () => {
+    expect(resolvePublishedTemplateByKey("fixture-duo")).toBeNull();
+  });
+});
+
+describe("10 · the catalog never reaches a client bundle", () => {
+  it("is marked server-only", () => {
+    const src = readFileSync(join(__dirname, "eligibility.ts"), "utf8");
+    expect(src).toMatch(/^import "server-only";/m);
+  });
+
+  it("is imported by no 'use client' module", () => {
+    const offenders: string[] = [];
+    for (const file of readdirSync(join(WEB, "src"), {
+      recursive: true,
+    } as never) as string[]) {
+      if (typeof file !== "string") continue;
+      if (!/\.(ts|tsx)$/.test(file)) continue;
+      if (/\.(test|spec)\.tsx?$/.test(file)) continue;
+      const src = readFileSync(join(WEB, "src", file), "utf8");
+      if (!/^\s*["']use client["']/m.test(src)) continue;
+      if (/circulos\/eligibility/.test(src)) offenders.push(file);
+    }
+    expect(offenders).toEqual([]);
+  });
+});

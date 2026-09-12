@@ -108,14 +108,19 @@ export class AccountDeletionProcessor extends WorkerHost {
     // the sweep's shape is operationally useful, its subjects are not. The
     // Círculos module itself may not log at all (`circles-scope.spec.ts`), so
     // this line lives here, outside it.
-    if (circles.memberships > 0 || circles.seatsWithdrawn > 0) {
+    if (
+      circles.memberships > 0 ||
+      circles.seatsWithdrawn > 0 ||
+      circles.envelopesPurged > 0
+    ) {
       this.logger.log(
         `circles detach: memberships=${circles.memberships} ` +
           `cancelled=${circles.activitiesCancelled} ` +
           `closed=${circles.activitiesClosed} ` +
           `seats=${circles.seatsWithdrawn} ` +
           `invitations=${circles.invitationsRevoked} ` +
-          `guestSessions=${circles.guestSessionsRevoked}`,
+          `guestSessions=${circles.guestSessionsRevoked} ` +
+          `envelopes=${circles.envelopesPurged}`,
       );
     }
 

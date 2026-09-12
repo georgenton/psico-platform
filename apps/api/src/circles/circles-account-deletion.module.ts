@@ -4,6 +4,9 @@ import { PrismaModule, PrismaService } from "../prisma";
 import { CircleActivityRepository } from "./circle-activity.repository";
 import { CircleEventRepository } from "./circle-event.repository";
 import { CircleParticipantRepository } from "./circle-participant.repository";
+import { CircleMemberRepository } from "./circle-member.repository";
+import { CircleInvitationRepository } from "./circle-invitation.repository";
+import { CircleGuestSessionRepository } from "./circle-guest-session.repository";
 import { CirclesAccountDeletionService } from "./circles-account-deletion.service";
 
 /**
@@ -38,6 +41,23 @@ import { CirclesAccountDeletionService } from "./circles-account-deletion.servic
     {
       provide: CircleEventRepository,
       useFactory: (prisma: PrismaService) => new CircleEventRepository(prisma),
+      inject: [PrismaService],
+    },
+    {
+      provide: CircleMemberRepository,
+      useFactory: (prisma: PrismaService) => new CircleMemberRepository(prisma),
+      inject: [PrismaService],
+    },
+    {
+      provide: CircleInvitationRepository,
+      useFactory: (prisma: PrismaService) =>
+        new CircleInvitationRepository(prisma),
+      inject: [PrismaService],
+    },
+    {
+      provide: CircleGuestSessionRepository,
+      useFactory: (prisma: PrismaService) =>
+        new CircleGuestSessionRepository(prisma),
       inject: [PrismaService],
     },
     CirclesAccountDeletionService,

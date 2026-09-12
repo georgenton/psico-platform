@@ -32,6 +32,7 @@ describe("AccountDeletionProcessor", () => {
       seatsWithdrawn: 0,
       invitationsRevoked: 0,
       guestSessionsRevoked: 0,
+      envelopesPurged: 0,
     }),
   };
 
@@ -47,6 +48,7 @@ describe("AccountDeletionProcessor", () => {
       seatsWithdrawn: 0,
       invitationsRevoked: 0,
       guestSessionsRevoked: 0,
+      envelopesPurged: 0,
     });
     processor = new AccountDeletionProcessor(
       mockPrisma as never,
@@ -94,6 +96,7 @@ describe("AccountDeletionProcessor", () => {
         seatsWithdrawn: 1,
         invitationsRevoked: 1,
         guestSessionsRevoked: 1,
+        envelopesPurged: 1,
       };
     });
     mockPrisma.user.delete.mockImplementation(async () => {

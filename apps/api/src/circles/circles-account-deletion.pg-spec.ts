@@ -1,4 +1,5 @@
 import { execSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
@@ -10,6 +11,9 @@ import { CircleActivityRepository } from "./circle-activity.repository";
 import { CircleEventRepository } from "./circle-event.repository";
 import { CircleParticipantRepository } from "./circle-participant.repository";
 import { CirclesAccountDeletionService } from "./circles-account-deletion.service";
+import { CircleMemberRepository } from "./circle-member.repository";
+import { CircleInvitationRepository } from "./circle-invitation.repository";
+import { CircleGuestSessionRepository } from "./circle-guest-session.repository";
 
 /**
  * Account deletion with Círculos, against REAL PostgreSQL.
@@ -36,11 +40,89 @@ import { CirclesAccountDeletionService } from "./circles-account-deletion.servic
 const base = process.env.TEST_DATABASE_URL;
 const suite = base ? describe : describe.skip;
 
-const DB = "circles_deletion_db";
-const BASE_DB = "circles_deletion_base";
 const API_DIR = process.cwd();
 const MIGRATIONS_DIR = join(API_DIR, "prisma", "migrations");
 const THIS_MIGRATION = "20260913000000_circles_account_deletion";
+
+/**
+ * ── The harness owns only what it created ─────────────────────────────────
+ *
+ * The first version used fixed names and opened with
+ * `DROP DATABASE IF EXISTS ... WITH (FORCE)`. Two problems, and the second is
+ * the serious one:
+ *
+ *   · two runs at once (a watch window and CI, or two shards) fought over the
+ *     same two names and destroyed each other's databases mid-test;
+ *   · `DROP` before `CREATE` is how a harness takes a name that was NOT its
+ *     own. If somebody's real database happened to be called
+ *     `circles_deletion_db`, the suite deleted it to make room.
+ *
+ * So: unique names per run, created and never seized, recorded as they are
+ * created, and dropped at the end BY THAT RECORD rather than by pattern.
+ */
+const RUN = randomBytes(6).toString("hex");
+const DB = `circles_del_${RUN}`;
+const BASE_DB = `circles_del_base_${RUN}`;
+
+/** Databases this run actually created. Nothing else is ever dropped. */
+const created: string[] = [];
+
+/** `a-z0-9_`, starting with a letter, bounded — PostgreSQL's identifier limit. */
+const SAFE_IDENT = /^[a-z][a-z0-9_]{0,62}$/;
+
+function quoteIdent(name: string): string {
+  if (!SAFE_IDENT.test(name)) {
+    throw new Error(`refusing to use unsafe database identifier: ${name}`);
+  }
+  return `"${name}"`;
+}
+
+/**
+ * Refuse a destination that does not look like a throwaway test server.
+ *
+ * This suite creates and drops databases. Pointed at a developer's own
+ * database — or anything not on loopback — that is not a test run, it is an
+ * incident, so the shape of the target is checked before the first statement.
+ */
+function assertDestructionAllowed(url: string): void {
+  const u = new URL(url);
+  const host = u.hostname;
+  const localhost =
+    host === "localhost" || host === "127.0.0.1" || host === "::1";
+  if (!localhost) {
+    throw new Error(
+      `refusing destructive test setup against a non-local host: ${host}`,
+    );
+  }
+  const db = u.pathname.replace(/^\//, "");
+  if (!/test|locks|ci|tmp/i.test(db)) {
+    throw new Error(
+      `refusing destructive test setup against a database that does not look ` +
+        `like a test target: ${db}`,
+    );
+  }
+}
+
+async function createDatabase(admin: Pool, name: string): Promise<void> {
+  // CREATE, never DROP-then-CREATE: a name already in use belongs to somebody
+  // else and the run fails rather than taking it.
+  await admin.query(`CREATE DATABASE ${quoteIdent(name)} TEMPLATE template0`);
+  created.push(name);
+}
+
+async function dropCreatedDatabases(connectionString: string): Promise<void> {
+  if (created.length === 0) return;
+  const admin = new Pool({ connectionString });
+  try {
+    for (const name of created.splice(0)) {
+      await admin.query(
+        `DROP DATABASE IF EXISTS ${quoteIdent(name)} WITH (FORCE)`,
+      );
+    }
+  } finally {
+    await admin.end();
+  }
+}
 
 function withDatabase(url: string, dbName: string): string {
   const u = new URL(url);
@@ -64,6 +146,80 @@ const HMAC_HEX = "0".repeat(64);
 let GONE = "";
 let STAYS = "";
 let STRANGER = "";
+
+/**
+ * The harness guards, tested without a database.
+ *
+ * These run unconditionally — they are the part that protects somebody's real
+ * data, so they must not be skippable by forgetting an environment variable.
+ */
+describe("the PostgreSQL harness owns only what it created", () => {
+  it("refuses an identifier it did not generate", () => {
+    for (const bad of [
+      'x"; DROP DATABASE postgres; --',
+      "Circles_Deletion",
+      "1circles",
+      "circles-deletion",
+      "",
+      `c${"x".repeat(70)}`,
+    ]) {
+      expect(() => quoteIdent(bad), bad).toThrow(/unsafe database identifier/);
+    }
+    expect(quoteIdent(`circles_del_${"ab12cd".slice(0, 6)}`)).toBe(
+      '"circles_del_ab12cd"',
+    );
+  });
+
+  it("refuses a destructive run against a non-local host", () => {
+    expect(() =>
+      assertDestructionAllowed("postgresql://u:p@db.production.example/psico"),
+    ).toThrow(/non-local host/);
+  });
+
+  it("refuses a destructive run against a database that is not a test target", () => {
+    expect(() =>
+      assertDestructionAllowed("postgresql://u:p@localhost:5432/psico_dev"),
+    ).toThrow(/does not look like a test target/);
+    // The names CI and the runbook actually use are accepted.
+    expect(() =>
+      assertDestructionAllowed("postgresql://u:p@localhost:5432/psico_locks"),
+    ).not.toThrow();
+  });
+
+  it("names its databases per run, so two runs cannot collide", () => {
+    // `RUN` is random per process. Two shards get different names and neither
+    // can drop the other's, because the drop list is what THIS process created.
+    expect(DB).toMatch(/^circles_del_[0-9a-f]{12}$/);
+    expect(BASE_DB).toMatch(/^circles_del_base_[0-9a-f]{12}$/);
+    expect(DB).not.toBe(BASE_DB);
+  });
+});
+
+/** An events repository whose append always fails, for the resume cases. */
+const BROKEN_EVENTS = {
+  append: async () => {
+    throw new Error("ledger unavailable");
+  },
+} as never;
+
+/**
+ * The service with real repositories. One place for the argument list, so a new
+ * dependency does not mean editing every construction in this file.
+ */
+function buildService(
+  prisma: PrismaClient,
+  events: unknown = null,
+): CirclesAccountDeletionService {
+  return new CirclesAccountDeletionService(
+    prisma as never,
+    new CircleParticipantRepository(prisma as never),
+    new CircleActivityRepository(prisma as never),
+    (events ?? new CircleEventRepository(prisma as never)) as never,
+    new CircleMemberRepository(prisma as never),
+    new CircleInvitationRepository(prisma as never),
+    new CircleGuestSessionRepository(prisma as never),
+  );
+}
 
 suite("circles · account deletion (real PostgreSQL)", () => {
   let pool: Pool;
@@ -160,9 +316,9 @@ suite("circles · account deletion (real PostgreSQL)", () => {
       `INSERT INTO "CircleActivityParticipant"
          ("id","circleId","activityId","memberId","invitationId","status",
           "ciphertext","nonce","keyVersion","payloadHash","readyAt","fieldKeys",
-          "sharingMode","updatedAt")
+          "sharingMode","withdrawnAt","updatedAt")
        VALUES ($1,$2,$3,$4,$5,$6::"CircleParticipantStatus",
-               $7,$8,$9,$10,$11,$12,$13::"CircleSharingMode",now())`,
+               $7,$8,$9,$10,$11,$12,$13::"CircleSharingMode",$14,now())`,
       [
         id,
         cols.circleId,
@@ -177,6 +333,9 @@ suite("circles · account deletion (real PostgreSQL)", () => {
         env ? pgTs(new Date()) : null,
         env ? ["a"] : [],
         env ? "SELECTED_FIELDS" : null,
+        // `CircleActivityParticipant_withdrawn_has_timestamp`: a WITHDRAWN seat
+        // without a `withdrawnAt` is not a state the domain can be in.
+        cols.status === "WITHDRAWN" ? pgTs(new Date()) : null,
       ],
     );
     return id;
@@ -230,10 +389,13 @@ suite("circles · account deletion (real PostgreSQL)", () => {
   };
 
   beforeAll(async () => {
+    assertDestructionAllowed(base as string);
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
-    await admin.query(`CREATE DATABASE "${DB}" TEMPLATE template0`);
-    await admin.end();
+    try {
+      await createDatabase(admin, DB);
+    } finally {
+      await admin.end();
+    }
 
     const url = withDatabase(base as string, DB);
     execSync("pnpm exec prisma migrate deploy", {
@@ -244,21 +406,13 @@ suite("circles · account deletion (real PostgreSQL)", () => {
 
     pool = new Pool({ connectionString: url });
     prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
-    service = new CirclesAccountDeletionService(
-      prisma as never,
-      new CircleParticipantRepository(prisma as never),
-      new CircleActivityRepository(prisma as never),
-      new CircleEventRepository(prisma as never),
-    );
+    service = buildService(prisma);
   }, 180_000);
 
   afterAll(async () => {
     await prisma?.$disconnect();
     await pool?.end();
-    const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
-    await admin.query(`DROP DATABASE IF EXISTS "${BASE_DB}" WITH (FORCE)`);
-    await admin.end();
+    await dropCreatedDatabases(base as string);
   });
 
   beforeEach(async () => {
@@ -381,7 +535,7 @@ suite("circles · account deletion (real PostgreSQL)", () => {
 
   // ── 4 · already revealed, with an artifact ────────────────────────────────
 
-  it("4 · a revealed activity closes; the deleted person's envelope goes, the artifact stays", async () => {
+  it("4 · a revealed activity closes; the deleted person's envelope goes, the artifact is LEFT AS IS", async () => {
     const { circleId, members } = await makeCircle(GONE, [STAYS]);
     const activityId = await makeActivity(circleId, "REVEALED");
     const mine = await makeSeat({
@@ -438,6 +592,337 @@ suite("circles · account deletion (real PostgreSQL)", () => {
       [artifactId],
     );
     expect(art.rows).toHaveLength(1);
+  });
+
+  // ── 2A · participation that is already over ───────────────────────────────
+  //
+  // The first cut filtered the whole deletion by "live", which meant a seat
+  // still holding this person's snapshot in a finished activity was never
+  // reached. Ending an activity and erasing an account's content are different
+  // jobs, and only the first one is about being live.
+
+  describe("2A · terminal activities are erased too", () => {
+    /** Every column the envelope occupies, not just `ciphertext`. */
+    const ENVELOPE_COLUMNS = [
+      "ciphertext",
+      "nonce",
+      "keyVersion",
+      "payloadHash",
+      "readyAt",
+      "sharingMode",
+    ] as const;
+
+    const expectNoEnvelope = async (seatId: string, label: string) => {
+      const { rows } = await pool.query(
+        `SELECT "ciphertext","nonce","keyVersion","payloadHash","readyAt",
+                "sharingMode","fieldKeys","status"
+           FROM "CircleActivityParticipant" WHERE "id" = $1`,
+        [seatId],
+      );
+      expect(rows, label).toHaveLength(1);
+      for (const col of ENVELOPE_COLUMNS) {
+        expect(rows[0][col], `${label} · ${col}`).toBeNull();
+      }
+      expect(rows[0].fieldKeys, `${label} · fieldKeys`).toEqual([]);
+    };
+
+    it("purges the envelope in an activity that was already CLOSED", async () => {
+      const { circleId, members } = await makeCircle(GONE, [STAYS]);
+      const activityId = await makeActivity(circleId, "REVEALED");
+      const mine = await makeSeat({
+        circleId,
+        activityId,
+        memberId: members[GONE]!,
+        status: "READY",
+        withEnvelope: true,
+      });
+      // The conversation finished before anybody asked to be deleted.
+      await pool.query(
+        `UPDATE "CircleActivity" SET "status" = 'CLOSED', "closedAt" = now() WHERE "id" = $1`,
+        [activityId],
+      );
+
+      const summary = await service.detachUser(GONE);
+      // Nothing to END — the activity was already terminal — but something to
+      // ERASE. The old code reported both as zero.
+      expect(summary.seatsWithdrawn).toBe(0);
+      expect(summary.envelopesPurged).toBe(1);
+
+      await deleteUser(GONE);
+      await expectNoEnvelope(mine, "closed activity");
+    });
+
+    it("purges when the COUNTERPART closed the activity", async () => {
+      const { circleId, members } = await makeCircle(GONE, [STAYS]);
+      const activityId = await makeActivity(circleId, "REVEALED");
+      const mine = await makeSeat({
+        circleId,
+        activityId,
+        memberId: members[GONE]!,
+        status: "READY",
+        withEnvelope: true,
+      });
+      const theirs = await makeSeat({
+        circleId,
+        activityId,
+        memberId: members[STAYS]!,
+        status: "WITHDRAWN",
+      });
+      await pool.query(
+        `UPDATE "CircleActivity" SET "status" = 'CLOSED', "closedAt" = now() WHERE "id" = $1`,
+        [activityId],
+      );
+
+      await service.detachUser(GONE);
+      await deleteUser(GONE);
+
+      await expectNoEnvelope(mine, "closed by counterpart");
+      // Their seat is untouched by our erase — it holds nothing of ours.
+      const t = await pool.query(
+        `SELECT "status" FROM "CircleActivityParticipant" WHERE "id" = $1`,
+        [theirs],
+      );
+      expect(t.rows[0].status).toBe("WITHDRAWN");
+    });
+
+    it("is a no-op for a participation already withdrawn, and on retry", async () => {
+      const { circleId, members } = await makeCircle(GONE, [STAYS]);
+      const activityId = await makeActivity(circleId, "PREPARING");
+      const mine = await makeSeat({
+        circleId,
+        activityId,
+        memberId: members[GONE]!,
+        status: "WITHDRAWN",
+      });
+
+      const first = await service.detachUser(GONE);
+      expect(first.envelopesPurged).toBe(0);
+      const second = await service.detachUser(GONE);
+      expect(second.envelopesPurged).toBe(0);
+      expect(second.seatsWithdrawn).toBe(0);
+
+      await deleteUser(GONE);
+      await expectNoEnvelope(mine, "already withdrawn");
+    });
+
+    it("resumes after a partial failure and finishes the erase", async () => {
+      const { circleId, members } = await makeCircle(GONE, [STAYS]);
+      // One LIVE activity (which the broken service will fail on) and one
+      // already-CLOSED activity holding an envelope.
+      const live = await makeActivity(circleId, "PREPARING");
+      await makeSeat({
+        circleId,
+        activityId: live,
+        memberId: members[GONE]!,
+        status: "READY",
+        withEnvelope: true,
+      });
+      const done = await makeActivity(circleId, "REVEALED");
+      const doneSeat = await makeSeat({
+        circleId,
+        activityId: done,
+        memberId: members[GONE]!,
+        status: "READY",
+        withEnvelope: true,
+      });
+      await pool.query(
+        `UPDATE "CircleActivity" SET "status" = 'CLOSED', "closedAt" = now() WHERE "id" = $1`,
+        [done],
+      );
+
+      const broken = buildService(prisma, BROKEN_EVENTS);
+      await expect(broken.detachUser(GONE)).rejects.toThrow();
+
+      // The failure happened while ENDING the live one, so the erase never
+      // ran: the closed activity still holds the envelope. That is the state
+      // the retry has to finish from.
+      const midway = await pool.query(
+        `SELECT "ciphertext" FROM "CircleActivityParticipant" WHERE "id" = $1`,
+        [doneSeat],
+      );
+      expect(midway.rows[0].ciphertext).not.toBeNull();
+
+      const summary = await service.detachUser(GONE);
+      expect(summary.seatsWithdrawn).toBe(1);
+      expect(summary.envelopesPurged).toBe(1);
+      await deleteUser(GONE);
+      await expectNoEnvelope(doneSeat, "resumed");
+    });
+
+    it("does not reach into somebody else's closed activity", async () => {
+      const mine = await makeCircle(GONE, [STAYS]);
+      const mineActivity = await makeActivity(mine.circleId, "REVEALED");
+      await makeSeat({
+        circleId: mine.circleId,
+        activityId: mineActivity,
+        memberId: mine.members[GONE]!,
+        status: "READY",
+        withEnvelope: true,
+      });
+      await pool.query(
+        `UPDATE "CircleActivity" SET "status" = 'CLOSED', "closedAt" = now() WHERE "id" = $1`,
+        [mineActivity],
+      );
+
+      const theirs = await makeCircle(STRANGER);
+      const theirActivity = await makeActivity(theirs.circleId, "REVEALED");
+      const theirSeat = await makeSeat({
+        circleId: theirs.circleId,
+        activityId: theirActivity,
+        memberId: theirs.members[STRANGER]!,
+        status: "READY",
+        withEnvelope: true,
+      });
+      await pool.query(
+        `UPDATE "CircleActivity" SET "status" = 'CLOSED', "closedAt" = now() WHERE "id" = $1`,
+        [theirActivity],
+      );
+
+      await service.detachUser(GONE);
+      await deleteUser(GONE);
+
+      const kept = await pool.query(
+        `SELECT "ciphertext","nonce","payloadHash","status"
+           FROM "CircleActivityParticipant" WHERE "id" = $1`,
+        [theirSeat],
+      );
+      expect(kept.rows[0].ciphertext).not.toBeNull();
+      expect(kept.rows[0].nonce).not.toBeNull();
+      expect(kept.rows[0].payloadHash).not.toBeNull();
+      expect(kept.rows[0].status).toBe("READY");
+    });
+
+    it("the counterpart's REVEALED snapshot survives; only ours goes", async () => {
+      const { circleId, members } = await makeCircle(GONE, [STAYS]);
+      const activityId = await makeActivity(circleId, "REVEALED");
+      const mine = await makeSeat({
+        circleId,
+        activityId,
+        memberId: members[GONE]!,
+        status: "READY",
+        withEnvelope: true,
+      });
+      const theirs = await makeSeat({
+        circleId,
+        activityId,
+        memberId: members[STAYS]!,
+        status: "READY",
+        withEnvelope: true,
+      });
+      await pool.query(
+        `UPDATE "CircleActivity" SET "status" = 'CLOSED', "closedAt" = now() WHERE "id" = $1`,
+        [activityId],
+      );
+
+      await service.detachUser(GONE);
+      await deleteUser(GONE);
+
+      await expectNoEnvelope(mine, "ours");
+      // Theirs is their own content, already read by both. Erasing it would
+      // destroy somebody else's record without un-revealing anything.
+      const kept = await pool.query(
+        `SELECT "ciphertext","status" FROM "CircleActivityParticipant" WHERE "id" = $1`,
+        [theirs],
+      );
+      expect(kept.rows[0].ciphertext).not.toBeNull();
+      expect(kept.rows[0].status).toBe("READY");
+    });
+  });
+
+  // ── Artifacts: the matrix, and the part that is NOT decided ───────────────
+
+  describe("artifacts are left as they are, and that is a PENDING decision", () => {
+    /**
+     * What this suite pins is the CURRENT behaviour, not an approved policy.
+     *
+     * The withdrawal contract says nothing about artifacts — `withdraw()` does
+     * not touch them — and no retention policy exists in the repository. So
+     * deletion inherits "leave them alone" by default, and these tests record
+     * that rather than bless it.
+     *
+     * The matrix that needs a decision:
+     *
+     *   PROPOSED by the deleted person, never confirmed  → their content,
+     *       nobody agreed to it. Arguably should go. TODAY IT STAYS.
+     *   AGREED by both                                    → joint content the
+     *       counterpart agreed to and read. Deleting it destroys their record.
+     *   SUPERSEDED                                        → historical.
+     *
+     * `ARTIFACT_RETENTION_POLICY_STATUS=pending_decision`.
+     */
+    const makeArtifact = async (
+      activityId: string,
+      participantId: string,
+      status: "PROPOSED" | "AGREED",
+    ) => {
+      const id = uid("art");
+      await pool.query(
+        `INSERT INTO "CircleArtifact"
+           ("id","activityId","createdByParticipantId","status","version","kind",
+            "ciphertext","nonce","keyVersion","payloadHash","agreedAt","updatedAt")
+         VALUES ($1,$2,$3,$4::"CircleArtifactStatus",1,
+                 'AGREEMENT'::"CircleArtifactKind",'CT','N',1,$5,$6,now())`,
+        [
+          id,
+          activityId,
+          participantId,
+          status,
+          HMAC_HEX,
+          status === "AGREED" ? pgTs(new Date()) : null,
+        ],
+      );
+      return id;
+    };
+
+    it("a PROPOSED artifact authored by the deleted person is NOT erased today", async () => {
+      const { circleId, members } = await makeCircle(GONE, [STAYS]);
+      const activityId = await makeActivity(circleId, "REVEALED");
+      const mine = await makeSeat({
+        circleId,
+        activityId,
+        memberId: members[GONE]!,
+        status: "READY",
+        withEnvelope: true,
+      });
+      const artifactId = await makeArtifact(activityId, mine, "PROPOSED");
+
+      await service.detachUser(GONE);
+      await deleteUser(GONE);
+
+      const { rows } = await pool.query(
+        `SELECT "status","ciphertext" FROM "CircleArtifact" WHERE "id" = $1`,
+        [artifactId],
+      );
+      // Recorded, not endorsed: nobody ever agreed to this text, so calling it
+      // "shared content already seen" would be false. Whether it should be
+      // erased is the open decision.
+      expect(rows).toHaveLength(1);
+      expect(rows[0].status).toBe("PROPOSED");
+      expect(rows[0].ciphertext).not.toBeNull();
+    });
+
+    it("an AGREED artifact survives, and that one IS justified", async () => {
+      const { circleId, members } = await makeCircle(GONE, [STAYS]);
+      const activityId = await makeActivity(circleId, "REVEALED");
+      const mine = await makeSeat({
+        circleId,
+        activityId,
+        memberId: members[GONE]!,
+        status: "READY",
+        withEnvelope: true,
+      });
+      const artifactId = await makeArtifact(activityId, mine, "AGREED");
+
+      await service.detachUser(GONE);
+      await deleteUser(GONE);
+
+      const { rows } = await pool.query(
+        `SELECT "status","agreedAt" FROM "CircleArtifact" WHERE "id" = $1`,
+        [artifactId],
+      );
+      expect(rows[0].status).toBe("AGREED");
+      expect(rows[0].agreedAt).not.toBeNull();
+    });
   });
 
   // ── 5 · retries ───────────────────────────────────────────────────────────
@@ -707,16 +1192,7 @@ suite("circles · account deletion (real PostgreSQL)", () => {
     // A service whose event append always throws — the failure lands AFTER the
     // seat and activity were moved inside the transaction, so the transaction
     // must roll all of it back.
-    const broken = new CirclesAccountDeletionService(
-      prisma as never,
-      new CircleParticipantRepository(prisma as never),
-      new CircleActivityRepository(prisma as never),
-      {
-        append: async () => {
-          throw new Error("ledger unavailable");
-        },
-      } as never,
-    );
+    const broken = buildService(prisma, BROKEN_EVENTS);
 
     await expect(broken.detachUser(GONE)).rejects.toThrow();
 
@@ -789,10 +1265,13 @@ suite(
   "circles · account deletion migrates onto main's 64 (real PostgreSQL)",
   () => {
     it("main REJECTS the deletion; this migration is what changes that", async () => {
+      assertDestructionAllowed(base as string);
       const admin = new Pool({ connectionString: base });
-      await admin.query(`DROP DATABASE IF EXISTS "${BASE_DB}" WITH (FORCE)`);
-      await admin.query(`CREATE DATABASE "${BASE_DB}" TEMPLATE template0`);
-      await admin.end();
+      try {
+        await createDatabase(admin, BASE_DB);
+      } finally {
+        await admin.end();
+      }
 
       const url = withDatabase(base as string, BASE_DB);
       const pool = new Pool({ connectionString: url });
@@ -889,11 +1368,7 @@ suite(
         expect(circle.rows[0].createdByUserId).toBeNull();
       } finally {
         await pool.end();
-        const cleanup = new Pool({ connectionString: base });
-        await cleanup.query(
-          `DROP DATABASE IF EXISTS "${BASE_DB}" WITH (FORCE)`,
-        );
-        await cleanup.end();
+        await dropCreatedDatabases(base as string);
       }
     }, 300_000);
   },

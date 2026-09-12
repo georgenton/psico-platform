@@ -43,9 +43,16 @@ Si necesitas revocar de verdad, eso es un `UPDATE` de `revokedAt` sobre
 
 ---
 
-## 2 · Borrado de cuenta con Círculos — **implementado y verificado**
+## 2 · Borrado de cuenta con Círculos — **implementado; una decisión pendiente**
 
-Cierra `ACCOUNT_DELETION_WITH_CIRCLE_EVENTS`.
+El bloqueo técnico (`ACCOUNT_DELETION_WITH_CIRCLE_EVENTS`) está resuelto: la
+cuenta se puede borrar, la participación viva termina, el contenido propio se
+destruye —incluido el de actividades ya cerradas— y la autoridad derivada se
+revoca.
+
+**No está cerrado el borrado "integral".** Los artefactos se dejan como están, y
+eso es la ausencia de una política, no una política. Ver la matriz más abajo:
+`ARTIFACT_RETENTION_POLICY_STATUS=pending_decision`.
 
 ### Cómo funciona
 
@@ -77,14 +84,16 @@ hay rol privilegiado y no hay SQL dinámico. `search_path` está fijado.
 
 ### Qué se conserva y qué se elimina respecto a la contraparte
 
-| Dato                                            | Qué pasa                                  | Por qué                                                                                       |
-| ----------------------------------------------- | ----------------------------------------- | --------------------------------------------------------------------------------------------- |
-| Sobre privado del borrado                       | **Eliminado** siempre                     | No se conserva nada suyo.                                                                     |
-| Sobre de la contraparte, **antes** de revelar   | **Eliminado**                             | Lo confirmó para una conversación que no va a ocurrir — es la regla del retiro, no una nueva. |
-| Sobre de la contraparte, **después** de revelar | **Se conserva**                           | Ya lo leyó la otra persona. Borrarlo no des-revelaría nada y sí destruiría contenido ajeno.   |
-| Artefacto compartido                            | **Se conserva**                           | Es de ambos y ya fue visto.                                                                   |
-| Círculo creado por el borrado                   | **Se conserva**, `createdByUserId = NULL` | Un Dúo es compartido; reasignar el autor mentiría.                                            |
-| Filas de `CircleEvent`                          | **Se conservan**, `actorUserId = NULL`    | No llevan contenido (`metadata` es una gramática cerrada).                                    |
+| Dato                                            | Qué pasa                                  | Por qué                                                                                                                                                                                                                                                                                              |
+| ----------------------------------------------- | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Sobre privado del borrado                       | **Eliminado** siempre                     | No se conserva nada suyo.                                                                                                                                                                                                                                                                            |
+| Sobre de la contraparte, **antes** de revelar   | **Eliminado**                             | Lo confirmó para una conversación que no va a ocurrir — es la regla del retiro, no una nueva.                                                                                                                                                                                                        |
+| Sobre de la contraparte, **después** de revelar | **Se conserva**                           | Ya lo leyó la otra persona. Borrarlo no des-revelaría nada y sí destruiría contenido ajeno.                                                                                                                                                                                                          |
+| Artefacto `AGREED`                              | **Se conserva**                           | Ambos lo confirmaron; borrarlo destruiría el registro de la contraparte.                                                                                                                                                                                                                             |
+| Artefacto `PROPOSED` del borrado                | **Se conserva HOY** — decisión pendiente  | Nadie lo aceptó. Llamarlo «compartido y ya visto» sería falso. Requiere decisión editorial.                                                                                                                                                                                                          |
+| Artefacto `SUPERSEDED`                          | **Se conserva HOY** — decisión pendiente  | Histórico. Mismo caso.                                                                                                                                                                                                                                                                               |
+| Círculo creado por el borrado                   | **Se conserva**, `createdByUserId = NULL` | Un Dúo es compartido; reasignar el autor mentiría.                                                                                                                                                                                                                                                   |
+| Filas de `CircleEvent`                          | **Se conservan**, `actorUserId = NULL`    | La fila no lleva contenido: `metadata` es una gramática cerrada de dos valores y las columnas restantes son ids y un timestamp. Quitar la FK **no** es por sí solo una anonimización — lo que sostiene la afirmación es que no hay nada que anonimizar en esa tabla, verificado columna por columna. |
 
 ### Ejecutar y verificar un borrado
 
@@ -121,11 +130,12 @@ Limpieza: `docker rm -f circles-verify-pg`. Las bases `circles_deletion_db` y
   ocultaría la cookie justo en esa navegación) · `Secure` en todo entorno
   desplegado ✓ · **host-only** (sin `Domain`) ✓ · la cookie nunca sobrevive al
   `expiresAt` que devolvió la API ✓.
-- `Path=/` es una **decisión explícita**, no un alcance estrecho, y el módulo lo
-  dice con esas palabras: es el único prefijo común de `/i`, `/compartir` y
-  `/api/circulos`. Estrecharlo exige rediseñar el layout de rutas y pertenece al
-  endurecimiento previo al piloto. **`Path` no es una frontera de
-  autorización**: la autoridad por actividad la comprueba el servidor.
+- `Path=/` es una **concesión explícita y aceptada**, no un alcance estrecho, y
+  el módulo lo dice con esas palabras: es el único prefijo común de `/i`,
+  `/compartir` y `/api/circulos`. **`Path` no es una frontera de autorización**
+  — la autoridad por actividad la comprueba el servidor en cada petición — así
+  que estrecharlo **no** es un bloqueo del piloto y se retira de esa lista
+  (`COOKIE_PATH_NARROWING_REQUIRED=false`).
 - Retirarse revoca **antes** de borrar la cookie; un fallo conserva el estado
   para reintentar.
 - Salir como invitado **no** cierra la sesión autenticada del miembro.
@@ -196,9 +206,13 @@ Estos puntos siguen abiertos y bloquean el piloto con personas:
 - **Ciclo de vida temporal.** No hay barrido programado que cierre invitaciones
   expiradas, actividades `INVITING` vencidas ni seguimientos. La expiración se
   comprueba en lectura; lo que falta es el trabajo que cierra el estado.
-- **Prueba completa en dos navegadores.** No existe. El repositorio no tiene
-  framework de navegador; añadir uno es parte del trabajo.
-- **Estrechar `Path` de la cookie**, con el layout de rutas rediseñado.
+- **Prueba completa en dos navegadores.** Sigue sin entregarse, pero la
+  afirmación anterior de este runbook («el repositorio no tiene framework de
+  navegador») era **incorrecta**: `apps/web/e2e/` ya contiene varios guiones
+  que manejan Chrome con Playwright (`responsive.mjs`, `gr3-runtime.mjs`,
+  `eec-c01-runtime-walk.mjs`) y `playwright` está instalado. Lo que falta es el
+  recorrido de Círculos y el orquestador de stack (web build + API + PostgreSQL
+  efímero + Redis/worker + dos contextos aislados), no el framework.
 - **Aprobación editorial y de seguridad de plantillas.** Ninguna candidata tiene
   copy aprobado verificable en el repositorio.
 - **Eco Facilitador.** Fuera de alcance de este corte, por decisión explícita:

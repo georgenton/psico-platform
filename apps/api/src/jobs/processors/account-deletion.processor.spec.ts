@@ -8,13 +8,31 @@ function buildJob<T>(name: string, data: T) {
   return { id: "job-1", name, data } as unknown as Job<T>;
 }
 
+const NOW = Date.now();
+const THIRTY_ONE_DAYS_AGO = new Date(NOW - 31 * 24 * 60 * 60 * 1000);
+const FIVE_DAYS_AGO = new Date(NOW - 5 * 24 * 60 * 60 * 1000);
+
 describe("AccountDeletionProcessor", () => {
   let processor: AccountDeletionProcessor;
+  /**
+   * The final delete now runs inside a transaction that locks the `User` row,
+   * re-reads the request under that lock, and refuses if live Círculos
+   * participation appeared after the inventory was taken. The double models
+   * that: `$queryRaw` is the locked read, `$transaction` hands the same object
+   * back as the transaction client.
+   */
+  const lockedRow = {
+    rows: [] as { id: string; deleteRequestedAt: Date | null }[],
+  };
   const mockPrisma = {
     user: {
       findUnique: vi.fn(),
       delete: vi.fn().mockResolvedValue({}),
     },
+    $queryRaw: vi.fn(async () => lockedRow.rows),
+    $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) =>
+      fn(mockPrisma),
+    ),
   };
 
   /**
@@ -25,6 +43,7 @@ describe("AccountDeletionProcessor", () => {
    * and the activity still live), and one of the tests below asserts it.
    */
   const circles = {
+    countLiveParticipation: vi.fn().mockResolvedValue(0),
     detachUser: vi.fn().mockResolvedValue({
       memberships: 0,
       activitiesCancelled: 0,
@@ -41,6 +60,9 @@ describe("AccountDeletionProcessor", () => {
     vi.spyOn(Logger.prototype, "log").mockImplementation(() => undefined);
     vi.spyOn(Logger.prototype, "warn").mockImplementation(() => undefined);
     mockPrisma.user.delete.mockResolvedValue({});
+    circles.countLiveParticipation.mockResolvedValue(0);
+    // By default the locked re-read agrees with the unlocked one.
+    lockedRow.rows = [{ id: "user-1", deleteRequestedAt: THIRTY_ONE_DAYS_AGO }];
     circles.detachUser.mockResolvedValue({
       memberships: 0,
       activitiesCancelled: 0,
@@ -56,9 +78,8 @@ describe("AccountDeletionProcessor", () => {
     );
   });
 
-  const now = Date.now();
-  const thirtyOneDaysAgo = new Date(now - 31 * 24 * 60 * 60 * 1000);
-  const fiveDaysAgo = new Date(now - 5 * 24 * 60 * 60 * 1000);
+  const thirtyOneDaysAgo = THIRTY_ONE_DAYS_AGO;
+  const fiveDaysAgo = FIVE_DAYS_AGO;
 
   it("deletes the user when cooldown elapsed and deleteRequestedAt still set", async () => {
     mockPrisma.user.findUnique.mockResolvedValue({
@@ -165,6 +186,81 @@ describe("AccountDeletionProcessor", () => {
     ).rejects.toThrow();
 
     expect(mockPrisma.user.delete).not.toHaveBeenCalled();
+  });
+
+  describe("the final decision is re-made under the User row lock", () => {
+    const job = () =>
+      buildJob(JobName.FINALIZE_ACCOUNT_DELETION, {
+        userId: "user-1",
+        requestedAt: THIRTY_ONE_DAYS_AGO.toISOString(),
+      });
+
+    beforeEach(() => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: "user-1",
+        deleteRequestedAt: THIRTY_ONE_DAYS_AGO,
+      });
+    });
+
+    it("takes the lock before reading, and deletes inside that transaction", async () => {
+      await processor.process(job());
+      expect(mockPrisma.$transaction).toHaveBeenCalledOnce();
+      expect(mockPrisma.$queryRaw).toHaveBeenCalledOnce();
+      // The locked read is a `FOR UPDATE` on the User row — the same row
+      // `createDuo` locks before it writes anything.
+      const sql = String(mockPrisma.$queryRaw.mock.calls[0]![0]);
+      expect(sql).toMatch(/FOR UPDATE/);
+      expect(mockPrisma.user.delete).toHaveBeenCalledOnce();
+    });
+
+    it("does NOT delete when the request was cancelled after the job started", async () => {
+      // The unlocked read at the top saw a live request; by the time the lock
+      // is held the person has changed their mind. The authoritative point is
+      // the one under the lock.
+      lockedRow.rows = [{ id: "user-1", deleteRequestedAt: null }];
+
+      await processor.process(job());
+
+      expect(mockPrisma.user.delete).not.toHaveBeenCalled();
+    });
+
+    it("does NOT delete when the cooldown restarted mid-job", async () => {
+      // Re-requested five days ago: the 30 days are counted from the row as it
+      // stands, never from the job payload, and never shortened.
+      lockedRow.rows = [{ id: "user-1", deleteRequestedAt: FIVE_DAYS_AGO }];
+
+      await processor.process(job());
+
+      expect(mockPrisma.user.delete).not.toHaveBeenCalled();
+    });
+
+    it("aborts when a Dúo appeared after the inventory was taken", async () => {
+      // `detachUser` ran against an inventory that is now stale — a creation
+      // committed in between. Deleting now would leave a live activity whose
+      // other seat nobody can ever fill, so the job fails and retries; the
+      // retry's detach reaches the new seat.
+      circles.countLiveParticipation.mockResolvedValue(1);
+
+      await expect(processor.process(job())).rejects.toThrow(
+        /ACCOUNT_DELETION_RACED_NEW_PARTICIPATION/,
+      );
+
+      expect(mockPrisma.user.delete).not.toHaveBeenCalled();
+    });
+
+    it("deletes once nothing live is left", async () => {
+      circles.countLiveParticipation.mockResolvedValue(0);
+      await processor.process(job());
+      expect(mockPrisma.user.delete).toHaveBeenCalledWith({
+        where: { id: "user-1" },
+      });
+    });
+
+    it("does not delete a user who vanished before the final step", async () => {
+      lockedRow.rows = [];
+      await processor.process(job());
+      expect(mockPrisma.user.delete).not.toHaveBeenCalled();
+    });
   });
 
   it("no-ops when user already deleted (find returns null)", async () => {

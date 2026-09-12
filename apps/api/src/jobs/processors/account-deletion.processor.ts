@@ -124,11 +124,66 @@ export class AccountDeletionProcessor extends WorkerHost {
       );
     }
 
-    // Prisma cascades through every relation. The User row is removed and
-    // all its data with it. AuthEvent rows survive with userId=null, and the
-    // three Círculos references detach (circle creator, membership, ledger
-    // actor) — see `20260913000000_circles_account_deletion`.
-    await this.prisma.user.delete({ where: { id: userId } });
+    // ── The authoritative point ──────────────────────────────────────────
+    //
+    // Everything above read without a lock, which is fine for deciding to
+    // START, and not fine for deciding to FINISH. Between the cooldown check
+    // and here, two things can have happened: the person could have cancelled,
+    // and `createDuo` could have committed a brand-new circle, activity and
+    // seat that the detach's inventory never saw.
+    //
+    // So the decision is re-made while holding the SAME `User` row lock
+    // `createDuo` takes before it writes anything. The two serialise: a
+    // creation that got in first is counted and this aborts for the job to
+    // retry; a creation that arrives later blocks here and then finds no user.
+    //
+    // The 30-day cooldown is re-checked against the row as it stands under the
+    // lock — never shortened, never taken from the job payload.
+    await this.prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<
+        { id: string; deleteRequestedAt: Date | null }[]
+      >`SELECT "id", "deleteRequestedAt" FROM "User" WHERE "id" = ${userId} FOR UPDATE`;
+
+      const row = locked[0];
+      if (!row) {
+        this.logger.log(`User ${userId} vanished before the final step`);
+        return;
+      }
+      if (!row.deleteRequestedAt) {
+        // Cancelled after this job started. Nothing is deleted, and the
+        // Círculos detach above stands — it ended activities, which is a
+        // consequence of having asked, not of being deleted.
+        this.logger.log(
+          `User ${userId} cancelled deletion before the final step — not deleting`,
+        );
+        return;
+      }
+      if (Date.now() - row.deleteRequestedAt.getTime() < this.COOLDOWN_MS) {
+        this.logger.warn(
+          `User ${userId} re-requested deletion during this job — cooldown restarts`,
+        );
+        return;
+      }
+
+      const live = await this.circles.countLiveParticipation(
+        userId,
+        tx as never,
+      );
+      if (live > 0) {
+        // A Dúo appeared after the inventory was taken. Abort so the whole job
+        // retries: the next detach reaches it, and the delete happens once
+        // nothing is left standing.
+        throw new Error(
+          `ACCOUNT_DELETION_RACED_NEW_PARTICIPATION: ${live} live seat(s)`,
+        );
+      }
+
+      // Prisma cascades through every relation. The User row is removed and
+      // all its data with it. AuthEvent rows survive with userId=null, and the
+      // three Círculos references detach (circle creator, membership, ledger
+      // actor) — see `20260913000000_circles_account_deletion`.
+      await tx.user.delete({ where: { id: userId } });
+    });
 
     this.logger.log(`User ${userId} deleted`);
   }

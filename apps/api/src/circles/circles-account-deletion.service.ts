@@ -188,6 +188,37 @@ export class CirclesAccountDeletionService {
   }
 
   /**
+   * How much live Círculos participation this account still has.
+   *
+   * The closing check. `detachUser` runs in its own transactions so it can be
+   * resumed, which means the inventory it read can be stale by the time the
+   * account row is actually removed: `createDuo` could have committed a new
+   * circle, activity and seat in between, and the delete would then succeed
+   * and leave a live Dúo whose other seat nobody will ever fill.
+   *
+   * Called inside the FINAL transaction — the one holding the `User` row lock
+   * that `createDuo` also takes — so the two serialise. A creation that got
+   * there first is counted here and the deletion aborts for the job to retry
+   * (the retry's detach then ends it); a creation that arrives later blocks on
+   * the lock and finds no user to create for.
+   *
+   * Takes the caller's transaction client on purpose: run outside one, this is
+   * a count that was true a moment ago, which is not the question.
+   */
+  async countLiveParticipation(
+    userId: string,
+    tx: PrismaService,
+  ): Promise<number> {
+    return tx.circleActivityParticipant.count({
+      where: {
+        status: { in: [...LIVE_SEAT] },
+        activity: { status: { in: [...LIVE] } },
+        member: { userId },
+      },
+    });
+  }
+
+  /**
    * Destroy this account's snapshots wherever they sit — including in
    * activities that are already over.
    *

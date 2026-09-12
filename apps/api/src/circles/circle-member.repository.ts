@@ -33,7 +33,18 @@ export type CircleMemberTx = CircleMemberDb;
 export interface CircleMemberRow {
   id: string;
   circleId: string;
-  userId: string;
+  /**
+   * NULL once the account behind this membership has been deleted.
+   *
+   * The row survives detached so the counterpart's activity stays coherent (the
+   * seat still names a member of that circle), but it authorises nothing:
+   * `findActive` matches on `userId`, so a NULL can never be the answer to
+   * "who is this caller", and a SQL CHECK keeps a detached row out of `ACTIVE`.
+   *
+   * Nullable here on purpose rather than asserted away — every consumer that
+   * reads it has to say what it does about a deleted account.
+   */
+  userId: string | null;
   role: "ORGANIZER" | "MEMBER";
   status: "ACTIVE" | "LEFT";
 }

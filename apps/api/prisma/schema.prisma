@@ -2973,7 +2973,7 @@ model Circle {
   id              String       @id @default(cuid())
   kind            CircleKind   @default(DUO)
   status          CircleStatus @default(ACTIVE)
-  createdByUserId String
+  createdByUserId String?
   /// Exactly 2 in v1, by SQL CHECK. The column exists so the domain is
   /// multi-participant by shape; the product admits only Dúo, and widening it
   /// has to be a deliberate edit to the constraint rather than a value nobody
@@ -2983,8 +2983,12 @@ model Circle {
   updatedAt       DateTime     @updatedAt
   closedAt        DateTime?
 
-  /// Restrict: closing a circle is not deleting one, and audit outlives it.
-  createdBy   User               @relation("CircleCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  /// `SetNull`: a Dúo is SHARED, so deleting the organiser must not take the
+  /// other person's circle with it. Reassigning `createdBy` to the counterpart
+  /// would record that they created something they did not; NULL says the true
+  /// thing — created by an account that no longer exists. Closing a circle is
+  /// still not deleting one, and the audit still outlives it.
+  createdBy   User?              @relation("CircleCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
   members     CircleMember[]
   activities  CircleActivity[]
   invitations CircleInvitation[]
@@ -2997,14 +3001,24 @@ model Circle {
 model CircleMember {
   id       String             @id @default(cuid())
   circleId String
-  userId   String
+  userId   String?
   role     CircleMemberRole
   status   CircleMemberStatus @default(ACTIVE)
   joinedAt DateTime           @default(now())
   leftAt   DateTime?
 
   circle       Circle                      @relation(fields: [circleId], references: [id], onDelete: Cascade)
-  user         User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// `SetNull`, not `Cascade`. Cascade could not work anyway — the seat's
+  /// `memberId` is RESTRICT and its CHECK requires exactly one of
+  /// (memberId, invitationId), so the seat can neither follow the member out
+  /// nor drop it. The member ROW therefore survives DETACHED, which is what
+  /// keeps the other person's activity coherent.
+  ///
+  /// It authorises nothing: every actor lookup resolves membership BY `userId`,
+  /// and a NULL matches no authenticated caller. A SQL CHECK
+  /// (`CircleMember_detached_is_left`) additionally makes a detached-but-ACTIVE
+  /// row unrepresentable.
+  user         User?                       @relation(fields: [userId], references: [id], onDelete: SetNull)
   participants CircleActivityParticipant[]
   invitations  CircleInvitation[]          @relation("CircleInvitationCreatedBy")
 
@@ -3254,19 +3268,20 @@ model CircleEvent {
   circle Circle @relation(fields: [circleId], references: [id], onDelete: Cascade)
   /// COMPOSITE: the activity must belong to the circle the event names.
   activity CircleActivity? @relation(fields: [activityId, circleId], references: [id, circleId], onDelete: Cascade)
-  /// Restrict, and the reasoning is worth writing down.
+  /// `SetNull`, admitted by the trigger as its ONE exception.
   ///
-  /// `SetNull` would be the friendlier choice, except that setting a column to
-  /// null IS an UPDATE, and this table refuses updates by trigger. A deletion
-  /// would then fail with `CIRCLE_EVENT_APPEND_ONLY` from inside a foreign-key
-  /// action — a confusing error for a coherent refusal. `Restrict` says the
-  /// same thing plainly: while the ledger names this account, the account
-  /// cannot be deleted.
+  /// This was `Restrict` until account deletion needed a sanctioned path, on
+  /// the reasoning that nulling a column is an UPDATE and this table refuses
+  /// updates. Both halves are still true; what changed is that the trigger now
+  /// admits exactly one shape of update — `actorUserId` value → NULL, every
+  /// other column unchanged, AND the account it named already gone.
   ///
-  /// CONSEQUENCE, stated rather than discovered later: once Círculos is on,
-  /// account deletion needs a sanctioned way to scrub or detach these rows.
-  /// That is a migration PR3+ owes, not an application bypass.
-  actorUser User? @relation("CircleEventActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+  /// That last clause is the authorisation. `ON DELETE SET NULL` runs after the
+  /// `User` row is removed, so it passes; an ordinary service update runs while
+  /// the user still exists, so it is refused like every other write. No GUC, no
+  /// `session_replication_role`, no privileged role, no dynamic SQL. See
+  /// `20260913000000_circles_account_deletion`.
+  actorUser User? @relation("CircleEventActor", fields: [actorUserId], references: [id], onDelete: SetNull)
   /// COMPOSITE: an acting seat must belong to the activity the event names. A
   /// SQL CHECK makes `activityId` mandatory whenever this is set, so the key
   /// cannot be skipped by leaving the second column null.

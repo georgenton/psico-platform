@@ -21,6 +21,7 @@ import {
   AcceptInvitationDto,
   InspectInvitationDto,
 } from "./dto/invitation.dto";
+import type { CircleInvitationPreview } from "@psico/types";
 
 /**
  * The Círculos HTTP surface as of PR2.
@@ -71,17 +72,29 @@ export class CirclesController {
   @UseGuards(CirclesGuestSurfaceGuard)
   @Throttle(INVITATION_THROTTLE)
   @ApiOperation({ summary: "Check an invitation without consuming it" })
-  @ApiResponse({ status: 200, description: "The invitation is usable." })
+  @ApiResponse({
+    status: 200,
+    description:
+      "Usable. `preview` carries the minimum needed to decide — who invites, " +
+      "what it is, how long — or is null when this build cannot describe the " +
+      "invitation. Never ids, roster, state or content.",
+  })
   @ApiResponse({
     status: 404,
     description:
       "CIRCLE_INVITATION_UNUSABLE — one answer for nonexistent, malformed, " +
       "expired, already used, declined and revoked alike.",
   })
-  inspect(@Body() dto: InspectInvitationDto): Promise<{ usable: true }> {
+  inspect(
+    @Body() dto: InspectInvitationDto,
+  ): Promise<{ usable: true; preview: CircleInvitationPreview | null }> {
     return mapCirclesErrors(async () => {
-      await this.circles.inspect(dto.secret);
-      return { usable: true as const };
+      // Being asked to accept something described only as "an invitation" is
+      // being asked to agree to an unknown. The preview is what makes the
+      // explicit acceptance on the next screen a real decision — and it costs
+      // nothing in disclosure, because every refusal is still the same one.
+      const preview = await this.circles.inspect(dto.secret);
+      return { usable: true as const, preview };
     });
   }
 

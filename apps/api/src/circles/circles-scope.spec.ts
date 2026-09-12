@@ -123,17 +123,23 @@ describe("circles · PR3 scope — access and participation", () => {
     }
   });
 
-  it("touches no Web, Mobile or worker file", () => {
+  it("touches no Mobile or worker file", () => {
     // The scope of PR3 is `apps/api/src/circles/**`, the contracts, the schema,
     // one migration and the docs. These directories are not in it.
-    for (const dir of [
-      "apps/web/src/app/dashboard",
-      "apps/mobile/app",
-      "apps/api/src/jobs/processors",
-    ]) {
+    //
+    // `apps/web/src/app/dashboard` WAS on this list and is not any more. PR4 is
+    // the cut that owns the web guest flow, and it adds `dashboard/circulos/**`
+    // — so the assertion that made PR3 honest would now only be asserting that
+    // PR4 had not happened. Mobile and the worker stay: they belong to no cut
+    // yet, and PR4's own scope test pins that it adds nothing to either.
+    //
+    // This is the same handover the test above describes: PR2's version of
+    // these ratchets named PR3's commands, PR3 updated them when it shipped
+    // them, and PR4 does the same here.
+    for (const dir of ["apps/mobile/app", "apps/api/src/jobs/processors"]) {
       const hits = readdirSync(join(ROOT, dir), { recursive: true } as never)
         .filter((f): f is string => typeof f === "string")
-        .filter((f) => /circle/i.test(f));
+        .filter((f) => /circle|circulo/i.test(f));
       expect(hits, dir).toEqual([]);
     }
   });

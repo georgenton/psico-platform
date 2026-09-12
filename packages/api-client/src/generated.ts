@@ -19142,7 +19142,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description The invitation is usable. */
+            /** @description Usable. `preview` carries the minimum needed to decide — who invites, what it is, how long — or is null when this build cannot describe the invitation. Never ids, roster, state or content. */
             200: {
                 headers: {
                     [name: string]: unknown;

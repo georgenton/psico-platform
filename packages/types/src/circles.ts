@@ -559,6 +559,34 @@ export interface CircleTemplatePreview {
 }
 
 /**
+ * What somebody may see BEFORE accepting an invitation.
+ *
+ * Four fields, and the shortness is the design. Being asked to accept
+ * something described only as "una invitación" is being asked to agree to an
+ * unknown, so this exists to make the decision informed: who is asking, what
+ * it is, and how long it takes.
+ *
+ * Everything else is deliberately absent, and the absence is checkable rather
+ * than a habit. No `activityId`, `circleId`, `participantId`, `memberId` or
+ * `contentUnitId` — an internal id handed to somebody holding only a link is an
+ * id they can probe. No `templateKey` or version: those name a catalog entry
+ * and would let a stranger correlate invitations. No roster, no status, no
+ * counts, no answers, and nothing either participant has written. The inviter
+ * appears as a FIRST NAME only: enough to recognise a person you know, useless
+ * for finding one you do not.
+ *
+ * This is returned by `inspect`, which does not consume the invitation — so a
+ * preview crawler that renders it has still spent nothing.
+ */
+export interface CircleInvitationPreview {
+  readonly title: string;
+  readonly summary: string;
+  readonly estimatedMinutes: number;
+  /** A first name, never an email, avatar, surname or id. */
+  readonly inviterFirstName: string;
+}
+
+/**
  * The projector lives in `circles-catalog.ts`, next to the refusal it raises.
  *
  * `toCircleTemplatePreview` does not merely narrow a definition: it enforces

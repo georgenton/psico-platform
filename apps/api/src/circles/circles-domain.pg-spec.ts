@@ -1490,7 +1490,11 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
   it("lets an allowlisted, active inviter through under pilot", async () => {
     const minted = await mintIn("act-pilot-ok");
     const pilot = serviceWith("pilot", U1);
-    await expect(pilot.inspect(minted.rawToken)).resolves.toBe(true);
+    // `inspect` answers the pre-acceptance preview (PR4), or null when this
+    // build cannot describe the invitation — being DESCRIBABLE is not a
+    // condition of being USABLE. What these access invariants are about is
+    // whether it resolves at all, versus throwing the one uniform refusal.
+    await expect(pilot.inspect(minted.rawToken)).resolves.not.toThrow();
     const session = await pilot.exchange(minted.rawToken);
     expect(session.rawGuestToken).toBeTruthy();
   });
@@ -1517,7 +1521,7 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
     const minted = await mintIn("act-pilot-removed");
     await expect(
       serviceWith("pilot", U1).inspect(minted.rawToken),
-    ).resolves.toBe(true);
+    ).resolves.not.toThrow();
 
     const afterRemoval = serviceWith("pilot", "someone_new");
     expect(
@@ -1528,7 +1532,7 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
   it("refuses an inviter who has left the circle", async () => {
     const minted = await mintIn("act-pilot-left");
     const pilot = serviceWith("pilot", U1);
-    await expect(pilot.inspect(minted.rawToken)).resolves.toBe(true);
+    await expect(pilot.inspect(minted.rawToken)).resolves.not.toThrow();
 
     await pool.query(
       `UPDATE "CircleMember" SET "status"='LEFT', "leftAt"=now() WHERE id=$1`,
@@ -1555,7 +1559,7 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
     // the same lock the consume took, so the canje unwinds instead of landing.
     const minted = await mintIn("act-pilot-window");
     const pilot = serviceWith("pilot", U1);
-    await expect(pilot.inspect(minted.rawToken)).resolves.toBe(true);
+    await expect(pilot.inspect(minted.rawToken)).resolves.not.toThrow();
 
     await pool.query(
       `UPDATE "CircleMember" SET "status"='LEFT', "leftAt"=now() WHERE id=$1`,
@@ -1657,7 +1661,7 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
   it("needs no allowlist under `on`", async () => {
     const minted = await mintIn("act-pilot-on");
     const open = serviceWith("on");
-    await expect(open.inspect(minted.rawToken)).resolves.toBe(true);
+    await expect(open.inspect(minted.rawToken)).resolves.not.toThrow();
     await expect(open.exchange(minted.rawToken)).resolves.toBeTruthy();
   });
 
@@ -2081,7 +2085,7 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
     const typed = (minted.rawCode as string)
       .toLowerCase()
       .replace(/(.{4})/g, "$1-");
-    await expect(service.inspect(typed)).resolves.toBe(true);
+    await expect(service.inspect(typed)).resolves.not.toThrow();
     const session = await service.exchange(typed);
     expect(session.rawGuestToken).toBeTruthy();
   });
@@ -2095,8 +2099,8 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
     });
 
     // Opening a link twice, a prefetch, a link scanner in a messaging app.
-    await expect(service.inspect(minted.rawToken)).resolves.toBe(true);
-    await expect(service.inspect(minted.rawToken)).resolves.toBe(true);
+    await expect(service.inspect(minted.rawToken)).resolves.not.toThrow();
+    await expect(service.inspect(minted.rawToken)).resolves.not.toThrow();
 
     const { rows } = await pool.query(
       `SELECT "consumedAt","acceptedAt" FROM "CircleInvitation" WHERE id=$1`,

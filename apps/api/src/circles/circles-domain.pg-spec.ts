@@ -356,9 +356,17 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
       "this branch's migration must be in the chain",
     ).toBeGreaterThan(-1);
     const baseline = dirs.slice(0, index);
-    // It is also the LAST one: a migration that lands before somebody else's
-    // would change the order they run in on a box that has neither.
-    expect(dirs.slice(index)).toEqual([THIS_MIGRATION]);
+    // Nothing lands BEFORE it: a migration inserted earlier would change the
+    // order they run in on a box that has neither.
+    //
+    // The tail is NAMED rather than required to be empty. PR3's migration is
+    // no longer the last in the repository — the pilot cut adds the account
+    // deletion detach after it — but an unnamed newcomer still fails here,
+    // which is the property this assertion was protecting.
+    expect(dirs.slice(index)).toEqual([
+      THIS_MIGRATION,
+      "20260913000000_circles_account_deletion",
+    ]);
     expect(baseline).toHaveLength(63);
 
     const admin = new Pool({ connectionString: base });

@@ -12,6 +12,10 @@ import { PatronesModule } from "../patrones/patrones.module";
 // Sprint G2 — EmotionalMapModule provides the service the monthly
 // snapshot processor reuses to recompute each user's score.
 import { EmotionalMapModule } from "../emotional-map/emotional-map.module";
+// Círculos · account deletion ends a person's live participation before the
+// account row is removed. The minimal module, not CirclesModule: no
+// controllers, no rollout guards, no cipher.
+import { CirclesAccountDeletionModule } from "../circles/circles-account-deletion.module";
 import { createBullConnection } from "./bull-connection";
 import { QueueName } from "./queue-names";
 import { EmailProcessor } from "./processors/email.processor";
@@ -56,6 +60,7 @@ import type { Env } from "../config";
     StorageModule,
     NotificationsModule,
     PatronesModule,
+    CirclesAccountDeletionModule,
     // Sprint G2 — needed by EmotionalMapSnapshotProcessor.
     EmotionalMapModule,
     BullModule.forRootAsync({

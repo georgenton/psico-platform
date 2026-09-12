@@ -849,7 +849,21 @@ suite(
         } catch (err) {
           refused = err as { code?: string; constraint?: string };
         }
-        expect(refused.code, "SQLSTATE foreign_key_violation").toBe("23503");
+        // BOTH classes, because RESTRICT and NO ACTION are different
+        // SQLSTATEs for the same fact:
+        //
+        //   23001  restrict_violation      ← ON DELETE RESTRICT
+        //   23503  foreign_key_violation   ← ON DELETE NO ACTION
+        //
+        // and which of the blocking constraints the planner reaches first is
+        // unordered. Pinning either one alone pins the accident: the first
+        // version of this assertion matched a message, the second matched
+        // 23503, and both were green locally and red in CI for the same
+        // reason. What is invariant — and what this cut is actually about — is
+        // that the delete is refused BY A CÍRCULOS REFERENCE.
+        expect(["23001", "23503"], "refused by a foreign key").toContain(
+          refused.code,
+        );
         expect(refused.constraint ?? "").toMatch(
           /^(Circle_createdByUserId_fkey|CircleEvent_actorUserId_fkey)$/,
         );

@@ -73,6 +73,27 @@ describe("eligibility is an enumeration, never an inference", () => {
     // experience is edited, so inheriting the old one's mapping would carry an
     // approval forward onto content nobody reviewed.
     expect(resolveDuoEntry({ ...PIN, experienceVersion: 2 }, d)).toBeNull();
+
+    // ── The version check must hold ON ITS OWN ──
+    //
+    // Above, the source-agreement guard would also refuse, so the two cannot
+    // be told apart. Here the template DECLARES v2, so agreement would pass
+    // and only the mapping lookup can say no. A lookup that compared keys and
+    // forgot versions turns this green.
+    const v2 = { ...PIN, experienceVersion: 2 };
+    const declaresV2 = deps(
+      [
+        template({
+          source: {
+            bookSlug: "fixture-book",
+            chapterOrder: 1,
+            experiencePin: { ...v2 },
+          },
+        }),
+      ],
+      [MAPPING], // maps v1 only
+    );
+    expect(resolveDuoEntry(v2, declaresV2)).toBeNull();
   });
 
   it("3 · a pin with no mapping is not eligible", () => {
@@ -166,6 +187,36 @@ describe("eligibility is an enumeration, never an inference", () => {
         resolveDuoEntry({ experienceKey: key, experienceVersion: 1 }, withOne),
       ).toBeNull();
     }
+
+    // ── The LOOKUP must refuse on its own ──
+    //
+    // The cases above are also refused by the source-agreement guard, so they
+    // cannot distinguish "no mapping was found" from "the template disagreed".
+    // Here the catalog's only entry maps a DIFFERENT experience, while the
+    // template it points at declares the pin we are asking about — so
+    // agreement would pass and the lookup is the only thing that can say no.
+    // Any "if nothing matched, take the first entry" fallback turns this green.
+    const asked = { experienceKey: "no-mapeada", experienceVersion: 1 };
+    const spillable = deps(
+      [
+        template({
+          source: {
+            bookSlug: "fixture-book",
+            chapterOrder: 1,
+            experiencePin: { ...asked },
+          },
+        }),
+      ],
+      [
+        {
+          experienceKey: "otra-totalmente",
+          experienceVersion: 1,
+          templateKey: "fixture-duo",
+          templateVersion: 1,
+        },
+      ],
+    );
+    expect(resolveDuoEntry(asked, spillable)).toBeNull();
   });
 
   it("production ships zero mappings, matching the empty catalog", () => {

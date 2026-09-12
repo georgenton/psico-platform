@@ -831,15 +831,28 @@ suite(
          VALUES ('e-base','c-base','CIRCLE_CREATED'::"CircleEventType",'u-base',now())`,
         );
 
-        // BEFORE: the deletion is refused, which is the blocker this cut exists
-        // to remove. Asserted rather than assumed.
-        let refused = "";
+        // BEFORE: the deletion is refused, which is the blocker this cut
+        // exists to remove. Asserted rather than assumed.
+        //
+        // On SQLSTATE and the constraint NAME, never on the message.
+        // PostgreSQL has two wordings for this refusal — "violates foreign key
+        // constraint" for NO ACTION, "violates RESTRICT setting of foreign key
+        // constraint" for RESTRICT — and WHICH of the blocking constraints
+        // fires first is not ordered. A message regex therefore passes or
+        // fails on an accident: this assertion was green locally and red in CI
+        // for exactly that reason. 23503 plus the constraint family says the
+        // thing that is actually true.
+        let refused: { code?: string; constraint?: string } = {};
         try {
           await pool.query(`DELETE FROM "User" WHERE "id" = 'u-base'`);
+          throw new Error("main accepted the deletion — the blocker is absent");
         } catch (err) {
-          refused = (err as { message?: string }).message ?? "";
+          refused = err as { code?: string; constraint?: string };
         }
-        expect(refused).toMatch(/violates foreign key constraint/i);
+        expect(refused.code, "SQLSTATE foreign_key_violation").toBe("23503");
+        expect(refused.constraint ?? "").toMatch(
+          /^(Circle_createdByUserId_fkey|CircleEvent_actorUserId_fkey)$/,
+        );
 
         // Apply ONLY the new migration.
         const sql = readFileSync(

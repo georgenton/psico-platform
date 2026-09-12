@@ -226,6 +226,98 @@ describe("eligibility is an enumeration, never an inference", () => {
   });
 });
 
+describe("a duplicated pin means nothing, not the first one", () => {
+  /** The same pin, mapped twice. Whatever the entries say. */
+  function twice(
+    second: Partial<DuoEligibilityMapping>,
+    definitions = [template()],
+  ): DuoEligibilityDeps {
+    return deps(definitions, [MAPPING, { ...MAPPING, ...second }]);
+  }
+
+  it("refuses two IDENTICAL mappings for one Experience pin", () => {
+    // Identical duplicates look harmless, which is exactly why they must be
+    // refused: a catalog that tolerates them is one edit away from a catalog
+    // where the two entries disagree and order decides.
+    expect(resolveDuoEntry(PIN, twice({}))).toBeNull();
+  });
+
+  it("refuses two mappings that point at DIFFERENT templates", () => {
+    const otro = template({ templateKey: "fixture-otro", templateVersion: 1 });
+    const d = twice({ templateKey: "fixture-otro" }, [template(), otro]);
+    expect(resolveDuoEntry(PIN, d)).toBeNull();
+  });
+
+  it("gives the same answer whichever entry comes first", () => {
+    const otro = template({ templateKey: "fixture-otro", templateVersion: 1 });
+    const competing = { ...MAPPING, templateKey: "fixture-otro" };
+
+    const forward = deps([template(), otro], [MAPPING, competing]);
+    const reversed = deps([template(), otro], [competing, MAPPING]);
+
+    // Array order is not authority: both orders refuse, and they agree.
+    expect(resolveDuoEntry(PIN, forward)).toBeNull();
+    expect(resolveDuoEntry(PIN, reversed)).toBeNull();
+    expect(resolveDuoEntry(PIN, forward)).toEqual(
+      resolveDuoEntry(PIN, reversed),
+    );
+  });
+
+  it("still resolves when exactly one mapping matches", () => {
+    // The duplicate rule is about the MATCHING pin, not the catalog's size: a
+    // second, unrelated entry must not make a valid mapping ambiguous.
+    const withNeighbour = deps(
+      [template()],
+      [
+        MAPPING,
+        {
+          experienceKey: "otra-experiencia",
+          experienceVersion: 1,
+          templateKey: "fixture-duo",
+          templateVersion: 1,
+        },
+      ],
+    );
+    expect(resolveDuoEntry(PIN, withNeighbour)).toEqual({
+      label: DUO_CTA_LABEL,
+      href: "/dashboard/circulos/nuevo/fixture-duo",
+    });
+  });
+
+  it("does not confuse a duplicate pin with a duplicate VERSION", () => {
+    // Same key at two versions is two different pins, not a duplicate. Each
+    // resolves on its own.
+    const v2 = { ...PIN, experienceVersion: 2 };
+    const d = deps(
+      [
+        template(),
+        template({
+          templateKey: "fixture-v2",
+          source: {
+            bookSlug: "fixture-book",
+            chapterOrder: 1,
+            experiencePin: { ...v2 },
+          },
+        }),
+      ],
+      [
+        MAPPING,
+        {
+          ...v2,
+          templateKey: "fixture-v2",
+          templateVersion: 1,
+        },
+      ],
+    );
+    expect(resolveDuoEntry(PIN, d)?.href).toBe(
+      "/dashboard/circulos/nuevo/fixture-duo",
+    );
+    expect(resolveDuoEntry(v2, d)?.href).toBe(
+      "/dashboard/circulos/nuevo/fixture-v2",
+    );
+  });
+});
+
 describe("the organiser route resolves a key to ONE published pin", () => {
   it("resolves a single published version", () => {
     const d = deps([template()], [MAPPING]);

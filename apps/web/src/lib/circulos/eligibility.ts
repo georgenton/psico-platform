@@ -128,8 +128,23 @@ export function resolveDuoTemplate(
   if (typeof pin?.experienceKey !== "string") return null;
   if (!Number.isInteger(pin?.experienceVersion)) return null;
 
-  const mapping = deps.catalog.find((m) => samePin(m, pin));
-  if (!mapping) return null;
+  // EXACTLY ONE mapping, or nothing.
+  //
+  // `find()` was wrong here, and not only in the obvious way. It made array
+  // ORDER the tie-breaker: two entries for one pin meant the earlier one
+  // silently won, so which activity a reader was offered depended on where a
+  // line happened to sit in a file. Two identical entries are just as bad —
+  // they read as harmless, so the duplicate that matters (a later edit
+  // changing one of them) arrives into a catalog that already tolerates
+  // duplication.
+  //
+  // A catalog that says a pin means two things does not mean either of them.
+  // There is no first, no last, no highest version and no fallback: a
+  // duplicated pin is an authoring mistake, and the honest response is to
+  // offer nothing until a person resolves it.
+  const matches = deps.catalog.filter((m) => samePin(m, pin));
+  if (matches.length !== 1) return null;
+  const mapping = matches[0]!;
 
   let definition: CircleActivityDefinition;
   try {

@@ -64,9 +64,13 @@ export default function NuevoDuoPage({
 }: {
   params: { templateKey: string };
 }) {
-  const definition = resolvePublishedTemplateByKey(
-    decodeURIComponent(params.templateKey),
-  );
+  // `params.templateKey` arrives ALREADY decoded — Next decodes dynamic
+  // segments itself. Decoding again was not merely redundant: a key that
+  // legitimately contains a `%` decodes once into something like `100%`, and
+  // `decodeURIComponent("100%")` throws `URIError`. That is an unhandled
+  // exception on a route whose every other refusal is a quiet `notFound()`, so
+  // the one malformed input would have been the one that answered differently.
+  const definition = resolvePublishedTemplateByKey(params.templateKey);
   if (!definition) notFound();
 
   // Projects through the public boundary, which refuses anything not

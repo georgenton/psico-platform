@@ -165,7 +165,7 @@ export function CrearDuo({ templateKey, templateVersion }: CrearDuoProps) {
         </h2>
         <p style={S.p}>
           Envíaselo a la persona con la que vas a hacer esto, por donde ya se
-          escriban. Sirve una sola vez: la primera persona que lo abra queda
+          escriban. Sirve una sola vez: la primera persona que lo acepte queda
           dentro y el enlace deja de funcionar.
         </p>
         <p style={S.aviso}>

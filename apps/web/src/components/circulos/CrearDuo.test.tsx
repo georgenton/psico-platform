@@ -302,6 +302,29 @@ describe("what success and failure show", () => {
     ).toBeInTheDocument();
   });
 
+  it("says the invitation is consumed by ACCEPTING, never by opening", async () => {
+    const user = userEvent.setup();
+    mount();
+    await user.click(crear());
+    const panel = (await screen.findByText(/Comparte este enlace/)).closest(
+      "section",
+    )!;
+    const copy = panel.textContent ?? "";
+
+    // What actually consumes the invitation. Opening `/i#token` only inspects
+    // it — the preview is deliberately separate from acceptance (PR4) — and an
+    // organiser who believes otherwise will misread a link that was merely
+    // previewed as a link that was already used, and send a second one.
+    expect(copy).toMatch(/la primera persona que lo acepte queda dentro/);
+
+    // And the wrong sentence must not come back. Any phrasing that makes
+    // OPENING the act that admits someone or burns the link is refused.
+    expect(copy).not.toMatch(/persona que lo abra/);
+    expect(copy).not.toMatch(
+      /al abrir(lo)?\b[^.]*\b(dentro|deja de funcionar)/i,
+    );
+  });
+
   it("confirms a copy where a screen reader will hear it", async () => {
     const user = userEvent.setup();
     // AFTER `setup()`: user-event installs its own clipboard stub, so a spy

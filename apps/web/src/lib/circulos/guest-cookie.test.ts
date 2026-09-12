@@ -48,6 +48,17 @@ describe("the guest cookie is not reachable from JavaScript", () => {
     expect(guestCookieOptions("2030-01-01T00:00:00.000Z").secure).toBe(false);
   });
 
+  it("is host-only — no Domain, so no sibling subdomain receives it", () => {
+    // A `Domain` attribute would widen the cookie to every subdomain of the
+    // parent, including ones this app does not control. Omitting it makes the
+    // browser send it to this exact host and nowhere else, which is the one
+    // scoping dimension that IS narrow here — unlike `Path`, which is `/` and
+    // says so.
+    const options = guestCookieOptions(null) as Record<string, unknown>;
+    expect(options).not.toHaveProperty("domain");
+    expect(Object.keys(options)).not.toContain("Domain");
+  });
+
   it("has a name that does not describe its contents", () => {
     expect(GUEST_COOKIE).toBe("fv_circulo_guest");
     expect(GUEST_COOKIE).not.toMatch(/token|secret|session_?id/i);

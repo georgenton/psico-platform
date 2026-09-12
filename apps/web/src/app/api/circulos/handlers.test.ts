@@ -133,6 +133,28 @@ describe("the exchange hands the browser a cookie, never a token", () => {
     expect(deleted).toContain(GUEST_COOKIE);
     expect(res.headers.get("set-cookie") ?? "").toMatch(/Max-Age=0/i);
   });
+
+  it("leaving as a guest does not sign the MEMBER out", async () => {
+    // The two credentials are independent, and they coexist on one browser
+    // constantly: a member opens an invitation somebody sent them, ends up
+    // holding a guest cookie for that activity, and then leaves it. If leaving
+    // cleared the session pair, they would be bounced out of their own account
+    // by declining somebody else's Dúo.
+    cookieStore.set(GUEST_COOKIE, "guest-token");
+    cookieStore.set("psico_at", "member-access");
+    cookieStore.set("psico_rt", "member-refresh");
+
+    const res = await sesionDELETE();
+
+    expect(res.status).toBe(200);
+    expect(deleted).toEqual([GUEST_COOKIE]);
+    expect(cookieStore.get("psico_at")).toBe("member-access");
+    expect(cookieStore.get("psico_rt")).toBe("member-refresh");
+    // And nothing in the response tells the browser to drop them either.
+    const setCookie = res.headers.get("set-cookie") ?? "";
+    expect(setCookie).not.toContain("psico_at");
+    expect(setCookie).not.toContain("psico_rt");
+  });
 });
 
 describe("the command handler forwards only what is on the list", () => {

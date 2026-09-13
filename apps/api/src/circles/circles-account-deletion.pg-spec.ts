@@ -14,6 +14,15 @@ import { CirclesAccountDeletionService } from "./circles-account-deletion.servic
 import { CircleMemberRepository } from "./circle-member.repository";
 import { CircleInvitationRepository } from "./circle-invitation.repository";
 import { CircleGuestSessionRepository } from "./circle-guest-session.repository";
+import { CircleArtifactRepository } from "./circle-artifact.repository";
+import { CirclesParticipationService } from "./circles-participation.service";
+import { CirclesService } from "./circles.service";
+import { CirclesRolloutService } from "./circles-rollout.service";
+import { resolveCirclesRolloutConfig } from "./circles-rollout";
+import { CirclesCipher } from "./circles-crypto";
+import { CircleTemplateRegistry } from "@psico/types";
+import { PUBLISHED_DUO_TEMPLATE } from "./circles.fixtures";
+import { mintInvitationToken } from "./circles-secrets";
 
 /**
  * Account deletion with Círculos, against REAL PostgreSQL.
@@ -211,7 +220,6 @@ function buildService(
   events: unknown = null,
 ): CirclesAccountDeletionService {
   return new CirclesAccountDeletionService(
-    prisma as never,
     new CircleParticipantRepository(prisma as never),
     new CircleActivityRepository(prisma as never),
     (events ?? new CircleEventRepository(prisma as never)) as never,
@@ -228,6 +236,17 @@ suite("circles · account deletion (real PostgreSQL)", () => {
 
   let seq = 0;
   const uid = (p: string) => `${p}-${++seq}`;
+
+  /**
+   * The detach, run the way the job runs it: inside ONE transaction the caller
+   * owns. The service opens none of its own any more — that is the whole point
+   * of the authority fix, so the tests must not open them either.
+   */
+  const detach = (userId: string, svc?: CirclesAccountDeletionService) =>
+    prisma.$transaction(
+      (tx) => (svc ?? service).detachUser(userId, tx as never),
+      { timeout: 60_000 },
+    );
 
   const insertUser = (id: string) =>
     pool.query(
@@ -425,7 +444,7 @@ suite("circles · account deletion (real PostgreSQL)", () => {
   // ── 1 · the plain case ────────────────────────────────────────────────────
 
   it("1 · deletes a user who never touched Círculos", async () => {
-    const summary = await service.detachUser(GONE);
+    const summary = await detach(GONE);
     expect(summary.memberships).toBe(0);
     expect(summary.seatsWithdrawn).toBe(0);
     await deleteUser(GONE);
@@ -464,7 +483,7 @@ suite("circles · account deletion (real PostgreSQL)", () => {
     );
     await makeUserEvent(circleId, GONE);
 
-    const summary = await service.detachUser(GONE);
+    const summary = await detach(GONE);
     expect(summary.activitiesCancelled).toBe(1);
     expect(summary.invitationsRevoked).toBe(1);
     expect(summary.guestSessionsRevoked).toBe(1);
@@ -510,7 +529,7 @@ suite("circles · account deletion (real PostgreSQL)", () => {
       withEnvelope: true,
     });
 
-    await service.detachUser(GONE);
+    await detach(GONE);
     await deleteUser(GONE);
 
     // Neither envelope survives: the counterpart confirmed for a conversation
@@ -562,7 +581,7 @@ suite("circles · account deletion (real PostgreSQL)", () => {
       [artifactId, activityId, theirs, HMAC_HEX],
     );
 
-    await service.detachUser(GONE);
+    await detach(GONE);
     await deleteUser(GONE);
 
     const activity = await pool.query(
@@ -592,6 +611,262 @@ suite("circles · account deletion (real PostgreSQL)", () => {
       [artifactId],
     );
     expect(art.rows).toHaveLength(1);
+  });
+
+  // ── Races, driven by the REAL commands ───────────────────────────────────
+  //
+  // The earlier version of this suite raced the deletion against a hand-written
+  // `UPDATE`, which proves nothing about the service: a manual statement takes
+  // whatever locks the author chose, in whatever order they chose. These drive
+  // `createDuo` and the guest surface through the actual services, on their own
+  // connections, and then read the WHOLE persisted result — not merely "no
+  // deadlock happened".
+
+  describe("races against the real services", () => {
+    const KEY = randomBytes(32).toString("base64");
+    let participation: CirclesParticipationService;
+
+    const buildParticipation = (mode = "on") =>
+      new CirclesParticipationService(
+        prisma as never,
+        new CircleActivityRepository(prisma as never),
+        new CircleParticipantRepository(prisma as never),
+        new CircleArtifactRepository(prisma as never),
+        new CircleEventRepository(prisma as never),
+        new CircleMemberRepository(prisma as never),
+        new CircleGuestSessionRepository(prisma as never),
+        new CircleInvitationRepository(prisma as never),
+        new CirclesRolloutService(
+          resolveCirclesRolloutConfig({ CIRCLES_ROLLOUT_MODE: mode }),
+        ),
+        new CirclesCipher(Buffer.from(KEY, "base64")),
+        new CircleTemplateRegistry([PUBLISHED_DUO_TEMPLATE]),
+      );
+
+    beforeEach(() => {
+      participation = buildParticipation();
+    });
+
+    /** The organiser needs a circle to create in, which `createDuo` makes. */
+    const createDuoFor = async (userId: string) =>
+      participation.createDuo({
+        userId,
+        templateKey: PUBLISHED_DUO_TEMPLATE.templateKey,
+        templateVersion: PUBLISHED_DUO_TEMPLATE.templateVersion,
+        invitationToken: mintInvitationToken().raw,
+        idempotencyKey: `idem-${uid("k")}`,
+      });
+
+    /** The circles this user belongs to, captured BEFORE the deletion detaches them. */
+    const circlesOf = async (userId: string): Promise<string[]> => {
+      const { rows } = await pool.query(
+        `SELECT "circleId" FROM "CircleMember" WHERE "userId" = $1`,
+        [userId],
+      );
+      return rows.map((r: { circleId: string }) => r.circleId);
+    };
+
+    /**
+     * Everything the deletion is supposed to have touched, read back — SCOPED
+     * to this user's circles.
+     *
+     * Global counts were the first version and they were wrong: the suite
+     * shares one database (the ledger is append-only, so rows cannot be cleaned
+     * between tests) and every earlier test's activity was being counted too.
+     */
+    const snapshot = async (userId: string, circleIds: string[]) => {
+      const account = await pool.query(`SELECT 1 FROM "User" WHERE "id" = $1`, [
+        userId,
+      ]);
+      const members = await pool.query(
+        `SELECT "status","userId" FROM "CircleMember" WHERE "userId" = $1`,
+        [userId],
+      );
+      const detached = await pool.query(
+        `SELECT count(*)::int AS n FROM "CircleMember" WHERE "userId" IS NULL`,
+      );
+      const live = await pool.query(
+        `SELECT count(*)::int AS n
+           FROM "CircleActivity"
+          WHERE "circleId" = ANY($1)
+            AND "status" IN ('INVITING','PREPARING','REVEALED','FOLLOW_UP')`,
+        [circleIds],
+      );
+      const openInvitations = await pool.query(
+        `SELECT count(*)::int AS n FROM "CircleInvitation"
+          WHERE "revokedAt" IS NULL AND "circleId" = ANY($1)`,
+        [circleIds],
+      );
+      const openSessions = await pool.query(
+        `SELECT count(*)::int AS n FROM "CircleGuestSession" gs
+           JOIN "CircleActivity" a ON a."id" = gs."activityId"
+          WHERE gs."revokedAt" IS NULL AND a."circleId" = ANY($1)`,
+        [circleIds],
+      );
+      const envelopes = await pool.query(
+        `SELECT count(*)::int AS n FROM "CircleActivityParticipant"
+          WHERE "ciphertext" IS NOT NULL AND "circleId" = ANY($1)`,
+        [circleIds],
+      );
+      const events = await pool.query(
+        `SELECT count(*)::int AS n FROM "CircleEvent" WHERE "actorUserId" = $1`,
+        [userId],
+      );
+      return {
+        accountExists: account.rows.length === 1,
+        memberRows: members.rows.length,
+        detachedMembers: detached.rows[0].n as number,
+        liveActivities: live.rows[0].n as number,
+        openInvitations: openInvitations.rows[0].n as number,
+        openSessions: openSessions.rows[0].n as number,
+        envelopes: envelopes.rows[0].n as number,
+        eventsNamingUser: events.rows[0].n as number,
+      };
+    };
+
+    it("creation FIRST: the new Dúo is in the inventory and is ended", async () => {
+      const created = await createDuoFor(GONE);
+      const mine = await circlesOf(GONE);
+      // Real rows exist before the deletion looks at anything.
+      const before = await snapshot(GONE, mine);
+      expect(before.liveActivities).toBe(1);
+      expect(before.openInvitations).toBe(1);
+
+      await detach(GONE);
+      await deleteUser(GONE);
+
+      const after = await snapshot(GONE, mine);
+      expect(after.accountExists).toBe(false);
+      expect(after.memberRows).toBe(0); // no row still names this user
+      expect(after.detachedMembers).toBeGreaterThan(0);
+      expect(after.liveActivities).toBe(0);
+      expect(after.openInvitations).toBe(0);
+      expect(after.openSessions).toBe(0);
+      expect(after.eventsNamingUser).toBe(0);
+
+      const activity = await pool.query(
+        `SELECT "status" FROM "CircleActivity" WHERE "id" = $1`,
+        [created.activityId],
+      );
+      expect(activity.rows[0].status).toBe("CANCELLED");
+    });
+
+    it("deletion FIRST: a later createDuo cannot resurrect the account", async () => {
+      await createDuoFor(GONE);
+      const mine = await circlesOf(GONE);
+      await detach(GONE);
+      await deleteUser(GONE);
+
+      // The account is gone; the command has no actor to create for. Whatever
+      // the service answers, it must not produce a new live activity.
+      await expect(createDuoFor(GONE)).rejects.toThrow();
+
+      const after = await snapshot(GONE, mine);
+      expect(after.accountExists).toBe(false);
+      expect(after.liveActivities).toBe(0);
+    });
+
+    it("the deletion BLOCKS on the User lock a creation is holding", async () => {
+      // An OBSERVABLE barrier: another connection holds the row, and the
+      // deletion's wait is read out of `pg_locks`. No sleep decides anything.
+      await createDuoFor(GONE);
+      const mine = await circlesOf(GONE);
+
+      const holder = await pool.connect();
+      let detaching: Promise<unknown> | null = null;
+      try {
+        await holder.query("BEGIN");
+        await holder.query(
+          `SELECT "id" FROM "User" WHERE "id" = $1 FOR UPDATE`,
+          [GONE],
+        );
+
+        detaching = prisma.$transaction(
+          async (tx) => {
+            await tx.$queryRawUnsafe(
+              `SELECT "id" FROM "User" WHERE "id" = $1 FOR UPDATE`,
+              GONE,
+            );
+            return service.detachUser(GONE, tx as never);
+          },
+          { timeout: 60_000 },
+        );
+
+        // Wait for the block to APPEAR, read out of `pg_stat_activity`. The
+        // condition is OBSERVED; the loop just re-reads it, and no fixed delay
+        // decides anything. (The first version queried `pg_locks` with a
+        // mis-parenthesised predicate that could never be true.)
+        let waiting = 0;
+        for (let i = 0; i < 600 && waiting === 0; i += 1) {
+          const { rows } = await pool.query(
+            `SELECT count(*)::int AS n FROM pg_stat_activity
+              WHERE wait_event_type = 'Lock'
+                AND datname = current_database()
+                AND pid <> pg_backend_pid()`,
+          );
+          waiting = rows[0].n as number;
+          if (waiting === 0) await new Promise((r) => setTimeout(r, 10));
+        }
+        expect(
+          waiting,
+          "the deletion should be waiting on the User row",
+        ).toBeGreaterThan(0);
+      } finally {
+        await holder.query("COMMIT").catch(() => undefined);
+        holder.release();
+      }
+
+      // Released: it proceeds and finishes.
+      await detaching;
+      await deleteUser(GONE);
+      const after = await snapshot(GONE, mine);
+      expect(after.accountExists).toBe(false);
+      expect(after.liveActivities).toBe(0);
+    });
+
+    it("an aborted decision leaves Círculos byte-for-byte untouched", async () => {
+      // This is what the single-transaction design buys, and the reason the
+      // cleanup may no longer open transactions of its own.
+      //
+      // The cleanup runs — really runs, ending the activity and revoking the
+      // invitation — and THEN the decision aborts, exactly as it does when the
+      // person cancelled or a new Dúo raced in. Because everything shared one
+      // transaction, the rollback takes all of it. Under the previous design
+      // the cleanup had already committed on its own and this state would have
+      // survived a decision not to delete.
+      const created = await createDuoFor(GONE);
+      const mine = await circlesOf(GONE);
+      const before = await snapshot(GONE, mine);
+      expect(before.liveActivities).toBe(1);
+      expect(before.openInvitations).toBe(1);
+
+      await expect(
+        prisma.$transaction(
+          async (tx) => {
+            await service.detachUser(GONE, tx as never);
+            // Prove the cleanup really happened inside the transaction before
+            // we abort — otherwise "untouched afterwards" would be vacuous.
+            const midway = await tx.circleActivity.count({
+              where: {
+                circleId: { in: mine },
+                status: { in: ["INVITING", "PREPARING"] },
+              },
+            });
+            expect(midway).toBe(0);
+            throw new Error("ACCOUNT_DELETION_ABORTED");
+          },
+          { timeout: 60_000 },
+        ),
+      ).rejects.toThrow(/ACCOUNT_DELETION_ABORTED/);
+
+      const after = await snapshot(GONE, mine);
+      expect(after).toEqual(before);
+      const activity = await pool.query(
+        `SELECT "status" FROM "CircleActivity" WHERE "id" = $1`,
+        [created.activityId],
+      );
+      expect(activity.rows[0].status).toBe("INVITING");
+    });
   });
 
   // ── 2A · participation that is already over ───────────────────────────────
@@ -642,7 +917,7 @@ suite("circles · account deletion (real PostgreSQL)", () => {
         [activityId],
       );
 
-      const summary = await service.detachUser(GONE);
+      const summary = await detach(GONE);
       // Nothing to END — the activity was already terminal — but something to
       // ERASE. The old code reported both as zero.
       expect(summary.seatsWithdrawn).toBe(0);
@@ -673,7 +948,7 @@ suite("circles · account deletion (real PostgreSQL)", () => {
         [activityId],
       );
 
-      await service.detachUser(GONE);
+      await detach(GONE);
       await deleteUser(GONE);
 
       await expectNoEnvelope(mine, "closed by counterpart");
@@ -695,9 +970,9 @@ suite("circles · account deletion (real PostgreSQL)", () => {
         status: "WITHDRAWN",
       });
 
-      const first = await service.detachUser(GONE);
+      const first = await detach(GONE);
       expect(first.envelopesPurged).toBe(0);
-      const second = await service.detachUser(GONE);
+      const second = await detach(GONE);
       expect(second.envelopesPurged).toBe(0);
       expect(second.seatsWithdrawn).toBe(0);
 
@@ -731,7 +1006,7 @@ suite("circles · account deletion (real PostgreSQL)", () => {
       );
 
       const broken = buildService(prisma, BROKEN_EVENTS);
-      await expect(broken.detachUser(GONE)).rejects.toThrow();
+      await expect(detach(GONE, broken)).rejects.toThrow();
 
       // The failure happened while ENDING the live one, so the erase never
       // ran: the closed activity still holds the envelope. That is the state
@@ -742,7 +1017,7 @@ suite("circles · account deletion (real PostgreSQL)", () => {
       );
       expect(midway.rows[0].ciphertext).not.toBeNull();
 
-      const summary = await service.detachUser(GONE);
+      const summary = await detach(GONE);
       expect(summary.seatsWithdrawn).toBe(1);
       expect(summary.envelopesPurged).toBe(1);
       await deleteUser(GONE);
@@ -778,7 +1053,7 @@ suite("circles · account deletion (real PostgreSQL)", () => {
         [theirActivity],
       );
 
-      await service.detachUser(GONE);
+      await detach(GONE);
       await deleteUser(GONE);
 
       const kept = await pool.query(
@@ -814,7 +1089,7 @@ suite("circles · account deletion (real PostgreSQL)", () => {
         [activityId],
       );
 
-      await service.detachUser(GONE);
+      await detach(GONE);
       await deleteUser(GONE);
 
       await expectNoEnvelope(mine, "ours");
@@ -886,7 +1161,7 @@ suite("circles · account deletion (real PostgreSQL)", () => {
       });
       const artifactId = await makeArtifact(activityId, mine, "PROPOSED");
 
-      await service.detachUser(GONE);
+      await detach(GONE);
       await deleteUser(GONE);
 
       const { rows } = await pool.query(
@@ -913,7 +1188,7 @@ suite("circles · account deletion (real PostgreSQL)", () => {
       });
       const artifactId = await makeArtifact(activityId, mine, "AGREED");
 
-      await service.detachUser(GONE);
+      await detach(GONE);
       await deleteUser(GONE);
 
       const { rows } = await pool.query(
@@ -938,10 +1213,10 @@ suite("circles · account deletion (real PostgreSQL)", () => {
       withEnvelope: true,
     });
 
-    const first = await service.detachUser(GONE);
+    const first = await detach(GONE);
     expect(first.seatsWithdrawn).toBe(1);
 
-    const second = await service.detachUser(GONE);
+    const second = await detach(GONE);
     expect(second.seatsWithdrawn).toBe(0);
     expect(second.memberships).toBe(0);
 
@@ -983,7 +1258,7 @@ suite("circles · account deletion (real PostgreSQL)", () => {
       [activityId],
     );
 
-    const detach = service.detachUser(GONE);
+    const detaching = detach(GONE);
 
     // The confirmation lands while the detach is blocked on the lock.
     await racer.query(
@@ -1001,7 +1276,7 @@ suite("circles · account deletion (real PostgreSQL)", () => {
     await racer.query("COMMIT");
     racer.release();
 
-    await detach;
+    await detaching;
     await deleteUser(GONE);
 
     // Whichever order the two took, the end state is terminal and closed to
@@ -1049,7 +1324,7 @@ suite("circles · account deletion (real PostgreSQL)", () => {
       theirs.members[STRANGER]!,
     );
 
-    await service.detachUser(GONE);
+    await detach(GONE);
     await deleteUser(GONE);
 
     const activity = await pool.query(
@@ -1135,7 +1410,7 @@ suite("circles · account deletion (real PostgreSQL)", () => {
         [eventId],
       );
 
-      await service.detachUser(GONE);
+      await detach(GONE);
       await deleteUser(GONE);
 
       const after = await pool.query(
@@ -1166,7 +1441,7 @@ suite("circles · account deletion (real PostgreSQL)", () => {
       // sanctioned behaviour and still is not.
       const { circleId } = await makeCircle(GONE, [STAYS]);
       const eventId = await makeUserEvent(circleId, GONE);
-      await service.detachUser(GONE);
+      await detach(GONE);
       await deleteUser(GONE);
 
       const del = await refusalOf(() =>
@@ -1194,7 +1469,7 @@ suite("circles · account deletion (real PostgreSQL)", () => {
     // must roll all of it back.
     const broken = buildService(prisma, BROKEN_EVENTS);
 
-    await expect(broken.detachUser(GONE)).rejects.toThrow();
+    await expect(detach(GONE, broken)).rejects.toThrow();
 
     // Nothing half-done: the seat is still READY, the activity still PREPARING,
     // the membership still ACTIVE, and the account still deletable later.
@@ -1212,7 +1487,7 @@ suite("circles · account deletion (real PostgreSQL)", () => {
     expect(after.rows[0].member).toBe("ACTIVE");
 
     // And the retry — with a working service — completes.
-    const summary = await service.detachUser(GONE);
+    const summary = await detach(GONE);
     expect(summary.seatsWithdrawn).toBe(1);
     await deleteUser(GONE);
   });
@@ -1221,7 +1496,7 @@ suite("circles · account deletion (real PostgreSQL)", () => {
 
   it("revokes membership and detaches it, keeping the circle for the counterpart", async () => {
     const { circleId, members } = await makeCircle(GONE, [STAYS]);
-    await service.detachUser(GONE);
+    await detach(GONE);
     await deleteUser(GONE);
 
     const mine = await pool.query(

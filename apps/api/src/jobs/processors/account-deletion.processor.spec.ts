@@ -137,7 +137,9 @@ describe("AccountDeletionProcessor", () => {
     );
 
     expect(order).toEqual(["detach", "delete"]);
-    expect(circles.detachUser).toHaveBeenCalledWith("user-1");
+    // Both now happen inside the ONE transaction that holds the lock, so the
+    // detach receives that transaction's client rather than the base one.
+    expect(circles.detachUser).toHaveBeenCalledWith("user-1", mockPrisma);
   });
 
   it("does not touch Círculos for a cancelled or already-deleted account", async () => {
@@ -213,17 +215,6 @@ describe("AccountDeletionProcessor", () => {
       expect(mockPrisma.user.delete).toHaveBeenCalledOnce();
     });
 
-    it("does NOT delete when the request was cancelled after the job started", async () => {
-      // The unlocked read at the top saw a live request; by the time the lock
-      // is held the person has changed their mind. The authoritative point is
-      // the one under the lock.
-      lockedRow.rows = [{ id: "user-1", deleteRequestedAt: null }];
-
-      await processor.process(job());
-
-      expect(mockPrisma.user.delete).not.toHaveBeenCalled();
-    });
-
     it("does NOT delete when the cooldown restarted mid-job", async () => {
       // Re-requested five days ago: the 30 days are counted from the row as it
       // stands, never from the job payload, and never shortened.
@@ -232,6 +223,35 @@ describe("AccountDeletionProcessor", () => {
       await processor.process(job());
 
       expect(mockPrisma.user.delete).not.toHaveBeenCalled();
+    });
+
+    it("touches NOTHING in Círculos when the cancellation wins", async () => {
+      // The defect this replaced: the detach ran first, in its own
+      // transactions, so a person who cancelled could still have had their
+      // envelopes destroyed and their activities ended by a job that then
+      // decided not to delete them.
+      lockedRow.rows = [{ id: "user-1", deleteRequestedAt: null }];
+
+      await processor.process(job());
+
+      expect(circles.detachUser).not.toHaveBeenCalled();
+      expect(mockPrisma.user.delete).not.toHaveBeenCalled();
+    });
+
+    it("touches NOTHING in Círculos when the cooldown restarted", async () => {
+      lockedRow.rows = [{ id: "user-1", deleteRequestedAt: FIVE_DAYS_AGO }];
+
+      await processor.process(job());
+
+      expect(circles.detachUser).not.toHaveBeenCalled();
+      expect(mockPrisma.user.delete).not.toHaveBeenCalled();
+    });
+
+    it("runs the detach with the SAME client that holds the lock", async () => {
+      await processor.process(job());
+      expect(circles.detachUser).toHaveBeenCalledWith("user-1", mockPrisma);
+      // One transaction, not one per activity plus one for the delete.
+      expect(mockPrisma.$transaction).toHaveBeenCalledOnce();
     });
 
     it("aborts when a Dúo appeared after the inventory was taken", async () => {

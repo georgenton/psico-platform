@@ -87,7 +87,6 @@ const LIVE_SEAT = ["INVITED", "ACCEPTED", "READY"] as const;
 @Injectable()
 export class CirclesAccountDeletionService {
   constructor(
-    private readonly prisma: PrismaService,
     private readonly participants: CircleParticipantRepository,
     private readonly activities: CircleActivityRepository,
     private readonly events: CircleEventRepository,
@@ -102,8 +101,11 @@ export class CirclesAccountDeletionService {
    * Returns counts for the operational log. Never throws for "nothing to do":
    * a user who never touched Círculos is the common case and costs two reads.
    */
-  async detachUser(userId: string): Promise<CirclesDetachSummary> {
-    const memberships = await this.prisma.circleMember.findMany({
+  async detachUser(
+    userId: string,
+    tx: PrismaService,
+  ): Promise<CirclesDetachSummary> {
+    const memberships = await tx.circleMember.findMany({
       where: { userId },
       select: { id: true, circleId: true },
     });
@@ -112,7 +114,7 @@ export class CirclesAccountDeletionService {
     const memberIds = memberships.map((m) => m.id);
 
     // Every live seat this user holds, with the activity it sits in.
-    const seats = await this.prisma.circleActivityParticipant.findMany({
+    const seats = await tx.circleActivityParticipant.findMany({
       where: {
         memberId: { in: memberIds },
         status: { in: [...LIVE_SEAT] },
@@ -135,7 +137,10 @@ export class CirclesAccountDeletionService {
     for (const seat of seats) {
       // `memberId` is non-null by construction: the query filtered on
       // `memberId IN (...)`.
-      const outcome = await this.endOne({ ...seat, memberId: seat.memberId! });
+      const outcome = await this.endOne(
+        { ...seat, memberId: seat.memberId! },
+        tx,
+      );
       if (!outcome) continue;
       withdrawn += 1;
       invitationsRevoked += outcome.invitations;
@@ -157,13 +162,13 @@ export class CirclesAccountDeletionService {
     // activities included. No activity is reopened and no event is appended —
     // erasing content is not a domain transition, and pretending it were would
     // put a second PARTICIPANT_WITHDRAWN in a ledger that already recorded one.
-    const envelopesPurged = await this.eraseEnvelopes(memberIds);
+    const envelopesPurged = await this.eraseEnvelopes(memberIds, tx);
 
     // Membership is revoked LAST: while it is still ACTIVE the seats above can
     // be resolved the ordinary way, and the SQL CHECK requires a detached row
     // to be LEFT anyway — so this also has to happen before the account row is
     // removed, not as a consequence of it.
-    const left = await this.prisma.circleMember.updateMany({
+    const left = await tx.circleMember.updateMany({
       where: { id: { in: memberIds }, status: "ACTIVE" },
       data: { status: "LEFT", leftAt: new Date() },
     });
@@ -242,8 +247,11 @@ export class CirclesAccountDeletionService {
    * This is the same column set `purgeEnvelope` clears, applied in bulk rather
    * than one seat at a time.
    */
-  private async eraseEnvelopes(memberIds: string[]): Promise<number> {
-    const { count } = await this.prisma.circleActivityParticipant.updateMany({
+  private async eraseEnvelopes(
+    memberIds: string[],
+    tx: PrismaService,
+  ): Promise<number> {
+    const { count } = await tx.circleActivityParticipant.updateMany({
       where: { memberId: { in: memberIds }, status: "READY" },
       data: {
         status: "ACCEPTED",
@@ -265,19 +273,22 @@ export class CirclesAccountDeletionService {
    * `null` when the activity was already terminal by the time the transaction
    * took it — the resumable case, not an error.
    */
-  private async endOne(seat: {
-    id: string;
-    activityId: string;
-    memberId: string;
-    activity: { id: string; circleId: string; status: string };
-  }): Promise<{
+  private async endOne(
+    seat: {
+      id: string;
+      activityId: string;
+      memberId: string;
+      activity: { id: string; circleId: string; status: string };
+    },
+    tx: PrismaService,
+  ): Promise<{
     terminal: "CANCELLED" | "CLOSED";
     invitations: number;
     guestSessions: number;
   } | null> {
     const now = new Date();
 
-    return this.prisma.$transaction(async (tx) => {
+    {
       // ── The canonical lock order, and why it is not ours to choose ────────
       //
       // `circles-participation.service.ts` numbers its locks:
@@ -407,6 +418,6 @@ export class CirclesAccountDeletionService {
         invitations: invitations.count,
         guestSessions: guestSessions.count,
       };
-    });
+    }
   }
 }

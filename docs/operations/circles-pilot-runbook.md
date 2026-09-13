@@ -195,24 +195,69 @@ editoriales** con su propia aprobación, no tareas de despliegue.
 
 ---
 
-## 7 · PENDIENTE — no implementado en este corte
+## 7 · Límite de abuso por cliente de red — **implementado**
+
+El problema: la superficie de invitado es navegador → Web → API, y la API
+confía en un solo salto de proxy, así que veía la IP de salida del BFF. Todos
+los invitados compartían un cupo.
+
+El BFF ahora **firma** su afirmación sobre qué cliente está reenviando
+(`x-client-attestation`: HMAC sobre identidad + vencimiento, clave sólo de
+servidor, un minuto de vigencia). El navegador nunca la ve, una llamada directa
+no puede falsificarla, y sin atestación válida la API vuelve a `req.ip`
+exactamente como antes.
+
+Se llama límite **por cliente de red**, nunca «por persona»: varias personas
+tras un NAT comparten cupo y una sola cambia de cupo al moverse.
+
+Caída del almacén: 503 `RATE_LIMIT_UNAVAILABLE`, sin nada del almacén en el
+cuerpo. El rechazo propio del limitador (429) pasa intacto.
+
+**Configurar antes del piloto:** `CLIENT_ATTESTATION_SECRET`, el mismo valor en
+la API y en el servidor Web. No aplicado en ningún sitio.
+
+---
+
+## 8 · Barrido temporal — **implementado**
+
+Cron horario (`circles-sweep-hourly`) en el worker existente. Hace dos
+transiciones y **ninguna más**:
+
+- actividad `INVITING` sin ninguna invitación canjeable → `CANCELLED`;
+- actividad `REVEALED` con `followUpDueAt` vencido → `FOLLOW_UP`.
+
+Lo que **no** hace, y está fijado por tests: no cierra un `FOLLOW_UP` (esa es
+una decisión que la etapa existe para recoger), no fabrica confirmaciones ni
+revelaciones, y **no toca una sesión de invitado ya emitida** — vencimiento del
+enlace y vencimiento de la sesión son cosas distintas, y escribir sobre la
+segunda acortaría en silencio un TTL prometido.
+
+Inerte bajo rollout `off`. El borrado de cuenta **sí** funciona con `off`: es
+una obligación independiente del flag.
+
+---
+
+## 9 · PENDIENTE — no implementado en este corte
 
 Estos puntos siguen abiertos y bloquean el piloto con personas:
 
-- **`INVITATION_RATE_LIMIT_CLIENT_SCOPED_BEHIND_BFF=false`.** Hoy todos los
-  invitados comparten la IP de salida del BFF, así que un solo cliente puede
-  agotar el presupuesto de todos. Requiere una atestación interna del BFF con
-  integridad y vigencia; no está construida.
-- **Ciclo de vida temporal.** No hay barrido programado que cierre invitaciones
-  expiradas, actividades `INVITING` vencidas ni seguimientos. La expiración se
-  comprueba en lectura; lo que falta es el trabajo que cierra el estado.
-- **Prueba completa en dos navegadores.** Sigue sin entregarse, pero la
-  afirmación anterior de este runbook («el repositorio no tiene framework de
-  navegador») era **incorrecta**: `apps/web/e2e/` ya contiene varios guiones
-  que manejan Chrome con Playwright (`responsive.mjs`, `gr3-runtime.mjs`,
-  `eec-c01-runtime-walk.mjs`) y `playwright` está instalado. Lo que falta es el
-  recorrido de Círculos y el orquestador de stack (web build + API + PostgreSQL
-  efímero + Redis/worker + dos contextos aislados), no el framework.
+- **Prueba completa en dos navegadores.** Sigue sin entregarse. El framework
+  existe (`apps/web/e2e/` ya maneja Chrome con Playwright). Lo que falta, y es
+  la razón concreta por la que no se entregó en esta ronda:
+
+  > Para que un recorrido real muestre el CTA hace falta **una plantilla
+  > publicada y su mapping de elegibilidad**. Hoy ambos son constantes de
+  > compilación (`PRODUCTION_CIRCLE_TEMPLATES`,
+  > `PRODUCTION_DUO_ELIGIBILITY`), vacías a propósito. Inyectar una plantilla
+  > de prueba exige un mecanismo que **no pueda existir en producción** — y la
+  > instrucción es explícita en que no se añada una puerta para publicar
+  > fixtures allí. Diseñar esa inyección de forma segura (build separado, o un
+  > proveedor que sólo lea el override fuera de producción, con su propio
+  > ratchet) es la siguiente unidad de trabajo, no un paso menor.
+
+  Mientras tanto, el resto del recorrido está cubierto por pruebas de
+  integración con el Route Handler real y por las pruebas de PostgreSQL real.
+
 - **Aprobación editorial y de seguridad de plantillas.** Ninguna candidata tiene
   copy aprobado verificable en el repositorio.
 - **Eco Facilitador.** Fuera de alcance de este corte, por decisión explícita:

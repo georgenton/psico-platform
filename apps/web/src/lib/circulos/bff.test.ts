@@ -15,8 +15,10 @@ vi.mock("server-only", () => ({}));
 import {
   CIRCULO_COMMANDS,
   guestCommand,
+  guestScope,
   isCirculoCommand,
   parseShareConfirmation,
+  readActivityAsGuest,
   sameOrigin,
 } from "./bff";
 import { GUEST_COOKIE } from "./guest-cookie";
@@ -108,8 +110,36 @@ describe("BFF · a guest command goes exactly where it was told", () => {
       "http://localhost:3001/api/circles/guest/activities/act-1/share-confirmations",
     );
     const sent = new Headers((init as RequestInit).headers);
-    expect(sent.get("Authorization")).toBe("Bearer guest-token");
+    // `CirclesGuestGuard.HEADER` — the ONLY header the API reads a guest
+    // secret from. This assertion used to demand `Authorization: Bearer`,
+    // which is what the BFF sent and what the guard never looks at: every
+    // guest read and command answered 401 while the test stayed green,
+    // because it pinned the sending side against itself rather than against
+    // the contract. The two-browser walk is what noticed.
+    expect(sent.get("x-circle-guest-session")).toBe("guest-token");
+    expect(sent.get("Authorization")).toBeNull();
     expect(sent.get("Idempotency-Key")).toBe("key-1");
+  });
+
+  it("never sends a guest secret as a bearer token", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await guestScope("guest-token");
+    await readActivityAsGuest("guest-token", "act-1");
+
+    // A member's JWT and a guest's session secret are different kinds of
+    // credential for different guards. They travelled in one parameter once,
+    // which is precisely how one ended up sent where the other was expected.
+    for (const [, init] of fetchSpy.mock.calls) {
+      const sent = new Headers((init as RequestInit).headers);
+      expect(sent.get("x-circle-guest-session")).toBe("guest-token");
+      expect(sent.get("Authorization")).toBeNull();
+    }
   });
 });
 

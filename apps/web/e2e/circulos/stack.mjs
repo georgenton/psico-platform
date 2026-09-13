@@ -488,6 +488,15 @@ main()
   })
   .catch((err) => {
     console.error(`\n✖ ${err.message}`);
+    // Print the services' own logs BEFORE teardown removes them. A failed walk
+    // says what the browser saw; the API log says what the server decided, and
+    // without it the next step is always to re-run the whole thing just to
+    // look.
+    for (const name of ["api", "worker", "web"]) {
+      if (logPaths.has(name)) {
+        console.error(`\n── ${name} log (tail) ──\n${serviceLog(name, 30)}`);
+      }
+    }
     teardown({ quiet: true });
     process.exit(1);
   });

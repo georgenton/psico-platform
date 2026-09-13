@@ -168,6 +168,15 @@ async function main() {
     writeFileSync(file, after);
   }
 
+  // The fixture imports `@psico/types` where it lives, so it typechecks inside
+  // `apps/web`. Here it becomes a sibling of `circles.ts` inside that very
+  // package, which cannot import itself by name.
+  patch(
+    "packages/types/src/circles-e2e-fixture.ts",
+    'from "@psico/types"',
+    'from "./circles"',
+  );
+
   patch(
     "packages/types/src/circles-catalog.ts",
     "export const PRODUCTION_CIRCLE_TEMPLATES: readonly CircleActivityDefinition[] =\n  [];",

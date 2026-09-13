@@ -1,4 +1,9 @@
-import type { CircleActivityDefinition } from "./circles";
+// Imported from the package by name so this file typechecks WHERE IT LIVES —
+// `apps/web`'s tsconfig includes `**/*.ts`, and a relative import written for
+// the destination would be a broken module here and fail the Web build.
+// `stack.mjs` rewrites this one line to `./circles` as it copies the file into
+// `packages/types/src/`, where a package cannot import itself by name.
+import type { CircleActivityDefinition } from "@psico/types";
 
 /**
  * The one synthetic template the end-to-end walk runs on.

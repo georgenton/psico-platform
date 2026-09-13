@@ -236,11 +236,23 @@ export function projectInvitationPreview(
   });
 }
 
-/** Trade the link for a session. The raw token is returned ONCE, to us. */
+/**
+ * Trade the link for a session. The raw token is returned ONCE, to us.
+ *
+ * `accept: true` is REQUIRED by `AcceptInvitationDto` (`@Equals(true)`), which
+ * has no default precisely so that nothing can consume an invitation without
+ * saying so. Omitting it does not fail open — it fails the request outright
+ * with `accept must be equal to true`, which is what this route did until the
+ * two-browser walk pressed the button and found acceptance impossible.
+ *
+ * Sending it here is honest: this function is called from one place, the POST
+ * handler behind the explicit "Aceptar invitación" button, and reaching it
+ * already IS the person's acceptance.
+ */
 export function acceptInvitation(secret: string) {
   return call<{ guestSessionToken: string; expiresAt: string }>(
     "/circles/invitations/accept",
-    { method: "POST", body: { secret } },
+    { method: "POST", body: { secret, accept: true } },
   );
 }
 

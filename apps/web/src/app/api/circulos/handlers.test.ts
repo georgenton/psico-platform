@@ -102,6 +102,31 @@ describe("the exchange hands the browser a cookie, never a token", () => {
     );
   });
 
+  it("sends the explicit accept:true the API requires to consume an invitation", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      ok(
+        {
+          guestSessionToken: "t",
+          expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+        },
+        201,
+      ),
+    );
+
+    await sesionPOST(req({ secret: "s3cr3t" }));
+
+    // `AcceptInvitationDto` pins this field to a literal `true` with no
+    // default, so acceptance cannot happen by accident. The consequence is
+    // that omitting it does not fail OPEN, it fails the request: without this
+    // the guest gets "Este enlace ya no sirve" and can never join. Found by
+    // the two-browser walk, which pressed the button for real.
+    const init = fetchSpy.mock.calls[0]![1] as RequestInit;
+    expect(JSON.parse(String(init.body))).toEqual({
+      secret: "s3cr3t",
+      accept: true,
+    });
+  });
+
   it("refuses an already-expired session rather than setting a dead cookie", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
       ok(

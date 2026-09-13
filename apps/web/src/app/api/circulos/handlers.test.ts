@@ -205,6 +205,65 @@ describe("the command handler forwards only what is on the list", () => {
     },
   );
 
+  it("accepts a withdrawal, whose body carries no payload key at all", async () => {
+    // `JSON.stringify({ kind, payload: undefined, idempotencyKey })` omits the
+    // undefined value, so the body the browser actually sends has TWO keys.
+    // The wrapper used to demand exactly three, which refused every withdrawal
+    // the product could produce: "Retirarme de la actividad" answered
+    // `CIRCLE_INVALID_PAYLOAD` to somebody trying to leave an activity.
+    cookieStore.set(GUEST_COOKIE, "guest-token");
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      // The scope lookup the handler does first, then the command itself.
+      .mockResolvedValueOnce(
+        ok({ kind: "GUEST", activityId: "act-1", participantId: "p-1" }),
+      )
+      .mockResolvedValueOnce(ok({ ok: true }));
+
+    const body = JSON.stringify({
+      kind: "withdraw",
+      payload: undefined,
+      idempotencyKey: INTENCION,
+    });
+    expect(JSON.parse(body)).not.toHaveProperty("payload");
+
+    const res = await comandoPOST(
+      new Request("https://app.test/api/circulos/x", {
+        method: "POST",
+        body,
+        headers: { "Content-Type": "application/json" },
+      }),
+      params,
+    );
+
+    expect(res.status).toBeLessThan(400);
+    const forwarded = fetchSpy.mock.calls.at(-1)!;
+    expect(String(forwarded[0])).toContain("/withdraw");
+  });
+
+  it("still refuses an unknown key in the wrapper", async () => {
+    // Making `payload` optional must not make the wrapper open: a caller that
+    // sends `userId` is refused, not quietly trimmed.
+    cookieStore.set(GUEST_COOKIE, "guest-token");
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+    const res = await comandoPOST(
+      req({
+        kind: "withdraw",
+        idempotencyKey: INTENCION,
+        userId: "u-other",
+      }),
+      params,
+    );
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      ok: false,
+      code: "CIRCLE_INVALID_PAYLOAD",
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it("refuses a cross-site command", async () => {
     headerStore.origin = "https://evil.test";
     cookieStore.set(GUEST_COOKIE, "guest-token");

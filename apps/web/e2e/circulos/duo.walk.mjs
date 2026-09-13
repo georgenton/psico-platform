@@ -687,10 +687,14 @@ async function artifactConfirmation(browser) {
     );
     check(agreed === "AGREED", "the live version becomes AGREED once both confirm");
 
+    // A confirmation is an EVENT bound to an exact artifact id — there is no
+    // separate confirmations table, and the binding is what makes "this
+    // wording, this version" decidable.
     const confirmations = sqlInt(
-      `SELECT count(*) FROM "CircleArtifactConfirmation" c
-         JOIN "CircleArtifact" a ON a."id" = c."artifactId"
-        WHERE a."activityId"='${activityId}' AND a."version"=2`,
+      `SELECT count(*) FROM "CircleEvent" e
+         JOIN "CircleArtifact" a ON a."id" = e."artifactId"
+        WHERE a."activityId"='${activityId}' AND a."version"=2
+          AND e."type"='ARTIFACT_CONFIRMED'`,
     );
     check(
       confirmations === 2,
@@ -698,9 +702,10 @@ async function artifactConfirmation(browser) {
     );
 
     const staleConfirmations = sqlInt(
-      `SELECT count(*) FROM "CircleArtifactConfirmation" c
-         JOIN "CircleArtifact" a ON a."id" = c."artifactId"
-        WHERE a."activityId"='${activityId}' AND a."version"=1`,
+      `SELECT count(*) FROM "CircleEvent" e
+         JOIN "CircleArtifact" a ON a."id" = e."artifactId"
+        WHERE a."activityId"='${activityId}' AND a."version"=1
+          AND e."type"='ARTIFACT_CONFIRMED'`,
     );
     check(
       staleConfirmations === 0,
@@ -755,31 +760,57 @@ async function withdrawalBeforeAndAfter(browser) {
         );
       }
 
-      await page.getByRole("button", { name: /Retirarme de la actividad/i }).click();
-      await page
-        .getByRole("heading", { name: /Te retiraste de esta actividad/i })
-        .waitFor({ state: "visible", timeout: 30_000 });
-      check(true, `${when} the reveal: withdrawing is acknowledged on screen`);
+      // WHO withdraws differs by case on purpose, so both surfaces are
+      // exercised: a guest is shown "Te retiraste de esta actividad" and stays
+      // put, while a member is sent back to `/dashboard/circulos` — they have
+      // somewhere to go and a guest does not.
+      const leaver = when === "before" ? guest.page : page;
+      // Past the consent card first: "Retirarme de la actividad" only exists
+      // once somebody is actually in the activity. On the consent screen the
+      // way out is called "No quiero hacerla", which is a different act —
+      // declining before starting, not withdrawing from something underway.
+      await enterRoom(leaver);
+      await leaver
+        .getByRole("button", { name: /Retirarme de la actividad/i })
+        .click();
 
+      if (when === "before") {
+        await leaver
+          .getByRole("heading", { name: /Te retiraste de esta actividad/i })
+          .waitFor({ state: "visible", timeout: 30_000 });
+        check(true, `${when} the reveal: the guest is told they withdrew`);
+      } else {
+        await until(
+          () => /\/dashboard\/circulos/.test(leaver.url()),
+          "the member to be returned to their own circles page",
+          30_000,
+        );
+        check(true, `${when} the reveal: the member is returned to the dashboard`);
+      }
+
+      // Whoever left, the seat that must settle is THEIRS.
+      const seatWhere =
+        when === "before"
+          ? `p."activityId"='${activityId}' AND p."memberId" IS NULL`
+          : `p."activityId"='${activityId}' AND m."userId"='${organiser.userId}'`;
       const seat = sqlOne(
         `SELECT p."status" FROM "CircleActivityParticipant" p
-           JOIN "CircleMember" m ON m."id" = p."memberId"
-          WHERE p."activityId"='${activityId}' AND m."userId"='${organiser.userId}'`,
+           LEFT JOIN "CircleMember" m ON m."id" = p."memberId"
+          WHERE ${seatWhere}`,
       );
       check(
         seat === "WITHDRAWN",
-        `${when} the reveal: the seat is WITHDRAWN (got ${seat})`,
+        `${when} the reveal: the leaver's seat is WITHDRAWN (got ${seat})`,
       );
 
       const envelope = sqlInt(
         `SELECT count(*) FROM "CircleActivityParticipant" p
-           JOIN "CircleMember" m ON m."id" = p."memberId"
-          WHERE p."activityId"='${activityId}' AND m."userId"='${organiser.userId}'
-            AND p."ciphertext" IS NOT NULL`,
+           LEFT JOIN "CircleMember" m ON m."id" = p."memberId"
+          WHERE ${seatWhere} AND p."ciphertext" IS NOT NULL`,
       );
       check(
         envelope === 0,
-        `${when} the reveal: the withdrawer's envelope is gone (got ${envelope})`,
+        `${when} the reveal: the leaver's envelope is gone (got ${envelope})`,
       );
 
       if (when === "after") {
@@ -787,8 +818,9 @@ async function withdrawalBeforeAndAfter(browser) {
         // other person already legitimately saw.
         const counterpart = sqlInt(
           `SELECT count(*) FROM "CircleActivityParticipant" p
-             JOIN "CircleMember" m ON m."id" = p."memberId"
-            WHERE p."activityId"='${activityId}' AND m."userId" <> '${organiser.userId}'
+             LEFT JOIN "CircleMember" m ON m."id" = p."memberId"
+            WHERE p."activityId"='${activityId}'
+              AND (m."userId" IS NULL OR m."userId" <> '${organiser.userId}')
               AND p."status"='READY'`,
         );
         check(
@@ -897,10 +929,15 @@ async function foreignSessionRejected(browser) {
     const strangerText = await strangerPage.evaluate(
       () => document.body.innerText,
     );
+    // The load-bearing half is that the ROOM does not open. The refusal copy is
+    // quoted into the label so a failure says what was actually shown instead
+    // of only that a regex missed.
+    const roomOpened = /Tu preparación|Entiendo, empezar|Lo que compartió/i.test(
+      strangerText,
+    );
     check(
-      /No pudimos abrir esta sala|Iniciar sesión|Entrar/i.test(strangerText) &&
-        !/Tu preparación|Entiendo, empezar/i.test(strangerText),
-      "a session-less browser is refused the room",
+      !roomOpened,
+      `a session-less browser is refused the room (saw: ${strangerText.slice(0, 120).replace(/\s+/g, " ")})`,
     );
 
     // B's guest cookie, carried to A's room.
@@ -968,8 +1005,14 @@ async function workerTemporalScenarios(browser) {
     );
     // A synthetic date on the DATA, not a shortened production deadline: the
     // invitation is moved into the past so it is genuinely expired.
+    // `CircleInvitation_expires_after_creation` forbids an expiry at or before
+    // creation, so the whole invitation is moved into the past rather than
+    // just its deadline — an invitation that was issued long ago and lapsed,
+    // which is the situation being staged.
     sql(
-      `UPDATE "CircleInvitation" SET "expiresAt" = now() - interval '1 day'
+      `UPDATE "CircleInvitation"
+          SET "createdAt" = now() - interval '40 days',
+              "expiresAt" = now() - interval '1 day'
         WHERE "activityId"='${staleActivity}'`,
     );
 

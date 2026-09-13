@@ -626,6 +626,7 @@ suite("circles · account deletion (real PostgreSQL)", () => {
   describe("races against the real services", () => {
     const KEY = randomBytes(32).toString("base64");
     let participation: CirclesParticipationService;
+    let access: CirclesService;
 
     const buildParticipation = (mode = "on") =>
       new CirclesParticipationService(
@@ -644,9 +645,70 @@ suite("circles · account deletion (real PostgreSQL)", () => {
         new CircleTemplateRegistry([PUBLISHED_DUO_TEMPLATE]),
       );
 
+    const buildAccess = (mode = "on") =>
+      new CirclesService(
+        prisma as never,
+        new CircleInvitationRepository(prisma as never),
+        new CircleGuestSessionRepository(prisma as never),
+        new CircleEventRepository(prisma as never),
+        new CircleMemberRepository(prisma as never),
+        new CirclesRolloutService(
+          resolveCirclesRolloutConfig({ CIRCLES_ROLLOUT_MODE: mode }),
+        ),
+        new CircleActivityRepository(prisma as never),
+      );
+
     beforeEach(() => {
       participation = buildParticipation();
+      access = buildAccess();
     });
+
+    /**
+     * A real guest, produced the way a real guest is: create the Dúo, then
+     * exchange the invitation token for a session. No hand-built rows.
+     */
+    const inviteAndAccept = async (userId: string) => {
+      const token = mintInvitationToken();
+      const created = await participation.createDuo({
+        userId,
+        templateKey: PUBLISHED_DUO_TEMPLATE.templateKey,
+        templateVersion: PUBLISHED_DUO_TEMPLATE.templateVersion,
+        invitationToken: token.raw,
+        idempotencyKey: `idem-${uid("k")}`,
+      });
+      const session = await access.exchange(token.raw);
+      const seat = await pool.query(
+        `SELECT gs."participantId" FROM "CircleGuestSession" gs WHERE gs."id" = $1`,
+        [session.guestSessionId],
+      );
+      const guest = {
+        kind: "GUEST" as const,
+        guestSessionId: session.guestSessionId,
+        activityId: created.activityId,
+        participantId: seat.rows[0].participantId as string,
+      };
+      return { created, guest };
+    };
+
+    /** The guest's real confirmation — the command, not an UPDATE. */
+    const guestConfirms = (
+      guest: {
+        kind: "GUEST";
+        guestSessionId: string;
+        activityId: string;
+        participantId: string;
+      },
+      activityId: string,
+    ) =>
+      participation.confirmShare(
+        guest,
+        activityId,
+        {
+          mode: "SELECTED_FIELDS",
+          fields: [{ fieldKey: "campo-a", value: "texto sintético" }],
+        },
+        `idem-${uid("k")}`,
+      );
 
     /** The organiser needs a circle to create in, which `createDuo` makes. */
     const createDuoFor = async (userId: string) =>
@@ -724,6 +786,133 @@ suite("circles · account deletion (real PostgreSQL)", () => {
         eventsNamingUser: events.rows[0].n as number,
       };
     };
+
+    it("guest command FIRST: the deletion cleans what it produced", async () => {
+      const { created, guest } = await inviteAndAccept(GONE);
+      const mine = await circlesOf(GONE);
+
+      // The REAL command, through the real service, on the real lock chain.
+      await guestConfirms(guest, created.activityId);
+
+      const afterConfirm = await pool.query(
+        `SELECT "status","ciphertext" FROM "CircleActivityParticipant"
+          WHERE "id" = $1`,
+        [guest.participantId],
+      );
+      expect(afterConfirm.rows[0].status).toBe("READY");
+      expect(afterConfirm.rows[0].ciphertext).not.toBeNull();
+
+      await detach(GONE);
+      await deleteUser(GONE);
+
+      const after = await snapshot(GONE, mine);
+      expect(after.accountExists).toBe(false);
+      expect(after.liveActivities).toBe(0);
+      expect(after.openInvitations).toBe(0);
+      expect(after.openSessions).toBe(0);
+      expect(after.envelopes).toBe(0);
+      expect(after.eventsNamingUser).toBe(0);
+
+      // The guest's own seat and its envelope went with the cancellation: the
+      // conversation it was confirmed for is not going to happen.
+      const seat = await pool.query(
+        `SELECT "ciphertext","nonce","payloadHash" FROM "CircleActivityParticipant"
+          WHERE "id" = $1`,
+        [guest.participantId],
+      );
+      expect(seat.rows[0].ciphertext).toBeNull();
+      expect(seat.rows[0].nonce).toBeNull();
+      expect(seat.rows[0].payloadHash).toBeNull();
+    });
+
+    it("deletion FIRST: the guest command is refused with no new effects", async () => {
+      const { created, guest } = await inviteAndAccept(GONE);
+      const mine = await circlesOf(GONE);
+
+      await detach(GONE);
+      await deleteUser(GONE);
+
+      const before = await snapshot(GONE, mine);
+      const seatBefore = await pool.query(
+        `SELECT * FROM "CircleActivityParticipant" WHERE "id" = $1`,
+        [guest.participantId],
+      );
+      const eventsBefore = await pool.query(
+        `SELECT count(*)::int AS n FROM "CircleEvent" WHERE "activityId" = $1`,
+        [created.activityId],
+      );
+
+      // The credential was revoked and the activity is terminal, so the real
+      // command must refuse — not partially apply.
+      await expect(guestConfirms(guest, created.activityId)).rejects.toThrow();
+
+      const after = await snapshot(GONE, mine);
+      expect(after).toEqual(before);
+      const seatAfter = await pool.query(
+        `SELECT * FROM "CircleActivityParticipant" WHERE "id" = $1`,
+        [guest.participantId],
+      );
+      expect(seatAfter.rows[0]).toEqual(seatBefore.rows[0]);
+      const eventsAfter = await pool.query(
+        `SELECT count(*)::int AS n FROM "CircleEvent" WHERE "activityId" = $1`,
+        [created.activityId],
+      );
+      expect(eventsAfter.rows[0].n).toBe(eventsBefore.rows[0].n);
+    });
+
+    it("the deletion waits behind a guest command holding the chain", async () => {
+      // Both take the member row first (canonical order). The guest command
+      // holds it; the deletion must WAIT rather than deadlock, and the wait is
+      // observed in `pg_stat_activity`, not assumed after a sleep.
+      const { created, guest } = await inviteAndAccept(GONE);
+      const mine = await circlesOf(GONE);
+
+      const holder = await pool.connect();
+      let detaching: Promise<unknown> | null = null;
+      try {
+        await holder.query("BEGIN");
+        await holder.query(
+          `SELECT m."id" FROM "CircleMember" m WHERE m."userId" = $1 FOR UPDATE`,
+          [GONE],
+        );
+
+        detaching = prisma.$transaction(
+          async (tx) => {
+            await tx.$queryRawUnsafe(
+              `SELECT "id" FROM "User" WHERE "id" = $1 FOR UPDATE`,
+              GONE,
+            );
+            return service.detachUser(GONE, tx as never);
+          },
+          { timeout: 60_000 },
+        );
+
+        let waiting = 0;
+        for (let i = 0; i < 600 && waiting === 0; i += 1) {
+          const { rows } = await pool.query(
+            `SELECT count(*)::int AS n FROM pg_stat_activity
+              WHERE wait_event_type = 'Lock'
+                AND datname = current_database()
+                AND pid <> pg_backend_pid()`,
+          );
+          waiting = rows[0].n as number;
+          if (waiting === 0) await new Promise((r) => setTimeout(r, 10));
+        }
+        expect(waiting, "the deletion should be waiting").toBeGreaterThan(0);
+      } finally {
+        await holder.query("COMMIT").catch(() => undefined);
+        holder.release();
+      }
+
+      await detaching;
+      await deleteUser(GONE);
+
+      const after = await snapshot(GONE, mine);
+      expect(after.accountExists).toBe(false);
+      expect(after.liveActivities).toBe(0);
+      void created;
+      void guest;
+    });
 
     it("creation FIRST: the new Dúo is in the inventory and is ended", async () => {
       const created = await createDuoFor(GONE);

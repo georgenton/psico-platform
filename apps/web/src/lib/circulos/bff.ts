@@ -1,5 +1,7 @@
 import "server-only";
 
+import { CLIENT_ATTESTATION_HEADER, clientAttestation } from "./atestacion";
+
 import { headers } from "next/headers";
 import type {
   CircleActivityView,
@@ -125,6 +127,15 @@ async function call<T>(
   if (init.idempotencyKey) {
     headersOut.set("Idempotency-Key", init.idempotencyKey);
   }
+  // Which network client this call is FOR, signed.
+  //
+  // Without it the API buckets every guest under this server's egress address
+  // and one visitor's limit closes the surface for all of them. `null` when
+  // the deployment has no secret or the platform reported no address, in which
+  // case the API falls back to that shared bucket — the behaviour we have
+  // today, never something looser.
+  const attestation = clientAttestation();
+  if (attestation) headersOut.set(CLIENT_ATTESTATION_HEADER, attestation);
 
   let res: Response;
   try {

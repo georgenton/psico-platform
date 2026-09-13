@@ -1,9 +1,10 @@
 import { Module } from "@nestjs/common";
 import { APP_GUARD } from "@nestjs/core";
-import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
+import { ThrottlerModule } from "@nestjs/throttler";
 import type IoRedis from "ioredis";
 import { REDIS_CLIENT } from "../../redis";
 import { RedisThrottlerStorage } from "./redis-throttler.storage";
+import { AttestedClientThrottlerGuard } from "./attested-client-throttler.guard";
 
 /**
  * Global rate-limiting setup.
@@ -47,7 +48,13 @@ import { RedisThrottlerStorage } from "./redis-throttler.storage";
       }),
     }),
   ],
-  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
+  providers: [
+    // The attested variant, not the stock guard. Without an attestation it
+    // behaves identically (bucket = `req.ip`); with one it buckets by the
+    // client the BFF observed, which is the only way a proxied surface gets a
+    // limit that is not shared by everyone who uses it.
+    { provide: APP_GUARD, useClass: AttestedClientThrottlerGuard },
+  ],
   exports: [ThrottlerModule],
 })
 export class AppThrottlerModule {}

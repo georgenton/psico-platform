@@ -8,9 +8,16 @@ import { CircleMemberRepository } from "./circle-member.repository";
 import { CircleInvitationRepository } from "./circle-invitation.repository";
 import { CircleGuestSessionRepository } from "./circle-guest-session.repository";
 import { CirclesAccountDeletionService } from "./circles-account-deletion.service";
+import { CirclesSweepService } from "./circles-sweep.service";
+import {
+  CIRCLES_ROLLOUT_CONFIG,
+  resolveCirclesRolloutConfig,
+} from "./circles-rollout";
+import { CirclesRolloutService } from "./circles-rollout.service";
 
 /**
- * The smallest module that can end a person's Círculos participation.
+ * The smallest module the WORKER needs from Círculos: ending a person's
+ * participation, and the temporal sweep.
  *
  * Deliberately NOT `CirclesModule`. That one carries the controllers, the
  * rollout guards and the AEAD cipher, and the worker needs none of them — a
@@ -61,7 +68,15 @@ import { CirclesAccountDeletionService } from "./circles-account-deletion.servic
       inject: [PrismaService],
     },
     CirclesAccountDeletionService,
+    // The sweep needs the rollout posture; account deletion deliberately does
+    // not, because it must work while Círculos is off.
+    {
+      provide: CIRCLES_ROLLOUT_CONFIG,
+      useFactory: () => resolveCirclesRolloutConfig(process.env),
+    },
+    CirclesRolloutService,
+    CirclesSweepService,
   ],
-  exports: [CirclesAccountDeletionService],
+  exports: [CirclesAccountDeletionService, CirclesSweepService],
 })
 export class CirclesAccountDeletionModule {}

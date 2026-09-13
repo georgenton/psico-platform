@@ -20,6 +20,7 @@ import { CirclesService } from "./circles.service";
 import { CirclesRolloutService } from "./circles-rollout.service";
 import { resolveCirclesRolloutConfig } from "./circles-rollout";
 import { CirclesCipher } from "./circles-crypto";
+import { CirclesSweepService } from "./circles-sweep.service";
 import { CircleTemplateRegistry } from "@psico/types";
 import { PUBLISHED_DUO_TEMPLATE } from "./circles.fixtures";
 import { mintInvitationToken } from "./circles-secrets";
@@ -866,6 +867,229 @@ suite("circles · account deletion (real PostgreSQL)", () => {
         [created.activityId],
       );
       expect(activity.rows[0].status).toBe("INVITING");
+    });
+  });
+
+  // ── The temporal sweep ───────────────────────────────────────────────────
+  //
+  // Shares this file's harness because it needs exactly the same thing: a real
+  // database, real constraints, and fixtures the domain would accept. What a
+  // clock may decide is a narrow question, and these pin both halves of it —
+  // what it does, and what it must never do.
+
+  describe("the temporal sweep", () => {
+    const sweepWith = (mode: string) =>
+      new CirclesSweepService(
+        prisma as never,
+        new CircleActivityRepository(prisma as never),
+        new CircleEventRepository(prisma as never),
+        new CirclesRolloutService(
+          resolveCirclesRolloutConfig({ CIRCLES_ROLLOUT_MODE: mode }),
+        ),
+      );
+
+    /** An INVITING activity whose only invitation is already expired. */
+    const stuckInviting = async () => {
+      const { circleId, members } = await makeCircle(GONE, [STAYS]);
+      const activityId = await makeActivity(circleId, "INVITING");
+      const id = uid("inv");
+      await pool.query(
+        `INSERT INTO "CircleInvitation"
+           ("id","circleId","activityId","createdByMemberId","tokenHash","expiresAt","createdAt")
+         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+        [
+          id,
+          circleId,
+          activityId,
+          members[GONE]!,
+          fakeHash(++seq),
+          pgTs(new Date(Date.now() - 60_000)),
+          pgTs(new Date(Date.now() - 120_000)),
+        ],
+      );
+      return { circleId, activityId, invitationId: id };
+    };
+
+    const statusOf = async (activityId: string) => {
+      const { rows } = await pool.query(
+        `SELECT "status" FROM "CircleActivity" WHERE "id" = $1`,
+        [activityId],
+      );
+      return rows[0].status as string;
+    };
+
+    it("cancels an INVITING activity nobody can join any more", async () => {
+      const { activityId } = await stuckInviting();
+      const result = await sweepWith("on").sweep();
+      expect(result.invitingCancelled).toBeGreaterThan(0);
+      expect(await statusOf(activityId)).toBe("CANCELLED");
+    });
+
+    it("leaves an INVITING activity whose link is still good", async () => {
+      const { circleId, members } = await makeCircle(GONE, [STAYS]);
+      const activityId = await makeActivity(circleId, "INVITING");
+      await makeInvitation(circleId, activityId, members[GONE]!); // expires in an hour
+
+      await sweepWith("on").sweep();
+
+      expect(await statusOf(activityId)).toBe("INVITING");
+    });
+
+    it("opens a follow-up that is due, and never one that is not", async () => {
+      const { circleId } = await makeCircle(GONE, [STAYS]);
+      const due = await makeActivity(circleId, "REVEALED");
+      const notYet = await makeActivity(circleId, "REVEALED");
+      await pool.query(
+        `UPDATE "CircleActivity" SET "followUpDueAt" = $2 WHERE "id" = $1`,
+        [due, pgTs(new Date(Date.now() - 60_000))],
+      );
+      await pool.query(
+        `UPDATE "CircleActivity" SET "followUpDueAt" = $2 WHERE "id" = $1`,
+        [notYet, pgTs(future(3_600_000))],
+      );
+
+      const result = await sweepWith("on").sweep();
+
+      expect(result.followUpOpened).toBeGreaterThan(0);
+      expect(await statusOf(due)).toBe("FOLLOW_UP");
+      expect(await statusOf(notYet)).toBe("REVEALED");
+    });
+
+    it("NEVER closes a follow-up just because its date arrived", async () => {
+      // Closing is a decision the stage exists to collect. A timer that made it
+      // would be recording a choice nobody made.
+      const { circleId } = await makeCircle(GONE, [STAYS]);
+      const activityId = await makeActivity(circleId, "REVEALED");
+      await pool.query(
+        `UPDATE "CircleActivity"
+            SET "status" = 'FOLLOW_UP', "followUpDueAt" = $2
+          WHERE "id" = $1`,
+        [activityId, pgTs(new Date(Date.now() - 30 * 24 * 3_600_000))],
+      );
+
+      await sweepWith("on").sweep();
+
+      expect(await statusOf(activityId)).toBe("FOLLOW_UP");
+    });
+
+    it("fabricates no confirmation and no reveal", async () => {
+      // A PREPARING activity with one READY seat and one not. A timer must not
+      // decide the second person confirmed, and must not reveal.
+      const { circleId, members } = await makeCircle(GONE, [STAYS]);
+      const activityId = await makeActivity(circleId, "PREPARING");
+      const ready = await makeSeat({
+        circleId,
+        activityId,
+        memberId: members[GONE]!,
+        status: "READY",
+        withEnvelope: true,
+      });
+      const waiting = await makeSeat({
+        circleId,
+        activityId,
+        memberId: members[STAYS]!,
+        status: "ACCEPTED",
+      });
+
+      await sweepWith("on").sweep();
+
+      expect(await statusOf(activityId)).toBe("PREPARING");
+      const seats = await pool.query(
+        `SELECT "id","status" FROM "CircleActivityParticipant"
+          WHERE "id" = ANY($1) ORDER BY "id"`,
+        [[ready, waiting].sort()],
+      );
+      const byId = Object.fromEntries(
+        seats.rows.map((r: { id: string; status: string }) => [r.id, r.status]),
+      );
+      expect(byId[ready]).toBe("READY");
+      expect(byId[waiting]).toBe("ACCEPTED");
+    });
+
+    it("does nothing at all while the rollout is off", async () => {
+      const { activityId } = await stuckInviting();
+
+      const result = await sweepWith("off").sweep();
+
+      expect(result).toEqual({
+        invitingCancelled: 0,
+        followUpOpened: 0,
+        skippedRolloutOff: true,
+      });
+      expect(await statusOf(activityId)).toBe("INVITING");
+    });
+
+    it("is idempotent, and two concurrent passes do not double up", async () => {
+      const { activityId } = await stuckInviting();
+      const sweep = sweepWith("on");
+
+      // Both passes race on the same row; the status guard means one wins.
+      //
+      // Asserted PER ACTIVITY, not on the totals: the suite shares a database
+      // (the ledger is append-only, so rows cannot be cleaned between tests)
+      // and earlier cases deliberately leave stuck activities behind — an
+      // `off` run, for one. A global count would be reading their leftovers.
+      await Promise.all([sweep.sweep(), sweep.sweep()]);
+      expect(await statusOf(activityId)).toBe("CANCELLED");
+
+      const again = await sweep.sweep();
+      expect(await statusOf(activityId)).toBe("CANCELLED");
+      void again;
+
+      // Exactly one ACTIVITY_CANCELLED for it, not two.
+      const events = await pool.query(
+        `SELECT count(*)::int AS n FROM "CircleEvent"
+          WHERE "activityId" = $1 AND "type" = 'ACTIVITY_CANCELLED'`,
+        [activityId],
+      );
+      expect(events.rows[0].n).toBe(1);
+    });
+
+    it("takes work in bounded batches", async () => {
+      await stuckInviting();
+      await stuckInviting();
+      await stuckInviting();
+
+      const first = await sweepWith("on").sweep({ batchSize: 1 });
+      expect(first.invitingCancelled).toBe(1);
+
+      // The rest is left for the next pass — an interrupted run resumes rather
+      // than starting over.
+      const second = await sweepWith("on").sweep({ batchSize: 10 });
+      expect(second.invitingCancelled).toBeGreaterThanOrEqual(2);
+    });
+
+    it("does not touch an issued guest session's TTL", async () => {
+      // An expired LINK and an expired SESSION are different things: the first
+      // can no longer be redeemed, the second was already handed to somebody
+      // who accepted. Shortening the second would break a promise, so the
+      // sweep leaves it to the read path that already enforces it.
+      const { circleId, members } = await makeCircle(GONE, [STAYS]);
+      const activityId = await makeActivity(circleId, "PREPARING");
+      const invitationId = await makeInvitation(
+        circleId,
+        activityId,
+        members[GONE]!,
+      );
+      const seat = await makeSeat({
+        circleId,
+        activityId,
+        invitationId,
+        status: "ACCEPTED",
+      });
+      const sessionId = await makeGuestSession(invitationId, activityId, seat);
+      const before = await pool.query(
+        `SELECT "expiresAt","revokedAt" FROM "CircleGuestSession" WHERE "id" = $1`,
+        [sessionId],
+      );
+
+      await sweepWith("on").sweep();
+
+      const after = await pool.query(
+        `SELECT "expiresAt","revokedAt" FROM "CircleGuestSession" WHERE "id" = $1`,
+        [sessionId],
+      );
+      expect(after.rows[0]).toEqual(before.rows[0]);
     });
   });
 

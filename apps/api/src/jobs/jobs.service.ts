@@ -6,6 +6,7 @@ import {
   QueueName,
   type AccountDeletionJobPayload,
   type CohortRetentionJobPayload,
+  type CirclesSweepJobPayload,
   type DailyUsageJobPayload,
   type EmotionalMapSnapshotJobPayload,
   type DataExportJobPayload,
@@ -52,6 +53,12 @@ const COHORT_RETENTION_SCHEDULER_ID = "cohort-retention-monday-03-utc";
 const EMOTIONAL_MAP_SNAPSHOT_SCHEDULER_ID =
   "emotional-map-snapshot-monthly-04-utc";
 
+// Círculos — the temporal sweep. Hourly, because what it resolves is an
+// activity that can no longer proceed (a dead link, a follow-up that is due),
+// and leaving that visibly wrong for a day is worse than a cheap hourly pass
+// that usually finds nothing. Inert while the rollout is off.
+const CIRCLES_SWEEP_SCHEDULER_ID = "circles-sweep-hourly";
+
 /**
  * Producer-side API for enqueuing background work. Feature services inject
  * this and call the relevant `enqueueX()` method. They never touch BullMQ
@@ -90,6 +97,8 @@ export class JobsService implements OnModuleInit {
     // Sprint S51 — weekly cohort retention recomputation.
     @InjectQueue(QueueName.COHORT_RETENTION)
     private readonly cohortRetentionQueue: Queue<CohortRetentionJobPayload>,
+    @InjectQueue(QueueName.CIRCLES_SWEEP)
+    private readonly circlesSweepQueue: Queue<CirclesSweepJobPayload>,
     // Sprint G2 — monthly emotional-map snapshot.
     @InjectQueue(QueueName.EMOTIONAL_MAP_SNAPSHOT)
     private readonly emotionalMapSnapshotQueue: Queue<EmotionalMapSnapshotJobPayload>,
@@ -285,6 +294,26 @@ export class JobsService implements OnModuleInit {
       );
       this.logger.log(
         `Cohort retention scheduled · id=${COHORT_RETENTION_SCHEDULER_ID} · cron=0 3 * * 1 UTC`,
+      );
+
+      // Círculos · hourly sweep. Cheap when there is nothing to do, and under
+      // rollout `off` the processor returns before touching the database.
+      await this.circlesSweepQueue.upsertJobScheduler(
+        CIRCLES_SWEEP_SCHEDULER_ID,
+        { pattern: "7 * * * *", tz: "UTC" },
+        {
+          name: JobName.RUN_CIRCLES_SWEEP,
+          data: {},
+          opts: {
+            attempts: 3,
+            backoff: { type: "exponential", delay: 60_000 },
+            removeOnComplete: { age: 7 * 24 * 60 * 60 },
+            removeOnFail: false,
+          },
+        },
+      );
+      this.logger.log(
+        `Círculos sweep scheduled · id=${CIRCLES_SWEEP_SCHEDULER_ID} · cron=7 * * * * UTC`,
       );
     } catch (err) {
       this.logger.error(

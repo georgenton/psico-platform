@@ -16,6 +16,7 @@ import { EmotionalMapModule } from "../emotional-map/emotional-map.module";
 // account row is removed. The minimal module, not CirclesModule: no
 // controllers, no rollout guards, no cipher.
 import { CirclesAccountDeletionModule } from "../circles/circles-account-deletion.module";
+import { CirclesSweepProcessor } from "./processors/circles-sweep.processor";
 import { createBullConnection } from "./bull-connection";
 import { QueueName } from "./queue-names";
 import { EmailProcessor } from "./processors/email.processor";
@@ -85,6 +86,8 @@ import type { Env } from "../config";
       { name: QueueName.COHORT_RETENTION },
       // Sprint G2 — monthly emotional-map snapshot queue.
       { name: QueueName.EMOTIONAL_MAP_SNAPSHOT },
+      // Círculos — the temporal sweep. Inert while the rollout is off.
+      { name: QueueName.CIRCLES_SWEEP },
     ),
   ],
   providers: [
@@ -101,6 +104,8 @@ import type { Env } from "../config";
     PlatformSnapshotProcessor,
     // Sprint S51 — weekly cohort retention recomputation.
     CohortRetentionProcessor,
+    // Círculos — expiry and follow-up transitions.
+    CirclesSweepProcessor,
     // Sprint G2 — monthly emotional-map snapshot.
     EmotionalMapSnapshotProcessor,
   ],

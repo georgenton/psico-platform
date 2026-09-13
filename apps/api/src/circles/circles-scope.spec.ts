@@ -196,25 +196,40 @@ describe("circles · PR3 scope — access and participation", () => {
     }
   });
 
-  it("touches no Mobile or worker file", () => {
-    // The scope of PR3 is `apps/api/src/circles/**`, the contracts, the schema,
-    // one migration and the docs. These directories are not in it.
+  it("touches no Mobile file, and names every worker file it owns", () => {
+    // Mobile belongs to no cut and stays empty.
     //
-    // `apps/web/src/app/dashboard` WAS on this list and is not any more. PR4 is
-    // the cut that owns the web guest flow, and it adds `dashboard/circulos/**`
-    // — so the assertion that made PR3 honest would now only be asserting that
-    // PR4 had not happened. Mobile and the worker stay: they belong to no cut
-    // yet, and PR4's own scope test pins that it adds nothing to either.
+    // The WORKER no longer does, and the handover is the same one this file
+    // has performed twice already: PR2's ratchets named PR3's commands, PR3
+    // updated them when it shipped them, PR4 released
+    // `apps/web/src/app/dashboard` when it shipped the guest flow. The
+    // pilot-readiness cut owns two worker processors, so "no worker file"
+    // would now be asserting only that this cut had not happened.
     //
-    // This is the same handover the test above describes: PR2's version of
-    // these ratchets named PR3's commands, PR3 updated them when it shipped
-    // them, and PR4 does the same here.
-    for (const dir of ["apps/mobile/app", "apps/api/src/jobs/processors"]) {
-      const hits = readdirSync(join(ROOT, dir), { recursive: true } as never)
-        .filter((f): f is string => typeof f === "string")
-        .filter((f) => /circle|circulo/i.test(f));
-      expect(hits, dir).toEqual([]);
-    }
+    // What replaces it is stricter than a directory being empty: the files are
+    // ENUMERATED. A third Círculos processor appearing without a line here
+    // fails, which is the property the original rule was protecting.
+    const mobile = readdirSync(join(ROOT, "apps/mobile/app"), {
+      recursive: true,
+    } as never)
+      .filter((f): f is string => typeof f === "string")
+      .filter((f) => /circle|circulo/i.test(f));
+    expect(mobile, "apps/mobile/app").toEqual([]);
+
+    const workerFiles = readdirSync(
+      join(ROOT, "apps/api/src/jobs/processors"),
+      {
+        recursive: true,
+      } as never,
+    )
+      .filter((f): f is string => typeof f === "string")
+      .filter((f) => /circle|circulo/i.test(f))
+      .sort();
+    expect(workerFiles).toEqual([
+      // The temporal sweep: expiry and the follow-up transition, inert while
+      // the rollout is off.
+      "circles-sweep.processor.ts",
+    ]);
   });
 
   it("keeps the rollout closed by default", () => {

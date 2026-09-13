@@ -769,7 +769,12 @@ async function withdrawalBeforeAndAfter(browser) {
       // once somebody is actually in the activity. On the consent screen the
       // way out is called "No quiero hacerla", which is a different act —
       // declining before starting, not withdrawing from something underway.
-      await enterRoom(leaver);
+      //
+      // Only in the "before" case. After the reveal the leaver is already deep
+      // in the activity and the screen is the reveal, not the preparation form;
+      // waiting for that form there would be waiting for a stage the activity
+      // has left behind.
+      if (when === "before") await enterRoom(leaver);
       await leaver
         .getByRole("button", { name: /Retirarme de la actividad/i })
         .click();

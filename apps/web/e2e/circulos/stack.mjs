@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * The Círculos end-to-end stack: a throwaway copy of HEAD, built and run.
+ * The Círculos end-to-end stack: a throwaway copy of a COMMIT, built and run.
  *
  * ── Why a copy at all ──────────────────────────────────────────────────────
  *
@@ -14,22 +14,36 @@
  *   · `NODE_ENV !== "production"` guarding the fixture → then the walk is not
  *     testing a production build, which is the thing that has to work.
  *
- * So nothing in the shipped source changes. This script copies HEAD into a
- * temporary tree, rewrites exactly two catalog lines THERE, builds that tree
- * for production, and runs it. The repository's catalog stays empty and its
+ * So nothing in the shipped source changes. This script copies the COMMITTED
+ * tree, rewrites exactly two catalog lines THERE, builds that tree for
+ * production, and runs it. The repository's catalog stays empty and its
  * ratchets keep asserting so.
+ *
+ * ── One tree, not two ──────────────────────────────────────────────────────
+ *
+ * The fixture, the walk and the sources under test ALL come from the archived
+ * commit. An earlier cut copied the fixture from the working tree and ran the
+ * walk from the repository while building the archive — so a local edit to
+ * either could change the result without changing what was supposedly tested.
+ * `HEAD_SHA` is printed, and the harness refuses to run against a dirty
+ * harness directory unless told to (`--dirty-ok`), because silently testing
+ * something other than the named commit is the failure this guards.
  *
  * ── What it owns, and what it refuses to touch ─────────────────────────────
  *
  * Every resource carries this run's id: the work tree, both containers, both
- * databases. Teardown removes those and nothing else — it never drops by
- * pattern and never reuses a name it did not create. The original worktree is
- * read ONCE, through `git archive`, and is never written to.
+ * databases, the log directory. The run writes a state file recording the
+ * services it started — pid, process group and START TIME — so a later
+ * `--down` can prove a pid is still the process this run spawned before it
+ * signals anything. Teardown removes what that file names and nothing else: it
+ * never kills by pattern, never drops a container it did not create, and never
+ * reuses a name it did not choose.
  *
  * Usage:
- *   node apps/web/e2e/circulos/stack.mjs            # build, run the walk, tear down
- *   node apps/web/e2e/circulos/stack.mjs --keep     # leave it up for exploring
+ *   node apps/web/e2e/circulos/stack.mjs              # build, walk, tear down
+ *   node apps/web/e2e/circulos/stack.mjs --keep       # leave it up to explore
  *   node apps/web/e2e/circulos/stack.mjs --down <runId>
+ *   node apps/web/e2e/circulos/stack.mjs --dirty-ok   # test the working tree
  */
 
 import { execFileSync, spawn } from "node:child_process";
@@ -53,10 +67,11 @@ const REPO = resolve(HERE, "../../../..");
 
 const args = process.argv.slice(2);
 const KEEP = args.includes("--keep");
+const DIRTY_OK = args.includes("--dirty-ok");
 const DOWN_AT = args.indexOf("--down");
 
 const RUN = DOWN_AT >= 0 ? args[DOWN_AT + 1] : randomBytes(5).toString("hex");
-if (!/^[0-9a-f]{10}$/.test(RUN)) {
+if (!/^[0-9a-f]{10}$/.test(RUN ?? "")) {
   console.error(`refusing an unsafe run id: ${RUN}`);
   process.exit(2);
 }
@@ -67,9 +82,22 @@ const REDIS = `circulos-e2e-redis-${RUN}`;
 const STATE = join(tmpdir(), `circulos-e2e-${RUN}.json`);
 const LOGS = join(tmpdir(), `circulos-e2e-${RUN}-logs`);
 
-const children = [];
+/** Everything this run owns. Written to STATE so `--down` can find it. */
+const owned = {
+  runId: RUN,
+  headSha: null,
+  work: WORK,
+  logs: LOGS,
+  containers: [],
+  services: [],
+};
+
 /** service name → its log file, so a boot failure can be explained. */
 const logPaths = new Map();
+
+function log(step, detail = "") {
+  console.log(`\n▸ ${step}${detail ? ` — ${detail}` : ""}`);
+}
 
 function sh(cmd, cmdArgs, opts = {}) {
   return execFileSync(cmd, cmdArgs, {
@@ -77,10 +105,6 @@ function sh(cmd, cmdArgs, opts = {}) {
     stdio: opts.quiet ? "pipe" : "inherit",
     ...opts,
   });
-}
-
-function log(step, detail = "") {
-  console.log(`\n▸ ${step}${detail ? ` — ${detail}` : ""}`);
 }
 
 /** A port nobody is listening on, asked of the OS rather than guessed. */
@@ -95,48 +119,223 @@ function freePort() {
   });
 }
 
+// ── Process identity ────────────────────────────────────────────────────────
+
+/**
+ * When this pid started, as the OS reports it.
+ *
+ * A pid alone is not an identity: pids are recycled, and `--down` runs in a
+ * DIFFERENT process minutes or hours later. Signalling a bare recorded pid is
+ * how a cleanup script kills somebody's editor. The start time makes the pair
+ * (pid, lstart) effectively unique, and a mismatch means the pid was reused and
+ * this run's process is already gone.
+ */
+function startedAt(pid) {
+  try {
+    return execFileSync("ps", ["-p", String(pid), "-o", "lstart="], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+  } catch {
+    return null; // not running
+  }
+}
+
+function isAlive(pid) {
+  return startedAt(pid) !== null;
+}
+
+/** Still the process we started? Only then may it be signalled. */
+function stillOurs(service) {
+  const now = startedAt(service.pid);
+  return now !== null && now === service.lstart;
+}
+
+function persistState() {
+  try {
+    writeFileSync(STATE, JSON.stringify(owned, null, 2));
+  } catch {
+    /* a state file we cannot write is not a reason to fail the run */
+  }
+}
+
 // ── Teardown ────────────────────────────────────────────────────────────────
 
-function teardown({ quiet = false } = {}) {
-  if (!quiet) log("teardown", RUN);
-  for (const child of children.splice(0)) {
-    try {
-      process.kill(-child.pid, "SIGTERM");
-    } catch {
-      /* already gone */
+/**
+ * Stop what this run owns, wait for it to be gone, then delete its files.
+ *
+ * Order matters: a directory removed while a service is still running produces
+ * a process reading a tree that is disappearing under it, and logs that stop
+ * mid-sentence. Services die first and are WAITED for; only then do the files go.
+ *
+ * Idempotent by construction — every step tolerates "already gone", so a second
+ * `--down` is a no-op rather than an error, and a partially cleaned run
+ * finishes cleaning.
+ */
+function teardown(state = owned, { quiet = false } = {}) {
+  if (!quiet) log("teardown", state.runId ?? RUN);
+
+  const stopped = [];
+  const skipped = [];
+
+  for (const service of state.services ?? []) {
+    if (!isAlive(service.pid)) {
+      stopped.push(`${service.name} (already gone)`);
+      continue;
     }
+    if (!stillOurs(service)) {
+      // The pid is alive but it is NOT the process we started. Somebody else
+      // owns it now. Leaving it alone is the entire point of recording lstart.
+      skipped.push(`${service.name} pid=${service.pid} (pid reused — not ours)`);
+      continue;
+    }
+    // The negative pid signals the whole process group. Services are spawned
+    // detached, so each is its own group leader and its children (next-server,
+    // pnpm's node) go with it instead of being orphaned.
+    for (const signal of ["SIGTERM", "SIGKILL"]) {
+      try {
+        process.kill(-service.pid, signal);
+      } catch {
+        try {
+          process.kill(service.pid, signal);
+        } catch {
+          /* gone between the check and the signal */
+        }
+      }
+      const deadline = Date.now() + (signal === "SIGTERM" ? 10_000 : 5_000);
+      while (Date.now() < deadline && isAlive(service.pid)) {
+        // Busy-wait deliberately: teardown also runs from signal handlers and
+        // from `process.on("exit")`, where nothing asynchronous can complete.
+        try {
+          execFileSync("sleep", ["0.1"], { stdio: "ignore" });
+        } catch {
+          /* sleep is not essential to the loop */
+        }
+      }
+      if (!isAlive(service.pid)) break;
+    }
+    stopped.push(
+      `${service.name} ${isAlive(service.pid) ? "STILL RUNNING" : "stopped"}`,
+    );
   }
-  for (const name of [PG, REDIS]) {
+
+  for (const name of state.containers ?? []) {
     try {
       execFileSync("docker", ["rm", "-f", name], { stdio: "pipe" });
     } catch {
-      /* never existed */
+      /* never existed, or already removed */
     }
   }
-  if (existsSync(WORK)) rmSync(WORK, { recursive: true, force: true });
-  if (existsSync(STATE)) rmSync(STATE, { force: true });
-  if (existsSync(LOGS)) rmSync(LOGS, { recursive: true, force: true });
+
+  for (const dir of [state.work, state.logs]) {
+    if (dir && existsSync(dir)) rmSync(dir, { recursive: true, force: true });
+  }
+  const stateFile = join(tmpdir(), `circulos-e2e-${state.runId ?? RUN}.json`);
+  if (existsSync(stateFile)) rmSync(stateFile, { force: true });
+
+  if (!quiet) {
+    for (const line of stopped) console.log(`   ${line}`);
+    for (const line of skipped) console.log(`   ⚠ ${line}`);
+  }
+  return { stopped, skipped };
 }
 
+// ── `--down`: tear down a run this process did not start ────────────────────
+
 if (DOWN_AT >= 0) {
-  teardown();
+  if (!existsSync(STATE)) {
+    // Idempotent: a run already cleaned up, or one that never wrote state.
+    // Still sweep the names this run id implies, so a crash between `docker
+    // run` and the first state write cannot strand a container.
+    teardown({ runId: RUN, work: WORK, logs: LOGS, containers: [PG, REDIS] });
+    console.log(`\n✔ run ${RUN}: nothing left to clean`);
+    process.exit(0);
+  }
+  const saved = JSON.parse(readFileSync(STATE, "utf8"));
+  teardown(saved);
   console.log(`\n✔ run ${RUN} cleaned up`);
   process.exit(0);
 }
 
-process.on("SIGINT", () => {
-  teardown({ quiet: true });
-  process.exit(130);
-});
+// ── Signals ─────────────────────────────────────────────────────────────────
 
-// ── 1 · the copy ────────────────────────────────────────────────────────────
+let tornDown = false;
+function teardownOnce(opts) {
+  if (tornDown || KEEP) return;
+  tornDown = true;
+  teardown(owned, opts);
+}
+
+for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"]) {
+  process.on(signal, () => {
+    // A kept stack is deliberately outlived by this process; anything else is
+    // cleaned up before we go.
+    teardownOnce({ quiet: true });
+    process.exit(signal === "SIGINT" ? 130 : 143);
+  });
+}
+
+// ── The synthetic environment ───────────────────────────────────────────────
+
+/**
+ * The ONLY variables a service inherits from this shell.
+ *
+ * Not `...process.env`. A developer's shell routinely carries `DATABASE_URL`,
+ * `REDIS_URL`, `STRIPE_SECRET_KEY` or a Railway token, and a service that
+ * inherits one of those is a test run holding a production credential — or,
+ * worse, pointed at a production store while believing it is isolated. Every
+ * value the stack needs is stated explicitly below; everything else is dropped.
+ */
+function baseEnv() {
+  const allowed = ["PATH", "HOME", "SHELL", "LANG", "LC_ALL", "TMPDIR", "TERM"];
+  const out = {};
+  for (const key of allowed) {
+    if (process.env[key] !== undefined) out[key] = process.env[key];
+  }
+  return out;
+}
+
+// ── The run ─────────────────────────────────────────────────────────────────
 
 async function main() {
-  log("1/8 copy HEAD into a throwaway tree", WORK);
+  // ── 0 · which commit, exactly ────────────────────────────────────────────
+
+  const headSha = sh("git", ["rev-parse", "HEAD"], {
+    cwd: REPO,
+    quiet: true,
+  }).trim();
+  owned.headSha = headSha;
+
+  // The harness has to be the one in the commit, or the run proves nothing
+  // about that commit. `git status --porcelain` on the harness directory is
+  // the cheap, exact question.
+  const dirty = sh(
+    "git",
+    ["status", "--porcelain", "--", "apps/web/e2e/circulos"],
+    { cwd: REPO, quiet: true },
+  ).trim();
+  if (dirty && !DIRTY_OK) {
+    throw new Error(
+      "the E2E harness has uncommitted changes, so a run would NOT be testing " +
+        `${headSha.slice(0, 8)}:\n${dirty}\n\n` +
+        "Commit them, or pass --dirty-ok to run the working tree knowingly " +
+        "(the run is then not evidence about any commit).",
+    );
+  }
+
+  log("1/8 copy the commit into a throwaway tree", `${headSha.slice(0, 8)} → ${WORK}`);
+  if (dirty) {
+    console.log(
+      "   ⚠ --dirty-ok: the harness directory differs from the commit.\n" +
+        "     The BUILD still comes from the commit, so those edits are NOT in it.",
+    );
+  }
   mkdirSync(WORK, { recursive: true });
+  persistState();
+
   // `git archive` reads the committed tree, so the copy can never contain an
   // accidental local edit — and the original worktree is never written to.
-  const tar = execFileSync("git", ["archive", "HEAD"], {
+  const tar = execFileSync("git", ["archive", headSha], {
     cwd: REPO,
     maxBuffer: 1024 * 1024 * 512,
   });
@@ -145,13 +344,37 @@ async function main() {
   sh("tar", ["-x", "-f", tarPath, "-C", WORK], { quiet: true });
   rmSync(tarPath, { force: true });
 
+  // `--dirty-ok` has to mean what it says. Leaving the archived harness in
+  // place would run the COMMITTED walk while the author believes their edits
+  // are being exercised — a quieter version of exactly the mixture this
+  // refuses. So the working copy of the harness is laid over the archive, and
+  // the banner says the run is no longer evidence about a commit.
+  if (dirty) {
+    cpSync(
+      join(REPO, "apps/web/e2e/circulos"),
+      join(WORK, "apps/web/e2e/circulos"),
+      { recursive: true },
+    );
+    owned.headSha = `${headSha}+dirty-harness`;
+    persistState();
+  }
+
   // ── 2 · the fixture, applied EXPLICITLY and verified ─────────────────────
 
   log("2/8 apply the synthetic catalog to the copy");
-  cpSync(
-    join(HERE, "fixtures/circles-e2e-fixture.ts"),
-    join(WORK, "packages/types/src/circles-e2e-fixture.ts"),
+
+  // From the ARCHIVE, not from `HERE`. Copying the working tree's fixture into
+  // a build of the commit is how a run ends up testing a mixture of the two.
+  const fixtureInArchive = join(
+    WORK,
+    "apps/web/e2e/circulos/fixtures/circles-e2e-fixture.ts",
   );
+  if (!existsSync(fixtureInArchive)) {
+    throw new Error(
+      `the archived commit has no E2E fixture at ${fixtureInArchive}`,
+    );
+  }
+  cpSync(fixtureInArchive, join(WORK, "packages/types/src/circles-e2e-fixture.ts"));
 
   /** Replace exactly once, or fail loudly. A silent no-op is the thing to avoid. */
   function patch(relPath, find, replace) {
@@ -201,11 +424,14 @@ async function main() {
   // The scope ratchets in the copy would now fail BY DESIGN — they assert the
   // catalog is empty, and here it deliberately is not. They are not run from
   // the copy; they run against the repository, where they still hold.
-  log("   patched", "2 catalog points + 1 fixture module");
+  //
+  // This build is therefore NOT publishable and never leaves the temp tree:
+  // nothing here is pushed to a registry, uploaded, or reused as an artifact.
+  log("   patched", "2 catalog points + 1 fixture module (build is NOT publishable)");
 
   // ── 3 · dependencies and build ───────────────────────────────────────────
 
-  log("3/8 install dependencies in the copy");
+  log("3/8 install dependencies in the copy (frozen lockfile)");
   sh("pnpm", ["install", "--frozen-lockfile", "--prefer-offline"], {
     cwd: WORK,
   });
@@ -219,26 +445,39 @@ async function main() {
 
   // ── 4 · isolated stores ──────────────────────────────────────────────────
 
-  log("5/8 start isolated PostgreSQL and Redis");
+  log("5/8 start isolated PostgreSQL and Redis (loopback only)");
   const pgPort = await freePort();
   const redisPort = await freePort();
+  const dbName = `circulos_e2e_${RUN}`;
+
+  // `127.0.0.1:` on the published port, so a test store carrying synthetic
+  // accounts is never reachable from the network the machine is on.
   sh(
     "docker",
     [
       "run", "-d", "--name", PG,
       "-e", "POSTGRES_PASSWORD=postgres",
       "-e", "POSTGRES_USER=postgres",
-      "-e", `POSTGRES_DB=circulos_e2e_${RUN}`,
-      "-p", `${pgPort}:5432`,
+      "-e", `POSTGRES_DB=${dbName}`,
+      "-p", `127.0.0.1:${pgPort}:5432`,
       "pgvector/pgvector:pg16",
     ],
     { quiet: true },
   );
+  owned.containers.push(PG);
+  persistState();
+
   sh(
     "docker",
-    ["run", "-d", "--name", REDIS, "-p", `${redisPort}:6379`, "redis:7-alpine"],
+    [
+      "run", "-d", "--name", REDIS,
+      "-p", `127.0.0.1:${redisPort}:6379`,
+      "redis:7-alpine",
+    ],
     { quiet: true },
   );
+  owned.containers.push(REDIS);
+  persistState();
 
   await waitFor(
     () => {
@@ -255,13 +494,13 @@ async function main() {
     "PostgreSQL to accept connections",
   );
 
-  const databaseUrl = `postgresql://postgres:postgres@127.0.0.1:${pgPort}/circulos_e2e_${RUN}`;
+  const databaseUrl = `postgresql://postgres:postgres@127.0.0.1:${pgPort}/${dbName}`;
   const redisUrl = `redis://127.0.0.1:${redisPort}`;
 
   log("6/8 apply migrations");
   sh("pnpm", ["exec", "prisma", "migrate", "deploy"], {
     cwd: join(WORK, "apps/api"),
-    env: { ...process.env, DATABASE_URL: databaseUrl, PRISMA_SKIP_SEED: "1" },
+    env: { ...baseEnv(), DATABASE_URL: databaseUrl, PRISMA_SKIP_SEED: "1" },
   });
 
   // ── 5 · services ─────────────────────────────────────────────────────────
@@ -270,7 +509,7 @@ async function main() {
   const webPort = await freePort();
 
   const sharedEnv = {
-    ...process.env,
+    ...baseEnv(),
     NODE_ENV: "production",
     DATABASE_URL: databaseUrl,
     REDIS_URL: redisUrl,
@@ -338,6 +577,8 @@ async function main() {
     EMOTIONAL_MAP_PUBLIC: "on",
   };
 
+  const apiOffPort = await freePort();
+
   log("7/8 start API, worker and Web");
   start("api", "node", ["apps/api/dist/main"], {
     cwd: WORK,
@@ -348,30 +589,56 @@ async function main() {
     env: sharedEnv,
   });
 
+  // A SECOND API from the same build, with the rollout off.
+  //
+  // `CirclesRolloutService` resolves the mode once at boot and never re-reads
+  // it, deliberately, so "a mid-flight env change cannot half-open a surface".
+  // The consequence is that `off` can only be observed on a process that booted
+  // with it — there is no runtime switch to flip, and adding one to make the
+  // test easier would remove the property the test is checking.
+  start("api-off", "node", ["apps/api/dist/main"], {
+    cwd: WORK,
+    env: {
+      ...sharedEnv,
+      PORT: String(apiOffPort),
+      CIRCLES_ROLLOUT_MODE: "off",
+    },
+  });
+
   await waitFor(
     async () => (await probe(`http://127.0.0.1:${apiPort}/health`)) === 200,
     120_000,
     "the API to report healthy",
-    () => `\n── api log ──\n${serviceLog("api")}\n── worker log ──\n${serviceLog("worker", 20)}`,
+    () =>
+      `\n── api log ──\n${serviceLog("api")}\n── worker log ──\n${serviceLog("worker", 20)}`,
+  );
+
+  await waitFor(
+    async () => (await probe(`http://127.0.0.1:${apiOffPort}/health`)) === 200,
+    120_000,
+    "the off-mode API to report healthy",
+    () => `\n── api-off log ──\n${serviceLog("api-off")}`,
   );
 
   // Web is built AFTER the API is up, because its build reads nothing from it
   // but its runtime needs the URL baked in.
   sh("pnpm", ["--filter", "@psico/web...", "build"], {
     cwd: WORK,
-    env: {
-      ...sharedEnv,
-      NEXT_PUBLIC_API_URL: `http://127.0.0.1:${apiPort}`,
-    },
+    env: { ...sharedEnv, NEXT_PUBLIC_API_URL: `http://127.0.0.1:${apiPort}` },
   });
-  start("web", "pnpm", ["--filter", "@psico/web", "exec", "next", "start", "-p", String(webPort)], {
-    cwd: WORK,
-    env: {
-      ...sharedEnv,
-      NEXT_PUBLIC_API_URL: `http://127.0.0.1:${apiPort}`,
-      PORT: String(webPort),
+  start(
+    "web",
+    "pnpm",
+    ["--filter", "@psico/web", "exec", "next", "start", "-p", String(webPort)],
+    {
+      cwd: WORK,
+      env: {
+        ...sharedEnv,
+        NEXT_PUBLIC_API_URL: `http://127.0.0.1:${apiPort}`,
+        PORT: String(webPort),
+      },
     },
-  });
+  );
 
   await waitFor(
     async () => (await probe(`http://127.0.0.1:${webPort}/login`)) === 200,
@@ -380,22 +647,20 @@ async function main() {
     () => `\n── web log ──\n${serviceLog("web")}`,
   );
 
-  const state = {
-    runId: RUN,
-    work: WORK,
-    apiUrl: `http://127.0.0.1:${apiPort}`,
-    webUrl: `http://127.0.0.1:${webPort}`,
-    databaseUrl,
-    redisUrl,
-    pgContainer: PG,
-    redisContainer: REDIS,
-    templateKey: "e2e-duo-sintetica",
-  };
-  writeFileSync(STATE, JSON.stringify(state, null, 2));
+  owned.apiUrl = `http://127.0.0.1:${apiPort}`;
+  owned.apiOffUrl = `http://127.0.0.1:${apiOffPort}`;
+  owned.webUrl = `http://127.0.0.1:${webPort}`;
+  owned.databaseUrl = databaseUrl;
+  owned.redisUrl = redisUrl;
+  owned.pgContainer = PG;
+  owned.pgDatabase = dbName;
+  owned.templateKey = "e2e-duo-sintetica";
+  persistState();
 
   log("8/8 stack is up");
-  console.log(`   web    ${state.webUrl}`);
-  console.log(`   api    ${state.apiUrl}`);
+  console.log(`   commit ${headSha}`);
+  console.log(`   web    ${owned.webUrl}`);
+  console.log(`   api    ${owned.apiUrl}`);
   console.log(`   run id ${RUN}`);
 
   if (KEEP) {
@@ -406,20 +671,25 @@ async function main() {
     return;
   }
 
-  log("running the walk");
-  // A plain Node script, like every other walk in `apps/web/e2e/`. It imports
-  // `playwright` (which is installed) rather than `@playwright/test` (which is
-  // not, in any workspace) — so the walk needs no new dependency and no change
-  // to the lockfile.
+  log("running the walk", `from the archived commit ${headSha.slice(0, 8)}`);
+  // Run the walk FROM THE ARCHIVE, so the harness under test is the committed
+  // one — and so `playwright` resolves from the copy's own `node_modules`,
+  // installed from the frozen lockfile, rather than from whatever happens to
+  // be on this machine.
   sh("node", ["apps/web/e2e/circulos/duo.walk.mjs"], {
-    cwd: REPO,
+    cwd: WORK,
     env: {
-      ...process.env,
-      CIRCULOS_E2E_STATE: STATE,
-      CIRCULOS_E2E_WEB: state.webUrl,
-      CIRCULOS_E2E_API: state.apiUrl,
+      ...baseEnv(),
+      CIRCULOS_E2E_WEB: owned.webUrl,
+      CIRCULOS_E2E_API: owned.apiUrl,
+      CIRCULOS_E2E_API_OFF: owned.apiOffUrl,
       CIRCULOS_E2E_PG_CONTAINER: PG,
-      CIRCULOS_E2E_PG_DATABASE: `circulos_e2e_${RUN}`,
+      CIRCULOS_E2E_PG_DATABASE: dbName,
+      CIRCULOS_E2E_WORK: WORK,
+      CIRCULOS_E2E_REDIS_URL: redisUrl,
+      CIRCULOS_E2E_HEAD_SHA: headSha,
+      // Playwright's browsers live in the user's cache, not in the copy.
+      PLAYWRIGHT_BROWSERS_PATH: process.env.PLAYWRIGHT_BROWSERS_PATH ?? "",
     },
   });
 }
@@ -434,8 +704,9 @@ async function main() {
  * pipe closes, and the next line the service logs kills it with EPIPE. The
  * stack would come up, report itself healthy, and be dead a moment later.
  *
- * `unref` completes the separation — the parent is free to exit without
- * waiting on a service it deliberately left running.
+ * `detached` puts each service in its own process group, so teardown can take
+ * the whole group and leave no orphaned `next-server` behind; `unref` frees the
+ * parent to exit without waiting on a service it deliberately left running.
  */
 function start(name, cmd, cmdArgs, opts) {
   mkdirSync(LOGS, { recursive: true });
@@ -447,8 +718,16 @@ function start(name, cmd, cmdArgs, opts) {
     stdio: ["ignore", fd, fd],
   });
   child.unref();
-  children.push(child);
   logPaths.set(name, logPath);
+  owned.services.push({
+    name,
+    pid: child.pid,
+    // Recorded NOW, while we know the pid is ours. `--down` compares against
+    // this before signalling anything.
+    lstart: startedAt(child.pid),
+    log: logPath,
+  });
+  persistState();
   return child;
 }
 
@@ -483,20 +762,23 @@ async function waitFor(check, timeoutMs, what, explain) {
 
 main()
   .then(() => {
-    if (!KEEP) teardown();
+    teardownOnce();
     process.exit(0);
   })
   .catch((err) => {
     console.error(`\n✖ ${err.message}`);
     // Print the services' own logs BEFORE teardown removes them. A failed walk
     // says what the browser saw; the API log says what the server decided, and
-    // without it the next step is always to re-run the whole thing just to
-    // look.
-    for (const name of ["api", "worker", "web"]) {
+    // without it the next step is always to re-run the whole thing just to look.
+    for (const name of ["api", "api-off", "worker", "web"]) {
       if (logPaths.has(name)) {
         console.error(`\n── ${name} log (tail) ──\n${serviceLog(name, 30)}`);
       }
     }
-    teardown({ quiet: true });
+    // A failure cleans up exactly like a success. `--keep` is the only thing
+    // that leaves a stack behind, and only when the stack actually came up.
+    tornDown = false;
+    teardown(owned, { quiet: true });
+    tornDown = true;
     process.exit(1);
   });

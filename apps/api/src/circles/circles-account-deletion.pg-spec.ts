@@ -234,6 +234,8 @@ suite("circles · account deletion (real PostgreSQL)", () => {
   let pool: Pool;
   let prisma: PrismaClient;
   let service: CirclesAccountDeletionService;
+  /** The connection string, so a test can open its OWN identified connection. */
+  let dbUrl: string;
 
   let seq = 0;
   const uid = (p: string) => `${p}-${++seq}`;
@@ -424,6 +426,7 @@ suite("circles · account deletion (real PostgreSQL)", () => {
       stdio: "pipe",
     });
 
+    dbUrl = url;
     pool = new Pool({ connectionString: url });
     prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
     service = buildService(prisma);
@@ -787,7 +790,7 @@ suite("circles · account deletion (real PostgreSQL)", () => {
       };
     };
 
-    it("guest command FIRST: the deletion cleans what it produced", async () => {
+    it("SEQUENTIAL — guest command, then deletion: the deletion cleans what it produced", async () => {
       const { created, guest } = await inviteAndAccept(GONE);
       const mine = await circlesOf(GONE);
 
@@ -825,7 +828,7 @@ suite("circles · account deletion (real PostgreSQL)", () => {
       expect(seat.rows[0].payloadHash).toBeNull();
     });
 
-    it("deletion FIRST: the guest command is refused with no new effects", async () => {
+    it("SEQUENTIAL — deletion, then guest command: it is refused with no new effects", async () => {
       const { created, guest } = await inviteAndAccept(GONE);
       const mine = await circlesOf(GONE);
 
@@ -860,7 +863,7 @@ suite("circles · account deletion (real PostgreSQL)", () => {
       expect(eventsAfter.rows[0].n).toBe(eventsBefore.rows[0].n);
     });
 
-    it("the deletion waits behind a guest command holding the chain", async () => {
+    it("the deletion waits behind a HAND-HELD member row lock (not a real command)", async () => {
       // Both take the member row first (canonical order). The guest command
       // holds it; the deletion must WAIT rather than deadlock, and the wait is
       // observed in `pg_stat_activity`, not assumed after a sleep.
@@ -912,6 +915,327 @@ suite("circles · account deletion (real PostgreSQL)", () => {
       expect(after.liveActivities).toBe(0);
       void created;
       void guest;
+    });
+
+    /**
+     * The guest's REAL command and the REAL deletion, running at the same time.
+     *
+     * The three tests above are each worth keeping and none of them is a race:
+     * two run the real commands one after the other, and the third holds a
+     * member row with hand-written `FOR UPDATE` and watches the deletion wait —
+     * which shows serialisation against a lock, not two real operations
+     * competing for one.
+     *
+     * These two do. Each opens its own IDENTIFIED connection (`application_name`
+     * on a pool of one), so `pg_stat_activity` can say which backend is which
+     * and `pg_blocking_pids` can say who is waiting on whom — rather than
+     * "somebody in this database is blocked", which would pass with any two
+     * unrelated statements.
+     *
+     * The barrier sits on an EXISTING repository boundary
+     * (`CircleActivityRepository.lockById`) and only suspends the caller AFTER
+     * the real SQL has run. PostgreSQL does all the locking; the test decides
+     * only who gets there first. No endpoint, no runtime switch, nothing that
+     * could exist outside a test.
+     *
+     * `CircleActivity` is where they meet: a guest takes it FIRST (having no
+     * member row of their own), and the deletion takes it LAST, after the
+     * member, the invitations and the guest sessions.
+     */
+    describe("real concurrency: the guest's command against the deletion", () => {
+      /** A repository whose one method pauses after doing its real work. */
+      function pauseAfter<T extends object>(
+        repo: T,
+        method: keyof T & string,
+        gate: {
+          reached: () => void;
+          release: Promise<void>;
+        },
+      ): T {
+        const wrapper = Object.create(repo) as T;
+        let armed = true;
+        (wrapper as Record<string, unknown>)[method] = async (
+          ...args: unknown[]
+        ) => {
+          const out = await (
+            repo[method] as unknown as (...a: unknown[]) => Promise<unknown>
+          ).apply(repo, args);
+          if (armed) {
+            armed = false; // only the first acquisition is held
+            gate.reached();
+            await gate.release;
+          }
+          return out;
+        };
+        return wrapper;
+      }
+
+      function makeGate() {
+        let reach!: () => void;
+        let open!: () => void;
+        const reached = new Promise<void>((r) => (reach = r));
+        const release = new Promise<void>((r) => (open = r));
+        return { reached, release, reach, open };
+      }
+
+      /** A client on its own single connection, named so it can be found. */
+      function identifiedClient(name: string) {
+        const p = new Pool({
+          connectionString: dbUrl,
+          max: 1,
+          application_name: name,
+        });
+        return {
+          pool: p,
+          prisma: new PrismaClient({ adapter: new PrismaPg(p) }),
+        };
+      }
+
+      /**
+       * The real participation service on a given client.
+       *
+       * Same construction as `buildParticipation` above — same template, same
+       * cipher, same rollout — differing only in which connection it runs on
+       * and whether the activity repository carries a barrier.
+       */
+      function participationOn(
+        client: PrismaClient,
+        activities?: CircleActivityRepository,
+      ): CirclesParticipationService {
+        return new CirclesParticipationService(
+          client as never,
+          (activities ??
+            new CircleActivityRepository(client as never)) as never,
+          new CircleParticipantRepository(client as never),
+          new CircleArtifactRepository(client as never),
+          new CircleEventRepository(client as never),
+          new CircleMemberRepository(client as never),
+          new CircleGuestSessionRepository(client as never),
+          new CircleInvitationRepository(client as never),
+          new CirclesRolloutService(
+            resolveCirclesRolloutConfig({ CIRCLES_ROLLOUT_MODE: "on" }),
+          ),
+          new CirclesCipher(Buffer.from(KEY, "base64")),
+          new CircleTemplateRegistry([PUBLISHED_DUO_TEMPLATE]),
+        );
+      }
+
+      /** The backend pid of a named connection, once it has one. */
+      const pidOf = async (name: string): Promise<number | null> => {
+        const { rows } = await pool.query(
+          `SELECT pid FROM pg_stat_activity
+            WHERE application_name = $1 AND datname = current_database()
+            LIMIT 1`,
+          [name],
+        );
+        return rows.length ? (rows[0].pid as number) : null;
+      };
+
+      /**
+       * Wait until `name`'s backend is BLOCKED, and return who is blocking it.
+       *
+       * `pg_blocking_pids` is the whole point: "something is waiting" is true of
+       * any busy database, while "this backend is waiting for THAT one" is the
+       * claim being made.
+       */
+      const blockedBy = async (name: string): Promise<number[]> => {
+        const deadline = Date.now() + 30_000;
+        while (Date.now() < deadline) {
+          const { rows } = await pool.query(
+            `SELECT pid, pg_blocking_pids(pid) AS blockers
+               FROM pg_stat_activity
+              WHERE application_name = $1
+                AND datname = current_database()
+                AND wait_event_type = 'Lock'`,
+            [name],
+          );
+          if (rows.length && (rows[0].blockers as number[]).length > 0) {
+            return rows[0].blockers as number[];
+          }
+          await new Promise((r) => setTimeout(r, 25));
+        }
+        return [];
+      };
+
+      it("the guest acquires first: the deletion waits, then cleans up what the guest committed", async () => {
+        const { created, guest } = await inviteAndAccept(GONE);
+        const mine = await circlesOf(GONE);
+
+        const guestSide = identifiedClient("circles_guest");
+        const deletionSide = identifiedClient("circles_deletion");
+        const gate = makeGate();
+
+        try {
+          // The guest's real participation service, with the barrier on the
+          // activity lock it takes first.
+          const guestParticipation = participationOn(
+            guestSide.prisma,
+            pauseAfter(
+              new CircleActivityRepository(guestSide.prisma as never),
+              "lockById",
+              { reached: gate.reach, release: gate.release },
+            ),
+          );
+
+          const confirming = guestParticipation.confirmShare(
+            guest,
+            created.activityId,
+            {
+              mode: "SELECTED_FIELDS",
+              fields: [{ fieldKey: "campo-a", value: "texto sintético" }],
+            },
+            `idem-${uid("k")}`,
+          );
+
+          await gate.reached; // the guest HOLDS the activity row
+
+          const deletionService = buildService(deletionSide.prisma);
+          const deleting = deletionSide.prisma.$transaction(
+            async (tx) => {
+              await tx.$queryRawUnsafe(
+                `SELECT "id" FROM "User" WHERE "id" = $1 FOR UPDATE`,
+                GONE,
+              );
+              return deletionService.detachUser(GONE, tx as never);
+            },
+            { timeout: 60_000 },
+          );
+
+          const blockers = await blockedBy("circles_deletion");
+          const guestPid = await pidOf("circles_guest");
+          expect(guestPid).not.toBeNull();
+          expect(
+            blockers,
+            "the deletion should be blocked by the GUEST's connection",
+          ).toContain(guestPid);
+
+          gate.open();
+          const confirmed = await confirming;
+          expect(confirmed.replayed).toBe(false);
+          await deleting;
+          await deleteUser(GONE);
+
+          // The guest's confirmation really happened, and the deletion really
+          // cleaned it up afterwards.
+          const seat = await pool.query(
+            `SELECT "status","ciphertext" FROM "CircleActivityParticipant" WHERE "id" = $1`,
+            [guest.participantId],
+          );
+          expect(seat.rows[0].ciphertext).toBeNull();
+
+          const after = await snapshot(GONE, mine);
+          expect(after.accountExists).toBe(false);
+          expect(after.liveActivities).toBe(0);
+          expect(after.openInvitations).toBe(0);
+          expect(after.openSessions).toBe(0);
+          expect(after.envelopes).toBe(0);
+        } finally {
+          gate.open();
+          await guestSide.prisma.$disconnect().catch(() => undefined);
+          await deletionSide.prisma.$disconnect().catch(() => undefined);
+          await guestSide.pool.end().catch(() => undefined);
+          await deletionSide.pool.end().catch(() => undefined);
+        }
+      }, 120_000);
+
+      it("the deletion acquires first: the guest's command waits, then produces no effects", async () => {
+        const { created, guest } = await inviteAndAccept(GONE);
+        const mine = await circlesOf(GONE);
+
+        const guestSide = identifiedClient("circles_guest2");
+        const deletionSide = identifiedClient("circles_deletion2");
+        const gate = makeGate();
+
+        try {
+          // The barrier moves to the DELETION's activity lock — its last one,
+          // taken after the member, the invitations and the guest sessions.
+          const deletionService = new CirclesAccountDeletionService(
+            new CircleParticipantRepository(deletionSide.prisma as never),
+            pauseAfter(
+              new CircleActivityRepository(deletionSide.prisma as never),
+              "lockById",
+              { reached: gate.reach, release: gate.release },
+            ) as never,
+            new CircleEventRepository(deletionSide.prisma as never),
+            new CircleMemberRepository(deletionSide.prisma as never),
+            new CircleInvitationRepository(deletionSide.prisma as never),
+            new CircleGuestSessionRepository(deletionSide.prisma as never),
+          );
+
+          const deleting = deletionSide.prisma.$transaction(
+            async (tx) => {
+              await tx.$queryRawUnsafe(
+                `SELECT "id" FROM "User" WHERE "id" = $1 FOR UPDATE`,
+                GONE,
+              );
+              return deletionService.detachUser(GONE, tx as never);
+            },
+            { timeout: 60_000 },
+          );
+
+          await gate.reached; // the deletion HOLDS the activity row
+
+          const guestParticipation = participationOn(guestSide.prisma);
+
+          const confirming = guestParticipation
+            .confirmShare(
+              guest,
+              created.activityId,
+              {
+                mode: "SELECTED_FIELDS",
+                fields: [{ fieldKey: "campo-a", value: "llega tarde" }],
+              },
+              `idem-${uid("k")}`,
+            )
+            .then(
+              () => ({ ok: true as const }),
+              (err: unknown) => ({ ok: false as const, err }),
+            );
+
+          const blockers = await blockedBy("circles_guest2");
+          const deletionPid = await pidOf("circles_deletion2");
+          expect(deletionPid).not.toBeNull();
+          expect(
+            blockers,
+            "the guest should be blocked by the DELETION's connection",
+          ).toContain(deletionPid);
+
+          gate.open();
+          await deleting;
+          const outcome = await confirming;
+
+          // Whatever the guest's command decided, it must not have written a
+          // confirmation into an activity the deletion was ending.
+          expect(outcome.ok).toBe(false);
+
+          await deleteUser(GONE);
+          const after = await snapshot(GONE, mine);
+          expect(after.accountExists).toBe(false);
+          expect(after.liveActivities).toBe(0);
+          expect(after.openSessions).toBe(0);
+          expect(after.envelopes).toBe(0);
+
+          const seat = await pool.query(
+            `SELECT "status","ciphertext" FROM "CircleActivityParticipant" WHERE "id" = $1`,
+            [guest.participantId],
+          );
+          expect(seat.rows[0].status).not.toBe("READY");
+          expect(seat.rows[0].ciphertext).toBeNull();
+
+          const readyEvents = await pool.query(
+            `SELECT count(*)::int AS n FROM "CircleEvent"
+              WHERE "activityId" = $1 AND "type" = 'PARTICIPANT_READY'`,
+            [created.activityId],
+          );
+          expect(readyEvents.rows[0].n).toBe(0);
+        } finally {
+          gate.open();
+          await guestSide.prisma.$disconnect().catch(() => undefined);
+          await deletionSide.prisma.$disconnect().catch(() => undefined);
+          await guestSide.pool.end().catch(() => undefined);
+          await deletionSide.pool.end().catch(() => undefined);
+        }
+      }, 120_000);
     });
 
     it("creation FIRST: the new Dúo is in the inventory and is ended", async () => {

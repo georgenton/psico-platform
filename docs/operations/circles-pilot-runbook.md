@@ -237,29 +237,104 @@ una obligación independiente del flag.
 
 ---
 
-## 9 · PENDIENTE — no implementado en este corte
+## 9 · Recorrido completo en dos navegadores — **implementado**
 
-Estos puntos siguen abiertos y bloquean el piloto con personas:
+Un solo comando levanta la pila entera y camina el Dúo con dos navegadores
+reales:
 
-- **Prueba completa en dos navegadores.** Sigue sin entregarse. El framework
-  existe (`apps/web/e2e/` ya maneja Chrome con Playwright). Lo que falta, y es
-  la razón concreta por la que no se entregó en esta ronda:
+```bash
+node apps/web/e2e/circulos/stack.mjs
+```
 
-  > Para que un recorrido real muestre el CTA hace falta **una plantilla
-  > publicada y su mapping de elegibilidad**. Hoy ambos son constantes de
-  > compilación (`PRODUCTION_CIRCLE_TEMPLATES`,
-  > `PRODUCTION_DUO_ELIGIBILITY`), vacías a propósito. Inyectar una plantilla
-  > de prueba exige un mecanismo que **no pueda existir en producción** — y la
-  > instrucción es explícita en que no se añada una puerta para publicar
-  > fixtures allí. Diseñar esa inyección de forma segura (build separado, o un
-  > proveedor que sólo lea el override fuera de producción, con su propio
-  > ratchet) es la siguiente unidad de trabajo, no un paso menor.
+Levanta, desde una **copia temporal aislada del HEAD**: build de producción de
+la Web, API NestJS real, worker real, y PostgreSQL + Redis en contenedores
+propios de esa corrida. Al terminar destruye todo lo que creó. Variantes:
 
-  Mientras tanto, el resto del recorrido está cubierto por pruebas de
-  integración con el Route Handler real y por las pruebas de PostgreSQL real.
+```bash
+node apps/web/e2e/circulos/stack.mjs --keep      # dejarla arriba para explorar
+node apps/web/e2e/circulos/stack.mjs --down <runId>
+```
+
+### Por qué una copia, y no un interruptor
+
+El CTA necesita **una plantilla publicada y su mapping de elegibilidad**, y
+ambos son constantes de compilación vacías a propósito. Las salidas fáciles son
+todas peores que el problema:
+
+- una variable de entorno que habilite plantillas sintéticas es un interruptor
+  que **existe en producción**, a una mala configuración de publicar un fixture;
+- un endpoint que inyecte catálogo es lo mismo, con URL;
+- condicionar el fixture a `NODE_ENV !== "production"` significa que el
+  recorrido ya no prueba un build de producción, que es justo lo que tiene que
+  funcionar.
+
+Por eso **no cambia nada del código que se despliega**. El script copia el HEAD
+committeado (`git archive`, así que la copia no puede arrastrar una edición
+local), reescribe **ahí** dos líneas de catálogo y el import del fixture, y
+construye esa copia. El repositorio conserva su catálogo vacío y sus ratchets
+siguen afirmándolo.
+
+La copia arranca además con `NODE_ENV=production` y con **las barreras de
+configuración declaradas en sus valores exigidos**, no desactivadas: el proceso
+levanta bajo la misma postura estricta que un despliegue real.
+
+### Qué afirma el recorrido
+
+Diez comprobaciones, en dos contextos de navegador aislados (no dos pestañas:
+un solo contexto le entregaría al invitado el frasco de cookies del organizador):
+
+1. el CTA aparece en una experiencia elegible;
+2. abrir la previsualización **no crea nada** (contado contra la base de la
+   corrida, como delta);
+3. el enlace tiene la forma de fragmento de un solo uso;
+4. **una** confirmación explícita crea **exactamente una** actividad;
+5. el token se borra de la barra de direcciones al llegar;
+6. al invitado se le muestra una previsualización, no un ingreso consumado;
+7. **mirar** no consume la invitación;
+8. sólo una aceptación explícita incorpora al invitado;
+9. el invitado aterriza en la sala;
+10. el organizador llega a la **misma** sala.
+
+El enlace de invitación nunca se escribe: los diagnósticos imprimen la forma
+(`/i#<token:43>`), nunca el valor.
+
+### Lo que encontró
+
+El recorrido encontró dos defectos que ninguna prueba unitaria podía ver, porque
+cada lado era correcto por separado y sólo discrepaban en la petición que los une:
+
+- el BFF no enviaba el `accept: true` que la API exige, así que **ningún**
+  invitado podía aceptar: veía «Este enlace ya no sirve»;
+- el BFF presentaba el secreto de invitado como `Authorization: Bearer`, y
+  `CirclesGuestGuard` sólo lee `x-circle-guest-session` — toda lectura y todo
+  comando de invitado respondía 401 con una sesión válida en la cookie.
+
+La prueba que existía afirmaba `Authorization: Bearer`: fijaba el lado emisor
+contra sí mismo en vez de contra el contrato del guard, y por eso siguió verde
+durante un fallo que dejaba la superficie de invitado inalcanzable.
+
+## 10 · Controles negativos
+
+```bash
+node apps/api/src/circles/negative-controls.mjs
+node apps/api/src/circles/negative-controls.mjs --only=RATE
+```
+
+Catorce controles. Cada uno rompe el código de producción donde vive la
+garantía, exige que la prueba **nombrada** se ponga en rojo por eso, restaura el
+archivo byte a byte y exige verde otra vez. Un error de compilación, un timeout
+o un filtro que no seleccionó nada cuentan como control **fallido**, nunca como
+detección: `-t` de vitest es una expresión regular, y un paréntesis sin escapar
+selecciona cero pruebas y sale 0.
+
+Los controles de PostgreSQL usan `TEST_DATABASE_URL` (por defecto la base local
+de pruebas, nunca producción).
+
+## 11 · PENDIENTE — no implementado en este corte
 
 - **Aprobación editorial y de seguridad de plantillas.** Ninguna candidata tiene
-  copy aprobado verificable en el repositorio.
+  copy aprobado verificable en el repositorio. El catálogo de producción sigue
+  vacío y los ratchets lo afirman.
 - **Eco Facilitador.** Fuera de alcance de este corte, por decisión explícita:
   el piloto es Dúo sin IA. `ECO_ENABLED=false`.
 - **Política de retención/purga.** No se ha inventado ninguna. Si el piloto la

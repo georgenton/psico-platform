@@ -43,6 +43,7 @@
  *   node apps/web/e2e/circulos/stack.mjs              # build, walk, tear down
  *   node apps/web/e2e/circulos/stack.mjs --keep       # leave it up to explore
  *   node apps/web/e2e/circulos/stack.mjs --down <runId>
+ *   node apps/web/e2e/circulos/stack.mjs --run-id <10 hex>   # name it up front
  *   node apps/web/e2e/circulos/stack.mjs --dirty-ok   # test the working tree
  */
 
@@ -70,7 +71,21 @@ const KEEP = args.includes("--keep");
 const DIRTY_OK = args.includes("--dirty-ok");
 const DOWN_AT = args.indexOf("--down");
 
-const RUN = DOWN_AT >= 0 ? args[DOWN_AT + 1] : randomBytes(5).toString("hex");
+/**
+ * The run id, which every resource this run owns is named after.
+ *
+ * `--run-id` exists for CI: a cancelled job never reaches the line that would
+ * print a randomly chosen id, so its cleanup step would have nothing to tear
+ * down and would have to sweep by pattern — killing whatever else happened to
+ * match. A caller that names the run up front can always clean up exactly it.
+ */
+const RUN_ID_AT = args.indexOf("--run-id");
+const RUN =
+  DOWN_AT >= 0
+    ? args[DOWN_AT + 1]
+    : RUN_ID_AT >= 0
+      ? args[RUN_ID_AT + 1]
+      : randomBytes(5).toString("hex");
 if (!/^[0-9a-f]{10}$/.test(RUN ?? "")) {
   console.error(`refusing an unsafe run id: ${RUN}`);
   process.exit(2);

@@ -44,22 +44,44 @@ function localTransport(env) {
         { encoding: "utf8" },
       ).trim();
     },
+    /**
+     * Put a job on the queue and hand back a way to ask how it is doing.
+     *
+     * Each call opens its own short-lived queue and closes it before
+     * returning. The first cut kept the `Job` object from `add` and asked IT
+     * for the state — while closing the queue it came from, unawaited, in a
+     * `finally`. That reads fine and is a race: the handle carries the
+     * connection it was created with, so whether `getState()` works depends on
+     * whether the close has landed yet. It won on this machine, won in CI for
+     * a while, and then lost — both worker scenarios failing with `Connection
+     * is closed.`, which names the symptom and hides the cause.
+     *
+     * So nothing outlives its connection: the id is the only thing carried
+     * across, and each question opens and closes its own.
+     */
     async enqueue(queueName, jobName, data) {
       const queue = new Queue(queueName, { connection: { url: redisUrl } });
+      let jobId;
       try {
         const job = await queue.add(jobName, data, {
           removeOnComplete: false,
           removeOnFail: false,
         });
-        return {
-          async state() {
-            return job.getState();
-          },
-        };
+        jobId = job.id;
       } finally {
-        // The queue is closed by the caller's scenario via `close()` below.
-        queue.close().catch(() => undefined);
+        await queue.close();
       }
+      return {
+        async state() {
+          const q = new Queue(queueName, { connection: { url: redisUrl } });
+          try {
+            const job = await q.getJob(jobId);
+            return job ? job.getState() : "missing";
+          } finally {
+            await q.close();
+          }
+        },
+      };
     },
     resetRateLimits() {
       const container = pgContainer.replace("-pg-", "-redis-");

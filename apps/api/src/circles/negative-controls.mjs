@@ -359,6 +359,16 @@ const CONTROLS = [
     t: "SPARES a live pid whose start time does not match",
   },
   {
+    property: "TEARDOWN_READS_A_ZOMBIE_AS_GONE",
+    mutation: "a reaped-but-unwaited child counts as still running",
+    file: w("e2e/circulos/ownership.mjs"),
+    find: '  if (state.startsWith("Z")) return null;',
+    replace: "  void state;",
+    runner: WEBT,
+    test: "src/lib/circulos/stack-ownership.test.ts",
+    t: "reads a ZOMBIE as gone, not as running",
+  },
+  {
     property: "TEARDOWN_NAMES_ONLY_WHAT_IT_OWNS",
     mutation: "the owned-resource list is replaced by a glob",
     file: w("e2e/circulos/ownership.mjs"),

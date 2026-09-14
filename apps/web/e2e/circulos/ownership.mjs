@@ -12,6 +12,29 @@
  */
 
 /**
+ * Read `ps -p <pid> -o state=,lstart=` into a start time, or null.
+ *
+ * Null means "there is no process here to signal", and a ZOMBIE counts as
+ * null: it is a corpse, not a process. These services are the run's children
+ * and nothing ever `wait`s on them, so once killed they sit in the process
+ * table until the parent exits — and `ps -p` keeps listing them. Reading that
+ * as "alive" made teardown wait out the full grace period on each service and
+ * then announce "STILL RUNNING" about four processes that were already dead,
+ * which is how a warning becomes noise nobody reads.
+ *
+ * The start time is whitespace-normalised because `ps` pads a single-digit day
+ * ("Sun Sep  7"), and the recorded value goes through this same function.
+ */
+export function readProcessStart(psOutput) {
+  const text = (psOutput ?? "").trim();
+  if (text === "") return null;
+  const [state, ...rest] = text.split(/\s+/);
+  if (state.startsWith("Z")) return null;
+  const started = rest.join(" ").trim();
+  return started === "" ? null : started;
+}
+
+/**
  * Does this recorded service still refer to the process we started?
  *
  * The pair (pid, start time) is what makes it an identity. If the pid is alive

@@ -64,7 +64,11 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { ownedResources, planTeardown } from "./ownership.mjs";
+import {
+  ownedResources,
+  planTeardown,
+  readProcessStart,
+} from "./ownership.mjs";
 
 const HERE = resolve(fileURLToPath(import.meta.url), "..");
 const REPO = resolve(HERE, "../../../..");
@@ -161,10 +165,12 @@ function freePort() {
  */
 function startedAt(pid) {
   try {
-    return execFileSync("ps", ["-p", String(pid), "-o", "lstart="], {
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    }).trim();
+    const out = execFileSync(
+      "ps",
+      ["-p", String(pid), "-o", "state=,lstart="],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
+    ).trim();
+    return readProcessStart(out);
   } catch {
     return null; // not running
   }

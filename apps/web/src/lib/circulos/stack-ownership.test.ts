@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import {
   ownedResources,
   planTeardown,
+  readProcessStart,
   stillOurs,
 } from "../../../e2e/circulos/ownership.mjs";
 
@@ -89,6 +90,33 @@ describe("a teardown only touches what the run actually owns", () => {
       "/tmp/circulos-e2e-abc1234567-logs",
     ]);
     expect(JSON.stringify(owned)).not.toContain("*");
+  });
+
+  it("reads a ZOMBIE as gone, not as running", () => {
+    // A killed child that nothing has reaped stays in the process table, and
+    // `ps -p` keeps listing it. Treating that as alive made teardown wait out
+    // the grace period on every service and then announce "STILL RUNNING"
+    // about four processes that were already dead.
+    expect(readProcessStart("Z+   Sun Sep 13 17:52:57 2026")).toBeNull();
+    expect(readProcessStart("Z    Sun Sep 13 17:52:57 2026")).toBeNull();
+  });
+
+  it("reads a live process as its start time, whitespace and all", () => {
+    // `ps` pads a single-digit day, so the value is normalised — and the
+    // recorded side goes through this same function, so the two agree.
+    expect(readProcessStart("Ss   Sun Sep 13 17:52:57 2026")).toBe(
+      "Sun Sep 13 17:52:57 2026",
+    );
+    expect(readProcessStart("S    Sun Sep  7 09:00:00 2026")).toBe(
+      "Sun Sep 7 09:00:00 2026",
+    );
+  });
+
+  it("reads an empty answer as no such process", () => {
+    expect(readProcessStart("")).toBeNull();
+    expect(readProcessStart("   ")).toBeNull();
+    expect(readProcessStart(null)).toBeNull();
+    expect(readProcessStart(undefined)).toBeNull();
   });
 
   it("survives a state file with nothing in it", () => {

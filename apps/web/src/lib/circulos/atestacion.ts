@@ -36,9 +36,19 @@ export const CLIENT_ATTESTATION_HEADER = "x-client-attestation";
 /**
  * The address the platform observed, or `null`.
  *
- * Read from the headers the PLATFORM sets on the incoming request. On Vercel
- * these are set at the edge and a client-supplied value cannot survive into
- * them; this function is never given a header the browser chose.
+ * Read from the headers the PLATFORM sets on the incoming request.
+ *
+ * On Vercel the edge replaces them, and that is measured rather than assumed:
+ * `hosted-limits.mjs` sends `x-forwarded-for`, `x-real-ip`,
+ * `x-vercel-forwarded-for`, `true-client-ip`, `cf-connecting-ip` and
+ * `forwarded` at the deployed Web with addresses of their own, and the identity
+ * does not budge — every one of them keeps landing in the caller's own bucket.
+ *
+ * The dependency is worth naming, though: behind a bare Node server Next fills
+ * `x-forwarded-for` from the socket only when it is ABSENT (`??=`), so a client
+ * that sends its own is believed. What makes this trustworthy is the proxy in
+ * front, not this function. A deployment of this app without one would need a
+ * different source for the address.
  */
 function observedClient(): string | null {
   const h = headers();

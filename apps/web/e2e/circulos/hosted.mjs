@@ -29,6 +29,8 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
+import { makeTransport } from "./transports.mjs";
+
 const at = process.argv.indexOf("--config");
 if (at < 0) {
   console.error("usage: hosted.mjs --config <path>");
@@ -101,12 +103,35 @@ async function circlesCode() {
 // ── 1 · the accounts, and the allowlist that admits them ────────────────────
 
 const runId = randomBytes(3).toString("hex");
-log(`registering ${LABELS.length} synthetic accounts (run ${runId})`);
+
+/**
+ * Clear the rate limiter's own keys in the TEST environment's Redis.
+ *
+ * Registration is capped at ten per hour per address, and a run needs twelve
+ * accounts — one per scenario, plus the one deliberately left off the
+ * allowlist. Raising the cap would weaken the very configuration under test.
+ * These are the `throttle:` keys only, in a Redis that belongs to this test
+ * project, and the limiter has its own tests, its own negative controls, and a
+ * dedicated hosted verification of its own further down.
+ */
+const transport = makeTransport({
+  CIRCULOS_E2E_TRANSPORT: "railway",
+  CIRCULOS_E2E_RAILWAY_PROJECT: cfg.projectId,
+  CIRCULOS_E2E_RAILWAY_ENVIRONMENT: cfg.environmentId,
+  CIRCULOS_E2E_RAILWAY_SERVICE: cfg.apiServiceId,
+});
+
+log(`registering ${LABELS.length + 1} synthetic accounts (run ${runId})`);
+transport.resetRateLimits();
 
 const pool = {};
-for (const label of LABELS) {
+for (const [i, label] of LABELS.entries()) {
+  // The cap is real and this run is over it by design; clear again partway
+  // rather than pretend a dozen registrations fit under a limit of ten.
+  if (i > 0 && i % 6 === 0) transport.resetRateLimits();
   pool[label] = await registerAccount(label, runId);
 }
+transport.resetRateLimits();
 
 // One account deliberately OUTSIDE the allowlist, so "the pilot is enforced"
 // is something observed rather than assumed.

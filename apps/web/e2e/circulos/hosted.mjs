@@ -175,11 +175,52 @@ for (const service of [cfg.apiServiceId, cfg.workerServiceId]) {
   ]);
 }
 
+/**
+ * Wait until THIS run's allowlist is the one the API booted with.
+ *
+ * The obvious probe — "does the guest route answer INVALID instead of
+ * UNAVAILABLE" — is true under `pilot` whatever the allowlist CONTAINS, so it
+ * passes on the deployment that is still running the PREVIOUS run's list. The
+ * walk then logs in with accounts the API has never heard of and every scenario
+ * fails on "Esta actividad todavía no está disponible", which is the product
+ * correctly refusing a stranger.
+ *
+ * So the probe is the question that actually matters: can an account from THIS
+ * pool create? It uses the ordinary endpoint, and the activity it makes is one
+ * more synthetic row in a synthetic database.
+ */
+async function poolAccountCanCreate() {
+  const probe = pool.organiser;
+  const login = await fetch(`${cfg.apiUrl}/api/auth/login`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ email: probe.email, password: probe.password }),
+  });
+  const session = await login.json().catch(() => ({}));
+  const token = session?.accessToken ?? session?.tokens?.accessToken;
+  if (!token) return false;
+
+  const res = await fetch(`${cfg.apiUrl}/api/circles/duo`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${token}`,
+      "Idempotency-Key": randomBytes(16).toString("hex"),
+    },
+    body: JSON.stringify({
+      templateKey: cfg.templateKey,
+      templateVersion: cfg.templateVersion,
+      invitationToken: randomBytes(32).toString("base64url"),
+    }),
+  });
+  return res.status === 201;
+}
+
 await waitFor(
-  async () => (await circlesCode()) === "CIRCLE_GUEST_SESSION_INVALID",
-  "the API to come back in pilot mode",
+  poolAccountCanCreate,
+  "this run's allowlist to be the one the API booted with",
 );
-log("API is live in pilot mode");
+log("API is live in pilot mode, with THIS run's allowlist");
 
 // ── 2 · the allowlist is enforced, observed on the hosted API ───────────────
 

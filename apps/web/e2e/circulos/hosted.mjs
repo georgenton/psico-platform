@@ -78,17 +78,23 @@ function railway(args) {
   });
 }
 
-async function waitFor(check, label, timeoutMs = 600_000) {
+async function waitFor(check, label, timeoutMs = 900_000, everyMs = 30_000) {
   const deadline = Date.now() + timeoutMs;
+  let last = "";
   while (Date.now() < deadline) {
     try {
-      if (await check()) return;
+      const answer = await check();
+      if (answer === true) return;
+      if (answer && answer !== last) {
+        last = answer;
+        console.log(`   still waiting — ${answer}`);
+      }
     } catch {
       /* keep waiting */
     }
-    await new Promise((r) => setTimeout(r, 10_000));
+    await new Promise((r) => setTimeout(r, everyMs));
   }
-  throw new Error(`timed out waiting for ${label}`);
+  throw new Error(`timed out waiting for ${label} (last answer: ${last})`);
 }
 
 /** The code the guest-session route answers with, as a liveness probe. */
@@ -214,7 +220,13 @@ async function poolAccountCanCreate() {
   // getting a token and waited forever for a deployment that was already live.
   // A JWT survives the redeploy: the secret does not change.
   const token = probeToken;
-  if (!token) return false;
+  if (!token) return "no probe token";
+
+  // Creation is rate limited, and this poll is the only caller — so clear the
+  // limiter's keys in the TEST Redis first. Without it the probe spends the
+  // allowance it is using to ask the question and then reads its own 429 as
+  // "not ready", forever.
+  transport.resetRateLimits();
 
   const res = await fetch(`${cfg.apiUrl}/api/circles/duo`, {
     method: "POST",
@@ -229,7 +241,9 @@ async function poolAccountCanCreate() {
       invitationToken: randomBytes(32).toString("base64url"),
     }),
   });
-  return res.status === 201;
+  if (res.status === 201) return true;
+  const body = await res.json().catch(() => ({}));
+  return `${res.status} ${body?.code ?? ""}`.trim();
 }
 
 await waitFor(

@@ -26,30 +26,43 @@
  */
 
 import { randomBytes } from "node:crypto";
-import { execFileSync } from "node:child_process";
-import { createRequire } from "node:module";
-import { join } from "node:path";
+
+import { makeTransport } from "./transports.mjs";
 
 const API = process.env.CIRCULOS_E2E_API;
 const API_OFF = process.env.CIRCULOS_E2E_API_OFF;
 const WEB = process.env.CIRCULOS_E2E_WEB;
-const PG_CONTAINER = process.env.CIRCULOS_E2E_PG_CONTAINER;
-const PG_DATABASE = process.env.CIRCULOS_E2E_PG_DATABASE;
-const WORK = process.env.CIRCULOS_E2E_WORK;
-const REDIS_URL = process.env.CIRCULOS_E2E_REDIS_URL;
 const HEAD_SHA = process.env.CIRCULOS_E2E_HEAD_SHA ?? "(unknown)";
+
+/**
+ * A pool of accounts registered — and allowlisted — BEFORE the run.
+ *
+ * Under a hosted pilot only an allowlisted organiser may create a Dúo, and an
+ * allowlist is configuration that exists before the run starts. Handing the
+ * walk ONE organiser would have been simpler and wrong: the scenarios are
+ * independent precisely because each owns its data, and one of them deletes its
+ * organiser's account on purpose. So the pool carries one account per label,
+ * and `register` hands out the matching one.
+ *
+ * Locally the pool is absent and every scenario registers its own, because
+ * there the rollout is `on` and any fresh account can create.
+ */
+const ACCOUNT_POOL = process.env.CIRCULOS_E2E_ACCOUNTS
+  ? JSON.parse(
+      // eslint-disable-next-line no-undef
+      (await import("node:fs")).readFileSync(
+        process.env.CIRCULOS_E2E_ACCOUNTS,
+        "utf8",
+      ),
+    )
+  : null;
 
 for (const [name, value] of Object.entries({
   CIRCULOS_E2E_API: API,
-  CIRCULOS_E2E_API_OFF: API_OFF,
   CIRCULOS_E2E_WEB: WEB,
-  CIRCULOS_E2E_PG_CONTAINER: PG_CONTAINER,
-  CIRCULOS_E2E_PG_DATABASE: PG_DATABASE,
-  CIRCULOS_E2E_WORK: WORK,
-  CIRCULOS_E2E_REDIS_URL: REDIS_URL,
 })) {
   if (!value) {
-    console.error(`duo.walk.mjs runs from stack.mjs, which supplies ${name}.`);
+    console.error(`duo.walk.mjs needs ${name}.`);
     process.exit(2);
   }
 }
@@ -57,15 +70,14 @@ for (const [name, value] of Object.entries({
 const { chromium } = await import("playwright");
 
 /**
- * BullMQ, loaded from the API workspace inside the archived copy.
+ * How this run reaches the database and the queue.
  *
- * The walk enqueues into the SAME queues the running worker consumes, so a
- * temporal scenario is the real processor doing real work — not this script
- * calling a service and calling that "the worker". `@psico/web` has no reason
- * to depend on BullMQ, so it is reached where it legitimately lives.
+ * The scenarios below do not know or care: locally it is `docker exec` against
+ * containers this machine owns, and against a hosted environment it is a node
+ * snippet run INSIDE the API container, so the stores stay on the private
+ * network. Same walk, same assertions, different transport.
  */
-const apiRequire = createRequire(join(WORK, "apps/api/package.json"));
-const { Queue } = apiRequire("bullmq");
+const transport = makeTransport(process.env);
 
 // ── Result bookkeeping ──────────────────────────────────────────────────────
 
@@ -117,14 +129,8 @@ async function until(predicate, label, timeoutMs = 30_000) {
   );
 }
 
-/** One SQL statement against the run's own database, through its container. */
-function sql(text) {
-  return execFileSync(
-    "docker",
-    ["exec", PG_CONTAINER, "psql", "-U", "postgres", "-d", PG_DATABASE, "-tAc", text],
-    { encoding: "utf8" },
-  ).trim();
-}
+/** One SQL statement against the run's own database. */
+const sql = (text) => transport.sql(text);
 
 const sqlOne = (text) => sql(text);
 const sqlInt = (text) => {
@@ -149,24 +155,7 @@ const sqlRows = (text) =>
  * keys go, between scenarios, in a Redis container that exists for this run.
  * The limiter itself has its own tests and its own negative controls.
  */
-function resetRateLimits() {
-  const container = PG_CONTAINER.replace("-pg-", "-redis-");
-  try {
-    execFileSync(
-      "docker",
-      [
-        "exec",
-        container,
-        "sh",
-        "-lc",
-        "redis-cli --scan --pattern 'throttle:*' | xargs -r redis-cli del > /dev/null",
-      ],
-      { stdio: "pipe" },
-    );
-  } catch {
-    /* nothing to clear */
-  }
-}
+const resetRateLimits = () => transport.resetRateLimits();
 
 // ── Real accounts, real sign-in ─────────────────────────────────────────────
 
@@ -178,6 +167,18 @@ function resetRateLimits() {
  * not exist.
  */
 async function register(label) {
+  // From the pre-allowlisted pool when there is one. A label with no entry is a
+  // configuration mistake and says so, rather than silently registering an
+  // account the pilot will refuse and failing later for a confusing reason.
+  if (ACCOUNT_POOL) {
+    const account = ACCOUNT_POOL[label];
+    if (!account) {
+      throw new Error(
+        `no pre-allowlisted account for "${label}" — add it to the pool`,
+      );
+    }
+    return account;
+  }
   const email = `e2e-${label}-${randomBytes(5).toString("hex")}@example.test`;
   const password = `Pw-${randomBytes(9).toString("base64url")}`;
   const res = await fetch(`${API}/api/auth/register`, {
@@ -1014,10 +1015,6 @@ async function foreignSessionRejected(browser) {
 // ── Scenario 8 · the real worker, on synthetic dates ────────────────────────
 
 async function workerTemporalScenarios(browser) {
-  const sweepQueue = new Queue("circles-sweep", {
-    connection: { url: REDIS_URL },
-  });
-
   const organiser = await register("temporal");
   const ctx = await browser.newContext();
   let guest = null;
@@ -1093,21 +1090,20 @@ async function workerTemporalScenarios(browser) {
     // The REAL worker does the work: this enqueues into the queue the running
     // worker process is consuming. A worker that is merely started proves
     // nothing; this observes the job's effects.
-    const job = await sweepQueue.add(
-      "run-circles-sweep",
-      { nowIso: new Date().toISOString(), batchSize: 50 },
-      { removeOnComplete: false, removeOnFail: false },
-    );
+    const job = await transport.enqueue("circles-sweep", "run-circles-sweep", {
+      nowIso: new Date().toISOString(),
+      batchSize: 50,
+    });
 
     await until(
       async () => {
-        const state = await job.getState();
+        const state = await job.state();
         return state === "completed" || state === "failed" ? state : null;
       },
       "the worker to finish the sweep job",
       120_000,
     );
-    const finalState = await job.getState();
+    const finalState = await job.state();
     check(finalState === "completed", `the worker ran the sweep (${finalState})`);
 
     check(
@@ -1130,14 +1126,13 @@ async function workerTemporalScenarios(browser) {
     check(cancelledEvents === 1, "and recorded exactly one cancellation event");
 
     // Idempotence, through the worker again.
-    const second = await sweepQueue.add(
-      "run-circles-sweep",
-      { nowIso: new Date().toISOString(), batchSize: 50 },
-      { removeOnComplete: false, removeOnFail: false },
-    );
+    const second = await transport.enqueue("circles-sweep", "run-circles-sweep", {
+      nowIso: new Date().toISOString(),
+      batchSize: 50,
+    });
     await until(
       async () => {
-        const s = await second.getState();
+        const s = await second.state();
         return s === "completed" || s === "failed" ? s : null;
       },
       "the second sweep job",
@@ -1157,7 +1152,6 @@ async function workerTemporalScenarios(browser) {
       "and never closes the follow-up just because its date passed",
     );
   } finally {
-    await sweepQueue.close();
     await ctx.close();
     if (guest) await guest.ctx.close();
   }
@@ -1166,10 +1160,6 @@ async function workerTemporalScenarios(browser) {
 // ── Scenario 9 · account deletion through the real processor ────────────────
 
 async function accountDeletionScenario(browser) {
-  const deletionQueue = new Queue("account-deletion", {
-    connection: { url: REDIS_URL },
-  });
-
   const organiser = await register("deleted");
   const ctx = await browser.newContext();
   let guest = null;
@@ -1214,24 +1204,24 @@ async function accountDeletionScenario(browser) {
         WHERE "id"='${organiser.userId}'`,
     );
 
-    const job = await deletionQueue.add(
+    const job = await transport.enqueue(
+      "account-deletion",
       "finalize-account-deletion",
       {
         userId: organiser.userId,
         requestedAt: new Date(Date.now() - 31 * 24 * 3600_000).toISOString(),
       },
-      { removeOnComplete: false, removeOnFail: false },
     );
 
     await until(
       async () => {
-        const s = await job.getState();
+        const s = await job.state();
         return s === "completed" || s === "failed" ? s : null;
       },
       "the worker to finish the deletion job",
       180_000,
     );
-    const state = await job.getState();
+    const state = await job.state();
     check(state === "completed", `the real processor ran the deletion (${state})`);
 
     check(
@@ -1266,7 +1256,6 @@ async function accountDeletionScenario(browser) {
       "the guest's browser can no longer work in the activity",
     );
   } finally {
-    await deletionQueue.close();
     await ctx.close();
     if (guest) await guest.ctx.close();
   }
@@ -1390,9 +1379,15 @@ try {
   );
   resetRateLimits();
 
-  await scenario("OFF_GATE_SCENARIO", "the rollout gate, closed", () =>
-    rolloutOffScenario(),
-  );
+  // Locally the stack runs a second API that BOOTED with `off`, so the gate is
+  // observed in the same pass. A hosted environment has one API, and closing it
+  // means a redeploy — so there the gate is exercised on its own, deliberately,
+  // rather than by leaving a scenario that silently asserts nothing.
+  if (process.env.CIRCULOS_E2E_SKIP_OFF_SCENARIO !== "1") {
+    await scenario("OFF_GATE_SCENARIO", "the rollout gate, closed", () =>
+      rolloutOffScenario(),
+    );
+  }
 } finally {
   await browser.close();
 }

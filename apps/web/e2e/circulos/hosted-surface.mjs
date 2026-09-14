@@ -24,6 +24,10 @@
  *     asking `/` proves nothing about this surface either way.
  *   · Refusals from the API stay opaque: a stable code, and no stack, no SQL,
  *     no environment variable names, no file paths.
+ *   · And the deployment's own diagnostics keep the same discipline: the live
+ *     logs carry no session token, no attestation, no connection string and no
+ *     address — a refusal logged with its code is useful, a refusal logged with
+ *     the credential that failed is a second copy of the credential.
  *
  * It needs one allowlisted account to create the invitation it then accepts —
  * the pool a hosted run already wrote. Everything it creates is synthetic and
@@ -34,6 +38,7 @@
  *     --config <hosted.json> --accounts <pool.json>
  */
 
+import { spawn } from "node:child_process";
 import { randomBytes, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 
@@ -212,9 +217,57 @@ check(
   "with no stack, no SQL, no environment names",
 );
 
+// ── 5 · the deployment's own diagnostics ────────────────────────────────────
+
+console.log("▸ what the live logs carry");
+
+/** `railway logs` streams until killed, so it is read for a few seconds. */
+const logs = await new Promise((resolve) => {
+  const child = spawn(
+    "railway",
+    [
+      "logs",
+      "--project", cfg.projectId,
+      "--environment", cfg.environmentId,
+      "--service", cfg.apiServiceId,
+      "--json",
+    ],
+    { stdio: ["ignore", "pipe", "ignore"] },
+  );
+  let out = "";
+  child.stdout.on("data", (c) => (out += c));
+  setTimeout(() => {
+    child.kill();
+    resolve(out);
+  }, 20_000);
+});
+
+check(logs.length > 0, "the logs could be read at all", `${logs.length} bytes`);
+
+const guestToken = decodeURIComponent(rawToken);
+check(
+  guestToken.length > 0 && !logs.includes(guestToken),
+  "this run's guest session token appears in no log line",
+);
+check(
+  !/[A-Za-z0-9_-]{16,64}\.\d{13}\.[A-Za-z0-9_-]{20,}/.test(logs),
+  "no attestation is echoed back into the logs",
+);
+check(
+  !/postgres(ql)?:\/\/[^\s"]+:[^\s"]+@/.test(logs) && !/redis:\/\/[^\s"]+:[^\s"]+@/.test(logs),
+  "no connection string with credentials is printed",
+);
+// The domain must contain a letter and end in an alphabetic TLD. Without
+// that, `> @psico/api@0.0.0 migrate:deploy` reads as an address and the check
+// fails on the build's own npm banner.
+check(
+  !/[\w.+-]+@(?!example\.test\b)[\w-]*[a-z][\w-]*\.[a-z]{2,}\b/i.test(logs),
+  "no real address is printed",
+);
+
 console.log(
   failures === 0
-    ? "\n✔ cookie, page, policy and refusal all hold on the hosted surface"
+    ? "\n✔ cookie, page, policy, refusal and logs all hold on the hosted surface"
     : `\n✖ ${failures} check(s) failed`,
 );
 process.exit(failures === 0 ? 0 : 1);

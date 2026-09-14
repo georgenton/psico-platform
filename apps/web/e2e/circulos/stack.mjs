@@ -44,6 +44,7 @@
  *   node apps/web/e2e/circulos/stack.mjs --keep       # leave it up to explore
  *   node apps/web/e2e/circulos/stack.mjs --down <runId>
  *   node apps/web/e2e/circulos/stack.mjs --run-id <10 hex>   # name it up front
+ *   node apps/web/e2e/circulos/stack.mjs --worktree          # build local edits
  *   node apps/web/e2e/circulos/stack.mjs --dirty-ok   # test the working tree
  */
 
@@ -63,12 +64,25 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { ownedResources, planTeardown } from "./ownership.mjs";
+
 const HERE = resolve(fileURLToPath(import.meta.url), "..");
 const REPO = resolve(HERE, "../../../..");
 
 const args = process.argv.slice(2);
 const KEEP = args.includes("--keep");
 const DIRTY_OK = args.includes("--dirty-ok");
+/**
+ * Build the WORKING TREE instead of the commit.
+ *
+ * For negative controls, which break production source on purpose and need the
+ * stack to run the broken version. `git stash create` writes a commit object
+ * for the current tracked state WITHOUT touching the working tree or the stash
+ * list, so the archive step stays exactly the same — it just points at a
+ * different tree-ish. The run is then evidence about that tree, not a commit,
+ * and says so.
+ */
+const WORKTREE = args.includes("--worktree");
 const DOWN_AT = args.indexOf("--down");
 
 /**
@@ -160,12 +174,6 @@ function isAlive(pid) {
   return startedAt(pid) !== null;
 }
 
-/** Still the process we started? Only then may it be signalled. */
-function stillOurs(service) {
-  const now = startedAt(service.pid);
-  return now !== null && now === service.lstart;
-}
-
 function persistState() {
   try {
     writeFileSync(STATE, JSON.stringify(owned, null, 2));
@@ -193,12 +201,14 @@ function teardown(state = owned, { quiet = false } = {}) {
   const stopped = [];
   const skipped = [];
 
-  for (const service of state.services ?? []) {
-    if (!isAlive(service.pid)) {
+  // The DECISION lives in `ownership.mjs` and is tested there; this function
+  // only carries it out.
+  for (const { service, action } of planTeardown(state, startedAt)) {
+    if (action === "gone") {
       stopped.push(`${service.name} (already gone)`);
       continue;
     }
-    if (!stillOurs(service)) {
+    if (action === "spare") {
       // The pid is alive but it is NOT the process we started. Somebody else
       // owns it now. Leaving it alone is the entire point of recording lstart.
       skipped.push(`${service.name} pid=${service.pid} (pid reused — not ours)`);
@@ -234,7 +244,8 @@ function teardown(state = owned, { quiet = false } = {}) {
     );
   }
 
-  for (const name of state.containers ?? []) {
+  const owned = ownedResources(state);
+  for (const name of owned.containers) {
     try {
       execFileSync("docker", ["rm", "-f", name], { stdio: "pipe" });
     } catch {
@@ -242,8 +253,8 @@ function teardown(state = owned, { quiet = false } = {}) {
     }
   }
 
-  for (const dir of [state.work, state.logs]) {
-    if (dir && existsSync(dir)) rmSync(dir, { recursive: true, force: true });
+  for (const dir of owned.directories) {
+    if (existsSync(dir)) rmSync(dir, { recursive: true, force: true });
   }
   const stateFile = join(tmpdir(), `circulos-e2e-${state.runId ?? RUN}.json`);
   if (existsSync(stateFile)) rmSync(stateFile, { force: true });
@@ -329,7 +340,7 @@ async function main() {
     ["status", "--porcelain", "--", "apps/web/e2e/circulos"],
     { cwd: REPO, quiet: true },
   ).trim();
-  if (dirty && !DIRTY_OK) {
+  if (dirty && !DIRTY_OK && !WORKTREE) {
     throw new Error(
       "the E2E harness has uncommitted changes, so a run would NOT be testing " +
         `${headSha.slice(0, 8)}:\n${dirty}\n\n` +
@@ -350,7 +361,19 @@ async function main() {
 
   // `git archive` reads the committed tree, so the copy can never contain an
   // accidental local edit — and the original worktree is never written to.
-  const tar = execFileSync("git", ["archive", headSha], {
+  // `--worktree` archives the CURRENT tracked state; otherwise the commit.
+  const treeish = WORKTREE
+    ? sh("git", ["stash", "create"], { cwd: REPO, quiet: true }).trim() || headSha
+    : headSha;
+  if (WORKTREE) {
+    owned.headSha = treeish === headSha ? headSha : `${headSha}+worktree`;
+    persistState();
+    console.log(
+      "   ⚠ --worktree: building the WORKING TREE, not the commit.\n" +
+        "     This run is evidence about that tree only.",
+    );
+  }
+  const tar = execFileSync("git", ["archive", treeish], {
     cwd: REPO,
     maxBuffer: 1024 * 1024 * 512,
   });
@@ -364,7 +387,7 @@ async function main() {
   // are being exercised — a quieter version of exactly the mixture this
   // refuses. So the working copy of the harness is laid over the archive, and
   // the banner says the run is no longer evidence about a commit.
-  if (dirty) {
+  if (dirty && !WORKTREE) {
     cpSync(
       join(REPO, "apps/web/e2e/circulos"),
       join(WORK, "apps/web/e2e/circulos"),

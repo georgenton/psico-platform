@@ -25,11 +25,13 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
+import { randomBytes } from "node:crypto";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const API = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const WEB = resolve(API, "../web");
+const ROOT = resolve(API, "../..");
 
 const PG_URL =
   process.env.TEST_DATABASE_URL ??
@@ -48,6 +50,15 @@ const w = (rel) => resolve(WEB, rel);
 const UNIT = "unit"; // apps/api, default vitest config
 const PGSPEC = "pg"; // apps/api, vitest.locks.config.ts, real PostgreSQL
 const WEBT = "web"; // apps/web
+/**
+ * The full-stack browser walk.
+ *
+ * Expensive — each invocation builds and runs the whole stack — so it is used
+ * only where nothing cheaper can see the property. A reveal barrier is a claim
+ * about what the OTHER person's screen shows, and no unit test renders the
+ * other person's screen.
+ */
+const WALK = "walk"; // apps/web/e2e/circulos/stack.mjs
 
 const CONTROLS = [
   // ── The account deletion decides under authority, then acts ──────────────
@@ -313,9 +324,95 @@ const CONTROLS = [
     test: "src/lib/circulos/bff.test.ts",
     t: "never sends a guest secret as a bearer token",
   },
+
+  // ── What this round added ────────────────────────────────────────────────
+  {
+    property: "WITHDRAWAL_IS_POSSIBLE_AT_ALL",
+    mutation: "the command wrapper demands a payload key again",
+    file: w("src/app/api/circulos/actividad/[activityId]/comando/route.ts"),
+    find: '  if (!onlyKeys(raw, ["kind", "idempotencyKey", "payload"])) {',
+    replace: '  if (!exactKeys(raw, ["kind", "idempotencyKey", "payload"])) {',
+    runner: WEBT,
+    test: "src/app/api/circulos/handlers.test.ts",
+    t: "accepts a withdrawal, whose body carries no payload key at all",
+  },
+  {
+    property: "COMMAND_WRAPPER_STAYS_CLOSED",
+    mutation: "unknown keys in the wrapper are tolerated",
+    file: w("src/app/api/circulos/actividad/[activityId]/comando/route.ts"),
+    find: "function onlyKeys(obj: Record<string, unknown>, keys: string[]): boolean {\n  return Object.keys(obj).every((k) => keys.includes(k));",
+    replace:
+      "function onlyKeys(obj: Record<string, unknown>, keys: string[]): boolean {\n  void keys;\n  void obj;\n  return true;",
+    runner: WEBT,
+    test: "src/app/api/circulos/handlers.test.ts",
+    t: "still refuses an unknown key in the wrapper",
+  },
+  {
+    property: "TEARDOWN_SPARES_A_REUSED_PID",
+    mutation: "the start time is dropped from the identity check",
+    file: w("e2e/circulos/ownership.mjs"),
+    find: "  if (observedStart === null || observedStart === undefined) return false;\n  return observedStart === service.lstart;",
+    replace:
+      "  if (observedStart === null || observedStart === undefined) return false;\n  return true;",
+    runner: WEBT,
+    test: "src/lib/circulos/stack-ownership.test.ts",
+    t: "SPARES a live pid whose start time does not match",
+  },
+  {
+    property: "TEARDOWN_NAMES_ONLY_WHAT_IT_OWNS",
+    mutation: "the owned-resource list is replaced by a glob",
+    file: w("e2e/circulos/ownership.mjs"),
+    find: "    containers: [...(state?.containers ?? [])],",
+    replace: '    containers: ["circulos-e2e-*"],',
+    runner: WEBT,
+    test: "src/lib/circulos/stack-ownership.test.ts",
+    t: "names only the containers and directories the run recorded",
+  },
+  {
+    property: "REAL_DELETION_RACE_IS_OBSERVED",
+    mutation:
+      "the deletion stops erasing the envelope the racing guest just committed",
+    file: f("src/circles/circles-account-deletion.service.ts"),
+    // Removing the activity LOCK does not falsify this test, and that is worth
+    // knowing rather than hiding: the deletion writes those same rows moments
+    // later, so it still queues behind the guest and `pg_blocking_pids` still
+    // names them. The property the race actually establishes is the payoff —
+    // the guest's confirmation commits, and the deletion then erases what it
+    // produced. So the mutation removes the purge of the racing counterpart's
+    // envelope, which is the only thing that clears the guest's snapshot here.
+    find:
+      "        for (const other of others) {\n" +
+      "          await this.participants.purgeEnvelope(other.id, seat.activityId, tx);\n" +
+      "        }",
+    replace: "        void others;",
+    runner: PGSPEC,
+    test: "src/circles/circles-account-deletion.pg-spec.ts",
+    t: "the guest acquires first: the deletion waits, then cleans up what the guest committed",
+  },
+  {
+    property: "REVEAL_BARRIER_HOLDS_IN_THE_BROWSER",
+    mutation: "one confirmation is enough to reveal",
+    file: f("src/circles/circle-activity.repository.ts"),
+    // `revealIfAllReady` holds both halves shut until both are in: the READY
+    // count must EQUAL the required number of participants. Turning that into
+    // "at least one" reveals the first person's words to the second before they
+    // have confirmed anything — the failure the barrier exists to prevent, and
+    // one that shows only on the OTHER person's screen.
+    find: `             SELECT count(*) FROM "CircleActivityParticipant" p
+              WHERE p."activityId" = a."id" AND p."status" = 'READY'
+           ) = a."requiredParticipants"`,
+    replace: `             SELECT count(*) FROM "CircleActivityParticipant" p
+              WHERE p."activityId" = a."id" AND p."status" = 'READY'
+           ) >= 1`,
+    runner: WALK,
+    scenario: "BROWSER_REVEAL_BARRIER",
+    test: "apps/web/e2e/circulos/stack.mjs",
+    t: "the second person cannot see the first person's words before confirming",
+  },
 ];
 
 function runTest(c) {
+  if (c.runner === WALK) return runWalk(c);
   const cwd = c.runner === WEBT ? WEB : API;
   const cfg =
     c.runner === PGSPEC ? ["--config", "vitest.locks.config.ts"] : [];
@@ -352,15 +449,77 @@ function runTest(c) {
 }
 
 /**
+ * Build and run the whole stack against the CURRENT working tree.
+ *
+ * `--worktree` is what makes this usable as a control: the mutation lives in
+ * the working tree, and the harness otherwise archives a commit — which would
+ * faithfully build the UNMUTATED source and report a green walk, scoring a
+ * no-op as a detection.
+ */
+function runWalk(c) {
+  const runId = randomBytes(5).toString("hex");
+  try {
+    const out = execFileSync(
+      "node",
+      [
+        "apps/web/e2e/circulos/stack.mjs",
+        "--worktree",
+        "--run-id",
+        runId,
+      ],
+      {
+        cwd: ROOT,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+        timeout: 2_700_000,
+      },
+    );
+    return { code: 0, out };
+  } catch (err) {
+    if (err.killed || err.signal) return { code: -1, out: "TIMEOUT" };
+    return { code: err.status ?? 1, out: `${err.stdout ?? ""}${err.stderr ?? ""}` };
+  } finally {
+    // The stack tears itself down, but a crash before that leaves resources
+    // named after a run id we chose, so they can always be named again.
+    try {
+      execFileSync(
+        "node",
+        ["apps/web/e2e/circulos/stack.mjs", "--down", runId],
+        { cwd: ROOT, stdio: "pipe", timeout: 300_000 },
+      );
+    } catch {
+      /* already clean */
+    }
+  }
+}
+
+/**
  * How many tests actually RAN.
  *
  * Zero is the dangerous case: a filter that selects nothing exits 0 and looks
  * exactly like a pass.
  */
-function ranCount(out) {
+function ranCount(out, control) {
+  if (control?.runner === WALK) {
+    // "10/10 scenarios, 62 checks" — a run that printed no tally executed
+    // nothing, however it exited.
+    const m = /(\d+)\/(\d+) scenarios, (\d+) checks/.exec(out);
+    return m ? Number(m[3]) : 0;
+  }
   const m = /Tests\s+(?:(\d+)\s+failed\s*\|\s*)?(?:(\d+)\s+passed)?/.exec(out);
   if (!m) return 0;
   return (m[1] ? Number(m[1]) : 0) + (m[2] ? Number(m[2]) : 0);
+}
+
+/**
+ * Did the NAMED scenario fail, rather than merely something failing?
+ *
+ * A mutation to production code can easily break a different scenario than the
+ * one whose property is under test; counting that as a detection would be
+ * scoring the wrong evidence.
+ */
+function namedScenarioFailed(out, control) {
+  return new RegExp(`^FAIL\\s+${control.scenario}\\b`, "m").test(out);
 }
 
 const results = [];
@@ -375,7 +534,7 @@ for (const c of CONTROLS) {
 
   // 1 · the named test must be green and must actually select something.
   const pre = runTest(c);
-  const preRan = ranCount(pre.out);
+  const preRan = ranCount(pre.out, c);
   if (pre.code !== 0 || preRan === 0) {
     why =
       preRan === 0
@@ -416,8 +575,12 @@ for (const c of CONTROLS) {
     why = "the file did not change";
   } else {
     const broken = runTest(c);
-    const ran = ranCount(broken.out);
-    red = broken.code > 0 && ran > 0 && !/TIMEOUT/.test(broken.out);
+    const ran = ranCount(broken.out, c);
+    red =
+      broken.code > 0 &&
+      ran > 0 &&
+      !/TIMEOUT/.test(broken.out) &&
+      (c.runner !== WALK || namedScenarioFailed(broken.out, c));
     if (!red) {
       why =
         broken.code === -1
@@ -426,7 +589,9 @@ for (const c of CONTROLS) {
             ? "no tests ran while mutated"
             : /error TS\d|Cannot find module|SyntaxError/.test(broken.out)
               ? "compile error — proves the file broke, not that the test watched"
-              : "STAYED GREEN — the assertion does not cover this";
+              : c.runner === WALK && !namedScenarioFailed(broken.out, c)
+                ? `something failed, but NOT ${c.scenario}`
+                : "STAYED GREEN — the assertion does not cover this";
     }
   }
 
@@ -437,7 +602,7 @@ for (const c of CONTROLS) {
   let green = false;
   if (applied && red && restored) {
     const after = runTest(c);
-    green = after.code === 0 && ranCount(after.out) > 0;
+    green = after.code === 0 && ranCount(after.out, c) > 0;
     if (!green) why = "did not return to green after restore";
   }
 

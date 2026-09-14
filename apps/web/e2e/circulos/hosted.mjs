@@ -146,6 +146,23 @@ writeFileSync(
 );
 log(`accounts written to ${poolPath} (outside the repository)`);
 
+/** One login, before anything is redeployed. See `poolAccountCanCreate`. */
+const probeToken = await (async () => {
+  const res = await fetch(`${cfg.apiUrl}/api/auth/login`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      email: pool.organiser.email,
+      password: pool.organiser.password,
+    }),
+  });
+  const body = await res.json().catch(() => ({}));
+  return body?.accessToken ?? body?.tokens?.accessToken ?? null;
+})();
+if (!probeToken) {
+  throw new Error("could not obtain a probe token for the readiness check");
+}
+
 const allowlist = [
   ...Object.values(pool).map((a) => a.userId),
   ...(cfg.extraAllowlistIds ?? []),
@@ -190,14 +207,13 @@ for (const service of [cfg.apiServiceId, cfg.workerServiceId]) {
  * more synthetic row in a synthetic database.
  */
 async function poolAccountCanCreate() {
-  const probe = pool.organiser;
-  const login = await fetch(`${cfg.apiUrl}/api/auth/login`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ email: probe.email, password: probe.password }),
-  });
-  const session = await login.json().catch(() => ({}));
-  const token = session?.accessToken ?? session?.tokens?.accessToken;
+  // The token is obtained ONCE, before the redeploy, and reused.
+  //
+  // The first cut logged in on every poll — and login is capped at five per
+  // fifteen minutes per address, so the probe rate-limited itself into never
+  // getting a token and waited forever for a deployment that was already live.
+  // A JWT survives the redeploy: the secret does not change.
+  const token = probeToken;
   if (!token) return false;
 
   const res = await fetch(`${cfg.apiUrl}/api/circles/duo`, {

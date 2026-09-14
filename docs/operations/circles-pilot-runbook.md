@@ -603,10 +603,16 @@ distintos — pero quien llegue por el listado se queda sin camino. Mándales el
 paso 2 de arriba, no el listado. Cerrar ese hueco es una decisión de producto,
 no un arreglo de despliegue.
 
+**Si prefieren no crear nada**, hay una actividad ya hecha esperando: el archivo
+local trae `CIRCULOS_PILOT_ROOM_URL` (por donde entra A) y
+`CIRCULOS_PILOT_INVITATION_URL` (lo que abre B). Sirve una sola vez y caduca a
+los catorce días; pasado eso, o si alguien la gasta, A crea otra con los pasos
+de arriba.
+
 Las credenciales de la cuenta del piloto y el enlace de invitación **no están en
 este documento ni en el repositorio**: viven en un archivo local fuera del
-árbol, `~/.psico-ops/circulos-hosted-pilot.env`. Compártelos tú por el canal que
-elijas.
+árbol, `~/.psico-ops/circulos-hosted-pilot.env`, con permisos `0600`.
+Compártelos tú por el canal que elijas.
 
 ### Datos sintéticos: qué se crea y cómo se limpia
 

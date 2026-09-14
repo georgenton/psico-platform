@@ -71,7 +71,7 @@ export function SalaDuo({
   const [busy, setBusy] = useState(false);
   // The consent stage is the FIRST paint of this room for everybody, so its
   // buttons are the ones exposed to the window before hydration.
-  const interactive = useHidratado();
+  const hidratado = useHidratado();
   const [commandError, setCommandError] = useState<string | null>(null);
   const headingRef = useRef<HTMLHeadingElement | null>(null);
   const previousStage = useRef<string>("");
@@ -294,7 +294,7 @@ export function SalaDuo({
               type="button"
               style={S.primary}
               onClick={() => setLocal({ stage: "prepare" })}
-              disabled={!interactive}
+              disabled={!hidratado}
             >
               Entiendo, empezar
             </button>
@@ -302,7 +302,7 @@ export function SalaDuo({
               type="button"
               style={S.quiet}
               onClick={withdrawAndLeave}
-              disabled={busy || !interactive}
+              disabled={busy || !hidratado}
             >
               No quiero hacerla
             </button>

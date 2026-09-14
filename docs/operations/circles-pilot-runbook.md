@@ -633,6 +633,15 @@ cuatro servicios; el proyecto puede quedar en pie para no tener que rehacerlo.
   vacío y los ratchets lo afirman. **Requisito previo del piloto con personas.**
 - **Política de retención/purga de artefactos.** No se ha inventado ninguna;
   queda como decisión pendiente. **Requisito previo del piloto con personas.**
+- **El listado `/dashboard/circulos` no lleva a ninguna parte.** Enumera lo
+  publicado y su enlace "Ver de qué se trata" abre una página de presentación
+  **sin ningún botón para empezar**. El punto de entrada vive en la superficie
+  de lectura a propósito — leer sobre algo y decidir hacerlo con alguien son
+  actos distintos —, así que esto no es un despiste de implementación sino una
+  pregunta de producto sin responder: o el listado ofrece el camino, o lleva de
+  vuelta al material del que nace la actividad, o no existe. **Decisión
+  pendiente**, y visible para cualquiera que entre por el menú.
+
 - **Eco Facilitador.** Fuera de alcance por decisión explícita: el piloto es Dúo
   sin IA. `ECO_ENABLED=false`.
 - **Un fallo local del hook `pre-push`** se observó una vez y no se reprodujo:

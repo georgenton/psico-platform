@@ -24,7 +24,7 @@
 
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -522,6 +522,23 @@ function namedScenarioFailed(out, control) {
   return new RegExp(`^FAIL\\s+${control.scenario}\\b`, "m").test(out);
 }
 
+/**
+ * Where each phase's output is kept.
+ *
+ * The runner used to hold it only in memory, so when a control failed the
+ * evidence for WHY died with the process — and the walk controls, which take
+ * half an hour a phase, are exactly the ones you cannot casually re-run to look
+ * again.
+ */
+const LOG_DIR = resolve(API, ".negative-controls");
+mkdirSync(LOG_DIR, { recursive: true });
+
+function keep(control, phase, result) {
+  const file = resolve(LOG_DIR, `${control.property}.${phase}.log`);
+  writeFileSync(file, `exit=${result.code}\n\n${result.out}`);
+  return file;
+}
+
 const results = [];
 let passed = 0;
 
@@ -534,6 +551,7 @@ for (const c of CONTROLS) {
 
   // 1 · the named test must be green and must actually select something.
   const pre = runTest(c);
+  keep(c, "1-baseline", pre);
   const preRan = ranCount(pre.out, c);
   if (pre.code !== 0 || preRan === 0) {
     why =
@@ -575,6 +593,7 @@ for (const c of CONTROLS) {
     why = "the file did not change";
   } else {
     const broken = runTest(c);
+    keep(c, "2-mutated", broken);
     const ran = ranCount(broken.out, c);
     red =
       broken.code > 0 &&
@@ -602,8 +621,11 @@ for (const c of CONTROLS) {
   let green = false;
   if (applied && red && restored) {
     const after = runTest(c);
+    const where = keep(c, "3-restored", after);
     green = after.code === 0 && ranCount(after.out, c) > 0;
-    if (!green) why = "did not return to green after restore";
+    if (!green) {
+      why = `did not return to green after restore — see ${where}`;
+    }
   }
 
   const ok = applied && red && restored && green;

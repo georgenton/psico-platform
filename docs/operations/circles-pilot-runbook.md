@@ -541,7 +541,16 @@ node apps/web/e2e/circulos/hosted-limits.mjs --config /ruta/hosted.json
 # 5 · Cookie, CSP y forma de los rechazos, sobre la Web alojada.
 node apps/web/e2e/circulos/hosted-surface.mjs \
   --config /ruta/hosted.json --accounts "$TMPDIR"/circulos-hosted-accounts-<run>.json
+
+# 6 · Al terminar: limpiar lo que esa corrida creó (ver más abajo).
+node apps/web/e2e/circulos/hosted-cleanup.mjs --config /ruta/hosted.json --run <run>
+node apps/web/e2e/circulos/hosted-cleanup.mjs --config /ruta/hosted.json --run <run> --apply
 ```
+
+> **El paso 4 gasta cupo de verdad.** Agota la ruta de invitación y borra los
+> contadores `throttle:` del Redis de pruebas al empezar y al terminar. Córrelo
+> **antes** de dejar el entorno para una prueba manual, nunca por debajo de la
+> sesión de otra persona.
 
 `hosted.json` describe el destino y **no vive en el repositorio**: tenerlo
 versionado sería tener un archivo cuyo único propósito es apuntar a una
@@ -642,8 +651,16 @@ organiza acaba con varias vivas y sin saber cuál mandó.
 
 **Salir en cualquier momento.** El botón para retirarse está siempre en
 pantalla. Si una de las dos se retira antes del intercambio, lo que escribió se
-descarta y la otra persona deja de esperar en vez de quedarse colgada. Eso
-también es parte de lo que conviene probar.
+descarta y la otra persona deja de esperar en vez de quedarse colgada.
+
+**Para probar el retiro sin gastar la actividad buena.** Retirarse cierra la
+sala para las dos, así que hazlo en una aparte: A repite los pasos 2 a 4 —
+experiencia → **Hacer esto con alguien** → **Crear el Dúo**— y sale una
+invitación nueva e independiente. Cuantas quieras; cada una es su propia sala.
+Merece la pena probarlo en los dos momentos, porque el producto se comporta
+distinto: **antes** del intercambio lo escrito se descarta y la actividad queda
+cancelada; **después**, lo que la otra persona ya leyó se queda, porque borrarlo
+no des-revelaría nada y sí destruiría contenido ajeno.
 
 **Un detalle que conviene saber antes de que lo descubran ellos.**
 `/dashboard/circulos` lista lo publicado, pero su enlace "Ver de qué se trata"
@@ -729,6 +746,22 @@ Círculo con `createdByUserId` nulo y las filas de `CircleEvent` con
 `actorUserId` nulo — por la regla del ledger de §2. El artefacto `PROPOSED` y el
 `SUPERSEDED` **se conservan** y siguen siendo **decisión pendiente**; este
 comando no la inventa ni la adelanta.
+
+### Cuando termines de probar
+
+En orden, y ninguno de los pasos depende de los otros:
+
+1. **Limpia lo que creaste.** Si probaste con las cuentas del piloto, sus
+   actividades se quedan; no hace falta borrarlas. Si corriste un recorrido
+   automatizado, límpialo con `hosted-cleanup.mjs --run <run>` (primero sin
+   `--apply` para ver qué hará).
+2. **Cierra Círculos** si nadie más va a entrar: `CIRCLES_ROLLOUT_MODE=off` +
+   redeploy. Comprueba el 503 y que `/health` sigue en 200.
+3. **Para los servicios** desde Railway si quieres dejar de gastar. El volumen
+   de PostgreSQL sobrevive y todo vuelve a arrancar igual.
+
+Nada de esto borra el proyecto. **No lo elimines** mientras el piloto siga
+vivo: el volumen se va con él y no hay vuelta atrás.
 
 ### Cerrar Círculos en el entorno de pruebas
 

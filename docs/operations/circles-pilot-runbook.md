@@ -237,7 +237,7 @@ una obligación independiente del flag.
 
 ---
 
-## 9 · Recorrido completo en dos navegadores — **implementado**
+## 9 · Recorrido del Dúo en dos navegadores — **implementado**
 
 Un solo comando levanta la pila entera y camina el Dúo con dos navegadores
 reales:
@@ -246,14 +246,29 @@ reales:
 node apps/web/e2e/circulos/stack.mjs
 ```
 
-Levanta, desde una **copia temporal aislada del HEAD**: build de producción de
-la Web, API NestJS real, worker real, y PostgreSQL + Redis en contenedores
-propios de esa corrida. Al terminar destruye todo lo que creó. Variantes:
+Levanta, desde una **copia temporal aislada del commit**: build de producción de
+la Web, API NestJS real, worker real, una segunda API con el rollout en `off`, y
+PostgreSQL + Redis en contenedores propios de esa corrida, publicados **sólo en
+loopback**. Al terminar destruye todo lo que creó.
 
 ```bash
-node apps/web/e2e/circulos/stack.mjs --keep      # dejarla arriba para explorar
-node apps/web/e2e/circulos/stack.mjs --down <runId>
+node apps/web/e2e/circulos/stack.mjs --keep            # dejarla arriba
+node apps/web/e2e/circulos/stack.mjs --down <runId>    # detenerla desde otro proceso
+node apps/web/e2e/circulos/stack.mjs --run-id <10 hex> # nombrarla de antemano (CI)
+node apps/web/e2e/circulos/stack.mjs --worktree        # construir ediciones locales
 ```
+
+### Un solo árbol
+
+La fixture, el recorrido y el código bajo prueba salen **todos** del commit
+archivado, y el SHA se imprime al empezar. Una versión anterior copiaba la
+fixture del árbol de trabajo y ejecutaba el recorrido desde el repositorio
+mientras construía el archivo — una mezcla en la que una edición local cambia el
+resultado sin cambiar el commit supuestamente probado. Con el directorio del
+harness sucio el script **se niega a correr** salvo que se lo diga
+(`--dirty-ok`, que entonces superpone la copia de trabajo, o `--worktree`, que
+construye el árbol de trabajo entero); en ambos casos la corrida deja de ser
+evidencia sobre un commit y lo dice.
 
 ### Por qué una copia, y no un interruptor
 
@@ -268,74 +283,105 @@ todas peores que el problema:
   recorrido ya no prueba un build de producción, que es justo lo que tiene que
   funcionar.
 
-Por eso **no cambia nada del código que se despliega**. El script copia el HEAD
-committeado (`git archive`, así que la copia no puede arrastrar una edición
-local), reescribe **ahí** dos líneas de catálogo y el import del fixture, y
-construye esa copia. El repositorio conserva su catálogo vacío y sus ratchets
-siguen afirmándolo.
+El build con catálogo sintético vive **sólo** en el árbol temporal, que se
+borra: no se publica, no se sube a ningún registro y no se reutiliza como
+artefacto. El catálogo del repositorio sigue vacío y sus ratchets lo afirman.
 
-La copia arranca además con `NODE_ENV=production` y con **las barreras de
-configuración declaradas en sus valores exigidos**, no desactivadas: el proceso
-levanta bajo la misma postura estricta que un despliegue real.
+### Los diez escenarios
 
-### Qué afirma el recorrido
+Cada uno con **sus propias cuentas y su propia actividad**, y envuelto para que
+un fallo quede registrado y los demás igual corran — una única secuencia dejaría
+que la primera rotura escondiera todo lo que viene detrás.
 
-Diez comprobaciones, en dos contextos de navegador aislados (no dos pestañas:
-un solo contexto le entregaría al invitado el frasco de cookies del organizador):
+| Escenario                                     | Qué establece                                                                                                                                                                          |
+| --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BROWSER_ENTRY_FLOW`                          | CTA, previsualización que **no crea nada**, una confirmación → **una** actividad, token borrado de la URL, mirar no consume, aceptar sí, ambos en la misma sala con dos asientos       |
+| `BROWSER_PRIVATE_PREPARATION`                 | nada de lo tecleado sale del navegador antes de confirmar (observado sobre lo que el navegador **realmente envía**); el borrador sobrevive a volver del preview y a un envío rechazado |
+| `BROWSER_REVEAL_BARRIER`                      | con una sola confirmación la otra persona **no ve** lo ajeno y `revealedAt` sigue nulo; con las dos, ambos ven                                                                         |
+| `BROWSER_ARTIFACT_CONFIRMATION`               | propuesta v1, edición → v2 con v1 **SUPERSEDED**, ambas confirmaciones atadas a la versión exacta, ninguna sobre la superseded                                                         |
+| `BROWSER_WITHDRAWAL_BEFORE_AND_AFTER`         | retiro antes y después de revelar, en **actividades independientes**; asiento WITHDRAWN, sobre borrado, y la confirmación de la contraparte sobrevive                                  |
+| `BROWSER_RETRY_AFTER_COMMITTED_RESPONSE_LOSS` | respuesta interceptada **después** de que el servidor comprometió; el commit se verifica en la base y el reintento no duplica actividad ni invitación                                  |
+| `BROWSER_FOREIGN_SESSION_REJECTED`            | tercera sesión sin acceso; cookie de **otra** actividad no abre esta, y sigue abriendo la suya                                                                                         |
+| `REAL_WORKER_TEMPORAL_SCENARIOS`              | el **worker real** consume jobs encolados en su cola: cancela lo atascado, abre el seguimiento vencido, no lo cierra, y no duplica en una segunda pasada                               |
+| `REAL_ACCOUNT_DELETION_SCENARIO`              | el **processor real** borra la cuenta: actividad terminada, sesiones revocadas, sobres eliminados, y el navegador del invitado deja de funcionar                                       |
+| `OFF_GATE_SCENARIO`                           | con el rollout en `off`, superficies cerradas                                                                                                                                          |
 
-1. el CTA aparece en una experiencia elegible;
-2. abrir la previsualización **no crea nada** (contado contra la base de la
-   corrida, como delta);
-3. el enlace tiene la forma de fragmento de un solo uso;
-4. **una** confirmación explícita crea **exactamente una** actividad;
-5. el token se borra de la barra de direcciones al llegar;
-6. al invitado se le muestra una previsualización, no un ingreso consumado;
-7. **mirar** no consume la invitación;
-8. sólo una aceptación explícita incorpora al invitado;
-9. el invitado aterriza en la sala;
-10. el organizador llega a la **misma** sala.
+**Fechas sintéticas, plazos intactos.** Los vencimientos se preparan moviendo
+**los datos** al pasado (una invitación emitida hace 40 días, un seguimiento
+vencido hace una hora, una solicitud de borrado de hace 31 días). El plazo
+productivo de 30 días **no se reduce**: el processor aplica su propia
+comprobación contra el reloj real y pasa por sus propios términos.
 
-El enlace de invitación nunca se escribe: los diagnósticos imprimen la forma
-(`/i#<token:43>`), nunca el valor.
+**El `off` se observa en un proceso que arrancó con él.** `CirclesRolloutService`
+resuelve el modo una vez al boot y no lo relee — deliberadamente, para que un
+cambio de entorno a media vuelo no pueda medio abrir una superficie. Así que la
+pila levanta una **segunda API** con `CIRCLES_ROLLOUT_MODE=off` y el recorrido
+le pregunta a ese servicio real. No hay interruptor de runtime que apagar, y
+añadir uno para facilitar la prueba quitaría justo la propiedad que se prueba.
 
 ### Lo que encontró
 
-El recorrido encontró dos defectos que ninguna prueba unitaria podía ver, porque
-cada lado era correcto por separado y sólo discrepaban en la petición que los une:
+Tres defectos que ninguna prueba unitaria podía ver, porque cada lado era
+correcto por separado y sólo discrepaban en la petición que los une:
 
-- el BFF no enviaba el `accept: true` que la API exige, así que **ningún**
-  invitado podía aceptar: veía «Este enlace ya no sirve»;
-- el BFF presentaba el secreto de invitado como `Authorization: Bearer`, y
-  `CirclesGuestGuard` sólo lee `x-circle-guest-session` — toda lectura y todo
-  comando de invitado respondía 401 con una sesión válida en la cookie.
+1. **El BFF no enviaba `accept: true`.** Ningún invitado podía aceptar: veía
+   «Este enlace ya no sirve».
+2. **El secreto de invitado viajaba como `Authorization: Bearer`**, y el guard
+   sólo lee `x-circle-guest-session` — 401 con una sesión válida en la cookie.
+3. **Nadie podía retirarse.** `JSON.stringify` omite `payload: undefined`, así
+   que el cuerpo de un retiro lleva dos claves; el envoltorio exigía exactamente
+   tres. «Retirarme de la actividad» respondía `CIRCLE_INVALID_PAYLOAD` — un
+   consejo imposible de seguir, sobre un campo que no existe, para un acto que
+   no debe explicaciones.
 
-La prueba que existía afirmaba `Authorization: Bearer`: fijaba el lado emisor
-contra sí mismo en vez de contra el contrato del guard, y por eso siguió verde
-durante un fallo que dejaba la superficie de invitado inalcanzable.
+## 10 · Propiedad y limpieza de la pila
 
-## 10 · Controles negativos
+Una corrida escribe un archivo de estado con los servicios que arrancó: pid,
+grupo de procesos y **hora de arranque**. Un pid por sí solo no es una
+identidad — el sistema los recicla, y `--down` corre en otro proceso minutos u
+horas después. El par (pid, hora de arranque) sí lo es: si no coincide, el
+proceso es de otro y se deja en paz (se registra `pid reused — not ours`).
+
+- Los servicios se detienen **por grupo de procesos** y se **espera** su salida
+  antes de borrar sus archivos.
+- Sólo se eliminan los contenedores y directorios que el estado nombra. Nunca
+  por patrón: `circulos-e2e-*` también alcanzaría a una corrida concurrente.
+- La limpieza es idempotente: un segundo `--down` no rompe nada.
+- Salida normal, fallo, SIGINT y SIGTERM limpian igual. `--keep` es lo único que
+  deja una pila en pie, y sólo cuando llegó a levantarse.
+
+La decisión vive en `apps/web/e2e/circulos/ownership.mjs` como función pura y
+tiene pruebas propias, así que «un pid reciclado se respeta» dejó de ser el
+recuerdo de una corrida manual.
+
+## 11 · Controles negativos
 
 ```bash
 node apps/api/src/circles/negative-controls.mjs
 node apps/api/src/circles/negative-controls.mjs --only=RATE
 ```
 
-Catorce controles. Cada uno rompe el código de producción donde vive la
-garantía, exige que la prueba **nombrada** se ponga en rojo por eso, restaura el
-archivo byte a byte y exige verde otra vez. Un error de compilación, un timeout
-o un filtro que no seleccionó nada cuentan como control **fallido**, nunca como
-detección: `-t` de vitest es una expresión regular, y un paréntesis sin escapar
-selecciona cero pruebas y sale 0.
+Cada control rompe el código de producción donde vive la garantía, exige que la
+prueba **nombrada** se ponga en rojo por eso, restaura el archivo byte a byte y
+exige verde otra vez. Un error de compilación, un timeout o un filtro que no
+seleccionó nada cuentan como control **fallido**, nunca como detección: `-t` de
+vitest es una expresión regular, y un paréntesis sin escapar selecciona cero
+pruebas y sale 0.
 
 Los controles de PostgreSQL usan `TEST_DATABASE_URL` (por defecto la base local
-de pruebas, nunca producción).
+de pruebas, nunca producción). El control de la barrera de revelación construye
+la pila completa con `--worktree` — sin eso construiría el commit, es decir el
+código **sin** mutar, y un no-op se anotaría como detección.
 
-## 11 · PENDIENTE — no implementado en este corte
+## 12 · PENDIENTE — no implementado en este corte
 
 - **Aprobación editorial y de seguridad de plantillas.** Ninguna candidata tiene
   copy aprobado verificable en el repositorio. El catálogo de producción sigue
-  vacío y los ratchets lo afirman.
-- **Eco Facilitador.** Fuera de alcance de este corte, por decisión explícita:
-  el piloto es Dúo sin IA. `ECO_ENABLED=false`.
-- **Política de retención/purga.** No se ha inventado ninguna. Si el piloto la
-  necesita, es una aprobación previa, no un default.
+  vacío y los ratchets lo afirman. **Requisito previo del piloto con personas.**
+- **Política de retención/purga de artefactos.** No se ha inventado ninguna;
+  queda como decisión pendiente. **Requisito previo del piloto con personas.**
+- **Eco Facilitador.** Fuera de alcance por decisión explícita: el piloto es Dúo
+  sin IA. `ECO_ENABLED=false`.
+- **Un fallo local del hook `pre-push`** se observó una vez y no se reprodujo:
+  `pnpm test` volvió a salir 0 inmediatamente después, y CI quedó verde sobre el
+  mismo árbol. Queda **sin explicar**, no cerrado.

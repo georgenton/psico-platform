@@ -368,9 +368,19 @@ async function main() {
   // `git archive` reads the committed tree, so the copy can never contain an
   // accidental local edit — and the original worktree is never written to.
   // `--worktree` archives the CURRENT tracked state; otherwise the commit.
-  const treeish = WORKTREE
-    ? sh("git", ["stash", "create"], { cwd: REPO, quiet: true }).trim() || headSha
-    : headSha;
+  //
+  // Through a TEMPORARY INDEX rather than `git stash create`. `stash create`
+  // has a "nothing to stash" path whose behaviour depends on the tree being
+  // dirty, and the negative control that uses this flag runs it three times —
+  // mutated, then RESTORED, i.e. clean. Both times it failed on the clean run,
+  // and the control reported "did not return to green" about a harness that had
+  // never started.
+  //
+  // `read-tree` + `add -u` + `write-tree` has no such path: it writes a tree
+  // object for exactly what is on disk, and on a clean tree that IS HEAD's
+  // tree. The index it uses is its own file, so the repository's real index is
+  // never touched.
+  const treeish = WORKTREE ? writeWorktreeTree() : headSha;
   if (WORKTREE) {
     owned.headSha = treeish === headSha ? headSha : `${headSha}+worktree`;
     persistState();
@@ -773,6 +783,25 @@ function start(name, cmd, cmdArgs, opts) {
   });
   persistState();
   return child;
+}
+
+/**
+ * A tree object for the working tree's tracked state, via a throwaway index.
+ *
+ * Staging into a temporary `GIT_INDEX_FILE` leaves the repository's real index
+ * alone — nothing the developer has staged is disturbed, and nothing this
+ * writes can be committed by accident.
+ */
+function writeWorktreeTree() {
+  const indexFile = join(tmpdir(), `circulos-e2e-${RUN}.index`);
+  const env = { ...process.env, GIT_INDEX_FILE: indexFile };
+  try {
+    sh("git", ["read-tree", "HEAD"], { cwd: REPO, env, quiet: true });
+    sh("git", ["add", "-u"], { cwd: REPO, env, quiet: true });
+    return sh("git", ["write-tree"], { cwd: REPO, env, quiet: true }).trim();
+  } finally {
+    rmSync(indexFile, { force: true });
+  }
 }
 
 /** The tail of a service's log — how a boot failure gets explained. */

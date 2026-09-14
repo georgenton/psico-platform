@@ -198,7 +198,16 @@ async function signIn(page, { email, password }) {
   await page.fill('input[name="email"]', email);
   await page.fill('input[name="password"]', password);
   await Promise.all([
-    page.waitForURL(/\/dashboard/, { timeout: 60_000 }),
+    // ANY authenticated destination, not `/dashboard` specifically.
+    //
+    // Where a successful login lands is not part of this walk's subject, and it
+    // differs by environment: locally it settles on `/dashboard` and the
+    // onboarding gate bounces on the NEXT navigation, while the hosted build
+    // redirects a new account straight to `/onboarding`. Waiting for
+    // `/dashboard` made a correct login look like a timeout on Vercel — the
+    // product had authenticated, set both cookies, and gone exactly where it
+    // should.
+    page.waitForURL((u) => !/\/login/.test(String(u)), { timeout: 60_000 }),
     page.click('button[type="submit"]'),
   ]);
   await dismissOnboarding(page);

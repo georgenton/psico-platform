@@ -57,30 +57,103 @@ describe("circles · PR3 scope — access and participation", () => {
     }
   });
 
-  it("ships exactly two migrations, both additive", () => {
-    // PR2 added the domain; PR3 adds the invariants participation needs. PR2's
-    // has been applied to production, so it is not edited — a migration that
-    // has run is a fact, not a draft.
+  it("ships three migrations; the two applied ones stay additive", () => {
+    // PR2 added the domain; PR3 the invariants participation needs; the pilot
+    // cut adds the one account deletion owes — the sanctioned detach PR2 itself
+    // predicted it would need ("account deletion, once Círculos is on, will
+    // need a sanctioned scrub path that is itself a migration").
+    //
+    // The first two have been applied to production, so they are not edited: a
+    // migration that has run is a fact, not a draft. They stay strictly
+    // additive.
+    //
+    // The third CANNOT be additive and says so. Loosening a foreign key means
+    // dropping and recreating it, and making a column nullable is
+    // `ALTER COLUMN`. Rather than exempt the file wholesale — which would
+    // retire the rule exactly where it matters most — the operations it is
+    // allowed to perform are enumerated below, and everything else (a dropped
+    // TABLE, a dropped COLUMN, a RENAME, a dropped INDEX) stays forbidden in
+    // every migration including this one.
     const dirs = readdirSync(join(ROOT, "apps/api/prisma/migrations"))
       .filter((d) => /circle/i.test(d))
       .sort();
     expect(dirs).toEqual([
       "20260909180000_circles_domain_foundation",
       "20260910030000_circles_participation_invariants",
+      "20260913000000_circles_account_deletion",
     ]);
+
+    const APPLIED = dirs.slice(0, 2);
+    const DETACH = "20260913000000_circles_account_deletion";
+
+    /** Permitted ONLY in the detach migration, and only on these targets. */
+    const DETACH_ALLOWED = [
+      /^ALTER TABLE "Circle" ALTER COLUMN "createdByUserId" DROP NOT NULL;$/,
+      /^ALTER TABLE "CircleMember" ALTER COLUMN "userId" DROP NOT NULL;$/,
+      /^ALTER TABLE "Circle" DROP CONSTRAINT "Circle_createdByUserId_fkey";$/,
+      /^ALTER TABLE "CircleMember" DROP CONSTRAINT "CircleMember_userId_fkey";$/,
+      /^ALTER TABLE "CircleEvent" DROP CONSTRAINT "CircleEvent_actorUserId_fkey";$/,
+    ];
+
     for (const dir of dirs) {
       const sql = read(`apps/api/prisma/migrations/${dir}/migration.sql`);
       // The hazard that broke production on 2026-06-01: Prisma CLI chatter as
       // the first line of a file Postgres is about to execute.
       expect(sql.split("\n")[0], dir).toMatch(/^--/);
-      for (const line of sql
+      for (const raw of sql
         .split("\n")
         .filter((l) => !l.trimStart().startsWith("--"))) {
+        const line = raw.trim();
+        // Never, in any migration: these destroy data rather than loosen a
+        // reference.
         expect(line, `${dir} · ${line}`).not.toMatch(
-          /\bDROP\s+(TABLE|COLUMN|CONSTRAINT|INDEX)\b|\bALTER\s+COLUMN\b|\bRENAME\b/i,
+          /\bDROP\s+(TABLE|COLUMN|INDEX)\b|\bRENAME\b/i,
         );
+        const loosening = /\bDROP\s+CONSTRAINT\b|\bALTER\s+COLUMN\b/i.test(
+          line,
+        );
+        if (!loosening) continue;
+        if (APPLIED.includes(dir)) {
+          expect.fail(`${dir} is applied and must stay additive · ${line}`);
+        }
+        expect(dir, `${dir} · ${line}`).toBe(DETACH);
+        expect(
+          DETACH_ALLOWED.some((re) => re.test(line)),
+          `${DETACH} performs an unenumerated loosening · ${line}`,
+        ).toBe(true);
       }
     }
+  });
+
+  it("keeps the ledger append-only for everything but the detach", () => {
+    // The triggers are NOT dropped and NOT made conditional on anything a
+    // runtime connection can set. The one admitted update is gated on the
+    // account already being gone, which is true only inside `ON DELETE SET
+    // NULL`. These are the shapes that would quietly reopen the ledger.
+    const sql = read(
+      "apps/api/prisma/migrations/20260913000000_circles_account_deletion/migration.sql",
+    );
+    // Comments stripped first. This file DESCRIBES what it refuses to do —
+    // "no `session_replication_role`, no SECURITY DEFINER" — and a rule that
+    // read the prose would forbid writing the guarantee down. Same reason
+    // `code()` exists for the TypeScript scope checks.
+    const statements = sql
+      .split("\n")
+      .filter((l) => !l.trimStart().startsWith("--"))
+      .join("\n");
+    for (const forbidden of [
+      "DROP TRIGGER",
+      "DISABLE TRIGGER",
+      "session_replication_role",
+      "SECURITY DEFINER",
+      "EXECUTE format",
+      "EXECUTE '",
+    ]) {
+      expect(statements, forbidden).not.toContain(forbidden);
+    }
+    // The authorisation clause itself, and the pinned search_path.
+    expect(sql).toMatch(/NOT EXISTS\s*\(\s*SELECT 1 FROM public\."User"/);
+    expect(sql).toContain("SET search_path = pg_catalog, public");
   });
 
   it("leaves PR2's applied migration byte-identical", () => {
@@ -123,25 +196,40 @@ describe("circles · PR3 scope — access and participation", () => {
     }
   });
 
-  it("touches no Mobile or worker file", () => {
-    // The scope of PR3 is `apps/api/src/circles/**`, the contracts, the schema,
-    // one migration and the docs. These directories are not in it.
+  it("touches no Mobile file, and names every worker file it owns", () => {
+    // Mobile belongs to no cut and stays empty.
     //
-    // `apps/web/src/app/dashboard` WAS on this list and is not any more. PR4 is
-    // the cut that owns the web guest flow, and it adds `dashboard/circulos/**`
-    // — so the assertion that made PR3 honest would now only be asserting that
-    // PR4 had not happened. Mobile and the worker stay: they belong to no cut
-    // yet, and PR4's own scope test pins that it adds nothing to either.
+    // The WORKER no longer does, and the handover is the same one this file
+    // has performed twice already: PR2's ratchets named PR3's commands, PR3
+    // updated them when it shipped them, PR4 released
+    // `apps/web/src/app/dashboard` when it shipped the guest flow. The
+    // pilot-readiness cut owns two worker processors, so "no worker file"
+    // would now be asserting only that this cut had not happened.
     //
-    // This is the same handover the test above describes: PR2's version of
-    // these ratchets named PR3's commands, PR3 updated them when it shipped
-    // them, and PR4 does the same here.
-    for (const dir of ["apps/mobile/app", "apps/api/src/jobs/processors"]) {
-      const hits = readdirSync(join(ROOT, dir), { recursive: true } as never)
-        .filter((f): f is string => typeof f === "string")
-        .filter((f) => /circle|circulo/i.test(f));
-      expect(hits, dir).toEqual([]);
-    }
+    // What replaces it is stricter than a directory being empty: the files are
+    // ENUMERATED. A third Círculos processor appearing without a line here
+    // fails, which is the property the original rule was protecting.
+    const mobile = readdirSync(join(ROOT, "apps/mobile/app"), {
+      recursive: true,
+    } as never)
+      .filter((f): f is string => typeof f === "string")
+      .filter((f) => /circle|circulo/i.test(f));
+    expect(mobile, "apps/mobile/app").toEqual([]);
+
+    const workerFiles = readdirSync(
+      join(ROOT, "apps/api/src/jobs/processors"),
+      {
+        recursive: true,
+      } as never,
+    )
+      .filter((f): f is string => typeof f === "string")
+      .filter((f) => /circle|circulo/i.test(f))
+      .sort();
+    expect(workerFiles).toEqual([
+      // The temporal sweep: expiry and the follow-up transition, inert while
+      // the rollout is off.
+      "circles-sweep.processor.ts",
+    ]);
   });
 
   it("keeps the rollout closed by default", () => {

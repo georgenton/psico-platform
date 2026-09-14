@@ -110,3 +110,117 @@ describe("the rest of the app is untouched", () => {
     expect(res.headers.get("content-security-policy"), path).toBeNull();
   });
 });
+
+/**
+ * The defect a manual tester hit: "an error when closing the Dúo, on the
+ * inviter's page".
+ *
+ * The access token lives fifteen minutes. A Dúo takes longer. This branch used
+ * to return the CSP response early, so `/compartir/:id` and every
+ * `/api/circulos/*` handler the room calls were the only authenticated
+ * surfaces in the app that never renewed the pair — and once the token expired,
+ * the actor resolver read 401 from the API, fell through, and answered
+ * CIRCLE_FORBIDDEN. The room showed an error for a session that was alive, and
+ * reloading could not fix it because reloading lands on a Círculos path too.
+ */
+describe("a Dúo outlives an access token", () => {
+  /** A JWT with only the claim the middleware reads: `exp`. */
+  function jwt(expSecondsFromNow: number): string {
+    const body = Buffer.from(
+      JSON.stringify({
+        exp: Math.floor(Date.now() / 1000) + expSecondsFromNow,
+      }),
+    ).toString("base64url");
+    return `x.${body}.y`;
+  }
+
+  function withCookies(
+    path: string,
+    cookies: Record<string, string>,
+  ): NextRequest {
+    const req = new NextRequest(new URL(`https://app.test${path}`));
+    for (const [name, value] of Object.entries(cookies)) {
+      req.cookies.set(name, value);
+    }
+    return req;
+  }
+
+  const ROOM = "/compartir/act-1";
+  const COMMAND = "/api/circulos/actividad/act-1/comando";
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  /** The API's refresh endpoint, answering with a rotated pair. */
+  function refreshReturns(pair: { accessToken: string; refreshToken: string }) {
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(JSON.stringify(pair), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    return fetchMock;
+  }
+
+  it.each([ROOM, COMMAND])(
+    "%s renews the pair when the access token has expired",
+    async (path) => {
+      const fresh = { accessToken: jwt(900), refreshToken: "rt-new" };
+      const fetchMock = refreshReturns(fresh);
+
+      const res = await middleware(
+        withCookies(path, { psico_at: jwt(-60), psico_rt: "rt-old" }),
+      );
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      // The renewed token reaches THIS request, which is what the room's own
+      // handler reads a moment later.
+      expect(res.headers.get("x-middleware-request-cookie")).toContain(
+        fresh.accessToken,
+      );
+      // And the browser keeps the rotated pair.
+      expect(res.headers.getSetCookie().join(" ")).toContain(fresh.accessToken);
+      // Without losing the reason this branch exists.
+      expect(res.headers.get("content-security-policy")).toContain(
+        "'strict-dynamic'",
+      );
+    },
+  );
+
+  it("does not spend a refresh when the access token is still good", async () => {
+    const fetchMock = refreshReturns({
+      accessToken: "should-not-be-used",
+      refreshToken: "nor-this",
+    });
+    await middleware(
+      withCookies(ROOM, { psico_at: jwt(900), psico_rt: "rt-old" }),
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("leaves a guest with no account untouched", async () => {
+    // No refresh token: a guest's credential is their own cookie, and there is
+    // nothing to renew. This must not become a refusal.
+    const fetchMock = refreshReturns({ accessToken: "x", refreshToken: "y" });
+    const res = await middleware(
+      withCookies(ROOM, { fv_circulo_guest: "guest-secret" }),
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(res.headers.get("content-security-policy")).toBeTruthy();
+  });
+
+  it("ends the session when the refresh token itself is dead", async () => {
+    // "Your session ended" and "this activity is not for you" are different
+    // sentences; this one must not arrive dressed as a Círculos refusal.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("{}", { status: 401 })),
+    );
+    const res = await middleware(
+      withCookies(ROOM, { psico_at: jwt(-60), psico_rt: "rt-dead" }),
+    );
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toContain("/logout");
+  });
+});

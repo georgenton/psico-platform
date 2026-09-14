@@ -288,6 +288,12 @@ export class CirclesService {
         activity.templateVersion,
       );
 
+      // A membership detached by account deletion names nobody, so there is no
+      // first name to resolve and no lookup to make. `null` here is the same
+      // answer the method already gives for an inviter it cannot resolve —
+      // the preview is describable or it is absent, never invented.
+      if (member.userId === null) return null;
+
       const user = await this.prisma.user.findUnique({
         where: { id: member.userId },
         // Exactly the two columns a first name can come from. Selecting the

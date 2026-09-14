@@ -102,6 +102,31 @@ describe("the exchange hands the browser a cookie, never a token", () => {
     );
   });
 
+  it("sends the explicit accept:true the API requires to consume an invitation", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      ok(
+        {
+          guestSessionToken: "t",
+          expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+        },
+        201,
+      ),
+    );
+
+    await sesionPOST(req({ secret: "s3cr3t" }));
+
+    // `AcceptInvitationDto` pins this field to a literal `true` with no
+    // default, so acceptance cannot happen by accident. The consequence is
+    // that omitting it does not fail OPEN, it fails the request: without this
+    // the guest gets "Este enlace ya no sirve" and can never join. Found by
+    // the two-browser walk, which pressed the button for real.
+    const init = fetchSpy.mock.calls[0]![1] as RequestInit;
+    expect(JSON.parse(String(init.body))).toEqual({
+      secret: "s3cr3t",
+      accept: true,
+    });
+  });
+
   it("refuses an already-expired session rather than setting a dead cookie", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
       ok(
@@ -133,6 +158,28 @@ describe("the exchange hands the browser a cookie, never a token", () => {
     expect(deleted).toContain(GUEST_COOKIE);
     expect(res.headers.get("set-cookie") ?? "").toMatch(/Max-Age=0/i);
   });
+
+  it("leaving as a guest does not sign the MEMBER out", async () => {
+    // The two credentials are independent, and they coexist on one browser
+    // constantly: a member opens an invitation somebody sent them, ends up
+    // holding a guest cookie for that activity, and then leaves it. If leaving
+    // cleared the session pair, they would be bounced out of their own account
+    // by declining somebody else's Dúo.
+    cookieStore.set(GUEST_COOKIE, "guest-token");
+    cookieStore.set("psico_at", "member-access");
+    cookieStore.set("psico_rt", "member-refresh");
+
+    const res = await sesionDELETE();
+
+    expect(res.status).toBe(200);
+    expect(deleted).toEqual([GUEST_COOKIE]);
+    expect(cookieStore.get("psico_at")).toBe("member-access");
+    expect(cookieStore.get("psico_rt")).toBe("member-refresh");
+    // And nothing in the response tells the browser to drop them either.
+    const setCookie = res.headers.get("set-cookie") ?? "";
+    expect(setCookie).not.toContain("psico_at");
+    expect(setCookie).not.toContain("psico_rt");
+  });
 });
 
 describe("the command handler forwards only what is on the list", () => {
@@ -157,6 +204,65 @@ describe("the command handler forwards only what is on the list", () => {
       expect(fetchSpy).not.toHaveBeenCalled();
     },
   );
+
+  it("accepts a withdrawal, whose body carries no payload key at all", async () => {
+    // `JSON.stringify({ kind, payload: undefined, idempotencyKey })` omits the
+    // undefined value, so the body the browser actually sends has TWO keys.
+    // The wrapper used to demand exactly three, which refused every withdrawal
+    // the product could produce: "Retirarme de la actividad" answered
+    // `CIRCLE_INVALID_PAYLOAD` to somebody trying to leave an activity.
+    cookieStore.set(GUEST_COOKIE, "guest-token");
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      // The scope lookup the handler does first, then the command itself.
+      .mockResolvedValueOnce(
+        ok({ kind: "GUEST", activityId: "act-1", participantId: "p-1" }),
+      )
+      .mockResolvedValueOnce(ok({ ok: true }));
+
+    const body = JSON.stringify({
+      kind: "withdraw",
+      payload: undefined,
+      idempotencyKey: INTENCION,
+    });
+    expect(JSON.parse(body)).not.toHaveProperty("payload");
+
+    const res = await comandoPOST(
+      new Request("https://app.test/api/circulos/x", {
+        method: "POST",
+        body,
+        headers: { "Content-Type": "application/json" },
+      }),
+      params,
+    );
+
+    expect(res.status).toBeLessThan(400);
+    const forwarded = fetchSpy.mock.calls.at(-1)!;
+    expect(String(forwarded[0])).toContain("/withdraw");
+  });
+
+  it("still refuses an unknown key in the wrapper", async () => {
+    // Making `payload` optional must not make the wrapper open: a caller that
+    // sends `userId` is refused, not quietly trimmed.
+    cookieStore.set(GUEST_COOKIE, "guest-token");
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+    const res = await comandoPOST(
+      req({
+        kind: "withdraw",
+        idempotencyKey: INTENCION,
+        userId: "u-other",
+      }),
+      params,
+    );
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      ok: false,
+      code: "CIRCLE_INVALID_PAYLOAD",
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
 
   it("refuses a cross-site command", async () => {
     headerStore.origin = "https://evil.test";

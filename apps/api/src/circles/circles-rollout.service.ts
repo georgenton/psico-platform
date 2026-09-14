@@ -29,7 +29,12 @@ export class CirclesRolloutService {
   }
 
   /** Whether Círculos is on for this AUTHENTICATED actor right now. */
-  isAvailable(userId: string): boolean {
+  isAvailable(userId: string | null): boolean {
+    // A membership whose account has been deleted carries no enablement — not
+    // even under `on`, where the feature is generally available but this
+    // particular seat no longer belongs to anybody. Checked here rather than
+    // left to the callers so the fail-closed answer is the only answer.
+    if (userId === null) return false;
     if (this.mode === "on") return true;
     if (this.mode === "off") return false;
     return this.pilot.has(userId);

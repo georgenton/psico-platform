@@ -85,3 +85,7 @@ apps/web/e2e/.eec-c01-session.json
 
 # Salidas temporales del spec del build EEC (se limpian solas; esto cubre un fallo a mitad).
 .tmp-eec-build-spec/
+
+# Negative-control phase logs (written by apps/api/src/circles/negative-controls.mjs).
+# Diagnostic output from a local run; never part of a build.
+apps/api/.negative-controls/

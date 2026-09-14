@@ -159,6 +159,8 @@ export const QueueName = {
    * (cohortWeek, weekOffset).
    */
   COHORT_RETENTION: "cohort-retention",
+  /** Círculos · the temporal sweep. Inert unless the rollout is on. */
+  CIRCLES_SWEEP: "circles-sweep",
 
   /**
    * Sprint G2 — Monthly emotional-map snapshot fan-out.
@@ -294,6 +296,20 @@ export interface PlatformSnapshotJobPayload {
  * processor scans the full history each week. Kept as an interface so ops
  * can backfill or restrict horizons in the future.
  */
+/**
+ * The Círculos sweep.
+ *
+ * `nowIso` is a test-only escape hatch — the same one the timezone-aware
+ * processors use — so an expiry can be exercised at a controlled instant
+ * instead of by waiting for one.
+ */
+export interface CirclesSweepJobPayload {
+  readonly nowIso?: string;
+  /** Rows per pass. Bounded so one run cannot hold the worker indefinitely. */
+  readonly batchSize?: number;
+  readonly dryRun?: boolean;
+}
+
 export interface CohortRetentionJobPayload {
   /** Cap cohorts older than this many weeks. Default 52 (1 year). */
   horizonWeeks?: number;
@@ -330,6 +346,7 @@ export const JobName = {
   RUN_WEEKLY_SUMMARY_GENERATION: "run-weekly-summary-generation",
   RUN_PLATFORM_SNAPSHOT: "run-platform-snapshot",
   RUN_COHORT_RETENTION: "run-cohort-retention",
+  RUN_CIRCLES_SWEEP: "run-circles-sweep",
   RUN_EMOTIONAL_MAP_SNAPSHOT: "run-emotional-map-snapshot",
 } as const;
 

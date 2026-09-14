@@ -1,5 +1,7 @@
 import "server-only";
 
+import { CLIENT_ATTESTATION_HEADER, clientAttestation } from "./atestacion";
+
 import { headers } from "next/headers";
 import type {
   CircleActivityView,
@@ -31,6 +33,15 @@ import { CIRCLE_SHARE_LIMITS } from "@psico/types";
 
 const API_ROOT = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 const API_BASE = `${API_ROOT.replace(/\/$/, "")}/api`;
+
+/**
+ * The header `CirclesGuestGuard` reads, and the only one it will accept.
+ *
+ * Kept as a named constant beside the call that sets it so the two ends of this
+ * contract are legible together; the guard owns the authoritative spelling
+ * (`CirclesGuestGuard.HEADER`) and `bff.test.ts` pins this against it.
+ */
+const GUEST_SESSION_HEADER = "x-circle-guest-session";
 
 export interface BffResult<T> {
   readonly ok: boolean;
@@ -112,7 +123,23 @@ async function call<T>(
   path: string,
   init: {
     method: "GET" | "POST" | "PUT";
+    /** A signed-in member's JWT. Presented as `Authorization: Bearer`. */
     token?: string | null;
+    /**
+     * A guest session secret. NOT a bearer token, and deliberately a separate
+     * field.
+     *
+     * `CirclesGuestGuard` reads `x-circle-guest-session` and nothing else, so a
+     * guest secret sent as `Authorization: Bearer` is simply never seen: every
+     * guest read and every guest command answered
+     * `401 CIRCLE_GUEST_SESSION_INVALID` while the cookie sat there, valid.
+     *
+     * The two credentials used to share one parameter, which is why one could
+     * be sent where the other was expected. They are different kinds of thing —
+     * one identifies an account, the other a single activity's visitor — so
+     * they now travel in different fields and different headers.
+     */
+    guestToken?: string | null;
     body?: unknown;
     idempotencyKey?: string;
   },
@@ -122,9 +149,21 @@ async function call<T>(
     headersOut.set("Content-Type", "application/json");
   }
   if (init.token) headersOut.set("Authorization", `Bearer ${init.token}`);
+  if (init.guestToken) {
+    headersOut.set(GUEST_SESSION_HEADER, init.guestToken);
+  }
   if (init.idempotencyKey) {
     headersOut.set("Idempotency-Key", init.idempotencyKey);
   }
+  // Which network client this call is FOR, signed.
+  //
+  // Without it the API buckets every guest under this server's egress address
+  // and one visitor's limit closes the surface for all of them. `null` when
+  // the deployment has no secret or the platform reported no address, in which
+  // case the API falls back to that shared bucket — the behaviour we have
+  // today, never something looser.
+  const attestation = clientAttestation();
+  if (attestation) headersOut.set(CLIENT_ATTESTATION_HEADER, attestation);
 
   let res: Response;
   try {
@@ -225,11 +264,23 @@ export function projectInvitationPreview(
   });
 }
 
-/** Trade the link for a session. The raw token is returned ONCE, to us. */
+/**
+ * Trade the link for a session. The raw token is returned ONCE, to us.
+ *
+ * `accept: true` is REQUIRED by `AcceptInvitationDto` (`@Equals(true)`), which
+ * has no default precisely so that nothing can consume an invitation without
+ * saying so. Omitting it does not fail open — it fails the request outright
+ * with `accept must be equal to true`, which is what this route did until the
+ * two-browser walk pressed the button and found acceptance impossible.
+ *
+ * Sending it here is honest: this function is called from one place, the POST
+ * handler behind the explicit "Aceptar invitación" button, and reaching it
+ * already IS the person's acceptance.
+ */
 export function acceptInvitation(secret: string) {
   return call<{ guestSessionToken: string; expiresAt: string }>(
     "/circles/invitations/accept",
-    { method: "POST", body: { secret } },
+    { method: "POST", body: { secret, accept: true } },
   );
 }
 
@@ -243,7 +294,7 @@ export function acceptInvitation(secret: string) {
 export function guestScope(token: string) {
   return call<GuestScope>("/circles/guest/session", {
     method: "GET",
-    token,
+    guestToken: token,
   });
 }
 
@@ -252,7 +303,7 @@ export function guestScope(token: string) {
 export function readActivityAsGuest(token: string, activityId: string) {
   return call<CircleActivityView>(
     `/circles/guest/activities/${encodeURIComponent(activityId)}`,
-    { method: "GET", token },
+    { method: "GET", guestToken: token },
   );
 }
 
@@ -290,7 +341,7 @@ export async function guestCommand(
     `/circles/guest/activities/${encodeURIComponent(input.activityId)}${route.path}`,
     {
       method: route.method,
-      token,
+      guestToken: token,
       body: input.body ?? {},
       idempotencyKey: input.idempotencyKey,
     },

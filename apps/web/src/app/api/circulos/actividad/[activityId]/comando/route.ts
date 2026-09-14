@@ -64,7 +64,21 @@ export async function POST(
   // `role` would mean a caller could send them for a long time without anything
   // saying no, and the day one of them started being read would be the day it
   // mattered.
-  if (!exactKeys(raw, ["kind", "idempotencyKey", "payload"])) {
+  //
+  // `payload` is OPTIONAL, and has to be: `withdraw` takes none, the browser
+  // sends `JSON.stringify({ kind, payload: undefined, idempotencyKey })`, and
+  // `JSON.stringify` omits an undefined value entirely — so the body arrives
+  // with two keys. Demanding exactly three refused every withdrawal the product
+  // could produce, which is how "Retirarme de la actividad" answered
+  // `CIRCLE_INVALID_PAYLOAD` to a person trying to leave.
+  //
+  // `buildPayload` already treats a missing payload as `{}` for `withdraw` and
+  // as INVALID for every command that needs one, so the two halves of this file
+  // now agree. Unknown keys are still refused, which is what "closed" meant.
+  if (!onlyKeys(raw, ["kind", "idempotencyKey", "payload"])) {
+    return refuse(400, "CIRCLE_INVALID_PAYLOAD");
+  }
+  if (!("kind" in raw) || !("idempotencyKey" in raw)) {
     return refuse(400, "CIRCLE_INVALID_PAYLOAD");
   }
 
@@ -196,4 +210,15 @@ function buildPayload(
 function exactKeys(obj: Record<string, unknown>, keys: string[]): boolean {
   const own = Object.keys(obj);
   return own.length === keys.length && keys.every((k) => own.includes(k));
+}
+
+/**
+ * Every key present is on the list — but the list may not be exhausted.
+ *
+ * For a wrapper with an optional member. It still refuses anything unknown,
+ * which is the property that matters; what it does not do is insist on a key
+ * the sender is entitled to omit.
+ */
+function onlyKeys(obj: Record<string, unknown>, keys: string[]): boolean {
+  return Object.keys(obj).every((k) => keys.includes(k));
 }

@@ -191,6 +191,93 @@ jobs:
           TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
           TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
 
+  circles-e2e:
+    # The Dúo, walked by real browsers against a real stack.
+    #
+    # This is the only job that proves the pilot's central claim end to end: two
+    # people, two devices, one activity, a link that opens without being spent.
+    # Everything else in this workflow tests the pieces; the two defects that
+    # made the guest surface unreachable were each invisible to every one of
+    # them, because both sides were individually correct and only disagreed in
+    # the request that joins them.
+    #
+    # It needs Docker and a browser. That is a reason to provision them, not a
+    # reason to leave the walk out of CI — an end-to-end test that only ever
+    # runs on one laptop is a test nobody can trust a merge against.
+    name: Círculos · full-stack browser walk
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The harness archives a COMMIT and builds that, so the full history
+          # has to be here for `git archive` to read.
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      # A clean install from the frozen lockfile. No cached `node_modules`, so
+      # a dependency that is present only because somebody's machine still has
+      # it fails here rather than passing quietly.
+      - name: Install dependencies (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+
+      # The DECLARED version, not a global one. `playwright` is a direct dev
+      # dependency of `@psico/web`, so this installs exactly the browser that
+      # version expects.
+      - name: Install Chromium for the declared Playwright
+        run: pnpm --filter @psico/web exec playwright install --with-deps chromium
+
+      - name: Record what is being tested
+        run: |
+          echo "TESTED_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          echo "CIRCULOS_RUN_ID=$(openssl rand -hex 5)" >> "$GITHUB_ENV"
+          {
+            echo "### Círculos full-stack walk"
+            echo
+            echo "Commit under test: \`$(git rev-parse HEAD)\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # The documented command, unchanged. Every secret it uses is synthetic and
+      # generated inside the script; this job has no credentials, reaches no
+      # deployed environment, and deploys nothing.
+      - name: Run the documented command
+        run: |
+          set -o pipefail
+          node apps/web/e2e/circulos/stack.mjs --run-id "$CIRCULOS_RUN_ID" 2>&1 | tee walk.log
+
+      # Per-scenario results in the job summary, so a reviewer sees WHICH
+      # scenario failed without opening the log.
+      - name: Report the scenarios
+        if: always()
+        run: |
+          {
+            echo
+            echo '```'
+            sed -n '/^PASS  \|^FAIL  \|scenarios,/p' walk.log || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Runs on success, on failure AND on cancellation. The run id was chosen
+      # before the stack started, so this can name exactly the containers,
+      # processes and directories that run owns — rather than sweeping by
+      # pattern and taking something else with it.
+      - name: Tear down the run
+        if: always()
+        run: node apps/web/e2e/circulos/stack.mjs --down "$CIRCULOS_RUN_ID"
+
+      - name: Prove nothing was left behind
+        if: always()
+        run: |
+          left=$(docker ps -aq --filter "name=circulos-e2e-" | wc -l | tr -d ' ')
+          echo "leftover e2e containers: $left"
+          test "$left" = "0"
+
   privacy:
     name: Privacy (no ciphertext logging — ADR 0007)
     runs-on: ubuntu-latest

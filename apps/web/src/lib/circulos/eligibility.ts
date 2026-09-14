@@ -215,3 +215,49 @@ export function resolvePublishedTemplateByKey(
 
   return matches.length === 1 ? matches[0]! : null;
 }
+
+/**
+ * Where a PUBLISHED template is offered from, for the Círculos listing.
+ *
+ * The inverse of `resolveDuoTemplate`, and deliberately no more than that. The
+ * listing needs to send somebody to the place the CTA actually lives, because
+ * a Dúo is offered from the material it belongs to — reading about something
+ * and deciding to do it with another person are different acts, and only the
+ * reading surface is entitled to make the offer.
+ *
+ * Every rule stays where it was. This narrows the catalog to the mappings that
+ * name this template, refuses anything but exactly one, and then hands that
+ * mapping's pin to `resolveDuoTemplate` so the SAME conditions decide as
+ * always: the pin must resolve to one mapping, the template must be PUBLISHED,
+ * and it must name the experience back. No second policy, no shortcut.
+ *
+ * Ambiguity is refused rather than resolved. Two surfaces offering one template
+ * is an authoring question — which one did the editor mean? — and answering it
+ * by array order is how a reader ends up sent to the wrong chapter.
+ */
+export function resolveDuoSurface(
+  templateKey: string,
+  deps: DuoEligibilityDeps = PRODUCTION_DEPS,
+): { readonly experienceKey: string; readonly href: string } | null {
+  if (typeof templateKey !== "string" || templateKey.length === 0) return null;
+
+  const named = deps.catalog.filter((m) => m.templateKey === templateKey);
+  if (named.length !== 1) return null;
+  const mapping = named[0]!;
+
+  const definition = resolveDuoTemplate(
+    {
+      experienceKey: mapping.experienceKey,
+      experienceVersion: mapping.experienceVersion,
+    },
+    deps,
+  );
+  // A mapping can name a template the pin does not resolve back to — a stale
+  // half-edit. The offer only stands when both directions agree.
+  if (!definition || definition.templateKey !== templateKey) return null;
+
+  return Object.freeze({
+    experienceKey: mapping.experienceKey,
+    href: `/dashboard/exploraciones/${encodeURIComponent(mapping.experienceKey)}`,
+  });
+}

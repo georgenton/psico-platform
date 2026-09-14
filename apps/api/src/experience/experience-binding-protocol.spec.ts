@@ -919,7 +919,12 @@ describe("ratchet · the cutover migrations say what they do", () => {
     expect(dirs).toContain("20260905120000_native_exercise_ownership");
     expect(dirs).toContain("20260909180000_circles_domain_foundation");
     expect(dirs).toContain("20260910030000_circles_participation_invariants");
-    expect(dirs).toHaveLength(64);
+    // …plus the one account deletion owed: Círculos' three `User` references
+    // detach instead of blocking, so a person can close their account once the
+    // feature has touched it. Named here because the rule above is explicit —
+    // raising the number without adding a name fails.
+    expect(dirs).toContain("20260913000000_circles_account_deletion");
+    expect(dirs).toHaveLength(65);
     expect(dirs.filter((d) => d.includes("c3r"))).toEqual([]);
   });
 

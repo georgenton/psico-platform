@@ -82,32 +82,43 @@ function localTransport(env) {
   };
 }
 
+/**
+ * Run a node snippet INSIDE the hosted API container and return what it framed.
+ *
+ * The container is where the private network and the deployment's own secrets
+ * already are, so anything that needs either — a query against a Postgres with
+ * no public proxy, or an HMAC keyed by `CLIENT_ATTESTATION_SECRET` — runs there
+ * and answers with a RESULT rather than with the material it used. Nothing is
+ * published and no secret crosses the wire to this machine.
+ *
+ * Snippets travel base64-encoded: they cross a shell and then a `node -e`, and
+ * base64 is the only alphabet that survives both intact.
+ */
+export function railwayNode(env, snippet) {
+  const out = execFileSync(
+    "railway",
+    [
+      "ssh",
+      "--project", env.CIRCULOS_E2E_RAILWAY_PROJECT,
+      "--environment", env.CIRCULOS_E2E_RAILWAY_ENVIRONMENT,
+      "--service", env.CIRCULOS_E2E_RAILWAY_SERVICE,
+      `cd /app/apps/api && node -e "eval(Buffer.from('${b64(snippet)}','base64').toString())"`,
+    ],
+    { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 300_000 },
+  );
+  // `railway ssh` prefixes a line about the key it used, so every snippet
+  // frames its own answer and it can be found whatever else is printed.
+  const m = /<<<E2E([\s\S]*?)E2E>>>/.exec(out);
+  if (!m) {
+    throw new Error(`no framed answer from the container:\n${out.slice(-400)}`);
+  }
+  return m[1].trim();
+}
+
 // ── railway: inside the API container, over the private network ─────────────
 
 function railwayTransport(env) {
-  const base = [
-    "--project", env.CIRCULOS_E2E_RAILWAY_PROJECT,
-    "--environment", env.CIRCULOS_E2E_RAILWAY_ENVIRONMENT,
-    "--service", env.CIRCULOS_E2E_RAILWAY_SERVICE,
-  ];
-
-  /** Run a node snippet inside the API container and return its stdout. */
-  function inContainer(snippet) {
-    const out = execFileSync(
-      "railway",
-      [
-        "ssh",
-        ...base,
-        `cd /app/apps/api && node -e "eval(Buffer.from('${b64(snippet)}','base64').toString())"`,
-      ],
-      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 180_000 },
-    );
-    // `railway ssh` prefixes a line about the key it used. The snippets below
-    // frame their own answer so it can be found whatever else is printed.
-    const m = /<<<E2E([\s\S]*?)E2E>>>/.exec(out);
-    if (!m) throw new Error(`no framed answer from the container:\n${out.slice(-400)}`);
-    return m[1].trim();
-  }
+  const inContainer = (snippet) => railwayNode(env, snippet);
 
   return {
     kind: "railway",

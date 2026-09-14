@@ -1,44 +1,53 @@
 #!/usr/bin/env node
 /**
- * The abuse limit, observed on the HOSTED API.
+ * The abuse limit, observed on the HOSTED API, over the public HTTPS URL.
  *
  * `attested-client-throttler.spec.ts` proves the guard's logic in isolation.
  * What it cannot prove is that the deployed pair actually behaves this way:
  * that the Web and the API hold the same secret, that Railway's edge does not
  * eat or rewrite the header, and that the bucket a real request lands in is the
- * one the design intends. That is what this asks, over HTTPS, of the running
- * services.
+ * one the design intends. That is what this asks of the running services.
  *
  * Two claims, each with its own control:
  *
  *   1 · A named client gets its OWN allowance. One attested identity exhausts
  *       the limit and is refused; a second identity, same instant, same route,
- *       same egress address, is not. Without the attestation these two would
+ *       same source address, is not. Without the attestation these two would
  *       share one bucket and the first would close the route for the second —
  *       which is the whole reason the attestation exists.
  *
- *   2 · Forging one buys NOTHING. A claim with the right grammar and a wrong
- *       signature does not obtain a fresh bucket: it falls back to the address
- *       it came from. Observed against an exhausted address bucket, where a
- *       forged claim stays refused and a genuine one passes — so the pass is
- *       attributable to the signature and not to the request being new.
+ *   2 · Forging one buys NOTHING. The trick is to forge a claim about an
+ *       identity that is already SPENT: exhaust a genuine identity, prove it is
+ *       spent by being refused again with the real signature, then present the
+ *       same identity with a wrong one. If the API believed it, the request
+ *       would land in the exhausted bucket and be refused. It is not refused —
+ *       so the claim never reached that bucket at all, and fell back to the
+ *       address, which these eleven attested calls have not touched.
  *
- * The requests are issued from INSIDE the API container. Not to make them
- * easier: it is where `CLIENT_ATTESTATION_SECRET` already lives, so a genuine
- * attestation can be minted without the secret ever crossing to this machine.
+ * ── Where each part runs, and why ──────────────────────────────────────────
  *
- * Claim 1 travels over the public HTTPS URL, through the same edge a browser
- * goes through — which is what makes it evidence that the deployed edge passes
- * the header along untouched.
+ * Every request is issued from THIS machine against the hosted URL, through the
+ * same edge a browser goes through. Only the minting happens inside the API
+ * container: `CLIENT_ATTESTATION_SECRET` lives there, and a genuine attestation
+ * can be produced without the secret ever crossing to a developer machine. What
+ * comes back is a signed claim about a made-up client id that expires in sixty
+ * seconds; it is used immediately and never printed.
  *
- * Claim 2 is issued over the loopback instead, and that is a deliberate
- * correction rather than a shortcut. Measured first through the edge, thirteen
- * identical unattested calls produced two counters of 6 and 7: the container's
- * egress alternates between two addresses, so no single address bucket ever
- * filled and the phase proved nothing. The address bucket is exactly what
- * claim 2 is about, so it is exercised from the one place whose address does
- * not move. The edge plays no part in which bucket a request lands in — claim
- * 1 already covers the edge — so nothing is assumed away by this.
+ * ── A finding that changed how claim 2 is asked ────────────────────────────
+ *
+ * The obvious shape for claim 2 — fill the address bucket, then show the forged
+ * claim stays refused — cannot be made to work against this deployment, and the
+ * reason is worth writing down. Twelve identical unattested calls, from inside
+ * the container AND from a developer machine, land in TWO buckets rather than
+ * one: counters of 6 and 6, 6 and 7. The API does not see one address per
+ * caller. So an unattested caller effectively gets twice the allowance here,
+ * and no amount of calling from one place fills a single address bucket.
+ *
+ * That is a property of the hosted platform, not of the guard, and it is
+ * precisely the weakness the attestation exists to remove — the attested path
+ * is stable, as claim 1 shows. Claim 2 is therefore asked in a way that does
+ * not depend on the address bucket at all: the forged claim is aimed at an
+ * identity bucket that is provably exhausted.
  *
  * The route is `POST /api/circles/invitations/inspect` — 10 per 15 minutes —
  * and inspection is the one guest call that consumes nothing: the secrets sent
@@ -49,6 +58,7 @@
  *   node apps/web/e2e/circulos/hosted-limits.mjs --config <path/to/hosted.json>
  */
 
+import { createHmac, randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 
 import { makeTransport, railwayNode } from "./transports.mjs";
@@ -70,117 +80,147 @@ const transport = makeTransport({ ...env, CIRCULOS_E2E_TRANSPORT: "railway" });
 /** `INVITATION_THROTTLE` on the inspect route. Read from the API, not guessed. */
 const LIMIT = 10;
 
-const snippet = `
-  const crypto = require('node:crypto');
-  const IORedis = require('ioredis');
+/** 22 base64url chars — inside the header's own [16,64] grammar. */
+const identity = () => randomBytes(16).toString("base64url");
 
-  const API = ${JSON.stringify(cfg.apiUrl)};
-  const SECRET = process.env.CLIENT_ATTESTATION_SECRET;
-  const LIMIT = ${LIMIT};
+/**
+ * Genuine attestations for `count` made-up client identities, minted where the
+ * secret is. They expire in a minute, so they are minted immediately before use
+ * and never written down.
+ */
+function mintGenuine(count) {
+  const snippet = `
+    const crypto = require('node:crypto');
+    const secret = process.env.CLIENT_ATTESTATION_SECRET;
+    if (!secret) { console.error('NO_SECRET'); process.exit(1); }
+    const out = [];
+    for (let i = 0; i < ${count}; i++) {
+      const hash = crypto.randomBytes(16).toString('base64url');
+      const payload = hash + '.' + (Date.now() + 60000);
+      out.push(payload + '.' + crypto.createHmac('sha256', secret)
+        .update(payload).digest('base64url'));
+    }
+    console.log('<<<E2E' + out.join(' ') + 'E2E>>>');
+  `;
+  return railwayNode(env, snippet).split(/\s+/).filter(Boolean);
+}
 
-  /** The BFF's grammar: <clientIdHash>.<expiresAtMs>.<hmac>. */
-  const mint = (hash, secret) => {
-    const payload = hash + '.' + (Date.now() + 60000);
-    return payload + '.' + crypto.createHmac('sha256', secret)
-      .update(payload).digest('base64url');
+/**
+ * Two ways to present the SAME client identity: signed by the API's key, and
+ * signed by one it does not have. Same identity on both sides is the whole
+ * point — it is what makes the forged call's fate attributable to the
+ * signature rather than to which bucket it happened to land in.
+ */
+function identityAttestations() {
+  const id = identity();
+  const snippet = `
+    const crypto = require('node:crypto');
+    const secret = process.env.CLIENT_ATTESTATION_SECRET;
+    if (!secret) { console.error('NO_SECRET'); process.exit(1); }
+    const payload = ${JSON.stringify(id)} + '.' + (Date.now() + 60000);
+    console.log('<<<E2E' + payload + '.' + crypto.createHmac('sha256', secret)
+      .update(payload).digest('base64url') + 'E2E>>>');
+  `;
+  // A trip into the container costs seconds; the attestation is good for a
+  // minute. So one is minted and reused until it is close to expiring, rather
+  // than eleven trips for eleven requests.
+  let held = null;
+  let heldAt = 0;
+  return {
+    genuine: () => {
+      if (held === null || Date.now() - heldAt > 40_000) {
+        held = railwayNode(env, snippet);
+        heldAt = Date.now();
+      }
+      return held;
+    },
+    forged: () => {
+      const payload = `${id}.${Date.now() + 60_000}`;
+      const signature = createHmac("sha256", "not-the-secret")
+        .update(payload)
+        .digest("base64url");
+      return `${payload}.${signature}`;
+    },
   };
-  /** 22 base64url chars — inside the header's own [16,64] grammar. */
-  const identity = () => crypto.randomBytes(16).toString('base64url');
+}
 
-  /** The same process, reached without leaving it: one stable address. */
-  const LOOPBACK = 'http://127.0.0.1:' + (process.env.PORT || '3000');
-
-  async function inspect(attestation, origin) {
-    const headers = { 'content-type': 'application/json' };
-    if (attestation) headers['x-client-attestation'] = attestation;
-    const res = await fetch((origin || API) + '/api/circles/invitations/inspect', {
-      method: 'POST',
-      headers,
-      // Matches no invitation; inspection spends nothing either way.
-      body: JSON.stringify({ secret: 'no-such-invitation-' + identity() }),
-    });
-    return res.status;
-  }
-
-  async function clearBuckets() {
-    const r = new IORedis(process.env.REDIS_URL, { maxRetriesPerRequest: null });
-    let cursor = '0';
-    do {
-      const [next, keys] = await r.scan(cursor, 'MATCH', 'throttle:*', 'COUNT', 500);
-      cursor = next;
-      if (keys.length) await r.del(...keys);
-    } while (cursor !== '0');
-    await r.quit();
-  }
-
-  (async () => {
-    const out = {};
-
-    // ── 1 · a named client has its own allowance ────────────────────────────
-    await clearBuckets();
-    const a = identity();
-    out.attestedA = [];
-    for (let i = 0; i < LIMIT; i++) out.attestedA.push(await inspect(mint(a, SECRET)));
-    out.attestedAOverLimit = await inspect(mint(a, SECRET));
-    // Same moment, same route, same address — a different signed identity.
-    out.attestedBWhileAExhausted = await inspect(mint(identity(), SECRET));
-
-    // ── 2 · forging buys nothing ────────────────────────────────────────────
-    await clearBuckets();
-    out.unattested = [];
-    for (let i = 0; i < LIMIT; i++) out.unattested.push(await inspect(null, LOOPBACK));
-    out.unattestedOverLimit = await inspect(null, LOOPBACK);
-    // Right shape, wrong key: must NOT be granted a bucket of its own.
-    out.forgedWhileAddressExhausted = await inspect(mint(identity(), 'not-the-secret'), LOOPBACK);
-    // The control for that refusal: a genuine one, equally new, passes.
-    out.genuineWhileAddressExhausted = await inspect(mint(identity(), SECRET), LOOPBACK);
-
-    // Leave the environment as it was found.
-    await clearBuckets();
-    console.log('<<<E2E' + JSON.stringify(out) + 'E2E>>>');
-  })().catch((e) => { console.error('LIMITERR ' + e.message); process.exit(1); });
-`;
-
-console.log("▸ exercising the hosted limit from inside the API container");
-const answer = JSON.parse(railwayNode(env, snippet));
+async function inspect(attestation) {
+  const headers = { "content-type": "application/json" };
+  if (attestation) headers["x-client-attestation"] = attestation;
+  const res = await fetch(`${cfg.apiUrl}/api/circles/invitations/inspect`, {
+    method: "POST",
+    headers,
+    // Matches no invitation; inspection spends nothing either way.
+    body: JSON.stringify({ secret: `no-such-invitation-${identity()}` }),
+  });
+  return res.status;
+}
 
 let failures = 0;
 const check = (ok, what, detail) => {
   console.log(`   ${ok ? "✓" : "✗"} ${what}${detail ? ` (${detail})` : ""}`);
   if (!ok) failures++;
 };
-
 const none429 = (list) => list.every((s) => s !== 429);
 
+// ── 1 · a named client has its own allowance ────────────────────────────────
+
+console.log("▸ two signed identities, from this machine, through the edge");
+transport.resetRateLimits();
+
+const [attestationA, attestationB] = mintGenuine(2);
+
+const spentByA = [];
+for (let i = 0; i < LIMIT; i++) spentByA.push(await inspect(attestationA));
+const aOverLimit = await inspect(attestationA);
+const bWhileAExhausted = await inspect(attestationB);
+
 check(
-  none429(answer.attestedA),
+  none429(spentByA),
   `an attested client spends its own allowance (${LIMIT} calls, none refused)`,
-  answer.attestedA.join(","),
+  spentByA.join(","),
 );
 check(
-  answer.attestedAOverLimit === 429,
+  aOverLimit === 429,
   "and is refused on the call past the limit",
-  `got ${answer.attestedAOverLimit}`,
+  `got ${aOverLimit}`,
 );
 check(
-  answer.attestedBWhileAExhausted !== 429,
+  bWhileAExhausted !== 429,
   "a DIFFERENT attested client is unaffected by the first one's exhaustion",
-  `got ${answer.attestedBWhileAExhausted}`,
+  `got ${bWhileAExhausted}`,
+);
+
+// ── 2 · forging buys nothing ────────────────────────────────────────────────
+
+console.log("▸ the same identity, signed and then forged");
+transport.resetRateLimits();
+
+// One identity, spent to its limit with the real signature. Attested requests
+// are counted against `client:<id>` and NOT against the address, so after this
+// the identity bucket is full and the address bucket is untouched.
+const spent = identityAttestations(1);
+const spentByC = [];
+for (let i = 0; i < LIMIT; i++) spentByC.push(await inspect(spent.genuine()));
+const genuineOverLimit = await inspect(spent.genuine());
+// The same identity, the same instant, a key the API does not have.
+const forgedOverLimit = await inspect(spent.forged());
+
+check(
+  none429(spentByC),
+  "an identity is spent to its limit with the real signature",
+  spentByC.join(","),
 );
 check(
-  none429(answer.unattested) && answer.unattestedOverLimit === 429,
-  "an unattested caller is bucketed by its address, and that bucket runs out",
-  `got ${answer.unattestedOverLimit}`,
+  genuineOverLimit === 429,
+  "and the NEXT genuine call for it is refused — the bucket is provably full",
+  `got ${genuineOverLimit}`,
 );
 check(
-  answer.forgedWhileAddressExhausted === 429,
-  "a FORGED attestation gets no bucket of its own — it falls back to the address",
-  `got ${answer.forgedWhileAddressExhausted}`,
-);
-check(
-  answer.genuineWhileAddressExhausted !== 429,
-  "while a GENUINE one, equally new, passes — so the refusal was the signature",
-  `got ${answer.genuineWhileAddressExhausted}`,
+  forgedOverLimit !== 429,
+  "the SAME identity signed with the wrong key is not refused — so it never " +
+    "reached that bucket; a forged claim buys nothing",
+  `got ${forgedOverLimit}`,
 );
 
 console.log(

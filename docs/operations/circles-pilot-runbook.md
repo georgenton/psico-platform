@@ -214,7 +214,29 @@ Caída del almacén: 503 `RATE_LIMIT_UNAVAILABLE`, sin nada del almacén en el
 cuerpo. El rechazo propio del limitador (429) pasa intacto.
 
 **Configurar antes del piloto:** `CLIENT_ATTESTATION_SECRET`, el mismo valor en
-la API y en el servidor Web. No aplicado en ningún sitio.
+la API y en el servidor Web. Aplicado **solo** en el entorno de pruebas (§12).
+Si las dos copias no coinciden, la atestación se rechaza y todos los invitados
+vuelven a compartir un cupo — en silencio, sin error visible.
+
+### Lo que el entorno alojado midió sobre el cupo por dirección
+
+Comprobado contra la API alojada (`hosted-limits.mjs`, §12): un cliente atestado
+gasta su propio cupo y es rechazado al pasarse, mientras otra identidad firmada
+en el mismo instante no se entera; y una atestación con la gramática correcta y
+**firma falsa** no llega al cubo de la identidad que dice ser — se comprueba
+apuntándola a una identidad ya agotada, que con la firma real devuelve 429 y con
+la falsa no.
+
+Y una medición que conviene conocer: **el cubo por dirección no es uno por
+llamante en esta plataforma**. Doce llamadas idénticas sin atestar, tanto desde
+dentro del contenedor como desde una máquina de desarrollo, se reparten en **dos**
+cubos (contadores 6 y 6, 6 y 7). La API no ve una sola dirección por llamante,
+así que quien llama sin atestación dispone de hecho del **doble** del cupo
+nominal. No es un fallo del guard — es exactamente la debilidad que la atestación
+existe para quitar, y el camino atestado sí es estable — pero el número que
+aparece en `INVITATION_THROTTLE` no es el que rige para una llamada directa.
+Si alguna vez el cupo por dirección tiene que ser exacto, esto hay que resolverlo
+en la configuración de proxy, no en el limitador.
 
 ---
 

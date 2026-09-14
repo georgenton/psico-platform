@@ -10,6 +10,7 @@ import {
   DUO_CTA_LABEL,
   PRODUCTION_DUO_ELIGIBILITY,
   resolveDuoEntry,
+  resolveDuoSurface,
   resolvePublishedTemplateByKey,
   type DuoEligibilityDeps,
   type DuoEligibilityMapping,
@@ -376,5 +377,73 @@ describe("10 · the catalog never reaches a client bundle", () => {
       if (/circulos\/eligibility/.test(src)) offenders.push(file);
     }
     expect(offenders).toEqual([]);
+  });
+});
+
+describe("the listing sends people to where the offer is made", () => {
+  const PUBLISHED = template({
+    templateKey: MAPPING.templateKey,
+    templateVersion: MAPPING.templateVersion,
+    status: "PUBLISHED",
+  });
+
+  it("resolves a published template to its one reading surface", () => {
+    const surface = resolveDuoSurface(
+      MAPPING.templateKey,
+      deps([PUBLISHED], [MAPPING]),
+    );
+    expect(surface).toEqual({
+      experienceKey: PIN.experienceKey,
+      href: `/dashboard/exploraciones/${PIN.experienceKey}`,
+    });
+  });
+
+  it("refuses when two surfaces name the same template", () => {
+    // Which chapter did the editor mean? Answering by array order is how a
+    // reader is sent to the wrong one.
+    const second: DuoEligibilityMapping = {
+      ...MAPPING,
+      experienceKey: "another-experience",
+    };
+    expect(
+      resolveDuoSurface(
+        MAPPING.templateKey,
+        deps([PUBLISHED], [MAPPING, second]),
+      ),
+    ).toBeNull();
+  });
+
+  it("offers nothing when no mapping names it", () => {
+    expect(
+      resolveDuoSurface(MAPPING.templateKey, deps([PUBLISHED], [])),
+    ).toBeNull();
+  });
+
+  it("offers nothing when the template does not name the experience back", () => {
+    const silent = template({
+      templateKey: MAPPING.templateKey,
+      templateVersion: MAPPING.templateVersion,
+      status: "PUBLISHED",
+      source: { bookSlug: "fixture-book", chapterOrder: 1 },
+    });
+    expect(
+      resolveDuoSurface(MAPPING.templateKey, deps([silent], [MAPPING])),
+    ).toBeNull();
+  });
+
+  it("offers nothing for a template that is not PUBLISHED", () => {
+    const draft = template({
+      templateKey: MAPPING.templateKey,
+      templateVersion: MAPPING.templateVersion,
+      status: "DRAFT",
+    });
+    expect(
+      resolveDuoSurface(MAPPING.templateKey, deps([draft], [MAPPING])),
+    ).toBeNull();
+  });
+
+  it("offers nothing in production, where the catalog is empty", () => {
+    expect(PRODUCTION_DUO_ELIGIBILITY).toHaveLength(0);
+    expect(resolveDuoSurface("anything")).toBeNull();
   });
 });

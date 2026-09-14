@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { productionCircleTemplateRegistry } from "@psico/types";
 
 import { isNextThrow, serverFetch } from "@/lib/api.server";
+import { resolveDuoSurface } from "@/lib/circulos/eligibility";
 import { estilos as S } from "@/components/circulos/estilos";
 
 /**
@@ -86,18 +87,37 @@ export default async function CirculosPage() {
             gap: ".8rem",
           }}
         >
-          {published.map((d) => (
-            <li key={`${d.templateKey}@${d.templateVersion}`} style={S.section}>
-              <h2 style={S.h2}>{d.title}</h2>
-              <p style={S.p}>{d.summary}</p>
-              <a
-                href={`/actividades/${encodeURIComponent(d.templateKey)}`}
-                style={S.secondary}
+          {published.map((d) => {
+            // Where this activity is actually offered from. A Dúo is proposed
+            // by the material it belongs to, so this listing's job is to send
+            // somebody there — not to become a second place that starts one.
+            //
+            // `null` means no single surface answers for it, and then there is
+            // no button: an action that cannot begin anything is worse than
+            // none, because the person spends their attempt on it and
+            // concludes the product is broken.
+            const surface = resolveDuoSurface(d.templateKey);
+            return (
+              <li
+                key={`${d.templateKey}@${d.templateVersion}`}
+                style={S.section}
               >
-                Ver de qué se trata
-              </a>
-            </li>
-          ))}
+                <h2 style={S.h2}>{d.title}</h2>
+                <p style={S.p}>{d.summary}</p>
+                {surface ? (
+                  <a href={surface.href} style={S.secondary}>
+                    Ir a la experiencia
+                  </a>
+                ) : (
+                  <p style={S.aviso}>
+                    Esta actividad se propone desde la lectura a la que
+                    pertenece, y todavía no hay una desde la que puedas
+                    empezarla. Cuando la haya, aparecerá aquí el camino.
+                  </p>
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
     </main>

@@ -445,6 +445,12 @@ que es el mecanismo real de apagado de cada una — no una clave falsa. Ningún
 correo, ninguna notificación y ninguna traza puede salir de aquí hacia una
 persona real.
 
+> **Cuidado con el `railway link` de tu máquina.** Suele apuntar al proyecto de
+> PRODUCCIÓN (`psico-platform`), así que un comando sin `--project` va allí. Cada
+> comando de esta sección lleva `--project`, `--environment` y `--service`
+> explícitos, y los scripts los toman de `hosted.json`. No confíes en el enlace
+> por defecto para nada de esto.
+
 ### Qué corre ahí, y desde dónde
 
 El código llega como **fuente subida** (`railway up`, `vercel deploy`), nunca
@@ -565,8 +571,9 @@ enlace, sin registrarse.
 4. La pantalla muestra **un enlace de invitación**. Cópialo **completo** — lleva
    un `#` y lo que va después es el secreto; un enlace cortado no sirve — antes
    de salir o recargar: no se guarda en ningún lado y no se puede volver a
-   mostrar. Mándaselo a la persona B por donde ustedes hablen normalmente. Se
-   usa **una sola vez**: si algo falla al abrirlo, hay que crear otra invitación.
+   mostrar. Mándaselo a la persona B por donde ustedes hablen normalmente.
+   **Abrirlo no lo gasta**: B puede abrirlo, mirarlo y cerrarlo; lo que lo gasta
+   es aceptar. Y dura catorce días.
 5. Pulsa **Entrar a la sala**. Verás "Antes de empezar" — es la pantalla de
    consentimiento; el botón se habilita en cuanto la página termina de cargar.
 
@@ -588,6 +595,21 @@ enlace, sin registrarse.
    de la otra persona. La sala dice que falta la otra parte y no muestra ni un
    fragmento. Solo cuando las dos han confirmado aparece lo de ambas, a la vez.
 6. Después del intercambio hay un cierre con turnos y un artefacto compartido.
+
+**Si el enlace no funciona.** La pantalla dice lo mismo en todos los casos —
+«este enlace ya no sirve»— y eso es deliberado: distinguirlos en voz alta le
+contaría a un desconocido si una invitación existió. Para quien organiza, las
+situaciones sí son distintas y se resuelven distinto:
+
+| Qué pasó                                   | Qué hacer                                                           |
+| ------------------------------------------ | ------------------------------------------------------------------- |
+| B perdió el enlace o nunca le llegó        | Crear otra invitación. La anterior sigue viva pero sin dueño.       |
+| Alguien ya la aceptó                       | Crear otra. Una invitación entra a una sola persona.                |
+| Pasaron catorce días                       | Crear otra; caducó.                                                 |
+| Falló la red al abrir, o se cortó a medias | **No crear otra**: reintentar el mismo enlace. Abrir no gasta nada. |
+
+El reflejo caro es crear una invitación nueva ante cualquier tropiezo: quien
+organiza acaba con varias vivas y sin saber cuál mandó.
 
 **Salir en cualquier momento.** El botón para retirarse está siempre en
 pantalla. Si una de las dos se retira antes del intercambio, lo que escribió se
@@ -622,17 +644,62 @@ contraseñas aleatorias, y sus actividades. Las credenciales se escriben en
 repositorio**. El contenido es una plantilla sintética con dos campos de texto;
 no hay material editorial ni información personal en ninguna parte.
 
-Para limpiar lo de una corrida, sobre la base de PRUEBAS y con alcance a sus
-propias filas:
+#### Cómo se limpia — y por qué NO con un `DELETE`
 
-```sql
-DELETE FROM "User" WHERE email LIKE 'circulos-%-<run>@example.test';
+> **Corrección.** Este runbook decía antes: `DELETE FROM "User" WHERE email LIKE
+'…'`, y que la cascada hacía el resto. **Es falso, y falla en silencio.** Las
+> claves foráneas del dominio hacia `User` son `ON DELETE SET NULL`, no cascade:
+>
+> ```
+> CircleMember -> User : SET NULL
+> Circle       -> User : SET NULL
+> CircleEvent  -> User : SET NULL
+> ```
+>
+> Verificado contra `pg_constraint` en la base de pruebas, no contra el schema.
+> Así que la fila desaparece y **todo lo que tenía se queda**: un asiento con
+> `userId` nulo, una actividad esperando a alguien que ya no existe, una sesión
+> de invitado todavía válida y un sobre intacto. No es «la limpieza menos el
+> processor» — es exactamente el estado colgante que el borrado de cuenta
+> existe para evitar, fabricado a mano. Y como el usuario ya no está, no queda
+> ni por dónde encontrarlo.
+
+La limpieza del dominio vive en `CirclesAccountDeletionService`, y lo único que
+la invoca es `finalize-account-deletion` en la cola `account-deletion`. El
+comando de limpieza reutiliza eso:
+
+```bash
+# Primero enseña lo que haría, sin tocar nada.
+node apps/web/e2e/circulos/hosted-cleanup.mjs --config /ruta/hosted.json --run <run>
+
+# Y sólo entonces, con --apply, lo hace.
+node apps/web/e2e/circulos/hosted-cleanup.mjs --config /ruta/hosted.json --run <run> --apply
 ```
 
-El borrado en cascada se lleva membresías, invitaciones, sesiones de invitado y
-sobres; las actividades quedan cerradas por el mismo camino que usa el borrado
-de cuenta real (§2). Si quieres empezar de cero, borra todas las corridas con
-`LIKE 'circulos-%@example.test'`.
+Lo que hace, en este orden: comprueba que está hablando con `circulos_test` y se
+niega si no; lee **los correos exactos que esa corrida registró** en su archivo
+de cuentas, no un patrón; deja fuera las cuentas protegidas por id —la cuenta
+manual y cualquier otra que `extraAllowlistIds` fije—; deja fuera también
+cualquier cuenta sintética que **comparta actividad** con una protegida, porque
+cerrarla sería meter mano en los datos de quien está probando; imprime seats,
+actividades, invitados vivos y sobres de cada una; y con `--apply` fecha la
+petición de borrado hacia atrás **en esas cuentas y sólo ésas**, encola el job
+real, espera a que termine y verifica.
+
+El plazo de 30 días **no se acorta**: el processor vuelve a leer
+`deleteRequestedAt` bajo `FOR UPDATE` y lo compara con el reloj real. Lo que se
+ajusta es la fecha de la petición, sobre cuentas sintéticas identificadas.
+
+Sin `TRUNCATE`, sin desactivar triggers y sin una puerta de scrub general: lo
+que existe es este comando sobre una corrida nombrada, y nada más. Correrlo dos
+veces es seguro — la segunda no encuentra nada que hacer.
+
+**Qué permanece, conforme al comportamiento actual** (no es una política nueva,
+es lo que hoy hace el borrado): el asiento se conserva con `userId` nulo, el
+Círculo con `createdByUserId` nulo y las filas de `CircleEvent` con
+`actorUserId` nulo — por la regla del ledger de §2. El artefacto `PROPOSED` y el
+`SUPERSEDED` **se conservan** y siguen siendo **decisión pendiente**; este
+comando no la inventa ni la adelanta.
 
 ### Cerrar Círculos en el entorno de pruebas
 

@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest";
 
 // The harness lives outside `src`, which is where the test runner looks. It is
 // plain ESM with no dependencies, so importing it by relative path is enough.
+// A plain ESM harness module with no dependencies — test tooling, not shipped
+// source, which is why it lives under `e2e/` rather than in `src`.
 import {
   ownedResources,
   planTeardown,
   stillOurs,
-  // @ts-expect-error — a .mjs harness module with no type declarations, which
-  // is the point: it is test tooling, not shipped source.
 } from "../../../e2e/circulos/ownership.mjs";
 
 /**

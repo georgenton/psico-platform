@@ -541,10 +541,11 @@ enlace, sin registrarse.
    invitación aparece al final de esa lectura, como "Hacer esto con alguien".
 3. Pulsa **Hacer esto con alguien** y después **Crear el Dúo**.
 4. La pantalla muestra **un enlace de invitación**. Cópialo **completo** — lleva
-   un `#` y lo que va después es el secreto; un enlace cortado no sirve — y
-   mándaselo a la persona B por donde ustedes hablen normalmente. El enlace se
+   un `#` y lo que va después es el secreto; un enlace cortado no sirve — antes
+   de salir o recargar: no se guarda en ningún lado y no se puede volver a
+   mostrar. Mándaselo a la persona B por donde ustedes hablen normalmente. Se
    usa **una sola vez**: si algo falla al abrirlo, hay que crear otra invitación.
-5. Quédate en la sala. Verás "Antes de empezar" — es la pantalla de
+5. Pulsa **Entrar a la sala**. Verás "Antes de empezar" — es la pantalla de
    consentimiento; el botón se habilita en cuanto la página termina de cargar.
 
 **Quien acompaña (persona B)**

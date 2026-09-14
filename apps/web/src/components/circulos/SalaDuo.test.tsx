@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderToString } from "react-dom/server";
 import { CIRCLE_VIEW_FORBIDDEN_KEYS } from "@psico/types";
@@ -277,5 +277,63 @@ describe("the door of the room does not accept a press it cannot act on", () => 
     expect(
       screen.getByRole("heading", { name: /tu preparación/i }),
     ).toBeInTheDocument();
+  });
+});
+
+describe("every way out says what happened and what to do", () => {
+  // §D of the closing round: an exit that names no action is a dead end, and
+  // one that guesses at a cause the server kept uniform is a leak.
+  // Each call renders on its own: two rooms in one test would leave two alerts
+  // on screen and the query would match neither.
+  const shownFor = (code: string): string => {
+    cleanup();
+    render(<SalaDuo {...base} initialView={null} initialError={code} />);
+    return screen.getByRole("alert").textContent ?? "";
+  };
+
+  it("does not blame the device for a refusal", () => {
+    // It used to. A signed-in member whose access token had expired was told
+    // their device was the problem, and went looking for a browser fault.
+    const text = shownFor("CIRCLE_FORBIDDEN");
+    expect(text).not.toMatch(/dispositivo/i);
+    expect(text).toMatch(/enlace nuevo/i);
+  });
+
+  it("gives the same answer for a dead guest session as for a refusal", () => {
+    // Uniform on purpose: which one it was is not a reader's business.
+    expect(shownFor("CIRCLE_GUEST_SESSION_INVALID")).toBe(
+      shownFor("CIRCLE_FORBIDDEN"),
+    );
+  });
+
+  it("says a conflict already landed, and how to see it", () => {
+    const text = shownFor("CIRCLE_IDEMPOTENCY_CONFLICT");
+    expect(text).toMatch(/ya se registró/i);
+    expect(text).toMatch(/recarga/i);
+  });
+
+  it("says a lost response may or may not have landed, and that retrying is safe", () => {
+    // The room keeps the idempotency key for exactly this case, so the honest
+    // sentence is "we do not know, and trying again cannot duplicate it".
+    const text = shownFor("CIRCLE_UNAVAILABLE");
+    expect(text).toMatch(/no pudimos confirmar/i);
+    expect(text).toMatch(/no se duplica/i);
+  });
+
+  it("tells somebody a finished activity is finished, not that they failed", () => {
+    const text = shownFor("CIRCLE_ACTIVITY_UNAVAILABLE");
+    expect(text).toMatch(/ya no admite cambios/i);
+    expect(text).toMatch(/recarga/i);
+  });
+
+  it("never explains why the other person is gone", () => {
+    for (const code of [
+      "CIRCLE_FORBIDDEN",
+      "CIRCLE_GUEST_SESSION_INVALID",
+      "CIRCLE_ACTIVITY_UNAVAILABLE",
+      "CIRCLE_INVITATION_UNUSABLE",
+    ]) {
+      expect(shownFor(code)).not.toMatch(/retir|abandon|rechaz|caduc/i);
+    }
   });
 });

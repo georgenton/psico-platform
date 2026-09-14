@@ -465,13 +465,33 @@ function estimado(view: CircleActivityView): number {
  * "revoked" and "never existed" are a single `CIRCLE_INVITATION_UNUSABLE` — so
  * the screen must not invent a more specific story than the server told.
  */
+/**
+ * What each refusal says, and what it lets somebody do next.
+ *
+ * Three rules, and they are in tension often enough to be worth naming:
+ *
+ *  - **Uniform about causes.** Expired, revoked, already used and never-existed
+ *    are one sentence. The API keeps them identical on purpose and repeating
+ *    them apart here would undo that.
+ *  - **Honest about effects.** Where the server CAN say whether something
+ *    landed, the copy says it. A conflict means it landed; a validation refusal
+ *    means it did not; a network failure means nobody knows, and the room holds
+ *    the idempotency key precisely so that retrying is safe — so it says that
+ *    rather than leaving somebody to guess whether they just sent it twice.
+ *  - **Always an action.** A message with nothing to do next is a dead end.
+ */
 function mensaje(code: string | null): string {
   switch (code) {
     case "CIRCLE_INVITATION_UNUSABLE":
       return "Este enlace ya no sirve. Pide uno nuevo a quien te invitó.";
     case "CIRCLE_FORBIDDEN":
     case "CIRCLE_GUEST_SESSION_INVALID":
-      return "Esta sala no está disponible para ti en este dispositivo.";
+      // It used to say "en este dispositivo", which sent people hunting for a
+      // browser problem — and was simply wrong for a signed-in member whose
+      // access token had expired. The device was never the question.
+      return "Esta sala ya no está abierta para ti. Si deberías estar aquí, pide a quien te invitó un enlace nuevo.";
+    case "CIRCLE_ACTIVITY_UNAVAILABLE":
+      return "Esta actividad ya no admite cambios. Recarga para ver cómo quedó.";
     case "CIRCLE_IDEMPOTENCY_CONFLICT":
       return "Esa acción ya se registró de otra forma. Recarga para ver el estado actual.";
     case "CIRCLE_INVALID_PAYLOAD":
@@ -479,6 +499,11 @@ function mensaje(code: string | null): string {
       return "No pudimos enviar eso. Revisa lo que escribiste e inténtalo de nuevo.";
     case "CIRCLES_UNAVAILABLE":
       return "Círculos no está disponible todavía.";
+    case "CIRCLE_UNAVAILABLE":
+      // The network, not a verdict: the command may or may not have landed.
+      // Saying "something went wrong, try again" invites somebody to wonder
+      // whether they have now sent it twice. They have not.
+      return "No pudimos confirmar si se envió. Puedes volver a intentarlo: si ya se había registrado, no se duplica.";
     default:
       return "Algo no funcionó. Inténtalo de nuevo en un momento.";
   }

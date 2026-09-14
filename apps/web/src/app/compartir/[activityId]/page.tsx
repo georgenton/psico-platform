@@ -89,8 +89,8 @@ export default async function SalaPage({
         <h1 style={S.h1}>Esta sala no está disponible</h1>
         <p style={S.p}>
           Puede que el enlace haya caducado, que ya se haya usado, o que esta
-          sala no sea para este dispositivo. Pídele un enlace nuevo a la persona
-          que te invitó.
+          sala no sea para ti. Pídele un enlace nuevo a la persona que te
+          invitó.
         </p>
         <a href="/" style={S.secondary}>
           Ir al inicio

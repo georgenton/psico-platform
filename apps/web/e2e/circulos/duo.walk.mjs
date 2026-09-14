@@ -1569,6 +1569,40 @@ async function closingPaths(browser) {
       `the account session survives the closed activity (at ${new URL(page.url()).pathname})`,
     );
 
+    // ── the same ending, on a phone ─────────────────────────────────────────
+    //
+    // Two browsers is the shape of a Dúo; a phone is where half of one will
+    // actually happen. The closed room is the screen somebody is most likely to
+    // reach on the move, so it is the one checked at that width.
+    const phone = await browser.newContext({
+      viewport: { width: 390, height: 844 },
+      isMobile: true,
+      hasTouch: true,
+      storageState: await ctx.storageState(),
+    });
+    try {
+      const small = await phone.newPage();
+      await small.goto(`${WEB}/compartir/${activityId}`, {
+        waitUntil: "domcontentloaded",
+      });
+      const smallText = await small.evaluate(() => document.body.innerText);
+      check(
+        /Esta actividad terminó/i.test(smallText),
+        "the closed room reads the same on a phone",
+      );
+      const overflow = await small.evaluate(
+        () =>
+          document.documentElement.scrollWidth -
+          document.documentElement.clientWidth,
+      );
+      check(
+        overflow <= 1,
+        `and nothing runs off the side of the screen (overflow ${overflow}px)`,
+      );
+    } finally {
+      await phone.close();
+    }
+
     // ── the OTHER way a Dúo ends: the exit button ───────────────────────────
     //
     // A second activity, because the first one is over. This is the control

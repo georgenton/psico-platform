@@ -257,17 +257,34 @@ async function openCreateScreen(page) {
   return createButton;
 }
 
-/** Read the invitation link off the screen once creation has produced one. */
+/**
+ * Read the invitation link off the screen once creation has produced one.
+ *
+ * On failure it quotes what the screen ACTUALLY says. "No link appeared" is
+ * the same sentence whether the server refused, the limiter answered, or the
+ * button was never wired — and against a hosted environment, where the causes
+ * multiply, a bare timeout costs a whole re-run to learn what a screenshot
+ * would have said.
+ */
 async function readLink(page) {
-  return until(
-    async () => {
-      const text = await page.evaluate(() => document.body.innerText);
-      const m = text.match(/https?:\/\/\S*\/i#[A-Za-z0-9_-]{43}/);
-      return m ? m[0] : null;
-    },
-    "the invitation link to appear",
-    30_000,
-  );
+  try {
+    return await until(
+      async () => {
+        const text = await page.evaluate(() => document.body.innerText);
+        const m = text.match(/https?:\/\/\S*\/i#[A-Za-z0-9_-]{43}/);
+        return m ? m[0] : null;
+      },
+      "the invitation link to appear",
+      60_000,
+    );
+  } catch (err) {
+    const shown = await page
+      .evaluate(() => document.body.innerText)
+      .catch(() => "(page unreadable)");
+    throw new Error(
+      `${err.message} — the screen said: ${shown.slice(-400).replace(/\s+/g, " ")}`,
+    );
+  }
 }
 
 async function createDuo(page) {

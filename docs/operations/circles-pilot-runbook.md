@@ -173,7 +173,7 @@ Nada de esto está aplicado y **no debe aplicarse todavía**.
 | ---------------------------- | -------- | ---------------------------------------------------------- |
 | `CIRCLES_ROLLOUT_MODE=pilot` | API      | `on` es disponibilidad general.                            |
 | `CIRCLES_PILOT_USER_IDS`     | API      | Vacía ⇒ vuelve a cerrar.                                   |
-| `CIRCLES_CIPHER_KEY`         | API      | Bajo `pilot`/`on` una clave ausente **falla el arranque**. |
+| `CIRCLES_SHARED_DATA_KEY_V1` | API      | Bajo `pilot`/`on` una clave ausente **falla el arranque**. |
 
 Además, y antes de invitar a nadie: publicar al menos una plantilla
 (`PRODUCTION_CIRCLE_TEMPLATES` está vacío) y su mapping de elegibilidad
@@ -388,7 +388,245 @@ el tiempo y no llegaba a comprobar nada. La barrera es un hecho sobre la
 actividad — con un asiento READY, `revealedAt` sigue nulo — y ahora se comprueba
 como tal **antes** de mirar ninguna pantalla.
 
-## 12 · PENDIENTE — no implementado en este corte
+## 12 · Entorno de pruebas alojado (Railway + Vercel) — **en pie**
+
+Un recorrido completo del Dúo corriendo sobre servicios alojados, con cuentas y
+contenido sintéticos. Existe para responder lo que ningún arnés local puede:
+qué hace el producto cuando el navegador, la Web y la API están realmente
+separados por una red.
+
+### Por qué un PROYECTO aparte y no un entorno
+
+El proyecto de producción tiene un solo entorno, `production`. Un entorno nuevo
+dentro de él habría quedado a un clic de las variables, los dominios y los
+volúmenes de producción, y varias de las operaciones que estas pruebas
+necesitan — reiniciar, cambiar el modo de rollout, borrar cuentas — se parecen
+demasiado a las que nunca deben tocar producción. Un proyecto separado hace que
+esa confusión sea imposible: no comparte nada, ni siquiera por accidente.
+
+| Recurso                | Id                                     | Qué es                                                        |
+| ---------------------- | -------------------------------------- | ------------------------------------------------------------- |
+| `psico-circulos-test`  | `4283213c-9369-4c5c-928e-b2a1d58f3a44` | El proyecto Railway. Entorno único: `production`.             |
+| `circulos-api-test`    | `276735cb-cb54-42bf-9236-dde0fb6375c5` | La API. `https://circulos-api-test-production.up.railway.app` |
+| `circulos-worker-test` | `1c0a4370-aca7-454a-b5c2-c11077084db2` | El worker (barrido y borrado de cuenta).                      |
+| `postgres-test`        | `a5617589-8e2e-400e-b82d-31407fa9d0a2` | PostgreSQL, base `circulos_test`, volumen de 5 GB.            |
+| `redis-test`           | `ecd025d6-7847-4b79-a60d-5bd39aeb2142` | Redis (colas y límite de abuso).                              |
+| `circulos-test-web`    | `prj_BzAwUoTMQYdCNMlAApovOpZjKgIS`     | El proyecto Vercel. `https://circulos-test-web.vercel.app`    |
+
+**El aislamiento, verificado y no supuesto.** `DATABASE_URL` apunta a
+`postgres-test.railway.internal/circulos_test` y `REDIS_URL` a
+`redis-test.railway.internal` — ambos hosts privados de ESTE proyecto, sin
+proxy TCP público. `APP_URL` y `ALLOWED_ORIGINS` son la URL de prueba de
+Vercel. Y lo que NO está configurado importa tanto como lo que sí:
+`RESEND_API_KEY`, `VAPID_*`, `GOOGLE_CLIENT_ID` y `SENTRY_DSN` están **vacías**,
+que es el mecanismo real de apagado de cada una — no una clave falsa. Ningún
+correo, ninguna notificación y ninguna traza puede salir de aquí hacia una
+persona real.
+
+### Qué corre ahí, y desde dónde
+
+El código llega como **fuente subida** (`railway up`, `vercel deploy`), nunca
+empujando una rama: un push habría disparado Previews y despliegues en los
+proyectos de producción, que es exactamente lo que esta ronda no puede hacer.
+
+El árbol desplegado es un ARTEFACTO preparado por el mismo orquestador que usa
+la prueba local (`stack.mjs --prepare-only <dir>`), y escribe su propia
+procedencia en `circulos-test-artifact.json`: el sha de origen, el sha256 del
+fixture y el de cada archivo parcheado. Los parches son tres y son los mismos
+del arnés local: copiar el fixture sintético, publicarlo como
+`PRODUCTION_CIRCLE_TEMPLATES` y declarar su elegibilidad en
+`PRODUCTION_DUO_ELIGIBILITY`.
+
+Esto es deliberado y vale la pena decirlo con todas sus letras: **el catálogo de
+prueba llega en el artefacto desplegado, no en tiempo de ejecución.** No hay un
+interruptor para publicar fixtures, ni un endpoint que inyecte catálogo, ni una
+autenticación especial para pruebas, ni una excepción a los guards. El catálogo
+de producción sigue vacío y los ratchets lo siguen afirmando.
+
+### Variables por servicio (nombres, nunca valores)
+
+Las tres que gobiernan Círculos, en API **y** worker:
+
+| Variable                     | Para qué                                                          |
+| ---------------------------- | ----------------------------------------------------------------- |
+| `CIRCLES_ROLLOUT_MODE`       | `pilot` en este entorno. `off` lo cierra (ver abajo).             |
+| `CIRCLES_PILOT_USER_IDS`     | La lista de admitidos. Vacía ⇒ nadie, aunque el modo sea `pilot`. |
+| `CIRCLES_SHARED_DATA_KEY_V1` | Bajo `pilot`/`on` su ausencia **falla el arranque**.              |
+
+Y una que viaja en pareja: `CLIENT_ATTESTATION_SECRET` está en la API y en el
+proyecto de Vercel, porque es lo que la Web firma y la API verifica. Si las dos
+copias no coinciden, la atestación se rechaza y cada visitante de la superficie
+de invitado vuelve a compartir un solo cupo — sin ruido y sin error visible.
+
+La Web necesita exactamente dos: `NEXT_PUBLIC_API_URL` y
+`CLIENT_ATTESTATION_SECRET`.
+
+### Cómo correr la prueba alojada
+
+```bash
+# 1 · Preparar el artefacto desde el commit que quieres probar.
+node apps/web/e2e/circulos/stack.mjs --prepare-only /ruta/al/artefacto
+
+# 2 · Subirlo a los tres servicios (desde /ruta/al/artefacto).
+railway up --project <proyecto> --environment <entorno> --service <api>    --detach
+railway up --project <proyecto> --environment <entorno> --service <worker> --detach
+vercel deploy --prod --yes
+
+# 3 · El recorrido completo: registra el grupo de cuentas, escribe la lista de
+#     admitidos, espera a que la API arranque CON esa lista, comprueba que una
+#     cuenta fuera de la lista es rechazada, y corre los mismos escenarios del
+#     arnés local contra las URLs alojadas.
+node apps/web/e2e/circulos/hosted.mjs --config /ruta/hosted.json
+
+# 4 · El límite de abuso, sobre la API alojada.
+node apps/web/e2e/circulos/hosted-limits.mjs --config /ruta/hosted.json
+
+# 5 · Cookie, CSP y forma de los rechazos, sobre la Web alojada.
+node apps/web/e2e/circulos/hosted-surface.mjs \
+  --config /ruta/hosted.json --accounts "$TMPDIR"/circulos-hosted-accounts-<run>.json
+```
+
+`hosted.json` describe el destino (URLs, ids de proyecto/entorno/servicios,
+plantilla y sha de origen) y **no vive en el repositorio**: tenerlo versionado
+sería tener un archivo cuyo único propósito es apuntar a una infraestructura.
+
+Dos cosas que la corrida hace y conviene entender antes de leerla:
+
+- **Espera preguntando lo que importa.** La sonda de arranque no pregunta "¿está
+  en modo piloto?" — eso es cierto con CUALQUIER lista, incluida la de la
+  corrida anterior, y el recorrido arrancaría contra una API que no conoce a
+  ninguna de sus cuentas. Pregunta "¿puede crear una cuenta de ESTE grupo?".
+- **Limpia el contador del límite antes de preguntar.** Registrar doce cuentas
+  no cabe bajo un tope de diez por hora, y la sonda de arranque gastaría en
+  preguntar el mismo cupo que necesita. Se borran las claves `throttle:` del
+  Redis **de pruebas**; el tope no se toca, porque el tope es parte de lo que se
+  está probando.
+
+### Un recorrido entre dos personas
+
+Dos personas, dos navegadores distintos (o dos dispositivos), unos quince
+minutos. Una organiza y necesita cuenta; la otra acompaña y entra con un
+enlace, sin registrarse.
+
+> **Esto es una prueba técnica: usa respuestas ficticias. No introduzcas
+> información íntima o clínica.** La plantilla pide dos textos breves; escribe
+> cualquier cosa inventada. Nada de lo que se escriba aquí está pensado para
+> guardar material personal, y el entorno de pruebas se borra sin aviso.
+
+**Quien organiza (persona A)**
+
+1. Abre `https://circulos-test-web.vercel.app/login` e inicia sesión con la
+   cuenta del piloto.
+2. Abre
+   `https://circulos-test-web.vercel.app/dashboard/exploraciones/eec-c1-cuerpo-antes-que-mente`.
+   **Un Dúo se ofrece desde el material del que nace, no desde un menú**: la
+   invitación aparece al final de esa lectura, como "Hacer esto con alguien".
+3. Pulsa **Hacer esto con alguien** y después **Crear el Dúo**.
+4. La pantalla muestra **un enlace de invitación**. Cópialo **completo** — lleva
+   un `#` y lo que va después es el secreto; un enlace cortado no sirve — y
+   mándaselo a la persona B por donde ustedes hablen normalmente. El enlace se
+   usa **una sola vez**: si algo falla al abrirlo, hay que crear otra invitación.
+5. Quédate en la sala. Verás "Antes de empezar" — es la pantalla de
+   consentimiento; el botón se habilita en cuanto la página termina de cargar.
+
+**Quien acompaña (persona B)**
+
+1. Abre el enlace que te mandaron. Verás quién te invita y qué es, antes de
+   aceptar nada.
+2. Acepta. Entras a la misma sala, sin cuenta y sin contraseña.
+
+**Las dos, cada una por su lado**
+
+1. Lean "Antes de empezar" y pulsen **Entiendo, empezar**.
+2. Escriban sus dos respuestas. **Nada de lo que escriben sale de su pantalla
+   todavía**: no se guarda, no se envía, no hay autoguardado.
+3. Pulsen **Ver qué se compartirá**. Esa vista es exacta: es literalmente lo
+   que la otra persona va a leer, y pueden volver a editar.
+4. Pulsen **Confirmar y enviar**.
+5. **Aquí está lo que vale la pena mirar**: quien confirme primero NO ve nada
+   de la otra persona. La sala dice que falta la otra parte y no muestra ni un
+   fragmento. Solo cuando las dos han confirmado aparece lo de ambas, a la vez.
+6. Después del intercambio hay un cierre con turnos y un artefacto compartido.
+
+**Salir en cualquier momento.** El botón para retirarse está siempre en
+pantalla. Si una de las dos se retira antes del intercambio, lo que escribió se
+descarta y la otra persona deja de esperar en vez de quedarse colgada. Eso
+también es parte de lo que conviene probar.
+
+**Un detalle que conviene saber antes de que lo descubran ellos.**
+`/dashboard/circulos` lista lo publicado, pero su enlace "Ver de qué se trata"
+lleva a una página de presentación que **no ofrece ningún botón para empezar**.
+No es un error del entorno alojado: el punto de entrada vive en la superficie de
+lectura a propósito — leer sobre algo y decidir hacerlo con alguien son actos
+distintos — pero quien llegue por el listado se queda sin camino. Mándales el
+paso 2 de arriba, no el listado. Cerrar ese hueco es una decisión de producto,
+no un arreglo de despliegue.
+
+Las credenciales de la cuenta del piloto y el enlace de invitación **no están en
+este documento ni en el repositorio**: viven en un archivo local fuera del
+árbol, `~/.psico-ops/circulos-hosted-pilot.env`. Compártelos tú por el canal que
+elijas.
+
+### Datos sintéticos: qué se crea y cómo se limpia
+
+Cada corrida crea doce cuentas `circulos-<etiqueta>-<run>@example.test` con
+contraseñas aleatorias, y sus actividades. Las credenciales se escriben en
+`$TMPDIR/circulos-hosted-accounts-<run>.json` con permisos `0600`, **fuera del
+repositorio**. El contenido es una plantilla sintética con dos campos de texto;
+no hay material editorial ni información personal en ninguna parte.
+
+Para limpiar lo de una corrida, sobre la base de PRUEBAS y con alcance a sus
+propias filas:
+
+```sql
+DELETE FROM "User" WHERE email LIKE 'circulos-%-<run>@example.test';
+```
+
+El borrado en cascada se lleva membresías, invitaciones, sesiones de invitado y
+sobres; las actividades quedan cerradas por el mismo camino que usa el borrado
+de cuenta real (§2). Si quieres empezar de cero, borra todas las corridas con
+`LIKE 'circulos-%@example.test'`.
+
+### Cerrar Círculos en el entorno de pruebas
+
+Es el procedimiento de §6, sobre este proyecto:
+
+```bash
+railway variables --project <p> --environment <e> --service <api> \
+  --set CIRCLES_ROLLOUT_MODE=off
+railway redeploy --project <p> --environment <e> --service <api> --yes
+```
+
+Y se comprueba, no se supone: `GET /api/circles/guest/session` debe responder
+`503 CIRCLES_UNAVAILABLE` mientras `/health` sigue en `200` — esa diferencia es
+la que distingue "apagado" de "caído". Para volver a abrir, `pilot` otra vez con
+la misma lista, y otro redeploy: el modo se resuelve **una sola vez al arrancar**
+y no se relee, así que sin reinicio no cambia nada.
+
+### Detener o eliminar el entorno
+
+Los cuatro servicios pueden pararse desde Railway sin perder datos: el volumen
+de PostgreSQL sobrevive. Eliminar el proyecto borra el volumen y con él todas
+las cuentas sintéticas — es irreversible y **no debe hacerse mientras el piloto
+esté en uso**.
+
+### Lo que este entorno NO demuestra todavía
+
+- **Plantilla real.** Lo que corre es un fixture sintético. Una plantilla con
+  copy aprobado es un acto editorial con su propia revisión (§13).
+- **Contenido personal.** Todo lo probado es texto inventado. El salto a
+  material íntimo real necesita la política de retención que todavía no existe.
+- **Correo, notificaciones y OAuth.** Deliberadamente sin configurar aquí.
+- **Carga.** Un Dúo a la vez, no cien.
+
+### Fecha propuesta de revisión
+
+**2026-10-14.** Si para entonces el piloto no avanzó, lo barato es parar los
+cuatro servicios; el proyecto puede quedar en pie para no tener que rehacerlo.
+
+---
+
+## 13 · PENDIENTE — no implementado en este corte
 
 - **Aprobación editorial y de seguridad de plantillas.** Ninguna candidata tiene
   copy aprobado verificable en el repositorio. El catálogo de producción sigue

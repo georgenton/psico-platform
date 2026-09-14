@@ -21,7 +21,6 @@ import {
   readActivityAsGuest,
   sameOrigin,
 } from "./bff";
-import { GUEST_COOKIE } from "./guest-cookie";
 
 describe("BFF · the allow-list is closed", () => {
   it("names exactly the five commands the guest flow needs", () => {

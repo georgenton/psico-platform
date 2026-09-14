@@ -486,9 +486,27 @@ node apps/web/e2e/circulos/hosted-surface.mjs \
   --config /ruta/hosted.json --accounts "$TMPDIR"/circulos-hosted-accounts-<run>.json
 ```
 
-`hosted.json` describe el destino (URLs, ids de proyecto/entorno/servicios,
-plantilla y sha de origen) y **no vive en el repositorio**: tenerlo versionado
-sería tener un archivo cuyo único propósito es apuntar a una infraestructura.
+`hosted.json` describe el destino y **no vive en el repositorio**: tenerlo
+versionado sería tener un archivo cuyo único propósito es apuntar a una
+infraestructura. No contiene ningún secreto, así que se reconstruye a mano con
+los ids de la tabla de arriba:
+
+```jsonc
+{
+  "repoRoot": "/ruta/al/repo",
+  "apiUrl": "https://circulos-api-test-production.up.railway.app",
+  "webUrl": "https://circulos-test-web.vercel.app",
+  "projectId": "…", // psico-circulos-test
+  "environmentId": "…", // su entorno `production`
+  "apiServiceId": "…",
+  "workerServiceId": "…",
+  "templateKey": "e2e-duo-sintetica",
+  "templateVersion": 1,
+  "sourceSha": "…", // el commit del artefacto desplegado
+  "startPath": "/dashboard/exploraciones/eec-c1-cuerpo-antes-que-mente",
+  "extraAllowlistIds": ["…"], // cuentas que sobreviven a cada corrida
+}
+```
 
 Dos cosas que la corrida hace y conviene entender antes de leerla:
 

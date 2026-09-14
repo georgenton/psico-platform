@@ -417,7 +417,10 @@ const CONTROLS = [
     runner: WALK,
     scenario: "BROWSER_REVEAL_BARRIER",
     test: "apps/web/e2e/circulos/stack.mjs",
-    t: "the second person cannot see the first person's words before confirming",
+    // The assertion that must FIRE, not merely a scenario that must break: the
+    // barrier is a fact about the activity, so it is checked as one before any
+    // screen is consulted.
+    t: "nothing is revealed on one confirmation",
   },
 ];
 

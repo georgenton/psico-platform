@@ -523,13 +523,34 @@ async function revealBarrier(browser) {
     await openPreview(page);
     await confirmShare(page);
 
-    // First confirmation: the organiser waits, and the GUEST must not be able
-    // to see anything of theirs.
-    await page
-      .getByRole("heading", { name: /Falta la otra persona/i })
-      .waitFor({ state: "visible", timeout: 30_000 });
-    check(true, "the first to confirm is told the other person is missing");
+    // ── The barrier, asserted at the server FIRST ────────────────────────
+    //
+    // Order matters here, and it was wrong. This used to wait for the "Falta la
+    // otra persona" heading before checking anything — so a break in the
+    // barrier meant that heading never appeared, the scenario timed out, and
+    // it reported a CRASH rather than a failed assertion. The thing that has
+    // to hold is a fact about the activity, and it is checked as one.
+    const revealedAt = await until(
+      () => {
+        const seat = sqlInt(
+          `SELECT count(*) FROM "CircleActivityParticipant" p
+             WHERE p."activityId"='${activityId}' AND p."status"='READY'`,
+        );
+        return seat === 1
+          ? sqlOne(
+              `SELECT coalesce("revealedAt"::text,'') FROM "CircleActivity" WHERE "id"='${activityId}'`,
+            ) || "NOT-REVEALED"
+          : null;
+      },
+      "the first confirmation to land",
+      60_000,
+    );
+    check(
+      revealedAt === "NOT-REVEALED",
+      "nothing is revealed on one confirmation",
+    );
 
+    // And the other person's screen agrees with the server.
     await guest.page.reload({ waitUntil: "domcontentloaded" });
     const guestSees = await guest.page.evaluate(() => document.body.innerText);
     check(
@@ -537,10 +558,15 @@ async function revealBarrier(browser) {
       "the second person cannot see the first person's words before confirming",
     );
 
-    const revealedAt = sqlOne(
-      `SELECT coalesce("revealedAt"::text,'') FROM "CircleActivity" WHERE "id"='${activityId}'`,
-    );
-    check(revealedAt === "", "nothing is revealed on one confirmation");
+    let toldWaiting = true;
+    try {
+      await page
+        .getByRole("heading", { name: /Falta la otra persona/i })
+        .waitFor({ state: "visible", timeout: 30_000 });
+    } catch {
+      toldWaiting = false;
+    }
+    check(toldWaiting, "the first to confirm is told the other person is missing");
 
     // Second confirmation opens both at once.
     await enterRoom(guest.page);

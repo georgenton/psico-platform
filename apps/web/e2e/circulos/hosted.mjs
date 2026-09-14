@@ -24,7 +24,7 @@
  */
 
 import { execFileSync } from "node:child_process";
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -233,7 +233,10 @@ async function poolAccountCanCreate() {
     headers: {
       "content-type": "application/json",
       authorization: `Bearer ${token}`,
-      "Idempotency-Key": randomBytes(16).toString("hex"),
+      // `IdempotencyKeyHeaderDto` is `@IsUUID(4)` — a hex string is refused
+      // with CIRCLE_INVALID_PAYLOAD, which reads like a rollout problem and is
+      // not one.
+      "Idempotency-Key": randomUUID(),
     },
     body: JSON.stringify({
       templateKey: cfg.templateKey,
@@ -272,7 +275,10 @@ if (outsiderToken) {
     headers: {
       "content-type": "application/json",
       authorization: `Bearer ${outsiderToken}`,
-      "Idempotency-Key": randomBytes(16).toString("hex"),
+      // `IdempotencyKeyHeaderDto` is `@IsUUID(4)` — a hex string is refused
+      // with CIRCLE_INVALID_PAYLOAD, which reads like a rollout problem and is
+      // not one.
+      "Idempotency-Key": randomUUID(),
     },
     body: JSON.stringify({
       templateKey: cfg.templateKey,

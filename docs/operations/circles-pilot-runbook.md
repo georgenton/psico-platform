@@ -740,6 +740,20 @@ Sin `TRUNCATE`, sin desactivar triggers y sin una puerta de scrub general: lo
 que existe es este comando sobre una corrida nombrada, y nada más. Correrlo dos
 veces es seguro — la segunda no encuentra nada que hacer.
 
+**Si el archivo de una corrida se perdió** (`$TMPDIR` se vacía solo), el comando
+no puede adivinarla — y no debe: su seguridad viene de trabajar sobre una lista
+enumerada, no sobre un patrón. Reconstruye el archivo con las direcciones de esa
+corrida y vuelve a correrlo:
+
+```sql
+-- sobre la base de PRUEBAS, sólo para leer las direcciones
+SELECT email FROM "User" WHERE email LIKE 'circulos-%-<run>@example.test';
+```
+
+Escribe `{"<etiqueta>": {"email": "<dirección>"}, …}` en
+`$TMPDIR/circulos-hosted-accounts-<run>.json` y sigue igual: el comando vuelve a
+comprobar el patrón, vuelve a excluir lo protegido y vuelve a enseñar el plan.
+
 **Qué permanece, conforme al comportamiento actual** (no es una política nueva,
 es lo que hoy hace el borrado): el asiento se conserva con `userId` nulo, el
 Círculo con `createdByUserId` nulo y las filas de `CircleEvent` con

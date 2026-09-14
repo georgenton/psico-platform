@@ -106,10 +106,18 @@ function temporaryUnavailable(): NextResponse {
  * access token) and the response (so the browser stores the rotated pair). At
  * most one refresh call per navigation.
  */
-async function refreshHandoff(
+/**
+ * Rotate the pair and put the new access token on THIS request.
+ *
+ * Returns the pair when it worked, or the response that must be sent instead —
+ * `/logout` when the refresh token itself is dead, a plain "try again" when the
+ * failure was transient. Split out of `refreshHandoff` because the Círculos
+ * branch needs the same rotation while building a response of its own.
+ */
+async function rotateOnto(
   request: NextRequest,
   refreshToken: string,
-): Promise<NextResponse> {
+): Promise<{ pair: RotatedPair } | { response: NextResponse }> {
   let pair: RotatedPair;
   try {
     pair = await callRefresh(refreshToken);
@@ -119,22 +127,24 @@ async function refreshHandoff(
     // do we end the session, via the existing logout convention (a writable
     // Route Handler that clears the cookies and lands on /login).
     if (status === 401 || status === 403 || status === 410) {
-      return NextResponse.redirect(new URL("/logout", request.url));
+      return {
+        response: NextResponse.redirect(new URL("/logout", request.url)),
+      };
     }
     // Everything else (429, 5xx, network) is transient: no cookie change, no
     // logout, no loop.
-    return temporaryUnavailable();
+    return { response: temporaryUnavailable() };
   }
 
   // Forward the rotated access token to THIS render: set it on the request
-  // cookie jar, then snapshot the (now-updated) request headers for the
-  // downstream Server Components.
+  // cookie jar so whatever runs downstream reads the new one.
   request.cookies.set(TOKEN_NAMES.access, pair.accessToken);
   request.cookies.set(TOKEN_NAMES.refresh, pair.refreshToken);
-  const response = NextResponse.next({
-    request: { headers: new Headers(request.headers) },
-  });
-  // Persist the rotated pair to the browser.
+  return { pair };
+}
+
+/** Persist a rotated pair to the browser. */
+function persistPair(response: NextResponse, pair: RotatedPair): NextResponse {
   response.cookies.set(
     TOKEN_NAMES.access,
     pair.accessToken,
@@ -146,6 +156,18 @@ async function refreshHandoff(
     cookieOptions.refresh,
   );
   return response;
+}
+
+async function refreshHandoff(
+  request: NextRequest,
+  refreshToken: string,
+): Promise<NextResponse> {
+  const rotated = await rotateOnto(request, refreshToken);
+  if ("response" in rotated) return rotated.response;
+  const response = NextResponse.next({
+    request: { headers: new Headers(request.headers) },
+  });
+  return persistPair(response, rotated.pair);
 }
 
 // ── Círculos: a strict CSP that Next.js can still hydrate under ─────────────
@@ -211,6 +233,33 @@ export async function middleware(request: NextRequest) {
   // The path check comes first: this middleware runs on every request in the
   // app, and only these three prefixes need a nonce.
   if (isCirculosPath(pathname)) {
+    // Renew the pair HERE too, before building the response.
+    //
+    // This branch used to return early, so `/compartir/:id` and every
+    // `/api/circulos/*` handler the room calls were the only authenticated
+    // surfaces in the app that never renewed anything. The access token lives
+    // fifteen minutes and a Dúo takes longer than that: the organiser sat in
+    // the room, the token quietly expired, and from then on every poll and
+    // every command — including the one that closes the activity — resolved
+    // to no actor and answered CIRCLE_FORBIDDEN. The page showed an error for
+    // a session that was perfectly alive, and reloading did not help, because
+    // reloading lands on a Círculos path too.
+    //
+    // A guest never saw it: their credential is a thirty-day cookie. Only the
+    // person who signed in did, which is exactly how it was reported.
+    const refreshToken =
+      request.cookies.get(TOKEN_NAMES.refresh)?.value ?? null;
+    const accessToken = request.cookies.get(TOKEN_NAMES.access)?.value ?? null;
+    let rotatedPair: RotatedPair | null = null;
+    if (refreshToken && isAccessExpired(accessToken)) {
+      const rotated = await rotateOnto(request, refreshToken);
+      // A dead refresh token or a transient failure answers for itself. It is
+      // not turned into a Círculos refusal: "your session ended" and "this
+      // activity is not for you" are different sentences.
+      if ("response" in rotated) return rotated.response;
+      rotatedPair = rotated.pair;
+    }
+
     const nonce = crypto.randomUUID().replace(/-/g, "");
     const policy = circulosCspFor(pathname, nonce)!;
 
@@ -227,7 +276,7 @@ export async function middleware(request: NextRequest) {
 
     const response = NextResponse.next({ request: { headers } });
     response.headers.set("Content-Security-Policy", policy);
-    return response;
+    return rotatedPair ? persistPair(response, rotatedPair) : response;
   }
 
   const accessToken = request.cookies.get(TOKEN_NAMES.access)?.value ?? null;

@@ -47,6 +47,7 @@ const LABELS = [
   "withdraw-before",
   "withdraw-after",
   "retry",
+  "closing",
   "roomA",
   "roomB",
   "temporal",

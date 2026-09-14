@@ -93,7 +93,20 @@ function check(ok, label) {
 /** Redacted for any diagnostic output. */
 const shape = (link) => String(link).replace(/#.+$/, "#<token:43>");
 
+/**
+ * Run one scenario by name, for when a single path is being chased.
+ *
+ * A comma-separated list in `CIRCULOS_E2E_ONLY`. Unset means all of them, which
+ * is what CI and every full run use — this exists so that finding out WHY one
+ * path fails does not cost twenty minutes of the other nine.
+ */
+const ONLY = (process.env.CIRCULOS_E2E_ONLY ?? "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+
 async function scenario(key, title, body) {
+  if (ONLY.length > 0 && !ONLY.includes(key)) return;
   current = { key, title, checks: [], failures: [], error: null };
   scenarios.push(current);
   console.log(`\n── ${title} ──`);
@@ -1339,6 +1352,425 @@ function countActivities() {
   return sqlInt(`SELECT count(*) FROM "CircleActivity"`);
 }
 
+// ── Scenario · the ways a Dúo ends ──────────────────────────────────────────
+
+/**
+ * Every exit, watched from the ORGANISER's authenticated page.
+ *
+ * A manual tester reported "an error on the inviter's page when closing the
+ * Dúo" and could not say which button. So this walks all of them and records
+ * what the page DID — the requests it made, the statuses it got, the text it
+ * ended on — rather than asserting one guess.
+ *
+ * What it refuses to accept as success:
+ *
+ *  - a terminal activity that leaves an error on screen;
+ *  - a terminal activity that keeps polling (the room asks forever about
+ *    something that cannot change again);
+ *  - leaving the activity taking the ACCOUNT session with it.
+ */
+async function closingPaths(browser) {
+  const organiser = await register("closing");
+  const ctx = await browser.newContext();
+  let guest = null;
+
+  try {
+    const page = await ctx.newPage();
+
+    // Everything this page asks for, so a failure names the request.
+    const calls = [];
+    page.on("response", (res) => {
+      const u = new URL(res.url());
+      if (u.pathname.startsWith("/api/circulos")) {
+        calls.push(`${res.request().method()} ${u.pathname} → ${res.status()}`);
+      }
+    });
+    const errorsShown = () =>
+      page.evaluate(() =>
+        [...document.querySelectorAll('[role="alert"], [role="status"]')]
+          .map((n) => n.textContent?.trim() ?? "")
+          .filter((t) => t.length > 0),
+      );
+
+    await signIn(page, organiser);
+    const link = await createDuo(page);
+    guest = await acceptAsGuest(browser, link);
+    const activityId = guest.activityId;
+
+    await page.goto(`${WEB}/compartir/${activityId}`, {
+      waitUntil: "domcontentloaded",
+    });
+    await enterRoom(page);
+
+    // Both confirm, so the activity reveals.
+    for (const [who, p] of [
+      ["org", page],
+      ["guest", guest.page],
+    ]) {
+      if (who === "guest") await enterRoom(p);
+      await typeDraft(p, { uno: `${who}-cierre`, dos: `${who}-dos` });
+      await openPreview(p);
+      await confirmShare(p);
+    }
+    await until(
+      async () => {
+        await page.reload({ waitUntil: "domcontentloaded" });
+        const t = await page.evaluate(() => document.body.innerText);
+        return t.includes("Lo que compartió la otra persona");
+      },
+      "the reveal",
+      60_000,
+    );
+    check(true, "the activity reveals for the organiser");
+
+    // ── the artifact, proposed and agreed ───────────────────────────────────
+    await page.fill("#artefacto", `acuerdo-${randomBytes(3).toString("hex")}`);
+    await page.getByRole("button", { name: /^Proponer$/ }).click();
+    await until(
+      () =>
+        sqlInt(
+          `SELECT count(*) FROM "CircleArtifact" WHERE "activityId"='${activityId}'`,
+        ) === 1,
+      "the proposal to persist",
+      30_000,
+    );
+    for (const p of [guest.page, page]) {
+      await p.reload({ waitUntil: "domcontentloaded" });
+      const confirm = p.getByRole("button", { name: /Confirmar esta versión/i });
+      if ((await confirm.count()) > 0) await confirm.click();
+    }
+    await until(
+      () =>
+        sqlOne(
+          `SELECT "status" FROM "CircleArtifact" WHERE "activityId"='${activityId}' ORDER BY "version" DESC LIMIT 1`,
+        ) === "AGREED",
+      "both confirmations to agree the artifact",
+      60_000,
+    );
+    check(true, "the artifact reaches AGREED with both confirmations");
+
+    // ── the follow-up, and the close ────────────────────────────────────────
+    //
+    // The follow-up opens on a DATE. Moving that date on THIS activity is the
+    // same synthetic-date technique the worker scenario uses; the transition
+    // itself still runs on the server's own terms.
+    sql(
+      `UPDATE "CircleActivity" SET "followUpDueAt" = now() - interval '1 hour'
+        WHERE "id"='${activityId}'`,
+    );
+    // And the REAL worker opens it, because that is who opens it in production:
+    // the room cannot transition itself, and a test that reached FOLLOW_UP by
+    // writing the status would be testing a state the product never produces.
+    const sweep = await transport.enqueue("circles-sweep", "run-circles-sweep", {
+      nowIso: new Date().toISOString(),
+      batchSize: 50,
+    });
+    await until(
+      async () => {
+        const state = await sweep.state();
+        return state === "completed" || state === "failed" ? state : null;
+      },
+      "the sweep that opens the follow-up",
+      120_000,
+    );
+
+    await until(
+      async () => {
+        await page.reload({ waitUntil: "domcontentloaded" });
+        const t = await page.evaluate(() => document.body.innerText);
+        return t.includes("¿Cómo siguen?");
+      },
+      "the follow-up to open on the organiser's screen",
+      60_000,
+    );
+
+    // The organiser closes FIRST; the guest has not answered yet.
+    calls.length = 0;
+    await page.getByRole("button", { name: /Lo cerramos aquí/i }).click();
+    await until(
+      () =>
+        sqlOne(
+          `SELECT "followUpDecision" FROM "CircleActivityParticipant" p
+             JOIN "CircleMember" m ON m."id"=p."memberId"
+            WHERE p."activityId"='${activityId}' AND m."userId"='${organiser.userId}'`,
+        ) === "CLOSE",
+      "the organiser's decision to persist",
+      30_000,
+    );
+    const afterFirst = await page.evaluate(() => document.body.innerText);
+    check(
+      /Ya respondiste/i.test(afterFirst),
+      "closing first says the decision was recorded, and waits for the other",
+    );
+    check(
+      (await errorsShown()).length === 0,
+      `no error is shown after closing first (saw: ${JSON.stringify(await errorsShown())} · ${calls.join(" | ")})`,
+    );
+
+    // The guest closes too, which ends the activity.
+    await guest.page.reload({ waitUntil: "domcontentloaded" });
+    const guestClose = guest.page.getByRole("button", {
+      name: /Lo cerramos aquí/i,
+    });
+    await guestClose.waitFor({ state: "visible", timeout: 30_000 });
+    await guestClose.click();
+    await until(
+      () =>
+        sqlOne(`SELECT "status" FROM "CircleActivity" WHERE "id"='${activityId}'`) ===
+        "CLOSED",
+      "the activity to close once both decided",
+      30_000,
+    );
+    check(true, "both decisions close the activity");
+
+    // ── what the organiser's page does once it is over ──────────────────────
+    calls.length = 0;
+    await until(
+      async () => {
+        const t = await page.evaluate(() => document.body.innerText);
+        return /Esta actividad terminó/i.test(t);
+      },
+      "the organiser's open page to show the final state on its own",
+      90_000,
+    );
+    check(true, "the open page reaches the final state by itself");
+    check(
+      (await errorsShown()).length === 0,
+      `the closed room shows no error (saw: ${JSON.stringify(await errorsShown())} · ${calls.join(" | ")})`,
+    );
+
+    // A reload straight after the terminal state.
+    calls.length = 0;
+    await page.reload({ waitUntil: "domcontentloaded" });
+    const reloaded = await page.evaluate(() => document.body.innerText);
+    check(
+      /Esta actividad terminó/i.test(reloaded),
+      `reloading a closed room shows the end, not an error (${reloaded.slice(0, 160).replace(/\s+/g, " ")})`,
+    );
+    check(
+      (await errorsShown()).length === 0,
+      `and no error after the reload (saw: ${JSON.stringify(await errorsShown())} · ${calls.join(" | ")})`,
+    );
+
+    // And it stops asking. Polling is ten seconds; twenty-five is two windows.
+    calls.length = 0;
+    await page.waitForTimeout(25_000);
+    check(
+      calls.length === 0,
+      `a closed room stops polling (made: ${calls.join(" | ") || "no calls"})`,
+    );
+
+    // ── leaving does not log the account out ────────────────────────────────
+    await page.goto(`${WEB}/dashboard/circulos`, {
+      waitUntil: "domcontentloaded",
+    });
+    check(
+      !new URL(page.url()).pathname.startsWith("/login"),
+      `the account session survives the closed activity (at ${new URL(page.url()).pathname})`,
+    );
+
+    // ── the OTHER way a Dúo ends: the exit button ───────────────────────────
+    //
+    // A second activity, because the first one is over. This is the control
+    // that is always on screen — the one somebody reaches for when they mean
+    // "close this" — and it ends the activity for both people.
+    const second = await createDuo(page);
+    const guest2 = await acceptAsGuest(browser, second);
+    try {
+      await page.goto(`${WEB}/compartir/${guest2.activityId}`, {
+        waitUntil: "domcontentloaded",
+      });
+      await enterRoom(page);
+      await enterRoom(guest2.page);
+      for (const [who, p] of [
+        ["org", page],
+        ["guest", guest2.page],
+      ]) {
+        await typeDraft(p, { uno: `${who}-salida`, dos: `${who}-dos` });
+        await openPreview(p);
+        await confirmShare(p);
+      }
+      await until(
+        async () => {
+          await page.reload({ waitUntil: "domcontentloaded" });
+          const t = await page.evaluate(() => document.body.innerText);
+          return t.includes("Lo que compartió la otra persona");
+        },
+        "the second activity to reveal",
+        60_000,
+      );
+
+      calls.length = 0;
+      await page
+        .getByRole("button", { name: /Retirarme de la actividad/i })
+        .click();
+      // Where the organiser LANDS, and whether anything shouted on the way.
+      await until(
+        () => !new URL(page.url()).pathname.startsWith("/compartir/"),
+        "the organiser to be taken out of the room",
+        30_000,
+      );
+      const landedOn = new URL(page.url()).pathname;
+      const afterExit = await errorsShown();
+      check(
+        !landedOn.startsWith("/login"),
+        `leaving the activity does not end the account session (landed on ${landedOn})`,
+      );
+      check(
+        afterExit.length === 0,
+        `leaving shows no error (saw: ${JSON.stringify(afterExit)} · ${calls.join(" | ")})`,
+      );
+      check(
+        sqlOne(
+          `SELECT "status" FROM "CircleActivity" WHERE "id"='${guest2.activityId}'`,
+        ) !== "REVEALED",
+        "and the activity is settled rather than left running",
+      );
+
+      // The guest, meanwhile, must be told — without being told why.
+      await until(
+        async () => {
+          await guest2.page.reload({ waitUntil: "domcontentloaded" });
+          const t = await guest2.page.evaluate(() => document.body.innerText);
+          return /termin|no está disponible/i.test(t);
+        },
+        "the guest to see a coherent end",
+        60_000,
+      );
+      const guestText = await guest2.page.evaluate(
+        () => document.body.innerText,
+      );
+      check(
+        !/retir[óo]|abandon/i.test(guestText),
+        "and is not told the other person withdrew",
+      );
+    } finally {
+      await guest2.ctx.close();
+    }
+
+    // ── the room outlives the access token ──────────────────────────────────
+    //
+    // The reported defect. A Dúo takes longer than the fifteen minutes an
+    // access token lives, and this branch of the middleware used to return
+    // without renewing anything — so the organiser's room quietly stopped
+    // being able to do ANYTHING, closing included, while their session was
+    // perfectly alive.
+    //
+    // Rather than wait fifteen minutes, the cookie is replaced with one that
+    // has already expired. The refresh token is left exactly as it is: that is
+    // the state a person is in after a long conversation.
+    const fourth = await createDuo(page);
+    const guest4 = await acceptAsGuest(browser, fourth);
+    try {
+      await page.goto(`${WEB}/compartir/${guest4.activityId}`, {
+        waitUntil: "domcontentloaded",
+      });
+      await enterRoom(page);
+
+      const before = await ctx.cookies();
+      const access = before.find((c) => c.name === "psico_at");
+      const refresh = before.find((c) => c.name === "psico_rt");
+      check(
+        Boolean(access && refresh),
+        "the organiser holds both halves of a session",
+      );
+      const expired = `x.${Buffer.from(
+        JSON.stringify({ exp: Math.floor(Date.now() / 1000) - 60 }),
+      ).toString("base64url")}.y`;
+      await ctx.addCookies([{ ...access, value: expired }]);
+
+      calls.length = 0;
+      // The exit is a command, and it is the one the tester pressed.
+      await page
+        .getByRole("button", { name: /Retirarme de la actividad/i })
+        .click();
+      // Wait for EITHER outcome, so a failure can say which one happened
+      // instead of only that time ran out.
+      const left = await until(
+        async () => {
+          if (!new URL(page.url()).pathname.startsWith("/compartir/")) {
+            return "left";
+          }
+          return (await errorsShown()).length > 0 ? "error" : null;
+        },
+        "the room to answer the exit",
+        45_000,
+      ).catch(() => "nothing");
+      const expiredErrors = await errorsShown();
+      check(
+        left === "left" && expiredErrors.length === 0,
+        `closing works after the access token expired ` +
+          `(outcome: ${left} · shown: ${JSON.stringify(expiredErrors)} · ${calls.join(" | ")})`,
+      );
+      check(
+        sqlOne(
+          `SELECT "status" FROM "CircleActivity" WHERE "id"='${guest4.activityId}'`,
+        ) === "CANCELLED",
+        "and the activity really ended, rather than only looking like it",
+      );
+      const after = await ctx.cookies();
+      const renewed = after.find((c) => c.name === "psico_at")?.value ?? "";
+      check(
+        renewed !== expired && renewed.length > 0,
+        "the session was renewed rather than abandoned",
+      );
+    } finally {
+      await guest4.ctx.close();
+    }
+
+    // ── the guest leaves while the organiser is still in the room ───────────
+    const third = await createDuo(page);
+    const guest3 = await acceptAsGuest(browser, third);
+    try {
+      await page.goto(`${WEB}/compartir/${guest3.activityId}`, {
+        waitUntil: "domcontentloaded",
+      });
+      await enterRoom(page);
+      await enterRoom(guest3.page);
+
+      calls.length = 0;
+      await guest3.page
+        .getByRole("button", { name: /Retirarme de la actividad/i })
+        .click();
+      await until(
+        () =>
+          sqlOne(
+            `SELECT "status" FROM "CircleActivity" WHERE "id"='${guest3.activityId}'`,
+          ) !== "PREPARING",
+        "the guest's withdrawal to settle the activity",
+        60_000,
+      );
+
+      // The organiser's page is OPEN and polling. It has to arrive at the end
+      // on its own, without an error and without asking forever.
+      await until(
+        async () => {
+          const t = await page.evaluate(() => document.body.innerText);
+          return /Esta actividad terminó/i.test(t);
+        },
+        "the organiser's open page to reflect the guest leaving",
+        90_000,
+      );
+      const orgErrors = await errorsShown();
+      check(
+        orgErrors.length === 0,
+        `the organiser sees the end, not an error (saw: ${JSON.stringify(orgErrors)} · ${calls.join(" | ")})`,
+      );
+      calls.length = 0;
+      await page.waitForTimeout(25_000);
+      check(
+        calls.length === 0,
+        `and stops polling once it is over (made: ${calls.join(" | ") || "no calls"})`,
+      );
+    } finally {
+      await guest3.ctx.close();
+    }
+  } finally {
+    await ctx.close();
+    if (guest) await guest.ctx.close();
+  }
+}
+
 // ── Run them ────────────────────────────────────────────────────────────────
 
 console.log(`\nCírculos Dúo walk · commit ${HEAD_SHA}`);
@@ -1388,6 +1820,11 @@ try {
     "BROWSER_FOREIGN_SESSION_REJECTED",
     "a third session, and somebody else's cookie",
     () => foreignSessionRejected(browser),
+  );
+  resetRateLimits();
+
+  await scenario("BROWSER_CLOSING_PATHS", "the ways a Dúo ends", () =>
+    closingPaths(browser),
   );
   resetRateLimits();
 

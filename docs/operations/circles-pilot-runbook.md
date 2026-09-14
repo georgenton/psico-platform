@@ -373,6 +373,21 @@ de pruebas, nunca producción). El control de la barrera de revelación construy
 la pila completa con `--worktree` — sin eso construiría el commit, es decir el
 código **sin** mutar, y un no-op se anotaría como detección.
 
+Cada fase deja su salida en `apps/api/.negative-controls/<PROPIEDAD>.<fase>.log`
+(ignorado por git). No es un adorno: el control de la barrera falló dos veces en
+su fase de restauración y no había nada que leer, porque el runner descartaba la
+salida. Con los logs, el archivo dijo la causa en una línea — `git stash create`,
+que tiene un camino de "nada que guardar" y la fase restaurada trabaja, por
+definición, sobre un árbol limpio. El harness ya no usa `stash create` sino un
+índice temporal.
+
+**Una lección que quedó en el código.** El control de la barrera detectaba la
+mutación haciendo _reventar_ el escenario, no disparando su aserción: el
+recorrido esperaba un encabezado que la mutación hacía desaparecer, se agotaba
+el tiempo y no llegaba a comprobar nada. La barrera es un hecho sobre la
+actividad — con un asiento READY, `revealedAt` sigue nulo — y ahora se comprueba
+como tal **antes** de mirar ninguna pantalla.
+
 ## 12 · PENDIENTE — no implementado en este corte
 
 - **Aprobación editorial y de seguridad de plantillas.** Ninguna candidata tiene

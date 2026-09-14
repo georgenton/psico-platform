@@ -816,7 +816,53 @@ cuatro servicios; el proyecto puede quedar en pie para no tener que rehacerlo.
 
 ---
 
-## 13 · PENDIENTE — no implementado en este corte
+## 13 · Círculos de más de dos personas — qué hay y qué falta
+
+**Disponible hoy:** el motor de Círculos y **una** modalidad, el Dúo de dos
+personas adultas. El motor no es específico del Dúo — actividades,
+participantes, invitaciones, sobres, revelado, artefacto, seguimiento y barrido
+temporal no saben cuántos asientos hay — pero todo lo que decide CUÁNDO pasa
+algo está escrito para dos.
+
+**No disponible:** cualquier actividad de más de dos, y sus reglas. No es una
+constante que subir. `requiredParticipants` y los `CHECK` de Dúo en la base
+están puestos a propósito: **no se amplían ni se retiran aquí**, porque son lo
+que impide que una plantilla mal editada abra una conversación de cinco personas
+sobre material pensado para dos.
+
+### El bloque futuro, si se hace
+
+Uno solo, reutilizando el motor. Antes de escribir una línea hay cinco
+decisiones, y ninguna es técnica:
+
+1. **Tamaño.** Cuántas personas, y si el máximo es del producto o de la
+   plantilla.
+2. **Quién invita.** Sólo quien creó la actividad, o cualquier participante.
+3. **Si deben confirmar todos.** Hoy el revelado es `ALL_CONFIRMED` y con dos
+   eso es inequívoco. Con cinco hay que elegir entre esperar a todos —una
+   persona bloquea al grupo— o abrir con un quórum, que es una regla nueva sobre
+   contenido íntimo y no una variante de configuración.
+4. **Qué pasa cuando alguien se retira.** Con dos, retirarse termina la
+   actividad porque no queda con quién. Con más, ¿sigue sin esa persona? ¿Se
+   borra lo que ya compartió, o se queda porque los demás ya lo leyeron?
+5. **Quién puede ver lo compartido.** Todos, o sólo quien también compartió.
+
+Hasta que esas cinco tengan respuesta, ampliar el motor es adivinar. Y no se
+diseñan a la vez modalidades clínicas, familiares, empresariales y educativas:
+son públicos distintos con riesgos distintos, y mezclarlas produce una que no
+sirve para ninguno.
+
+**Nada de esto se construye en #714.**
+
+---
+
+## 14 · PENDIENTE — no implementado en este corte
+
+> Las dos primeras están ahora **preparadas como decisión concreta** en
+> [`circles-pilot-activation-decision.md`](circles-pilot-activation-decision.md):
+> una plantilla propuesta con su texto exacto, una política de artefactos por
+> estado con recomendación, y la lista de variables, comprobaciones y criterios
+> de parada. Siguen **sin aprobar** — el documento no enciende nada.
 
 - **Aprobación editorial y de seguridad de plantillas.** Ninguna candidata tiene
   copy aprobado verificable en el repositorio. El catálogo de producción sigue

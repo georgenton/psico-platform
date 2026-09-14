@@ -25,6 +25,16 @@ import { join } from "node:path";
 
 import { chromium } from "playwright";
 
+/** Present within the timeout, rather than present at the instant we looked. */
+const appears = async (locator, timeout = 30_000) => {
+  try {
+    await locator.first().waitFor({ state: "visible", timeout });
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 const at = process.argv.indexOf("--config");
 if (at < 0) {
   console.error("usage: hosted-manual-ready.mjs --config <path>");
@@ -124,7 +134,7 @@ try {
   const goToExperience = page.getByRole("link", {
     name: /Ir a la experiencia/i,
   });
-  const leads = (await goToExperience.count()) > 0;
+  const leads = await appears(goToExperience);
   check(leads, "the Círculos listing offers a way to the experience");
   if (leads) {
     check(
@@ -143,9 +153,11 @@ try {
   await page.goto(`${cfg.webUrl}${cfg.startPath}`, {
     waitUntil: "domcontentloaded",
   });
+  // Waited for, not counted: this page finishes after `domcontentloaded`, and
+  // the first cut of this check reported a missing CTA that was simply late.
   const cta = page.getByRole("link", { name: /Hacer esto con alguien/i });
   check(
-    (await cta.count()) > 0,
+    await appears(cta),
     "the reading surface still offers the Dúo to this account",
   );
 } finally {

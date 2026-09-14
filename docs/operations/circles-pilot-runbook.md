@@ -297,7 +297,7 @@ que la primera rotura escondiera todo lo que viene detrás.
 | --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `BROWSER_ENTRY_FLOW`                          | CTA, previsualización que **no crea nada**, una confirmación → **una** actividad, token borrado de la URL, mirar no consume, aceptar sí, ambos en la misma sala con dos asientos       |
 | `BROWSER_PRIVATE_PREPARATION`                 | nada de lo tecleado sale del navegador antes de confirmar (observado sobre lo que el navegador **realmente envía**); el borrador sobrevive a volver del preview y a un envío rechazado |
-| `BROWSER_REVEAL_BARRIER`                      | con una sola confirmación la otra persona **no ve** lo ajeno y `revealedAt` sigue nulo; con las dos, ambos ven                                                                         |
+| `BROWSER_REVEAL_BARRIER`                      | con una sola confirmación `revealedAt` sigue nulo — comprobado en el servidor **antes** de mirar ninguna pantalla — y la otra persona **no ve** lo ajeno; con las dos, ambos ven       |
 | `BROWSER_ARTIFACT_CONFIRMATION`               | propuesta v1, edición → v2 con v1 **SUPERSEDED**, ambas confirmaciones atadas a la versión exacta, ninguna sobre la superseded                                                         |
 | `BROWSER_WITHDRAWAL_BEFORE_AND_AFTER`         | retiro antes y después de revelar, en **actividades independientes**; asiento WITHDRAWN, sobre borrado, y la confirmación de la contraparte sobrevive                                  |
 | `BROWSER_RETRY_AFTER_COMMITTED_RESPONSE_LOSS` | respuesta interceptada **después** de que el servidor comprometió; el commit se verifica en la base y el reintento no duplica actividad ni invitación                                  |
@@ -343,7 +343,7 @@ horas después. El par (pid, hora de arranque) sí lo es: si no coincide, el
 proceso es de otro y se deja en paz (se registra `pid reused — not ours`).
 
 - Los servicios se detienen **por grupo de procesos** y se **espera** su salida
-  antes de borrar sus archivos.
+  antes de borrar sus archivos. Un proceso en estado `Z` cuenta como **muerto**: son hijos de la corrida y nadie hace `wait` sobre ellos, así que tras matarlos quedan en la tabla hasta que el padre sale y `ps -p` los sigue listando. Leerlos como vivos hacía esperar la ventana completa por cada servicio y luego anunciar "STILL RUNNING" sobre cuatro procesos ya muertos.
 - Sólo se eliminan los contenedores y directorios que el estado nombra. Nunca
   por patrón: `circulos-e2e-*` también alcanzaría a una corrida concurrente.
 - La limpieza es idempotente: un segundo `--down` no rompe nada.

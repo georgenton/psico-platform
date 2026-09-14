@@ -45,11 +45,12 @@
  *   node apps/web/e2e/circulos/stack.mjs --down <runId>
  *   node apps/web/e2e/circulos/stack.mjs --run-id <10 hex>   # name it up front
  *   node apps/web/e2e/circulos/stack.mjs --worktree          # build local edits
+ *   node apps/web/e2e/circulos/stack.mjs --prepare-only <dir> # emit the artifact
  *   node apps/web/e2e/circulos/stack.mjs --dirty-ok   # test the working tree
  */
 
 import { execFileSync, spawn } from "node:child_process";
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import {
   cpSync,
   existsSync,
@@ -87,6 +88,18 @@ const DIRTY_OK = args.includes("--dirty-ok");
  * and says so.
  */
 const WORKTREE = args.includes("--worktree");
+/**
+ * Prepare the patched copy at a named directory and stop.
+ *
+ * The hosted test environment needs exactly what this script already builds —
+ * the commit plus the synthetic catalog — but as an artifact a deploy can
+ * upload, not a stack this process runs. Reusing the same archive-and-patch
+ * path keeps one mechanism: there is no second place where a fixture could be
+ * applied differently, and no second place to audit.
+ */
+const PREPARE_AT = args.indexOf("--prepare-only") >= 0
+  ? args[args.indexOf("--prepare-only") + 1]
+  : null;
 const DOWN_AT = args.indexOf("--down");
 
 /**
@@ -482,6 +495,40 @@ async function main() {
   // This build is therefore NOT publishable and never leaves the temp tree:
   // nothing here is pushed to a registry, uploaded, or reused as an artifact.
   log("   patched", "2 catalog points + 1 fixture module (build is NOT publishable)");
+
+  if (PREPARE_AT) {
+    // The artifact is the point; nothing is installed, built or started here.
+    // It is deliberately NOT byte-identical to the source commit — it carries
+    // the fixture — so the caller is told both the source and what changed.
+    const digest = (rel) =>
+      createHash("sha256").update(readFileSync(join(WORK, rel))).digest("hex");
+    const manifest = {
+      preparedAt: new Date().toISOString(),
+      sourceSha: headSha,
+      dirtyHarness: Boolean(dirty),
+      fixture: {
+        path: "packages/types/src/circles-e2e-fixture.ts",
+        sha256: digest("packages/types/src/circles-e2e-fixture.ts"),
+      },
+      patched: [
+        { path: "packages/types/src/circles-catalog.ts", sha256: digest("packages/types/src/circles-catalog.ts") },
+        { path: "apps/web/src/lib/circulos/eligibility.ts", sha256: digest("apps/web/src/lib/circulos/eligibility.ts") },
+      ],
+      templateKey: "e2e-duo-sintetica",
+      templateVersion: 1,
+    };
+    writeFileSync(
+      join(WORK, "circulos-test-artifact.json"),
+      JSON.stringify(manifest, null, 2),
+    );
+    if (existsSync(PREPARE_AT)) rmSync(PREPARE_AT, { recursive: true, force: true });
+    cpSync(WORK, PREPARE_AT, { recursive: true });
+    rmSync(WORK, { recursive: true, force: true });
+    rmSync(STATE, { force: true });
+    log("prepared", PREPARE_AT);
+    console.log(JSON.stringify(manifest, null, 2));
+    return;
+  }
 
   // ── 3 · dependencies and build ───────────────────────────────────────────
 

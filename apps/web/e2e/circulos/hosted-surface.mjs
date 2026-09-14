@@ -199,9 +199,11 @@ check(
 
 console.log("▸ what a refusal says");
 
-const refused = await fetch(`${cfg.apiUrl}/api/circles/invitations/inspect`, {
+// Through the BFF, which is now the only way into this route — and the way a
+// person's browser reaches it anyway.
+const refused = await fetch(`${cfg.webUrl}/api/circulos/inspeccion`, {
   method: "POST",
-  headers: { "content-type": "application/json" },
+  headers: { "content-type": "application/json", origin: cfg.webUrl },
   body: JSON.stringify({ secret: `no-such-invitation-${randomUUID()}` }),
 });
 const refusedText = await refused.text();

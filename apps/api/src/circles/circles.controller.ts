@@ -11,6 +11,7 @@ import { Throttle } from "@nestjs/throttler";
 import type { CircleActor } from "@psico/types";
 import { JwtAuthGuard } from "../auth";
 import { CirclesGuestGuard } from "./circles-guest.guard";
+import { CirclesBffOnlyGuard } from "./circles-bff-only.guard";
 import { CirclesGuestSurfaceGuard } from "./circles-guest-surface.guard";
 import { CirclesRolloutGuard } from "./circles-rollout.guard";
 import { CurrentCircleActor } from "./current-circle-actor.decorator";
@@ -69,7 +70,7 @@ export class CirclesController {
    */
   @Post("invitations/inspect")
   @HttpCode(200)
-  @UseGuards(CirclesGuestSurfaceGuard)
+  @UseGuards(CirclesGuestSurfaceGuard, CirclesBffOnlyGuard)
   @Throttle(INVITATION_THROTTLE)
   @ApiOperation({ summary: "Check an invitation without consuming it" })
   @ApiResponse({
@@ -107,7 +108,7 @@ export class CirclesController {
    */
   @Post("invitations/accept")
   @HttpCode(201)
-  @UseGuards(CirclesGuestSurfaceGuard)
+  @UseGuards(CirclesGuestSurfaceGuard, CirclesBffOnlyGuard)
   @Throttle(INVITATION_THROTTLE)
   @ApiOperation({ summary: "Trade an invitation for a guest session" })
   @ApiResponse({ status: 201, description: "The guest session was created." })

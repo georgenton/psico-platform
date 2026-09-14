@@ -218,25 +218,54 @@ la API y en el servidor Web. Aplicado **solo** en el entorno de pruebas (§12).
 Si las dos copias no coinciden, la atestación se rechaza y todos los invitados
 vuelven a compartir un cupo — en silencio, sin error visible.
 
-### Lo que el entorno alojado midió sobre el cupo por dirección
+### Qué se garantiza exactamente, medido sobre lo alojado
 
-Comprobado contra la API alojada (`hosted-limits.mjs`, §12): un cliente atestado
-gasta su propio cupo y es rechazado al pasarse, mientras otra identidad firmada
-en el mismo instante no se entera; y una atestación con la gramática correcta y
-**firma falsa** no llega al cubo de la identidad que dice ser — se comprueba
-apuntándola a una identidad ya agotada, que con la firma real devuelve 429 y con
-la falsa no.
+`hosted-limits.mjs` (§12) recorre la matriz completa contra las URLs alojadas.
+Lo que encontró, y lo que se hizo con ello:
 
-Y una medición que conviene conocer: **el cubo por dirección no es uno por
-llamante en esta plataforma**. Doce llamadas idénticas sin atestar, tanto desde
-dentro del contenedor como desde una máquina de desarrollo, se reparten en **dos**
-cubos (contadores 6 y 6, 6 y 7). La API no ve una sola dirección por llamante,
-así que quien llama sin atestación dispone de hecho del **doble** del cupo
-nominal. No es un fallo del guard — es exactamente la debilidad que la atestación
-existe para quitar, y el camino atestado sí es estable — pero el número que
-aparece en `INVITATION_THROTTLE` no es el que rige para una llamada directa.
-Si alguna vez el cupo por dirección tiene que ser exacto, esto hay que resolverlo
-en la configuración de proxy, no en el limitador.
+**El cupo se podía ampliar cambiando de camino.** Diez llamadas a través de la
+Web y después entre diez y veinte más yendo directo a la misma ruta, porque los
+dos caminos son cubos distintos por construcción. Ninguno es falsificable — se
+probaron seis cabeceras de cliente contra ambos y no se honró ninguna — pero las
+sumas se suman: el presupuesto efectivo era dos o tres veces el número escrito
+en la ruta.
+
+**La corrección:** `CirclesBffOnlyGuard` sobre `invitations/inspect` y
+`invitations/accept`, y sólo sobre esas dos. Su único consumidor es
+`apps/web/src/lib/circulos/bff.ts` — no hay cliente móvil y nada más las llama —
+así que quien no puede presentar la firma de la Web recibe `403 CIRCLE_FORBIDDEN`
+en vez de un segundo presupuesto. Ausente, malformada, caducada y falsificada
+reciben **la misma** respuesta: decir cuál falló es la mitad de una falsificación.
+
+**Lo que queda garantizado:** diez llamadas por quince minutos **por identidad
+de cliente atestada**, y ningún otro camino a esa ruta. La identidad la deriva
+la Web de la dirección que reporta la plataforma; no es elegible por el
+llamante.
+
+**Las excepciones que permanecen, dichas como son:**
+
+- El resto de la API sigue con el comportamiento de siempre: sin atestación
+  válida, el cubo es `req.ip`. Esta condición **no** se impuso fuera de las dos
+  rutas de invitación.
+- **Una dirección no es un llamante, y la plataforma no es consistente.** Doce
+  llamadas idénticas sin atestar se repartieron en **dos** cubos en unas
+  mediciones (contadores 6 y 6, 6 y 7) y en **uno** en otra. No se puede afirmar
+  «como máximo el doble»: lo honesto es que el cupo por dirección vale diez por
+  cada dirección que la plataforma atribuya a ese llamante, y eso no se acota
+  desde dentro. Por eso la ruta de invitación ya no depende de ello.
+- Sigue siendo un límite **por cliente de red**, nunca por persona: varias
+  personas tras un NAT comparten cupo.
+
+> **El precio, que hay que conocer antes de un piloto.** Si la copia del secreto
+> en la Web y la de la API se separan, la superficie de invitado deja de
+> funcionar **entera** (403 a todo el mundo) en vez de degradarse a compartir
+> cubo. Es el coste de que la ruta signifique lo que dice. Síntoma: la pantalla
+> de invitación dice «este enlace ya no sirve» para todos, incluidos enlaces
+> recién creados. Comprobación: `CLIENT_ATTESTATION_SECRET` idéntico en el
+> servicio de API y en el proyecto de Vercel.
+>
+> Una API **sin** el secreto configurado no exige nada — no se puede exigir lo
+> que no se puede verificar — así que producción, que no lo tiene, no cambia.
 
 ---
 

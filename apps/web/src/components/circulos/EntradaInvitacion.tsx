@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import type { CircleInvitationPreview } from "@psico/types";
 
 import { estilos as S } from "./estilos";
+import { useHidratado } from "./useHidratado";
 
 /**
  * `/i#token` — the door.
@@ -51,6 +52,9 @@ export function EntradaInvitacion() {
   const router = useRouter();
   const secretRef = useRef<string | null>(null);
   const [phase, setPhase] = useState<Phase>("reading");
+  // Accepting an invitation is the guest's first press, on markup the server
+  // sent. Until this is true, the press would be swallowed in silence.
+  const hidratado = useHidratado();
   const [manual, setManual] = useState("");
   // What this invitation IS. Four fields, from the server, shown before the
   // decision — never an id, a roster, a state or anybody's content.
@@ -225,7 +229,7 @@ export function EntradaInvitacion() {
             type="button"
             style={S.primary}
             onClick={accept}
-            disabled={phase === "accepting"}
+            disabled={phase === "accepting" || !hidratado}
           >
             {phase === "accepting" ? "Abriendo…" : "Aceptar invitación"}
           </button>
@@ -233,7 +237,7 @@ export function EntradaInvitacion() {
             type="button"
             style={S.quiet}
             onClick={decline}
-            disabled={phase === "accepting"}
+            disabled={phase === "accepting" || !hidratado}
           >
             Ahora no
           </button>

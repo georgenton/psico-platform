@@ -10,6 +10,7 @@ import type {
 } from "@psico/types";
 
 import { estilos as S } from "./estilos";
+import { useHidratado } from "./useHidratado";
 import { usePollingActividad } from "./usePollingActividad";
 import {
   PreparacionPrivada,
@@ -68,6 +69,9 @@ export function SalaDuo({
   );
   const [local, setLocal] = useState<Local>({ stage: "consent" });
   const [busy, setBusy] = useState(false);
+  // The consent stage is the FIRST paint of this room for everybody, so its
+  // buttons are the ones exposed to the window before hydration.
+  const interactive = useHidratado();
   const [commandError, setCommandError] = useState<string | null>(null);
   const headingRef = useRef<HTMLHeadingElement | null>(null);
   const previousStage = useRef<string>("");
@@ -290,6 +294,7 @@ export function SalaDuo({
               type="button"
               style={S.primary}
               onClick={() => setLocal({ stage: "prepare" })}
+              disabled={!interactive}
             >
               Entiendo, empezar
             </button>
@@ -297,7 +302,7 @@ export function SalaDuo({
               type="button"
               style={S.quiet}
               onClick={withdrawAndLeave}
-              disabled={busy}
+              disabled={busy || !interactive}
             >
               No quiero hacerla
             </button>

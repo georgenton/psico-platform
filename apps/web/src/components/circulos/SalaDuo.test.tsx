@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { renderToString } from "react-dom/server";
 import { CIRCLE_VIEW_FORBIDDEN_KEYS } from "@psico/types";
 
 const replace = vi.fn();
@@ -249,5 +250,32 @@ describe("errors stay opaque", () => {
     const alert = screen.getByRole("alert");
     expect(alert).toHaveTextContent(/ya no sirve/i);
     expect(alert.textContent ?? "").not.toMatch(/caduc|revocad|usad[oa] ya/i);
+  });
+});
+
+describe("the door of the room does not accept a press it cannot act on", () => {
+  // Observed on the hosted Web: the consent markup arrives from the server and
+  // is visible well before the JavaScript that gives its buttons meaning. A
+  // press in that window used to be swallowed in silence — the person saw a
+  // ready button, pressed it, and stayed exactly where they were.
+  it("renders the consent controls disabled in the SERVER's markup", () => {
+    const html = renderToString(<SalaDuo {...base} initialView={PREPARANDO} />);
+    expect(html).toContain("Entiendo, empezar");
+    // Both controls in the stage: one changes the screen, the other sends a
+    // withdrawal. Neither can do its job before hydration.
+    const buttons = html.match(/<button[^>]*>/g) ?? [];
+    expect(buttons.length).toBeGreaterThanOrEqual(2);
+    for (const button of buttons) expect(button).toContain("disabled");
+  });
+
+  it("enables them once hydrated, and then the press advances the stage", async () => {
+    const user = userEvent.setup();
+    render(<SalaDuo {...base} initialView={PREPARANDO} />);
+    const start = screen.getByRole("button", { name: /entiendo, empezar/i });
+    await waitFor(() => expect(start).toBeEnabled());
+    await user.click(start);
+    expect(
+      screen.getByRole("heading", { name: /tu preparación/i }),
+    ).toBeInTheDocument();
   });
 });

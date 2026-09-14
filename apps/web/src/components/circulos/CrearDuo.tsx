@@ -4,6 +4,7 @@ import { useCallback, useRef, useState } from "react";
 import Link from "next/link";
 
 import { estilos as S } from "./estilos";
+import { useHidratado } from "./useHidratado";
 import {
   invitationLink,
   mintIdempotencyKey,
@@ -81,6 +82,8 @@ export interface CrearDuoProps {
 
 export function CrearDuo({ templateKey, templateVersion }: CrearDuoProps) {
   const [busy, setBusy] = useState(false);
+  // Same window as the other doors: server markup on screen, no handler yet.
+  const hidratado = useHidratado();
   const [created, setCreated] = useState<Created | null>(null);
   const [failure, setFailure] = useState<Failure | null>(null);
   const [copied, setCopied] = useState(false);
@@ -214,7 +217,7 @@ export function CrearDuo({ templateKey, templateVersion }: CrearDuoProps) {
           type="button"
           style={S.primary}
           onClick={create}
-          disabled={busy}
+          disabled={busy || !hidratado}
         >
           {failure === "temporary"
             ? "Reintentar"

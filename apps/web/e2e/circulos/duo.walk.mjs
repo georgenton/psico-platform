@@ -1198,6 +1198,212 @@ async function workerTemporalScenarios(browser) {
 
 // ── Scenario 9 · account deletion through the real processor ────────────────
 
+/**
+ * The approved artifact policy, observed end to end on the hosted services.
+ *
+ * Four shapes have to exist at once before the deletion runs, and only the
+ * product can make them: an agreement the deleted person wrote, a superseded
+ * draft of theirs, a live proposal of theirs nobody confirmed, and a proposal
+ * the COUNTERPART wrote. One live artifact per activity, so that is three
+ * activities.
+ *
+ * Then the real processor runs — with the request dated backwards, never a
+ * shortened deadline — and each shape is read back from the database.
+ */
+async function artifactPurgeScenario(browser) {
+  const organiser = await register("purge");
+  const ctx = await browser.newContext();
+  const guests = [];
+
+  /** Both sides confirm, so the activity reveals and artifacts are possible. */
+  const revealed = async (page) => {
+    const link = await createDuo(page);
+    const guest = await acceptAsGuest(browser, link);
+    guests.push(guest);
+    await page.goto(`${WEB}/compartir/${guest.activityId}`, {
+      waitUntil: "domcontentloaded",
+    });
+    await enterRoom(page);
+    await enterRoom(guest.page);
+    for (const [who, p] of [
+      ["org", page],
+      ["guest", guest.page],
+    ]) {
+      await typeDraft(p, { uno: `${who}-purga`, dos: `${who}-dos` });
+      await openPreview(p);
+      await confirmShare(p);
+    }
+    await until(
+      async () => {
+        await page.reload({ waitUntil: "domcontentloaded" });
+        const t = await page.evaluate(() => document.body.innerText);
+        return t.includes("Lo que compartió la otra persona");
+      },
+      "the activity to reveal",
+      60_000,
+    );
+    return guest;
+  };
+
+  const propose = async (p, text) => {
+    await p.fill("#artefacto", text);
+    await p.getByRole("button", { name: /^Proponer$/ }).click();
+  };
+
+  const artifactsOf = (activityId) =>
+    sql(
+      `SELECT "version","status",
+              CASE WHEN "ciphertext" IS NULL THEN 'no-content' ELSE 'has-content' END,
+              CASE WHEN "purgedAt" IS NULL THEN 'not-purged' ELSE 'purged' END
+         FROM "CircleArtifact" WHERE "activityId"='${activityId}' ORDER BY "version"`,
+    )
+      .split("\n")
+      .filter(Boolean)
+      .map((l) => l.split("|"));
+
+  try {
+    const page = await ctx.newPage();
+    await signIn(page, organiser);
+
+    // ── A · an agreement of theirs, over a superseded draft of theirs ────────
+    const a = await revealed(page);
+    await propose(page, `primera-redaccion-${randomBytes(3).toString("hex")}`);
+    await until(
+      () =>
+        sqlInt(
+          `SELECT count(*) FROM "CircleArtifact" WHERE "activityId"='${a.activityId}'`,
+        ) === 1,
+      "the first proposal",
+      30_000,
+    );
+    await page.getByRole("button", { name: /Proponer otra redacción/i }).click();
+    await propose(page, `segunda-redaccion-${randomBytes(3).toString("hex")}`);
+    await until(
+      () =>
+        sqlInt(
+          `SELECT count(*) FROM "CircleArtifact" WHERE "activityId"='${a.activityId}' AND "version"=2`,
+        ) === 1,
+      "the replacement",
+      30_000,
+    );
+    for (const p of [page, a.page]) {
+      await p.reload({ waitUntil: "domcontentloaded" });
+      const confirm = p.getByRole("button", { name: /Confirmar esta versión/i });
+      if ((await confirm.count()) > 0) await confirm.click();
+    }
+    await until(
+      () =>
+        sqlOne(
+          `SELECT "status" FROM "CircleArtifact" WHERE "activityId"='${a.activityId}' AND "version"=2`,
+        ) === "AGREED",
+      "both confirmations to agree it",
+      60_000,
+    );
+
+    // ── B · a live proposal of theirs nobody confirmed ───────────────────────
+    const b = await revealed(page);
+    await propose(page, `propuesta-sola-${randomBytes(3).toString("hex")}`);
+    await until(
+      () =>
+        sqlInt(
+          `SELECT count(*) FROM "CircleArtifact" WHERE "activityId"='${b.activityId}'`,
+        ) === 1,
+      "the unconfirmed proposal",
+      30_000,
+    );
+
+    // ── C · a proposal the COUNTERPART wrote ────────────────────────────────
+    const c = await revealed(page);
+    await propose(c.page, `de-la-contraparte-${randomBytes(3).toString("hex")}`);
+    await until(
+      () =>
+        sqlInt(
+          `SELECT count(*) FROM "CircleArtifact" WHERE "activityId"='${c.activityId}'`,
+        ) === 1,
+      "the counterpart's proposal",
+      30_000,
+    );
+
+    check(true, "three activities carry the four shapes the policy talks about");
+
+    // ── the REAL processor, on a synthetic date ─────────────────────────────
+    sql(
+      `UPDATE "User" SET "deleteRequestedAt" = now() - interval '31 days'
+        WHERE "id"='${organiser.userId}'`,
+    );
+    const job = await transport.enqueue(
+      "account-deletion",
+      "finalize-account-deletion",
+      {
+        userId: organiser.userId,
+        requestedAt: new Date(Date.now() - 31 * 24 * 3600_000).toISOString(),
+      },
+    );
+    await until(
+      async () => {
+        const s = await job.state();
+        return s === "completed" || s === "failed" ? s : null;
+      },
+      "the worker to finish the deletion",
+      180_000,
+    );
+    check(
+      sqlInt(`SELECT count(*) FROM "User" WHERE "id"='${organiser.userId}'`) === 0,
+      "the account is gone",
+    );
+
+    // ── what survived, and what did not ─────────────────────────────────────
+    const inA = artifactsOf(a.activityId);
+    const v1 = inA.find((r) => r[0] === "1");
+    const v2 = inA.find((r) => r[0] === "2");
+    check(
+      v1?.[1] === "SUPERSEDED" && v1?.[2] === "no-content" && v1?.[3] === "purged",
+      `their superseded draft has no content (${v1?.join("/") ?? "missing"})`,
+    );
+    check(
+      v2?.[1] === "AGREED" && v2?.[2] === "has-content" && v2?.[3] === "not-purged",
+      `the agreement they wrote is kept whole (${v2?.join("/") ?? "missing"})`,
+    );
+
+    const inB = artifactsOf(b.activityId)[0];
+    check(
+      inB?.[1] === "PROPOSED" && inB?.[2] === "no-content" && inB?.[3] === "purged",
+      `their unconfirmed proposal is gone (${inB?.join("/") ?? "missing"})`,
+    );
+
+    const inC = artifactsOf(c.activityId)[0];
+    check(
+      inC?.[2] === "has-content" && inC?.[3] === "not-purged",
+      `the counterpart's proposal is untouched (${inC?.join("/") ?? "missing"})`,
+    );
+
+    // The row is never removed: the ledger points at it.
+    check(
+      inA.length === 2 && artifactsOf(b.activityId).length === 1,
+      "no artifact row was deleted, only emptied",
+    );
+
+    // ── and nobody gets back in ─────────────────────────────────────────────
+    await b.page.reload({ waitUntil: "domcontentloaded" });
+    const guestSees = await b.page.evaluate(() => document.body.innerText);
+    check(
+      !/Proponer|Confirmar esta versión/i.test(guestSees),
+      "a revoked guest session cannot act on the activity any more",
+    );
+    check(
+      sqlInt(
+        `SELECT count(*) FROM "CircleGuestSession" g
+           JOIN "CircleActivity" a ON a."id"=g."activityId"
+          WHERE g."revokedAt" IS NULL AND a."id" IN ('${a.activityId}','${b.activityId}','${c.activityId}')`,
+      ) === 0,
+      "and every guest session on those activities is revoked",
+    );
+  } finally {
+    await ctx.close();
+    for (const g of guests) await g.ctx.close();
+  }
+}
+
 async function accountDeletionScenario(browser) {
   const organiser = await register("deleted");
   const ctx = await browser.newContext();
@@ -1866,6 +2072,13 @@ try {
     "REAL_WORKER_TEMPORAL_SCENARIOS",
     "the real worker, on synthetic dates",
     () => workerTemporalScenarios(browser),
+  );
+  resetRateLimits();
+
+  await scenario(
+    "REAL_ARTIFACT_PURGE_SCENARIO",
+    "the approved artifact policy, through the real processor",
+    () => artifactPurgeScenario(browser),
   );
   resetRateLimits();
 

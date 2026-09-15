@@ -70,6 +70,7 @@ import {
   planTeardown,
   readProcessStart,
 } from "./ownership.mjs";
+import { redactDiagnostics } from "./redact.mjs";
 
 const HERE = resolve(fileURLToPath(import.meta.url), "..");
 const REPO = resolve(HERE, "../../../..");
@@ -865,6 +866,14 @@ async function main() {
       CIRCULOS_E2E_WORK: WORK,
       CIRCULOS_E2E_REDIS_URL: redisUrl,
       CIRCULOS_E2E_HEAD_SHA: headSha,
+      // Forwarded because `baseEnv()` is an allowlist and this is a caller's
+      // instruction, not ambient configuration: a negative control that names
+      // one scenario runs that scenario three times instead of running fifteen
+      // three times. Unset — which is every full run, including CI — means all
+      // of them, so the default is not narrowed by having the option.
+      ...(process.env.CIRCULOS_E2E_ONLY
+        ? { CIRCULOS_E2E_ONLY: process.env.CIRCULOS_E2E_ONLY }
+        : {}),
       // Playwright's browsers live in the user's cache, not in the copy.
       PLAYWRIGHT_BROWSERS_PATH: process.env.PLAYWRIGHT_BROWSERS_PATH ?? "",
     },
@@ -927,11 +936,25 @@ function writeWorktreeTree() {
   }
 }
 
-/** The tail of a service's log — how a boot failure gets explained. */
+/**
+ * The tail of a service's log — how a boot failure gets explained.
+ *
+ * Redacted HERE rather than at each caller, because there is more than one
+ * caller and the one that leaked was the one nobody was looking at: a `waitFor`
+ * that explains itself with the service's log, and a failure path that prints
+ * four tails at once. A choke point cannot be forgotten at a new call site.
+ *
+ * What leaked was an email. `RESEND_API_KEY` is unset in the harness, so the
+ * notifications service prints messages instead of sending them, and a
+ * verification email carries a working link. Nothing about that is specific to
+ * a test: it is the same code path, printing the same shape of thing.
+ */
 function serviceLog(name, lines = 40) {
   const path = logPaths.get(name);
   if (!path || !existsSync(path)) return `(no log for ${name})`;
-  return readFileSync(path, "utf8").split("\n").slice(-lines).join("\n");
+  return redactDiagnostics(
+    readFileSync(path, "utf8").split("\n").slice(-lines).join("\n"),
+  );
 }
 
 async function probe(url) {
@@ -962,7 +985,9 @@ main()
     process.exit(0);
   })
   .catch((err) => {
-    console.error(`\n✖ ${err.message}`);
+    // The message can carry a URL the harness was navigating to, and one of
+    // those URLs is the invitation with its secret in the fragment.
+    console.error(`\n✖ ${redactDiagnostics(err.message)}`);
     // Print the services' own logs BEFORE teardown removes them. A failed walk
     // says what the browser saw; the API log says what the server decided, and
     // without it the next step is always to re-run the whole thing just to look.

@@ -29,6 +29,11 @@ import { randomBytes } from "node:crypto";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+// One redactor, shared with the harness whose output this stores. A second
+// implementation here would be a second list of what counts as a credential,
+// and the two would drift in the direction that does not fail anything.
+import { redactDiagnostics } from "../../../web/e2e/circulos/redact.mjs";
+
 const API = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const WEB = resolve(API, "../web");
 const ROOT = resolve(API, "../..");
@@ -604,6 +609,45 @@ const CONTROLS = [
     t: "finds none of them anywhere in the serialized event",
   },
   {
+    property: "CLOSING_ANNOUNCES_THE_DECISION_ON_SCREEN",
+    mutation: "the room stops saying the decision was recorded",
+    file: w("src/components/circulos/Seguimiento.tsx"),
+    // The failure this guards is not "the decision was lost" — the row commits
+    // either way, and the walk proves that separately with SQL. It is the one
+    // where a person presses the button, nothing on screen changes, and they
+    // press it again or conclude it did not work.
+    //
+    // The mutation is the copy itself rather than the condition around it:
+    // `already` is typed, and every way of forcing that branch shut either
+    // fails the build or trips a lint rule, which would score a compile error
+    // as a detection. Removing the words is type-safe, lint-clean, and exactly
+    // the regression the check is named after.
+    find: `          Ya respondiste`,
+    replace: `          Listo`,
+    runner: WALK,
+    scenario: "BROWSER_CLOSING_PATHS",
+    test: "apps/web/e2e/circulos/stack.mjs",
+    t: "closing first says the decision was recorded, and waits for the other",
+  },
+  {
+    property: "DIAGNOSTICS_ARE_REDACTED_BEFORE_THEY_ARE_PUBLISHED",
+    mutation: "the redactor returns its input untouched",
+    file: w("e2e/circulos/redact.mjs"),
+    // Retiring the redactor, in the way it would actually be retired: one
+    // condition at the top that hands the text straight back. Removing a single
+    // RULE proves nothing here and that is by design — a token in a query
+    // string is caught by the URL rule, by the key-name rule and by the
+    // opaque-run rule, so any one of them can go without the value escaping.
+    // Defence in depth is only worth having if a control cannot mistake it for
+    // a test that is watching, so the mutation removes the function's effect
+    // rather than one of its rules.
+    find: `  if (typeof text !== "string" || text.length === 0) return text;`,
+    replace: `  if (typeof text === "string") return text;`,
+    runner: WEBT,
+    test: "src/lib/circulos/diagnostic-redaction.test.ts",
+    t: "drops the token from both places the email puts it",
+  },
+  {
     property: "REVEAL_BARRIER_HOLDS_IN_THE_BROWSER",
     mutation: "one confirmation is enough to reveal",
     file: f("src/circles/circle-activity.repository.ts"),
@@ -716,6 +760,14 @@ function runWalk(c) {
         encoding: "utf8",
         stdio: ["ignore", "pipe", "pipe"],
         timeout: 2_700_000,
+        // Narrow the walk to the scenario whose property is under test, when
+        // the control names one. Three phases of the FULL walk is most of an
+        // hour to learn one thing, and the scenarios are independent by
+        // construction — each owns its own accounts and activities — so running
+        // one proves exactly as much about that one as running fifteen does.
+        env: c.scenario
+          ? { ...process.env, CIRCULOS_E2E_ONLY: c.scenario }
+          : process.env,
       },
     );
     return { code: 0, out };
@@ -782,7 +834,15 @@ mkdirSync(LOG_DIR, { recursive: true });
 
 function keep(control, phase, result) {
   const file = resolve(LOG_DIR, `${control.property}.${phase}.log`);
-  writeFileSync(file, `exit=${result.code}\n\n${result.out}`);
+  // Redacted BEFORE it is written, not before it is read. These files outlive
+  // the run by design — that is their whole point — and a walk control's phase
+  // log is the full output of a stack that prints emails to stdout. Something
+  // written to disk unredacted is already published to whatever backs up that
+  // disk.
+  writeFileSync(
+    file,
+    redactDiagnostics(`exit=${result.code}\n\n${result.out}`),
+  );
   return file;
 }
 

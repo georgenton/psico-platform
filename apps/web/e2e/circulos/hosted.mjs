@@ -30,6 +30,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 
 import { makeTransport } from "./transports.mjs";
+import { redactDiagnostics } from "./redact.mjs";
 
 const at = process.argv.indexOf("--config");
 if (at < 0) {
@@ -371,7 +372,11 @@ try {
     },
   });
 } catch (err) {
-  console.error(`\n✖ the hosted walk failed: ${err.message}`);
+  // The walk redacts its own output; this is the wrapper's own message, and it
+  // can carry whatever the child was doing when it gave up.
+  console.error(
+    `\n✖ the hosted walk failed: ${redactDiagnostics(String(err.message))}`,
+  );
   console.error(`   accounts: ${poolPath}`);
   process.exit(1);
 }

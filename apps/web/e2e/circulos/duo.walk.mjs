@@ -28,6 +28,7 @@
 import { randomBytes } from "node:crypto";
 
 import { makeTransport } from "./transports.mjs";
+import { redactDiagnostics } from "./redact.mjs";
 
 const API = process.env.CIRCULOS_E2E_API;
 const API_OFF = process.env.CIRCULOS_E2E_API_OFF;
@@ -84,10 +85,20 @@ const transport = makeTransport(process.env);
 const scenarios = [];
 let current = null;
 
+/**
+ * One check, and everything it says goes through the redactor first.
+ *
+ * Several labels interpolate what the run actually saw — the list of API calls,
+ * the text on screen, a URL — because a check that fails without saying what it
+ * saw costs a whole re-run. That is worth keeping and it is also how a secret
+ * gets into a published log, so the two are reconciled here rather than at
+ * forty call sites: the values stay, the credentials in them do not.
+ */
 function check(ok, label) {
-  current.checks.push({ ok, label });
-  console.log(`   ${ok ? "✓" : "✗"} ${label}`);
-  if (!ok) current.failures.push(label);
+  const safe = redactDiagnostics(String(label));
+  current.checks.push({ ok, label: safe });
+  console.log(`   ${ok ? "✓" : "✗"} ${safe}`);
+  if (!ok) current.failures.push(safe);
 }
 
 /** Redacted for any diagnostic output. */
@@ -113,9 +124,12 @@ async function scenario(key, title, body) {
   try {
     await body();
   } catch (err) {
-    current.error = err.message;
-    current.failures.push(`threw: ${err.message}`);
-    console.error(`   ✗ threw: ${err.message}`);
+    // Playwright puts the URL it was working on into the message, and one of
+    // those URLs is the invitation — secret in the fragment.
+    const why = redactDiagnostics(String(err.message));
+    current.error = why;
+    current.failures.push(`threw: ${why}`);
+    console.error(`   ✗ threw: ${why}`);
   }
   // A scenario with no checks passed nothing, whatever it did.
   if (current.checks.length === 0) {
@@ -2361,14 +2375,53 @@ async function closingPaths(browser) {
       "the organiser's decision to persist",
       30_000,
     );
-    const afterFirst = await page.evaluate(() => document.body.innerText);
+    // ── the decision is stored; the SCREEN is a second round trip ───────────
+    //
+    // The poll above establishes that the row committed. It does NOT establish
+    // that the browser knows: the server commits before it has finished
+    // answering, and the room only learns what happened when `command()`
+    // refetches the view on success and React renders `followUpDecision` from
+    // that answer. So the database can be a whole round trip ahead of the page,
+    // and reading `innerText` the instant the row lands reads a screen that is
+    // correct and simply not repainted yet.
+    //
+    // That is what happened in CI: the same commit passed on `pull_request` and
+    // failed on `push`, half a second after the click, with the very next check
+    // reporting the command had answered 200 and shown no error. A difference
+    // that only timing can explain is a race in the observer, not a missing
+    // feature in the observed.
+    //
+    // Waiting for the visible state IS the assertion rather than a way around
+    // one: `waitFor` fails if the text never arrives, which is exactly the
+    // product failure this check exists to catch — it is only no longer
+    // reported for arriving a moment later than the SQL. The timeout is the
+    // context default, so the local/hosted distinction already set up for this
+    // walk is the one that applies here too.
+    let announced = true;
+    try {
+      await page
+        .getByRole("heading", { name: /Ya respondiste/i })
+        .waitFor({ state: "visible" });
+    } catch {
+      announced = false;
+    }
     check(
-      /Ya respondiste/i.test(afterFirst),
+      announced,
       "closing first says the decision was recorded, and waits for the other",
     );
     check(
       (await errorsShown()).length === 0,
       `no error is shown after closing first (saw: ${JSON.stringify(await errorsShown())} · ${calls.join(" | ")})`,
+    );
+    // One decision is not the end. Until the other person answers, the activity
+    // is still in follow-up — a room that closed itself on the first decision
+    // would end a two-person conversation on one person's say-so.
+    const midway = sqlOne(
+      `SELECT "status" FROM "CircleActivity" WHERE "id"='${activityId}'`,
+    );
+    check(
+      midway === "FOLLOW_UP",
+      `and the activity stays in follow-up while the other person has not answered (got ${midway})`,
     );
 
     // The guest closes too, which ends the activity.

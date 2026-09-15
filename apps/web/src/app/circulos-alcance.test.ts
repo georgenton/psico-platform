@@ -160,12 +160,19 @@ describe("PR4 stores no draft and loads no third party", () => {
 });
 
 describe("production publishes exactly what was approved, and nothing else", () => {
-  it("ships ONE template, and it is the approved one", () => {
-    // This asserted emptiness while nothing was approved. Emptiness was never
-    // the point — "only what somebody approved" was — so it now pins the
-    // contents. Publishing a second template fails here and has to be argued
-    // for, which is the same gate pointing at a different number.
-    expect(PRODUCTION_CIRCLE_TEMPLATES).toHaveLength(1);
+  it("OFFERS one template, and carries a draft candidate beside it", () => {
+    // This asserted emptiness while nothing was approved, then a count of one.
+    // Neither was the point — "only what somebody approved is offered" was —
+    // and a DRAFT in the catalog is not an offer: it exists so an activity
+    // pinned to it can resolve, and `listPublished` skips it.
+    expect(
+      PRODUCTION_CIRCLE_TEMPLATES.map(
+        (t) => `${t.templateKey}@${t.templateVersion}:${t.status}`,
+      ),
+    ).toEqual([
+      "duo-lo-que-me-ayuda@1:PUBLISHED",
+      "duo-lo-que-me-ayuda@2:DRAFT",
+    ]);
     const [approved] = PRODUCTION_CIRCLE_TEMPLATES;
     expect(approved.templateKey).toBe("duo-lo-que-me-ayuda");
     expect(approved.templateVersion).toBe(1);
@@ -179,7 +186,7 @@ describe("production publishes exactly what was approved, and nothing else", () 
     });
   });
 
-  it("carries the approved copy, not a paraphrase of it", () => {
+  it("carries the approved copy of @1, not a paraphrase of it", () => {
     const [approved] = PRODUCTION_CIRCLE_TEMPLATES;
     expect(approved.title).toBe("Lo que me ayuda cuando estoy así");
     expect(approved.privatePreparation.map((f) => f.label)).toEqual([
@@ -205,7 +212,8 @@ describe("production publishes exactly what was approved, and nothing else", () 
     );
     expect(catalog).not.toContain("fixture-duo");
     expect(catalog).not.toContain("e2e-duo-sintetica");
-    // And none of the nine Parejas drafts arrived by the back door.
+    // And none of the nine Parejas drafts arrived by the back door: every
+    // entry is a VERSION of the one approved activity.
     for (const key of PRODUCTION_CIRCLE_TEMPLATES.map((t) => t.templateKey)) {
       expect(key).toBe("duo-lo-que-me-ayuda");
     }

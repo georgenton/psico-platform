@@ -15,53 +15,28 @@
  * only — enough to triage prod bugs without leaking user content.
  */
 import * as Sentry from "@sentry/node";
-
-const REDACTED_HEADERS = new Set([
-  "authorization",
-  "cookie",
-  "x-api-key",
-  "stripe-signature",
-]);
+import { sanitizeSentryEvent as redactEvent } from "@psico/types";
 
 /**
  * The last privacy boundary before an event leaves the process.
  *
- * Sentry's HTTP instrumentation attaches `request.url` (and, depending on the
- * integration, `query_string` and `data`) from the RAW request. Those carry
- * real session ids, catalog keys, tokens and bodies — exactly what the error
- * envelope and the log lines were sanitized to avoid. Redacting headers is not
- * enough: the URL is the leak.
+ * The rule itself lives in `@psico/types/observability-redaction`, shared with
+ * the Web's three Sentry runtimes. It used to live here, and the Web had
+ * nothing — which is backwards: the Web is where `/i#<token>` is opened, so it
+ * is the runtime whose URLs carry a one-shot invitation.
  *
- * So the raw request fields are DROPPED outright. The value ops actually needs
- * for triage — the matched route template — already travels as
- * `contexts.custom.path`, put there by `HttpExceptionFilter` via
- * `safeRequestPath()`. Rebuilding the template here is impossible anyway: by
- * `beforeSend` there is no Express context left to match against.
+ * What it does, in one line each: redacts the sensitive headers whatever their
+ * casing (now including `x-circle-guest-session` and `x-client-attestation`,
+ * which are credentials in their own right), drops the raw request URL, query
+ * and body outright, cleans the same fields out of breadcrumbs, and reduces
+ * any surviving URL to a route shape with its ids replaced.
  *
- * Pure: takes an event, returns the same object with the unsafe fields gone.
+ * The value ops actually needs for triage — the matched route template —
+ * already travels as `contexts.custom.path`, put there by
+ * `HttpExceptionFilter` via `safeRequestPath()`.
  */
 export function sanitizeSentryEvent<E extends Sentry.Event>(event: E): E {
-  const request = event.request;
-  if (!request) return event;
-
-  // Auth-bearing headers. Sentry's default scrubbing covers `authorization`
-  // already, but we also want stripe-signature (carries our webhook secret)
-  // and any custom x-api-key forwarders.
-  const headers = request.headers;
-  if (headers) {
-    for (const key of Object.keys(headers)) {
-      if (REDACTED_HEADERS.has(key.toLowerCase())) {
-        headers[key] = "[REDACTED]";
-      }
-    }
-  }
-
-  // Client-controlled, unsanitized, and redundant with contexts.custom.path.
-  delete request.url;
-  delete request.query_string;
-  delete request.data;
-
-  return event;
+  return redactEvent(event as never) as E;
 }
 
 let initialised = false;

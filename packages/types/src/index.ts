@@ -3876,6 +3876,7 @@ export interface JourneyListResponse {
 
 // ─── Mapa Emocional · Etapa 6 — on-device text features ──────────────────
 export * from "./text-features";
+export * from "./observability-redaction";
 export * from "./inline-marks";
 
 // ─── Eco contextual · Sprint B — per-chapter suggested topics ────────────

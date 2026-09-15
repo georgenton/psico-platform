@@ -40,6 +40,8 @@
 import type {
   CircleActivityDefinition,
   CircleAudience,
+  CircleFieldHelp,
+  CircleIntro,
   CircleTemplatePreview,
   CircleOutcomeKind,
   CirclePreparationField,
@@ -84,6 +86,13 @@ const LIMITS = {
   fields: 8,
   doNotSuggestWhen: 12,
   doNotSuggestWhenEntry: 300,
+  /** Prepared help. Two short pieces, not an article. */
+  helpText: 700,
+  introBody: 900,
+  rationaleTitle: 120,
+  rationaleBody: 1400,
+  /** Editorial labels. A closed handful, not a taxonomy. */
+  topics: 6,
   estimatedMinutes: 240,
   fieldMaxLength: 4000,
   /** A year. A follow-up further out than that is not a follow-up. */
@@ -169,13 +178,45 @@ function requireArray(value: unknown, max: number): readonly unknown[] {
 
 // ─── Field reconstruction ────────────────────────────────────────────────────
 
+/**
+ * The two prepared pieces, or nothing.
+ *
+ * Exactly two keys, both required when `help` is present at all. "An
+ * explanation and no example" is not a lighter version of this — it is a
+ * half-authored help, and the screen would offer a button with nothing behind
+ * it.
+ */
+function rebuildFieldHelp(value: unknown): CircleFieldHelp {
+  if (!isPlainObject(value)) fail();
+  const obj = value as Record<string, unknown>;
+  assertExactKeys(obj, ["explanation", "example"]);
+  return Object.freeze({
+    explanation: requireText(obj.explanation, LIMITS.helpText),
+    example: requireText(obj.example, LIMITS.helpText),
+  });
+}
+
 function rebuildPreparationField(value: unknown): CirclePreparationField {
   if (!isPlainObject(value)) fail();
   const obj = value as Record<string, unknown>;
-  assertExactKeys(obj, ["fieldKey", "label", "kind", "maxLength"]);
+  assertExactKeys(obj, [
+    "fieldKey",
+    "label",
+    "kind",
+    "maxLength",
+    "optional",
+    "help",
+  ]);
 
   const kind = obj.kind;
   if (!FIELD_KINDS.includes(kind as CirclePreparationFieldKind)) fail();
+
+  if (
+    Object.prototype.hasOwnProperty.call(obj, "optional") &&
+    typeof obj.optional !== "boolean"
+  ) {
+    fail();
+  }
 
   const field: CirclePreparationField = {
     fieldKey: requireKey(obj.fieldKey),
@@ -184,8 +225,34 @@ function rebuildPreparationField(value: unknown): CirclePreparationField {
     ...(Object.prototype.hasOwnProperty.call(obj, "maxLength")
       ? { maxLength: requirePositiveInt(obj.maxLength, LIMITS.fieldMaxLength) }
       : {}),
+    ...(obj.optional === true ? { optional: true as const } : {}),
+    ...(Object.prototype.hasOwnProperty.call(obj, "help")
+      ? { help: rebuildFieldHelp(obj.help) }
+      : {}),
   };
   return Object.freeze(field);
+}
+
+function rebuildIntro(value: unknown): CircleIntro {
+  if (!isPlainObject(value)) fail();
+  const obj = value as Record<string, unknown>;
+  assertExactKeys(obj, ["body", "rationale"]);
+
+  let rationale: CircleIntro["rationale"];
+  if (Object.prototype.hasOwnProperty.call(obj, "rationale")) {
+    if (!isPlainObject(obj.rationale)) fail();
+    const raw = obj.rationale as Record<string, unknown>;
+    assertExactKeys(raw, ["title", "body"]);
+    rationale = Object.freeze({
+      title: requireText(raw.title, LIMITS.rationaleTitle),
+      body: requireText(raw.body, LIMITS.rationaleBody),
+    });
+  }
+
+  return Object.freeze({
+    body: requireText(obj.body, LIMITS.introBody),
+    ...(rationale ? { rationale } : {}),
+  });
 }
 
 function rebuildSource(value: unknown): CircleActivityDefinition["source"] {
@@ -283,6 +350,8 @@ const DEFINITION_KEYS = [
   "followUp",
   "safety",
   "ecoMode",
+  "intro",
+  "topics",
 ] as const;
 
 /**
@@ -355,6 +424,15 @@ export function validateCircleActivityDefinition(
   const ecoMode = obj.ecoMode;
   if (ecoMode !== "NONE" && ecoMode !== "SHARED_ONLY") fail();
 
+  // Closed keys, not free text: a label somebody can type is a label somebody
+  // can put an answer in, and these are aggregated.
+  let topics: readonly string[] | undefined;
+  if (Object.prototype.hasOwnProperty.call(obj, "topics")) {
+    const raw = requireArray(obj.topics, LIMITS.topics).map(requireKey);
+    if (new Set(raw).size !== raw.length) fail();
+    topics = Object.freeze(raw);
+  }
+
   const definition: CircleActivityDefinition = {
     templateKey: requireKey(obj.templateKey),
     templateVersion: requirePositiveInt(obj.templateVersion, 1_000),
@@ -380,6 +458,10 @@ export function validateCircleActivityDefinition(
     ...(followUp ? { followUp } : {}),
     safety: rebuildSafety(obj.safety),
     ecoMode: ecoMode as CircleActivityDefinition["ecoMode"],
+    ...(Object.prototype.hasOwnProperty.call(obj, "intro")
+      ? { intro: rebuildIntro(obj.intro) }
+      : {}),
+    ...(topics ? { topics } : {}),
   };
   return Object.freeze(definition);
 }
@@ -611,6 +693,162 @@ export const PRODUCTION_CIRCLE_TEMPLATES: readonly CircleActivityDefinition[] =
         ],
       },
       ecoMode: "NONE",
+    },
+    // ── @2 · the candidate, DRAFT ────────────────────────────────────────────
+    //
+    // A new VERSION rather than an edit. @1 above is untouched, byte for byte:
+    // activities already running on it — and invitations already sent for it —
+    // resolve their exact pin and keep the wording the people in them agreed
+    // to. A published template is immutable; a correction is a version.
+    //
+    // `status: "DRAFT"` is what keeps it out of production while its copy is
+    // audited: `listPublished()` skips it, the public preview refuses it, and
+    // no mapping points at it. The test environment serves it through the same
+    // isolated build patch the synthetic fixture already uses — not through a
+    // production flag, and not through an endpoint that would have to exist in
+    // production to be useful in testing.
+    //
+    // What changed, and why:
+    //
+    //   · Three questions instead of two. The first asks for a situation, not
+    //     a feeling: "¿En qué momento estás pensando?" can be answered without
+    //     naming an emotion, finding its cause, or having a difficult story to
+    //     tell. It is optional, and optional here means the screen does not
+    //     treat a blank as unfinished.
+    //   · The second and third keep their limits, and the third is reworded
+    //     from "no me ayuda" to "preferiría que evitáramos" — a preference
+    //     somebody states about themselves rather than a verdict about what
+    //     the other person does wrong.
+    //   · Prepared help on each question (see `CircleFieldHelp`). Two pieces,
+    //     written here, rendered from here.
+    //   · Turns that can be read out loud. The old pair asked people to
+    //     reflect; these give them the first sentence.
+    {
+      templateKey: "duo-lo-que-me-ayuda",
+      templateVersion: 2,
+      status: "DRAFT",
+      audience: "DUO_ADULT",
+      title: "Lo que me ayuda cuando estoy así",
+      summary:
+        "Piensen por separado en un momento cotidiano y en qué les ayuda " +
+        "cuando ocurre. Después deciden qué comparten. Nadie ve nada del otro " +
+        "hasta que ambos confirman.",
+      estimatedMinutes: 15,
+      source: {
+        bookSlug: "emociones-en-construccion",
+        chapterOrder: 1,
+        experiencePin: {
+          experienceKey: "eec-c1-cuerpo-antes-que-mente",
+          experienceVersion: 1,
+        },
+      },
+      participants: { min: 2, max: 2, required: 2 },
+      intro: {
+        body:
+          "A veces intentamos ayudar de la manera que nos serviría a nosotros. " +
+          "Esta actividad les propone descubrir qué ayuda a cada uno en una " +
+          "situación cotidiana. Primero pensarán por separado. Después " +
+          "elegirán qué compartir. Al final podrán acordar algo pequeño para " +
+          "intentar juntos.",
+        rationale: {
+          title: "¿Por qué hacemos esta actividad?",
+          body:
+            "Una misma situación puede sentirse de maneras distintas. En " +
+            "nuestra experiencia participan las sensaciones del cuerpo, lo que " +
+            "está pasando y lo que hemos aprendido a interpretar. Por eso, " +
+            "decir «estoy enojado» no explica por completo lo que alguien vive " +
+            "ni cómo quiere ser acompañado. Una persona puede querer espacio; " +
+            "otra, que la escuchen. Aquí puedes contar tu experiencia sin " +
+            "encontrar una explicación perfecta. La otra persona podrá " +
+            "preguntar y comprobar si te entendió. Es una manera de mirarlo " +
+            "entre varias, no una explicación clínica.",
+        },
+      },
+      privatePreparation: [
+        {
+          fieldKey: "momento",
+          label: "¿En qué momento estás pensando?",
+          kind: "SHORT_TEXT",
+          maxLength: 240,
+          optional: true,
+          help: {
+            explanation:
+              "Sirve para que las dos respuestas siguientes hablen de lo " +
+              "mismo. No hace falta que sea un momento difícil ni que le " +
+              "pongas nombre a una emoción: basta con una situación que se " +
+              "repite. Si prefieres no escribirlo, puedes seguir sin él.",
+            example:
+              "Podrías escribir: «Cuando llego preocupado por el trabajo y me " +
+              "cuesta conversar». Un momento corriente basta — no tiene que " +
+              "ser el más importante, sólo uno que reconozcan los dos.",
+          },
+        },
+        {
+          fieldKey: "que-ayuda",
+          label: "En ese momento, me ayuda que…",
+          kind: "SHORT_TEXT",
+          maxLength: 200,
+          help: {
+            explanation:
+              "Puedes empezar por un momento concreto. Piensa en una ocasión " +
+              "en que alguien te acompañó y te sentiste un poco más cómodo: " +
+              "¿te escuchó, te dio espacio o te ayudó con algo práctico? No " +
+              "necesitas una respuesta que sirva siempre. Basta con algo que " +
+              "podría ayudarte en la situación que elegiste.",
+            example:
+              "En vez de «quiero que me entiendas», podrías escribir: «Cuando " +
+              "llego preocupado, me ayuda que me preguntes si quiero hablar " +
+              "antes de darme consejos». Adáptalo a tu experiencia. También " +
+              "está bien decir que todavía no sabes qué te ayudaría.",
+          },
+        },
+        {
+          fieldKey: "que-no-ayuda",
+          label: "Y preferiría que evitáramos…",
+          kind: "LONG_TEXT",
+          maxLength: 800,
+          help: {
+            explanation:
+              "Es una preferencia tuya, no una lista de reproches. Piensa en " +
+              "qué te deja peor en ese momento aunque la intención sea buena: " +
+              "que insistan, que minimicen, que lo resuelvan por ti. Decirlo " +
+              "ahora ahorra un malentendido después.",
+            example:
+              "Podrías escribir: «Preferiría que evitáramos hablarlo apenas " +
+              "llego, antes de que me dé tiempo a aterrizar». Si no se te " +
+              "ocurre nada, dejarlo en blanco también dice algo.",
+          },
+        },
+      ],
+      sharing: {
+        allowedModes: ["SELECTED_FIELDS", "EDITED_SUMMARY", "KEEP_PRIVATE"],
+      },
+      reveal: { strategy: "ALL_CONFIRMED" },
+      conversation: {
+        turns: [
+          "Lo que entiendo que te ayuda es… ¿te entendí bien?",
+          "Esto podría intentarlo. Esto otro me cuesta…",
+          "La próxima vez podemos probar…",
+        ],
+      },
+      outcome: { kind: "AGREEMENT" },
+      followUp: { afterHours: 168 },
+      safety: {
+        level: "REINFORCED",
+        privateGateRequired: true,
+        doNotSuggestWhen: [
+          "Hay violencia, amenazas o miedo a la reacción de la otra persona.",
+          "Una de las dos depende económica, migratoria o legalmente de la otra.",
+          "Hay una relación de autoridad entre ambas: jefatura, docencia, terapia o cuidado.",
+          "La invitación la pide un tercero, o una de las dos no eligió participar.",
+          "Alguna de las dos está en crisis ahora mismo.",
+          "Una de las dos es menor de edad.",
+        ],
+      },
+      ecoMode: "NONE",
+      // What the ACTIVITY is about, decided when it was written. Never a claim
+      // about the two people who did it.
+      topics: ["apoyo-cotidiano", "comunicacion"],
     },
   ];
 

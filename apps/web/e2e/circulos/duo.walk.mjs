@@ -1785,8 +1785,14 @@ async function analyticsBoundaryScenario(browser) {
     await page.waitForTimeout(400);
     check(sent.length === 0, "declining sends nothing at all");
 
+    // Scoped to THIS activity, and that is not pedantry: counting the whole
+    // table is an assertion about every run that ever touched the database. It
+    // holds locally because the local stack builds a fresh one each time, and
+    // it broke the first time this scenario ran twice against the hosted
+    // Postgres — the rows it was counting were its own, from the run before.
+    const mine = `WHERE "activityId"='${guest.activityId}'`;
     check(
-      sqlInt(`SELECT count(*) FROM "CircleFeedback"`) === 0,
+      sqlInt(`SELECT count(*) FROM "CircleFeedback" ${mine}`) === 0,
       "and stores nothing",
     );
 
@@ -1803,7 +1809,7 @@ async function analyticsBoundaryScenario(browser) {
     });
     await page.getByRole("button", { name: /^Enviar$/ }).click();
     await until(
-      () => sqlInt(`SELECT count(*) FROM "CircleFeedback"`) === 1,
+      () => sqlInt(`SELECT count(*) FROM "CircleFeedback" ${mine}`) === 1,
       "the contribution to be stored",
       30_000,
     );
@@ -1821,7 +1827,7 @@ async function analyticsBoundaryScenario(browser) {
 
     const stored = sqlRows(
       `SELECT array_to_string("topics", '+') AS t, "usefulness" AS u
-         FROM "CircleFeedback" LIMIT 1`,
+         FROM "CircleFeedback" ${mine} LIMIT 1`,
     )[0];
     check(
       stored?.[0] === "comunicacion" && stored?.[1] === "YES",

@@ -71,7 +71,7 @@ const CONTROLS = [
     // it — on the cancelled path the code returns before reaching that line at
     // all, so the mutation has to move the check past the effect.
     find:
-      '        if (!row.deleteRequestedAt) {\n' +
+      "        if (!row.deleteRequestedAt) {\n" +
       '          return { deleted: false as const, reason: "cancelled" as const };\n' +
       "        }\n" +
       "        if (Date.now() - row.deleteRequestedAt.getTime() < this.COOLDOWN_MS) {\n" +
@@ -160,7 +160,7 @@ const CONTROLS = [
     // asserting a refusal stayed green. Dropping the whole clause is the
     // mutation that actually removes the authorisation requirement.
     find:
-      '     AND NOT EXISTS (\n' +
+      "     AND NOT EXISTS (\n" +
       '       SELECT 1 FROM public."User" u WHERE u."id" = OLD."actorUserId"\n' +
       "     )",
     replace: "     AND TRUE",
@@ -178,7 +178,7 @@ const CONTROLS = [
     // activity already in FOLLOW_UP is a no-op, so nothing closed and the test
     // stayed green. This replaces the transition with a real close.
     find:
-      '    const due = await this.prisma.circleActivity.findMany({\n' +
+      "    const due = await this.prisma.circleActivity.findMany({\n" +
       "      where: {\n" +
       '        status: "REVEALED",\n' +
       "        followUpDueAt: { not: null, lte: now },\n" +
@@ -318,7 +318,7 @@ const CONTROLS = [
       "  }",
     replace:
       "  if (init.guestToken) {\n" +
-      "    headersOut.set(\"Authorization\", `Bearer ${init.guestToken}`);\n" +
+      '    headersOut.set("Authorization", `Bearer ${init.guestToken}`);\n' +
       "  }",
     runner: WEBT,
     test: "src/lib/circulos/bff.test.ts",
@@ -401,7 +401,8 @@ const CONTROLS = [
   },
   {
     property: "OWN_DRAFTS_ARE_ACTUALLY_PURGED",
-    mutation: "the purge quietly skips proposals and only reaches superseded drafts",
+    mutation:
+      "the purge quietly skips proposals and only reaches superseded drafts",
     file: f("src/circles/circle-artifact.repository.ts"),
     // The commonest way this policy would rot: narrowing the status filter so
     // the visible draft — the one the counterpart can still see — survives,
@@ -429,7 +430,8 @@ const CONTROLS = [
   },
   {
     property: "AUTHORSHIP_DECIDES_WHOSE_DRAFT_GOES",
-    mutation: "artifacts are selected by the ACTIVITY instead of by their author",
+    mutation:
+      "artifacts are selected by the ACTIVITY instead of by their author",
     file: f("src/circles/circles-account-deletion.service.ts"),
     // The mistake a Dúo hides best. When one person creates the circle, sends
     // the invitation and writes the proposal, selecting by activity, by circle
@@ -466,7 +468,8 @@ const CONTROLS = [
   // ── The experience block: help, context, analytics, and the panel ────────
   {
     property: "PREPARED_HELP_NEVER_CALLS_A_MODEL",
-    mutation: "the help card fetches its text instead of rendering what it was given",
+    mutation:
+      "the help card fetches its text instead of rendering what it was given",
     file: w("src/components/circulos/AyudaEcho.tsx"),
     // The exact shape this would take if somebody "improved" it: a lazy fetch
     // on open. The body would not even have to contain anything — a request
@@ -526,7 +529,8 @@ const CONTROLS = [
   },
   {
     property: "THE_SERVER_DECIDES_WHOSE_CONTRIBUTION_IT_IS",
-    mutation: "the forwarded body is spread from the request instead of rebuilt",
+    mutation:
+      "the forwarded body is spread from the request instead of rebuilt",
     file: w("src/app/api/circulos/actividad/[activityId]/feedback/route.ts"),
     // ── Why this control was rewritten ───────────────────────────────────
     //
@@ -553,7 +557,8 @@ const CONTROLS = [
   },
   {
     property: "SMALL_CELLS_STAY_SUPPRESSED",
-    mutation: "the threshold drops to one, so a single contributor is reportable",
+    mutation:
+      "the threshold drops to one, so a single contributor is reportable",
     file: f("src/circles/circles-analytics.service.ts"),
     // Suppression lives where the data is shaped precisely so the screen and
     // the CSV cannot disagree. Lowering it here lowers it everywhere, which is
@@ -656,8 +661,7 @@ function runTest(c) {
   }
   if (c.runner === WALK) return runWalk(c);
   const cwd = c.runner === WEBT ? WEB : API;
-  const cfg =
-    c.runner === PGSPEC ? ["--config", "vitest.locks.config.ts"] : [];
+  const cfg = c.runner === PGSPEC ? ["--config", "vitest.locks.config.ts"] : [];
   const env =
     c.runner === PGSPEC
       ? { ...process.env, TEST_DATABASE_URL: PG_URL }
@@ -686,7 +690,10 @@ function runTest(c) {
     return { code: 0, out };
   } catch (err) {
     if (err.killed || err.signal) return { code: -1, out: "TIMEOUT" };
-    return { code: err.status ?? 1, out: `${err.stdout ?? ""}${err.stderr ?? ""}` };
+    return {
+      code: err.status ?? 1,
+      out: `${err.stdout ?? ""}${err.stderr ?? ""}`,
+    };
   }
 }
 
@@ -703,12 +710,7 @@ function runWalk(c) {
   try {
     const out = execFileSync(
       "node",
-      [
-        "apps/web/e2e/circulos/stack.mjs",
-        "--worktree",
-        "--run-id",
-        runId,
-      ],
+      ["apps/web/e2e/circulos/stack.mjs", "--worktree", "--run-id", runId],
       {
         cwd: ROOT,
         encoding: "utf8",
@@ -719,7 +721,10 @@ function runWalk(c) {
     return { code: 0, out };
   } catch (err) {
     if (err.killed || err.signal) return { code: -1, out: "TIMEOUT" };
-    return { code: err.status ?? 1, out: `${err.stdout ?? ""}${err.stderr ?? ""}` };
+    return {
+      code: err.status ?? 1,
+      out: `${err.stdout ?? ""}${err.stderr ?? ""}`,
+    };
   } finally {
     // The stack tears itself down, but a crash before that leaves resources
     // named after a run id we chose, so they can always be named again.

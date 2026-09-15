@@ -526,7 +526,7 @@ capítulo publicado.
    @2 es moverlo, no añadirlo: dos entradas para la misma experiencia no
    desempatan, desactivan la oferta.
 3. **Archivar @1 en el mismo cambio.** Publicar una versión es una **sucesión**,
-   no una suma. El enlace que sigue una persona lleva una *clave* y ninguna
+   no una suma. El enlace que sigue una persona lleva una _clave_ y ninguna
    versión, así que el servidor tiene que responder «qué versión significa esta
    clave ahora» — y esa pregunta solo tiene respuesta mientras **una sola**
    versión de la clave esté `PUBLISHED`. Con dos, `resolvePublishedTemplateByKey`
@@ -540,8 +540,9 @@ capítulo publicado.
    `getExact` la sigue resolviendo por pin, que es lo que mantiene vivas las
    actividades ya fijadas a ella. Esto se comprobó de la peor forma: el harness
    dejaba @1 en `PUBLISHED` junto a @2 y las catorce escenas de navegador
-   fallaron por un *timeout* de treinta segundos buscando un botón que nunca se
+   fallaron por un _timeout_ de treinta segundos buscando un botón que nunca se
    iba a dibujar.
+
 4. **Actualizar los ratchets** que hoy afirman «una PUBLISHED, una DRAFT, en
    ese orden», a mano y a la vista, en el mismo cambio. Uno de ellos —
    `circulos-alcance.test.ts` — afirma además la regla del punto 3 («como mucho

@@ -264,11 +264,16 @@ async function dismissOnboarding(page) {
   try {
     await skip.waitFor({ state: "visible", timeout: 15_000 });
   } catch {
-    await page.getByRole("button", { name: /Empezar/i }).first().click();
+    await page
+      .getByRole("button", { name: /Empezar/i })
+      .first()
+      .click();
     await skip.waitFor({ state: "visible", timeout: 15_000 });
   }
   await Promise.all([
-    page.waitForURL((u) => !/\/onboarding/.test(String(u)), { timeout: 60_000 }),
+    page.waitForURL((u) => !/\/onboarding/.test(String(u)), {
+      timeout: 60_000,
+    }),
     skip.click(),
   ]);
 }
@@ -330,7 +335,9 @@ async function acceptAsGuest(browser, link) {
   const ctx = await browser.newContext();
   const page = await ctx.newPage();
   await page.goto(link, { waitUntil: "domcontentloaded" });
-  const accept = page.getByRole("button", { name: /Aceptar( la)? invitación/i });
+  const accept = page.getByRole("button", {
+    name: /Aceptar( la)? invitación/i,
+  });
   await accept.waitFor({ state: "visible", timeout: 30_000 });
   await accept.click();
   await until(
@@ -765,7 +772,10 @@ async function revealBarrier(browser) {
     } catch {
       toldWaiting = false;
     }
-    check(toldWaiting, "the first to confirm is told the other person is missing");
+    check(
+      toldWaiting,
+      "the first to confirm is told the other person is missing",
+    );
 
     // Second confirmation opens both at once.
     await enterRoom(guest.page);
@@ -869,7 +879,9 @@ async function artifactConfirmation(browser) {
 
     // Supersede it: editing produces a NEW version, and a confirmation given
     // against the old one must not carry over.
-    await page.getByRole("button", { name: /Proponer otra redacción/i }).click();
+    await page
+      .getByRole("button", { name: /Proponer otra redacción/i })
+      .click();
     const SECOND = `acuerdo-${randomBytes(3).toString("hex")}`;
     await page.fill("#artefacto", SECOND);
     await page.getByRole("button", { name: /^Proponer$/ }).click();
@@ -882,7 +894,10 @@ async function artifactConfirmation(browser) {
       "the second version to be persisted",
       30_000,
     );
-    check(true, "editing the wording creates version 2 rather than mutating v1");
+    check(
+      true,
+      "editing the wording creates version 2 rather than mutating v1",
+    );
 
     const supersededV1 = sqlOne(
       `SELECT "status" FROM "CircleArtifact" WHERE "activityId"='${activityId}' AND "version"=1`,
@@ -895,7 +910,9 @@ async function artifactConfirmation(browser) {
     // Both confirm the EXACT version that is live.
     await guest.page.reload({ waitUntil: "domcontentloaded" });
     for (const p of [page, guest.page]) {
-      const confirm = p.getByRole("button", { name: /Confirmar esta versión/i });
+      const confirm = p.getByRole("button", {
+        name: /Confirmar esta versión/i,
+      });
       await confirm.waitFor({ state: "visible", timeout: 30_000 });
       await confirm.click();
     }
@@ -910,7 +927,10 @@ async function artifactConfirmation(browser) {
       "both confirmations on version 2",
       60_000,
     );
-    check(agreed === "AGREED", "the live version becomes AGREED once both confirm");
+    check(
+      agreed === "AGREED",
+      "the live version becomes AGREED once both confirm",
+    );
 
     // A confirmation is an EVENT bound to an exact artifact id — there is no
     // separate confirmations table, and the binding is what makes "this
@@ -1015,7 +1035,10 @@ async function withdrawalBeforeAndAfter(browser) {
           "the member to be returned to their own circles page",
           30_000,
         );
-        check(true, `${when} the reveal: the member is returned to the dashboard`);
+        check(
+          true,
+          `${when} the reveal: the member is returned to the dashboard`,
+        );
       }
 
       // Whoever left, the seat that must settle is THEIRS.
@@ -1091,7 +1114,11 @@ async function retryAfterCommittedLoss(browser) {
 
     await createButton.click();
 
-    await until(() => servedAndDropped, "the create request to be served", 60_000);
+    await until(
+      () => servedAndDropped,
+      "the create request to be served",
+      60_000,
+    );
     const afterFirst = await until(
       () => (countActivities() === before + 1 ? true : null),
       "the committed activity to be visible in the database",
@@ -1101,7 +1128,9 @@ async function retryAfterCommittedLoss(browser) {
 
     // The browser was told the network failed, so the screen offers a retry.
     await page.unroute("**/api/circulos/duo");
-    const retry = page.getByRole("button", { name: /Crear (el )?Dúo|Reintentar/i });
+    const retry = page.getByRole("button", {
+      name: /Crear (el )?Dúo|Reintentar/i,
+    });
     await retry.waitFor({ state: "visible", timeout: 30_000 });
     await retry.click();
 
@@ -1302,7 +1331,10 @@ async function workerTemporalScenarios(browser) {
       120_000,
     );
     const finalState = await job.state();
-    check(finalState === "completed", `the worker ran the sweep (${finalState})`);
+    check(
+      finalState === "completed",
+      `the worker ran the sweep (${finalState})`,
+    );
 
     check(
       sqlOne(
@@ -1324,10 +1356,14 @@ async function workerTemporalScenarios(browser) {
     check(cancelledEvents === 1, "and recorded exactly one cancellation event");
 
     // Idempotence, through the worker again.
-    const second = await transport.enqueue("circles-sweep", "run-circles-sweep", {
-      nowIso: new Date().toISOString(),
-      batchSize: 50,
-    });
+    const second = await transport.enqueue(
+      "circles-sweep",
+      "run-circles-sweep",
+      {
+        nowIso: new Date().toISOString(),
+        batchSize: 50,
+      },
+    );
     await until(
       async () => {
         const s = await second.state();
@@ -1434,7 +1470,10 @@ async function candidateExperienceScenario(browser) {
       textareas: document.querySelectorAll("textarea[id^='f-']").length,
       text: document.body.innerText,
     }));
-    check(first.textareas === 1, `exactly one question on screen (${first.textareas})`);
+    check(
+      first.textareas === 1,
+      `exactly one question on screen (${first.textareas})`,
+    );
     check(/Paso 1 de 4/.test(first.text), "and the step is stated quietly");
     check(
       /Puedes dejarlo en blanco y seguir/i.test(first.text),
@@ -1651,9 +1690,10 @@ async function analyticsBoundaryScenario(browser) {
       if ((await close.count()) > 0) await close.click();
     }
     await until(
-      async () => sqlOne(
-        `SELECT "status" FROM "CircleActivity" WHERE "id"='${guest.activityId}'`,
-      ) === "CLOSED",
+      async () =>
+        sqlOne(
+          `SELECT "status" FROM "CircleActivity" WHERE "id"='${guest.activityId}'`,
+        ) === "CLOSED",
       "the activity to close",
       60_000,
     );
@@ -1810,7 +1850,9 @@ async function artifactPurgeScenario(browser) {
       "the first proposal",
       30_000,
     );
-    await page.getByRole("button", { name: /Proponer otra redacción/i }).click();
+    await page
+      .getByRole("button", { name: /Proponer otra redacción/i })
+      .click();
     await propose(page, `segunda-redaccion-${randomBytes(3).toString("hex")}`);
     await until(
       () =>
@@ -1822,7 +1864,9 @@ async function artifactPurgeScenario(browser) {
     );
     for (const p of [page, a.page]) {
       await p.reload({ waitUntil: "domcontentloaded" });
-      const confirm = p.getByRole("button", { name: /Confirmar esta versión/i });
+      const confirm = p.getByRole("button", {
+        name: /Confirmar esta versión/i,
+      });
       if ((await confirm.count()) > 0) await confirm.click();
     }
     await until(
@@ -1848,7 +1892,10 @@ async function artifactPurgeScenario(browser) {
 
     // ── C · a proposal the COUNTERPART wrote ────────────────────────────────
     const c = await revealed(page);
-    await propose(c.page, `de-la-contraparte-${randomBytes(3).toString("hex")}`);
+    await propose(
+      c.page,
+      `de-la-contraparte-${randomBytes(3).toString("hex")}`,
+    );
     await until(
       () =>
         sqlInt(
@@ -1858,7 +1905,10 @@ async function artifactPurgeScenario(browser) {
       30_000,
     );
 
-    check(true, "three activities carry the four shapes the policy talks about");
+    check(
+      true,
+      "three activities carry the four shapes the policy talks about",
+    );
 
     // ── the REAL processor, on a synthetic date ─────────────────────────────
     sql(
@@ -1882,7 +1932,8 @@ async function artifactPurgeScenario(browser) {
       180_000,
     );
     check(
-      sqlInt(`SELECT count(*) FROM "User" WHERE "id"='${organiser.userId}'`) === 0,
+      sqlInt(`SELECT count(*) FROM "User" WHERE "id"='${organiser.userId}'`) ===
+        0,
       "the account is gone",
     );
 
@@ -1891,17 +1942,23 @@ async function artifactPurgeScenario(browser) {
     const v1 = inA.find((r) => r[0] === "1");
     const v2 = inA.find((r) => r[0] === "2");
     check(
-      v1?.[1] === "SUPERSEDED" && v1?.[2] === "no-content" && v1?.[3] === "purged",
+      v1?.[1] === "SUPERSEDED" &&
+        v1?.[2] === "no-content" &&
+        v1?.[3] === "purged",
       `their superseded draft has no content (${v1?.join("/") ?? "missing"})`,
     );
     check(
-      v2?.[1] === "AGREED" && v2?.[2] === "has-content" && v2?.[3] === "not-purged",
+      v2?.[1] === "AGREED" &&
+        v2?.[2] === "has-content" &&
+        v2?.[3] === "not-purged",
       `the agreement they wrote is kept whole (${v2?.join("/") ?? "missing"})`,
     );
 
     const inB = artifactsOf(b.activityId)[0];
     check(
-      inB?.[1] === "PROPOSED" && inB?.[2] === "no-content" && inB?.[3] === "purged",
+      inB?.[1] === "PROPOSED" &&
+        inB?.[2] === "no-content" &&
+        inB?.[3] === "purged",
       `their unconfirmed proposal is gone (${inB?.join("/") ?? "missing"})`,
     );
 
@@ -2001,15 +2058,20 @@ async function accountDeletionScenario(browser) {
       180_000,
     );
     const state = await job.state();
-    check(state === "completed", `the real processor ran the deletion (${state})`);
+    check(
+      state === "completed",
+      `the real processor ran the deletion (${state})`,
+    );
 
     check(
-      sqlInt(`SELECT count(*) FROM "User" WHERE "id"='${organiser.userId}'`) === 0,
+      sqlInt(`SELECT count(*) FROM "User" WHERE "id"='${organiser.userId}'`) ===
+        0,
       "the account is gone",
     );
     check(
-      sqlOne(`SELECT "status" FROM "CircleActivity" WHERE "id"='${activityId}'`) ===
-        "CANCELLED",
+      sqlOne(
+        `SELECT "status" FROM "CircleActivity" WHERE "id"='${activityId}'`,
+      ) === "CANCELLED",
       "the activity they were in is ended rather than left hanging",
     );
     check(
@@ -2176,7 +2238,9 @@ async function closingPaths(browser) {
     );
     for (const p of [guest.page, page]) {
       await p.reload({ waitUntil: "domcontentloaded" });
-      const confirm = p.getByRole("button", { name: /Confirmar esta versión/i });
+      const confirm = p.getByRole("button", {
+        name: /Confirmar esta versión/i,
+      });
       if ((await confirm.count()) > 0) await confirm.click();
     }
     await until(
@@ -2201,10 +2265,14 @@ async function closingPaths(browser) {
     // And the REAL worker opens it, because that is who opens it in production:
     // the room cannot transition itself, and a test that reached FOLLOW_UP by
     // writing the status would be testing a state the product never produces.
-    const sweep = await transport.enqueue("circles-sweep", "run-circles-sweep", {
-      nowIso: new Date().toISOString(),
-      batchSize: 50,
-    });
+    const sweep = await transport.enqueue(
+      "circles-sweep",
+      "run-circles-sweep",
+      {
+        nowIso: new Date().toISOString(),
+        batchSize: 50,
+      },
+    );
     await until(
       async () => {
         const state = await sweep.state();
@@ -2256,8 +2324,9 @@ async function closingPaths(browser) {
     await guestClose.click();
     await until(
       () =>
-        sqlOne(`SELECT "status" FROM "CircleActivity" WHERE "id"='${activityId}'`) ===
-        "CLOSED",
+        sqlOne(
+          `SELECT "status" FROM "CircleActivity" WHERE "id"='${activityId}'`,
+        ) === "CLOSED",
       "the activity to close once both decided",
       30_000,
     );

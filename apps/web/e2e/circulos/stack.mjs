@@ -97,9 +97,10 @@ const WORKTREE = args.includes("--worktree");
  * path keeps one mechanism: there is no second place where a fixture could be
  * applied differently, and no second place to audit.
  */
-const PREPARE_AT = args.indexOf("--prepare-only") >= 0
-  ? args[args.indexOf("--prepare-only") + 1]
-  : null;
+const PREPARE_AT =
+  args.indexOf("--prepare-only") >= 0
+    ? args[args.indexOf("--prepare-only") + 1]
+    : null;
 const DOWN_AT = args.indexOf("--down");
 
 /**
@@ -230,7 +231,9 @@ function teardown(state = owned, { quiet = false } = {}) {
     if (action === "spare") {
       // The pid is alive but it is NOT the process we started. Somebody else
       // owns it now. Leaving it alone is the entire point of recording lstart.
-      skipped.push(`${service.name} pid=${service.pid} (pid reused — not ours)`);
+      skipped.push(
+        `${service.name} pid=${service.pid} (pid reused — not ours)`,
+      );
       continue;
     }
     // The negative pid signals the whole process group. Services are spawned
@@ -368,7 +371,10 @@ async function main() {
     );
   }
 
-  log("1/8 copy the commit into a throwaway tree", `${headSha.slice(0, 8)} → ${WORK}`);
+  log(
+    "1/8 copy the commit into a throwaway tree",
+    `${headSha.slice(0, 8)} → ${WORK}`,
+  );
   if (dirty) {
     console.log(
       "   ⚠ --dirty-ok: the harness directory differs from the commit.\n" +
@@ -441,7 +447,10 @@ async function main() {
       `the archived commit has no E2E fixture at ${fixtureInArchive}`,
     );
   }
-  cpSync(fixtureInArchive, join(WORK, "packages/types/src/circles-e2e-fixture.ts"));
+  cpSync(
+    fixtureInArchive,
+    join(WORK, "packages/types/src/circles-e2e-fixture.ts"),
+  );
 
   /** Replace exactly once, or fail loudly. A silent no-op is the thing to avoid. */
   function patch(relPath, find, replace) {
@@ -543,7 +552,9 @@ async function main() {
     // It is deliberately NOT byte-identical to the source commit — it carries
     // the fixture — so the caller is told both the source and what changed.
     const digest = (rel) =>
-      createHash("sha256").update(readFileSync(join(WORK, rel))).digest("hex");
+      createHash("sha256")
+        .update(readFileSync(join(WORK, rel)))
+        .digest("hex");
     const manifest = {
       preparedAt: new Date().toISOString(),
       sourceSha: headSha,
@@ -553,8 +564,14 @@ async function main() {
         sha256: digest("packages/types/src/circles-e2e-fixture.ts"),
       },
       patched: [
-        { path: "packages/types/src/circles-catalog.ts", sha256: digest("packages/types/src/circles-catalog.ts") },
-        { path: "apps/web/src/lib/circulos/eligibility.ts", sha256: digest("apps/web/src/lib/circulos/eligibility.ts") },
+        {
+          path: "packages/types/src/circles-catalog.ts",
+          sha256: digest("packages/types/src/circles-catalog.ts"),
+        },
+        {
+          path: "apps/web/src/lib/circulos/eligibility.ts",
+          sha256: digest("apps/web/src/lib/circulos/eligibility.ts"),
+        },
       ],
       // The fixture the harness may still name by key.
       templateKey: "e2e-duo-sintetica",
@@ -568,7 +585,8 @@ async function main() {
       join(WORK, "circulos-test-artifact.json"),
       JSON.stringify(manifest, null, 2),
     );
-    if (existsSync(PREPARE_AT)) rmSync(PREPARE_AT, { recursive: true, force: true });
+    if (existsSync(PREPARE_AT))
+      rmSync(PREPARE_AT, { recursive: true, force: true });
     cpSync(WORK, PREPARE_AT, { recursive: true });
     rmSync(WORK, { recursive: true, force: true });
     rmSync(STATE, { force: true });
@@ -603,11 +621,18 @@ async function main() {
   sh(
     "docker",
     [
-      "run", "-d", "--name", PG,
-      "-e", "POSTGRES_PASSWORD=postgres",
-      "-e", "POSTGRES_USER=postgres",
-      "-e", `POSTGRES_DB=${dbName}`,
-      "-p", `127.0.0.1:${pgPort}:5432`,
+      "run",
+      "-d",
+      "--name",
+      PG,
+      "-e",
+      "POSTGRES_PASSWORD=postgres",
+      "-e",
+      "POSTGRES_USER=postgres",
+      "-e",
+      `POSTGRES_DB=${dbName}`,
+      "-p",
+      `127.0.0.1:${pgPort}:5432`,
       "pgvector/pgvector:pg16",
     ],
     { quiet: true },
@@ -618,8 +643,12 @@ async function main() {
   sh(
     "docker",
     [
-      "run", "-d", "--name", REDIS,
-      "-p", `127.0.0.1:${redisPort}:6379`,
+      "run",
+      "-d",
+      "--name",
+      REDIS,
+      "-p",
+      `127.0.0.1:${redisPort}:6379`,
       "redis:7-alpine",
     ],
     { quiet: true },

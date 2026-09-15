@@ -51,7 +51,11 @@ async function bootstrap(): Promise<void> {
   // Publish the emotional-map identity so `GET /api/health/emotional-map` can
   // prove the API and this worker agree. Same code does NOT imply same config:
   // these are two Railway services with two environments.
-  MapIdentityService.startHeartbeat(app.get<Redis>(REDIS_CLIENT), "worker", logger);
+  MapIdentityService.startHeartbeat(
+    app.get<Redis>(REDIS_CLIENT),
+    "worker",
+    logger,
+  );
 
   logger.log("Awaiting jobs from Redis…");
 

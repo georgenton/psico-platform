@@ -38,7 +38,15 @@ if (at < 0) {
 }
 const cfg = JSON.parse(readFileSync(process.argv[at + 1], "utf8"));
 
-/** Every label the walk asks `register()` for, one account each. */
+/**
+ * Every label the walk asks `register()` for, one account each.
+ *
+ * This list and the walk's `register("…")` calls have to agree, and nothing
+ * checks that they do at build time — `register` throws at RUN time, naming the
+ * missing label, which is the right failure but arrives after the allowlist has
+ * been written and a redeploy waited for. So when a scenario is added, its label
+ * is added here in the same change. The three at the end are this block's.
+ */
 const LABELS = [
   "organiser",
   "prep",
@@ -53,6 +61,9 @@ const LABELS = [
   "roomB",
   "temporal",
   "deleted",
+  "candidate",
+  "coexistence",
+  "analytics",
 ];
 
 const log = (m) => console.log(`▸ ${m}`);
@@ -129,6 +140,40 @@ const transport = makeTransport({
   CIRCULOS_E2E_RAILWAY_SERVICE: cfg.apiServiceId,
 });
 
+/**
+ * Refuse to start if the walk asks for an account this list does not have.
+ *
+ * `register()` already fails on a missing label, clearly and by name — but it
+ * fails DURING the walk, which is after this script has registered a dozen
+ * accounts, written the allowlist and waited out a redeploy. Reading the walk's
+ * own source first turns that into a sentence before anything is created.
+ *
+ * Only literal labels are checked. `register(\`withdraw-${when}\`)` is
+ * computed, so its two values stay in the list by hand; a regex that tried to
+ * evaluate template literals would be guessing.
+ */
+{
+  // `new URL(…, import.meta.url)` rather than `import.meta.dirname`: the latter
+  // needs Node 20.11+, and a harness that throws on an older runner would be
+  // reporting its own incompatibility as a deploy failure.
+  const walkSrc = readFileSync(
+    new URL("duo.walk.mjs", import.meta.url),
+    "utf8",
+  );
+  const asked = new Set(
+    [...walkSrc.matchAll(/\bregister\("([a-zA-Z-]+)"\)/g)].map((m) => m[1]),
+  );
+  const missing = [...asked].filter((l) => !LABELS.includes(l));
+  if (missing.length > 0) {
+    console.error(
+      `✖ the walk registers ${missing.map((m) => `"${m}"`).join(", ")}, ` +
+        `which this harness has no account for.\n` +
+        `  Add them to LABELS in hosted.mjs — nothing has been created yet.`,
+    );
+    process.exit(1);
+  }
+}
+
 log(`registering ${LABELS.length + 1} synthetic accounts (run ${runId})`);
 transport.resetRateLimits();
 
@@ -180,12 +225,17 @@ log("setting the allowlist on the API and the worker");
 for (const service of [cfg.apiServiceId, cfg.workerServiceId]) {
   railway([
     "variables",
-    "--project", cfg.projectId,
-    "--environment", cfg.environmentId,
-    "--service", service,
+    "--project",
+    cfg.projectId,
+    "--environment",
+    cfg.environmentId,
+    "--service",
+    service,
     "--skip-deploys",
-    "--set", `CIRCLES_ROLLOUT_MODE=pilot`,
-    "--set", `CIRCLES_PILOT_USER_IDS=${allowlist}`,
+    "--set",
+    `CIRCLES_ROLLOUT_MODE=pilot`,
+    "--set",
+    `CIRCLES_PILOT_USER_IDS=${allowlist}`,
   ]);
 }
 
@@ -193,9 +243,12 @@ log("redeploying so the new allowlist is the one the services booted with");
 for (const service of [cfg.apiServiceId, cfg.workerServiceId]) {
   railway([
     "redeploy",
-    "--project", cfg.projectId,
-    "--environment", cfg.environmentId,
-    "--service", service,
+    "--project",
+    cfg.projectId,
+    "--environment",
+    cfg.environmentId,
+    "--service",
+    service,
     "--yes",
   ]);
 }
@@ -264,7 +317,10 @@ const outsiderToken = await (async () => {
   const res = await fetch(`${cfg.apiUrl}/api/auth/login`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ email: outsider.email, password: outsider.password }),
+    body: JSON.stringify({
+      email: outsider.email,
+      password: outsider.password,
+    }),
   });
   const body = await res.json().catch(() => ({}));
   return body?.accessToken ?? body?.tokens?.accessToken ?? null;

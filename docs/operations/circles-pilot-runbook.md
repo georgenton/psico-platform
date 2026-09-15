@@ -4,9 +4,11 @@
 > verificado hoy, y nombra explícitamente lo que falta. Las secciones marcadas
 > `PENDIENTE` no están implementadas: no las ejecutes esperando que funcionen.
 >
-> Círculos está **apagado en producción** (`CIRCLES_ROLLOUT_MODE` ausente ⇒
-> `off`), el catálogo de plantillas publicadas está **vacío** y la elegibilidad
-> de Dúo está **vacía**. Nada de lo que sigue enciende el producto.
+> El catálogo de producción lleva **una** plantilla aprobada
+> (`duo-lo-que-me-ayuda@1`) y su único mapping. Que esté publicada no la
+> enciende: quién ve Círculos lo decide `CIRCLES_ROLLOUT_MODE` y, bajo `pilot`,
+> la lista de ids admitidos. Publicar y encender son cosas distintas, y este
+> documento las mantiene separadas.
 
 ---
 
@@ -201,20 +203,27 @@ extensión `vector` y las migraciones fallan sin ella.
 
 ---
 
-## 5 · Qué configurar antes de un piloto
+## 5 · Qué configurar para un piloto
 
-Nada de esto está aplicado y **no debe aplicarse todavía**.
+| Variable                     | API | Worker | Web | Nota                                                                  |
+| ---------------------------- | :-: | :----: | :-: | --------------------------------------------------------------------- |
+| `CIRCLES_ROLLOUT_MODE=pilot` | ✅  |   ✅   |  —  | `on` es disponibilidad general: no es esto.                           |
+| `CIRCLES_PILOT_USER_IDS`     | ✅  |   ✅   |  —  | Quién ORGANIZA. Vacía ⇒ vuelve a cerrar.                              |
+| `CIRCLES_SHARED_DATA_KEY_V1` | ✅  |   ✅   |  —  | Bajo `pilot`/`on` una clave ausente **falla el arranque**.            |
+| `CLIENT_ATTESTATION_SECRET`  | ✅  |   —    | ✅  | El MISMO valor. Si divergen, la superficie de invitado falla cerrada. |
 
-| Variable                     | Servicio | Nota                                                       |
-| ---------------------------- | -------- | ---------------------------------------------------------- |
-| `CIRCLES_ROLLOUT_MODE=pilot` | API      | `on` es disponibilidad general.                            |
-| `CIRCLES_PILOT_USER_IDS`     | API      | Vacía ⇒ vuelve a cerrar.                                   |
-| `CIRCLES_SHARED_DATA_KEY_V1` | API      | Bajo `pilot`/`on` una clave ausente **falla el arranque**. |
+**Los secretos son por entorno.** Reutilizar los de pruebas en producción ataría
+los dos por su criptografía: quien tuviera la clave de pruebas podría leer sobres
+productivos. Se generan aparte y no se imprimen en ningún sitio.
 
-Además, y antes de invitar a nadie: publicar al menos una plantilla
-(`PRODUCTION_CIRCLE_TEMPLATES` está vacío) y su mapping de elegibilidad
-(`PRODUCTION_DUO_ELIGIBILITY` está vacío). Ambas cosas son **actos
-editoriales** con su propia aprobación, no tareas de despliegue.
+**La lista es de organizadores, no de participantes.** La contraparte entra por
+una invitación válida, como invitada, sin cuenta y sin estar en la lista. Para un
+primer recorrido basta con un id.
+
+El catálogo **ya no está vacío**: `PRODUCTION_CIRCLE_TEMPLATES` lleva
+`duo-lo-que-me-ayuda@1` y `PRODUCTION_DUO_ELIGIBILITY` su única entrada, ambas
+aprobadas. Publicar una SEGUNDA sigue siendo un acto editorial con su propia
+aprobación, no una tarea de despliegue.
 
 ---
 
@@ -869,6 +878,65 @@ cuatro servicios; el proyecto puede quedar en pie para no tener que rehacerlo.
 
 ---
 
+## 12B · El piloto PRODUCTIVO — encender, comprobar, apagar
+
+> Distinto del §12. Ese es el entorno de pruebas, con cuentas sintéticas y un
+> recorrido automatizado que crea y destruye. **Nada de eso se ejecuta aquí.**
+
+### Destinos, por id
+
+| Qué              | Id                                                        |
+| ---------------- | --------------------------------------------------------- |
+| Proyecto Railway | `013d58d0-3886-4e9a-8fc2-7c50df9dc38e` (`psico-platform`) |
+| Entorno          | `4df9c485-52b7-44a9-881c-97791753682f` (`production`)     |
+| API              | `4131e16a-9576-4268-a933-624f26e259f8`                    |
+| Worker           | `1d672199-6d56-4f71-b82e-93c3597be322`                    |
+| Web (Vercel)     | `prj_LqB4M2ZPwkgMh96LDf0reanTrWJu` (`psico-platform-web`) |
+
+Nunca por vínculo heredado. Un `vercel deploy --prod --yes` desde un directorio
+sin vincular **crea un proyecto nuevo** con el nombre del directorio; desde uno
+vinculado al proyecto equivocado, despliega ahí sin preguntar. Antes de
+desplegar:
+
+```bash
+node apps/web/e2e/circulos/vercel-target.mjs \
+  --dir <directorio> --project <prj_…> --org <team_…>
+```
+
+### Encender
+
+1. `CIRCLES_ROLLOUT_MODE=pilot` en **API y worker**.
+2. `CIRCLES_PILOT_USER_IDS` con los ids de quienes ORGANIZAN, en ambos.
+3. `CIRCLES_SHARED_DATA_KEY_V1` en ambos — 32 bytes, base64, **exclusiva de
+   producción**.
+4. `CLIENT_ATTESTATION_SECRET` en la API y en la Web, **el mismo valor**.
+5. Esperar los estados terminales de los tres despliegues. El modo se resuelve
+   una sola vez al arrancar.
+
+### Comprobar
+
+```bash
+node apps/web/e2e/circulos/production-ready.mjs \
+  --api https://psico-platform-production.up.railway.app \
+  --web https://psico-platform-web.vercel.app
+```
+
+Lee y no escribe: no registra cuentas, no encola trabajos y no toca fechas.
+Comprueba que Círculos está **abierto** (401 sobre una sesión inventada, no
+503), que un anónimo no crea nada, que una llamada directa a las rutas del BFF
+se rechaza, que la atestación de la Web sí se acepta —es decir, que los dos
+secretos coinciden—, y que la CSP lleva un nonce distinto por petición.
+
+Lo que **no** puede comprobar: que un organizador autorizado entre y cree. Eso
+necesita su contraseña, y esa comprobación es de una persona.
+
+### Apagar
+
+Lo de §6, con los dos servicios de producción. El barrido se detiene sólo al
+reiniciar el worker; el borrado de cuentas sigue corriendo, como debe.
+
+---
+
 ## 13 · Círculos de más de dos personas — qué hay y qué falta
 
 **Disponible hoy:** el motor de Círculos y **una** modalidad, el Dúo de dos
@@ -911,19 +979,19 @@ sirve para ninguno.
 
 ## 14 · PENDIENTE — no implementado en este corte
 
-> La política de artefactos **ya está aprobada e implementada** (§2). La
-> plantilla sigue **sin aprobar**, y eso no es un trámite: una política o un
-> texto pendientes **no equivalen a una aprobación tácita**. Que nadie haya
-> dicho que no, que el plazo se alargue o que el código ya esté listo no
-> convierte una propuesta en algo publicable. Mientras no haya un sí explícito
-> de quien tiene la autoridad, el catálogo de producción se queda vacío.
-> El paquete concreto está en
-> [`circles-pilot-activation-decision.md`](circles-pilot-activation-decision.md);
-> ese documento no enciende nada.
+> La política de artefactos y la primera plantilla **están aprobadas e
+> implementadas** (§2 y §5). Lo que sigue pendiente es una plantilla SEGUNDA, y
+> con ella la regla que no cambia: una aprobación no se hereda. Un texto
+> pendiente **no equivale a una aprobación tácita** — que nadie haya dicho que
+> no, que el plazo se alargue o que el código ya esté listo no convierte una
+> propuesta en algo publicable.
+> El paquete aprobado está en
+> [`circles-pilot-activation-decision.md`](circles-pilot-activation-decision.md).
 
-- **Aprobación editorial y de seguridad de plantillas.** Ninguna candidata tiene
-  copy aprobado verificable en el repositorio. El catálogo de producción sigue
-  vacío y los ratchets lo afirman. **Requisito previo del piloto con personas.**
+- **Aprobación editorial y de seguridad de plantillas ADICIONALES.** Ninguna otra
+  candidata tiene copy aprobado verificable en el repositorio, y los ratchets
+  afirman que el catálogo lleva exactamente la aprobada. **Requisito previo de
+  cualquier segunda actividad.**
 - **El listado `/dashboard/circulos` no lleva a ninguna parte.** Enumera lo
   publicado y su enlace "Ver de qué se trata" abre una página de presentación
   **sin ningún botón para empezar**. El punto de entrada vive en la superficie

@@ -1,41 +1,45 @@
-# Círculos · lo que hay que decidir para encender el piloto
+# Círculos · el piloto productivo de Dúo
 
-> **Este documento no enciende nada.** Es el paquete que falta aprobar. Todo lo
-> que propone está **sin aprobar** y no se publica hasta que alguien con la
-> autoridad editorial y la de privacidad diga que sí, por escrito y en su sitio.
+> **Las tres decisiones están tomadas.** Jorge aprobó la política de artefactos
+> (§2), la plantilla «Lo que me ayuda cuando estoy así» con sus condiciones y
+> sus seis exclusiones (§1), y su vínculo con
+> `eec-c1-cuerpo-antes-que-mente@1`. Este documento dejó de ser una propuesta:
+> describe lo aprobado, lo implementado y lo desplegado, y distingue las tres
+> cosas allí donde difieren.
 >
-> El motor está integrado y apagado: `CIRCLES_ROLLOUT_MODE` ausente,
-> `PRODUCTION_CIRCLE_TEMPLATES` vacío, `PRODUCTION_DUO_ELIGIBILITY` vacío.
-> Encenderlo eran tres decisiones —plantilla, política de artefactos y lista de
-> admitidos— y ninguna es técnica. **La política de artefactos ya está
-> aprobada e implementada** (§2). Quedan dos.
+> Lo que queda no es una decisión, es una lista de admitidos: **el piloto
+> organiza sólo quien esté en `CIRCLES_PILOT_USER_IDS`**, y la contraparte entra
+> como invitada sin necesitar cuenta.
 
-Alcance de lo que se aprobaría: **Dúo de dos personas adultas**. Nada más.
+Alcance de lo aprobado: **Dúo de dos personas adultas**. Nada más. Ni grupos, ni
+Eco, ni Mobile, ni notificaciones, ni correo.
 
 ---
 
-## 1 · La primera plantilla
+## 1 · La plantilla publicada
 
-### Por qué es una propuesta y no una candidata del repositorio
+### De dónde salió su texto
 
-No hay copy aprobado verificable aquí. Lo que existe son nueve `DUO_CANDIDATES`
-en los módulos de capítulo de Parejas que se declaran a sí mismos «PRODUCT DRAFT
-ONLY», y PQP C07 publica su lista **vacía a propósito**: una actividad bilateral
-es el instrumento equivocado donde puede haber coerción. El copy aprobado vive
-en Notion, que esta línea de trabajo no lee.
+El copy no vino del repositorio: los nueve `DUO_CANDIDATES` de los módulos de
+Parejas se declaran «PRODUCT DRAFT ONLY», y PQP C07 publica su lista **vacía a
+propósito** —una actividad bilateral es el instrumento equivocado donde puede
+haber coerción—. Así que el texto de abajo se escribió original y neutro, para
+ser fácil de rechazar, y **Jorge lo aprobó tal cual está**.
 
-Así que abajo hay una propuesta **original y neutra**, escrita para ser fácil de
-rechazar: si el equipo editorial prefiere otra, se descarta sin coste.
+Lo aprobado es exactamente esto: el texto, las condiciones de uso, las seis
+exclusiones y el vínculo con la experiencia. Aprobar esta plantilla no aprueba
+ninguna otra; las demás siguen sin copy verificable aquí.
 
-### Propuesta — **NO APROBADA**
+### Aprobada — **PUBLICADA**
 
 `templateKey: "duo-lo-que-me-ayuda"` · `templateVersion: 1` ·
-`status: "DRAFT"` · `audience: "DUO_ADULT"` · `estimatedMinutes: 15` ·
+`status: "PUBLISHED"` · `audience: "DUO_ADULT"` · `estimatedMinutes: 15` ·
 `participants: { min: 2, max: 2, required: 2 }` · `ecoMode: "NONE"`
 
-`status` se queda en `"DRAFT"` hasta la aprobación: publicarla es cambiar ese
-valor **y** añadirla al catálogo, a mano y a la vista, en el mismo cambio que
-actualiza los ratchets. `ecoMode: "NONE"` porque el piloto es Dúo sin IA.
+Vive en `packages/types/src/circles-catalog.ts`, y es la **única** entrada de
+`PRODUCTION_CIRCLE_TEMPLATES`. Los ratchets que antes exigían un catálogo vacío
+ahora exigen exactamente ésta: una segunda plantilla, una versión distinta o un
+pin cambiado rompen el build. `ecoMode: "NONE"` porque el piloto es Dúo sin IA.
 
 **Título:** «Lo que me ayuda cuando estoy así»
 
@@ -102,7 +106,7 @@ Texto de apoyo bajo los campos:
 motor exige que una plantilla `REINFORCED` tenga la compuerta privada, así que
 esa parte no es opcional.
 
-### Condiciones de uso y de exclusión — propuestas, sin huecos
+### Condiciones de uso y de exclusión — aprobadas, y en pantalla
 
 **Se puede ofrecer cuando se cumplen las cuatro:**
 
@@ -136,13 +140,24 @@ cuarta es consentimiento. La quinta remite al flujo de crisis, que existe, es
 público y sin autenticación, y no es esto. La sexta es el alcance aprobado:
 `audience: "DUO_ADULT"`.
 
-**Estas seis son una propuesta.** El motor no las evalúa: `doNotSuggestWhen` es
-texto para quien decide ofrecer, no una condición que el código compruebe. Quien
-apruebe puede añadir, quitar o reescribir cualquiera.
+**El motor no las evalúa, y la pantalla lo dice.** `doNotSuggestWhen` es texto,
+no una condición que el código compruebe: violencia, dependencia o una relación
+de autoridad no son cosas que un programa pueda detectar.
+
+Lo que sí hace el producto es **mostrárselas a cada persona por separado, en la
+compuerta privada, antes de que escriba nada** — con dos botones, «Entiendo,
+empezar» y «No quiero hacerla», y una frase que dice literalmente que no podemos
+comprobar nada de esto.
+
+No hay pregunta, no hay respuesta, no hay puntuación y no se guarda nada. La
+contraparte nunca sabe que esa pantalla estuvo ahí, cuánto se miró ni qué se
+decidió frente a ella; salir no pide motivo y el servicio no acepta ninguno.
+Continuar es una decisión de participar, **no un certificado de que la relación
+es segura**.
 
 ### Origen: qué experiencia la ofrece, y por qué esa
 
-**Propuesta concreta, sobre la única experiencia publicada que existe hoy:**
+**Aprobado, sobre la única experiencia publicada que existe hoy:**
 
 ```ts
 source: {
@@ -191,7 +206,7 @@ publicada. Lo que sí está publicado es la guía del piloto legado
 una experiencia sintética; reutilizar eso en producción ofrecería una actividad
 de prueba a una persona real. No se hereda nada de ahí.
 
-### Mapping de elegibilidad propuesto
+### Mapping de elegibilidad publicado
 
 ```ts
 // apps/web/src/lib/circulos/eligibility.ts — PRODUCTION_DUO_ELIGIBILITY
@@ -210,23 +225,22 @@ apuntar una superficie a una actividad que la fuente editorial nunca le ató. Un
 solo mapping por plantilla y por superficie; duplicarlo no elige el primero,
 desactiva la oferta.
 
-**Una plantilla basta para el primer piloto.** Añadir la segunda es otra ronda.
+**Una plantilla basta para el primer piloto.** Añadir la segunda es otra ronda,
+con su propia aprobación.
 
-### Lo único que falta, con nombre
+### Lo que la pantalla promete, la pantalla lo muestra
 
-El **copy aprobado** de la plantilla. Vive en Notion y esta línea de trabajo no
-lo lee, así que todo lo de arriba es original y está escrito para ser fácil de
-rechazar. Quien aprueba tiene que decir que sí a dos cosas distintas:
+Un catálogo es una promesa sobre lo que alguien va a ver, y una promesa que
+nadie renderiza se rompe en silencio. Así que hay una prueba que monta la sala
+**con la definición publicada** —no con una fixture— y busca lo que la
+definición dijo que estaría: el título, el resumen, las dos etiquetas exactas,
+los límites de cada campo, los tres modos de compartir (con «nada» entre ellos),
+los dos turnos y los minutos.
 
-1. **El texto** — título, resumen, introducción, etiquetas de los dos campos,
-   turnos de conversación, cierre, seguimiento y salida. Está completo y exacto
-   arriba; no hay ningún hueco que rellenar.
-2. **Las seis exclusiones** — que son una propuesta de seguridad, no editorial,
-   y pueden necesitar otra firma.
-
-Mientras no haya un sí explícito, la plantilla queda **NO APROBADA** y fuera de
-`PRODUCTION_CIRCLE_TEMPLATES`, que sigue vacío y con ratchets que lo afirman. Que
-el bloque técnico esté completo no adelanta esa decisión ni la presupone.
+Esa prueba encontró una discrepancia y se corrigió el código, no el texto: la
+plantilla promete 15 minutos y la sala mostraba 10, porque derivaba su propia
+estimación del número de turnos. Dos pantallas citando cifras distintas para la
+misma actividad es una mentira pequeña que encarece el resto.
 
 ---
 
@@ -343,17 +357,24 @@ cancela a tiempo, no se limpia nada.
 Nada más cambia. No hay plataforma de flags, no hay panel: el rollout y la
 allowlist que ya existen.
 
-### Participantes permitidos
+Los secretos son **exclusivos de producción**. Reutilizar los del proyecto de
+pruebas ataría dos entornos por su criptografía: quien tuviera la clave de
+pruebas podría leer sobres de producción. Se generan aparte y no se imprimen.
 
-Los ids de las cuentas reales que vayan a participar, uno por persona,
-recogidos **por su id**, nunca por patrón de correo. Empezar con dos.
+### Quién organiza, y quién no necesita cuenta
 
-### Plantilla y mapping
+`CIRCLES_PILOT_USER_IDS` controla **quién organiza**. Se recoge por id, desde una
+fuente autorizada, nunca por patrón de correo y nunca copiando un id del entorno
+de pruebas: son otra base de datos y otra persona que no existe.
 
-Los de §1, una vez aprobados: publicar la plantilla en
-`PRODUCTION_CIRCLE_TEMPLATES` y su única entrada en
-`PRODUCTION_DUO_ELIGIBILITY`. Los ratchets que hoy afirman que ambos están
-vacíos tendrán que actualizarse en ese mismo cambio, a mano y a la vista.
+La **contraparte no necesita estar en la lista ni tener cuenta**: entra por una
+invitación válida, como invitada. Para el primer recorrido basta con un id.
+
+### Plantilla y mapping — ya publicados
+
+Están en el código desde esta entrega: `PRODUCTION_CIRCLE_TEMPLATES` con
+`duo-lo-que-me-ayuda@1` y `PRODUCTION_DUO_ELIGIBILITY` con su única entrada. No
+hay nada que publicar al encender; encender es cambiar variables.
 
 ### Qué se comprueba después de encender, en producción
 
@@ -425,17 +446,30 @@ PostgreSQL real y contra el entorno alojado.
 
 ---
 
-## 4 · Lo que sigue sin estar listo
+## 4 · Lo que el piloto NO es
 
-- **Aprobación editorial de la plantilla** — §1. Requisito previo, y el único
-  que queda del paquete original. Una plantilla sin aprobar **no se publica por
-  omisión**: que nadie haya dicho que no no es un sí.
-- **Pin de experiencia y capítulo aprobados** — §1. Sin ese pin no hay mapping
-  posible, y el mapping de la fixture de pruebas no sirve: es sintético.
-- **Lista de admitidos** — §3. Ids reales, recogidos uno por uno.
-- **Contenido personal real.** Todo lo probado hasta ahora es texto inventado, y
-  eso está bien: un smoke en producción **puede y debe** hacerse con respuestas
-  ficticias. Comprobar que la mecánica funciona no exige contarle nada íntimo a
-  nadie.
-- **Eco, Mobile y notificaciones** no son requisito de este piloto y no se
-  implementan aquí.
+- **No es disponibilidad general.** `pilot` ofrece Círculos a los ids de la
+  lista y a nadie más; `on` es otra decisión que aquí no se toma.
+- **No es un segundo catálogo.** Una plantilla aprobada no autoriza la
+  siguiente. Las otras candidatas siguen sin copy verificable en el repositorio,
+  y una plantilla sin aprobar **no se publica por omisión**: que nadie haya
+  dicho que no no es un sí.
+- **No aprueba la suite guiada V2 de EEC-C01**, que sigue `DRAFT` con
+  `publishAllowed: false` y su flag apagado. El vínculo se apoya en la guía v1
+  publicada, y hay una prueba que lo afirma.
+- **No exige contenido personal real.** El smoke productivo **puede y debe**
+  hacerse con respuestas ficticias: comprobar que la mecánica funciona no exige
+  contarle nada íntimo a nadie. La frase que se usa es «Prueba técnica: usa
+  respuestas ficticias; no introduzcas información íntima o clínica.»
+- **Eco, Mobile, notificaciones y correo** no son requisito de este piloto y no
+  se implementan aquí. Las invitaciones las envía una persona por el canal que
+  elija; nosotros no mandamos nada.
+
+## 5 · Lo que queda por hacer, y quién
+
+- **La lista de admitidos** — ids reales de producción, recogidos uno por uno
+  desde una fuente autorizada, nunca por patrón de correo ni copiados del
+  entorno de pruebas. Empieza con uno: quien organice.
+- **El recorrido manual** — dos personas, respuestas ficticias, de principio a
+  fin. Es lo único que ningún automatismo puede hacer en su lugar, porque la
+  segunda persona es una persona.

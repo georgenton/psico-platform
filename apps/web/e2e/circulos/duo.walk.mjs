@@ -1988,6 +1988,14 @@ async function closingPaths(browser) {
         renewed !== expired && renewed.length > 0,
         "the session was renewed rather than abandoned",
       );
+      // The reported symptom by its number. "No error was shown" and "no 403
+      // was answered" are different facts: a refusal the screen swallowed
+      // would pass the first and is exactly the defect.
+      const forbidden = calls.filter((c) => / → 403\b/.test(c));
+      check(
+        forbidden.length === 0,
+        `and no request was answered 403 (${forbidden.join(" | ") || "none"})`,
+      );
     } finally {
       await guest4.ctx.close();
     }

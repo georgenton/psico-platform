@@ -878,6 +878,73 @@ cuatro servicios; el proyecto puede quedar en pie para no tener que rehacerlo.
 
 ---
 
+## 11B · Analítica de Círculos — qué se guarda, qué no, y cuánto dura
+
+> Definiciones completas y versionadas en
+> [`circles-metric-dictionary.md`](circles-metric-dictionary.md). Esta sección
+> es la operativa.
+
+### Tres tablas, y ninguna con contenido
+
+| Tabla              | Qué guarda                                                            | Vive         |
+| ------------------ | --------------------------------------------------------------------- | ------------ |
+| `CircleFeedback`   | Hasta dos temas cerrados + una de tres respuestas + versión del aviso | **30 días**  |
+| `CircleHelpOpen`   | Cuántas veces se abrió cada ayuda, por asiento                        | **30 días**  |
+| `CircleWeeklyFact` | El agregado semanal, sin asientos                                     | **12 meses** |
+
+Ninguna tiene una columna donde quepa una respuesta de la actividad. No es una
+promesa de no escribirla: es que no existe el sitio.
+
+**Todo lo demás lo da el dominio.** Invitaciones, actividades, hitos y tiempos
+salen de columnas que escribió una transacción confirmada (`acceptedAt`,
+`revealedAt`, `closedAt`, `readyAt`, `agreedAt`). No se copian a ninguna tabla
+de analítica: una segunda fuente de verdad es una fuente que puede discrepar de
+la primera, y la primera es sobre la que actúa el producto.
+
+### El barrido, y por qué no está detrás del rollout
+
+Corre dentro del job `circles-sweep` que ya existe, **antes** de la comprobación
+de modo. Cancelar una invitación encallada es una conducta de producto y un
+producto apagado no debería ejecutarla; borrar datos cuyo plazo venció es una
+obligación con las personas de quienes vinieron, y apagar una función no es
+motivo para conservarlos más.
+
+Es idempotente: pliega lo que ya venció, escribe el agregado y borra las filas.
+Correrlo dos veces escribe lo mismo.
+
+### Retirar el permiso
+
+Borrar la cuenta elimina las contribuciones de sus asientos, dentro de la misma
+transacción que el resto del desvinculado. **Lo que ya se plegó en un agregado
+no se puede restar** — el agregado no tiene asiento dentro. Ese límite se dice
+donde se hace la promesa; no se promete un borrado que el código no hace.
+
+### El panel
+
+`GET /api/pulso/circulos` y `/api/pulso/circulos.csv`, ADMIN, con la misma
+supresión: la celda se forma suprimida, así que la pantalla y el CSV no pueden
+discrepar. Una sola vista fija con un parámetro de días — combinar filtros haría
+recuperable por resta cualquier celda suprimida.
+
+Por debajo de **10 contribuyentes distintos** la respuesta es «muestra
+insuficiente», nunca cero. El umbral reduce exposición; **no** garantiza
+anonimato: un invitado puede aparecer en varias actividades con asientos
+distintos.
+
+### Lo que deliberadamente no se captura
+
+Pulsaciones, valores, longitudes, focos de campo, decisiones de la compuerta de
+seguridad, beacons, heartbeats, `flush` al salir, session replay, grabaciones,
+fingerprinting o SDK de marketing. El polling existente **no** se aumentó para
+medir actividad.
+
+Los contadores de ayuda viven en la memoria del navegador durante la
+preparación privada y se envían **sólo** si la persona acepta contribuir al
+final. Quien se va antes no aparece: la cobertura es parcial a propósito, y el
+panel lo dice en su propio texto.
+
+---
+
 ## 12B · El piloto PRODUCTIVO — encender, comprobar, apagar
 
 > Distinto del §12. Ese es el entorno de pruebas, con cuentas sintéticas y un

@@ -463,6 +463,121 @@ const CONTROLS = [
     test: "src/circles/circles-account-deletion.pg-spec.ts",
     t: "does not touch a draft the COUNTERPART wrote",
   },
+  // ── The experience block: help, context, analytics, and the panel ────────
+  {
+    property: "PREPARED_HELP_NEVER_CALLS_A_MODEL",
+    mutation: "the help card fetches its text instead of rendering what it was given",
+    file: w("src/components/circulos/AyudaEcho.tsx"),
+    // The exact shape this would take if somebody "improved" it: a lazy fetch
+    // on open. The body would not even have to contain anything — a request
+    // whose TIMING says somebody is stuck on a question is the leak, and the
+    // walk's listener sees it.
+    find: `  const abrir = (next: "explanation" | "example") => {
+    setPieza(next);`,
+    replace: `  const abrir = (next: "explanation" | "example") => {
+    void fetch("/api/eco/help", { method: "POST" });
+    setPieza(next);`,
+    runner: WEBT,
+    test: "src/components/circulos/plantilla-aprobada.test.tsx",
+    t: "carries prepared help on every question, and asks nothing of the network",
+  },
+  {
+    property: "OPTIONAL_CONTEXT_IS_NOT_SHARED_BY_DEFAULT",
+    mutation: "an optional answer counts as shared the moment it has text",
+    file: w("src/components/circulos/PreparacionPrivada.tsx"),
+    // The default this replaces was the old behaviour and looks harmless:
+    // "share whatever was written". For a question somebody may answer only
+    // for themselves, writing it and showing it are different acts.
+    find: `  return draft.shared?.[field.fieldKey] ?? field.optional !== true;`,
+    replace: `  return draft.shared?.[field.fieldKey] ?? true;`,
+    runner: WEBT,
+    test: "src/components/circulos/plantilla-aprobada.test.tsx",
+    t: "never shares the context by having been typed",
+  },
+  {
+    property: "ANALYTICS_NEEDS_A_YES",
+    mutation: "the optional question sends its answer even when declined",
+    file: w("src/components/circulos/OpinionOpcional.tsx"),
+    // Opt-in collapses into opt-out with one line. The counters would go with
+    // it, which is the part nobody would notice: they were gathered during a
+    // private preparation.
+    find: `            onClick={() => setFase("declinado")}
+          >
+            No, gracias`,
+    replace: `            onClick={() => void enviar()}
+          >
+            No, gracias`,
+    runner: WEBT,
+    test: "src/components/circulos/opinion-opcional.test.tsx",
+    t: "sends nothing at all when declined",
+  },
+  {
+    property: "DECLINING_IS_NOT_A_TOPIC",
+    mutation: "«prefiero no responder» becomes a category of its own",
+    file: w("src/components/circulos/OpinionOpcional.tsx"),
+    // It reads like a tidy-up and is a substantive change: an omission would
+    // start appearing in a distribution as though declining were a kind of
+    // situation somebody was in.
+    find: `            topics: temas,`,
+    replace: `            topics: temas.length > 0 ? temas : ["prefiero-no-responder"],`,
+    runner: WEBT,
+    test: "src/components/circulos/opinion-opcional.test.tsx",
+    t: "treats «prefiero no responder» as an omission, not a category",
+  },
+  {
+    property: "THE_SERVER_DECIDES_WHOSE_CONTRIBUTION_IT_IS",
+    mutation: "the seat is taken from the request body instead of the actor",
+    file: f("src/circles/circles-participation.facade.ts"),
+    // The whole reason the DTO has no identity field. A browser that could
+    // name its own seat could file a contribution as somebody else, in an
+    // activity it was never part of.
+    find: `    const who = await this.domain.resolveContributor(actor, activityId);`,
+    replace: `    const who = await this.domain.resolveContributor(actor, activityId);
+    void who;`,
+    runner: PGSPEC,
+    test: "src/circles/circles-analytics.pg-spec.ts",
+    t: "replaces rather than adds when the same seat answers twice",
+  },
+  {
+    property: "SMALL_CELLS_STAY_SUPPRESSED",
+    mutation: "the threshold drops to one, so a single contributor is reportable",
+    file: f("src/circles/circles-analytics.service.ts"),
+    // Suppression lives where the data is shaped precisely so the screen and
+    // the CSV cannot disagree. Lowering it here lowers it everywhere, which is
+    // the point of the control: one number governs both.
+    find: `export const CIRCLE_SMALL_CELL_THRESHOLD = 10;`,
+    replace: `export const CIRCLE_SMALL_CELL_THRESHOLD = 1;`,
+    runner: PGSPEC,
+    test: "src/circles/circles-analytics.pg-spec.ts",
+    t: "says «insufficient sample» below the threshold, not zero",
+  },
+  {
+    property: "RETENTION_ACTUALLY_DELETES",
+    mutation: "the sweep folds the aggregate and keeps the linkable rows",
+    file: f("src/circles/circles-analytics.service.ts"),
+    // The failure that leaves everything looking right: the panel is correct,
+    // the aggregates exist, and nothing was ever deleted.
+    find: `      this.prisma.circleFeedback.deleteMany({
+        where: { createdAt: { lt: cutoff } },
+      }),`,
+    replace: `      Promise.resolve({ count: 0 }),`,
+    runner: PGSPEC,
+    test: "src/circles/circles-analytics.pg-spec.ts",
+    t: "turns aged contributions into counts and deletes the rows",
+  },
+  {
+    property: "GUEST_CREDENTIAL_NEVER_REACHES_SENTRY",
+    mutation: "the guest session header is dropped from the redaction list",
+    file: f("../../packages/types/src/observability-redaction.ts"),
+    // A guest has no account, so this header IS the identity. Removing one
+    // line from a list is exactly how it would go missing, and nothing would
+    // fail — the events would simply start carrying a working key.
+    find: `  "x-circle-guest-session",`,
+    replace: ``,
+    runner: UNIT,
+    test: "src/observability/sentry.spec.ts",
+    t: "finds none of them anywhere in the serialized event",
+  },
   {
     property: "REVEAL_BARRIER_HOLDS_IN_THE_BROWSER",
     mutation: "one confirmation is enough to reveal",

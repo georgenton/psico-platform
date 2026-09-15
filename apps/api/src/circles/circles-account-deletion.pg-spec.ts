@@ -53,6 +53,7 @@ const suite = base ? describe : describe.skip;
 const API_DIR = process.cwd();
 const MIGRATIONS_DIR = join(API_DIR, "prisma", "migrations");
 const THIS_MIGRATION = "20260913000000_circles_account_deletion";
+const PURGE_MIGRATION = "20260915000000_circles_artifact_purge";
 
 /**
  * ── The harness owns only what it created ─────────────────────────────────
@@ -2761,10 +2762,7 @@ suite(
         expect(baseline).toHaveLength(64);
         // The tail is NAMED, so an unnamed newcomer fails here rather than
         // drifting into a baseline it was never part of.
-        expect(all.slice(index)).toEqual([
-          THIS_MIGRATION,
-          "20260915000000_circles_artifact_purge",
-        ]);
+        expect(all.slice(index)).toEqual([THIS_MIGRATION, PURGE_MIGRATION]);
 
         const { readFileSync } = await import("node:fs");
         for (const dir of baseline) {
@@ -2845,6 +2843,181 @@ suite(
           `SELECT "createdByUserId" FROM "Circle" WHERE "id" = 'c-base'`,
         );
         expect(circle.rows[0].createdByUserId).toBeNull();
+      } finally {
+        await pool.end();
+        await dropCreatedDatabases(base as string);
+      }
+    }, 300_000);
+
+    it("main cannot purge an artifact; the purge migration is what changes that", async () => {
+      // The same question as above, asked of the SECOND migration and of rows
+      // that already existed before it. Running the whole chain from scratch
+      // proves the end state is right; it cannot prove the upgrade works,
+      // because from scratch there is nothing to upgrade.
+      assertDestructionAllowed(base as string);
+      const admin = new Pool({ connectionString: base });
+      const db = `circles_del_purge_${RUN}`;
+      try {
+        await createDatabase(admin, db);
+      } finally {
+        await admin.end();
+      }
+
+      const pool = new Pool({
+        connectionString: withDatabase(base as string, db),
+      });
+
+      try {
+        const all = readdirSync(MIGRATIONS_DIR, { withFileTypes: true })
+          .filter((e) => e.isDirectory())
+          .map((e) => e.name)
+          .sort();
+        const index = all.indexOf(PURGE_MIGRATION);
+        expect(index).toBeGreaterThan(-1);
+        // Everything main carries: the 64 before the deletion migration, plus
+        // the deletion migration itself. Sixty-five, named by position rather
+        // than counted by hand.
+        const onMain = all.slice(0, index);
+        expect(onMain).toHaveLength(65);
+        expect(onMain.at(-1)).toBe(THIS_MIGRATION);
+        expect(all.slice(index)).toEqual([PURGE_MIGRATION]);
+
+        const { readFileSync } = await import("node:fs");
+        for (const dir of onMain) {
+          await pool.query(
+            readFileSync(join(MIGRATIONS_DIR, dir, "migration.sql"), "utf8"),
+          );
+        }
+
+        // A row written the way main writes them: content in all four columns.
+        await pool.query(
+          `INSERT INTO "User" ("id","email","name","passwordHash","updatedAt")
+           VALUES ('u-purge','u-purge@example.test','u','x',now())`,
+        );
+        await pool.query(
+          `INSERT INTO "Circle" ("id","kind","status","createdByUserId","maxParticipants","updatedAt")
+           VALUES ('c-purge','DUO','ACTIVE','u-purge',2,now())`,
+        );
+        await pool.query(
+          `INSERT INTO "CircleActivity"
+             ("id","circleId","templateKey","templateVersion","status",
+              "requiredParticipants","revealedAt","updatedAt")
+           VALUES ('a-purge','c-purge','duo-lo-que-me-ayuda',1,
+                   'REVEALED'::"CircleActivityStatus",2,now(),now())`,
+        );
+        await pool.query(
+          `INSERT INTO "CircleMember"
+             ("id","circleId","userId","role","status","joinedAt")
+           VALUES ('m-purge','c-purge','u-purge','ORGANIZER'::"CircleMemberRole",
+                   'ACTIVE',now())`,
+        );
+        await pool.query(
+          `INSERT INTO "CircleActivityParticipant"
+             ("id","circleId","activityId","memberId","status","updatedAt")
+           VALUES ('p-purge','c-purge','a-purge','m-purge',
+                   'ACCEPTED'::"CircleParticipantStatus",now())`,
+        );
+        await pool.query(
+          `INSERT INTO "CircleArtifact"
+             ("id","activityId","createdByParticipantId","status","version","kind",
+              "ciphertext","nonce","keyVersion","payloadHash","updatedAt")
+           VALUES ('art-purge','a-purge','p-purge','PROPOSED'::"CircleArtifactStatus",1,
+                   'AGREEMENT'::"CircleArtifactKind",'CT','N',1,$1,now())`,
+          [HMAC_HEX],
+        );
+
+        // BEFORE: main has nowhere to put a purge. The columns are NOT NULL and
+        // `purgedAt` does not exist, so the policy is not merely unimplemented —
+        // it is unrepresentable.
+        const beforeCols = await pool.query(
+          `SELECT column_name, is_nullable FROM information_schema.columns
+            WHERE table_name = 'CircleArtifact'
+              AND column_name IN ('ciphertext','nonce','keyVersion','payloadHash','purgedAt')`,
+        );
+        expect(beforeCols.rows.map((r) => r.column_name).sort()).toEqual([
+          "ciphertext",
+          "keyVersion",
+          "nonce",
+          "payloadHash",
+        ]);
+        for (const row of beforeCols.rows) expect(row.is_nullable).toBe("NO");
+
+        const refused = await pool
+          .query(`UPDATE "CircleArtifact" SET "ciphertext" = NULL`)
+          .then(
+            () => null,
+            (e: { code?: string }) => e,
+          );
+        expect(refused?.code, "NOT NULL refuses the purge on main").toBe(
+          "23502",
+        );
+
+        // Apply ONLY the new migration, onto the row that already existed.
+        await pool.query(
+          readFileSync(
+            join(MIGRATIONS_DIR, PURGE_MIGRATION, "migration.sql"),
+            "utf8",
+          ),
+        );
+
+        // AFTER: the same pre-existing row can be emptied, and the two rules
+        // arrived with it.
+        await pool.query(
+          `UPDATE "CircleArtifact"
+              SET "ciphertext" = NULL, "nonce" = NULL, "keyVersion" = NULL,
+                  "payloadHash" = NULL, "purgedAt" = now()
+            WHERE "id" = 'art-purge'`,
+        );
+        const after = await pool.query(
+          `SELECT "ciphertext","purgedAt","status" FROM "CircleArtifact" WHERE "id" = 'art-purge'`,
+        );
+        expect(after.rows).toHaveLength(1);
+        expect(after.rows[0].ciphertext).toBeNull();
+        expect(after.rows[0].purgedAt).not.toBeNull();
+        // The row is still there, because the ledger points at it.
+        expect(after.rows[0].status).toBe("PROPOSED");
+
+        const half = await pool
+          .query(
+            `UPDATE "CircleArtifact" SET "purgedAt" = NULL WHERE "id" = 'art-purge'`,
+          )
+          .then(
+            () => null,
+            (e: { constraint?: string }) => e,
+          );
+        expect(half?.constraint).toBe("CircleArtifact_purged_has_no_content");
+
+        // Make room for the next version the way the product does: one active
+        // artifact per activity, so the purged draft becomes SUPERSEDED — a
+        // state the constraints allow to stay purged.
+        await pool.query(
+          `UPDATE "CircleArtifact"
+              SET "status" = 'SUPERSEDED'::"CircleArtifactStatus"
+            WHERE "id" = 'art-purge'`,
+        );
+
+        await pool.query(
+          `INSERT INTO "CircleArtifact"
+             ("id","activityId","createdByParticipantId","status","version","kind",
+              "ciphertext","nonce","keyVersion","payloadHash","agreedAt","updatedAt")
+           VALUES ('art-agreed','a-purge','p-purge','AGREED'::"CircleArtifactStatus",2,
+                   'AGREEMENT'::"CircleArtifactKind",'CT','N',1,$1,now(),now())`,
+          [HMAC_HEX],
+        );
+        const agreed = await pool
+          .query(
+            `UPDATE "CircleArtifact"
+                SET "ciphertext" = NULL, "nonce" = NULL, "keyVersion" = NULL,
+                    "payloadHash" = NULL, "purgedAt" = now()
+              WHERE "id" = 'art-agreed'`,
+          )
+          .then(
+            () => null,
+            (e: { constraint?: string }) => e,
+          );
+        expect(agreed?.constraint).toBe(
+          "CircleArtifact_agreed_is_never_purged",
+        );
       } finally {
         await pool.end();
         await dropCreatedDatabases(base as string);

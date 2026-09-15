@@ -20,12 +20,31 @@ import {
  * refuses matters more than what it shows.
  */
 
-describe("the production catalog is empty, and the page says so", () => {
-  it("ships no published templates", () => {
+describe("the production catalog carries one activity, and the page shows that one", () => {
+  it("publishes exactly the approved template", () => {
     // Publishing one is an editorial act with its own approval, not a side
-    // effect of building this page.
-    expect(PRODUCTION_CIRCLE_TEMPLATES).toHaveLength(0);
-    expect(productionCircleTemplateRegistry.listPublished()).toHaveLength(0);
+    // effect of building this page. Exactly one has that approval.
+    expect(PRODUCTION_CIRCLE_TEMPLATES).toHaveLength(1);
+    const published = productionCircleTemplateRegistry.listPublished();
+    expect(published).toHaveLength(1);
+    expect(published[0].templateKey).toBe("duo-lo-que-me-ayuda");
+  });
+
+  it("previews it for a stranger, with copy and never with an instance", () => {
+    render(
+      <ActividadPreviewPage params={{ templateKey: "duo-lo-que-me-ayuda" }} />,
+    );
+
+    expect(
+      screen.getByRole("heading", {
+        name: /lo que me ayuda cuando estoy así/i,
+      }),
+    ).toBeInTheDocument();
+    // The preview type carries no roster, no state and no ids; assert the page
+    // did not find another way to render one.
+    expect(document.body.textContent).not.toMatch(
+      /participantId|activityId|cmu[a-z0-9]{8}/i,
+    );
   });
 
   it("renders an unavailable state rather than inventing an activity", () => {
@@ -38,6 +57,15 @@ describe("the production catalog is empty, and the page says so", () => {
     expect(document.body.textContent).not.toMatch(
       /lorem|ejemplo de actividad/i,
     );
+  });
+
+  it("still refuses the synthetic fixture by key", () => {
+    render(
+      <ActividadPreviewPage params={{ templateKey: "e2e-duo-sintetica" }} />,
+    );
+    expect(
+      screen.getByRole("heading", { name: /no está disponible/i }),
+    ).toBeInTheDocument();
   });
 });
 

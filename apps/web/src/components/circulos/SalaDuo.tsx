@@ -45,6 +45,18 @@ export interface SalaDuoProps {
   /** From the pinned template. Copy the person may need; never their answers. */
   readonly fields: readonly CirclePreparationField[];
   readonly allowedModes: readonly CircleSharingMode[];
+  /**
+   * The template's `doNotSuggestWhen`, shown on the consent screen.
+   *
+   * It is copy, and it travels the same way the field labels do. What it is
+   * NOT is a questionnaire: nothing is asked, nothing is scored, nothing is
+   * stored, and the other person never learns that this screen was read, how
+   * long it took, or what was decided in front of it. The person reads six
+   * sentences and either continues or does not.
+   */
+  readonly noConviene: readonly string[];
+  /** The template's own `estimatedMinutes`, or null when this build lacks it. */
+  readonly minutosEstimados: number | null;
   readonly isGuest: boolean;
 }
 
@@ -60,6 +72,8 @@ export function SalaDuo({
   initialError,
   fields,
   allowedModes,
+  noConviene,
+  minutosEstimados,
   isGuest,
 }: SalaDuoProps) {
   const router = useRouter();
@@ -288,7 +302,46 @@ export function SalaDuo({
             Nadie ve nada tuyo hasta que tú lo confirmes, y puedes elegir no
             compartir nada o retirarte en cualquier momento.
           </p>
-          <p style={S.p}>Toma unos {estimado(view)} minutos.</p>
+          <p style={S.p}>
+            Toma unos {estimado(view, minutosEstimados)} minutos.
+          </p>
+
+          {/*
+           * The situations in which this is the wrong thing to do — read
+           * alone, before writing anything.
+           *
+           * We cannot detect any of them, and the copy does not pretend to.
+           * There is no question, no answer, no score and nothing stored: this
+           * is a list somebody reads and a decision they take by pressing one
+           * of two buttons. Continuing is a decision to take part; it says
+           * nothing about their relationship and certifies nothing about it.
+           *
+           * The other person never learns this screen was here for you, what
+           * you thought of it, or how long you looked at it. Leaving needs no
+           * reason, and the service accepts none.
+           */}
+          {noConviene.length > 0 && (
+            <div style={S.aviso}>
+              <p style={{ ...S.p, fontWeight: 600, color: "inherit" }}>
+                Hay situaciones en las que esta actividad no ayuda, y puede
+                complicar las cosas:
+              </p>
+              <ul style={S.lista}>
+                {noConviene.map((caso) => (
+                  <li key={caso} style={S.listaItem}>
+                    {caso}
+                  </li>
+                ))}
+              </ul>
+              <p style={{ ...S.p, color: "inherit" }}>
+                Esto lo decides tú, y lo decides aquí, a solas. Si alguna te
+                suena, no sigas: puedes salir sin dar explicaciones y la otra
+                persona no sabrá por qué. No podemos comprobar nada de esto, y
+                no lo estamos comprobando.
+              </p>
+            </div>
+          )}
+
           <div style={S.acciones}>
             <button
               type="button"
@@ -471,9 +524,22 @@ function anuncio(view: CircleActivityView, stage: string): string {
   }
 }
 
-function estimado(view: CircleActivityView): number {
-  // The view does not carry the estimate; the turns are a fair proxy and this
-  // is copy, not a promise.
+function estimado(
+  view: CircleActivityView,
+  templateMinutes: number | null,
+): number {
+  // The template's own number when this build carries the template — which is
+  // the number the approved copy promises, and the one the preview already
+  // shows a stranger. Reaching it required passing it in: the wire view does
+  // not carry an estimate, and the room used to derive one from the turn count.
+  //
+  // That derivation said 10 for a template that says 15. Nobody was misled by
+  // much, but two screens quoting different numbers for the same activity is
+  // the kind of small lie that makes the rest harder to trust.
+  //
+  // The fallback stays for an activity pinned to a template this build does not
+  // have: the turns are a fair proxy, and a proxy beats an empty sentence.
+  if (templateMinutes !== null && templateMinutes > 0) return templateMinutes;
   return Math.max(10, view.conversationTurns.length * 5);
 }
 

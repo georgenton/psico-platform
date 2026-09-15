@@ -43,6 +43,19 @@ export const estilos: Record<string, CSSProperties> = {
     lineHeight: 1.6,
     color: "#3d3a2f",
   },
+  /**
+   * A short list inside an `aviso`. Bullets kept, because six situations read
+   * as six things to check yourself against — a paragraph would read as one
+   * warning to skim past.
+   */
+  lista: {
+    margin: ".5rem 0",
+    paddingLeft: "1.2rem",
+    display: "flex",
+    flexDirection: "column",
+    gap: ".3rem",
+  },
+  listaItem: { lineHeight: 1.55 },
   fieldset: { border: "none", padding: 0, margin: 0 },
   legend: { fontWeight: 600, padding: 0, marginBottom: ".5rem" },
   radioRow: {

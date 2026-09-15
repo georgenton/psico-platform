@@ -8,19 +8,18 @@
  * a closed key grammar, refuses anything it was not told to accept, and returns
  * a DEEPLY FROZEN structure without ever mutating its input.
  *
- * ── The catalog is empty, and that is the deliverable ──────────────────────
+ * ── The catalog carries exactly one template ───────────────────────────────
  *
- * `PRODUCTION_CIRCLE_TEMPLATES` ships with zero entries. The architecture
- * names two candidates — «Lo que necesito que puedas escuchar» and «Cómo
- * prefiero ser acompañado cuando algo me sobrepasa» — and permits adding them
- * as DRAFT *if verifiable approved copy is available*. It is not: that copy
- * lives in Notion, which this cut must not read, and inventing it would be
- * writing editorial content nobody approved. So the engine ships provably
- * ready and provably carrying nothing.
+ * `PRODUCTION_CIRCLE_TEMPLATES` shipped empty for as long as no approved copy
+ * existed. «Lo que me ayuda cuando estoy así» now has it — approved text,
+ * approved conditions, approved source — so it is here, and nothing else is.
  *
- * The nine `DUO_CANDIDATES` already sitting in the Parejas chapter modules are
- * NOT imported here. They say so themselves — «PRODUCT DRAFT ONLY. No runtime,
- * no tables, no endpoints» — and PQP C07 ships an empty list on purpose,
+ * The two candidates the architecture names — «Lo que necesito que puedas
+ * escuchar» and «Cómo prefiero ser acompañado cuando algo me sobrepasa» — are
+ * still absent, because their copy still lives in Notion, which this cut must
+ * not read. The nine `DUO_CANDIDATES` in the Parejas chapter modules are still
+ * NOT imported; they say so themselves — «PRODUCT DRAFT ONLY. No runtime, no
+ * tables, no endpoints» — and PQP C07 still ships an empty list on purpose,
  * because a bilateral activity is the wrong instrument where coercion may
  * exist. Promoting any of them is an editorial decision, not a wiring one.
  *
@@ -505,15 +504,115 @@ export function toCircleTemplatePreview(
 }
 
 /**
- * The production catalog — EMPTY at PR1, deliberately.
+ * The production catalog — ONE template, approved by Jorge.
  *
- * See the header for why the two named candidates are not here. Adding one is
- * an editorial act with its own approval, not a side effect of building the
- * engine; and until then `listPublished()` returning nothing is the honest
- * state of the product.
+ * ── What changed, and what did not ─────────────────────────────────────────
+ *
+ * The catalog was empty because no approved copy existed to put in it. That is
+ * no longer true for exactly one activity: «Lo que me ayuda cuando estoy así»,
+ * whose full text — title, summary, both field labels, both conversation
+ * turns, the six exclusion conditions and the source it hangs from — was
+ * proposed in `docs/operations/circles-pilot-activation-decision.md` and
+ * approved as it stands. The text below is that text, transcribed rather than
+ * rewritten.
+ *
+ * Nothing else moved. The nine `DUO_CANDIDATES` in the Parejas chapter modules
+ * are still not imported and still say «PRODUCT DRAFT ONLY»; PQP C07 still
+ * ships an empty list on purpose, because a bilateral activity is the wrong
+ * instrument where coercion may exist. One approval is one template — it is not
+ * a licence for the next one.
+ *
+ * ── The exclusions are copy, not a check ───────────────────────────────────
+ *
+ * `doNotSuggestWhen` is text for whoever decides to offer this, and the engine
+ * never evaluates it. Violence, dependence, an authority relationship — none of
+ * those are things a program can detect, and pretending otherwise would be
+ * worse than saying nothing. What the product does instead is show them to each
+ * person, before they write anything, behind the private gate, so the decision
+ * is theirs and is taken alone. Their answer to that screen is a decision to
+ * take part; it is never a verdict about their relationship, it is never scored
+ * and it is never shown to the other person.
+ *
+ * ── Why this source ────────────────────────────────────────────────────────
+ *
+ * `eec-c1-cuerpo-antes-que-mente@1` is the single published Guide V1 surface.
+ * Chapter 1 holds that the body reacts before the mind can name what is
+ * happening, and its practice is entirely inward. This activity is the step
+ * after it and outward, on the same subject: when that signal shows up, what
+ * helps. It asks what works, never what was felt.
+ *
+ * The pin is the guide the pilot publishes today. It is NOT the EEC-C01 guided
+ * suite, which is still `status: DRAFT` with `publishAllowed: false`; approving
+ * this template approves no part of that.
  */
 export const PRODUCTION_CIRCLE_TEMPLATES: readonly CircleActivityDefinition[] =
-  [];
+  [
+    {
+      templateKey: "duo-lo-que-me-ayuda",
+      templateVersion: 1,
+      status: "PUBLISHED",
+      audience: "DUO_ADULT",
+      title: "Lo que me ayuda cuando estoy así",
+      summary:
+        "Cada quien escribe por su lado qué le ayuda —y qué no— cuando algo le " +
+        "pesa. Después deciden qué comparten. Nadie ve nada del otro hasta que " +
+        "ambos confirman.",
+      estimatedMinutes: 15,
+      source: {
+        bookSlug: "emociones-en-construccion",
+        chapterOrder: 1,
+        experiencePin: {
+          experienceKey: "eec-c1-cuerpo-antes-que-mente",
+          experienceVersion: 1,
+        },
+      },
+      participants: { min: 2, max: 2, required: 2 },
+      privatePreparation: [
+        {
+          fieldKey: "que-ayuda",
+          label: "Cuando estoy así, me ayuda que…",
+          kind: "SHORT_TEXT",
+          maxLength: 200,
+        },
+        {
+          fieldKey: "que-no-ayuda",
+          label: "Y no me ayuda que…",
+          kind: "LONG_TEXT",
+          maxLength: 800,
+        },
+      ],
+      // `KEEP_PRIVATE` is one of the three because "nothing" is a complete
+      // answer, and the validator would refuse a template without a way out that
+      // is not disclosure.
+      sharing: {
+        allowedModes: ["SELECTED_FIELDS", "EDITED_SUMMARY", "KEEP_PRIVATE"],
+      },
+      reveal: { strategy: "ALL_CONFIRMED" },
+      conversation: {
+        turns: [
+          "Léelo sin responder todavía. ¿Qué de lo que dijo el otro te resulta fácil de hacer?",
+          "¿Y qué te costaría? Decirlo ahora ahorra un malentendido después.",
+        ],
+      },
+      // An agreement is what they MAY write, never what they owe. Closing without
+      // one is a complete ending, and the room says so.
+      outcome: { kind: "AGREEMENT" },
+      followUp: { afterHours: 168 },
+      safety: {
+        level: "REINFORCED",
+        privateGateRequired: true,
+        doNotSuggestWhen: [
+          "Hay violencia, amenazas o miedo a la reacción de la otra persona.",
+          "Una de las dos depende económica, migratoria o legalmente de la otra.",
+          "Hay una relación de autoridad entre ambas: jefatura, docencia, terapia o cuidado.",
+          "La invitación la pide un tercero, o una de las dos no eligió participar.",
+          "Alguna de las dos está en crisis ahora mismo.",
+          "Una de las dos es menor de edad.",
+        ],
+      },
+      ecoMode: "NONE",
+    },
+  ];
 
 export const productionCircleTemplateRegistry = new CircleTemplateRegistry(
   PRODUCTION_CIRCLE_TEMPLATES,

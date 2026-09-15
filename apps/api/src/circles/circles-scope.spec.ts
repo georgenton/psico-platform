@@ -681,13 +681,18 @@ describe("circles · PR2 — nothing outside its own tables moved", () => {
     ]);
   });
 
-  it("leaves the production catalog empty", () => {
+  it("publishes only what an editorial decision put in the catalog", () => {
     // Publishing a template is an editorial decision. It cannot become a side
-    // effect of wiring a module.
+    // effect of wiring a module — so this reads the file and counts the keys
+    // rather than trusting the import, and names the one that was approved.
     const catalog = read("packages/types/src/circles-catalog.ts");
-    expect(catalog).toMatch(
-      /PRODUCTION_CIRCLE_TEMPLATES:\s*readonly CircleActivityDefinition\[\]\s*=\s*\[\]/,
+    const keys = [...catalog.matchAll(/^\s{4}templateKey: "([^"]+)",$/gm)].map(
+      (m) => m[1],
     );
+    expect(keys).toEqual(["duo-lo-que-me-ayuda"]);
+    // The fixtures have their own file and stay there.
+    expect(catalog).not.toContain("e2e-duo-sintetica");
+    expect(catalog).not.toContain("fixture-duo");
   });
 });
 

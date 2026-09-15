@@ -80,3 +80,38 @@ describe("every Dúo CTA mount is server-rendered", () => {
     expect(offenders).toEqual([]);
   });
 });
+
+describe("the approved mapping hangs from the published guide, not from the V2 suite", () => {
+  /** `apps/web` → repository root. */
+  const ROOT = resolve(WEB, "../..");
+  const MANIFEST =
+    "artifacts/eec/C01/v1.0/feelverse/guides/chapter-guided-suite.manifest.json";
+
+  const manifest = JSON.parse(readFileSync(join(ROOT, MANIFEST), "utf8")) as {
+    status: string;
+    publishAllowed: boolean;
+    featureFlagDefault: string;
+    legacyPilot: { guideKey: string; guideVersion: number; inV2Route: boolean };
+    route: readonly { guideKey: string }[];
+  };
+
+  it("names the guide the pilot actually publishes", () => {
+    // The mapping's key is the legacy pilot guide — the one with a route, a
+    // presentation and a player. Not a member of the V2 route.
+    expect(manifest.legacyPilot.guideKey).toBe("eec-c1-cuerpo-antes-que-mente");
+    expect(manifest.legacyPilot.guideVersion).toBe(1);
+    expect(manifest.legacyPilot.inV2Route).toBe(false);
+
+    const routeKeys = manifest.route.map((s) => s.guideKey);
+    expect(routeKeys).not.toContain("eec-c1-cuerpo-antes-que-mente");
+  });
+
+  it("approving the template approves NO part of the guided suite", () => {
+    // If somebody later publishes the suite, that is its own decision with its
+    // own evidence. This test exists so the Círculos approval cannot be cited
+    // as having already made it.
+    expect(manifest.status).toBe("DRAFT");
+    expect(manifest.publishAllowed).toBe(false);
+    expect(manifest.featureFlagDefault).toBe("off");
+  });
+});

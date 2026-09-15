@@ -21,6 +21,8 @@ const base = {
   initialError: null,
   fields: PLANTILLA.privatePreparation,
   allowedModes: PLANTILLA.sharing.allowedModes,
+  noConviene: PLANTILLA.safety.doNotSuggestWhen,
+  minutosEstimados: PLANTILLA.estimatedMinutes,
   isGuest: true,
 };
 

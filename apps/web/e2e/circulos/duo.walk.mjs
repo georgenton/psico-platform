@@ -338,10 +338,35 @@ async function enterRoom(page) {
 }
 
 /** Type a draft without confirming anything. */
+/**
+ * The two preparation fields, WHATEVER the pinned template calls them.
+ *
+ * These selectors used to be `#f-campo-uno` and `#f-campo-dos` — the synthetic
+ * fixture's own keys — which quietly made the walk a test of the fixture. The
+ * browser scenarios now run on the published template, whose keys are
+ * `que-ayuda` and `que-no-ayuda`, and a walk that only works against one
+ * template's field names proves nothing about the one people will use.
+ *
+ * So the form is addressed the way a person addresses it: the fields it is
+ * showing, in the order it shows them.
+ */
+async function preparationFields(page) {
+  const ids = await page.evaluate(() =>
+    Array.from(document.querySelectorAll("[id^='f-']")).map((el) => el.id),
+  );
+  if (ids.length < 2) {
+    throw new Error(
+      `the preparation form showed ${ids.length} field(s), expected 2 (${ids.join(", ") || "none"})`,
+    );
+  }
+  return ids;
+}
+
 async function typeDraft(page, { uno, dos }) {
   await page.check('input[name="modo"][value="SELECTED_FIELDS"]');
-  await page.fill("#f-campo-uno", uno);
-  await page.fill("#f-campo-dos", dos);
+  const [first, second] = await preparationFields(page);
+  await page.fill(`#${first}`, uno);
+  await page.fill(`#${second}`, dos);
 }
 
 async function openPreview(page) {
@@ -496,7 +521,8 @@ async function privatePreparation(browser) {
     await page
       .getByRole("heading", { name: /Tu preparación/i })
       .waitFor({ state: "visible", timeout: 20_000 });
-    const afterBack = await page.inputValue("#f-campo-uno");
+    const [firstField] = await preparationFields(page);
+    const afterBack = await page.inputValue(`#${firstField}`);
     check(
       afterBack === SECRET,
       "coming back from the preview preserves the draft",
@@ -521,7 +547,8 @@ async function privatePreparation(browser) {
     await page
       .getByRole("heading", { name: /Tu preparación/i })
       .waitFor({ state: "visible", timeout: 20_000 });
-    const afterFailure = await page.inputValue("#f-campo-uno");
+    const [firstAgain] = await preparationFields(page);
+    const afterFailure = await page.inputValue(`#${firstAgain}`);
     check(
       afterFailure === SECRET,
       "a failed send preserves the draft instead of losing the person's words",

@@ -297,13 +297,30 @@ describe("circles · template registry", () => {
     ]);
   });
 
-  it("ships an EMPTY production catalog at this cut", () => {
-    // Deliberate: the two named candidates need verifiable approved copy, which
-    // lives outside this repository. The engine ships ready and carrying
-    // nothing rather than carrying invented writing.
-    expect(PRODUCTION_CIRCLE_TEMPLATES).toEqual([]);
-    expect(productionCircleTemplateRegistry.size).toBe(0);
-    expect(productionCircleTemplateRegistry.listPublished()).toEqual([]);
+  it("ships exactly ONE production template — the approved one", () => {
+    // The catalog was empty while nothing had verifiable approved copy. One
+    // activity now does, and it is the only one: the two named candidates and
+    // the nine Parejas drafts still have their copy outside this repository.
+    expect(PRODUCTION_CIRCLE_TEMPLATES.map((d) => d.templateKey)).toEqual([
+      "duo-lo-que-me-ayuda",
+    ]);
+    expect(productionCircleTemplateRegistry.size).toBe(1);
+    expect(
+      productionCircleTemplateRegistry
+        .listPublished()
+        .map((d) => d.templateKey),
+    ).toEqual(["duo-lo-que-me-ayuda"]);
+  });
+
+  it("validates that template through the real validator, not by assertion", () => {
+    // The registry constructor reconstructs every field from the closed key
+    // grammar. Building one from the shipped definition proves the literal is
+    // acceptable to the runtime authority, not merely to the type system.
+    const rebuilt = new CircleTemplateRegistry(PRODUCTION_CIRCLE_TEMPLATES);
+    const exact = rebuilt.getExact("duo-lo-que-me-ayuda", 1);
+    expect(exact.participants.required).toBe(2);
+    expect(exact.safety.privateGateRequired).toBe(true);
+    expect(exact.ecoMode).toBe("NONE");
   });
 });
 

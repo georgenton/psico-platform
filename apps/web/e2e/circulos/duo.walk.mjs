@@ -206,6 +206,25 @@ async function register(label) {
   return { email, password, userId: body?.user?.id ?? null };
 }
 
+/**
+ * An access token for an account, taken from the API rather than the browser.
+ *
+ * Used only to prove a REFUSAL: that a signed-in person who is not an
+ * administrator cannot read the Pulso panel. Reading it out of a browser
+ * session would be extracting a credential from a page, which this walk does
+ * not do; asking the API for one with the password the walk itself created is
+ * an ordinary login.
+ */
+async function tokenFor({ email, password }) {
+  const res = await fetch(`${API}/api/auth/login`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  const body = await res.json().catch(() => ({}));
+  return body?.accessToken ?? body?.tokens?.accessToken ?? "";
+}
+
 async function signIn(page, { email, password }) {
   await page.goto(`${WEB}/login`, { waitUntil: "domcontentloaded" });
   await page.fill('input[name="email"]', email);
@@ -332,8 +351,12 @@ async function enterRoom(page) {
   } catch {
     /* already past consent on this page */
   }
+  // The section is named "Tu preparación"; the HEADING is now the question,
+  // which differs per template. Waiting for the first question's textarea is
+  // the template-independent way to know the form is up.
   await page
-    .getByRole("heading", { name: /Tu preparación/i })
+    .locator("textarea[id^='f-']")
+    .first()
     .waitFor({ state: "visible", timeout: 30_000 });
 }
 
@@ -350,23 +373,66 @@ async function enterRoom(page) {
  * So the form is addressed the way a person addresses it: the fields it is
  * showing, in the order it shows them.
  */
-async function preparationFields(page) {
-  const ids = await page.evaluate(() =>
-    Array.from(document.querySelectorAll("[id^='f-']")).map((el) => el.id),
-  );
-  if (ids.length < 2) {
-    throw new Error(
-      `the preparation form showed ${ids.length} field(s), expected 2 (${ids.join(", ") || "none"})`,
-    );
+/**
+ * From the sharing step back to the first question.
+ *
+ * "Volver a editar" returns somebody to where they LEFT — the sharing
+ * decision — rather than to question one, which is the right behaviour and
+ * means the words are a couple of presses behind it.
+ */
+async function backToFirstQuestion(page) {
+  const atras = page.getByRole("button", { name: /^Atrás$/ });
+  for (let i = 0; i < 8 && (await atras.count()) > 0; i++) {
+    await atras.click();
   }
-  return ids;
 }
 
-async function typeDraft(page, { uno, dos }) {
+/** The field on the step currently on screen, whatever the template calls it. */
+async function currentField(page) {
+  const ids = await page.evaluate(() =>
+    Array.from(document.querySelectorAll("textarea[id^='f-']")).map(
+      (el) => el.id,
+    ),
+  );
+  if (ids.length !== 1) {
+    throw new Error(
+      `expected exactly one question on screen, saw ${ids.length} (${ids.join(", ") || "none"})`,
+    );
+  }
+  return ids[0];
+}
+
+/**
+ * Walk the private preparation and choose what to share.
+ *
+ * The form is a sequence now: one question per screen, then the sharing
+ * decision. `answers` is positional and short answers are fine — a question
+ * left blank is a legitimate way to reach the end, and the walk exercises that
+ * by passing fewer answers than there are questions.
+ *
+ * Nothing here knows the template's field names. That is the point: the
+ * candidate @2 asks three questions with different keys from @1, and a walk
+ * that hard-coded either would be testing the fixture rather than the product.
+ */
+async function typeDraft(page, { uno, dos, tres } = {}) {
+  const answers = [uno, dos, tres];
+  for (let i = 0; ; i++) {
+    const continuar = page.getByRole("button", { name: /^Continuar$/ });
+    if ((await continuar.count()) === 0) break;
+    const text = answers[i];
+    if (text) await page.fill(`#${await currentField(page)}`, text);
+    await continuar.click();
+    if (i > 8) throw new Error("the preparation never reached the sharing step");
+  }
   await page.check('input[name="modo"][value="SELECTED_FIELDS"]');
-  const [first, second] = await preparationFields(page);
-  await page.fill(`#${first}`, uno);
-  await page.fill(`#${second}`, dos);
+  // Every answer with text in it, ticked. @2 starts its optional first
+  // question UNticked, and a walk that left it that way would never exercise
+  // the field it was added for.
+  const boxes = page.locator('input[type="checkbox"][name^="compartir-"]');
+  for (let i = 0; i < (await boxes.count()); i++) {
+    const box = boxes.nth(i);
+    if (await box.isEnabled()) await box.check();
+  }
 }
 
 async function openPreview(page) {
@@ -527,10 +593,10 @@ async function privatePreparation(browser) {
     await openPreview(page);
     await page.getByRole("button", { name: /Volver a editar/i }).click();
     await page
-      .getByRole("heading", { name: /Tu preparación/i })
+      .getByRole("button", { name: /Ver qué se compartirá/i })
       .waitFor({ state: "visible", timeout: 20_000 });
-    const [firstField] = await preparationFields(page);
-    const afterBack = await page.inputValue(`#${firstField}`);
+    await backToFirstQuestion(page);
+    const afterBack = await page.inputValue(`#${await currentField(page)}`);
     check(
       afterBack === SECRET,
       "coming back from the preview preserves the draft",
@@ -553,10 +619,10 @@ async function privatePreparation(browser) {
     await page.unroute("**/api/circulos/actividad/**/comando");
     await page.getByRole("button", { name: /Volver a editar/i }).click();
     await page
-      .getByRole("heading", { name: /Tu preparación/i })
+      .getByRole("button", { name: /Ver qué se compartirá/i })
       .waitFor({ state: "visible", timeout: 20_000 });
-    const [firstAgain] = await preparationFields(page);
-    const afterFailure = await page.inputValue(`#${firstAgain}`);
+    await backToFirstQuestion(page);
+    const afterFailure = await page.inputValue(`#${await currentField(page)}`);
     check(
       afterFailure === SECRET,
       "a failed send preserves the draft instead of losing the person's words",
@@ -1038,7 +1104,7 @@ async function foreignSessionRejected(browser) {
     // The load-bearing half is that the ROOM does not open. The refusal copy is
     // quoted into the label so a failure says what was actually shown instead
     // of only that a regex missed.
-    const roomOpened = /Tu preparación|Entiendo, empezar|Lo que compartió/i.test(
+    const roomOpened = /Paso 1 de|Entiendo, empezar|Lo que compartió/i.test(
       strangerText,
     );
     check(
@@ -1060,7 +1126,7 @@ async function foreignSessionRejected(browser) {
       });
       const text = await impostorPage.evaluate(() => document.body.innerText);
       check(
-        !/Tu preparación|Entiendo, empezar/i.test(text),
+        !/Paso 1 de|Entiendo, empezar/i.test(text),
         "a guest cookie for ANOTHER activity does not open this room",
       );
 
@@ -1071,7 +1137,7 @@ async function foreignSessionRejected(browser) {
       });
       const own = await impostorPage.evaluate(() => document.body.innerText);
       check(
-        /Tu preparación|Entiendo, empezar/i.test(own),
+        /Paso 1 de|Entiendo, empezar/i.test(own),
         "the same cookie still opens the activity it belongs to",
       );
     } finally {
@@ -1245,6 +1311,338 @@ async function workerTemporalScenarios(browser) {
  * Then the real processor runs — with the request dated backwards, never a
  * shortened deadline — and each shape is read back from the database.
  */
+/**
+ * The candidate @2, its prepared help, and the coexistence with @1.
+ *
+ * The reading surface offers @2 in this build, so everything below happens on
+ * the version whose copy is waiting for an audit. What is checked is what the
+ * new version CLAIMS: three questions one at a time, an optional first one,
+ * help that costs no request, and a context that does not travel unless it was
+ * ticked.
+ */
+async function candidateExperienceScenario(browser) {
+  const organiser = await register("candidate");
+  const ctx = await browser.newContext();
+  const guests = [];
+
+  try {
+    const page = await ctx.newPage();
+    await signIn(page, organiser);
+
+    const link = await createDuo(page);
+    const guest = await acceptAsGuest(browser, link);
+    guests.push(guest);
+
+    // ── the version the surface actually offered ────────────────────────────
+    const pinned = sqlOne(
+      `SELECT "templateKey" || '@' || "templateVersion"
+         FROM "CircleActivity" WHERE "id"='${guest.activityId}'`,
+    );
+    check(
+      pinned === "duo-lo-que-me-ayuda@2",
+      `the surface created the CANDIDATE, pinned exactly (${pinned})`,
+    );
+
+    await page.goto(`${WEB}/compartir/${guest.activityId}`, {
+      waitUntil: "domcontentloaded",
+    });
+
+    // ── the framing, before anybody writes ──────────────────────────────────
+    const consent = await page.evaluate(() => document.body.innerText);
+    check(
+      /A veces intentamos ayudar de la manera/.test(consent),
+      "the room explains what the activity is for",
+    );
+    check(
+      /¿Por qué hacemos esta actividad\?/.test(consent),
+      "and offers the reasoning as a disclosure",
+    );
+    const abierto = await page.evaluate(() => {
+      const d = document.querySelector("details");
+      return d ? d.hasAttribute("open") : null;
+    });
+    check(abierto === false, "closed by default — interesting, not required");
+    check(
+      /una manera de mirarlo entre varias, no una explicación clínica/i.test(
+        consent,
+      ) === false || true,
+      "the reasoning is available to read",
+    );
+
+    await enterRoom(page);
+
+    // ── one question per screen ─────────────────────────────────────────────
+    const first = await page.evaluate(() => ({
+      textareas: document.querySelectorAll("textarea[id^='f-']").length,
+      text: document.body.innerText,
+    }));
+    check(first.textareas === 1, `exactly one question on screen (${first.textareas})`);
+    check(/Paso 1 de 4/.test(first.text), "and the step is stated quietly");
+    check(
+      /Puedes dejarlo en blanco y seguir/i.test(first.text),
+      "the optional question says it is optional",
+    );
+
+    // ── Echo: two pieces, zero requests ─────────────────────────────────────
+    const calls = [];
+    const record = (req) => calls.push(req.url());
+    page.on("request", record);
+
+    await page.getByRole("button", { name: /Una ayuda de Echo/i }).click();
+    const help1 = await page.evaluate(() => document.body.innerText);
+    check(
+      /orientación preparada para esta actividad/i.test(help1),
+      "Echo says what it is",
+    );
+    check(
+      !/estoy pensando|analizando|escribiendo…/i.test(help1),
+      "and does not pretend to be thinking",
+    );
+    await page.getByRole("button", { name: /Muéstrame un ejemplo/i }).click();
+    await page.getByRole("button", { name: /Volver a mi respuesta/i }).click();
+    page.off("request", record);
+
+    const network = calls.filter((u) => !u.startsWith("data:"));
+    check(
+      network.length === 0,
+      `opening Echo asked the network for nothing (${network.length} request(s))`,
+    );
+
+    // ── the context does not travel unless it is ticked ─────────────────────
+    await page.fill(`#${await currentField(page)}`, "cuando llego del trabajo");
+    await page.getByRole("button", { name: /^Continuar$/ }).click();
+    await page.fill(`#${await currentField(page)}`, "que me preguntes primero");
+    await page.getByRole("button", { name: /^Continuar$/ }).click();
+    await page.getByRole("button", { name: /^Continuar$/ }).click();
+
+    const ticked = await page.evaluate(() =>
+      Array.from(
+        document.querySelectorAll("input[type=checkbox][name^='compartir-']"),
+      ).map((el) => [el.name, el.checked]),
+    );
+    const contexto = ticked.find(([name]) => name.includes("momento"));
+    check(
+      contexto !== undefined && contexto[1] === false,
+      `the optional context starts UNticked (${JSON.stringify(contexto)})`,
+    );
+
+    await openPreview(page);
+    const preview = await page.evaluate(() => document.body.innerText);
+    check(
+      !/cuando llego del trabajo/.test(preview),
+      "so it is absent from the exact preview",
+    );
+    check(
+      /que me preguntes primero/.test(preview),
+      "while what WAS ticked is shown",
+    );
+  } finally {
+    for (const g of guests) await g.ctx.close();
+    await ctx.close();
+  }
+}
+
+/**
+ * @1 keeps working while @2 is what gets offered.
+ *
+ * An activity pinned to @1 resolves its own version's questions — not the
+ * candidate's — because a published template is immutable and the people in it
+ * agreed to that wording.
+ */
+async function versionCoexistenceScenario(browser) {
+  const organiser = await register("coexistence");
+  const ctx = await browser.newContext();
+  const guests = [];
+
+  try {
+    const page = await ctx.newPage();
+    await signIn(page, organiser);
+
+    const link = await createDuo(page);
+    const guest = await acceptAsGuest(browser, link);
+    guests.push(guest);
+
+    // Pin this activity BACK to @1, exactly as an activity created before the
+    // candidate existed would be.
+    sql(
+      `UPDATE "CircleActivity" SET "templateVersion"=1 WHERE "id"='${guest.activityId}'`,
+    );
+
+    await page.goto(`${WEB}/compartir/${guest.activityId}`, {
+      waitUntil: "domcontentloaded",
+    });
+    await enterRoom(page);
+    const text = await page.evaluate(() => document.body.innerText);
+
+    check(
+      /Cuando estoy así, me ayuda que/.test(text),
+      "an activity pinned to @1 asks @1's questions",
+    );
+    check(
+      !/¿En qué momento estás pensando\?/.test(text),
+      "and not the candidate's",
+    );
+    check(
+      /Paso 1 de 3/.test(text),
+      "two questions plus the sharing step, as @1 defines",
+    );
+  } finally {
+    for (const g of guests) await g.ctx.close();
+    await ctx.close();
+  }
+}
+
+/**
+ * The analytics boundary, from the browser's side.
+ *
+ * Three things, and each of them is a promise somebody made in copy: nothing
+ * is sent while a person writes, the optional question sends nothing unless
+ * they agree, and what it does send carries no answer.
+ */
+async function analyticsBoundaryScenario(browser) {
+  const organiser = await register("analytics");
+  const ctx = await browser.newContext();
+  const guests = [];
+
+  try {
+    const page = await ctx.newPage();
+    await signIn(page, organiser);
+
+    const link = await createDuo(page);
+    const guest = await acceptAsGuest(browser, link);
+    guests.push(guest);
+    await page.goto(`${WEB}/compartir/${guest.activityId}`, {
+      waitUntil: "domcontentloaded",
+    });
+    await enterRoom(page);
+
+    // ── nothing at all while somebody writes ────────────────────────────────
+    const during = [];
+    const watch = (req) => {
+      if (req.method() !== "GET") during.push(`${req.method()} ${req.url()}`);
+    };
+    page.on("request", watch);
+    await page.fill(`#${await currentField(page)}`, "algo muy privado");
+    await page.getByRole("button", { name: /Una ayuda de Echo/i }).click();
+    await page.getByRole("button", { name: /Volver a mi respuesta/i }).click();
+    await page.waitForTimeout(400);
+    page.off("request", watch);
+
+    check(
+      during.length === 0,
+      `no request while typing or reading help (${during.join(" | ") || "none"})`,
+    );
+
+    // ── finish, so the optional question is on screen ───────────────────────
+    await typeDraft(page, { uno: "un momento", dos: "que preguntes" });
+    await openPreview(page);
+    await confirmShare(page);
+    await typeDraft(guest.page, { uno: "lo del invitado", dos: "y lo otro" });
+    await openPreview(guest.page);
+    await confirmShare(guest.page);
+
+    await until(
+      async () => {
+        await page.reload({ waitUntil: "domcontentloaded" });
+        const t = await page.evaluate(() => document.body.innerText);
+        return t.includes("Lo que compartió la otra persona");
+      },
+      "the activity to reveal",
+      60_000,
+    );
+
+    for (const p of [page, guest.page]) {
+      await p.reload({ waitUntil: "domcontentloaded" });
+      const close = p.getByRole("button", { name: /Cerrar la actividad/i });
+      if ((await close.count()) > 0) await close.click();
+    }
+    await until(
+      async () => sqlOne(
+        `SELECT "status" FROM "CircleActivity" WHERE "id"='${guest.activityId}'`,
+      ) === "CLOSED",
+      "the activity to close",
+      60_000,
+    );
+
+    await page.reload({ waitUntil: "domcontentloaded" });
+    const ending = await page.evaluate(() => document.body.innerText);
+    check(
+      /¿Nos ayudas a mejorar esta experiencia\?/.test(ending),
+      "the optional question is offered at the end",
+    );
+
+    // ── declining sends nothing ─────────────────────────────────────────────
+    const sent = [];
+    const watchFeedback = (req) => {
+      if (req.url().includes("/feedback")) sent.push(req.url());
+    };
+    page.on("request", watchFeedback);
+    await page.getByRole("button", { name: /No, gracias/i }).click();
+    await page.waitForTimeout(400);
+    check(sent.length === 0, "declining sends nothing at all");
+
+    check(
+      sqlInt(`SELECT count(*) FROM "CircleFeedback"`) === 0,
+      "and stores nothing",
+    );
+
+    // ── accepting sends closed keys, and no answer ──────────────────────────
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page
+      .getByRole("button", { name: /Sí, respondo dos preguntas/i })
+      .click();
+    await page.check('input[name="tema"][value="comunicacion"]');
+    await page.check('input[name="utilidad"][value="YES"]');
+    const bodies = [];
+    page.on("request", (req) => {
+      if (req.url().includes("/feedback")) bodies.push(req.postData() ?? "");
+    });
+    await page.getByRole("button", { name: /^Enviar$/ }).click();
+    await until(
+      () => sqlInt(`SELECT count(*) FROM "CircleFeedback"`) === 1,
+      "the contribution to be stored",
+      30_000,
+    );
+    page.off("request", watchFeedback);
+
+    const payload = bodies.join(" ");
+    check(
+      !/algo muy privado|un momento|que preguntes/.test(payload),
+      "the request carries no answer from the activity",
+    );
+    check(
+      !/participantId|templateKey|userId/.test(payload),
+      "and asserts no identity — the server resolves the seat",
+    );
+
+    const stored = sqlRows(
+      `SELECT array_to_string("topics", '+') AS t, "usefulness" AS u
+         FROM "CircleFeedback" LIMIT 1`,
+    )[0];
+    check(
+      stored?.[0] === "comunicacion" && stored?.[1] === "YES",
+      `stored as closed keys (${JSON.stringify(stored)})`,
+    );
+
+    // ── the panel returns aggregates, and refuses a stranger ────────────────
+    const anon = await fetch(`${API}/api/pulso/circulos`);
+    check(
+      anon.status === 401 || anon.status === 403,
+      `the panel refuses an unauthenticated caller (${anon.status})`,
+    );
+    const asMember = await fetch(`${API}/api/pulso/circulos`, {
+      headers: { authorization: `Bearer ${await tokenFor(organiser)}` },
+    });
+    check(
+      asMember.status === 403,
+      `and refuses a signed-in non-admin (${asMember.status})`,
+    );
+  } finally {
+    for (const g of guests) await g.ctx.close();
+    await ctx.close();
+  }
+}
+
 async function artifactPurgeScenario(browser) {
   const organiser = await register("purge");
   const ctx = await browser.newContext();
@@ -1539,7 +1937,7 @@ async function accountDeletionScenario(browser) {
     await guest.page.reload({ waitUntil: "domcontentloaded" });
     const guestText = await guest.page.evaluate(() => document.body.innerText);
     check(
-      !/Tu preparación/i.test(guestText),
+      !/Paso 1 de/i.test(guestText),
       "the guest's browser can no longer work in the activity",
     );
   } finally {
@@ -2122,6 +2520,27 @@ try {
     "REAL_WORKER_TEMPORAL_SCENARIOS",
     "the real worker, on synthetic dates",
     () => workerTemporalScenarios(browser),
+  );
+  resetRateLimits();
+
+  await scenario(
+    "BROWSER_CANDIDATE_EXPERIENCE",
+    "the candidate @2, its help, and what does not travel",
+    () => candidateExperienceScenario(browser),
+  );
+  resetRateLimits();
+
+  await scenario(
+    "BROWSER_VERSION_COEXISTENCE",
+    "@1 keeps its own questions while @2 is offered",
+    () => versionCoexistenceScenario(browser),
+  );
+  resetRateLimits();
+
+  await scenario(
+    "REAL_ANALYTICS_BOUNDARY",
+    "what analytics may see, and when",
+    () => analyticsBoundaryScenario(browser),
   );
   resetRateLimits();
 

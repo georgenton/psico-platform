@@ -549,10 +549,17 @@ proyectos de producción, que es exactamente lo que esta ronda no puede hacer.
 El árbol desplegado es un ARTEFACTO preparado por el mismo orquestador que usa
 la prueba local (`stack.mjs --prepare-only <dir>`), y escribe su propia
 procedencia en `circulos-test-artifact.json`: el sha de origen, el sha256 del
-fixture y el de cada archivo parcheado. Los parches son tres y son los mismos
-del arnés local: copiar el fixture sintético, publicarlo como
-`PRODUCTION_CIRCLE_TEMPLATES` y declarar su elegibilidad en
-`PRODUCTION_DUO_ELIGIBILITY`.
+fixture y el de cada archivo parcheado. Los parches son **cuatro** y son los
+mismos del arnés local: copiar el fixture sintético y añadirlo a
+`PRODUCTION_CIRCLE_TEMPLATES`, publicar `duo-lo-que-me-ayuda@2`, **archivar
+`@1`** y mover —no añadir— su entrada en `PRODUCTION_DUO_ELIGIBILITY`.
+
+El archivado de `@1` no es cosmético. Publicar una versión es una **sucesión**:
+el enlace lleva una clave y ninguna versión, así que sólo puede haber **una**
+versión `PUBLISHED` por clave a la vez. Con dos, la ruta del organizador
+responde 404 y el CTA desaparece. `ARCHIVED` retira `@1` de todo lo que
+**ofrece** mientras `getExact` la sigue resolviendo por pin, que es lo que
+mantiene vivas las actividades ya fijadas a ella.
 
 Esto es deliberado y vale la pena decirlo con todas sus letras: **el catálogo de
 prueba llega en el artefacto desplegado, no en tiempo de ejecución.** No hay un

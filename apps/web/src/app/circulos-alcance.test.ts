@@ -190,6 +190,31 @@ describe("production publishes exactly what was approved, and nothing else", () 
     });
   });
 
+  it("publishes AT MOST ONE version of a key, because a URL carries no version", () => {
+    // Not a restatement of the list above — it is the REASON that list has to
+    // look the way it does, and the thing whoever publishes @2 has to do next.
+    //
+    // A link to an activity names a key and never a version, so the server is
+    // asked "which version does this key mean now". Two PUBLISHED versions give
+    // that question no answer: `resolvePublishedTemplateByKey` refuses rather
+    // than picking the higher one, the organiser route 404s, and the CTA stops
+    // rendering everywhere at once. Publishing a version is therefore a
+    // SUCCESSION — @2 goes PUBLISHED and @1 goes ARCHIVED in the same change,
+    // which withdraws it from every surface that OFFERS while leaving it
+    // resolvable by pin for the activities already running on it.
+    const publishedPerKey = new Map<string, number[]>();
+    for (const t of PRODUCTION_CIRCLE_TEMPLATES) {
+      if (t.status !== "PUBLISHED") continue;
+      publishedPerKey.set(t.templateKey, [
+        ...(publishedPerKey.get(t.templateKey) ?? []),
+        t.templateVersion,
+      ]);
+    }
+    for (const [key, versions] of publishedPerKey) {
+      expect(`${key}: ${versions.join(", ")}`).toBe(`${key}: ${versions[0]}`);
+    }
+  });
+
   it("carries the approved copy of @1, not a paraphrase of it", () => {
     const [approved] = PRODUCTION_CIRCLE_TEMPLATES;
     expect(approved.title).toBe("Lo que me ayuda cuando estoy así");

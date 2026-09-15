@@ -492,9 +492,33 @@ async function main() {
   // does not win a tie-break: ambiguity disables the offer, and the CTA the walk
   // clicks would silently disappear.
   //
-  // @1 is untouched and stays PUBLISHED, so an activity already pinned to it —
-  // and an invitation already sent for it — still resolves. That coexistence is
-  // the thing worth testing, and the walk tests it.
+  // ── And @1 is ARCHIVED in the same breath, which is not a detail ──────────
+  //
+  // Publishing a new version of a key is a SUCCESSION, not an addition. The URL
+  // a reader follows carries a key and no version, so the server answers "which
+  // version does this key mean right now" — and that question has an answer only
+  // while exactly one version of the key is PUBLISHED
+  // (`resolvePublishedTemplateByKey` refuses two rather than picking the higher
+  // one, because guessing there sends somebody into a version nobody offered
+  // them).
+  //
+  // Leaving @1 PUBLISHED alongside @2 therefore does not produce "two offers".
+  // It produces NONE: the organiser route 404s, the CTA never renders, and the
+  // failure arrives thirty seconds later as a locator timeout that says nothing
+  // about its cause. That is exactly how this was found.
+  //
+  // ARCHIVED is the honest state and the one production will use. It withdraws
+  // @1 from everything that OFFERS a template — the listing, the organiser
+  // screen, the public preview — while `getExact` keeps resolving it by pin, so
+  // an activity already pinned to @1 still asks @1's questions and an invitation
+  // already sent still lands. That coexistence is the thing worth testing, and
+  // the walk tests it: it creates on @2, pins the row back to 1, and reads the
+  // room.
+  patch(
+    "packages/types/src/circles-catalog.ts",
+    '      templateVersion: 1,\n      status: "PUBLISHED",',
+    '      templateVersion: 1,\n      status: "ARCHIVED",',
+  );
   patch(
     "packages/types/src/circles-catalog.ts",
     '      templateVersion: 2,\n      status: "DRAFT",',
@@ -512,7 +536,7 @@ async function main() {
   //
   // This build is therefore NOT publishable and never leaves the temp tree:
   // nothing here is pushed to a registry, uploaded, or reused as an artifact.
-  log("   patched", "3 points + 1 fixture module (build is NOT publishable)");
+  log("   patched", "4 points + 1 fixture module (build is NOT publishable)");
 
   if (PREPARE_AT) {
     // The artifact is the point; nothing is installed, built or started here.

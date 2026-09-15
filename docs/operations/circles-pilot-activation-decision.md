@@ -6,8 +6,9 @@
 >
 > El motor está integrado y apagado: `CIRCLES_ROLLOUT_MODE` ausente,
 > `PRODUCTION_CIRCLE_TEMPLATES` vacío, `PRODUCTION_DUO_ELIGIBILITY` vacío.
-> Encenderlo son tres decisiones —plantilla, política de artefactos y lista de
-> admitidos— y ninguna es técnica.
+> Encenderlo eran tres decisiones —plantilla, política de artefactos y lista de
+> admitidos— y ninguna es técnica. **La política de artefactos ya está
+> aprobada e implementada** (§2). Quedan dos.
 
 Alcance de lo que se aprobaría: **Dúo de dos personas adultas**. Nada más.
 
@@ -29,7 +30,12 @@ rechazar: si el equipo editorial prefiere otra, se descarta sin coste.
 ### Propuesta — **NO APROBADA**
 
 `templateKey: "duo-lo-que-me-ayuda"` · `templateVersion: 1` ·
-`audience: "DUO_ADULT"` · `estimatedMinutes: 15`
+`status: "DRAFT"` · `audience: "DUO_ADULT"` · `estimatedMinutes: 15` ·
+`participants: { min: 2, max: 2, required: 2 }` · `ecoMode: "NONE"`
+
+`status` se queda en `"DRAFT"` hasta la aprobación: publicarla es cambiar ese
+valor **y** añadirla al catálogo, a mano y a la vista, en el mismo cambio que
+actualiza los ratchets. `ecoMode: "NONE"` porque el piloto es Dúo sin IA.
 
 **Título:** «Lo que me ayuda cuando estoy así»
 
@@ -92,44 +98,154 @@ Texto de apoyo bajo los campos:
 > Si te retiras antes del intercambio, lo que escribiste se descarta y la otra
 > persona deja de esperarte. Después del intercambio, lo que ya leyó se queda.
 
-**Seguridad:** `safety.level: "REINFORCED"`, `privateGateRequired: true`.
-`doNotSuggestWhen`: situaciones donde una actividad bilateral puede empeorar las
-cosas — **esta lista la escribe quien aprueba, no yo**. El motor exige que una
-plantilla `REINFORCED` tenga la compuerta privada, así que esa parte no es
-opcional.
+**Seguridad:** `safety.level: "REINFORCED"`, `privateGateRequired: true`. El
+motor exige que una plantilla `REINFORCED` tenga la compuerta privada, así que
+esa parte no es opcional.
+
+### Condiciones de uso y de exclusión — propuestas, sin huecos
+
+**Se puede ofrecer cuando se cumplen las cuatro:**
+
+1. Las dos personas son adultas y cada una entra con su propio consentimiento en
+   la pantalla de inicio. Que una invite no consiente por la otra.
+2. La relación entre ambas es voluntaria y simétrica: pueden dejar la
+   conversación sin que eso les cueste algo fuera de la app.
+3. La segunda persona entra por una invitación que le llegó de la primera, por
+   el canal que ellas elijan. Nosotros no enviamos nada.
+4. La superficie de lectura desde la que se ofrece está mapeada a esta plantilla
+   (abajo), y la plantilla nombra de vuelta esa misma superficie.
+
+**No se ofrece — `doNotSuggestWhen`, texto exacto de las entradas:**
+
+```ts
+doNotSuggestWhen: [
+  "Hay violencia, amenazas o miedo a la reacción de la otra persona.",
+  "Una de las dos depende económica, migratoria o legalmente de la otra.",
+  "Hay una relación de autoridad entre ambas: jefatura, docencia, terapia o cuidado.",
+  "La invitación la pide un tercero, o una de las dos no eligió participar.",
+  "Alguna de las dos está en crisis ahora mismo.",
+  "Una de las dos es menor de edad.",
+];
+```
+
+Seis frases y no una categoría abstracta, porque quien las lee tiene que poder
+reconocer su propia situación en ellas. Las tres primeras describen coerción —el
+motivo por el que PQP C07 publica su lista de candidatas **vacía a propósito**: en
+una relación asimétrica, una actividad bilateral es el instrumento equivocado. La
+cuarta es consentimiento. La quinta remite al flujo de crisis, que existe, es
+público y sin autenticación, y no es esto. La sexta es el alcance aprobado:
+`audience: "DUO_ADULT"`.
+
+**Estas seis son una propuesta.** El motor no las evalúa: `doNotSuggestWhen` es
+texto para quien decide ofrecer, no una condición que el código compruebe. Quien
+apruebe puede añadir, quitar o reescribir cualquiera.
+
+### Origen: qué experiencia la ofrece, y por qué esa
+
+**Propuesta concreta, sobre la única experiencia publicada que existe hoy:**
+
+```ts
+source: {
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 1,
+  experiencePin: {
+    experienceKey: "eec-c1-cuerpo-antes-que-mente",
+    experienceVersion: 1,
+  },
+}
+```
+
+Fuentes, verificables en el repositorio:
+
+- `apps/web/src/app/dashboard/exploraciones/eec-c1-cuerpo-antes-que-mente/page.tsx`
+  — la ruta publicada, que ya declara ese pin y ya monta `DuoEntryPoint`. Es **la
+  única** superficie de Guía V1 publicada: la ruta es estática precisamente
+  porque V1 publica una guía y no un catálogo.
+- `apps/web/src/components/dashboard/guide/guide-presentation.ts` — su copy
+  exacto: «El cuerpo sabe antes que la mente», tres pasos (concepto, la práctica
+  «escucharte por dentro», y recordar lo leído).
+- `artifacts/eec/C01/v1.0/feelverse/guides/chapter-guided-suite.manifest.json` —
+  capítulo `EEC-C01`, `chapterOrder: 1`, libro `emociones-en-construccion`, con
+  el texto canónico fijado en `EEC_C01_v1.0_TEXT_LOCKED_2026-08-20`.
+
+**Por qué el vínculo es pertinente.** El capítulo 1 sostiene una sola idea: el
+cuerpo reacciona antes de que la mente alcance a nombrar lo que está pasando —
+es literalmente la respuesta correcta de su pregunta de recuerdo. Su práctica,
+«escucharte por dentro», es enteramente hacia adentro: notar la señal antes del
+relato. La plantilla propuesta es el paso siguiente y hacia afuera, sobre el
+mismo asunto: cuando esa señal aparece, **qué le ayuda a cada quien** y qué no.
+No pide contar qué se sintió ni por qué —eso sigue siendo privado— sino qué
+funciona, que es justo lo que la otra persona no puede adivinar. Leer sobre la
+alarma del cuerpo y decirle a alguien qué hacer cuando suena son actos distintos,
+y por eso el punto de entrada vive en la superficie de lectura y no en un
+listado.
+
+**Lo que este vínculo NO es:** una aprobación de capítulo. El manifiesto de la
+suite guiada de EEC-C01 está en `status: DRAFT` con `publishAllowed: false` y su
+flag `EEC_C01_GUIDED_SUITE_V1` apagado por defecto — esa es la ruta V2, y no está
+publicada. Lo que sí está publicado es la guía del piloto legado
+(`legacyPilot.guideKey`), que es la que aquí se propone. Aprobar esta plantilla
+**no** aprueba la suite, ni al revés.
+
+**Y no es el mapping de la fixture.** Las pruebas usan `e2e-duo-sintetica` sobre
+una experiencia sintética; reutilizar eso en producción ofrecería una actividad
+de prueba a una persona real. No se hereda nada de ahí.
 
 ### Mapping de elegibilidad propuesto
 
-Una plantilla necesita una superficie de lectura que la ofrezca, y **ese pin es
-una aprobación editorial de capítulo que aquí no se inventa**. Lo que se propone
-es la forma, no el capítulo:
-
 ```ts
-// PRODUCTION_DUO_ELIGIBILITY — una entrada, cuando el capítulo esté aprobado
+// apps/web/src/lib/circulos/eligibility.ts — PRODUCTION_DUO_ELIGIBILITY
 {
-  experienceKey: "<clave de la experiencia aprobada>",
-  experienceVersion: <versión exacta>,
+  experienceKey: "eec-c1-cuerpo-antes-que-mente",
+  experienceVersion: 1,
   templateKey: "duo-lo-que-me-ayuda",
   templateVersion: 1,
 }
 ```
 
-Y la plantilla tiene que nombrar de vuelta esa misma experiencia en
-`source.experiencePin`: dos registros independientes que coinciden, o no hay
-oferta. Un solo mapping por plantilla y por superficie; duplicar uno no elige el
-primero, desactiva la oferta.
+Dos registros independientes tienen que coincidir: este mapping y el
+`source.experiencePin` de la plantilla. Si uno se edita y el otro no, no hay
+oferta — y eso es deliberado, porque una sola línea cambiada no debería poder
+apuntar una superficie a una actividad que la fuente editorial nunca le ató. Un
+solo mapping por plantilla y por superficie; duplicarlo no elige el primero,
+desactiva la oferta.
 
 **Una plantilla basta para el primer piloto.** Añadir la segunda es otra ronda.
 
+### Lo único que falta, con nombre
+
+El **copy aprobado** de la plantilla. Vive en Notion y esta línea de trabajo no
+lo lee, así que todo lo de arriba es original y está escrito para ser fácil de
+rechazar. Quien aprueba tiene que decir que sí a dos cosas distintas:
+
+1. **El texto** — título, resumen, introducción, etiquetas de los dos campos,
+   turnos de conversación, cierre, seguimiento y salida. Está completo y exacto
+   arriba; no hay ningún hueco que rellenar.
+2. **Las seis exclusiones** — que son una propuesta de seguridad, no editorial,
+   y pueden necesitar otra firma.
+
+Mientras no haya un sí explícito, la plantilla queda **NO APROBADA** y fuera de
+`PRODUCTION_CIRCLE_TEMPLATES`, que sigue vacío y con ratchets que lo afirman. Que
+el bloque técnico esté completo no adelanta esa decisión ni la presupone.
+
 ---
 
-## 2 · Artefactos y borrado
+## 2 · Artefactos y borrado — **APROBADO**
 
-### Tres cosas distintas que conviene no mezclar
+> Aprobado por Jorge. Implementado en la rama
+> `feat/circles-artifact-purge-policy`. Esta sección ya no es una decisión
+> pendiente: es la descripción de lo que el código hace.
+
+### Cuatro cosas distintas que conviene no mezclar
 
 - **Retirar acceso** — la persona ya no puede abrir la sala. El contenido sigue
   donde estaba.
 - **Borrar contenido** — la fila desaparece. Nadie la lee, ni ellos ni nosotros.
+- **Retirar el contenido de una fila que tiene que quedarse** — la fila sigue,
+  vaciada. Es lo que hace la política aprobada con los artefactos, y el motivo
+  está abajo: el ledger apunta a esas filas y no puede perder el registro de que
+  el acto ocurrió. No es lo mismo que borrarlas, y llamarlo «borrado de fila»
+  sería falso.
 - **Desvincular identidad** — la fila se queda y pierde el puntero a la cuenta.
   **Esto no es anonimizar.** Soltar una FK no anonimiza un texto que la persona
   escribió: sigue siendo suyo y sigue siendo reconocible para quien lo leyó.
@@ -137,60 +253,79 @@ primero, desactiva la oferta.
   `CircleEvent` eso se sostiene porque se verificó columna por columna que no
   hay contenido en esa tabla — no porque se haya quitado la clave.
 
-### Qué hace hoy el borrado de cuenta, por estado
+### Qué hace el borrado de cuenta, por estado
 
-| Estado                           | Hoy                                   | Contraparte                                                       |
-| -------------------------------- | ------------------------------------- | ----------------------------------------------------------------- |
-| Sobre propio                     | **Borrado** siempre                   | No lo vio nunca, o ya lo leyó                                     |
-| Sobre ajeno, antes de revelar    | **Borrado**                           | Se descarta lo que confirmó para una conversación que no ocurrió  |
-| Sobre ajeno, después de revelar  | **Se conserva**                       | Ya lo leyó; borrarlo no lo des-revela y destruiría contenido suyo |
-| Artefacto `AGREED`               | **Se conserva**                       | Lo confirmaron los dos                                            |
-| Artefacto `PROPOSED` del borrado | **Se conserva** — sin decidir         | Nadie lo aceptó                                                   |
-| Artefacto `SUPERSEDED`           | **Se conserva** — sin decidir         | Histórico de una redacción sustituida                             |
-| Círculo creado por el borrado    | Se conserva, `createdByUserId = NULL` | El Dúo es de los dos                                              |
-| `CircleEvent`                    | Se conserva, `actorUserId = NULL`     | Sin contenido que atribuir                                        |
+La autoría de cada versión la decide el participante que la creó
+(`CircleArtifact.createdByParticipantId`), no quien creó el círculo, ni quien
+invitó, ni el dueño de la actividad. Se resuelve **antes** de desvincular la
+cuenta, porque después ya no hay con qué resolverla.
 
-Lo que falta decidir son las dos filas «sin decidir».
+| Estado                                | Qué ocurre                            | Contraparte                                                       |
+| ------------------------------------- | ------------------------------------- | ----------------------------------------------------------------- |
+| Sobre propio                          | **Borrado** siempre                   | No lo vio nunca, o ya lo leyó                                     |
+| Sobre ajeno, antes de revelar         | **Borrado**                           | Se descarta lo que confirmó para una conversación que no ocurrió  |
+| Sobre ajeno, después de revelar       | **Se conserva**                       | Ya lo leyó; borrarlo no lo des-revela y destruiría contenido suyo |
+| Artefacto `AGREED`                    | **Se conserva entero**                | Lo confirmaron los dos                                            |
+| Artefacto `PROPOSED` del que se va    | **Contenido eliminado**               | Nadie lo aceptó                                                   |
+| Artefacto `SUPERSEDED` del que se va  | **Contenido eliminado**               | Redacción ya sustituida por otra                                  |
+| Cualquier artefacto de la contraparte | **Intacto**                           | Es suyo; el borrado ajeno no lo toca                              |
+| Círculo creado por el borrado         | Se conserva, `createdByUserId = NULL` | El Dúo es de los dos                                              |
+| `CircleEvent`                         | Se conserva, `actorUserId = NULL`     | Sin contenido que atribuir                                        |
 
-### Las opciones, con sus consecuencias
+Vale para actividades vivas y para actividades ya cerradas: una conversación
+terminada no protege el texto que nadie aceptó.
 
-**A · Borrar `PROPOSED` y `SUPERSEDED` del que se va.**
-Nadie aceptó esas redacciones, así que nadie las incorporó a nada compartido. La
-contraparte pierde el historial de cómo se llegó al acuerdo — si es que se llegó
-— y podría ver desaparecer una frase que recordaba. Coherente con «lo que no se
-acordó no es de los dos».
+### Qué significa «contenido eliminado», exactamente
 
-**B · Conservarlas indefinidamente** (lo de hoy, por omisión).
-La contraparte conserva el hilo completo. El coste es que texto escrito por
-alguien que pidió irse sigue existiendo, sin que nadie lo haya aceptado y sin un
-plazo. Es la opción que menos decide y la que peor envejece.
+La fila del artefacto **no se borra**, y eso no es una preferencia: la restricción
 
-**C · Conservarlas 90 días y después borrarlas.**
-La contraparte tiene tiempo real de ver cómo quedó la conversación; pasado el
-plazo no queda texto no acordado de una cuenta que ya no existe. Necesita un
-barrido con fecha — el worker ya hace barridos temporales, así que es el mismo
-mecanismo, no uno nuevo.
+    CircleEvent.artifactId → CircleArtifact   ON DELETE RESTRICT
 
-### Recomendación
+existe porque el ledger registra que hubo una propuesta y que hubo
+confirmaciones, y esos asientos apuntan aquí. Borrar la fila sería o bien un
+error de base de datos, o bien —si se soltara la referencia— borrar el registro
+de que el acto ocurrió, que no es lo aprobado. Lo aprobado es que **el texto se
+va**.
 
-**A para `SUPERSEDED`, C para `PROPOSED`.**
+Así que se vacían las cuatro columnas que juntas son el contenido —el
+`ciphertext`, el `nonce` que lo descifra, el `keyVersion` que elige la clave y el
+`payloadHash` que prueba que no fue alterado— y se sella la fecha en `purgedAt`.
+Dejar cualquiera de ellas sería dejar un fragmento de un cuerpo. La base de datos
+lo exige: o el cuerpo está entero y no hay purga, o no queda nada y la purga está
+fechada; no hay estado intermedio.
 
-Una redacción `SUPERSEDED` ya fue sustituida por otra: su valor para la
-contraparte es histórico y pequeño, y su coste —texto de alguien que se fue, que
-además ya nadie usa— es el mayor de los tres. Se borra con la cuenta.
+**Qué permanece, exactamente:** `id`, `activityId`, `version`, `kind`, `status`,
+`createdByParticipantId`, `createdAt`, `updatedAt`, `agreedAt` y `purgedAt`. Es
+decir: que la versión N fue propuesta por ese asiento, cuándo, y que su contenido
+se retiró después.
 
-Una `PROPOSED` puede ser lo último que se dijo antes de que alguien se fuera, y
-borrarla en el acto le quita a la otra persona la posibilidad de entender cómo
-terminó. Noventa días es tiempo de sobra para eso y un plazo que se puede
-cumplir sin inventar un servicio nuevo.
+**Esto no es anonimización y no debe describirse así.** La fila sigue apuntando
+al asiento que la escribió, y el asiento a una membresía. La cuenta ya no está y
+el texto ya no está; la forma del acto permanece.
 
-**Consecuencia que hay que aceptar si se elige esto:** una contraparte que entre
-al día 91 verá el artefacto acordado (si lo hubo) y no verá las propuestas
-previas. No se le dirá por qué, porque decirlo sería contar que alguien borró su
-cuenta.
+**Tampoco alcanza a las copias de seguridad.** Una instantánea tomada antes de
+que esto corra sigue conteniendo la fila antigua, y nada de este mecanismo
+reescribe ese volumen. Prometer lo contrario sería mentir sobre lo que el código
+hace.
 
-**Si no se aprueba nada, queda B**, que es lo de hoy. Es una decisión también, y
-conviene tomarla a propósito.
+### Por qué así, y qué cuesta
+
+Nadie aceptó una `PROPOSED` ni una `SUPERSEDED`: no entraron en nada compartido,
+y sostener texto de alguien que pidió irse, sin plazo y sin que nadie lo hubiera
+aceptado, era la opción que peor envejecía. Un `AGREED`, en cambio, lo
+confirmaron los dos: borrar una cuenta no destruye la copia que la otra persona
+tiene de lo que acordaron. La regla vive también como restricción de base de
+datos —un `AGREED` purgado es rechazado por el motor— para que no pueda perderse
+en una edición futura del servicio, de un script o de una consulta a mano.
+
+**El coste, que hay que aceptar:** una contraparte que vuelva después verá el
+acuerdo, si lo hubo, y no verá las propuestas previas. **No se le dirá por qué**,
+porque decirlo sería contarle que alguien borró su cuenta.
+
+No hay retención de 90 días y no hay barrido nuevo: la limpieza ocurre dentro de
+la misma transacción de borrado que ya existía, después de comprobar bajo lock
+que la solicitud sigue vigente y que el plazo se cumplió. Si el borrado se
+cancela a tiempo, no se limpia nada.
 
 ---
 
@@ -226,27 +361,53 @@ vacíos tendrán que actualizarse en ese mismo cambio, a mano y a la vista.
    está → `503`.
 2. El listado ofrece «Ir a la experiencia» y la superficie de lectura ofrece
    «Hacer esto con alguien».
-3. Un Dúo completo entre las dos personas, **con contenido real**, hasta el
-   cierre.
+3. Un Dúo completo entre las dos personas, hasta el cierre.
 4. La cookie de invitado llega `HttpOnly`, `Secure`, `SameSite=Lax`.
 5. Los logs no llevan token, atestación ni dirección.
+
+**Ese Dúo puede hacerse con respuestas ficticias, y conviene que así sea.** El
+smoke comprueba la mecánica —que el otro no ve nada antes de tiempo, que el
+retiro descarta, que el cierre cierra—, y para eso una respuesta inventada sirve
+exactamente igual que una íntima. Nadie tiene que contar algo difícil para que
+comprobemos que el producto funciona. La frase que se usa en las pruebas es la
+misma que vale aquí: **«Prueba técnica: usa respuestas ficticias; no introduzcas
+información íntima o clínica.»**
 
 Esto son comprobaciones manuales sobre producción; **no** se ejecuta contra
 producción el recorrido automatizado, que registra cuentas sintéticas.
 
-### Apagado
+### Apagado — son **dos** servicios, no uno
+
+Apagar sólo el API cierra la puerta y deja el motor encendido por dentro. Son dos
+efectos distintos y hay que pedir los dos:
+
+1. **API — cierra el acceso.** Las superficies de Círculos responden `503
+CIRCLES_UNAVAILABLE` y nadie entra, ni siquiera quien está en la allowlist.
+2. **Worker — detiene las tareas temporales.** El barrido de Círculos
+   (`circles-sweep`) cancela invitaciones encalladas y abre seguimientos vencidos
+   por reloj, sin que nadie pulse nada. Bajo `off` no hace nada, pero **sólo tras
+   reiniciar**: un worker que siga arrancado con `pilot` seguirá moviendo
+   actividades de gente que ya no puede entrar a verlas.
 
 ```bash
-railway variables --project <prod> --environment <prod-env> --service <api> \
-  --set CIRCLES_ROLLOUT_MODE=off
-railway redeploy --project <prod> --environment <prod-env> --service <api> --yes
+for svc in <api> <worker>; do
+  railway variables --project <prod> --environment <prod-env> --service "$svc" \
+    --skip-deploys --set CIRCLES_ROLLOUT_MODE=off
+  railway redeploy --project <prod> --environment <prod-env> --service "$svc" --yes
+done
 ```
 
 Y se comprueba: `GET /api/circles/guest/session` → `503 CIRCLES_UNAVAILABLE`
-mientras `/health` sigue en `200`. El modo se resuelve **una sola vez al
-arrancar**, así que sin reinicio no cambia nada. Apagar no borra datos ni
-recupera lo ya visto; si además hay que revocar lo emitido, es un `UPDATE` de
-`revokedAt`, no un flag.
+mientras `/health` sigue en `200` — cerrado, no caído. El modo se resuelve **una
+sola vez al arrancar**, así que sin reinicio no cambia nada, en ninguno de los
+dos servicios.
+
+El borrado de cuenta **no** es una de esas tareas temporales y sigue corriendo
+con el rollout apagado: es una obligación con la persona, no una función del
+producto. Apagar Círculos no la suspende.
+
+Apagar tampoco borra datos ni recupera lo ya visto; si además hay que revocar lo
+emitido, es un `UPDATE` de `revokedAt`, no un flag.
 
 ### Cuándo parar el piloto
 
@@ -259,14 +420,22 @@ Cualquiera de estas, sin discutirlo:
 - Alguien pide que se borre su participación y no hay forma de hacerlo.
 
 Las tres primeras tienen hoy pruebas que las vigilan; la cuarta la vigilan los
-ratchets; la quinta es la decisión de §2 y por eso está pendiente.
+ratchets; la quinta la resuelve la política aprobada de §2, verificada contra
+PostgreSQL real y contra el entorno alojado.
 
 ---
 
 ## 4 · Lo que sigue sin estar listo
 
-- **Aprobación editorial de la plantilla** — §1. Requisito previo.
-- **Política de artefactos** — §2. Requisito previo.
-- **Contenido personal real.** Todo lo probado hasta ahora es texto inventado.
+- **Aprobación editorial de la plantilla** — §1. Requisito previo, y el único
+  que queda del paquete original. Una plantilla sin aprobar **no se publica por
+  omisión**: que nadie haya dicho que no no es un sí.
+- **Pin de experiencia y capítulo aprobados** — §1. Sin ese pin no hay mapping
+  posible, y el mapping de la fixture de pruebas no sirve: es sintético.
+- **Lista de admitidos** — §3. Ids reales, recogidos uno por uno.
+- **Contenido personal real.** Todo lo probado hasta ahora es texto inventado, y
+  eso está bien: un smoke en producción **puede y debe** hacerse con respuestas
+  ficticias. Comprobar que la mecánica funciona no exige contarle nada íntimo a
+  nadie.
 - **Eco, Mobile y notificaciones** no son requisito de este piloto y no se
   implementan aquí.

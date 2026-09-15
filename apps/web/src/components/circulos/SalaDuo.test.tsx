@@ -337,3 +337,77 @@ describe("every way out says what happened and what to do", () => {
     }
   });
 });
+
+describe("what the room says about a proposal, an agreement and leaving", () => {
+  const CON_PROPUESTA = {
+    ...REVELADA,
+    artifact: {
+      artifactId: "art-1",
+      version: 2,
+      status: "PROPOSED" as const,
+      kind: "AGREEMENT" as const,
+      body: "probamos una semana",
+      confirmedByYou: false,
+      confirmationCount: 1,
+    },
+  };
+  const ACORDADA = {
+    ...CON_PROPUESTA,
+    artifact: {
+      ...CON_PROPUESTA.artifact,
+      status: "AGREED" as const,
+      confirmedByYou: true,
+      confirmationCount: 2,
+    },
+  };
+
+  it("says a proposal missing a confirmation is not an agreement yet", () => {
+    // The distinction has consequences the person cannot see from here — an
+    // agreement is kept, a draft nobody accepted need not be — so it is said
+    // at the moment of confirming rather than buried in a policy page.
+    render(<SalaDuo {...base} initialView={CON_PROPUESTA} />);
+    const nota = screen.getByText(/no un acuerdo/i);
+    expect(nota).toBeInTheDocument();
+    expect(nota.textContent).toMatch(/puede reemplazarse o dejar de estar/i);
+  });
+
+  it("says an agreement both confirmed is kept", () => {
+    render(<SalaDuo {...base} initialView={ACORDADA} />);
+    expect(
+      screen.getByText(/un acuerdo confirmado por los dos se conserva/i),
+    ).toBeInTheDocument();
+  });
+
+  it("never blames a person for a draft that may stop being there", () => {
+    // A proposal can disappear because its author deleted their account. Saying
+    // so would tell one person something private about the other, so the
+    // sentence states the effect and stops.
+    render(<SalaDuo {...base} initialView={CON_PROPUESTA} />);
+    const nota = screen.getByText(/no un acuerdo/i);
+    expect(nota.textContent).not.toMatch(
+      /cuenta|elimin|borr[óo]|se fue|retir|abandon/i,
+    );
+  });
+
+  it("separates leaving the activity from closing an account, for a member", () => {
+    render(<SalaDuo {...base} isGuest={false} initialView={REVELADA} />);
+    const nota = screen.getByText(/retirarte termina esta actividad/i);
+    expect(nota.textContent).toMatch(/no elimina tu cuenta/i);
+    expect(nota.textContent).toMatch(/se descarta/i);
+    expect(nota.textContent).toMatch(/ya ley[óo] se queda/i);
+  });
+
+  it("does not offer a guest an account they never had", () => {
+    render(<SalaDuo {...base} isGuest initialView={REVELADA} />);
+    const nota = screen.getByText(/retirarte termina esta actividad/i);
+    expect(nota.textContent).toMatch(/entraste con un enlace/i);
+    expect(nota.textContent).not.toMatch(/tu perfil/i);
+  });
+
+  it("keeps the way out on screen next to what it costs", () => {
+    render(<SalaDuo {...base} initialView={REVELADA} />);
+    expect(
+      screen.getByRole("button", { name: /retirarme de la actividad/i }),
+    ).toBeInTheDocument();
+  });
+});

@@ -401,16 +401,35 @@ export function SalaDuo({
       )}
 
       {stageName !== "consent" && stageName !== "closed" && (
-        <div style={S.acciones}>
-          <button
-            type="button"
-            style={S.quiet}
-            onClick={withdrawAndLeave}
-            disabled={busy}
-          >
-            Retirarme de la actividad
-          </button>
-        </div>
+        <>
+          <div style={S.acciones}>
+            <button
+              type="button"
+              style={S.quiet}
+              onClick={withdrawAndLeave}
+              disabled={busy}
+            >
+              Retirarme de la actividad
+            </button>
+          </div>
+          {/*
+           * Three different things get confused at exactly this button, and the
+           * confusion is expensive in both directions: somebody who wanted to
+           * stop the conversation deleting their whole account, or somebody who
+           * wanted to be gone thinking that leaving one room did it.
+           *
+           * So the note says what THIS does and points at where the other one
+           * lives. It is not the place to explain account deletion.
+           */}
+          <p style={S.nota}>
+            Retirarte termina esta actividad para las dos personas. Antes del
+            intercambio, lo que escribiste se descarta; después, lo que la otra
+            persona ya leyó se queda.{" "}
+            {isGuest
+              ? "Entraste con un enlace, no con una cuenta: al retirarte el enlace deja de servir y no hay nada más que cerrar."
+              : "Retirarte no elimina tu cuenta: eso se hace desde tu perfil y tiene otros efectos."}
+          </p>
+        </>
       )}
     </main>
   );

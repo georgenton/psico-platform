@@ -1250,11 +1250,18 @@ async function artifactPurgeScenario(browser) {
     await p.getByRole("button", { name: /^Proponer$/ }).click();
   };
 
+  // Every column is ALIASED, and that is not decoration. The transport returns
+  // `Object.values(row)`, so two columns that share a name share a key and the
+  // second silently overwrites the first: an unaliased `CASE` is called `case`,
+  // and two of them arrive as one. The row still LOOKS plausible — it is simply
+  // one field short — so the assertions fail against correct data and the
+  // failure reads like a product bug. This bit the account-deletion counts once
+  // already, with `count(*)`.
   const artifactsOf = (activityId) =>
     sql(
-      `SELECT "version","status",
-              CASE WHEN "ciphertext" IS NULL THEN 'no-content' ELSE 'has-content' END,
-              CASE WHEN "purgedAt" IS NULL THEN 'not-purged' ELSE 'purged' END
+      `SELECT "version" AS v, "status" AS st,
+              CASE WHEN "ciphertext" IS NULL THEN 'no-content' ELSE 'has-content' END AS content,
+              CASE WHEN "purgedAt" IS NULL THEN 'not-purged' ELSE 'purged' END AS purge
          FROM "CircleArtifact" WHERE "activityId"='${activityId}' ORDER BY "version"`,
     )
       .split("\n")

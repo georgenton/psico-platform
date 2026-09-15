@@ -67,6 +67,21 @@ export const estilos: Record<string, CSSProperties> = {
     resize: "vertical",
   },
   counter: { fontSize: ".85rem", color: "#6b6b75", alignSelf: "flex-end" },
+  /**
+   * A short clarification next to the control it clarifies.
+   *
+   * Quieter than `p` and much quieter than `aviso`, which is a box and reads as
+   * a warning. These notes are not warnings — they are the one sentence a
+   * person needs to choose correctly, and they earn their place only by being
+   * next to the choice. #55555e on #fbfaf8 is 7.1:1, so "quieter" stays a
+   * matter of size and weight rather than of legibility.
+   */
+  nota: {
+    margin: 0,
+    fontSize: ".9rem",
+    lineHeight: 1.55,
+    color: "#55555e",
+  },
   acciones: {
     display: "flex",
     flexWrap: "wrap",

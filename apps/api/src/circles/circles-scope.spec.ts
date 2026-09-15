@@ -686,7 +686,11 @@ describe("circles · PR2 — nothing outside its own tables moved", () => {
     // effect of wiring a module — so this reads the file and counts the keys
     // rather than trusting the import, and names the one that was approved.
     const catalog = read("packages/types/src/circles-catalog.ts");
-    const keys = [...catalog.matchAll(/^\s{4}templateKey: "([^"]+)",$/gm)].map(
+    // Any indentation: prettier decides how deep the array sits, and a ratchet
+    // that a reformat can silence is not a ratchet. The property FORM is what
+    // is matched — `templateKey: "…",` — which the validator's own list of
+    // allowed key names (`"templateKey",`) cannot look like.
+    const keys = [...catalog.matchAll(/^\s*templateKey: "([^"]+)",$/gm)].map(
       (m) => m[1],
     );
     expect(keys).toEqual(["duo-lo-que-me-ayuda"]);

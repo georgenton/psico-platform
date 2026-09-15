@@ -74,17 +74,20 @@ describe("PR4 adds no backend", () => {
     // The WEB cut still adds no backend: nothing above this line changed, and
     // the files scanned are `apps/web` only.
     //
-    // The COUNT moved once, and on purpose. It was PR3's number, held by PR4;
-    // the pilot-readiness cut adds `20260913000000_circles_account_deletion`,
-    // which is an API migration and is named here so the bump cannot be spent
-    // on something else. A second unnamed migration still fails.
+    // The COUNT moves only with a NAME. It was PR3's number, held by PR4; the
+    // pilot-readiness cut added `20260913000000_circles_account_deletion` and
+    // the approved artifact policy adds
+    // `20260915000000_circles_artifact_purge`. Both are API migrations, both
+    // are named here, and an unnamed newcomer still fails — which is the only
+    // thing this assertion is for.
     const migrations = readdirSync(join(ROOT, "apps/api/prisma/migrations"), {
       withFileTypes: true,
     })
       .filter((d) => d.isDirectory())
       .map((d) => d.name);
     expect(migrations).toContain("20260913000000_circles_account_deletion");
-    expect(migrations).toHaveLength(65);
+    expect(migrations).toContain("20260915000000_circles_artifact_purge");
+    expect(migrations).toHaveLength(66);
   });
 
   it("touches no Mobile file", () => {

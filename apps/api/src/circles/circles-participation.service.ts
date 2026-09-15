@@ -972,6 +972,12 @@ export class CirclesParticipationService {
           // have confirmed.
           if (
             !already ||
+            // Purged: the body this key was spent on is gone, so "same key,
+            // same content" has nothing to compare against. Returning the
+            // artifact would hand back a proposal with no text; minting a new
+            // one would spend the key twice. A conflict is the honest answer
+            // and, like every other refusal here, it does not say why.
+            already.payloadHash === null ||
             !cipher.macMatches(
               already.payloadHash,
               cipher.macOf(body, this.artifactContext(ctx, already.version)),
@@ -1118,6 +1124,17 @@ export class CirclesParticipationService {
         if (!target || target.version !== version)
           throw new CirclesError(UNUSABLE);
         if (target.status === "SUPERSEDED") throw new CirclesError(UNUSABLE);
+        // Purged: the author's account was deleted while this was still a
+        // draft, and its text is gone. Agreeing to it now would agree to
+        // nothing, and would turn a proposal nobody can read into a shared
+        // result. Refused with the same answer as every other unusable
+        // artifact — "why" is not the confirmer's business, and here it would
+        // announce that somebody deleted their account.
+        //
+        // The database refuses it too (`CircleArtifact_agreed_is_never_purged`).
+        // This check is so the refusal is the product's, in the product's
+        // vocabulary, rather than a constraint violation surfacing as storage.
+        if (target.purgedAt !== null) throw new CirclesError(UNUSABLE);
 
         // ── Already confirmed, under a DIFFERENT key ─────────────────────
         //
@@ -1374,14 +1391,26 @@ export class CirclesParticipationService {
     artifact: {
       id: string;
       version: number;
-      ciphertext: string;
-      nonce: string;
-      keyVersion: number;
-      payloadHash: string;
+      ciphertext: string | null;
+      nonce: string | null;
+      keyVersion: number | null;
+      payloadHash: string | null;
       createdByParticipantId: string;
     },
     activity: CircleActivityRow,
   ): string | null {
+    // Purged. Not an error and not a decryption failure — there is nothing to
+    // open. The projection already renders a null body as no artifact at all,
+    // so the room shows the conversation without a shared result rather than
+    // an empty quote or a broken screen.
+    if (
+      artifact.ciphertext === null ||
+      artifact.nonce === null ||
+      artifact.keyVersion === null ||
+      artifact.payloadHash === null
+    ) {
+      return null;
+    }
     try {
       return this.requireCipher().open(
         {

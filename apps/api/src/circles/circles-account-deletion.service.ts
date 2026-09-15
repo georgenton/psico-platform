@@ -12,6 +12,7 @@ import { CircleMemberRepository } from "./circle-member.repository";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { CircleInvitationRepository } from "./circle-invitation.repository";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { CircleArtifactRepository } from "./circle-artifact.repository";
 import { CircleGuestSessionRepository } from "./circle-guest-session.repository";
 
 /**
@@ -67,6 +68,8 @@ export interface CirclesDetachSummary {
   readonly guestSessionsRevoked: number;
   /** Snapshots destroyed, including in activities that were already over. */
   readonly envelopesPurged: number;
+  /** Draft artifacts THIS account authored whose content was removed. */
+  readonly artifactsPurged: number;
 }
 
 const EMPTY: CirclesDetachSummary = Object.freeze({
@@ -77,6 +80,7 @@ const EMPTY: CirclesDetachSummary = Object.freeze({
   invitationsRevoked: 0,
   guestSessionsRevoked: 0,
   envelopesPurged: 0,
+  artifactsPurged: 0,
 });
 
 /** Stages from which an activity is still live. */
@@ -93,6 +97,7 @@ export class CirclesAccountDeletionService {
     private readonly members: CircleMemberRepository,
     private readonly invitations: CircleInvitationRepository,
     private readonly guestSessions: CircleGuestSessionRepository,
+    private readonly artifacts: CircleArtifactRepository,
   ) {}
 
   /**
@@ -164,6 +169,22 @@ export class CirclesAccountDeletionService {
     // put a second PARTICIPANT_WITHDRAWN in a ledger that already recorded one.
     const envelopesPurged = await this.eraseEnvelopes(memberIds, tx);
 
+    // ── And the drafts this account WROTE ──────────────────────────────────
+    //
+    // The approved policy: the content of the artifacts this person authored
+    // goes while they are still proposals or superseded drafts; agreements
+    // both people confirmed stay, and everything the counterpart authored is
+    // untouched.
+    //
+    // Authorship is resolved HERE, before the membership is revoked two
+    // statements below, because it is resolved THROUGH the membership: seats
+    // belong to members, artifacts belong to seats. Doing it after would mean
+    // looking for the author of a row whose owner had just been detached.
+    //
+    // Terminal activities included, for the same reason envelopes are: the
+    // conversation being over does not make the text somebody else's.
+    const artifactsPurged = await this.purgeAuthoredArtifacts(memberIds, tx);
+
     // Membership is revoked LAST: while it is still ACTIVE the seats above can
     // be resolved the ordinary way, and the SQL CHECK requires a detached row
     // to be LEFT anyway — so this also has to happen before the account row is
@@ -189,7 +210,34 @@ export class CirclesAccountDeletionService {
       invitationsRevoked,
       guestSessionsRevoked,
       envelopesPurged,
+      artifactsPurged,
     };
+  }
+
+  /**
+   * Remove the content of the drafts this account authored.
+   *
+   * Two steps because authorship lives one table away: memberships give seats,
+   * seats give artifacts. The intermediate list is the point — selecting
+   * artifacts any other way would attribute them to the wrong person. A Dúo
+   * where the same human created the circle, sent the invitation and wrote the
+   * proposal makes every wrong selector look right, so the correct one is the
+   * only one used: `createdByParticipantId`.
+   */
+  private async purgeAuthoredArtifacts(
+    memberIds: string[],
+    tx: PrismaService,
+  ): Promise<number> {
+    const seats = await tx.circleActivityParticipant.findMany({
+      where: { memberId: { in: memberIds } },
+      select: { id: true },
+    });
+    if (seats.length === 0) return 0;
+    return this.artifacts.purgeAuthoredBy(
+      seats.map((s) => s.id),
+      new Date(),
+      tx,
+    );
   }
 
   /**

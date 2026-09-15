@@ -161,9 +161,9 @@ model User {
   chapterMediaVersions      ChapterMediaVersion[]
   // Círculos (PR2). A circle role never touches `User.role`: membership is
   // scoped to one circle and carries no platform capability.
-  circlesCreated            Circle[]                   @relation("CircleCreatedBy")
+  circlesCreated            Circle[]                    @relation("CircleCreatedBy")
   circleMemberships         CircleMember[]
-  circleEventsActed         CircleEvent[]              @relation("CircleEventActor")
+  circleEventsActed         CircleEvent[]               @relation("CircleEventActor")
 
   // Sprint S43: last time we sent a re-engagement nudge (any channel). The
   // InactiveNudgeProcessor uses this to avoid spamming the same user
@@ -611,18 +611,18 @@ model Exercise {
 }
 
 model UserProgress {
-  id          String   @id @default(cuid())
-  userId      String
+  id            String   @id @default(cuid())
+  userId        String
   /// Legacy identity — nullable for the same reason as `ReadingSession`.
-  chapterId   String?
+  chapterId     String?
   /// Native identity. Completion follows the unit, so a reorder cannot mark a
   /// different chapter read.
   contentUnitId String?
-  completedAt DateTime @default(now())
-  score       Float?
+  completedAt   DateTime @default(now())
+  score         Float?
 
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  chapter Chapter? @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chapter     Chapter?     @relation(fields: [chapterId], references: [id], onDelete: Cascade)
   contentUnit ContentUnit? @relation(fields: [contentUnitId], references: [id], onDelete: Cascade)
 
   @@unique([userId, chapterId])
@@ -761,26 +761,26 @@ model Annotation {
 // y `timeSpentSec`. `completedAt` se setea cuando el user llega al último
 // bloque (o presiona "Marcar como leído").
 model ReadingSession {
-  id String @id @default(cuid())
-  userId String
+  id            String    @id @default(cuid())
+  userId        String
   /// Legacy identity. NULLABLE since the native reader: a chapter that Content
   /// Studio created has no Chapter row, and inventing one to satisfy this
   /// column would be a lie the rest of the system would then believe.
-  chapterId String?
+  chapterId     String?
   /// Native identity. Exactly one of `chapterId`/`contentUnitId` is set.
   ///
   /// Progress belongs to the UNIT, never to its position: reordering a book
   /// must not hand somebody's 47% to a different chapter.
   contentUnitId String?
-  lastBlockId  String?
-  progressPct  Float     @default(0)
-  timeSpentSec Int       @default(0)
-  startedAt    DateTime  @default(now())
-  lastSeenAt   DateTime  @updatedAt
-  completedAt  DateTime?
+  lastBlockId   String?
+  progressPct   Float     @default(0)
+  timeSpentSec  Int       @default(0)
+  startedAt     DateTime  @default(now())
+  lastSeenAt    DateTime  @updatedAt
+  completedAt   DateTime?
 
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  chapter Chapter? @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chapter     Chapter?     @relation(fields: [chapterId], references: [id], onDelete: Cascade)
   contentUnit ContentUnit? @relation(fields: [contentUnitId], references: [id], onDelete: Cascade)
 
   @@unique([userId, chapterId])
@@ -2364,9 +2364,9 @@ model RevisionUnit {
 }
 
 model ContentUnit {
-  id        String   @id @default(cuid())
-  editionId String
-  unitKey   String
+  id            String   @id @default(cuid())
+  editionId     String
+  unitKey       String
   /// #580 — this unit is the edition's free preview.
   ///
   /// A DESIGNATED unit, not a position. The legacy rule was "chapter 1 is free",
@@ -2376,22 +2376,22 @@ model ContentUnit {
   ///
   /// Derived on backfill from whatever sits at manifest order 1, so today's
   /// behaviour is preserved exactly.
-  isFreePreview Boolean @default(false)
-  createdAt DateTime @default(now())
+  isFreePreview Boolean  @default(false)
+  createdAt     DateTime @default(now())
 
-  edition         Edition              @relation(fields: [editionId], references: [id], onDelete: Cascade)
-  versions        ContentUnitVersion[]
-  blocks          ContentBlock[]
-  manifestEntries RevisionUnit[]
-  conceptLinks    ConceptLink[]
-  readingSessions ReadingSession[]
-  progress        UserProgress[]
+  edition            Edition                      @relation(fields: [editionId], references: [id], onDelete: Cascade)
+  versions           ContentUnitVersion[]
+  blocks             ContentBlock[]
+  manifestEntries    RevisionUnit[]
+  conceptLinks       ConceptLink[]
+  readingSessions    ReadingSession[]
+  progress           UserProgress[]
   /// Exercises a NATIVE chapter owns directly (see `Exercise`).
-  exercises       Exercise[]
+  exercises          Exercise[]
   /// C.3A — the guide bindings reserved inside this chapter.
-  guideReservations ExperienceGuideReservation[]
+  guideReservations  ExperienceGuideReservation[]
   /// C.3A — every experience version that names this unit, reserving or not.
-  experienceVersions ChapterExperienceVersion[] @relation("ChapterExperienceVersionUnit")
+  experienceVersions ChapterExperienceVersion[]   @relation("ChapterExperienceVersionUnit")
 
   @@unique([editionId, unitKey])
   @@index([editionId])
@@ -2736,7 +2736,7 @@ model ChapterExperienceVersion {
   /// the migration that adds this constraint FAILS if any is left — which is
   /// the gate, not an accident. ARCHIVED keeps it: identity survives archiving,
   /// the binding does not.
-  contentUnitId     String
+  contentUnitId String
   /// C.3A — the reserved guide LINEAGE, promoted out of `definitionJson`.
   ///
   /// A constraint cannot be built on a value buried in JSON, so the lineage
@@ -2744,7 +2744,7 @@ model ChapterExperienceVersion {
   /// NOT: a lineage is a `guideKey`, and versions of it share the reservation.
   /// Null means "reserves nothing" — a legacy row not yet backfilled, or an
   /// archived one that released.
-  guideKey          String?
+  guideKey      String?
 
   createdBy User @relation(fields: [createdByUserId], references: [id], onDelete: Cascade)
 
@@ -3053,12 +3053,12 @@ model CircleInvitation {
   revokedAt         DateTime?
   createdAt         DateTime  @default(now())
 
-  circle Circle @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  circle          Circle                      @relation(fields: [circleId], references: [id], onDelete: Cascade)
   /// COMPOSITE: the activity must live in THIS invitation's circle. Without the
   /// second column an invitation could point at a circle it belongs to and an
   /// activity belonging to somebody else's, and every read that trusted either
   /// column would be reading a different world.
-  activity CircleActivity @relation(fields: [activityId, circleId], references: [id, circleId], onDelete: Cascade)
+  activity        CircleActivity              @relation(fields: [activityId, circleId], references: [id, circleId], onDelete: Cascade)
   /// COMPOSITE: so does the member who created it.
   createdByMember CircleMember                @relation("CircleInvitationCreatedBy", fields: [createdByMemberId, circleId], references: [id, circleId], onDelete: Restrict)
   guestSessions   CircleGuestSession[]
@@ -3089,7 +3089,7 @@ model CircleGuestSession {
   lastSeenAt    DateTime?
   createdAt     DateTime  @default(now())
 
-  activity CircleActivity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  activity    CircleActivity            @relation(fields: [activityId], references: [id], onDelete: Cascade)
   /// COMPOSITE ×2: the invitation and the seat must both belong to the activity
   /// this session is pinned to. The guest actor is built out of these columns,
   /// so a mismatch here would be an actor scoped to a world it does not live in.
@@ -3138,7 +3138,7 @@ model CircleActivity {
 }
 
 model CircleActivityParticipant {
-  id String @id @default(cuid())
+  id           String                  @id @default(cuid())
   /// Scope column, carried so the member check can be a declarative foreign key
   /// instead of a join somebody has to remember. It is not free-floating: the
   /// composite key to `CircleActivity` forces it to agree with the activity's
@@ -3199,26 +3199,37 @@ model CircleArtifact {
   status     CircleArtifactStatus @default(PROPOSED)
 
   /// Same shape and the same honesty as the participant snapshot.
-  ciphertext String
-  nonce      String
-  keyVersion Int
+  ///
+  /// Nullable since the artifact purge: when the account that AUTHORED a
+  /// proposal or a superseded draft is deleted, its content goes and the row
+  /// stays, because the append-only ledger references it with RESTRICT. The
+  /// four columns move together — they are one body — and
+  /// `CircleArtifact_purged_has_no_content` makes half a purge
+  /// unrepresentable.
+  ciphertext  String?
+  nonce       String?
+  keyVersion  Int?
   /// Keyed digest of the artifact body, bound to the same AAD context.
   ///
-  /// Required, not optional. The participant snapshot carries one and the
-  /// artifact did not, which meant `open()` was handed `payloadHash: ""` and
-  /// had nothing to verify. It is also what makes proposal idempotency
+  /// Present whenever there is a body. The participant snapshot carries one and
+  /// the artifact did not, which meant `open()` was handed `payloadHash: ""`
+  /// and had nothing to verify. It is also what makes proposal idempotency
   /// decidable: "same key, same content" is a comparison against this column,
   /// not against a plaintext nobody kept.
-  payloadHash String
+  payloadHash String?
 
   createdByParticipantId String
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
   agreedAt               DateTime?
+  /// When this artifact's content was removed, and nothing about why.
+  ///
+  /// An AGREED artifact can never carry it — both people confirmed that text.
+  purgedAt               DateTime?
 
-  activity CircleActivity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  activity             CircleActivity            @relation(fields: [activityId], references: [id], onDelete: Cascade)
   /// Events about this artifact: proposals and confirmations.
-  events   CircleEvent[]
+  events               CircleEvent[]
   /// COMPOSITE: an artifact cannot be attributed to a seat from a different
   /// activity — which is the shape of "somebody else's answer appearing in your
   /// result", and the reason this is a key and not a code review.
@@ -3265,9 +3276,9 @@ model CircleEvent {
   metadata       Json?
   occurredAt     DateTime @default(now())
 
-  circle Circle @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  circle           Circle                     @relation(fields: [circleId], references: [id], onDelete: Cascade)
   /// COMPOSITE: the activity must belong to the circle the event names.
-  activity CircleActivity? @relation(fields: [activityId, circleId], references: [id, circleId], onDelete: Cascade)
+  activity         CircleActivity?            @relation(fields: [activityId, circleId], references: [id, circleId], onDelete: Cascade)
   /// `SetNull`, admitted by the trigger as its ONE exception.
   ///
   /// This was `Restrict` until account deletion needed a sanctioned path, on
@@ -3281,13 +3292,13 @@ model CircleEvent {
   /// the user still exists, so it is refused like every other write. No GUC, no
   /// `session_replication_role`, no privileged role, no dynamic SQL. See
   /// `20260913000000_circles_account_deletion`.
-  actorUser User? @relation("CircleEventActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  actorUser        User?                      @relation("CircleEventActor", fields: [actorUserId], references: [id], onDelete: SetNull)
   /// COMPOSITE: an acting seat must belong to the activity the event names. A
   /// SQL CHECK makes `activityId` mandatory whenever this is set, so the key
   /// cannot be skipped by leaving the second column null.
   actorParticipant CircleActivityParticipant? @relation("CircleEventActorParticipant", fields: [actorParticipantId, activityId], references: [id, activityId], onDelete: Restrict)
   /// COMPOSITE: the artifact must belong to the activity the event names.
-  artifact CircleArtifact? @relation(fields: [artifactId, activityId], references: [id, activityId], onDelete: Restrict)
+  artifact         CircleArtifact?            @relation(fields: [artifactId, activityId], references: [id, activityId], onDelete: Restrict)
 
   @@index([circleId, occurredAt])
   @@index([activityId, occurredAt])

@@ -924,7 +924,11 @@ describe("ratchet · the cutover migrations say what they do", () => {
     // feature has touched it. Named here because the rule above is explicit —
     // raising the number without adding a name fails.
     expect(dirs).toContain("20260913000000_circles_account_deletion");
-    expect(dirs).toHaveLength(65);
+    // …and the one the approved artifact policy owed: the content of a draft
+    // artifact can be removed while its row stays, because the append-only
+    // ledger references it. Named for the same reason as the others.
+    expect(dirs).toContain("20260915000000_circles_artifact_purge");
+    expect(dirs).toHaveLength(66);
     expect(dirs.filter((d) => d.includes("c3r"))).toEqual([]);
   });
 

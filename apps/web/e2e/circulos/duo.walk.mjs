@@ -2684,6 +2684,33 @@ console.log(`\nCírculos Dúo walk · commit ${HEAD_SHA}`);
 
 const browser = await chromium.launch();
 
+/**
+ * Give hosted runs longer, in ONE place.
+ *
+ * Playwright's thirty seconds is a sensible default for a stack on this
+ * machine. Against Railway and Vercel it is not a diagnosis: a cold start, a
+ * function boot and two network hops can eat it without anything being wrong,
+ * and the failure then reads `page.goto: Timeout 30000ms exceeded` — which
+ * looks exactly like a page that never renders.
+ *
+ * Longer timeouts do NOT make a broken assertion pass; they only stop a slow
+ * one from being reported as broken. So this is per-transport rather than
+ * across the board: local runs keep the short timeout, where a thirty-second
+ * navigation really is a bug.
+ *
+ * Wrapping `newContext` once beats editing twenty call sites and beats
+ * remembering to pass a timeout at each of them.
+ */
+if (transport.kind === "railway") {
+  const newContext = browser.newContext.bind(browser);
+  browser.newContext = async (options) => {
+    const ctx = await newContext(options);
+    ctx.setDefaultNavigationTimeout(90_000);
+    ctx.setDefaultTimeout(45_000);
+    return ctx;
+  };
+}
+
 try {
   await scenario("BROWSER_ENTRY_FLOW", "creation and entry", () =>
     entryFlow(browser),

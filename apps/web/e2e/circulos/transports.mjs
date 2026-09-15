@@ -40,7 +40,17 @@ function localTransport(env) {
     sql(text) {
       return execFileSync(
         "docker",
-        ["exec", pgContainer, "psql", "-U", "postgres", "-d", pgDatabase, "-tAc", text],
+        [
+          "exec",
+          pgContainer,
+          "psql",
+          "-U",
+          "postgres",
+          "-d",
+          pgDatabase,
+          "-tAc",
+          text,
+        ],
         { encoding: "utf8" },
       ).trim();
     },
@@ -116,25 +126,89 @@ function localTransport(env) {
  * Snippets travel base64-encoded: they cross a shell and then a `node -e`, and
  * base64 is the only alphabet that survives both intact.
  */
+/**
+ * Failures where the SSH layer never reached the container, in Railway's own
+ * words.
+ *
+ * This matters for one reason only: whether retrying can double-apply
+ * something. These are refusals to OPEN the session — the key could not be
+ * verified, the session could not be established — so the snippet did not run,
+ * nothing was written, and running it again is the same as running it once.
+ *
+ * Anything else is left alone. A snippet that reached the container and failed
+ * answers with `SQLERR`, and a query that failed is a result, not a glitch:
+ * retrying it would hide a real error and, for the statements this transport
+ * carries (UPDATE, ALTER, INSERT), could apply a mutation twice.
+ */
+const SSH_DID_NOT_CONNECT =
+  /can't verify your SSH key|temporary service issue|failed to (?:connect|establish)|connection (?:reset|refused|closed) (?:by|before)|websocket|502 Bad Gateway|503 Service/i;
+
 export function railwayNode(env, snippet) {
-  const out = execFileSync(
-    "railway",
-    [
-      "ssh",
-      "--project", env.CIRCULOS_E2E_RAILWAY_PROJECT,
-      "--environment", env.CIRCULOS_E2E_RAILWAY_ENVIRONMENT,
-      "--service", env.CIRCULOS_E2E_RAILWAY_SERVICE,
-      `cd /app/apps/api && node -e "eval(Buffer.from('${b64(snippet)}','base64').toString())"`,
-    ],
-    { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 300_000 },
-  );
-  // `railway ssh` prefixes a line about the key it used, so every snippet
-  // frames its own answer and it can be found whatever else is printed.
-  const m = /<<<E2E([\s\S]*?)E2E>>>/.exec(out);
-  if (!m) {
+  const args = [
+    "ssh",
+    "--project",
+    env.CIRCULOS_E2E_RAILWAY_PROJECT,
+    "--environment",
+    env.CIRCULOS_E2E_RAILWAY_ENVIRONMENT,
+    "--service",
+    env.CIRCULOS_E2E_RAILWAY_SERVICE,
+    `cd /app/apps/api && node -e "eval(Buffer.from('${b64(snippet)}','base64').toString())"`,
+  ];
+
+  const attempts = 4;
+  let lastText = "";
+  for (let i = 0; i < attempts; i++) {
+    let out;
+    try {
+      out = execFileSync("railway", args, {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+        timeout: 300_000,
+      });
+    } catch (err) {
+      lastText = `${err?.stdout ?? ""}${err?.stderr ?? ""}${err?.message ?? ""}`;
+      // `SQLERR` means the container ran the snippet and the QUERY failed.
+      // That is an answer; surface it rather than asking again.
+      const connected = /SQLERR/.test(lastText);
+      if (
+        !connected &&
+        SSH_DID_NOT_CONNECT.test(lastText) &&
+        i < attempts - 1
+      ) {
+        // Railway says "please try again shortly", so wait a little longer each
+        // time rather than hammering a service that just said it is unwell.
+        const waitMs = 5_000 * (i + 1) * (i + 1);
+        console.log(
+          `   railway ssh did not connect (attempt ${i + 1}/${attempts}) — retrying in ${waitMs / 1000}s`,
+        );
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, waitMs);
+        continue;
+      }
+      throw err;
+    }
+
+    // `railway ssh` prefixes a line about the key it used, so every snippet
+    // frames its own answer and it can be found whatever else is printed.
+    const m = /<<<E2E([\s\S]*?)E2E>>>/.exec(out);
+    if (m) return m[1].trim();
+
+    // Exit 0 with no frame: the session opened and printed something else
+    // entirely, which on this path has always been the SSH layer talking. Same
+    // reasoning as above — nothing ran, so asking again is safe.
+    lastText = out;
+    if (SSH_DID_NOT_CONNECT.test(out) && i < attempts - 1) {
+      const waitMs = 5_000 * (i + 1) * (i + 1);
+      console.log(
+        `   railway ssh answered without running the snippet (attempt ${i + 1}/${attempts}) — retrying in ${waitMs / 1000}s`,
+      );
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, waitMs);
+      continue;
+    }
     throw new Error(`no framed answer from the container:\n${out.slice(-400)}`);
   }
-  return m[1].trim();
+  throw new Error(
+    `railway ssh never connected after ${attempts} attempts:\n${lastText.slice(-400)}`,
+  );
 }
 
 // ── railway: inside the API container, over the private network ─────────────

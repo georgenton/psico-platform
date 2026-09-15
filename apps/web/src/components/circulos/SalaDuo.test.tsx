@@ -21,6 +21,8 @@ const base = {
   initialError: null,
   fields: PLANTILLA.privatePreparation,
   allowedModes: PLANTILLA.sharing.allowedModes,
+  noConviene: PLANTILLA.safety.doNotSuggestWhen,
+  minutosEstimados: PLANTILLA.estimatedMinutes,
   isGuest: true,
 };
 
@@ -335,5 +337,150 @@ describe("every way out says what happened and what to do", () => {
     ]) {
       expect(shownFor(code)).not.toMatch(/retir|abandon|rechaz|caduc/i);
     }
+  });
+});
+
+describe("what the room says about a proposal, an agreement and leaving", () => {
+  const CON_PROPUESTA = {
+    ...REVELADA,
+    artifact: {
+      artifactId: "art-1",
+      version: 2,
+      status: "PROPOSED" as const,
+      kind: "AGREEMENT" as const,
+      body: "probamos una semana",
+      confirmedByYou: false,
+      confirmationCount: 1,
+    },
+  };
+  const ACORDADA = {
+    ...CON_PROPUESTA,
+    artifact: {
+      ...CON_PROPUESTA.artifact,
+      status: "AGREED" as const,
+      confirmedByYou: true,
+      confirmationCount: 2,
+    },
+  };
+
+  it("says a proposal missing a confirmation is not an agreement yet", () => {
+    // The distinction has consequences the person cannot see from here — an
+    // agreement is kept, a draft nobody accepted need not be — so it is said
+    // at the moment of confirming rather than buried in a policy page.
+    render(<SalaDuo {...base} initialView={CON_PROPUESTA} />);
+    const nota = screen.getByText(/no un acuerdo/i);
+    expect(nota).toBeInTheDocument();
+    expect(nota.textContent).toMatch(/puede reemplazarse o dejar de estar/i);
+  });
+
+  it("says an agreement both confirmed is kept", () => {
+    render(<SalaDuo {...base} initialView={ACORDADA} />);
+    expect(
+      screen.getByText(/un acuerdo confirmado por los dos se conserva/i),
+    ).toBeInTheDocument();
+  });
+
+  it("never blames a person for a draft that may stop being there", () => {
+    // A proposal can disappear because its author deleted their account. Saying
+    // so would tell one person something private about the other, so the
+    // sentence states the effect and stops.
+    render(<SalaDuo {...base} initialView={CON_PROPUESTA} />);
+    const nota = screen.getByText(/no un acuerdo/i);
+    expect(nota.textContent).not.toMatch(
+      /cuenta|elimin|borr[óo]|se fue|retir|abandon/i,
+    );
+  });
+
+  it("separates leaving the activity from closing an account, for a member", () => {
+    render(<SalaDuo {...base} isGuest={false} initialView={REVELADA} />);
+    const nota = screen.getByText(/retirarte termina esta actividad/i);
+    expect(nota.textContent).toMatch(/no elimina tu cuenta/i);
+    expect(nota.textContent).toMatch(/se descarta/i);
+    expect(nota.textContent).toMatch(/ya ley[óo] se queda/i);
+  });
+
+  it("does not offer a guest an account they never had", () => {
+    render(<SalaDuo {...base} isGuest initialView={REVELADA} />);
+    const nota = screen.getByText(/retirarte termina esta actividad/i);
+    expect(nota.textContent).toMatch(/entraste con un enlace/i);
+    expect(nota.textContent).not.toMatch(/tu perfil/i);
+  });
+
+  it("keeps the way out on screen next to what it costs", () => {
+    render(<SalaDuo {...base} initialView={REVELADA} />);
+    expect(
+      screen.getByRole("button", { name: /retirarme de la actividad/i }),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("the private gate shows the conditions, and claims nothing about them", () => {
+  const SEIS = [
+    "Hay violencia, amenazas o miedo a la reacción de la otra persona.",
+    "Una de las dos depende económica, migratoria o legalmente de la otra.",
+    "Hay una relación de autoridad entre ambas: jefatura, docencia, terapia o cuidado.",
+    "La invitación la pide un tercero, o una de las dos no eligió participar.",
+    "Alguna de las dos está en crisis ahora mismo.",
+    "Una de las dos es menor de edad.",
+  ];
+  const conGate = { ...base, noConviene: SEIS };
+
+  it("shows every condition BEFORE anything can be written", () => {
+    render(<SalaDuo {...conGate} initialView={PREPARANDO} />);
+    for (const caso of SEIS) {
+      expect(screen.getByText(caso)).toBeInTheDocument();
+    }
+    // The preparation form is not on screen yet: this is read first.
+    expect(screen.queryByRole("textbox")).toBeNull();
+  });
+
+  it("asks nothing — no question, no answer, no score", () => {
+    render(<SalaDuo {...conGate} initialView={PREPARANDO} />);
+    // A gate that collected an answer would need an input for it. There is
+    // none, and there is nowhere for a verdict about a relationship to be put.
+    expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
+    expect(screen.queryAllByRole("radio")).toHaveLength(0);
+    expect(screen.queryAllByRole("textbox")).toHaveLength(0);
+  });
+
+  it("never announces that the situation was checked or found safe", () => {
+    render(<SalaDuo {...conGate} initialView={PREPARANDO} />);
+    const text = document.body.textContent ?? "";
+    expect(text).not.toMatch(/segur[ao]s?\s+verificad|situación segura/i);
+    expect(text).not.toMatch(/riesgo (bajo|alto|medio)|puntuaci[óo]n/i);
+    // It says the opposite, in so many words.
+    expect(text).toMatch(/no podemos comprobar nada/i);
+  });
+
+  it("offers a way out that needs no reason", () => {
+    render(<SalaDuo {...conGate} initialView={PREPARANDO} />);
+    expect(
+      screen.getByRole("button", { name: /no quiero hacerla/i }),
+    ).toBeInTheDocument();
+    expect(document.body.textContent).toMatch(/sin dar explicaciones/i);
+  });
+
+  it("sends NOTHING while the gate is on screen", async () => {
+    const calls = vi.spyOn(globalThis, "fetch");
+    calls.mockClear();
+    render(<SalaDuo {...conGate} initialView={PREPARANDO} />);
+    await userEvent.click(
+      screen.getByRole("button", { name: /entiendo, empezar/i }),
+    );
+    // Reading the conditions and deciding to continue is local. The server
+    // learns nothing about it — not that it was shown, not that it was passed.
+    const bodies = calls.mock.calls.map(([, init]) => init?.body ?? "");
+    for (const body of bodies) {
+      expect(String(body)).not.toMatch(/noConviene|violencia|autoridad/i);
+    }
+  });
+
+  it("says nothing at all when the template carries no conditions", () => {
+    // `doNotSuggestWhen` is optional copy. An empty list renders no box rather
+    // than an empty one with a heading nobody can act on.
+    render(<SalaDuo {...base} noConviene={[]} initialView={PREPARANDO} />);
+    expect(document.body.textContent).not.toMatch(
+      /no ayuda, y puede complicar/i,
+    );
   });
 });

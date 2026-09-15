@@ -214,6 +214,21 @@ function DeleteRow({
             Cooldown de 30 días desde la solicitud. Tu Diario se pierde si no
             tenés la frase de respaldo.
           </p>
+          {/*
+           * What happens to something written WITH another person is the part
+           * nobody guesses right, and it is decided here rather than in the
+           * activity: leaving a room and closing an account are different acts
+           * with different consequences.
+           *
+           * One sentence, conditional in its own wording so it costs nothing to
+           * the majority who never shared an activity, and stated from the
+           * person's own side — never as "the other one will see".
+           */}
+          <p className="text-[11px]" style={{ color: "var(--color-warm-500)" }}>
+            Si hiciste una actividad compartida con alguien: lo que ambos
+            confirmaron se conserva, porque también es suyo. Lo que propusiste y
+            nadie llegó a aceptar se elimina contigo.
+          </p>
         </div>
         {!open ? (
           <button

@@ -74,17 +74,20 @@ describe("PR4 adds no backend", () => {
     // The WEB cut still adds no backend: nothing above this line changed, and
     // the files scanned are `apps/web` only.
     //
-    // The COUNT moved once, and on purpose. It was PR3's number, held by PR4;
-    // the pilot-readiness cut adds `20260913000000_circles_account_deletion`,
-    // which is an API migration and is named here so the bump cannot be spent
-    // on something else. A second unnamed migration still fails.
+    // The COUNT moves only with a NAME. It was PR3's number, held by PR4; the
+    // pilot-readiness cut added `20260913000000_circles_account_deletion` and
+    // the approved artifact policy adds
+    // `20260915000000_circles_artifact_purge`. Both are API migrations, both
+    // are named here, and an unnamed newcomer still fails — which is the only
+    // thing this assertion is for.
     const migrations = readdirSync(join(ROOT, "apps/api/prisma/migrations"), {
       withFileTypes: true,
     })
       .filter((d) => d.isDirectory())
       .map((d) => d.name);
     expect(migrations).toContain("20260913000000_circles_account_deletion");
-    expect(migrations).toHaveLength(65);
+    expect(migrations).toContain("20260915000000_circles_artifact_purge");
+    expect(migrations).toHaveLength(66);
   });
 
   it("touches no Mobile file", () => {
@@ -156,11 +159,43 @@ describe("PR4 stores no draft and loads no third party", () => {
   });
 });
 
-describe("PR4 publishes no content", () => {
-  it("leaves the production catalog empty", () => {
-    // Publishing a template is an editorial act with its own approval. The
-    // fixtures live under `__fixtures__` and are imported only by tests.
-    expect(PRODUCTION_CIRCLE_TEMPLATES).toHaveLength(0);
+describe("production publishes exactly what was approved, and nothing else", () => {
+  it("ships ONE template, and it is the approved one", () => {
+    // This asserted emptiness while nothing was approved. Emptiness was never
+    // the point — "only what somebody approved" was — so it now pins the
+    // contents. Publishing a second template fails here and has to be argued
+    // for, which is the same gate pointing at a different number.
+    expect(PRODUCTION_CIRCLE_TEMPLATES).toHaveLength(1);
+    const [approved] = PRODUCTION_CIRCLE_TEMPLATES;
+    expect(approved.templateKey).toBe("duo-lo-que-me-ayuda");
+    expect(approved.templateVersion).toBe(1);
+    expect(approved.status).toBe("PUBLISHED");
+    expect(approved.audience).toBe("DUO_ADULT");
+    expect(approved.ecoMode).toBe("NONE");
+    expect(approved.participants).toEqual({ min: 2, max: 2, required: 2 });
+    expect(approved.source.experiencePin).toEqual({
+      experienceKey: "eec-c1-cuerpo-antes-que-mente",
+      experienceVersion: 1,
+    });
+  });
+
+  it("carries the approved copy, not a paraphrase of it", () => {
+    const [approved] = PRODUCTION_CIRCLE_TEMPLATES;
+    expect(approved.title).toBe("Lo que me ayuda cuando estoy así");
+    expect(approved.privatePreparation.map((f) => f.label)).toEqual([
+      "Cuando estoy así, me ayuda que…",
+      "Y no me ayuda que…",
+    ]);
+    expect(approved.conversation.turns).toEqual([
+      "Léelo sin responder todavía. ¿Qué de lo que dijo el otro te resulta fácil de hacer?",
+      "¿Y qué te costaría? Decirlo ahora ahorra un malentendido después.",
+    ]);
+    // Six, exactly, and each one a situation a person can recognise.
+    expect(approved.safety.doNotSuggestWhen).toHaveLength(6);
+    expect(approved.safety.level).toBe("REINFORCED");
+    expect(approved.safety.privateGateRequired).toBe(true);
+    // "Nothing" stays a complete answer.
+    expect(approved.sharing.allowedModes).toContain("KEEP_PRIVATE");
   });
 
   it("keeps the fixtures out of the shipped catalog", () => {
@@ -169,9 +204,11 @@ describe("PR4 publishes no content", () => {
       "utf8",
     );
     expect(catalog).not.toContain("fixture-duo");
-    expect(catalog).toContain(
-      "export const PRODUCTION_CIRCLE_TEMPLATES: readonly CircleActivityDefinition[] =\n  [];",
-    );
+    expect(catalog).not.toContain("e2e-duo-sintetica");
+    // And none of the nine Parejas drafts arrived by the back door.
+    for (const key of PRODUCTION_CIRCLE_TEMPLATES.map((t) => t.templateKey)) {
+      expect(key).toBe("duo-lo-que-me-ayuda");
+    }
   });
 });
 

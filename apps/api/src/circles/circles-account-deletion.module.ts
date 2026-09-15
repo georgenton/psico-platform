@@ -6,6 +6,7 @@ import { CircleEventRepository } from "./circle-event.repository";
 import { CircleParticipantRepository } from "./circle-participant.repository";
 import { CircleMemberRepository } from "./circle-member.repository";
 import { CircleInvitationRepository } from "./circle-invitation.repository";
+import { CircleArtifactRepository } from "./circle-artifact.repository";
 import { CircleGuestSessionRepository } from "./circle-guest-session.repository";
 import { CirclesAccountDeletionService } from "./circles-account-deletion.service";
 import { CirclesSweepService } from "./circles-sweep.service";
@@ -65,6 +66,12 @@ import { CirclesRolloutService } from "./circles-rollout.service";
       provide: CircleGuestSessionRepository,
       useFactory: (prisma: PrismaService) =>
         new CircleGuestSessionRepository(prisma),
+      inject: [PrismaService],
+    },
+    {
+      provide: CircleArtifactRepository,
+      useFactory: (prisma: PrismaService) =>
+        new CircleArtifactRepository(prisma),
       inject: [PrismaService],
     },
     CirclesAccountDeletionService,

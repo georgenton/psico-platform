@@ -57,23 +57,22 @@ describe("circles · PR3 scope — access and participation", () => {
     }
   });
 
-  it("ships three migrations; the two applied ones stay additive", () => {
+  it("ships four migrations, and every loosening in them is enumerated", () => {
     // PR2 added the domain; PR3 the invariants participation needs; the pilot
-    // cut adds the one account deletion owes — the sanctioned detach PR2 itself
-    // predicted it would need ("account deletion, once Círculos is on, will
-    // need a sanctioned scrub path that is itself a migration").
+    // cut added the sanctioned detach PR2 itself predicted ("account deletion,
+    // once Círculos is on, will need a sanctioned scrub path that is itself a
+    // migration"); and the approved artifact policy adds the purge.
     //
-    // The first two have been applied to production, so they are not edited: a
-    // migration that has run is a fact, not a draft. They stay strictly
-    // additive.
+    // The first three have been applied to production, so they are not edited:
+    // a migration that has run is a fact, not a draft.
     //
-    // The third CANNOT be additive and says so. Loosening a foreign key means
+    // Two of them CANNOT be additive and say so. Loosening a foreign key means
     // dropping and recreating it, and making a column nullable is
-    // `ALTER COLUMN`. Rather than exempt the file wholesale — which would
-    // retire the rule exactly where it matters most — the operations it is
-    // allowed to perform are enumerated below, and everything else (a dropped
-    // TABLE, a dropped COLUMN, a RENAME, a dropped INDEX) stays forbidden in
-    // every migration including this one.
+    // `ALTER COLUMN`. Rather than exempt those files wholesale — which would
+    // retire the rule exactly where it matters most — every loosening they are
+    // allowed to perform is enumerated below, per file. Anything else, in any
+    // migration, fails here: an unlisted `DROP CONSTRAINT` or `ALTER COLUMN`,
+    // and always a dropped TABLE, COLUMN or INDEX, or a RENAME.
     const dirs = readdirSync(join(ROOT, "apps/api/prisma/migrations"))
       .filter((d) => /circle/i.test(d))
       .sort();
@@ -81,19 +80,35 @@ describe("circles · PR3 scope — access and participation", () => {
       "20260909180000_circles_domain_foundation",
       "20260910030000_circles_participation_invariants",
       "20260913000000_circles_account_deletion",
+      "20260915000000_circles_artifact_purge",
     ]);
 
-    const APPLIED = dirs.slice(0, 2);
-    const DETACH = "20260913000000_circles_account_deletion";
-
-    /** Permitted ONLY in the detach migration, and only on these targets. */
-    const DETACH_ALLOWED = [
-      /^ALTER TABLE "Circle" ALTER COLUMN "createdByUserId" DROP NOT NULL;$/,
-      /^ALTER TABLE "CircleMember" ALTER COLUMN "userId" DROP NOT NULL;$/,
-      /^ALTER TABLE "Circle" DROP CONSTRAINT "Circle_createdByUserId_fkey";$/,
-      /^ALTER TABLE "CircleMember" DROP CONSTRAINT "CircleMember_userId_fkey";$/,
-      /^ALTER TABLE "CircleEvent" DROP CONSTRAINT "CircleEvent_actorUserId_fkey";$/,
-    ];
+    /**
+     * Every loosening each migration may perform, by file.
+     *
+     * A file with no entry may perform none — which is the rule the first two
+     * live under, and the reason this is a lookup rather than a flag.
+     */
+    const ALLOWED_LOOSENING: Record<string, RegExp[]> = {
+      "20260913000000_circles_account_deletion": [
+        /^ALTER TABLE "Circle" ALTER COLUMN "createdByUserId" DROP NOT NULL;$/,
+        /^ALTER TABLE "CircleMember" ALTER COLUMN "userId" DROP NOT NULL;$/,
+        /^ALTER TABLE "Circle" DROP CONSTRAINT "Circle_createdByUserId_fkey";$/,
+        /^ALTER TABLE "CircleMember" DROP CONSTRAINT "CircleMember_userId_fkey";$/,
+        /^ALTER TABLE "CircleEvent" DROP CONSTRAINT "CircleEvent_actorUserId_fkey";$/,
+      ],
+      // The purge makes the four content columns optional and re-states two
+      // shape checks so they tolerate absence. It drops no foreign key: the
+      // ledger's reference to the artifact is exactly what keeps the row.
+      "20260915000000_circles_artifact_purge": [
+        /^ALTER TABLE "CircleArtifact" ALTER COLUMN "ciphertext" DROP NOT NULL;$/,
+        /^ALTER TABLE "CircleArtifact" ALTER COLUMN "nonce" DROP NOT NULL;$/,
+        /^ALTER TABLE "CircleArtifact" ALTER COLUMN "keyVersion" DROP NOT NULL;$/,
+        /^ALTER TABLE "CircleArtifact" ALTER COLUMN "payloadHash" DROP NOT NULL;$/,
+        /^ALTER TABLE "CircleArtifact" DROP CONSTRAINT "CircleArtifact_key_version_positive";$/,
+        /^ALTER TABLE "CircleArtifact" DROP CONSTRAINT "CircleArtifact_payload_hash_is_hmac_hex";$/,
+      ],
+    };
 
     for (const dir of dirs) {
       const sql = read(`apps/api/prisma/migrations/${dir}/migration.sql`);
@@ -113,13 +128,9 @@ describe("circles · PR3 scope — access and participation", () => {
           line,
         );
         if (!loosening) continue;
-        if (APPLIED.includes(dir)) {
-          expect.fail(`${dir} is applied and must stay additive · ${line}`);
-        }
-        expect(dir, `${dir} · ${line}`).toBe(DETACH);
         expect(
-          DETACH_ALLOWED.some((re) => re.test(line)),
-          `${DETACH} performs an unenumerated loosening · ${line}`,
+          (ALLOWED_LOOSENING[dir] ?? []).some((re) => re.test(line)),
+          `${dir} performs an unenumerated loosening · ${line}`,
         ).toBe(true);
       }
     }
@@ -670,13 +681,22 @@ describe("circles · PR2 — nothing outside its own tables moved", () => {
     ]);
   });
 
-  it("leaves the production catalog empty", () => {
+  it("publishes only what an editorial decision put in the catalog", () => {
     // Publishing a template is an editorial decision. It cannot become a side
-    // effect of wiring a module.
+    // effect of wiring a module — so this reads the file and counts the keys
+    // rather than trusting the import, and names the one that was approved.
     const catalog = read("packages/types/src/circles-catalog.ts");
-    expect(catalog).toMatch(
-      /PRODUCTION_CIRCLE_TEMPLATES:\s*readonly CircleActivityDefinition\[\]\s*=\s*\[\]/,
+    // Any indentation: prettier decides how deep the array sits, and a ratchet
+    // that a reformat can silence is not a ratchet. The property FORM is what
+    // is matched — `templateKey: "…",` — which the validator's own list of
+    // allowed key names (`"templateKey",`) cannot look like.
+    const keys = [...catalog.matchAll(/^\s*templateKey: "([^"]+)",$/gm)].map(
+      (m) => m[1],
     );
+    expect(keys).toEqual(["duo-lo-que-me-ayuda"]);
+    // The fixtures have their own file and stay there.
+    expect(catalog).not.toContain("e2e-duo-sintetica");
+    expect(catalog).not.toContain("fixture-duo");
   });
 });
 

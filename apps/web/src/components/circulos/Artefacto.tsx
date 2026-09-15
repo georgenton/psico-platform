@@ -120,6 +120,22 @@ export function Artefacto({
           : `${artifact.confirmationCount} de ${view.requiredParticipants} lo confirmaron.`}
       </p>
 
+      {/*
+       * Proposal and agreement are not the same thing, and the difference has
+       * consequences the person cannot see from here: an agreement both of them
+       * confirmed is kept, while a proposal nobody accepted may be replaced or
+       * simply stop being there.
+       *
+       * Said once, at the moment of confirming, and without a cause. Naming why
+       * a draft can disappear would mean telling one person something private
+       * about the other.
+       */}
+      <p style={S.nota}>
+        {agreed
+          ? "Un acuerdo confirmado por los dos se conserva."
+          : "Mientras falte una confirmación es una propuesta, no un acuerdo: puede reemplazarse o dejar de estar."}
+      </p>
+
       {!agreed && (
         <div style={S.acciones}>
           {!artifact.confirmedByYou && (

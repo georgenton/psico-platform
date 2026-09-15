@@ -366,6 +366,7 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
     expect(dirs.slice(index)).toEqual([
       THIS_MIGRATION,
       "20260913000000_circles_account_deletion",
+      "20260915000000_circles_artifact_purge",
     ]);
     expect(baseline).toHaveLength(63);
 

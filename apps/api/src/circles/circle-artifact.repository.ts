@@ -30,13 +30,16 @@ export interface CircleArtifactRow {
   version: number;
   kind: string;
   status: CircleArtifactStatusRow;
-  ciphertext: string;
-  nonce: string;
-  keyVersion: number;
+  /** Null once the content has been purged; the four move together. */
+  ciphertext: string | null;
+  nonce: string | null;
+  keyVersion: number | null;
   /** Keyed digest of the body, bound to the same AAD. Verified on every open. */
-  payloadHash: string;
+  payloadHash: string | null;
   createdByParticipantId: string;
   agreedAt: Date | null;
+  /** When the author's account was deleted and this body was removed. */
+  purgedAt: Date | null;
 }
 
 const SELECT = {
@@ -51,6 +54,7 @@ const SELECT = {
   payloadHash: true,
   createdByParticipantId: true,
   agreedAt: true,
+  purgedAt: true,
 } as const;
 
 export class CircleArtifactRepository {
@@ -87,7 +91,7 @@ export class CircleArtifactRepository {
       return await tx.$queryRaw<CircleArtifactRow[]>(Prisma.sql`
         SELECT "id", "activityId", "version", "kind", "status", "ciphertext",
                "nonce", "keyVersion", "payloadHash", "createdByParticipantId",
-               "agreedAt"
+               "agreedAt", "purgedAt"
           FROM "CircleArtifact"
          WHERE "activityId" = ${activityId}
          ORDER BY "id"
@@ -188,6 +192,62 @@ export class CircleArtifactRepository {
    * together cannot both agree it, and an artifact superseded in between
    * cannot be agreed at all.
    */
+  /**
+   * Remove the CONTENT of the artifacts these seats authored, as drafts.
+   *
+   * ── Authorship, and nothing standing in for it ─────────────────────────────
+   *
+   * `createdByParticipantId` is the whole selector. Not the circle's creator,
+   * not whoever sent the invitation, not the activity's first seat — those are
+   * different people in the general case, and in a Dúo they are frequently the
+   * SAME person, which is exactly what makes the mistake survive a test suite.
+   * A composite key ties the seat to the activity, so an artifact can never be
+   * attributed to a seat from elsewhere.
+   *
+   * ── Only drafts ────────────────────────────────────────────────────────────
+   *
+   * `PROPOSED` and `SUPERSEDED`. An `AGREED` artifact is the text both people
+   * confirmed, and one of them deleting their account does not destroy the
+   * other's copy of what they agreed to. The database refuses it too — see
+   * `CircleArtifact_agreed_is_never_purged` — so this filter is the intent and
+   * that constraint is the guarantee.
+   *
+   * ── Idempotent by construction ─────────────────────────────────────────────
+   *
+   * `purgedAt: null` in the WHERE, so a retry updates nothing and reports zero
+   * rather than rewriting a timestamp that already recorded when the content
+   * went.
+   *
+   * The status is NOT changed. A purged proposal is still a proposal that was
+   * made; saying otherwise would rewrite what happened.
+   */
+  async purgeAuthoredBy(
+    participantIds: string[],
+    now: Date,
+    tx: CircleArtifactTx,
+  ): Promise<number> {
+    if (participantIds.length === 0) return 0;
+    try {
+      const { count } = await tx.circleArtifact.updateMany({
+        where: {
+          createdByParticipantId: { in: participantIds },
+          status: { in: ["PROPOSED", "SUPERSEDED"] },
+          purgedAt: null,
+        },
+        data: {
+          ciphertext: null,
+          nonce: null,
+          keyVersion: null,
+          payloadHash: null,
+          purgedAt: now,
+        },
+      });
+      return count;
+    } catch {
+      throw new CircleStorageError();
+    }
+  }
+
   async agree(
     artifactId: string,
     now: Date,

@@ -82,17 +82,29 @@ export interface CircleDuoEntry {
 export const DUO_CTA_LABEL = "Hacer esto con alguien";
 
 /**
- * The production mappings — EMPTY, and deliberately so.
+ * The production mappings — ONE, and it is half of an agreement.
  *
- * `PRODUCTION_CIRCLE_TEMPLATES` is empty, so there is no PUBLISHED template any
- * mapping could point at. An entry here would name a template that does not
- * exist and resolve to nothing; adding one is an editorial act that happens
- * after a template is published, never before.
+ * The published guide `eec-c1-cuerpo-antes-que-mente@1` may offer
+ * `duo-lo-que-me-ayuda@1`. That is an editorial decision Jorge approved, and it
+ * is written here as an enumeration rather than derived from anything.
  *
- * With this empty, production renders zero CTAs. That is the correct result,
- * not a gap to be filled by publishing something to make a button appear.
+ * This entry ALONE offers nothing. The template names the same experience back
+ * in its own `source.experiencePin`, and both records have to agree before a
+ * reader sees a CTA. Editing one without the other does not point the surface
+ * somewhere new — it silences the offer, which is the safe direction for a
+ * mistake to fall.
+ *
+ * One mapping per (surface, template). A second entry for this surface would
+ * not win a tie-break: ambiguity disables the offer.
  */
-export const PRODUCTION_DUO_ELIGIBILITY: readonly DuoEligibilityMapping[] = [];
+export const PRODUCTION_DUO_ELIGIBILITY: readonly DuoEligibilityMapping[] = [
+  {
+    experienceKey: "eec-c1-cuerpo-antes-que-mente",
+    experienceVersion: 1,
+    templateKey: "duo-lo-que-me-ayuda",
+    templateVersion: 1,
+  },
+];
 
 export interface DuoEligibilityDeps {
   readonly catalog: readonly DuoEligibilityMapping[];

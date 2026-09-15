@@ -4,9 +4,11 @@
 > verificado hoy, y nombra explícitamente lo que falta. Las secciones marcadas
 > `PENDIENTE` no están implementadas: no las ejecutes esperando que funcionen.
 >
-> Círculos está **apagado en producción** (`CIRCLES_ROLLOUT_MODE` ausente ⇒
-> `off`), el catálogo de plantillas publicadas está **vacío** y la elegibilidad
-> de Dúo está **vacía**. Nada de lo que sigue enciende el producto.
+> El catálogo de producción lleva **una** plantilla aprobada
+> (`duo-lo-que-me-ayuda@1`) y su único mapping. Que esté publicada no la
+> enciende: quién ve Círculos lo decide `CIRCLES_ROLLOUT_MODE` y, bajo `pilot`,
+> la lista de ids admitidos. Publicar y encender son cosas distintas, y este
+> documento las mantiene separadas.
 
 ---
 
@@ -43,16 +45,18 @@ Si necesitas revocar de verdad, eso es un `UPDATE` de `revokedAt` sobre
 
 ---
 
-## 2 · Borrado de cuenta con Círculos — **implementado; una decisión pendiente**
+## 2 · Borrado de cuenta con Círculos — **implementado; política aprobada**
 
 El bloqueo técnico (`ACCOUNT_DELETION_WITH_CIRCLE_EVENTS`) está resuelto: la
 cuenta se puede borrar, la participación viva termina, el contenido propio se
 destruye —incluido el de actividades ya cerradas— y la autoridad derivada se
 revoca.
 
-**No está cerrado el borrado "integral".** Los artefactos se dejan como están, y
-eso es la ausencia de una política, no una política. Ver la matriz más abajo:
-`ARTIFACT_RETENTION_POLICY_STATUS=pending_decision`.
+**La política de artefactos está aprobada y aplicada**
+(`ARTIFACT_RETENTION_POLICY_STATUS=approved`): al borrar una cuenta se elimina el
+contenido de los artefactos `PROPOSED` y `SUPERSEDED` **cuya autoría es suya**,
+se conservan los `AGREED` y no se toca nada de la contraparte. Sin retención de
+90 días y sin barrido nuevo. Ver la matriz más abajo.
 
 ### Cómo funciona
 
@@ -62,13 +66,46 @@ El job existente `AccountDeletionProcessor` ejecuta, **en este orden**:
    purga el sobre, revoca invitaciones y sesiones de invitado de esa actividad,
    y lleva la actividad al estado terminal que implica su etapa
    (`INVITING`/`PREPARING` → `CANCELLED`; `REVEALED`/`FOLLOW_UP` → `CLOSED`).
-   Luego marca las membresías `LEFT`.
+   Después retira el contenido de los artefactos que esa cuenta escribió y que
+   nadie acordó. Y sólo entonces marca las membresías `LEFT`.
 2. `prisma.user.delete()` — las tres referencias de Círculos se **desvinculan**
    (`Circle.createdByUserId`, `CircleMember.userId`, `CircleEvent.actorUserId`).
 
-El orden es la garantía: borrar primero y limpiar después deja una ventana con
-la cuenta ya eliminada y la actividad todavía viva, en la que la contraparte
-podría confirmar y disparar una revelación.
+El orden es la garantía, dos veces. Borrar primero y limpiar después deja una
+ventana con la cuenta ya eliminada y la actividad todavía viva, en la que la
+contraparte podría confirmar y disparar una revelación. Y revocar la membresía
+antes de clasificar los artefactos dejaría sin resolver la única pregunta que
+decide cuáles se limpian: **quién escribió cada versión**.
+
+### La autoría, y de dónde NO se deduce
+
+De `CircleArtifact.createdByParticipantId` — el asiento que creó esa versión — y
+de ahí a `CircleActivityParticipant.memberId`, y de ahí a la membresía de la
+cuenta. No del creador del círculo, no de quien invitó, no del dueño de la
+actividad: en un Dúo esas tres cosas suelen ser la misma persona, y confundirlas
+haría que borrar la cuenta del organizador se llevara por delante las propuestas
+del invitado. Hay un control negativo que lo comprueba mutando precisamente ese
+selector a «todo lo de la actividad».
+
+### Qué significa «se elimina el contenido»
+
+La fila no se borra: `CircleEvent.artifactId → CircleArtifact` es `ON DELETE
+RESTRICT` y el ledger tiene que conservar el registro de que hubo una propuesta.
+Lo que se vacía son las cuatro columnas que juntas son el contenido —
+`ciphertext`, `nonce`, `keyVersion`, `payloadHash` — y se fecha `purgedAt`.
+Quedan `id`, `activityId`, `version`, `kind`, `status`,
+`createdByParticipantId`, `createdAt`, `updatedAt`, `agreedAt` y `purgedAt`.
+
+Dos restricciones lo sostienen en el motor, no sólo en el servicio:
+
+- `CircleArtifact_purged_has_no_content` — o el cuerpo está entero y no hay
+  purga, o no queda nada y la purga está fechada. No existe media purga.
+- `CircleArtifact_agreed_is_never_purged` — un `AGREED` purgado es rechazado
+  aunque lo intente un script o una consulta a mano.
+
+**No es anonimización** y no debe llamarse así: la fila sigue apuntando al
+asiento que la escribió. **Y no alcanza a las copias de seguridad**: una
+instantánea anterior conserva la fila completa.
 
 ### La excepción del ledger, y por qué es estrecha
 
@@ -90,8 +127,9 @@ hay rol privilegiado y no hay SQL dinámico. `search_path` está fijado.
 | Sobre de la contraparte, **antes** de revelar   | **Eliminado**                             | Lo confirmó para una conversación que no va a ocurrir — es la regla del retiro, no una nueva.                                                                                                                                                                                                        |
 | Sobre de la contraparte, **después** de revelar | **Se conserva**                           | Ya lo leyó la otra persona. Borrarlo no des-revelaría nada y sí destruiría contenido ajeno.                                                                                                                                                                                                          |
 | Artefacto `AGREED`                              | **Se conserva**                           | Ambos lo confirmaron; borrarlo destruiría el registro de la contraparte.                                                                                                                                                                                                                             |
-| Artefacto `PROPOSED` del borrado                | **Se conserva HOY** — decisión pendiente  | Nadie lo aceptó. Llamarlo «compartido y ya visto» sería falso. Requiere decisión editorial.                                                                                                                                                                                                          |
-| Artefacto `SUPERSEDED`                          | **Se conserva HOY** — decisión pendiente  | Histórico. Mismo caso.                                                                                                                                                                                                                                                                               |
+| Artefacto `PROPOSED` escrito por el borrado     | **Contenido eliminado**                   | Nadie lo aceptó, así que no entró en nada compartido. La fila se queda vacía porque el ledger apunta a ella.                                                                                                                                                                                         |
+| Artefacto `SUPERSEDED` escrito por el borrado   | **Contenido eliminado**                   | Ya fue sustituido por otra redacción. Mismo caso.                                                                                                                                                                                                                                                    |
+| Cualquier artefacto de la contraparte           | **Intacto**                               | Es suyo. Un borrado ajeno no toca lo que ella escribió, en ningún estado.                                                                                                                                                                                                                            |
 | Círculo creado por el borrado                   | **Se conserva**, `createdByUserId = NULL` | Un Dúo es compartido; reasignar el autor mentiría.                                                                                                                                                                                                                                                   |
 | Filas de `CircleEvent`                          | **Se conservan**, `actorUserId = NULL`    | La fila no lleva contenido: `metadata` es una gramática cerrada de dos valores y las columnas restantes son ids y un timestamp. Quitar la FK **no** es por sí solo una anonimización — lo que sostiene la afirmación es que no hay nada que anonimizar en esa tabla, verificado columna por columna. |
 
@@ -165,33 +203,55 @@ extensión `vector` y las migraciones fallan sin ella.
 
 ---
 
-## 5 · Qué configurar antes de un piloto
+## 5 · Qué configurar para un piloto
 
-Nada de esto está aplicado y **no debe aplicarse todavía**.
+| Variable                     | API | Worker | Web | Nota                                                                  |
+| ---------------------------- | :-: | :----: | :-: | --------------------------------------------------------------------- |
+| `CIRCLES_ROLLOUT_MODE=pilot` | ✅  |   ✅   |  —  | `on` es disponibilidad general: no es esto.                           |
+| `CIRCLES_PILOT_USER_IDS`     | ✅  |   ✅   |  —  | Quién ORGANIZA. Vacía ⇒ vuelve a cerrar.                              |
+| `CIRCLES_SHARED_DATA_KEY_V1` | ✅  |   ✅   |  —  | Bajo `pilot`/`on` una clave ausente **falla el arranque**.            |
+| `CLIENT_ATTESTATION_SECRET`  | ✅  |   —    | ✅  | El MISMO valor. Si divergen, la superficie de invitado falla cerrada. |
 
-| Variable                     | Servicio | Nota                                                       |
-| ---------------------------- | -------- | ---------------------------------------------------------- |
-| `CIRCLES_ROLLOUT_MODE=pilot` | API      | `on` es disponibilidad general.                            |
-| `CIRCLES_PILOT_USER_IDS`     | API      | Vacía ⇒ vuelve a cerrar.                                   |
-| `CIRCLES_SHARED_DATA_KEY_V1` | API      | Bajo `pilot`/`on` una clave ausente **falla el arranque**. |
+**Los secretos son por entorno.** Reutilizar los de pruebas en producción ataría
+los dos por su criptografía: quien tuviera la clave de pruebas podría leer sobres
+productivos. Se generan aparte y no se imprimen en ningún sitio.
 
-Además, y antes de invitar a nadie: publicar al menos una plantilla
-(`PRODUCTION_CIRCLE_TEMPLATES` está vacío) y su mapping de elegibilidad
-(`PRODUCTION_DUO_ELIGIBILITY` está vacío). Ambas cosas son **actos
-editoriales** con su propia aprobación, no tareas de despliegue.
+**La lista es de organizadores, no de participantes.** La contraparte entra por
+una invitación válida, como invitada, sin cuenta y sin estar en la lista. Para un
+primer recorrido basta con un id.
+
+El catálogo **ya no está vacío**: `PRODUCTION_CIRCLE_TEMPLATES` lleva
+`duo-lo-que-me-ayuda@1` y `PRODUCTION_DUO_ELIGIBILITY` su única entrada, ambas
+aprobadas. Publicar una SEGUNDA sigue siendo un acto editorial con su propia
+aprobación, no una tarea de despliegue.
 
 ---
 
 ## 6 · Detener el piloto ante una regresión
 
-1. `CIRCLES_ROLLOUT_MODE=off` en el servicio de API y reiniciar. Las superficies
-   responden 503 en cuanto arranca.
-2. Comprobar: `POST /api/circles/invitations/inspect` y
+Son **dos servicios y dos efectos distintos**, y hacen falta los dos. Cerrar sólo
+la API deja el motor moviendo actividades por dentro.
+
+1. **API — cierra el acceso.** `CIRCLES_ROLLOUT_MODE=off` y reiniciar. Las
+   superficies responden 503 en cuanto arranca, también para quien esté en la
+   allowlist.
+2. **Worker — detiene las tareas temporales.** El mismo cambio y el mismo
+   reinicio en el servicio del worker. El barrido de Círculos (§8) cancela
+   invitaciones encalladas y abre seguimientos por reloj, sin que nadie pulse
+   nada; bajo `off` se vuelve inerte, pero el modo se resuelve **una sola vez al
+   arrancar**, así que un worker no reiniciado sigue actuando sobre actividades
+   que ya nadie puede abrir.
+3. Comprobar: `POST /api/circles/invitations/inspect` y
    `GET /api/circles/guest/session` deben dar 503 `CIRCLES_UNAVAILABLE`
-   mientras `/health` sigue en 200 — eso distingue "apagado" de "caído".
-3. Si además hay que revocar lo ya emitido, es un `UPDATE` de `revokedAt`, no un
+   mientras `/health` sigue en 200 — eso distingue "apagado" de "caído". Para el
+   worker, la señal es `skippedRolloutOff: true` en el resumen del barrido.
+4. Si además hay que revocar lo ya emitido, es un `UPDATE` de `revokedAt`, no un
    flag (ver §1).
-4. Apagar el rollout **no** borra datos ni recupera contenido ya visto.
+5. Apagar el rollout **no** borra datos ni recupera contenido ya visto.
+
+**El borrado de cuenta no se detiene con esto** y no debe detenerse: es una
+obligación con la persona, no una función del producto. Su job corre igual con
+el rollout apagado, y con él la política de artefactos de §2.
 
 ---
 
@@ -757,9 +817,11 @@ comprobar el patrón, vuelve a excluir lo protegido y vuelve a enseñar el plan.
 **Qué permanece, conforme al comportamiento actual** (no es una política nueva,
 es lo que hoy hace el borrado): el asiento se conserva con `userId` nulo, el
 Círculo con `createdByUserId` nulo y las filas de `CircleEvent` con
-`actorUserId` nulo — por la regla del ledger de §2. El artefacto `PROPOSED` y el
-`SUPERSEDED` **se conservan** y siguen siendo **decisión pendiente**; este
-comando no la inventa ni la adelanta.
+`actorUserId` nulo — por la regla del ledger de §2. Los artefactos `PROPOSED` y
+`SUPERSEDED` que escribió esa cuenta **se quedan sin contenido**, con `purgedAt`
+fechado, conforme a la política aprobada de §2; los `AGREED` y todo lo de la
+contraparte quedan intactos. Este comando no decide nada de eso: lo hace el
+borrado real, y aquí sólo se describe lo que se verá después.
 
 ### Cuando termines de probar
 
@@ -816,6 +878,65 @@ cuatro servicios; el proyecto puede quedar en pie para no tener que rehacerlo.
 
 ---
 
+## 12B · El piloto PRODUCTIVO — encender, comprobar, apagar
+
+> Distinto del §12. Ese es el entorno de pruebas, con cuentas sintéticas y un
+> recorrido automatizado que crea y destruye. **Nada de eso se ejecuta aquí.**
+
+### Destinos, por id
+
+| Qué              | Id                                                        |
+| ---------------- | --------------------------------------------------------- |
+| Proyecto Railway | `013d58d0-3886-4e9a-8fc2-7c50df9dc38e` (`psico-platform`) |
+| Entorno          | `4df9c485-52b7-44a9-881c-97791753682f` (`production`)     |
+| API              | `4131e16a-9576-4268-a933-624f26e259f8`                    |
+| Worker           | `1d672199-6d56-4f71-b82e-93c3597be322`                    |
+| Web (Vercel)     | `prj_LqB4M2ZPwkgMh96LDf0reanTrWJu` (`psico-platform-web`) |
+
+Nunca por vínculo heredado. Un `vercel deploy --prod --yes` desde un directorio
+sin vincular **crea un proyecto nuevo** con el nombre del directorio; desde uno
+vinculado al proyecto equivocado, despliega ahí sin preguntar. Antes de
+desplegar:
+
+```bash
+node apps/web/e2e/circulos/vercel-target.mjs \
+  --dir <directorio> --project <prj_…> --org <team_…>
+```
+
+### Encender
+
+1. `CIRCLES_ROLLOUT_MODE=pilot` en **API y worker**.
+2. `CIRCLES_PILOT_USER_IDS` con los ids de quienes ORGANIZAN, en ambos.
+3. `CIRCLES_SHARED_DATA_KEY_V1` en ambos — 32 bytes, base64, **exclusiva de
+   producción**.
+4. `CLIENT_ATTESTATION_SECRET` en la API y en la Web, **el mismo valor**.
+5. Esperar los estados terminales de los tres despliegues. El modo se resuelve
+   una sola vez al arrancar.
+
+### Comprobar
+
+```bash
+node apps/web/e2e/circulos/production-ready.mjs \
+  --api https://psico-platform-production.up.railway.app \
+  --web https://psico-platform-web.vercel.app
+```
+
+Lee y no escribe: no registra cuentas, no encola trabajos y no toca fechas.
+Comprueba que Círculos está **abierto** (401 sobre una sesión inventada, no
+503), que un anónimo no crea nada, que una llamada directa a las rutas del BFF
+se rechaza, que la atestación de la Web sí se acepta —es decir, que los dos
+secretos coinciden—, y que la CSP lleva un nonce distinto por petición.
+
+Lo que **no** puede comprobar: que un organizador autorizado entre y cree. Eso
+necesita su contraseña, y esa comprobación es de una persona.
+
+### Apagar
+
+Lo de §6, con los dos servicios de producción. El barrido se detiene sólo al
+reiniciar el worker; el borrado de cuentas sigue corriendo, como debe.
+
+---
+
 ## 13 · Círculos de más de dos personas — qué hay y qué falta
 
 **Disponible hoy:** el motor de Círculos y **una** modalidad, el Dúo de dos
@@ -858,17 +979,19 @@ sirve para ninguno.
 
 ## 14 · PENDIENTE — no implementado en este corte
 
-> Las dos primeras están ahora **preparadas como decisión concreta** en
-> [`circles-pilot-activation-decision.md`](circles-pilot-activation-decision.md):
-> una plantilla propuesta con su texto exacto, una política de artefactos por
-> estado con recomendación, y la lista de variables, comprobaciones y criterios
-> de parada. Siguen **sin aprobar** — el documento no enciende nada.
+> La política de artefactos y la primera plantilla **están aprobadas e
+> implementadas** (§2 y §5). Lo que sigue pendiente es una plantilla SEGUNDA, y
+> con ella la regla que no cambia: una aprobación no se hereda. Un texto
+> pendiente **no equivale a una aprobación tácita** — que nadie haya dicho que
+> no, que el plazo se alargue o que el código ya esté listo no convierte una
+> propuesta en algo publicable.
+> El paquete aprobado está en
+> [`circles-pilot-activation-decision.md`](circles-pilot-activation-decision.md).
 
-- **Aprobación editorial y de seguridad de plantillas.** Ninguna candidata tiene
-  copy aprobado verificable en el repositorio. El catálogo de producción sigue
-  vacío y los ratchets lo afirman. **Requisito previo del piloto con personas.**
-- **Política de retención/purga de artefactos.** No se ha inventado ninguna;
-  queda como decisión pendiente. **Requisito previo del piloto con personas.**
+- **Aprobación editorial y de seguridad de plantillas ADICIONALES.** Ninguna otra
+  candidata tiene copy aprobado verificable en el repositorio, y los ratchets
+  afirman que el catálogo lleva exactamente la aprobada. **Requisito previo de
+  cualquier segunda actividad.**
 - **El listado `/dashboard/circulos` no lleva a ninguna parte.** Enumera lo
   publicado y su enlace "Ver de qué se trata" abre una página de presentación
   **sin ningún botón para empezar**. El punto de entrada vive en la superficie

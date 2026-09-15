@@ -220,10 +220,47 @@ describe("eligibility is an enumeration, never an inference", () => {
     expect(resolveDuoEntry(asked, spillable)).toBeNull();
   });
 
-  it("production ships zero mappings, matching the empty catalog", () => {
-    expect(PRODUCTION_DUO_ELIGIBILITY).toHaveLength(0);
-    // And with the real (empty) dependencies, nothing resolves.
+  it("production ships EXACTLY the one approved mapping, and no other", () => {
+    // This used to assert emptiness. It now asserts the contents, which is the
+    // same ratchet and not a weaker one: a second mapping, a changed pin or a
+    // bumped version all fail here and have to be argued for in review.
+    expect(PRODUCTION_DUO_ELIGIBILITY).toEqual([
+      {
+        experienceKey: "eec-c1-cuerpo-antes-que-mente",
+        experienceVersion: 1,
+        templateKey: "duo-lo-que-me-ayuda",
+        templateVersion: 1,
+      },
+    ]);
+  });
+
+  it("resolves the approved pin in production, through the real catalog", () => {
+    const entry = resolveDuoEntry({
+      experienceKey: "eec-c1-cuerpo-antes-que-mente",
+      experienceVersion: 1,
+    });
+    expect(entry).toEqual({
+      label: DUO_CTA_LABEL,
+      href: "/dashboard/circulos/nuevo/duo-lo-que-me-ayuda",
+    });
+  });
+
+  it("still resolves NOTHING for any other production pin", () => {
+    // The offer is an enumeration of one. A neighbouring version of the same
+    // guide is not "close enough".
     expect(resolveDuoEntry(PIN)).toBeNull();
+    expect(
+      resolveDuoEntry({
+        experienceKey: "eec-c1-cuerpo-antes-que-mente",
+        experienceVersion: 2,
+      }),
+    ).toBeNull();
+    expect(
+      resolveDuoEntry({
+        experienceKey: "eec-c2-el-contacto-sostenido",
+        experienceVersion: 1,
+      }),
+    ).toBeNull();
   });
 });
 
@@ -442,8 +479,15 @@ describe("the listing sends people to where the offer is made", () => {
     ).toBeNull();
   });
 
-  it("offers nothing in production, where the catalog is empty", () => {
-    expect(PRODUCTION_DUO_ELIGIBILITY).toHaveLength(0);
+  it("sends people to the ONE approved reading surface, and nowhere else", () => {
+    expect(resolveDuoSurface("duo-lo-que-me-ayuda")).toEqual({
+      experienceKey: "eec-c1-cuerpo-antes-que-mente",
+      href: "/dashboard/exploraciones/eec-c1-cuerpo-antes-que-mente",
+    });
+    // Not a prefix, not a near miss, and emphatically not the synthetic
+    // fixture: a template nobody mapped leads nowhere.
     expect(resolveDuoSurface("anything")).toBeNull();
+    expect(resolveDuoSurface("e2e-duo-sintetica")).toBeNull();
+    expect(resolveDuoSurface("duo-lo-que-me-ayuda-2")).toBeNull();
   });
 });

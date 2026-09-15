@@ -53,6 +53,7 @@ const suite = base ? describe : describe.skip;
 const API_DIR = process.cwd();
 const MIGRATIONS_DIR = join(API_DIR, "prisma", "migrations");
 const THIS_MIGRATION = "20260913000000_circles_account_deletion";
+const PURGE_MIGRATION = "20260915000000_circles_artifact_purge";
 
 /**
  * ── The harness owns only what it created ─────────────────────────────────
@@ -227,6 +228,7 @@ function buildService(
     new CircleMemberRepository(prisma as never),
     new CircleInvitationRepository(prisma as never),
     new CircleGuestSessionRepository(prisma as never),
+    new CircleArtifactRepository(prisma as never),
   );
 }
 
@@ -558,7 +560,7 @@ suite("circles · account deletion (real PostgreSQL)", () => {
 
   // ── 4 · already revealed, with an artifact ────────────────────────────────
 
-  it("4 · a revealed activity closes; the deleted person's envelope goes, the artifact is LEFT AS IS", async () => {
+  it("4 · a revealed activity closes; the deleted person's envelope goes, the COUNTERPART's artifact is left as is", async () => {
     const { circleId, members } = await makeCircle(GONE, [STAYS]);
     const activityId = await makeActivity(circleId, "REVEALED");
     const mine = await makeSeat({
@@ -605,6 +607,11 @@ suite("circles · account deletion (real PostgreSQL)", () => {
     // A reveal that already happened is not undone: the counterpart's own
     // snapshot and the shared artifact are theirs, and nothing here pretends
     // they can un-see what they read.
+    //
+    // Note WHY this artifact survives: `theirs` wrote it. Under the approved
+    // policy the deleted person's own drafts are purged, so this assertion
+    // would be worthless if the fixture had attributed it to `mine` — which is
+    // the mistake the authorship tests below exist to catch.
     const kept = await pool.query(
       `SELECT "ciphertext" FROM "CircleActivityParticipant" WHERE "id" = $1`,
       [theirs],
@@ -615,6 +622,283 @@ suite("circles · account deletion (real PostgreSQL)", () => {
       [artifactId],
     );
     expect(art.rows).toHaveLength(1);
+  });
+
+  // ── The approved artifact policy ─────────────────────────────────────────
+  //
+  // Deleting an account removes the CONTENT of the artifacts that account
+  // AUTHORED while they were still drafts. Agreements both people confirmed
+  // stay. Everything the counterpart wrote stays. The row always stays,
+  // because the append-only ledger references it.
+
+  describe("artifacts, by authorship", () => {
+    /** One artifact, attributed to the seat given. Returns its id. */
+    const makeArtifact = async (cols: {
+      activityId: string;
+      byParticipantId: string;
+      status?: "PROPOSED" | "AGREED" | "SUPERSEDED";
+      version?: number;
+    }) => {
+      const id = uid("art");
+      const status = cols.status ?? "PROPOSED";
+      await pool.query(
+        `INSERT INTO "CircleArtifact"
+           ("id","activityId","createdByParticipantId","status","version","kind",
+            "ciphertext","nonce","keyVersion","payloadHash","agreedAt","updatedAt")
+         VALUES ($1,$2,$3,$4::"CircleArtifactStatus",$5,
+                 'AGREEMENT'::"CircleArtifactKind",'CT','N',1,$6,$7,now())`,
+        [
+          id,
+          cols.activityId,
+          cols.byParticipantId,
+          status,
+          cols.version ?? 1,
+          HMAC_HEX,
+          status === "AGREED" ? pgTs(new Date()) : null,
+        ],
+      );
+      return id;
+    };
+
+    const readArtifact = async (id: string) => {
+      const r = await pool.query(
+        `SELECT "status","ciphertext","nonce","keyVersion","payloadHash","purgedAt"
+           FROM "CircleArtifact" WHERE "id" = $1`,
+        [id],
+      );
+      return r.rows[0] ?? null;
+    };
+
+    /** A revealed Dúo with both seats ready. */
+    const revealedDuo = async (status = "REVEALED") => {
+      const { circleId, members } = await makeCircle(GONE, [STAYS]);
+      const activityId = await makeActivity(circleId, status);
+      const mine = await makeSeat({
+        circleId,
+        activityId,
+        memberId: members[GONE]!,
+        status: "READY",
+        withEnvelope: true,
+      });
+      const theirs = await makeSeat({
+        circleId,
+        activityId,
+        memberId: members[STAYS]!,
+        status: "READY",
+        withEnvelope: true,
+      });
+      return { circleId, activityId, mine, theirs };
+    };
+
+    it("purges the content of a PROPOSED artifact the deleted account wrote", async () => {
+      const { activityId, mine } = await revealedDuo();
+      const art = await makeArtifact({ activityId, byParticipantId: mine });
+
+      await detach(GONE);
+      await deleteUser(GONE);
+
+      const row = await readArtifact(art);
+      expect(row).not.toBeNull();
+      // The row survives: the ledger points at it with RESTRICT, and the fact
+      // that a proposal was made is not what was approved for removal.
+      expect(row.ciphertext).toBeNull();
+      expect(row.nonce).toBeNull();
+      expect(row.keyVersion).toBeNull();
+      expect(row.payloadHash).toBeNull();
+      expect(row.purgedAt).not.toBeNull();
+      // And it is still a proposal. Rewriting the status would rewrite what
+      // happened.
+      expect(row.status).toBe("PROPOSED");
+    });
+
+    it("purges every SUPERSEDED version it wrote, not only the last", async () => {
+      const { activityId, mine } = await revealedDuo();
+      const v1 = await makeArtifact({
+        activityId,
+        byParticipantId: mine,
+        status: "SUPERSEDED",
+        version: 1,
+      });
+      const v2 = await makeArtifact({
+        activityId,
+        byParticipantId: mine,
+        status: "SUPERSEDED",
+        version: 2,
+      });
+      const v3 = await makeArtifact({
+        activityId,
+        byParticipantId: mine,
+        version: 3,
+      });
+
+      await detach(GONE);
+      await deleteUser(GONE);
+
+      for (const id of [v1, v2, v3]) {
+        const row = await readArtifact(id);
+        expect(row.ciphertext, id).toBeNull();
+        expect(row.purgedAt, id).not.toBeNull();
+      }
+    });
+
+    it("keeps an AGREED artifact the deleted account wrote", async () => {
+      // The hardest case for the policy, and the one worth being explicit
+      // about: this IS their text, and it is kept — because the other person
+      // confirmed it, and deleting one account does not destroy the other's
+      // copy of what they agreed.
+      const { activityId, mine } = await revealedDuo();
+      const art = await makeArtifact({
+        activityId,
+        byParticipantId: mine,
+        status: "AGREED",
+      });
+
+      await detach(GONE);
+      await deleteUser(GONE);
+
+      const row = await readArtifact(art);
+      expect(row.status).toBe("AGREED");
+      expect(row.ciphertext).not.toBeNull();
+      expect(row.purgedAt).toBeNull();
+    });
+
+    it("does not touch a draft the COUNTERPART wrote", async () => {
+      const { activityId, theirs } = await revealedDuo();
+      const art = await makeArtifact({ activityId, byParticipantId: theirs });
+
+      await detach(GONE);
+      await deleteUser(GONE);
+
+      const row = await readArtifact(art);
+      expect(row.ciphertext).not.toBeNull();
+      expect(row.purgedAt).toBeNull();
+    });
+
+    it("reaches drafts in an activity that was ALREADY closed", async () => {
+      // The conversation being over does not make the text somebody else's.
+      const { activityId, mine } = await revealedDuo("CLOSED");
+      const art = await makeArtifact({ activityId, byParticipantId: mine });
+
+      await detach(GONE);
+      await deleteUser(GONE);
+
+      const row = await readArtifact(art);
+      expect(row.purgedAt).not.toBeNull();
+      expect(row.ciphertext).toBeNull();
+      const activity = await pool.query(
+        `SELECT "status" FROM "CircleActivity" WHERE "id" = $1`,
+        [activityId],
+      );
+      // Untouched: erasing content is not a domain transition.
+      expect(activity.rows[0].status).toBe("CLOSED");
+    });
+
+    it("purges nothing when the deletion is CANCELLED before it runs", async () => {
+      const { activityId, mine } = await revealedDuo();
+      const art = await makeArtifact({ activityId, byParticipantId: mine });
+
+      // The processor's own guard: the request is gone, so `detachUser` is
+      // never reached. Nothing here may have touched the artifact.
+      await pool.query(
+        `UPDATE "User" SET "deleteRequestedAt" = NULL WHERE "id" = $1`,
+        [GONE],
+      );
+
+      const row = await readArtifact(art);
+      expect(row.ciphertext).not.toBeNull();
+      expect(row.purgedAt).toBeNull();
+    });
+
+    it("is idempotent: a retry purges nothing more and moves no timestamp", async () => {
+      const { activityId, mine } = await revealedDuo();
+      const art = await makeArtifact({ activityId, byParticipantId: mine });
+
+      const first = await detach(GONE);
+      const after = await readArtifact(art);
+      expect(first.artifactsPurged).toBe(1);
+
+      const second = await detach(GONE);
+      expect(second.artifactsPurged).toBe(0);
+      const again = await readArtifact(art);
+      expect(again.purgedAt.getTime()).toBe(after.purgedAt.getTime());
+    });
+
+    it("rolls back the purge when the transaction fails afterwards", async () => {
+      const { activityId, mine } = await revealedDuo();
+      const art = await makeArtifact({ activityId, byParticipantId: mine });
+
+      await expect(
+        prisma.$transaction(async (tx) => {
+          await service.detachUser(GONE, tx as never);
+          throw new Error("something later in the transaction failed");
+        }),
+      ).rejects.toThrow("something later");
+
+      const row = await readArtifact(art);
+      expect(row.ciphertext).not.toBeNull();
+      expect(row.purgedAt).toBeNull();
+    });
+
+    it("leaves the ledger append-only, and its rows pointing at the purged artifact", async () => {
+      const { circleId, activityId, mine } = await revealedDuo();
+      const art = await makeArtifact({ activityId, byParticipantId: mine });
+      const evId = uid("ev");
+      await pool.query(
+        `INSERT INTO "CircleEvent"
+           ("id","circleId","activityId","artifactId","type","actorParticipantId","occurredAt")
+         VALUES ($1,$2,$3,$4,'ARTIFACT_PROPOSED'::"CircleEventType",$5,now())`,
+        [evId, circleId, activityId, art, mine],
+      );
+
+      await detach(GONE);
+      await deleteUser(GONE);
+
+      // The event survives and still references the artifact: that a proposal
+      // happened is the record, and the record is not what was removed.
+      const ev = await pool.query(
+        `SELECT "artifactId" FROM "CircleEvent" WHERE "id" = $1`,
+        [evId],
+      );
+      expect(ev.rows[0].artifactId).toBe(art);
+
+      // And the ledger is still append-only for everything else.
+      await expect(
+        pool.query(
+          `UPDATE "CircleEvent" SET "type" = 'ARTIFACT_CONFIRMED'::"CircleEventType" WHERE "id" = $1`,
+          [evId],
+        ),
+      ).rejects.toThrow();
+    });
+
+    it("refuses to purge an AGREED artifact even by direct statement", async () => {
+      // The policy as a database invariant, not only as a service filter.
+      const { activityId, mine } = await revealedDuo();
+      const art = await makeArtifact({
+        activityId,
+        byParticipantId: mine,
+        status: "AGREED",
+      });
+      await expect(
+        pool.query(
+          `UPDATE "CircleArtifact"
+              SET "ciphertext"=NULL,"nonce"=NULL,"keyVersion"=NULL,
+                  "payloadHash"=NULL,"purgedAt"=now()
+            WHERE "id" = $1`,
+          [art],
+        ),
+      ).rejects.toThrow(/agreed_is_never_purged/);
+    });
+
+    it("refuses half a purge", async () => {
+      const { activityId, mine } = await revealedDuo();
+      const art = await makeArtifact({ activityId, byParticipantId: mine });
+      await expect(
+        pool.query(
+          `UPDATE "CircleArtifact" SET "ciphertext" = NULL WHERE "id" = $1`,
+          [art],
+        ),
+      ).rejects.toThrow(/purged_has_no_content/);
+    });
   });
 
   // ── Races, driven by the REAL commands ───────────────────────────────────
@@ -1138,6 +1422,272 @@ suite("circles · account deletion (real PostgreSQL)", () => {
         }
       }, 120_000);
 
+      /**
+       * The artifact policy against a live confirmation.
+       *
+       * The status of an artifact is what decides whether its content survives,
+       * so "is it a draft" must be read under the lock that the confirmation
+       * also takes — not from an inventory gathered earlier. These two run the
+       * REAL commands on identified connections and check who waited on whom.
+       */
+      const revealedWithProposal = async () => {
+        const { created, guest } = await inviteAndAccept(GONE);
+        // Both sides confirm, so the activity reveals.
+        await participation.confirmShare(
+          { kind: "USER", userId: GONE },
+          created.activityId,
+          {
+            mode: "SELECTED_FIELDS",
+            fields: [{ fieldKey: "campo-a", value: "lo mío" }],
+          },
+          `idem-${uid("k")}`,
+        );
+        await guestConfirms(guest, created.activityId);
+        // The DELETED person writes the proposal, so the policy applies to it.
+        const proposal = await participation.proposeArtifact(
+          { kind: "USER", userId: GONE },
+          created.activityId,
+          "acuerdo propuesto",
+          `idem-${uid("k")}`,
+        );
+        // Proposing is not confirming. The author confirms their own wording,
+        // so the artifact sits at one confirmation of two — and whoever
+        // confirms next is the one who turns it into an agreement. That is the
+        // moment the race is about.
+        await participation.confirmArtifact(
+          { kind: "USER", userId: GONE },
+          created.activityId,
+          proposal.artifactId,
+          proposal.version,
+          `idem-${uid("k")}`,
+        );
+        return { created, guest, proposal };
+      };
+
+      const artifactRow = async (id: string) => {
+        const { rows } = await pool.query(
+          `SELECT "status","ciphertext","purgedAt" FROM "CircleArtifact" WHERE "id" = $1`,
+          [id],
+        );
+        return rows[0];
+      };
+
+      it("the CONFIRMATION acquires first: it becomes an agreement, and the deletion keeps it", async () => {
+        const { created, guest, proposal } = await revealedWithProposal();
+
+        const guestSide = identifiedClient("circles_confirm_first");
+        const deletionSide = identifiedClient("circles_deletion_confirm");
+        const gate = makeGate();
+
+        try {
+          const guestParticipation = participationOn(
+            guestSide.prisma,
+            pauseAfter(
+              new CircleActivityRepository(guestSide.prisma as never),
+              "lockById",
+              { reached: gate.reach, release: gate.release },
+            ),
+          );
+          // The guest confirms the proposal the deleted person wrote. With both
+          // seats confirmed it becomes AGREED — jointly held text.
+          const confirming = guestParticipation.confirmArtifact(
+            guest,
+            created.activityId,
+            proposal.artifactId,
+            proposal.version,
+            `idem-${uid("k")}`,
+          );
+          await gate.reached;
+
+          const deletionService = buildService(deletionSide.prisma);
+          const deleting = deletionSide.prisma.$transaction(
+            async (tx) => {
+              await tx.$queryRawUnsafe(
+                `SELECT "id" FROM "User" WHERE "id" = $1 FOR UPDATE`,
+                GONE,
+              );
+              return deletionService.detachUser(GONE, tx as never);
+            },
+            { timeout: 60_000 },
+          );
+
+          const blockers = await blockedBy("circles_deletion_confirm");
+          const guestPid = await pidOf("circles_confirm_first");
+          expect(guestPid).not.toBeNull();
+          expect(
+            blockers,
+            "the deletion should be waiting on the CONFIRMATION's connection",
+          ).toContain(guestPid);
+
+          gate.open();
+          const confirmed = await confirming;
+          const summary = await deleting;
+          await deleteUser(GONE);
+
+          expect(confirmed.agreed).toBe(true);
+          // The agreement stands, content and all, although its author's
+          // account is gone. Both people confirmed this text.
+          const row = await artifactRow(proposal.artifactId);
+          expect(row.status).toBe("AGREED");
+          expect(row.ciphertext).not.toBeNull();
+          expect(row.purgedAt).toBeNull();
+          expect(summary.artifactsPurged).toBe(0);
+        } finally {
+          gate.open();
+          await guestSide.prisma.$disconnect().catch(() => undefined);
+          await deletionSide.prisma.$disconnect().catch(() => undefined);
+          await guestSide.pool.end().catch(() => undefined);
+          await deletionSide.pool.end().catch(() => undefined);
+        }
+      }, 120_000);
+
+      it("the DELETION acquires first: the draft is purged and a later confirmation cannot revive it", async () => {
+        const { created, guest, proposal } = await revealedWithProposal();
+
+        const guestSide = identifiedClient("circles_confirm_late");
+        const deletionSide = identifiedClient("circles_deletion_first");
+        const gate = makeGate();
+
+        try {
+          const deletionService = new CirclesAccountDeletionService(
+            new CircleParticipantRepository(deletionSide.prisma as never),
+            pauseAfter(
+              new CircleActivityRepository(deletionSide.prisma as never),
+              "lockById",
+              { reached: gate.reach, release: gate.release },
+            ) as never,
+            new CircleEventRepository(deletionSide.prisma as never),
+            new CircleMemberRepository(deletionSide.prisma as never),
+            new CircleInvitationRepository(deletionSide.prisma as never),
+            new CircleGuestSessionRepository(deletionSide.prisma as never),
+            new CircleArtifactRepository(deletionSide.prisma as never),
+          );
+          const deleting = deletionSide.prisma.$transaction(
+            async (tx) => {
+              await tx.$queryRawUnsafe(
+                `SELECT "id" FROM "User" WHERE "id" = $1 FOR UPDATE`,
+                GONE,
+              );
+              return deletionService.detachUser(GONE, tx as never);
+            },
+            { timeout: 60_000 },
+          );
+          await gate.reached; // the deletion HOLDS the activity row
+
+          const guestParticipation = participationOn(guestSide.prisma);
+          const confirming = guestParticipation
+            .confirmArtifact(
+              guest,
+              created.activityId,
+              proposal.artifactId,
+              proposal.version,
+              `idem-${uid("k")}`,
+            )
+            .then(
+              (ok) => ({ ok }),
+              (err: Error) => ({ err }),
+            );
+
+          const blockers = await blockedBy("circles_confirm_late");
+          const deletionPid = await pidOf("circles_deletion_first");
+          expect(deletionPid).not.toBeNull();
+          expect(
+            blockers,
+            "the confirmation should be waiting on the DELETION's connection",
+          ).toContain(deletionPid);
+
+          gate.open();
+          const summary = await deleting;
+          await deleteUser(GONE);
+          const outcome = await confirming;
+
+          expect(summary.artifactsPurged).toBe(1);
+          // The confirmation arrived after the content was gone. It is refused,
+          // with the same opaque answer as any other unusable artifact — and
+          // crucially it did NOT turn a purged draft into an agreement.
+          expect("err" in outcome).toBe(true);
+          const row = await artifactRow(proposal.artifactId);
+          expect(row.status).toBe("PROPOSED");
+          expect(row.ciphertext).toBeNull();
+          expect(row.purgedAt).not.toBeNull();
+        } finally {
+          gate.open();
+          await guestSide.prisma.$disconnect().catch(() => undefined);
+          await deletionSide.prisma.$disconnect().catch(() => undefined);
+          await guestSide.pool.end().catch(() => undefined);
+          await deletionSide.pool.end().catch(() => undefined);
+        }
+      }, 120_000);
+
+      it("a REPLACEMENT racing the deletion leaves the counterpart's new version whole", async () => {
+        // Editing the wording creates a NEW version and supersedes the old one.
+        // Whichever order they land in, the same two things must hold: the
+        // deleted person's draft carries no content, and the counterpart's
+        // replacement is untouched.
+        const { created, guest, proposal } = await revealedWithProposal();
+
+        const guestSide = identifiedClient("circles_replace");
+        const deletionSide = identifiedClient("circles_deletion_replace");
+        const gate = makeGate();
+
+        try {
+          const guestParticipation = participationOn(
+            guestSide.prisma,
+            pauseAfter(
+              new CircleActivityRepository(guestSide.prisma as never),
+              "lockById",
+              { reached: gate.reach, release: gate.release },
+            ),
+          );
+          const replacing = guestParticipation.proposeArtifact(
+            guest,
+            created.activityId,
+            "otra redacción, la de la contraparte",
+            `idem-${uid("k")}`,
+          );
+          await gate.reached;
+
+          const deletionService = buildService(deletionSide.prisma);
+          const deleting = deletionSide.prisma.$transaction(
+            async (tx) => {
+              await tx.$queryRawUnsafe(
+                `SELECT "id" FROM "User" WHERE "id" = $1 FOR UPDATE`,
+                GONE,
+              );
+              return deletionService.detachUser(GONE, tx as never);
+            },
+            { timeout: 60_000 },
+          );
+
+          const blockers = await blockedBy("circles_deletion_replace");
+          const guestPid = await pidOf("circles_replace");
+          expect(guestPid).not.toBeNull();
+          expect(blockers).toContain(guestPid);
+
+          gate.open();
+          const replacement = await replacing;
+          await deleting;
+          await deleteUser(GONE);
+
+          // v1 was the deleted person's, now superseded: content gone.
+          const old = await artifactRow(proposal.artifactId);
+          expect(old.status).toBe("SUPERSEDED");
+          expect(old.ciphertext).toBeNull();
+          expect(old.purgedAt).not.toBeNull();
+
+          // v2 is the counterpart's: untouched.
+          const fresh = await artifactRow(replacement.artifactId);
+          expect(fresh.ciphertext).not.toBeNull();
+          expect(fresh.purgedAt).toBeNull();
+        } finally {
+          gate.open();
+          await guestSide.prisma.$disconnect().catch(() => undefined);
+          await deletionSide.prisma.$disconnect().catch(() => undefined);
+          await guestSide.pool.end().catch(() => undefined);
+          await deletionSide.pool.end().catch(() => undefined);
+        }
+      }, 120_000);
+
       it("the deletion acquires first: the guest's command waits, then produces no effects", async () => {
         const { created, guest } = await inviteAndAccept(GONE);
         const mine = await circlesOf(GONE);
@@ -1160,6 +1710,7 @@ suite("circles · account deletion (real PostgreSQL)", () => {
             new CircleMemberRepository(deletionSide.prisma as never),
             new CircleInvitationRepository(deletionSide.prisma as never),
             new CircleGuestSessionRepository(deletionSide.prisma as never),
+            new CircleArtifactRepository(deletionSide.prisma as never),
           );
 
           const deleting = deletionSide.prisma.$transaction(
@@ -1843,100 +2394,6 @@ suite("circles · account deletion (real PostgreSQL)", () => {
 
   // ── Artifacts: the matrix, and the part that is NOT decided ───────────────
 
-  describe("artifacts are left as they are, and that is a PENDING decision", () => {
-    /**
-     * What this suite pins is the CURRENT behaviour, not an approved policy.
-     *
-     * The withdrawal contract says nothing about artifacts — `withdraw()` does
-     * not touch them — and no retention policy exists in the repository. So
-     * deletion inherits "leave them alone" by default, and these tests record
-     * that rather than bless it.
-     *
-     * The matrix that needs a decision:
-     *
-     *   PROPOSED by the deleted person, never confirmed  → their content,
-     *       nobody agreed to it. Arguably should go. TODAY IT STAYS.
-     *   AGREED by both                                    → joint content the
-     *       counterpart agreed to and read. Deleting it destroys their record.
-     *   SUPERSEDED                                        → historical.
-     *
-     * `ARTIFACT_RETENTION_POLICY_STATUS=pending_decision`.
-     */
-    const makeArtifact = async (
-      activityId: string,
-      participantId: string,
-      status: "PROPOSED" | "AGREED",
-    ) => {
-      const id = uid("art");
-      await pool.query(
-        `INSERT INTO "CircleArtifact"
-           ("id","activityId","createdByParticipantId","status","version","kind",
-            "ciphertext","nonce","keyVersion","payloadHash","agreedAt","updatedAt")
-         VALUES ($1,$2,$3,$4::"CircleArtifactStatus",1,
-                 'AGREEMENT'::"CircleArtifactKind",'CT','N',1,$5,$6,now())`,
-        [
-          id,
-          activityId,
-          participantId,
-          status,
-          HMAC_HEX,
-          status === "AGREED" ? pgTs(new Date()) : null,
-        ],
-      );
-      return id;
-    };
-
-    it("a PROPOSED artifact authored by the deleted person is NOT erased today", async () => {
-      const { circleId, members } = await makeCircle(GONE, [STAYS]);
-      const activityId = await makeActivity(circleId, "REVEALED");
-      const mine = await makeSeat({
-        circleId,
-        activityId,
-        memberId: members[GONE]!,
-        status: "READY",
-        withEnvelope: true,
-      });
-      const artifactId = await makeArtifact(activityId, mine, "PROPOSED");
-
-      await detach(GONE);
-      await deleteUser(GONE);
-
-      const { rows } = await pool.query(
-        `SELECT "status","ciphertext" FROM "CircleArtifact" WHERE "id" = $1`,
-        [artifactId],
-      );
-      // Recorded, not endorsed: nobody ever agreed to this text, so calling it
-      // "shared content already seen" would be false. Whether it should be
-      // erased is the open decision.
-      expect(rows).toHaveLength(1);
-      expect(rows[0].status).toBe("PROPOSED");
-      expect(rows[0].ciphertext).not.toBeNull();
-    });
-
-    it("an AGREED artifact survives, and that one IS justified", async () => {
-      const { circleId, members } = await makeCircle(GONE, [STAYS]);
-      const activityId = await makeActivity(circleId, "REVEALED");
-      const mine = await makeSeat({
-        circleId,
-        activityId,
-        memberId: members[GONE]!,
-        status: "READY",
-        withEnvelope: true,
-      });
-      const artifactId = await makeArtifact(activityId, mine, "AGREED");
-
-      await detach(GONE);
-      await deleteUser(GONE);
-
-      const { rows } = await pool.query(
-        `SELECT "status","agreedAt" FROM "CircleArtifact" WHERE "id" = $1`,
-        [artifactId],
-      );
-      expect(rows[0].status).toBe("AGREED");
-      expect(rows[0].agreedAt).not.toBeNull();
-    });
-  });
-
   // ── 5 · retries ───────────────────────────────────────────────────────────
 
   it("5 · a retried detach is a no-op, and the delete still succeeds", async () => {
@@ -2295,9 +2752,17 @@ suite(
           .filter((e) => e.isDirectory())
           .map((e) => e.name)
           .sort();
-        const baseline = all.filter((d) => d !== THIS_MIGRATION);
+        // Everything that came BEFORE this migration — not "everything except
+        // it". The difference shows up the moment a later migration is added:
+        // filtering by inequality would quietly fold the newcomer into the
+        // baseline and claim `main` already had it.
+        const index = all.indexOf(THIS_MIGRATION);
+        expect(index).toBeGreaterThan(-1);
+        const baseline = all.slice(0, index);
         expect(baseline).toHaveLength(64);
-        expect(all).toHaveLength(65);
+        // The tail is NAMED, so an unnamed newcomer fails here rather than
+        // drifting into a baseline it was never part of.
+        expect(all.slice(index)).toEqual([THIS_MIGRATION, PURGE_MIGRATION]);
 
         const { readFileSync } = await import("node:fs");
         for (const dir of baseline) {
@@ -2378,6 +2843,181 @@ suite(
           `SELECT "createdByUserId" FROM "Circle" WHERE "id" = 'c-base'`,
         );
         expect(circle.rows[0].createdByUserId).toBeNull();
+      } finally {
+        await pool.end();
+        await dropCreatedDatabases(base as string);
+      }
+    }, 300_000);
+
+    it("main cannot purge an artifact; the purge migration is what changes that", async () => {
+      // The same question as above, asked of the SECOND migration and of rows
+      // that already existed before it. Running the whole chain from scratch
+      // proves the end state is right; it cannot prove the upgrade works,
+      // because from scratch there is nothing to upgrade.
+      assertDestructionAllowed(base as string);
+      const admin = new Pool({ connectionString: base });
+      const db = `circles_del_purge_${RUN}`;
+      try {
+        await createDatabase(admin, db);
+      } finally {
+        await admin.end();
+      }
+
+      const pool = new Pool({
+        connectionString: withDatabase(base as string, db),
+      });
+
+      try {
+        const all = readdirSync(MIGRATIONS_DIR, { withFileTypes: true })
+          .filter((e) => e.isDirectory())
+          .map((e) => e.name)
+          .sort();
+        const index = all.indexOf(PURGE_MIGRATION);
+        expect(index).toBeGreaterThan(-1);
+        // Everything main carries: the 64 before the deletion migration, plus
+        // the deletion migration itself. Sixty-five, named by position rather
+        // than counted by hand.
+        const onMain = all.slice(0, index);
+        expect(onMain).toHaveLength(65);
+        expect(onMain.at(-1)).toBe(THIS_MIGRATION);
+        expect(all.slice(index)).toEqual([PURGE_MIGRATION]);
+
+        const { readFileSync } = await import("node:fs");
+        for (const dir of onMain) {
+          await pool.query(
+            readFileSync(join(MIGRATIONS_DIR, dir, "migration.sql"), "utf8"),
+          );
+        }
+
+        // A row written the way main writes them: content in all four columns.
+        await pool.query(
+          `INSERT INTO "User" ("id","email","name","passwordHash","updatedAt")
+           VALUES ('u-purge','u-purge@example.test','u','x',now())`,
+        );
+        await pool.query(
+          `INSERT INTO "Circle" ("id","kind","status","createdByUserId","maxParticipants","updatedAt")
+           VALUES ('c-purge','DUO','ACTIVE','u-purge',2,now())`,
+        );
+        await pool.query(
+          `INSERT INTO "CircleActivity"
+             ("id","circleId","templateKey","templateVersion","status",
+              "requiredParticipants","revealedAt","updatedAt")
+           VALUES ('a-purge','c-purge','duo-lo-que-me-ayuda',1,
+                   'REVEALED'::"CircleActivityStatus",2,now(),now())`,
+        );
+        await pool.query(
+          `INSERT INTO "CircleMember"
+             ("id","circleId","userId","role","status","joinedAt")
+           VALUES ('m-purge','c-purge','u-purge','ORGANIZER'::"CircleMemberRole",
+                   'ACTIVE',now())`,
+        );
+        await pool.query(
+          `INSERT INTO "CircleActivityParticipant"
+             ("id","circleId","activityId","memberId","status","updatedAt")
+           VALUES ('p-purge','c-purge','a-purge','m-purge',
+                   'ACCEPTED'::"CircleParticipantStatus",now())`,
+        );
+        await pool.query(
+          `INSERT INTO "CircleArtifact"
+             ("id","activityId","createdByParticipantId","status","version","kind",
+              "ciphertext","nonce","keyVersion","payloadHash","updatedAt")
+           VALUES ('art-purge','a-purge','p-purge','PROPOSED'::"CircleArtifactStatus",1,
+                   'AGREEMENT'::"CircleArtifactKind",'CT','N',1,$1,now())`,
+          [HMAC_HEX],
+        );
+
+        // BEFORE: main has nowhere to put a purge. The columns are NOT NULL and
+        // `purgedAt` does not exist, so the policy is not merely unimplemented —
+        // it is unrepresentable.
+        const beforeCols = await pool.query(
+          `SELECT column_name, is_nullable FROM information_schema.columns
+            WHERE table_name = 'CircleArtifact'
+              AND column_name IN ('ciphertext','nonce','keyVersion','payloadHash','purgedAt')`,
+        );
+        expect(beforeCols.rows.map((r) => r.column_name).sort()).toEqual([
+          "ciphertext",
+          "keyVersion",
+          "nonce",
+          "payloadHash",
+        ]);
+        for (const row of beforeCols.rows) expect(row.is_nullable).toBe("NO");
+
+        const refused = await pool
+          .query(`UPDATE "CircleArtifact" SET "ciphertext" = NULL`)
+          .then(
+            () => null,
+            (e: { code?: string }) => e,
+          );
+        expect(refused?.code, "NOT NULL refuses the purge on main").toBe(
+          "23502",
+        );
+
+        // Apply ONLY the new migration, onto the row that already existed.
+        await pool.query(
+          readFileSync(
+            join(MIGRATIONS_DIR, PURGE_MIGRATION, "migration.sql"),
+            "utf8",
+          ),
+        );
+
+        // AFTER: the same pre-existing row can be emptied, and the two rules
+        // arrived with it.
+        await pool.query(
+          `UPDATE "CircleArtifact"
+              SET "ciphertext" = NULL, "nonce" = NULL, "keyVersion" = NULL,
+                  "payloadHash" = NULL, "purgedAt" = now()
+            WHERE "id" = 'art-purge'`,
+        );
+        const after = await pool.query(
+          `SELECT "ciphertext","purgedAt","status" FROM "CircleArtifact" WHERE "id" = 'art-purge'`,
+        );
+        expect(after.rows).toHaveLength(1);
+        expect(after.rows[0].ciphertext).toBeNull();
+        expect(after.rows[0].purgedAt).not.toBeNull();
+        // The row is still there, because the ledger points at it.
+        expect(after.rows[0].status).toBe("PROPOSED");
+
+        const half = await pool
+          .query(
+            `UPDATE "CircleArtifact" SET "purgedAt" = NULL WHERE "id" = 'art-purge'`,
+          )
+          .then(
+            () => null,
+            (e: { constraint?: string }) => e,
+          );
+        expect(half?.constraint).toBe("CircleArtifact_purged_has_no_content");
+
+        // Make room for the next version the way the product does: one active
+        // artifact per activity, so the purged draft becomes SUPERSEDED — a
+        // state the constraints allow to stay purged.
+        await pool.query(
+          `UPDATE "CircleArtifact"
+              SET "status" = 'SUPERSEDED'::"CircleArtifactStatus"
+            WHERE "id" = 'art-purge'`,
+        );
+
+        await pool.query(
+          `INSERT INTO "CircleArtifact"
+             ("id","activityId","createdByParticipantId","status","version","kind",
+              "ciphertext","nonce","keyVersion","payloadHash","agreedAt","updatedAt")
+           VALUES ('art-agreed','a-purge','p-purge','AGREED'::"CircleArtifactStatus",2,
+                   'AGREEMENT'::"CircleArtifactKind",'CT','N',1,$1,now(),now())`,
+          [HMAC_HEX],
+        );
+        const agreed = await pool
+          .query(
+            `UPDATE "CircleArtifact"
+                SET "ciphertext" = NULL, "nonce" = NULL, "keyVersion" = NULL,
+                    "payloadHash" = NULL, "purgedAt" = now()
+              WHERE "id" = 'art-agreed'`,
+          )
+          .then(
+            () => null,
+            (e: { constraint?: string }) => e,
+          );
+        expect(agreed?.constraint).toBe(
+          "CircleArtifact_agreed_is_never_purged",
+        );
       } finally {
         await pool.end();
         await dropCreatedDatabases(base as string);

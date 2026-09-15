@@ -467,26 +467,28 @@ async function main() {
     'from "./circles"',
   );
 
+  // The fixture is APPENDED to the approved catalog, not substituted for an
+  // empty one. Both matter now: scenarios that name `e2e-duo-sintetica` by key
+  // keep working, and the browser walk — which enters through the reading
+  // surface — runs on `duo-lo-que-me-ayuda`, the template people will use.
   patch(
     "packages/types/src/circles-catalog.ts",
-    "export const PRODUCTION_CIRCLE_TEMPLATES: readonly CircleActivityDefinition[] =\n  [];",
+    "export const PRODUCTION_CIRCLE_TEMPLATES: readonly CircleActivityDefinition[] =\n  [",
     'import { E2E_DUO_TEMPLATE } from "./circles-e2e-fixture";\n\n' +
       "export const PRODUCTION_CIRCLE_TEMPLATES: readonly CircleActivityDefinition[] =\n" +
-      "  [E2E_DUO_TEMPLATE];",
+      "  [\n    E2E_DUO_TEMPLATE,",
   );
 
-  patch(
-    "apps/web/src/lib/circulos/eligibility.ts",
-    "export const PRODUCTION_DUO_ELIGIBILITY: readonly DuoEligibilityMapping[] = [];",
-    "export const PRODUCTION_DUO_ELIGIBILITY: readonly DuoEligibilityMapping[] = [\n" +
-      "  {\n" +
-      '    experienceKey: "eec-c1-cuerpo-antes-que-mente",\n' +
-      "    experienceVersion: 1,\n" +
-      '    templateKey: "e2e-duo-sintetica",\n' +
-      "    templateVersion: 1,\n" +
-      "  },\n" +
-      "];",
-  );
+  // Eligibility is NOT patched any more, and that is the point.
+  //
+  // It used to be overwritten so the reading surface offered the fixture. The
+  // surface now carries the approved mapping, and a second entry for the same
+  // Experience pin would not win a tie-break — ambiguity disables the offer, so
+  // patching it would have silently removed the CTA the walk clicks.
+  //
+  // The consequence is deliberate: every browser scenario exercises the
+  // published template end to end, and the fixture is reached only where a
+  // scenario names it.
 
   // The scope ratchets in the copy would now fail BY DESIGN — they assert the
   // catalog is empty, and here it deliberately is not. They are not run from
@@ -494,7 +496,7 @@ async function main() {
   //
   // This build is therefore NOT publishable and never leaves the temp tree:
   // nothing here is pushed to a registry, uploaded, or reused as an artifact.
-  log("   patched", "2 catalog points + 1 fixture module (build is NOT publishable)");
+  log("   patched", "1 catalog point + 1 fixture module (build is NOT publishable)");
 
   if (PREPARE_AT) {
     // The artifact is the point; nothing is installed, built or started here.
@@ -512,10 +514,14 @@ async function main() {
       },
       patched: [
         { path: "packages/types/src/circles-catalog.ts", sha256: digest("packages/types/src/circles-catalog.ts") },
-        { path: "apps/web/src/lib/circulos/eligibility.ts", sha256: digest("apps/web/src/lib/circulos/eligibility.ts") },
       ],
+      // The fixture the harness may still name by key.
       templateKey: "e2e-duo-sintetica",
       templateVersion: 1,
+      // What the reading surface actually offers, and therefore what the
+      // browser walk exercises.
+      surfaceTemplateKey: "duo-lo-que-me-ayuda",
+      surfaceTemplateVersion: 1,
     };
     writeFileSync(
       join(WORK, "circulos-test-artifact.json"),

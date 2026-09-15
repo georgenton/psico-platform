@@ -54,8 +54,16 @@ export const metadata: Metadata = {
 function templateShape(view: CircleActivityView | null): {
   fields: readonly CirclePreparationField[];
   allowedModes: readonly CircleSharingMode[];
+  noConviene: readonly string[];
+  minutosEstimados: number | null;
 } {
-  if (!view) return { fields: [], allowedModes: [] };
+  if (!view)
+    return {
+      fields: [],
+      allowedModes: [],
+      noConviene: [],
+      minutosEstimados: null,
+    };
   try {
     const definition = productionCircleTemplateRegistry.getExact(
       view.templateKey,
@@ -64,13 +72,25 @@ function templateShape(view: CircleActivityView | null): {
     return {
       fields: definition.privatePreparation,
       allowedModes: definition.sharing.allowedModes,
+      // Copy, like the labels: the situations in which this activity is the
+      // wrong instrument. Shown to each person alone, before they write
+      // anything. Nothing about their answer comes back here.
+      noConviene: definition.safety.doNotSuggestWhen,
+      // The template's own estimate, so the room quotes the same number the
+      // public preview does rather than deriving a second one.
+      minutosEstimados: definition.estimatedMinutes,
     };
   } catch {
     // The activity is pinned to a template this build does not carry. The room
     // can still show state, the reveal and the artifact; what it cannot offer
     // is a preparation form whose questions it does not know. Better an honest
     // gap than invented fields.
-    return { fields: [], allowedModes: ["KEEP_PRIVATE"] };
+    return {
+      fields: [],
+      allowedModes: ["KEEP_PRIVATE"],
+      noConviene: [],
+      minutosEstimados: null,
+    };
   }
 }
 
@@ -99,7 +119,9 @@ export default async function SalaPage({
     );
   }
 
-  const { fields, allowedModes } = templateShape(read.view);
+  const { fields, allowedModes, noConviene, minutosEstimados } = templateShape(
+    read.view,
+  );
 
   return (
     <SalaDuo
@@ -108,6 +130,8 @@ export default async function SalaPage({
       initialError={read.view ? null : read.code}
       fields={fields}
       allowedModes={allowedModes}
+      noConviene={noConviene}
+      minutosEstimados={minutosEstimados}
       isGuest={isGuest}
     />
   );

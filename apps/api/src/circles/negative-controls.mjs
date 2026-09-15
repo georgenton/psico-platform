@@ -400,6 +400,70 @@ const CONTROLS = [
     t: "the guest acquires first: the deletion waits, then cleans up what the guest committed",
   },
   {
+    property: "OWN_DRAFTS_ARE_ACTUALLY_PURGED",
+    mutation: "the purge quietly skips proposals and only reaches superseded drafts",
+    file: f("src/circles/circle-artifact.repository.ts"),
+    // The commonest way this policy would rot: narrowing the status filter so
+    // the visible draft — the one the counterpart can still see — survives,
+    // while the historical versions are cleaned and the counts still look
+    // plausible.
+    find: `          status: { in: ["PROPOSED", "SUPERSEDED"] },`,
+    replace: `          status: { in: ["SUPERSEDED"] },`,
+    runner: PGSPEC,
+    test: "src/circles/circles-account-deletion.pg-spec.ts",
+    t: "purges the content of a PROPOSED artifact the deleted account wrote",
+  },
+  {
+    property: "AGREEMENTS_SURVIVE_THE_AUTHOR",
+    mutation: "the purge also takes agreements the deleted account wrote",
+    file: f("src/circles/circle-artifact.repository.ts"),
+    // The opposite failure, and the worse one: it destroys the counterpart's
+    // copy of something they confirmed. The database refuses it too, so this
+    // control also proves the service filter is not the only thing standing
+    // between an agreement and deletion.
+    find: `          status: { in: ["PROPOSED", "SUPERSEDED"] },`,
+    replace: `          status: { in: ["PROPOSED", "SUPERSEDED", "AGREED"] },`,
+    runner: PGSPEC,
+    test: "src/circles/circles-account-deletion.pg-spec.ts",
+    t: "keeps an AGREED artifact the deleted account wrote",
+  },
+  {
+    property: "AUTHORSHIP_DECIDES_WHOSE_DRAFT_GOES",
+    mutation: "artifacts are selected by the ACTIVITY instead of by their author",
+    file: f("src/circles/circles-account-deletion.service.ts"),
+    // The mistake a Dúo hides best. When one person creates the circle, sends
+    // the invitation and writes the proposal, selecting by activity, by circle
+    // or by inviter gives the same answer as selecting by author — until the
+    // OTHER person writes one. Then it purges their text too.
+    find: `    const seats = await tx.circleActivityParticipant.findMany({
+      where: { memberId: { in: memberIds } },
+      select: { id: true },
+    });
+    if (seats.length === 0) return 0;
+    return this.artifacts.purgeAuthoredBy(
+      seats.map((s) => s.id),
+      new Date(),
+      tx,
+    );`,
+    replace: `    const mine = await tx.circleActivityParticipant.findMany({
+      where: { memberId: { in: memberIds } },
+      select: { activityId: true },
+    });
+    if (mine.length === 0) return 0;
+    const everySeatThere = await tx.circleActivityParticipant.findMany({
+      where: { activityId: { in: mine.map((s) => s.activityId) } },
+      select: { id: true },
+    });
+    return this.artifacts.purgeAuthoredBy(
+      everySeatThere.map((s) => s.id),
+      new Date(),
+      tx,
+    );`,
+    runner: PGSPEC,
+    test: "src/circles/circles-account-deletion.pg-spec.ts",
+    t: "does not touch a draft the COUNTERPART wrote",
+  },
+  {
     property: "REVEAL_BARRIER_HOLDS_IN_THE_BROWSER",
     mutation: "one confirmation is enough to reveal",
     file: f("src/circles/circle-activity.repository.ts"),

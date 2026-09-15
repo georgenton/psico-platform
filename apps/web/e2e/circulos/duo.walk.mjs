@@ -381,10 +381,45 @@ async function enterRoom(page) {
  * means the words are a couple of presses behind it.
  */
 async function backToFirstQuestion(page) {
-  const atras = page.getByRole("button", { name: /^Atrás$/ });
-  for (let i = 0; i < 8 && (await atras.count()) > 0; i++) {
+  // Loop until the FIRST step is on screen, and then insist on it. Counting
+  // "Atrás" buttons is not enough on its own — see `settledStep` — and a loop
+  // that stopped one press early would read the wrong field's text and compare
+  // it against the secret, failing somewhere that says nothing about why.
+  const primera = page.getByText(/^Paso 1 de \d+$/);
+  for (let i = 0; i < 9 && (await primera.count()) === 0; i++) {
+    const atras = page.getByRole("button", { name: /^Atrás$/ });
+    if ((await atras.count()) === 0) break;
     await atras.click();
   }
+  await primera.waitFor({ state: "visible", timeout: 20_000 });
+}
+
+/**
+ * Wait until the preparation has settled, and say which step it settled on.
+ *
+ * `locator.count()` does NOT auto-wait. Called in the instant between a click
+ * and React's re-render it answers zero, which a loop reads as "there is no
+ * next question" and so leaves the form standing on a screen that is about to
+ * become one. Nothing fails there: the failure surfaces thirty seconds later,
+ * in a `check` for a control that was never going to be on that step, and says
+ * nothing about the click that actually caused it.
+ *
+ * The race is invisible until something perturbs render timing. Opening Echo's
+ * help once and closing it was enough — which is why exactly one scenario saw
+ * it while the same helper worked everywhere else.
+ */
+async function settledStep(page) {
+  await page.waitForFunction(
+    () =>
+      document.querySelectorAll("textarea[id^='f-']").length === 1 ||
+      /¿Qué quieres compartir\?/.test(document.body.innerText),
+    undefined,
+    { timeout: 20_000 },
+  );
+  const enCompartir = await page
+    .getByRole("heading", { name: /¿Qué quieres compartir\?/ })
+    .count();
+  return enCompartir > 0 ? "compartir" : "pregunta";
 }
 
 /** The field on the step currently on screen, whatever the template calls it. */
@@ -416,13 +451,14 @@ async function currentField(page) {
  */
 async function typeDraft(page, { uno, dos, tres } = {}) {
   const answers = [uno, dos, tres];
-  for (let i = 0; ; i++) {
-    const continuar = page.getByRole("button", { name: /^Continuar$/ });
-    if ((await continuar.count()) === 0) break;
+  for (let i = 0; i < 9; i++) {
+    if ((await settledStep(page)) === "compartir") break;
     const text = answers[i];
     if (text) await page.fill(`#${await currentField(page)}`, text);
-    await continuar.click();
-    if (i > 8) throw new Error("the preparation never reached the sharing step");
+    await page.getByRole("button", { name: /^Continuar$/ }).click();
+  }
+  if ((await settledStep(page)) !== "compartir") {
+    throw new Error("the preparation never reached the sharing step");
   }
   await page.check('input[name="modo"][value="SELECTED_FIELDS"]');
   // Every answer with text in it, ticked. @2 starts its optional first
@@ -435,7 +471,29 @@ async function typeDraft(page, { uno, dos, tres } = {}) {
   }
 }
 
+/**
+ * Forward from wherever the form is to the sharing decision.
+ *
+ * The preparation is a sequence, so "open the preview" is only a single click
+ * when you happen to be standing on the last step. A scenario that walked BACK
+ * to question one to read the draft — which is exactly how "coming back
+ * preserves what I wrote" is checked — is then two presses away from the button,
+ * and the helper that assumed otherwise failed thirty seconds later on a click
+ * that could never land.
+ *
+ * Pressing Continuar carries the text and the sharing ticks with it: they live
+ * in the draft, not in the step.
+ */
+async function forwardToSharing(page) {
+  for (let i = 0; i < 9; i++) {
+    if ((await settledStep(page)) === "compartir") return;
+    await page.getByRole("button", { name: /^Continuar$/ }).click();
+  }
+  throw new Error("could not reach the sharing step from where the form was");
+}
+
 async function openPreview(page) {
+  await forwardToSharing(page);
   await page.getByRole("button", { name: /Ver qué se compartirá/i }).click();
   await page
     .getByRole("button", { name: /Confirmar y enviar/i })
@@ -1462,10 +1520,46 @@ async function versionCoexistenceScenario(browser) {
     const guest = await acceptAsGuest(browser, link);
     guests.push(guest);
 
-    // Pin this activity BACK to @1, exactly as an activity created before the
-    // candidate existed would be.
+    // ── the pin cannot be edited after the fact ─────────────────────────────
+    //
+    // This scenario used to manufacture its history with a plain UPDATE, and
+    // the database refused it. That refusal is the product working: the pin is
+    // immutable by TRIGGER, not by convention, because the wording two people
+    // agreed to is not something an operator gets to change underneath them.
+    // So the attempt stays, as a check.
+    let refused = "";
+    try {
+      sql(
+        `UPDATE "CircleActivity" SET "templateVersion"=1 WHERE "id"='${guest.activityId}'`,
+      );
+    } catch (err) {
+      refused = `${err?.message ?? ""}${err?.stdout ?? ""}${err?.stderr ?? ""}`;
+    }
+    check(
+      /CIRCLE_ACTIVITY_PIN_IMMUTABLE/.test(refused),
+      "the activity's template pin refuses to be edited after the fact",
+    );
+
+    // ── and so the history is manufactured, not edited ──────────────────────
+    //
+    // What this scenario needs is a row that was CREATED on @1, which no build
+    // that offers @2 can produce through the product. The guard is therefore
+    // lifted for exactly one statement and put back in the same implicit
+    // transaction — psql runs a multi-statement `-c` as one, so a failure in
+    // the middle rolls the disable back too and cannot leave it off.
+    //
+    // `DISABLE TRIGGER` needs table ownership rather than superuser, which is
+    // what the migration user has in every environment this runs in.
     sql(
-      `UPDATE "CircleActivity" SET "templateVersion"=1 WHERE "id"='${guest.activityId}'`,
+      `ALTER TABLE "CircleActivity" DISABLE TRIGGER "CircleActivity_pin_immutable"; ` +
+        `UPDATE "CircleActivity" SET "templateVersion"=1 WHERE "id"='${guest.activityId}'; ` +
+        `ALTER TABLE "CircleActivity" ENABLE TRIGGER "CircleActivity_pin_immutable";`,
+    );
+    check(
+      sqlOne(
+        `SELECT tgenabled FROM pg_trigger WHERE tgname='CircleActivity_pin_immutable'`,
+      ) === "O",
+      "the immutability trigger is back on afterwards",
     );
 
     await page.goto(`${WEB}/compartir/${guest.activityId}`, {

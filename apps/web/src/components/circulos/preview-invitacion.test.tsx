@@ -47,11 +47,17 @@ describe("the decision is informed", () => {
     render(<EntradaInvitacion />);
 
     expect(
-      await screen.findByRole("heading", { name: /marina te invitó/i }),
+      await screen.findByRole("heading", {
+        name: /marina te invita a compartir un momento/i,
+      }),
     ).toBeInTheDocument();
     expect(screen.getByText(PREVIEW.title)).toBeInTheDocument();
     expect(screen.getByText(PREVIEW.summary)).toBeInTheDocument();
-    expect(screen.getByText(/25 minutos/)).toBeInTheDocument();
+    expect(document.body.textContent).toContain("Unos 25 minutos");
+    // Said before anybody has to wonder about it.
+    expect(document.body.textContent).toContain(
+      "No necesitas crear una cuenta.",
+    );
   });
 
   it("explains the four promises before asking for a decision", async () => {
@@ -123,10 +129,19 @@ describe("the preview carries nothing it should not", () => {
 
     expect(
       await screen.findByRole("heading", {
-        name: /te invitaron a una actividad/i,
+        name: /te invitan a compartir un momento/i,
       }),
     ).toBeInTheDocument();
     expect(document.body.textContent).not.toContain("undefined");
+    // A degraded preview is not a dead invitation: the generic wording still
+    // says what it is, how long it takes and that no account is needed.
+    expect(document.body.textContent).toContain(
+      "Descubran qué les ayuda cuando algo les preocupa.",
+    );
+    expect(document.body.textContent).toContain(
+      "No necesitas crear una cuenta.",
+    );
+    expect(document.body.textContent).not.toMatch(/ya no sirve/i);
   });
 
   it("works when the server sends no preview at all", async () => {

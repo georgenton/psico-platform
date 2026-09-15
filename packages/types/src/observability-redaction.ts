@@ -55,7 +55,16 @@ const SENSITIVE = new Set(SENSITIVE_HEADERS);
 
 export const REDACTED = "[REDACTED]";
 
-/** A structural subset of a Sentry event. Kept local so this imports nothing. */
+/**
+ * A structural subset of a Sentry event. Kept local so this imports nothing.
+ *
+ * The exported functions take `object` rather than these interfaces, and narrow
+ * inside. That is deliberate: Sentry's own `Event` and `Breadcrumb` use `any`
+ * in several places, so a signature written against the shapes below is not
+ * assignable to `beforeSend` in any of the four runtimes — and a redactor that
+ * cannot be installed is worse than no redactor, because the config still
+ * reads as if it were.
+ */
 export interface RedactableEvent {
   request?: {
     headers?: Record<string, unknown>;
@@ -130,10 +139,8 @@ export function redactHeaders(headers: Record<string, unknown>): void {
  * the `request` sanitising above. In the browser those URLs are the ones with
  * the invitation fragment in them.
  */
-export function sanitizeBreadcrumb<B extends RedactableBreadcrumb>(
-  crumb: B,
-): B {
-  const data = crumb.data;
+export function sanitizeBreadcrumb<B extends object>(crumb: B): B {
+  const data = (crumb as RedactableBreadcrumb).data;
   if (data) {
     for (const key of ["url", "to", "from"]) {
       if (typeof data[key] === "string") {
@@ -158,8 +165,9 @@ export function sanitizeBreadcrumb<B extends RedactableBreadcrumb>(
  * deliberately mutating: a Sentry `beforeSend` runs on the hot path of an
  * error, and deep-cloning an event to avoid touching it would be ceremony.
  */
-export function sanitizeSentryEvent<E extends RedactableEvent>(event: E): E {
-  const request = event.request;
+export function sanitizeSentryEvent<E extends object>(event: E): E {
+  const target = event as RedactableEvent;
+  const request = target.request;
   if (request) {
     if (request.headers) redactHeaders(request.headers);
     // Client-controlled, unsanitized, and redundant with the route template
@@ -170,8 +178,8 @@ export function sanitizeSentryEvent<E extends RedactableEvent>(event: E): E {
     delete request.cookies;
   }
 
-  if (Array.isArray(event.breadcrumbs)) {
-    for (const crumb of event.breadcrumbs) sanitizeBreadcrumb(crumb);
+  if (Array.isArray(target.breadcrumbs)) {
+    for (const crumb of target.breadcrumbs) sanitizeBreadcrumb(crumb);
   }
 
   // `transaction` is usually a route pattern, but "usually" is not a

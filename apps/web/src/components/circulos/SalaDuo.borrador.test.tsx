@@ -6,7 +6,12 @@ const replace = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace }) }));
 
 import { SalaDuo } from "./SalaDuo";
-import { PLANTILLA, PREPARANDO, REVELADA } from "./__fixtures__/actividad";
+import {
+  PLANTILLA,
+  PREPARANDO,
+  REVELADA,
+  irACompartir,
+} from "./__fixtures__/actividad";
 
 const base = {
   activityId: "act-1",
@@ -15,6 +20,7 @@ const base = {
   allowedModes: PLANTILLA.sharing.allowedModes,
   noConviene: PLANTILLA.safety.doNotSuggestWhen,
   minutosEstimados: PLANTILLA.estimatedMinutes,
+  intro: PLANTILLA.intro ?? null,
   isGuest: true,
 };
 
@@ -56,8 +62,7 @@ describe("the draft survives the preview", () => {
     wire(okResponse);
     await startPreparing(user);
 
-    const box = screen.getByLabelText("Algo que quieres decir");
-    await user.type(box, "algo que me costó escribir");
+    await irACompartir(user, screen, ["algo que me costó escribir"]);
     await user.click(
       screen.getByRole("button", { name: /ver qué se compartirá/i }),
     );
@@ -69,8 +74,12 @@ describe("the draft survives the preview", () => {
 
     await user.click(screen.getByRole("button", { name: /volver a editar/i }));
 
-    // The one moment where losing it is least forgivable: they have just
-    // re-read what they wrote and changed their mind.
+    // Back on the sharing step, which is where they left — and one press of
+    // "Atrás" away from the words themselves. The one moment where losing them
+    // would be least forgivable: they have just re-read what they wrote and
+    // changed their mind.
+    await user.click(screen.getByRole("button", { name: /^Atrás$/ }));
+    await user.click(screen.getByRole("button", { name: /^Atrás$/ }));
     expect(screen.getByLabelText("Algo que quieres decir")).toHaveValue(
       "algo que me costó escribir",
     );
@@ -81,6 +90,7 @@ describe("the draft survives the preview", () => {
     wire(okResponse);
     await startPreparing(user);
 
+    await irACompartir(user, screen);
     await user.click(screen.getByLabelText(/un resumen escrito por mí/i));
     await user.type(screen.getByLabelText(/en tus palabras/i), "mi resumen");
     await user.click(
@@ -97,7 +107,7 @@ describe("the draft survives the preview", () => {
     const bodies = wire(okResponse);
     await startPreparing(user);
 
-    await user.type(screen.getByLabelText("Algo que quieres decir"), "privado");
+    await irACompartir(user, screen, ["privado"]);
     await user.click(
       screen.getByRole("button", { name: /ver qué se compartirá/i }),
     );
@@ -113,10 +123,7 @@ describe("a failed share keeps the draft", () => {
     wire(failResponse);
     await startPreparing(user);
 
-    await user.type(
-      screen.getByLabelText("Algo que quieres decir"),
-      "mi texto",
-    );
+    await irACompartir(user, screen, ["mi texto"]);
     await user.click(
       screen.getByRole("button", { name: /ver qué se compartirá/i }),
     );
@@ -132,6 +139,8 @@ describe("a failed share keeps the draft", () => {
     ).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /volver a editar/i }));
+    await user.click(screen.getByRole("button", { name: /^Atrás$/ }));
+    await user.click(screen.getByRole("button", { name: /^Atrás$/ }));
     expect(screen.getByLabelText("Algo que quieres decir")).toHaveValue(
       "mi texto",
     );
@@ -142,10 +151,7 @@ describe("a failed share keeps the draft", () => {
     const bodies = wire(failResponse);
     await startPreparing(user);
 
-    await user.type(
-      screen.getByLabelText("Algo que quieres decir"),
-      "mi texto",
-    );
+    await irACompartir(user, screen, ["mi texto"]);
     await user.click(
       screen.getByRole("button", { name: /ver qué se compartirá/i }),
     );
@@ -175,7 +181,7 @@ describe("a failed share keeps the draft", () => {
     const bodies = wire(failResponse);
     await startPreparing(user);
 
-    await user.type(screen.getByLabelText("Algo que quieres decir"), "uno");
+    await irACompartir(user, screen, ["uno"]);
     await user.click(
       screen.getByRole("button", { name: /ver qué se compartirá/i }),
     );
@@ -184,8 +190,11 @@ describe("a failed share keeps the draft", () => {
     );
     await screen.findByRole("alert");
 
+    // Back on the sharing step; the words are two steps behind it.
     await user.click(screen.getByRole("button", { name: /volver a editar/i }));
-    await user.type(screen.getByLabelText("Algo que quieres decir"), " y dos");
+    await user.click(screen.getByRole("button", { name: /^Atrás$/ }));
+    await user.click(screen.getByRole("button", { name: /^Atrás$/ }));
+    await irACompartir(user, screen, [" y dos"]);
     await user.click(
       screen.getByRole("button", { name: /ver qué se compartirá/i }),
     );
@@ -275,7 +284,7 @@ describe("every command carries a client-minted v4 key", () => {
     wire(failResponse);
     await startPreparing(user);
 
-    await user.type(screen.getByLabelText("Algo que quieres decir"), "x");
+    await irACompartir(user, screen, ["x"]);
     await user.click(
       screen.getByRole("button", { name: /ver qué se compartirá/i }),
     );
@@ -312,7 +321,7 @@ describe("the unload warning follows the draft, not the screen", () => {
     const addSpy = vi.spyOn(window, "addEventListener");
     await startPreparing(user);
 
-    await user.type(screen.getByLabelText("Algo que quieres decir"), "algo");
+    await irACompartir(user, screen, ["algo"]);
     expect(listenerCount(addSpy)).toBeGreaterThan(0);
   });
 
@@ -324,7 +333,7 @@ describe("the unload warning follows the draft, not the screen", () => {
     const user = userEvent.setup();
     wire(okResponse);
     await startPreparing(user);
-    await user.type(screen.getByLabelText("Algo que quieres decir"), "algo");
+    await irACompartir(user, screen, ["algo"]);
 
     const addSpy = vi.spyOn(window, "addEventListener");
     const removeSpy = vi.spyOn(window, "removeEventListener");
@@ -347,7 +356,7 @@ describe("the unload warning follows the draft, not the screen", () => {
     const user = userEvent.setup();
     wire(okResponse);
     await startPreparing(user);
-    await user.type(screen.getByLabelText("Algo que quieres decir"), "algo");
+    await irACompartir(user, screen, ["algo"]);
     await user.click(
       screen.getByRole("button", { name: /ver qué se compartirá/i }),
     );
@@ -366,7 +375,7 @@ describe("the unload warning follows the draft, not the screen", () => {
     const user = userEvent.setup();
     wire(failResponse);
     await startPreparing(user);
-    await user.type(screen.getByLabelText("Algo que quieres decir"), "algo");
+    await irACompartir(user, screen, ["algo"]);
     await user.click(
       screen.getByRole("button", { name: /ver qué se compartirá/i }),
     );
@@ -389,7 +398,7 @@ describe("the unload warning follows the draft, not the screen", () => {
     const user = userEvent.setup();
     wire(okResponse);
     await startPreparing(user);
-    await user.type(screen.getByLabelText("Algo que quieres decir"), "algo");
+    await irACompartir(user, screen, ["algo"]);
     await user.click(
       screen.getByRole("button", { name: /ver qué se compartirá/i }),
     );

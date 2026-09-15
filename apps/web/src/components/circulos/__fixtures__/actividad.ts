@@ -119,3 +119,31 @@ export const CERRADA: CircleActivityView = {
   ...REVELADA,
   status: "CLOSED",
 };
+
+/**
+ * Walk the private preparation the way a person does: one question, then the
+ * next, then the sharing decision.
+ *
+ * Lives here rather than in each spec because the shape of the walk is a
+ * property of the screen, and four copies of it would each have to be found
+ * and fixed the next time a step is added. `answers` is positional: the first
+ * string goes in the first question. A missing one leaves that question blank,
+ * which is a legitimate way to arrive at the sharing step.
+ */
+export async function irACompartir(
+  user: {
+    click(el: Element): Promise<void>;
+    type(el: Element, text: string): Promise<void>;
+  },
+  screen: {
+    getByRole(role: string, options?: { name?: RegExp }): HTMLElement;
+  },
+  answers: readonly string[] = [],
+  steps: number = PLANTILLA.privatePreparation.length,
+): Promise<void> {
+  for (let i = 0; i < steps; i++) {
+    const text = answers[i];
+    if (text) await user.type(screen.getByRole("textbox"), text);
+    await user.click(screen.getByRole("button", { name: /^Continuar$/ }));
+  }
+}

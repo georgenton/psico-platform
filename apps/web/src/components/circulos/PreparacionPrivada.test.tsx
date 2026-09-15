@@ -10,7 +10,7 @@ import {
   confirmacionDe,
 } from "./PreparacionPrivada";
 import type { BorradorPrivado } from "./PreparacionPrivada";
-import { PLANTILLA } from "./__fixtures__/actividad";
+import { PLANTILLA, irACompartir } from "./__fixtures__/actividad";
 
 const fields = PLANTILLA.privatePreparation;
 const allowedModes = PLANTILLA.sharing.allowedModes;
@@ -57,11 +57,7 @@ describe("the draft never crosses the network", () => {
 
     render(<Harness />);
 
-    await user.type(
-      screen.getByLabelText("Algo que quieres decir"),
-      "algo muy privado",
-    );
-    await user.type(screen.getByLabelText("Algo que te costó"), "y otra cosa");
+    await irACompartir(user, screen, ["algo muy privado", "y otra cosa"]);
 
     // No autosave, no draft endpoint, no Server Action, no analytics beacon.
     // Until the preview is confirmed, there is nothing to leak because nothing
@@ -91,7 +87,7 @@ describe("the draft never crosses the network", () => {
 
     render(<Harness onPreview={onPreview} />);
 
-    await user.type(screen.getByLabelText("Algo que quieres decir"), "hola");
+    await irACompartir(user, screen, ["hola"]);
     await user.click(
       screen.getByRole("button", { name: /ver qué se compartirá/i }),
     );
@@ -117,7 +113,7 @@ describe("the cost of not storing it is stated, not hidden", () => {
     const addSpy = vi.spyOn(window, "addEventListener");
 
     render(<Harness />);
-    await user.type(screen.getByLabelText("Algo que quieres decir"), "x");
+    await irACompartir(user, screen, ["x"]);
 
     // The warning belongs to whoever owns the draft, and that is `SalaDuo`.
     // Here it was torn down by the very navigation it needed to survive:
@@ -150,7 +146,7 @@ describe("the draft is a value, so it can be carried across stages", () => {
         onWithdraw={vi.fn()}
       />,
     );
-    await user.type(screen.getByLabelText("Algo que quieres decir"), "p");
+    await irACompartir(user, screen, ["p"]);
     unmount();
 
     render(
@@ -164,6 +160,11 @@ describe("the draft is a value, so it can be carried across stages", () => {
         onWithdraw={vi.fn()}
       />,
     );
+    // Re-rendered from the same value, on the step the person was standing on
+    // — the sharing decision, because there is already something written. Two
+    // presses of "Atrás" and the words are still there.
+    await user.click(screen.getByRole("button", { name: /^Atrás$/ }));
+    await user.click(screen.getByRole("button", { name: /^Atrás$/ }));
     expect(screen.getByLabelText("Algo que quieres decir")).toHaveValue("p");
   });
 
@@ -216,6 +217,7 @@ describe("not sharing is an answer", () => {
 
     render(<Harness onPreview={onPreview} />);
 
+    await irACompartir(user, screen);
     await user.click(screen.getByLabelText(/no compartir nada esta vez/i));
     await user.click(
       screen.getByRole("button", { name: /ver qué se compartirá/i }),

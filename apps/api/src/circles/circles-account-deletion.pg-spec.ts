@@ -54,6 +54,15 @@ const API_DIR = process.cwd();
 const MIGRATIONS_DIR = join(API_DIR, "prisma", "migrations");
 const THIS_MIGRATION = "20260913000000_circles_account_deletion";
 const PURGE_MIGRATION = "20260915000000_circles_artifact_purge";
+/**
+ * The analytics migration, named here for the same reason the others are.
+ *
+ * These tails exist so an unnamed newcomer FAILS rather than drifting into a
+ * baseline it was never part of. That worked: adding this migration broke both
+ * assertions, and the fix is to name it — not to loosen them into "everything
+ * after", which is the shape that would have let it pass unnoticed.
+ */
+const ANALYTICS_MIGRATION = "20260916000000_circles_analytics";
 
 /**
  * ── The harness owns only what it created ─────────────────────────────────
@@ -2762,7 +2771,11 @@ suite(
         expect(baseline).toHaveLength(64);
         // The tail is NAMED, so an unnamed newcomer fails here rather than
         // drifting into a baseline it was never part of.
-        expect(all.slice(index)).toEqual([THIS_MIGRATION, PURGE_MIGRATION]);
+        expect(all.slice(index)).toEqual([
+          THIS_MIGRATION,
+          PURGE_MIGRATION,
+          ANALYTICS_MIGRATION,
+        ]);
 
         const { readFileSync } = await import("node:fs");
         for (const dir of baseline) {
@@ -2880,7 +2893,10 @@ suite(
         const onMain = all.slice(0, index);
         expect(onMain).toHaveLength(65);
         expect(onMain.at(-1)).toBe(THIS_MIGRATION);
-        expect(all.slice(index)).toEqual([PURGE_MIGRATION]);
+        expect(all.slice(index)).toEqual([
+          PURGE_MIGRATION,
+          ANALYTICS_MIGRATION,
+        ]);
 
         const { readFileSync } = await import("node:fs");
         for (const dir of onMain) {

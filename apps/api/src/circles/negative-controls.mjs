@@ -574,6 +574,13 @@ const CONTROLS = [
     // fail — the events would simply start carrying a working key.
     find: `  "x-circle-guest-session",`,
     replace: ``,
+    // `@psico/types` resolves through its package exports to `dist/`, so the
+    // API imports the BUILT redactor and not the file this control edits.
+    // Without a rebuild the mutated source would never reach the test, which
+    // would stay green and be scored as "the assertion does not cover this" —
+    // a control that condemns a guarantee that in fact holds. The rebuild runs
+    // in all three phases so the built artifact matches the source in each.
+    rebuild: "types",
     runner: UNIT,
     test: "src/observability/sentry.spec.ts",
     t: "finds none of them anywhere in the serialized event",
@@ -603,7 +610,37 @@ const CONTROLS = [
   },
 ];
 
+/**
+ * Rebuild a workspace package the mutation lives in, before the test reads it.
+ *
+ * Only needed where the code under test is consumed as a BUILT artifact rather
+ * than as source. A failure here is returned as the phase's result rather than
+ * thrown, so it is reported as a failed control instead of killing the run —
+ * and the restore still happens.
+ */
+function rebuild(target) {
+  if (target !== "types") throw new Error(`unknown rebuild target: ${target}`);
+  try {
+    execFileSync("pnpm", ["--filter", "@psico/types", "build"], {
+      cwd: ROOT,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      timeout: 600_000,
+    });
+    return null;
+  } catch (err) {
+    return {
+      code: err.status ?? 1,
+      out: `REBUILD FAILED\n${err.stdout ?? ""}${err.stderr ?? ""}`,
+    };
+  }
+}
+
 function runTest(c) {
+  if (c.rebuild) {
+    const failed = rebuild(c.rebuild);
+    if (failed) return failed;
+  }
   if (c.runner === WALK) return runWalk(c);
   const cwd = c.runner === WEBT ? WEB : API;
   const cfg =

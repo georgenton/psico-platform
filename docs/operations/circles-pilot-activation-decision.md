@@ -525,10 +525,30 @@ capítulo publicado.
 2. **El mapping**, que en producción debe apuntar a **un solo** pin. Publicar
    @2 es moverlo, no añadirlo: dos entradas para la misma experiencia no
    desempatan, desactivan la oferta.
-3. **Actualizar los ratchets** que hoy afirman «una PUBLISHED, una DRAFT, en
-   ese orden», a mano y a la vista, en el mismo cambio.
-4. **Decidir qué pasa con las actividades en curso** sobre @1: por diseño,
-   nada. Siguen en @1 hasta terminar.
+3. **Archivar @1 en el mismo cambio.** Publicar una versión es una **sucesión**,
+   no una suma. El enlace que sigue una persona lleva una *clave* y ninguna
+   versión, así que el servidor tiene que responder «qué versión significa esta
+   clave ahora» — y esa pregunta solo tiene respuesta mientras **una sola**
+   versión de la clave esté `PUBLISHED`. Con dos, `resolvePublishedTemplateByKey`
+   se niega en vez de elegir la más alta (adivinar ahí mandaría a alguien a una
+   versión que nadie le ofreció): la pantalla del organizador responde 404 y el
+   CTA deja de aparecer en todas partes a la vez. No son «dos ofertas», es
+   **ninguna**.
+
+   `ARCHIVED` es el estado correcto: retira a @1 de todo lo que **ofrece** —el
+   listado, la pantalla del organizador, la vista previa pública— mientras
+   `getExact` la sigue resolviendo por pin, que es lo que mantiene vivas las
+   actividades ya fijadas a ella. Esto se comprobó de la peor forma: el harness
+   dejaba @1 en `PUBLISHED` junto a @2 y las catorce escenas de navegador
+   fallaron por un *timeout* de treinta segundos buscando un botón que nunca se
+   iba a dibujar.
+4. **Actualizar los ratchets** que hoy afirman «una PUBLISHED, una DRAFT, en
+   ese orden», a mano y a la vista, en el mismo cambio. Uno de ellos —
+   `circulos-alcance.test.ts` — afirma además la regla del punto 3 («como mucho
+   una versión PUBLISHED por clave»), para que quien se olvide de archivar @1 se
+   entere por una aserción y no por un 404.
+5. **Decidir qué pasa con las actividades en curso** sobre @1: por diseño,
+   nada. Siguen en @1 hasta terminar, porque `getExact` resuelve `ARCHIVED`.
 
 ---
 

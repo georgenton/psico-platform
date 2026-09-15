@@ -147,27 +147,38 @@ check(
 
 // ── the same call THROUGH the Web is not refused for that reason ────────────
 //
-// This is the other half: if the two secrets diverged, the BFF would mint an
-// attestation the API rejects and every guest would be locked out. An unusable
-// token is expected here — what must NOT appear is an attestation refusal.
+// The other half. If the two secrets diverged, the BFF would mint an
+// attestation the API rejects and every guest would be locked out — while the
+// checks above would still pass, because a direct call is supposed to fail.
+//
+// Two things have to be right for this to mean anything:
+//
+//   · An `Origin` header. The BFF has its own same-origin guard and answers
+//     `403 CIRCLE_FORBIDDEN` without one, which looks exactly like the failure
+//     being probed for.
+//   · The body key is `secret`, not `token`. A wrong shape is answered 404,
+//     like any unusable invitation.
+//
+// With both right, a bogus secret must come back 404. A 403 here means the API
+// refused the BFF's attestation: the two secrets disagree.
 
 const viaBff = await fetch(`${WEB}/api/circulos/inspeccion`, {
   method: "POST",
-  headers: { "content-type": "application/json" },
-  body: JSON.stringify({ token: randomBytes(32).toString("base64url") }),
+  headers: {
+    "content-type": "application/json",
+    origin: new URL(WEB).origin,
+  },
+  body: JSON.stringify({ secret: randomBytes(32).toString("base64url") }),
 });
 const bffBody = await json(viaBff);
-// Absent, malformed, expired and forged are ONE answer on purpose —
-// `CIRCLE_FORBIDDEN` — so a prober cannot learn whether they had the grammar,
-// the key, or merely the clock wrong. That is good for the API and awkward
-// here: a divergent secret looks exactly like a bad token.
-//
-// What separates them is which refusal arrives. An unusable token is
-// `CIRCLE_INVITATION_UNUSABLE` (404); a rejected attestation is
-// `CIRCLE_FORBIDDEN`. Only the second means the two secrets disagree.
 check(
-  bffBody?.code !== "CIRCLE_FORBIDDEN",
+  viaBff.status !== 403,
   "the Web's own attestation is accepted by the API — the secrets agree",
+  `${viaBff.status} ${bffBody?.code ?? ""}`,
+);
+check(
+  viaBff.status === 404 && bffBody?.code === "CIRCLE_INVITATION_UNUSABLE",
+  "and an invented invitation is simply unusable",
   `${viaBff.status} ${bffBody?.code ?? ""}`,
 );
 
@@ -195,15 +206,25 @@ check(
   `${surface.status}`,
 );
 
-const csp = preview.headers.get("content-security-policy") ?? "";
-check(csp.length > 0, "a CSP header arrives");
+// The CSP is attached to the Círculos paths — `/i`, `/compartir`,
+// `/api/circulos` — and not to the public preview, which is an ordinary page.
+// Probing the preview for it would report a missing policy that was never
+// supposed to be there.
+const room = await fetch(`${WEB}/compartir/${randomBytes(12).toString("hex")}`, {
+  redirect: "manual",
+});
+const csp = room.headers.get("content-security-policy") ?? "";
+check(csp.length > 0, "a CSP header arrives on a Círculos path", `${room.status}`);
 check(/script-src/.test(csp), "it constrains script-src");
 check(/'nonce-/.test(csp), "the policy carries a nonce");
 check(
   !/'unsafe-inline'/.test(csp.split("script-src")[1]?.split(";")[0] ?? ""),
   "and script-src does not fall back to 'unsafe-inline'",
 );
-const second = await fetch(`${WEB}/actividades/${TEMPLATE}`);
+const second = await fetch(
+  `${WEB}/compartir/${randomBytes(12).toString("hex")}`,
+  { redirect: "manual" },
+);
 const nonceOf = (v) => /'nonce-([^']+)'/.exec(v ?? "")?.[1] ?? "";
 check(
   nonceOf(csp) !== "" &&

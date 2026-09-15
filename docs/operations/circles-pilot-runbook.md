@@ -445,6 +445,42 @@ correcto por separado y sólo discrepaban en la petición que los une:
    consejo imposible de seguir, sobre un campo que no existe, para un acto que
    no debe explicaciones.
 
+Y un cuarto hallazgo que **no** era del producto, anotado porque distinguirlo
+costó una corrida entera:
+
+4. **La comprobación de cierre corría contra el navegador.** Sondeaba
+   PostgreSQL hasta ver `followUpDecision = CLOSE` y acto seguido leía la
+   pantalla. El servidor confirma antes de terminar de responder, y la sala sólo
+   se entera cuando `command()` vuelve a pedir la vista y React la dibuja: la
+   base puede ir un viaje de ida y vuelta por delante de la página. El mismo
+   commit pasaba en `pull_request` y fallaba en `push`. Se arregló esperando el
+   estado visible con una aserción reintentable —que **sigue** fallando si el
+   texto nunca llega— y se añadió una comprobación de que la actividad se queda
+   en `FOLLOW_UP` mientras falta la decisión de la otra persona.
+
+### Los diagnósticos, y por qué se redactan antes de publicarse
+
+Una corrida fallida publicó el tail del log de la API, y la API acababa de
+registrar un correo: `RESEND_API_KEY` no está puesta en el arnés, así que el
+servicio de notificaciones **imprime** los mensajes en vez de enviarlos, y un
+correo de verificación lleva un enlace con su token. Todo era sintético y el
+entorno se destruyó minutos después — pero el mecanismo no es sintético, y un
+log de CI se conserva.
+
+La respuesta no es dejar de imprimir logs: un timeout a secas sólo dice que algo
+no pasó, y el log del servicio dice por qué. Así que el tail se queda y los
+secretos que haya en él no. `apps/web/e2e/circulos/redact.mjs` cubre lo que
+estas pruebas emiten de verdad —enlaces de verificación y de recuperación,
+fragmentos de invitación, cookies y cabeceras de autenticación, sesiones de
+invitado, credenciales dentro de cadenas de conexión, y cualquiera de esas cosas
+dentro del cuerpo de un correo— y conserva a propósito lo que hace útil a un
+diagnóstico: escenario, servicio, commit, código de error, estado HTTP, la ruta
+normalizada y los tiempos.
+
+Se aplica en los puntos por los que algo se publica, **incluido antes de
+escribir en disco**: el log de fase de un control negativo sobrevive a la
+corrida por diseño, así que escribirlo sin redactar ya es publicarlo.
+
 ## 10 · Propiedad y limpieza de la pila
 
 Una corrida escribe un archivo de estado con los servicios que arrancó: pid,
@@ -480,9 +516,30 @@ vitest es una expresión regular, y un paréntesis sin escapar selecciona cero
 pruebas y sale 0.
 
 Los controles de PostgreSQL usan `TEST_DATABASE_URL` (por defecto la base local
-de pruebas, nunca producción). El control de la barrera de revelación construye
-la pila completa con `--worktree` — sin eso construiría el commit, es decir el
-código **sin** mutar, y un no-op se anotaría como detección.
+de pruebas, nunca producción). Los controles que construyen la pila completa lo
+hacen con `--worktree` — sin eso construirían el commit, es decir el código
+**sin** mutar, y un no-op se anotaría como detección.
+
+Un control que nombra un `scenario` estrecha el recorrido a ese escenario
+(`CIRCULOS_E2E_ONLY`). Tres fases del recorrido entero son casi una hora para
+aprender una cosa, y los escenarios son independientes por construcción —cada
+uno crea sus propias cuentas y actividades—, así que correr uno prueba sobre ese
+uno exactamente lo mismo que correr quince.
+
+**Por qué algunas mutaciones son más de una línea, o una línea rara.** Dos
+ejemplos de este bloque:
+
+- `CLOSING_ANNOUNCES_THE_DECISION_ON_SCREEN` borra las palabras «Ya
+  respondiste» en vez de cerrar la rama que las muestra. Cerrar la rama no
+  compila o no pasa lint, y un error de compilación anotado como detección es
+  justo lo que un control no puede hacer. Quitar el texto es exactamente la
+  regresión que la comprobación lleva por nombre: pulsas el botón, la pantalla
+  no cambia, y lo pulsas otra vez.
+- `DIAGNOSTICS_ARE_REDACTED_BEFORE_THEY_ARE_PUBLISHED` retira el redactor
+  entero, no una de sus reglas. Un token en una query lo atrapan la regla de
+  URL, la de nombres de clave **y** la de cadenas opacas; quitar cualquiera de
+  ellas no deja escapar nada. La defensa en profundidad sólo sirve si un control
+  no puede confundirla con una prueba que está mirando.
 
 Cada fase deja su salida en `apps/api/.negative-controls/<PROPIEDAD>.<fase>.log`
 (ignorado por git). No es un adorno: el control de la barrera falló dos veces en

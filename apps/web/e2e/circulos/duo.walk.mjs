@@ -1701,17 +1701,56 @@ async function analyticsBoundaryScenario(browser) {
       60_000,
     );
 
+    // ── the activity has to actually END ────────────────────────────────────
+    //
+    // The optional question is offered on the closed stage and nowhere else, so
+    // this scenario needs a genuinely finished activity. It used to look for a
+    // button called "Cerrar la actividad", which does not exist: `count()`
+    // answered zero on both pages, nothing was clicked, and the wait for CLOSED
+    // ran out sixty seconds later saying only that it had.
+    //
+    // The real path is the one BROWSER_CLOSING_PATHS already walks, and it is
+    // reused here rather than approximated: the follow-up opens on a DATE, so
+    // the date is moved on THIS activity and the REAL worker opens it — the
+    // room cannot transition itself, and writing the status directly would be
+    // testing a state the product never produces. Then both people decide, and
+    // it is the second decision that closes it.
+    sql(
+      `UPDATE "CircleActivity" SET "followUpDueAt" = now() - interval '1 hour'
+        WHERE "id"='${guest.activityId}'`,
+    );
+    const sweep = await transport.enqueue(
+      "circles-sweep",
+      "run-circles-sweep",
+      { nowIso: new Date().toISOString(), batchSize: 50 },
+    );
+    await until(
+      async () => {
+        const state = await sweep.state();
+        return state === "completed" || state === "failed" ? state : null;
+      },
+      "the sweep that opens the follow-up",
+      120_000,
+    );
+
     for (const p of [page, guest.page]) {
-      await p.reload({ waitUntil: "domcontentloaded" });
-      const close = p.getByRole("button", { name: /Cerrar la actividad/i });
-      if ((await close.count()) > 0) await close.click();
+      await until(
+        async () => {
+          await p.reload({ waitUntil: "domcontentloaded" });
+          const t = await p.evaluate(() => document.body.innerText);
+          return t.includes("¿Cómo siguen?");
+        },
+        "the follow-up to open on both screens",
+        60_000,
+      );
+      await p.getByRole("button", { name: /Lo cerramos aquí/i }).click();
     }
     await until(
-      async () =>
+      () =>
         sqlOne(
           `SELECT "status" FROM "CircleActivity" WHERE "id"='${guest.activityId}'`,
         ) === "CLOSED",
-      "the activity to close",
+      "the activity to close once both decided",
       60_000,
     );
 

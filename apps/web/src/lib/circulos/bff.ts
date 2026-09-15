@@ -527,3 +527,53 @@ function exact(obj: Record<string, unknown>, keys: string[]): boolean {
   const own = Object.keys(obj);
   return own.length === keys.length && keys.every((k) => own.includes(k));
 }
+
+// ── The optional question, which is not a command ────────────────────────────
+
+/**
+ * What a browser may say about an activity it finished, forwarded verbatim
+ * within a shape this file decides.
+ *
+ * Deliberately NOT in `COMMAND_ROUTES`. That list is the closed set of things
+ * that change an activity, every one of which needs an idempotency key; this
+ * changes nothing about the activity and is idempotent by a key the SERVER
+ * owns — one row per seat. Adding it to the command list would have meant
+ * loosening the rule that every command carries a key, to accommodate the one
+ * request that is not a command.
+ *
+ * The body is rebuilt field by field rather than spread: a `participantId`, a
+ * `templateKey` or an answer smuggled alongside the topics does not reach the
+ * API, because nothing that is not named here is forwarded.
+ */
+export interface CirculoFeedbackBody {
+  topics: string[];
+  usefulness?: "YES" | "SOME" | "NO";
+  noticeVersion: string;
+  helpOpens: {
+    fieldKey: string;
+    piece: "explanation" | "example";
+    opens: number;
+  }[];
+}
+
+export function memberFeedback(
+  accessToken: string,
+  activityId: string,
+  body: CirculoFeedbackBody,
+): Promise<BffResult<unknown>> {
+  return call(
+    `/circles/activities/${encodeURIComponent(activityId)}/feedback`,
+    { method: "POST", token: accessToken, body },
+  );
+}
+
+export function guestFeedback(
+  token: string,
+  activityId: string,
+  body: CirculoFeedbackBody,
+): Promise<BffResult<unknown>> {
+  return call(
+    `/circles/guest/activities/${encodeURIComponent(activityId)}/feedback`,
+    { method: "POST", guestToken: token, body },
+  );
+}

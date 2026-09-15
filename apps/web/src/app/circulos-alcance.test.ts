@@ -87,7 +87,11 @@ describe("PR4 adds no backend", () => {
       .map((d) => d.name);
     expect(migrations).toContain("20260913000000_circles_account_deletion");
     expect(migrations).toContain("20260915000000_circles_artifact_purge");
-    expect(migrations).toHaveLength(66);
+    // …and the one this block owes: three tables for aggregated analytics,
+    // purely additive. An API migration, named here like the others, because
+    // raising the number without adding a name is what this assertion refuses.
+    expect(migrations).toContain("20260916000000_circles_analytics");
+    expect(migrations).toHaveLength(67);
   });
 
   it("touches no Mobile file", () => {

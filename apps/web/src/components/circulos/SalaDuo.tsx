@@ -23,6 +23,7 @@ import { PreviewCompartir } from "./PreviewCompartir";
 import { Reveal } from "./Reveal";
 import { Artefacto } from "./Artefacto";
 import { Seguimiento } from "./Seguimiento";
+import { OpinionOpcional } from "./OpinionOpcional";
 
 /**
  * One room, one server view, several faces.
@@ -112,6 +113,24 @@ export function SalaDuo({
   // from the command AND its payload: retrying the identical thing reuses it,
   // and changing the text mints a new one because it is genuinely a different
   // intention.
+  /**
+   * How often each prepared help was opened, in memory and nowhere else.
+   *
+   * A ref rather than state: nothing on screen depends on it, and re-rendering
+   * the room because somebody re-read an explanation would be a strange
+   * priority. It is read once, at the end, if they agree to contribute —
+   * during the preparation itself nothing is sent, so there is no request
+   * whose timing says somebody is stuck on a question.
+   *
+   * Leaving before that point loses them, which is the honest cost of not
+   * measuring people while they think.
+   */
+  const helpOpens = useRef(new Map<string, number>());
+  const countHelp = useCallback((fieldKey: string, piece: string) => {
+    const key = `${fieldKey}:${piece}`;
+    helpOpens.current.set(key, (helpOpens.current.get(key) ?? 0) + 1);
+  }, []);
+
   const keys = useRef(new Map<string, string>());
   const keyFor = useCallback((kind: string, payload: unknown): string => {
     const intention = `${kind}:${JSON.stringify(payload ?? null)}`;
@@ -404,6 +423,7 @@ export function SalaDuo({
             setLocal({ stage: "preview", confirmation })
           }
           onWithdraw={withdrawAndLeave}
+          onHelpOpen={countHelp}
         />
       )}
 
@@ -491,6 +511,22 @@ export function SalaDuo({
             `no-referrer` is what stops the room's own URL travelling as the
             referer, which is the leak a plain link would have.
           */}
+          {/*
+            Asked here and only here: after the activity is over, where it is
+            not an interruption and where nothing depends on the answer.
+          */}
+          <OpinionOpcional
+            activityId={activityId}
+            helpOpens={[...helpOpens.current.entries()].map(([key, opens]) => {
+              const at = key.lastIndexOf(":");
+              return {
+                fieldKey: key.slice(0, at),
+                piece: key.slice(at + 1) as "explanation" | "example",
+                opens,
+              };
+            })}
+          />
+
           <p style={S.p}>
             ¿Quieres conocer más?{" "}
             <a

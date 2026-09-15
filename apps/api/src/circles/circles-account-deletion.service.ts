@@ -70,6 +70,8 @@ export interface CirclesDetachSummary {
   readonly envelopesPurged: number;
   /** Draft artifacts THIS account authored whose content was removed. */
   readonly artifactsPurged: number;
+  /** Optional analytics contributions deleted with the account. */
+  readonly contributionsForgotten: number;
 }
 
 const EMPTY: CirclesDetachSummary = Object.freeze({
@@ -81,6 +83,7 @@ const EMPTY: CirclesDetachSummary = Object.freeze({
   guestSessionsRevoked: 0,
   envelopesPurged: 0,
   artifactsPurged: 0,
+  contributionsForgotten: 0,
 });
 
 /** Stages from which an activity is still live. */
@@ -185,6 +188,21 @@ export class CirclesAccountDeletionService {
     // conversation being over does not make the text somebody else's.
     const artifactsPurged = await this.purgeAuthoredArtifacts(memberIds, tx);
 
+    // What this account volunteered to the analytics plane goes with it.
+    //
+    // Same reason as the drafts and the same place in the order: the seats are
+    // reachable while the membership is still ACTIVE. Deleting an account is
+    // the strongest form of withdrawing a permission, so the contributions it
+    // made under that permission stop existing.
+    //
+    // What cannot be undone is the part already folded into a weekly count:
+    // the fact has no seat in it to subtract. That limit is stated wherever
+    // the promise is made rather than quietly ignored here.
+    const contributionsForgotten = await this.forgetContributions(
+      memberIds,
+      tx,
+    );
+
     // Membership is revoked LAST: while it is still ACTIVE the seats above can
     // be resolved the ordinary way, and the SQL CHECK requires a detached row
     // to be LEFT anyway — so this also has to happen before the account row is
@@ -211,7 +229,32 @@ export class CirclesAccountDeletionService {
       guestSessionsRevoked,
       envelopesPurged,
       artifactsPurged,
+      contributionsForgotten,
     };
+  }
+
+  /**
+   * Delete the optional contributions this account's seats made.
+   *
+   * Runs on the same transaction as everything else, so a failure anywhere
+   * rolls the whole detach back — a half-forgotten contributor is worse than
+   * an un-started one.
+   */
+  private async forgetContributions(
+    memberIds: string[],
+    tx: PrismaService,
+  ): Promise<number> {
+    const seats = await tx.circleActivityParticipant.findMany({
+      where: { memberId: { in: memberIds } },
+      select: { id: true },
+    });
+    if (seats.length === 0) return 0;
+    const ids = seats.map((s) => s.id);
+    const [feedback, help] = await Promise.all([
+      tx.circleFeedback.deleteMany({ where: { participantId: { in: ids } } }),
+      tx.circleHelpOpen.deleteMany({ where: { participantId: { in: ids } } }),
+    ]);
+    return feedback.count + help.count;
   }
 
   /**

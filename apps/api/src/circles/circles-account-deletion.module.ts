@@ -10,6 +10,7 @@ import { CircleArtifactRepository } from "./circle-artifact.repository";
 import { CircleGuestSessionRepository } from "./circle-guest-session.repository";
 import { CirclesAccountDeletionService } from "./circles-account-deletion.service";
 import { CirclesSweepService } from "./circles-sweep.service";
+import { CirclesAnalyticsService } from "./circles-analytics.service";
 import {
   CIRCLES_ROLLOUT_CONFIG,
   resolveCirclesRolloutConfig,
@@ -83,7 +84,15 @@ import { CirclesRolloutService } from "./circles-rollout.service";
     },
     CirclesRolloutService,
     CirclesSweepService,
+    // The analytics plane travels with the deletion path for two reasons: the
+    // worker's retention sweep runs here, and deleting an account must also
+    // delete what that account contributed.
+    CirclesAnalyticsService,
   ],
-  exports: [CirclesAccountDeletionService, CirclesSweepService],
+  exports: [
+    CirclesAccountDeletionService,
+    CirclesSweepService,
+    CirclesAnalyticsService,
+  ],
 })
 export class CirclesAccountDeletionModule {}

@@ -5,6 +5,7 @@ import { PulsoController } from "./pulso.controller";
 import { PulsoService } from "./pulso.service";
 import { AuthorReviewService } from "./author-review.service";
 import { AdminUsersService } from "./admin-users.service";
+import { CirclesModule } from "../circles/circles.module";
 
 /**
  * PulsoModule — Sprint S42 (reports) + S48 (overview).
@@ -18,7 +19,9 @@ import { AdminUsersService } from "./admin-users.service";
  * overview can cache its (potentially expensive) aggregation.
  */
 @Module({
-  imports: [PrismaModule, RedisModule],
+  // CirclesModule exports exactly one thing — the analytics service — so the
+  // panel can read aggregates without being handed the domain.
+  imports: [PrismaModule, RedisModule, CirclesModule],
   controllers: [PulsoController],
   providers: [PulsoService, AuthorReviewService, AdminUsersService],
   exports: [PulsoService, AuthorReviewService, AdminUsersService],

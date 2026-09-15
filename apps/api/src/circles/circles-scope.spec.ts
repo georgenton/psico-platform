@@ -57,7 +57,7 @@ describe("circles · PR3 scope — access and participation", () => {
     }
   });
 
-  it("ships four migrations, and every loosening in them is enumerated", () => {
+  it("ships five migrations, and every loosening in them is enumerated", () => {
     // PR2 added the domain; PR3 the invariants participation needs; the pilot
     // cut added the sanctioned detach PR2 itself predicted ("account deletion,
     // once Círculos is on, will need a sanctioned scrub path that is itself a
@@ -81,6 +81,7 @@ describe("circles · PR3 scope — access and participation", () => {
       "20260910030000_circles_participation_invariants",
       "20260913000000_circles_account_deletion",
       "20260915000000_circles_artifact_purge",
+      "20260916000000_circles_analytics",
     ]);
 
     /**
@@ -97,6 +98,9 @@ describe("circles · PR3 scope — access and participation", () => {
         /^ALTER TABLE "CircleMember" DROP CONSTRAINT "CircleMember_userId_fkey";$/,
         /^ALTER TABLE "CircleEvent" DROP CONSTRAINT "CircleEvent_actorUserId_fkey";$/,
       ],
+      // The analytics migration has NO entry, and that is the assertion: it
+      // only creates tables. A table nobody had cannot loosen anything.
+      //
       // The purge makes the four content columns optional and re-states two
       // shape checks so they tolerate absence. It drops no foreign key: the
       // ledger's reference to the artifact is exactly what keeps the row.
@@ -600,10 +604,27 @@ describe("circles · PR3 — participation keeps every earlier promise", () => {
     const controller = code(
       read(`${CIRCLES_DIR}/circles-participation.controller.ts`),
     );
-    const commands = [...controller.matchAll(/@(Post|Put)\(/g)].length;
+    const posts = [...controller.matchAll(/@(Post|Put)\(/g)].length;
     const keys = [...controller.matchAll(/requireIdempotencyKey\(key\)/g)]
       .length;
-    expect(keys, "one key check per command").toBe(commands);
+
+    /**
+     * Routes that are POSTs without being domain commands.
+     *
+     * `feedback` writes to the analytics plane, not to the activity, and it is
+     * idempotent by a key the SERVER owns: one row per seat, upserted. A
+     * client-supplied key would add a second notion of sameness on top of a
+     * uniqueness constraint that already decides it.
+     *
+     * Named one by one, and counted — so a future command cannot join this
+     * list by being forgotten. There are two surfaces, member and guest.
+     */
+    const NOT_COMMANDS = 2;
+    expect(
+      [...controller.matchAll(/@Post\("activities\/:activityId\/feedback"\)/g)],
+      "the exemption names exactly the routes it exempts",
+    ).toHaveLength(NOT_COMMANDS);
+    expect(keys, "one key check per command").toBe(posts - NOT_COMMANDS);
     // Canonical, not normalised into existence: a key the server repairs is a
     // key two clients can collide on by accident.
     expect(controller).toMatch(/\[0-9a-f\]\{8\}-/);

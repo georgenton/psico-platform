@@ -416,13 +416,26 @@ async function backToFirstQuestion(page) {
  * it while the same helper worked everywhere else.
  */
 async function settledStep(page) {
-  await page.waitForFunction(
-    () =>
-      document.querySelectorAll("textarea[id^='f-']").length === 1 ||
-      /¿Qué quieres compartir\?/.test(document.body.innerText),
-    undefined,
-    { timeout: 20_000 },
-  );
+  try {
+    await page.waitForFunction(
+      () =>
+        document.querySelectorAll("textarea[id^='f-']").length === 1 ||
+        /¿Qué quieres compartir\?/.test(document.body.innerText),
+      undefined,
+      { timeout: 20_000 },
+    );
+  } catch {
+    // A bare "waitForFunction timed out" says only that something did not
+    // happen. The screen this lands on is usually a perfectly ordinary one the
+    // caller forgot to walk past — the private gate, most often — so say which
+    // one it is. That turned a twenty-second mystery into a one-line fix.
+    const heading = await page
+      .evaluate(() => document.querySelector("h1, h2")?.textContent ?? "")
+      .catch(() => "");
+    throw new Error(
+      `the preparation form is not on screen — the page is showing «${heading.trim() || "nothing recognisable"}» at ${page.url()}`,
+    );
+  }
   const enCompartir = await page
     .getByRole("heading", { name: /¿Qué quieres compartir\?/ })
     .count();
@@ -1670,6 +1683,10 @@ async function analyticsBoundaryScenario(browser) {
     await typeDraft(page, { uno: "un momento", dos: "que preguntes" });
     await openPreview(page);
     await confirmShare(page);
+    // The guest is still on the consent card: `acceptAsGuest` stops at the room,
+    // and every OTHER scenario walks them through the private gate explicitly.
+    // This one did not, and typed into a screen that has no form on it.
+    await enterRoom(guest.page);
     await typeDraft(guest.page, { uno: "lo del invitado", dos: "y lo otro" });
     await openPreview(guest.page);
     await confirmShare(guest.page);

@@ -393,7 +393,15 @@ async function entryFlow(browser) {
 
     const before = countActivities();
     const createButton = await openCreateScreen(page);
-    check(true, "the synthetic template is offered on an eligible experience");
+    // The reading surface offers the PUBLISHED template — the one the mapping
+    // names — not the synthetic fixture. Asserted by the key in the URL the CTA
+    // led to, so a build that quietly reverted to the fixture fails here rather
+    // than passing with the wrong activity.
+    const offeredKey = new URL(page.url()).pathname.split("/").pop();
+    check(
+      offeredKey === "duo-lo-que-me-ayuda",
+      `the eligible experience offers the APPROVED template (${offeredKey})`,
+    );
     check(countActivities() === before, "opening the preview creates NOTHING");
 
     await createButton.click();

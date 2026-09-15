@@ -526,17 +526,30 @@ const CONTROLS = [
   },
   {
     property: "THE_SERVER_DECIDES_WHOSE_CONTRIBUTION_IT_IS",
-    mutation: "the seat is taken from the request body instead of the actor",
-    file: f("src/circles/circles-participation.facade.ts"),
-    // The whole reason the DTO has no identity field. A browser that could
-    // name its own seat could file a contribution as somebody else, in an
-    // activity it was never part of.
-    find: `    const who = await this.domain.resolveContributor(actor, activityId);`,
-    replace: `    const who = await this.domain.resolveContributor(actor, activityId);
-    void who;`,
-    runner: PGSPEC,
-    test: "src/circles/circles-analytics.pg-spec.ts",
-    t: "replaces rather than adds when the same seat answers twice",
+    mutation: "the forwarded body is spread from the request instead of rebuilt",
+    file: w("src/app/api/circulos/actividad/[activityId]/feedback/route.ts"),
+    // ── Why this control was rewritten ───────────────────────────────────
+    //
+    // It used to mutate the API facade and run a pg-spec that calls the
+    // analytics SERVICE directly — the facade is not in that test's path at
+    // all, so no edit to it could ever turn the test red. Worse, the "mutation"
+    // appended `void who;` beside a `who` that is still used three lines later:
+    // the file changed, the hash moved, and the behaviour did not. A control
+    // that cannot fail is not evidence, and this one reported STAYED GREEN and
+    // condemned a guarantee that in fact holds.
+    //
+    // The place a browser's payload is actually stopped is the BFF route, which
+    // REBUILDS the body field by field. That is one `...raw` away from a
+    // pass-through, and the edit reads like a tidy-up — so that is the
+    // mutation, and it goes red on the test written for it.
+    find: `  const body = {
+    topics: cleanTopics(raw.topics),`,
+    replace: `  const body = {
+    ...raw,
+    topics: cleanTopics(raw.topics),`,
+    runner: WEBT,
+    test: "src/app/api/circulos/handlers.test.ts",
+    t: "rebuilds the body, so nothing unnamed reaches the API",
   },
   {
     property: "SMALL_CELLS_STAY_SUPPRESSED",

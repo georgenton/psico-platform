@@ -65,6 +65,7 @@ const LABELS = [
   "candidate",
   "coexistence",
   "analytics",
+  "grupo",
 ];
 
 const log = (m) => console.log(`▸ ${m}`);
@@ -237,6 +238,13 @@ for (const service of [cfg.apiServiceId, cfg.workerServiceId]) {
     `CIRCLES_ROLLOUT_MODE=pilot`,
     "--set",
     `CIRCLES_PILOT_USER_IDS=${allowlist}`,
+    // The modality switch, set HERE and nowhere else. It is written on the
+    // test project's services, in the same call that writes the allowlist, so
+    // "groups are open" is part of this run's configuration rather than a
+    // state somebody has to remember to undo. Production carries its own
+    // value and this cannot reach it.
+    "--set",
+    `CIRCLES_GROUPS=on`,
   ]);
 }
 

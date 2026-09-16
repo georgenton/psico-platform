@@ -164,27 +164,32 @@ describe("PR4 stores no draft and loads no third party", () => {
 });
 
 describe("production publishes exactly what was approved, and nothing else", () => {
-  it("OFFERS one template, and carries a draft candidate beside it", () => {
-    // This asserted emptiness while nothing was approved, then a count of one.
-    // Neither was the point — "only what somebody approved is offered" was —
-    // and a DRAFT in the catalog is not an offer: it exists so an activity
-    // pinned to it can resolve, and `listPublished` skips it.
+  it("OFFERS one template, and keeps its predecessor resolvable", () => {
+    // This asserted emptiness while nothing was approved, then a count of one,
+    // then one PUBLISHED beside one DRAFT. None of those was the point —
+    // "only what somebody approved is offered" was.
+    //
+    // Jorge walked @2 end to end in the hosted test environment and approved
+    // it, so @2 is now what is offered and @1 is ARCHIVED: withdrawn from the
+    // listing, the organiser screen and the public preview, and still resolved
+    // by `getExact` for the activities that are running on it.
     expect(
       PRODUCTION_CIRCLE_TEMPLATES.map(
         (t) => `${t.templateKey}@${t.templateVersion}:${t.status}`,
       ),
     ).toEqual([
-      "duo-lo-que-me-ayuda@1:PUBLISHED",
-      "duo-lo-que-me-ayuda@2:DRAFT",
+      "duo-lo-que-me-ayuda@1:ARCHIVED",
+      "duo-lo-que-me-ayuda@2:PUBLISHED",
     ]);
-    const [approved] = PRODUCTION_CIRCLE_TEMPLATES;
-    expect(approved.templateKey).toBe("duo-lo-que-me-ayuda");
-    expect(approved.templateVersion).toBe(1);
-    expect(approved.status).toBe("PUBLISHED");
-    expect(approved.audience).toBe("DUO_ADULT");
-    expect(approved.ecoMode).toBe("NONE");
-    expect(approved.participants).toEqual({ min: 2, max: 2, required: 2 });
-    expect(approved.source.experiencePin).toEqual({
+    const offered = PRODUCTION_CIRCLE_TEMPLATES.find(
+      (t) => t.status === "PUBLISHED",
+    )!;
+    expect(offered.templateKey).toBe("duo-lo-que-me-ayuda");
+    expect(offered.templateVersion).toBe(2);
+    expect(offered.audience).toBe("DUO_ADULT");
+    expect(offered.ecoMode).toBe("NONE");
+    expect(offered.participants).toEqual({ min: 2, max: 2, required: 2 });
+    expect(offered.source.experiencePin).toEqual({
       experienceKey: "eec-c1-cuerpo-antes-que-mente",
       experienceVersion: 1,
     });
@@ -192,7 +197,8 @@ describe("production publishes exactly what was approved, and nothing else", () 
 
   it("publishes AT MOST ONE version of a key, because a URL carries no version", () => {
     // Not a restatement of the list above — it is the REASON that list has to
-    // look the way it does, and the thing whoever publishes @2 has to do next.
+    // look the way it does, and the rule that was followed when @2 was
+    // published: @1 was archived in the same change.
     //
     // A link to an activity names a key and never a version, so the server is
     // asked "which version does this key mean now". Two PUBLISHED versions give
@@ -215,8 +221,14 @@ describe("production publishes exactly what was approved, and nothing else", () 
     }
   });
 
-  it("carries the approved copy of @1, not a paraphrase of it", () => {
-    const [approved] = PRODUCTION_CIRCLE_TEMPLATES;
+  it("carries the approved copy of @1 unchanged, now that it is archived", () => {
+    // Archiving withdraws @1 from what is OFFERED. It does not edit it: the
+    // people whose activities are pinned here agreed to these exact words, and
+    // a published template is immutable whatever its status becomes later.
+    const approved = PRODUCTION_CIRCLE_TEMPLATES.find(
+      (t) => t.templateVersion === 1,
+    )!;
+    expect(approved.status).toBe("ARCHIVED");
     expect(approved.title).toBe("Lo que me ayuda cuando estoy así");
     expect(approved.privatePreparation.map((f) => f.label)).toEqual([
       "Cuando estoy así, me ayuda que…",

@@ -15,9 +15,15 @@
  *     testing a production build, which is the thing that has to work.
  *
  * So nothing in the shipped source changes. This script copies the COMMITTED
- * tree, rewrites exactly two catalog lines THERE, builds that tree for
- * production, and runs it. The repository's catalog stays empty and its
- * ratchets keep asserting so.
+ * tree, appends the synthetic fixture to the catalog THERE, builds that tree
+ * for production, and runs it. The repository's catalog carries only what
+ * somebody approved, and its ratchets keep asserting so.
+ *
+ * It used to rewrite three more lines — publishing `@2`, archiving `@1`, moving
+ * the eligibility mapping — because the repository shipped `@2` as a DRAFT.
+ * Jorge approved it after walking it here, so the repository publishes it now
+ * and those patches were removed: `patch()` refuses a find string that matches
+ * nothing, and leaving them would have stopped every run.
  *
  * ── One tree, not two ──────────────────────────────────────────────────────
  *
@@ -489,56 +495,21 @@ async function main() {
       "  [\n    E2E_DUO_TEMPLATE,",
   );
 
-  // ── The candidate, served only here ──────────────────────────────────────
+  // ── The candidate is no longer a candidate ───────────────────────────────
   //
-  // `duo-lo-que-me-ayuda@2` is DRAFT in the repository and stays DRAFT: that is
-  // what keeps it out of production while its copy is audited. This build — and
-  // only this build — flips it to PUBLISHED and moves the single mapping onto
-  // it, so the hosted environment can serve the candidate through the isolated
-  // mechanism that already exists rather than through a production flag or a
-  // fixtures endpoint that would have to exist in production to be useful here.
+  // This block used to flip `duo-lo-que-me-ayuda@2` to PUBLISHED, archive @1
+  // and move the eligibility mapping, because the repository shipped @2 as a
+  // DRAFT and the walk needed something to walk through.
   //
-  // The mapping is MOVED, not added. A second entry for the same Experience pin
-  // does not win a tie-break: ambiguity disables the offer, and the CTA the walk
-  // clicks would silently disappear.
+  // Jorge approved @2 after walking it end to end here, so the repository now
+  // publishes it: @2 PUBLISHED, @1 ARCHIVED, the mapping on @2. Those three
+  // patches became no-ops and were removed rather than left to fail — `patch()`
+  // refuses a find string that matches nothing, which is exactly right and
+  // would have stopped every run.
   //
-  // ── And @1 is ARCHIVED in the same breath, which is not a detail ──────────
-  //
-  // Publishing a new version of a key is a SUCCESSION, not an addition. The URL
-  // a reader follows carries a key and no version, so the server answers "which
-  // version does this key mean right now" — and that question has an answer only
-  // while exactly one version of the key is PUBLISHED
-  // (`resolvePublishedTemplateByKey` refuses two rather than picking the higher
-  // one, because guessing there sends somebody into a version nobody offered
-  // them).
-  //
-  // Leaving @1 PUBLISHED alongside @2 therefore does not produce "two offers".
-  // It produces NONE: the organiser route 404s, the CTA never renders, and the
-  // failure arrives thirty seconds later as a locator timeout that says nothing
-  // about its cause. That is exactly how this was found.
-  //
-  // ARCHIVED is the honest state and the one production will use. It withdraws
-  // @1 from everything that OFFERS a template — the listing, the organiser
-  // screen, the public preview — while `getExact` keeps resolving it by pin, so
-  // an activity already pinned to @1 still asks @1's questions and an invitation
-  // already sent still lands. That coexistence is the thing worth testing, and
-  // the walk tests it: it creates on @2, pins the row back to 1, and reads the
-  // room.
-  patch(
-    "packages/types/src/circles-catalog.ts",
-    '      templateVersion: 1,\n      status: "PUBLISHED",',
-    '      templateVersion: 1,\n      status: "ARCHIVED",',
-  );
-  patch(
-    "packages/types/src/circles-catalog.ts",
-    '      templateVersion: 2,\n      status: "DRAFT",',
-    '      templateVersion: 2,\n      status: "PUBLISHED",',
-  );
-  patch(
-    "apps/web/src/lib/circulos/eligibility.ts",
-    '    templateKey: "duo-lo-que-me-ayuda",\n    templateVersion: 1,',
-    '    templateKey: "duo-lo-que-me-ayuda",\n    templateVersion: 2,',
-  );
+  // What remains is the one patch that still has work to do: appending the
+  // synthetic fixture, which never ships. The build is still NOT publishable
+  // for that reason alone.
 
   // The scope ratchets in the copy would now fail BY DESIGN — they assert the
   // catalog is empty, and here it deliberately is not. They are not run from
@@ -546,7 +517,7 @@ async function main() {
   //
   // This build is therefore NOT publishable and never leaves the temp tree:
   // nothing here is pushed to a registry, uploaded, or reused as an artifact.
-  log("   patched", "4 points + 1 fixture module (build is NOT publishable)");
+  log("   patched", "1 point + 1 fixture module (build is NOT publishable)");
 
   if (PREPARE_AT) {
     // The artifact is the point; nothing is installed, built or started here.

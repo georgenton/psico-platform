@@ -23,25 +23,29 @@ import {
 describe("the production catalog carries one activity, and the page shows that one", () => {
   it("publishes exactly the approved template", () => {
     // Publishing one is an editorial act with its own approval, not a side
-    // effect of building this page. The catalog also carries the DRAFT
-    // candidate @2, which is deliberately NOT published.
+    // effect of building this page. The catalog also carries @1, now ARCHIVED,
+    // which is deliberately NOT offered — it exists so the activities pinned to
+    // it keep resolving.
     expect(PRODUCTION_CIRCLE_TEMPLATES).toHaveLength(2);
     const published = productionCircleTemplateRegistry.listPublished();
     expect(published).toHaveLength(1);
     expect(published[0].templateKey).toBe("duo-lo-que-me-ayuda");
-    expect(published[0].templateVersion).toBe(1);
+    expect(published[0].templateVersion).toBe(2);
   });
 
-  it("does not show a stranger the candidate, by key or by accident", () => {
+  it("shows only the published version, never the archived one", () => {
     // `/actividades/<key>` carries no version, so this is the page that would
-    // leak a DRAFT if `getPublished` ever became `getExact`.
+    // leak the wrong one if `getPublished` ever became `getExact`. The
+    // assertion inverted when @2 was published and @1 archived, and it is the
+    // same property either way: this page shows what is OFFERED and nothing
+    // else. ARCHIVED is as unshowable as DRAFT.
     render(
       <ActividadPreviewPage params={{ templateKey: "duo-lo-que-me-ayuda" }} />,
     );
     const text = document.body.textContent ?? "";
-    // @1's summary, not @2's.
-    expect(text).toContain("Cada quien escribe por su lado");
-    expect(text).not.toContain("Piensen por separado");
+    // @2's summary, not @1's.
+    expect(text).toContain("Piensen por separado");
+    expect(text).not.toContain("Cada quien escribe por su lado");
   });
 
   it("previews it for a stranger, with copy and never with an instance", () => {

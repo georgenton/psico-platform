@@ -715,13 +715,14 @@ describe("circles · PR2 — nothing outside its own tables moved", () => {
       (m) => m[1],
     );
     expect(keys).toEqual(["duo-lo-que-me-ayuda", "duo-lo-que-me-ayuda"]);
-    // Two versions of one activity, and only one of them is OFFERED. The file
-    // is read rather than the import trusted, so a second PUBLISHED literal
-    // fails here even if the registry would happily hold it.
+    // Two versions of one activity, and only one of them is OFFERED — now @2,
+    // with @1 archived behind it. The file is read rather than the import
+    // trusted, so a second PUBLISHED literal fails here even if the registry
+    // would happily hold it.
     const statuses = [...catalog.matchAll(/^\s*status: "([^"]+)",$/gm)].map(
       (m) => m[1],
     );
-    expect(statuses).toEqual(["PUBLISHED", "DRAFT"]);
+    expect(statuses).toEqual(["ARCHIVED", "PUBLISHED"]);
     // The fixtures have their own file and stay there.
     expect(catalog).not.toContain("e2e-duo-sintetica");
     expect(catalog).not.toContain("fixture-duo");

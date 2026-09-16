@@ -632,7 +632,7 @@ export const PRODUCTION_CIRCLE_TEMPLATES: readonly CircleActivityDefinition[] =
     {
       templateKey: "duo-lo-que-me-ayuda",
       templateVersion: 1,
-      status: "PUBLISHED",
+      status: "ARCHIVED",
       audience: "DUO_ADULT",
       title: "Lo que me ayuda cuando estoy así",
       summary:
@@ -726,7 +726,7 @@ export const PRODUCTION_CIRCLE_TEMPLATES: readonly CircleActivityDefinition[] =
     {
       templateKey: "duo-lo-que-me-ayuda",
       templateVersion: 2,
-      status: "DRAFT",
+      status: "PUBLISHED",
       audience: "DUO_ADULT",
       title: "Lo que me ayuda cuando estoy así",
       summary:

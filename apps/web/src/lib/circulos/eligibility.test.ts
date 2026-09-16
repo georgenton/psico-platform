@@ -224,12 +224,16 @@ describe("eligibility is an enumeration, never an inference", () => {
     // This used to assert emptiness. It now asserts the contents, which is the
     // same ratchet and not a weaker one: a second mapping, a changed pin or a
     // bumped version all fail here and have to be argued for in review.
+    //
+    // It moved to @2 when Jorge approved the candidate — MOVED, one entry, not
+    // two. Two entries for one experience disable the offer rather than
+    // ranking it.
     expect(PRODUCTION_DUO_ELIGIBILITY).toEqual([
       {
         experienceKey: "eec-c1-cuerpo-antes-que-mente",
         experienceVersion: 1,
         templateKey: "duo-lo-que-me-ayuda",
-        templateVersion: 1,
+        templateVersion: 2,
       },
     ]);
   });

@@ -297,7 +297,7 @@ describe("circles · template registry", () => {
     ]);
   });
 
-  it("publishes exactly ONE template, and carries one DRAFT candidate", () => {
+  it("publishes exactly ONE template, and keeps the previous one resolvable", () => {
     // Two different questions, and the distinction is the whole point of a
     // DRAFT sitting in the catalog: what EXISTS — so an activity pinned to it
     // can resolve — versus what is OFFERED, which needs an approval.
@@ -306,15 +306,15 @@ describe("circles · template registry", () => {
         (d) => `${d.templateKey}@${d.templateVersion}:${d.status}`,
       ),
     ).toEqual([
-      "duo-lo-que-me-ayuda@1:PUBLISHED",
-      "duo-lo-que-me-ayuda@2:DRAFT",
+      "duo-lo-que-me-ayuda@1:ARCHIVED",
+      "duo-lo-que-me-ayuda@2:PUBLISHED",
     ]);
     expect(productionCircleTemplateRegistry.size).toBe(2);
     expect(
       productionCircleTemplateRegistry
         .listPublished()
         .map((d) => `${d.templateKey}@${d.templateVersion}`),
-    ).toEqual(["duo-lo-que-me-ayuda@1"]);
+    ).toEqual(["duo-lo-que-me-ayuda@2"]);
   });
 
   it("leaves @1 resolvable and unchanged by @2 existing", () => {
@@ -324,7 +324,9 @@ describe("circles · template registry", () => {
       "duo-lo-que-me-ayuda",
       1,
     );
-    expect(v1.status).toBe("PUBLISHED");
+    // ARCHIVED since @2 was published: withdrawn from everything that OFFERS,
+    // still resolvable by pin for the activities that are running on it.
+    expect(v1.status).toBe("ARCHIVED");
     expect(v1.privatePreparation.map((f) => f.label)).toEqual([
       "Cuando estoy así, me ayuda que…",
       "Y no me ayuda que…",
@@ -345,10 +347,15 @@ describe("circles · template registry", () => {
     expect(v2.ecoMode).toBe("NONE");
   });
 
-  it("refuses to project the candidate to a stranger while it is DRAFT", () => {
+  it("refuses to project the ARCHIVED predecessor to a stranger", () => {
+    // This asserted the same refusal about @2 while it was DRAFT. The version
+    // it names changed when @2 was published and @1 archived; the property did
+    // not. The public projector shows what is PUBLISHED, and ARCHIVED is as
+    // unshowable as DRAFT — which is the whole reason archiving is how a
+    // version is withdrawn without deleting it.
     expect(() =>
       toCircleTemplatePreview(
-        productionCircleTemplateRegistry.getExact("duo-lo-que-me-ayuda", 2),
+        productionCircleTemplateRegistry.getExact("duo-lo-que-me-ayuda", 1),
       ),
     ).toThrow(CircleCatalogError);
   });
@@ -358,7 +365,7 @@ describe("circles · template registry", () => {
     // grammar. Building one from the shipped definition proves the literal is
     // acceptable to the runtime authority, not merely to the type system.
     const rebuilt = new CircleTemplateRegistry(PRODUCTION_CIRCLE_TEMPLATES);
-    const exact = rebuilt.getExact("duo-lo-que-me-ayuda", 1);
+    const exact = rebuilt.getExact("duo-lo-que-me-ayuda", 2);
     expect(exact.participants.required).toBe(2);
     expect(exact.safety.privateGateRequired).toBe(true);
     expect(exact.ecoMode).toBe("NONE");

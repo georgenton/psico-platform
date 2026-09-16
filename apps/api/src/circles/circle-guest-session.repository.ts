@@ -166,6 +166,31 @@ export class CircleGuestSessionRepository {
   }
 
   /**
+   * EVERY guest session of an activity, locked, in a deterministic order.
+   *
+   * Position THREE in the lock order — after the invitations, before the
+   * activity. `ORDER BY "id"` for the same reason the invitations have one:
+   * two transactions taking the same set in different orders deadlock.
+   */
+  async lockForActivity(
+    activityId: string,
+    tx: CircleGuestSessionTx,
+  ): Promise<CircleGuestSessionRow[]> {
+    try {
+      return await tx.$queryRaw<CircleGuestSessionRow[]>(Prisma.sql`
+        SELECT "id", "invitationId", "activityId", "participantId",
+               "tokenHash", "expiresAt", "revokedAt"
+          FROM "CircleGuestSession"
+         WHERE "activityId" = ${activityId}
+         ORDER BY "id"
+           FOR UPDATE
+      `);
+    } catch {
+      throw new CircleStorageError();
+    }
+  }
+
+  /**
    * Best-effort liveness marker. Deliberately fire-and-forget and deliberately
    * NOT part of authorization: a failure to record that somebody was seen must
    * never turn into a failure to authorize them, and vice versa.

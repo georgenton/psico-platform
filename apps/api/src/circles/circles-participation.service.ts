@@ -863,8 +863,49 @@ export class CirclesParticipationService {
           select: { type: true },
         });
         if (receipt?.type === "PARTICIPANT_WITHDRAWN") {
-          // The exit is not a snapshot, so there is no hash to compare. The key
-          // stands for "this seat left without sharing", and it did.
+          // ── The receipt says the key was spent. It does not say on what ──
+          //
+          // An exit leaves no snapshot, so there is no hash to compare — which
+          // is exactly why this branch has to ask the question some other way
+          // instead of not asking it. `PARTICIPANT_WITHDRAWN` is written by
+          // every way of leaving: the group's private exit, «retirarme» from
+          // `PREPARING`, and «retirarme» after the reveal. Accepting the bare
+          // event meant a key spent on ANY of those could come back carrying a
+          // body full of answers and be told its confirmation had been
+          // replayed. Nothing had been stored, and on a cancelled activity
+          // nothing ever could be.
+          //
+          // So the request itself must be the exit this receipt can stand for,
+          // and the three conditions below are read off state that already
+          // exists — no draft is kept, no marker is written, nothing records
+          // which button was pressed:
+          //
+          //   · the request is `KEEP_PRIVATE`. A body with fields in it is a
+          //     different act, whatever key it arrives under;
+          //   · the activity is a GROUP. In a Dúo `KEEP_PRIVATE` is a
+          //     CONFIRMATION — the seat goes READY and the barrier may open —
+          //     so replaying a withdrawal as one would claim a reveal that
+          //     cannot happen;
+          //   · the activity is `CANCELLED`. The private exit cancels; leaving
+          //     a revealed room CLOSES it. A `CLOSED` activity is proof this
+          //     key was spent on the other ending.
+          //
+          // ── What this deliberately still accepts ────────────────────────
+          //
+          // In a group, «retirarme» from `PREPARING` and «prefiero no
+          // compartir» are ONE act: the same helper, the same cancellation,
+          // the same two events. A key spent on one replays the other, and
+          // that is the privacy property rather than a hole in it — anything
+          // able to tell them apart here would be a stored marker saying which
+          // button somebody pressed, which is the thing this design refuses to
+          // write.
+          if (
+            shape.mode !== "KEEP_PRIVATE" ||
+            ctx.activity.kind !== "GROUP_ADULT" ||
+            ctx.activity.status !== "CANCELLED"
+          ) {
+            throw new CirclesError("CIRCLE_IDEMPOTENCY_CONFLICT");
+          }
           return { revealed: false, replayed: true, cancelled: true };
         }
         if (receipt) {

@@ -235,8 +235,15 @@ export function inspectInvitation(secret: string) {
  *
  * Explicitly NOT a spread. Spreading would mean anything the API ever added —
  * an id, a roster, a counter, an email — arrives at the browser the day it is
- * added, with no diff here to notice. Four fields are named, four are copied,
- * and everything else has nowhere to go.
+ * added, with no diff here to notice. The fields are named one by one, they are
+ * copied one by one, and everything else has nowhere to go.
+ *
+ * That guard worked exactly as intended when groups landed: the API started
+ * sending `participants`, the screen needed it to tell somebody how many people
+ * would read what they write, and it did not arrive until it was named HERE.
+ * It is admitted as a whole number between two and six — the sizes the product
+ * admits — and dropped otherwise, because a preview saying "participan 900
+ * personas" is worse than one that does not mention it.
  *
  * A malformed or absent preview becomes `null`. The invitation stays usable:
  * losing the description is a worse screen, never a dead link.
@@ -256,11 +263,20 @@ export function projectInvitationPreview(
   ) {
     return null;
   }
+  const participants =
+    typeof p.participants === "number" &&
+    Number.isInteger(p.participants) &&
+    p.participants >= 2 &&
+    p.participants <= 6
+      ? p.participants
+      : null;
+
   return Object.freeze({
     title: p.title,
     summary: p.summary,
     estimatedMinutes: p.estimatedMinutes,
     inviterFirstName: p.inviterFirstName,
+    ...(participants === null ? {} : { participants }),
   });
 }
 

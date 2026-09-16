@@ -980,8 +980,12 @@ suite("circles · participation (real PostgreSQL)", () => {
 
     const { ctx } = await service.readActivity(duo.organizer, duo.activityId);
     expect(ctx.activity.status).toBe("REVEALED");
+    // One other seat, because this is a Dúo. `others` is a list precisely so
+    // that "the other person" is a fact about THIS activity's size rather than
+    // an assumption baked into the context.
+    expect(ctx.others).toHaveLength(1);
     const counterpartBody = service.openEnvelope(
-      ctx.counterpart!,
+      ctx.others[0]!,
       ctx.activity,
       ctx.definition,
     );
@@ -1006,7 +1010,7 @@ suite("circles · participation (real PostgreSQL)", () => {
     );
     const { ctx } = await service.readActivity(duo.organizer, duo.activityId);
     const body = service.openEnvelope(
-      ctx.counterpart!,
+      ctx.others[0]!,
       ctx.activity,
       ctx.definition,
     );

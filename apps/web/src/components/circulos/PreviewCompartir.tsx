@@ -26,6 +26,12 @@ export interface PreviewCompartirProps {
   readonly busy: boolean;
   readonly onBack: () => void;
   readonly onConfirm: () => void;
+  /**
+   * How many people are in this activity, the actor included. Two unless the
+   * room says otherwise — the default keeps every existing caller honest
+   * without a migration, and a Dúo is the only shape for which it is right.
+   */
+  readonly participantes?: number;
 }
 
 export function PreviewCompartir({
@@ -34,20 +40,25 @@ export function PreviewCompartir({
   busy,
   onBack,
   onConfirm,
+  participantes = 2,
 }: PreviewCompartirProps) {
+  const grupo = participantes > 2;
   const label = (key: string) =>
     fields.find((f) => f.fieldKey === key)?.label ?? key;
 
   return (
     <section style={S.section} aria-labelledby="prev-h">
       <h2 id="prev-h" style={S.h2}>
-        Esto es lo que verá la otra persona
+        {grupo
+          ? "Esto es lo que verán las demás personas"
+          : "Esto es lo que verá la otra persona"}
       </h2>
 
       {confirmation.mode === "KEEP_PRIVATE" && (
         <p style={S.cita}>
-          Verá que terminaste tu parte y que elegiste no compartir contenido. No
-          verá nada de lo que escribiste, ni por qué.
+          {grupo
+            ? "Verán que terminaste tu parte y que elegiste no compartir contenido. No verán nada de lo que escribiste, ni por qué."
+            : "Verá que terminaste tu parte y que elegiste no compartir contenido. No verá nada de lo que escribiste, ni por qué."}
         </p>
       )}
 
@@ -69,8 +80,11 @@ export function PreviewCompartir({
       )}
 
       <p style={S.aviso} role="note">
-        Al confirmar, esto se envía y ya no se puede editar. Se abrirá cuando
-        las dos personas hayan confirmado.
+        Al confirmar, esto se envía y ya no se puede editar. Se abrirá cuando{" "}
+        {grupo
+          ? "todas las personas hayan confirmado"
+          : "las dos personas hayan confirmado"}
+        .
       </p>
 
       <div style={S.acciones}>

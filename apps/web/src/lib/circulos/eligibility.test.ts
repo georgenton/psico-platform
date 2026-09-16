@@ -9,12 +9,14 @@ vi.mock("server-only", () => ({}));
 import {
   DUO_CTA_LABEL,
   PRODUCTION_DUO_ELIGIBILITY,
+  resolveCircleStart,
   resolveDuoEntry,
   resolveDuoSurface,
   resolvePublishedTemplateByKey,
   type DuoEligibilityDeps,
   type DuoEligibilityMapping,
 } from "./eligibility";
+import { productionCircleTemplateRegistry } from "@psico/types";
 import { PLANTILLA } from "@/components/circulos/__fixtures__/actividad";
 
 /**
@@ -493,5 +495,64 @@ describe("the listing sends people to where the offer is made", () => {
     expect(resolveDuoSurface("anything")).toBeNull();
     expect(resolveDuoSurface("e2e-duo-sintetica")).toBeNull();
     expect(resolveDuoSurface("duo-lo-que-me-ayuda-2")).toBeNull();
+  });
+});
+
+describe("how the listing can actually start each activity", () => {
+  /** The published group, as the real catalogue carries it. */
+  const grupo = productionCircleTemplateRegistry.getExact(
+    "grupo-lo-que-nos-ayuda",
+    1,
+  );
+  const duo = productionCircleTemplateRegistry.getExact(
+    "duo-lo-que-me-ayuda",
+    2,
+  );
+
+  it("starts a group from the listing itself", () => {
+    // It names a book and a chapter but declares no experience pin, which is
+    // the editorial statement that no particular reading proposes it. With no
+    // start here it would be a published, eligible activity whose only screen
+    // says there is nowhere to begin it — the dead end this closes.
+    expect(resolveCircleStart(grupo)).toEqual({
+      kind: "direct",
+      href: "/dashboard/circulos/nuevo/grupo-lo-que-nos-ayuda",
+      label: "Empezar este círculo",
+    });
+  });
+
+  it("still sends a Dúo to its reading, and never starts one here", () => {
+    const start = resolveCircleStart(duo);
+    expect(start?.kind).toBe("reading");
+    expect(start?.href).toBe(
+      "/dashboard/exploraciones/eec-c1-cuerpo-antes-que-mente",
+    );
+    // Emphatically NOT the creation screen: reading about something and
+    // deciding to do it with another person are different acts.
+    expect(start?.href).not.toContain("/circulos/nuevo/");
+  });
+
+  it("offers no Dúo that no reading surface names", () => {
+    const orphan = { ...duo, templateKey: "duo-sin-superficie" };
+    expect(resolveCircleStart(orphan)).toBeNull();
+  });
+
+  it("refuses a group that also claims a reading surface", () => {
+    // Two places to start one activity is an authoring question. Answering it
+    // by preferring one would be the guess this module exists to avoid.
+    const tied = {
+      ...grupo,
+      source: {
+        ...grupo.source,
+        experiencePin: { experienceKey: "eec-c1", experienceVersion: 1 },
+      },
+    };
+    expect(resolveCircleStart(tied)).toBeNull();
+  });
+
+  it("offers nothing for a template that is not PUBLISHED", () => {
+    for (const status of ["DRAFT", "ARCHIVED"] as const) {
+      expect(resolveCircleStart({ ...grupo, status }), status).toBeNull();
+    }
   });
 });

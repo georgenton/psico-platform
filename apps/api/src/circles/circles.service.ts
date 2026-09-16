@@ -308,6 +308,10 @@ export class CirclesService {
         summary: definition.summary,
         estimatedMinutes: definition.estimatedMinutes,
         inviterFirstName: safeInviterFirstName(user),
+        // From the ACTIVITY, not from the template's range: the organiser
+        // chose a size, and what the invitee is agreeing to is that room, not
+        // the widest one the template allows.
+        participants: activity.requiredParticipants,
       });
     } catch {
       // Includes `CIRCLE_CATALOG_UNKNOWN_DEFINITION` and any storage failure.

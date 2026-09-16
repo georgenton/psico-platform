@@ -36,6 +36,11 @@ export function Artefacto({
   onConfirm,
 }: ArtefactoProps) {
   const artifact = view.artifact;
+  // Two people and a room are told the same rule in their own words. The Dúo's
+  // sentences are left exactly as they are in production: this activity is
+  // live, and rewording a screen people are using is not a side effect a group
+  // feature gets to have.
+  const grupo = view.requiredParticipants > 2;
   const [draft, setDraft] = useState("");
   const [editing, setEditing] = useState(false);
 
@@ -50,8 +55,9 @@ export function Artefacto({
           {heading}
         </h2>
         <p style={S.p}>
-          Escríbanlo juntos, en las palabras de ustedes. La otra persona tendrá
-          que confirmarlo antes de que quede.
+          {grupo
+            ? "Escríbanlo juntos, en las palabras de ustedes. Las demás personas tendrán que confirmarlo antes de que quede."
+            : "Escríbanlo juntos, en las palabras de ustedes. La otra persona tendrá que confirmarlo antes de que quede."}
         </p>
         <p style={S.field}>
           <label htmlFor="artefacto" style={S.label}>
@@ -116,7 +122,9 @@ export function Artefacto({
 
       <p style={S.p}>
         {agreed
-          ? "Las dos personas lo confirmaron."
+          ? grupo
+            ? "Todas las personas lo confirmaron."
+            : "Las dos personas lo confirmaron."
           : `${artifact.confirmationCount} de ${view.requiredParticipants} lo confirmaron.`}
       </p>
 
@@ -132,7 +140,9 @@ export function Artefacto({
        */}
       <p style={S.nota}>
         {agreed
-          ? "Un acuerdo confirmado por los dos se conserva."
+          ? grupo
+            ? "Un acuerdo confirmado por todas las personas se conserva."
+            : "Un acuerdo confirmado por los dos se conserva."
           : "Mientras falte una confirmación es una propuesta, no un acuerdo: puede reemplazarse o dejar de estar."}
       </p>
 
@@ -149,7 +159,11 @@ export function Artefacto({
             </button>
           )}
           {artifact.confirmedByYou && (
-            <p style={S.p}>Ya lo confirmaste. Falta la otra persona.</p>
+            <p style={S.p}>
+              {grupo
+                ? "Ya lo confirmaste. Faltan las demás personas."
+                : "Ya lo confirmaste. Falta la otra persona."}
+            </p>
           )}
           <button
             type="button"

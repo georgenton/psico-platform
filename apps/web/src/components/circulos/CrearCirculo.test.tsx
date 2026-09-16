@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import { CrearDuo } from "./CrearDuo";
+import { CrearCirculo } from "./CrearCirculo";
 import { invitationLink, mintInvitationToken } from "@/lib/circulos/invitacion";
 
 /**
@@ -64,8 +64,14 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function mount() {
-  return render(<CrearDuo templateKey="fixture-duo" templateVersion={1} />);
+function mount(sizes: readonly number[] = [2]) {
+  return render(
+    <CrearCirculo
+      templateKey="fixture-duo"
+      templateVersion={1}
+      sizes={sizes}
+    />,
+  );
 }
 
 const crear = () => screen.getByRole("button", { name: /Crear Dúo/ });

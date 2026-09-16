@@ -124,7 +124,22 @@ interface ActivityContext {
   readonly activity: CircleActivityRow;
   readonly participants: readonly CircleParticipantRow[];
   readonly self: CircleParticipantRow;
-  readonly counterpart: CircleParticipantRow | null;
+  /**
+   * Every seat that is not the actor's, in ROSTER order — the organiser's seat
+   * first, then the invited ones by id.
+   *
+   * It replaced a `counterpart` computed as `participants.find(p => p.id !==
+   * self.id)`. That was exactly right while every activity had two seats and
+   * silently wrong the moment one had six: it answered "some other seat" and
+   * the caller read it as "the other person".
+   */
+  readonly others: readonly CircleParticipantRow[];
+  /**
+   * Position of each seat in the roster, 1-based, for EVERY seat including the
+   * actor's own. Same order for every viewer, so one seat is «Participante 3»
+   * to all of them.
+   */
+  readonly positions: ReadonlyMap<string, number>;
   readonly definition: CircleActivityDefinition;
 }
 
@@ -266,7 +281,28 @@ export class CirclesParticipationService {
     ) {
       throw new CirclesError(UNUSABLE);
     }
-    const counterpart = participants.find((p) => p.id !== self.id) ?? null;
+    /**
+     * The roster, in one fixed order every viewer computes identically.
+     *
+     * Organiser first — that seat is the only one holding a `memberId`, and it
+     * is the one everybody already knows about because they got their link
+     * from them — then the invited seats by `id`.
+     *
+     * `id` rather than `createdAt`: every seat of an activity is written inside
+     * ONE transaction, and `CURRENT_TIMESTAMP` is the transaction's start, so
+     * all of them carry the same `createdAt` to the millisecond. Ordering a
+     * group's five seats by a value they all share is not an order at all — it
+     * is whatever PostgreSQL returned this time, and the labels built on it
+     * would move between two reads of the same room.
+     */
+    const roster = [...participants].sort((a, b) => {
+      const organizer =
+        Number(b.memberId !== null) - Number(a.memberId !== null);
+      if (organizer !== 0) return organizer;
+      return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+    });
+    const positions = new Map(roster.map((p, index) => [p.id, index + 1]));
+    const others = roster.filter((p) => p.id !== self.id);
 
     let definition: CircleActivityDefinition;
     try {
@@ -280,7 +316,7 @@ export class CirclesParticipationService {
       throw new CirclesError("CIRCLE_STORAGE_FAILURE");
     }
 
-    return { activity, participants, self, counterpart, definition };
+    return { activity, participants, self, others, positions, definition };
   }
 
   /**

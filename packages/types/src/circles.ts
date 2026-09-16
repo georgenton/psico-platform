@@ -663,6 +663,19 @@ export interface CircleInvitationPreview {
   readonly estimatedMinutes: number;
   /** A first name, never an email, avatar, surname or id. */
   readonly inviterFirstName: string;
+  /**
+   * How many people this activity is for, the reader included.
+   *
+   * Somebody deciding whether to accept has to know whether they are agreeing
+   * to write something two people will read or five. It is the activity's own
+   * size and nobody's personal data: no names, no roster, no idea who else was
+   * invited or whether anybody has accepted.
+   *
+   * Optional in the contract because a cached or older response may not carry
+   * it, and a screen that broke on its absence would turn a degraded field
+   * into a dead invitation.
+   */
+  readonly participants?: number;
 }
 
 /**

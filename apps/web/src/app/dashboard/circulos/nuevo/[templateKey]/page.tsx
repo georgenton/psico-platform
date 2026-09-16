@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import type { CircleSharingMode } from "@psico/types";
-import { toCircleTemplatePreview } from "@psico/types";
+import { circleAllowedSizes, toCircleTemplatePreview } from "@psico/types";
 
 import { resolvePublishedTemplateByKey } from "@/lib/circulos/eligibility";
-import { CrearDuo } from "@/components/circulos/CrearDuo";
+import { CrearCirculo } from "@/components/circulos/CrearCirculo";
 import { estilos as S } from "@/components/circulos/estilos";
 
 /**
@@ -30,11 +30,20 @@ import { estilos as S } from "@/components/circulos/estilos";
  *
  * ── What the person is told before deciding ────────────────────────────────
  *
- * The protocol is spelled out BEFORE the button, not after: two adults, private
- * preparation, simultaneous reveal, and the fact that they can share only part
- * of it, share nothing, or leave. Consent to a two-person activity that is not
+ * The protocol is spelled out BEFORE the button, not after: how many adults,
+ * private preparation, simultaneous reveal, and the fact that they can share
+ * only part of it, share nothing, or leave. Consent to an activity that is not
  * informed about the exit is not consent, and the exit is the part a person
  * most needs to know exists before they start.
+ *
+ * ── Two people and a room are told different things ────────────────────────
+ *
+ * The copy branches on the template's AUDIENCE, not on a route or a flag. A
+ * group is told the two facts that are only true of a group and that a person
+ * cannot infer from a Dúo: the roster is fixed when it is created — nobody
+ * joins later — and everybody waits for everybody, so one person who never
+ * confirms holds the whole room. Saying "simultaneous" to five people without
+ * saying that would be describing a two-person promise to a room.
  */
 
 export const dynamic = "force-dynamic";
@@ -78,6 +87,11 @@ export default function NuevoDuoPage({
   // cannot be bypassed.
   const preview = toCircleTemplatePreview(definition);
   const exits = exitCopy(definition.sharing.allowedModes);
+  // The sizes this template admits, decided here from its own range. The same
+  // predicate the API creates by, so the screen cannot offer a size the server
+  // would refuse.
+  const sizes = circleAllowedSizes(definition);
+  const group = definition.audience === "GROUP_ADULT";
 
   return (
     <main style={S.page}>
@@ -89,19 +103,43 @@ export default function NuevoDuoPage({
           Cómo funciona
         </h2>
         <ul style={{ margin: 0, paddingLeft: "1.2rem", lineHeight: 1.7 }}>
-          <li>
-            Participan {preview.participants.required} personas adultas, tú y
-            alguien que elijas.
-          </li>
-          <li>Toma alrededor de {preview.estimatedMinutes} minutos.</li>
-          <li>
-            Cada quien se prepara en privado. Lo que escribes no se ve hasta que
-            ambos confirmen.
-          </li>
-          <li>
-            La revelación es simultánea: nadie ve lo del otro antes de haber
-            confirmado lo suyo.
-          </li>
+          {group ? (
+            <>
+              <li>
+                Participan entre {sizes[0]} y {sizes[sizes.length - 1]} personas
+                adultas, contándote. Tú eliges cuántas y a quiénes invitas.
+              </li>
+              <li>Toma alrededor de {preview.estimatedMinutes} minutos.</li>
+              <li>
+                Cada quien se prepara en privado. Lo que escribes no se ve hasta
+                que todas las personas hayan confirmado.
+              </li>
+              <li>
+                La revelación es para todo el grupo a la vez: nadie ve lo de
+                nadie antes de haber confirmado lo suyo.
+              </li>
+              <li>
+                El grupo queda fijo al crearlo. No se suma nadie después, y cada
+                persona entra por un enlace propio.
+              </li>
+            </>
+          ) : (
+            <>
+              <li>
+                Participan {preview.participants.required} personas adultas, tú
+                y alguien que elijas.
+              </li>
+              <li>Toma alrededor de {preview.estimatedMinutes} minutos.</li>
+              <li>
+                Cada quien se prepara en privado. Lo que escribes no se ve hasta
+                que ambos confirmen.
+              </li>
+              <li>
+                La revelación es simultánea: nadie ve lo del otro antes de haber
+                confirmado lo suyo.
+              </li>
+            </>
+          )}
         </ul>
       </section>
 
@@ -118,9 +156,10 @@ export default function NuevoDuoPage({
         </section>
       )}
 
-      <CrearDuo
+      <CrearCirculo
         templateKey={preview.templateKey}
         templateVersion={preview.templateVersion}
+        sizes={sizes}
       />
     </main>
   );

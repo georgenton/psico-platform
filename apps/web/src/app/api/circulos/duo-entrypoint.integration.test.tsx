@@ -27,7 +27,7 @@ import {
   type DuoEligibilityDeps,
 } from "@/lib/circulos/eligibility";
 import { DuoEntryPoint } from "@/components/circulos/DuoEntryPoint";
-import { CrearDuo } from "@/components/circulos/CrearDuo";
+import { CrearCirculo } from "@/components/circulos/CrearCirculo";
 import { PLANTILLA } from "@/components/circulos/__fixtures__/actividad";
 
 /**
@@ -127,9 +127,10 @@ describe("LOCAL_E2E · eligible source → CTA → preview → create → copy",
 
     // 3 · the organiser confirms. Nothing existed before this click.
     render(
-      <CrearDuo
+      <CrearCirculo
         templateKey={preview.templateKey}
         templateVersion={preview.templateVersion}
+        sizes={[preview.participants.required]}
       />,
     );
     expect(upstream).toHaveLength(0);

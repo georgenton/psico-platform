@@ -142,6 +142,8 @@ export interface PreparacionPrivadaProps {
   /** Counted in memory by the room. Never sent from here. */
   readonly onHelpOpen?: (fieldKey: string, piece: string) => void;
   readonly busy: boolean;
+  /** How many people are in this activity, the actor included. */
+  readonly participantes?: number;
 }
 
 export function PreparacionPrivada({
@@ -153,7 +155,9 @@ export function PreparacionPrivada({
   onWithdraw,
   onHelpOpen,
   busy,
+  participantes = 2,
 }: PreparacionPrivadaProps) {
+  const grupo = participantes > 2;
   const { values, summary, mode } = draft;
   const setValues = (next: Record<string, string>) =>
     onDraftChange({ ...draft, values: next });
@@ -363,8 +367,9 @@ export function PreparacionPrivada({
 
       {mode === "KEEP_PRIVATE" && (
         <p style={S.p}>
-          No compartirás nada de lo que escribiste. La otra persona verá que
-          terminaste, y nada más. No hace falta explicar por qué.
+          {grupo
+            ? "No compartirás nada de lo que escribiste. Las demás personas verán que terminaste, y nada más. No hace falta explicar por qué."
+            : "No compartirás nada de lo que escribiste. La otra persona verá que terminaste, y nada más. No hace falta explicar por qué."}
         </p>
       )}
 

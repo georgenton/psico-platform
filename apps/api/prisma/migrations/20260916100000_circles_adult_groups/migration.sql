@@ -96,6 +96,52 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- ── 7 · finding a circle's activities by shape ──────────────────────────────
+-- ── 7 · one live link per SEAT, not per activity ────────────────────────────
+--
+-- The foundation migration wrote:
+--
+--   CREATE UNIQUE INDEX "CircleInvitation_one_live_per_activity"
+--     ON "CircleInvitation" ("activityId")
+--     WHERE "consumedAt" IS NULL AND "revokedAt" IS NULL AND "declinedAt" IS NULL;
+--
+-- …with the comment "Two people cannot race into the same Dúo seat, and a
+-- second link cannot be minted while the first is open." Both halves are still
+-- rules. The index expressed them by activity because a Dúo has exactly ONE
+-- seat to fill, so "per activity" and "per seat" were the same sentence.
+--
+-- They stop being the same sentence at three people. A group of six needs five
+-- live links at once, and this index refuses the second one — so the first
+-- group of three this branch tried to create rolled back, exactly as the
+-- `Circle_kind_duo_only` CHECK refused the first group circle.
+--
+-- The seat is therefore made EXPLICIT rather than the rule being dropped.
+-- `seatIndex` numbers the seats an invitation may open: 1 for a Dúo's only
+-- guest, 1..N−1 for a group of N. Existing rows are seat 1, which is what they
+-- have always meant, so the default backfills them correctly and an old API
+-- instance that does not know the column keeps minting seat 1.
+ALTER TABLE "CircleInvitation"
+  ADD COLUMN IF NOT EXISTS "seatIndex" INTEGER NOT NULL DEFAULT 1;
+
+-- Five is the most guests any admitted shape has (a group of six). The bound
+-- is the product's, not an arbitrary ceiling: widening it means widening
+-- `Circle_group_size_is_three_to_six` first, which is an explicit edit.
+--
+-- What this CHECK cannot say is "and no higher than THIS activity's size" — a
+-- CHECK cannot read another table, and the seat count is on `CircleActivity`.
+-- That bound is held by the service, which refuses any request whose secret
+-- count is not size − 1, and by the reveal barrier, which requires the seat
+-- count to equal `requiredParticipants` exactly: an extra seat cannot leak a
+-- conversation, it can only stop one from ever revealing.
+ALTER TABLE "CircleInvitation"
+  ADD CONSTRAINT "CircleInvitation_seat_index_in_range"
+  CHECK ("seatIndex" BETWEEN 1 AND 5);
+
+DROP INDEX IF EXISTS "CircleInvitation_one_live_per_activity";
+
+CREATE UNIQUE INDEX "CircleInvitation_one_live_per_seat"
+  ON "CircleInvitation" ("activityId", "seatIndex")
+  WHERE "consumedAt" IS NULL AND "revokedAt" IS NULL AND "declinedAt" IS NULL;
+
+-- ── 8 · finding a circle's activities by shape ──────────────────────────────
 CREATE INDEX IF NOT EXISTS "CircleActivity_kind_status_idx"
   ON "CircleActivity"("kind", "status");

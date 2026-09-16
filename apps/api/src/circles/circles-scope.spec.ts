@@ -117,12 +117,19 @@ describe("circles · PR3 scope — access and participation", () => {
        *   · `CircleActivity_required_participants_exactly_two` said `n = 2`
        *     unconditionally. It is replaced by a CONDITIONAL check, so a Dúo is
        *     still exactly two and only a group may be three to six.
+       *   · `CircleInvitation_one_live_per_activity` said one live link per
+       *     activity — which is one live link per SEAT when the activity has
+       *     one seat to fill, and refuses a group's second guest when it has
+       *     five. It is replaced by `CircleInvitation_one_live_per_seat`, the
+       *     same rule with the seat named, so a second link into a seat that
+       *     already has one is still refused.
        *
-       * Neither drops a foreign key, a column, a table or an index.
+       * None of the three drops a foreign key, a column or a table.
        */
       "20260916100000_circles_adult_groups": [
         /^ALTER TABLE "Circle" DROP CONSTRAINT IF EXISTS "Circle_kind_duo_only";$/,
         /^ALTER TABLE "CircleActivity" DROP CONSTRAINT IF EXISTS "CircleActivity_required_participants_exactly_two";$/,
+        /^DROP INDEX IF EXISTS "CircleInvitation_one_live_per_activity";$/,
       ],
       "20260915000000_circles_artifact_purge": [
         /^ALTER TABLE "CircleArtifact" ALTER COLUMN "ciphertext" DROP NOT NULL;$/,
@@ -143,14 +150,25 @@ describe("circles · PR3 scope — access and participation", () => {
         .split("\n")
         .filter((l) => !l.trimStart().startsWith("--"))) {
         const line = raw.trim();
-        // Never, in any migration: these destroy data rather than loosen a
-        // reference.
+        // Never, in any migration: these destroy data.
+        //
+        // `DROP INDEX` used to sit in this list and no longer does. It was put
+        // there with the other three when no migration had ever needed one,
+        // and the reason given — "these destroy data" — is the one thing
+        // dropping an index does NOT do: it removes a rule, and the rows stay.
+        // Lumping it here made the two classes indistinguishable, so the only
+        // way to replace an index with a wider one was to weaken the guard for
+        // everything. It is now an enumerated LOOSENING, which is what it is:
+        // still forbidden unless the migration names it and says why, and now
+        // held to the same standard as `DROP CONSTRAINT`. `DROP TABLE`,
+        // `DROP COLUMN` and `RENAME` remain absolutely refused.
         expect(line, `${dir} · ${line}`).not.toMatch(
-          /\bDROP\s+(TABLE|COLUMN|INDEX)\b|\bRENAME\b/i,
+          /\bDROP\s+(TABLE|COLUMN)\b|\bRENAME\b/i,
         );
-        const loosening = /\bDROP\s+CONSTRAINT\b|\bALTER\s+COLUMN\b/i.test(
-          line,
-        );
+        const loosening =
+          /\bDROP\s+CONSTRAINT\b|\bDROP\s+INDEX\b|\bALTER\s+COLUMN\b/i.test(
+            line,
+          );
         if (!loosening) continue;
         expect(
           (ALLOWED_LOOSENING[dir] ?? []).some((re) => re.test(line)),

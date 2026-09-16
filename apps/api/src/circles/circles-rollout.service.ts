@@ -17,10 +17,12 @@ import {
 export class CirclesRolloutService {
   private readonly mode: CirclesRolloutMode;
   private readonly pilot: ReadonlySet<string>;
+  private readonly groups: boolean;
 
   constructor(@Inject(CIRCLES_ROLLOUT_CONFIG) config: CirclesRolloutConfig) {
     this.mode = config.mode;
     this.pilot = new Set(config.pilotUserIds);
+    this.groups = config.groupsEnabled;
   }
 
   /** Exposed for the report and for specs — never for a branch in a handler. */
@@ -59,5 +61,28 @@ export class CirclesRolloutService {
    */
   isGuestSurfaceAvailable(): boolean {
     return this.mode !== "off";
+  }
+
+  /**
+   * Whether this actor may create an adult GROUP.
+   *
+   * Strictly narrower than `isAvailable`, never wider: the modality switch can
+   * only take away. Someone who is not allowed Círculos at all is not allowed a
+   * group because the switch is on, and the order of these two lines is the
+   * whole guarantee.
+   *
+   * Nothing else in the domain asks this question. Joining a group that already
+   * exists, preparing in it, revealing, agreeing and leaving are all governed
+   * by the same rules as any other activity — closing the switch stops new
+   * groups being created, and does not strand the people already in one.
+   */
+  isGroupCreationAvailable(userId: string | null): boolean {
+    if (!this.isAvailable(userId)) return false;
+    return this.groups;
+  }
+
+  /** For the report and for specs. Never a branch in a handler. */
+  groupsAreEnabled(): boolean {
+    return this.groups;
   }
 }

@@ -3053,8 +3053,13 @@ model CircleInvitation {
   /// link-only.
   codeHash          String?   @unique
   expiresAt         DateTime
-  /// Single use in Dúo: set once, and a partial unique index keeps at most one
-  /// unconsumed counterpart invitation per activity.
+  /// Which seat this link opens: 1 for a Dúo's only guest, 1..N−1 for a group
+  /// of N. The default is the Dúo's seat, so a row written without it — by an
+  /// older API instance mid-deploy — means what it has always meant.
+  seatIndex         Int       @default(1)
+  /// Single use: set once, and a partial unique index keeps at most one
+  /// unconsumed invitation PER SEAT. Per seat rather than per activity because
+  /// a group of six has five seats open at the same time.
   consumedAt        DateTime?
   acceptedAt        DateTime?
   declinedAt        DateTime?

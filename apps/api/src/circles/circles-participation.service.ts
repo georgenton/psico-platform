@@ -449,13 +449,11 @@ export class CirclesParticipationService {
     /**
      * Every seat's secret, hashed once, in the order the caller minted them.
      *
-     * The FIRST hash is what the idempotency comparison uses, exactly as it did
-     * when there was only ever one. A group's later seats are compared by
-     * count, because two requests that agree on the first secret and disagree
-     * on the fourth are still two different requests.
+     * All of them are the request, and the idempotency comparison below reads
+     * all of them. The order is kept because it decides which seat each link
+     * opens, not because the comparison cares about it.
      */
     const tokenHashes = input.invitationTokens.map((t) => hashSecret(t));
-    const tokenHash = tokenHashes[0] ?? "";
 
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -504,10 +502,33 @@ export class CirclesParticipationService {
           // Template key, template version and token hash together are the
           // request; any of them differing is a different request wearing a
           // used key, which is the definition of a conflict.
-          const sameToken = await tx.circleInvitation.findFirst({
-            where: { circleId: prior.circleId, tokenHash },
-            select: { id: true },
-          });
+          //
+          // EVERY secret, not the first one and a count.
+          //
+          // The first version of this compared `tokenHashes[0]` and then
+          // checked that the remaining ones were the right NUMBER — and a group
+          // spec written against it caught what that misses at once. A caller
+          // that created a group of four with (t1,t2,t3), timed out, and
+          // retried with (t1,t2,t9) agreed on the first secret and on the
+          // count, so it replayed: the third person was handed a link the
+          // server had never seen, and the retry was reported as success.
+          //
+          // Compared as a SET rather than in order: seats are anonymous at
+          // creation — every one of them is an empty INVITED row — so the same
+          // three secrets in a different order are the same three links to the
+          // same three people, and turning an array reordering into a conflict
+          // would refuse a retry that is genuinely identical.
+          const priorHashes = new Set(
+            (
+              await tx.circleInvitation.findMany({
+                where: { circleId: prior.circleId },
+                select: { tokenHash: true },
+              })
+            ).map((i) => i.tokenHash),
+          );
+          const sameSecrets =
+            priorHashes.size === tokenHashes.length &&
+            tokenHashes.every((hash) => priorHashes.has(hash));
           const priorActivity = prior.activityId
             ? await this.activities.findById(prior.activityId, tx)
             : null;
@@ -518,7 +539,7 @@ export class CirclesParticipationService {
           // two people were never invited to.
           const requestedSize = input.size ?? null;
           if (
-            !sameToken ||
+            !sameSecrets ||
             !priorActivity ||
             priorActivity.templateKey !== input.templateKey ||
             priorActivity.templateVersion !== input.templateVersion ||
@@ -582,6 +603,28 @@ export class CirclesParticipationService {
         const kind =
           definition.audience === "GROUP_ADULT" ? "GROUP_ADULT" : "DUO";
 
+        /**
+         * The modality gate, asked of the RESOLVED TEMPLATE.
+         *
+         * Not of the request. A caller cannot open groups by sending `size: 4`,
+         * by naming a group template, or by any other field: the audience comes
+         * from the catalogue entry the server just looked up, and `size` was
+         * already checked against that same entry's range. The only way to
+         * reach this branch is for the template itself to be a group template.
+         *
+         * `CIRCLES_UNAVAILABLE` rather than a code of its own, and the same one
+         * an unallowlisted member gets: somebody the modality is closed for
+         * should not be able to learn that adult groups exist. That is also why
+         * the check sits here and not in the guard — the guard runs before the
+         * body is parsed and cannot know which template was asked for.
+         */
+        if (
+          kind === "GROUP_ADULT" &&
+          !this.rollout.isGroupCreationAvailable(input.userId)
+        ) {
+          throw new CirclesError("CIRCLES_UNAVAILABLE");
+        }
+
         const circle = await tx.circle.create({
           data: {
             kind,
@@ -634,13 +677,18 @@ export class CirclesParticipationService {
          * which is the lock order — depend on scheduling.
          */
         const expiresAt = new Date(now.getTime() + 14 * 24 * 3_600_000);
-        for (const hash of tokenHashes) {
+        for (const [index, hash] of tokenHashes.entries()) {
           const invitation = await tx.circleInvitation.create({
             data: {
               circleId: circle.id,
               activityId: activity.id,
               createdByMemberId: member.id,
               tokenHash: hash,
+              // Which seat this link opens. The database keeps at most one live
+              // invitation per seat, so a group's N−1 links coexist while a
+              // second link into the SAME seat is still refused — the rule the
+              // Dúo has had since the foundation, now said per seat.
+              seatIndex: index + 1,
               expiresAt,
             },
             select: { id: true },

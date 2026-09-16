@@ -32,7 +32,16 @@ const CLIENT = readFileSync(
 interface OpenApiSchema {
   oneOf?: { $ref: string }[];
   discriminator?: { propertyName: string; mapping: Record<string, string> };
-  properties?: Record<string, { pattern?: string; enum?: string[] }>;
+  properties?: Record<
+    string,
+    {
+      pattern?: string;
+      enum?: string[];
+      minItems?: number;
+      maxItems?: number;
+      items?: { pattern?: string };
+    }
+  >;
   required?: string[];
 }
 interface OpenApiDocument {
@@ -115,13 +124,21 @@ describe("circles · the published participation contract", () => {
     }
   });
 
-  it("publishes the invitation token as base64url, not merely as a length", () => {
+  it("publishes each invitation secret as base64url, not merely as a length", () => {
     // `@Length(43, 43)` produced `minLength`/`maxLength` and nothing about the
     // alphabet — so the contract described 43 arbitrary characters, which 43
     // spaces satisfy. The pattern is what says "256 bits".
-    const token =
-      SPEC.components.schemas.CreateDuoDto.properties?.invitationToken;
-    expect(token?.pattern).toBe("^[A-Za-z0-9_-]{43}$");
+    //
+    // The field became an ARRAY when groups landed — one secret per seat that
+    // is not the organiser's — so the pattern moved to the items. It moved
+    // once through a version that published `"BASE64URL_256"`, the NAME of the
+    // constant, as the pattern; this assertion is what caught that.
+    const tokens =
+      SPEC.components.schemas.CreateDuoDto.properties?.invitationTokens;
+    expect(tokens?.items?.pattern).toBe("^[A-Za-z0-9_-]{43}$");
+    // And the bounds, which are the roster: at least one guest, at most five.
+    expect(tokens?.minItems).toBe(1);
+    expect(tokens?.maxItems).toBe(5);
   });
 
   it("carries the three variants into the generated client", () => {

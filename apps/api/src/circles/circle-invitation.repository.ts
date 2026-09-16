@@ -73,6 +73,12 @@ export interface CreateInvitationInput {
   readonly tokenHash: string;
   readonly codeHash: string | null;
   readonly expiresAt: Date;
+  /**
+   * Which seat this link opens. Absent means the first, which is the only one
+   * a Dúo has — so a caller that mints a single invitation never has to think
+   * about seats, and a caller that mints a group's worth must.
+   */
+  readonly seatIndex?: number;
 }
 
 /** What creating an invitation produces: the invitation and the seat it opens. */
@@ -111,6 +117,7 @@ export class CircleInvitationRepository {
           createdByMemberId: input.createdByMemberId,
           tokenHash: input.tokenHash,
           codeHash: input.codeHash,
+          seatIndex: input.seatIndex ?? 1,
           expiresAt: input.expiresAt,
         },
         select: { id: true },

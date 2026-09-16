@@ -153,7 +153,21 @@ export class CreateDuoDto {
       "One 43-character base64url token, 256 bits, per seat that is not the " +
       "organiser's: one for a Dúo, N-1 for a group of N. Hashed on arrival; " +
       "never stored raw.",
-    type: [String],
+    type: "array",
+    // `.source` of the very RegExp the validator uses, rather than a copy.
+    //
+    // `type: [String]` left the plugin to infer the item schema from the
+    // decorator's SOURCE TEXT, and what it published was the literal string
+    // `"BASE64URL_256"` — the identifier, not the pattern. A generated client
+    // reading that contract would have validated tokens against the name of a
+    // constant. Naming the schema here, from the same object, is the only
+    // spelling in which the published contract cannot disagree with the check.
+    items: { type: "string", pattern: BASE64URL_256.source },
+    // The plugin also copies `@Matches` onto the ARRAY, where `pattern` means
+    // nothing — a reader applies it to a string, and an array is not one. It
+    // cannot be removed from here, so it is at least made to say the same
+    // thing as the item schema instead of the constant's name.
+    pattern: BASE64URL_256.source,
     minItems: 1,
     maxItems: 5,
   })

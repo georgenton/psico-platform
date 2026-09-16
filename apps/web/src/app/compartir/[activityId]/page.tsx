@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type {
   CircleActivityView,
+  CircleIntro,
   CirclePreparationField,
   CircleSharingMode,
 } from "@psico/types";
@@ -56,6 +57,7 @@ function templateShape(view: CircleActivityView | null): {
   allowedModes: readonly CircleSharingMode[];
   noConviene: readonly string[];
   minutosEstimados: number | null;
+  intro: CircleIntro | null;
 } {
   if (!view)
     return {
@@ -63,6 +65,7 @@ function templateShape(view: CircleActivityView | null): {
       allowedModes: [],
       noConviene: [],
       minutosEstimados: null,
+      intro: null,
     };
   try {
     const definition = productionCircleTemplateRegistry.getExact(
@@ -79,6 +82,10 @@ function templateShape(view: CircleActivityView | null): {
       // The template's own estimate, so the room quotes the same number the
       // public preview does rather than deriving a second one.
       minutosEstimados: definition.estimatedMinutes,
+      // Copy again: what the activity is for, and an optional disclosure
+      // explaining why it is shaped this way. Absent on templates written
+      // before it existed, which is why the room treats it as optional.
+      intro: definition.intro ?? null,
     };
   } catch {
     // The activity is pinned to a template this build does not carry. The room
@@ -90,6 +97,7 @@ function templateShape(view: CircleActivityView | null): {
       allowedModes: ["KEEP_PRIVATE"],
       noConviene: [],
       minutosEstimados: null,
+      intro: null,
     };
   }
 }
@@ -119,9 +127,8 @@ export default async function SalaPage({
     );
   }
 
-  const { fields, allowedModes, noConviene, minutosEstimados } = templateShape(
-    read.view,
-  );
+  const { fields, allowedModes, noConviene, minutosEstimados, intro } =
+    templateShape(read.view);
 
   return (
     <SalaDuo
@@ -132,6 +139,7 @@ export default async function SalaPage({
       allowedModes={allowedModes}
       noConviene={noConviene}
       minutosEstimados={minutosEstimados}
+      intro={intro}
       isGuest={isGuest}
     />
   );

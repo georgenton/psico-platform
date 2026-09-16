@@ -42,6 +42,7 @@ import {
   RecordFollowUpDto,
 } from "./dto/participation.dto";
 import { ParseShareConfirmationPipe } from "./dto/confirm-share.pipe";
+import { CircleFeedbackDto } from "./dto/circle-feedback.dto";
 
 /**
  * The participation surface (PR3), as two thin controllers over one facade.
@@ -269,6 +270,35 @@ export class CirclesMemberParticipationController {
       ),
     );
   }
+
+  /**
+   * The optional question after the activity.
+   *
+   * A separate request on purpose, after the domain command that finished the
+   * activity — so its failure is its own. A collector that is down, a rate
+   * limit, a dropped connection: none of them may turn a closed activity into
+   * an error, and none of them can, because nothing about the activity depends
+   * on this call succeeding.
+   *
+   * Nothing identifying is read from the body. The seat and the template are
+   * resolved from the actor by the same authority check every command uses.
+   */
+  @Post("activities/:activityId/feedback")
+  @HttpCode(202)
+  @Throttle(COMMAND_THROTTLE)
+  @ApiOperation({ summary: "Optional, opt-in feedback about the activity" })
+  @ApiResponse({ status: 202, description: "Recorded, or recorded again." })
+  feedback(
+    @CurrentCircleActor() actor: CircleActor,
+    @Param("activityId") activityId: string,
+    @Body() dto: CircleFeedbackDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<{ recorded: true }> {
+    noStore(res);
+    return mapCirclesErrors(() =>
+      this.facade.recordFeedback(actor, activityId, dto),
+    );
+  }
 }
 
 // ─── The guest surface ───────────────────────────────────────────────────────
@@ -402,6 +432,34 @@ export class CirclesGuestParticipationController {
         dto.decision,
         idempotencyKey,
       ),
+    );
+  }
+
+  /**
+   * The optional question after the activity.
+   *
+   * A separate request on purpose, after the domain command that finished the
+   * activity — so its failure is its own. A collector that is down, a rate
+   * limit, a dropped connection: none of them may turn a closed activity into
+   * an error, and none of them can, because nothing about the activity depends
+   * on this call succeeding.
+   *
+   * Nothing identifying is read from the body. The seat and the template are
+   * resolved from the actor by the same authority check every command uses.
+   */
+  @Post("activities/:activityId/feedback")
+  @HttpCode(202)
+  @Throttle(COMMAND_THROTTLE)
+  @ApiOperation({ summary: "Optional, opt-in feedback about the activity" })
+  feedback(
+    @CurrentCircleActor() actor: CircleActor,
+    @Param("activityId") activityId: string,
+    @Body() dto: CircleFeedbackDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<{ recorded: true }> {
+    noStore(res);
+    return mapCirclesErrors(() =>
+      this.facade.recordFeedback(actor, activityId, dto),
     );
   }
 }

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type {
   CircleActivityView,
+  CircleIntro,
   CirclePreparationField,
   CircleShareConfirmation,
   CircleSharingMode,
@@ -22,6 +23,7 @@ import { PreviewCompartir } from "./PreviewCompartir";
 import { Reveal } from "./Reveal";
 import { Artefacto } from "./Artefacto";
 import { Seguimiento } from "./Seguimiento";
+import { OpinionOpcional } from "./OpinionOpcional";
 
 /**
  * One room, one server view, several faces.
@@ -57,6 +59,8 @@ export interface SalaDuoProps {
   readonly noConviene: readonly string[];
   /** The template's own `estimatedMinutes`, or null when this build lacks it. */
   readonly minutosEstimados: number | null;
+  /** What the activity is for, and why it is shaped this way. Copy, optional. */
+  readonly intro: CircleIntro | null;
   readonly isGuest: boolean;
 }
 
@@ -74,6 +78,7 @@ export function SalaDuo({
   allowedModes,
   noConviene,
   minutosEstimados,
+  intro,
   isGuest,
 }: SalaDuoProps) {
   const router = useRouter();
@@ -108,6 +113,24 @@ export function SalaDuo({
   // from the command AND its payload: retrying the identical thing reuses it,
   // and changing the text mints a new one because it is genuinely a different
   // intention.
+  /**
+   * How often each prepared help was opened, in memory and nowhere else.
+   *
+   * A ref rather than state: nothing on screen depends on it, and re-rendering
+   * the room because somebody re-read an explanation would be a strange
+   * priority. It is read once, at the end, if they agree to contribute —
+   * during the preparation itself nothing is sent, so there is no request
+   * whose timing says somebody is stuck on a question.
+   *
+   * Leaving before that point loses them, which is the honest cost of not
+   * measuring people while they think.
+   */
+  const helpOpens = useRef(new Map<string, number>());
+  const countHelp = useCallback((fieldKey: string, piece: string) => {
+    const key = `${fieldKey}:${piece}`;
+    helpOpens.current.set(key, (helpOpens.current.get(key) ?? 0) + 1);
+  }, []);
+
   const keys = useRef(new Map<string, string>());
   const keyFor = useCallback((kind: string, payload: unknown): string => {
     const intention = `${kind}:${JSON.stringify(payload ?? null)}`;
@@ -270,6 +293,10 @@ export function SalaDuo({
   return (
     <main style={S.page}>
       <header>
+        {/* Small, and above the title rather than over it. A guest arrives
+            here from a link somebody sent them and has no idea whose product
+            this is; a line of text answers that without becoming a banner. */}
+        <p style={S.firma}>Una experiencia de FeelVerse</p>
         <h1 style={S.h1} tabIndex={-1} ref={headingRef}>
           {view.title}
         </h1>
@@ -297,6 +324,7 @@ export function SalaDuo({
           <h2 id="cons-h" style={S.h2}>
             Antes de empezar
           </h2>
+          {intro && <p style={S.p}>{intro.body}</p>}
           <p style={S.p}>
             Vas a prepararte por tu cuenta y después decidir qué compartir.
             Nadie ve nada tuyo hasta que tú lo confirmes, y puedes elegir no
@@ -305,6 +333,27 @@ export function SalaDuo({
           <p style={S.p}>
             Toma unos {estimado(view, minutosEstimados)} minutos.
           </p>
+
+          {/*
+            A disclosure, closed by default. The answer to "why is this
+            activity shaped this way" is worth having and is not worth making
+            anybody read: whoever wants it opens it, and whoever does not is
+            not asked to scroll past it.
+
+            `<details>` rather than a dialog: it is prose, it needs no focus
+            trap, it works from the keyboard and with a screen reader without a
+            line of JavaScript, and it cannot break under a strict CSP.
+          */}
+          {intro?.rationale && (
+            <details style={S.detalle}>
+              <summary style={S.detalleResumen}>
+                {intro.rationale.title}
+              </summary>
+              <p style={{ ...S.p, padding: ".2rem .5rem .8rem" }}>
+                {intro.rationale.body}
+              </p>
+            </details>
+          )}
 
           {/*
            * The situations in which this is the wrong thing to do — read
@@ -374,6 +423,7 @@ export function SalaDuo({
             setLocal({ stage: "preview", confirmation })
           }
           onWithdraw={withdrawAndLeave}
+          onHelpOpen={countHelp}
         />
       )}
 
@@ -449,6 +499,47 @@ export function SalaDuo({
           </h2>
           <p style={S.p}>
             Gracias por el rato. Lo que compartieron queda entre ustedes.
+          </p>
+
+          {/*
+            An invitation, at the one moment it is not an interruption.
+
+            The destination depends on who is reading: a member has a library, a
+            guest has no account and would be bounced to a login they did not
+            ask for. Both are real routes and neither carries anything from this
+            room — no activity id, no token, no topic, not a word anybody wrote.
+            `no-referrer` is what stops the room's own URL travelling as the
+            referer, which is the leak a plain link would have.
+          */}
+          {/*
+            Asked here and only here: after the activity is over, where it is
+            not an interruption and where nothing depends on the answer.
+          */}
+          <OpinionOpcional
+            activityId={activityId}
+            helpOpens={[...helpOpens.current.entries()].map(([key, opens]) => {
+              const at = key.lastIndexOf(":");
+              return {
+                fieldKey: key.slice(0, at),
+                piece: key.slice(at + 1) as "explanation" | "example",
+                opens,
+              };
+            })}
+          />
+
+          <p style={S.p}>
+            ¿Quieres conocer más?{" "}
+            <a
+              href={
+                isGuest
+                  ? "/"
+                  : "/dashboard/biblioteca/emociones-en-construccion"
+              }
+              referrerPolicy="no-referrer"
+              style={S.secondary}
+            >
+              Explora Emociones en construcción en FeelVerse
+            </a>
           </p>
         </section>
       )}

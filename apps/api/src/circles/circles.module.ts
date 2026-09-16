@@ -21,6 +21,7 @@ import { CirclesRolloutService } from "./circles-rollout.service";
 import { CirclesService } from "./circles.service";
 import { CIRCLES_CIPHER, resolveCirclesCipher } from "./circles-crypto";
 import { CIRCLES_TEMPLATE_REGISTRY } from "./circles-template-registry";
+import { CirclesAnalyticsService } from "./circles-analytics.service";
 import { CirclesParticipationFacade } from "./circles-participation.facade";
 import { CirclesParticipationService } from "./circles-participation.service";
 import {
@@ -68,6 +69,9 @@ import {
     CirclesService,
     CirclesParticipationService,
     CirclesParticipationFacade,
+    // The analytics plane. Injected here so the facade can reach it, and
+    // exported so Pulso can read the aggregates without importing the domain.
+    CirclesAnalyticsService,
     // PR3 — the AEAD cipher, resolved once at boot from the rollout posture.
     //
     // Under `off` this is `null` and the API boots whether or not a key exists:
@@ -129,5 +133,9 @@ import {
       inject: [PrismaService],
     },
   ],
+  // Pulso reads the aggregates. It does NOT get the domain services: the
+  // panel's whole contract is that it sees counts and never a row, and the
+  // cheapest way to hold that is to give it nothing else to call.
+  exports: [CirclesAnalyticsService],
 })
 export class CirclesModule {}

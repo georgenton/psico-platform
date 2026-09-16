@@ -29,6 +29,11 @@ import { randomBytes } from "node:crypto";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+// One redactor, shared with the harness whose output this stores. A second
+// implementation here would be a second list of what counts as a credential,
+// and the two would drift in the direction that does not fail anything.
+import { redactDiagnostics } from "../../../web/e2e/circulos/redact.mjs";
+
 const API = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const WEB = resolve(API, "../web");
 const ROOT = resolve(API, "../..");
@@ -71,7 +76,7 @@ const CONTROLS = [
     // it — on the cancelled path the code returns before reaching that line at
     // all, so the mutation has to move the check past the effect.
     find:
-      '        if (!row.deleteRequestedAt) {\n' +
+      "        if (!row.deleteRequestedAt) {\n" +
       '          return { deleted: false as const, reason: "cancelled" as const };\n' +
       "        }\n" +
       "        if (Date.now() - row.deleteRequestedAt.getTime() < this.COOLDOWN_MS) {\n" +
@@ -160,7 +165,7 @@ const CONTROLS = [
     // asserting a refusal stayed green. Dropping the whole clause is the
     // mutation that actually removes the authorisation requirement.
     find:
-      '     AND NOT EXISTS (\n' +
+      "     AND NOT EXISTS (\n" +
       '       SELECT 1 FROM public."User" u WHERE u."id" = OLD."actorUserId"\n' +
       "     )",
     replace: "     AND TRUE",
@@ -178,7 +183,7 @@ const CONTROLS = [
     // activity already in FOLLOW_UP is a no-op, so nothing closed and the test
     // stayed green. This replaces the transition with a real close.
     find:
-      '    const due = await this.prisma.circleActivity.findMany({\n' +
+      "    const due = await this.prisma.circleActivity.findMany({\n" +
       "      where: {\n" +
       '        status: "REVEALED",\n' +
       "        followUpDueAt: { not: null, lte: now },\n" +
@@ -318,7 +323,7 @@ const CONTROLS = [
       "  }",
     replace:
       "  if (init.guestToken) {\n" +
-      "    headersOut.set(\"Authorization\", `Bearer ${init.guestToken}`);\n" +
+      '    headersOut.set("Authorization", `Bearer ${init.guestToken}`);\n' +
       "  }",
     runner: WEBT,
     test: "src/lib/circulos/bff.test.ts",
@@ -401,7 +406,8 @@ const CONTROLS = [
   },
   {
     property: "OWN_DRAFTS_ARE_ACTUALLY_PURGED",
-    mutation: "the purge quietly skips proposals and only reaches superseded drafts",
+    mutation:
+      "the purge quietly skips proposals and only reaches superseded drafts",
     file: f("src/circles/circle-artifact.repository.ts"),
     // The commonest way this policy would rot: narrowing the status filter so
     // the visible draft — the one the counterpart can still see — survives,
@@ -429,7 +435,8 @@ const CONTROLS = [
   },
   {
     property: "AUTHORSHIP_DECIDES_WHOSE_DRAFT_GOES",
-    mutation: "artifacts are selected by the ACTIVITY instead of by their author",
+    mutation:
+      "artifacts are selected by the ACTIVITY instead of by their author",
     file: f("src/circles/circles-account-deletion.service.ts"),
     // The mistake a Dúo hides best. When one person creates the circle, sends
     // the invitation and writes the proposal, selecting by activity, by circle
@@ -463,6 +470,183 @@ const CONTROLS = [
     test: "src/circles/circles-account-deletion.pg-spec.ts",
     t: "does not touch a draft the COUNTERPART wrote",
   },
+  // ── The experience block: help, context, analytics, and the panel ────────
+  {
+    property: "PREPARED_HELP_NEVER_CALLS_A_MODEL",
+    mutation:
+      "the help card fetches its text instead of rendering what it was given",
+    file: w("src/components/circulos/AyudaEcho.tsx"),
+    // The exact shape this would take if somebody "improved" it: a lazy fetch
+    // on open. The body would not even have to contain anything — a request
+    // whose TIMING says somebody is stuck on a question is the leak, and the
+    // walk's listener sees it.
+    find: `  const abrir = (next: "explanation" | "example") => {
+    setPieza(next);`,
+    replace: `  const abrir = (next: "explanation" | "example") => {
+    void fetch("/api/eco/help", { method: "POST" });
+    setPieza(next);`,
+    runner: WEBT,
+    test: "src/components/circulos/plantilla-aprobada.test.tsx",
+    t: "carries prepared help on every question, and asks nothing of the network",
+  },
+  {
+    property: "OPTIONAL_CONTEXT_IS_NOT_SHARED_BY_DEFAULT",
+    mutation: "an optional answer counts as shared the moment it has text",
+    file: w("src/components/circulos/PreparacionPrivada.tsx"),
+    // The default this replaces was the old behaviour and looks harmless:
+    // "share whatever was written". For a question somebody may answer only
+    // for themselves, writing it and showing it are different acts.
+    find: `  return draft.shared?.[field.fieldKey] ?? field.optional !== true;`,
+    replace: `  return draft.shared?.[field.fieldKey] ?? true;`,
+    runner: WEBT,
+    test: "src/components/circulos/plantilla-aprobada.test.tsx",
+    t: "never shares the context by having been typed",
+  },
+  {
+    property: "ANALYTICS_NEEDS_A_YES",
+    mutation: "the optional question sends its answer even when declined",
+    file: w("src/components/circulos/OpinionOpcional.tsx"),
+    // Opt-in collapses into opt-out with one line. The counters would go with
+    // it, which is the part nobody would notice: they were gathered during a
+    // private preparation.
+    find: `            onClick={() => setFase("declinado")}
+          >
+            No, gracias`,
+    replace: `            onClick={() => void enviar()}
+          >
+            No, gracias`,
+    runner: WEBT,
+    test: "src/components/circulos/opinion-opcional.test.tsx",
+    t: "sends nothing at all when declined",
+  },
+  {
+    property: "DECLINING_IS_NOT_A_TOPIC",
+    mutation: "«prefiero no responder» becomes a category of its own",
+    file: w("src/components/circulos/OpinionOpcional.tsx"),
+    // It reads like a tidy-up and is a substantive change: an omission would
+    // start appearing in a distribution as though declining were a kind of
+    // situation somebody was in.
+    find: `            topics: temas,`,
+    replace: `            topics: temas.length > 0 ? temas : ["prefiero-no-responder"],`,
+    runner: WEBT,
+    test: "src/components/circulos/opinion-opcional.test.tsx",
+    t: "treats «prefiero no responder» as an omission, not a category",
+  },
+  {
+    property: "THE_SERVER_DECIDES_WHOSE_CONTRIBUTION_IT_IS",
+    mutation:
+      "the forwarded body is spread from the request instead of rebuilt",
+    file: w("src/app/api/circulos/actividad/[activityId]/feedback/route.ts"),
+    // ── Why this control was rewritten ───────────────────────────────────
+    //
+    // It used to mutate the API facade and run a pg-spec that calls the
+    // analytics SERVICE directly — the facade is not in that test's path at
+    // all, so no edit to it could ever turn the test red. Worse, the "mutation"
+    // appended `void who;` beside a `who` that is still used three lines later:
+    // the file changed, the hash moved, and the behaviour did not. A control
+    // that cannot fail is not evidence, and this one reported STAYED GREEN and
+    // condemned a guarantee that in fact holds.
+    //
+    // The place a browser's payload is actually stopped is the BFF route, which
+    // REBUILDS the body field by field. That is one `...raw` away from a
+    // pass-through, and the edit reads like a tidy-up — so that is the
+    // mutation, and it goes red on the test written for it.
+    find: `  const body = {
+    topics: cleanTopics(raw.topics),`,
+    replace: `  const body = {
+    ...raw,
+    topics: cleanTopics(raw.topics),`,
+    runner: WEBT,
+    test: "src/app/api/circulos/handlers.test.ts",
+    t: "rebuilds the body, so nothing unnamed reaches the API",
+  },
+  {
+    property: "SMALL_CELLS_STAY_SUPPRESSED",
+    mutation:
+      "the threshold drops to one, so a single contributor is reportable",
+    file: f("src/circles/circles-analytics.service.ts"),
+    // Suppression lives where the data is shaped precisely so the screen and
+    // the CSV cannot disagree. Lowering it here lowers it everywhere, which is
+    // the point of the control: one number governs both.
+    find: `export const CIRCLE_SMALL_CELL_THRESHOLD = 10;`,
+    replace: `export const CIRCLE_SMALL_CELL_THRESHOLD = 1;`,
+    runner: PGSPEC,
+    test: "src/circles/circles-analytics.pg-spec.ts",
+    t: "says «insufficient sample» below the threshold, not zero",
+  },
+  {
+    property: "RETENTION_ACTUALLY_DELETES",
+    mutation: "the sweep folds the aggregate and keeps the linkable rows",
+    file: f("src/circles/circles-analytics.service.ts"),
+    // The failure that leaves everything looking right: the panel is correct,
+    // the aggregates exist, and nothing was ever deleted.
+    find: `      this.prisma.circleFeedback.deleteMany({
+        where: { createdAt: { lt: cutoff } },
+      }),`,
+    replace: `      Promise.resolve({ count: 0 }),`,
+    runner: PGSPEC,
+    test: "src/circles/circles-analytics.pg-spec.ts",
+    t: "turns aged contributions into counts and deletes the rows",
+  },
+  {
+    property: "GUEST_CREDENTIAL_NEVER_REACHES_SENTRY",
+    mutation: "the guest session header is dropped from the redaction list",
+    file: f("../../packages/types/src/observability-redaction.ts"),
+    // A guest has no account, so this header IS the identity. Removing one
+    // line from a list is exactly how it would go missing, and nothing would
+    // fail — the events would simply start carrying a working key.
+    find: `  "x-circle-guest-session",`,
+    replace: ``,
+    // `@psico/types` resolves through its package exports to `dist/`, so the
+    // API imports the BUILT redactor and not the file this control edits.
+    // Without a rebuild the mutated source would never reach the test, which
+    // would stay green and be scored as "the assertion does not cover this" —
+    // a control that condemns a guarantee that in fact holds. The rebuild runs
+    // in all three phases so the built artifact matches the source in each.
+    rebuild: "types",
+    runner: UNIT,
+    test: "src/observability/sentry.spec.ts",
+    t: "finds none of them anywhere in the serialized event",
+  },
+  {
+    property: "CLOSING_ANNOUNCES_THE_DECISION_ON_SCREEN",
+    mutation: "the room stops saying the decision was recorded",
+    file: w("src/components/circulos/Seguimiento.tsx"),
+    // The failure this guards is not "the decision was lost" — the row commits
+    // either way, and the walk proves that separately with SQL. It is the one
+    // where a person presses the button, nothing on screen changes, and they
+    // press it again or conclude it did not work.
+    //
+    // The mutation is the copy itself rather than the condition around it:
+    // `already` is typed, and every way of forcing that branch shut either
+    // fails the build or trips a lint rule, which would score a compile error
+    // as a detection. Removing the words is type-safe, lint-clean, and exactly
+    // the regression the check is named after.
+    find: `          Ya respondiste`,
+    replace: `          Listo`,
+    runner: WALK,
+    scenario: "BROWSER_CLOSING_PATHS",
+    test: "apps/web/e2e/circulos/stack.mjs",
+    t: "closing first says the decision was recorded, and waits for the other",
+  },
+  {
+    property: "DIAGNOSTICS_ARE_REDACTED_BEFORE_THEY_ARE_PUBLISHED",
+    mutation: "the redactor returns its input untouched",
+    file: w("e2e/circulos/redact.mjs"),
+    // Retiring the redactor, in the way it would actually be retired: one
+    // condition at the top that hands the text straight back. Removing a single
+    // RULE proves nothing here and that is by design — a token in a query
+    // string is caught by the URL rule, by the key-name rule and by the
+    // opaque-run rule, so any one of them can go without the value escaping.
+    // Defence in depth is only worth having if a control cannot mistake it for
+    // a test that is watching, so the mutation removes the function's effect
+    // rather than one of its rules.
+    find: `  if (typeof text !== "string" || text.length === 0) return text;`,
+    replace: `  if (typeof text === "string") return text;`,
+    runner: WEBT,
+    test: "src/lib/circulos/diagnostic-redaction.test.ts",
+    t: "drops the token from both places the email puts it",
+  },
   {
     property: "REVEAL_BARRIER_HOLDS_IN_THE_BROWSER",
     mutation: "one confirmation is enough to reveal",
@@ -488,11 +672,40 @@ const CONTROLS = [
   },
 ];
 
+/**
+ * Rebuild a workspace package the mutation lives in, before the test reads it.
+ *
+ * Only needed where the code under test is consumed as a BUILT artifact rather
+ * than as source. A failure here is returned as the phase's result rather than
+ * thrown, so it is reported as a failed control instead of killing the run —
+ * and the restore still happens.
+ */
+function rebuild(target) {
+  if (target !== "types") throw new Error(`unknown rebuild target: ${target}`);
+  try {
+    execFileSync("pnpm", ["--filter", "@psico/types", "build"], {
+      cwd: ROOT,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      timeout: 600_000,
+    });
+    return null;
+  } catch (err) {
+    return {
+      code: err.status ?? 1,
+      out: `REBUILD FAILED\n${err.stdout ?? ""}${err.stderr ?? ""}`,
+    };
+  }
+}
+
 function runTest(c) {
+  if (c.rebuild) {
+    const failed = rebuild(c.rebuild);
+    if (failed) return failed;
+  }
   if (c.runner === WALK) return runWalk(c);
   const cwd = c.runner === WEBT ? WEB : API;
-  const cfg =
-    c.runner === PGSPEC ? ["--config", "vitest.locks.config.ts"] : [];
+  const cfg = c.runner === PGSPEC ? ["--config", "vitest.locks.config.ts"] : [];
   const env =
     c.runner === PGSPEC
       ? { ...process.env, TEST_DATABASE_URL: PG_URL }
@@ -521,7 +734,10 @@ function runTest(c) {
     return { code: 0, out };
   } catch (err) {
     if (err.killed || err.signal) return { code: -1, out: "TIMEOUT" };
-    return { code: err.status ?? 1, out: `${err.stdout ?? ""}${err.stderr ?? ""}` };
+    return {
+      code: err.status ?? 1,
+      out: `${err.stdout ?? ""}${err.stderr ?? ""}`,
+    };
   }
 }
 
@@ -538,23 +754,29 @@ function runWalk(c) {
   try {
     const out = execFileSync(
       "node",
-      [
-        "apps/web/e2e/circulos/stack.mjs",
-        "--worktree",
-        "--run-id",
-        runId,
-      ],
+      ["apps/web/e2e/circulos/stack.mjs", "--worktree", "--run-id", runId],
       {
         cwd: ROOT,
         encoding: "utf8",
         stdio: ["ignore", "pipe", "pipe"],
         timeout: 2_700_000,
+        // Narrow the walk to the scenario whose property is under test, when
+        // the control names one. Three phases of the FULL walk is most of an
+        // hour to learn one thing, and the scenarios are independent by
+        // construction — each owns its own accounts and activities — so running
+        // one proves exactly as much about that one as running fifteen does.
+        env: c.scenario
+          ? { ...process.env, CIRCULOS_E2E_ONLY: c.scenario }
+          : process.env,
       },
     );
     return { code: 0, out };
   } catch (err) {
     if (err.killed || err.signal) return { code: -1, out: "TIMEOUT" };
-    return { code: err.status ?? 1, out: `${err.stdout ?? ""}${err.stderr ?? ""}` };
+    return {
+      code: err.status ?? 1,
+      out: `${err.stdout ?? ""}${err.stderr ?? ""}`,
+    };
   } finally {
     // The stack tears itself down, but a crash before that leaves resources
     // named after a run id we chose, so they can always be named again.
@@ -612,7 +834,15 @@ mkdirSync(LOG_DIR, { recursive: true });
 
 function keep(control, phase, result) {
   const file = resolve(LOG_DIR, `${control.property}.${phase}.log`);
-  writeFileSync(file, `exit=${result.code}\n\n${result.out}`);
+  // Redacted BEFORE it is written, not before it is read. These files outlive
+  // the run by design — that is their whole point — and a walk control's phase
+  // log is the full output of a stack that prints emails to stdout. Something
+  // written to disk unredacted is already published to whatever backs up that
+  // disk.
+  writeFileSync(
+    file,
+    redactDiagnostics(`exit=${result.code}\n\n${result.out}`),
+  );
   return file;
 }
 

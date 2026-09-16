@@ -928,7 +928,12 @@ describe("ratchet · the cutover migrations say what they do", () => {
     // artifact can be removed while its row stays, because the append-only
     // ledger references it. Named for the same reason as the others.
     expect(dirs).toContain("20260915000000_circles_artifact_purge");
-    expect(dirs).toHaveLength(66);
+    // …and the one this block owes: three tables for aggregated analytics.
+    // Purely additive — it creates, it does not alter — and named here for the
+    // same reason as the others, because raising the number without adding a
+    // name fails.
+    expect(dirs).toContain("20260916000000_circles_analytics");
+    expect(dirs).toHaveLength(67);
     expect(dirs.filter((d) => d.includes("c3r"))).toEqual([]);
   });
 

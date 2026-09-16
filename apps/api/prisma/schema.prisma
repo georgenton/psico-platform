@@ -3245,6 +3245,97 @@ model CircleArtifact {
   @@index([createdByParticipantId])
 }
 
+/// How useful somebody found the activity, in their own judgement.
+///
+/// Three answers and a fourth that is not one: skipping is an omission, not a
+/// category. It is absent rather than stored, so it can never appear in a
+/// distribution as if it meant something.
+enum CircleFeedbackUsefulness {
+  YES
+  SOME
+  NO
+}
+
+/// One person's optional, after-the-fact answer about the activity they did.
+///
+/// Everything here was typed by nobody: the topics are closed keys the server
+/// validates against the template, and `usefulness` is one of three values.
+/// There is no free-text column, so there is nowhere for an answer to the
+/// ACTIVITY to end up — which is the point, because the activity's own answers
+/// are encrypted and this table is read by an administrator.
+///
+/// Scoped to the seat, not the account. `participantId` is the seat in one
+/// activity: pseudonymous, already bound to this activity's purpose, and not a
+/// handle that follows anybody anywhere else. It is the deduplication key, and
+/// calling it anonymous would be false.
+model CircleFeedback {
+  id              String                    @id @default(cuid())
+  activityId      String
+  /// One contribution per seat. A second submission updates the first.
+  participantId   String                    @unique
+  templateKey     String
+  templateVersion Int
+  /// Closed keys from the template's own list. At most two.
+  topics          String[]
+  usefulness      CircleFeedbackUsefulness?
+  /// Which wording of the notice this person agreed to.
+  noticeVersion   String
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+
+  @@index([createdAt])
+  @@index([templateKey, templateVersion])
+}
+
+/// How often a prepared help was opened, counted per seat.
+///
+/// Written only when the person later agrees to contribute — the counters live
+/// in the browser's memory until then, and are lost if they leave first. That
+/// is deliberate: a request during the private preparation would say somebody
+/// is stuck on a question even with an empty body.
+///
+/// `opens` separates "opened again to re-read" from "used at all", which are
+/// different facts and would otherwise be one number.
+model CircleHelpOpen {
+  id              String   @id @default(cuid())
+  activityId      String
+  participantId   String
+  templateKey     String
+  templateVersion Int
+  fieldKey        String
+  /// `explanation` or `example`.
+  piece           String
+  opens           Int      @default(1)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([participantId, fieldKey, piece])
+  @@index([createdAt])
+}
+
+/// The aggregate that outlives the contributions.
+///
+/// Tall and narrow on purpose: one row per (week, template, metric, value).
+/// Adding a metric is a row, not a migration, and nothing here can be joined
+/// back to a seat because no seat is named. `contributors` counts distinct
+/// seats so a cell can be suppressed on the number of PEOPLE behind it rather
+/// than on the number of events.
+model CircleWeeklyFact {
+  weekStart       DateTime
+  templateKey     String
+  templateVersion Int
+  /// `topic`, `usefulness`, `help`.
+  metric          String
+  /// The value within that metric: a topic key, an answer, `field:piece`.
+  dimension       String
+  value           Int
+  contributors    Int      @default(0)
+  updatedAt       DateTime @updatedAt
+
+  @@id([weekStart, templateKey, templateVersion, metric, dimension])
+  @@index([weekStart])
+}
+
 model CircleEvent {
   id         String          @id @default(cuid())
   circleId   String

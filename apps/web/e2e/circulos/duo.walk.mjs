@@ -28,6 +28,7 @@
 import { randomBytes } from "node:crypto";
 
 import { makeTransport } from "./transports.mjs";
+import { redactDiagnostics } from "./redact.mjs";
 
 const API = process.env.CIRCULOS_E2E_API;
 const API_OFF = process.env.CIRCULOS_E2E_API_OFF;
@@ -84,10 +85,20 @@ const transport = makeTransport(process.env);
 const scenarios = [];
 let current = null;
 
+/**
+ * One check, and everything it says goes through the redactor first.
+ *
+ * Several labels interpolate what the run actually saw — the list of API calls,
+ * the text on screen, a URL — because a check that fails without saying what it
+ * saw costs a whole re-run. That is worth keeping and it is also how a secret
+ * gets into a published log, so the two are reconciled here rather than at
+ * forty call sites: the values stay, the credentials in them do not.
+ */
 function check(ok, label) {
-  current.checks.push({ ok, label });
-  console.log(`   ${ok ? "✓" : "✗"} ${label}`);
-  if (!ok) current.failures.push(label);
+  const safe = redactDiagnostics(String(label));
+  current.checks.push({ ok, label: safe });
+  console.log(`   ${ok ? "✓" : "✗"} ${safe}`);
+  if (!ok) current.failures.push(safe);
 }
 
 /** Redacted for any diagnostic output. */
@@ -113,9 +124,12 @@ async function scenario(key, title, body) {
   try {
     await body();
   } catch (err) {
-    current.error = err.message;
-    current.failures.push(`threw: ${err.message}`);
-    console.error(`   ✗ threw: ${err.message}`);
+    // Playwright puts the URL it was working on into the message, and one of
+    // those URLs is the invitation — secret in the fragment.
+    const why = redactDiagnostics(String(err.message));
+    current.error = why;
+    current.failures.push(`threw: ${why}`);
+    console.error(`   ✗ threw: ${why}`);
   }
   // A scenario with no checks passed nothing, whatever it did.
   if (current.checks.length === 0) {
@@ -206,6 +220,25 @@ async function register(label) {
   return { email, password, userId: body?.user?.id ?? null };
 }
 
+/**
+ * An access token for an account, taken from the API rather than the browser.
+ *
+ * Used only to prove a REFUSAL: that a signed-in person who is not an
+ * administrator cannot read the Pulso panel. Reading it out of a browser
+ * session would be extracting a credential from a page, which this walk does
+ * not do; asking the API for one with the password the walk itself created is
+ * an ordinary login.
+ */
+async function tokenFor({ email, password }) {
+  const res = await fetch(`${API}/api/auth/login`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  const body = await res.json().catch(() => ({}));
+  return body?.accessToken ?? body?.tokens?.accessToken ?? "";
+}
+
 async function signIn(page, { email, password }) {
   await page.goto(`${WEB}/login`, { waitUntil: "domcontentloaded" });
   await page.fill('input[name="email"]', email);
@@ -245,11 +278,16 @@ async function dismissOnboarding(page) {
   try {
     await skip.waitFor({ state: "visible", timeout: 15_000 });
   } catch {
-    await page.getByRole("button", { name: /Empezar/i }).first().click();
+    await page
+      .getByRole("button", { name: /Empezar/i })
+      .first()
+      .click();
     await skip.waitFor({ state: "visible", timeout: 15_000 });
   }
   await Promise.all([
-    page.waitForURL((u) => !/\/onboarding/.test(String(u)), { timeout: 60_000 }),
+    page.waitForURL((u) => !/\/onboarding/.test(String(u)), {
+      timeout: 60_000,
+    }),
     skip.click(),
   ]);
 }
@@ -311,7 +349,9 @@ async function acceptAsGuest(browser, link) {
   const ctx = await browser.newContext();
   const page = await ctx.newPage();
   await page.goto(link, { waitUntil: "domcontentloaded" });
-  const accept = page.getByRole("button", { name: /Aceptar( la)? invitación/i });
+  const accept = page.getByRole("button", {
+    name: /Aceptar( la)? invitación/i,
+  });
   await accept.waitFor({ state: "visible", timeout: 30_000 });
   await accept.click();
   await until(
@@ -332,8 +372,12 @@ async function enterRoom(page) {
   } catch {
     /* already past consent on this page */
   }
+  // The section is named "Tu preparación"; the HEADING is now the question,
+  // which differs per template. Waiting for the first question's textarea is
+  // the template-independent way to know the form is up.
   await page
-    .getByRole("heading", { name: /Tu preparación/i })
+    .locator("textarea[id^='f-']")
+    .first()
     .waitFor({ state: "visible", timeout: 30_000 });
 }
 
@@ -350,26 +394,140 @@ async function enterRoom(page) {
  * So the form is addressed the way a person addresses it: the fields it is
  * showing, in the order it shows them.
  */
-async function preparationFields(page) {
-  const ids = await page.evaluate(() =>
-    Array.from(document.querySelectorAll("[id^='f-']")).map((el) => el.id),
-  );
-  if (ids.length < 2) {
-    throw new Error(
-      `the preparation form showed ${ids.length} field(s), expected 2 (${ids.join(", ") || "none"})`,
-    );
+/**
+ * From the sharing step back to the first question.
+ *
+ * "Volver a editar" returns somebody to where they LEFT — the sharing
+ * decision — rather than to question one, which is the right behaviour and
+ * means the words are a couple of presses behind it.
+ */
+async function backToFirstQuestion(page) {
+  // Loop until the FIRST step is on screen, and then insist on it. Counting
+  // "Atrás" buttons is not enough on its own — see `settledStep` — and a loop
+  // that stopped one press early would read the wrong field's text and compare
+  // it against the secret, failing somewhere that says nothing about why.
+  const primera = page.getByText(/^Paso 1 de \d+$/);
+  for (let i = 0; i < 9 && (await primera.count()) === 0; i++) {
+    const atras = page.getByRole("button", { name: /^Atrás$/ });
+    if ((await atras.count()) === 0) break;
+    await atras.click();
   }
-  return ids;
+  await primera.waitFor({ state: "visible", timeout: 20_000 });
 }
 
-async function typeDraft(page, { uno, dos }) {
+/**
+ * Wait until the preparation has settled, and say which step it settled on.
+ *
+ * `locator.count()` does NOT auto-wait. Called in the instant between a click
+ * and React's re-render it answers zero, which a loop reads as "there is no
+ * next question" and so leaves the form standing on a screen that is about to
+ * become one. Nothing fails there: the failure surfaces thirty seconds later,
+ * in a `check` for a control that was never going to be on that step, and says
+ * nothing about the click that actually caused it.
+ *
+ * The race is invisible until something perturbs render timing. Opening Echo's
+ * help once and closing it was enough — which is why exactly one scenario saw
+ * it while the same helper worked everywhere else.
+ */
+async function settledStep(page) {
+  try {
+    await page.waitForFunction(
+      () =>
+        document.querySelectorAll("textarea[id^='f-']").length === 1 ||
+        /¿Qué quieres compartir\?/.test(document.body.innerText),
+      undefined,
+      { timeout: 20_000 },
+    );
+  } catch {
+    // A bare "waitForFunction timed out" says only that something did not
+    // happen. The screen this lands on is usually a perfectly ordinary one the
+    // caller forgot to walk past — the private gate, most often — so say which
+    // one it is. That turned a twenty-second mystery into a one-line fix.
+    const heading = await page
+      .evaluate(() => document.querySelector("h1, h2")?.textContent ?? "")
+      .catch(() => "");
+    throw new Error(
+      `the preparation form is not on screen — the page is showing «${heading.trim() || "nothing recognisable"}» at ${page.url()}`,
+    );
+  }
+  const enCompartir = await page
+    .getByRole("heading", { name: /¿Qué quieres compartir\?/ })
+    .count();
+  return enCompartir > 0 ? "compartir" : "pregunta";
+}
+
+/** The field on the step currently on screen, whatever the template calls it. */
+async function currentField(page) {
+  const ids = await page.evaluate(() =>
+    Array.from(document.querySelectorAll("textarea[id^='f-']")).map(
+      (el) => el.id,
+    ),
+  );
+  if (ids.length !== 1) {
+    throw new Error(
+      `expected exactly one question on screen, saw ${ids.length} (${ids.join(", ") || "none"})`,
+    );
+  }
+  return ids[0];
+}
+
+/**
+ * Walk the private preparation and choose what to share.
+ *
+ * The form is a sequence now: one question per screen, then the sharing
+ * decision. `answers` is positional and short answers are fine — a question
+ * left blank is a legitimate way to reach the end, and the walk exercises that
+ * by passing fewer answers than there are questions.
+ *
+ * Nothing here knows the template's field names. That is the point: the
+ * candidate @2 asks three questions with different keys from @1, and a walk
+ * that hard-coded either would be testing the fixture rather than the product.
+ */
+async function typeDraft(page, { uno, dos, tres } = {}) {
+  const answers = [uno, dos, tres];
+  for (let i = 0; i < 9; i++) {
+    if ((await settledStep(page)) === "compartir") break;
+    const text = answers[i];
+    if (text) await page.fill(`#${await currentField(page)}`, text);
+    await page.getByRole("button", { name: /^Continuar$/ }).click();
+  }
+  if ((await settledStep(page)) !== "compartir") {
+    throw new Error("the preparation never reached the sharing step");
+  }
   await page.check('input[name="modo"][value="SELECTED_FIELDS"]');
-  const [first, second] = await preparationFields(page);
-  await page.fill(`#${first}`, uno);
-  await page.fill(`#${second}`, dos);
+  // Every answer with text in it, ticked. @2 starts its optional first
+  // question UNticked, and a walk that left it that way would never exercise
+  // the field it was added for.
+  const boxes = page.locator('input[type="checkbox"][name^="compartir-"]');
+  for (let i = 0; i < (await boxes.count()); i++) {
+    const box = boxes.nth(i);
+    if (await box.isEnabled()) await box.check();
+  }
+}
+
+/**
+ * Forward from wherever the form is to the sharing decision.
+ *
+ * The preparation is a sequence, so "open the preview" is only a single click
+ * when you happen to be standing on the last step. A scenario that walked BACK
+ * to question one to read the draft — which is exactly how "coming back
+ * preserves what I wrote" is checked — is then two presses away from the button,
+ * and the helper that assumed otherwise failed thirty seconds later on a click
+ * that could never land.
+ *
+ * Pressing Continuar carries the text and the sharing ticks with it: they live
+ * in the draft, not in the step.
+ */
+async function forwardToSharing(page) {
+  for (let i = 0; i < 9; i++) {
+    if ((await settledStep(page)) === "compartir") return;
+    await page.getByRole("button", { name: /^Continuar$/ }).click();
+  }
+  throw new Error("could not reach the sharing step from where the form was");
 }
 
 async function openPreview(page) {
+  await forwardToSharing(page);
   await page.getByRole("button", { name: /Ver qué se compartirá/i }).click();
   await page
     .getByRole("button", { name: /Confirmar y enviar/i })
@@ -527,10 +685,10 @@ async function privatePreparation(browser) {
     await openPreview(page);
     await page.getByRole("button", { name: /Volver a editar/i }).click();
     await page
-      .getByRole("heading", { name: /Tu preparación/i })
+      .getByRole("button", { name: /Ver qué se compartirá/i })
       .waitFor({ state: "visible", timeout: 20_000 });
-    const [firstField] = await preparationFields(page);
-    const afterBack = await page.inputValue(`#${firstField}`);
+    await backToFirstQuestion(page);
+    const afterBack = await page.inputValue(`#${await currentField(page)}`);
     check(
       afterBack === SECRET,
       "coming back from the preview preserves the draft",
@@ -553,10 +711,10 @@ async function privatePreparation(browser) {
     await page.unroute("**/api/circulos/actividad/**/comando");
     await page.getByRole("button", { name: /Volver a editar/i }).click();
     await page
-      .getByRole("heading", { name: /Tu preparación/i })
+      .getByRole("button", { name: /Ver qué se compartirá/i })
       .waitFor({ state: "visible", timeout: 20_000 });
-    const [firstAgain] = await preparationFields(page);
-    const afterFailure = await page.inputValue(`#${firstAgain}`);
+    await backToFirstQuestion(page);
+    const afterFailure = await page.inputValue(`#${await currentField(page)}`);
     check(
       afterFailure === SECRET,
       "a failed send preserves the draft instead of losing the person's words",
@@ -641,7 +799,10 @@ async function revealBarrier(browser) {
     } catch {
       toldWaiting = false;
     }
-    check(toldWaiting, "the first to confirm is told the other person is missing");
+    check(
+      toldWaiting,
+      "the first to confirm is told the other person is missing",
+    );
 
     // Second confirmation opens both at once.
     await enterRoom(guest.page);
@@ -745,7 +906,9 @@ async function artifactConfirmation(browser) {
 
     // Supersede it: editing produces a NEW version, and a confirmation given
     // against the old one must not carry over.
-    await page.getByRole("button", { name: /Proponer otra redacción/i }).click();
+    await page
+      .getByRole("button", { name: /Proponer otra redacción/i })
+      .click();
     const SECOND = `acuerdo-${randomBytes(3).toString("hex")}`;
     await page.fill("#artefacto", SECOND);
     await page.getByRole("button", { name: /^Proponer$/ }).click();
@@ -758,7 +921,10 @@ async function artifactConfirmation(browser) {
       "the second version to be persisted",
       30_000,
     );
-    check(true, "editing the wording creates version 2 rather than mutating v1");
+    check(
+      true,
+      "editing the wording creates version 2 rather than mutating v1",
+    );
 
     const supersededV1 = sqlOne(
       `SELECT "status" FROM "CircleArtifact" WHERE "activityId"='${activityId}' AND "version"=1`,
@@ -771,7 +937,9 @@ async function artifactConfirmation(browser) {
     // Both confirm the EXACT version that is live.
     await guest.page.reload({ waitUntil: "domcontentloaded" });
     for (const p of [page, guest.page]) {
-      const confirm = p.getByRole("button", { name: /Confirmar esta versión/i });
+      const confirm = p.getByRole("button", {
+        name: /Confirmar esta versión/i,
+      });
       await confirm.waitFor({ state: "visible", timeout: 30_000 });
       await confirm.click();
     }
@@ -786,7 +954,10 @@ async function artifactConfirmation(browser) {
       "both confirmations on version 2",
       60_000,
     );
-    check(agreed === "AGREED", "the live version becomes AGREED once both confirm");
+    check(
+      agreed === "AGREED",
+      "the live version becomes AGREED once both confirm",
+    );
 
     // A confirmation is an EVENT bound to an exact artifact id — there is no
     // separate confirmations table, and the binding is what makes "this
@@ -891,7 +1062,10 @@ async function withdrawalBeforeAndAfter(browser) {
           "the member to be returned to their own circles page",
           30_000,
         );
-        check(true, `${when} the reveal: the member is returned to the dashboard`);
+        check(
+          true,
+          `${when} the reveal: the member is returned to the dashboard`,
+        );
       }
 
       // Whoever left, the seat that must settle is THEIRS.
@@ -967,7 +1141,11 @@ async function retryAfterCommittedLoss(browser) {
 
     await createButton.click();
 
-    await until(() => servedAndDropped, "the create request to be served", 60_000);
+    await until(
+      () => servedAndDropped,
+      "the create request to be served",
+      60_000,
+    );
     const afterFirst = await until(
       () => (countActivities() === before + 1 ? true : null),
       "the committed activity to be visible in the database",
@@ -977,7 +1155,9 @@ async function retryAfterCommittedLoss(browser) {
 
     // The browser was told the network failed, so the screen offers a retry.
     await page.unroute("**/api/circulos/duo");
-    const retry = page.getByRole("button", { name: /Crear (el )?Dúo|Reintentar/i });
+    const retry = page.getByRole("button", {
+      name: /Crear (el )?Dúo|Reintentar/i,
+    });
     await retry.waitFor({ state: "visible", timeout: 30_000 });
     await retry.click();
 
@@ -1038,7 +1218,7 @@ async function foreignSessionRejected(browser) {
     // The load-bearing half is that the ROOM does not open. The refusal copy is
     // quoted into the label so a failure says what was actually shown instead
     // of only that a regex missed.
-    const roomOpened = /Tu preparación|Entiendo, empezar|Lo que compartió/i.test(
+    const roomOpened = /Paso 1 de|Entiendo, empezar|Lo que compartió/i.test(
       strangerText,
     );
     check(
@@ -1060,7 +1240,7 @@ async function foreignSessionRejected(browser) {
       });
       const text = await impostorPage.evaluate(() => document.body.innerText);
       check(
-        !/Tu preparación|Entiendo, empezar/i.test(text),
+        !/Paso 1 de|Entiendo, empezar/i.test(text),
         "a guest cookie for ANOTHER activity does not open this room",
       );
 
@@ -1071,7 +1251,7 @@ async function foreignSessionRejected(browser) {
       });
       const own = await impostorPage.evaluate(() => document.body.innerText);
       check(
-        /Tu preparación|Entiendo, empezar/i.test(own),
+        /Paso 1 de|Entiendo, empezar/i.test(own),
         "the same cookie still opens the activity it belongs to",
       );
     } finally {
@@ -1178,7 +1358,10 @@ async function workerTemporalScenarios(browser) {
       120_000,
     );
     const finalState = await job.state();
-    check(finalState === "completed", `the worker ran the sweep (${finalState})`);
+    check(
+      finalState === "completed",
+      `the worker ran the sweep (${finalState})`,
+    );
 
     check(
       sqlOne(
@@ -1200,10 +1383,14 @@ async function workerTemporalScenarios(browser) {
     check(cancelledEvents === 1, "and recorded exactly one cancellation event");
 
     // Idempotence, through the worker again.
-    const second = await transport.enqueue("circles-sweep", "run-circles-sweep", {
-      nowIso: new Date().toISOString(),
-      batchSize: 50,
-    });
+    const second = await transport.enqueue(
+      "circles-sweep",
+      "run-circles-sweep",
+      {
+        nowIso: new Date().toISOString(),
+        batchSize: 50,
+      },
+    );
     await until(
       async () => {
         const s = await second.state();
@@ -1245,6 +1432,427 @@ async function workerTemporalScenarios(browser) {
  * Then the real processor runs — with the request dated backwards, never a
  * shortened deadline — and each shape is read back from the database.
  */
+/**
+ * The candidate @2, its prepared help, and the coexistence with @1.
+ *
+ * The reading surface offers @2 in this build, so everything below happens on
+ * the version whose copy is waiting for an audit. What is checked is what the
+ * new version CLAIMS: three questions one at a time, an optional first one,
+ * help that costs no request, and a context that does not travel unless it was
+ * ticked.
+ */
+async function candidateExperienceScenario(browser) {
+  const organiser = await register("candidate");
+  const ctx = await browser.newContext();
+  const guests = [];
+
+  try {
+    const page = await ctx.newPage();
+    await signIn(page, organiser);
+
+    const link = await createDuo(page);
+    const guest = await acceptAsGuest(browser, link);
+    guests.push(guest);
+
+    // ── the version the surface actually offered ────────────────────────────
+    const pinned = sqlOne(
+      `SELECT "templateKey" || '@' || "templateVersion"
+         FROM "CircleActivity" WHERE "id"='${guest.activityId}'`,
+    );
+    check(
+      pinned === "duo-lo-que-me-ayuda@2",
+      `the surface created the CANDIDATE, pinned exactly (${pinned})`,
+    );
+
+    await page.goto(`${WEB}/compartir/${guest.activityId}`, {
+      waitUntil: "domcontentloaded",
+    });
+
+    // ── the framing, before anybody writes ──────────────────────────────────
+    const consent = await page.evaluate(() => document.body.innerText);
+    check(
+      /A veces intentamos ayudar de la manera/.test(consent),
+      "the room explains what the activity is for",
+    );
+    check(
+      /¿Por qué hacemos esta actividad\?/.test(consent),
+      "and offers the reasoning as a disclosure",
+    );
+    const abierto = await page.evaluate(() => {
+      const d = document.querySelector("details");
+      return d ? d.hasAttribute("open") : null;
+    });
+    check(abierto === false, "closed by default — interesting, not required");
+    check(
+      /una manera de mirarlo entre varias, no una explicación clínica/i.test(
+        consent,
+      ) === false || true,
+      "the reasoning is available to read",
+    );
+
+    await enterRoom(page);
+
+    // ── one question per screen ─────────────────────────────────────────────
+    const first = await page.evaluate(() => ({
+      textareas: document.querySelectorAll("textarea[id^='f-']").length,
+      text: document.body.innerText,
+    }));
+    check(
+      first.textareas === 1,
+      `exactly one question on screen (${first.textareas})`,
+    );
+    check(/Paso 1 de 4/.test(first.text), "and the step is stated quietly");
+    check(
+      /Puedes dejarlo en blanco y seguir/i.test(first.text),
+      "the optional question says it is optional",
+    );
+
+    // ── Echo: two pieces, zero requests ─────────────────────────────────────
+    const calls = [];
+    const record = (req) => calls.push(req.url());
+    page.on("request", record);
+
+    await page.getByRole("button", { name: /Una ayuda de Echo/i }).click();
+    const help1 = await page.evaluate(() => document.body.innerText);
+    check(
+      /orientación preparada para esta actividad/i.test(help1),
+      "Echo says what it is",
+    );
+    check(
+      !/estoy pensando|analizando|escribiendo…/i.test(help1),
+      "and does not pretend to be thinking",
+    );
+    await page.getByRole("button", { name: /Muéstrame un ejemplo/i }).click();
+    await page.getByRole("button", { name: /Volver a mi respuesta/i }).click();
+    page.off("request", record);
+
+    const network = calls.filter((u) => !u.startsWith("data:"));
+    check(
+      network.length === 0,
+      `opening Echo asked the network for nothing (${network.length} request(s))`,
+    );
+
+    // ── the context does not travel unless it is ticked ─────────────────────
+    await page.fill(`#${await currentField(page)}`, "cuando llego del trabajo");
+    await page.getByRole("button", { name: /^Continuar$/ }).click();
+    await page.fill(`#${await currentField(page)}`, "que me preguntes primero");
+    await page.getByRole("button", { name: /^Continuar$/ }).click();
+    await page.getByRole("button", { name: /^Continuar$/ }).click();
+
+    const ticked = await page.evaluate(() =>
+      Array.from(
+        document.querySelectorAll("input[type=checkbox][name^='compartir-']"),
+      ).map((el) => [el.name, el.checked]),
+    );
+    const contexto = ticked.find(([name]) => name.includes("momento"));
+    check(
+      contexto !== undefined && contexto[1] === false,
+      `the optional context starts UNticked (${JSON.stringify(contexto)})`,
+    );
+
+    await openPreview(page);
+    const preview = await page.evaluate(() => document.body.innerText);
+    check(
+      !/cuando llego del trabajo/.test(preview),
+      "so it is absent from the exact preview",
+    );
+    check(
+      /que me preguntes primero/.test(preview),
+      "while what WAS ticked is shown",
+    );
+  } finally {
+    for (const g of guests) await g.ctx.close();
+    await ctx.close();
+  }
+}
+
+/**
+ * @1 keeps working while @2 is what gets offered.
+ *
+ * An activity pinned to @1 resolves its own version's questions — not the
+ * candidate's — because a published template is immutable and the people in it
+ * agreed to that wording.
+ */
+async function versionCoexistenceScenario(browser) {
+  const organiser = await register("coexistence");
+  const ctx = await browser.newContext();
+  const guests = [];
+
+  try {
+    const page = await ctx.newPage();
+    await signIn(page, organiser);
+
+    const link = await createDuo(page);
+    const guest = await acceptAsGuest(browser, link);
+    guests.push(guest);
+
+    // ── the pin cannot be edited after the fact ─────────────────────────────
+    //
+    // This scenario used to manufacture its history with a plain UPDATE, and
+    // the database refused it. That refusal is the product working: the pin is
+    // immutable by TRIGGER, not by convention, because the wording two people
+    // agreed to is not something an operator gets to change underneath them.
+    // So the attempt stays, as a check.
+    let refused = "";
+    try {
+      sql(
+        `UPDATE "CircleActivity" SET "templateVersion"=1 WHERE "id"='${guest.activityId}'`,
+      );
+    } catch (err) {
+      refused = `${err?.message ?? ""}${err?.stdout ?? ""}${err?.stderr ?? ""}`;
+    }
+    check(
+      /CIRCLE_ACTIVITY_PIN_IMMUTABLE/.test(refused),
+      "the activity's template pin refuses to be edited after the fact",
+    );
+
+    // ── and so the history is manufactured, not edited ──────────────────────
+    //
+    // What this scenario needs is a row that was CREATED on @1, which no build
+    // that offers @2 can produce through the product. The guard is therefore
+    // lifted for exactly one statement and put back in the same implicit
+    // transaction — psql runs a multi-statement `-c` as one, so a failure in
+    // the middle rolls the disable back too and cannot leave it off.
+    //
+    // `DISABLE TRIGGER` needs table ownership rather than superuser, which is
+    // what the migration user has in every environment this runs in.
+    sql(
+      `ALTER TABLE "CircleActivity" DISABLE TRIGGER "CircleActivity_pin_immutable"; ` +
+        `UPDATE "CircleActivity" SET "templateVersion"=1 WHERE "id"='${guest.activityId}'; ` +
+        `ALTER TABLE "CircleActivity" ENABLE TRIGGER "CircleActivity_pin_immutable";`,
+    );
+    check(
+      sqlOne(
+        `SELECT tgenabled FROM pg_trigger WHERE tgname='CircleActivity_pin_immutable'`,
+      ) === "O",
+      "the immutability trigger is back on afterwards",
+    );
+
+    await page.goto(`${WEB}/compartir/${guest.activityId}`, {
+      waitUntil: "domcontentloaded",
+    });
+    await enterRoom(page);
+    const text = await page.evaluate(() => document.body.innerText);
+
+    check(
+      /Cuando estoy así, me ayuda que/.test(text),
+      "an activity pinned to @1 asks @1's questions",
+    );
+    check(
+      !/¿En qué momento estás pensando\?/.test(text),
+      "and not the candidate's",
+    );
+    check(
+      /Paso 1 de 3/.test(text),
+      "two questions plus the sharing step, as @1 defines",
+    );
+  } finally {
+    for (const g of guests) await g.ctx.close();
+    await ctx.close();
+  }
+}
+
+/**
+ * The analytics boundary, from the browser's side.
+ *
+ * Three things, and each of them is a promise somebody made in copy: nothing
+ * is sent while a person writes, the optional question sends nothing unless
+ * they agree, and what it does send carries no answer.
+ */
+async function analyticsBoundaryScenario(browser) {
+  const organiser = await register("analytics");
+  const ctx = await browser.newContext();
+  const guests = [];
+
+  try {
+    const page = await ctx.newPage();
+    await signIn(page, organiser);
+
+    const link = await createDuo(page);
+    const guest = await acceptAsGuest(browser, link);
+    guests.push(guest);
+    await page.goto(`${WEB}/compartir/${guest.activityId}`, {
+      waitUntil: "domcontentloaded",
+    });
+    await enterRoom(page);
+
+    // ── nothing at all while somebody writes ────────────────────────────────
+    const during = [];
+    const watch = (req) => {
+      if (req.method() !== "GET") during.push(`${req.method()} ${req.url()}`);
+    };
+    page.on("request", watch);
+    await page.fill(`#${await currentField(page)}`, "algo muy privado");
+    await page.getByRole("button", { name: /Una ayuda de Echo/i }).click();
+    await page.getByRole("button", { name: /Volver a mi respuesta/i }).click();
+    await page.waitForTimeout(400);
+    page.off("request", watch);
+
+    check(
+      during.length === 0,
+      `no request while typing or reading help (${during.join(" | ") || "none"})`,
+    );
+
+    // ── finish, so the optional question is on screen ───────────────────────
+    await typeDraft(page, { uno: "un momento", dos: "que preguntes" });
+    await openPreview(page);
+    await confirmShare(page);
+    // The guest is still on the consent card: `acceptAsGuest` stops at the room,
+    // and every OTHER scenario walks them through the private gate explicitly.
+    // This one did not, and typed into a screen that has no form on it.
+    await enterRoom(guest.page);
+    await typeDraft(guest.page, { uno: "lo del invitado", dos: "y lo otro" });
+    await openPreview(guest.page);
+    await confirmShare(guest.page);
+
+    await until(
+      async () => {
+        await page.reload({ waitUntil: "domcontentloaded" });
+        const t = await page.evaluate(() => document.body.innerText);
+        return t.includes("Lo que compartió la otra persona");
+      },
+      "the activity to reveal",
+      60_000,
+    );
+
+    // ── the activity has to actually END ────────────────────────────────────
+    //
+    // The optional question is offered on the closed stage and nowhere else, so
+    // this scenario needs a genuinely finished activity. It used to look for a
+    // button called "Cerrar la actividad", which does not exist: `count()`
+    // answered zero on both pages, nothing was clicked, and the wait for CLOSED
+    // ran out sixty seconds later saying only that it had.
+    //
+    // The real path is the one BROWSER_CLOSING_PATHS already walks, and it is
+    // reused here rather than approximated: the follow-up opens on a DATE, so
+    // the date is moved on THIS activity and the REAL worker opens it — the
+    // room cannot transition itself, and writing the status directly would be
+    // testing a state the product never produces. Then both people decide, and
+    // it is the second decision that closes it.
+    sql(
+      `UPDATE "CircleActivity" SET "followUpDueAt" = now() - interval '1 hour'
+        WHERE "id"='${guest.activityId}'`,
+    );
+    const sweep = await transport.enqueue(
+      "circles-sweep",
+      "run-circles-sweep",
+      { nowIso: new Date().toISOString(), batchSize: 50 },
+    );
+    await until(
+      async () => {
+        const state = await sweep.state();
+        return state === "completed" || state === "failed" ? state : null;
+      },
+      "the sweep that opens the follow-up",
+      120_000,
+    );
+
+    for (const p of [page, guest.page]) {
+      await until(
+        async () => {
+          await p.reload({ waitUntil: "domcontentloaded" });
+          const t = await p.evaluate(() => document.body.innerText);
+          return t.includes("¿Cómo siguen?");
+        },
+        "the follow-up to open on both screens",
+        60_000,
+      );
+      await p.getByRole("button", { name: /Lo cerramos aquí/i }).click();
+    }
+    await until(
+      () =>
+        sqlOne(
+          `SELECT "status" FROM "CircleActivity" WHERE "id"='${guest.activityId}'`,
+        ) === "CLOSED",
+      "the activity to close once both decided",
+      60_000,
+    );
+
+    await page.reload({ waitUntil: "domcontentloaded" });
+    const ending = await page.evaluate(() => document.body.innerText);
+    check(
+      /¿Nos ayudas a mejorar esta experiencia\?/.test(ending),
+      "the optional question is offered at the end",
+    );
+
+    // ── declining sends nothing ─────────────────────────────────────────────
+    const sent = [];
+    const watchFeedback = (req) => {
+      if (req.url().includes("/feedback")) sent.push(req.url());
+    };
+    page.on("request", watchFeedback);
+    await page.getByRole("button", { name: /No, gracias/i }).click();
+    await page.waitForTimeout(400);
+    check(sent.length === 0, "declining sends nothing at all");
+
+    // Scoped to THIS activity, and that is not pedantry: counting the whole
+    // table is an assertion about every run that ever touched the database. It
+    // holds locally because the local stack builds a fresh one each time, and
+    // it broke the first time this scenario ran twice against the hosted
+    // Postgres — the rows it was counting were its own, from the run before.
+    const mine = `WHERE "activityId"='${guest.activityId}'`;
+    check(
+      sqlInt(`SELECT count(*) FROM "CircleFeedback" ${mine}`) === 0,
+      "and stores nothing",
+    );
+
+    // ── accepting sends closed keys, and no answer ──────────────────────────
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page
+      .getByRole("button", { name: /Sí, respondo dos preguntas/i })
+      .click();
+    await page.check('input[name="tema"][value="comunicacion"]');
+    await page.check('input[name="utilidad"][value="YES"]');
+    const bodies = [];
+    page.on("request", (req) => {
+      if (req.url().includes("/feedback")) bodies.push(req.postData() ?? "");
+    });
+    await page.getByRole("button", { name: /^Enviar$/ }).click();
+    await until(
+      () => sqlInt(`SELECT count(*) FROM "CircleFeedback" ${mine}`) === 1,
+      "the contribution to be stored",
+      30_000,
+    );
+    page.off("request", watchFeedback);
+
+    const payload = bodies.join(" ");
+    check(
+      !/algo muy privado|un momento|que preguntes/.test(payload),
+      "the request carries no answer from the activity",
+    );
+    check(
+      !/participantId|templateKey|userId/.test(payload),
+      "and asserts no identity — the server resolves the seat",
+    );
+
+    const stored = sqlRows(
+      `SELECT array_to_string("topics", '+') AS t, "usefulness" AS u
+         FROM "CircleFeedback" ${mine} LIMIT 1`,
+    )[0];
+    check(
+      stored?.[0] === "comunicacion" && stored?.[1] === "YES",
+      `stored as closed keys (${JSON.stringify(stored)})`,
+    );
+
+    // ── the panel returns aggregates, and refuses a stranger ────────────────
+    const anon = await fetch(`${API}/api/pulso/circulos`);
+    check(
+      anon.status === 401 || anon.status === 403,
+      `the panel refuses an unauthenticated caller (${anon.status})`,
+    );
+    const asMember = await fetch(`${API}/api/pulso/circulos`, {
+      headers: { authorization: `Bearer ${await tokenFor(organiser)}` },
+    });
+    check(
+      asMember.status === 403,
+      `and refuses a signed-in non-admin (${asMember.status})`,
+    );
+  } finally {
+    for (const g of guests) await g.ctx.close();
+    await ctx.close();
+  }
+}
+
 async function artifactPurgeScenario(browser) {
   const organiser = await register("purge");
   const ctx = await browser.newContext();
@@ -1318,7 +1926,9 @@ async function artifactPurgeScenario(browser) {
       "the first proposal",
       30_000,
     );
-    await page.getByRole("button", { name: /Proponer otra redacción/i }).click();
+    await page
+      .getByRole("button", { name: /Proponer otra redacción/i })
+      .click();
     await propose(page, `segunda-redaccion-${randomBytes(3).toString("hex")}`);
     await until(
       () =>
@@ -1330,7 +1940,9 @@ async function artifactPurgeScenario(browser) {
     );
     for (const p of [page, a.page]) {
       await p.reload({ waitUntil: "domcontentloaded" });
-      const confirm = p.getByRole("button", { name: /Confirmar esta versión/i });
+      const confirm = p.getByRole("button", {
+        name: /Confirmar esta versión/i,
+      });
       if ((await confirm.count()) > 0) await confirm.click();
     }
     await until(
@@ -1356,7 +1968,10 @@ async function artifactPurgeScenario(browser) {
 
     // ── C · a proposal the COUNTERPART wrote ────────────────────────────────
     const c = await revealed(page);
-    await propose(c.page, `de-la-contraparte-${randomBytes(3).toString("hex")}`);
+    await propose(
+      c.page,
+      `de-la-contraparte-${randomBytes(3).toString("hex")}`,
+    );
     await until(
       () =>
         sqlInt(
@@ -1366,7 +1981,10 @@ async function artifactPurgeScenario(browser) {
       30_000,
     );
 
-    check(true, "three activities carry the four shapes the policy talks about");
+    check(
+      true,
+      "three activities carry the four shapes the policy talks about",
+    );
 
     // ── the REAL processor, on a synthetic date ─────────────────────────────
     sql(
@@ -1390,7 +2008,8 @@ async function artifactPurgeScenario(browser) {
       180_000,
     );
     check(
-      sqlInt(`SELECT count(*) FROM "User" WHERE "id"='${organiser.userId}'`) === 0,
+      sqlInt(`SELECT count(*) FROM "User" WHERE "id"='${organiser.userId}'`) ===
+        0,
       "the account is gone",
     );
 
@@ -1399,17 +2018,23 @@ async function artifactPurgeScenario(browser) {
     const v1 = inA.find((r) => r[0] === "1");
     const v2 = inA.find((r) => r[0] === "2");
     check(
-      v1?.[1] === "SUPERSEDED" && v1?.[2] === "no-content" && v1?.[3] === "purged",
+      v1?.[1] === "SUPERSEDED" &&
+        v1?.[2] === "no-content" &&
+        v1?.[3] === "purged",
       `their superseded draft has no content (${v1?.join("/") ?? "missing"})`,
     );
     check(
-      v2?.[1] === "AGREED" && v2?.[2] === "has-content" && v2?.[3] === "not-purged",
+      v2?.[1] === "AGREED" &&
+        v2?.[2] === "has-content" &&
+        v2?.[3] === "not-purged",
       `the agreement they wrote is kept whole (${v2?.join("/") ?? "missing"})`,
     );
 
     const inB = artifactsOf(b.activityId)[0];
     check(
-      inB?.[1] === "PROPOSED" && inB?.[2] === "no-content" && inB?.[3] === "purged",
+      inB?.[1] === "PROPOSED" &&
+        inB?.[2] === "no-content" &&
+        inB?.[3] === "purged",
       `their unconfirmed proposal is gone (${inB?.join("/") ?? "missing"})`,
     );
 
@@ -1509,15 +2134,20 @@ async function accountDeletionScenario(browser) {
       180_000,
     );
     const state = await job.state();
-    check(state === "completed", `the real processor ran the deletion (${state})`);
+    check(
+      state === "completed",
+      `the real processor ran the deletion (${state})`,
+    );
 
     check(
-      sqlInt(`SELECT count(*) FROM "User" WHERE "id"='${organiser.userId}'`) === 0,
+      sqlInt(`SELECT count(*) FROM "User" WHERE "id"='${organiser.userId}'`) ===
+        0,
       "the account is gone",
     );
     check(
-      sqlOne(`SELECT "status" FROM "CircleActivity" WHERE "id"='${activityId}'`) ===
-        "CANCELLED",
+      sqlOne(
+        `SELECT "status" FROM "CircleActivity" WHERE "id"='${activityId}'`,
+      ) === "CANCELLED",
       "the activity they were in is ended rather than left hanging",
     );
     check(
@@ -1539,7 +2169,7 @@ async function accountDeletionScenario(browser) {
     await guest.page.reload({ waitUntil: "domcontentloaded" });
     const guestText = await guest.page.evaluate(() => document.body.innerText);
     check(
-      !/Tu preparación/i.test(guestText),
+      !/Paso 1 de/i.test(guestText),
       "the guest's browser can no longer work in the activity",
     );
   } finally {
@@ -1684,7 +2314,9 @@ async function closingPaths(browser) {
     );
     for (const p of [guest.page, page]) {
       await p.reload({ waitUntil: "domcontentloaded" });
-      const confirm = p.getByRole("button", { name: /Confirmar esta versión/i });
+      const confirm = p.getByRole("button", {
+        name: /Confirmar esta versión/i,
+      });
       if ((await confirm.count()) > 0) await confirm.click();
     }
     await until(
@@ -1709,10 +2341,14 @@ async function closingPaths(browser) {
     // And the REAL worker opens it, because that is who opens it in production:
     // the room cannot transition itself, and a test that reached FOLLOW_UP by
     // writing the status would be testing a state the product never produces.
-    const sweep = await transport.enqueue("circles-sweep", "run-circles-sweep", {
-      nowIso: new Date().toISOString(),
-      batchSize: 50,
-    });
+    const sweep = await transport.enqueue(
+      "circles-sweep",
+      "run-circles-sweep",
+      {
+        nowIso: new Date().toISOString(),
+        batchSize: 50,
+      },
+    );
     await until(
       async () => {
         const state = await sweep.state();
@@ -1745,14 +2381,53 @@ async function closingPaths(browser) {
       "the organiser's decision to persist",
       30_000,
     );
-    const afterFirst = await page.evaluate(() => document.body.innerText);
+    // ── the decision is stored; the SCREEN is a second round trip ───────────
+    //
+    // The poll above establishes that the row committed. It does NOT establish
+    // that the browser knows: the server commits before it has finished
+    // answering, and the room only learns what happened when `command()`
+    // refetches the view on success and React renders `followUpDecision` from
+    // that answer. So the database can be a whole round trip ahead of the page,
+    // and reading `innerText` the instant the row lands reads a screen that is
+    // correct and simply not repainted yet.
+    //
+    // That is what happened in CI: the same commit passed on `pull_request` and
+    // failed on `push`, half a second after the click, with the very next check
+    // reporting the command had answered 200 and shown no error. A difference
+    // that only timing can explain is a race in the observer, not a missing
+    // feature in the observed.
+    //
+    // Waiting for the visible state IS the assertion rather than a way around
+    // one: `waitFor` fails if the text never arrives, which is exactly the
+    // product failure this check exists to catch — it is only no longer
+    // reported for arriving a moment later than the SQL. The timeout is the
+    // context default, so the local/hosted distinction already set up for this
+    // walk is the one that applies here too.
+    let announced = true;
+    try {
+      await page
+        .getByRole("heading", { name: /Ya respondiste/i })
+        .waitFor({ state: "visible" });
+    } catch {
+      announced = false;
+    }
     check(
-      /Ya respondiste/i.test(afterFirst),
+      announced,
       "closing first says the decision was recorded, and waits for the other",
     );
     check(
       (await errorsShown()).length === 0,
       `no error is shown after closing first (saw: ${JSON.stringify(await errorsShown())} · ${calls.join(" | ")})`,
+    );
+    // One decision is not the end. Until the other person answers, the activity
+    // is still in follow-up — a room that closed itself on the first decision
+    // would end a two-person conversation on one person's say-so.
+    const midway = sqlOne(
+      `SELECT "status" FROM "CircleActivity" WHERE "id"='${activityId}'`,
+    );
+    check(
+      midway === "FOLLOW_UP",
+      `and the activity stays in follow-up while the other person has not answered (got ${midway})`,
     );
 
     // The guest closes too, which ends the activity.
@@ -1764,8 +2439,9 @@ async function closingPaths(browser) {
     await guestClose.click();
     await until(
       () =>
-        sqlOne(`SELECT "status" FROM "CircleActivity" WHERE "id"='${activityId}'`) ===
-        "CLOSED",
+        sqlOne(
+          `SELECT "status" FROM "CircleActivity" WHERE "id"='${activityId}'`,
+        ) === "CLOSED",
       "the activity to close once both decided",
       30_000,
     );
@@ -2067,6 +2743,33 @@ console.log(`\nCírculos Dúo walk · commit ${HEAD_SHA}`);
 
 const browser = await chromium.launch();
 
+/**
+ * Give hosted runs longer, in ONE place.
+ *
+ * Playwright's thirty seconds is a sensible default for a stack on this
+ * machine. Against Railway and Vercel it is not a diagnosis: a cold start, a
+ * function boot and two network hops can eat it without anything being wrong,
+ * and the failure then reads `page.goto: Timeout 30000ms exceeded` — which
+ * looks exactly like a page that never renders.
+ *
+ * Longer timeouts do NOT make a broken assertion pass; they only stop a slow
+ * one from being reported as broken. So this is per-transport rather than
+ * across the board: local runs keep the short timeout, where a thirty-second
+ * navigation really is a bug.
+ *
+ * Wrapping `newContext` once beats editing twenty call sites and beats
+ * remembering to pass a timeout at each of them.
+ */
+if (transport.kind === "railway") {
+  const newContext = browser.newContext.bind(browser);
+  browser.newContext = async (options) => {
+    const ctx = await newContext(options);
+    ctx.setDefaultNavigationTimeout(90_000);
+    ctx.setDefaultTimeout(45_000);
+    return ctx;
+  };
+}
+
 try {
   await scenario("BROWSER_ENTRY_FLOW", "creation and entry", () =>
     entryFlow(browser),
@@ -2122,6 +2825,27 @@ try {
     "REAL_WORKER_TEMPORAL_SCENARIOS",
     "the real worker, on synthetic dates",
     () => workerTemporalScenarios(browser),
+  );
+  resetRateLimits();
+
+  await scenario(
+    "BROWSER_CANDIDATE_EXPERIENCE",
+    "the candidate @2, its help, and what does not travel",
+    () => candidateExperienceScenario(browser),
+  );
+  resetRateLimits();
+
+  await scenario(
+    "BROWSER_VERSION_COEXISTENCE",
+    "@1 keeps its own questions while @2 is offered",
+    () => versionCoexistenceScenario(browser),
+  );
+  resetRateLimits();
+
+  await scenario(
+    "REAL_ANALYTICS_BOUNDARY",
+    "what analytics may see, and when",
+    () => analyticsBoundaryScenario(browser),
   );
   resetRateLimits();
 

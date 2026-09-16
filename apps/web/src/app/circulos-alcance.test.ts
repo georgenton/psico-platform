@@ -87,7 +87,11 @@ describe("PR4 adds no backend", () => {
       .map((d) => d.name);
     expect(migrations).toContain("20260913000000_circles_account_deletion");
     expect(migrations).toContain("20260915000000_circles_artifact_purge");
-    expect(migrations).toHaveLength(66);
+    // …and the one this block owes: three tables for aggregated analytics,
+    // purely additive. An API migration, named here like the others, because
+    // raising the number without adding a name is what this assertion refuses.
+    expect(migrations).toContain("20260916000000_circles_analytics");
+    expect(migrations).toHaveLength(67);
   });
 
   it("touches no Mobile file", () => {
@@ -160,27 +164,71 @@ describe("PR4 stores no draft and loads no third party", () => {
 });
 
 describe("production publishes exactly what was approved, and nothing else", () => {
-  it("ships ONE template, and it is the approved one", () => {
-    // This asserted emptiness while nothing was approved. Emptiness was never
-    // the point — "only what somebody approved" was — so it now pins the
-    // contents. Publishing a second template fails here and has to be argued
-    // for, which is the same gate pointing at a different number.
-    expect(PRODUCTION_CIRCLE_TEMPLATES).toHaveLength(1);
-    const [approved] = PRODUCTION_CIRCLE_TEMPLATES;
-    expect(approved.templateKey).toBe("duo-lo-que-me-ayuda");
-    expect(approved.templateVersion).toBe(1);
-    expect(approved.status).toBe("PUBLISHED");
-    expect(approved.audience).toBe("DUO_ADULT");
-    expect(approved.ecoMode).toBe("NONE");
-    expect(approved.participants).toEqual({ min: 2, max: 2, required: 2 });
-    expect(approved.source.experiencePin).toEqual({
+  it("OFFERS one template, and keeps its predecessor resolvable", () => {
+    // This asserted emptiness while nothing was approved, then a count of one,
+    // then one PUBLISHED beside one DRAFT. None of those was the point —
+    // "only what somebody approved is offered" was.
+    //
+    // Jorge walked @2 end to end in the hosted test environment and approved
+    // it, so @2 is now what is offered and @1 is ARCHIVED: withdrawn from the
+    // listing, the organiser screen and the public preview, and still resolved
+    // by `getExact` for the activities that are running on it.
+    expect(
+      PRODUCTION_CIRCLE_TEMPLATES.map(
+        (t) => `${t.templateKey}@${t.templateVersion}:${t.status}`,
+      ),
+    ).toEqual([
+      "duo-lo-que-me-ayuda@1:ARCHIVED",
+      "duo-lo-que-me-ayuda@2:PUBLISHED",
+    ]);
+    const offered = PRODUCTION_CIRCLE_TEMPLATES.find(
+      (t) => t.status === "PUBLISHED",
+    )!;
+    expect(offered.templateKey).toBe("duo-lo-que-me-ayuda");
+    expect(offered.templateVersion).toBe(2);
+    expect(offered.audience).toBe("DUO_ADULT");
+    expect(offered.ecoMode).toBe("NONE");
+    expect(offered.participants).toEqual({ min: 2, max: 2, required: 2 });
+    expect(offered.source.experiencePin).toEqual({
       experienceKey: "eec-c1-cuerpo-antes-que-mente",
       experienceVersion: 1,
     });
   });
 
-  it("carries the approved copy, not a paraphrase of it", () => {
-    const [approved] = PRODUCTION_CIRCLE_TEMPLATES;
+  it("publishes AT MOST ONE version of a key, because a URL carries no version", () => {
+    // Not a restatement of the list above — it is the REASON that list has to
+    // look the way it does, and the rule that was followed when @2 was
+    // published: @1 was archived in the same change.
+    //
+    // A link to an activity names a key and never a version, so the server is
+    // asked "which version does this key mean now". Two PUBLISHED versions give
+    // that question no answer: `resolvePublishedTemplateByKey` refuses rather
+    // than picking the higher one, the organiser route 404s, and the CTA stops
+    // rendering everywhere at once. Publishing a version is therefore a
+    // SUCCESSION — @2 goes PUBLISHED and @1 goes ARCHIVED in the same change,
+    // which withdraws it from every surface that OFFERS while leaving it
+    // resolvable by pin for the activities already running on it.
+    const publishedPerKey = new Map<string, number[]>();
+    for (const t of PRODUCTION_CIRCLE_TEMPLATES) {
+      if (t.status !== "PUBLISHED") continue;
+      publishedPerKey.set(t.templateKey, [
+        ...(publishedPerKey.get(t.templateKey) ?? []),
+        t.templateVersion,
+      ]);
+    }
+    for (const [key, versions] of publishedPerKey) {
+      expect(`${key}: ${versions.join(", ")}`).toBe(`${key}: ${versions[0]}`);
+    }
+  });
+
+  it("carries the approved copy of @1 unchanged, now that it is archived", () => {
+    // Archiving withdraws @1 from what is OFFERED. It does not edit it: the
+    // people whose activities are pinned here agreed to these exact words, and
+    // a published template is immutable whatever its status becomes later.
+    const approved = PRODUCTION_CIRCLE_TEMPLATES.find(
+      (t) => t.templateVersion === 1,
+    )!;
+    expect(approved.status).toBe("ARCHIVED");
     expect(approved.title).toBe("Lo que me ayuda cuando estoy así");
     expect(approved.privatePreparation.map((f) => f.label)).toEqual([
       "Cuando estoy así, me ayuda que…",
@@ -205,7 +253,8 @@ describe("production publishes exactly what was approved, and nothing else", () 
     );
     expect(catalog).not.toContain("fixture-duo");
     expect(catalog).not.toContain("e2e-duo-sintetica");
-    // And none of the nine Parejas drafts arrived by the back door.
+    // And none of the nine Parejas drafts arrived by the back door: every
+    // entry is a VERSION of the one approved activity.
     for (const key of PRODUCTION_CIRCLE_TEMPLATES.map((t) => t.templateKey)) {
       expect(key).toBe("duo-lo-que-me-ayuda");
     }

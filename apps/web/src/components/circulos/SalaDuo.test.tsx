@@ -23,6 +23,7 @@ const base = {
   allowedModes: PLANTILLA.sharing.allowedModes,
   noConviene: PLANTILLA.safety.doNotSuggestWhen,
   minutosEstimados: PLANTILLA.estimatedMinutes,
+  intro: PLANTILLA.intro ?? null,
   isGuest: true,
 };
 
@@ -276,8 +277,12 @@ describe("the door of the room does not accept a press it cannot act on", () => 
     const start = screen.getByRole("button", { name: /entiendo, empezar/i });
     await waitFor(() => expect(start).toBeEnabled());
     await user.click(start);
+    // The first question, which is what "Tu preparación" used to be a heading
+    // for: the section keeps that name, the heading is now the question.
     expect(
-      screen.getByRole("heading", { name: /tu preparación/i }),
+      screen.getByRole("heading", {
+        name: PLANTILLA.privatePreparation[0].label,
+      }),
     ).toBeInTheDocument();
   });
 });

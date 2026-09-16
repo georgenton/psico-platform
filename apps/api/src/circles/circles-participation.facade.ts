@@ -7,6 +7,8 @@ import type {
 } from "@psico/types";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { CirclesParticipationService } from "./circles-participation.service";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { CirclesAnalyticsService } from "./circles-analytics.service";
 import { CirclesError } from "./circles-http-errors";
 import { projectActivity } from "./circles-projection";
 import type { CreateDuoDto } from "./dto/participation.dto";
@@ -29,7 +31,51 @@ import type { CreateDuoDto } from "./dto/participation.dto";
  */
 @Injectable()
 export class CirclesParticipationFacade {
-  constructor(private readonly domain: CirclesParticipationService) {}
+  constructor(
+    private readonly domain: CirclesParticipationService,
+    private readonly analytics: CirclesAnalyticsService,
+  ) {}
+
+  /**
+   * Store one person's optional contribution.
+   *
+   * Two steps, and the order is the guarantee: the domain resolves WHO is
+   * contributing — seat, template, activity — and only then does the analytics
+   * plane write. Nothing identifying travels in the body, so a browser cannot
+   * file a contribution as somebody else or against an activity it was never
+   * in.
+   *
+   * `usefulness` absent means skipped. It is stored as `null` rather than as a
+   * fourth value, so "prefirió no decirlo" can never appear in a distribution
+   * as though it were an opinion.
+   */
+  async recordFeedback(
+    actor: CircleActor,
+    activityId: string,
+    input: {
+      topics: readonly string[];
+      usefulness?: "YES" | "SOME" | "NO";
+      noticeVersion: string;
+      helpOpens?: readonly {
+        fieldKey: string;
+        piece: "explanation" | "example";
+        opens: number;
+      }[];
+    },
+  ): Promise<{ recorded: true }> {
+    const who = await this.domain.resolveContributor(actor, activityId);
+    await this.analytics.recordFeedback({
+      activityId: who.activityId,
+      participantId: who.participantId,
+      templateKey: who.templateKey,
+      templateVersion: who.templateVersion,
+      topics: input.topics,
+      usefulness: input.usefulness ?? null,
+      noticeVersion: input.noticeVersion,
+      helpOpens: input.helpOpens ?? [],
+    });
+    return { recorded: true };
+  }
 
   async createDuo(
     actor: CircleActor,

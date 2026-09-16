@@ -445,11 +445,54 @@ export type CirclePreparationFieldKind = "SHORT_TEXT" | "LONG_TEXT" | "CHOICE";
  * is deliberately no sibling type that does: what the server receives is a
  * confirmed snapshot, defined by the domain in a later cut.
  */
+/**
+ * Two pieces of prepared editorial help for one question, and only two.
+ *
+ * Not a model, not a retrieval, not a conversation. The text is written when
+ * the template is authored and travels with it, so opening the help costs a
+ * render and nothing else: no request, no token, no provider, no access to
+ * anything the person has written.
+ *
+ * Two because a third would need somewhere to come from. Re-reading either one
+ * is re-reading, not a new inference — there are no inferences here.
+ */
+export interface CircleFieldHelp {
+  /** Why this question is being asked, in a couple of sentences. */
+  readonly explanation: string;
+  /** One concrete, everyday rewriting. Never somebody else's answer. */
+  readonly example: string;
+}
+
 export interface CirclePreparationField {
   readonly fieldKey: string;
   readonly label: string;
   readonly kind: CirclePreparationFieldKind;
   readonly maxLength?: number;
+  /**
+   * May be left blank without the screen treating it as unfinished.
+   *
+   * Absent means required, which is what every template written before this
+   * field existed meant.
+   */
+  readonly optional?: boolean;
+  readonly help?: CircleFieldHelp;
+}
+
+/**
+ * What the room says before anybody writes anything.
+ *
+ * `body` is the short framing on the way in. `rationale` is a disclosure
+ * somebody can open if they want to know why the activity is shaped this way —
+ * closed by default, because the answer is interesting and not necessary.
+ *
+ * Optional, so every earlier template remains valid unchanged.
+ */
+export interface CircleIntro {
+  readonly body: string;
+  readonly rationale?: {
+    readonly title: string;
+    readonly body: string;
+  };
 }
 
 /**
@@ -533,7 +576,26 @@ export interface CircleActivityDefinition {
     readonly privateGateRequired: boolean;
     readonly doNotSuggestWhen: readonly string[];
   };
+  /**
+   * What Eco — the generative companion — may do with this activity.
+   *
+   * `NONE` for every template so far, and for the one this block adds. The
+   * prepared help in `privatePreparation[].help` is NOT governed by this enum
+   * and does not relax it: static editorial text is not a model with an
+   * opinion, and calling it one would blur the only switch that says whether a
+   * model may see an activity at all.
+   */
   readonly ecoMode: CircleEcoMode;
+  readonly intro?: CircleIntro;
+  /**
+   * Closed editorial labels for what this activity is ABOUT.
+   *
+   * A property of the template, chosen when it is written — never inferred
+   * from anything two people said, and never a claim about them. It answers
+   * "which activity was used", which is a different question from "what did
+   * they talk about" and must not be presented as the same one.
+   */
+  readonly topics?: readonly string[];
 }
 
 /**

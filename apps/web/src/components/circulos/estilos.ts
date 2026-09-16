@@ -131,6 +131,68 @@ export const estilos: Record<string, CSSProperties> = {
     fontSize: "1rem",
     cursor: "pointer",
   },
+  /**
+   * A help affordance, and it says what it is in words.
+   *
+   * Not an icon on its own: `ⓘ` is a symbol somebody has to already know, and
+   * the people this screen is for are reading it once. Never hover-only
+   * either — there is no hover on a phone, which is where most of this will be
+   * read.
+   */
+  ayuda: {
+    minHeight: "44px",
+    padding: ".6rem .9rem",
+    borderRadius: ".5rem",
+    border: "1px dashed #b9c4b3",
+    background: "transparent",
+    color: "#33402f",
+    fontSize: ".95rem",
+    cursor: "pointer",
+  },
+  ayudaPanel: {
+    display: "flex",
+    flexDirection: "column",
+    gap: ".7rem",
+    padding: ".9rem 1rem",
+    borderRadius: ".6rem",
+    background: "#f4f6f2",
+    border: "1px solid #dbe3d7",
+  },
+  ayudaEtiqueta: {
+    margin: 0,
+    fontSize: ".82rem",
+    letterSpacing: ".01em",
+    color: "#55604f",
+  },
+  /** Which step of how many. Quiet, and never the main thing on screen. */
+  paso: {
+    margin: 0,
+    fontSize: ".85rem",
+    color: "#6b6b75",
+  },
+  /** The FeelVerse signature. Present, small, and not a banner. */
+  firma: {
+    margin: 0,
+    fontSize: ".8rem",
+    letterSpacing: ".02em",
+    color: "#6b6b75",
+  },
+  /** A disclosure that opens in place, with its own summary as the control. */
+  detalle: {
+    borderRadius: ".5rem",
+    border: "1px solid #e6e3dd",
+    background: "#ffffff",
+    padding: ".2rem .4rem",
+  },
+  detalleResumen: {
+    minHeight: "44px",
+    display: "flex",
+    alignItems: "center",
+    padding: ".6rem .5rem",
+    cursor: "pointer",
+    fontWeight: 600,
+    color: "#33402f",
+  },
   cita: {
     margin: 0,
     padding: ".75rem .9rem",

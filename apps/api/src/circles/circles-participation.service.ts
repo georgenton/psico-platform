@@ -1324,6 +1324,44 @@ export class CirclesParticipationService {
   }
 
   /**
+   * Resolve WHO is contributing, and let the analytics plane store it.
+   *
+   * The actor, the seat and the template are all derived here, from the same
+   * authority check every command goes through. Nothing about identity comes
+   * from the request body — a browser that could name its own `participantId`
+   * or `templateKey` could file a contribution as somebody else, in an
+   * activity it was never part of.
+   *
+   * Read-only as far as the DOMAIN is concerned: this resolves and returns.
+   * Writing happens in the analytics plane, outside the transaction, and its
+   * failure is its own — a contribution that cannot be stored must never turn
+   * a finished activity into an error.
+   */
+  async resolveContributor(
+    actor: CircleActor,
+    activityId: string,
+  ): Promise<{
+    participantId: string;
+    templateKey: string;
+    templateVersion: number;
+    activityId: string;
+  }> {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const ctx = await this.resolveAuthority(actor, activityId, tx);
+        return {
+          participantId: ctx.self.id,
+          templateKey: ctx.activity.templateKey,
+          templateVersion: ctx.activity.templateVersion,
+          activityId: ctx.activity.id,
+        };
+      });
+    } catch (err) {
+      throw this.asCirclesError(err);
+    }
+  }
+
+  /**
    * Open an envelope for the actor entitled to it, and prove it still means
    * what it claims.
    *

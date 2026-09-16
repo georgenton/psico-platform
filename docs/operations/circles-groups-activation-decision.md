@@ -10,6 +10,29 @@
 > y este documento no la reescribe: describe una segunda forma sobre el mismo
 > motor, con su propio interruptor, que llega **cerrado**.
 
+### Estado productivo observado — 2026-09-16
+
+| qué                            | estado                                                                                                                           |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| PR #717                        | fusionada por **merge commit** `1d1e9331` (padres `a302c61c` + `c1fd6078`)                                                       |
+| API `psico-platform`           | deployment `3e78d3f4` · `1d1e9331` · SUCCESS; tras encender la modalidad, `d614a71f` · SUCCESS                                   |
+| Worker `psico-platform-worker` | `6c1306d5` · SUCCESS; tras encender, `a2f5d62e` · SUCCESS                                                                        |
+| Web `psico-platform-web`       | `psico-platform-nt3ssw5w7` Ready, con el alias de producción apuntando a él                                                      |
+| Migraciones                    | **una** aplicada esta ronda, `20260916100000_circles_adult_groups`, por el `preDeployCommand` normal. **68** en total. Sin seed. |
+| Rollout                        | `pilot` sin cambios, con la allowlist existente                                                                                  |
+| Modalidad                      | `CIRCLES_GROUPS=on` en API **y** worker, escrita **después** de desplegar el código con los grupos cerrados                      |
+| Forma en producción            | `production-ready.mjs` — 18/18, incluido el nonce distinto por petición                                                          |
+| Descubrimiento                 | `/actividades/grupo-lo-que-nos-ayuda` sirve la plantilla aprobada por su título                                                  |
+
+**El smoke productivo autenticado no se observó**, por la misma razón que en el
+Dúo: la única cuenta organizadora de la allowlist es la personal de Jorge y no
+hay cuenta técnica con credenciales en fichero. Autenticarla habría exigido
+extraer una sesión de una persona. Lo que no necesita cuenta sí se comprobó
+(arriba); el resto es la prueba manual de §7.
+
+**Escrituras en producción:** ninguna fila. Dos variables de configuración
+(`CIRCLES_GROUPS` en API y worker) y dos redespliegues.
+
 ---
 
 ## 0 · Las dos frases que gobiernan el resto

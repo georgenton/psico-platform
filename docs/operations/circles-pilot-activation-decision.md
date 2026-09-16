@@ -16,6 +16,26 @@
 Alcance de lo aprobado: **Dúo de dos personas adultas**. Nada más. Ni grupos, ni
 Eco, ni Mobile, ni notificaciones, ni correo.
 
+### Estado productivo observado
+
+| qué                            | estado                                                                                                                    |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| PR #716                        | fusionada por merge commit `a302c61c` (padres `5d5a4e68` + `c13036a7`)                                                    |
+| API `psico-platform`           | deployment `39d81700` · `a302c61c` · SUCCESS · `/health` 200                                                              |
+| Worker `psico-platform-worker` | deployment `57e13138` · `a302c61c` · SUCCESS                                                                              |
+| Web `psico-platform-web`       | despliegue de producción listo desde `main`                                                                               |
+| Migraciones                    | **una** aplicada esta ronda, `20260916000000_circles_analytics`, por el `preDeployCommand` normal. 67 en total. Sin seed. |
+| Descubrimiento                 | `/actividades/duo-lo-que-me-ayuda` sirve **@2**; cero apariciones de @1                                                   |
+| Rollout                        | `pilot` sin cambios, con la allowlist existente                                                                           |
+| Pulso · Círculos               | rechaza a quien no está autenticado (401)                                                                                 |
+
+**El smoke productivo autenticado no se observó.** La única cuenta organizadora
+de la allowlist es la personal de Jorge y no hay cuenta técnica con credenciales
+en fichero; autenticarla habría exigido extraer una sesión de una persona, que
+es justo lo que no se hace. La parte que no necesita cuenta sí se comprobó
+(arriba); el resto —aceptación explícita, actividad nueva con datos ficticios y
+cierre— queda como prueba manual de Jorge.
+
 ---
 
 ## 1 · La plantilla publicada

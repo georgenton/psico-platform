@@ -278,3 +278,65 @@ export function resolveDuoSurface(
     href: `/dashboard/exploraciones/${encodeURIComponent(mapping.experienceKey)}`,
   });
 }
+
+/** Where the Círculos listing sends somebody, and what to call the link. */
+export interface CircleStart {
+  /**
+   * `reading` — the activity is offered by the material it belongs to, and the
+   * listing only points at it. `direct` — the listing IS the surface.
+   */
+  readonly kind: "reading" | "direct";
+  readonly href: string;
+  readonly label: string;
+}
+
+/**
+ * How an activity in the listing can actually be started, or `null`.
+ *
+ * Decided per AUDIENCE, enumerated, with no fallback — the same posture as the
+ * catalog above, and for the same reason: the cost of guessing wrong is not a
+ * broken layout, it is offering an activity from a place nobody approved.
+ *
+ * ── A Dúo is offered by its reading ────────────────────────────────────────
+ *
+ * Unchanged. Reading about something and deciding to do it with another person
+ * are different acts, and only the reading surface is entitled to make the
+ * offer, so the listing points at that surface and never starts one itself. No
+ * mapping, no agreement, no offer.
+ *
+ * ── A group is offered here ────────────────────────────────────────────────
+ *
+ * `grupo-lo-que-nos-ayuda@1` names a book and a chapter as its source but
+ * declares NO `experiencePin`, which is the editorial statement that it is not
+ * proposed by a particular reading. It has nowhere else to be offered from —
+ * and a published, eligible activity whose only screen says "todavía no hay una
+ * desde la que puedas empezarla" is a dead end the listing itself created.
+ *
+ * A group that DID declare an experience pin is refused rather than offered
+ * from both places. Two surfaces for one activity is an authoring question, and
+ * answering it here by preferring one would be the guess this file exists to
+ * avoid.
+ */
+export function resolveCircleStart(
+  definition: CircleActivityDefinition,
+  deps: DuoEligibilityDeps = PRODUCTION_DEPS,
+): CircleStart | null {
+  if (definition.status !== "PUBLISHED") return null;
+
+  if (definition.audience === "GROUP_ADULT") {
+    if (definition.source.experiencePin) return null;
+    return Object.freeze({
+      kind: "direct" as const,
+      href: `/dashboard/circulos/nuevo/${encodeURIComponent(definition.templateKey)}`,
+      label: "Empezar este círculo",
+    });
+  }
+
+  const surface = resolveDuoSurface(definition.templateKey, deps);
+  if (!surface) return null;
+  return Object.freeze({
+    kind: "reading" as const,
+    href: surface.href,
+    label: "Ir a la experiencia",
+  });
+}

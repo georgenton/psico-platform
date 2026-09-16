@@ -55,6 +55,27 @@ export const CIRCLE_ANALYTICS_RETENTION = {
  */
 export const CIRCLE_SMALL_CELL_THRESHOLD = 10;
 
+/**
+ * The smallest number of DISTINCT ACTIVITIES a cell may report.
+ *
+ * Ten contributors used to be the whole rule, and it was written when every
+ * activity had exactly two seats: ten contributors meant at least five separate
+ * rooms, so no room's members could subtract themselves and be left with an
+ * identifiable one.
+ *
+ * A group of six breaks that arithmetic. Two rooms can now supply twelve
+ * contributors, and each organiser knows their own six — so subtracting them
+ * leaves the OTHER room's answers fully exposed, from a cell the ten-contributor
+ * rule called safe. The user's constraint says it exactly: a group of six does
+ * not authorise a statistic that needs ten contributors.
+ *
+ * Three, not two: with two rooms, subtracting your own leaves exactly one other
+ * room. With three, it leaves two combined, which is the smallest number that
+ * is not a single room wearing a total. It is a judgement, not a derivation,
+ * and it errs towards saying less.
+ */
+export const CIRCLE_SMALL_ACTIVITY_THRESHOLD = 3;
+
 export interface CircleFunnelCohort {
   readonly windowStart: string;
   readonly windowEnd: string;
@@ -83,10 +104,29 @@ export type CircleCell =
   | { readonly kind: "value"; readonly label: string; readonly value: number }
   | { readonly kind: "suppressed"; readonly label: string };
 
+/**
+ * Activities by the shape they ran in, and by how many people were in them.
+ *
+ * Counts of ACTIVITIES, not of people: nobody is behind a cell, so nothing here
+ * is suppressed and nothing here can be subtracted into a contributor's answer.
+ * It is the operational question — is anybody using the second shape, and at
+ * what sizes — and it is deliberately not broken down by week, which is how a
+ * count of activities starts pointing at one activity.
+ */
+export interface CircleModalitySummary {
+  readonly kind: "DUO" | "GROUP_ADULT";
+  /** People the activity is for, the organiser included. */
+  readonly size: number;
+  readonly activitiesCreated: number;
+  readonly activitiesRevealed: number;
+  readonly activitiesClosed: number;
+}
+
 export interface CircleAnalyticsSummary {
   readonly generatedAt: string;
   readonly cohort: CircleFunnelCohort;
   readonly durations: readonly CircleDurationSummary[];
+  readonly byModality: readonly CircleModalitySummary[];
   readonly byTemplate: readonly {
     readonly templateKey: string;
     readonly templateVersion: number;
@@ -255,6 +295,7 @@ export class CirclesAnalyticsService {
       where: { createdAt: { lt: cutoff } },
       select: {
         participantId: true,
+        activityId: true,
         templateKey: true,
         templateVersion: true,
         topics: true,
@@ -266,6 +307,7 @@ export class CirclesAnalyticsService {
       where: { createdAt: { lt: cutoff } },
       select: {
         participantId: true,
+        activityId: true,
         templateKey: true,
         templateVersion: true,
         fieldKey: true,
@@ -275,17 +317,31 @@ export class CirclesAnalyticsService {
       },
     });
 
-    type Bucket = { value: number; contributors: Set<string> };
+    type Bucket = {
+      value: number;
+      contributors: Set<string>;
+      activities: Set<string>;
+    };
     const facts = new Map<string, Bucket & { row: FactRow }>();
-    const bump = (row: FactRow, participantId: string, value: number) => {
+    const bump = (
+      row: FactRow,
+      participantId: string,
+      activityId: string,
+      value: number,
+    ) => {
       const id = `${row.weekStart.toISOString()}|${row.templateKey}|${row.templateVersion}|${row.metric}|${row.dimension}`;
       const found = facts.get(id) ?? {
         row,
         value: 0,
         contributors: new Set<string>(),
+        activities: new Set<string>(),
       };
       found.value += value;
       found.contributors.add(participantId);
+      // Folded alongside the contributor count so a cell keeps BOTH of its
+      // suppression inputs after the rows it came from are deleted. Without it
+      // a folded cell would have to be trusted or suppressed forever.
+      found.activities.add(activityId);
       facts.set(id, found);
     };
 
@@ -301,6 +357,7 @@ export class CirclesAnalyticsService {
             dimension: topic,
           },
           f.participantId,
+          f.activityId,
           1,
         );
       }
@@ -314,6 +371,7 @@ export class CirclesAnalyticsService {
             dimension: f.usefulness,
           },
           f.participantId,
+          f.activityId,
           1,
         );
       }
@@ -328,11 +386,12 @@ export class CirclesAnalyticsService {
           dimension: `${h.fieldKey}:${h.piece}`,
         },
         h.participantId,
+        h.activityId,
         h.opens,
       );
     }
 
-    for (const { row, value, contributors } of facts.values()) {
+    for (const { row, value, contributors, activities } of facts.values()) {
       await this.prisma.circleWeeklyFact.upsert({
         where: {
           weekStart_templateKey_templateVersion_metric_dimension: {
@@ -347,12 +406,14 @@ export class CirclesAnalyticsService {
           ...row,
           value,
           contributors: contributors.size,
+          activities: activities.size,
         },
         // Accumulated, because a later sweep folds a DIFFERENT set of rows into
         // the same week: the ones that had not aged out yet last time.
         update: {
           value: { increment: value },
           contributors: { increment: contributors.size },
+          activities: { increment: activities.size },
         },
       });
     }
@@ -411,6 +472,8 @@ export class CirclesAnalyticsService {
             status: true,
             templateKey: true,
             templateVersion: true,
+            kind: true,
+            requiredParticipants: true,
           },
         }),
         this.prisma.circleArtifact.findMany({
@@ -508,6 +571,33 @@ export class CirclesAnalyticsService {
       byTemplateMap.set(id, found);
     }
 
+    /**
+     * By shape and by size. Activities, not people.
+     *
+     * Keyed on the activity's OWN `kind` and `requiredParticipants` rather than
+     * on the template's range: a template that admits three to six says nothing
+     * about how many people this particular room holds, and the operational
+     * question is about rooms that exist.
+     */
+    const byModalityMap = new Map<string, CircleModalitySummary>();
+    for (const a of activities) {
+      const kind = a.kind === "GROUP_ADULT" ? "GROUP_ADULT" : "DUO";
+      const id = `${kind}:${a.requiredParticipants}`;
+      const found = byModalityMap.get(id) ?? {
+        kind: kind as CircleModalitySummary["kind"],
+        size: a.requiredParticipants,
+        activitiesCreated: 0,
+        activitiesRevealed: 0,
+        activitiesClosed: 0,
+      };
+      byModalityMap.set(id, {
+        ...found,
+        activitiesCreated: found.activitiesCreated + 1,
+        activitiesRevealed: found.activitiesRevealed + (a.revealedAt ? 1 : 0),
+        activitiesClosed: found.activitiesClosed + (a.closedAt ? 1 : 0),
+      });
+    }
+
     const [live, folded] = await Promise.all([
       this.liveContributionCells(windowStart, now),
       this.foldedCells(windowStart),
@@ -517,6 +607,9 @@ export class CirclesAnalyticsService {
       generatedAt: now.toISOString(),
       cohort,
       durations,
+      byModality: [...byModalityMap.values()].sort((a, b) =>
+        a.kind === b.kind ? a.size - b.size : a.kind.localeCompare(b.kind),
+      ),
       byTemplate: [...byTemplateMap.values()].sort((a, b) =>
         a.templateKey === b.templateKey
           ? a.templateVersion - b.templateVersion
@@ -543,6 +636,7 @@ export class CirclesAnalyticsService {
         where: { createdAt: { gte: from, lte: to } },
         select: {
           participantId: true,
+          activityId: true,
           topics: true,
           usefulness: true,
           createdAt: true,
@@ -552,6 +646,7 @@ export class CirclesAnalyticsService {
         where: { createdAt: { gte: from, lte: to } },
         select: {
           participantId: true,
+          activityId: true,
           fieldKey: true,
           piece: true,
           opens: true,
@@ -566,9 +661,11 @@ export class CirclesAnalyticsService {
 
     for (const f of feedback) {
       const week = weekStartOf(f.createdAt).toISOString();
-      for (const t of f.topics) add(topic, week, t, 1, f.participantId);
+      for (const t of f.topics) {
+        add(topic, week, t, 1, f.participantId, f.activityId);
+      }
       if (f.usefulness) {
-        add(usefulness, week, f.usefulness, 1, f.participantId);
+        add(usefulness, week, f.usefulness, 1, f.participantId, f.activityId);
       }
     }
     for (const h of help) {
@@ -579,6 +676,7 @@ export class CirclesAnalyticsService {
         `${h.fieldKey}:${h.piece}`,
         h.opens,
         h.participantId,
+        h.activityId,
       );
     }
 
@@ -601,6 +699,7 @@ export class CirclesAnalyticsService {
         dimension: true,
         value: true,
         contributors: true,
+        activities: true,
       },
     });
     const topic = new Map<string, Map<string, Bucket>>();
@@ -617,9 +716,12 @@ export class CirclesAnalyticsService {
         value: 0,
         contributors: new Set<string>(),
         contributorCount: 0,
+        activities: new Set<string>(),
+        activityCount: 0,
       };
       cell.value += r.value;
       cell.contributorCount += r.contributors;
+      cell.activityCount += r.activities;
       weekMap.set(r.dimension, cell);
       map.set(week, weekMap);
     }
@@ -639,6 +741,9 @@ interface Bucket {
   value: number;
   contributors: Set<string>;
   contributorCount: number;
+  /** Distinct activities behind the cell. See the activity threshold. */
+  activities: Set<string>;
+  activityCount: number;
 }
 
 function add(
@@ -647,15 +752,19 @@ function add(
   dimension: string,
   value: number,
   participantId: string,
+  activityId: string,
 ): void {
   const weekMap = map.get(week) ?? new Map<string, Bucket>();
   const cell = weekMap.get(dimension) ?? {
     value: 0,
     contributors: new Set<string>(),
     contributorCount: 0,
+    activities: new Set<string>(),
+    activityCount: 0,
   };
   cell.value += value;
   cell.contributors.add(participantId);
+  cell.activities.add(activityId);
   weekMap.set(dimension, cell);
   map.set(week, weekMap);
 }
@@ -676,24 +785,33 @@ function mergeWeeks(
   const out: { weekStart: string; cells: CircleCell[] }[] = [];
 
   for (const week of [...weeks].sort()) {
-    const merged = new Map<string, { value: number; contributors: number }>();
+    const merged = new Map<
+      string,
+      { value: number; contributors: number; activities: number }
+    >();
+    const empty = () => ({ value: 0, contributors: 0, activities: 0 });
     for (const [dimension, cell] of live.get(week) ?? []) {
-      const found = merged.get(dimension) ?? { value: 0, contributors: 0 };
+      const found = merged.get(dimension) ?? empty();
       found.value += cell.value;
       found.contributors += cell.contributors.size;
+      found.activities += cell.activities.size;
       merged.set(dimension, found);
     }
     for (const [dimension, cell] of folded.get(week) ?? []) {
-      const found = merged.get(dimension) ?? { value: 0, contributors: 0 };
+      const found = merged.get(dimension) ?? empty();
       found.value += cell.value;
       found.contributors += cell.contributorCount;
+      found.activities += cell.activityCount;
       merged.set(dimension, found);
     }
 
+    // BOTH thresholds. Ten contributors used to imply five rooms; with groups
+    // it can be two, and two rooms are subtractable by either organiser.
     const cells: CircleCell[] = [...merged.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([label, cell]) =>
-        cell.contributors >= CIRCLE_SMALL_CELL_THRESHOLD
+        cell.contributors >= CIRCLE_SMALL_CELL_THRESHOLD &&
+        cell.activities >= CIRCLE_SMALL_ACTIVITY_THRESHOLD
           ? { kind: "value" as const, label, value: cell.value }
           : { kind: "suppressed" as const, label },
       );

@@ -63,6 +63,8 @@ const PURGE_MIGRATION = "20260915000000_circles_artifact_purge";
  * after", which is the shape that would have let it pass unnoticed.
  */
 const ANALYTICS_MIGRATION = "20260916000000_circles_analytics";
+/** Adult groups. Named for the same reason, and it broke the same two tails. */
+const GROUPS_MIGRATION = "20260916100000_circles_adult_groups";
 
 /**
  * ── The harness owns only what it created ─────────────────────────────────
@@ -969,7 +971,7 @@ suite("circles · account deletion (real PostgreSQL)", () => {
         userId,
         templateKey: PUBLISHED_DUO_TEMPLATE.templateKey,
         templateVersion: PUBLISHED_DUO_TEMPLATE.templateVersion,
-        invitationToken: token.raw,
+        invitationTokens: [token.raw],
         idempotencyKey: `idem-${uid("k")}`,
       });
       const session = await access.exchange(token.raw);
@@ -1012,7 +1014,7 @@ suite("circles · account deletion (real PostgreSQL)", () => {
         userId,
         templateKey: PUBLISHED_DUO_TEMPLATE.templateKey,
         templateVersion: PUBLISHED_DUO_TEMPLATE.templateVersion,
-        invitationToken: mintInvitationToken().raw,
+        invitationTokens: [mintInvitationToken().raw],
         idempotencyKey: `idem-${uid("k")}`,
       });
 
@@ -2775,6 +2777,7 @@ suite(
           THIS_MIGRATION,
           PURGE_MIGRATION,
           ANALYTICS_MIGRATION,
+          GROUPS_MIGRATION,
         ]);
 
         const { readFileSync } = await import("node:fs");
@@ -2896,6 +2899,7 @@ suite(
         expect(all.slice(index)).toEqual([
           PURGE_MIGRATION,
           ANALYTICS_MIGRATION,
+          GROUPS_MIGRATION,
         ]);
 
         const { readFileSync } = await import("node:fs");

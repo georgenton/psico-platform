@@ -1,5 +1,8 @@
 import type { CircleAnalyticsSummary } from "../circles/circles-analytics.service";
-import { CIRCLE_SMALL_CELL_THRESHOLD } from "../circles/circles-analytics.service";
+import {
+  CIRCLE_SMALL_ACTIVITY_THRESHOLD,
+  CIRCLE_SMALL_CELL_THRESHOLD,
+} from "../circles/circles-analytics.service";
 
 /**
  * The Círculos panel's two small pure pieces: its window, and its export.
@@ -46,12 +49,22 @@ export function circlesCsv(summary: CircleAnalyticsSummary): string {
   row("# FeelVerse · Círculos — agregados");
   row("# generado", summary.generatedAt);
   row("# ventana", summary.cohort.windowStart, summary.cohort.windowEnd);
-  row("# umbral de celda", `${CIRCLE_SMALL_CELL_THRESHOLD} contribuyentes`);
+  row(
+    "# umbral de celda",
+    `${CIRCLE_SMALL_CELL_THRESHOLD} contribuyentes y ` +
+      `${CIRCLE_SMALL_ACTIVITY_THRESHOLD} actividades distintas`,
+  );
   row("# cobertura", summary.coverage.note);
   row(
     "# nota",
     "Las celdas por debajo del umbral aparecen como «muestra insuficiente», " +
       "no como cero. El umbral reduce exposición; no garantiza anonimato.",
+  );
+  row(
+    "# nota",
+    "Se piden las dos condiciones. Diez contribuyentes implicaban cinco salas " +
+      "cuando toda actividad tenía dos asientos; con grupos pueden ser dos, y " +
+      "cada organizadora conoce la suya: restarla dejaría la otra a la vista.",
   );
   row("");
 
@@ -78,6 +91,15 @@ export function circlesCsv(summary: CircleAnalyticsSummary): string {
     row("tiempos", d.label, "muestras", d.samples);
     row("tiempos", d.label, "mediana_min", d.medianMinutes ?? "sin datos");
     row("tiempos", d.label, "p90_min", d.p90Minutes ?? "muestra insuficiente");
+  }
+
+  // Shape and size. Counts of ACTIVITIES — nobody is behind a cell, so there
+  // is nothing to suppress and nothing to subtract into somebody's answer.
+  for (const m of summary.byModality) {
+    const label = m.kind === "GROUP_ADULT" ? `grupo_de_${m.size}` : "duo";
+    row("por_modalidad", label, "creadas", m.activitiesCreated);
+    row("por_modalidad", label, "reveladas", m.activitiesRevealed);
+    row("por_modalidad", label, "cerradas", m.activitiesClosed);
   }
 
   for (const t of summary.byTemplate) {

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import { CrearDuo } from "./CrearDuo";
+import { CrearCirculo } from "./CrearCirculo";
 import { invitationLink, mintInvitationToken } from "@/lib/circulos/invitacion";
 
 /**
@@ -20,7 +20,8 @@ interface Call {
     payload: {
       templateKey: string;
       templateVersion: number;
-      invitationToken: string;
+      invitationTokens: string[];
+      size?: number;
     };
     idempotencyKey: string;
   };
@@ -63,8 +64,14 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function mount() {
-  return render(<CrearDuo templateKey="fixture-duo" templateVersion={1} />);
+function mount(sizes: readonly number[] = [2]) {
+  return render(
+    <CrearCirculo
+      templateKey="fixture-duo"
+      templateVersion={1}
+      sizes={sizes}
+    />,
+  );
 }
 
 const crear = () => screen.getByRole("button", { name: /Crear Dúo/ });
@@ -125,8 +132,8 @@ describe("one intention survives its retries", () => {
     await screen.findByText(/Comparte este enlace/);
 
     expect(calls).toHaveLength(2);
-    expect(calls[1]!.body.payload.invitationToken).toBe(
-      calls[0]!.body.payload.invitationToken,
+    expect(calls[1]!.body.payload.invitationTokens[0]).toBe(
+      calls[0]!.body.payload.invitationTokens[0],
     );
     expect(calls[1]!.body.idempotencyKey).toBe(calls[0]!.body.idempotencyKey);
   });
@@ -162,8 +169,8 @@ describe("one intention survives its retries", () => {
     expect(calls[1]!.body.idempotencyKey).not.toBe(
       calls[0]!.body.idempotencyKey,
     );
-    expect(calls[1]!.body.payload.invitationToken).not.toBe(
-      calls[0]!.body.payload.invitationToken,
+    expect(calls[1]!.body.payload.invitationTokens[0]).not.toBe(
+      calls[0]!.body.payload.invitationTokens[0],
     );
   });
 });
@@ -198,7 +205,7 @@ describe("the token is a real secret, carried in the fragment", () => {
     await user.click(crear());
     await screen.findByText(/Comparte este enlace/);
 
-    const token = calls[0]!.body.payload.invitationToken;
+    const token = calls[0]!.body.payload.invitationTokens[0];
     const link = screen.getByText(new RegExp(`/i#${token}$`));
     const url = new URL(link.textContent!);
     expect(url.hash).toBe(`#${token}`);
@@ -217,7 +224,7 @@ describe("the token is a real secret, carried in the fragment", () => {
     mount();
     await user.click(crear());
     await screen.findByText(/Comparte este enlace/);
-    const token = calls[0]!.body.payload.invitationToken;
+    const token = calls[0]!.body.payload.invitationTokens[0];
 
     // Not in the request line — only in the JSON body over TLS.
     expect(calls[0]!.url).not.toContain(token);
@@ -252,10 +259,14 @@ describe("the payload is exactly what the handler accepts", () => {
     const body = calls[0]!.body;
     expect(Object.keys(body).sort()).toEqual(["idempotencyKey", "payload"]);
     expect(Object.keys(body.payload).sort()).toEqual([
-      "invitationToken",
+      "invitationTokens",
       "templateKey",
       "templateVersion",
     ]);
+    // One secret, because a Dúo has one seat that is not the organiser's. No
+    // `size`: the template's range has a single value, so there was nothing to
+    // choose and nothing to send.
+    expect(body.payload.invitationTokens).toHaveLength(1);
     expect(body.payload.templateKey).toBe("fixture-duo");
     expect(body.payload.templateVersion).toBe(1);
     expect(body.idempotencyKey).toMatch(
@@ -345,7 +356,9 @@ describe("what success and failure show", () => {
     // What reaches the clipboard is the whole link, token included.
     expect(writeText).toHaveBeenCalledOnce();
     const copied = writeText.mock.calls[0]![0] as string;
-    expect(copied).toContain(`/i#${calls[0]!.body.payload.invitationToken}`);
+    expect(copied).toContain(
+      `/i#${calls[0]!.body.payload.invitationTokens[0]}`,
+    );
   });
 
   it("names each actionable failure without leaking a cause", async () => {

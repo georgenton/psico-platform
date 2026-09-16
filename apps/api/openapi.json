@@ -20415,6 +20415,128 @@
         ]
       }
     },
+    "/api/pulso/circulos": {
+      "get": {
+        "operationId": "PulsoController_circulos",
+        "parameters": [
+          {
+            "name": "windowDays",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Círculos usage and friction, aggregated. Small cells are suppressed.",
+        "tags": [
+          "Pulso"
+        ]
+      }
+    },
+    "/api/pulso/circulos.csv": {
+      "get": {
+        "operationId": "PulsoController_circulosCsv",
+        "parameters": [
+          {
+            "name": "windowDays",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "The same aggregates, with the same suppression",
+        "tags": [
+          "Pulso"
+        ]
+      }
+    },
     "/api/pulso/reports/eco/summary": {
       "get": {
         "operationId": "PulsoController_getSummary",
@@ -21227,6 +21349,627 @@
         "summary": "Change a user's role. Logged in RoleChangeLog for audit.",
         "tags": [
           "Pulso"
+        ]
+      }
+    },
+    "/api/circles/access": {
+      "get": {
+        "operationId": "CirclesController_access",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Enabled."
+          },
+          "503": {
+            "description": "CIRCLES_UNAVAILABLE."
+          }
+        },
+        "summary": "Whether Círculos is enabled for the caller",
+        "tags": [
+          "circles"
+        ]
+      }
+    },
+    "/api/circles/invitations/inspect": {
+      "post": {
+        "operationId": "CirclesController_inspect",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InspectInvitationDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Usable. `preview` carries the minimum needed to decide — who invites, what it is, how long — or is null when this build cannot describe the invitation. Never ids, roster, state or content."
+          },
+          "404": {
+            "description": "CIRCLE_INVITATION_UNUSABLE — one answer for nonexistent, malformed, expired, already used, declined and revoked alike."
+          }
+        },
+        "summary": "Check an invitation without consuming it",
+        "tags": [
+          "circles"
+        ]
+      }
+    },
+    "/api/circles/invitations/accept": {
+      "post": {
+        "operationId": "CirclesController_accept",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptInvitationDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The guest session was created."
+          },
+          "404": {
+            "description": "CIRCLE_INVITATION_UNUSABLE — the same single answer."
+          }
+        },
+        "summary": "Trade an invitation for a guest session",
+        "tags": [
+          "circles"
+        ]
+      }
+    },
+    "/api/circles/guest/session": {
+      "get": {
+        "operationId": "CirclesController_guestSession",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The resolved guest actor."
+          },
+          "401": {
+            "description": "CIRCLE_GUEST_SESSION_INVALID — one answer for missing, unknown, expired and revoked alike."
+          }
+        },
+        "summary": "The scope of the presented guest session",
+        "tags": [
+          "circles"
+        ]
+      }
+    },
+    "/api/circles/duo": {
+      "post": {
+        "operationId": "CirclesMemberParticipationController_createDuo",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDuoDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created, or replayed unchanged."
+          },
+          "409": {
+            "description": "CIRCLE_IDEMPOTENCY_CONFLICT."
+          },
+          "422": {
+            "description": "CIRCLE_TEMPLATE_UNAVAILABLE."
+          }
+        },
+        "summary": "Create a Dúo and its first activity",
+        "tags": [
+          "circles"
+        ]
+      }
+    },
+    "/api/circles/activities/{activityId}": {
+      "get": {
+        "operationId": "CirclesMemberParticipationController_activity",
+        "parameters": [
+          {
+            "name": "activityId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "summary": "The activity, filtered for this actor",
+        "tags": [
+          "circles"
+        ]
+      }
+    },
+    "/api/circles/activities/{activityId}/share-confirmations": {
+      "post": {
+        "operationId": "CirclesMemberParticipationController_confirmShare",
+        "parameters": [
+          {
+            "name": "activityId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/ConfirmSelectedFieldsDto"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ConfirmEditedSummaryDto"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ConfirmKeepPrivateDto"
+                  }
+                ],
+                "discriminator": {
+                  "propertyName": "mode",
+                  "mapping": {
+                    "SELECTED_FIELDS": "#/components/schemas/ConfirmSelectedFieldsDto",
+                    "EDITED_SUMMARY": "#/components/schemas/ConfirmEditedSummaryDto",
+                    "KEEP_PRIVATE": "#/components/schemas/ConfirmKeepPrivateDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          },
+          "400": {
+            "description": "CIRCLE_INVALID_PAYLOAD."
+          },
+          "409": {
+            "description": "CIRCLE_IDEMPOTENCY_CONFLICT."
+          }
+        },
+        "summary": "Confirm what you share; may trigger the reveal",
+        "tags": [
+          "circles"
+        ]
+      }
+    },
+    "/api/circles/activities/{activityId}/withdraw": {
+      "post": {
+        "operationId": "CirclesMemberParticipationController_withdraw",
+        "parameters": [
+          {
+            "name": "activityId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Leave. No reason is accepted.",
+        "tags": [
+          "circles"
+        ]
+      }
+    },
+    "/api/circles/activities/{activityId}/artifact": {
+      "put": {
+        "operationId": "CirclesMemberParticipationController_proposeArtifact",
+        "parameters": [
+          {
+            "name": "activityId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProposeArtifactDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Propose or edit the shared result",
+        "tags": [
+          "circles"
+        ]
+      }
+    },
+    "/api/circles/activities/{activityId}/artifact/confirm": {
+      "post": {
+        "operationId": "CirclesMemberParticipationController_confirmArtifact",
+        "parameters": [
+          {
+            "name": "activityId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmArtifactDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Confirm an exact artifact and version",
+        "tags": [
+          "circles"
+        ]
+      }
+    },
+    "/api/circles/activities/{activityId}/follow-up": {
+      "post": {
+        "operationId": "CirclesMemberParticipationController_followUp",
+        "parameters": [
+          {
+            "name": "activityId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordFollowUpDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Record KEEP | ADJUST | CLOSE",
+        "tags": [
+          "circles"
+        ]
+      }
+    },
+    "/api/circles/activities/{activityId}/feedback": {
+      "post": {
+        "operationId": "CirclesMemberParticipationController_feedback",
+        "parameters": [
+          {
+            "name": "activityId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CircleFeedbackDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Recorded, or recorded again."
+          }
+        },
+        "summary": "Optional, opt-in feedback about the activity",
+        "tags": [
+          "circles"
+        ]
+      }
+    },
+    "/api/circles/guest/activities/{activityId}": {
+      "get": {
+        "operationId": "CirclesGuestParticipationController_activity",
+        "parameters": [
+          {
+            "name": "activityId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "summary": "The activity, filtered for this guest",
+        "tags": [
+          "circles"
+        ]
+      }
+    },
+    "/api/circles/guest/activities/{activityId}/share-confirmations": {
+      "post": {
+        "operationId": "CirclesGuestParticipationController_confirmShare",
+        "parameters": [
+          {
+            "name": "activityId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/ConfirmSelectedFieldsDto"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ConfirmEditedSummaryDto"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ConfirmKeepPrivateDto"
+                  }
+                ],
+                "discriminator": {
+                  "propertyName": "mode",
+                  "mapping": {
+                    "SELECTED_FIELDS": "#/components/schemas/ConfirmSelectedFieldsDto",
+                    "EDITED_SUMMARY": "#/components/schemas/ConfirmEditedSummaryDto",
+                    "KEEP_PRIVATE": "#/components/schemas/ConfirmKeepPrivateDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          },
+          "400": {
+            "description": "CIRCLE_INVALID_PAYLOAD."
+          },
+          "409": {
+            "description": "CIRCLE_IDEMPOTENCY_CONFLICT."
+          }
+        },
+        "summary": "Confirm what you share; may trigger the reveal",
+        "tags": [
+          "circles"
+        ]
+      }
+    },
+    "/api/circles/guest/activities/{activityId}/withdraw": {
+      "post": {
+        "operationId": "CirclesGuestParticipationController_withdraw",
+        "parameters": [
+          {
+            "name": "activityId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Leave. No reason is accepted.",
+        "tags": [
+          "circles"
+        ]
+      }
+    },
+    "/api/circles/guest/activities/{activityId}/artifact": {
+      "put": {
+        "operationId": "CirclesGuestParticipationController_proposeArtifact",
+        "parameters": [
+          {
+            "name": "activityId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProposeArtifactDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Propose or edit the shared result",
+        "tags": [
+          "circles"
+        ]
+      }
+    },
+    "/api/circles/guest/activities/{activityId}/artifact/confirm": {
+      "post": {
+        "operationId": "CirclesGuestParticipationController_confirmArtifact",
+        "parameters": [
+          {
+            "name": "activityId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmArtifactDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Confirm an exact artifact and version",
+        "tags": [
+          "circles"
+        ]
+      }
+    },
+    "/api/circles/guest/activities/{activityId}/follow-up": {
+      "post": {
+        "operationId": "CirclesGuestParticipationController_followUp",
+        "parameters": [
+          {
+            "name": "activityId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordFollowUpDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Record KEEP | ADJUST | CLOSE",
+        "tags": [
+          "circles"
+        ]
+      }
+    },
+    "/api/circles/guest/activities/{activityId}/feedback": {
+      "post": {
+        "operationId": "CirclesGuestParticipationController_feedback",
+        "parameters": [
+          {
+            "name": "activityId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CircleFeedbackDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": ""
+          }
+        },
+        "summary": "Optional, opt-in feedback about the activity",
+        "tags": [
+          "circles"
         ]
       }
     },
@@ -23878,559 +24621,6 @@
         "summary": "Actualiza el método y datos de cobro del autor. Upsert idempotente.",
         "tags": [
           "autor"
-        ]
-      }
-    },
-    "/api/circles/access": {
-      "get": {
-        "operationId": "CirclesController_access",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Enabled."
-          },
-          "503": {
-            "description": "CIRCLES_UNAVAILABLE."
-          }
-        },
-        "summary": "Whether Círculos is enabled for the caller",
-        "tags": [
-          "circles"
-        ]
-      }
-    },
-    "/api/circles/invitations/inspect": {
-      "post": {
-        "operationId": "CirclesController_inspect",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/InspectInvitationDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Usable. `preview` carries the minimum needed to decide — who invites, what it is, how long — or is null when this build cannot describe the invitation. Never ids, roster, state or content."
-          },
-          "404": {
-            "description": "CIRCLE_INVITATION_UNUSABLE — one answer for nonexistent, malformed, expired, already used, declined and revoked alike."
-          }
-        },
-        "summary": "Check an invitation without consuming it",
-        "tags": [
-          "circles"
-        ]
-      }
-    },
-    "/api/circles/invitations/accept": {
-      "post": {
-        "operationId": "CirclesController_accept",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AcceptInvitationDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "The guest session was created."
-          },
-          "404": {
-            "description": "CIRCLE_INVITATION_UNUSABLE — the same single answer."
-          }
-        },
-        "summary": "Trade an invitation for a guest session",
-        "tags": [
-          "circles"
-        ]
-      }
-    },
-    "/api/circles/guest/session": {
-      "get": {
-        "operationId": "CirclesController_guestSession",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "The resolved guest actor."
-          },
-          "401": {
-            "description": "CIRCLE_GUEST_SESSION_INVALID — one answer for missing, unknown, expired and revoked alike."
-          }
-        },
-        "summary": "The scope of the presented guest session",
-        "tags": [
-          "circles"
-        ]
-      }
-    },
-    "/api/circles/duo": {
-      "post": {
-        "operationId": "CirclesMemberParticipationController_createDuo",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateDuoDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Created, or replayed unchanged."
-          },
-          "409": {
-            "description": "CIRCLE_IDEMPOTENCY_CONFLICT."
-          },
-          "422": {
-            "description": "CIRCLE_TEMPLATE_UNAVAILABLE."
-          }
-        },
-        "summary": "Create a Dúo and its first activity",
-        "tags": [
-          "circles"
-        ]
-      }
-    },
-    "/api/circles/activities/{activityId}": {
-      "get": {
-        "operationId": "CirclesMemberParticipationController_activity",
-        "parameters": [
-          {
-            "name": "activityId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          }
-        },
-        "summary": "The activity, filtered for this actor",
-        "tags": [
-          "circles"
-        ]
-      }
-    },
-    "/api/circles/activities/{activityId}/share-confirmations": {
-      "post": {
-        "operationId": "CirclesMemberParticipationController_confirmShare",
-        "parameters": [
-          {
-            "name": "activityId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "oneOf": [
-                  {
-                    "$ref": "#/components/schemas/ConfirmSelectedFieldsDto"
-                  },
-                  {
-                    "$ref": "#/components/schemas/ConfirmEditedSummaryDto"
-                  },
-                  {
-                    "$ref": "#/components/schemas/ConfirmKeepPrivateDto"
-                  }
-                ],
-                "discriminator": {
-                  "propertyName": "mode",
-                  "mapping": {
-                    "SELECTED_FIELDS": "#/components/schemas/ConfirmSelectedFieldsDto",
-                    "EDITED_SUMMARY": "#/components/schemas/ConfirmEditedSummaryDto",
-                    "KEEP_PRIVATE": "#/components/schemas/ConfirmKeepPrivateDto"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": ""
-          },
-          "400": {
-            "description": "CIRCLE_INVALID_PAYLOAD."
-          },
-          "409": {
-            "description": "CIRCLE_IDEMPOTENCY_CONFLICT."
-          }
-        },
-        "summary": "Confirm what you share; may trigger the reveal",
-        "tags": [
-          "circles"
-        ]
-      }
-    },
-    "/api/circles/activities/{activityId}/withdraw": {
-      "post": {
-        "operationId": "CirclesMemberParticipationController_withdraw",
-        "parameters": [
-          {
-            "name": "activityId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "summary": "Leave. No reason is accepted.",
-        "tags": [
-          "circles"
-        ]
-      }
-    },
-    "/api/circles/activities/{activityId}/artifact": {
-      "put": {
-        "operationId": "CirclesMemberParticipationController_proposeArtifact",
-        "parameters": [
-          {
-            "name": "activityId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ProposeArtifactDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "summary": "Propose or edit the shared result",
-        "tags": [
-          "circles"
-        ]
-      }
-    },
-    "/api/circles/activities/{activityId}/artifact/confirm": {
-      "post": {
-        "operationId": "CirclesMemberParticipationController_confirmArtifact",
-        "parameters": [
-          {
-            "name": "activityId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ConfirmArtifactDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "summary": "Confirm an exact artifact and version",
-        "tags": [
-          "circles"
-        ]
-      }
-    },
-    "/api/circles/activities/{activityId}/follow-up": {
-      "post": {
-        "operationId": "CirclesMemberParticipationController_followUp",
-        "parameters": [
-          {
-            "name": "activityId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RecordFollowUpDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "summary": "Record KEEP | ADJUST | CLOSE",
-        "tags": [
-          "circles"
-        ]
-      }
-    },
-    "/api/circles/guest/activities/{activityId}": {
-      "get": {
-        "operationId": "CirclesGuestParticipationController_activity",
-        "parameters": [
-          {
-            "name": "activityId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          }
-        },
-        "summary": "The activity, filtered for this guest",
-        "tags": [
-          "circles"
-        ]
-      }
-    },
-    "/api/circles/guest/activities/{activityId}/share-confirmations": {
-      "post": {
-        "operationId": "CirclesGuestParticipationController_confirmShare",
-        "parameters": [
-          {
-            "name": "activityId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "oneOf": [
-                  {
-                    "$ref": "#/components/schemas/ConfirmSelectedFieldsDto"
-                  },
-                  {
-                    "$ref": "#/components/schemas/ConfirmEditedSummaryDto"
-                  },
-                  {
-                    "$ref": "#/components/schemas/ConfirmKeepPrivateDto"
-                  }
-                ],
-                "discriminator": {
-                  "propertyName": "mode",
-                  "mapping": {
-                    "SELECTED_FIELDS": "#/components/schemas/ConfirmSelectedFieldsDto",
-                    "EDITED_SUMMARY": "#/components/schemas/ConfirmEditedSummaryDto",
-                    "KEEP_PRIVATE": "#/components/schemas/ConfirmKeepPrivateDto"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": ""
-          },
-          "400": {
-            "description": "CIRCLE_INVALID_PAYLOAD."
-          },
-          "409": {
-            "description": "CIRCLE_IDEMPOTENCY_CONFLICT."
-          }
-        },
-        "summary": "Confirm what you share; may trigger the reveal",
-        "tags": [
-          "circles"
-        ]
-      }
-    },
-    "/api/circles/guest/activities/{activityId}/withdraw": {
-      "post": {
-        "operationId": "CirclesGuestParticipationController_withdraw",
-        "parameters": [
-          {
-            "name": "activityId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "summary": "Leave. No reason is accepted.",
-        "tags": [
-          "circles"
-        ]
-      }
-    },
-    "/api/circles/guest/activities/{activityId}/artifact": {
-      "put": {
-        "operationId": "CirclesGuestParticipationController_proposeArtifact",
-        "parameters": [
-          {
-            "name": "activityId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ProposeArtifactDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "summary": "Propose or edit the shared result",
-        "tags": [
-          "circles"
-        ]
-      }
-    },
-    "/api/circles/guest/activities/{activityId}/artifact/confirm": {
-      "post": {
-        "operationId": "CirclesGuestParticipationController_confirmArtifact",
-        "parameters": [
-          {
-            "name": "activityId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ConfirmArtifactDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "summary": "Confirm an exact artifact and version",
-        "tags": [
-          "circles"
-        ]
-      }
-    },
-    "/api/circles/guest/activities/{activityId}/follow-up": {
-      "post": {
-        "operationId": "CirclesGuestParticipationController_followUp",
-        "parameters": [
-          {
-            "name": "activityId",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RecordFollowUpDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "summary": "Record KEEP | ADJUST | CLOSE",
-        "tags": [
-          "circles"
         ]
       }
     }
@@ -27436,6 +27626,287 @@
           "role"
         ]
       },
+      "InspectInvitationDto": {
+        "type": "object",
+        "properties": {
+          "secret": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "description": "The invitation link token, or the short code, exactly as received. Never stored; hashed on arrival."
+          }
+        },
+        "required": [
+          "secret"
+        ]
+      },
+      "AcceptInvitationDto": {
+        "type": "object",
+        "properties": {
+          "secret": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "description": "The invitation link token, or the short code, exactly as received. Never stored; hashed on arrival."
+          },
+          "accept": {
+            "description": "Must be literally true. Explicit acceptance, distinct from opening or inspecting the invitation.",
+            "type": "number",
+            "enum": [
+              true
+            ]
+          }
+        },
+        "required": [
+          "secret",
+          "accept"
+        ]
+      },
+      "SelectedFieldDto": {
+        "type": "object",
+        "properties": {
+          "fieldKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "A field key the template declares."
+          },
+          "value": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000,
+            "description": "The text the person previewed and confirmed."
+          }
+        },
+        "required": [
+          "fieldKey",
+          "value"
+        ]
+      },
+      "ConfirmSelectedFieldsDto": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "SELECTED_FIELDS"
+            ]
+          },
+          "fields": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SelectedFieldDto"
+            }
+          }
+        },
+        "required": [
+          "mode",
+          "fields"
+        ]
+      },
+      "ConfirmEditedSummaryDto": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "EDITED_SUMMARY"
+            ]
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          }
+        },
+        "required": [
+          "mode",
+          "summary"
+        ]
+      },
+      "ConfirmKeepPrivateDto": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "description": "The whole body. There is nowhere to put a reason, which is the design:\n\"I am not sharing this\" is an answer, and answers do not owe explanations.",
+            "enum": [
+              "KEEP_PRIVATE"
+            ]
+          }
+        },
+        "required": [
+          "mode"
+        ]
+      },
+      "CreateDuoDto": {
+        "type": "object",
+        "properties": {
+          "templateKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Template key. Must resolve to PUBLISHED."
+          },
+          "templateVersion": {
+            "type": "number",
+            "minimum": 1
+          },
+          "invitationTokens": {
+            "type": "array",
+            "description": "One 43-character base64url token, 256 bits, per seat that is not the organiser's: one for a Dúo, N-1 for a group of N. Hashed on arrival; never stored raw.",
+            "minItems": 1,
+            "maxItems": 5,
+            "pattern": "^[A-Za-z0-9_-]{43}$",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{43}$"
+            }
+          },
+          "size": {
+            "type": "number",
+            "description": "How many people, including the organiser.\n\nAbsent means the template's default, which for a Dúo is the only\npossibility — so an existing caller that sends no size still creates a Dúo\nof two. The bounds here are the widest any template admits; whether THIS\ntemplate admits this size is decided against its own range, server-side,\nwhere the template is known.",
+            "minimum": 2,
+            "maximum": 6
+          }
+        },
+        "required": [
+          "templateKey",
+          "templateVersion",
+          "invitationTokens"
+        ]
+      },
+      "ProposeArtifactDto": {
+        "type": "object",
+        "properties": {
+          "body": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000,
+            "description": "The shared result, as the pair agreed it."
+          }
+        },
+        "required": [
+          "body"
+        ]
+      },
+      "ConfirmArtifactDto": {
+        "type": "object",
+        "properties": {
+          "artifactId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "The exact artifact being confirmed."
+          },
+          "version": {
+            "type": "number",
+            "description": "The version, required and checked.\n\nNot a hint: a client holding stale copy must not be able to agree to text\nit never saw. Confirming a version that is no longer the live one is\nrefused rather than helpfully redirected to the current version.",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "artifactId",
+          "version"
+        ]
+      },
+      "RecordFollowUpDto": {
+        "type": "object",
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": [
+              "KEEP",
+              "ADJUST",
+              "CLOSE"
+            ]
+          }
+        },
+        "required": [
+          "decision"
+        ]
+      },
+      "CircleHelpOpenDto": {
+        "type": "object",
+        "properties": {
+          "fieldKey": {
+            "type": "string",
+            "description": "Which question's help was opened."
+          },
+          "piece": {
+            "type": "string",
+            "enum": [
+              "explanation",
+              "example"
+            ]
+          },
+          "opens": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 100,
+            "description": "How many times, counted in the browser's memory."
+          }
+        },
+        "required": [
+          "fieldKey",
+          "piece",
+          "opens"
+        ]
+      },
+      "CircleFeedbackDto": {
+        "type": "object",
+        "properties": {
+          "topics": {
+            "type": "array",
+            "enum": [
+              "comunicacion",
+              "preocupaciones",
+              "convivencia",
+              "cambios",
+              "separacion",
+              "apoyo-cotidiano",
+              "otro"
+            ],
+            "description": "Closed keys. At most two. Empty means no topic was given.",
+            "items": {
+              "type": "string",
+              "enum": [
+                "comunicacion",
+                "preocupaciones",
+                "convivencia",
+                "cambios",
+                "separacion",
+                "apoyo-cotidiano",
+                "otro"
+              ]
+            }
+          },
+          "usefulness": {
+            "type": "string",
+            "enum": [
+              "YES",
+              "SOME",
+              "NO"
+            ]
+          },
+          "noticeVersion": {
+            "type": "string",
+            "description": "Which wording of the notice was agreed to."
+          },
+          "helpOpens": {
+            "maxItems": 24,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CircleHelpOpenDto"
+            }
+          }
+        },
+        "required": [
+          "topics",
+          "noticeVersion"
+        ]
+      },
       "RegisterLiveActivityDto": {
         "type": "object",
         "properties": {
@@ -27926,197 +28397,6 @@
         },
         "required": [
           "method"
-        ]
-      },
-      "InspectInvitationDto": {
-        "type": "object",
-        "properties": {
-          "secret": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 512,
-            "description": "The invitation link token, or the short code, exactly as received. Never stored; hashed on arrival."
-          }
-        },
-        "required": [
-          "secret"
-        ]
-      },
-      "AcceptInvitationDto": {
-        "type": "object",
-        "properties": {
-          "secret": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 512,
-            "description": "The invitation link token, or the short code, exactly as received. Never stored; hashed on arrival."
-          },
-          "accept": {
-            "description": "Must be literally true. Explicit acceptance, distinct from opening or inspecting the invitation.",
-            "type": "number",
-            "enum": [
-              true
-            ]
-          }
-        },
-        "required": [
-          "secret",
-          "accept"
-        ]
-      },
-      "SelectedFieldDto": {
-        "type": "object",
-        "properties": {
-          "fieldKey": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 128,
-            "description": "A field key the template declares."
-          },
-          "value": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 2000,
-            "description": "The text the person previewed and confirmed."
-          }
-        },
-        "required": [
-          "fieldKey",
-          "value"
-        ]
-      },
-      "ConfirmSelectedFieldsDto": {
-        "type": "object",
-        "properties": {
-          "mode": {
-            "type": "string",
-            "enum": [
-              "SELECTED_FIELDS"
-            ]
-          },
-          "fields": {
-            "minItems": 1,
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/SelectedFieldDto"
-            }
-          }
-        },
-        "required": [
-          "mode",
-          "fields"
-        ]
-      },
-      "ConfirmEditedSummaryDto": {
-        "type": "object",
-        "properties": {
-          "mode": {
-            "type": "string",
-            "enum": [
-              "EDITED_SUMMARY"
-            ]
-          },
-          "summary": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 4000
-          }
-        },
-        "required": [
-          "mode",
-          "summary"
-        ]
-      },
-      "ConfirmKeepPrivateDto": {
-        "type": "object",
-        "properties": {
-          "mode": {
-            "type": "string",
-            "description": "The whole body. There is nowhere to put a reason, which is the design:\n\"I am not sharing this\" is an answer, and answers do not owe explanations.",
-            "enum": [
-              "KEEP_PRIVATE"
-            ]
-          }
-        },
-        "required": [
-          "mode"
-        ]
-      },
-      "CreateDuoDto": {
-        "type": "object",
-        "properties": {
-          "templateKey": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 128,
-            "description": "Template key. Must resolve to PUBLISHED."
-          },
-          "templateVersion": {
-            "type": "number",
-            "minimum": 1
-          },
-          "invitationToken": {
-            "type": "string",
-            "description": "43-character base64url token, 256 bits. Hashed on arrival; never stored raw.",
-            "pattern": "^[A-Za-z0-9_-]{43}$",
-            "minLength": 43,
-            "maxLength": 43
-          }
-        },
-        "required": [
-          "templateKey",
-          "templateVersion",
-          "invitationToken"
-        ]
-      },
-      "ProposeArtifactDto": {
-        "type": "object",
-        "properties": {
-          "body": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 4000,
-            "description": "The shared result, as the pair agreed it."
-          }
-        },
-        "required": [
-          "body"
-        ]
-      },
-      "ConfirmArtifactDto": {
-        "type": "object",
-        "properties": {
-          "artifactId": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 64,
-            "description": "The exact artifact being confirmed."
-          },
-          "version": {
-            "type": "number",
-            "description": "The version, required and checked.\n\nNot a hint: a client holding stale copy must not be able to agree to text\nit never saw. Confirming a version that is no longer the live one is\nrefused rather than helpfully redirected to the current version.",
-            "minimum": 1
-          }
-        },
-        "required": [
-          "artifactId",
-          "version"
-        ]
-      },
-      "RecordFollowUpDto": {
-        "type": "object",
-        "properties": {
-          "decision": {
-            "type": "string",
-            "enum": [
-              "KEEP",
-              "ADJUST",
-              "CLOSE"
-            ]
-          }
-        },
-        "required": [
-          "decision"
         ]
       }
     }

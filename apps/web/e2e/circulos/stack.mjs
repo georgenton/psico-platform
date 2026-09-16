@@ -668,6 +668,11 @@ async function main() {
     // The pilot is ON in this throwaway environment, which is the only place
     // that is ever true.
     CIRCLES_ROLLOUT_MODE: "on",
+    // And so is the group modality, for the same reason. It is a SECOND switch
+    // precisely so that opening it here says nothing about anywhere else: the
+    // hosted and production environments carry their own value, and the
+    // default everywhere is closed.
+    CIRCLES_GROUPS: "on",
     // The Dúo is reached from a guide surface, so Guide V1 has to be reachable
     // too. `on` rather than `pilot`: the walk registers fresh accounts every
     // run, and an allowlist of ids that do not exist yet cannot be written.

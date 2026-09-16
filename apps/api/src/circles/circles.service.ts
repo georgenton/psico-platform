@@ -308,6 +308,10 @@ export class CirclesService {
         summary: definition.summary,
         estimatedMinutes: definition.estimatedMinutes,
         inviterFirstName: safeInviterFirstName(user),
+        // From the ACTIVITY, not from the template's range: the organiser
+        // chose a size, and what the invitee is agreeing to is that room, not
+        // the widest one the template allows.
+        participants: activity.requiredParticipants,
       });
     } catch {
       // Includes `CIRCLE_CATALOG_UNKNOWN_DEFINITION` and any storage failure.
@@ -357,22 +361,43 @@ export class CirclesService {
         // transaction. Accepting an invitation and the activity becoming open
         // for participation are one event in the product; splitting them across
         // two transactions would create a moment in which somebody has accepted
-        // an activity that is still `INVITING` — a state the counterpart's
-        // screen would have to explain.
+        // an activity that is still `INVITING` — a state the other people's
+        // screens would have to explain.
         //
-        // The transition is conditional. If a withdrawal cancelled the activity
-        // between the fast exit and here, `startPreparing` moves nothing and the
-        // acceptance unwinds rather than resurrecting a cancelled Dúo.
+        // ── Why two states are admitted and not one ──────────────────────
+        //
+        // This used to require `INVITING`, full stop. In a Dúo those are the
+        // same sentence: there is ONE invitation, so the only acceptance is
+        // also the first, and the activity is `INVITING` right up to it.
+        //
+        // A group has N−1 invitations and they are accepted one at a time. The
+        // first acceptance moves the activity to `PREPARING` — and under the
+        // old rule every remaining person was then told their link no longer
+        // worked. A room of six admitted exactly one guest.
+        //
+        // So the state that matters is the SEAT's, not the room's: this seat
+        // is still `INVITED` (the invitation was single-use and was just
+        // consumed above), and the activity has not moved past preparing.
+        // `REVEALED`, `FOLLOW_UP`, `CLOSED` and `CANCELLED` are all still
+        // refused — joining a conversation that already happened is not
+        // joining it.
         const activity = await this.activities.lockById(
           invitation.activityId,
           tx,
         );
         if (!activity) throw new CircleStorageError();
-        if (activity.status !== "INVITING") {
+        if (activity.status !== "INVITING" && activity.status !== "PREPARING") {
           throw new CirclesError("CIRCLE_INVITATION_UNUSABLE");
         }
-        const started = await this.activities.startPreparing(activity.id, tx);
-        if (!started) throw new CirclesError("CIRCLE_INVITATION_UNUSABLE");
+        // Conditional, and a no-op when somebody else already started it. If a
+        // withdrawal cancelled the activity between the fast exit and here the
+        // status check above has already refused, so a `false` here means only
+        // "already preparing" — which is the normal case from the second guest
+        // onwards.
+        if (activity.status === "INVITING") {
+          const started = await this.activities.startPreparing(activity.id, tx);
+          if (!started) throw new CirclesError("CIRCLE_INVITATION_UNUSABLE");
+        }
 
         // ── 5. CircleActivityParticipant ──────────────────────────────────
         //

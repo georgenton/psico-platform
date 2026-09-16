@@ -172,6 +172,9 @@ export function EntradaInvitacion() {
   }
 
   if (phase === "decide" || phase === "accepting") {
+    // More than two only when the server said so. An absent count reads as a
+    // Dúo, which is the shape every existing invitation has.
+    const grupo = (preview?.participants ?? 2) > 2;
     return (
       <main style={S.page}>
         <p style={S.firma}>Una experiencia de FeelVerse</p>
@@ -200,6 +203,19 @@ export function EntradaInvitacion() {
               Unos {preview.estimatedMinutes} minutos ·{" "}
               <strong>No necesitas crear una cuenta.</strong>
             </p>
+            {/* How many people will read what this person writes, said BEFORE
+                they accept. It is the one fact a Dúo let a screen assume and a
+                group cannot: agreeing to be read by one person and agreeing to
+                be read by four are different decisions. Absent when the server
+                did not send it — an older response degrades the sentence, it
+                does not invent a number. */}
+            {typeof preview.participants === "number" && (
+              <p style={S.p}>
+                {preview.participants > 2
+                  ? `Participan ${preview.participants} personas, contándote a ti.`
+                  : "Participan dos personas: quien te invitó y tú."}
+              </p>
+            )}
           </section>
         ) : (
           <section style={S.section}>
@@ -231,8 +247,17 @@ export function EntradaInvitacion() {
               <strong>nada</strong>.
             </li>
             <li style={S.turno}>
-              Se abre para los dos <strong>a la vez</strong>, sólo cuando ambos
-              confirmaron. Nadie ve nada tuyo antes.
+              {grupo ? (
+                <>
+                  Se abre para todas las personas <strong>a la vez</strong>,
+                  sólo cuando todas confirmaron. Nadie ve nada tuyo antes.
+                </>
+              ) : (
+                <>
+                  Se abre para los dos <strong>a la vez</strong>, sólo cuando
+                  ambos confirmaron. Nadie ve nada tuyo antes.
+                </>
+              )}
             </li>
             <li style={S.turno}>
               Puedes retirarte en cualquier momento, sin dar explicaciones.

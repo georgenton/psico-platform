@@ -252,9 +252,16 @@ export function SalaDuo({
     return (
       <main style={S.page}>
         <h1 style={S.h1}>Te retiraste de esta actividad</h1>
+        {/* `view` may be null here: withdrawing is a local decision that can
+            land before the next read comes back, and the screen has to be
+            truthful without one. With no view there is no size, so the copy
+            says neither "the other person" nor "the group". */}
         <p style={S.p}>
-          La otra persona ya no está esperándote, y esta sala se cerró para ti.
-          Lo que escribiste en privado nunca salió de tu pantalla.
+          {view === null
+            ? "Esta sala se cerró para ti. Lo que escribiste en privado nunca salió de tu pantalla."
+            : esGrupo(view)
+              ? "El resto del grupo ya no está esperándote, y esta sala se cerró para ti. Lo que escribiste en privado nunca salió de tu pantalla."
+              : "La otra persona ya no está esperándote, y esta sala se cerró para ti. Lo que escribiste en privado nunca salió de tu pantalla."}
         </p>
         <a href="/" style={S.secondary}>
           Ir al inicio
@@ -414,6 +421,7 @@ export function SalaDuo({
 
       {stageName === "prepare" && (
         <PreparacionPrivada
+          participantes={view.requiredParticipants}
           fields={fields}
           allowedModes={allowedModes}
           draft={draft}
@@ -429,6 +437,7 @@ export function SalaDuo({
 
       {stageName === "preview" && local.stage === "preview" && (
         <PreviewCompartir
+          participantes={view.requiredParticipants}
           confirmation={local.confirmation}
           fields={fields}
           busy={busy}
@@ -452,11 +461,14 @@ export function SalaDuo({
       {stageName === "waiting" && (
         <section style={S.section} aria-labelledby="wait-h">
           <h2 id="wait-h" style={S.h2}>
-            Listo. Falta la otra persona.
+            {esGrupo(view)
+              ? "Listo. Falta el grupo."
+              : "Listo. Falta la otra persona."}
           </h2>
           <p style={S.p}>
-            Ya confirmamos lo tuyo. Cuando la otra persona confirme lo suyo, se
-            abren los dos a la vez — ni antes, ni sólo uno.
+            {esGrupo(view)
+              ? "Ya confirmamos lo tuyo. Cuando todas las personas hayan confirmado lo suyo, se abren todas a la vez — ni antes, ni sólo algunas."
+              : "Ya confirmamos lo tuyo. Cuando la otra persona confirme lo suyo, se abren los dos a la vez — ni antes, ni sólo uno."}
           </p>
           <p style={S.p}>
             Puedes cerrar esta página y volver a{" "}
@@ -566,9 +578,9 @@ export function SalaDuo({
            * lives. It is not the place to explain account deletion.
            */}
           <p style={S.nota}>
-            Retirarte termina esta actividad para las dos personas. Antes del
-            intercambio, lo que escribiste se descarta; después, lo que la otra
-            persona ya leyó se queda.{" "}
+            {esGrupo(view)
+              ? "Retirarte termina esta actividad para todo el grupo. Antes del intercambio, lo que escribiste se descarta; después, lo que las demás personas ya leyeron se queda. "
+              : "Retirarte termina esta actividad para las dos personas. Antes del intercambio, lo que escribiste se descarta; después, lo que la otra persona ya leyó se queda. "}
             {isGuest
               ? "Entraste con un enlace, no con una cuenta: al retirarte el enlace deja de servir y no hay nada más que cerrar."
               : "Retirarte no elimina tu cuenta: eso se hace desde tu perfil y tiene otros efectos."}
@@ -600,18 +612,36 @@ function derivedStage(view: CircleActivityView, local: Local): string {
   return "consent";
 }
 
+/** Whether this room holds more than two people. */
+function esGrupo(view: CircleActivityView): boolean {
+  return view.requiredParticipants > 2;
+}
+
 function anuncio(view: CircleActivityView, stage: string): string {
+  const grupo = esGrupo(view);
   switch (stage) {
     case "waiting":
-      return "Tu parte está confirmada. Esperando a la otra persona.";
+      return grupo
+        ? "Tu parte está confirmada. Esperando al resto del grupo."
+        : "Tu parte está confirmada. Esperando a la otra persona.";
     case "revealed":
-      return "Las dos partes están listas. Ya puedes leer lo que compartió la otra persona.";
+      return grupo
+        ? "Todas las partes están listas. Ya puedes leer lo que compartió cada quien."
+        : "Las dos partes están listas. Ya puedes leer lo que compartió la otra persona.";
     case "follow-up":
       return "Es momento de decidir cómo siguen.";
     case "closed":
       return "La actividad terminó.";
     default:
-      return `${view.readyCount} de ${view.requiredParticipants} listas.`;
+      // No count in a group.
+      //
+      // «2 de 5 listas» is an aggregate, not a name — and in a room of five it
+      // is still a progress bar on other people, read by somebody who knows
+      // who they invited. The Dúo keeps it because there the number IS the
+      // other person's state and they will talk about it anyway.
+      return grupo
+        ? "Cada quien se prepara por su lado."
+        : `${view.readyCount} de ${view.requiredParticipants} listas.`;
   }
 }
 

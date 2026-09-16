@@ -99,25 +99,31 @@ describe("circles projection · before the reveal", () => {
     activity: activity(),
     definition: DEFINITION,
     self: seat({ id: "p-self" }),
-    counterpart: seat({
-      id: "p-other",
-      status: "READY",
-      sharingMode: "SELECTED_FIELDS",
-      fieldKeys: ["campo-a"],
-      ciphertext: "ct",
-      nonce: "n",
-      keyVersion: 1,
-      payloadHash: "hash",
-      readyAt: new Date(),
-    }),
+    others: [
+      {
+        participant: seat({
+          id: "p-other",
+          status: "READY",
+          sharingMode: "SELECTED_FIELDS",
+          fieldKeys: ["campo-a"],
+          ciphertext: "ct",
+          nonce: "n",
+          keyVersion: 1,
+          payloadHash: "hash",
+          readyAt: new Date(),
+        }),
+        position: 2,
+        // Even if a caller wrongly decrypted it, the projection must not use
+        // it.
+        body: JSON.stringify({
+          mode: "SELECTED_FIELDS",
+          fields: [{ fieldKey: "campo-a", value: SECRET }],
+        }),
+      },
+    ],
     readyCount: 1,
     artifact: null,
     selfBody: null,
-    // Even if a caller wrongly decrypted it, the projection must not use it.
-    counterpartBody: JSON.stringify({
-      mode: "SELECTED_FIELDS",
-      fields: [{ fieldKey: "campo-a", value: SECRET }],
-    }),
   });
   const json = JSON.parse(JSON.stringify(view));
 
@@ -147,14 +153,15 @@ describe("circles projection · before the reveal", () => {
       activity: activity(),
       definition: DEFINITION,
       self: seat({ id: "p-self", status: "READY" }),
-      counterpart: seat({ id: "p-other" }),
+      others: [
+        { participant: seat({ id: "p-other" }), position: 2, body: null },
+      ],
       readyCount: 1,
       artifact: null,
       selfBody: JSON.stringify({
         mode: "SELECTED_FIELDS",
         fields: [{ fieldKey: "campo-a", value: "lo mio" }],
       }),
-      counterpartBody: null,
     });
     expect(own.you.confirmed).toEqual({
       mode: "SELECTED_FIELDS",
@@ -168,14 +175,19 @@ describe("circles projection · after the reveal", () => {
     activity: activity({ status: "REVEALED", revealedAt: new Date() }),
     definition: DEFINITION,
     self: seat({ id: "p-self", status: "READY" }),
-    counterpart: seat({ id: "p-other", status: "READY" }),
+    others: [
+      {
+        participant: seat({ id: "p-other", status: "READY" }),
+        position: 2,
+        body: JSON.stringify({
+          mode: "SELECTED_FIELDS",
+          fields: [{ fieldKey: "campo-a", value: SECRET }],
+        }),
+      },
+    ],
     readyCount: 2,
     artifact: null,
     selfBody: JSON.stringify({ mode: "KEEP_PRIVATE" }),
-    counterpartBody: JSON.stringify({
-      mode: "SELECTED_FIELDS",
-      fields: [{ fieldKey: "campo-a", value: SECRET }],
-    }),
   });
 
   it("delivers the counterpart's content to a participant still in it", () => {
@@ -197,11 +209,16 @@ describe("circles projection · after the reveal", () => {
       activity: activity({ status: "REVEALED", revealedAt: new Date() }),
       definition: DEFINITION,
       self: seat({ id: "p-self", status: "READY" }),
-      counterpart: seat({ id: "p-other", status: "READY" }),
+      others: [
+        {
+          participant: seat({ id: "p-other", status: "READY" }),
+          position: 2,
+          body: JSON.stringify({ mode: "KEEP_PRIVATE" }),
+        },
+      ],
       readyCount: 2,
       artifact: null,
       selfBody: null,
-      counterpartBody: JSON.stringify({ mode: "KEEP_PRIVATE" }),
     });
     expect(view.revealed?.counterpart).toEqual({
       mode: "KEEP_PRIVATE",
@@ -220,14 +237,19 @@ describe("circles projection · after the reveal", () => {
       activity: activity({ status: "CLOSED", revealedAt: new Date() }),
       definition: DEFINITION,
       self: seat({ id: "p-self", status: "WITHDRAWN" }),
-      counterpart: seat({ id: "p-other", status: "READY" }),
+      others: [
+        {
+          participant: seat({ id: "p-other", status: "READY" }),
+          position: 2,
+          body: JSON.stringify({
+            mode: "SELECTED_FIELDS",
+            fields: [{ fieldKey: "campo-a", value: SECRET }],
+          }),
+        },
+      ],
       readyCount: 1,
       artifact: null,
       selfBody: null,
-      counterpartBody: JSON.stringify({
-        mode: "SELECTED_FIELDS",
-        fields: [{ fieldKey: "campo-a", value: SECRET }],
-      }),
     });
     // Leaving revokes FUTURE access, and "future" includes the next read. It
     // cannot un-see what was already read, and nothing here pretends it can.
@@ -277,11 +299,10 @@ describe("circles projection · entitlement is decided from the seat's own row",
       activity: revealed,
       definition: DEFINITION,
       self,
-      counterpart: other,
+      others: [{ participant: other, position: 2, body: counterpartBody }],
       readyCount: 2,
       artifact,
       selfBody: null,
-      counterpartBody,
     });
 
   it("serves the reveal and the artifact to a READY seat", () => {
@@ -336,5 +357,190 @@ describe("circles projection · entitlement is decided from the seat's own row",
         expect(keys.has(forbidden), `${status}: ${forbidden}`).toBe(false);
       }
     }
+  });
+});
+
+describe("circles projection · a room of more than two", () => {
+  const revealedActivity = activity({
+    status: "REVEALED",
+    revealedAt: new Date(),
+    requiredParticipants: 4,
+  });
+
+  /** Three other seats, labelled by their roster position. */
+  const room = (bodies: readonly (string | null)[]) =>
+    bodies.map((body, index) => ({
+      participant: seat({ id: `p-other-${index}`, status: "READY" as const }),
+      // The actor holds position 2; the others are 1, 3 and 4.
+      position: index === 0 ? 1 : index + 2,
+      body,
+    }));
+
+  const share = (value: string) =>
+    JSON.stringify({
+      mode: "SELECTED_FIELDS",
+      fields: [{ fieldKey: "campo-a", value }],
+    });
+
+  it("labels every other seat, and never calls one of them the counterpart", () => {
+    const view = projectActivity({
+      activity: revealedActivity,
+      definition: DEFINITION,
+      self: seat({ id: "p-self", status: "READY" }),
+      others: room([share("de uno"), share("de tres"), share("de cuatro")]),
+      readyCount: 4,
+      artifact: null,
+      selfBody: JSON.stringify({ mode: "KEEP_PRIVATE" }),
+    });
+
+    expect(view.revealed?.participants).toHaveLength(3);
+    expect(view.revealed?.participants.map((p) => p.label)).toEqual([
+      "Participante 1",
+      "Participante 3",
+      "Participante 4",
+    ]);
+    // There is no counterpart in a room of four. A field naming one would have
+    // to pick a protagonist out of three people.
+    expect(view.revealed?.counterpart).toBeUndefined();
+    expect("counterpart" in (view.revealed ?? {})).toBe(false);
+  });
+
+  it("keeps the Dúo's counterpart field exactly where it was", () => {
+    // The same function, one other seat: the shape a Dúo has always read.
+    const view = projectActivity({
+      activity: activity({ status: "REVEALED", revealedAt: new Date() }),
+      definition: DEFINITION,
+      self: seat({ id: "p-self", status: "READY" }),
+      others: [
+        {
+          participant: seat({ id: "p-other", status: "READY" }),
+          position: 2,
+          body: share("lo del otro"),
+        },
+      ],
+      readyCount: 2,
+      artifact: null,
+      selfBody: null,
+    });
+    expect(view.revealed?.counterpart).toEqual({
+      mode: "SELECTED_FIELDS",
+      fields: [{ fieldKey: "campo-a", value: "lo del otro" }],
+    });
+    expect(view.revealed?.participants).toHaveLength(1);
+  });
+
+  it("reports the room by its least advanced seat, not seat by seat", () => {
+    // Before the reveal, a list of per-seat statuses is a list of who is late.
+    // One value says the only thing anybody can act on.
+    const waiting = projectActivity({
+      activity: activity({ requiredParticipants: 4 }),
+      definition: DEFINITION,
+      self: seat({ id: "p-self", status: "READY" }),
+      others: [
+        {
+          participant: seat({ id: "p-a", status: "READY" }),
+          position: 1,
+          body: null,
+        },
+        {
+          participant: seat({ id: "p-b", status: "ACCEPTED" }),
+          position: 3,
+          body: null,
+        },
+        {
+          participant: seat({ id: "p-c", status: "READY" }),
+          position: 4,
+          body: null,
+        },
+      ],
+      readyCount: 3,
+      artifact: null,
+      selfBody: null,
+    });
+    expect(waiting.counterpart).toEqual({ status: "ACCEPTED" });
+    // One key. Not a list, not a count of who is done, not a name.
+    expect(Object.keys(waiting.counterpart)).toEqual(["status"]);
+    expect(JSON.stringify(waiting)).not.toContain("p-b");
+  });
+
+  it("does not report the room as withdrawn because one person left", () => {
+    // A seat that stepped out is not a seat the room is waiting for, and
+    // ranking it first would tell everybody else that somebody left.
+    const view = projectActivity({
+      activity: activity({ requiredParticipants: 3 }),
+      definition: DEFINITION,
+      self: seat({ id: "p-self", status: "ACCEPTED" }),
+      others: [
+        {
+          participant: seat({ id: "p-a", status: "WITHDRAWN" }),
+          position: 1,
+          body: null,
+        },
+        {
+          participant: seat({ id: "p-b", status: "ACCEPTED" }),
+          position: 3,
+          body: null,
+        },
+      ],
+      readyCount: 0,
+      artifact: null,
+      selfBody: null,
+    });
+    expect(view.counterpart.status).toBe("ACCEPTED");
+  });
+
+  it("suppresses the whole room for a seat that may not read it", () => {
+    for (const status of ["ACCEPTED", "WITHDRAWN", "INVITED"] as const) {
+      const view = projectActivity({
+        activity: revealedActivity,
+        definition: DEFINITION,
+        self: seat({ id: "p-self", status }),
+        others: room([share("de uno"), share("de tres"), share("de cuatro")]),
+        readyCount: 3,
+        artifact: null,
+        selfBody: null,
+      });
+      // Not "three empty entries" and not a length to count: no `revealed`.
+      expect(view.revealed, status).toBeNull();
+      expect(JSON.stringify(view), status).not.toContain("de tres");
+    }
+  });
+
+  it("omits a seat it could not read rather than reporting an empty one", () => {
+    // One unreadable envelope in a room of four must not become a labelled
+    // entry with nothing in it — that would say "Participante 3 shared
+    // something you cannot see", which is not true and not anybody's business.
+    const view = projectActivity({
+      activity: revealedActivity,
+      definition: DEFINITION,
+      self: seat({ id: "p-self", status: "READY" }),
+      others: room([share("de uno"), null, share("de cuatro")]),
+      readyCount: 4,
+      artifact: null,
+      selfBody: null,
+    });
+    expect(view.revealed?.participants.map((p) => p.label)).toEqual([
+      "Participante 1",
+      "Participante 4",
+    ]);
+  });
+
+  it("carries no forbidden key for a room of four", () => {
+    const view = projectActivity({
+      activity: revealedActivity,
+      definition: DEFINITION,
+      self: seat({ id: "p-self", status: "READY" }),
+      others: room([share("de uno"), share("de tres"), share("de cuatro")]),
+      readyCount: 4,
+      artifact: null,
+      selfBody: null,
+    });
+    const keys = allKeys(JSON.parse(JSON.stringify(view)));
+    for (const forbidden of CIRCLE_VIEW_FORBIDDEN_KEYS) {
+      expect([...keys], forbidden).not.toContain(forbidden);
+    }
+    // And no seat id, which is not on that list because a Dúo never had a
+    // place to put one.
+    expect(JSON.stringify(view)).not.toContain("p-other-0");
   });
 });

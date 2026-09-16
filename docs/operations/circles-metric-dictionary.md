@@ -31,7 +31,8 @@ deduplicar («esta ayuda la abrió la misma persona dos veces») y es
 actividades y no es un identificador de navegación.
 
 Un invitado puede aparecer en varias actividades con asientos distintos. Por
-eso «10 contribuyentes» **no** es «10 personas anónimas».
+eso «10 contribuyentes» **no** es «10 personas anónimas», y por eso desde los
+grupos se pide además un mínimo de salas distintas (§7).
 
 ---
 
@@ -83,21 +84,44 @@ debajo del umbral se devuelve `null`.
 
 ## 3 · Temas: dos dimensiones distintas
 
-|                 | Tema **editorial**                         | Tema **autodeclarado**                |
-| --------------- | ------------------------------------------ | ------------------------------------- |
-| Qué es          | Etiquetas cerradas de la plantilla         | Lo que una persona eligió decir       |
-| Quién lo decide | Quien escribió la actividad                | La persona, después y si quiere       |
-| Qué mide        | Qué actividad se usó                       | Qué dijo alguien que tocaba           |
-| Fuente          | `CircleActivityDefinition.topics`          | `CircleFeedback.topics`               |
-| Sensibilidad    | baja                                       | **alta**                              |
-| Supresión       | no aplica: no hay nadie detrás de la celda | sí, ≥10 contribuyentes                |
-| Retención       | del catálogo                               | 30 días la fila; 12 meses el agregado |
+|                 | Tema **editorial**                         | Tema **autodeclarado**                  |
+| --------------- | ------------------------------------------ | --------------------------------------- |
+| Qué es          | Etiquetas cerradas de la plantilla         | Lo que una persona eligió decir         |
+| Quién lo decide | Quien escribió la actividad                | La persona, después y si quiere         |
+| Qué mide        | Qué actividad se usó                       | Qué dijo alguien que tocaba             |
+| Fuente          | `CircleActivityDefinition.topics`          | `CircleFeedback.topics`                 |
+| Sensibilidad    | baja                                       | **alta**                                |
+| Supresión       | no aplica: no hay nadie detrás de la celda | sí, ≥10 contribuyentes y ≥3 actividades |
+| Retención       | del catálogo                               | 30 días la fila; 12 meses el agregado   |
 
 Se muestran en secciones separadas, y nunca en la misma columna. Sumarlos
 produciría un número que nadie puede interpretar.
 
 **Ninguno es un diagnóstico.** «Preocupaciones y ansiedad» es una palabra que
 dos personas pueden usar sobre un martes.
+
+---
+
+## 3B · Modalidad y tamaño
+
+Desde los Círculos de 3 a 6 hay dos formas de actividad, y el panel las cuenta
+por separado — `Dúo (2 personas)` y `Grupo de N` para cada N que exista.
+
+|                |                                                               |
+| -------------- | ------------------------------------------------------------- |
+| Fuente         | `CircleActivity.kind` y `CircleActivity.requiredParticipants` |
+| Qué cuenta     | **actividades**, no personas                                  |
+| Supresión      | no aplica: nadie está detrás de una celda                     |
+| Corte temporal | la ventana completa, **no** por semana                        |
+
+Dos decisiones que parecen detalles y no lo son:
+
+- Se lee el tamaño de **la actividad**, no el rango de la plantilla. Una
+  plantilla que admite de tres a seis no dice cuántas personas hay en esta sala,
+  y la pregunta operativa es sobre las salas que existen.
+- **No** se desglosa por semana. Un conteo de actividades por modalidad, por
+  tamaño y por semana empieza a señalar una actividad concreta, que es
+  exactamente lo que el resto del documento evita.
 
 ---
 
@@ -145,8 +169,22 @@ El polling existente **no** se aumentó para medir actividad.
 
 ## 7 · Supresión y exportación
 
-- Umbral inicial: **10 contribuyentes distintos** por celda. Por debajo se
-  muestra `muestra insuficiente`, **no** cero.
+- Umbral: **10 contribuyentes distintos y 3 actividades distintas** por celda.
+  Por debajo de cualquiera de los dos se muestra `muestra insuficiente`, **no**
+  cero.
+- **Por qué dos y no uno.** El umbral de diez se escribió cuando toda actividad
+  tenía dos asientos: diez contribuyentes implicaban al menos cinco salas, así
+  que ninguna sala podía restarse a sí misma y quedarse mirando otra
+  identificable. Un grupo de seis rompe esa aritmética — dos salas dan doce
+  contribuyentes, y cada organizadora conoce los seis suyos, de modo que
+  restarlos deja las respuestas de la otra sala a la vista desde una celda que
+  la regla vieja llamaba segura. Tres, y no dos: con dos salas, restar la tuya
+  deja exactamente una; con tres deja dos combinadas, que es el número más
+  pequeño que no es una sola sala disfrazada de total. Es un juicio, no una
+  derivación, y se inclina a decir menos.
+- Un hecho semanal ya plegado conserva **ambas** entradas de supresión
+  (`contributors` y `activities`). Sin la segunda, toda celda envejecida
+  quedaría suprimida para siempre — seguro, y también inútil.
 - La supresión ocurre al formar los datos, así que la API, la pantalla y el CSV
   la heredan: no hay una ruta que devuelva la celda cruda.
 - **Vistas fijas, sin filtros combinables.** Una celda suprimida con umbral 10

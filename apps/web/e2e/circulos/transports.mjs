@@ -219,14 +219,25 @@ function railwayTransport(env) {
   return {
     kind: "railway",
     sql(text) {
+      // `rowMode:'array'` — positional rows, like `psql -A -F'|'`.
+      //
+      // The default shape is an OBJECT keyed by column name, and two unnamed
+      // aggregates in one SELECT are both called `count`, so the second
+      // silently overwrites the first: a four-column query came back with
+      // three values and a test compared the wrong pair. It cost a whole
+      // hosted run to find, and the local transport — which is psql, and
+      // therefore positional — could never have reproduced it.
+      //
+      // Naming the columns fixes one query. This fixes the transport, so the
+      // two transports answer the same question the same way.
       const snippet = `
         const {Client}=require('pg');
         const q=Buffer.from('${b64(text)}','base64').toString();
         const c=new Client({connectionString:process.env.DATABASE_URL});
         c.connect()
-         .then(()=>c.query(q))
+         .then(()=>c.query({text:q,rowMode:'array'}))
          .then(r=>{
-           const rows=(r.rows||[]).map(row=>Object.values(row).map(v=>v===null?'':String(v)).join('|'));
+           const rows=(r.rows||[]).map(row=>row.map(v=>v===null?'':String(v)).join('|'));
            console.log('<<<E2E'+rows.join('\\n')+'E2E>>>');
            return c.end();
          })

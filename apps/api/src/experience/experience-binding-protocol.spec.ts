@@ -933,7 +933,13 @@ describe("ratchet · the cutover migrations say what they do", () => {
     // same reason as the others, because raising the number without adding a
     // name fails.
     expect(dirs).toContain("20260916000000_circles_analytics");
-    expect(dirs).toHaveLength(67);
+    // …and the one adult groups owes: a second shape for the domain. Additive
+    // in the sense that matters — every new column has a default an older
+    // instance's INSERT satisfies — and the two constraints it replaces are
+    // enumerated in `circles-scope.spec.ts`, which is where loosenings are
+    // argued for. Named here for the same reason as the others.
+    expect(dirs).toContain("20260916100000_circles_adult_groups");
+    expect(dirs).toHaveLength(68);
     expect(dirs.filter((d) => d.includes("c3r"))).toEqual([]);
   });
 

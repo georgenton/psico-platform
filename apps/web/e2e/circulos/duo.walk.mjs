@@ -2230,6 +2230,236 @@ function countActivities() {
   return sqlInt(`SELECT count(*) FROM "CircleActivity"`);
 }
 
+// ── Scenario · a circle of three, from the listing ──────────────────────────
+
+/**
+ * A GROUP walked by three independent browsers.
+ *
+ * Nothing about this is implied by the Dúo scenarios passing. A Dúo has one
+ * link, one other person and one confirmation to wait for, so every rule about
+ * rosters, labels and quorums reads the same whether it is right or wrong. This
+ * walks the ones that stop being the same sentence at three people:
+ *
+ *   · the size is chosen, and the screen mints one link PER SEAT;
+ *   · every guest can accept — the first acceptance does not close the door;
+ *   · two of three confirming does NOT reveal;
+ *   · the reveal shows each answer under its own stable label;
+ *   · the waiting screen never says who is late.
+ */
+async function groupOfThree(browser) {
+  const organiser = await register("grupo");
+  const organiserCtx = await browser.newContext();
+  const guestCtxs = [];
+
+  try {
+    const page = await organiserCtx.newPage();
+    await signIn(page, organiser);
+
+    // From the listing, which is the group's only surface: it declares no
+    // experience pin, so no reading proposes it.
+    await page.goto(`${WEB}/dashboard/circulos`, {
+      waitUntil: "domcontentloaded",
+    });
+    const start = page.getByRole("link", { name: /Empezar este círculo/i });
+    await start.waitFor({ state: "visible", timeout: 30_000 });
+    const before = countActivities();
+    await start.click();
+
+    const offeredKey = new URL(page.url()).pathname.split("/").pop();
+    check(
+      offeredKey === "grupo-lo-que-nos-ayuda",
+      `the listing starts the APPROVED group template (${offeredKey})`,
+    );
+    check(countActivities() === before, "opening the preview creates NOTHING");
+
+    // The size selector exists, offers exactly 3 to 6, and defaults to 3.
+    const sizes = await page.evaluate(() =>
+      Array.from(document.querySelectorAll('input[name="circulo-tamano"]')).map(
+        (el) => el.value,
+      ),
+    );
+    check(
+      JSON.stringify(sizes) === JSON.stringify(["3", "4", "5", "6"]),
+      `the screen offers exactly three to six (${sizes.join(",") || "none"})`,
+    );
+
+    await page.getByRole("button", { name: /Crear el círculo/i }).click();
+
+    // Two links, labelled, and different from each other.
+    const links = await until(
+      async () => {
+        const text = await page.evaluate(() => document.body.innerText);
+        const found = text.match(/https?:\/\/\S*\/i#[A-Za-z0-9_-]{43}/g) ?? [];
+        return found.length === 2 ? found : null;
+      },
+      "two invitation links to appear",
+      60_000,
+    );
+    check(
+      new Set(links).size === 2,
+      "each seat gets its OWN secret, never one link twice",
+    );
+    const labels = await page.evaluate(() =>
+      Array.from(document.querySelectorAll("p")) 
+        .map((el) => el.textContent?.trim() ?? "")
+        .filter((t) => /^Participante \d+$/.test(t)),
+    );
+    check(
+      JSON.stringify(labels) === JSON.stringify(["Participante 2", "Participante 3"]),
+      `the links are labelled by seat (${labels.join(", ") || "none"})`,
+    );
+    check(
+      countActivities() === before + 1,
+      "exactly ONE activity is created by one confirmation",
+    );
+
+    const activityId = sqlOne(
+      `SELECT "id" FROM "CircleActivity" ORDER BY "createdAt" DESC LIMIT 1`,
+    ).trim();
+    // Every column ALIASED. Two unnamed aggregates are both `count`, and a
+    // transport that returns rows as objects keeps one of them.
+    const shape = sqlRows(
+      `SELECT a."kind"::text AS kind, a."requiredParticipants" AS required,
+              (SELECT count(*) FROM "CircleActivityParticipant" p
+                WHERE p."activityId" = a."id") AS seats,
+              (SELECT count(*) FROM "CircleInvitation" i
+                WHERE i."activityId" = a."id") AS invitations
+         FROM "CircleActivity" a WHERE a."id" = '${activityId}'`,
+    )[0];
+    check(
+      shape?.[0] === "GROUP_ADULT" && shape?.[1] === "3",
+      `the activity is a GROUP_ADULT of three (${shape?.join("/") ?? "no row"})`,
+    );
+    check(
+      shape?.[2] === "3" && shape?.[3] === "2",
+      `three seats and two invitations (${shape?.slice(2).join("/") ?? "?"})`,
+    );
+
+    // Both guests accept. The FIRST acceptance moves the activity to
+    // PREPARING — and the second must still work, which is the rule a Dúo
+    // could never have exercised.
+    const guests = [];
+    for (const link of links) {
+      const guest = await acceptAsGuest(browser, link);
+      guestCtxs.push(guest.ctx);
+      guests.push(guest);
+    }
+    check(
+      guests.every((g) => g.activityId === activityId),
+      "every guest lands in the SAME room",
+    );
+
+    // Organiser and one guest confirm. Two of three.
+    await page.goto(`${WEB}/compartir/${activityId}`, {
+      waitUntil: "domcontentloaded",
+    });
+    await enterRoom(page);
+    await typeDraft(page, { uno: "lo que me ayuda", dos: "lo que no" });
+    await openPreview(page);
+    await confirmShare(page);
+
+    await enterRoom(guests[0].page);
+    await typeDraft(guests[0].page, { uno: "lo del segundo" });
+    await openPreview(guests[0].page);
+    await confirmShare(guests[0].page);
+
+    await until(
+      () =>
+        sqlInt(
+          `SELECT count(*) FROM "CircleActivityParticipant"
+            WHERE "activityId"='${activityId}' AND "status"='READY'`,
+        ) === 2,
+      "two of the three seats to be READY",
+      60_000,
+    );
+    const midway = sqlOne(
+      `SELECT "status"::text FROM "CircleActivity" WHERE "id"='${activityId}'`,
+    ).trim();
+    check(
+      midway === "PREPARING",
+      `two of three does NOT reveal (${midway})`,
+    );
+
+    // And the waiting screen says so without naming anybody.
+    const waiting = await page.evaluate(() => document.body.innerText);
+    check(
+      /Falta el grupo/i.test(waiting),
+      "the waiting screen speaks about the group, not about a person",
+    );
+    check(
+      !/Participante \d/.test(waiting) && !/de 3 listas/.test(waiting),
+      "it names no seat and counts nobody",
+    );
+
+    // The last seat confirms. Now it opens, for everybody at once.
+    await enterRoom(guests[1].page);
+    await typeDraft(guests[1].page, { uno: "lo del tercero" });
+    await openPreview(guests[1].page);
+    await confirmShare(guests[1].page);
+
+    await until(
+      () =>
+        sqlOne(
+          `SELECT "status"::text FROM "CircleActivity" WHERE "id"='${activityId}'`,
+        ).trim() === "REVEALED",
+      "the room to reveal once the last seat confirmed",
+      60_000,
+    );
+    check(true, "the whole roster confirming is what opens it");
+
+    const reveals = sqlInt(
+      `SELECT count(*) FROM "CircleEvent"
+        WHERE "activityId"='${activityId}' AND "type"='ACTIVITY_REVEALED'`,
+    );
+    check(reveals === 1, `exactly one reveal event (${reveals})`);
+
+    // Each person sees the other two, labelled, and their own answer.
+    await page.reload({ waitUntil: "domcontentloaded" });
+    const shown = await until(
+      async () => {
+        const text = await page.evaluate(() => document.body.innerText);
+        return /Lo que compartió cada quien/.test(text) ? text : null;
+      },
+      "the organiser's screen to show the room's answers",
+      60_000,
+    );
+    check(
+      /lo del segundo/.test(shown) && /lo del tercero/.test(shown),
+      "the organiser reads BOTH other answers",
+    );
+    check(
+      /Participante 2/.test(shown) && /Participante 3/.test(shown),
+      "each answer carries the seat it came from",
+    );
+
+    const guestView = await guests[0].page
+      .reload({ waitUntil: "domcontentloaded" })
+      .then(() =>
+        until(
+          async () => {
+            const text = await guests[0].page.evaluate(
+              () => document.body.innerText,
+            );
+            return /Lo que compartió cada quien/.test(text) ? text : null;
+          },
+          "a guest's screen to show the room's answers",
+          60_000,
+        ),
+      );
+    check(
+      /lo que me ayuda/.test(guestView) && /lo del tercero/.test(guestView),
+      "a guest reads the other two, not their own twice",
+    );
+    check(
+      /Participante 1/.test(guestView),
+      "the organiser's seat is Participante 1 for everybody",
+    );
+  } finally {
+    await organiserCtx.close().catch(() => {});
+    for (const ctx of guestCtxs) await ctx.close().catch(() => {});
+  }
+}
+
 // ── Scenario · the ways a Dúo ends ──────────────────────────────────────────
 
 /**
@@ -2813,6 +3043,11 @@ try {
     "BROWSER_FOREIGN_SESSION_REJECTED",
     "a third session, and somebody else's cookie",
     () => foreignSessionRejected(browser),
+  );
+  resetRateLimits();
+
+  await scenario("BROWSER_GROUP_OF_THREE", "a circle of three, end to end", () =>
+    groupOfThree(browser),
   );
   resetRateLimits();
 

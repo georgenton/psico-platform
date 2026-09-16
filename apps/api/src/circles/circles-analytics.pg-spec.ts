@@ -6,6 +6,7 @@ import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
+  CIRCLE_SMALL_ACTIVITY_THRESHOLD,
   CIRCLE_SMALL_CELL_THRESHOLD,
   CirclesAnalyticsService,
   weekStartOf,
@@ -294,14 +295,88 @@ suite("circles · analytics against real PostgreSQL", () => {
       expect(JSON.stringify(cell)).not.toContain('"value"');
     });
 
-    it("reports the cell once enough distinct seats are behind it", async () => {
+    it("reports the cell once enough distinct seats AND rooms are behind it", async () => {
       const enough = Array.from({ length: CIRCLE_SMALL_CELL_THRESHOLD }, seat);
-      for (const p of enough) await record(p, { topics: ["convivencia"] });
+      // Spread across three activities. Ten contributors in ONE room is a room,
+      // not a sample — see the test below.
+      for (const [index, p] of enough.entries()) {
+        await record(p, {
+          topics: ["convivencia"],
+          activityId: `act-conviv-${index % CIRCLE_SMALL_ACTIVITY_THRESHOLD}`,
+        });
+      }
 
       const summary = await service.summary({ windowDays: 365 });
       const cell = summary.declaredTopics
         .flatMap((w) => w.cells)
         .find((c) => c.label === "convivencia");
+      expect(cell?.kind).toBe("value");
+    });
+
+    it("suppresses twelve contributors that came from two rooms", async () => {
+      // The arithmetic groups broke. Two groups of six clear the
+      // ten-contributor rule — and each organiser knows their own six, so
+      // subtracting them leaves the other room's answers fully exposed from a
+      // cell the old rule called safe.
+      for (const room of ["act-sala-a", "act-sala-b"]) {
+        for (let i = 0; i < 6; i++) {
+          await record(seat(), { topics: ["cuidado"], activityId: room });
+        }
+      }
+      const summary = await service.summary({ windowDays: 365 });
+      const cell = summary.declaredTopics
+        .flatMap((w) => w.cells)
+        .find((c) => c.label === "cuidado");
+      expect(cell?.kind).toBe("suppressed");
+      expect(JSON.stringify(cell)).not.toContain('"value"');
+    });
+
+    it("suppresses a cell a single room could fill on its own", async () => {
+      // A group of six cannot reach ten by itself today. This asserts the
+      // property rather than the arithmetic: whatever one room contributes, one
+      // room is never a sample.
+      for (let i = 0; i < CIRCLE_SMALL_CELL_THRESHOLD + 2; i++) {
+        await record(seat(), {
+          topics: ["limites"],
+          activityId: "act-una-sala",
+        });
+      }
+      const summary = await service.summary({ windowDays: 365 });
+      const cell = summary.declaredTopics
+        .flatMap((w) => w.cells)
+        .find((c) => c.label === "limites");
+      expect(cell?.kind).toBe("suppressed");
+    });
+
+    it("keeps both suppression inputs after the rows are folded away", async () => {
+      // A folded cell has no rows left to count. It has to carry the room count
+      // with it, or every aged cell would be suppressed forever — which is
+      // safe, and also useless.
+      const old = new Date();
+      old.setUTCDate(old.getUTCDate() - 60);
+      for (let i = 0; i < CIRCLE_SMALL_CELL_THRESHOLD; i++) {
+        const participantId = seat();
+        await record(participantId, {
+          topics: ["descanso"],
+          activityId: `act-viejo-${i % CIRCLE_SMALL_ACTIVITY_THRESHOLD}`,
+        });
+        await pool.query(
+          `UPDATE "CircleFeedback" SET "createdAt"=$1 WHERE "participantId"=$2`,
+          [old, participantId],
+        );
+      }
+      await service.sweep();
+      const rows = await pool.query(
+        `SELECT "contributors","activities" FROM "CircleWeeklyFact"
+          WHERE "metric"='topic' AND "dimension"='descanso'`,
+      );
+      expect(rows.rows[0].contributors).toBe(CIRCLE_SMALL_CELL_THRESHOLD);
+      expect(rows.rows[0].activities).toBe(CIRCLE_SMALL_ACTIVITY_THRESHOLD);
+
+      const summary = await service.summary({ windowDays: 365 });
+      const cell = summary.declaredTopics
+        .flatMap((w) => w.cells)
+        .find((c) => c.label === "descanso");
       expect(cell?.kind).toBe("value");
     });
 

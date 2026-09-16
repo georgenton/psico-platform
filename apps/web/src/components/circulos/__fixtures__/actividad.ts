@@ -111,6 +111,12 @@ export const REVELADA: CircleActivityView = {
   counterpart: { status: "READY" },
   revealed: {
     counterpart: { mode: "EDITED_SUMMARY", summary: "lo de la otra persona" },
+    participants: [
+      {
+        label: "Participante 2",
+        share: { mode: "EDITED_SUMMARY", summary: "lo de la otra persona" },
+      },
+    ],
   },
   artifact: null,
 };

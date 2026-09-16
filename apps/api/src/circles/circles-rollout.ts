@@ -35,6 +35,25 @@ export interface CirclesRolloutConfig {
   readonly mode: CirclesRolloutMode;
   readonly pilotUserIds: readonly string[];
   /**
+   * Whether adult GROUPS may be created, independently of whether Círculos is
+   * available at all.
+   *
+   * Two switches rather than one, and deliberately not a platform of flags:
+   * this is a second boolean in the same resolver, read once at boot, with no
+   * store and no scheduler behind it.
+   *
+   * The reason it is separate is a rollout order. Groups ship closed and are
+   * opened only after the schema, the API and the worker that understand them
+   * are all live — and during that window the Dúo must keep working exactly as
+   * it does now. One combined switch would have made "open groups" and "keep
+   * the Dúo open" the same decision, so the only way to stage the group would
+   * have been to close the Dúo.
+   *
+   * It can only NARROW. `groups` is meaningless while `mode` is `off`, and an
+   * allowlisted member still has to be allowlisted.
+   */
+  readonly groupsEnabled: boolean;
+  /**
    * Value-free reasons a supplied setting was discarded. Empty means the
    * configuration was read exactly as written.
    */
@@ -45,7 +64,8 @@ export interface CirclesRolloutConfig {
 export type CirclesRolloutWarning =
   | "CIRCLES_ROLLOUT_MODE_INVALID"
   | "CIRCLES_PILOT_ALLOWLIST_INVALID"
-  | "CIRCLES_PILOT_ALLOWLIST_EMPTY";
+  | "CIRCLES_PILOT_ALLOWLIST_EMPTY"
+  | "CIRCLES_GROUPS_FLAG_INVALID";
 
 /** DI token, so a spec can supply a config without touching the environment. */
 export const CIRCLES_ROLLOUT_CONFIG = Symbol("CIRCLES_ROLLOUT_CONFIG");
@@ -59,6 +79,28 @@ const MAX_PILOT_USERS = 500;
 export interface CirclesRolloutEnv {
   CIRCLES_ROLLOUT_MODE?: string;
   CIRCLES_PILOT_USER_IDS?: string;
+  /** `on` enables adult groups. Anything else, including absence, does not. */
+  CIRCLES_GROUPS?: string;
+}
+
+/**
+ * Groups are enabled by exactly one spelling and nothing else.
+ *
+ * Not `Boolean(value)`, not "anything truthy": `"false"`, `"0"` and `"no"` are
+ * all truthy strings, and a flag that opens a feature when somebody writes
+ * `CIRCLES_GROUPS=false` is worse than no flag. An unrecognised value is
+ * reported and read as closed.
+ */
+function parseGroupsFlag(raw: string | undefined): {
+  enabled: boolean;
+  warning: CirclesRolloutWarning | null;
+} {
+  const value = raw?.trim().toLowerCase();
+  if (value === undefined || value === "")
+    return { enabled: false, warning: null };
+  if (value === "on") return { enabled: true, warning: null };
+  if (value === "off") return { enabled: false, warning: null };
+  return { enabled: false, warning: "CIRCLES_GROUPS_FLAG_INVALID" };
 }
 
 /**
@@ -81,7 +123,12 @@ function parseAllowlist(raw: string | undefined): readonly string[] | null {
 function closed(
   warnings: readonly CirclesRolloutWarning[],
 ): CirclesRolloutConfig {
-  return Object.freeze({ mode: "off", pilotUserIds: [], warnings });
+  return Object.freeze({
+    mode: "off",
+    pilotUserIds: [],
+    groupsEnabled: false,
+    warnings,
+  });
 }
 
 /**
@@ -111,9 +158,12 @@ export function resolveCirclesRolloutConfig(
     return closed(["CIRCLES_PILOT_ALLOWLIST_EMPTY"]);
   }
 
+  const groups = parseGroupsFlag(env.CIRCLES_GROUPS);
+
   return Object.freeze({
     mode,
     pilotUserIds: Object.freeze([...pilotUserIds]),
-    warnings: [],
+    groupsEnabled: groups.enabled,
+    warnings: groups.warning ? Object.freeze([groups.warning]) : [],
   });
 }

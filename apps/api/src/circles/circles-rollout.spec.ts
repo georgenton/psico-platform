@@ -172,3 +172,120 @@ describe("circles rollout · the service answers per actor", () => {
     }
   });
 });
+
+describe("circles rollout · the modality switch is closed until it is opened", () => {
+  const pilotWith = (groups?: string) =>
+    serviceFor({
+      CIRCLES_ROLLOUT_MODE: "pilot",
+      CIRCLES_PILOT_USER_IDS: "user_a,user_b",
+      ...(groups === undefined ? {} : { CIRCLES_GROUPS: groups }),
+    });
+
+  it("leaves groups closed when nobody said anything", () => {
+    // The default is the one that matters: a deployment that has never heard
+    // of this variable runs the Dúo and creates no groups.
+    const service = pilotWith();
+    expect(service.groupsAreEnabled()).toBe(false);
+    expect(service.isGroupCreationAvailable("user_a")).toBe(false);
+    // …while Círculos itself is untouched.
+    expect(service.isAvailable("user_a")).toBe(true);
+    expect(service.isGuestSurfaceAvailable()).toBe(true);
+  });
+
+  it("opens groups on exactly one spelling", () => {
+    expect(pilotWith("on").groupsAreEnabled()).toBe(true);
+    expect(pilotWith(" ON ").groupsAreEnabled()).toBe(true);
+    expect(pilotWith("On").groupsAreEnabled()).toBe(true);
+  });
+
+  it.each(["false", "0", "no", "true", "1", "yes", "enabled", "sí", "group"])(
+    "reads %j as closed rather than as truthy",
+    (value) => {
+      // The failure this forbids: `Boolean("false")` is `true`. Somebody
+      // writing `CIRCLES_GROUPS=false` to keep groups shut must not open them.
+      const service = pilotWith(value);
+      expect(service.groupsAreEnabled()).toBe(false);
+      expect(service.isGroupCreationAvailable("user_a")).toBe(false);
+    },
+  );
+
+  it("reports an unreadable value without printing it", () => {
+    const config = resolve({
+      CIRCLES_ROLLOUT_MODE: "pilot",
+      CIRCLES_PILOT_USER_IDS: "user_a",
+      CIRCLES_GROUPS: "cohort-nombre-privado",
+    });
+    expect(config.groupsEnabled).toBe(false);
+    expect(config.warnings).toContain("CIRCLES_GROUPS_FLAG_INVALID");
+    expect(JSON.stringify(config)).not.toContain("cohort-nombre-privado");
+  });
+
+  it("accepts an explicit `off` without a warning", () => {
+    // `off` is a deliberate statement, not a typo. Warning about it would
+    // teach an operator to ignore warnings.
+    const config = resolve({
+      CIRCLES_ROLLOUT_MODE: "pilot",
+      CIRCLES_PILOT_USER_IDS: "user_a",
+      CIRCLES_GROUPS: "off",
+    });
+    expect(config.groupsEnabled).toBe(false);
+    expect(config.warnings).toEqual([]);
+  });
+});
+
+describe("circles rollout · the modality switch can only take away", () => {
+  it("does not admit somebody Círculos is closed for", () => {
+    // The whole guarantee is the order of two lines. `CIRCLES_GROUPS=on` is
+    // not an enrolment: a member outside the allowlist stays outside.
+    const service = serviceFor({
+      CIRCLES_ROLLOUT_MODE: "pilot",
+      CIRCLES_PILOT_USER_IDS: "user_a",
+      CIRCLES_GROUPS: "on",
+    });
+    expect(service.isGroupCreationAvailable("user_a")).toBe(true);
+    expect(service.isAvailable("user_b")).toBe(false);
+    expect(service.isGroupCreationAvailable("user_b")).toBe(false);
+  });
+
+  it("stays closed for everybody while the mode is off", () => {
+    // `CIRCLES_GROUPS=on` under `off` opens nothing — and the resolver does not
+    // even carry the flag forward, because `off` has no configuration to hold.
+    const config = resolve({
+      CIRCLES_ROLLOUT_MODE: "off",
+      CIRCLES_GROUPS: "on",
+    });
+    expect(config.groupsEnabled).toBe(false);
+    const service = new CirclesRolloutService(config);
+    expect(service.isGroupCreationAvailable("anybody")).toBe(false);
+  });
+
+  it("refuses a null actor, as availability itself does", () => {
+    const service = serviceFor({
+      CIRCLES_ROLLOUT_MODE: "on",
+      CIRCLES_GROUPS: "on",
+    });
+    expect(service.isGroupCreationAvailable("whoever")).toBe(true);
+    // A deleted account carries no enablement, not even for a general release.
+    expect(service.isGroupCreationAvailable(null)).toBe(false);
+  });
+
+  it("is never wider than availability, for any configuration", () => {
+    // Stated as a property over the whole input space rather than as examples:
+    // there is no combination of mode, allowlist and flag where somebody may
+    // create a group but may not use Círculos.
+    for (const mode of ["off", "pilot", "on", "nonsense"]) {
+      for (const groups of [undefined, "on", "off", "true"]) {
+        const service = serviceFor({
+          CIRCLES_ROLLOUT_MODE: mode,
+          CIRCLES_PILOT_USER_IDS: "user_a",
+          ...(groups === undefined ? {} : { CIRCLES_GROUPS: groups }),
+        });
+        for (const actor of ["user_a", "user_b", ""]) {
+          if (service.isGroupCreationAvailable(actor)) {
+            expect(service.isAvailable(actor)).toBe(true);
+          }
+        }
+      }
+    }
+  });
+});

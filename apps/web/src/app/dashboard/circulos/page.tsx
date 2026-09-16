@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
-import { productionCircleTemplateRegistry } from "@psico/types";
+import {
+  circleAllowedSizes,
+  productionCircleTemplateRegistry,
+} from "@psico/types";
 
 import { isNextThrow, serverFetch } from "@/lib/api.server";
-import { resolveDuoSurface } from "@/lib/circulos/eligibility";
+import { resolveCircleStart } from "@/lib/circulos/eligibility";
 import { estilos as S } from "@/components/circulos/estilos";
 
 /**
@@ -65,8 +68,8 @@ export default async function CirculosPage() {
       <header>
         <h1 style={S.h1}>Círculos</h1>
         <p style={S.p}>
-          Una actividad con otra persona. Cada quien se prepara por su lado, y
-          lo que comparten se abre para los dos a la vez.
+          Una actividad para hacer con otras personas. Cada quien se prepara por
+          su lado, y lo que deciden compartir se abre para todas a la vez.
         </p>
       </header>
 
@@ -88,15 +91,19 @@ export default async function CirculosPage() {
           }}
         >
           {published.map((d) => {
-            // Where this activity is actually offered from. A Dúo is proposed
-            // by the material it belongs to, so this listing's job is to send
-            // somebody there — not to become a second place that starts one.
+            // How this activity can actually be started. A Dúo is proposed by
+            // the material it belongs to, so for one of those this listing's
+            // job is to send somebody there — not to become a second place
+            // that starts one. A group belongs to no particular reading, so
+            // this listing IS its surface. Which of the two applies is decided
+            // server-side, per audience; the page only renders the answer.
             //
-            // `null` means no single surface answers for it, and then there is
-            // no button: an action that cannot begin anything is worse than
-            // none, because the person spends their attempt on it and
-            // concludes the product is broken.
-            const surface = resolveDuoSurface(d.templateKey);
+            // `null` means nothing here can begin it, and then there is no
+            // button: an action that cannot start anything is worse than none,
+            // because the person spends their attempt on it and concludes the
+            // product is broken.
+            const start = resolveCircleStart(d);
+            const people = circleAllowedSizes(d);
             return (
               <li
                 key={`${d.templateKey}@${d.templateVersion}`}
@@ -104,9 +111,14 @@ export default async function CirculosPage() {
               >
                 <h2 style={S.h2}>{d.title}</h2>
                 <p style={S.p}>{d.summary}</p>
-                {surface ? (
-                  <a href={surface.href} style={S.secondary}>
-                    Ir a la experiencia
+                <p style={S.aviso}>
+                  {people.length > 1
+                    ? `Entre ${people[0]} y ${people[people.length - 1]} personas adultas, contándote.`
+                    : `${people[0]} personas adultas.`}
+                </p>
+                {start ? (
+                  <a href={start.href} style={S.secondary}>
+                    {start.label}
                   </a>
                 ) : (
                   <p style={S.aviso}>

@@ -103,14 +103,44 @@ export const CIRCLE_FOLLOW_UP_DECISIONS: readonly CircleFollowUpDecision[] = [
 // ─── The filtered view ───────────────────────────────────────────────────────
 
 /**
- * What the actor knows about the OTHER participant before the reveal.
+ * What the actor knows about the REST OF THE ROOM before the reveal.
  *
- * Exactly one bit: have they finished. Not what they chose, not how many
- * fields, not how long it is, not when — `readyAt` would leak the moment
+ * Exactly one bit: has everybody else finished. Not what they chose, not how
+ * many fields, not how long it is, not when — `readyAt` would leak the moment
  * somebody confirmed, which in a two-person activity is a message of its own.
+ *
+ * ── One status for the room, not one per seat ──────────────────────────────
+ *
+ * In a Dúo there is one other seat and this is its status. In a group it is the
+ * LEAST ADVANCED of the other seats, and that is deliberate rather than a
+ * simplification: a list of per-seat statuses is a list of who is late. Five
+ * people waiting on one, able to see which one, is pressure the activity has no
+ * business creating — and the only thing anybody can act on is whether the room
+ * is still waiting, which one status says exactly.
+ *
+ * After the reveal every seat is `READY` by construction, so per-seat facts
+ * stop being timing information; that is where `revealed.participants` appears
+ * and not before.
  */
 export interface CircleCounterpartStatus {
   readonly status: CircleParticipantStatus;
+}
+
+/**
+ * One other person's revealed snapshot, with the seat it came from.
+ *
+ * `label` is POSITIONAL and stable: the same seat is «Participante 3» for
+ * everybody who can see it, on every request, before and after. It is derived
+ * from the roster's order — organiser first, then the invited seats in a fixed
+ * order — and never from a name, an email, an order of arrival, or the order
+ * the organiser sent the links in. The last of those is the one worth stating:
+ * a label that tracked link order would let the organiser attribute every
+ * answer in the room to a person by name, which is not what anybody agreed to
+ * when they accepted a seat.
+ */
+export interface CircleRevealedParticipant {
+  readonly label: string;
+  readonly share: CircleRevealedShare;
 }
 
 /**
@@ -170,12 +200,20 @@ export interface CircleActivityView {
     readonly followUpDecision: CircleFollowUpDecision | null;
   };
 
-  /** The other seat, reduced to what may be known at this stage. */
+  /** The rest of the room, reduced to what may be known at this stage. */
   readonly counterpart: CircleCounterpartStatus;
 
-  /** Present only once `REVEALED`, and only for participants still in it. */
+  /**
+   * Present only once `REVEALED`, and only for participants still in it.
+   *
+   * `participants` carries every other seat's snapshot, labelled. `counterpart`
+   * is the same thing for the one-other case and is present only then: a Dúo
+   * has a counterpart, a room of five does not, and a field that answered
+   * "which of the four is THE other one" would have to invent a winner.
+   */
   readonly revealed: {
-    readonly counterpart: CircleRevealedShare;
+    readonly counterpart?: CircleRevealedShare;
+    readonly participants: readonly CircleRevealedParticipant[];
   } | null;
 
   readonly artifact: CircleArtifactView | null;

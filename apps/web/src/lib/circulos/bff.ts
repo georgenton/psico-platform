@@ -235,8 +235,15 @@ export function inspectInvitation(secret: string) {
  *
  * Explicitly NOT a spread. Spreading would mean anything the API ever added —
  * an id, a roster, a counter, an email — arrives at the browser the day it is
- * added, with no diff here to notice. Four fields are named, four are copied,
- * and everything else has nowhere to go.
+ * added, with no diff here to notice. The fields are named one by one, they are
+ * copied one by one, and everything else has nowhere to go.
+ *
+ * That guard worked exactly as intended when groups landed: the API started
+ * sending `participants`, the screen needed it to tell somebody how many people
+ * would read what they write, and it did not arrive until it was named HERE.
+ * It is admitted as a whole number between two and six — the sizes the product
+ * admits — and dropped otherwise, because a preview saying "participan 900
+ * personas" is worse than one that does not mention it.
  *
  * A malformed or absent preview becomes `null`. The invitation stays usable:
  * losing the description is a worse screen, never a dead link.
@@ -256,11 +263,20 @@ export function projectInvitationPreview(
   ) {
     return null;
   }
+  const participants =
+    typeof p.participants === "number" &&
+    Number.isInteger(p.participants) &&
+    p.participants >= 2 &&
+    p.participants <= 6
+      ? p.participants
+      : null;
+
   return Object.freeze({
     title: p.title,
     summary: p.summary,
     estimatedMinutes: p.estimatedMinutes,
     inviterFirstName: p.inviterFirstName,
+    ...(participants === null ? {} : { participants }),
   });
 }
 
@@ -395,7 +411,10 @@ const UUID_V4 =
 export interface CreateDuoBody {
   readonly templateKey: string;
   readonly templateVersion: number;
-  readonly invitationToken: string;
+  /** One per seat that is not the organiser's: 1 for a Dúo, N-1 for a group. */
+  readonly invitationTokens: readonly string[];
+  /** How many people, including the organiser. Absent means the template's default. */
+  readonly size?: number;
 }
 
 /**
@@ -420,8 +439,11 @@ export function parseCreateDuo(raw: unknown): CreateDuoBody | null {
 
   // Exact keys: an extra field is refused rather than trimmed, so a caller
   // cannot smuggle a `userId` or a `circleId` past us and hope the API ignores
-  // it.
-  if (!exact(body, ["templateKey", "templateVersion", "invitationToken"])) {
+  // it. `size` is optional, so both shapes are named and anything else is not.
+  if (
+    !exact(body, ["templateKey", "templateVersion", "invitationTokens"]) &&
+    !exact(body, ["templateKey", "templateVersion", "invitationTokens", "size"])
+  ) {
     return null;
   }
   if (typeof body.templateKey !== "string") return null;
@@ -432,13 +454,44 @@ export function parseCreateDuo(raw: unknown): CreateDuoBody | null {
   if (!Number.isInteger(body.templateVersion) || body.templateVersion < 1) {
     return null;
   }
-  if (typeof body.invitationToken !== "string") return null;
-  if (!BASE64URL_256.test(body.invitationToken)) return null;
+
+  // One secret per seat that is not the organiser's. Bounded at five here as
+  // well as in the API — five is a group of six minus the organiser, and an
+  // unbounded array is somewhere to put a million strings before anything else
+  // looks at them.
+  if (!Array.isArray(body.invitationTokens)) return null;
+  if (body.invitationTokens.length < 1 || body.invitationTokens.length > 5) {
+    return null;
+  }
+  for (const token of body.invitationTokens) {
+    if (typeof token !== "string") return null;
+    if (!BASE64URL_256.test(token)) return null;
+  }
+  // Two seats cannot share a secret: one link redeemed twice would put one
+  // person in two seats and leave another with nothing to accept.
+  if (new Set(body.invitationTokens).size !== body.invitationTokens.length) {
+    return null;
+  }
+
+  // The bounds here are the widest any template admits. WHICH sizes this
+  // template admits is the API's answer, decided where the template is known —
+  // the browser is not told the catalog and cannot re-derive it.
+  let size: number | undefined;
+  if (body.size !== undefined) {
+    if (typeof body.size !== "number") return null;
+    if (!Number.isInteger(body.size) || body.size < 2 || body.size > 6) {
+      return null;
+    }
+    // The count has to describe the same activity the size does.
+    if (body.invitationTokens.length !== body.size - 1) return null;
+    size = body.size;
+  }
 
   return {
     templateKey: body.templateKey,
     templateVersion: body.templateVersion,
-    invitationToken: body.invitationToken,
+    invitationTokens: body.invitationTokens as string[],
+    ...(size === undefined ? {} : { size }),
   };
 }
 

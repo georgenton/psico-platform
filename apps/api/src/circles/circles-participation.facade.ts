@@ -87,7 +87,8 @@ export class CirclesParticipationFacade {
       userId: actor.userId,
       templateKey: dto.templateKey,
       templateVersion: dto.templateVersion,
-      invitationToken: dto.invitationToken,
+      invitationTokens: dto.invitationTokens,
+      ...(dto.size === undefined ? {} : { size: dto.size }),
       idempotencyKey,
     });
     // Deliberately minimal: two ids and nothing else. Not the token — the
@@ -113,29 +114,30 @@ export class CirclesParticipationFacade {
     // `mayReadRevealedContent`.
     const selfStillIn = ctx.self.status === "READY";
 
-    // The counterpart's envelope is not merely hidden before the reveal — it is
-    // never decrypted. There is nothing in memory for a later bug to serialize.
-    const counterpartBody =
-      revealedStage && selfStillIn && ctx.counterpart
-        ? this.domain.openEnvelope(
-            ctx.counterpart,
-            ctx.activity,
-            ctx.definition,
-          )
-        : null;
+    // The other people's envelopes are not merely hidden before the reveal —
+    // they are never decrypted. There is nothing in memory for a later bug to
+    // serialize. The condition is evaluated ONCE, outside the loop, so a room
+    // of six cannot end up with five seats refused and one opened.
+    const mayOpenOthers = revealedStage && selfStillIn;
+    const others = ctx.others.map((participant) => ({
+      participant,
+      position: ctx.positions.get(participant.id) ?? 0,
+      body: mayOpenOthers
+        ? this.domain.openEnvelope(participant, ctx.activity, ctx.definition)
+        : null,
+    }));
 
     return projectActivity({
       activity: ctx.activity,
       definition: ctx.definition,
       self: ctx.self,
-      counterpart: ctx.counterpart,
+      others,
       readyCount: ctx.participants.filter((p) => p.status === "READY").length,
       selfBody: this.domain.openEnvelope(
         ctx.self,
         ctx.activity,
         ctx.definition,
       ),
-      counterpartBody,
       artifact:
         artifact && revealedStage && selfStillIn
           ? {

@@ -368,6 +368,7 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
       "20260913000000_circles_account_deletion",
       "20260915000000_circles_artifact_purge",
       "20260916000000_circles_analytics",
+      "20260916100000_circles_adult_groups",
     ]);
     expect(baseline).toHaveLength(63);
 
@@ -800,7 +801,10 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
     ],
     [
       "a shared activity that requires one participant",
-      "CircleActivity_required_participants_exactly_two",
+      // Renamed, not relaxed: `CircleActivity_size_matches_kind` replaced
+      // `CircleActivity_required_participants_exactly_two` when groups landed.
+      // This row has no explicit kind, so it is a DUO, and a DUO is still two.
+      "CircleActivity_size_matches_kind",
       () =>
         pool.query(
           `INSERT INTO "CircleActivity"
@@ -1383,8 +1387,12 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
   // ═══════════════════════════════════════════════════════════════════════
 
   it.each([1, 3, 4, 99])(
-    "refuses an activity requiring %i participants",
+    "refuses a DUO activity requiring %i participants",
     async (n) => {
+      // Adult groups made 3, 4, 5 and 6 legal NUMBERS. They are still not legal
+      // sizes here: this row carries no kind, so it is a DUO, and the
+      // constraint that used to be an unconditional `= 2` is now a conditional
+      // one that says the same thing about a DUO.
       const refusal = await refusalOf(() =>
         pool.query(
           `INSERT INTO "CircleActivity"
@@ -1394,9 +1402,7 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
           [`act-req-${n}`, CIRCLE, n],
         ),
       );
-      expect(refusal.constraint).toBe(
-        "CircleActivity_required_participants_exactly_two",
-      );
+      expect(refusal.constraint).toBe("CircleActivity_size_matches_kind");
     },
   );
 

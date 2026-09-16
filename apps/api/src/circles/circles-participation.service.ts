@@ -1,5 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
+import { circleSizeIsAllowed } from "@psico/types";
 import type {
   CircleActivityDefinition,
   CircleActor,
@@ -93,8 +94,21 @@ export interface CreateDuoInput {
   readonly userId: string;
   readonly templateKey: string;
   readonly templateVersion: number;
-  /** 256 bits of caller-supplied entropy. Hashed here, never stored raw. */
-  readonly invitationToken: string;
+  /**
+   * One 256-bit caller-supplied secret PER SEAT that is not the organiser's —
+   * so one for a Dúo, and N−1 for a group of N. Hashed here, never stored raw
+   * and never logged.
+   *
+   * One secret per seat rather than one link many people can use: a link that
+   * admits an indeterminate number of people is not a roster, and a roster is
+   * the thing this activity promises.
+   */
+  readonly invitationTokens: readonly string[];
+  /**
+   * How many people, including the organiser. Optional: absent means the
+   * template's default, which for a Dúo is the only possibility.
+   */
+  readonly size?: number;
   readonly idempotencyKey: string;
   readonly now?: Date;
 }
@@ -110,7 +124,22 @@ interface ActivityContext {
   readonly activity: CircleActivityRow;
   readonly participants: readonly CircleParticipantRow[];
   readonly self: CircleParticipantRow;
-  readonly counterpart: CircleParticipantRow | null;
+  /**
+   * Every seat that is not the actor's, in ROSTER order — the organiser's seat
+   * first, then the invited ones by id.
+   *
+   * It replaced a `counterpart` computed as `participants.find(p => p.id !==
+   * self.id)`. That was exactly right while every activity had two seats and
+   * silently wrong the moment one had six: it answered "some other seat" and
+   * the caller read it as "the other person".
+   */
+  readonly others: readonly CircleParticipantRow[];
+  /**
+   * Position of each seat in the roster, 1-based, for EVERY seat including the
+   * actor's own. Same order for every viewer, so one seat is «Participante 3»
+   * to all of them.
+   */
+  readonly positions: ReadonlyMap<string, number>;
   readonly definition: CircleActivityDefinition;
 }
 
@@ -252,7 +281,28 @@ export class CirclesParticipationService {
     ) {
       throw new CirclesError(UNUSABLE);
     }
-    const counterpart = participants.find((p) => p.id !== self.id) ?? null;
+    /**
+     * The roster, in one fixed order every viewer computes identically.
+     *
+     * Organiser first — that seat is the only one holding a `memberId`, and it
+     * is the one everybody already knows about because they got their link
+     * from them — then the invited seats by `id`.
+     *
+     * `id` rather than `createdAt`: every seat of an activity is written inside
+     * ONE transaction, and `CURRENT_TIMESTAMP` is the transaction's start, so
+     * all of them carry the same `createdAt` to the millisecond. Ordering a
+     * group's five seats by a value they all share is not an order at all — it
+     * is whatever PostgreSQL returned this time, and the labels built on it
+     * would move between two reads of the same room.
+     */
+    const roster = [...participants].sort((a, b) => {
+      const organizer =
+        Number(b.memberId !== null) - Number(a.memberId !== null);
+      if (organizer !== 0) return organizer;
+      return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+    });
+    const positions = new Map(roster.map((p, index) => [p.id, index + 1]));
+    const others = roster.filter((p) => p.id !== self.id);
 
     let definition: CircleActivityDefinition;
     try {
@@ -266,7 +316,7 @@ export class CirclesParticipationService {
       throw new CirclesError("CIRCLE_STORAGE_FAILURE");
     }
 
-    return { activity, participants, self, counterpart, definition };
+    return { activity, participants, self, others, positions, definition };
   }
 
   /**
@@ -432,7 +482,14 @@ export class CirclesParticipationService {
     // request is what decides replay from conflict. `getPublished` is a
     // precondition for CREATING, so it runs where creation happens.
     const { hashSecret } = await import("./circles-secrets");
-    const tokenHash = hashSecret(input.invitationToken);
+    /**
+     * Every seat's secret, hashed once, in the order the caller minted them.
+     *
+     * All of them are the request, and the idempotency comparison below reads
+     * all of them. The order is kept because it decides which seat each link
+     * opens, not because the comparison cares about it.
+     */
+    const tokenHashes = input.invitationTokens.map((t) => hashSecret(t));
 
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -481,18 +538,50 @@ export class CirclesParticipationService {
           // Template key, template version and token hash together are the
           // request; any of them differing is a different request wearing a
           // used key, which is the definition of a conflict.
-          const sameToken = await tx.circleInvitation.findFirst({
-            where: { circleId: prior.circleId, tokenHash },
-            select: { id: true },
-          });
+          //
+          // EVERY secret, not the first one and a count.
+          //
+          // The first version of this compared `tokenHashes[0]` and then
+          // checked that the remaining ones were the right NUMBER — and a group
+          // spec written against it caught what that misses at once. A caller
+          // that created a group of four with (t1,t2,t3), timed out, and
+          // retried with (t1,t2,t9) agreed on the first secret and on the
+          // count, so it replayed: the third person was handed a link the
+          // server had never seen, and the retry was reported as success.
+          //
+          // Compared as a SET rather than in order: seats are anonymous at
+          // creation — every one of them is an empty INVITED row — so the same
+          // three secrets in a different order are the same three links to the
+          // same three people, and turning an array reordering into a conflict
+          // would refuse a retry that is genuinely identical.
+          const priorHashes = new Set(
+            (
+              await tx.circleInvitation.findMany({
+                where: { circleId: prior.circleId },
+                select: { tokenHash: true },
+              })
+            ).map((i) => i.tokenHash),
+          );
+          const sameSecrets =
+            priorHashes.size === tokenHashes.length &&
+            tokenHashes.every((hash) => priorHashes.has(hash));
           const priorActivity = prior.activityId
             ? await this.activities.findById(prior.activityId, tx)
             : null;
+          // …and the SIZE, now that there is one to disagree about. A caller
+          // that asked for four, timed out, and retried asking for six is not
+          // replaying: it is a different request wearing a used key, and
+          // returning the group of four as success would hand back an activity
+          // two people were never invited to.
+          const requestedSize = input.size ?? null;
           if (
-            !sameToken ||
+            !sameSecrets ||
             !priorActivity ||
             priorActivity.templateKey !== input.templateKey ||
-            priorActivity.templateVersion !== input.templateVersion
+            priorActivity.templateVersion !== input.templateVersion ||
+            (requestedSize !== null &&
+              priorActivity.requiredParticipants !== requestedSize) ||
+            tokenHashes.length !== priorActivity.requiredParticipants - 1
           ) {
             throw new CirclesError("CIRCLE_IDEMPOTENCY_CONFLICT");
           }
@@ -517,12 +606,67 @@ export class CirclesParticipationService {
           throw new CirclesError("CIRCLE_TEMPLATE_UNAVAILABLE");
         }
 
+        /**
+         * The size, decided once and checked against the template's range.
+         *
+         * `circleSizeIsAllowed` is the same predicate the Web uses to offer the
+         * choice, so "which sizes exist" has one answer. A size outside the
+         * range is REFUSED rather than clamped: quietly giving somebody a
+         * different group from the one they asked for is worse than saying no.
+         *
+         * For a Dúo the range is a single number, so a caller that sends
+         * nothing gets two and a caller that sends three is refused — by this
+         * line, not by a mode-specific branch further down.
+         */
+        const size = input.size ?? definition.participants.required;
+        // All three refusals below are CIRCLE_INVALID_PAYLOAD — a closed
+        // vocabulary rather than three new codes. They are the same kind of
+        // thing: a request that does not describe an activity this template can
+        // produce, answered without saying which part was wrong.
+        if (!circleSizeIsAllowed(definition, size)) {
+          throw new CirclesError("CIRCLE_INVALID_PAYLOAD");
+        }
+        // One secret per seat that is not the organiser's. Too few and a seat
+        // could never be filled; too many and the caller believes it invited
+        // somebody this activity has no room for.
+        if (tokenHashes.length !== size - 1) {
+          throw new CirclesError("CIRCLE_INVALID_PAYLOAD");
+        }
+        if (new Set(tokenHashes).size !== tokenHashes.length) {
+          throw new CirclesError("CIRCLE_INVALID_PAYLOAD");
+        }
+
+        const kind =
+          definition.audience === "GROUP_ADULT" ? "GROUP_ADULT" : "DUO";
+
+        /**
+         * The modality gate, asked of the RESOLVED TEMPLATE.
+         *
+         * Not of the request. A caller cannot open groups by sending `size: 4`,
+         * by naming a group template, or by any other field: the audience comes
+         * from the catalogue entry the server just looked up, and `size` was
+         * already checked against that same entry's range. The only way to
+         * reach this branch is for the template itself to be a group template.
+         *
+         * `CIRCLES_UNAVAILABLE` rather than a code of its own, and the same one
+         * an unallowlisted member gets: somebody the modality is closed for
+         * should not be able to learn that adult groups exist. That is also why
+         * the check sits here and not in the guard — the guard runs before the
+         * body is parsed and cannot know which template was asked for.
+         */
+        if (
+          kind === "GROUP_ADULT" &&
+          !this.rollout.isGroupCreationAvailable(input.userId)
+        ) {
+          throw new CirclesError("CIRCLES_UNAVAILABLE");
+        }
+
         const circle = await tx.circle.create({
           data: {
-            kind: "DUO",
+            kind,
             status: "ACTIVE",
             createdByUserId: input.userId,
-            maxParticipants: 2,
+            maxParticipants: size,
           },
           select: { id: true },
         });
@@ -544,7 +688,8 @@ export class CirclesParticipationService {
             templateKey: definition.templateKey,
             templateVersion: definition.templateVersion,
             status: "INVITING",
-            requiredParticipants: 2,
+            kind,
+            requiredParticipants: size,
             followUpDueAt,
           },
           select: { id: true },
@@ -559,25 +704,41 @@ export class CirclesParticipationService {
           },
           select: { id: true },
         });
-        const invitation = await tx.circleInvitation.create({
-          data: {
-            circleId: circle.id,
-            activityId: activity.id,
-            createdByMemberId: member.id,
-            tokenHash,
-            expiresAt: new Date(now.getTime() + 14 * 24 * 3_600_000),
-          },
-          select: { id: true },
-        });
-        await tx.circleActivityParticipant.create({
-          data: {
-            circleId: circle.id,
-            activityId: activity.id,
-            invitationId: invitation.id,
-            status: "INVITED",
-          },
-          select: { id: true },
-        });
+        /**
+         * One invitation and one seat per secret, in one pass.
+         *
+         * Sequential rather than `Promise.all`: these rows are written inside
+         * one transaction against one connection, and issuing them concurrently
+         * on a single client buys nothing while making the write order —
+         * which is the lock order — depend on scheduling.
+         */
+        const expiresAt = new Date(now.getTime() + 14 * 24 * 3_600_000);
+        for (const [index, hash] of tokenHashes.entries()) {
+          const invitation = await tx.circleInvitation.create({
+            data: {
+              circleId: circle.id,
+              activityId: activity.id,
+              createdByMemberId: member.id,
+              tokenHash: hash,
+              // Which seat this link opens. The database keeps at most one live
+              // invitation per seat, so a group's N−1 links coexist while a
+              // second link into the SAME seat is still refused — the rule the
+              // Dúo has had since the foundation, now said per seat.
+              seatIndex: index + 1,
+              expiresAt,
+            },
+            select: { id: true },
+          });
+          await tx.circleActivityParticipant.create({
+            data: {
+              circleId: circle.id,
+              activityId: activity.id,
+              invitationId: invitation.id,
+              status: "INVITED",
+            },
+            select: { id: true },
+          });
+        }
 
         await this.events.append(
           {
@@ -1058,7 +1219,7 @@ export class CirclesParticipationService {
     };
   }
 
-  /** Confirm an EXACT artifact and version. Agreement needs both seats. */
+  /** Confirm an EXACT artifact and version. Agreement needs EVERY seat. */
   async confirmArtifact(
     actor: CircleActor,
     activityId: string,

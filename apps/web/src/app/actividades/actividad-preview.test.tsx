@@ -26,11 +26,14 @@ describe("the production catalog carries one activity, and the page shows that o
     // effect of building this page. The catalog also carries @1, now ARCHIVED,
     // which is deliberately NOT offered — it exists so the activities pinned to
     // it keep resolving.
-    expect(PRODUCTION_CIRCLE_TEMPLATES).toHaveLength(2);
+    expect(PRODUCTION_CIRCLE_TEMPLATES).toHaveLength(3);
     const published = productionCircleTemplateRegistry.listPublished();
-    expect(published).toHaveLength(1);
-    expect(published[0].templateKey).toBe("duo-lo-que-me-ayuda");
-    expect(published[0].templateVersion).toBe(2);
+    // Two activities are offered — the Dúo and the adult group — and exactly
+    // one VERSION of each, which is the rule this page depends on: its URL
+    // carries a key and no version.
+    expect(
+      published.map((d) => `${d.templateKey}@${d.templateVersion}`),
+    ).toEqual(["duo-lo-que-me-ayuda@2", "grupo-lo-que-nos-ayuda@1"]);
   });
 
   it("shows only the published version, never the archived one", () => {

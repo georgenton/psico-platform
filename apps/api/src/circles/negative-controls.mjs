@@ -670,6 +670,104 @@ const CONTROLS = [
     // screen is consulted.
     t: "nothing is revealed on one confirmation",
   },
+
+  // ── The second shape: rules that read the same as the Dúo's when wrong ───
+  {
+    property: "THE_MODALITY_GATE_READS_THE_TEMPLATE",
+    mutation: "the gate is asked of the request instead of the catalogue",
+    file: f("src/circles/circles-participation.service.ts"),
+    // The gate's whole point is WHERE it asks. Reading `input.size` instead of
+    // the resolved template's audience means a caller can open groups by
+    // sending a number — and for a Dúo request the two answers agree, so the
+    // Dúo's own tests would never notice.
+    find: `        if (
+          kind === "GROUP_ADULT" &&
+          !this.rollout.isGroupCreationAvailable(input.userId)
+        ) {`,
+    replace: `        if (
+          (input.size ?? 2) > 2 &&
+          !this.rollout.isGroupCreationAvailable(input.userId)
+        ) {`,
+    runner: PGSPEC,
+    test: "src/circles/circles-groups.pg-spec.ts",
+    t: "refuses a group template while the switch is shut",
+  },
+  {
+    property: "THE_MODALITY_SWITCH_CAN_ONLY_NARROW",
+    mutation: "the switch is consulted before availability",
+    file: f("src/circles/circles-rollout.service.ts"),
+    // The order of two lines IS the guarantee. Swapped, `CIRCLES_GROUPS=on`
+    // becomes an enrolment: somebody outside the allowlist creates a group
+    // because a flag is open. Every other answer the service gives is
+    // unchanged, which is exactly why a total would not move.
+    find: `    if (!this.isAvailable(userId)) return false;
+    return this.groups;`,
+    replace: `    if (this.groups) return true;
+    return this.isAvailable(userId);`,
+    runner: UNIT,
+    test: "src/circles/circles-rollout.spec.ts",
+    t: "does not admit somebody Círculos is closed for",
+  },
+  {
+    property: "EVERY_SECRET_IS_PART_OF_THE_REQUEST",
+    mutation: "a retry is compared by its first secret and a count",
+    file: f("src/circles/circles-participation.service.ts"),
+    // The shape this had before a group spec asked: same key, same first
+    // secret, same count — and the third person holds a link the server never
+    // saw. For a Dúo there IS only a first secret, so the mutation is
+    // invisible to every Dúo test in the suite.
+    find: `          const sameSecrets =
+            priorHashes.size === tokenHashes.length &&
+            tokenHashes.every((hash) => priorHashes.has(hash));`,
+    replace: `          const sameSecrets =
+            priorHashes.size === tokenHashes.length &&
+            priorHashes.has(tokenHashes[0] ?? "");`,
+    runner: PGSPEC,
+    test: "src/circles/circles-groups.pg-spec.ts",
+    t: "conflicts when the retry keeps the size but changes a later secret",
+  },
+  {
+    property: "A_CELL_NEEDS_MORE_THAN_ONE_ROOM",
+    mutation: "suppression rests on the contributor count alone",
+    file: f("src/circles/circles-analytics.service.ts"),
+    // The rule groups broke. Ten contributors implied five rooms while every
+    // activity had two seats; two rooms of six clear it, and each organiser
+    // can subtract their own. Dropping the second condition restores a rule
+    // that every Dúo-era test still passes.
+    find: `        cell.contributors >= CIRCLE_SMALL_CELL_THRESHOLD &&
+        cell.activities >= CIRCLE_SMALL_ACTIVITY_THRESHOLD`,
+    replace: `        cell.contributors >= CIRCLE_SMALL_CELL_THRESHOLD`,
+    runner: PGSPEC,
+    test: "src/circles/circles-analytics.pg-spec.ts",
+    t: "suppresses twelve contributors that came from two rooms",
+  },
+  {
+    property: "EVERY_SEAT_MAY_ACCEPT_ITS_OWN_INVITATION",
+    mutation: "acceptance requires the room to be untouched",
+    file: f("src/circles/circles.service.ts"),
+    // The bug as it shipped: a room of six admits one guest, because the first
+    // acceptance moves the activity to PREPARING and the next one is refused.
+    // A Dúo has one guest, so this reads as correct there forever.
+    find: `        if (activity.status !== "INVITING" && activity.status !== "PREPARING") {`,
+    replace: `        if (activity.status !== "INVITING") {`,
+    runner: PGSPEC,
+    test: "src/circles/circles-groups.pg-spec.ts",
+    t: "reveals only when the last seat confirms",
+  },
+  {
+    property: "A_GROUP_MINTS_ONE_LINK_PER_SEAT",
+    mutation: "every seat's link opens the same seat",
+    file: f("src/circles/circles-participation.service.ts"),
+    // `seatIndex` is what makes "one live invitation per seat" expressible.
+    // Pinning it to 1 puts every link into seat one — which the partial unique
+    // index then refuses, so no group can be created at all. The Dúo, whose
+    // only guest IS seat one, is untouched.
+    find: `              seatIndex: index + 1,`,
+    replace: `              seatIndex: 1,`,
+    runner: PGSPEC,
+    test: "src/circles/circles-groups.pg-spec.ts",
+    t: "opens one numbered seat per link, all live at once",
+  },
 ];
 
 /**

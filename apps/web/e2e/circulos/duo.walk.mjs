@@ -2316,12 +2316,14 @@ async function groupOfThree(browser) {
     const activityId = sqlOne(
       `SELECT "id" FROM "CircleActivity" ORDER BY "createdAt" DESC LIMIT 1`,
     ).trim();
+    // Every column ALIASED. Two unnamed aggregates are both `count`, and a
+    // transport that returns rows as objects keeps one of them.
     const shape = sqlRows(
-      `SELECT a."kind"::text, a."requiredParticipants",
+      `SELECT a."kind"::text AS kind, a."requiredParticipants" AS required,
               (SELECT count(*) FROM "CircleActivityParticipant" p
-                WHERE p."activityId" = a."id"),
+                WHERE p."activityId" = a."id") AS seats,
               (SELECT count(*) FROM "CircleInvitation" i
-                WHERE i."activityId" = a."id")
+                WHERE i."activityId" = a."id") AS invitations
          FROM "CircleActivity" a WHERE a."id" = '${activityId}'`,
     )[0];
     check(

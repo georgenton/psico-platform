@@ -2598,16 +2598,14 @@ async function groupKeepPrivate(browser) {
     ).trim();
     check(sealed === "0", `every pending envelope is destroyed (${sealed})`);
 
-    // The OTHER guest, who pressed nothing, learns it ended — and nothing else.
-    const other = guests[1];
-    await enterRoom(other.page).catch(() => {});
-    await other.page.reload({ waitUntil: "domcontentloaded" });
+    // The ORGANISER, who pressed nothing, learns it ended — and nothing else.
+    await page.reload({ waitUntil: "domcontentloaded" });
     const shown = await until(
       async () => {
-        const text = await other.page.evaluate(() => document.body.innerText);
+        const text = await page.evaluate(() => document.body.innerText);
         return /Esta actividad terminó/i.test(text) ? text : null;
       },
-      "the other person to see a terminal screen",
+      "the organiser to see a terminal screen",
       60_000,
     );
     check(
@@ -2617,6 +2615,28 @@ async function groupKeepPrivate(browser) {
     check(
       !/Participante \d/.test(shown) && !/privad/i.test(shown),
       "and it names nobody and no reason",
+    );
+
+    // The other GUEST sees the same screen a cancelled Dúo has always shown
+    // its guest: the session was revoked with the activity, so the page is
+    // refused rather than rendered. It is neutral — no name, no reason, no
+    // hint that somebody chose anything — and it is the Dúo's existing
+    // behaviour rather than something groups introduced.
+    const other = guests[1];
+    await other.page.reload({ waitUntil: "domcontentloaded" });
+    const guestText = await until(
+      async () => {
+        const text = await other.page.evaluate(() => document.body.innerText);
+        return text.length > 0 ? text : null;
+      },
+      "the other guest's page to settle",
+      60_000,
+    );
+    check(
+      !/Participante \d/.test(guestText) &&
+        !/privad/i.test(guestText) &&
+        !/algo que sí escribí/.test(guestText),
+      "the other guest is told nothing about who ended it, or what was written",
     );
   } finally {
     await organiserCtx.close().catch(() => {});

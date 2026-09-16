@@ -104,7 +104,7 @@ const STATUSES: readonly CircleTemplateStatus[] = [
   "PUBLISHED",
   "ARCHIVED",
 ];
-const AUDIENCES: readonly CircleAudience[] = ["DUO_ADULT"];
+const AUDIENCES: readonly CircleAudience[] = ["DUO_ADULT", "GROUP_ADULT"];
 const FIELD_KINDS: readonly CirclePreparationFieldKind[] = [
   "SHORT_TEXT",
   "LONG_TEXT",
@@ -118,12 +118,55 @@ const OUTCOMES: readonly CircleOutcomeKind[] = [
 ];
 const SAFETY_LEVELS: readonly CircleSafetyLevel[] = ["LOW", "REINFORCED"];
 
-/** Dúo is two adults. Pinned here so the audience cannot drift from the shape. */
+/**
+ * How many people each audience is for. Pinned here so a template cannot drift
+ * from the shape its audience promises.
+ *
+ * Dúo is two adults — `min === max`, so there is nothing to choose. A group is
+ * three to six adults INCLUDING the organiser, and the organiser picks the size
+ * when the activity is created; `required` is what an activity gets if nobody
+ * picks, and the Web always asks.
+ *
+ * Reading the range rather than branching on the audience is deliberate. It
+ * means no code path can widen a Dúo by forgetting which mode it is in: asking
+ * for three seats on a DUO_ADULT template fails the same bounds check that
+ * asking for seven on a group does.
+ */
 const AUDIENCE_PARTICIPANTS: Readonly<
   Record<CircleAudience, { min: number; max: number; required: number }>
 > = {
   DUO_ADULT: { min: 2, max: 2, required: 2 },
+  GROUP_ADULT: { min: 3, max: 6, required: 3 },
 };
+
+/**
+ * The sizes an activity on this template may actually have.
+ *
+ * One function, used by the API when it creates and by the Web when it offers,
+ * so "which sizes exist" is answered in one place. A size outside the range is
+ * refused rather than clamped: silently giving somebody a different group from
+ * the one they asked for is worse than telling them no.
+ */
+export function circleAllowedSizes(
+  definition: Pick<CircleActivityDefinition, "participants">,
+): readonly number[] {
+  const { min, max } = definition.participants;
+  const out: number[] = [];
+  for (let n = min; n <= max; n++) out.push(n);
+  return Object.freeze(out);
+}
+
+/** Is this a size the template permits? The only question the engine asks. */
+export function circleSizeIsAllowed(
+  definition: Pick<CircleActivityDefinition, "participants">,
+  size: number,
+): boolean {
+  return (
+    Number.isInteger(size) &&
+    size >= definition.participants.min &&
+    size <= definition.participants.max
+  );
+}
 
 // ─── Structural helpers ──────────────────────────────────────────────────────
 
@@ -373,9 +416,9 @@ export function validateCircleActivityDefinition(
   const audience = obj.audience;
   if (!AUDIENCES.includes(audience as CircleAudience)) fail();
 
-  // Participants must match the audience exactly. Dúo is two adults, and a
-  // template claiming DUO_ADULT with three required participants is a bug the
-  // engine must not be asked to reconcile at runtime.
+  // Participants must match the audience exactly. Dúo is two adults, a group is
+  // three to six, and a template claiming DUO_ADULT with three required
+  // participants is a bug the engine must not be asked to reconcile at runtime.
   if (!isPlainObject(obj.participants)) fail();
   const participants = obj.participants as Record<string, unknown>;
   assertExactKeys(participants, ["min", "max", "required"]);
@@ -848,6 +891,173 @@ export const PRODUCTION_CIRCLE_TEMPLATES: readonly CircleActivityDefinition[] =
       ecoMode: "NONE",
       // What the ACTIVITY is about, decided when it was written. Never a claim
       // about the two people who did it.
+      topics: ["apoyo-cotidiano", "comunicacion"],
+    },
+    /**
+     * The first group activity: three to six adults.
+     *
+     * ── Where its text comes from ──────────────────────────────────────────
+     *
+     * From `duo-lo-que-me-ayuda@2`, which Jorge walked and approved. The
+     * questions, their limits, their character counts, the reasoning behind the
+     * activity and both pieces of Echo's help are the SAME text. What changed is
+     * grammatical — "la otra persona" becomes "las demás", "los dos" becomes
+     * "el grupo" — plus the instructions that only make sense with more than two
+     * people, and the minutes it takes.
+     *
+     * Nothing was added: no theory, no clinical question, no new promise. An
+     * approval for the Dúo does not travel to other activities by itself, and
+     * this adaptation was authorised explicitly and in writing.
+     *
+     * ── Its own key, deliberately ──────────────────────────────────────────
+     *
+     * Not a third version of `duo-lo-que-me-ayuda`. A link carries a key and no
+     * version, so reusing the Dúo's key would make "which activity is this" a
+     * question with two right answers — and one of them would put somebody into
+     * a group of six when they were offered a conversation with one person.
+     *
+     * ── What it is not ─────────────────────────────────────────────────────
+     *
+     * Not a tool for confronting somebody, mediating violence or getting a
+     * reluctant person to disclose. The six exclusions below are the Dúo's,
+     * rewritten for a group and not weakened: with more people in the room, a
+     * coercive situation gets worse, not more bearable.
+     */
+    {
+      templateKey: "grupo-lo-que-nos-ayuda",
+      templateVersion: 1,
+      status: "PUBLISHED",
+      audience: "GROUP_ADULT",
+      title: "Lo que nos ayuda cuando estamos así",
+      summary:
+        "Una pausa para contar qué nos ayuda y qué preferimos evitar cuando " +
+        "una situación se vuelve difícil. Cada persona elige qué compartir.",
+      intro: {
+        body:
+          "A veces intentamos ayudar de la manera que nos serviría a nosotros. " +
+          "Esta actividad les propone descubrir qué ayuda a cada quien en una " +
+          "situación cotidiana. Primero pensará cada persona por separado. " +
+          "Después cada quien elegirá qué compartir, y lo confirmado se verá " +
+          "cuando todas las personas hayan confirmado. Al final podrán acordar " +
+          "algo pequeño para intentar juntas.",
+        rationale: {
+          title: "¿Por qué hacemos esta actividad?",
+          body:
+            "Una misma situación puede sentirse de maneras distintas. En " +
+            "nuestra experiencia participan las sensaciones del cuerpo, lo que " +
+            "está pasando y lo que hemos aprendido a interpretar. Por eso, " +
+            "decir «estoy enojado» no explica por completo lo que alguien vive " +
+            "ni cómo quiere ser acompañado. Una persona puede querer espacio; " +
+            "otra, que la escuchen. Aquí puedes contar tu experiencia sin " +
+            "encontrar una explicación perfecta. Las demás podrán preguntar y " +
+            "comprobar si te entendieron. Es una manera de mirarlo entre " +
+            "varias, no una explicación clínica.",
+        },
+      },
+      /**
+       * The same three questions as `@2`, with the same keys, kinds and limits.
+       * Only the help text moves from "los dos" to "el grupo".
+       */
+      privatePreparation: [
+        {
+          fieldKey: "momento",
+          label: "¿En qué momento estás pensando?",
+          kind: "SHORT_TEXT",
+          maxLength: 240,
+          optional: true,
+          help: {
+            explanation:
+              "Sirve para que las dos respuestas siguientes hablen de lo " +
+              "mismo. No hace falta que sea un momento difícil ni que le " +
+              "pongas nombre a una emoción: basta con una situación que se " +
+              "repite. Si prefieres no escribirlo, puedes seguir sin él.",
+            example:
+              "Podrías escribir: «Cuando llego preocupado por el trabajo y me " +
+              "cuesta conversar». Un momento corriente basta — no tiene que " +
+              "ser el más importante, sólo uno que el grupo reconozca.",
+          },
+        },
+        {
+          fieldKey: "que-ayuda",
+          label: "En ese momento, me ayuda que…",
+          kind: "SHORT_TEXT",
+          maxLength: 200,
+          help: {
+            explanation:
+              "Puedes empezar por un momento concreto. Piensa en una ocasión " +
+              "en que alguien te acompañó y te sentiste un poco más cómodo: " +
+              "¿te escuchó, te dio espacio o te ayudó con algo práctico? No " +
+              "necesitas una respuesta que sirva siempre. Basta con algo que " +
+              "podría ayudarte en la situación que elegiste.",
+            example:
+              "En vez de «quiero que me entiendan», podrías escribir: «Cuando " +
+              "llego preocupado, me ayuda que me pregunten si quiero hablar " +
+              "antes de darme consejos». Adáptalo a tu experiencia. También " +
+              "está bien decir que todavía no sabes qué te ayudaría.",
+          },
+        },
+        {
+          fieldKey: "que-no-ayuda",
+          label: "Y preferiría que evitáramos…",
+          kind: "LONG_TEXT",
+          maxLength: 800,
+          help: {
+            explanation:
+              "Es una preferencia tuya, no una lista de reproches. Piensa en " +
+              "qué te deja peor en ese momento aunque la intención sea buena: " +
+              "que insistan, que minimicen, que lo resuelvan por ti. Decirlo " +
+              "ahora ahorra un malentendido después.",
+            example:
+              "Podrías escribir: «Preferiría que evitáramos hablarlo apenas " +
+              "llego, antes de que me dé tiempo a aterrizar». Si no se te " +
+              "ocurre nada, dejarlo en blanco también dice algo.",
+          },
+        },
+      ],
+      participants: { min: 3, max: 6, required: 3 },
+      sharing: {
+        allowedModes: ["SELECTED_FIELDS", "EDITED_SUMMARY", "KEEP_PRIVATE"],
+      },
+      reveal: { strategy: "ALL_CONFIRMED" },
+      conversation: {
+        turns: [
+          "Lo que entiendo que les ayuda es… ¿entendí bien?",
+          "Esto podría intentarlo. Esto otro me cuesta…",
+          "La próxima vez podemos probar…",
+        ],
+      },
+      outcome: { kind: "AGREEMENT" },
+      followUp: { afterHours: 168 },
+      /**
+       * Twenty-five minutes, not fifteen.
+       *
+       * The only number that moved, and it moved because six people reading and
+       * answering take longer than two. Promising fifteen to a group of six
+       * would be a false promise about their evening, which is a participation
+       * instruction rather than a change of content.
+       */
+      estimatedMinutes: 25,
+      source: {
+        bookSlug: "emociones-en-construccion",
+        chapterOrder: 1,
+      },
+      safety: {
+        level: "REINFORCED",
+        privateGateRequired: true,
+        /**
+         * The Dúo's six, rewritten for a group and not softened. More people in
+         * the room makes a coercive situation worse, not more bearable.
+         */
+        doNotSuggestWhen: [
+          "Hay violencia, amenazas o miedo a la reacción de alguien del grupo.",
+          "Alguna de las personas depende económica, migratoria o legalmente de otra.",
+          "Hay una relación de autoridad dentro del grupo: jefatura, docencia, terapia o cuidado.",
+          "La invitación la pide un tercero, o alguien no eligió participar.",
+          "Alguna de las personas está en crisis ahora mismo.",
+          "Alguna de las personas es menor de edad.",
+        ],
+      },
+      ecoMode: "NONE",
       topics: ["apoyo-cotidiano", "comunicacion"],
     },
   ];

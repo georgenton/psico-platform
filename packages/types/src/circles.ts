@@ -28,10 +28,17 @@
  * ── Multi-participant domain, Dúo-only surface ─────────────────────────────
  *
  * `participants` carries min/max/required rather than assuming two, because
- * the domain is Circles and Dúo is its first configuration (ADR-CIR-001). What
- * keeps Familia and groups out of v1 is the `audience` enum having exactly one
- * value and the validator pinning DUO_ADULT to 2/2/2 — not a reshaped schema
- * later.
+ * the domain is Circles and Dúo was its first configuration (ADR-CIR-001).
+ * `GROUP_ADULT` is the second: three to six adults, the size chosen at creation.
+ *
+ * The range is the whole mechanism. An organiser picks a size inside
+ * `[min, max]`, and Dúo has a range of exactly one — so there is no "is this a
+ * group?" branch in the engine, and no way for a Dúo to be widened by a code
+ * path that forgot to ask. `required` is the size an activity gets when nobody
+ * chooses; the Web always asks for a group.
+ *
+ * What still keeps Familia out is the `audience` enum not having a value for
+ * it — not a reshaped schema later.
  */
 
 // ─── Actor ───────────────────────────────────────────────────────────────────
@@ -433,8 +440,18 @@ export const CIRCLE_NEVER_CAPABILITIES: readonly CircleCapability[] = [
 
 export type CircleTemplateStatus = "DRAFT" | "PUBLISHED" | "ARCHIVED";
 
-/** The only audience v1 enables. Familia and groups are schema-ready, not exposed. */
-export type CircleAudience = "DUO_ADULT";
+/**
+ * Who an activity is for.
+ *
+ * `DUO_ADULT` is two adults. `GROUP_ADULT` is three to six adults including the
+ * organiser, with the size chosen when the activity is created and fixed from
+ * then on.
+ *
+ * Familia — anything involving minors — is deliberately still absent, and so is
+ * any institutional or clinical context. Adding a value here is a product
+ * decision with its own approval, not a configuration change.
+ */
+export type CircleAudience = "DUO_ADULT" | "GROUP_ADULT";
 
 export type CirclePreparationFieldKind = "SHORT_TEXT" | "LONG_TEXT" | "CHOICE";
 

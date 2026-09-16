@@ -2887,6 +2887,9 @@ enum ExperienceVersionStatus {
 
 enum CircleKind {
   DUO
+  /// Three to six adults, the size chosen when the activity is created.
+  /// Never a family, a class, a team or anything with a minor in it.
+  GROUP_ADULT
 }
 
 enum CircleStatus {
@@ -2988,12 +2991,17 @@ model Circle {
   /// would record that they created something they did not; NULL says the true
   /// thing — created by an account that no longer exists. Closing a circle is
   /// still not deleting one, and the audit still outlives it.
-  createdBy   User?              @relation("CircleCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  members     CircleMember[]
-  activities  CircleActivity[]
-  invitations CircleInvitation[]
-  events      CircleEvent[]
+  createdBy        User?              @relation("CircleCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  members          CircleMember[]
+  activities       CircleActivity[]
+  activitiesByKind CircleActivity[]   @relation("CircleActivityKind")
+  invitations      CircleInvitation[]
+  events           CircleEvent[]
 
+  /// Reference target for the activity's composite FK, so an activity cannot
+  /// claim a kind its circle does not have. Without it, `kind` on the activity
+  /// would be a copy nobody checked.
+  @@unique([id, kind])
   @@index([createdByUserId])
   @@index([status])
 }
@@ -3113,7 +3121,18 @@ model CircleActivity {
   templateKey          String
   templateVersion      Int
   status               CircleActivityStatus @default(INVITING)
-  /// Exactly 2 in v1, by SQL CHECK — the contractual shape of Dúo, not a floor.
+  /// Which shape this activity is, copied from its circle and held there by a
+  /// composite FK. It exists so the size CHECK below can be conditional without
+  /// a subquery — a CHECK cannot ask another table, and "how many seats may
+  /// this have" depends entirely on the answer.
+  ///
+  /// `DUO` by default so an API instance from before this migration can still
+  /// insert during a rolling deploy: it writes no kind, gets DUO, and DUO's
+  /// rule is the one it was already obeying.
+  kind                 CircleKind           @default(DUO)
+  /// Exactly 2 for a Dúo and 3–6 for an adult group, by SQL CHECK against
+  /// `kind`. Fixed when the activity is created and frozen by trigger: a roster
+  /// that can be resized mid-activity is a roster nobody agreed to.
   requiredParticipants Int
   revealedAt           DateTime?
   followUpDueAt        DateTime?
@@ -3123,6 +3142,8 @@ model CircleActivity {
   updatedAt            DateTime             @updatedAt
 
   circle        Circle                      @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  /// The composite half: this activity's kind must be its circle's kind.
+  circleKind    Circle                      @relation("CircleActivityKind", fields: [circleId, kind], references: [id, kind], onDelete: Cascade, map: "CircleActivity_circleId_kind_fkey")
   participants  CircleActivityParticipant[]
   invitations   CircleInvitation[]
   guestSessions CircleGuestSession[]

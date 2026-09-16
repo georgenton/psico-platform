@@ -1,11 +1,13 @@
 # Círculos · el piloto productivo de Dúo
 
-> **Las tres decisiones están tomadas.** Jorge aprobó la política de artefactos
+> **Las decisiones están tomadas.** Jorge aprobó la política de artefactos
 > (§2), la plantilla «Lo que me ayuda cuando estoy así» con sus condiciones y
 > sus seis exclusiones (§1), y su vínculo con
-> `eec-c1-cuerpo-antes-que-mente@1`. Este documento dejó de ser una propuesta:
-> describe lo aprobado, lo implementado y lo desplegado, y distingue las tres
-> cosas allí donde difieren.
+> `eec-c1-cuerpo-antes-que-mente@1`. Después recorrió `@2` de principio a fin en
+> el entorno alojado de pruebas y **la aprobó también** (§5), así que `@2` es lo
+> que se ofrece y `@1` quedó archivada. Este documento dejó de ser una
+> propuesta: describe lo aprobado, lo implementado y lo desplegado, y distingue
+> las tres cosas allí donde difieren.
 >
 > Lo que queda no es una decisión, es una lista de admitidos: **el piloto
 > organiza sólo quien esté en `CIRCLES_PILOT_USER_IDS`**, y la contraparte entra
@@ -30,16 +32,24 @@ Lo aprobado es exactamente esto: el texto, las condiciones de uso, las seis
 exclusiones y el vínculo con la experiencia. Aprobar esta plantilla no aprueba
 ninguna otra; las demás siguen sin copy verificable aquí.
 
-### Aprobada — **PUBLICADA**
+### Aprobada — **ARCHIVADA desde la publicación de @2**
 
 `templateKey: "duo-lo-que-me-ayuda"` · `templateVersion: 1` ·
-`status: "PUBLISHED"` · `audience: "DUO_ADULT"` · `estimatedMinutes: 15` ·
+`status: "ARCHIVED"` · `audience: "DUO_ADULT"` · `estimatedMinutes: 15` ·
 `participants: { min: 2, max: 2, required: 2 }` · `ecoMode: "NONE"`
 
-Vive en `packages/types/src/circles-catalog.ts`, y es la **única** entrada de
-`PRODUCTION_CIRCLE_TEMPLATES`. Los ratchets que antes exigían un catálogo vacío
-ahora exigen exactamente ésta: una segunda plantilla, una versión distinta o un
-pin cambiado rompen el build. `ecoMode: "NONE"` porque el piloto es Dúo sin IA.
+> **Archivar no es editar.** El texto de abajo es el que aprobó Jorge y sigue
+> siendo byte a byte el mismo: las personas cuyas actividades están fijadas aquí
+> acordaron **estas** palabras, y una plantilla publicada es inmutable sea cual
+> sea el estado que adopte después. `ARCHIVED` la retira de todo lo que
+> **ofrece** —el listado, la pantalla del organizador, la vista previa
+> pública— mientras `getExact` la sigue resolviendo por pin. Lo que se ofrece
+> hoy es `@2` (§5).
+
+Vive en `packages/types/src/circles-catalog.ts`. Los ratchets que antes exigían
+un catálogo vacío, y después «una PUBLISHED y una DRAFT», exigen ahora «una
+ARCHIVED y una PUBLISHED, en ese orden» y **como mucho una PUBLISHED por
+clave**. `ecoMode: "NONE"` porque el piloto es Dúo sin IA.
 
 **Título:** «Lo que me ayuda cuando estoy así»
 
@@ -465,7 +475,124 @@ PostgreSQL real y contra el entorno alojado.
   se implementan aquí. Las invitaciones las envía una persona por el canal que
   elija; nosotros no mandamos nada.
 
-## 5 · Lo que queda por hacer, y quién
+## 5 · @2 — **APROBADA Y PUBLICADA**
+
+> `duo-lo-que-me-ayuda@2` es lo que se ofrece. `listPublished()` devuelve sólo
+> esta versión, el mapping editorial apunta a ella y el preview público la
+> muestra.
+
+### La aprobación, con su alcance
+
+**Qué se aprobó:** la experiencia Dúo tal como se presentó — explicación
+inicial, ayuda editorial de Echo, preparación privada, decisión de compartir,
+cierre y opinión opcional.
+
+**Quién y cuándo:** Jorge, tras recorrerla de principio a fin en el entorno
+alojado de pruebas (Railway + Vercel), sobre el artefacto construido desde
+`01d4efd1`. La aprobación llegó por escrito: «Apruebo la experiencia Dúo que
+probé».
+
+**Qué NO cubre esa aprobación.** No alcanza a otras plantillas, no autoriza
+disponibilidad general (`CIRCLES_ROLLOUT_MODE` sigue en `pilot` con su lista de
+admitidos) y no aprueba cambios posteriores al texto: una corrección seguiría
+siendo una versión nueva con su propia aprobación. El refinamiento visual queda
+explícitamente fuera y no bloqueó este cierre.
+
+**Cómo se publicó, exactamente:** `@2` pasó a `PUBLISHED`, `@1` a `ARCHIVED` y
+el mapping se **movió** —no se duplicó— en el mismo cambio. Los cuatro ratchets
+que afirmaban el estado anterior se actualizaron nombrando el nuevo, no
+relajándolos.
+
+### Qué cambia respecto de @1
+
+@1 **no se edita**: pasa a `ARCHIVED`, que la retira de todo lo que ofrece y la
+deja resolviéndose por pin. Las actividades e invitaciones que ya existen
+conservan su versión exacta y la redacción que esas personas aceptaron. Una
+plantilla publicada es inmutable; una corrección es una versión.
+
+1. **Tres preguntas, una por pantalla.** La primera pide una **situación**, no
+   una emoción: «¿En qué momento estás pensando?» se puede responder sin
+   nombrar lo que se siente, sin encontrar su causa y sin tener algo difícil
+   que contar. Es **opcional**, y opcional aquí significa que la pantalla no
+   trata el blanco como algo sin terminar.
+2. **La tercera se reformula.** De «Y no me ayuda que…» a «Y preferiría que
+   evitáramos…»: una preferencia que alguien enuncia sobre sí mismo, no un
+   veredicto sobre lo que la otra persona hace mal.
+3. **El contexto no se comparte por haberse escrito.** Compartir pasa a ser una
+   decisión por pregunta; las obligatorias empiezan marcadas —es lo que
+   significaba cualquier plantilla anterior— y la opcional empieza **sin
+   marcar**.
+4. **Turnos que se pueden leer en voz alta.** Los de @1 pedían reflexionar;
+   estos dan la primera frase.
+5. **Ayuda preparada de Echo** en cada pregunta: dos piezas, escritas con la
+   plantilla, renderizadas desde ella. Cero llamadas a un modelo, cero acceso a
+   lo que alguien escribió, `ecoMode` sigue en `NONE`.
+
+### El texto completo, para auditar
+
+El copy íntegro de @2 vive en `packages/types/src/circles-catalog.ts` — título,
+resumen, introducción, el desplegable «¿Por qué hacemos esta actividad?», las
+tres etiquetas con sus límites, las seis piezas de ayuda, los tres turnos, el
+cierre, el seguimiento y las seis exclusiones (idénticas a las aprobadas).
+
+**Fuente y pertinencia.** El capítulo 1 de _Emociones en Construcción_ sostiene
+que el cuerpo reacciona antes de que la mente nombre lo que pasa, y su práctica
+es hacia adentro. La actividad es el paso siguiente y hacia afuera sobre el
+mismo asunto: qué ayuda cuando esa señal aparece. El desplegable describe la
+experiencia emocional como algo en lo que participan sensaciones, situación e
+interpretación aprendida, y **dice de sí mismo** que es una manera de mirarlo
+entre varias y no una explicación clínica. La perspectiva de la emoción
+construida tiene literatura detrás —
+[Barrett 2017, _Soc Cogn Affect Neurosci_](https://pubmed.ncbi.nlm.nih.gov/27798257/)
+— y eso no la convierte en una explicación universal ni clínica. **No se cita
+ninguna página, autoría ni afirmación del libro** que no esté en el propio
+capítulo publicado.
+
+### Cómo se publicó — la lista, ya cumplida
+
+Se deja escrita porque es el procedimiento para la **próxima** versión, no sólo
+el registro de ésta:
+
+1. **Aprobación del copy final** — hecha, con su alcance arriba.
+2. **El mapping**, que en producción debe apuntar a **un solo** pin. Publicar
+   @2 fue moverlo, no añadirlo: dos entradas para la misma experiencia no
+   desempatan, desactivan la oferta.
+3. **Archivar @1 en el mismo cambio.** Publicar una versión es una **sucesión**,
+   no una suma. El enlace que sigue una persona lleva una _clave_ y ninguna
+   versión, así que el servidor tiene que responder «qué versión significa esta
+   clave ahora» — y esa pregunta sólo tiene respuesta mientras **una sola**
+   versión de la clave esté `PUBLISHED`. Con dos, `resolvePublishedTemplateByKey`
+   se niega en vez de elegir la más alta (adivinar ahí mandaría a alguien a una
+   versión que nadie le ofreció): la pantalla del organizador responde 404 y el
+   CTA deja de aparecer en todas partes a la vez. No son «dos ofertas», es
+   **ninguna**.
+
+   `ARCHIVED` es el estado correcto: retira a @1 de todo lo que **ofrece** —el
+   listado, la pantalla del organizador, la vista previa pública— mientras
+   `getExact` la sigue resolviendo por pin, que es lo que mantiene vivas las
+   actividades ya fijadas a ella. Esto se comprobó de la peor forma antes de
+   publicar: el harness dejaba @1 en `PUBLISHED` junto a @2 y las catorce
+   escenas de navegador fallaron por un _timeout_ de treinta segundos buscando
+   un botón que nunca se iba a dibujar.
+
+4. **Actualizar los ratchets**, a mano y a la vista, en el mismo cambio. Fueron
+   cuatro: `circulos-alcance.test.ts`, `eligibility.test.ts`,
+   `actividad-preview.test.tsx` (web) y `circles-contract.spec.ts` +
+   `circles-scope.spec.ts` (API). Uno de ellos afirma además la regla del punto
+   3 —«como mucho una versión PUBLISHED por clave»—, para que quien se olvide de
+   archivar la anterior se entere por una aserción y no por un 404.
+5. **Decidir qué pasa con las actividades en curso** sobre @1: por diseño,
+   nada. Siguen en @1 hasta terminar, porque `getExact` resuelve `ARCHIVED`.
+6. **Quitar los parches del arnés que dejaron de ser necesarios.** `stack.mjs`
+   publicaba @2, archivaba @1 y movía el mapping en su copia; con el repositorio
+   ya en ese estado, los tres pasaron a ser no-ops. `patch()` rechaza una
+   cadena que no encuentra —correctamente—, así que se eliminaron en el mismo
+   cambio. Queda un solo parche: añadir la fixture sintética, que es lo que
+   sigue haciendo que esa build **no sea publicable**.
+
+---
+
+## 6 · Lo que queda por hacer, y quién
 
 - **La lista de admitidos** — ids reales de producción, recogidos uno por uno
   desde una fuente autorizada, nunca por patrón de correo ni copiados del

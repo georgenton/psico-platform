@@ -222,3 +222,100 @@ describe("sanitizeSentryEvent", () => {
     delete process.env.SENTRY_DSN;
   });
 });
+
+/**
+ * Decoys, not assertions about intent.
+ *
+ * Each secret below is a distinctive string planted in every shape Sentry can
+ * carry one — request headers in three casings, the URL's fragment and query,
+ * a fetch breadcrumb, a navigation breadcrumb, the transaction name. The test
+ * then serialises the WHOLE event and looks for any of them.
+ *
+ * That is the only form of this test worth having: `sendDefaultPii: false` is
+ * a setting, not a proof, and asserting field by field would only check the
+ * fields somebody remembered.
+ */
+describe("Círculos credentials never leave the process", () => {
+  const GUEST = "gstsessionDECOY0000000000000001";
+  const ATTEST = "attestDECOY0000000000000000002";
+  const INVITE = "inviteTokenDECOY000000000000003";
+  const ACTIVITY = "cmuDECOYactivity00000000000004";
+  const BEARER = "bearerDECOY0000000000000000005";
+  const SETCOOKIE = "psico_circulos_guest=cookieDECOY6; HttpOnly";
+
+  const plantedEvent = () => ({
+    transaction: `/compartir/${ACTIVITY}`,
+    request: {
+      // Three casings on purpose: Node lowercases, fetch preserves, Edge does
+      // neither reliably. A Set keyed on exact strings misses two of these.
+      headers: {
+        "X-Circle-Guest-Session": GUEST,
+        "x-client-attestation": ATTEST,
+        Authorization: `Bearer ${BEARER}`,
+        "Set-Cookie": SETCOOKIE,
+        "user-agent": "Mozilla/5.0",
+      },
+      url: `https://feelverse.test/i#${INVITE}`,
+      query_string: `secret=${INVITE}`,
+      data: { secret: INVITE },
+      cookies: { psico_circulos_guest: GUEST },
+    },
+    breadcrumbs: [
+      {
+        category: "fetch",
+        data: {
+          url: `https://feelverse.test/api/circulos/actividad/${ACTIVITY}`,
+          headers: { "X-Circle-Guest-Session": GUEST },
+          body: { secret: INVITE },
+        },
+      },
+      {
+        category: "navigation",
+        data: { from: `/i#${INVITE}`, to: `/compartir/${ACTIVITY}` },
+      },
+    ],
+  });
+
+  const DECOYS = [GUEST, ATTEST, INVITE, ACTIVITY, BEARER, "cookieDECOY6"];
+
+  it("finds none of them anywhere in the serialized event", async () => {
+    const { sanitizeSentryEvent } = await loadModule();
+    const serialized = JSON.stringify(
+      sanitizeSentryEvent(plantedEvent() as never),
+    );
+    for (const decoy of DECOYS) {
+      expect(serialized, decoy).not.toContain(decoy);
+    }
+  });
+
+  it("keeps the shape of the route, so triage still works", async () => {
+    const { sanitizeSentryEvent } = await loadModule();
+    const out = sanitizeSentryEvent(plantedEvent() as never) as unknown as {
+      transaction: string;
+      request: { headers: Record<string, string> };
+      breadcrumbs: { data: Record<string, string> }[];
+    };
+    expect(out.transaction).toBe("/compartir/:id");
+    expect(out.breadcrumbs[0]!.data.url).toBe("/api/circulos/actividad/:id");
+    expect(out.breadcrumbs[1]!.data.from).toBe("/i");
+    expect(out.breadcrumbs[1]!.data.to).toBe("/compartir/:id");
+    // The one header worth keeping is kept.
+    expect(out.request.headers["user-agent"]).toBe("Mozilla/5.0");
+  });
+
+  it("redacts the guest credential whatever case it arrives in", async () => {
+    const { sanitizeSentryEvent } = await loadModule();
+    for (const name of [
+      "x-circle-guest-session",
+      "X-Circle-Guest-Session",
+      "X-CIRCLE-GUEST-SESSION",
+    ]) {
+      const out = sanitizeSentryEvent({
+        request: { headers: { [name]: GUEST } },
+      } as never) as unknown as {
+        request: { headers: Record<string, string> };
+      };
+      expect(out.request.headers[name], name).toBe("[REDACTED]");
+    }
+  });
+});

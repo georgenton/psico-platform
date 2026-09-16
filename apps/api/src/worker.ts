@@ -6,7 +6,7 @@ initSentry();
 import { Logger } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import type { Redis } from "ioredis";
-import { WorkerAppModule } from "./jobs/worker.module";
+import { WORKER_QUEUES, WorkerAppModule } from "./jobs/worker.module";
 import { assertEmotionalMapConfigured } from "./emotional-map/cache-identity";
 import { MapIdentityService } from "./health/map-identity.service";
 import { REDIS_CLIENT } from "./redis";
@@ -44,14 +44,18 @@ async function bootstrap(): Promise<void> {
   // workers stop accepting new jobs and drain.
   app.enableShutdownHooks();
 
-  logger.log(
-    "Worker started · processors: email, data-export, account-deletion, daily-usage",
-  );
+  // Read from the registration itself, never retyped. An operator checking
+  // whether the Círculos sweep is running reads this line and acts on it.
+  logger.log(`Worker started · queues: ${WORKER_QUEUES.join(", ")}`);
 
   // Publish the emotional-map identity so `GET /api/health/emotional-map` can
   // prove the API and this worker agree. Same code does NOT imply same config:
   // these are two Railway services with two environments.
-  MapIdentityService.startHeartbeat(app.get<Redis>(REDIS_CLIENT), "worker", logger);
+  MapIdentityService.startHeartbeat(
+    app.get<Redis>(REDIS_CLIENT),
+    "worker",
+    logger,
+  );
 
   logger.log("Awaiting jobs from Redis…");
 

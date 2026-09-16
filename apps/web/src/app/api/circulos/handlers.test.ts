@@ -22,6 +22,7 @@ vi.mock("server-only", () => ({}));
 
 import { POST as sesionPOST, DELETE as sesionDELETE } from "./sesion/route";
 import { POST as comandoPOST } from "./actividad/[activityId]/comando/route";
+import { POST as feedbackPOST } from "./actividad/[activityId]/feedback/route";
 import { GUEST_COOKIE } from "@/lib/circulos/guest-cookie";
 
 // A v4 UUID standing in for the key the browser mints per intention.
@@ -367,5 +368,84 @@ describe("the command handler forwards only what is on the list", () => {
     // Only the resolver's read happened; the command was never forwarded, so
     // it cannot have been applied as one actor and retried as another.
     expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * The optional question's route had the strongest promise on this surface and
+ * no test at all: "nothing unnamed here is forwarded". Its body is REBUILT
+ * field by field rather than filtered, which is the safe direction — but a
+ * rebuild is one `...raw` away from a pass-through, and that edit reads as a
+ * tidy-up.
+ *
+ * What would go through it is the worst payload on the surface: the answers
+ * somebody wrote in the activity, and a seat belonging to another person.
+ */
+describe("the optional question forwards only what the product published", () => {
+  const params = { params: { activityId: "act-1" } };
+
+  it("rebuilds the body, so nothing unnamed reaches the API", async () => {
+    cookieStore.set(GUEST_COOKIE, "guest-token");
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        ok({ kind: "GUEST", activityId: "act-1", participantId: "p-1" }),
+      )
+      .mockResolvedValueOnce(ok({ ok: true }, 202));
+
+    const res = await feedbackPOST(
+      req({
+        topics: ["comunicacion", "no-es-un-tema", "convivencia", "cambios"],
+        usefulness: "YES",
+        noticeVersion: "2026-09-15.1",
+        helpOpens: [
+          { fieldKey: "que-ayuda", piece: "explanation", opens: 9_999 },
+        ],
+        // Everything a browser must not be able to file, in one payload.
+        participantId: "p-de-otra-persona",
+        templateKey: "otra-plantilla",
+        respuesta: "lo que escribí en la actividad",
+      }),
+      params,
+    );
+
+    expect(res.status).toBe(202);
+
+    const forwarded = fetchSpy.mock.calls.at(-1)!;
+    const sent = JSON.parse(String((forwarded[1] as RequestInit).body));
+
+    // Four keys, and they are the four the product named.
+    expect(Object.keys(sent).sort()).toEqual([
+      "helpOpens",
+      "noticeVersion",
+      "topics",
+      "usefulness",
+    ]);
+    // Closed list, then capped at two. "no-es-un-tema" is not a topic and
+    // "cambios" is a third.
+    expect(sent.topics).toEqual(["comunicacion", "convivencia"]);
+    // Clamped rather than refused: an overflowed counter is still a "yes".
+    expect(sent.helpOpens).toEqual([
+      { fieldKey: "que-ayuda", piece: "explanation", opens: 100 },
+    ]);
+
+    const wire = JSON.stringify(sent);
+    expect(wire).not.toContain("lo que escribí");
+    expect(wire).not.toContain("p-de-otra-persona");
+    expect(wire).not.toContain("otra-plantilla");
+  });
+
+  it("refuses a cross-site submission without calling upstream", async () => {
+    headerStore.origin = "https://evil.test";
+    cookieStore.set(GUEST_COOKIE, "guest-token");
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+    const res = await feedbackPOST(
+      req({ topics: [], noticeVersion: "2026-09-15.1" }),
+      params,
+    );
+
+    expect(res.status).toBe(403);
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });

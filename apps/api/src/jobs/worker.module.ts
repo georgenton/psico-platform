@@ -53,6 +53,39 @@ import type { Env } from "../config";
  * registers a Worker (consumer) on the underlying BullMQ Queue, and
  * `registerQueue` is what wires up the Queue providers behind the scenes.
  */
+
+/**
+ * Every queue this process consumes — the registration AND what boot prints.
+ *
+ * The banner in `worker.ts` used to name four of these from a hand-written
+ * string, and had not been touched in seven sprints' worth of new queues. So a
+ * worker that was in fact running the Círculos sweep logged a list that did not
+ * mention it, and an operator checking the sweep during a pilot shutdown would
+ * have read that log and concluded it was not running.
+ *
+ * A list that is simultaneously the registration and the thing printed cannot
+ * disagree with itself. That is the only reason this is a constant.
+ */
+export const WORKER_QUEUES: readonly string[] = [
+  QueueName.EMAIL,
+  QueueName.DATA_EXPORT,
+  QueueName.ACCOUNT_DELETION,
+  QueueName.DAILY_USAGE,
+  // Sprint S44 — notification queues.
+  QueueName.WEEKLY_DIGEST,
+  QueueName.INACTIVE_NUDGE,
+  // Sprint S46 — weekly summary pre-generation queue.
+  QueueName.WEEKLY_SUMMARY_GENERATION,
+  // Sprint S50 — platform-wide daily snapshot queue.
+  QueueName.PLATFORM_SNAPSHOT,
+  // Sprint S51 — weekly cohort retention queue.
+  QueueName.COHORT_RETENTION,
+  // Sprint G2 — monthly emotional-map snapshot queue.
+  QueueName.EMOTIONAL_MAP_SNAPSHOT,
+  // Círculos — the temporal sweep. Inert while the rollout is off.
+  QueueName.CIRCLES_SWEEP,
+];
+
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, validate }),
@@ -70,25 +103,7 @@ import type { Env } from "../config";
         connection: createBullConnection(config),
       }),
     }),
-    BullModule.registerQueue(
-      { name: QueueName.EMAIL },
-      { name: QueueName.DATA_EXPORT },
-      { name: QueueName.ACCOUNT_DELETION },
-      { name: QueueName.DAILY_USAGE },
-      // Sprint S44 — notification queues.
-      { name: QueueName.WEEKLY_DIGEST },
-      { name: QueueName.INACTIVE_NUDGE },
-      // Sprint S46 — weekly summary pre-generation queue.
-      { name: QueueName.WEEKLY_SUMMARY_GENERATION },
-      // Sprint S50 — platform-wide daily snapshot queue.
-      { name: QueueName.PLATFORM_SNAPSHOT },
-      // Sprint S51 — weekly cohort retention queue.
-      { name: QueueName.COHORT_RETENTION },
-      // Sprint G2 — monthly emotional-map snapshot queue.
-      { name: QueueName.EMOTIONAL_MAP_SNAPSHOT },
-      // Círculos — the temporal sweep. Inert while the rollout is off.
-      { name: QueueName.CIRCLES_SWEEP },
-    ),
+    BullModule.registerQueue(...WORKER_QUEUES.map((name) => ({ name }))),
   ],
   providers: [
     EmailProcessor,

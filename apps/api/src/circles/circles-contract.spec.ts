@@ -297,19 +297,67 @@ describe("circles · template registry", () => {
     ]);
   });
 
-  it("ships exactly ONE production template — the approved one", () => {
-    // The catalog was empty while nothing had verifiable approved copy. One
-    // activity now does, and it is the only one: the two named candidates and
-    // the nine Parejas drafts still have their copy outside this repository.
-    expect(PRODUCTION_CIRCLE_TEMPLATES.map((d) => d.templateKey)).toEqual([
-      "duo-lo-que-me-ayuda",
+  it("publishes exactly ONE template, and keeps the previous one resolvable", () => {
+    // Two different questions, and the distinction is the whole point of a
+    // DRAFT sitting in the catalog: what EXISTS — so an activity pinned to it
+    // can resolve — versus what is OFFERED, which needs an approval.
+    expect(
+      PRODUCTION_CIRCLE_TEMPLATES.map(
+        (d) => `${d.templateKey}@${d.templateVersion}:${d.status}`,
+      ),
+    ).toEqual([
+      "duo-lo-que-me-ayuda@1:ARCHIVED",
+      "duo-lo-que-me-ayuda@2:PUBLISHED",
     ]);
-    expect(productionCircleTemplateRegistry.size).toBe(1);
+    expect(productionCircleTemplateRegistry.size).toBe(2);
     expect(
       productionCircleTemplateRegistry
         .listPublished()
-        .map((d) => d.templateKey),
-    ).toEqual(["duo-lo-que-me-ayuda"]);
+        .map((d) => `${d.templateKey}@${d.templateVersion}`),
+    ).toEqual(["duo-lo-que-me-ayuda@2"]);
+  });
+
+  it("leaves @1 resolvable and unchanged by @2 existing", () => {
+    // An activity created on @1 — and an invitation already sent for it — must
+    // keep the wording the people in it agreed to.
+    const v1 = productionCircleTemplateRegistry.getExact(
+      "duo-lo-que-me-ayuda",
+      1,
+    );
+    // ARCHIVED since @2 was published: withdrawn from everything that OFFERS,
+    // still resolvable by pin for the activities that are running on it.
+    expect(v1.status).toBe("ARCHIVED");
+    expect(v1.privatePreparation.map((f) => f.label)).toEqual([
+      "Cuando estoy así, me ayuda que…",
+      "Y no me ayuda que…",
+    ]);
+    expect(v1.intro).toBeUndefined();
+    expect(v1.privatePreparation.every((f) => f.help === undefined)).toBe(true);
+
+    const v2 = productionCircleTemplateRegistry.getExact(
+      "duo-lo-que-me-ayuda",
+      2,
+    );
+    expect(v2.privatePreparation).toHaveLength(3);
+    expect(v2.privatePreparation[0].optional).toBe(true);
+    expect(v2.privatePreparation.every((f) => f.help !== undefined)).toBe(true);
+    expect(v2.participants.required).toBe(2);
+    // Prepared help is not a model with an opinion, and does not relax the one
+    // switch that says whether a model may see this activity at all.
+    expect(v2.ecoMode).toBe("NONE");
+  });
+
+  it("refuses to project the ARCHIVED predecessor to a stranger", () => {
+    // This asserted the same refusal about @2 while it was DRAFT. The version
+    // it names changed when @2 was published and @1 archived; the property did
+    // not. The public projector shows what is PUBLISHED, and ARCHIVED is as
+    // unshowable as DRAFT — which is the whole reason archiving is how a
+    // version is withdrawn without deleting it.
+    expect(() =>
+      toCircleTemplatePreview(
+        productionCircleTemplateRegistry.getExact("duo-lo-que-me-ayuda", 1),
+      ),
+    ).toThrow(CircleCatalogError);
   });
 
   it("validates that template through the real validator, not by assertion", () => {
@@ -317,7 +365,7 @@ describe("circles · template registry", () => {
     // grammar. Building one from the shipped definition proves the literal is
     // acceptable to the runtime authority, not merely to the type system.
     const rebuilt = new CircleTemplateRegistry(PRODUCTION_CIRCLE_TEMPLATES);
-    const exact = rebuilt.getExact("duo-lo-que-me-ayuda", 1);
+    const exact = rebuilt.getExact("duo-lo-que-me-ayuda", 2);
     expect(exact.participants.required).toBe(2);
     expect(exact.safety.privateGateRequired).toBe(true);
     expect(exact.ecoMode).toBe("NONE");

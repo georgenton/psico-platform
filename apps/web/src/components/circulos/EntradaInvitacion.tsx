@@ -174,19 +174,39 @@ export function EntradaInvitacion() {
   if (phase === "decide" || phase === "accepting") {
     return (
       <main style={S.page}>
+        <p style={S.firma}>Una experiencia de FeelVerse</p>
+        {/*
+          The name when the server sent one, and a sentence that still works
+          when it did not. A missing name is a preview the API declined to fill
+          in — it is not a broken invitation, and answering it with "this link
+          does not work" would turn a degraded field into a dead end.
+
+          What it never does is guess at the relationship. "Tu pareja te
+          invitó" would be an invention about two people we know nothing about.
+        */}
         <h1 style={S.h1}>
           {preview
-            ? `${preview.inviterFirstName} te invitó a una actividad`
-            : "Te invitaron a una actividad"}
+            ? `${preview.inviterFirstName} te invita a compartir un momento`
+            : "Te invitan a compartir un momento"}
         </h1>
 
-        {preview && (
+        {preview ? (
           <section style={S.section} aria-labelledby="inv-h">
             <h2 id="inv-h" style={S.h2}>
               {preview.title}
             </h2>
             <p style={S.p}>{preview.summary}</p>
-            <p style={S.p}>Toma unos {preview.estimatedMinutes} minutos.</p>
+            <p style={S.p}>
+              Unos {preview.estimatedMinutes} minutos ·{" "}
+              <strong>No necesitas crear una cuenta.</strong>
+            </p>
+          </section>
+        ) : (
+          <section style={S.section}>
+            <p style={S.p}>Descubran qué les ayuda cuando algo les preocupa.</p>
+            <p style={S.p}>
+              Unos 15 minutos · <strong>No necesitas crear una cuenta.</strong>
+            </p>
           </section>
         )}
 

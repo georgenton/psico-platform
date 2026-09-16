@@ -7,8 +7,10 @@ import {
   Param,
   Post,
   Query,
+  Res,
   UseGuards,
 } from "@nestjs/common";
+import type { Response } from "express";
 import {
   ApiBadRequestResponse,
   ApiConflictResponse,
@@ -34,6 +36,9 @@ import {
 import { RejectAuthorRequestDto } from "./dto/reject-author-request.dto";
 import { ListUsersQueryDto } from "./dto/list-users.dto";
 import { ChangeRoleDto } from "./dto/change-role.dto";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { CirclesAnalyticsService } from "../circles/circles-analytics.service";
+import { circlesCsv, parseWindowDays } from "./circles-panel";
 
 /**
  * PulsoController — Sprint S42 (reports inbox) + S48 (overview) + S49 (resolution).
@@ -53,7 +58,55 @@ export class PulsoController {
     private readonly pulso: PulsoService,
     private readonly authorReview: AuthorReviewService,
     private readonly adminUsers: AdminUsersService,
+    private readonly circles: CirclesAnalyticsService,
   ) {}
+
+  /**
+   * Círculos, as counts.
+   *
+   * ADMIN like the rest of this controller — and the guard is the
+   * authorisation, not the hidden menu item. What comes back is aggregates:
+   * no row, no id, no seat, no snippet, and nothing resembling the inbox of
+   * Eco reports, which is a different plane with different permissions.
+   *
+   * Cells below the contributor threshold arrive already suppressed, because
+   * the shaping happens in the service. The CSV below calls the same method
+   * for exactly that reason: an export that re-derived its own numbers would
+   * be an export that could disagree with the screen.
+   */
+  @Get("circulos")
+  @ApiOperation({
+    summary:
+      "Círculos usage and friction, aggregated. Small cells are suppressed.",
+  })
+  circulos(@Query("windowDays") windowDays?: string) {
+    return this.circles.summary({ windowDays: parseWindowDays(windowDays) });
+  }
+
+  /**
+   * The same numbers, as a file.
+   *
+   * Same method, same suppression, and the dictionary, the range and the
+   * coverage note travel with it — a CSV that arrives without them is a grid
+   * of numbers somebody will interpret however they like.
+   */
+  @Get("circulos.csv")
+  @ApiOperation({ summary: "The same aggregates, with the same suppression" })
+  async circulosCsv(
+    @Res({ passthrough: true }) res: Response,
+    @Query("windowDays") windowDays?: string,
+  ): Promise<string> {
+    const summary = await this.circles.summary({
+      windowDays: parseWindowDays(windowDays),
+    });
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader(
+      "Content-Disposition",
+      'attachment; filename="circulos-agregados.csv"',
+    );
+    res.setHeader("Cache-Control", "private, no-store");
+    return circlesCsv(summary);
+  }
 
   @Get("reports/eco/summary")
   @ApiOperation({

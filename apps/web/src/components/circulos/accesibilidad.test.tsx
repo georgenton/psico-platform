@@ -14,6 +14,7 @@ import {
   PLANTILLA,
   PREPARANDO,
   REVELADA,
+  irACompartir,
 } from "./__fixtures__/actividad";
 
 const base = {
@@ -23,6 +24,7 @@ const base = {
   allowedModes: PLANTILLA.sharing.allowedModes,
   noConviene: PLANTILLA.safety.doNotSuggestWhen,
   minutosEstimados: PLANTILLA.estimatedMinutes,
+  intro: PLANTILLA.intro ?? null,
   isGuest: true,
 };
 
@@ -58,6 +60,9 @@ describe("it works from the keyboard alone", () => {
       screen.getByRole("button", { name: /entiendo, empezar/i }),
     );
 
+    // One question per screen, so the sharing choice is a walk away — and the
+    // walk itself is reachable from the keyboard, which is the point.
+    await irACompartir(user, screen);
     const radio = screen.getByLabelText(/no compartir nada esta vez/i);
     await user.click(radio);
     expect(radio).toBeChecked();

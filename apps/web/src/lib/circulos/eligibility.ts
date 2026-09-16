@@ -85,8 +85,13 @@ export const DUO_CTA_LABEL = "Hacer esto con alguien";
  * The production mappings — ONE, and it is half of an agreement.
  *
  * The published guide `eec-c1-cuerpo-antes-que-mente@1` may offer
- * `duo-lo-que-me-ayuda@1`. That is an editorial decision Jorge approved, and it
- * is written here as an enumeration rather than derived from anything.
+ * `duo-lo-que-me-ayuda@2`. That is an editorial decision Jorge approved — first
+ * for @1, and then for @2 after walking it end to end in the hosted test
+ * environment — and it is written here as an enumeration rather than derived
+ * from anything.
+ *
+ * The entry MOVED when @2 was published; it was not added beside the old one.
+ * Two entries for one experience do not break a tie, they disable the offer.
  *
  * This entry ALONE offers nothing. The template names the same experience back
  * in its own `source.experiencePin`, and both records have to agree before a
@@ -102,7 +107,7 @@ export const PRODUCTION_DUO_ELIGIBILITY: readonly DuoEligibilityMapping[] = [
     experienceKey: "eec-c1-cuerpo-antes-que-mente",
     experienceVersion: 1,
     templateKey: "duo-lo-que-me-ayuda",
-    templateVersion: 1,
+    templateVersion: 2,
   },
 ];
 

@@ -15,9 +15,15 @@
  *     testing a production build, which is the thing that has to work.
  *
  * So nothing in the shipped source changes. This script copies the COMMITTED
- * tree, rewrites exactly two catalog lines THERE, builds that tree for
- * production, and runs it. The repository's catalog stays empty and its
- * ratchets keep asserting so.
+ * tree, appends the synthetic fixture to the catalog THERE, builds that tree
+ * for production, and runs it. The repository's catalog carries only what
+ * somebody approved, and its ratchets keep asserting so.
+ *
+ * It used to rewrite three more lines — publishing `@2`, archiving `@1`, moving
+ * the eligibility mapping — because the repository shipped `@2` as a DRAFT.
+ * Jorge approved it after walking it here, so the repository publishes it now
+ * and those patches were removed: `patch()` refuses a find string that matches
+ * nothing, and leaving them would have stopped every run.
  *
  * ── One tree, not two ──────────────────────────────────────────────────────
  *
@@ -70,6 +76,7 @@ import {
   planTeardown,
   readProcessStart,
 } from "./ownership.mjs";
+import { redactDiagnostics } from "./redact.mjs";
 
 const HERE = resolve(fileURLToPath(import.meta.url), "..");
 const REPO = resolve(HERE, "../../../..");
@@ -97,9 +104,10 @@ const WORKTREE = args.includes("--worktree");
  * path keeps one mechanism: there is no second place where a fixture could be
  * applied differently, and no second place to audit.
  */
-const PREPARE_AT = args.indexOf("--prepare-only") >= 0
-  ? args[args.indexOf("--prepare-only") + 1]
-  : null;
+const PREPARE_AT =
+  args.indexOf("--prepare-only") >= 0
+    ? args[args.indexOf("--prepare-only") + 1]
+    : null;
 const DOWN_AT = args.indexOf("--down");
 
 /**
@@ -230,7 +238,9 @@ function teardown(state = owned, { quiet = false } = {}) {
     if (action === "spare") {
       // The pid is alive but it is NOT the process we started. Somebody else
       // owns it now. Leaving it alone is the entire point of recording lstart.
-      skipped.push(`${service.name} pid=${service.pid} (pid reused — not ours)`);
+      skipped.push(
+        `${service.name} pid=${service.pid} (pid reused — not ours)`,
+      );
       continue;
     }
     // The negative pid signals the whole process group. Services are spawned
@@ -368,7 +378,10 @@ async function main() {
     );
   }
 
-  log("1/8 copy the commit into a throwaway tree", `${headSha.slice(0, 8)} → ${WORK}`);
+  log(
+    "1/8 copy the commit into a throwaway tree",
+    `${headSha.slice(0, 8)} → ${WORK}`,
+  );
   if (dirty) {
     console.log(
       "   ⚠ --dirty-ok: the harness directory differs from the commit.\n" +
@@ -441,7 +454,10 @@ async function main() {
       `the archived commit has no E2E fixture at ${fixtureInArchive}`,
     );
   }
-  cpSync(fixtureInArchive, join(WORK, "packages/types/src/circles-e2e-fixture.ts"));
+  cpSync(
+    fixtureInArchive,
+    join(WORK, "packages/types/src/circles-e2e-fixture.ts"),
+  );
 
   /** Replace exactly once, or fail loudly. A silent no-op is the thing to avoid. */
   function patch(relPath, find, replace) {
@@ -479,16 +495,21 @@ async function main() {
       "  [\n    E2E_DUO_TEMPLATE,",
   );
 
-  // Eligibility is NOT patched any more, and that is the point.
+  // ── The candidate is no longer a candidate ───────────────────────────────
   //
-  // It used to be overwritten so the reading surface offered the fixture. The
-  // surface now carries the approved mapping, and a second entry for the same
-  // Experience pin would not win a tie-break — ambiguity disables the offer, so
-  // patching it would have silently removed the CTA the walk clicks.
+  // This block used to flip `duo-lo-que-me-ayuda@2` to PUBLISHED, archive @1
+  // and move the eligibility mapping, because the repository shipped @2 as a
+  // DRAFT and the walk needed something to walk through.
   //
-  // The consequence is deliberate: every browser scenario exercises the
-  // published template end to end, and the fixture is reached only where a
-  // scenario names it.
+  // Jorge approved @2 after walking it end to end here, so the repository now
+  // publishes it: @2 PUBLISHED, @1 ARCHIVED, the mapping on @2. Those three
+  // patches became no-ops and were removed rather than left to fail — `patch()`
+  // refuses a find string that matches nothing, which is exactly right and
+  // would have stopped every run.
+  //
+  // What remains is the one patch that still has work to do: appending the
+  // synthetic fixture, which never ships. The build is still NOT publishable
+  // for that reason alone.
 
   // The scope ratchets in the copy would now fail BY DESIGN — they assert the
   // catalog is empty, and here it deliberately is not. They are not run from
@@ -496,14 +517,16 @@ async function main() {
   //
   // This build is therefore NOT publishable and never leaves the temp tree:
   // nothing here is pushed to a registry, uploaded, or reused as an artifact.
-  log("   patched", "1 catalog point + 1 fixture module (build is NOT publishable)");
+  log("   patched", "1 point + 1 fixture module (build is NOT publishable)");
 
   if (PREPARE_AT) {
     // The artifact is the point; nothing is installed, built or started here.
     // It is deliberately NOT byte-identical to the source commit — it carries
     // the fixture — so the caller is told both the source and what changed.
     const digest = (rel) =>
-      createHash("sha256").update(readFileSync(join(WORK, rel))).digest("hex");
+      createHash("sha256")
+        .update(readFileSync(join(WORK, rel)))
+        .digest("hex");
     const manifest = {
       preparedAt: new Date().toISOString(),
       sourceSha: headSha,
@@ -513,7 +536,14 @@ async function main() {
         sha256: digest("packages/types/src/circles-e2e-fixture.ts"),
       },
       patched: [
-        { path: "packages/types/src/circles-catalog.ts", sha256: digest("packages/types/src/circles-catalog.ts") },
+        {
+          path: "packages/types/src/circles-catalog.ts",
+          sha256: digest("packages/types/src/circles-catalog.ts"),
+        },
+        {
+          path: "apps/web/src/lib/circulos/eligibility.ts",
+          sha256: digest("apps/web/src/lib/circulos/eligibility.ts"),
+        },
       ],
       // The fixture the harness may still name by key.
       templateKey: "e2e-duo-sintetica",
@@ -521,13 +551,14 @@ async function main() {
       // What the reading surface actually offers, and therefore what the
       // browser walk exercises.
       surfaceTemplateKey: "duo-lo-que-me-ayuda",
-      surfaceTemplateVersion: 1,
+      surfaceTemplateVersion: 2,
     };
     writeFileSync(
       join(WORK, "circulos-test-artifact.json"),
       JSON.stringify(manifest, null, 2),
     );
-    if (existsSync(PREPARE_AT)) rmSync(PREPARE_AT, { recursive: true, force: true });
+    if (existsSync(PREPARE_AT))
+      rmSync(PREPARE_AT, { recursive: true, force: true });
     cpSync(WORK, PREPARE_AT, { recursive: true });
     rmSync(WORK, { recursive: true, force: true });
     rmSync(STATE, { force: true });
@@ -562,11 +593,18 @@ async function main() {
   sh(
     "docker",
     [
-      "run", "-d", "--name", PG,
-      "-e", "POSTGRES_PASSWORD=postgres",
-      "-e", "POSTGRES_USER=postgres",
-      "-e", `POSTGRES_DB=${dbName}`,
-      "-p", `127.0.0.1:${pgPort}:5432`,
+      "run",
+      "-d",
+      "--name",
+      PG,
+      "-e",
+      "POSTGRES_PASSWORD=postgres",
+      "-e",
+      "POSTGRES_USER=postgres",
+      "-e",
+      `POSTGRES_DB=${dbName}`,
+      "-p",
+      `127.0.0.1:${pgPort}:5432`,
       "pgvector/pgvector:pg16",
     ],
     { quiet: true },
@@ -577,8 +615,12 @@ async function main() {
   sh(
     "docker",
     [
-      "run", "-d", "--name", REDIS,
-      "-p", `127.0.0.1:${redisPort}:6379`,
+      "run",
+      "-d",
+      "--name",
+      REDIS,
+      "-p",
+      `127.0.0.1:${redisPort}:6379`,
       "redis:7-alpine",
     ],
     { quiet: true },
@@ -795,6 +837,14 @@ async function main() {
       CIRCULOS_E2E_WORK: WORK,
       CIRCULOS_E2E_REDIS_URL: redisUrl,
       CIRCULOS_E2E_HEAD_SHA: headSha,
+      // Forwarded because `baseEnv()` is an allowlist and this is a caller's
+      // instruction, not ambient configuration: a negative control that names
+      // one scenario runs that scenario three times instead of running fifteen
+      // three times. Unset — which is every full run, including CI — means all
+      // of them, so the default is not narrowed by having the option.
+      ...(process.env.CIRCULOS_E2E_ONLY
+        ? { CIRCULOS_E2E_ONLY: process.env.CIRCULOS_E2E_ONLY }
+        : {}),
       // Playwright's browsers live in the user's cache, not in the copy.
       PLAYWRIGHT_BROWSERS_PATH: process.env.PLAYWRIGHT_BROWSERS_PATH ?? "",
     },
@@ -857,11 +907,25 @@ function writeWorktreeTree() {
   }
 }
 
-/** The tail of a service's log — how a boot failure gets explained. */
+/**
+ * The tail of a service's log — how a boot failure gets explained.
+ *
+ * Redacted HERE rather than at each caller, because there is more than one
+ * caller and the one that leaked was the one nobody was looking at: a `waitFor`
+ * that explains itself with the service's log, and a failure path that prints
+ * four tails at once. A choke point cannot be forgotten at a new call site.
+ *
+ * What leaked was an email. `RESEND_API_KEY` is unset in the harness, so the
+ * notifications service prints messages instead of sending them, and a
+ * verification email carries a working link. Nothing about that is specific to
+ * a test: it is the same code path, printing the same shape of thing.
+ */
 function serviceLog(name, lines = 40) {
   const path = logPaths.get(name);
   if (!path || !existsSync(path)) return `(no log for ${name})`;
-  return readFileSync(path, "utf8").split("\n").slice(-lines).join("\n");
+  return redactDiagnostics(
+    readFileSync(path, "utf8").split("\n").slice(-lines).join("\n"),
+  );
 }
 
 async function probe(url) {
@@ -892,7 +956,9 @@ main()
     process.exit(0);
   })
   .catch((err) => {
-    console.error(`\n✖ ${err.message}`);
+    // The message can carry a URL the harness was navigating to, and one of
+    // those URLs is the invitation with its secret in the fragment.
+    console.error(`\n✖ ${redactDiagnostics(err.message)}`);
     // Print the services' own logs BEFORE teardown removes them. A failed walk
     // says what the browser saw; the API log says what the server decided, and
     // without it the next step is always to re-run the whole thing just to look.

@@ -2226,8 +2226,24 @@ async function rolloutOffScenario() {
 
 // ── Shared helpers that read the database ───────────────────────────────────
 
-function countActivities() {
-  return sqlInt(`SELECT count(*) FROM "CircleActivity"`);
+/**
+ * How many activities exist — for ONE organiser, or for everybody.
+ *
+ * The unscoped count is a question about the whole database, and the hosted
+ * environment has one database with more than one run in it. Used as a
+ * before/after delta, "exactly one activity was created" then means "nobody
+ * else created one in the same second", which is not the claim. Scenarios that
+ * own an account pass it; the rest keep the global count, which is what they
+ * were always asking.
+ */
+function countActivities(userId) {
+  return userId
+    ? sqlInt(
+        `SELECT count(*) FROM "CircleActivity" a
+           JOIN "Circle" c ON c."id" = a."circleId"
+          WHERE c."createdByUserId" = '${userId}'`,
+      )
+    : sqlInt(`SELECT count(*) FROM "CircleActivity"`);
 }
 
 // ── Scenario · a circle of three, from the listing ──────────────────────────
@@ -2262,7 +2278,7 @@ async function groupOfThree(browser) {
     });
     const start = page.getByRole("link", { name: /Empezar este círculo/i });
     await start.waitFor({ state: "visible", timeout: 30_000 });
-    const before = countActivities();
+    const before = countActivities(organiser.userId);
     await start.click();
 
     const offeredKey = new URL(page.url()).pathname.split("/").pop();
@@ -2270,7 +2286,7 @@ async function groupOfThree(browser) {
       offeredKey === "grupo-lo-que-nos-ayuda",
       `the listing starts the APPROVED group template (${offeredKey})`,
     );
-    check(countActivities() === before, "opening the preview creates NOTHING");
+    check(countActivities(organiser.userId) === before, "opening the preview creates NOTHING");
 
     // The size selector exists, offers exactly 3 to 6, and defaults to 3.
     const sizes = await page.evaluate(() =>
@@ -2309,7 +2325,7 @@ async function groupOfThree(browser) {
       `the links are labelled by seat (${labels.join(", ") || "none"})`,
     );
     check(
-      countActivities() === before + 1,
+      countActivities(organiser.userId) === before + 1,
       "exactly ONE activity is created by one confirmation",
     );
 

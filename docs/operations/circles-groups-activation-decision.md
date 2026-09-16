@@ -10,6 +10,31 @@
 > y este documento no la reescribe: describe una segunda forma sobre el mismo
 > motor, con su propio interruptor, que llega **cerrado**.
 
+### Segundo bloque correctivo — caducidad, concurrencia e idempotencia (2026-09-16)
+
+> **Este bloque no tocó producción.** El candidato vive en la PR **#719**
+> (Draft) y se desplegó **sólo** al entorno alojado de pruebas. Producción
+> sigue sirviendo `863e3b77` y no se escribió ninguna variable allí.
+
+Tres hallazgos, cada uno reproducido con una prueba en rojo antes de corregirlo:
+
+| hallazgo                                                                                                                                                                                                                                                                             | corrección                                                                                                                                                                                        |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cancelStuckInviting` corre primero y cancela **sin revocar nada**. Una invitación consumida conserva su `expiresAt`, así que un grupo donde alguien ya había aceptado encajaba en «todos los enlaces están muertos» y se cancelaba ahí, con una sesión de invitado viva apuntándolo | El paso es **DÚO only**. Cada modalidad toma su ruta: una cancela; la otra cancela **y limpia**                                                                                                   |
+| `cancelIncompleteGroups` tomaba `CircleActivity` primero y las invitaciones tres sentencias después; `exchange` toma la invitación antes que la actividad. Inversión real, alcanzable desde un enlace todavía válido; PostgreSQL la resolvía matando una de las dos transacciones    | Orden canónico `CircleInvitation → CircleGuestSession → CircleActivity → CircleActivityParticipant`, determinista por `id` dentro de cada conjunto, revalidando **estado y causa** bajo los locks |
+| Un `PARTICIPANT_WITHDRAWN` bajo una clave probaba sólo que la clave se gastó. Toda salida escribe ese evento, así que una clave gastada en «retirarme» podía volver con un cuerpo de respuestas y recibir «tu confirmación fue reproducida»                                          | El recibo exige que la petición **sea** esa salida: `KEEP_PRIVATE`, en grupo, sobre actividad `CANCELLED`. Leído de estado existente: **sin borradores persistidos y sin metadata nueva**         |
+
+**Lo que sigue indistinguible, a propósito.** En un grupo, «retirarme» desde
+`PREPARING` y «prefiero no compartir» son un mismo acto —mismo helper, misma
+cancelación, mismos dos eventos— y una clave gastada en uno reproduce el otro.
+Distinguirlos exigiría guardar exactamente el marcador que este diseño se niega
+a escribir: cuál botón pulsó la persona.
+
+**Sin migración.** El esquema no cambia; las 68 migraciones siguen siendo 68 y
+el arranque alojado dijo «No pending migrations to apply».
+
+---
+
 ### Estado productivo observado tras el bloque correctivo — 2026-09-16
 
 | qué                          | estado                                                                                                                              |

@@ -2313,8 +2313,17 @@ async function groupOfThree(browser) {
       "exactly ONE activity is created by one confirmation",
     );
 
+    // THIS organiser's newest activity, never "the newest activity".
+    //
+    // The hosted environment has one database and more than one run in it, so
+    // `ORDER BY "createdAt" DESC LIMIT 1` is a question about whatever anybody
+    // else created a second ago. Scoped by the circle this account created, it
+    // is a question about this scenario.
     const activityId = sqlOne(
-      `SELECT "id" FROM "CircleActivity" ORDER BY "createdAt" DESC LIMIT 1`,
+      `SELECT a."id" FROM "CircleActivity" a
+         JOIN "Circle" c ON c."id" = a."circleId"
+        WHERE c."createdByUserId" = '${organiser.userId}'
+        ORDER BY a."createdAt" DESC LIMIT 1`,
     ).trim();
     // Every column ALIASED. Two unnamed aggregates are both `count`, and a
     // transport that returns rows as objects keeps one of them.
@@ -2453,6 +2462,161 @@ async function groupOfThree(browser) {
     check(
       /Participante 1/.test(guestView),
       "the organiser's seat is Participante 1 for everybody",
+    );
+  } finally {
+    await organiserCtx.close().catch(() => {});
+    for (const ctx of guestCtxs) await ctx.close().catch(() => {});
+  }
+}
+
+/**
+ * The group's conservative exit, pressed in a real browser.
+ *
+ * Nothing about this is visible from a unit test: what has to be true is that
+ * the SCREEN says what the button does before it is pressed, that pressing it
+ * ends the activity for everybody, and that the two people who did not press it
+ * are told the activity is over without being told who ended it.
+ */
+async function groupKeepPrivate(browser) {
+  const organiser = await register("grupo-privado");
+  const organiserCtx = await browser.newContext();
+  const guestCtxs = [];
+
+  try {
+    const page = await organiserCtx.newPage();
+    await signIn(page, organiser);
+    await page.goto(`${WEB}/dashboard/circulos`, {
+      waitUntil: "domcontentloaded",
+    });
+    const start = page.getByRole("link", { name: /Empezar este círculo/i });
+    await start.waitFor({ state: "visible", timeout: 30_000 });
+    await start.click();
+    await page.getByRole("button", { name: /Crear el círculo/i }).click();
+
+    const links = await until(
+      async () => {
+        const text = await page.evaluate(() => document.body.innerText);
+        const found = text.match(/https?:\/\/\S*\/i#[A-Za-z0-9_-]{43}/g) ?? [];
+        return found.length === 2 ? found : null;
+      },
+      "two invitation links to appear",
+      60_000,
+    );
+
+    const activityId = sqlOne(
+      `SELECT a."id" FROM "CircleActivity" a
+         JOIN "Circle" c ON c."id" = a."circleId"
+        WHERE c."createdByUserId" = '${organiser.userId}'
+        ORDER BY a."createdAt" DESC LIMIT 1`,
+    ).trim();
+
+    // Nobody may prepare until the roster is complete.
+    const guests = [];
+    for (const [index, link] of links.entries()) {
+      const before = sqlOne(
+        `SELECT "status"::text FROM "CircleActivity" WHERE "id"='${activityId}'`,
+      ).trim();
+      check(
+        before === "INVITING",
+        `the room waits for the whole roster (after ${index} acceptances: ${before})`,
+      );
+      const guest = await acceptAsGuest(browser, link);
+      guestCtxs.push(guest.ctx);
+      guests.push(guest);
+    }
+    const afterAll = sqlOne(
+      `SELECT "status"::text FROM "CircleActivity" WHERE "id"='${activityId}'`,
+    ).trim();
+    check(
+      afterAll === "PREPARING",
+      `the LAST acceptance opens the preparation (${afterAll})`,
+    );
+
+    // The organiser confirms a real selection first, so there is something
+    // that would have been revealed.
+    await page.goto(`${WEB}/compartir/${activityId}`, {
+      waitUntil: "domcontentloaded",
+    });
+    await enterRoom(page);
+    await typeDraft(page, { uno: "algo que sí escribí" });
+    await openPreview(page);
+    await confirmShare(page);
+
+    // A guest chooses to keep everything private. The screen has to say what
+    // that does BEFORE the button is pressed.
+    const guest = guests[0];
+    await enterRoom(guest.page);
+    await typeDraft(guest.page, { uno: "algo privado" });
+    await forwardToSharing(guest.page);
+    await guest.page.check('input[name="modo"][value="KEEP_PRIVATE"]');
+    const warning = await guest.page.evaluate(() => document.body.innerText);
+    check(
+      /termina aquí para todo el grupo/i.test(warning),
+      "the screen says the activity ends before the button is pressed",
+    );
+    check(
+      /no se le dice a nadie quién lo eligió/i.test(warning),
+      "and that nobody is told who chose it",
+    );
+
+    await guest.page
+      .getByRole("button", { name: /Ver qué se compartirá/i })
+      .click();
+    const preview = await until(
+      async () => {
+        const text = await guest.page.evaluate(() => document.body.innerText);
+        return /Nadie verá nada/i.test(text) ? text : null;
+      },
+      "the confirmation screen to spell out the consequence",
+      30_000,
+    );
+    check(
+      /la actividad se cierra/i.test(preview),
+      "the confirmation screen says it cannot be undone",
+    );
+    await confirmShare(guest.page);
+
+    await until(
+      () =>
+        sqlOne(
+          `SELECT "status"::text FROM "CircleActivity" WHERE "id"='${activityId}'`,
+        ).trim() === "CANCELLED",
+      "the activity to end without revealing",
+      60_000,
+    );
+    check(true, "keeping it private ends the activity");
+
+    const revealed = sqlOne(
+      `SELECT count(*) FROM "CircleEvent"
+        WHERE "activityId"='${activityId}' AND "type"='ACTIVITY_REVEALED'`,
+    ).trim();
+    check(revealed === "0", `and nothing was revealed (${revealed} events)`);
+
+    const sealed = sqlOne(
+      `SELECT count(*) FROM "CircleActivityParticipant"
+        WHERE "activityId"='${activityId}' AND "ciphertext" IS NOT NULL`,
+    ).trim();
+    check(sealed === "0", `every pending envelope is destroyed (${sealed})`);
+
+    // The OTHER guest, who pressed nothing, learns it ended — and nothing else.
+    const other = guests[1];
+    await enterRoom(other.page).catch(() => {});
+    await other.page.reload({ waitUntil: "domcontentloaded" });
+    const shown = await until(
+      async () => {
+        const text = await other.page.evaluate(() => document.body.innerText);
+        return /Esta actividad terminó/i.test(text) ? text : null;
+      },
+      "the other person to see a terminal screen",
+      60_000,
+    );
+    check(
+      /No se abrió nada y no se compartió nada/i.test(shown),
+      "the close is truthful: nothing was opened",
+    );
+    check(
+      !/Participante \d/.test(shown) && !/privad/i.test(shown),
+      "and it names nobody and no reason",
     );
   } finally {
     await organiserCtx.close().catch(() => {});
@@ -3048,6 +3212,13 @@ try {
 
   await scenario("BROWSER_GROUP_OF_THREE", "a circle of three, end to end", () =>
     groupOfThree(browser),
+  );
+  resetRateLimits();
+
+  await scenario(
+    "BROWSER_GROUP_KEEP_PRIVATE",
+    "a group's private exit, and what the others are told",
+    () => groupKeepPrivate(browser),
   );
   resetRateLimits();
 

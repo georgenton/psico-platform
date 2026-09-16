@@ -797,7 +797,19 @@ export class CirclesParticipationService {
     confirmation: CircleShareConfirmation,
     idempotencyKey: string,
     now: Date = new Date(),
-  ): Promise<{ readonly revealed: boolean; readonly replayed: boolean }> {
+  ): Promise<{
+    readonly revealed: boolean;
+    readonly replayed: boolean;
+    /**
+     * The activity ended instead of taking a snapshot.
+     *
+     * Only a group can answer `true`: keeping it private in a room is the
+     * conservative exit, not a confirmation. The room polls anyway, so this is
+     * not the only way the screen finds out — it is how it finds out WITHOUT
+     * first rendering a waiting state for an activity that is already over.
+     */
+    readonly cancelled?: boolean;
+  }> {
     const cipher = this.requireCipher();
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -833,14 +845,28 @@ export class CirclesParticipationService {
         const canonical = canonicalShareBody(confirmation);
         const candidateHash = cipher.macOf(canonical, context);
 
+        // BOTH outcomes this key can stand for.
+        //
+        // A confirmation normally leaves `PARTICIPANT_READY`. In a group,
+        // keeping it private leaves `PARTICIPANT_WITHDRAWN` and cancels the
+        // activity — so a retry of that request must find ITS receipt here, or
+        // it would fall through to the status check, meet a CANCELLED activity
+        // and be told the activity is unusable. A person whose connection
+        // dropped would read that as "something went wrong" about the very
+        // thing that worked.
         const receipt = await tx.circleEvent.findFirst({
           where: {
-            type: "PARTICIPANT_READY",
+            type: { in: ["PARTICIPANT_READY", "PARTICIPANT_WITHDRAWN"] },
             actorParticipantId: ctx.self.id,
             idempotencyKey,
           },
-          select: { id: true },
+          select: { type: true },
         });
+        if (receipt?.type === "PARTICIPANT_WITHDRAWN") {
+          // The exit is not a snapshot, so there is no hash to compare. The key
+          // stands for "this seat left without sharing", and it did.
+          return { revealed: false, replayed: true, cancelled: true };
+        }
         if (receipt) {
           // The stored hash is the authority on what this key committed. A
           // seat that has since withdrawn has no hash at all, and that is a
@@ -861,6 +887,43 @@ export class CirclesParticipationService {
         if (ctx.activity.status !== "PREPARING")
           throw new CirclesError(UNUSABLE);
         if (ctx.self.status !== "ACCEPTED") throw new CirclesError(UNUSABLE);
+
+        // ── In a group, keeping it private ENDS the activity ──────────────
+        //
+        // The Dúo's meaning is unchanged: `KEEP_PRIVATE` is a confirmation
+        // that shares nothing, the seat goes READY, and the other person is
+        // told a person finished and chose not to share. With one other person
+        // that is fine — they already know who it was, and the reveal is about
+        // whether their own answer is worth opening.
+        //
+        // In a room it is not. Four people would be shown that somebody kept
+        // theirs private, and in a room of four "somebody" is an accusation
+        // with three suspects — or, with the labels the reveal needs, none at
+        // all: the label IS the identification. There is no version of
+        // "publish that one seat shared nothing" that does not point at a
+        // person.
+        //
+        // So for a group this is the conservative exit, and it is the SAME
+        // exit any other withdrawal takes from `PREPARING`: the activity is
+        // cancelled, every pending envelope is destroyed, invitations and
+        // guest sessions are revoked, and the ledger records exactly what it
+        // records for a withdrawal — which is the point. Nothing distinguishes
+        // "they pressed keep private" from "they left", so nothing can be read
+        // back to say which.
+        //
+        // The screen says so before the button: see `PreparacionPrivada`.
+        if (
+          ctx.activity.kind === "GROUP_ADULT" &&
+          confirmation.mode === "KEEP_PRIVATE"
+        ) {
+          const exited = await this.exitWithoutSharing(
+            ctx,
+            idempotencyKey,
+            now,
+            tx,
+          );
+          return { revealed: false, replayed: false, cancelled: exited };
+        }
 
         const envelope = cipher.seal(canonical, context);
 
@@ -913,6 +976,86 @@ export class CirclesParticipationService {
     } catch (err) {
       throw this.asCirclesError(err);
     }
+  }
+
+  /**
+   * Leave an activity that has not revealed, and take the activity with it.
+   *
+   * ONE implementation, reached two ways: pressing «retirarme», and — in a
+   * group only — choosing to keep everything private. They are the same act
+   * and they leave the same trace, which is deliberate: if the two wrote
+   * different rows, the row would say which button somebody pressed.
+   *
+   * Everything or nothing, inside the caller's transaction:
+   *
+   *   · this seat becomes `WITHDRAWN` and loses its own envelope;
+   *   · every OTHER pending envelope is destroyed — those snapshots were
+   *     confirmed for a conversation that is not going to happen;
+   *   · every invitation and every guest session on the activity is revoked,
+   *     so no link and no already-issued credential outlives it;
+   *   · the activity becomes `CANCELLED`, which is terminal.
+   *
+   * The ledger gets `PARTICIPANT_WITHDRAWN` carrying the caller's idempotency
+   * key — that is what makes a retry replay rather than repeat — and
+   * `ACTIVITY_CANCELLED`, which carries nothing at all. The metadata grammar
+   * admits no reason on either, so there is nowhere to record why even if
+   * somebody later wanted to.
+   */
+  private async exitWithoutSharing(
+    ctx: ActivityContext,
+    idempotencyKey: string,
+    now: Date,
+    tx: CirclesTx,
+  ): Promise<true> {
+    const withdrew = await this.participants.withdraw(
+      ctx.self.id,
+      ctx.activity.id,
+      now,
+      tx,
+    );
+    if (!withdrew) throw new CirclesError(UNUSABLE);
+
+    for (const p of ctx.participants) {
+      if (p.id !== ctx.self.id) {
+        await this.participants.purgeEnvelope(p.id, ctx.activity.id, tx);
+      }
+    }
+    await tx.circleInvitation.updateMany({
+      where: { activityId: ctx.activity.id, revokedAt: null },
+      data: { revokedAt: now },
+    });
+    await tx.circleGuestSession.updateMany({
+      where: { activityId: ctx.activity.id, revokedAt: null },
+      data: { revokedAt: now },
+    });
+    const cancelled = await this.activities.cancel(
+      ctx.activity.id,
+      now,
+      ["INVITING", "PREPARING"],
+      tx,
+    );
+    if (!cancelled) throw new CirclesError(UNUSABLE);
+
+    const withdrawEvent = await this.events.append(
+      {
+        circleId: ctx.activity.circleId,
+        activityId: ctx.activity.id,
+        type: "PARTICIPANT_WITHDRAWN",
+        actorParticipantId: ctx.self.id,
+        idempotencyKey,
+      },
+      tx,
+    );
+    if (withdrawEvent.outcome !== "APPENDED") throw new CircleStorageError();
+    await this.events.append(
+      {
+        circleId: ctx.activity.circleId,
+        activityId: ctx.activity.id,
+        type: "ACTIVITY_CANCELLED",
+      },
+      tx,
+    );
+    return true;
   }
 
   // ══ Withdraw ═════════════════════════════════════════════════════════════
@@ -988,6 +1131,15 @@ export class CirclesParticipationService {
           throw new CirclesError(UNUSABLE);
         }
 
+        if (stage === "INVITING" || stage === "PREPARING") {
+          // The same exit a group's private answer takes — seat, envelopes,
+          // invitations, sessions and status, all inside the helper. ONE
+          // implementation, so the two cannot drift and the ledger cannot tell
+          // them apart.
+          await this.exitWithoutSharing(ctx, idempotencyKey, now, tx);
+          return { outcome: "CANCELLED", replayed: false };
+        }
+
         const withdrew = await this.participants.withdraw(
           ctx.self.id,
           ctx.activity.id,
@@ -996,48 +1148,49 @@ export class CirclesParticipationService {
         );
         if (!withdrew) throw new CirclesError(UNUSABLE);
 
-        let outcome: "CANCELLED" | "CLOSED";
-        if (stage === "INVITING" || stage === "PREPARING") {
-          // Pending envelopes on BOTH sides go, then the activity is terminal.
-          for (const p of ctx.participants) {
-            if (p.id !== ctx.self.id) {
-              await this.participants.purgeEnvelope(p.id, ctx.activity.id, tx);
-            }
-          }
+        // ── After the reveal: whose access is cut ─────────────────────────
+        //
+        // The Dúo's rule is unchanged, deliberately. The person who left loses
+        // their session and their seat; the other person keeps reading what
+        // they were already reading, because in a two-person exchange that
+        // content is half theirs and they have already seen it. Nothing here
+        // pretends anybody can un-see it.
+        //
+        // A group is different in a way that is not a matter of degree. The
+        // revealed room holds FOUR other people's answers, and each of them
+        // agreed to be read inside an activity that is still running. Leaving
+        // ends the activity — that has always been the rule — so continuing to
+        // serve everybody else's selections to everybody else is serving them
+        // out of a conversation that no longer exists.
+        //
+        // So for a group every session goes, and every live invitation with
+        // them. The seat rows are untouched: this is an AUTHORIZATION change,
+        // not a deletion, and the retention policy — including agreed
+        // artifacts — is exactly what it was. What stops is future reading; see
+        // `accessIsWithdrawn` for the other half, which is what the projection
+        // enforces for members, who have no guest session to revoke.
+        const everybody = ctx.activity.kind === "GROUP_ADULT";
+        await tx.circleGuestSession.updateMany({
+          where: {
+            activityId: ctx.activity.id,
+            ...(everybody ? {} : { participantId: ctx.self.id }),
+            revokedAt: null,
+          },
+          data: { revokedAt: now },
+        });
+        if (everybody) {
           await tx.circleInvitation.updateMany({
             where: { activityId: ctx.activity.id, revokedAt: null },
             data: { revokedAt: now },
           });
-          await tx.circleGuestSession.updateMany({
-            where: { activityId: ctx.activity.id, revokedAt: null },
-            data: { revokedAt: now },
-          });
-          const cancelled = await this.activities.cancel(
-            ctx.activity.id,
-            now,
-            ["INVITING", "PREPARING"],
-            tx,
-          );
-          if (!cancelled) throw new CirclesError(UNUSABLE);
-          outcome = "CANCELLED";
-        } else {
-          await tx.circleGuestSession.updateMany({
-            where: {
-              activityId: ctx.activity.id,
-              participantId: ctx.self.id,
-              revokedAt: null,
-            },
-            data: { revokedAt: now },
-          });
-          const closed = await this.activities.close(
-            ctx.activity.id,
-            now,
-            ["REVEALED", "FOLLOW_UP"],
-            tx,
-          );
-          if (!closed) throw new CirclesError(UNUSABLE);
-          outcome = "CLOSED";
         }
+        const closed = await this.activities.close(
+          ctx.activity.id,
+          now,
+          ["REVEALED", "FOLLOW_UP"],
+          tx,
+        );
+        if (!closed) throw new CirclesError(UNUSABLE);
 
         const withdrawEvent = await this.events.append(
           {
@@ -1056,14 +1209,11 @@ export class CirclesParticipationService {
           {
             circleId: ctx.activity.circleId,
             activityId: ctx.activity.id,
-            type:
-              outcome === "CANCELLED"
-                ? "ACTIVITY_CANCELLED"
-                : "ACTIVITY_CLOSED",
+            type: "ACTIVITY_CLOSED",
           },
           tx,
         );
-        return { outcome, replayed: false };
+        return { outcome: "CLOSED", replayed: false };
       });
     } catch (err) {
       throw this.asCirclesError(err);

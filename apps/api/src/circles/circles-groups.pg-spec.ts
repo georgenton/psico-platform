@@ -5,7 +5,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { CircleTemplateRegistry } from "@psico/types";
-import type { CircleActivityDefinition } from "@psico/types";
+import type { CircleActivityDefinition, CircleActor } from "@psico/types";
 import { CircleActivityRepository } from "./circle-activity.repository";
 import { CircleArtifactRepository } from "./circle-artifact.repository";
 import { CircleEventRepository } from "./circle-event.repository";
@@ -14,6 +14,8 @@ import { CircleInvitationRepository } from "./circle-invitation.repository";
 import { CircleMemberRepository } from "./circle-member.repository";
 import { CircleParticipantRepository } from "./circle-participant.repository";
 import { CirclesParticipationService } from "./circles-participation.service";
+import { CirclesParticipationFacade } from "./circles-participation.facade";
+import { CirclesAnalyticsService } from "./circles-analytics.service";
 import { CirclesCipher } from "./circles-crypto";
 import type { CirclesError } from "./circles-http-errors";
 import { CirclesRolloutService } from "./circles-rollout.service";
@@ -22,6 +24,7 @@ import {
   type CirclesRolloutEnv,
 } from "./circles-rollout";
 import { CirclesService } from "./circles.service";
+import { CirclesSweepService } from "./circles-sweep.service";
 import { hashSecret } from "./circles-secrets";
 
 /**
@@ -159,6 +162,17 @@ suite("circles · adult groups (real PostgreSQL)", () => {
   let open: CirclesParticipationService;
   let closed: CirclesParticipationService;
   let access: CirclesService;
+  /**
+   * The READ path, through the real facade rather than the domain.
+   *
+   * Half of the access rules under test live there — the facade decides
+   * whether an envelope is decrypted at all — so a spec that called the
+   * projection directly would be testing the second lock and calling it the
+   * door.
+   */
+  let facade: CirclesParticipationFacade;
+  const facadeRead = (actor: CircleActor, activityId: string) =>
+    facade.read(actor, activityId);
 
   const codeOf = async (fn: () => Promise<unknown>): Promise<string> => {
     try {
@@ -190,6 +204,10 @@ suite("circles · adult groups (real PostgreSQL)", () => {
     open = build(OPEN);
     closed = build(CLOSED);
     access = buildAccess(OPEN);
+    facade = new CirclesParticipationFacade(
+      open,
+      new CirclesAnalyticsService(prisma as never),
+    );
 
     await prisma.user.createMany({
       data: [
@@ -1034,10 +1052,13 @@ suite("circles · adult groups (real PostgreSQL)", () => {
         share("lo del segundo"),
         randomUUID(),
       );
+      // Three SHARED answers. Keeping it private is no longer an option that
+      // reaches a reveal in a group — it ends the activity — and this scenario
+      // is about what a reveal contains.
       await open.confirmShare(
         group.guests[1]!,
         group.activityId,
-        { mode: "KEEP_PRIVATE" },
+        share("lo del tercero"),
         randomUUID(),
       );
 
@@ -1338,5 +1359,940 @@ suite("circles · adult groups (real PostgreSQL)", () => {
       );
       expect(await status()).toBe("CLOSED");
     }, 45_000);
+  });
+
+  // ══ The corrective block ═════════════════════════════════════════════════
+
+  describe("the roster decides when preparation begins", () => {
+    /** A group of `size` with its invitations minted and nobody in yet. */
+    async function invitedGroup(size: number) {
+      const tokens = mintTokens(size - 1);
+      const created = await open.createDuo({
+        userId: ORGANIZER,
+        templateKey: GROUP.templateKey,
+        templateVersion: GROUP.templateVersion,
+        invitationTokens: tokens,
+        size,
+        idempotencyKey: randomUUID(),
+      });
+      return { ...created, tokens };
+    }
+
+    const statusOf = async (activityId: string) => {
+      const row = await pool.query(
+        `SELECT "status"::text AS s FROM "CircleActivity" WHERE "id"=$1`,
+        [activityId],
+      );
+      return row.rows[0].s as string;
+    };
+
+    const acceptAs = async (token: string, activityId: string) => {
+      const exchanged = await access.exchange(token);
+      const seat = await pool.query(
+        `SELECT "participantId" FROM "CircleGuestSession" WHERE "id"=$1`,
+        [exchanged.guestSessionId],
+      );
+      return {
+        kind: "GUEST" as const,
+        guestSessionId: exchanged.guestSessionId,
+        activityId,
+        participantId: seat.rows[0].participantId as string,
+      };
+    };
+
+    it("stays INVITING after the first acceptance and moves on the last", async () => {
+      const group = await invitedGroup(3);
+      expect(await statusOf(group.activityId)).toBe("INVITING");
+
+      await acceptAs(group.tokens[0]!, group.activityId);
+      // The bug this replaces: the FIRST acceptance opened preparation, and a
+      // room with an empty seat could never reveal and was never swept.
+      expect(await statusOf(group.activityId)).toBe("INVITING");
+
+      await acceptAs(group.tokens[1]!, group.activityId);
+      expect(await statusOf(group.activityId)).toBe("PREPARING");
+    }, 30_000);
+
+    it("refuses a confirmation while a seat is still empty", async () => {
+      const group = await invitedGroup(3);
+      const guest = await acceptAs(group.tokens[0]!, group.activityId);
+      const organizer = { kind: "USER" as const, userId: ORGANIZER };
+
+      for (const actor of [organizer, guest]) {
+        expect(
+          await codeOf(() =>
+            open.confirmShare(
+              actor,
+              group.activityId,
+              {
+                mode: "SELECTED_FIELDS",
+                fields: [{ fieldKey: "campo-a", value: "temprano" }],
+              },
+              randomUUID(),
+            ),
+          ),
+        ).toBe("CIRCLE_ACTIVITY_UNAVAILABLE");
+      }
+      // And nothing was written on the way to refusing.
+      const ready = await pool.query(
+        `SELECT count(*)::int AS n FROM "CircleActivityParticipant"
+          WHERE "activityId"=$1 AND "status"='READY'`,
+        [group.activityId],
+      );
+      expect(ready.rows[0].n).toBe(0);
+    }, 30_000);
+
+    it("leaves a Dúo exactly as it was", async () => {
+      const token = mintToken();
+      const created = await open.createDuo({
+        userId: ORGANIZER,
+        templateKey: DUO.templateKey,
+        templateVersion: DUO.templateVersion,
+        invitationTokens: [token],
+        idempotencyKey: randomUUID(),
+      });
+      expect(await statusOf(created.activityId)).toBe("INVITING");
+      await access.exchange(token);
+      // One guest: the first acceptance IS the last, so the Dúo reaches
+      // PREPARING on exactly the event it always did.
+      expect(await statusOf(created.activityId)).toBe("PREPARING");
+    }, 30_000);
+  });
+
+  describe("keeping it private ends a group, and names nobody", () => {
+    /** A group of three with every seat accepted and nobody confirmed. */
+    async function preparingGroup() {
+      const tokens = mintTokens(2);
+      const created = await open.createDuo({
+        userId: ORGANIZER,
+        templateKey: GROUP.templateKey,
+        templateVersion: GROUP.templateVersion,
+        invitationTokens: tokens,
+        size: 3,
+        idempotencyKey: randomUUID(),
+      });
+      const guests = [];
+      for (const token of tokens) {
+        const exchanged = await access.exchange(token);
+        const seat = await pool.query(
+          `SELECT "participantId" FROM "CircleGuestSession" WHERE "id"=$1`,
+          [exchanged.guestSessionId],
+        );
+        guests.push({
+          kind: "GUEST" as const,
+          guestSessionId: exchanged.guestSessionId,
+          activityId: created.activityId,
+          participantId: seat.rows[0].participantId as string,
+        });
+      }
+      return {
+        ...created,
+        organizer: { kind: "USER" as const, userId: ORGANIZER },
+        guests,
+      };
+    }
+
+    const share = (value: string) =>
+      ({
+        mode: "SELECTED_FIELDS",
+        fields: [{ fieldKey: "campo-a", value }],
+      }) as const;
+
+    it("cancels the activity instead of taking a snapshot", async () => {
+      const group = await preparingGroup();
+      await open.confirmShare(
+        group.organizer,
+        group.activityId,
+        share("lo del organizador"),
+        randomUUID(),
+      );
+
+      const result = await open.confirmShare(
+        group.guests[0]!,
+        group.activityId,
+        { mode: "KEEP_PRIVATE" },
+        randomUUID(),
+      );
+      expect(result.cancelled).toBe(true);
+      expect(result.revealed).toBe(false);
+
+      const row = await pool.query(
+        `SELECT "status"::text AS s, "revealedAt" FROM "CircleActivity" WHERE "id"=$1`,
+        [group.activityId],
+      );
+      expect(row.rows[0].s).toBe("CANCELLED");
+      expect(row.rows[0].revealedAt).toBeNull();
+
+      // No seat went READY for that choice, and the organiser's confirmed
+      // envelope — sealed for a conversation that will not happen — is gone.
+      const seats = await pool.query(
+        `SELECT count(*) FILTER (WHERE "status"='READY')::int AS ready,
+                count(*) FILTER (WHERE "ciphertext" IS NOT NULL)::int AS sealed
+           FROM "CircleActivityParticipant" WHERE "activityId"=$1`,
+        [group.activityId],
+      );
+      expect(seats.rows[0]).toMatchObject({ ready: 0, sealed: 0 });
+
+      // Everything derived from the activity is revoked.
+      const live = await pool.query(
+        `SELECT
+           (SELECT count(*)::int FROM "CircleInvitation"
+             WHERE "activityId"=$1 AND "revokedAt" IS NULL) AS invitations,
+           (SELECT count(*)::int FROM "CircleGuestSession"
+             WHERE "activityId"=$1 AND "revokedAt" IS NULL) AS sessions`,
+        [group.activityId],
+      );
+      expect(live.rows[0]).toMatchObject({ invitations: 0, sessions: 0 });
+    }, 30_000);
+
+    it("leaves a record that cannot say which exit it was", async () => {
+      const group = await preparingGroup();
+      await open.confirmShare(
+        group.guests[1]!,
+        group.activityId,
+        { mode: "KEEP_PRIVATE" },
+        randomUUID(),
+      );
+      const events = await pool.query(
+        // ORDER BY the TEXT, not the enum: PostgreSQL sorts an enum by its
+        // DECLARATION order, so `ORDER BY "type"` is stable but not the order
+        // anybody reading this would guess.
+        `SELECT "type"::text AS t, "metadata" FROM "CircleEvent"
+          WHERE "activityId"=$1 AND "type" IN ('PARTICIPANT_WITHDRAWN','ACTIVITY_CANCELLED')
+          ORDER BY "type"::text`,
+        [group.activityId],
+      );
+      // The same two rows a plain withdrawal writes, and no metadata on
+      // either: the ledger's grammar has nowhere to record a reason.
+      expect(events.rows.map((r) => r.t)).toEqual([
+        "ACTIVITY_CANCELLED",
+        "PARTICIPANT_WITHDRAWN",
+      ]);
+      expect(events.rows.every((r) => r.metadata === null)).toBe(true);
+      // And no sharing mode survives anywhere on the roster.
+      const modes = await pool.query(
+        `SELECT count(*)::int AS n FROM "CircleActivityParticipant"
+          WHERE "activityId"=$1 AND "sharingMode" IS NOT NULL`,
+        [group.activityId],
+      );
+      expect(modes.rows[0].n).toBe(0);
+    }, 30_000);
+
+    it("tells the others nothing about who chose it", async () => {
+      const group = await preparingGroup();
+      await open.confirmShare(
+        group.guests[0]!,
+        group.activityId,
+        { mode: "KEEP_PRIVATE" },
+        randomUUID(),
+      );
+      const view = await facadeRead(group.organizer, group.activityId);
+      expect(view.status).toBe("CANCELLED");
+      expect(view.revealed).toBeNull();
+      // Not a label, not a seat id, not a sharing mode.
+      const serialized = JSON.stringify(view);
+      expect(serialized).not.toContain("KEEP_PRIVATE");
+      expect(serialized).not.toContain(group.guests[0]!.participantId);
+      expect(serialized).not.toContain("Participante");
+    }, 30_000);
+
+    it("replays the same key instead of failing on a cancelled activity", async () => {
+      // The organiser chooses it, because a MEMBER keeps their session after
+      // the exit and can therefore retry. A guest cannot, by design: the exit
+      // revokes the credential, and that asymmetry is documented on
+      // `withdraw` rather than engineered away.
+      const group = await preparingGroup();
+      const key = randomUUID();
+      const first = await open.confirmShare(
+        group.organizer,
+        group.activityId,
+        { mode: "KEEP_PRIVATE" },
+        key,
+      );
+      expect(first.cancelled).toBe(true);
+      expect(first.replayed).toBe(false);
+
+      const replay = await open.confirmShare(
+        group.organizer,
+        group.activityId,
+        { mode: "KEEP_PRIVATE" },
+        key,
+      );
+      // The same answer, not "this activity is unavailable" — which is what a
+      // dropped connection would otherwise have been told about the very
+      // request that worked.
+      expect(replay).toMatchObject({ cancelled: true, replayed: true });
+
+      // And exactly one exit was recorded, whatever the caller did.
+      const events = await pool.query(
+        `SELECT count(*)::int AS n FROM "CircleEvent"
+          WHERE "activityId"=$1 AND "type"='PARTICIPANT_WITHDRAWN'`,
+        [group.activityId],
+      );
+      expect(events.rows[0].n).toBe(1);
+
+      // A DIFFERENT key on a cancelled activity is refused rather than
+      // silently replayed.
+      expect(
+        await codeOf(() =>
+          open.confirmShare(
+            group.organizer,
+            group.activityId,
+            { mode: "KEEP_PRIVATE" },
+            randomUUID(),
+          ),
+        ),
+      ).toBe("CIRCLE_ACTIVITY_UNAVAILABLE");
+    }, 30_000);
+
+    it("keeps the Dúo's meaning of KEEP_PRIVATE", async () => {
+      const token = mintToken();
+      const created = await open.createDuo({
+        userId: ORGANIZER,
+        templateKey: DUO.templateKey,
+        templateVersion: DUO.templateVersion,
+        invitationTokens: [token],
+        idempotencyKey: randomUUID(),
+      });
+      const exchanged = await access.exchange(token);
+      const seat = await pool.query(
+        `SELECT "participantId" FROM "CircleGuestSession" WHERE "id"=$1`,
+        [exchanged.guestSessionId],
+      );
+      const guest = {
+        kind: "GUEST" as const,
+        guestSessionId: exchanged.guestSessionId,
+        activityId: created.activityId,
+        participantId: seat.rows[0].participantId as string,
+      };
+      await open.confirmShare(
+        { kind: "USER" as const, userId: ORGANIZER },
+        created.activityId,
+        share("lo mio"),
+        randomUUID(),
+      );
+      const result = await open.confirmShare(
+        guest,
+        created.activityId,
+        { mode: "KEEP_PRIVATE" },
+        randomUUID(),
+      );
+      // Unchanged: a confirmation that shares nothing, a READY seat, and the
+      // barrier opens the exchange.
+      expect(result.cancelled).toBeUndefined();
+      expect(result.revealed).toBe(true);
+      const row = await pool.query(
+        `SELECT "status"::text AS s FROM "CircleActivity" WHERE "id"=$1`,
+        [created.activityId],
+      );
+      expect(row.rows[0].s).toBe("REVEALED");
+    }, 30_000);
+  });
+
+  describe("leaving a revealed room closes it for everybody", () => {
+    const share = (value: string) =>
+      ({
+        mode: "SELECTED_FIELDS",
+        fields: [{ fieldKey: "campo-a", value }],
+      }) as const;
+
+    /** A revealed group of three, every seat READY. */
+    async function revealed(size = 3) {
+      const tokens = mintTokens(size - 1);
+      const created = await open.createDuo({
+        userId: ORGANIZER,
+        templateKey: GROUP.templateKey,
+        templateVersion: GROUP.templateVersion,
+        invitationTokens: tokens,
+        size,
+        idempotencyKey: randomUUID(),
+      });
+      const guests = [];
+      for (const token of tokens) {
+        const exchanged = await access.exchange(token);
+        const seat = await pool.query(
+          `SELECT "participantId" FROM "CircleGuestSession" WHERE "id"=$1`,
+          [exchanged.guestSessionId],
+        );
+        guests.push({
+          kind: "GUEST" as const,
+          guestSessionId: exchanged.guestSessionId,
+          activityId: created.activityId,
+          participantId: seat.rows[0].participantId as string,
+        });
+      }
+      const organizer = { kind: "USER" as const, userId: ORGANIZER };
+      for (const [index, actor] of [organizer, ...guests].entries()) {
+        await open.confirmShare(
+          actor,
+          created.activityId,
+          share(`respuesta ${index}`),
+          randomUUID(),
+        );
+      }
+      return { ...created, organizer, guests };
+    }
+
+    it("serves nothing to the ORGANISER after a guest leaves", async () => {
+      const group = await revealed();
+      // An AGREED artifact first, so "the shared result disappears" is a claim
+      // about content that was demonstrably being served a moment earlier.
+      const proposal = await open.proposeArtifact(
+        group.organizer,
+        group.activityId,
+        "lo que vamos a intentar",
+        randomUUID(),
+      );
+      for (const actor of [group.organizer, ...group.guests]) {
+        await open.confirmArtifact(
+          actor,
+          group.activityId,
+          proposal.artifactId,
+          proposal.version,
+          randomUUID(),
+        );
+      }
+
+      const before = await facadeRead(group.organizer, group.activityId);
+      expect(before.revealed?.participants).toHaveLength(2);
+      expect(before.artifact?.body).toBe("lo que vamos a intentar");
+
+      await open.withdraw(group.guests[0]!, group.activityId, randomUUID());
+
+      const after = await facadeRead(group.organizer, group.activityId);
+      expect(after.status).toBe("CLOSED");
+      expect(after.revealed, "no selections at all").toBeNull();
+      expect(after.artifact, "and no shared result either").toBeNull();
+      // Not an empty list to count, and not a sentence anybody wrote.
+      const serialized = JSON.stringify(after);
+      expect(serialized).not.toContain("respuesta 1");
+      expect(serialized).not.toContain("respuesta 2");
+      expect(serialized).not.toContain("lo que vamos a intentar");
+      // The artifact row is untouched — this is authorization, not deletion.
+      const kept = await pool.query(
+        `SELECT count(*)::int AS n FROM "CircleArtifact"
+          WHERE "activityId"=$1 AND "ciphertext" IS NOT NULL`,
+        [group.activityId],
+      );
+      expect(kept.rows[0].n).toBe(1);
+      // Their OWN confirmed answer is still theirs to read back.
+      expect(after.you.confirmed).not.toBeNull();
+    }, 45_000);
+
+    it("serves nothing to a REMAINING guest either", async () => {
+      const group = await revealed();
+      await open.withdraw(group.organizer, group.activityId, randomUUID());
+
+      // The remaining guest's session was revoked with everybody's, so the
+      // guard refuses before the read even happens. Both layers are checked:
+      // the credential, and — below — the projection for a member who has no
+      // guest session to revoke.
+      const live = await pool.query(
+        `SELECT count(*)::int AS n FROM "CircleGuestSession"
+          WHERE "activityId"=$1 AND "revokedAt" IS NULL`,
+        [group.activityId],
+      );
+      expect(live.rows[0].n).toBe(0);
+
+      const invitations = await pool.query(
+        `SELECT count(*)::int AS n FROM "CircleInvitation"
+          WHERE "activityId"=$1 AND "revokedAt" IS NULL`,
+        [group.activityId],
+      );
+      expect(invitations.rows[0].n).toBe(0);
+    }, 45_000);
+
+    it("refuses new commands on the closed conversation", async () => {
+      const group = await revealed();
+      await open.withdraw(group.guests[0]!, group.activityId, randomUUID());
+
+      for (const attempt of [
+        () =>
+          open.proposeArtifact(
+            group.organizer,
+            group.activityId,
+            "un acuerdo tardío",
+            randomUUID(),
+          ),
+        () =>
+          open.recordFollowUp(
+            group.organizer,
+            group.activityId,
+            "KEEP",
+            randomUUID(),
+          ),
+        () => open.withdraw(group.organizer, group.activityId, randomUUID()),
+        () =>
+          open.confirmShare(
+            group.organizer,
+            group.activityId,
+            share("otra vez"),
+            randomUUID(),
+          ),
+      ]) {
+        expect(await codeOf(attempt)).toBe("CIRCLE_ACTIVITY_UNAVAILABLE");
+      }
+    }, 45_000);
+
+    it("keeps the rows: this is authorization, not deletion", async () => {
+      const group = await revealed();
+      const before = await pool.query(
+        `SELECT count(*) FILTER (WHERE "ciphertext" IS NOT NULL)::int AS sealed
+           FROM "CircleActivityParticipant" WHERE "activityId"=$1`,
+        [group.activityId],
+      );
+      await open.withdraw(group.guests[1]!, group.activityId, randomUUID());
+      const after = await pool.query(
+        `SELECT count(*) FILTER (WHERE "ciphertext" IS NOT NULL)::int AS sealed
+           FROM "CircleActivityParticipant" WHERE "activityId"=$1`,
+        [group.activityId],
+      );
+      // One envelope goes — the leaver's own, as it always has. The rest stay
+      // exactly where they were: retention is governed by the approved policy,
+      // and closing access is not a licence to rewrite it.
+      expect(after.rows[0].sealed).toBe(before.rows[0].sealed - 1);
+    }, 45_000);
+
+    it("leaves the Dúo's post-reveal rule alone", async () => {
+      const token = mintToken();
+      const created = await open.createDuo({
+        userId: ORGANIZER,
+        templateKey: DUO.templateKey,
+        templateVersion: DUO.templateVersion,
+        invitationTokens: [token],
+        idempotencyKey: randomUUID(),
+      });
+      const exchanged = await access.exchange(token);
+      const seat = await pool.query(
+        `SELECT "participantId" FROM "CircleGuestSession" WHERE "id"=$1`,
+        [exchanged.guestSessionId],
+      );
+      const guest = {
+        kind: "GUEST" as const,
+        guestSessionId: exchanged.guestSessionId,
+        activityId: created.activityId,
+        participantId: seat.rows[0].participantId as string,
+      };
+      const organizer = { kind: "USER" as const, userId: ORGANIZER };
+      for (const actor of [organizer, guest]) {
+        await open.confirmShare(
+          actor,
+          created.activityId,
+          share("lo de cada quien"),
+          randomUUID(),
+        );
+      }
+      const proposal = await open.proposeArtifact(
+        organizer,
+        created.activityId,
+        "el acuerdo de dos",
+        randomUUID(),
+      );
+      for (const actor of [organizer, guest]) {
+        await open.confirmArtifact(
+          actor,
+          created.activityId,
+          proposal.artifactId,
+          proposal.version,
+          randomUUID(),
+        );
+      }
+      await open.withdraw(guest, created.activityId, randomUUID());
+
+      // Unchanged and deliberate. The leaver's own envelope is purged — that
+      // has always been true, in both shapes — but the agreed result stays
+      // readable for the person who is still there, because in a two-person
+      // exchange it is half theirs and they have already seen it. A group is
+      // where that stops being true, and the test above is where that is
+      // asserted.
+      const view = await facadeRead(organizer, created.activityId);
+      expect(view.status).toBe("CLOSED");
+      expect(view.artifact?.body).toBe("el acuerdo de dos");
+      expect(view.you.confirmed).not.toBeNull();
+    }, 45_000);
+  });
+
+  describe("the waiting response counts nobody", () => {
+    it("omits readyCount entirely while a group prepares", async () => {
+      const tokens = mintTokens(2);
+      const created = await open.createDuo({
+        userId: ORGANIZER,
+        templateKey: GROUP.templateKey,
+        templateVersion: GROUP.templateVersion,
+        invitationTokens: tokens,
+        size: 3,
+        idempotencyKey: randomUUID(),
+      });
+      for (const token of tokens) await access.exchange(token);
+      const organizer = { kind: "USER" as const, userId: ORGANIZER };
+      await open.confirmShare(
+        organizer,
+        created.activityId,
+        {
+          mode: "SELECTED_FIELDS",
+          fields: [{ fieldKey: "campo-a", value: "lo mio" }],
+        },
+        randomUUID(),
+      );
+
+      const view = await facadeRead(organizer, created.activityId);
+      // ABSENT, not zero and not stale: the key is not in the object at all,
+      // so there is nothing for a reader to reconstruct from.
+      expect("readyCount" in view).toBe(false);
+      expect(JSON.stringify(view)).not.toContain("readyCount");
+      // The SIZE stays — somebody agreed to write for three people and is
+      // entitled to keep seeing that it is three.
+      expect(view.requiredParticipants).toBe(3);
+      // And nothing per seat: one status for the room, and no timestamps.
+      expect(Object.keys(view.counterpart)).toEqual(["status"]);
+      expect(JSON.stringify(view)).not.toContain("readyAt");
+    }, 45_000);
+
+    it("sends it again once there is nothing left to wait for", async () => {
+      const tokens = mintTokens(2);
+      const created = await open.createDuo({
+        userId: ORGANIZER,
+        templateKey: GROUP.templateKey,
+        templateVersion: GROUP.templateVersion,
+        invitationTokens: tokens,
+        size: 3,
+        idempotencyKey: randomUUID(),
+      });
+      const actors: CircleActor[] = [{ kind: "USER", userId: ORGANIZER }];
+      for (const token of tokens) {
+        const exchanged = await access.exchange(token);
+        const seat = await pool.query(
+          `SELECT "participantId" FROM "CircleGuestSession" WHERE "id"=$1`,
+          [exchanged.guestSessionId],
+        );
+        actors.push({
+          kind: "GUEST",
+          guestSessionId: exchanged.guestSessionId,
+          activityId: created.activityId,
+          participantId: seat.rows[0].participantId as string,
+        });
+      }
+      for (const actor of actors) {
+        await open.confirmShare(
+          actor,
+          created.activityId,
+          {
+            mode: "SELECTED_FIELDS",
+            fields: [{ fieldKey: "campo-a", value: "algo" }],
+          },
+          randomUUID(),
+        );
+      }
+      const view = await facadeRead(actors[0]!, created.activityId);
+      // After the reveal every seat is READY by construction, so the number
+      // carries no timing information about anybody.
+      expect(view.readyCount).toBe(3);
+    }, 45_000);
+
+    it("keeps sending it for a Dúo, at every stage", async () => {
+      const token = mintToken();
+      const created = await open.createDuo({
+        userId: ORGANIZER,
+        templateKey: DUO.templateKey,
+        templateVersion: DUO.templateVersion,
+        invitationTokens: [token],
+        idempotencyKey: randomUUID(),
+      });
+      await access.exchange(token);
+      const view = await facadeRead(
+        { kind: "USER", userId: ORGANIZER },
+        created.activityId,
+      );
+      expect(view.readyCount).toBe(0);
+    }, 30_000);
+  });
+
+  describe("a clock ends what a person can no longer finish", () => {
+    const sweeper = () =>
+      new CirclesSweepService(
+        prisma as never,
+        new CircleActivityRepository(prisma),
+        new CircleEventRepository(prisma),
+        new CirclesRolloutService(resolveCirclesRolloutConfig(OPEN)),
+        new CircleParticipantRepository(prisma),
+      );
+
+    const statusOf = async (activityId: string) => {
+      const row = await pool.query(
+        `SELECT "status"::text AS s FROM "CircleActivity" WHERE "id"=$1`,
+        [activityId],
+      );
+      return row.rows[0].s as string;
+    };
+
+    /** A group of three with `accepted` of its guest seats filled. */
+    async function partiallyAccepted(accepted: number) {
+      const tokens = mintTokens(2);
+      const created = await open.createDuo({
+        userId: ORGANIZER,
+        templateKey: GROUP.templateKey,
+        templateVersion: GROUP.templateVersion,
+        invitationTokens: tokens,
+        size: 3,
+        idempotencyKey: randomUUID(),
+      });
+      for (const token of tokens.slice(0, accepted)) {
+        await access.exchange(token);
+      }
+      return { ...created, tokens };
+    }
+
+    it("cancels a group whose remaining link has expired", async () => {
+      const group = await partiallyAccepted(1);
+      expect(await statusOf(group.activityId)).toBe("INVITING");
+
+      // The DATA is aged, not the clock. One essential seat can no longer be
+      // filled, and with a fixed roster that is enough — the sweep does not
+      // wait for the links that are still alive.
+      await pool.query(
+        // BOTH ends move. `CircleInvitation_expires_after_creation` refuses a
+        // row whose expiry precedes its creation, so an invitation cannot be
+        // aged by pushing only one of them into the past.
+        `UPDATE "CircleInvitation"
+            SET "createdAt" = now() - interval '15 days',
+                "expiresAt" = now() - interval '1 hour'
+          WHERE "activityId"=$1 AND "consumedAt" IS NULL`,
+        [group.activityId],
+      );
+
+      const summary = await sweeper().sweep();
+      expect(summary.incompleteGroupsCancelled).toBeGreaterThanOrEqual(1);
+      expect(await statusOf(group.activityId)).toBe("CANCELLED");
+
+      // Everything derived is revoked and nothing sealed is left pending.
+      const rows = await pool.query(
+        `SELECT
+           (SELECT count(*)::int FROM "CircleGuestSession"
+             WHERE "activityId"=$1 AND "revokedAt" IS NULL) AS sessions,
+           (SELECT count(*)::int FROM "CircleInvitation"
+             WHERE "activityId"=$1 AND "revokedAt" IS NULL) AS invitations,
+           (SELECT count(*)::int FROM "CircleActivityParticipant"
+             WHERE "activityId"=$1 AND "ciphertext" IS NOT NULL) AS sealed`,
+        [group.activityId],
+      );
+      expect(rows.rows[0]).toMatchObject({
+        sessions: 0,
+        invitations: 0,
+        sealed: 0,
+      });
+
+      // A clock did this. The ledger says the activity was cancelled and
+      // nothing else: no actor, no participant event, no metadata.
+      const events = await pool.query(
+        `SELECT "type"::text AS t, "actorUserId", "actorParticipantId", "metadata"
+           FROM "CircleEvent"
+          WHERE "activityId"=$1 AND "type"='ACTIVITY_CANCELLED'`,
+        [group.activityId],
+      );
+      expect(events.rows).toHaveLength(1);
+      expect(events.rows[0]).toMatchObject({
+        actorUserId: null,
+        actorParticipantId: null,
+        metadata: null,
+      });
+      const withdrawals = await pool.query(
+        `SELECT count(*)::int AS n FROM "CircleEvent"
+          WHERE "activityId"=$1 AND "type"='PARTICIPANT_WITHDRAWN'`,
+        [group.activityId],
+      );
+      expect(withdrawals.rows[0].n, "an expiry is not a decision").toBe(0);
+    }, 60_000);
+
+    it("cancels a legacy group the old code left in PREPARING", async () => {
+      // The state the previous cut created: moved on the FIRST acceptance,
+      // with a seat still INVITED. Selecting by status alone would step over
+      // exactly the rooms this sweep was added for.
+      const group = await partiallyAccepted(1);
+      await pool.query(
+        `UPDATE "CircleActivity" SET "status"='PREPARING' WHERE "id"=$1`,
+        [group.activityId],
+      );
+      await pool.query(
+        // BOTH ends move. `CircleInvitation_expires_after_creation` refuses a
+        // row whose expiry precedes its creation, so an invitation cannot be
+        // aged by pushing only one of them into the past.
+        `UPDATE "CircleInvitation"
+            SET "createdAt" = now() - interval '15 days',
+                "expiresAt" = now() - interval '1 hour'
+          WHERE "activityId"=$1 AND "consumedAt" IS NULL`,
+        [group.activityId],
+      );
+
+      await sweeper().sweep();
+      expect(await statusOf(group.activityId)).toBe("CANCELLED");
+    }, 60_000);
+
+    it("leaves a group whose links are all still alive", async () => {
+      const group = await partiallyAccepted(1);
+      await sweeper().sweep();
+      // Nothing has gone wrong yet: somebody can still accept.
+      expect(await statusOf(group.activityId)).toBe("INVITING");
+    }, 60_000);
+
+    it("lets the last acceptance win a race against the expiry", async () => {
+      const group = await partiallyAccepted(1);
+      // The link is dead by the clock AND somebody is redeeming it at the same
+      // moment. Only one outcome may stand: either the room completes, or it
+      // is cancelled — never a cancelled room with a fresh guest inside it.
+      await pool.query(
+        // BOTH ends move. `CircleInvitation_expires_after_creation` refuses a
+        // row whose expiry precedes its creation, so an invitation cannot be
+        // aged by pushing only one of them into the past.
+        `UPDATE "CircleInvitation"
+            SET "createdAt" = now() - interval '15 days',
+                "expiresAt" = now() - interval '1 hour'
+          WHERE "activityId"=$1 AND "consumedAt" IS NULL`,
+        [group.activityId],
+      );
+      const [accepted, swept] = await Promise.allSettled([
+        access.exchange(group.tokens[1]!),
+        sweeper().sweep(),
+      ]);
+      void swept;
+
+      const status = await statusOf(group.activityId);
+      if (accepted.status === "fulfilled") {
+        // An expired link should not have been redeemable at all — but if the
+        // domain admitted it, the room must be usable rather than cancelled.
+        expect(status).toBe("PREPARING");
+      } else {
+        expect(status).toBe("CANCELLED");
+        const live = await pool.query(
+          `SELECT count(*)::int AS n FROM "CircleGuestSession"
+            WHERE "activityId"=$1 AND "revokedAt" IS NULL`,
+          [group.activityId],
+        );
+        expect(live.rows[0].n, "no session survives a cancelled room").toBe(0);
+      }
+    }, 60_000);
+
+    it("closes a group's follow-up when its window runs out", async () => {
+      const share = (value: string) =>
+        ({
+          mode: "SELECTED_FIELDS",
+          fields: [{ fieldKey: "campo-a", value }],
+        }) as const;
+      const tokens = mintTokens(2);
+      const created = await open.createDuo({
+        userId: ORGANIZER,
+        templateKey: GROUP.templateKey,
+        templateVersion: GROUP.templateVersion,
+        invitationTokens: tokens,
+        size: 3,
+        idempotencyKey: randomUUID(),
+      });
+      const actors: CircleActor[] = [{ kind: "USER", userId: ORGANIZER }];
+      for (const token of tokens) {
+        const exchanged = await access.exchange(token);
+        const seat = await pool.query(
+          `SELECT "participantId" FROM "CircleGuestSession" WHERE "id"=$1`,
+          [exchanged.guestSessionId],
+        );
+        actors.push({
+          kind: "GUEST",
+          guestSessionId: exchanged.guestSessionId,
+          activityId: created.activityId,
+          participantId: seat.rows[0].participantId as string,
+        });
+      }
+      for (const [index, actor] of actors.entries()) {
+        await open.confirmShare(
+          actor,
+          created.activityId,
+          share(`respuesta ${index}`),
+          randomUUID(),
+        );
+      }
+
+      // INSIDE the window first: the follow-up opens on its date and stays
+      // open, because two days is not seven.
+      await pool.query(
+        `UPDATE "CircleActivity"
+            SET "followUpDueAt" = now() - interval '2 days'
+          WHERE "id"=$1`,
+        [created.activityId],
+      );
+      const first = await sweeper().sweep();
+      expect(first.followUpOpened).toBeGreaterThanOrEqual(1);
+      expect(first.followUpClosed).toBe(0);
+      expect(await statusOf(created.activityId)).toBe("FOLLOW_UP");
+
+      // PAST the window. The data is aged, not the clock, and not the
+      // production deadline.
+      await pool.query(
+        `UPDATE "CircleActivity"
+            SET "followUpDueAt" = now() - interval '8 days'
+          WHERE "id"=$1`,
+        [created.activityId],
+      );
+      const second = await sweeper().sweep();
+      expect(second.followUpClosed).toBeGreaterThanOrEqual(1);
+      expect(await statusOf(created.activityId)).toBe("CLOSED");
+
+      // Closed by time, with nothing that looks like an answer.
+      const decisions = await pool.query(
+        `SELECT count(*)::int AS n FROM "CircleActivityParticipant"
+          WHERE "activityId"=$1 AND "followUpDecision" IS NOT NULL`,
+        [created.activityId],
+      );
+      expect(decisions.rows[0].n, "a timer decides nothing").toBe(0);
+      const recorded = await pool.query(
+        `SELECT count(*)::int AS n FROM "CircleEvent"
+          WHERE "activityId"=$1 AND "type"='FOLLOW_UP_RECORDED'`,
+        [created.activityId],
+      );
+      expect(recorded.rows[0].n).toBe(0);
+
+      // Idempotent: a second run finds nothing left to close.
+      const third = await sweeper().sweep();
+      expect(third.followUpClosed).toBe(0);
+    }, 90_000);
+
+    it("does not close a Dúo's follow-up on time", async () => {
+      const token = mintToken();
+      const created = await open.createDuo({
+        userId: ORGANIZER,
+        templateKey: DUO.templateKey,
+        templateVersion: DUO.templateVersion,
+        invitationTokens: [token],
+        idempotencyKey: randomUUID(),
+      });
+      const exchanged = await access.exchange(token);
+      const seat = await pool.query(
+        `SELECT "participantId" FROM "CircleGuestSession" WHERE "id"=$1`,
+        [exchanged.guestSessionId],
+      );
+      const share = {
+        mode: "SELECTED_FIELDS" as const,
+        fields: [{ fieldKey: "campo-a", value: "lo de cada quien" }],
+      };
+      for (const actor of [
+        { kind: "USER" as const, userId: ORGANIZER },
+        {
+          kind: "GUEST" as const,
+          guestSessionId: exchanged.guestSessionId,
+          activityId: created.activityId,
+          participantId: seat.rows[0].participantId as string,
+        },
+      ]) {
+        await open.confirmShare(actor, created.activityId, share, randomUUID());
+      }
+      await pool.query(
+        `UPDATE "CircleActivity"
+            SET "followUpDueAt" = now() - interval '30 days'
+          WHERE "id"=$1`,
+        [created.activityId],
+      );
+      await sweeper().sweep();
+      await sweeper().sweep();
+      // The Dúo's follow-up policy is untouched by this cut: it opens on time
+      // and it is not closed by a timer.
+      expect(await statusOf(created.activityId)).toBe("FOLLOW_UP");
+    }, 90_000);
   });
 });

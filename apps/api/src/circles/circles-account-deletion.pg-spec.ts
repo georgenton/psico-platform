@@ -1961,6 +1961,7 @@ suite("circles · account deletion (real PostgreSQL)", () => {
         new CirclesRolloutService(
           resolveCirclesRolloutConfig({ CIRCLES_ROLLOUT_MODE: mode }),
         ),
+        new CircleParticipantRepository(prisma as never),
       );
 
     /** An INVITING activity whose only invitation is already expired. */

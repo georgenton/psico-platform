@@ -371,16 +371,19 @@ export class CirclesService {
         // also the first, and the activity is `INVITING` right up to it.
         //
         // A group has N−1 invitations and they are accepted one at a time. The
-        // first acceptance moves the activity to `PREPARING` — and under the
-        // old rule every remaining person was then told their link no longer
-        // worked. A room of six admitted exactly one guest.
-        //
-        // So the state that matters is the SEAT's, not the room's: this seat
+        // state that matters is therefore the SEAT's, not the room's: this seat
         // is still `INVITED` (the invitation was single-use and was just
         // consumed above), and the activity has not moved past preparing.
         // `REVEALED`, `FOLLOW_UP`, `CLOSED` and `CANCELLED` are all still
         // refused — joining a conversation that already happened is not
         // joining it.
+        //
+        // `PREPARING` is admitted for one reason only, and it is a compatibility
+        // one: an earlier cut of this code moved the activity on the FIRST
+        // acceptance, so groups exist that are `PREPARING` with seats still
+        // `INVITED`. Refusing them here would strand the very people that bug
+        // left waiting. A roster completed under the rule below never reaches
+        // this branch, because a complete roster has no `INVITED` seat left.
         const activity = await this.activities.lockById(
           invitation.activityId,
           tx,
@@ -388,15 +391,6 @@ export class CirclesService {
         if (!activity) throw new CircleStorageError();
         if (activity.status !== "INVITING" && activity.status !== "PREPARING") {
           throw new CirclesError("CIRCLE_INVITATION_UNUSABLE");
-        }
-        // Conditional, and a no-op when somebody else already started it. If a
-        // withdrawal cancelled the activity between the fast exit and here the
-        // status check above has already refused, so a `false` here means only
-        // "already preparing" — which is the normal case from the second guest
-        // onwards.
-        if (activity.status === "INVITING") {
-          const started = await this.activities.startPreparing(activity.id, tx);
-          if (!started) throw new CirclesError("CIRCLE_INVITATION_UNUSABLE");
         }
 
         // ── 5. CircleActivityParticipant ──────────────────────────────────
@@ -431,6 +425,41 @@ export class CirclesService {
           data: { status: "ACCEPTED" },
         });
         if (moved.count !== 1) throw new CircleStorageError();
+
+        // ── The roster decides when preparation begins ────────────────────
+        //
+        // Not the first acceptance — the LAST one, in the same transaction
+        // that makes it true.
+        //
+        // The first version moved the activity to `PREPARING` as soon as
+        // anybody accepted. For a Dúo that is the same sentence twice: one
+        // guest, so the first acceptance IS the last. For a group it let three
+        // of six start preparing while three seats were still empty, and then
+        // left them there: the reveal barrier requires every seat READY, an
+        // `INVITED` seat can never be READY, and the sweep only looked at
+        // `INVITING`. A room that could never open and that nothing would ever
+        // clean up.
+        //
+        // Counted under the activity lock this transaction already holds, and
+        // AFTER this seat's own move, so the count includes it. `ACCEPTED` is
+        // the exact set: a seat that has confirmed is `READY`, and no seat can
+        // be `READY` before `PREPARING`, so during acceptance `ACCEPTED` and
+        // "has taken its place" are the same thing.
+        const accepted = await tx.circleActivityParticipant.count({
+          where: { activityId: invitation.activityId, status: "ACCEPTED" },
+        });
+        if (
+          activity.status === "INVITING" &&
+          accepted >= activity.requiredParticipants
+        ) {
+          const started = await this.activities.startPreparing(activity.id, tx);
+          // A withdrawal that cancelled the activity between the fast exit and
+          // here has already been refused by the status check above, so a
+          // `false` here can only mean somebody else moved it first — which is
+          // impossible under this lock, and therefore a storage failure rather
+          // than an authorization verdict.
+          if (!started) throw new CircleStorageError();
+        }
 
         const session = await this.guestSessions.create(
           {

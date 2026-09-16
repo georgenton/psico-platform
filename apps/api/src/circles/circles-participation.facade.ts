@@ -10,7 +10,7 @@ import { CirclesParticipationService } from "./circles-participation.service";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { CirclesAnalyticsService } from "./circles-analytics.service";
 import { CirclesError } from "./circles-http-errors";
-import { projectActivity } from "./circles-projection";
+import { accessIsWithdrawn, projectActivity } from "./circles-projection";
 import type { CreateDuoDto } from "./dto/participation.dto";
 
 /**
@@ -113,12 +113,19 @@ export class CirclesParticipationFacade {
     // without giving. The projection enforces the same rule independently; see
     // `mayReadRevealedContent`.
     const selfStillIn = ctx.self.status === "READY";
+    // And the room's own answer, asked BEFORE anything is decrypted. A group
+    // that somebody left after the reveal is closed to everybody, so the
+    // envelopes are not opened at all — there is nothing in memory for a later
+    // bug to serialize. The projection asks the same question again with the
+    // same function, because two checks that must agree are weaker than one
+    // that cannot be bypassed, and this is the cheap half.
+    const roomOpen = !accessIsWithdrawn(ctx.activity, ctx.participants);
 
     // The other people's envelopes are not merely hidden before the reveal —
     // they are never decrypted. There is nothing in memory for a later bug to
     // serialize. The condition is evaluated ONCE, outside the loop, so a room
     // of six cannot end up with five seats refused and one opened.
-    const mayOpenOthers = revealedStage && selfStillIn;
+    const mayOpenOthers = revealedStage && selfStillIn && roomOpen;
     const others = ctx.others.map((participant) => ({
       participant,
       position: ctx.positions.get(participant.id) ?? 0,
@@ -139,7 +146,7 @@ export class CirclesParticipationFacade {
         ctx.definition,
       ),
       artifact:
-        artifact && revealedStage && selfStillIn
+        artifact && mayOpenOthers
           ? {
               id: artifact.id,
               version: artifact.version,

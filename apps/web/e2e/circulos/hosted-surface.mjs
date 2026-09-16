@@ -87,10 +87,14 @@ const created = await fetch(`${cfg.apiUrl}/api/circles/duo`, {
     authorization: `Bearer ${token}`,
     "Idempotency-Key": randomUUID(),
   },
+  // PLURAL, and it has been since groups landed: one activity mints one
+  // secret per invited seat, and a Dúo is the case where that list has one
+  // entry. This harness was still sending the singular field and getting a
+  // flat 400 before any of its own checks could run.
   body: JSON.stringify({
     templateKey: cfg.templateKey,
     templateVersion: cfg.templateVersion,
-    invitationToken,
+    invitationTokens: [invitationToken],
   }),
 });
 if (created.status !== 201) {

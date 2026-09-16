@@ -1219,7 +1219,7 @@ export class CirclesParticipationService {
     };
   }
 
-  /** Confirm an EXACT artifact and version. Agreement needs both seats. */
+  /** Confirm an EXACT artifact and version. Agreement needs EVERY seat. */
   async confirmArtifact(
     actor: CircleActor,
     activityId: string,

@@ -1142,4 +1142,173 @@ suite("circles · adult groups (real PostgreSQL)", () => {
       expect(await statusOf(group.activityId)).not.toBe("REVEALED");
     }, 30_000);
   });
+
+  // ══ Agreement and follow-up ══════════════════════════════════════════════
+
+  describe("an agreement in a room needs the room", () => {
+    /** A revealed group of three, every seat READY. */
+    async function revealedGroup() {
+      const tokens = mintTokens(2);
+      const created = await open.createDuo({
+        userId: ORGANIZER,
+        templateKey: GROUP.templateKey,
+        templateVersion: GROUP.templateVersion,
+        invitationTokens: tokens,
+        size: 3,
+        idempotencyKey: randomUUID(),
+      });
+      const guests = [];
+      for (const token of tokens) {
+        const exchanged = await access.exchange(token);
+        const seat = await pool.query(
+          `SELECT "participantId" FROM "CircleGuestSession" WHERE "id"=$1`,
+          [exchanged.guestSessionId],
+        );
+        guests.push({
+          kind: "GUEST" as const,
+          guestSessionId: exchanged.guestSessionId,
+          activityId: created.activityId,
+          participantId: seat.rows[0].participantId as string,
+        });
+      }
+      const organizer = { kind: "USER" as const, userId: ORGANIZER };
+      for (const actor of [organizer, ...guests]) {
+        await open.confirmShare(
+          actor,
+          created.activityId,
+          {
+            mode: "SELECTED_FIELDS",
+            fields: [{ fieldKey: "campo-a", value: "algo" }],
+          },
+          randomUUID(),
+        );
+      }
+      return { ...created, organizer, guests };
+    }
+
+    it("stays a proposal until the third person confirms it", async () => {
+      const group = await revealedGroup();
+      const proposed = await open.proposeArtifact(
+        group.organizer,
+        group.activityId,
+        "lo que vamos a intentar",
+        randomUUID(),
+      );
+      // Proposing is not agreeing: the organiser confirms their own text like
+      // everybody else, which is why three confirmations are needed and not
+      // two-plus-a-proposal.
+      const first = await open.confirmArtifact(
+        group.organizer,
+        group.activityId,
+        proposed.artifactId,
+        proposed.version,
+        randomUUID(),
+      );
+      expect(first.agreed).toBe(false);
+      const second = await open.confirmArtifact(
+        group.guests[0]!,
+        group.activityId,
+        proposed.artifactId,
+        proposed.version,
+        randomUUID(),
+      );
+      // Two of three. In a Dúo two confirmations ARE everybody; here they are
+      // not, and the difference is `requiredParticipants`, not a constant.
+      expect(second.agreed).toBe(false);
+      const third = await open.confirmArtifact(
+        group.guests[1]!,
+        group.activityId,
+        proposed.artifactId,
+        proposed.version,
+        randomUUID(),
+      );
+      expect(third.agreed).toBe(true);
+    }, 45_000);
+
+    it("does not carry confirmations across a new version", async () => {
+      const group = await revealedGroup();
+      const first = await open.proposeArtifact(
+        group.organizer,
+        group.activityId,
+        "primera propuesta",
+        randomUUID(),
+      );
+      await open.confirmArtifact(
+        group.organizer,
+        group.activityId,
+        first.artifactId,
+        first.version,
+        randomUUID(),
+      );
+      await open.confirmArtifact(
+        group.guests[0]!,
+        group.activityId,
+        first.artifactId,
+        first.version,
+        randomUUID(),
+      );
+      // Somebody rewrites it. Everyone has to agree to the TEXT in front of
+      // them, so the earlier confirmation cannot count towards the new one.
+      const second = await open.proposeArtifact(
+        group.guests[1]!,
+        group.activityId,
+        "segunda propuesta",
+        randomUUID(),
+      );
+      expect(second.artifactId).not.toBe(first.artifactId);
+      const confirmed = await open.confirmArtifact(
+        group.organizer,
+        group.activityId,
+        second.artifactId,
+        second.version,
+        randomUUID(),
+      );
+      expect(confirmed.agreed).toBe(false);
+      const agreedRows = await pool.query(
+        `SELECT count(*)::int AS n FROM "CircleArtifact"
+          WHERE "activityId"=$1 AND "agreedAt" IS NOT NULL`,
+        [group.activityId],
+      );
+      expect(agreedRows.rows[0].n).toBe(0);
+    }, 45_000);
+
+    it("closes on the last follow-up decision, not on the second", async () => {
+      const group = await revealedGroup();
+      const status = async () => {
+        const row = await pool.query(
+          `SELECT "status" FROM "CircleActivity" WHERE "id"=$1`,
+          [group.activityId],
+        );
+        return row.rows[0].status as string;
+      };
+      // The template's follow-up is a week out. Moving the due date is how the
+      // suite reaches the stage without waiting for a week or faking a clock
+      // the domain would not read anyway.
+      await pool.query(
+        `UPDATE "CircleActivity" SET "followUpDueAt" = now() - interval '1 hour'
+          WHERE "id"=$1`,
+        [group.activityId],
+      );
+      await open.recordFollowUp(
+        group.organizer,
+        group.activityId,
+        "KEEP",
+        randomUUID(),
+      );
+      await open.recordFollowUp(
+        group.guests[0]!,
+        group.activityId,
+        "KEEP",
+        randomUUID(),
+      );
+      expect(await status()).not.toBe("CLOSED");
+      await open.recordFollowUp(
+        group.guests[1]!,
+        group.activityId,
+        "CLOSE",
+        randomUUID(),
+      );
+      expect(await status()).toBe("CLOSED");
+    }, 45_000);
+  });
 });

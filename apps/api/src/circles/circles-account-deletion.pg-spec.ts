@@ -2087,9 +2087,14 @@ suite("circles · account deletion (real PostgreSQL)", () => {
 
       const result = await sweepWith("off").sweep();
 
+      // Every counter at zero, including the two the corrective cut added.
+      // Asserted as the WHOLE object rather than field by field: a future
+      // counter that the `off` path forgot to zero fails here.
       expect(result).toEqual({
         invitingCancelled: 0,
         followUpOpened: 0,
+        incompleteGroupsCancelled: 0,
+        followUpClosed: 0,
         skippedRolloutOff: true,
       });
       expect(await statusOf(activityId)).toBe("INVITING");

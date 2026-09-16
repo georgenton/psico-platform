@@ -118,8 +118,8 @@ describe("the agreement belongs to everybody in the room", () => {
       <Artefacto
         view={withArtifact(2, 4)}
         busy={false}
-        onPropose={() => {}}
-        onConfirm={() => {}}
+        onPropose={async () => true}
+        onConfirm={async () => true}
       />,
     );
     expect(screen.getByText("2 de 4 lo confirmaron.")).toBeVisible();
@@ -131,8 +131,8 @@ describe("the agreement belongs to everybody in the room", () => {
       <Artefacto
         view={withArtifact(1, 2)}
         busy={false}
-        onPropose={() => {}}
-        onConfirm={() => {}}
+        onPropose={async () => true}
+        onConfirm={async () => true}
       />,
     );
     expect(screen.getByText(/Falta la otra persona/)).toBeVisible();

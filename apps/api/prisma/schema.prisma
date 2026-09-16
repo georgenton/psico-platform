@@ -3356,6 +3356,11 @@ model CircleWeeklyFact {
   dimension       String
   value           Int
   contributors    Int      @default(0)
+  /// Distinct ACTIVITIES behind the cell, folded alongside the contributor
+  /// count so a cell keeps both of its suppression inputs after the rows it
+  /// came from are deleted. Ten contributors implied five rooms while every
+  /// activity had two seats; a group of six makes it two.
+  activities      Int      @default(0)
   updatedAt       DateTime @updatedAt
 
   @@id([weekStart, templateKey, templateVersion, metric, dimension])

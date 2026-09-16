@@ -145,3 +145,25 @@ CREATE UNIQUE INDEX "CircleInvitation_one_live_per_seat"
 -- ── 8 · finding a circle's activities by shape ──────────────────────────────
 CREATE INDEX IF NOT EXISTS "CircleActivity_kind_status_idx"
   ON "CircleActivity"("kind", "status");
+
+-- ── 9 · a weekly fact remembers how many ROOMS it came from ─────────────────
+--
+-- Suppression used to rest on one number: ten distinct contributors. That was
+-- written when every activity had two seats, so ten contributors meant at least
+-- five separate rooms and no room's members could subtract themselves and be
+-- left looking at an identifiable one.
+--
+-- A group of six breaks the arithmetic. Two rooms supply twelve contributors,
+-- and each organiser knows their own six — so the ten-contributor rule would
+-- call a cell safe that either of them can subtract into the other's answers.
+-- The panel therefore requires distinct ACTIVITIES as well, and a cell that has
+-- been folded into a weekly fact has to carry that number with it or be
+-- suppressed forever.
+--
+-- Default 0: a row written before this column existed cannot say how many rooms
+-- it came from, and the safe reading of "I do not know" is the one that
+-- suppresses. In this deployment there are none — the fold happens 30 days
+-- after a contribution and Círculos is younger than that — so nothing existing
+-- is hidden by it.
+ALTER TABLE "CircleWeeklyFact"
+  ADD COLUMN IF NOT EXISTS "activities" INTEGER NOT NULL DEFAULT 0;

@@ -62,6 +62,14 @@ interface Summary {
     activitiesRevealed: number;
     activitiesClosed: number;
   }[];
+  /** Optional: an older API build does not send it, and the panel says so. */
+  byModality?: {
+    kind: "DUO" | "GROUP_ADULT";
+    size: number;
+    activitiesCreated: number;
+    activitiesRevealed: number;
+    activitiesClosed: number;
+  }[];
   declaredTopics: Week[];
   usefulness: Week[];
   help: Week[];
@@ -241,6 +249,46 @@ export default async function PulsoCirculosPage() {
         className="rounded-2xl border-[1.5px] bg-white p-5"
         style={{ borderColor: "var(--color-warm-200)" }}
       >
+        <h2 className="text-[14px] font-semibold">Modalidad y tamaño</h2>
+        <p className="text-[12px]" style={{ color: "var(--color-warm-500)" }}>
+          Cuántas salas existen y de qué tamaño. Son actividades, no personas:
+          nadie está detrás de una celda, así que no hay nada que suprimir ni
+          nada que restar para llegar a la respuesta de alguien.
+        </p>
+        <ul className="mt-3 space-y-1">
+          {(data.byModality ?? []).length === 0 ? (
+            <li
+              className="text-[13px]"
+              style={{ color: "var(--color-warm-500)" }}
+            >
+              Sin actividades en esta ventana.
+            </li>
+          ) : (
+            (data.byModality ?? []).map((m) => (
+              <li
+                key={`${m.kind}:${m.size}`}
+                className="flex justify-between gap-4 text-[13px]"
+              >
+                <span style={{ color: "var(--color-warm-700)" }}>
+                  {m.kind === "GROUP_ADULT"
+                    ? `Grupo de ${m.size}`
+                    : "Dúo (2 personas)"}
+                </span>
+                <span>
+                  {fmt(m.activitiesCreated)} creadas ·{" "}
+                  {fmt(m.activitiesRevealed)} reveladas ·{" "}
+                  {fmt(m.activitiesClosed)} cerradas
+                </span>
+              </li>
+            ))
+          )}
+        </ul>
+      </section>
+
+      <section
+        className="rounded-2xl border-[1.5px] bg-white p-5"
+        style={{ borderColor: "var(--color-warm-200)" }}
+      >
         <h2 className="text-[14px] font-semibold">
           Tema editorial · por versión
         </h2>
@@ -311,9 +359,12 @@ export default async function PulsoCirculosPage() {
       </section>
 
       <p className="text-[11px]" style={{ color: "var(--color-warm-500)" }}>
-        Umbral de celda: 10 contribuyentes distintos. Reduce exposición; no
-        garantiza anonimato. Definiciones completas en{" "}
-        <code>docs/operations/circles-metric-dictionary.md</code>.
+        Umbral de celda: 10 contribuyentes distintos <strong>y</strong> 3
+        actividades distintas. Se piden las dos: diez contribuyentes implicaban
+        cinco salas cuando toda actividad tenía dos asientos, y con grupos
+        pueden ser dos — cada organizadora conoce la suya, y restarla dejaría la
+        otra a la vista. Reduce exposición; no garantiza anonimato. Definiciones
+        completas en <code>docs/operations/circles-metric-dictionary.md</code>.
       </p>
     </main>
   );

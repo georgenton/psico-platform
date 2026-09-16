@@ -305,7 +305,9 @@ async function poolAccountCanCreate() {
     body: JSON.stringify({
       templateKey: cfg.templateKey,
       templateVersion: cfg.templateVersion,
-      invitationToken: randomBytes(32).toString("base64url"),
+      // An ARRAY since groups: one secret per seat that is not the
+      // organiser's, which for this Dúo probe is one.
+      invitationTokens: [randomBytes(32).toString("base64url")],
     }),
   });
   if (res.status === 201) return true;
@@ -350,7 +352,9 @@ if (outsiderToken) {
     body: JSON.stringify({
       templateKey: cfg.templateKey,
       templateVersion: cfg.templateVersion,
-      invitationToken: randomBytes(32).toString("base64url"),
+      // An ARRAY since groups: one secret per seat that is not the
+      // organiser's, which for this Dúo probe is one.
+      invitationTokens: [randomBytes(32).toString("base64url")],
     }),
   });
   const body = await res.json().catch(() => ({}));

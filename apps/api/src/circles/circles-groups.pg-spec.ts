@@ -524,6 +524,34 @@ suite("circles · adult groups (real PostgreSQL)", () => {
       ).toBe("CIRCLES_UNAVAILABLE");
     });
 
+    it("refuses a group template that sends no size at all", async () => {
+      // The request a caller makes when it lets the template decide. `size` is
+      // optional, so this is an ordinary shape — and the gate must read the
+      // RESOLVED template's audience, not the number in the request. A gate
+      // written against `input.size` skips this case entirely and creates a
+      // group with the modality shut; a negative control found exactly that
+      // hole, and nothing here covered it.
+      const before = await pool.query(
+        `SELECT count(*)::int AS n FROM "Circle" WHERE "kind"='GROUP_ADULT'`,
+      );
+      expect(
+        await codeOf(() =>
+          closed.createDuo({
+            userId: ORGANIZER,
+            templateKey: GROUP.templateKey,
+            templateVersion: GROUP.templateVersion,
+            // Two secrets, because the template's default is three people.
+            invitationTokens: mintTokens(2),
+            idempotencyKey: randomUUID(),
+          }),
+        ),
+      ).toBe("CIRCLES_UNAVAILABLE");
+      const after = await pool.query(
+        `SELECT count(*)::int AS n FROM "Circle" WHERE "kind"='GROUP_ADULT'`,
+      );
+      expect(after.rows[0].n).toBe(before.rows[0].n);
+    });
+
     it("says the same thing to an allowlisted member and to a stranger", async () => {
       // Opaque on purpose: somebody the modality is closed for must not be
       // able to learn from the refusal that adult groups exist at all.

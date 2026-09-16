@@ -690,7 +690,12 @@ const CONTROLS = [
         ) {`,
     runner: PGSPEC,
     test: "src/circles/circles-groups.pg-spec.ts",
-    t: "refuses a group template while the switch is shut",
+    // The case that separates the two readings. A request that SENDS a size
+    // satisfies both the right gate and the wrong one, so it cannot tell them
+    // apart; a request that lets the template decide is refused by the right
+    // one and creates a group under the wrong one. This control is why that
+    // test exists.
+    t: "refuses a group template that sends no size at all",
   },
   {
     property: "THE_MODALITY_SWITCH_CAN_ONLY_NARROW",

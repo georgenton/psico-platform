@@ -10,6 +10,26 @@
 > y este documento no la reescribe: describe una segunda forma sobre el mismo
 > motor, con su propio interruptor, que llega **cerrado**.
 
+### Estado productivo observado tras el bloque correctivo — 2026-09-16
+
+| qué                          | estado                                                                                                                              |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| PR #718                      | fusionada por **merge commit** `863e3b77` (padres `57fa7c48` + `f0e6a348`)                                                          |
+| API `psico-platform`         | `bd51a673` · `863e3b77` · SUCCESS; tras reabrir la modalidad, `1e0d8947` · SUCCESS                                                  |
+| Worker                       | `e202a610` · SUCCESS; tras reabrir, `0c4c3c8a` · SUCCESS                                                                            |
+| Web                          | `psico-platform-95pqf9yv9` Ready, con el alias de producción                                                                        |
+| Migraciones                  | **ninguna nueva**. 68 en total, «No pending migrations to apply»                                                                    |
+| Rollout                      | `pilot` sin cambios; allowlist de 1 id, huella `5970c673` antes y después                                                           |
+| Modalidad                    | `CIRCLES_GROUPS`: `off` durante todo el despliegue, `on` **después** de verificar. Sin `CIRCLES_GROUPS_FLAG_INVALID` en el arranque |
+| Forma en producción          | `production-ready.mjs` 18/18, antes y después de reabrir                                                                            |
+| Actividades grupales previas | **ninguna** (consulta de sólo lectura, sólo conteos). Nada que migrar ni que limpiar                                                |
+
+**Escrituras en producción:** ninguna fila. Cuatro escrituras de configuración
+(`CIRCLES_GROUPS` en API y worker, cerrando y reabriendo) y cuatro
+redespliegues.
+
+---
+
 ### Estado productivo observado — 2026-09-16
 
 | qué                            | estado                                                                                                                           |

@@ -21,6 +21,7 @@ import {
   resolveCirclesRolloutConfig,
   type CirclesRolloutEnv,
 } from "./circles-rollout";
+import { CirclesService } from "./circles.service";
 import { hashSecret } from "./circles-secrets";
 
 /**
@@ -131,6 +132,18 @@ suite("circles · adult groups (real PostgreSQL)", () => {
     );
   };
 
+  /** The access service, for exchanging a link for a guest session. */
+  const buildAccess = (env: CirclesRolloutEnv) =>
+    new CirclesService(
+      prisma as unknown as ConstructorParameters<typeof CirclesService>[0],
+      new CircleInvitationRepository(prisma),
+      new CircleGuestSessionRepository(prisma),
+      new CircleEventRepository(prisma),
+      new CircleMemberRepository(prisma),
+      new CirclesRolloutService(resolveCirclesRolloutConfig(env)),
+      new CircleActivityRepository(prisma),
+    );
+
   /** Groups open, for an allowlisted organiser. The pilot, as it will be run. */
   const OPEN: CirclesRolloutEnv = {
     CIRCLES_ROLLOUT_MODE: "pilot",
@@ -145,6 +158,7 @@ suite("circles · adult groups (real PostgreSQL)", () => {
 
   let open: CirclesParticipationService;
   let closed: CirclesParticipationService;
+  let access: CirclesService;
 
   const codeOf = async (fn: () => Promise<unknown>): Promise<string> => {
     try {
@@ -175,6 +189,7 @@ suite("circles · adult groups (real PostgreSQL)", () => {
     cipher = new CirclesCipher(Buffer.from(KEY, "base64"));
     open = build(OPEN);
     closed = build(CLOSED);
+    access = buildAccess(OPEN);
 
     await prisma.user.createMany({
       data: [
@@ -857,5 +872,274 @@ suite("circles · adult groups (real PostgreSQL)", () => {
         ),
       ).rejects.toThrow();
     });
+  });
+
+  // ══ The barrier ══════════════════════════════════════════════════════════
+
+  describe("everybody, not a quorum", () => {
+    /** A group of `size` with every guest seat accepted. */
+    async function seatedGroup(size: number) {
+      const tokens = mintTokens(size - 1);
+      const created = await open.createDuo({
+        userId: ORGANIZER,
+        templateKey: GROUP.templateKey,
+        templateVersion: GROUP.templateVersion,
+        invitationTokens: tokens,
+        size,
+        idempotencyKey: randomUUID(),
+      });
+      const seats = await pool.query(
+        `SELECT "id","memberId" FROM "CircleActivityParticipant"
+          WHERE "activityId"=$1 ORDER BY "id"`,
+        [created.activityId],
+      );
+      const guests = [];
+      for (const token of tokens) {
+        const exchanged = await access.exchange(token);
+        // The exchange returns a session, not a seat. Which seat it opened is
+        // on the session row, and asking the database is the only answer that
+        // cannot drift from the one the guards will use.
+        const seat = await pool.query(
+          `SELECT "participantId" FROM "CircleGuestSession" WHERE "id"=$1`,
+          [exchanged.guestSessionId],
+        );
+        guests.push({
+          kind: "GUEST" as const,
+          guestSessionId: exchanged.guestSessionId,
+          activityId: created.activityId,
+          participantId: seat.rows[0].participantId as string,
+        });
+      }
+      return {
+        ...created,
+        organizer: { kind: "USER" as const, userId: ORGANIZER },
+        guests,
+        seatIds: seats.rows.map((r) => r.id as string),
+      };
+    }
+
+    const share = (value: string) =>
+      ({
+        mode: "SELECTED_FIELDS",
+        fields: [{ fieldKey: "campo-a", value }],
+      }) as const;
+
+    const statusOf = async (activityId: string) => {
+      const row = await pool.query(
+        `SELECT "status" FROM "CircleActivity" WHERE "id"=$1`,
+        [activityId],
+      );
+      return row.rows[0].status as string;
+    };
+
+    it("does not reveal a group of four while one seat is missing", async () => {
+      const group = await seatedGroup(4);
+      await open.confirmShare(
+        group.organizer,
+        group.activityId,
+        share("del organizador"),
+        randomUUID(),
+      );
+      await open.confirmShare(
+        group.guests[0]!,
+        group.activityId,
+        share("del segundo"),
+        randomUUID(),
+      );
+      await open.confirmShare(
+        group.guests[1]!,
+        group.activityId,
+        share("del tercero"),
+        randomUUID(),
+      );
+      // Three of four. A Dúo's rule — "everybody has confirmed" — is the same
+      // sentence, and three quarters of a room is not everybody.
+      expect(await statusOf(group.activityId)).toBe("PREPARING");
+      const view = await open.readActivity(group.organizer, group.activityId);
+      expect(view.ctx.activity.status).toBe("PREPARING");
+    }, 30_000);
+
+    it("reveals only when the last seat confirms", async () => {
+      const group = await seatedGroup(3);
+      await open.confirmShare(
+        group.organizer,
+        group.activityId,
+        share("del organizador"),
+        randomUUID(),
+      );
+      expect(await statusOf(group.activityId)).toBe("PREPARING");
+      await open.confirmShare(
+        group.guests[0]!,
+        group.activityId,
+        share("del segundo"),
+        randomUUID(),
+      );
+      expect(await statusOf(group.activityId)).toBe("PREPARING");
+      await open.confirmShare(
+        group.guests[1]!,
+        group.activityId,
+        share("del tercero"),
+        randomUUID(),
+      );
+      expect(await statusOf(group.activityId)).toBe("REVEALED");
+
+      // Exactly one ACTIVITY_REVEALED, whoever got there last.
+      const events = await pool.query(
+        `SELECT count(*)::int AS n FROM "CircleEvent"
+          WHERE "activityId"=$1 AND "type"='ACTIVITY_REVEALED'`,
+        [group.activityId],
+      );
+      expect(events.rows[0].n).toBe(1);
+    }, 30_000);
+
+    it("gives each person every other answer, labelled and whole", async () => {
+      const group = await seatedGroup(3);
+      await open.confirmShare(
+        group.organizer,
+        group.activityId,
+        share("lo del organizador"),
+        randomUUID(),
+      );
+      await open.confirmShare(
+        group.guests[0]!,
+        group.activityId,
+        share("lo del segundo"),
+        randomUUID(),
+      );
+      await open.confirmShare(
+        group.guests[1]!,
+        group.activityId,
+        { mode: "KEEP_PRIVATE" },
+        randomUUID(),
+      );
+
+      const { ctx } = await open.readActivity(
+        group.organizer,
+        group.activityId,
+      );
+      expect(ctx.others).toHaveLength(2);
+      // Every viewer numbers the same seat the same way, and the organiser's
+      // seat is 1 because it is the one holding the membership.
+      const organizerSeat = ctx.participants.find((p) => p.memberId !== null)!;
+      expect(ctx.positions.get(organizerSeat.id)).toBe(1);
+      expect([...ctx.positions.values()].sort()).toEqual([1, 2, 3]);
+
+      // And the same order for a GUEST reading the same room.
+      const guestCtx = await open.readActivity(
+        group.guests[0]!,
+        group.activityId,
+      );
+      expect(guestCtx.ctx.positions.get(organizerSeat.id)).toBe(1);
+      for (const [id, position] of ctx.positions) {
+        expect(guestCtx.ctx.positions.get(id), id).toBe(position);
+      }
+    }, 30_000);
+
+    it("blocks the reveal when a seat exists that the size does not admit", async () => {
+      // "Should be impossible" is an argument about other code. This is the
+      // statement that decides whether private answers become visible, so an
+      // anomalous row blocks the reveal rather than riding it.
+      const group = await seatedGroup(3);
+      const circle = await pool.query(
+        `SELECT "circleId" FROM "CircleActivity" WHERE "id"=$1`,
+        [group.activityId],
+      );
+      const member = await pool.query(
+        `SELECT "id" FROM "CircleMember" WHERE "circleId"=$1 LIMIT 1`,
+        [circle.rows[0].circleId],
+      );
+      const extraInvitation = `i-extra-${randomUUID()}`;
+      await pool.query(
+        `INSERT INTO "CircleInvitation"
+           ("id","circleId","activityId","createdByMemberId","tokenHash","seatIndex","expiresAt","createdAt")
+           VALUES ($1,$2,$3,$4,$5,4,now()+interval '14 days',now())`,
+        [
+          extraInvitation,
+          circle.rows[0].circleId,
+          group.activityId,
+          member.rows[0].id,
+          hashSecret(mintToken()),
+        ],
+      );
+      await pool.query(
+        `INSERT INTO "CircleActivityParticipant"
+           ("id","circleId","activityId","invitationId","status","createdAt","updatedAt")
+           VALUES ($1,$2,$3,$4,'INVITED',now(),now())`,
+        [
+          `p-extra-${randomUUID()}`,
+          circle.rows[0].circleId,
+          group.activityId,
+          extraInvitation,
+        ],
+      );
+
+      await open.confirmShare(
+        group.organizer,
+        group.activityId,
+        share("uno"),
+        randomUUID(),
+      );
+      await open.confirmShare(
+        group.guests[0]!,
+        group.activityId,
+        share("dos"),
+        randomUUID(),
+      );
+      await open.confirmShare(
+        group.guests[1]!,
+        group.activityId,
+        share("tres"),
+        randomUUID(),
+      );
+      // Three READY on an activity that requires three — and a fourth seat
+      // that gave nothing. The reveal stays shut.
+      expect(await statusOf(group.activityId)).toBe("PREPARING");
+    }, 30_000);
+
+    it("reveals once when the whole room confirms at the same instant", async () => {
+      const group = await seatedGroup(5);
+      const actors = [group.organizer, ...group.guests];
+      await Promise.all(
+        actors.map((actor, index) =>
+          open.confirmShare(
+            actor,
+            group.activityId,
+            share(`respuesta ${index}`),
+            randomUUID(),
+          ),
+        ),
+      );
+      expect(await statusOf(group.activityId)).toBe("REVEALED");
+      const events = await pool.query(
+        `SELECT count(*)::int AS n FROM "CircleEvent"
+          WHERE "activityId"=$1 AND "type"='ACTIVITY_REVEALED'`,
+        [group.activityId],
+      );
+      // Five simultaneous confirmations, one reveal. The barrier is a single
+      // conditional UPDATE, so exactly one of them can win it.
+      expect(events.rows[0].n).toBe(1);
+    }, 45_000);
+
+    it("stops a withdrawal from opening the room it left", async () => {
+      const group = await seatedGroup(3);
+      await open.confirmShare(
+        group.organizer,
+        group.activityId,
+        share("uno"),
+        randomUUID(),
+      );
+      await open.withdraw(group.guests[0]!, group.activityId, randomUUID());
+      await open
+        .confirmShare(
+          group.guests[1]!,
+          group.activityId,
+          share("tres"),
+          randomUUID(),
+        )
+        .catch(() => undefined);
+      // Whatever the second confirmation did, a room one person left does not
+      // reveal: the seat count no longer matches and never will again.
+      expect(await statusOf(group.activityId)).not.toBe("REVEALED");
+    }, 30_000);
   });
 });

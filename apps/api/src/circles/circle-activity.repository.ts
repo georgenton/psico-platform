@@ -153,8 +153,14 @@ export class CircleActivityRepository {
    * revealed activity having given nothing, which is the precise failure the
    * barrier exists to prevent.
    *
-   * A third row should be impossible: `CircleActivity_duo_requires_two`
-   * pins `requiredParticipants` and PR2's constraints bound the seats. But
+   * Groups made the distinction ordinary rather than hypothetical: a room of
+   * five HAS five seats, they confirm one at a time, and "five confirmed" and
+   * "everybody confirmed" are only the same sentence while the seat count and
+   * the required count agree. Both counts, and no quorum.
+   *
+   * An extra row should be impossible: `CircleActivity_size_matches_kind`
+   * pins `requiredParticipants` to the activity's shape — two for a Dúo, three
+   * to six for a group — and PR2's constraints bound the seats. But
    * "should be impossible" is an argument about other code, and this is the
    * statement that decides whether two people's private answers become
    * visible to each other. Requiring the TOTAL to match as well makes an

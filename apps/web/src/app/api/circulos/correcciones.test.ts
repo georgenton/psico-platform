@@ -224,7 +224,7 @@ describe("creating a Dúo forwards the invitation token", () => {
         payload: {
           templateKey: "t",
           templateVersion: 1,
-          invitationToken: TOKEN,
+          invitationTokens: [TOKEN],
         },
         idempotencyKey: INTENCION,
       }),
@@ -236,7 +236,7 @@ describe("creating a Dúo forwards the invitation token", () => {
     expect(JSON.parse(String((init as RequestInit).body))).toEqual({
       templateKey: "t",
       templateVersion: 1,
-      invitationToken: TOKEN,
+      invitationTokens: [TOKEN],
     });
     // Authority is the cookie, never the token.
     expect(
@@ -261,7 +261,7 @@ describe("creating a Dúo forwards the invitation token", () => {
           payload: {
             templateKey: "t",
             templateVersion: 1,
-            invitationToken: bad,
+            invitationTokens: [bad],
           },
           idempotencyKey: INTENCION,
         }),
@@ -291,7 +291,7 @@ describe("creating a Dúo forwards the invitation token", () => {
         payload: {
           templateKey: "t",
           templateVersion: 1,
-          invitationToken: TOKEN,
+          invitationTokens: [TOKEN],
         },
         idempotencyKey: INTENCION,
       }),
@@ -306,7 +306,7 @@ describe("creating a Dúo forwards the invitation token", () => {
       parseCreateDuo({
         templateKey: "t",
         templateVersion: 1,
-        invitationToken: TOKEN,
+        invitationTokens: [TOKEN],
         circleId: "c-somebody-elses",
       }),
     ).toBeNull();
@@ -322,7 +322,7 @@ describe("creating a Dúo forwards the invitation token", () => {
         payload: {
           templateKey: "t",
           templateVersion: 1,
-          invitationToken: TOKEN,
+          invitationTokens: [TOKEN],
         },
         idempotencyKey: INTENCION,
       }),
@@ -369,7 +369,7 @@ describe("the idempotency key comes from the client and is forwarded", () => {
         payload: {
           templateKey: "t",
           templateVersion: 1,
-          invitationToken: TOKEN,
+          invitationTokens: [TOKEN],
         },
         idempotencyKey: INTENCION,
       }),
@@ -702,7 +702,7 @@ describe("every command shape is closed, not merely trimmed", () => {
         payload: {
           templateKey: "t",
           templateVersion: 1,
-          invitationToken: TOKEN,
+          invitationTokens: [TOKEN],
         },
         idempotencyKey: INTENCION,
         circleId: "c-somebody-elses",

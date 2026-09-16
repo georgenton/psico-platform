@@ -969,7 +969,7 @@ suite("circles · account deletion (real PostgreSQL)", () => {
         userId,
         templateKey: PUBLISHED_DUO_TEMPLATE.templateKey,
         templateVersion: PUBLISHED_DUO_TEMPLATE.templateVersion,
-        invitationToken: token.raw,
+        invitationTokens: [token.raw],
         idempotencyKey: `idem-${uid("k")}`,
       });
       const session = await access.exchange(token.raw);
@@ -1012,7 +1012,7 @@ suite("circles · account deletion (real PostgreSQL)", () => {
         userId,
         templateKey: PUBLISHED_DUO_TEMPLATE.templateKey,
         templateVersion: PUBLISHED_DUO_TEMPLATE.templateVersion,
-        invitationToken: mintInvitationToken().raw,
+        invitationTokens: [mintInvitationToken().raw],
         idempotencyKey: `idem-${uid("k")}`,
       });
 

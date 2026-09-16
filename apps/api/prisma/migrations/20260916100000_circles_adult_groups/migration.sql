@@ -64,8 +64,7 @@ ALTER TABLE "CircleActivity"
 -- a Dúo is still exactly two, and a group is three to six. Dropping the
 -- equality and writing `BETWEEN 2 AND 6` would have opened every Dúo to six
 -- without a single line saying so.
-ALTER TABLE "CircleActivity"
-  DROP CONSTRAINT IF EXISTS "CircleActivity_required_participants_exactly_two";
+ALTER TABLE "CircleActivity" DROP CONSTRAINT IF EXISTS "CircleActivity_required_participants_exactly_two";
 
 ALTER TABLE "CircleActivity"
   ADD CONSTRAINT "CircleActivity_size_matches_kind"

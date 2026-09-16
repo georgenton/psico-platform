@@ -117,7 +117,7 @@ export function CrearDuo({ templateKey, templateVersion }: CrearDuoProps) {
           payload: {
             templateKey,
             templateVersion,
-            invitationToken: intention.token,
+            invitationTokens: [intention.token],
           },
           idempotencyKey: intention.key,
         }),

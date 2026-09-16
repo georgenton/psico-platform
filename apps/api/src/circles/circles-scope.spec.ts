@@ -57,7 +57,7 @@ describe("circles · PR3 scope — access and participation", () => {
     }
   });
 
-  it("ships five migrations, and every loosening in them is enumerated", () => {
+  it("ships six migrations, and every loosening in them is enumerated", () => {
     // PR2 added the domain; PR3 the invariants participation needs; the pilot
     // cut added the sanctioned detach PR2 itself predicted ("account deletion,
     // once Círculos is on, will need a sanctioned scrub path that is itself a
@@ -82,6 +82,7 @@ describe("circles · PR3 scope — access and participation", () => {
       "20260913000000_circles_account_deletion",
       "20260915000000_circles_artifact_purge",
       "20260916000000_circles_analytics",
+      "20260916100000_circles_adult_groups",
     ]);
 
     /**
@@ -104,6 +105,25 @@ describe("circles · PR3 scope — access and participation", () => {
       // The purge makes the four content columns optional and re-states two
       // shape checks so they tolerate absence. It drops no foreign key: the
       // ledger's reference to the artifact is exactly what keeps the row.
+      /**
+       * Adult groups replace two constraints that pinned the product to one
+       * shape. Both are enumerated because both are real loosenings, and both
+       * are immediately replaced by a narrower rule in the same file:
+       *
+       *   · `Circle_kind_duo_only` said `kind = 'DUO'`. Its own comment asked
+       *     for exactly this — "widening it has to be an edit to these three
+       *     lines" — and it is replaced by `kind IN ('DUO','GROUP_ADULT')`, so
+       *     a THIRD kind still fails until somebody decides it should not.
+       *   · `CircleActivity_required_participants_exactly_two` said `n = 2`
+       *     unconditionally. It is replaced by a CONDITIONAL check, so a Dúo is
+       *     still exactly two and only a group may be three to six.
+       *
+       * Neither drops a foreign key, a column, a table or an index.
+       */
+      "20260916100000_circles_adult_groups": [
+        /^ALTER TABLE "Circle" DROP CONSTRAINT IF EXISTS "Circle_kind_duo_only";$/,
+        /^ALTER TABLE "CircleActivity" DROP CONSTRAINT IF EXISTS "CircleActivity_required_participants_exactly_two";$/,
+      ],
       "20260915000000_circles_artifact_purge": [
         /^ALTER TABLE "CircleArtifact" ALTER COLUMN "ciphertext" DROP NOT NULL;$/,
         /^ALTER TABLE "CircleArtifact" ALTER COLUMN "nonce" DROP NOT NULL;$/,
@@ -714,15 +734,26 @@ describe("circles · PR2 — nothing outside its own tables moved", () => {
     const keys = [...catalog.matchAll(/^\s*templateKey: "([^"]+)",$/gm)].map(
       (m) => m[1],
     );
-    expect(keys).toEqual(["duo-lo-que-me-ayuda", "duo-lo-que-me-ayuda"]);
-    // Two versions of one activity, and only one of them is OFFERED — now @2,
-    // with @1 archived behind it. The file is read rather than the import
-    // trusted, so a second PUBLISHED literal fails here even if the registry
-    // would happily hold it.
+    expect(keys).toEqual([
+      "duo-lo-que-me-ayuda",
+      "duo-lo-que-me-ayuda",
+      "grupo-lo-que-nos-ayuda",
+    ]);
+    // Two activities, three entries, two of them PUBLISHED — and that is not a
+    // loosening of "one published version". The rule is one per KEY: the Dúo
+    // offers @2 with @1 archived behind it, and the group offers its @1. The
+    // file is read rather than the import trusted, so a second PUBLISHED
+    // literal FOR ONE KEY fails even if the registry would happily hold it.
     const statuses = [...catalog.matchAll(/^\s*status: "([^"]+)",$/gm)].map(
       (m) => m[1],
     );
-    expect(statuses).toEqual(["ARCHIVED", "PUBLISHED"]);
+    expect(statuses).toEqual(["ARCHIVED", "PUBLISHED", "PUBLISHED"]);
+    // Adult groups only. A value here that is not one of these two is a
+    // product decision with its own approval, not a catalogue edit.
+    const audiences = [...catalog.matchAll(/^\s*audience: "([^"]+)",$/gm)].map(
+      (m) => m[1],
+    );
+    expect(new Set(audiences)).toEqual(new Set(["DUO_ADULT", "GROUP_ADULT"]));
     // The fixtures have their own file and stay there.
     expect(catalog).not.toContain("e2e-duo-sintetica");
     expect(catalog).not.toContain("fixture-duo");

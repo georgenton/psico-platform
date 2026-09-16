@@ -1,4 +1,4 @@
-import { ApiProperty } from "@nestjs/swagger";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { Type } from "class-transformer";
 import {
   ArrayMaxSize,
@@ -7,10 +7,12 @@ import {
   IsArray,
   IsIn,
   IsInt,
+  IsOptional,
   IsString,
   IsUUID,
   Length,
   Matches,
+  Max,
   Min,
   ValidateNested,
 } from "class-validator";
@@ -148,20 +150,44 @@ export class CreateDuoDto {
    */
   @ApiProperty({
     description:
-      "43-character base64url token, 256 bits. Hashed on arrival; never stored raw.",
-    pattern: BASE64URL_256.source,
-    minLength: 43,
-    maxLength: 43,
+      "One 43-character base64url token, 256 bits, per seat that is not the " +
+      "organiser's: one for a Dúo, N-1 for a group of N. Hashed on arrival; " +
+      "never stored raw.",
+    type: [String],
+    minItems: 1,
+    maxItems: 5,
   })
-  @IsString()
+  @IsArray()
+  // Bounded here as well as in the service. Five is a group of six minus the
+  // organiser — the largest this product admits — and an unbounded array is
+  // somewhere to put a million hashes before anything else looks at it.
+  @ArrayMinSize(1)
+  @ArrayMaxSize(5)
+  @IsString({ each: true })
   // `@Length(43, 43)` alone proved only that the string is 43 characters —
   // 43 spaces satisfied it. Length is a consequence of the encoding, not the
   // property worth checking: what makes this 256 bits is that all 43
   // characters are base64url. The alphabet is the assertion; the length falls
   // out of it, and is kept as a bound so the pattern cannot be widened by
   // accident.
-  @Matches(BASE64URL_256)
-  invitationToken!: string;
+  @Matches(BASE64URL_256, { each: true })
+  invitationTokens!: string[];
+
+  /**
+   * How many people, including the organiser.
+   *
+   * Absent means the template's default, which for a Dúo is the only
+   * possibility — so an existing caller that sends no size still creates a Dúo
+   * of two. The bounds here are the widest any template admits; whether THIS
+   * template admits this size is decided against its own range, server-side,
+   * where the template is known.
+   */
+  @ApiPropertyOptional({ minimum: 2, maximum: 6 })
+  @IsOptional()
+  @IsInt()
+  @Min(2)
+  @Max(6)
+  size?: number;
 }
 
 /**

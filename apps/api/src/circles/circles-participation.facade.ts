@@ -87,7 +87,8 @@ export class CirclesParticipationFacade {
       userId: actor.userId,
       templateKey: dto.templateKey,
       templateVersion: dto.templateVersion,
-      invitationToken: dto.invitationToken,
+      invitationTokens: dto.invitationTokens,
+      ...(dto.size === undefined ? {} : { size: dto.size }),
       idempotencyKey,
     });
     // Deliberately minimal: two ids and nothing else. Not the token — the

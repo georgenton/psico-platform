@@ -1,5 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
+import { circleSizeIsAllowed } from "@psico/types";
 import type {
   CircleActivityDefinition,
   CircleActor,
@@ -93,8 +94,21 @@ export interface CreateDuoInput {
   readonly userId: string;
   readonly templateKey: string;
   readonly templateVersion: number;
-  /** 256 bits of caller-supplied entropy. Hashed here, never stored raw. */
-  readonly invitationToken: string;
+  /**
+   * One 256-bit caller-supplied secret PER SEAT that is not the organiser's —
+   * so one for a Dúo, and N−1 for a group of N. Hashed here, never stored raw
+   * and never logged.
+   *
+   * One secret per seat rather than one link many people can use: a link that
+   * admits an indeterminate number of people is not a roster, and a roster is
+   * the thing this activity promises.
+   */
+  readonly invitationTokens: readonly string[];
+  /**
+   * How many people, including the organiser. Optional: absent means the
+   * template's default, which for a Dúo is the only possibility.
+   */
+  readonly size?: number;
   readonly idempotencyKey: string;
   readonly now?: Date;
 }
@@ -432,7 +446,16 @@ export class CirclesParticipationService {
     // request is what decides replay from conflict. `getPublished` is a
     // precondition for CREATING, so it runs where creation happens.
     const { hashSecret } = await import("./circles-secrets");
-    const tokenHash = hashSecret(input.invitationToken);
+    /**
+     * Every seat's secret, hashed once, in the order the caller minted them.
+     *
+     * The FIRST hash is what the idempotency comparison uses, exactly as it did
+     * when there was only ever one. A group's later seats are compared by
+     * count, because two requests that agree on the first secret and disagree
+     * on the fourth are still two different requests.
+     */
+    const tokenHashes = input.invitationTokens.map((t) => hashSecret(t));
+    const tokenHash = tokenHashes[0] ?? "";
 
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -488,11 +511,20 @@ export class CirclesParticipationService {
           const priorActivity = prior.activityId
             ? await this.activities.findById(prior.activityId, tx)
             : null;
+          // …and the SIZE, now that there is one to disagree about. A caller
+          // that asked for four, timed out, and retried asking for six is not
+          // replaying: it is a different request wearing a used key, and
+          // returning the group of four as success would hand back an activity
+          // two people were never invited to.
+          const requestedSize = input.size ?? null;
           if (
             !sameToken ||
             !priorActivity ||
             priorActivity.templateKey !== input.templateKey ||
-            priorActivity.templateVersion !== input.templateVersion
+            priorActivity.templateVersion !== input.templateVersion ||
+            (requestedSize !== null &&
+              priorActivity.requiredParticipants !== requestedSize) ||
+            tokenHashes.length !== priorActivity.requiredParticipants - 1
           ) {
             throw new CirclesError("CIRCLE_IDEMPOTENCY_CONFLICT");
           }
@@ -517,12 +549,45 @@ export class CirclesParticipationService {
           throw new CirclesError("CIRCLE_TEMPLATE_UNAVAILABLE");
         }
 
+        /**
+         * The size, decided once and checked against the template's range.
+         *
+         * `circleSizeIsAllowed` is the same predicate the Web uses to offer the
+         * choice, so "which sizes exist" has one answer. A size outside the
+         * range is REFUSED rather than clamped: quietly giving somebody a
+         * different group from the one they asked for is worse than saying no.
+         *
+         * For a Dúo the range is a single number, so a caller that sends
+         * nothing gets two and a caller that sends three is refused — by this
+         * line, not by a mode-specific branch further down.
+         */
+        const size = input.size ?? definition.participants.required;
+        // All three refusals below are CIRCLE_INVALID_PAYLOAD — a closed
+        // vocabulary rather than three new codes. They are the same kind of
+        // thing: a request that does not describe an activity this template can
+        // produce, answered without saying which part was wrong.
+        if (!circleSizeIsAllowed(definition, size)) {
+          throw new CirclesError("CIRCLE_INVALID_PAYLOAD");
+        }
+        // One secret per seat that is not the organiser's. Too few and a seat
+        // could never be filled; too many and the caller believes it invited
+        // somebody this activity has no room for.
+        if (tokenHashes.length !== size - 1) {
+          throw new CirclesError("CIRCLE_INVALID_PAYLOAD");
+        }
+        if (new Set(tokenHashes).size !== tokenHashes.length) {
+          throw new CirclesError("CIRCLE_INVALID_PAYLOAD");
+        }
+
+        const kind =
+          definition.audience === "GROUP_ADULT" ? "GROUP_ADULT" : "DUO";
+
         const circle = await tx.circle.create({
           data: {
-            kind: "DUO",
+            kind,
             status: "ACTIVE",
             createdByUserId: input.userId,
-            maxParticipants: 2,
+            maxParticipants: size,
           },
           select: { id: true },
         });
@@ -544,7 +609,8 @@ export class CirclesParticipationService {
             templateKey: definition.templateKey,
             templateVersion: definition.templateVersion,
             status: "INVITING",
-            requiredParticipants: 2,
+            kind,
+            requiredParticipants: size,
             followUpDueAt,
           },
           select: { id: true },
@@ -559,25 +625,36 @@ export class CirclesParticipationService {
           },
           select: { id: true },
         });
-        const invitation = await tx.circleInvitation.create({
-          data: {
-            circleId: circle.id,
-            activityId: activity.id,
-            createdByMemberId: member.id,
-            tokenHash,
-            expiresAt: new Date(now.getTime() + 14 * 24 * 3_600_000),
-          },
-          select: { id: true },
-        });
-        await tx.circleActivityParticipant.create({
-          data: {
-            circleId: circle.id,
-            activityId: activity.id,
-            invitationId: invitation.id,
-            status: "INVITED",
-          },
-          select: { id: true },
-        });
+        /**
+         * One invitation and one seat per secret, in one pass.
+         *
+         * Sequential rather than `Promise.all`: these rows are written inside
+         * one transaction against one connection, and issuing them concurrently
+         * on a single client buys nothing while making the write order —
+         * which is the lock order — depend on scheduling.
+         */
+        const expiresAt = new Date(now.getTime() + 14 * 24 * 3_600_000);
+        for (const hash of tokenHashes) {
+          const invitation = await tx.circleInvitation.create({
+            data: {
+              circleId: circle.id,
+              activityId: activity.id,
+              createdByMemberId: member.id,
+              tokenHash: hash,
+              expiresAt,
+            },
+            select: { id: true },
+          });
+          await tx.circleActivityParticipant.create({
+            data: {
+              circleId: circle.id,
+              activityId: activity.id,
+              invitationId: invitation.id,
+              status: "INVITED",
+            },
+            select: { id: true },
+          });
+        }
 
         await this.events.append(
           {

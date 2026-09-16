@@ -278,7 +278,7 @@ suite("circles · participation (real PostgreSQL)", () => {
       userId: U1,
       templateKey: TEMPLATE.templateKey,
       templateVersion: TEMPLATE.templateVersion,
-      invitationToken: token,
+      invitationTokens: [token],
       idempotencyKey: randomUUID(),
     });
 
@@ -451,7 +451,7 @@ suite("circles · participation (real PostgreSQL)", () => {
             userId: U1,
             templateKey: key,
             templateVersion: 1,
-            invitationToken: mintToken(),
+            invitationTokens: [mintToken()],
             idempotencyKey: randomUUID(),
           }),
         ),
@@ -473,7 +473,7 @@ suite("circles · participation (real PostgreSQL)", () => {
       userId: U1,
       templateKey: TEMPLATE.templateKey,
       templateVersion: TEMPLATE.templateVersion,
-      invitationToken: token,
+      invitationTokens: [token],
       idempotencyKey: randomUUID(),
     });
     const row = await pool.query(
@@ -492,14 +492,14 @@ suite("circles · participation (real PostgreSQL)", () => {
       userId: U1,
       templateKey: TEMPLATE.templateKey,
       templateVersion: TEMPLATE.templateVersion,
-      invitationToken: token,
+      invitationTokens: [token],
       idempotencyKey: key,
     });
     const replay = await service.createDuo({
       userId: U1,
       templateKey: TEMPLATE.templateKey,
       templateVersion: TEMPLATE.templateVersion,
-      invitationToken: token,
+      invitationTokens: [token],
       idempotencyKey: key,
     });
     expect(replay.replayed).toBe(true);
@@ -514,7 +514,7 @@ suite("circles · participation (real PostgreSQL)", () => {
           userId: U1,
           templateKey: TEMPLATE.templateKey,
           templateVersion: TEMPLATE.templateVersion,
-          invitationToken: mintToken(),
+          invitationTokens: [mintToken()],
           idempotencyKey: key,
         }),
       ),
@@ -921,7 +921,7 @@ suite("circles · participation (real PostgreSQL)", () => {
       userId: U1,
       templateKey: TEMPLATE.templateKey,
       templateVersion: TEMPLATE.templateVersion,
-      invitationToken: token,
+      invitationTokens: [token],
       idempotencyKey: randomUUID(),
     });
     await service.withdraw(
@@ -1959,7 +1959,7 @@ suite("circles · participation (real PostgreSQL)", () => {
       userId: U1,
       templateKey: TEMPLATE.templateKey,
       templateVersion: TEMPLATE.templateVersion,
-      invitationToken: token,
+      invitationTokens: [token],
       idempotencyKey: randomUUID(),
     });
     const seats = await pool.query(
@@ -2115,7 +2115,7 @@ suite("circles · participation (real PostgreSQL)", () => {
       userId: U1,
       templateKey: TEMPLATE.templateKey,
       templateVersion: TEMPLATE.templateVersion,
-      invitationToken: token,
+      invitationTokens: [token],
       idempotencyKey: key,
     });
 
@@ -2124,7 +2124,7 @@ suite("circles · participation (real PostgreSQL)", () => {
       userId: U1,
       templateKey: TEMPLATE.templateKey,
       templateVersion: TEMPLATE.templateVersion,
-      invitationToken: token,
+      invitationTokens: [token],
       idempotencyKey: key,
     });
     expect(replay.circleId).toBe(first.circleId);
@@ -2146,7 +2146,7 @@ suite("circles · participation (real PostgreSQL)", () => {
           userId: U1,
           templateKey: ALT_TEMPLATE.templateKey,
           templateVersion: ALT_TEMPLATE.templateVersion,
-          invitationToken: token,
+          invitationTokens: [token],
           idempotencyKey: key,
         }),
       ),
@@ -2160,7 +2160,7 @@ suite("circles · participation (real PostgreSQL)", () => {
           userId: U1,
           templateKey: TEMPLATE_V2.templateKey,
           templateVersion: TEMPLATE_V2.templateVersion,
-          invitationToken: token,
+          invitationTokens: [token],
           idempotencyKey: key,
         }),
       ),
@@ -2174,7 +2174,7 @@ suite("circles · participation (real PostgreSQL)", () => {
           userId: U1,
           templateKey: TEMPLATE.templateKey,
           templateVersion: TEMPLATE.templateVersion,
-          invitationToken: mintToken(),
+          invitationTokens: [mintToken()],
           idempotencyKey: key,
         }),
       ),
@@ -2198,7 +2198,7 @@ suite("circles · participation (real PostgreSQL)", () => {
         userId: U1,
         templateKey: TEMPLATE.templateKey,
         templateVersion: TEMPLATE.templateVersion,
-        invitationToken: token,
+        invitationTokens: [token],
         idempotencyKey: key,
       });
 
@@ -2590,7 +2590,7 @@ suite("circles · participation (real PostgreSQL)", () => {
       userId: U1,
       templateKey: TEMPLATE.templateKey,
       templateVersion: TEMPLATE.templateVersion,
-      invitationToken: token,
+      invitationTokens: [token],
       idempotencyKey: key,
     };
     const first = await service.createDuo(req);
@@ -2638,7 +2638,7 @@ suite("circles · participation (real PostgreSQL)", () => {
       await codeOf(() =>
         svc.createDuo({
           ...req,
-          invitationToken: mintToken(),
+          invitationTokens: [mintToken()],
           idempotencyKey: randomUUID(),
         }),
       ),

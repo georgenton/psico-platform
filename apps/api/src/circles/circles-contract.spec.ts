@@ -297,7 +297,7 @@ describe("circles · template registry", () => {
     ]);
   });
 
-  it("publishes exactly ONE template, and keeps the previous one resolvable", () => {
+  it("publishes one version per key, and keeps the previous one resolvable", () => {
     // Two different questions, and the distinction is the whole point of a
     // DRAFT sitting in the catalog: what EXISTS — so an activity pinned to it
     // can resolve — versus what is OFFERED, which needs an approval.
@@ -308,13 +308,17 @@ describe("circles · template registry", () => {
     ).toEqual([
       "duo-lo-que-me-ayuda@1:ARCHIVED",
       "duo-lo-que-me-ayuda@2:PUBLISHED",
+      "grupo-lo-que-nos-ayuda@1:PUBLISHED",
     ]);
-    expect(productionCircleTemplateRegistry.size).toBe(2);
+    expect(productionCircleTemplateRegistry.size).toBe(3);
+    // Two PUBLISHED templates, and that is not a contradiction of the
+    // one-per-KEY rule: they are different activities with different keys. What
+    // must never happen is two published versions of ONE key.
     expect(
       productionCircleTemplateRegistry
         .listPublished()
         .map((d) => `${d.templateKey}@${d.templateVersion}`),
-    ).toEqual(["duo-lo-que-me-ayuda@2"]);
+    ).toEqual(["duo-lo-que-me-ayuda@2", "grupo-lo-que-nos-ayuda@1"]);
   });
 
   it("leaves @1 resolvable and unchanged by @2 existing", () => {

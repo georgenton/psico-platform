@@ -141,7 +141,7 @@ describe("LOCAL_E2E · eligible source → CTA → preview → create → copy",
     expect(upstream).toHaveLength(1);
     const sent = upstream[0]!.body as Record<string, unknown>;
     expect(Object.keys(sent).sort()).toEqual([
-      "invitationToken",
+      "invitationTokens",
       "templateKey",
       "templateVersion",
     ]);
@@ -150,7 +150,12 @@ describe("LOCAL_E2E · eligible source → CTA → preview → create → copy",
     );
 
     // 5 · the link carries the token in the fragment, and can be copied.
-    const token = sent.invitationToken as string;
+    //
+    // One secret, because a Dúo has one seat that is not the organiser's. A
+    // group sends N-1 and shows one link per seat; this path is the Dúo's.
+    const tokens = sent.invitationTokens as string[];
+    expect(tokens).toHaveLength(1);
+    const token = tokens[0]!;
     expect(token).toMatch(/^[A-Za-z0-9_-]{43}$/);
     const shown = screen.getByText(new RegExp(`/i#${token}$`));
     expect(new URL(shown.textContent!).hash).toBe(`#${token}`);
@@ -201,7 +206,7 @@ describe("9 · the handler refuses extra fields and asserted identity", () => {
     payload: {
       templateKey: "fixture-duo",
       templateVersion: 1,
-      invitationToken: TOKEN,
+      invitationTokens: [TOKEN],
     },
     idempotencyKey: KEY,
   };
@@ -244,7 +249,7 @@ describe("9 · the handler refuses extra fields and asserted identity", () => {
     for (const bad of ["A".repeat(42), "A".repeat(44), `${"A".repeat(42)}!`]) {
       const res = await post({
         ...VALID,
-        payload: { ...VALID.payload, invitationToken: bad },
+        payload: { ...VALID.payload, invitationTokens: [bad] },
       });
       expect(res.status, bad.length.toString()).toBe(400);
     }

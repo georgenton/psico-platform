@@ -91,7 +91,10 @@ describe("PR4 adds no backend", () => {
     // purely additive. An API migration, named here like the others, because
     // raising the number without adding a name is what this assertion refuses.
     expect(migrations).toContain("20260916000000_circles_analytics");
-    expect(migrations).toHaveLength(67);
+    // …and the one adult groups owes. Still an API migration; the Web cut adds
+    // no backend, which is the only thing this assertion is about.
+    expect(migrations).toContain("20260916100000_circles_adult_groups");
+    expect(migrations).toHaveLength(68);
   });
 
   it("touches no Mobile file", () => {
@@ -164,7 +167,7 @@ describe("PR4 stores no draft and loads no third party", () => {
 });
 
 describe("production publishes exactly what was approved, and nothing else", () => {
-  it("OFFERS one template, and keeps its predecessor resolvable", () => {
+  it("OFFERS one version per key, and keeps a predecessor resolvable", () => {
     // This asserted emptiness while nothing was approved, then a count of one,
     // then one PUBLISHED beside one DRAFT. None of those was the point —
     // "only what somebody approved is offered" was.
@@ -180,9 +183,11 @@ describe("production publishes exactly what was approved, and nothing else", () 
     ).toEqual([
       "duo-lo-que-me-ayuda@1:ARCHIVED",
       "duo-lo-que-me-ayuda@2:PUBLISHED",
+      "grupo-lo-que-nos-ayuda@1:PUBLISHED",
     ]);
     const offered = PRODUCTION_CIRCLE_TEMPLATES.find(
-      (t) => t.status === "PUBLISHED",
+      (t) =>
+        t.templateKey === "duo-lo-que-me-ayuda" && t.status === "PUBLISHED",
     )!;
     expect(offered.templateKey).toBe("duo-lo-que-me-ayuda");
     expect(offered.templateVersion).toBe(2);
@@ -253,11 +258,12 @@ describe("production publishes exactly what was approved, and nothing else", () 
     );
     expect(catalog).not.toContain("fixture-duo");
     expect(catalog).not.toContain("e2e-duo-sintetica");
-    // And none of the nine Parejas drafts arrived by the back door: every
-    // entry is a VERSION of the one approved activity.
-    for (const key of PRODUCTION_CIRCLE_TEMPLATES.map((t) => t.templateKey)) {
-      expect(key).toBe("duo-lo-que-me-ayuda");
-    }
+    // And none of the nine Parejas drafts arrived by the back door. The list is
+    // explicit rather than "every entry is the same key", because there are two
+    // activities now — each one named, so a third has to be argued for here.
+    expect(
+      new Set(PRODUCTION_CIRCLE_TEMPLATES.map((t) => t.templateKey)),
+    ).toEqual(new Set(["duo-lo-que-me-ayuda", "grupo-lo-que-nos-ayuda"]));
   });
 });
 

@@ -7,6 +7,8 @@ import { CircleActivityRepository } from "./circle-activity.repository";
 import { CircleEventRepository } from "./circle-event.repository";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { CirclesRolloutService } from "./circles-rollout.service";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { CircleParticipantRepository } from "./circle-participant.repository";
 
 /**
  * The two transitions a clock is allowed to make, and nothing else.
@@ -29,11 +31,24 @@ import { CirclesRolloutService } from "./circles-rollout.service";
  *      `FOLLOW_UP`. This transition already exists as
  *      `openFollowUpIfDue` — the sweep only calls it on time.
  *
+ *   3. A GROUP whose roster can no longer be completed is cancelled. With a
+ *      fixed roster and no substitutions every invited seat is essential, so
+ *      one link that can no longer be redeemed is enough: waiting for the
+ *      rest to expire would keep a room open that nobody can finish.
+ *
+ *   4. A GROUP in `FOLLOW_UP` whose window has passed is closed. Not because
+ *      anybody decided — see below — but because the stage has to end.
+ *
  * ── And what it must NOT ───────────────────────────────────────────────────
  *
- * It does not close a `FOLLOW_UP`. Reaching the date is not the same as making
- * the decision the stage exists to collect, and an activity closed by a timer
- * would record a choice nobody made.
+ * It does not fabricate a follow-up DECISION. Closing on time and recording a
+ * choice are different acts: the activity becomes `CLOSED`, and the seats that
+ * never answered still say they never answered. `ACTIVITY_CLOSED` carries no
+ * metadata — the ledger's grammar has nowhere to put a cause — so nothing in
+ * the record can be read as "they decided".
+ *
+ * For a DÚO it still does not close a `FOLLOW_UP` at all. That policy is
+ * untouched by this cut.
  *
  * It does not touch guest sessions. An expired session already has no
  * authority — every read resolves it and refuses — and an expired INVITATION
@@ -50,15 +65,35 @@ import { CirclesRolloutService } from "./circles-rollout.service";
  * the rest for the next one.
  */
 
+/**
+ * How long a GROUP's follow-up stays open, from `followUpDueAt`.
+ *
+ * Seven days, and it is a product decision of this corrective cut rather than
+ * a number derived from anything: no approved policy named one, and a stage
+ * with no end is the finding this closes. It is derived from a timestamp that
+ * already exists, so nothing new is stored — and the screens say it before
+ * anybody takes part.
+ *
+ * The Dúo has no such deadline and does not gain one here.
+ */
+export const GROUP_FOLLOW_UP_WINDOW_DAYS = 7;
+const GROUP_FOLLOW_UP_WINDOW_MS = GROUP_FOLLOW_UP_WINDOW_DAYS * 86_400_000;
+
 export interface CirclesSweepSummary {
   readonly invitingCancelled: number;
   readonly followUpOpened: number;
+  /** Groups whose roster can no longer be completed. */
+  readonly incompleteGroupsCancelled: number;
+  /** Groups whose follow-up window ran out. */
+  readonly followUpClosed: number;
   readonly skippedRolloutOff: boolean;
 }
 
 const NOTHING: CirclesSweepSummary = Object.freeze({
   invitingCancelled: 0,
   followUpOpened: 0,
+  incompleteGroupsCancelled: 0,
+  followUpClosed: 0,
   skippedRolloutOff: true,
 });
 
@@ -69,6 +104,7 @@ export class CirclesSweepService {
     private readonly activities: CircleActivityRepository,
     private readonly events: CircleEventRepository,
     private readonly rollout: CirclesRolloutService,
+    private readonly participants: CircleParticipantRepository,
   ) {}
 
   async sweep(
@@ -93,8 +129,203 @@ export class CirclesSweepService {
       dryRun,
     );
     const followUpOpened = await this.openDueFollowUps(now, batchSize, dryRun);
+    const incompleteGroupsCancelled = await this.cancelIncompleteGroups(
+      now,
+      batchSize,
+      dryRun,
+    );
+    const followUpClosed = await this.closeExpiredGroupFollowUps(
+      now,
+      batchSize,
+      dryRun,
+    );
 
-    return { invitingCancelled, followUpOpened, skippedRolloutOff: false };
+    return {
+      invitingCancelled,
+      followUpOpened,
+      incompleteGroupsCancelled,
+      followUpClosed,
+      skippedRolloutOff: false,
+    };
+  }
+
+  /**
+   * A group whose roster can no longer be completed.
+   *
+   * ── Why one dead link is enough ───────────────────────────────────────────
+   *
+   * The roster is fixed at creation and there are no substitutions, so every
+   * invited seat is essential. If one of them holds a link that can no longer
+   * be redeemed — expired, revoked or declined — that seat will never be
+   * filled, the barrier will never count it, and the room can never open. The
+   * `INVITING` rule above waits for EVERY invitation to die, which is right
+   * for a Dúo (there is only one) and far too patient for a group.
+   *
+   * ── Why `PREPARING` is in the predicate ───────────────────────────────────
+   *
+   * Because an earlier cut of `exchange` moved the activity on the FIRST
+   * acceptance, so groups exist that are `PREPARING` with seats still
+   * `INVITED`. Selecting by status alone would step over exactly the rooms
+   * this sweep was added for.
+   *
+   * The cancellation destroys pending envelopes and revokes what is left. It
+   * appends `ACTIVITY_CANCELLED` and NOTHING else: no participant event, no
+   * actor, no metadata. A clock did this, and the record says only that.
+   */
+  private async cancelIncompleteGroups(
+    now: Date,
+    batchSize: number,
+    dryRun: boolean,
+  ): Promise<number> {
+    const stranded = await this.prisma.circleActivity.findMany({
+      where: {
+        kind: "GROUP_ADULT",
+        status: { in: ["INVITING", "PREPARING"] },
+        participants: {
+          some: {
+            status: "INVITED",
+            invitation: {
+              OR: [
+                { revokedAt: { not: null } },
+                { declinedAt: { not: null } },
+                { expiresAt: { lte: now } },
+              ],
+            },
+          },
+        },
+      },
+      select: { id: true, circleId: true },
+      orderBy: { id: "asc" },
+      take: batchSize,
+    });
+
+    if (dryRun) return stranded.length;
+
+    let cancelled = 0;
+    for (const activity of stranded) {
+      const moved = await this.prisma.$transaction(async (tx) => {
+        // Re-read under the lock. A last acceptance, a withdrawal or another
+        // worker may have settled this between the scan and here, and the
+        // status guard on `cancel` is what makes losing that race harmless.
+        const live = await this.activities.lockById(activity.id, tx as never);
+        if (!live) return false;
+        if (live.status !== "INVITING" && live.status !== "PREPARING") {
+          return false;
+        }
+        // And the condition itself, re-checked inside the transaction: the
+        // seat that made this activity unviable may have been filled by the
+        // acceptance that was in flight during the scan.
+        const stillStranded = await tx.circleActivityParticipant.count({
+          where: {
+            activityId: activity.id,
+            status: "INVITED",
+            invitation: {
+              OR: [
+                { revokedAt: { not: null } },
+                { declinedAt: { not: null } },
+                { expiresAt: { lte: now } },
+              ],
+            },
+          },
+        });
+        if (stillStranded === 0) return false;
+
+        const seats = await tx.circleActivityParticipant.findMany({
+          where: { activityId: activity.id },
+          select: { id: true },
+        });
+        for (const seat of seats) {
+          await this.participants.purgeEnvelope(
+            seat.id,
+            activity.id,
+            tx as never,
+          );
+        }
+        await tx.circleInvitation.updateMany({
+          where: { activityId: activity.id, revokedAt: null },
+          data: { revokedAt: now },
+        });
+        await tx.circleGuestSession.updateMany({
+          where: { activityId: activity.id, revokedAt: null },
+          data: { revokedAt: now },
+        });
+        const ok = await this.activities.cancel(
+          activity.id,
+          now,
+          ["INVITING", "PREPARING"],
+          tx as never,
+        );
+        if (!ok) return false;
+        await this.events.append(
+          {
+            circleId: activity.circleId,
+            activityId: activity.id,
+            type: "ACTIVITY_CANCELLED",
+          },
+          tx as never,
+        );
+        return true;
+      });
+      if (moved) cancelled += 1;
+    }
+    return cancelled;
+  }
+
+  /**
+   * A group's follow-up, ended by the clock rather than left open forever.
+   *
+   * The window is `followUpDueAt + GROUP_FOLLOW_UP_WINDOW_DAYS`, derived from
+   * a column that already exists. Groups only: the Dúo's follow-up policy is
+   * not changed by this cut.
+   *
+   * It writes a status and an `ACTIVITY_CLOSED` event, and nothing else. No
+   * decision is recorded for the seats that never answered, because none was
+   * made — and the ledger has nowhere to claim otherwise.
+   */
+  private async closeExpiredGroupFollowUps(
+    now: Date,
+    batchSize: number,
+    dryRun: boolean,
+  ): Promise<number> {
+    const deadline = new Date(now.getTime() - GROUP_FOLLOW_UP_WINDOW_MS);
+    const expired = await this.prisma.circleActivity.findMany({
+      where: {
+        kind: "GROUP_ADULT",
+        status: "FOLLOW_UP",
+        followUpDueAt: { not: null, lte: deadline },
+      },
+      select: { id: true, circleId: true },
+      orderBy: { id: "asc" },
+      take: batchSize,
+    });
+
+    if (dryRun) return expired.length;
+
+    let closed = 0;
+    for (const activity of expired) {
+      const moved = await this.prisma.$transaction(async (tx) => {
+        // Status-guarded, so the last decision or a withdrawal that landed
+        // first wins and this finds nothing to do.
+        const ok = await this.activities.close(
+          activity.id,
+          now,
+          ["FOLLOW_UP"],
+          tx as never,
+        );
+        if (!ok) return false;
+        await this.events.append(
+          {
+            circleId: activity.circleId,
+            activityId: activity.id,
+            type: "ACTIVITY_CLOSED",
+          },
+          tx as never,
+        );
+        return true;
+      });
+      if (moved) closed += 1;
+    }
+    return closed;
   }
 
   /**

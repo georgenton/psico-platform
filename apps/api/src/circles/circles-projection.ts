@@ -97,6 +97,41 @@ function toRevealedShare(body: string | null): CircleRevealedShare | null {
 }
 
 /**
+ * Whether the ROOM's access ended, for everybody, because somebody left it.
+ *
+ * ── Why this is derived rather than stored ────────────────────────────────
+ *
+ * A group whose status is `CLOSED` and that holds a `WITHDRAWN` seat can only
+ * have got there one way: somebody withdrew after the reveal, which closes the
+ * activity. Nothing else writes `WITHDRAWN` — account deletion deliberately
+ * leaves seats `ACCEPTED`, and says why — and nothing else closes a revealed
+ * activity while a seat is in that state. So the two columns already say it,
+ * and a third one would be a second opinion that could disagree.
+ *
+ * ── What it stops, and what it does not ───────────────────────────────────
+ *
+ * It stops FUTURE reads: the other people's selections and the shared result
+ * disappear from the response, for every actor including the organiser. It
+ * does not delete a row, shorten retention, or touch an agreed artifact —
+ * those are governed by the approved artifact policy and this is not a licence
+ * to change it. And it does not promise anybody forgets what they already saw:
+ * the screens that were open find out through the polling they already do, and
+ * a disconnected device finds out when it reconnects.
+ *
+ * A Dúo answers `false` here always. Its rule is the documented one and it
+ * does not change: the person who left loses their access, the other keeps
+ * reading what is half theirs.
+ */
+export function accessIsWithdrawn(
+  activity: Pick<CircleActivityRow, "kind" | "status">,
+  seats: readonly Pick<CircleParticipantRow, "status">[],
+): boolean {
+  if (activity.kind !== "GROUP_ADULT") return false;
+  if (activity.status !== "CLOSED") return false;
+  return seats.some((seat) => seat.status === "WITHDRAWN");
+}
+
+/**
  * Whether this actor is entitled to revealed content.
  *
  * `READY` and nothing else. Two things this closes:
@@ -182,7 +217,12 @@ export function projectActivity(input: ProjectionInput): CircleActivityView {
   // refactor that hoists the decryption — hands over bodies it should not
   // have, the answer must still be no. Two independent checks, and the one
   // closest to the response wins.
-  const mayReadRevealed = revealedStage && mayReadRevealedContent(self);
+  // Three independent conditions, and the room's is the one a caller cannot
+  // argue with: it is a fact about the activity, not about who is asking.
+  const mayReadRevealed =
+    revealedStage &&
+    mayReadRevealedContent(self) &&
+    !accessIsWithdrawn(activity, [self, ...others.map((o) => o.participant)]);
   const revealedParticipants = mayReadRevealed
     ? others.flatMap((other) => {
         const share = toRevealedShare(other.body);
@@ -199,8 +239,16 @@ export function projectActivity(input: ProjectionInput): CircleActivityView {
     summary: definition.summary,
     conversationTurns: definition.conversation.turns,
     outcomeKind: definition.outcome.kind,
+    // The SIZE stays, always. Somebody agreed to write something four people
+    // would read, and they are entitled to keep seeing that it is four.
     requiredParticipants: activity.requiredParticipants,
-    readyCount: input.readyCount,
+    // The COUNT goes, in a group, until there is nothing to count towards.
+    // After the reveal every seat is READY by construction, so the number
+    // carries no timing information and the Dúo's shape is preserved for
+    // every reader that expects it.
+    ...(activity.kind === "GROUP_ADULT" && !revealedStage
+      ? {}
+      : { readyCount: input.readyCount }),
     revealedAt: activity.revealedAt ? activity.revealedAt.toISOString() : null,
     followUpDueAt: activity.followUpDueAt
       ? activity.followUpDueAt.toISOString()

@@ -66,6 +66,7 @@ const LABELS = [
   "coexistence",
   "analytics",
   "grupo",
+  "grupo-privado",
 ];
 
 const log = (m) => console.log(`▸ ${m}`);

@@ -3,7 +3,7 @@ import { CIRCLE_VIEW_FORBIDDEN_KEYS } from "@psico/types";
 import type { CircleActivityDefinition } from "@psico/types";
 import type { CircleActivityRow } from "./circle-activity.repository";
 import type { CircleParticipantRow } from "./circle-participant.repository";
-import { projectActivity } from "./circles-projection";
+import { accessIsWithdrawn, projectActivity } from "./circles-projection";
 
 /**
  * The filtered read, checked on the SERIALIZED object.
@@ -49,6 +49,11 @@ const activity = (
   templateKey: DEFINITION.templateKey,
   templateVersion: 1,
   status: "PREPARING",
+  // Present because the row has it, and because `accessIsWithdrawn` branches
+  // on it. Unit specs are outside `tsconfig`'s `include`, so a missing field
+  // here is not a compile error — it is an `undefined` that silently takes the
+  // Dúo branch at runtime.
+  kind: "DUO",
   requiredParticipants: 2,
   revealedAt: null,
   followUpDueAt: null,
@@ -542,5 +547,97 @@ describe("circles projection · a room of more than two", () => {
     // And no seat id, which is not on that list because a Dúo never had a
     // place to put one.
     expect(JSON.stringify(view)).not.toContain("p-other-0");
+  });
+});
+
+describe("circles projection · a room somebody left after the reveal", () => {
+  const share = (value: string) =>
+    JSON.stringify({
+      mode: "SELECTED_FIELDS",
+      fields: [{ fieldKey: "campo-a", value }],
+    });
+
+  const closedRoom = (over: Partial<CircleActivityRow> = {}) =>
+    activity({
+      kind: "GROUP_ADULT",
+      status: "CLOSED",
+      requiredParticipants: 3,
+      revealedAt: new Date(),
+      closedAt: new Date(),
+      ...over,
+    });
+
+  const left = seat({ id: "p-left", status: "WITHDRAWN" });
+  const stayed = seat({ id: "p-stayed", status: "READY" });
+
+  it("answers the same question for a group and a Dúo", () => {
+    expect(accessIsWithdrawn(closedRoom(), [left, stayed])).toBe(true);
+    // A Dúo's rule is unchanged: the person who stayed keeps reading.
+    expect(accessIsWithdrawn(closedRoom({ kind: "DUO" }), [left, stayed])).toBe(
+      false,
+    );
+    // A group that closed with nobody leaving — the follow-up ran its course.
+    expect(accessIsWithdrawn(closedRoom(), [stayed, stayed])).toBe(false);
+    // And one that has not closed at all.
+    expect(
+      accessIsWithdrawn(closedRoom({ status: "REVEALED" }), [left, stayed]),
+    ).toBe(false);
+  });
+
+  it("serves no selection and no artifact to a seat that stayed", () => {
+    const view = projectActivity({
+      activity: closedRoom(),
+      definition: DEFINITION,
+      self: seat({ id: "p-self", status: "READY" }),
+      others: [
+        { participant: left, position: 2, body: share("lo del que se fue") },
+        {
+          participant: stayed,
+          position: 3,
+          body: share("lo del que se quedó"),
+        },
+      ],
+      readyCount: 3,
+      artifact: {
+        id: "art-1",
+        version: 1,
+        status: "AGREED",
+        body: "el acuerdo",
+        confirmations: 3,
+        confirmedByYou: true,
+      },
+      selfBody: share("lo mío"),
+    });
+
+    // Hostile on purpose: the projection is HANDED the plaintext it must not
+    // serve, exactly as it would be if the facade's own check were lost.
+    expect(view.revealed).toBeNull();
+    expect(view.artifact).toBeNull();
+    const serialized = JSON.stringify(view);
+    expect(serialized).not.toContain("lo del que se fue");
+    expect(serialized).not.toContain("lo del que se quedó");
+    expect(serialized).not.toContain("el acuerdo");
+    // Their own answer is still theirs.
+    expect(view.you.confirmed).not.toBeNull();
+  });
+
+  it("keeps serving a Dúo's artifact to the person who stayed", () => {
+    const view = projectActivity({
+      activity: closedRoom({ kind: "DUO", requiredParticipants: 2 }),
+      definition: DEFINITION,
+      self: seat({ id: "p-self", status: "READY" }),
+      others: [{ participant: left, position: 2, body: null }],
+      readyCount: 1,
+      artifact: {
+        id: "art-1",
+        version: 1,
+        status: "AGREED",
+        body: "el acuerdo de dos",
+        confirmations: 2,
+        confirmedByYou: true,
+      },
+      selfBody: share("lo mío"),
+    });
+    expect(view.artifact?.body).toBe("el acuerdo de dos");
   });
 });

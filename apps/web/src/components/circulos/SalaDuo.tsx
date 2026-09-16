@@ -509,8 +509,22 @@ export function SalaDuo({
           <h2 id="fin-h" style={S.h2}>
             Esta actividad terminó
           </h2>
+          {/* Three endings, and the copy has to be true of the one that
+              happened — while saying nothing about WHO ended it or why.
+
+              · Nothing was ever opened (cancelled before the reveal): there is
+                no "what you shared", and claiming there is would be a small
+                lie at the exact moment somebody is looking for reassurance.
+              · A room that closed after opening: what each person read stays
+                with them, but the room itself is not somewhere to come back
+                to, so it does not promise it is.
+              · A Dúo: unchanged. */}
           <p style={S.p}>
-            Gracias por el rato. Lo que compartieron queda entre ustedes.
+            {view !== null && view.revealedAt === null
+              ? "No se abrió nada y no se compartió nada. Lo que escribiste en privado no salió de tu pantalla."
+              : view !== null && view.requiredParticipants > 2
+                ? "Gracias por el rato. Lo que leyeron queda con cada quien; esta sala ya no se puede volver a abrir."
+                : "Gracias por el rato. Lo que compartieron queda entre ustedes."}
           </p>
 
           {/*
@@ -639,7 +653,10 @@ function anuncio(view: CircleActivityView, stage: string): string {
       // is still a progress bar on other people, read by somebody who knows
       // who they invited. The Dúo keeps it because there the number IS the
       // other person's state and they will talk about it anyway.
-      return grupo
+      // `readyCount` is ABSENT from a group's response now, not merely
+      // ignored here — so this branch reads a field that is not there rather
+      // than one the screen politely declines to render.
+      return grupo || view.readyCount === undefined
         ? "Cada quien se prepara por su lado."
         : `${view.readyCount} de ${view.requiredParticipants} listas.`;
   }

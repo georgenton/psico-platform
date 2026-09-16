@@ -187,7 +187,20 @@ export interface CircleActivityView {
   readonly conversationTurns: readonly string[];
   readonly outcomeKind: CircleOutcomeKind;
   readonly requiredParticipants: number;
-  readonly readyCount: number;
+  /**
+   * How many seats have confirmed — and ABSENT in a group before the reveal.
+   *
+   * The number is harmless in a Dúo: one other person, and «1 de 2» says
+   * exactly what `counterpart.status` already says. In a room it is a progress
+   * bar on other people, read by somebody who knows which people they invited:
+   * «2 de 4» plus your own state is a list of how many are late, and the
+   * difference between that and naming them is a matter of room size.
+   *
+   * So a group sends it only once there is nothing left to wait for. Hiding it
+   * on the screen would have been a screen-shaped answer to a wire-shaped
+   * problem — the field was still in the response for anybody reading it.
+   */
+  readonly readyCount?: number;
   readonly revealedAt: string | null;
   readonly followUpDueAt: string | null;
 

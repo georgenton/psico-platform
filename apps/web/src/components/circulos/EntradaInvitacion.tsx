@@ -259,8 +259,18 @@ export function EntradaInvitacion() {
                 </>
               )}
             </li>
+            {grupo && (
+              <li style={S.turno}>
+                Si alguien elige <strong>no compartir nada</strong>, la
+                actividad termina ahí para todo el grupo y no se abre nada. No
+                se dice quién lo eligió.
+              </li>
+            )}
             <li style={S.turno}>
               Puedes retirarte en cualquier momento, sin dar explicaciones.
+              {grupo
+                ? " En un grupo, retirarte cierra la actividad para todas las personas."
+                : ""}
             </li>
           </ul>
         </section>

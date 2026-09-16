@@ -143,6 +143,40 @@ concreta.
 
 ---
 
+## 5B · Lo que corrigió el bloque correctivo
+
+Una auditoría posterior a la integración encontró cuatro reglas que el grupo
+estaba leyendo con el significado del Dúo. Con dos personas ese significado se
+lee igual tenga razón o no, que es exactamente por qué sobrevivieron:
+
+1. **`KEEP_PRIVATE` no terminaba la actividad.** Ahora es la salida
+   conservadora y es **la misma** que un retiro desde `PREPARING`: una sola
+   implementación, el mismo par de filas en el ledger, y nada que permita saber
+   después qué botón se pulsó. La pantalla lo dice antes de pulsar y otra vez al
+   confirmar.
+2. **Retirarse tras revelar no cortaba el acceso de los demás.** Ahora se
+   revocan todas las sesiones y las invitaciones vivas, y la lectura se niega
+   dos veces: antes de descifrar y en la proyección. Es un cambio de
+   **autorización, no de retención** — ninguna fila se borra y el acuerdo
+   `AGREED` sigue guardado.
+3. **El grupo pasaba a `PREPARING` con la primera aceptación.** Ahora espera a
+   la última, y el barrido cancela las salas que ya nadie puede completar
+   (incluidas las que el cut anterior dejó en `PREPARING`).
+4. **`readyCount` seguía viajando** aunque la pantalla lo ocultara. Ahora está
+   ausente del contrato de un grupo antes de revelar. El **tamaño** se queda.
+
+Y el seguimiento de un grupo gana un fin: **siete días** desde `followUpDueAt`,
+decisión de producto de esa corrección, derivada de una marca que ya existía.
+
+**Una consecuencia que conviene decir en voz alta.** Cuando una persona con
+sesión de invitada ve terminar la actividad por una cancelación, su credencial
+se revoca con ella y su pantalla muestra el aviso genérico de sala no
+disponible, no el cierre narrado. Es neutral —no nombra a nadie ni da un
+motivo— y es el comportamiento que el Dúo ya tenía. Quien tiene cuenta sí ve el
+cierre.
+
+---
+
 ## 6 · Encender, en concreto
 
 Los grupos llegan **cerrados**. Encenderlos es una variable más, en los dos
@@ -170,6 +204,12 @@ distintas (las personas invitadas no necesitan cuenta).
 
 ### Un Círculo de tres
 
+> **Necesitas perfiles de navegador independientes.** Dos ventanas privadas del
+> mismo navegador comparten cookies entre sí, así que la segunda invitación
+> pisaría la sesión de la primera y parecería un fallo del producto. Usa
+> navegadores distintos (Chrome, Firefox, Safari), perfiles distintos, o
+> dispositivos distintos — uno por persona.
+
 1. Entra a `/dashboard/circulos`. La tarjeta **«Lo que nos ayuda cuando estamos
    así»** dice «Entre 3 y 6 personas adultas, contándote» y lleva un botón
    **«Empezar este círculo»**.
@@ -191,6 +231,17 @@ distintas (las personas invitadas no necesitan cuenta).
    siempre quien organizó, para todo el mundo.
 8. Opcional: propón un acuerdo. Hasta que las **tres** personas confirmen esa
    versión sigue siendo una propuesta; reescribirlo empieza de cero.
+
+### Las dos salidas, si quieres verlas
+
+- **No compartir nada.** En el paso de compartir, elige «No compartir nada y
+  terminar la actividad». Antes de pulsar, la pantalla dice que la actividad
+  termina para todo el grupo; al confirmar, las otras dos pantallas pasan a un
+  cierre que **no dice quién** lo eligió y nada se abre.
+- **Retirarse después de leer.** Con la revelación ya abierta, retírate desde
+  cualquiera de las tres pantallas. Recarga las otras dos: la conversación
+  queda cerrada y **ya no muestran** ni las respuestas ajenas ni el acuerdo.
+  Nada se borra — deja de servirse.
 
 ### Un Dúo (que no debe haber cambiado)
 

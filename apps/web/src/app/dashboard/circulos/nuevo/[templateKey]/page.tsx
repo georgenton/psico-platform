@@ -120,7 +120,19 @@ export default function NuevoDuoPage({
               </li>
               <li>
                 El grupo queda fijo al crearlo. No se suma nadie después, y cada
-                persona entra por un enlace propio.
+                persona entra por un enlace propio. Empiezan cuando todas hayan
+                aceptado; si alguien no llega a tiempo, la actividad se cancela
+                sola y nadie comparte nada.
+              </li>
+              <li>
+                Cualquier persona puede terminar la actividad sin compartir:
+                entonces se cierra para todo el grupo, no se abre nada y no se
+                dice quién lo eligió.
+              </li>
+              <li>
+                Después de la conversación hay una semana para decidir cómo
+                siguen. Pasado ese plazo la actividad se cierra sola, sin
+                inventar respuestas.
               </li>
             </>
           ) : (

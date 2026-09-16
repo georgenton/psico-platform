@@ -311,7 +311,11 @@ export function PreparacionPrivada({
                 onChange={() => setMode(m)}
                 style={S.radio}
               />
-              <span>{MODE_LABEL[m]}</span>
+              <span>
+                {grupo && m === "KEEP_PRIVATE"
+                  ? "No compartir nada y terminar la actividad"
+                  : MODE_LABEL[m]}
+              </span>
             </label>
           ))}
       </fieldset>
@@ -365,10 +369,20 @@ export function PreparacionPrivada({
         </p>
       )}
 
+      {/* ── What this button does, BEFORE it is pressed ──────────────────
+          In a Dúo, keeping it private is a confirmation that shares nothing:
+          the other person is told somebody finished and chose not to share,
+          and the activity continues.
+
+          In a group it ends the activity for everybody — because there is no
+          way to say "one seat shared nothing" to four people without pointing
+          at a person. That is a bigger consequence than the label suggests, so
+          it is spelled out here rather than discovered afterwards, and again
+          on the confirmation screen. */}
       {mode === "KEEP_PRIVATE" && (
-        <p style={S.p}>
+        <p style={grupo ? S.aviso : S.p} role={grupo ? "note" : undefined}>
           {grupo
-            ? "No compartirás nada de lo que escribiste. Las demás personas verán que terminaste, y nada más. No hace falta explicar por qué."
+            ? "Si eliges esto, esta actividad termina aquí para todo el grupo: nadie comparte nada y lo que escribieron las demás personas se descarta sin abrirse. No se le dice a nadie quién lo eligió."
             : "No compartirás nada de lo que escribiste. La otra persona verá que terminaste, y nada más. No hace falta explicar por qué."}
         </p>
       )}

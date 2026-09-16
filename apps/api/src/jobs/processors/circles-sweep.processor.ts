@@ -76,10 +76,17 @@ export class CirclesSweepProcessor extends WorkerHost {
     if (result.skippedRolloutOff) return;
 
     // Counts only — no activity, circle or invitation id.
-    if (result.invitingCancelled > 0 || result.followUpOpened > 0) {
+    if (
+      result.invitingCancelled > 0 ||
+      result.followUpOpened > 0 ||
+      result.incompleteGroupsCancelled > 0 ||
+      result.followUpClosed > 0
+    ) {
       this.logger.log(
         `circles sweep: invitingCancelled=${result.invitingCancelled} ` +
-          `followUpOpened=${result.followUpOpened}`,
+          `followUpOpened=${result.followUpOpened} ` +
+          `incompleteGroupsCancelled=${result.incompleteGroupsCancelled} ` +
+          `followUpClosed=${result.followUpClosed}`,
       );
     }
   }

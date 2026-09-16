@@ -331,20 +331,74 @@ llamante.
 
 ## 8 · Barrido temporal — **implementado**
 
-Cron horario (`circles-sweep-hourly`) en el worker existente. Hace dos
-transiciones y **ninguna más**:
+Cron horario (`circles-sweep-hourly`) en el worker existente. Hace **cuatro**
+transiciones y ninguna más:
 
 - actividad `INVITING` sin ninguna invitación canjeable → `CANCELLED`;
-- actividad `REVEALED` con `followUpDueAt` vencido → `FOLLOW_UP`.
+- actividad `REVEALED` con `followUpDueAt` vencido → `FOLLOW_UP`;
+- **grupo** cuyo roster ya no puede completarse → `CANCELLED`;
+- **grupo** en `FOLLOW_UP` pasada su ventana → `CLOSED`.
 
-Lo que **no** hace, y está fijado por tests: no cierra un `FOLLOW_UP` (esa es
-una decisión que la etapa existe para recoger), no fabrica confirmaciones ni
-revelaciones, y **no toca una sesión de invitado ya emitida** — vencimiento del
-enlace y vencimiento de la sesión son cosas distintas, y escribir sobre la
-segunda acortaría en silencio un TTL prometido.
+### Las dos que añadió el bloque correctivo
 
-Inerte bajo rollout `off`. El borrado de cuenta **sí** funciona con `off`: es
-una obligación independiente del flag.
+**Un grupo que ya nadie puede terminar.** El roster es fijo y no hay
+sustituciones, así que **todo** asiento invitado es imprescindible: basta un
+enlace que ya no pueda canjearse —caducado, revocado o declinado— para que la
+sala no pueda abrirse nunca. La regla de `INVITING` de arriba espera a que
+mueran **todas** las invitaciones, que es lo correcto para un Dúo (sólo hay
+una) y demasiado paciente para un grupo. La cancelación destruye los sobres
+pendientes, revoca invitaciones y sesiones, y escribe `ACTIVITY_CANCELLED` **sin
+actor y sin metadata**: lo decidió un reloj, y el registro no dice otra cosa.
+
+El predicado incluye `PREPARING`, no sólo `INVITING`. Un cut anterior movía la
+actividad con la **primera** aceptación, así que existen salas en `PREPARING`
+con asientos todavía `INVITED`; seleccionar por estado dejaría fuera justo las
+que el barrido vino a limpiar.
+
+**El seguimiento de un grupo tiene fin.** Se cierra a los **siete días** de
+`followUpDueAt`. Es una decisión de producto del bloque correctivo, derivada de
+una marca temporal que ya existía —no se guarda nada nuevo— y las pantallas la
+dicen antes de participar. Cierra **por tiempo**: no escribe decisiones, no
+aparece ningún `FOLLOW_UP_RECORDED`, y los asientos que no contestaron siguen
+diciendo que no contestaron.
+
+El Dúo **no** gana esta ventana: su seguimiento se abre a tiempo y no lo cierra
+un temporizador.
+
+### Lo que sigue sin hacer
+
+No fabrica confirmaciones ni revelaciones, y **no toca una sesión de invitado ya
+emitida** por vencimiento del enlace — vencimiento del enlace y vencimiento de
+la sesión son cosas distintas, y escribir sobre la segunda acortaría en silencio
+un TTL prometido. (Una **cancelación** sí revoca sesiones: ahí la actividad
+terminó, que es otra cosa.)
+
+Inerte bajo rollout `off`, y el resumen afirma el objeto completo con todos sus
+contadores en cero — un contador nuevo que la compuerta olvide poner a cero
+falla ahí. El borrado de cuenta **sí** funciona con `off`: es una obligación
+independiente del flag.
+
+---
+
+## 8B · Reglas de grupo que no son las del Dúo
+
+Escritas aquí porque son las que un operador necesita para leer un estado:
+
+| Situación                       | Dúo                                                                         | Grupo                                                                       |
+| ------------------------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `KEEP_PRIVATE` antes de revelar | confirmación que no comparte; el asiento queda `READY`                      | **termina la actividad**: `CANCELLED`, sobres destruidos, accesos revocados |
+| Retiro después de revelar       | cierra la actividad; quien sale pierde su acceso, quien queda sigue leyendo | cierra la actividad y **corta el acceso de todas las personas**             |
+| Paso a `PREPARING`              | con la única aceptación                                                     | con la **última** aceptación                                                |
+| `readyCount` en la respuesta    | siempre                                                                     | **ausente** antes de revelar                                                |
+| Seguimiento                     | se abre a tiempo; no lo cierra un reloj                                     | se cierra a los siete días                                                  |
+
+Dos cosas que conviene no confundir al leer una incidencia:
+
+- **Cortar el acceso no es borrar.** El retiro en un grupo cambia una
+  autorización: no borra filas, no acorta la retención y **no destruye un
+  acuerdo `AGREED`**. Lo que se detiene son las lecturas futuras.
+- **La compuerta `CIRCLES_GROUPS=off` sólo bloquea la creación.** No revoca, no
+  cierra y no toca las actividades grupales que ya existan.
 
 ---
 

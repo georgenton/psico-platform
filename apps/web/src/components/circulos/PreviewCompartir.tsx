@@ -57,7 +57,7 @@ export function PreviewCompartir({
       {confirmation.mode === "KEEP_PRIVATE" && (
         <p style={S.cita}>
           {grupo
-            ? "Verán que terminaste tu parte y que elegiste no compartir contenido. No verán nada de lo que escribiste, ni por qué."
+            ? "Nadie verá nada. Al confirmar, esta actividad termina para todo el grupo: lo que escribieron las demás personas se descarta sin abrirse, y no se le dice a nadie quién lo eligió."
             : "Verá que terminaste tu parte y que elegiste no compartir contenido. No verá nada de lo que escribiste, ni por qué."}
         </p>
       )}
@@ -80,11 +80,13 @@ export function PreviewCompartir({
       )}
 
       <p style={S.aviso} role="note">
-        Al confirmar, esto se envía y ya no se puede editar. Se abrirá cuando{" "}
-        {grupo
-          ? "todas las personas hayan confirmado"
-          : "las dos personas hayan confirmado"}
-        .
+        {grupo && confirmation.mode === "KEEP_PRIVATE"
+          ? "Al confirmar, la actividad se cierra. No se puede deshacer."
+          : `Al confirmar, esto se envía y ya no se puede editar. Se abrirá cuando ${
+              grupo
+                ? "todas las personas hayan confirmado"
+                : "las dos personas hayan confirmado"
+            }.`}
       </p>
 
       <div style={S.acciones}>

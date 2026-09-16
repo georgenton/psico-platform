@@ -50,6 +50,15 @@ export interface CircleActivityRow {
   templateKey: string;
   templateVersion: number;
   status: CircleActivityStatusRow;
+  /**
+   * The shape this activity runs in.
+   *
+   * Carried on the ROW rather than re-derived from the template, because the
+   * rules that branch on it — how a private exit ends, whose access a
+   * withdrawal cuts — have to agree with the row the database is holding a
+   * lock on, not with a catalogue this build happens to carry.
+   */
+  kind: "DUO" | "GROUP_ADULT";
   requiredParticipants: number;
   revealedAt: Date | null;
   followUpDueAt: Date | null;
@@ -63,6 +72,7 @@ const SELECT = {
   templateKey: true,
   templateVersion: true,
   status: true,
+  kind: true,
   requiredParticipants: true,
   revealedAt: true,
   followUpDueAt: true,
@@ -101,6 +111,7 @@ export class CircleActivityRepository {
     try {
       const rows = await tx.$queryRaw<CircleActivityRow[]>(Prisma.sql`
         SELECT "id", "circleId", "templateKey", "templateVersion", "status",
+               "kind"::text AS "kind",
                "requiredParticipants", "revealedAt", "followUpDueAt",
                "closedAt", "cancelledAt"
           FROM "CircleActivity"

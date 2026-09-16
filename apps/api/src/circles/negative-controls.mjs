@@ -773,6 +773,111 @@ const CONTROLS = [
     test: "src/circles/circles-groups.pg-spec.ts",
     t: "opens one numbered seat per link, all live at once",
   },
+
+  // ── The corrective block: rules the Dúo's semantics quietly answered ─────
+  {
+    property: "KEEP_PRIVATE_ENDS_A_GROUP",
+    mutation: "a group's private answer is a snapshot again",
+    file: f("src/circles/circles-participation.service.ts"),
+    // The finding as it shipped: the seat goes READY, the barrier counts it,
+    // and the reveal shows which labelled participant shared nothing. Every
+    // Dúo test still passes, because in a Dúo that IS the behaviour.
+    find: `        if (
+          ctx.activity.kind === "GROUP_ADULT" &&
+          confirmation.mode === "KEEP_PRIVATE"
+        ) {`,
+    replace: `        if (false && confirmation.mode === "KEEP_PRIVATE") {`,
+    runner: PGSPEC,
+    test: "src/circles/circles-groups.pg-spec.ts",
+    t: "cancels the activity instead of taking a snapshot",
+  },
+  {
+    property: "LEAVING_A_REVEALED_GROUP_CLOSES_IT_FOR_ALL",
+    mutation: "only the leaver's own access is cut",
+    file: f("src/circles/circles-projection.ts"),
+    // The read side of the finding. Removing the room's answer leaves the
+    // seat-level rule — which is the rule the Dúo has always had, and which
+    // the Dúo's tests confirm either way.
+    find: `  if (activity.kind !== "GROUP_ADULT") return false;
+  if (activity.status !== "CLOSED") return false;
+  return seats.some((seat) => seat.status === "WITHDRAWN");`,
+    replace: `  void activity;
+  void seats;
+  return false;`,
+    runner: PGSPEC,
+    test: "src/circles/circles-groups.pg-spec.ts",
+    t: "serves nothing to the ORGANISER after a guest leaves",
+  },
+  {
+    property: "A_GROUP_PREPARES_ONLY_WITH_EVERY_SEAT",
+    mutation: "the first acceptance opens the preparation",
+    file: f("src/circles/circles.service.ts"),
+    // Exactly the shape that shipped: move on the first acceptance. A Dúo
+    // cannot tell the difference — its first acceptance is its last.
+    find: `        if (
+          activity.status === "INVITING" &&
+          accepted >= activity.requiredParticipants
+        ) {`,
+    replace: `        if (activity.status === "INVITING") {`,
+    runner: PGSPEC,
+    test: "src/circles/circles-groups.pg-spec.ts",
+    t: "stays INVITING after the first acceptance and moves on the last",
+  },
+  {
+    property: "AN_UNFINISHABLE_GROUP_IS_CANCELLED",
+    mutation: "the sweep waits for every link to die",
+    file: f("src/circles/circles-sweep.service.ts"),
+    // The `INVITING` rule above waits for EVERY invitation to expire, which is
+    // right for a Dúo and leaves a group open on one live link that can never
+    // complete the roster. Narrowing the predicate to the whole set restores
+    // the wait this control exists to forbid.
+    find: `        participants: {
+          some: {
+            status: "INVITED",
+            invitation: {
+              OR: [
+                { revokedAt: { not: null } },
+                { declinedAt: { not: null } },
+                { expiresAt: { lte: now } },
+              ],
+            },
+          },
+        },`,
+    replace: `        invitations: {
+          some: {},
+          every: {
+            OR: [{ revokedAt: { not: null } }, { expiresAt: { lte: now } }],
+          },
+        },`,
+    runner: PGSPEC,
+    test: "src/circles/circles-groups.pg-spec.ts",
+    t: "cancels a group whose remaining link has expired",
+  },
+  {
+    property: "A_GROUP_FOLLOW_UP_HAS_AN_END",
+    mutation: "the follow-up window never runs out",
+    file: f("src/circles/circles-sweep.service.ts"),
+    find: `        followUpDueAt: { not: null, lte: deadline },`,
+    replace: `        followUpDueAt: { not: null, lte: new Date(0) },`,
+    runner: PGSPEC,
+    test: "src/circles/circles-groups.pg-spec.ts",
+    t: "closes a group's follow-up when its window runs out",
+  },
+  {
+    property: "A_WAITING_GROUP_COUNTS_NOBODY",
+    mutation: "the counter is sent and the screen is asked to ignore it",
+    file: f("src/circles/circles-projection.ts"),
+    // The finding exactly: the UI hid «2 de 3» and the API kept sending it.
+    // A group's own tests are the only ones that can see this — a Dúo sends
+    // the field at every stage, by design.
+    find: `    ...(activity.kind === "GROUP_ADULT" && !revealedStage
+      ? {}
+      : { readyCount: input.readyCount }),`,
+    replace: `    readyCount: input.readyCount,`,
+    runner: PGSPEC,
+    test: "src/circles/circles-groups.pg-spec.ts",
+    t: "omits readyCount entirely while a group prepares",
+  },
 ];
 
 /**

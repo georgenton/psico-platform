@@ -2612,9 +2612,16 @@ async function groupKeepPrivate(browser) {
       /No se abrió nada y no se compartió nada/i.test(shown),
       "the close is truthful: nothing was opened",
     );
+    // What must NOT be there is a CHOICE attributed to somebody. The screen
+    // does say "lo que escribiste en privado no salió de tu pantalla" — that
+    // is about the reader's own preparation and is the reassurance they came
+    // for, so the check looks for attribution rather than for a word.
     check(
-      !/Participante \d/.test(shown) && !/privad/i.test(shown),
-      "and it names nobody and no reason",
+      !/Participante \d/.test(shown) &&
+        !/eligi/i.test(shown) &&
+        !/KEEP_PRIVATE/.test(shown) &&
+        !/algo privado/.test(shown),
+      "and it attributes the ending to nobody",
     );
 
     // The other GUEST sees the same screen a cancelled Dúo has always shown

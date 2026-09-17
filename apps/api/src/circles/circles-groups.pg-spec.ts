@@ -3861,6 +3861,22 @@ suite("circles · adult groups (real PostgreSQL)", () => {
       expect(await statusOf(group.activityId)).toBe("CANCELLED");
     }, 120_000);
 
+    it("lists who JOINED, and pending links as invitations — never both", async () => {
+      // Caught on the hosted candidate, not here: the seats exist from the
+      // moment the invitations are minted, so a room of three with nobody in
+      // it listed two «Participante N» who had answered nothing — and then
+      // the same two again, correctly, as pending invitations.
+      const group = await room(3, 1);
+      const view = await facadeRead(group.organizer, group.activityId);
+      const roster = view.onboarding!.roster;
+      expect(view.onboarding!.accepted, "organiser plus one guest").toBe(2);
+      expect(roster.filter((r) => r.state === "PARTICIPATES")).toHaveLength(1);
+      expect(roster.filter((r) => r.state === "ORGANIZES")).toHaveLength(1);
+      // One link still waiting, listed once, as an invitation.
+      expect(roster.filter((r) => r.state === "INVITED")).toHaveLength(1);
+      expect(roster).toHaveLength(3);
+    }, 60_000);
+
     it("keeps an alias on the seat and nowhere else", async () => {
       const tokens = mintTokens(2);
       const created = await open.createDuo({

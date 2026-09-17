@@ -245,7 +245,14 @@ function buildRoster(input: ProjectionInput): CircleRosterEntry[] {
   const entries: CircleRosterEntry[] = [];
   for (const seat of seats) {
     const p = seat.participant;
-    if (p.status === "WITHDRAWN" || p.status === "DECLINED") continue;
+    // A seat that is still `INVITED` is a seat nobody has taken. It exists
+    // from the moment the invitation is minted, so listing it as somebody who
+    // participates would put a person in the room who has not answered — and
+    // the same person again, correctly, in the pending entries below.
+    //
+    // Withdrawn and declined seats are skipped for a different reason:
+    // naming them publishes a decision the private exit exists not to publish.
+    if (p.status !== "ACCEPTED" && p.status !== "READY") continue;
     const organizes = p.memberId !== null;
     const name = organizes
       ? (input.memberNames?.get(p.id) ?? "Organiza")

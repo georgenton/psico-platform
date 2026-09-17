@@ -2269,10 +2269,28 @@ function countActivities(userId) {
  * pending invitations will stop admitting anybody, because fixing the group
  * cannot be undone in this cut.
  */
-async function continuarConQuienesAceptaron(page) {
-  await page.reload({ waitUntil: "domcontentloaded" });
+async function continuarConQuienesAceptaron(page, activityId) {
+  // Navigates itself rather than trusting where the caller left the page.
+  // The first version reloaded whatever was on screen, which in one scenario
+  // was still the creation screen with the links on it — and then blamed the
+  // button for not being there.
+  await page.goto(`${WEB}/compartir/${activityId}`, {
+    waitUntil: "domcontentloaded",
+  });
   const open = page.getByTestId("continuar-con-aceptaron");
-  await open.waitFor({ state: "visible", timeout: 30_000 });
+  try {
+    await open.waitFor({ state: "visible", timeout: 30_000 });
+  } catch (err) {
+    // A bare "locator timed out" says nothing about WHY the button is not
+    // there: not the organiser, not enough people, already closed, or the
+    // panel missing altogether. The screen's own words distinguish all four.
+    const text = await page.evaluate(() => document.body.innerText);
+    throw new Error(
+      `«Continuar con quienes aceptaron» never appeared. The screen said: ` +
+        JSON.stringify(text.slice(0, 700)) +
+        ` · original: ${err.message}`,
+    );
+  }
   await open.click();
   const confirm = page.getByTestId("continuar-confirmar");
   await confirm.waitFor({ state: "visible", timeout: 30_000 });
@@ -2405,10 +2423,7 @@ async function groupOfThree(browser) {
 
     // The organiser continues with the group — here, everybody. Until they
     // do, nobody's audience is fixed and nobody can confirm.
-    await page.goto(`${WEB}/compartir/${activityId}`, {
-      waitUntil: "domcontentloaded",
-    });
-    await continuarConQuienesAceptaron(page);
+    await continuarConQuienesAceptaron(page, activityId);
 
     // Organiser and one guest confirm. Two of three.
     await enterRoom(page);
@@ -2435,15 +2450,30 @@ async function groupOfThree(browser) {
     ).trim();
     check(midway === "PREPARING", `two of three does NOT reveal (${midway})`);
 
-    // And the waiting screen says so without naming anybody.
+    // And the waiting screen says so without saying anything about anybody's
+    // ANSWERS.
+    //
+    // REPLACED, and the boundary moved on purpose. Who is in the room is now
+    // visible to the people in it — that is the approved change, and a room
+    // that lists «Ana · Participa» is the point of it. What must still be
+    // impossible to read off this screen is the part about content: who has
+    // confirmed, who has not, and how many have. So the count is still
+    // forbidden, and the old blanket ban on any seat label is replaced by a
+    // ban on the sentences that would attach a CONFIRMATION to a person.
     const waiting = await page.evaluate(() => document.body.innerText);
     check(
       /Falta el grupo/i.test(waiting),
       "the waiting screen speaks about the group, not about a person",
     );
     check(
-      !/Participante \d/.test(waiting) && !/de 3 listas/.test(waiting),
-      "it names no seat and counts nobody",
+      !/de 3 listas/.test(waiting) && !/\d\s+de\s+\d/.test(waiting),
+      "it counts nobody's confirmations",
+    );
+    check(
+      !/confirm[óo]|list[ao]\b|termin[óo]|envi[óo]/i.test(
+        waiting.replace(/Listo\. Falta el grupo\./gi, ""),
+      ),
+      "and attaches no confirmation to any name",
     );
 
     // The last seat confirms. Now it opens, for everybody at once.
@@ -2601,10 +2631,7 @@ async function keepPrivateRetryAfterLoss(browser) {
 
     // The organiser fixes the group first: nobody can confirm to an audience
     // that is not decided yet.
-    await page.goto(`${WEB}/compartir/${activityId}`, {
-      waitUntil: "domcontentloaded",
-    });
-    await continuarConQuienesAceptaron(page);
+    await continuarConQuienesAceptaron(page, activityId);
 
     // A GUEST confirms something real, so there is an envelope the exit has
     // to destroy — otherwise a replay that did nothing would look the same as
@@ -2780,7 +2807,7 @@ async function groupKeepPrivate(browser) {
     );
     // And this is the new way a room opens: the organiser continues with
     // whoever accepted, which here is everybody.
-    await continuarConQuienesAceptaron(page);
+    await continuarConQuienesAceptaron(page, activityId);
     const afterClose = sqlOne(
       `SELECT "status"::text FROM "CircleActivity" WHERE "id"='${activityId}'`,
     ).trim();

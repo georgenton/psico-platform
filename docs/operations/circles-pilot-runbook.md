@@ -1200,3 +1200,82 @@ sirve para ninguno.
 - **Un fallo local del hook `pre-push`** se observó una vez y no se reprodujo:
   `pnpm test` volvió a salir 0 inmediatamente después, y CI quedó verde sobre el
   mismo árbol. Queda **sin explicar**, no cerrado.
+
+---
+
+## Cierre operativo del motor base — 17 de septiembre de 2026
+
+Versión desplegada: **`d6ff909449b99357ab86ebc1fae7825b250f1b7e`** en `main`,
+resultado de integrar #719 y después #720. API, worker y Web de producción
+corren ese mismo commit.
+
+### Qué quedó operativo
+
+**Dúo adulto.** Crear, invitar por enlace de un solo uso, entrar sin cuenta,
+preparar en privado, previsualizar exactamente lo que se envía, enviar,
+revelación simultánea, artefacto por versión exacta, seguimiento y los caminos
+de cierre. Sin cambios respecto de lo que ya estaba en piloto.
+
+**Círculos adultos (GROUP_ADULT), de tres a seis.** Incorporación flexible:
+cada persona acepta y prepara sin esperar a las demás, y quien organiza
+continúa con quienes aceptaron desde un mínimo de dos. Capacidad, personas
+aceptadas, grupo definitivo y confirmaciones de contenido son cuatro números
+distintos y el producto ya no los confunde:
+
+- el **grupo** — no la capacidad — decide la revelación, el acuerdo y el cierre
+  del seguimiento;
+- la **modalidad** — no la cantidad — decide qué explica «No compartir», el
+  retiro y el acceso posterior, de modo que un grupo reducido a dos conserva
+  las reglas del grupo;
+- el **alias** opcional viaja con la aceptación, validado antes de gastar la
+  invitación, y se ve en la sala de quien organiza.
+
+**Confirmación del envío.** Cada participante envía su parte por su cuenta y
+recibe el acuse del servidor en el momento: «Tu parte ya quedó enviada». No
+depende de la siguiente lectura ni de que la otra persona haga nada, no exige
+dejar la página abierta, y una lectura atrasada no devuelve a nadie al
+formulario vacío. Un envío fallido o incierto conserva el borrador y su clave
+de idempotencia; nunca se presenta como recibido.
+
+**La barrida** ya no se queda ocupada por salas que debe preservar, y el orden
+canónico de bloqueo es el mismo en participación, barrida y borrado de cuenta.
+
+### Evidencia del envío independiente
+
+Reproducido y corregido con el invitado enviando primero y quien organiza
+inactivo. La discriminación la hacen las pruebas de componente
+(`envio-confirmado.test.tsx`): con la lectura posterior retenida, seis casos
+fallaban antes del arreglo y pasan después; el control negativo que devuelve la
+decisión al polling vuelve a romper exactamente esos seis.
+
+En alojado, `BROWSER_SEND_ACKNOWLEDGEMENT` observa la petición, su estado
+`201`, el asiento `READY` en PostgreSQL y el encabezado en pantalla **519 ms**
+después de la pulsación, con la siguiente lectura todavía retenida — y con cero
+eventos de revelado, porque una parte enviada no abre nada.
+
+### Qué NO cambió
+
+`CIRCLES_ROLLOUT_MODE=pilot`, `CIRCLES_GROUPS=on`, **una sola cuenta** en la
+lista de admitidos. Este cierre **no amplía el piloto a acceso público**. No se
+ejecutaron seeds ni limpiezas de contenido productivo.
+
+### Límites conocidos que siguen vigentes
+
+- **Plantillas adicionales** siguen sin aprobación editorial y de seguridad;
+  los ratchets siguen afirmando que el catálogo lleva exactamente la aprobada.
+- **Eco Facilitador** sigue fuera de alcance: `ECO_ENABLED=false`.
+- **Familia y grupos con menores** no existen y no deben presentarse como
+  disponibles.
+- El **fallo local del hook `pre-push`** de un solo caso sigue sin explicar.
+- ~~El listado `/dashboard/circulos` no lleva a ninguna parte~~ — **resuelto**:
+  el listado ofrece «Empezar este círculo» y es la vía por la que el recorrido
+  alojado crea los círculos de grupo. La entrada desde la superficie de lectura
+  se conserva para el Dúo.
+
+### Qué pertenece a la siguiente revisión de diseño
+
+Nada de lo anterior es una decisión visual. El rediseño de FeelVerse —
+incluido el tema **Renacimiento humano** — se entrega aparte, con los estados
+reales de pantalla, en
+[`docs/design/feelverse-circulos-design-handoff.md`](../design/feelverse-circulos-design-handoff.md).
+El motor no debe rehacerse para acomodar una estética.

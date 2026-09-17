@@ -2293,7 +2293,20 @@ async function continuarConQuienesAceptaron(page, activityId) {
   }
   await open.click();
   const confirm = page.getByTestId("continuar-confirmar");
-  await confirm.waitFor({ state: "visible", timeout: 30_000 });
+  try {
+    await confirm.waitFor({ state: "visible", timeout: 30_000 });
+  } catch (err) {
+    const text = await page.evaluate(() => document.body.innerText);
+    const stillOpen = await page
+      .getByTestId("continuar-con-aceptaron")
+      .count();
+    throw new Error(
+      `the confirmation panel never appeared after clicking. ` +
+        `«Continuar» still on screen: ${stillOpen}. The screen said: ` +
+        JSON.stringify(text.slice(0, 700)) +
+        ` · original: ${err.message}`,
+    );
+  }
   await confirm.click();
   await until(
     async () => {

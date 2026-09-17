@@ -93,6 +93,13 @@ export function SalaDuo({
   // buttons are the ones exposed to the window before hydration.
   const hidratado = useHidratado();
   const [commandError, setCommandError] = useState<string | null>(null);
+  /**
+   * Whether the organiser has «Continuar con quienes aceptaron» open.
+   *
+   * HERE rather than inside the component, because the room polls: the panel
+   * lived in the child and a refetch wiped it a few seconds after it opened.
+   */
+  const [cerrandoIncorporacion, setCerrandoIncorporacion] = useState(false);
   const headingRef = useRef<HTMLHeadingElement | null>(null);
   const previousStage = useRef<string>("");
 
@@ -362,6 +369,10 @@ export function SalaDuo({
           )}
           {view.onboarding.canClose && (
             <ContinuarConQuienesAceptaron
+              asking={cerrandoIncorporacion}
+              onAsk={() => setCerrandoIncorporacion(true)}
+              onCancel={() => setCerrandoIncorporacion(false)}
+              busy={busy}
               roster={view.onboarding.roster}
               group={view.onboarding.accepted}
               pending={

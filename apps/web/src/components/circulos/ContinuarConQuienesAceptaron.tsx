@@ -1,7 +1,5 @@
 "use client";
 
-import { useState } from "react";
-
 import type { CircleRosterEntry } from "@psico/types";
 
 /**
@@ -23,6 +21,16 @@ import type { CircleRosterEntry } from "@psico/types";
  * Any way to leave somebody out. Everybody who accepted is in the group; there
  * is no checkbox, and the command carries no arguments. An organiser who wants
  * a smaller room does not invite more people.
+ *
+ * ── Why «asking» is not this component\'s state ────────────────────────────
+ *
+ * Because the room polls. This subtree is rebuilt whenever the activity is
+ * refetched, and a confirmation kept HERE was wiped a few seconds after the
+ * organiser opened it — the panel they were reading vanished under them and
+ * the button came back as if they had never pressed it. The hosted walk found
+ * it by clicking and then finding «Continuar» still on screen.
+ *
+ * So the room owns it, above the polled view, and this component is told.
  */
 export interface ContinuarProps {
   readonly roster: readonly CircleRosterEntry[];
@@ -32,6 +40,11 @@ export interface ContinuarProps {
   readonly pending: number;
   /** Runs the command; resolves false when it was refused. */
   readonly onConfirm: () => Promise<boolean>;
+  /** Whether the confirmation is open. Owned by the room, not by this. */
+  readonly asking: boolean;
+  readonly onAsk: () => void;
+  readonly onCancel: () => void;
+  readonly busy: boolean;
 }
 
 export function ContinuarConQuienesAceptaron({
@@ -39,16 +52,18 @@ export function ContinuarConQuienesAceptaron({
   group,
   pending,
   onConfirm,
+  asking,
+  onAsk,
+  onCancel,
+  busy,
 }: ContinuarProps) {
-  const [asking, setAsking] = useState(false);
-  const [busy, setBusy] = useState(false);
   const inside = roster.filter((r) => r.state !== "INVITED");
 
   if (!asking) {
     return (
       <button
         type="button"
-        onClick={() => setAsking(true)}
+        onClick={onAsk}
         data-testid="continuar-con-aceptaron"
         style={{
           marginTop: ".4rem",
@@ -99,10 +114,8 @@ export function ContinuarConQuienesAceptaron({
           disabled={busy}
           data-testid="continuar-confirmar"
           onClick={async () => {
-            setBusy(true);
             const ok = await onConfirm();
-            setBusy(false);
-            if (ok) setAsking(false);
+            if (ok) onCancel();
           }}
           style={{
             padding: ".7rem 1.1rem",
@@ -118,7 +131,7 @@ export function ContinuarConQuienesAceptaron({
         <button
           type="button"
           disabled={busy}
-          onClick={() => setAsking(false)}
+          onClick={onCancel}
           style={{
             padding: ".7rem 1.1rem",
             borderRadius: "999px",

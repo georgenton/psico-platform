@@ -6,7 +6,10 @@ import userEvent from "@testing-library/user-event";
 import { PreparacionPrivada, borradorInicial } from "./PreparacionPrivada";
 import type { BorradorPrivado } from "./PreparacionPrivada";
 import { PreviewCompartir } from "./PreviewCompartir";
-import { PLANTILLA, irACompartir } from "./__fixtures__/actividad";
+import { SalaDuo } from "./SalaDuo";
+import { PLANTILLA, REVELADA, irACompartir } from "./__fixtures__/actividad";
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: vi.fn() }) }));
 
 /**
  * Two people, two modalities, two different sets of consequences.
@@ -170,5 +173,58 @@ describe("the preview: the same two answers, one step later", () => {
     expect(
       screen.getByText(/las dos personas hayan confirmado/i),
     ).toBeInTheDocument();
+  });
+});
+
+describe("the closing screen: who can still open this room", () => {
+  const sala = {
+    activityId: "act-1",
+    initialError: null,
+    fields: PLANTILLA.privatePreparation,
+    allowedModes: PLANTILLA.sharing.allowedModes,
+    noConviene: PLANTILLA.safety.doNotSuggestWhen,
+    minutosEstimados: PLANTILLA.estimatedMinutes,
+    intro: PLANTILLA.intro ?? null,
+    isGuest: true,
+  };
+
+  /** A room that opened and is now over for this person. */
+  const cerrada = (modalidad: "DUO" | "GROUP_ADULT") => ({
+    ...REVELADA,
+    kind: modalidad,
+    // Offered to six, continued with two. The count is two either way, so
+    // only the modality separates these two cases.
+    ...(modalidad === "GROUP_ADULT"
+      ? {
+          requiredParticipants: 6,
+          onboarding: {
+            policy: "FLEXIBLE" as const,
+            capacity: 6,
+            accepted: 2,
+            group: 2,
+            open: false,
+            canClose: false,
+            roster: [],
+          },
+        }
+      : {}),
+    you: { ...REVELADA.you, status: "WITHDRAWN" as const },
+  });
+
+  it("a reduced GROUP is told the room will not open again", () => {
+    render(<SalaDuo {...sala} initialView={cerrada("GROUP_ADULT")} />);
+    // `withdraw` revokes every session in a group, so this is a fact about
+    // the product, not a turn of phrase.
+    expect(
+      screen.getByText(/esta sala ya no se puede volver a abrir/i),
+    ).toBeInTheDocument();
+  });
+
+  it("a real DUO keeps the sentence it has always had", () => {
+    render(<SalaDuo {...sala} initialView={cerrada("DUO")} />);
+    expect(
+      screen.getByText(/Lo que compartieron queda entre ustedes/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/ya no se puede volver a abrir/i)).toBeNull();
   });
 });

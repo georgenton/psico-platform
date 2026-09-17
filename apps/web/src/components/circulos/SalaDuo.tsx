@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { circleParticipatingSize } from "@psico/types";
+import { circleModalidadEsGrupo, circleParticipatingSize } from "@psico/types";
 import { ContinuarConQuienesAceptaron } from "./ContinuarConQuienesAceptaron";
 import { useRouter } from "next/navigation";
 import type {
@@ -587,7 +587,12 @@ export function SalaDuo({
           <p style={S.p}>
             {view !== null && view.revealedAt === null
               ? "No se abrió nada y no se compartió nada. Lo que escribiste en privado no salió de tu pantalla."
-              : view !== null && circleParticipatingSize(view) > 2
+              : // LATER ACCESS, which is the modality's to decide: a group's
+                // close revokes every session, so the room really is gone,
+                // while a Dúo leaves the other person reading. Counting people
+                // answered this until a group continued with two and was told
+                // its room would still be there.
+                view !== null && reglasDeGrupo(view)
                 ? "Gracias por el rato. Lo que leyeron queda con cada quien; esta sala ya no se puede volver a abrir."
                 : "Gracias por el rato. Lo que compartieron queda entre ustedes."}
           </p>
@@ -689,6 +694,19 @@ function derivedStage(view: CircleActivityView, local: Local): string {
   if (local.stage === "preview") return "preview";
   if (local.stage === "prepare") return "prepare";
   return "consent";
+}
+
+/**
+ * Which RULES this room runs under — not how many people are in it.
+ *
+ * `withdraw` branches on exactly this: closing a GROUP revokes every guest
+ * session and every live invitation, so nobody comes back; a Dúo revokes only
+ * the seat that left, and the other person keeps reading what they were
+ * already reading. A room offered to six that continued with two follows the
+ * group's rule, so it must not be told the Dúo's.
+ */
+function reglasDeGrupo(view: CircleActivityView): boolean {
+  return circleModalidadEsGrupo(view.kind, circleParticipatingSize(view));
 }
 
 /** Whether this room holds more than two people. */

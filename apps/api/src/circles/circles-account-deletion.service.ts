@@ -14,6 +14,7 @@ import { CircleInvitationRepository } from "./circle-invitation.repository";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { CircleArtifactRepository } from "./circle-artifact.repository";
 import { CircleGuestSessionRepository } from "./circle-guest-session.repository";
+import { lockActivityAccessRows } from "./circles-activity-locks";
 
 /**
  * What account deletion has to do to Círculos BEFORE the account row goes.
@@ -382,8 +383,6 @@ export class CirclesAccountDeletionService {
     {
       // ── The canonical lock order, and why it is not ours to choose ────────
       //
-      // `circles-participation.service.ts` numbers its locks:
-      //
       //   1 CircleMember → 2 CircleInvitation → 3 CircleGuestSession
       //   → 4 CircleActivity → 5 CircleActivityParticipant
       //
@@ -393,32 +392,22 @@ export class CirclesAccountDeletionService {
       // holds 4 and wants 2, which is a deadlock, not a slow query. BullMQ
       // retrying afterwards is not a fix: it is the symptom being absorbed.
       //
-      // Within a set of rows the order is the primary key ascending, so two
-      // concurrent deletions touching the same activity queue behind each
-      // other instead of interleaving.
+      // Steps 2 and 3 now come from `circles-activity-locks.ts`, which is the
+      // single place that order is written down and the same call the sweep
+      // and the participation service make.
 
       // 1 · the member whose seat this is
       await this.members.lockById(seat.memberId, tx);
 
-      // 2 · every invitation on this activity, lowest id first
-      const invitationRows = await tx.circleInvitation.findMany({
-        where: { activityId: seat.activityId },
-        select: { id: true },
-        orderBy: { id: "asc" },
-      });
-      for (const row of invitationRows) {
-        await this.invitations.lockById(row.id, tx);
-      }
-
-      // 3 · every guest session on this activity, lowest id first
-      const sessionRows = await tx.circleGuestSession.findMany({
-        where: { activityId: seat.activityId },
-        select: { id: true },
-        orderBy: { id: "asc" },
-      });
-      for (const row of sessionRows) {
-        await this.guestSessions.lockById(row.id, tx);
-      }
+      // 2 and 3 · every invitation and every guest session on this activity,
+      // through the ONE implementation of that order. This method used to
+      // walk the rows itself, correctly — and correctly in three separate
+      // places is how two of them drift apart.
+      await lockActivityAccessRows(
+        { invitations: this.invitations, guestSessions: this.guestSessions },
+        seat.activityId,
+        tx as never,
+      );
 
       // 4 · the activity
       const activity = await this.activities.lockById(seat.activityId, tx);

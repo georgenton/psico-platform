@@ -67,6 +67,7 @@ const LABELS = [
   "analytics",
   "grupo",
   "grupo-privado",
+  "retry-privado",
 ];
 
 const log = (m) => console.log(`▸ ${m}`);

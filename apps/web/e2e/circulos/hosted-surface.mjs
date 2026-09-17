@@ -87,10 +87,14 @@ const created = await fetch(`${cfg.apiUrl}/api/circles/duo`, {
     authorization: `Bearer ${token}`,
     "Idempotency-Key": randomUUID(),
   },
+  // PLURAL, and it has been since groups landed: one activity mints one
+  // secret per invited seat, and a Dúo is the case where that list has one
+  // entry. This harness was still sending the singular field and getting a
+  // flat 400 before any of its own checks could run.
   body: JSON.stringify({
     templateKey: cfg.templateKey,
     templateVersion: cfg.templateVersion,
-    invitationToken,
+    invitationTokens: [invitationToken],
   }),
 });
 if (created.status !== 201) {
@@ -120,8 +124,14 @@ if (guestCookie) {
   const attrs = guestCookie.toLowerCase();
   check(attrs.includes("httponly"), "HttpOnly — no script can read it");
   check(attrs.includes("secure"), "Secure — it never travels over plain HTTP");
-  check(attrs.includes("samesite=lax"), "SameSite=Lax — withheld on cross-site POSTs");
-  check(attrs.includes("path=/"), "Path=/ — the one prefix all three surfaces share");
+  check(
+    attrs.includes("samesite=lax"),
+    "SameSite=Lax — withheld on cross-site POSTs",
+  );
+  check(
+    attrs.includes("path=/"),
+    "Path=/ — the one prefix all three surfaces share",
+  );
 }
 
 const body = await accepted.text();
@@ -133,13 +143,14 @@ check(
 
 // ── 2 · the room's HTML keeps the token out of the page ─────────────────────
 
-const activityId = (await (async () => {
-  const res = await fetch(`${cfg.apiUrl}/api/circles/guest/session`, {
-    headers: { "x-circle-guest-session": decodeURIComponent(rawToken) },
-  });
-  const b = await res.json().catch(() => ({}));
-  return b?.activityId ?? null;
-})()) ?? null;
+const activityId =
+  (await (async () => {
+    const res = await fetch(`${cfg.apiUrl}/api/circles/guest/session`, {
+      headers: { "x-circle-guest-session": decodeURIComponent(rawToken) },
+    });
+    const b = await res.json().catch(() => ({}));
+    return b?.activityId ?? null;
+  })()) ?? null;
 
 if (activityId) {
   console.log("▸ the room's HTML");
@@ -147,7 +158,11 @@ if (activityId) {
     headers: { cookie: `fv_circulo_guest=${rawToken}` },
   });
   const html = await room.text();
-  check(room.status === 200, "the room renders for the guest", `${room.status}`);
+  check(
+    room.status === 200,
+    "the room renders for the guest",
+    `${room.status}`,
+  );
   check(
     !html.includes(decodeURIComponent(rawToken)),
     "the guest token appears nowhere in the served HTML",
@@ -181,10 +196,7 @@ const first = await nonceOf();
 const second = await nonceOf();
 
 check(Boolean(first.csp), `a CSP header arrives on ${cspPath}`);
-check(
-  (first.csp ?? "").includes("script-src"),
-  "it constrains script-src",
-);
+check((first.csp ?? "").includes("script-src"), "it constrains script-src");
 check(Boolean(first.nonce), "the policy carries a nonce");
 check(
   first.nonce !== null && second.nonce !== null && first.nonce !== second.nonce,
@@ -229,9 +241,12 @@ const logs = await new Promise((resolve) => {
     "railway",
     [
       "logs",
-      "--project", cfg.projectId,
-      "--environment", cfg.environmentId,
-      "--service", cfg.apiServiceId,
+      "--project",
+      cfg.projectId,
+      "--environment",
+      cfg.environmentId,
+      "--service",
+      cfg.apiServiceId,
       "--json",
     ],
     { stdio: ["ignore", "pipe", "ignore"] },
@@ -256,7 +271,8 @@ check(
   "no attestation is echoed back into the logs",
 );
 check(
-  !/postgres(ql)?:\/\/[^\s"]+:[^\s"]+@/.test(logs) && !/redis:\/\/[^\s"]+:[^\s"]+@/.test(logs),
+  !/postgres(ql)?:\/\/[^\s"]+:[^\s"]+@/.test(logs) &&
+    !/redis:\/\/[^\s"]+:[^\s"]+@/.test(logs),
   "no connection string with credentials is printed",
 );
 // The domain must contain a letter and end in an alphabetic TLD. Without

@@ -14,6 +14,7 @@ import { CircleStorageError } from "./circle-invitation.repository";
 import { CircleInvitationRepository } from "./circle-invitation.repository";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { CirclesRolloutService } from "./circles-rollout.service";
+import { lockActivityAccessRows } from "./circles-activity-locks";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { CircleActivityRepository } from "./circle-activity.repository";
 import type { CircleActivityRow } from "./circle-activity.repository";
@@ -245,6 +246,33 @@ export class CirclesParticipationService {
         throw new CirclesError(UNUSABLE);
       }
       membership = { id: member.id, circleId: member.circleId };
+
+      // ── 2 and 3. CircleInvitation, CircleGuestSession ──────────────────
+      //
+      // Taken here, BEFORE the activity, and taken on every command rather
+      // than only on the ones that revoke.
+      //
+      // This service used to skip them entirely: a member's path went member
+      // → activity → seats, and `withdraw` then revoked the invitations and
+      // the guest sessions at the end, three statements past the activity
+      // lock. The sweep and account deletion take those rows FIRST. So a
+      // person pressing «retirarme» while the sweep cancelled the same
+      // unfinishable room was an inversion between two things the product
+      // does on its own, and PostgreSQL settled it by killing one of them:
+      // either the sweep abandoned its batch or somebody was told their
+      // withdrawal had failed on a storage error.
+      //
+      // Unconditional because the alternative is a flag each future method
+      // must remember to set, and the cost of holding them is nothing that
+      // was not already being paid: every command here already locks EVERY
+      // seat of the activity, so commands on one activity were serialized
+      // before this line existed. What changes is the ORDER, not the
+      // concurrency.
+      await lockActivityAccessRows(
+        { invitations: this.invitations, guestSessions: this.guestSessions },
+        activityId,
+        tx as never,
+      );
     } else {
       guestSeatId = await this.resolveGuestAuthority(
         actor,
@@ -335,7 +363,8 @@ export class CirclesParticipationService {
    *
    *   1. read session (unlocked) — for its `invitationId` only;
    *   2. read invitation (unlocked) — for its `createdByMemberId` only;
-   *   3. LOCK member, then invitation, then session — canonical order;
+   *   3. LOCK member, then EVERY invitation and session of the activity, then
+   *      this guest's own two rows — canonical order;
    *   4. decide, using only the locked rows.
    *
    * Steps 1 and 2 look like the checks they precede, and are not: their values
@@ -387,7 +416,26 @@ export class CirclesParticipationService {
       throw new CirclesError(UNUSABLE);
     }
 
-    // ── 2. CircleInvitation ──────────────────────────────────────────────
+    // ── 2 and 3. EVERY invitation and session, before this guest's own ───
+    //
+    // A guest only needs its own two rows to be authorized, and locking only
+    // those was the bug: `withdraw` and the group's private exit then revoke
+    // EVERYBODY's, reaching — after the activity — for rows this transaction
+    // does not hold. The sweep holds them, in id order, and wants the
+    // activity. That is the cycle.
+    //
+    // It has to come BEFORE the lock on this guest's own invitation, not
+    // after. Taking one row and then asking for the whole set ordered by id
+    // is itself an inversion whenever this guest's row is not the first one:
+    // the sweep would hold the earlier rows and wait for this one while this
+    // one waited for the earlier rows.
+    await lockActivityAccessRows(
+      { invitations: this.invitations, guestSessions: this.guestSessions },
+      activityId,
+      tx as never,
+    );
+
+    // ── 2. CircleInvitation — this guest's own, already held above ───────
     const invitation = await this.invitations.lockById(invitationPeek.id, tx);
     if (
       !invitation ||
@@ -863,8 +911,49 @@ export class CirclesParticipationService {
           select: { type: true },
         });
         if (receipt?.type === "PARTICIPANT_WITHDRAWN") {
-          // The exit is not a snapshot, so there is no hash to compare. The key
-          // stands for "this seat left without sharing", and it did.
+          // ── The receipt says the key was spent. It does not say on what ──
+          //
+          // An exit leaves no snapshot, so there is no hash to compare — which
+          // is exactly why this branch has to ask the question some other way
+          // instead of not asking it. `PARTICIPANT_WITHDRAWN` is written by
+          // every way of leaving: the group's private exit, «retirarme» from
+          // `PREPARING`, and «retirarme» after the reveal. Accepting the bare
+          // event meant a key spent on ANY of those could come back carrying a
+          // body full of answers and be told its confirmation had been
+          // replayed. Nothing had been stored, and on a cancelled activity
+          // nothing ever could be.
+          //
+          // So the request itself must be the exit this receipt can stand for,
+          // and the three conditions below are read off state that already
+          // exists — no draft is kept, no marker is written, nothing records
+          // which button was pressed:
+          //
+          //   · the request is `KEEP_PRIVATE`. A body with fields in it is a
+          //     different act, whatever key it arrives under;
+          //   · the activity is a GROUP. In a Dúo `KEEP_PRIVATE` is a
+          //     CONFIRMATION — the seat goes READY and the barrier may open —
+          //     so replaying a withdrawal as one would claim a reveal that
+          //     cannot happen;
+          //   · the activity is `CANCELLED`. The private exit cancels; leaving
+          //     a revealed room CLOSES it. A `CLOSED` activity is proof this
+          //     key was spent on the other ending.
+          //
+          // ── What this deliberately still accepts ────────────────────────
+          //
+          // In a group, «retirarme» from `PREPARING` and «prefiero no
+          // compartir» are ONE act: the same helper, the same cancellation,
+          // the same two events. A key spent on one replays the other, and
+          // that is the privacy property rather than a hole in it — anything
+          // able to tell them apart here would be a stored marker saying which
+          // button somebody pressed, which is the thing this design refuses to
+          // write.
+          if (
+            shape.mode !== "KEEP_PRIVATE" ||
+            ctx.activity.kind !== "GROUP_ADULT" ||
+            ctx.activity.status !== "CANCELLED"
+          ) {
+            throw new CirclesError("CIRCLE_IDEMPOTENCY_CONFLICT");
+          }
           return { revealed: false, replayed: true, cancelled: true };
         }
         if (receipt) {

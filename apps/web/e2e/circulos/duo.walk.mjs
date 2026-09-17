@@ -2286,7 +2286,10 @@ async function groupOfThree(browser) {
       offeredKey === "grupo-lo-que-nos-ayuda",
       `the listing starts the APPROVED group template (${offeredKey})`,
     );
-    check(countActivities(organiser.userId) === before, "opening the preview creates NOTHING");
+    check(
+      countActivities(organiser.userId) === before,
+      "opening the preview creates NOTHING",
+    );
 
     // The size selector exists, offers exactly 3 to 6, and defaults to 3.
     const sizes = await page.evaluate(() =>
@@ -2316,12 +2319,13 @@ async function groupOfThree(browser) {
       "each seat gets its OWN secret, never one link twice",
     );
     const labels = await page.evaluate(() =>
-      Array.from(document.querySelectorAll("p")) 
+      Array.from(document.querySelectorAll("p"))
         .map((el) => el.textContent?.trim() ?? "")
         .filter((t) => /^Participante \d+$/.test(t)),
     );
     check(
-      JSON.stringify(labels) === JSON.stringify(["Participante 2", "Participante 3"]),
+      JSON.stringify(labels) ===
+        JSON.stringify(["Participante 2", "Participante 3"]),
       `the links are labelled by seat (${labels.join(", ") || "none"})`,
     );
     check(
@@ -2400,10 +2404,7 @@ async function groupOfThree(browser) {
     const midway = sqlOne(
       `SELECT "status"::text FROM "CircleActivity" WHERE "id"='${activityId}'`,
     ).trim();
-    check(
-      midway === "PREPARING",
-      `two of three does NOT reveal (${midway})`,
-    );
+    check(midway === "PREPARING", `two of three does NOT reveal (${midway})`);
 
     // And the waiting screen says so without naming anybody.
     const waiting = await page.evaluate(() => document.body.innerText);
@@ -2493,6 +2494,195 @@ async function groupOfThree(browser) {
  * ends the activity for everybody, and that the two people who did not press it
  * are told the activity is over without being told who ended it.
  */
+/**
+ * The private exit, retried with the SAME key after its response was lost.
+ *
+ * ── Why a reload cannot prove this ────────────────────────────────────────
+ *
+ * The manual guide used to say "recarga y vuelve a pulsarlo". That does not
+ * test what it claims. The idempotency key is minted per intention and held
+ * in a `useRef` map — in memory, in that page. A reload throws it away, so
+ * the second press is a DIFFERENT request with a DIFFERENT key, and what it
+ * meets is the ordinary "this activity is over" refusal. Nothing about
+ * replay is exercised.
+ *
+ * The guarantee is about a response that never arrived: the server committed,
+ * the browser did not hear it, and the same page retries the same intention.
+ * So that is what this does — the request reaches the API and commits, the
+ * response is dropped on the way back, and the retry is a real click in the
+ * same page with the same key still in memory.
+ *
+ * What must hold: exactly one withdrawal, exactly one cancellation, and the
+ * person sees the ending rather than an error about the thing that worked.
+ *
+ * ── Why the ORGANISER is the one who retries ──────────────────────────────
+ *
+ * Not an arbitrary choice, and the first version of this scenario got it
+ * wrong: it had a guest press the button, and the retry timed out waiting for
+ * an ending it could never be shown.
+ *
+ * The exit revokes every guest session on the activity — including the one
+ * belonging to whoever pressed it. A member keeps their session and can
+ * therefore ask again; a guest cannot, and must not, because the window that
+ * would let a revoked session through one more time is the same window a
+ * stolen link uses. `MEMBER_WITHDRAW_REPLAY = response_idempotent`,
+ * `GUEST_WITHDRAW_REPLAY = effect_idempotent_but_credential_is_revoked` —
+ * the asymmetry is documented on `withdraw` rather than engineered away, and
+ * this scenario tests the half that HAS a replayable response.
+ */
+async function keepPrivateRetryAfterLoss(browser) {
+  const organiser = await register("retry-privado");
+  const organiserCtx = await browser.newContext();
+  const guestCtxs = [];
+
+  try {
+    const page = await organiserCtx.newPage();
+    await signIn(page, organiser);
+    await page.goto(`${WEB}/dashboard/circulos`, {
+      waitUntil: "domcontentloaded",
+    });
+    const start = page.getByRole("link", { name: /Empezar este círculo/i });
+    await start.waitFor({ state: "visible", timeout: 30_000 });
+    await start.click();
+    await page.getByRole("button", { name: /Crear el círculo/i }).click();
+
+    const links = await until(
+      async () => {
+        const text = await page.evaluate(() => document.body.innerText);
+        const found = text.match(/https?:\/\/\S*\/i#[A-Za-z0-9_-]{43}/g) ?? [];
+        return found.length === 2 ? found : null;
+      },
+      "two invitation links to appear",
+      60_000,
+    );
+
+    const activityId = sqlOne(
+      `SELECT a."id" FROM "CircleActivity" a
+         JOIN "Circle" c ON c."id" = a."circleId"
+        WHERE c."createdByUserId" = '${organiser.userId}'
+        ORDER BY a."createdAt" DESC LIMIT 1`,
+    ).trim();
+
+    const guests = [];
+    for (const link of links) {
+      const guest = await acceptAsGuest(browser, link);
+      guestCtxs.push(guest.ctx);
+      guests.push(guest);
+    }
+
+    // A GUEST confirms something real, so there is an envelope the exit has
+    // to destroy — otherwise a replay that did nothing would look the same as
+    // a replay that did the right thing.
+    const guest = guests[0];
+    await enterRoom(guest.page);
+    await typeDraft(guest.page, { uno: "lo que sí escribió una invitada" });
+    await openPreview(guest.page);
+    await confirmShare(guest.page);
+
+    // The ORGANISER is the one who keeps it private, and the one who retries.
+    await page.goto(`${WEB}/compartir/${activityId}`, {
+      waitUntil: "domcontentloaded",
+    });
+    await enterRoom(page);
+    await typeDraft(page, { uno: "algo que no va a salir" });
+    await forwardToSharing(page);
+    await page.check('input[name="modo"][value="KEEP_PRIVATE"]');
+    await page.getByRole("button", { name: /Ver qué se compartirá/i }).click();
+    await until(
+      async () => {
+        const text = await page.evaluate(() => document.body.innerText);
+        return /Nadie verá nada/i.test(text) ? text : null;
+      },
+      "the confirmation screen",
+      30_000,
+    );
+
+    // Let the command REACH the API and commit, then drop the response.
+    let servedAndDropped = false;
+    await page.route("**/comando", async (route) => {
+      const response = await route.fetch(); // the server really runs this
+      void response.status();
+      servedAndDropped = true;
+      await route.abort("connectionfailed"); // the browser never sees it
+    });
+
+    await confirmShare(page);
+    await until(
+      () => servedAndDropped,
+      "the private exit to be served",
+      60_000,
+    );
+
+    const withdrawals = () =>
+      sqlOne(
+        `SELECT count(*) FROM "CircleEvent"
+          WHERE "activityId"='${activityId}' AND "type"='PARTICIPANT_WITHDRAWN'`,
+      ).trim();
+    const cancellations = () =>
+      sqlOne(
+        `SELECT count(*) FROM "CircleEvent"
+          WHERE "activityId"='${activityId}' AND "type"='ACTIVITY_CANCELLED'`,
+      ).trim();
+
+    await until(
+      () =>
+        sqlOne(
+          `SELECT "status"::text FROM "CircleActivity" WHERE "id"='${activityId}'`,
+        ).trim() === "CANCELLED",
+      "the server to have committed the exit",
+      60_000,
+    );
+    check(
+      withdrawals() === "1",
+      `the server committed ONE exit (${withdrawals()})`,
+    );
+    check(cancellations() === "1", `and ONE cancellation (${cancellations()})`);
+
+    // The retry: same page, same intention, so the same key is still in the
+    // `useRef` map. This is the press a person makes when the screen tells
+    // them the network failed.
+    await page.unroute("**/comando");
+    await confirmShare(page);
+
+    const closed = await until(
+      async () => {
+        const text = await page.evaluate(() => document.body.innerText);
+        return /Esta actividad terminó/i.test(text) ? text : null;
+      },
+      "the retry to land on the ending rather than an error",
+      60_000,
+    );
+    check(
+      Boolean(closed),
+      "the retry shows the ending, not a failure about the thing that worked",
+    );
+    check(
+      !/CIRCLE_[A-Z_]+/.test(closed ?? ""),
+      "and no machine code leaks onto the screen",
+    );
+
+    check(
+      withdrawals() === "1",
+      `the retry did NOT record a second exit (${withdrawals()})`,
+    );
+    check(
+      cancellations() === "1",
+      `nor a second cancellation (${cancellations()})`,
+    );
+    const sealed = sqlOne(
+      `SELECT count(*) FROM "CircleActivityParticipant"
+        WHERE "activityId"='${activityId}' AND "ciphertext" IS NOT NULL`,
+    ).trim();
+    check(
+      sealed === "0",
+      `every pending envelope is still destroyed (${sealed})`,
+    );
+  } finally {
+    await organiserCtx.close();
+    for (const ctx of guestCtxs) await ctx.close();
+  }
+}
+
 async function groupKeepPrivate(browser) {
   const organiser = await register("grupo-privado");
   const organiserCtx = await browser.newContext();
@@ -3253,8 +3443,17 @@ try {
   );
   resetRateLimits();
 
-  await scenario("BROWSER_GROUP_OF_THREE", "a circle of three, end to end", () =>
-    groupOfThree(browser),
+  await scenario(
+    "BROWSER_GROUP_OF_THREE",
+    "a circle of three, end to end",
+    () => groupOfThree(browser),
+  );
+  resetRateLimits();
+
+  await scenario(
+    "BROWSER_KEEP_PRIVATE_RETRY_AFTER_LOSS",
+    "the private exit, retried with the same key after a lost response",
+    () => keepPrivateRetryAfterLoss(browser),
   );
   resetRateLimits();
 

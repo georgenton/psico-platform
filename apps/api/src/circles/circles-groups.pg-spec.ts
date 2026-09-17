@@ -1,6 +1,6 @@
 import { execSync } from "node:child_process";
 import { randomBytes, randomUUID } from "node:crypto";
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -15,6 +15,7 @@ import { CircleMemberRepository } from "./circle-member.repository";
 import { CircleParticipantRepository } from "./circle-participant.repository";
 import { CirclesParticipationService } from "./circles-participation.service";
 import { CirclesParticipationFacade } from "./circles-participation.facade";
+import { CirclesAccountDeletionService } from "./circles-account-deletion.service";
 import { CirclesAnalyticsService } from "./circles-analytics.service";
 import { CirclesCipher } from "./circles-crypto";
 import type { CirclesError } from "./circles-http-errors";
@@ -2015,6 +2016,8 @@ suite("circles · adult groups (real PostgreSQL)", () => {
         new CircleEventRepository(prisma),
         new CirclesRolloutService(resolveCirclesRolloutConfig(OPEN)),
         new CircleParticipantRepository(prisma),
+        new CircleInvitationRepository(prisma),
+        new CircleGuestSessionRepository(prisma),
       );
 
     const statusOf = async (activityId: string) => {
@@ -2294,5 +2297,1149 @@ suite("circles · adult groups (real PostgreSQL)", () => {
       // and it is not closed by a timer.
       expect(await statusOf(created.activityId)).toBe("FOLLOW_UP");
     }, 90_000);
+  });
+
+  // ══ The corrective block: expiry, locks and idempotency ══════════════════
+
+  describe("expiry cleans up whatever route it takes", () => {
+    const sweeper = () =>
+      new CirclesSweepService(
+        prisma as never,
+        new CircleActivityRepository(prisma),
+        new CircleEventRepository(prisma),
+        new CirclesRolloutService(resolveCirclesRolloutConfig(OPEN)),
+        new CircleParticipantRepository(prisma),
+        new CircleInvitationRepository(prisma),
+        new CircleGuestSessionRepository(prisma),
+      );
+
+    const statusOf = async (activityId: string) => {
+      const row = await pool.query(
+        `SELECT "status"::text AS s FROM "CircleActivity" WHERE "id"=$1`,
+        [activityId],
+      );
+      return row.rows[0].s as string;
+    };
+
+    /** Everything derived from an activity that is still usable. */
+    const liveOf = async (activityId: string) => {
+      const row = await pool.query(
+        `SELECT
+           (SELECT count(*)::int FROM "CircleGuestSession"
+             WHERE "activityId"=$1 AND "revokedAt" IS NULL) AS sessions,
+           (SELECT count(*)::int FROM "CircleInvitation"
+             WHERE "activityId"=$1 AND "revokedAt" IS NULL) AS invitations,
+           (SELECT count(*)::int FROM "CircleActivityParticipant"
+             WHERE "activityId"=$1 AND "ciphertext" IS NOT NULL) AS envelopes,
+           (SELECT count(*)::int FROM "CircleEvent"
+             WHERE "activityId"=$1 AND "type"='ACTIVITY_CANCELLED') AS cancellations,
+           (SELECT count(*)::int FROM "CircleEvent"
+             WHERE "activityId"=$1 AND "type"='PARTICIPANT_WITHDRAWN') AS withdrawals`,
+        [activityId],
+      );
+      return row.rows[0] as {
+        sessions: number;
+        invitations: number;
+        envelopes: number;
+        cancellations: number;
+        withdrawals: number;
+      };
+    };
+
+    /** Age an invitation at BOTH ends; a CHECK requires expiry after creation. */
+    const expireInvitations = (activityId: string, onlyUnconsumed = false) =>
+      pool.query(
+        `UPDATE "CircleInvitation"
+            SET "createdAt" = now() - interval '15 days',
+                "expiresAt" = now() - interval '1 hour'
+          WHERE "activityId"=$1 ${onlyUnconsumed ? 'AND "consumedAt" IS NULL' : ""}`,
+        [activityId],
+      );
+
+    /** A group of three with `accepted` guest seats filled. */
+    async function partiallyAccepted(accepted: number) {
+      const tokens = mintTokens(2);
+      const created = await open.createDuo({
+        userId: ORGANIZER,
+        templateKey: GROUP.templateKey,
+        templateVersion: GROUP.templateVersion,
+        invitationTokens: tokens,
+        size: 3,
+        idempotencyKey: randomUUID(),
+      });
+      const sessions: string[] = [];
+      for (const token of tokens.slice(0, accepted)) {
+        const exchanged = await access.exchange(token);
+        sessions.push(exchanged.guestSessionId);
+      }
+      return { ...created, tokens, sessions };
+    }
+
+    it("cleans up a group whose links ALL expired, consumed one included", async () => {
+      // The route the finding is about. With every invitation dead — the one
+      // an accepted guest already consumed as well — the activity also matches
+      // the Dúo rule, which runs FIRST and cancels without revoking anything.
+      // The group-specific pass then skips it for being CANCELLED already, and
+      // a live guest session is left pointing at a cancelled room.
+      const group = await partiallyAccepted(1);
+      await expireInvitations(group.activityId);
+      const before = await liveOf(group.activityId);
+      expect(before.sessions, "a session is live before the sweep").toBe(1);
+
+      await sweeper().sweep();
+
+      expect(await statusOf(group.activityId)).toBe("CANCELLED");
+      const after = await liveOf(group.activityId);
+      expect(after.sessions, "no session survives").toBe(0);
+      expect(after.invitations, "no invitation survives").toBe(0);
+      expect(after.envelopes, "no envelope survives").toBe(0);
+      expect(after.cancellations, "exactly one cancellation").toBe(1);
+      expect(after.withdrawals, "an expiry is not a decision").toBe(0);
+
+      // Idempotent: a second pass finds nothing left to do.
+      const again = await sweeper().sweep();
+      expect(again.incompleteGroupsCancelled).toBe(0);
+      expect(again.invitingCancelled).toBe(0);
+      const twice = await liveOf(group.activityId);
+      expect(twice.cancellations).toBe(1);
+    }, 90_000);
+
+    it("cleans up a group with ONE dead link and others alive", async () => {
+      const group = await partiallyAccepted(1);
+      await expireInvitations(group.activityId, true);
+      await sweeper().sweep();
+      expect(await statusOf(group.activityId)).toBe("CANCELLED");
+      const after = await liveOf(group.activityId);
+      expect(after).toMatchObject({
+        sessions: 0,
+        invitations: 0,
+        envelopes: 0,
+        cancellations: 1,
+      });
+    }, 90_000);
+
+    it("cleans up a legacy group the old code left in PREPARING", async () => {
+      const group = await partiallyAccepted(1);
+      await pool.query(
+        `UPDATE "CircleActivity" SET "status"='PREPARING' WHERE "id"=$1`,
+        [group.activityId],
+      );
+      await expireInvitations(group.activityId);
+      await sweeper().sweep();
+      expect(await statusOf(group.activityId)).toBe("CANCELLED");
+      const after = await liveOf(group.activityId);
+      expect(after).toMatchObject({
+        sessions: 0,
+        invitations: 0,
+        cancellations: 1,
+      });
+    }, 90_000);
+
+    it("leaves the Dúo's own expiry route exactly where it was", async () => {
+      const token = mintToken();
+      const created = await open.createDuo({
+        userId: ORGANIZER,
+        templateKey: DUO.templateKey,
+        templateVersion: DUO.templateVersion,
+        invitationTokens: [token],
+        idempotencyKey: randomUUID(),
+      });
+      await expireInvitations(created.activityId);
+      const summary = await sweeper().sweep();
+      expect(
+        summary.invitingCancelled,
+        "a Dúo is still cancelled by the Dúo rule",
+      ).toBeGreaterThanOrEqual(1);
+      expect(await statusOf(created.activityId)).toBe("CANCELLED");
+    }, 90_000);
+  });
+
+  // ══ The race harness: two transactions, both named, no sleeps ═══════════
+  //
+  // Shared by every race below. It is here rather than inside one suite
+  // because the same machinery answers the same question about three
+  // different commands, and three copies of it would drift.
+
+  /**
+   * One transaction's seat in the race.
+   *
+   * A race that is arranged with a sleep proves nothing: it asserts that a
+   * number was large enough on the machine that ran it. What this holds
+   * instead is the transaction itself — parked inside a repository call,
+   * between the statement that takes a lock and the one that takes the
+   * next — and it carries the PostgreSQL backend the transaction is running
+   * on, so the wait below can name both sides of the contention rather than
+   * hope for it.
+   */
+  type Seam = {
+    /** The backend pid, as soon as the transaction reaches the seam. */
+    readonly pid: Promise<number>;
+    /** Resolves once the transaction is parked WITH its locks held. */
+    readonly parked: Promise<void>;
+    /** Let it continue. */
+    release(): void;
+    /** Called from a repository BEFORE the statement that takes the lock. */
+    enter(tx: RawCapable): Promise<void>;
+    /** Called AFTER it, where the lock is held. */
+    hold(): Promise<void>;
+  };
+
+  /** Enough of a Prisma client or transaction to ask it a raw question. */
+  type RawCapable = {
+    $queryRaw<T = unknown>(query: Prisma.Sql): Promise<T>;
+  };
+
+  const seamOf = (park: boolean): Seam => {
+    let announcePid: (pid: number) => void = () => {};
+    const pid = new Promise<number>((r) => (announcePid = r));
+    let announceParked: () => void = () => {};
+    const parked = new Promise<void>((r) => (announceParked = r));
+    let release: () => void = () => {};
+    const released = new Promise<void>((r) => (release = r));
+    let entered = false;
+    let held = false;
+    return {
+      pid,
+      parked,
+      release: () => release(),
+      async enter(tx) {
+        if (entered) return;
+        entered = true;
+        const rows = await tx.$queryRaw<{ pid: number }[]>(
+          Prisma.sql`SELECT pg_backend_pid()::int AS pid`,
+        );
+        announcePid(rows[0]!.pid);
+      },
+      async hold() {
+        if (held) return;
+        held = true;
+        if (!park) return;
+        announceParked();
+        await released;
+      },
+    };
+  };
+
+  /**
+   * The real repositories, with the seam wrapped around the real call.
+   *
+   * Subclasses rather than fakes: what runs is the production query, taking
+   * the production lock. The only thing the test decides is WHEN the next
+   * statement is issued — which is the whole of what an interleaving is.
+   *
+   * Scoped to one activity, because a sweep processes every stranded room
+   * the suite has left behind and parking on the first one it happens to
+   * reach would arrange a race between this test and an unrelated fixture.
+   */
+  class SeamedActivities extends CircleActivityRepository {
+    constructor(
+      db: ConstructorParameters<typeof CircleActivityRepository>[0],
+      private readonly seam: Seam,
+      private readonly target: string,
+    ) {
+      super(db);
+    }
+    override async lockById(
+      activityId: string,
+      tx: Parameters<CircleActivityRepository["lockById"]>[1],
+    ) {
+      if (activityId !== this.target)
+        return await super.lockById(activityId, tx);
+      await this.seam.enter(tx as unknown as RawCapable);
+      const row = await super.lockById(activityId, tx);
+      await this.seam.hold();
+      return row;
+    }
+  }
+
+  /** The same, for the row set the corrected order takes FIRST. */
+  class SeamedSweepInvitations extends CircleInvitationRepository {
+    constructor(
+      db: ConstructorParameters<typeof CircleInvitationRepository>[0],
+      private readonly seam: Seam,
+      private readonly target: string,
+    ) {
+      super(db);
+    }
+    override async lockForActivity(
+      activityId: string,
+      tx: Parameters<CircleInvitationRepository["lockForActivity"]>[1],
+    ) {
+      if (activityId !== this.target) {
+        return await super.lockForActivity(activityId, tx);
+      }
+      // BEFORE the call, deliberately: under the corrected order this is
+      // the statement that blocks, and a pid announced after it would never
+      // be announced at all.
+      await this.seam.enter(tx as unknown as RawCapable);
+      const rows = await super.lockForActivity(activityId, tx);
+      await this.seam.hold();
+      return rows;
+    }
+  }
+
+  /** And for the acceptance, whose lock on the link is the other half. */
+  class SeamedExchangeInvitations extends CircleInvitationRepository {
+    constructor(
+      db: ConstructorParameters<typeof CircleInvitationRepository>[0],
+      private readonly seam: Seam,
+    ) {
+      super(db);
+    }
+    override async consume(
+      invitationId: string,
+      now: Date,
+      db: Parameters<CircleInvitationRepository["consume"]>[2] = this
+        .prismaForSeam,
+    ) {
+      await this.seam.enter(db as unknown as RawCapable);
+      const won = await super.consume(invitationId, now, db);
+      await this.seam.hold();
+      return won;
+    }
+    private get prismaForSeam() {
+      return prisma as unknown as Parameters<
+        CircleInvitationRepository["consume"]
+      >[2];
+    }
+  }
+
+  const sweeperWith = (
+    activities: CircleActivityRepository,
+    invitations: CircleInvitationRepository,
+  ) =>
+    new CirclesSweepService(
+      prisma as never,
+      activities,
+      new CircleEventRepository(prisma),
+      new CirclesRolloutService(resolveCirclesRolloutConfig(OPEN)),
+      new CircleParticipantRepository(prisma),
+      invitations,
+      new CircleGuestSessionRepository(prisma),
+    );
+
+  const accessWith = (invitations: CircleInvitationRepository) =>
+    new CirclesService(
+      prisma as unknown as ConstructorParameters<typeof CirclesService>[0],
+      invitations,
+      new CircleGuestSessionRepository(prisma),
+      new CircleEventRepository(prisma),
+      new CircleMemberRepository(prisma),
+      new CirclesRolloutService(resolveCirclesRolloutConfig(OPEN)),
+      new CircleActivityRepository(prisma),
+    );
+
+  /**
+   * Wait until `blocked` is waiting on a lock `holder` is holding.
+   *
+   * Both sides are named. `pg_blocking_pids` is asked from the blocked
+   * side — a row lock that loses waits on the holder's `transactionid`, and
+   * a `transactionid` lock carries no relation, so asking for an ungranted
+   * lock ON a table finds nothing — and the answer has to contain the exact
+   * backend the other transaction announced from inside itself.
+   *
+   * There is no sleep anywhere in this: the loop yields to the event loop
+   * and re-asks PostgreSQL. The deadline is not a timing assumption, it is
+   * the failure message — if it is ever reached, the two transactions never
+   * contended and whatever the test concluded afterwards was luck.
+   */
+  async function waitUntilBlockedBy(
+    blocked: number,
+    holder: number,
+    deadlineMs = 20_000,
+  ): Promise<void> {
+    const until = Date.now() + deadlineMs;
+    for (;;) {
+      const r = await pool.query(
+        `SELECT $2::int = ANY (pg_blocking_pids($1::int)) AS blocked`,
+        [blocked, holder],
+      );
+      if (r.rows[0].blocked === true) return;
+      if (Date.now() > until) {
+        throw new Error(
+          `backend ${blocked} never waited on a lock held by ${holder} — ` +
+            "the two transactions did not contend, so this run proves " +
+            "nothing about the order they take their locks in",
+        );
+      }
+      await new Promise((r2) => setImmediate(r2));
+    }
+  }
+
+  describe("the sweep and an acceptance, racing for the same room", () => {
+    /**
+     * A group of three that can never be completed, and one live link.
+     *
+     * Seat 2's invitation is dead, so the sweep has a real reason to cancel
+     * the room. Seat 3's is alive and its token is handed back, so an
+     * acceptance can genuinely reach the transaction and contend for the same
+     * rows — which is the part a test that expires the very link it then
+     * redeems does not have: there the acceptance dies before the race.
+     */
+    async function unfinishableWithOneLiveLink() {
+      const tokens = mintTokens(2);
+      const created = await open.createDuo({
+        userId: ORGANIZER,
+        templateKey: GROUP.templateKey,
+        templateVersion: GROUP.templateVersion,
+        invitationTokens: tokens,
+        size: 3,
+        idempotencyKey: randomUUID(),
+      });
+      await pool.query(
+        `UPDATE "CircleInvitation"
+            SET "createdAt" = now() - interval '15 days',
+                "expiresAt" = now() - interval '1 hour'
+          WHERE "activityId"=$1 AND "tokenHash"=$2`,
+        [created.activityId, hashSecret(tokens[0]!)],
+      );
+      return { ...created, liveToken: tokens[1]! };
+    }
+
+    type Settled =
+      | { readonly ok: true }
+      | { readonly ok: false; readonly code: string; readonly message: string };
+
+    const settleOf = <T>(p: Promise<T>): Promise<Settled> =>
+      p.then(
+        () => ({ ok: true }) as Settled,
+        (err: unknown) =>
+          ({
+            ok: false,
+            code: (err as CirclesError)?.code ?? "UNKNOWN",
+            message: (err as Error)?.message ?? String(err),
+          }) as Settled,
+      );
+
+    const stateOf = async (activityId: string) => {
+      const row = await pool.query(
+        `SELECT a."status"::text AS status,
+                (SELECT count(*)::int FROM "CircleGuestSession"
+                  WHERE "activityId"=$1 AND "revokedAt" IS NULL) AS sessions,
+                (SELECT count(*)::int FROM "CircleInvitation"
+                  WHERE "activityId"=$1 AND "revokedAt" IS NULL) AS invitations,
+                (SELECT count(*)::int FROM "CircleActivityParticipant"
+                  WHERE "activityId"=$1 AND "ciphertext" IS NOT NULL) AS envelopes,
+                (SELECT count(*)::int FROM "CircleEvent"
+                  WHERE "activityId"=$1 AND "type"='ACTIVITY_CANCELLED') AS cancellations
+           FROM "CircleActivity" a WHERE a."id"=$1`,
+        [activityId],
+      );
+      return row.rows[0] as {
+        status: string;
+        sessions: number;
+        invitations: number;
+        envelopes: number;
+        cancellations: number;
+      };
+    };
+
+    /**
+     * Whatever the interleaving produced, it has to be one of two endings —
+     * and neither of them may be a deadlock.
+     *
+     * A deadlock does not announce itself as a deadlock up here: the sweep
+     * surfaces it as a rejected promise, and the acceptance launders it into
+     * `CIRCLE_STORAGE_FAILURE`. So both are checked, because which of the two
+     * PostgreSQL chooses as the victim is not something a test gets to pick,
+     * and a suite that only watched one side would pass half the time with
+     * the inversion still in place.
+     *
+     * `CIRCLE_INVITATION_UNUSABLE` is the acceptance's LEGITIMATE loss: the
+     * room was cancelled before the link was redeemed, and the person is told
+     * the link no longer works. That is a correct ending, not a failure.
+     */
+    const assertOneOfTheTwoEndings = async (
+      activityId: string,
+      accepted: Settled,
+      swept: Settled,
+      where: string,
+    ) => {
+      if (!swept.ok) {
+        throw new Error(
+          `${where}: the sweep was rejected (${swept.code}) — ${swept.message}`,
+        );
+      }
+      if (!accepted.ok && accepted.code !== "CIRCLE_INVITATION_UNUSABLE") {
+        throw new Error(
+          `${where}: the acceptance failed for a reason that is not "the ` +
+            `link is gone" (${accepted.code}) — ${accepted.message}`,
+        );
+      }
+
+      const state = await stateOf(activityId);
+      if (state.status === "CANCELLED") {
+        // The sweep won, or the acceptance landed first and the room was
+        // still unfinishable. Either way the cleanup is the whole point:
+        // nothing derived from the room may outlive it.
+        expect(state.sessions, `${where}: no credential survives`).toBe(0);
+        expect(state.invitations, `${where}: no link survives`).toBe(0);
+        expect(state.envelopes, `${where}: no envelope survives`).toBe(0);
+        expect(state.cancellations, `${where}: exactly one cancellation`).toBe(
+          1,
+        );
+      } else {
+        // The only other admissible ending: the acceptance stood and the room
+        // is still waiting for its remaining seat.
+        expect(state.status, `${where}: still waiting`).toBe("INVITING");
+        expect(accepted.ok, `${where}: the acceptance stood`).toBe(true);
+        expect(state.cancellations, `${where}: nothing was cancelled`).toBe(0);
+      }
+    };
+
+    it("does not deadlock when the acceptance holds the link first", async () => {
+      const group = await unfinishableWithOneLiveLink();
+
+      const exchangeSeam = seamOf(true);
+      const accepted = settleOf(
+        accessWith(
+          new SeamedExchangeInvitations(prisma, exchangeSeam),
+        ).exchange(group.liveToken),
+      );
+      // Inside its transaction, holding the invitation row.
+      await exchangeSeam.parked;
+      const exchangePid = await exchangeSeam.pid;
+
+      const sweepSeam = seamOf(false);
+      const swept = settleOf(
+        sweeperWith(
+          new SeamedActivities(prisma, sweepSeam, group.activityId),
+          new SeamedSweepInvitations(prisma, sweepSeam, group.activityId),
+        ).sweep(),
+      );
+      const sweepPid = await sweepSeam.pid;
+
+      // Named on both sides: THIS sweep is waiting on THIS acceptance.
+      await waitUntilBlockedBy(sweepPid, exchangePid);
+      exchangeSeam.release();
+
+      const [a, s] = await Promise.all([accepted, swept]);
+      await assertOneOfTheTwoEndings(
+        group.activityId,
+        a,
+        s,
+        "acceptance first",
+      );
+    }, 120_000);
+
+    it("does not deadlock when the sweep takes its locks first", async () => {
+      const group = await unfinishableWithOneLiveLink();
+
+      const sweepSeam = seamOf(true);
+      const swept = settleOf(
+        sweeperWith(
+          new SeamedActivities(prisma, sweepSeam, group.activityId),
+          new SeamedSweepInvitations(prisma, sweepSeam, group.activityId),
+        ).sweep(),
+      );
+      // Inside its transaction, holding whatever its FIRST lock is — which is
+      // precisely the thing this correction changes.
+      await sweepSeam.parked;
+      const sweepPid = await sweepSeam.pid;
+
+      const exchangeSeam = seamOf(false);
+      const accepted = settleOf(
+        accessWith(
+          new SeamedExchangeInvitations(prisma, exchangeSeam),
+        ).exchange(group.liveToken),
+      );
+      const exchangePid = await exchangeSeam.pid;
+
+      await waitUntilBlockedBy(exchangePid, sweepPid);
+      sweepSeam.release();
+
+      const [a, s] = await Promise.all([accepted, swept]);
+      await assertOneOfTheTwoEndings(group.activityId, a, s, "sweep first");
+    }, 120_000);
+  });
+
+  describe("a withdrawal receipt is not a licence to replay anything", () => {
+    /** A group of three, every seat accepted, still preparing. */
+    async function preparing() {
+      const tokens = mintTokens(2);
+      const created = await open.createDuo({
+        userId: ORGANIZER,
+        templateKey: GROUP.templateKey,
+        templateVersion: GROUP.templateVersion,
+        invitationTokens: tokens,
+        size: 3,
+        idempotencyKey: randomUUID(),
+      });
+      const guests = [];
+      for (const token of tokens) {
+        const exchanged = await access.exchange(token);
+        const seat = await pool.query(
+          `SELECT "participantId" FROM "CircleGuestSession" WHERE "id"=$1`,
+          [exchanged.guestSessionId],
+        );
+        guests.push({
+          kind: "GUEST" as const,
+          guestSessionId: exchanged.guestSessionId,
+          activityId: created.activityId,
+          participantId: seat.rows[0].participantId as string,
+        });
+      }
+      return {
+        ...created,
+        organizer: { kind: "USER" as const, userId: ORGANIZER },
+        guests,
+      };
+    }
+
+    const share = (value: string) =>
+      ({
+        mode: "SELECTED_FIELDS",
+        fields: [{ fieldKey: "campo-a", value }],
+      }) as const;
+
+    const envelopesOf = async (activityId: string) => {
+      const row = await pool.query(
+        `SELECT count(*)::int AS n FROM "CircleActivityParticipant"
+          WHERE "activityId"=$1 AND "ciphertext" IS NOT NULL`,
+        [activityId],
+      );
+      return row.rows[0].n as number;
+    };
+
+    it("refuses a confirmation that reuses a withdrawal's key", async () => {
+      // The finding. `withdraw` and the group's KEEP_PRIVATE exit write the
+      // SAME event — deliberately, so the ledger cannot say which button was
+      // pressed — and the receipt lookup accepted that event as proof that
+      // ANY request under the key had succeeded. So a key spent on leaving
+      // could be presented again with a body full of answers, and the caller
+      // was told its confirmation had been replayed. Nothing of the sort had
+      // been stored, and nothing ever would be: the activity is cancelled.
+      const group = await preparing();
+      const key = randomUUID();
+      const left = await open.withdraw(group.organizer, group.activityId, key);
+      expect(left.outcome).toBe("CANCELLED");
+
+      expect(
+        await codeOf(() =>
+          open.confirmShare(
+            group.organizer,
+            group.activityId,
+            share("esto sí lo comparto"),
+            key,
+          ),
+        ),
+        "a shared answer is not a replay of leaving",
+      ).toBe("CIRCLE_IDEMPOTENCY_CONFLICT");
+
+      // And the refusal is not a write: nothing was stored under either
+      // meaning of the key.
+      expect(await envelopesOf(group.activityId)).toBe(0);
+      const events = await pool.query(
+        `SELECT count(*)::int AS n FROM "CircleEvent"
+          WHERE "activityId"=$1 AND "type"='PARTICIPANT_READY'`,
+        [group.activityId],
+      );
+      expect(events.rows[0].n, "no confirmation was recorded").toBe(0);
+    }, 30_000);
+
+    it("refuses a Dúo's KEEP_PRIVATE that reuses a withdrawal's key", async () => {
+      // In a Dúo, KEEP_PRIVATE is a CONFIRMATION — the seat goes READY and
+      // the barrier may open. It is not the exit it is in a group. So the
+      // same key cannot stand for both: telling this caller their private
+      // confirmation was replayed would claim a reveal that cannot happen on
+      // an activity they cancelled by leaving.
+      const token = mintToken();
+      const created = await open.createDuo({
+        userId: ORGANIZER,
+        templateKey: DUO.templateKey,
+        templateVersion: DUO.templateVersion,
+        invitationTokens: [token],
+        idempotencyKey: randomUUID(),
+      });
+      await access.exchange(token);
+      const organizer = { kind: "USER" as const, userId: ORGANIZER };
+      const key = randomUUID();
+      await open.withdraw(organizer, created.activityId, key);
+
+      expect(
+        await codeOf(() =>
+          open.confirmShare(
+            organizer,
+            created.activityId,
+            { mode: "KEEP_PRIVATE" },
+            key,
+          ),
+        ),
+      ).toBe("CIRCLE_IDEMPOTENCY_CONFLICT");
+    }, 30_000);
+
+    it("refuses a KEEP_PRIVATE that reuses the key of a withdrawal after the reveal", async () => {
+      // Leaving a REVEALED room CLOSES it; the group's private exit CANCELS a
+      // PREPARING one. Two different endings, so one key cannot answer for
+      // both — and an activity that is `CLOSED` is proof the receipt under
+      // this key was not the exit being replayed.
+      const group = await preparing();
+      for (const actor of [group.organizer, ...group.guests]) {
+        await open.confirmShare(
+          actor,
+          group.activityId,
+          share("antes de la revelación"),
+          randomUUID(),
+        );
+      }
+      const status = await pool.query(
+        `SELECT "status"::text AS s FROM "CircleActivity" WHERE "id"=$1`,
+        [group.activityId],
+      );
+      expect(status.rows[0].s).toBe("REVEALED");
+
+      const key = randomUUID();
+      const left = await open.withdraw(group.organizer, group.activityId, key);
+      expect(left.outcome).toBe("CLOSED");
+
+      expect(
+        await codeOf(() =>
+          open.confirmShare(
+            group.organizer,
+            group.activityId,
+            { mode: "KEEP_PRIVATE" },
+            key,
+          ),
+        ),
+      ).toBe("CIRCLE_IDEMPOTENCY_CONFLICT");
+    }, 30_000);
+
+    it("still replays the group's own private exit", async () => {
+      // The regression this correction must not cause. A member whose
+      // connection dropped on «prefiero no compartir» retries it and gets the
+      // same answer, rather than being told the activity is unavailable about
+      // the very request that worked.
+      const group = await preparing();
+      const key = randomUUID();
+      const first = await open.confirmShare(
+        group.organizer,
+        group.activityId,
+        { mode: "KEEP_PRIVATE" },
+        key,
+      );
+      expect(first).toMatchObject({ cancelled: true, replayed: false });
+      const replay = await open.confirmShare(
+        group.organizer,
+        group.activityId,
+        { mode: "KEEP_PRIVATE" },
+        key,
+      );
+      expect(replay).toMatchObject({ cancelled: true, replayed: true });
+    }, 30_000);
+
+    it("treats leaving and keeping it private as the same act, on purpose", async () => {
+      // NOT a defect, and the only case the narrower receipt still accepts.
+      //
+      // In a group these two requests ARE one act: both call
+      // `exitWithoutSharing`, both cancel the room, both leave exactly
+      // `PARTICIPANT_WITHDRAWN` and `ACTIVITY_CANCELLED`. That they cannot be
+      // told apart is the privacy property — a ledger that distinguished them
+      // would be a ledger that records which button somebody pressed — so a
+      // key spent on one of them replays the other, and there is nothing
+      // stored anywhere that could refuse it without also being the very
+      // marker this design forbids.
+      const group = await preparing();
+      const key = randomUUID();
+      await open.withdraw(group.organizer, group.activityId, key);
+      const replay = await open.confirmShare(
+        group.organizer,
+        group.activityId,
+        { mode: "KEEP_PRIVATE" },
+        key,
+      );
+      expect(replay).toMatchObject({ cancelled: true, replayed: true });
+
+      // One exit, whichever name the caller gave it.
+      const events = await pool.query(
+        `SELECT count(*)::int AS n FROM "CircleEvent"
+          WHERE "activityId"=$1 AND "type"='PARTICIPANT_WITHDRAWN'`,
+        [group.activityId],
+      );
+      expect(events.rows[0].n).toBe(1);
+    }, 30_000);
+  });
+
+  describe("the sweep and a person leaving, racing for the same room", () => {
+    /**
+     * The participation service, with one repository replaced by a seam.
+     *
+     * Same eleven dependencies the module wires, so what runs is the real
+     * command taking the real locks.
+     */
+    const participationWith = (overrides: {
+      activities?: CircleActivityRepository;
+      invitations?: CircleInvitationRepository;
+    }) =>
+      new CirclesParticipationService(
+        prisma as unknown as ConstructorParameters<
+          typeof CirclesParticipationService
+        >[0],
+        overrides.activities ?? new CircleActivityRepository(prisma),
+        new CircleParticipantRepository(prisma),
+        new CircleArtifactRepository(prisma),
+        new CircleEventRepository(prisma),
+        new CircleMemberRepository(prisma),
+        new CircleGuestSessionRepository(prisma),
+        overrides.invitations ?? new CircleInvitationRepository(prisma),
+        new CirclesRolloutService(resolveCirclesRolloutConfig(OPEN)),
+        cipher,
+        registry,
+      );
+
+    const sweeperWith = (overrides: {
+      activities?: CircleActivityRepository;
+      invitations?: CircleInvitationRepository;
+    }) =>
+      new CirclesSweepService(
+        prisma as never,
+        overrides.activities ?? new CircleActivityRepository(prisma),
+        new CircleEventRepository(prisma),
+        new CirclesRolloutService(resolveCirclesRolloutConfig(OPEN)),
+        new CircleParticipantRepository(prisma),
+        overrides.invitations ?? new CircleInvitationRepository(prisma),
+        new CircleGuestSessionRepository(prisma),
+      );
+
+    const deleterWith = (overrides: {
+      activities?: CircleActivityRepository;
+      invitations?: CircleInvitationRepository;
+    }) =>
+      new CirclesAccountDeletionService(
+        new CircleParticipantRepository(prisma),
+        overrides.activities ?? new CircleActivityRepository(prisma),
+        new CircleEventRepository(prisma),
+        new CircleMemberRepository(prisma),
+        overrides.invitations ?? new CircleInvitationRepository(prisma),
+        new CircleGuestSessionRepository(prisma),
+        new CircleArtifactRepository(prisma),
+      );
+
+    /**
+     * A group of three the sweep has a reason to cancel, with both guests in.
+     *
+     * One seat's invitation is dead, so the roster can never complete and
+     * `cancelIncompleteGroups` selects it. The other seats are filled, so a
+     * real person — the organiser, or either guest — is inside the room and
+     * can leave it while the sweep is cancelling it. That is the race: not a
+     * contrived pair of statements, but two things the product does.
+     */
+    async function unfinishableWithPeopleInside() {
+      const tokens = mintTokens(2);
+      const created = await open.createDuo({
+        userId: ORGANIZER,
+        templateKey: GROUP.templateKey,
+        templateVersion: GROUP.templateVersion,
+        invitationTokens: tokens,
+        size: 3,
+        idempotencyKey: randomUUID(),
+      });
+      // Accept the HIGHEST invitation id, and kill the other one.
+      //
+      // Deliberate, and the whole reason the guest race is deterministic: the
+      // sweep walks the invitation rows in `id` order, so the guest holding
+      // the LAST one means the sweep has already taken every earlier row
+      // before it blocks. With the ids the other way round the sweep blocks
+      // holding nothing, there is no cycle, and the test would pass for a
+      // reason that has nothing to do with the correction.
+      const rows = await pool.query(
+        `SELECT "id", "tokenHash" FROM "CircleInvitation"
+          WHERE "activityId"=$1 ORDER BY "id"`,
+        [created.activityId],
+      );
+      const byHash = new Map(tokens.map((t) => [hashSecret(t), t] as const));
+      const lastToken = byHash.get(rows.rows.at(-1)!.tokenHash as string)!;
+      const firstToken = byHash.get(rows.rows[0]!.tokenHash as string)!;
+
+      const exchanged = await access.exchange(lastToken);
+      const seat = await pool.query(
+        `SELECT "participantId" FROM "CircleGuestSession" WHERE "id"=$1`,
+        [exchanged.guestSessionId],
+      );
+      // The other link dies, so the roster can never be completed.
+      await pool.query(
+        `UPDATE "CircleInvitation"
+            SET "createdAt" = now() - interval '15 days',
+                "expiresAt" = now() - interval '1 hour'
+          WHERE "activityId"=$1 AND "tokenHash"=$2`,
+        [created.activityId, hashSecret(firstToken)],
+      );
+      return {
+        ...created,
+        organizer: { kind: "USER" as const, userId: ORGANIZER },
+        guest: {
+          kind: "GUEST" as const,
+          guestSessionId: exchanged.guestSessionId,
+          activityId: created.activityId,
+          participantId: seat.rows[0].participantId as string,
+        },
+      };
+    }
+
+    const stateOf = async (activityId: string) => {
+      const row = await pool.query(
+        `SELECT a."status"::text AS status,
+                (SELECT count(*)::int FROM "CircleGuestSession"
+                  WHERE "activityId"=$1 AND "revokedAt" IS NULL) AS sessions,
+                (SELECT count(*)::int FROM "CircleInvitation"
+                  WHERE "activityId"=$1 AND "revokedAt" IS NULL) AS invitations,
+                (SELECT count(*)::int FROM "CircleActivityParticipant"
+                  WHERE "activityId"=$1 AND "ciphertext" IS NOT NULL) AS envelopes,
+                (SELECT count(*)::int FROM "CircleEvent"
+                  WHERE "activityId"=$1 AND "type"='ACTIVITY_CANCELLED') AS cancellations,
+                (SELECT count(*)::int FROM "CircleEvent"
+                  WHERE "activityId"=$1 AND "type"='PARTICIPANT_WITHDRAWN') AS withdrawals
+           FROM "CircleActivity" a WHERE a."id"=$1`,
+        [activityId],
+      );
+      return row.rows[0] as {
+        status: string;
+        sessions: number;
+        invitations: number;
+        envelopes: number;
+        cancellations: number;
+        withdrawals: number;
+      };
+    };
+
+    type Settled =
+      | { readonly ok: true }
+      | { readonly ok: false; readonly code: string; readonly message: string };
+
+    const settleOf = <T>(p: Promise<T>): Promise<Settled> =>
+      p.then(
+        () => ({ ok: true }) as Settled,
+        (err: unknown) =>
+          ({
+            ok: false,
+            code: (err as CirclesError)?.code ?? "UNKNOWN",
+            message: (err as Error)?.message ?? String(err),
+          }) as Settled,
+      );
+
+    /**
+     * One ending, reached once, with nothing left over.
+     *
+     * A deadlock does not arrive labelled as one: the sweep surfaces it raw
+     * and the participation service launders it into
+     * `CIRCLE_STORAGE_FAILURE`, so both sides are checked. The person leaving
+     * may legitimately lose — the room was cancelled first, and they are told
+     * it is unavailable — but "the storage failed" is never a legitimate
+     * answer to somebody pressing «retirarme».
+     */
+    const assertSettled = async (
+      activityId: string,
+      left: Settled,
+      swept: Settled,
+      where: string,
+    ) => {
+      if (!swept.ok) {
+        throw new Error(
+          `${where}: the sweep was rejected (${swept.code}) — ${swept.message}`,
+        );
+      }
+      if (!left.ok && left.code !== "CIRCLE_ACTIVITY_UNAVAILABLE") {
+        throw new Error(
+          `${where}: leaving failed for a reason that is not "this activity ` +
+            `is over" (${left.code}) — ${left.message}`,
+        );
+      }
+      const state = await stateOf(activityId);
+      // Whoever got there first, the room is over and nothing derived from it
+      // is still usable.
+      expect(state.status, `${where}: terminal`).toBe("CANCELLED");
+      expect(state.sessions, `${where}: no credential survives`).toBe(0);
+      expect(state.invitations, `${where}: no link survives`).toBe(0);
+      expect(state.envelopes, `${where}: no envelope survives`).toBe(0);
+      // Exactly once. Two cancellations would mean both transactions wrote
+      // the same ending, which is what a status guard is for.
+      expect(state.cancellations, `${where}: one cancellation`).toBe(1);
+      expect(
+        state.withdrawals,
+        `${where}: a withdrawal is recorded only if somebody withdrew`,
+      ).toBe(left.ok ? 1 : 0);
+    };
+
+    it("does not deadlock when the withdrawal holds the activity first", async () => {
+      const group = await unfinishableWithPeopleInside();
+
+      const leaveSeam = seamOf(true);
+      const left = settleOf(
+        participationWith({
+          activities: new SeamedActivities(prisma, leaveSeam, group.activityId),
+          invitations: new SeamedSweepInvitations(
+            prisma,
+            leaveSeam,
+            group.activityId,
+          ),
+        }).withdraw(group.organizer, group.activityId, randomUUID()),
+      );
+      // Inside its transaction, holding whatever it takes FIRST — which is
+      // exactly what this correction changes.
+      await leaveSeam.parked;
+      const leavePid = await leaveSeam.pid;
+
+      const sweepSeam = seamOf(false);
+      const swept = settleOf(
+        sweeperWith({
+          activities: new SeamedActivities(prisma, sweepSeam, group.activityId),
+          invitations: new SeamedSweepInvitations(
+            prisma,
+            sweepSeam,
+            group.activityId,
+          ),
+        }).sweep(),
+      );
+      const sweepPid = await sweepSeam.pid;
+
+      await waitUntilBlockedBy(sweepPid, leavePid);
+      leaveSeam.release();
+
+      const [l, s] = await Promise.all([left, swept]);
+      await assertSettled(group.activityId, l, s, "withdrawal first");
+    }, 120_000);
+
+    it("does not deadlock when the sweep takes its locks first", async () => {
+      const group = await unfinishableWithPeopleInside();
+
+      const sweepSeam = seamOf(true);
+      const swept = settleOf(
+        sweeperWith({
+          activities: new SeamedActivities(prisma, sweepSeam, group.activityId),
+          invitations: new SeamedSweepInvitations(
+            prisma,
+            sweepSeam,
+            group.activityId,
+          ),
+        }).sweep(),
+      );
+      await sweepSeam.parked;
+      const sweepPid = await sweepSeam.pid;
+
+      const leaveSeam = seamOf(false);
+      const left = settleOf(
+        participationWith({
+          activities: new SeamedActivities(prisma, leaveSeam, group.activityId),
+          invitations: new SeamedSweepInvitations(
+            prisma,
+            leaveSeam,
+            group.activityId,
+          ),
+        }).withdraw(group.organizer, group.activityId, randomUUID()),
+      );
+      const leavePid = await leaveSeam.pid;
+
+      await waitUntilBlockedBy(leavePid, sweepPid);
+      sweepSeam.release();
+
+      const [l, s] = await Promise.all([left, swept]);
+      await assertSettled(group.activityId, l, s, "sweep first");
+    }, 120_000);
+
+    it("does not deadlock when a GUEST is the one leaving", async () => {
+      // The guest path locks its OWN invitation and its OWN session on the
+      // way in, and then revokes EVERYBODY's — so it reaches for rows it does
+      // not hold, after the activity. The fixture puts the guest on the
+      // highest invitation id precisely so the sweep is holding the earlier
+      // one when it blocks.
+      const group = await unfinishableWithPeopleInside();
+
+      const leaveSeam = seamOf(true);
+      const left = settleOf(
+        participationWith({
+          activities: new SeamedActivities(prisma, leaveSeam, group.activityId),
+          invitations: new SeamedSweepInvitations(
+            prisma,
+            leaveSeam,
+            group.activityId,
+          ),
+        }).withdraw(group.guest, group.activityId, randomUUID()),
+      );
+      await leaveSeam.parked;
+      const leavePid = await leaveSeam.pid;
+
+      const sweepSeam = seamOf(false);
+      const swept = settleOf(
+        sweeperWith({
+          activities: new SeamedActivities(prisma, sweepSeam, group.activityId),
+          invitations: new SeamedSweepInvitations(
+            prisma,
+            sweepSeam,
+            group.activityId,
+          ),
+        }).sweep(),
+      );
+      const sweepPid = await sweepSeam.pid;
+
+      await waitUntilBlockedBy(sweepPid, leavePid);
+      leaveSeam.release();
+
+      const [l, s] = await Promise.all([left, swept]);
+      await assertSettled(group.activityId, l, s, "guest leaving");
+    }, 120_000);
+
+    it("does not deadlock when account deletion races the same sweep", async () => {
+      // This one is expected to hold already — the deletion service walks the
+      // canonical order and says so. The test exists because "expected to
+      // hold" and "observed to hold" are different claims, and because the
+      // correction moves all three onto ONE implementation of that order: if
+      // that move breaks the deletion path, this is what says so.
+      const group = await unfinishableWithPeopleInside();
+
+      const deleteSeam = seamOf(true);
+      const deleter = deleterWith({
+        activities: new SeamedActivities(prisma, deleteSeam, group.activityId),
+        invitations: new SeamedSweepInvitations(
+          prisma,
+          deleteSeam,
+          group.activityId,
+        ),
+      });
+      // In ONE transaction the CALLER owns. The service opens none of its own
+      // — that is the point of its authority fix — so a test that handed it
+      // the raw client would run every statement in autocommit, hold nothing,
+      // and contend with nobody. The first version of this test did exactly
+      // that and reported both sides on the same backend.
+      const deleted = settleOf(
+        prisma.$transaction(
+          (tx) => deleter.detachUser(ORGANIZER, tx as never),
+          { timeout: 60_000 },
+        ),
+      );
+      await deleteSeam.parked;
+      const deletePid = await deleteSeam.pid;
+
+      const sweepSeam = seamOf(false);
+      const swept = settleOf(
+        sweeperWith({
+          activities: new SeamedActivities(prisma, sweepSeam, group.activityId),
+          invitations: new SeamedSweepInvitations(
+            prisma,
+            sweepSeam,
+            group.activityId,
+          ),
+        }).sweep(),
+      );
+      const sweepPid = await sweepSeam.pid;
+
+      await waitUntilBlockedBy(sweepPid, deletePid);
+      deleteSeam.release();
+
+      const [d, s] = await Promise.all([deleted, swept]);
+      if (!s.ok) {
+        throw new Error(
+          `account deletion: the sweep was rejected (${s.code}) — ${s.message}`,
+        );
+      }
+      if (!d.ok) {
+        throw new Error(
+          `account deletion: the deletion was rejected (${d.code}) — ${d.message}`,
+        );
+      }
+      const state = await stateOf(group.activityId);
+      expect(state.status, "the room is over").toBe("CANCELLED");
+      expect(state.sessions, "no credential survives").toBe(0);
+      expect(state.invitations, "no link survives").toBe(0);
+      expect(state.cancellations, "one cancellation").toBe(1);
+    }, 120_000);
   });
 });

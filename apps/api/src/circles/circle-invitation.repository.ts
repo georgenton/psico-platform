@@ -245,6 +245,36 @@ export class CircleInvitationRepository {
     }
   }
 
+  /**
+   * EVERY invitation of an activity, locked, in a deterministic order.
+   *
+   * Position TWO in the lock order, so a command that will also need the
+   * activity has to take these first. `ORDER BY "id"` is not cosmetic: two
+   * transactions locking the same set in different orders deadlock on each
+   * other, and "the same set" here is "all of this activity's links".
+   *
+   * Rows are returned so the caller can re-validate under the lock rather
+   * than trusting the scan that selected them.
+   */
+  async lockForActivity(
+    activityId: string,
+    tx: CircleInvitationTx,
+  ): Promise<CircleInvitationRow[]> {
+    try {
+      return await tx.$queryRaw<CircleInvitationRow[]>(Prisma.sql`
+        SELECT "id", "circleId", "activityId", "createdByMemberId", "tokenHash",
+               "codeHash", "expiresAt", "consumedAt", "acceptedAt",
+               "declinedAt", "revokedAt"
+          FROM "CircleInvitation"
+         WHERE "activityId" = ${activityId}
+         ORDER BY "id"
+           FOR UPDATE
+      `);
+    } catch {
+      throw new CircleStorageError();
+    }
+  }
+
   /** Revoke: idempotent, and never distinguishable to the holder of the link. */
   async revoke(
     invitationId: string,

@@ -10,6 +10,80 @@
 > y este documento no la reescribe: describe una segunda forma sobre el mismo
 > motor, con su propio interruptor, que llega **cerrado**.
 
+### Tercer bloque correctivo — el orden de bloqueo compartido y el arnés de abuso (2026-09-16)
+
+> **Tampoco tocó producción.** Candidato en la PR **#719** (Draft), desplegado
+> sólo al entorno alojado de pruebas.
+
+**1 · La inversión que quedaba: el barrido contra alguien que se va.**
+El bloque anterior protegió el barrido frente al _canje_. No frente al
+_retiro_, que era la carrera más alcanzable de las dos: `resolveAuthority`
+tomaba miembro → actividad → asientos y no tocaba las invitaciones;
+`withdraw` y la salida privada del grupo revocaban invitaciones y sesiones
+tres sentencias después de la actividad. El barrido las toma primero.
+
+Reproducido en los dos órdenes, y una tercera vez para un **invitado** —cuyo
+camino bloquea su propia invitación y su propia sesión y luego alcanza las de
+todos los demás—. El borrado de cuenta ya era correcto; su carrera queda como
+guardia de regresión.
+
+**El orden vive ahora en `circles-activity-locks.ts`** y los tres lo piden.
+Antes había tres implementaciones —el par de llamadas del barrido, el bucle
+por fila del borrado y, en el servicio de participación, ninguna— cada una con
+un comentario diciendo que seguía el orden. Un comentario no lo toma una
+transacción, y justo donde faltaba el comentario estaba el deadlock.
+
+**2 · Las ocho comprobaciones rojas del arnés de abuso, explicadas y cerradas.**
+El defecto estaba en el arnés. El limitador es un guard global: corre **antes**
+que la atestación y cuenta toda petición, rechazada o no. El arnés gastaba el
+presupuesto en su primera sección y luego hacía cinco preguntas sobre
+atestación con el presupuesto agotado, así que todas las respondía el
+limitador con `429`. Ocho rojas, ninguna sobre atestación.
+
+Ahora son dos escenarios con los contadores limpios entre medias:
+**con presupuesto** cada atestación increíble la rechaza la frontera de
+atestación (`403`, el mismo para las cinco) y una genuina llega al dominio y
+recibe su respuesta contractual (`404` exacto — un `500` o un `503` no cuentan
+como éxito); **sin presupuesto** ninguna cabecera ni cambio de ruta abre una
+segunda asignación. Se comprueba además el presupuesto **esperado**: la vía
+del navegador permite exactamente el límite de la ruta, y la API declara ese
+mismo límite en su cabecera.
+
+**3 · Corrección de la guía manual.** Recargar y volver a pulsar **no**
+demuestra un reintento con la misma clave: la clave se acuña por intención y
+vive en memoria (`useRef`), así que una recarga la tira y el segundo intento
+es otra petición distinta. Esa garantía se prueba en el arnés, con pérdida
+controlada de la respuesta: la petición llega, el servidor confirma, la
+respuesta se descarta en el camino de vuelta y la **misma página** reintenta
+con la clave que sigue en memoria. Un solo retiro, una sola cancelación.
+
+---
+
+### Segundo bloque correctivo — caducidad, concurrencia e idempotencia (2026-09-16)
+
+> **Este bloque no tocó producción.** El candidato vive en la PR **#719**
+> (Draft) y se desplegó **sólo** al entorno alojado de pruebas. Producción
+> sigue sirviendo `863e3b77` y no se escribió ninguna variable allí.
+
+Tres hallazgos, cada uno reproducido con una prueba en rojo antes de corregirlo:
+
+| hallazgo                                                                                                                                                                                                                                                                             | corrección                                                                                                                                                                                        |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cancelStuckInviting` corre primero y cancela **sin revocar nada**. Una invitación consumida conserva su `expiresAt`, así que un grupo donde alguien ya había aceptado encajaba en «todos los enlaces están muertos» y se cancelaba ahí, con una sesión de invitado viva apuntándolo | El paso es **DÚO only**. Cada modalidad toma su ruta: una cancela; la otra cancela **y limpia**                                                                                                   |
+| `cancelIncompleteGroups` tomaba `CircleActivity` primero y las invitaciones tres sentencias después; `exchange` toma la invitación antes que la actividad. Inversión real, alcanzable desde un enlace todavía válido; PostgreSQL la resolvía matando una de las dos transacciones    | Orden canónico `CircleInvitation → CircleGuestSession → CircleActivity → CircleActivityParticipant`, determinista por `id` dentro de cada conjunto, revalidando **estado y causa** bajo los locks |
+| Un `PARTICIPANT_WITHDRAWN` bajo una clave probaba sólo que la clave se gastó. Toda salida escribe ese evento, así que una clave gastada en «retirarme» podía volver con un cuerpo de respuestas y recibir «tu confirmación fue reproducida»                                          | El recibo exige que la petición **sea** esa salida: `KEEP_PRIVATE`, en grupo, sobre actividad `CANCELLED`. Leído de estado existente: **sin borradores persistidos y sin metadata nueva**         |
+
+**Lo que sigue indistinguible, a propósito.** En un grupo, «retirarme» desde
+`PREPARING` y «prefiero no compartir» son un mismo acto —mismo helper, misma
+cancelación, mismos dos eventos— y una clave gastada en uno reproduce el otro.
+Distinguirlos exigiría guardar exactamente el marcador que este diseño se niega
+a escribir: cuál botón pulsó la persona.
+
+**Sin migración.** El esquema no cambia; las 68 migraciones siguen siendo 68 y
+el arranque alojado dijo «No pending migrations to apply».
+
+---
+
 ### Estado productivo observado tras el bloque correctivo — 2026-09-16
 
 | qué                          | estado                                                                                                                              |

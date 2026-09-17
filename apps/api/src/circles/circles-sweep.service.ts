@@ -9,6 +9,11 @@ import { CircleEventRepository } from "./circle-event.repository";
 import { CirclesRolloutService } from "./circles-rollout.service";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { CircleParticipantRepository } from "./circle-participant.repository";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { CircleInvitationRepository } from "./circle-invitation.repository";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { CircleGuestSessionRepository } from "./circle-guest-session.repository";
+import { lockActivityAccessRows } from "./circles-activity-locks";
 
 /**
  * The two transitions a clock is allowed to make, and nothing else.
@@ -21,7 +26,7 @@ import { CircleParticipantRepository } from "./circle-participant.repository";
  * So this does exactly two things, both of which are "the activity can no
  * longer proceed as it is", never "somebody chose":
  *
- *   1. An `INVITING` activity whose every invitation has EXPIRED is cancelled.
+ *   1. An `INVITING` DÚO whose every invitation has EXPIRED is cancelled.
  *      Nobody can accept it any more — the link is dead — so leaving it
  *      `INVITING` forever is not neutrality, it is a permanent lie in the
  *      organiser's list. This is the same terminal state the organiser's own
@@ -105,6 +110,8 @@ export class CirclesSweepService {
     private readonly events: CircleEventRepository,
     private readonly rollout: CirclesRolloutService,
     private readonly participants: CircleParticipantRepository,
+    private readonly invitations: CircleInvitationRepository,
+    private readonly guestSessions: CircleGuestSessionRepository,
   ) {}
 
   async sweep(
@@ -204,6 +211,25 @@ export class CirclesSweepService {
     let cancelled = 0;
     for (const activity of stranded) {
       const moved = await this.prisma.$transaction(async (tx) => {
+        // ── The access rows first, through the shared protocol ────────────
+        //
+        // This used to start at the ACTIVITY and reach the invitations three
+        // statements later, which is the opposite of what `exchange` and
+        // every command that ends an activity do. Two transactions taking the
+        // same rows in opposite orders is the definition of a deadlock, and
+        // it was reachable from a link that was still valid: a guest
+        // accepting while the sweep was cancelling the room they were
+        // accepting into.
+        //
+        // The order itself lives in `lockActivityAccessRows`, so this is the
+        // same statement the participation service and account deletion make.
+        // Nothing here waits, retries or sleeps — the cycle is gone.
+        const links = await lockActivityAccessRows(
+          { invitations: this.invitations, guestSessions: this.guestSessions },
+          activity.id,
+          tx as never,
+        );
+
         // Re-read under the lock. A last acceptance, a withdrawal or another
         // worker may have settled this between the scan and here, and the
         // status guard on `cancel` is what makes losing that race harmless.
@@ -212,20 +238,28 @@ export class CirclesSweepService {
         if (live.status !== "INVITING" && live.status !== "PREPARING") {
           return false;
         }
-        // And the condition itself, re-checked inside the transaction: the
-        // seat that made this activity unviable may have been filled by the
-        // acceptance that was in flight during the scan.
+
+        // And the CAUSE itself, re-checked inside the transaction — read off
+        // the invitation rows this transaction now holds rather than off a
+        // fresh query, so what the decision is made on is the same snapshot
+        // the locks are protecting. The seat that made this activity unviable
+        // may have been filled by the acceptance that was in flight during
+        // the scan, and an activity cancelled for a reason that stopped being
+        // true is a room taken from people who could still have used it.
+        const dead = links
+          .filter(
+            (link) =>
+              link.revokedAt !== null ||
+              link.declinedAt !== null ||
+              link.expiresAt <= now,
+          )
+          .map((link) => link.id);
+        if (dead.length === 0) return false;
         const stillStranded = await tx.circleActivityParticipant.count({
           where: {
             activityId: activity.id,
             status: "INVITED",
-            invitation: {
-              OR: [
-                { revokedAt: { not: null } },
-                { declinedAt: { not: null } },
-                { expiresAt: { lte: now } },
-              ],
-            },
+            invitationId: { in: dead },
           },
         });
         if (stillStranded === 0) return false;
@@ -233,6 +267,7 @@ export class CirclesSweepService {
         const seats = await tx.circleActivityParticipant.findMany({
           where: { activityId: activity.id },
           select: { id: true },
+          orderBy: { id: "asc" },
         });
         for (const seat of seats) {
           await this.participants.purgeEnvelope(
@@ -342,6 +377,24 @@ export class CirclesSweepService {
   ): Promise<number> {
     const stuck = await this.prisma.circleActivity.findMany({
       where: {
+        // DÚO only, and the exclusion is the whole fix for a real finding.
+        //
+        // This pass runs FIRST and it cancels WITHOUT revoking sessions or
+        // invitations, because a Dúo that never got off the ground has none to
+        // revoke: nobody accepted, so no guest session was ever issued, and the
+        // links are dead by definition of the predicate.
+        //
+        // A group is not that shape. Some of its seats CAN be accepted while
+        // others are still waiting, so a group whose every link has expired —
+        // the one an accepted guest already consumed included, since a consumed
+        // invitation still has an `expiresAt` — matched this predicate too. It
+        // was cancelled here, with a live guest session still pointing at it,
+        // and `cancelIncompleteGroups` then skipped it for being CANCELLED
+        // already. The credential outlived the room.
+        //
+        // So each modality takes its own route: this one cancels a Dúo, and
+        // the group pass below cancels a group AND cleans up after it.
+        kind: "DUO",
         status: "INVITING",
         invitations: {
           // At least one invitation exists…

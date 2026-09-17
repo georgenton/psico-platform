@@ -21588,6 +21588,30 @@
         ]
       }
     },
+    "/api/circles/activities/{activityId}/close-onboarding": {
+      "post": {
+        "operationId": "CirclesMemberParticipationController_closeOnboarding",
+        "parameters": [
+          {
+            "name": "activityId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Continue with whoever accepted",
+        "tags": [
+          "circles"
+        ]
+      }
+    },
     "/api/circles/activities/{activityId}/artifact": {
       "put": {
         "operationId": "CirclesMemberParticipationController_proposeArtifact",
@@ -27655,6 +27679,13 @@
             "enum": [
               true
             ]
+          },
+          "alias": {
+            "type": "string",
+            "description": "Optional short display name, chosen by the person accepting. Not a verified identity and never a contact detail.",
+            "minLength": 1,
+            "maxLength": 24,
+            "pattern": "/^(?![0-9\\s+()-]+$)[^@\\n\\r\\t]+$/u"
           }
         },
         "required": [

@@ -2614,6 +2614,355 @@ async function groupOfThree(browser) {
  * are told the activity is over without being told who ended it.
  */
 /**
+ * A room offered to SIX that continues with two, all the way to the end.
+ *
+ * ── Why this one exists ───────────────────────────────────────────────────
+ *
+ * Every other group scenario runs at a size where capacity and group are the
+ * same number, which is exactly why the difference survived so long: three
+ * invited, three inside, and `requiredParticipants` answers both questions
+ * correctly by accident. This is the first walk where they differ, and where
+ * counting the wrong one is visible rather than harmless.
+ *
+ * Reaching REVEALED was never the hard part — the barrier learned the
+ * difference first. What a shorter scenario would have missed is everything
+ * AFTER it: two people cannot produce six confirmations, so the room could
+ * reveal and then never reach an agreement, and never close its follow-up.
+ * A week later the clock closed it; nothing the two of them did ever could.
+ * So this goes past the reveal, through the artifact to AGREED, and through
+ * the follow-up to CLOSED.
+ */
+async function reducedGroup(browser) {
+  const organiser = await register("reducido");
+  const organiserCtx = await browser.newContext();
+  const guestCtxs = [];
+
+  try {
+    const page = await organiserCtx.newPage();
+    await signIn(page, organiser);
+
+    // ── 1 · a circle offered to six ──────────────────────────────────────
+    await page.goto(`${WEB}/dashboard/circulos`, {
+      waitUntil: "domcontentloaded",
+    });
+    const start = page.getByRole("link", { name: /Empezar este círculo/i });
+    await start.waitFor({ state: "visible", timeout: 30_000 });
+    await start.click();
+
+    await page.check('input[name="circulo-tamano"][value="6"]');
+    await page.getByRole("button", { name: /Crear el círculo/i }).click();
+
+    const links = await until(
+      async () => {
+        const text = await page.evaluate(() => document.body.innerText);
+        const found = text.match(/https?:\/\/\S*\/i#[A-Za-z0-9_-]{43}/g) ?? [];
+        return found.length === 5 ? found : null;
+      },
+      "five invitation links for a circle of six",
+      60_000,
+    );
+    check(new Set(links).size === 5, "one distinct link per seat, never one twice");
+
+    const activityId = sqlOne(
+      `SELECT a."id" FROM "CircleActivity" a
+         JOIN "Circle" c ON c."id" = a."circleId"
+        WHERE c."createdByUserId" = '${organiser.userId}'
+        ORDER BY a."createdAt" DESC LIMIT 1`,
+    ).trim();
+
+    // ── 2 · capacity six, nobody in but the organiser, no group yet ───────
+    const opened = sqlRows(
+      `SELECT a."requiredParticipants" AS capacity,
+              coalesce(a."confirmedParticipants"::text,'-') AS "group",
+              a."status"::text AS status,
+              (SELECT count(*) FROM "CircleActivityParticipant"
+                WHERE "activityId" = a."id") AS seats
+         FROM "CircleActivity" a WHERE a."id" = '${activityId}'`,
+    )[0];
+    check(
+      opened?.[0] === "6" && opened?.[1] === "-",
+      `capacity six and no group fixed yet (${opened?.slice(0, 2).join("/")})`,
+    );
+    check(
+      opened?.[2] === "INVITING" && opened?.[3] === "6",
+      `six seats, still inviting (${opened?.slice(2).join("/")})`,
+    );
+
+    // ── 3 · exactly one person accepts, and chooses a name ────────────────
+    const ALIAS = "Prueba Alias";
+    const guest = await acceptAsGuest(browser, links[0], ALIAS);
+    guestCtxs.push(guest.ctx);
+    check(
+      guest.activityId === activityId,
+      "the one guest lands in the organiser's room",
+    );
+
+    // ── 4 · the room says who is in, and what is still open ───────────────
+    await page.goto(`${WEB}/compartir/${activityId}`, {
+      waitUntil: "domcontentloaded",
+    });
+    const roster = await until(
+      async () => {
+        await page.reload({ waitUntil: "domcontentloaded" });
+        const t = await page.evaluate(
+          () =>
+            document.querySelector('[aria-labelledby="sala-quien"]')
+              ?.innerText ?? "",
+        );
+        return t.includes(ALIAS) ? t : null;
+      },
+      "the organiser's room to show the guest who arrived",
+      60_000,
+    );
+    check(
+      /Pueden participar hasta 6/.test(roster),
+      "the room states the CAPACITY as a capacity",
+    );
+    check(
+      /est[áa]n dentro 2/i.test(roster),
+      `and states how many are actually in (${roster.replace(/\s+/g, " ").slice(0, 140)})`,
+    );
+
+    // ── 5 · preparing early is fine; sending is not, yet ──────────────────
+    const body = await page.evaluate(() => document.body.innerText);
+    check(
+      /Puedes ir preparando tu parte/.test(body),
+      "the room invites people to prepare while it is still open",
+    );
+
+    // ── 6 · the organiser continues with whoever accepted ─────────────────
+    await continuarConQuienesAceptaron(page, activityId);
+
+    // ── 7 · the group is fixed at two, and the empty seats are GONE ───────
+    const closed = sqlRows(
+      `SELECT a."requiredParticipants" AS capacity,
+              a."confirmedParticipants" AS "group",
+              a."status"::text AS status,
+              (SELECT count(*) FROM "CircleActivityParticipant"
+                WHERE "activityId" = a."id") AS seats,
+              (SELECT count(*) FROM "CircleInvitation"
+                WHERE "activityId" = a."id" AND "revokedAt" IS NULL
+                  AND "consumedAt" IS NULL) AS pending
+         FROM "CircleActivity" a WHERE a."id" = '${activityId}'`,
+    )[0];
+    check(
+      closed?.[0] === "6" && closed?.[1] === "2",
+      `capacity stays six, the group is two (${closed?.slice(0, 2).join("/")})`,
+    );
+    check(
+      closed?.[3] === "2",
+      `a seat nobody took is deleted, not left withdrawn (${closed?.[3]})`,
+    );
+    check(
+      closed?.[2] === "PREPARING" && closed?.[4] === "0",
+      `preparing, and no link still admits anybody (${closed?.slice(2).join("/")})`,
+    );
+
+    // ── 8 · a link left over is refused, and told nothing ─────────────────
+    const lateCtx = await browser.newContext();
+    guestCtxs.push(lateCtx);
+    const late = await lateCtx.newPage();
+    await late.goto(links[4], { waitUntil: "domcontentloaded" });
+    const lateText = await until(
+      async () => {
+        const t = await late.evaluate(() => document.body.innerText);
+        return /ya no|caducad|no (sirve|funciona)/i.test(t) ? t : null;
+      },
+      "the excluded link to be refused",
+      60_000,
+    );
+    check(
+      !new RegExp(ALIAS).test(lateText) && !/Participante/.test(lateText),
+      "and the refusal names nobody who is inside",
+    );
+
+    // ── 9 · two confirmations reveal the room ─────────────────────────────
+    for (const p of [page, guest.page]) {
+      await p.goto(`${WEB}/compartir/${activityId}`, {
+        waitUntil: "domcontentloaded",
+      });
+      await enterRoom(p);
+      await typeDraft(p, { uno: `de-${p === page ? "quien-organiza" : "quien-vino"}` });
+      await openPreview(p);
+      await confirmShare(p);
+    }
+    await until(
+      () =>
+        sqlOne(
+          `SELECT "status"::text FROM "CircleActivity" WHERE "id"='${activityId}'`,
+        ).trim() === "REVEALED",
+      "the GROUP's two confirmations to open the room",
+      60_000,
+    );
+    check(true, "two of two reveals a room that was offered to six");
+
+    // ── 10 · and the agreement is reachable by the people who are here ────
+    await until(
+      async () => {
+        await page.reload({ waitUntil: "domcontentloaded" });
+        const t = await page.evaluate(() => document.body.innerText);
+        return /Lo que compartió/.test(t);
+      },
+      "the reveal before proposing an artifact",
+      60_000,
+    );
+    const WORDING = `acuerdo-${randomBytes(3).toString("hex")}`;
+    await page.fill("#artefacto", WORDING);
+    await page.getByRole("button", { name: /^Proponer$/ }).click();
+    await until(
+      () =>
+        sqlInt(
+          `SELECT count(*) FROM "CircleArtifact" WHERE "activityId"='${activityId}' AND "version"=1`,
+        ) === 1,
+      "the proposal to be persisted",
+      30_000,
+    );
+
+    // The denominator the screen shows is the GROUP. Against capacity it read
+    // "de 6" in a room containing two people.
+    const firstConfirm = page.getByRole("button", {
+      name: /Confirmar esta versión/i,
+    });
+    await firstConfirm.waitFor({ state: "visible", timeout: 30_000 });
+    await firstConfirm.click();
+
+    // Wait for the confirmation to LAND before reading anything off it. The
+    // first cut of this read the screen the instant after the click and was
+    // satisfied by «0 de 2» — which proves the denominator and nothing about
+    // the confirmation, and would have been just as green if the click had
+    // done nothing at all.
+    await until(
+      () =>
+        sqlInt(
+          `SELECT count(*) FROM "CircleEvent" e
+             JOIN "CircleArtifact" a ON a."id" = e."artifactId"
+            WHERE a."activityId"='${activityId}' AND a."version"=1
+              AND e."type"='ARTIFACT_CONFIRMED'`,
+        ) === 1,
+      "the organiser's confirmation to be recorded",
+      60_000,
+    );
+    check(
+      sqlOne(
+        `SELECT "status" FROM "CircleArtifact" WHERE "activityId"='${activityId}' AND "version"=1`,
+      ) === "PROPOSED",
+      "one of two is not an agreement",
+    );
+
+    const counted = await until(
+      async () => {
+        await page.reload({ waitUntil: "domcontentloaded" });
+        const t = await page.evaluate(() => document.body.innerText);
+        const m = t.match(/(\d+)\s+de\s+(\d+)\s+lo confirmaron/);
+        return m && m[1] === "1" ? m : null;
+      },
+      "the screen to show one confirmation",
+      60_000,
+    );
+    check(
+      counted[2] === "2",
+      `the artifact counts against the GROUP, not the capacity (${counted[0]})`,
+    );
+
+    await guest.page.reload({ waitUntil: "domcontentloaded" });
+    const second = guest.page.getByRole("button", {
+      name: /Confirmar esta versión/i,
+    });
+    await second.waitFor({ state: "visible", timeout: 30_000 });
+    await second.click();
+    const agreed = await until(
+      () => {
+        const st = sqlOne(
+          `SELECT "status" FROM "CircleArtifact" WHERE "activityId"='${activityId}' AND "version"=1`,
+        );
+        return st === "AGREED" ? st : null;
+      },
+      "the second of two confirmations to produce an agreement",
+      60_000,
+    );
+    check(
+      agreed === "AGREED",
+      "the room REACHES an agreement — against capacity it never could",
+    );
+
+    // ── 11 · and the follow-up closes on the group's decisions ────────────
+    sql(
+      `UPDATE "CircleActivity" SET "followUpDueAt" = now() - interval '1 hour'
+        WHERE "id"='${activityId}'`,
+    );
+    // The REAL worker opens it, because that is who opens it in production.
+    const sweep = await transport.enqueue("circles-sweep", "run-circles-sweep", {
+      nowIso: new Date().toISOString(),
+      batchSize: 50,
+    });
+    await until(
+      async () => {
+        const state = await sweep.state();
+        return state === "completed" || state === "failed" ? state : null;
+      },
+      "the sweep that opens the follow-up",
+      120_000,
+    );
+    await until(
+      async () => {
+        await page.reload({ waitUntil: "domcontentloaded" });
+        const t = await page.evaluate(() => document.body.innerText);
+        return t.includes("¿Cómo siguen?");
+      },
+      "the follow-up to open on the organiser's screen",
+      60_000,
+    );
+
+    await page.getByRole("button", { name: /Lo cerramos aquí/i }).click();
+    await until(
+      () =>
+        sqlOne(
+          `SELECT "followUpDecision" FROM "CircleActivityParticipant" p
+             JOIN "CircleMember" m ON m."id"=p."memberId"
+            WHERE p."activityId"='${activityId}' AND m."userId"='${organiser.userId}'`,
+        ) === "CLOSE",
+      "the organiser's decision to persist",
+      30_000,
+    );
+    check(
+      sqlOne(
+        `SELECT "status"::text FROM "CircleActivity" WHERE "id"='${activityId}'`,
+      ).trim() !== "CLOSED",
+      "one decision of two does not end it",
+    );
+
+    await guest.page.reload({ waitUntil: "domcontentloaded" });
+    await until(
+      async () => {
+        const t = await guest.page.evaluate(() => document.body.innerText);
+        return t.includes("¿Cómo siguen?");
+      },
+      "the follow-up on the guest's screen",
+      60_000,
+    );
+    await guest.page.getByRole("button", { name: /Lo cerramos aquí/i }).click();
+
+    const finalStatus = await until(
+      () => {
+        const st = sqlOne(
+          `SELECT "status"::text FROM "CircleActivity" WHERE "id"='${activityId}'`,
+        ).trim();
+        return st === "CLOSED" ? st : null;
+      },
+      "the group's own decisions to close the follow-up",
+      60_000,
+    );
+    check(
+      finalStatus === "CLOSED",
+      "the people in the room finish it themselves, with no clock involved",
+    );
+  } finally {
+    await organiserCtx.close().catch(() => {});
+    for (const ctx of guestCtxs) await ctx.close().catch(() => {});
+  }
+}
+
+/**
  * The private exit, retried with the SAME key after its response was lost.
  *
  * ── Why a reload cannot prove this ────────────────────────────────────────
@@ -3585,6 +3934,13 @@ try {
     "BROWSER_GROUP_OF_THREE",
     "a circle of three, end to end",
     () => groupOfThree(browser),
+  );
+  resetRateLimits();
+
+  await scenario(
+    "BROWSER_REDUCED_GROUP",
+    "a circle offered to six that continues with two, to the end",
+    () => reducedGroup(browser),
   );
   resetRateLimits();
 

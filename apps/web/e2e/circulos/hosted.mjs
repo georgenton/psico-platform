@@ -66,6 +66,7 @@ const LABELS = [
   "coexistence",
   "analytics",
   "grupo",
+  "reducido",
   "grupo-privado",
   "retry-privado",
 ];

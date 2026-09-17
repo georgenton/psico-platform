@@ -80,6 +80,12 @@ const { chromium } = await import("playwright");
  */
 const transport = makeTransport(process.env);
 
+/** The room's polling interval. Anything visible sooner did not come from it. */
+const POLL_MS = 10_000;
+
+/** How long the reproduction holds the next read back. Under the poll. */
+const SLOW_READ_MS = 6_000;
+
 // ── Result bookkeeping ──────────────────────────────────────────────────────
 
 const scenarios = [];
@@ -344,8 +350,15 @@ async function createDuo(page) {
   return readLink(page);
 }
 
-/** Accept an invitation in a fresh context and land in the room. */
-async function acceptAsGuest(browser, link) {
+/**
+ * Accept an invitation in a fresh context and land in the room.
+ *
+ * `alias` is typed into the real box on the real screen, so what is being
+ * exercised is the whole journey — component, Web handler, BFF, API — and not
+ * a direct call to `exchange(..., alias)`, which would pass even while the
+ * screen sent the name to the wrong request.
+ */
+async function acceptAsGuest(browser, link, alias = null) {
   const ctx = await browser.newContext();
   const page = await ctx.newPage();
   await page.goto(link, { waitUntil: "domcontentloaded" });
@@ -353,6 +366,11 @@ async function acceptAsGuest(browser, link) {
     name: /Aceptar( la)? invitación/i,
   });
   await accept.waitFor({ state: "visible", timeout: 30_000 });
+  if (alias !== null) {
+    const box = page.getByLabel(/nombre corto/i);
+    await box.waitFor({ state: "visible", timeout: 20_000 });
+    await box.fill(alias);
+  }
   await accept.click();
   await until(
     () => /\/compartir\//.test(page.url()),
@@ -791,17 +809,25 @@ async function revealBarrier(browser) {
       "the second person cannot see the first person's words before confirming",
     );
 
+    // The heading is the RECEIPT for their own send. It used to lead with what
+    // was missing — «Falta la otra persona» — and was reachable only once a
+    // later read came back; the property here is unchanged (the first to
+    // confirm is told where things stand) and the sentence now starts with
+    // what they did.
     let toldWaiting = true;
     try {
       await page
-        .getByRole("heading", { name: /Falta la otra persona/i })
+        .getByRole("heading", { name: /Tu parte ya quedó enviada/i })
         .waitFor({ state: "visible", timeout: 30_000 });
     } catch {
       toldWaiting = false;
     }
+    check(toldWaiting, "the first to confirm is told their part was sent");
     check(
-      toldWaiting,
-      "the first to confirm is told the other person is missing",
+      /se abrirá cuando la otra persona/i.test(
+        await page.evaluate(() => document.body.innerText),
+      ),
+      "and that the opening waits for the other person",
     );
 
     // Second confirmation opens both at once.
@@ -2262,6 +2288,62 @@ function countActivities(userId) {
  *   · the reveal shows each answer under its own stable label;
  *   · the waiting screen never says who is late.
  */
+/**
+ * Press «Continuar con quienes aceptaron», through the real screen.
+ *
+ * Two clicks on purpose: the confirmation names the exact list and says the
+ * pending invitations will stop admitting anybody, because fixing the group
+ * cannot be undone in this cut.
+ */
+async function continuarConQuienesAceptaron(page, activityId) {
+  // Navigates itself rather than trusting where the caller left the page.
+  // The first version reloaded whatever was on screen, which in one scenario
+  // was still the creation screen with the links on it — and then blamed the
+  // button for not being there.
+  await page.goto(`${WEB}/compartir/${activityId}`, {
+    waitUntil: "domcontentloaded",
+  });
+  const open = page.getByTestId("continuar-con-aceptaron");
+  try {
+    await open.waitFor({ state: "visible", timeout: 30_000 });
+  } catch (err) {
+    // A bare "locator timed out" says nothing about WHY the button is not
+    // there: not the organiser, not enough people, already closed, or the
+    // panel missing altogether. The screen's own words distinguish all four.
+    const text = await page.evaluate(() => document.body.innerText);
+    throw new Error(
+      `«Continuar con quienes aceptaron» never appeared. The screen said: ` +
+        JSON.stringify(text.slice(0, 700)) +
+        ` · original: ${err.message}`,
+    );
+  }
+  await open.click();
+  const confirm = page.getByTestId("continuar-confirmar");
+  try {
+    await confirm.waitFor({ state: "visible", timeout: 30_000 });
+  } catch (err) {
+    const text = await page.evaluate(() => document.body.innerText);
+    const stillOpen = await page
+      .getByTestId("continuar-con-aceptaron")
+      .count();
+    throw new Error(
+      `the confirmation panel never appeared after clicking. ` +
+        `«Continuar» still on screen: ${stillOpen}. The screen said: ` +
+        JSON.stringify(text.slice(0, 700)) +
+        ` · original: ${err.message}`,
+    );
+  }
+  await confirm.click();
+  await until(
+    async () => {
+      const text = await page.evaluate(() => document.body.innerText);
+      return /Prepárate|preparar tu parte|Tu parte/i.test(text) ? true : null;
+    },
+    "the room to open for preparation",
+    60_000,
+  );
+}
+
 async function groupOfThree(browser) {
   const organiser = await register("grupo");
   const organiserCtx = await browser.newContext();
@@ -2364,12 +2446,16 @@ async function groupOfThree(browser) {
       `three seats and two invitations (${shape?.slice(2).join("/") ?? "?"})`,
     );
 
-    // Both guests accept. The FIRST acceptance moves the activity to
-    // PREPARING — and the second must still work, which is the rule a Dúo
-    // could never have exercised.
+    // Both guests accept. Neither acceptance opens the room now — the
+    // organiser does that — and the SECOND must still work, which is the rule
+    // a Dúo could never have exercised.
+    //
+    // The first guest types a name on the way in. Synthetic on purpose: it is
+    // personal data, so the walk invents one rather than borrowing anybody's.
+    const ALIAS = "Prueba Alias";
     const guests = [];
-    for (const link of links) {
-      const guest = await acceptAsGuest(browser, link);
+    for (const [i, link] of links.entries()) {
+      const guest = await acceptAsGuest(browser, link, i === 0 ? ALIAS : null);
       guestCtxs.push(guest.ctx);
       guests.push(guest);
     }
@@ -2378,10 +2464,56 @@ async function groupOfThree(browser) {
       "every guest lands in the SAME room",
     );
 
-    // Organiser and one guest confirm. Two of three.
+    // ── The name made the whole journey ──────────────────────────────────
+    //
+    // Written on the acceptance screen, carried by the Web handler, the BFF
+    // and the API, and read back from a DIFFERENT person's room. It reached
+    // the seat it belongs to and no other.
+    const aliasRows = sqlRows(
+      `SELECT count(*) AS n FROM "CircleActivityParticipant"
+        WHERE "activityId" = '${activityId}' AND "alias" = '${ALIAS}'`,
+    )[0];
+    check(
+      aliasRows?.[0] === "1",
+      `the alias landed on exactly one seat (${aliasRows?.[0] ?? "no row"})`,
+    );
+    // Into the ROOM first. The organiser has been on the creation screen since
+    // the links appeared, and that screen has no roster on it — reading from
+    // wherever the page happened to be returned an empty string, which is not
+    // the same as "the name is missing" and must not be reported as if it were.
     await page.goto(`${WEB}/compartir/${activityId}`, {
       waitUntil: "domcontentloaded",
     });
+    const rosterShown = await until(
+      async () => {
+        await page.reload({ waitUntil: "domcontentloaded" });
+        const t = await page.evaluate(
+          () =>
+            document.querySelector('[aria-labelledby="sala-quien"]')
+              ?.innerText ?? "",
+        );
+        return t.trim().length > 0 ? t : null;
+      },
+      "the organiser's room to render its roster",
+      60_000,
+    );
+    check(
+      rosterShown.includes(ALIAS),
+      `the organiser's room shows the name the guest chose (${rosterShown.replace(/\s+/g, " ").slice(0, 160)})`,
+    );
+    // Two guests, one name. The other seat keeps its number — which is what
+    // the roster falls back to — so exactly one numbered label is left. Two
+    // would mean the name never arrived.
+    check(
+      (rosterShown.match(/Participante \d/g) ?? []).length === 1,
+      "the named guest is no longer shown as a numbered seat",
+    );
+
+    // The organiser continues with the group — here, everybody. Until they
+    // do, nobody's audience is fixed and nobody can confirm.
+    await continuarConQuienesAceptaron(page, activityId);
+
+    // Organiser and one guest confirm. Two of three.
     await enterRoom(page);
     await typeDraft(page, { uno: "lo que me ayuda", dos: "lo que no" });
     await openPreview(page);
@@ -2406,15 +2538,32 @@ async function groupOfThree(browser) {
     ).trim();
     check(midway === "PREPARING", `two of three does NOT reveal (${midway})`);
 
-    // And the waiting screen says so without naming anybody.
+    // And the waiting screen says so without saying anything about anybody's
+    // ANSWERS.
+    //
+    // REPLACED, and the boundary moved on purpose. Who is in the room is now
+    // visible to the people in it — that is the approved change, and a room
+    // that lists «Ana · Participa» is the point of it. What must still be
+    // impossible to read off this screen is the part about content: who has
+    // confirmed, who has not, and how many have. So the count is still
+    // forbidden, and the old blanket ban on any seat label is replaced by a
+    // ban on the sentences that would attach a CONFIRMATION to a person.
     const waiting = await page.evaluate(() => document.body.innerText);
     check(
-      /Falta el grupo/i.test(waiting),
+      /grupo confirmado hayan enviado/i.test(waiting),
       "the waiting screen speaks about the group, not about a person",
     );
     check(
-      !/Participante \d/.test(waiting) && !/de 3 listas/.test(waiting),
-      "it names no seat and counts nobody",
+      !/de 3 listas/.test(waiting) && !/\d\s+de\s+\d/.test(waiting),
+      "it counts nobody's confirmations",
+    );
+    check(
+      !/confirm[óo]|list[ao]\b|termin[óo]|envi[óo]/i.test(
+        // The reader's own receipt is about THEM and is exempt; what must not
+        // appear is a sentence attaching a confirmation to somebody else.
+        waiting.replace(/Tu parte ya quedó enviada\./gi, ""),
+      ),
+      "and attaches no confirmation to any name",
     );
 
     // The last seat confirms. Now it opens, for everybody at once.
@@ -2495,6 +2644,847 @@ async function groupOfThree(browser) {
  * are told the activity is over without being told who ended it.
  */
 /**
+ * A room offered to SIX that continues with two, all the way to the end.
+ *
+ * ── Why this one exists ───────────────────────────────────────────────────
+ *
+ * Every other group scenario runs at a size where capacity and group are the
+ * same number, which is exactly why the difference survived so long: three
+ * invited, three inside, and `requiredParticipants` answers both questions
+ * correctly by accident. This is the first walk where they differ, and where
+ * counting the wrong one is visible rather than harmless.
+ *
+ * Reaching REVEALED was never the hard part — the barrier learned the
+ * difference first. What a shorter scenario would have missed is everything
+ * AFTER it: two people cannot produce six confirmations, so the room could
+ * reveal and then never reach an agreement, and never close its follow-up.
+ * A week later the clock closed it; nothing the two of them did ever could.
+ * So this goes past the reveal, through the artifact to AGREED, and through
+ * the follow-up to CLOSED.
+ */
+async function reducedGroup(browser) {
+  const organiser = await register("reducido");
+  const organiserCtx = await browser.newContext();
+  const guestCtxs = [];
+
+  try {
+    const page = await organiserCtx.newPage();
+    await signIn(page, organiser);
+
+    // ── 1 · a circle offered to six ──────────────────────────────────────
+    await page.goto(`${WEB}/dashboard/circulos`, {
+      waitUntil: "domcontentloaded",
+    });
+    const start = page.getByRole("link", { name: /Empezar este círculo/i });
+    await start.waitFor({ state: "visible", timeout: 30_000 });
+    await start.click();
+
+    await page.check('input[name="circulo-tamano"][value="6"]');
+    await page.getByRole("button", { name: /Crear el círculo/i }).click();
+
+    const links = await until(
+      async () => {
+        const text = await page.evaluate(() => document.body.innerText);
+        const found = text.match(/https?:\/\/\S*\/i#[A-Za-z0-9_-]{43}/g) ?? [];
+        return found.length === 5 ? found : null;
+      },
+      "five invitation links for a circle of six",
+      60_000,
+    );
+    check(new Set(links).size === 5, "one distinct link per seat, never one twice");
+
+    const activityId = sqlOne(
+      `SELECT a."id" FROM "CircleActivity" a
+         JOIN "Circle" c ON c."id" = a."circleId"
+        WHERE c."createdByUserId" = '${organiser.userId}'
+        ORDER BY a."createdAt" DESC LIMIT 1`,
+    ).trim();
+
+    // ── 2 · capacity six, nobody in but the organiser, no group yet ───────
+    const opened = sqlRows(
+      `SELECT a."requiredParticipants" AS capacity,
+              coalesce(a."confirmedParticipants"::text,'-') AS "group",
+              a."status"::text AS status,
+              (SELECT count(*) FROM "CircleActivityParticipant"
+                WHERE "activityId" = a."id") AS seats
+         FROM "CircleActivity" a WHERE a."id" = '${activityId}'`,
+    )[0];
+    check(
+      opened?.[0] === "6" && opened?.[1] === "-",
+      `capacity six and no group fixed yet (${opened?.slice(0, 2).join("/")})`,
+    );
+    check(
+      opened?.[2] === "INVITING" && opened?.[3] === "6",
+      `six seats, still inviting (${opened?.slice(2).join("/")})`,
+    );
+
+    // ── 3 · exactly one person accepts, and chooses a name ────────────────
+    const ALIAS = "Prueba Alias";
+    const guest = await acceptAsGuest(browser, links[0], ALIAS);
+    guestCtxs.push(guest.ctx);
+    check(
+      guest.activityId === activityId,
+      "the one guest lands in the organiser's room",
+    );
+
+    // ── 4 · the room says who is in, and what is still open ───────────────
+    await page.goto(`${WEB}/compartir/${activityId}`, {
+      waitUntil: "domcontentloaded",
+    });
+    const roster = await until(
+      async () => {
+        await page.reload({ waitUntil: "domcontentloaded" });
+        const t = await page.evaluate(
+          () =>
+            document.querySelector('[aria-labelledby="sala-quien"]')
+              ?.innerText ?? "",
+        );
+        return t.includes(ALIAS) ? t : null;
+      },
+      "the organiser's room to show the guest who arrived",
+      60_000,
+    );
+    check(
+      /Pueden participar hasta 6/.test(roster),
+      "the room states the CAPACITY as a capacity",
+    );
+    check(
+      /est[áa]n dentro 2/i.test(roster),
+      `and states how many are actually in (${roster.replace(/\s+/g, " ").slice(0, 140)})`,
+    );
+
+    // ── 5 · preparing early is fine; sending is not, yet ──────────────────
+    const body = await page.evaluate(() => document.body.innerText);
+    check(
+      /Puedes ir preparando tu parte/.test(body),
+      "the room invites people to prepare while it is still open",
+    );
+
+    // ── 6 · the organiser continues with whoever accepted ─────────────────
+    await continuarConQuienesAceptaron(page, activityId);
+
+    // ── 7 · the group is fixed at two, and the empty seats are GONE ───────
+    const closed = sqlRows(
+      `SELECT a."requiredParticipants" AS capacity,
+              a."confirmedParticipants" AS "group",
+              a."status"::text AS status,
+              (SELECT count(*) FROM "CircleActivityParticipant"
+                WHERE "activityId" = a."id") AS seats,
+              (SELECT count(*) FROM "CircleInvitation"
+                WHERE "activityId" = a."id" AND "revokedAt" IS NULL
+                  AND "consumedAt" IS NULL) AS pending
+         FROM "CircleActivity" a WHERE a."id" = '${activityId}'`,
+    )[0];
+    check(
+      closed?.[0] === "6" && closed?.[1] === "2",
+      `capacity stays six, the group is two (${closed?.slice(0, 2).join("/")})`,
+    );
+    check(
+      closed?.[3] === "2",
+      `a seat nobody took is deleted, not left withdrawn (${closed?.[3]})`,
+    );
+    check(
+      closed?.[2] === "PREPARING" && closed?.[4] === "0",
+      `preparing, and no link still admits anybody (${closed?.slice(2).join("/")})`,
+    );
+
+    // ── 8 · a link left over is refused, and told nothing ─────────────────
+    const lateCtx = await browser.newContext();
+    guestCtxs.push(lateCtx);
+    const late = await lateCtx.newPage();
+    await late.goto(links[4], { waitUntil: "domcontentloaded" });
+    const lateText = await until(
+      async () => {
+        const t = await late.evaluate(() => document.body.innerText);
+        return /ya no|caducad|no (sirve|funciona)/i.test(t) ? t : null;
+      },
+      "the excluded link to be refused",
+      60_000,
+    );
+    check(
+      !new RegExp(ALIAS).test(lateText) && !/Participante/.test(lateText),
+      "and the refusal names nobody who is inside",
+    );
+
+    // ── 9 · two confirmations reveal the room ─────────────────────────────
+    for (const p of [page, guest.page]) {
+      await p.goto(`${WEB}/compartir/${activityId}`, {
+        waitUntil: "domcontentloaded",
+      });
+      await enterRoom(p);
+      await typeDraft(p, { uno: `de-${p === page ? "quien-organiza" : "quien-vino"}` });
+      await openPreview(p);
+      await confirmShare(p);
+    }
+    await until(
+      () =>
+        sqlOne(
+          `SELECT "status"::text FROM "CircleActivity" WHERE "id"='${activityId}'`,
+        ).trim() === "REVEALED",
+      "the GROUP's two confirmations to open the room",
+      60_000,
+    );
+    check(true, "two of two reveals a room that was offered to six");
+
+    // ── 10 · and the agreement is reachable by the people who are here ────
+    await until(
+      async () => {
+        await page.reload({ waitUntil: "domcontentloaded" });
+        const t = await page.evaluate(() => document.body.innerText);
+        return /Lo que compartió/.test(t);
+      },
+      "the reveal before proposing an artifact",
+      60_000,
+    );
+    const WORDING = `acuerdo-${randomBytes(3).toString("hex")}`;
+    await page.fill("#artefacto", WORDING);
+    await page.getByRole("button", { name: /^Proponer$/ }).click();
+    await until(
+      () =>
+        sqlInt(
+          `SELECT count(*) FROM "CircleArtifact" WHERE "activityId"='${activityId}' AND "version"=1`,
+        ) === 1,
+      "the proposal to be persisted",
+      30_000,
+    );
+
+    // The denominator the screen shows is the GROUP. Against capacity it read
+    // "de 6" in a room containing two people.
+    const firstConfirm = page.getByRole("button", {
+      name: /Confirmar esta versión/i,
+    });
+    await firstConfirm.waitFor({ state: "visible", timeout: 30_000 });
+    await firstConfirm.click();
+
+    // Wait for the confirmation to LAND before reading anything off it. The
+    // first cut of this read the screen the instant after the click and was
+    // satisfied by «0 de 2» — which proves the denominator and nothing about
+    // the confirmation, and would have been just as green if the click had
+    // done nothing at all.
+    await until(
+      () =>
+        sqlInt(
+          `SELECT count(*) FROM "CircleEvent" e
+             JOIN "CircleArtifact" a ON a."id" = e."artifactId"
+            WHERE a."activityId"='${activityId}' AND a."version"=1
+              AND e."type"='ARTIFACT_CONFIRMED'`,
+        ) === 1,
+      "the organiser's confirmation to be recorded",
+      60_000,
+    );
+    check(
+      sqlOne(
+        `SELECT "status" FROM "CircleArtifact" WHERE "activityId"='${activityId}' AND "version"=1`,
+      ) === "PROPOSED",
+      "one of two is not an agreement",
+    );
+
+    const counted = await until(
+      async () => {
+        await page.reload({ waitUntil: "domcontentloaded" });
+        const t = await page.evaluate(() => document.body.innerText);
+        const m = t.match(/(\d+)\s+de\s+(\d+)\s+lo confirmaron/);
+        return m && m[1] === "1" ? m : null;
+      },
+      "the screen to show one confirmation",
+      60_000,
+    );
+    check(
+      counted[2] === "2",
+      `the artifact counts against the GROUP, not the capacity (${counted[0]})`,
+    );
+
+    await guest.page.reload({ waitUntil: "domcontentloaded" });
+    const second = guest.page.getByRole("button", {
+      name: /Confirmar esta versión/i,
+    });
+    await second.waitFor({ state: "visible", timeout: 30_000 });
+    await second.click();
+    const agreed = await until(
+      () => {
+        const st = sqlOne(
+          `SELECT "status" FROM "CircleArtifact" WHERE "activityId"='${activityId}' AND "version"=1`,
+        );
+        return st === "AGREED" ? st : null;
+      },
+      "the second of two confirmations to produce an agreement",
+      60_000,
+    );
+    check(
+      agreed === "AGREED",
+      "the room REACHES an agreement — against capacity it never could",
+    );
+
+    // ── 11 · and the follow-up closes on the group's decisions ────────────
+    sql(
+      `UPDATE "CircleActivity" SET "followUpDueAt" = now() - interval '1 hour'
+        WHERE "id"='${activityId}'`,
+    );
+    // The REAL worker opens it, because that is who opens it in production.
+    const sweep = await transport.enqueue("circles-sweep", "run-circles-sweep", {
+      nowIso: new Date().toISOString(),
+      batchSize: 50,
+    });
+    await until(
+      async () => {
+        const state = await sweep.state();
+        return state === "completed" || state === "failed" ? state : null;
+      },
+      "the sweep that opens the follow-up",
+      120_000,
+    );
+    await until(
+      async () => {
+        await page.reload({ waitUntil: "domcontentloaded" });
+        const t = await page.evaluate(() => document.body.innerText);
+        return t.includes("¿Cómo siguen?");
+      },
+      "the follow-up to open on the organiser's screen",
+      60_000,
+    );
+
+    await page.getByRole("button", { name: /Lo cerramos aquí/i }).click();
+    await until(
+      () =>
+        sqlOne(
+          `SELECT "followUpDecision" FROM "CircleActivityParticipant" p
+             JOIN "CircleMember" m ON m."id"=p."memberId"
+            WHERE p."activityId"='${activityId}' AND m."userId"='${organiser.userId}'`,
+        ) === "CLOSE",
+      "the organiser's decision to persist",
+      30_000,
+    );
+    check(
+      sqlOne(
+        `SELECT "status"::text FROM "CircleActivity" WHERE "id"='${activityId}'`,
+      ).trim() !== "CLOSED",
+      "one decision of two does not end it",
+    );
+
+    await guest.page.reload({ waitUntil: "domcontentloaded" });
+    await until(
+      async () => {
+        const t = await guest.page.evaluate(() => document.body.innerText);
+        return t.includes("¿Cómo siguen?");
+      },
+      "the follow-up on the guest's screen",
+      60_000,
+    );
+    await guest.page.getByRole("button", { name: /Lo cerramos aquí/i }).click();
+
+    const finalStatus = await until(
+      () => {
+        const st = sqlOne(
+          `SELECT "status"::text FROM "CircleActivity" WHERE "id"='${activityId}'`,
+        ).trim();
+        return st === "CLOSED" ? st : null;
+      },
+      "the group's own decisions to close the follow-up",
+      60_000,
+    );
+    check(
+      finalStatus === "CLOSED",
+      "the people in the room finish it themselves, with no clock involved",
+    );
+  } finally {
+    await organiserCtx.close().catch(() => {});
+    for (const ctx of guestCtxs) await ctx.close().catch(() => {});
+  }
+}
+
+/**
+ * Sending your part tells YOU it was sent — before anyone else does anything.
+ *
+ * ── The report this reproduces ────────────────────────────────────────────
+ *
+ * Two people: an organiser signed in, a guest in a private window. The guest
+ * pressed send and saw no confirmation. The result only appeared once the
+ * organiser opened the room and answered.
+ *
+ * Four different things look identical from the outside, so this separates
+ * them before it concludes anything:
+ *
+ *   1. the click emits no request at all;
+ *   2. the request is emitted and REFUSED;
+ *   3. the server commits and the screen does not say so;
+ *   4. onboarding is still open, so sending is not permitted yet.
+ *
+ * The status, the code and the seat's own state in PostgreSQL are all read,
+ * so the answer is observed rather than reached by elimination. The screen is
+ * read within two seconds of the acknowledgement and with no reload: the poll
+ * is ten seconds, so anything visible here cannot have come from it.
+ */
+async function sendAcknowledgement(browser) {
+  const organiser = await register("acuse");
+  const organiserCtx = await browser.newContext();
+  let guest = null;
+
+  try {
+    const page = await organiserCtx.newPage();
+    await signIn(page, organiser);
+    const link = await createDuo(page);
+    guest = await acceptAsGuest(browser, link);
+    const activityId = guest.activityId;
+
+    // ── The guest sends. The organiser does NOTHING. ─────────────────────
+    //
+    // The organiser's page is not touched again until every assertion below
+    // has been made, because "it appeared once the other person answered" is
+    // precisely the behaviour under test.
+    await enterRoom(guest.page);
+    await typeDraft(guest.page, { uno: "lo que preparé" });
+    await openPreview(guest.page);
+
+    // Everything the page sends and everything it is answered, by path only —
+    // no bodies, no query strings, no headers. A timeout here must be a
+    // DIAGNOSIS, not a dead end, so nothing below throws on absence.
+    const sent = [];
+    const answered = [];
+    guest.page.on("request", (req) => {
+      try {
+        sent.push(new URL(req.url()).pathname);
+      } catch {
+        /* not a URL we can parse is not a URL we need */
+      }
+    });
+    guest.page.on("response", (res) => {
+      try {
+        answered.push({
+          path: new URL(res.url()).pathname,
+          status: res.status(),
+          at: Date.now(),
+        });
+      } catch {
+        /* same */
+      }
+    });
+
+    // ── Make the later read SLOW, deliberately ───────────────────────────
+    //
+    // On a fast connection the un-awaited refetch lands in a few hundred
+    // milliseconds and hides the defect completely: the screen is correct by
+    // accident. Jorge's guest was in a private window on a real connection and
+    // saw the empty form, so the condition to reproduce is a read that has not
+    // come back yet — which is also the requirement, stated as a test: the
+    // acknowledgement must not depend on the next read at all.
+    //
+    // Only the activity GET is delayed. The command POST is untouched, and
+    // nothing is mocked: the same server answers, a little later.
+    await guest.page.route(
+      /\/api\/circulos\/actividad\/[^/]+$/,
+      async (route) => {
+        if (route.request().method() !== "GET") return route.continue();
+        await new Promise((r) => setTimeout(r, SLOW_READ_MS));
+        return route.continue();
+      },
+    );
+
+    const isCommand = (r) => r.path.endsWith("/comando");
+    const pressedAt = Date.now();
+    await confirmShare(guest.page);
+
+    let ack = null;
+    try {
+      ack = await until(
+        () => answered.find(isCommand) ?? null,
+        "the send to be answered",
+        30_000,
+      );
+    } catch {
+      /* answered below, with what WAS seen */
+    }
+    const ackAt = Date.now();
+
+    // ── 1 · did the click emit anything? ─────────────────────────────────
+    const commandsSent = sent.filter((p) => p.endsWith("/comando")).length;
+    check(
+      commandsSent >= 1,
+      `the press emits a command (${commandsSent} sent; paths after the press: ${
+        sent.slice(-6).join(", ") || "none"
+      })`,
+    );
+
+    // ── 2 · was it refused? ──────────────────────────────────────────────
+    check(
+      ack !== null && ack.status >= 200 && ack.status < 300,
+      `and the server accepts it (${
+        ack ? `status ${ack.status}` : "no answer observed"
+      })`,
+    );
+
+    // ── 4 · was sending even permitted yet? ──────────────────────────────
+    //
+    // A Dúo has no flexible onboarding, so this cannot be the cause — checked
+    // rather than assumed, because that refusal has its own status and would
+    // otherwise read as a generic failure.
+    check(
+      ack === null || ack.status !== 409,
+      `and it is not a conflict with an earlier intention (${ack?.status ?? "n/a"})`,
+    );
+
+    // ── 3 · did the server actually commit? ──────────────────────────────
+    const seat = sqlOne(
+      `SELECT p."status"::text FROM "CircleActivityParticipant" p
+         JOIN "CircleGuestSession" g ON g."participantId" = p."id"
+        WHERE p."activityId"='${activityId}' AND g."revokedAt" IS NULL
+        LIMIT 1`,
+    ).trim();
+    check(
+      seat === "READY",
+      `the seat is committed as sent in PostgreSQL (${seat || "no row"})`,
+    );
+
+    // ── And now the only question left: does the SCREEN say so? ──────────
+    const shown = await guest.page.evaluate(() => document.body.innerText);
+    const elapsed = ackAt - pressedAt;
+    check(
+      elapsed < SLOW_READ_MS,
+      `the screen is read ${elapsed}ms after the press, while the next read ` +
+        `is still in flight (${SLOW_READ_MS}ms)`,
+    );
+    // The delay has to BITE, or this scenario proves nothing: an unthrottled
+    // refetch lands in a few hundred milliseconds and makes the screen correct
+    // by accident, which is exactly how this defect survived. So the read that
+    // followed the press is timed, and a read that came back quickly is
+    // reported as a broken fixture rather than passed over.
+    const readAfterPress = answered.find(
+      (r) => !isCommand(r) && r.at > pressedAt && r.path.includes("/actividad/"),
+    );
+    check(
+      readAfterPress === undefined ||
+        readAfterPress.at - pressedAt >= SLOW_READ_MS,
+      `the next read really was held back (${
+        readAfterPress
+          ? `${readAfterPress.at - pressedAt}ms`
+          : "none had returned yet"
+      })`,
+    );
+
+    // The heading, by role: a substring can be satisfied by the template's own
+    // prose, and "it said something somewhere" is not what is being claimed.
+    const heading = await guest.page
+      .getByRole("heading", { name: /ya quedó enviada|Listo\./i })
+      .first()
+      .textContent()
+      .catch(() => null);
+    check(
+      heading !== null,
+      `the sender is told their part was sent (headings: ${(
+        await guest.page
+          .getByRole("heading")
+          .allTextContents()
+          .catch(() => [])
+      )
+        .join(" | ")
+        .slice(0, 180)})`,
+    );
+    check(
+      !/ya quedó enviada|Listo\./i.test(heading ?? "")
+        ? true
+        : !(await guest.page
+            .getByRole("button", { name: /Confirmar y enviar/i })
+            .isVisible()
+            .catch(() => false)),
+      "and the form they just submitted is gone",
+    );
+    check(
+      /falta|esperando|cuando/i.test(shown),
+      "and the wait for the other person is explained",
+    );
+
+    // ── The organiser, still inactive, has seen nothing revealed ─────────
+    const revealed = sqlOne(
+      `SELECT count(*) FROM "CircleEvent"
+        WHERE "activityId"='${activityId}' AND "type"='ACTIVITY_REVEALED'`,
+    ).trim();
+    check(
+      revealed === "0",
+      `one part sent reveals nothing (${revealed} reveal events)`,
+    );
+
+    // ── Now the organiser answers, and the room opens for both ───────────
+    await page.goto(`${WEB}/compartir/${activityId}`, {
+      waitUntil: "domcontentloaded",
+    });
+    await enterRoom(page);
+    await typeDraft(page, { uno: "lo mío" });
+    await openPreview(page);
+    await confirmShare(page);
+    await until(
+      () =>
+        sqlOne(
+          `SELECT "status"::text FROM "CircleActivity" WHERE "id"='${activityId}'`,
+        ).trim() === "REVEALED",
+      "the room to open once both parts are in",
+      60_000,
+    );
+    check(true, "the reveal still waits for everybody, as it always did");
+  } finally {
+    await organiserCtx.close().catch(() => {});
+    if (guest) await guest.ctx.close().catch(() => {});
+  }
+}
+
+/**
+ * The private exit of a group that continued with TWO.
+ *
+ * ── The distinction this exists to hold ───────────────────────────────────
+ *
+ * A GROUP_ADULT that continues with two people is still a group. The API
+ * always knew that — keeping it private cancels the activity for everybody
+ * and destroys what the others wrote unopened. The SCREENS did not: they
+ * decided which explanation to show by counting people, so at two they showed
+ * the Dúo's, which promises that the other person will be told you finished
+ * without sharing. In a group nobody is told who ended it.
+ *
+ * So the screen described one product while the server ran another, and the
+ * gap only opens at exactly two. This walks it: the warning before the press,
+ * the warning on the preview, and then the consequence the API actually
+ * produces — with a real Dúo alongside to show its rules are untouched.
+ *
+ * Deliberately a SEPARATE activity from the positive walk: that one has to end
+ * in an agreement, and this one has to end in a cancellation.
+ */
+async function reducedGroupKeepPrivate(browser) {
+  const organiser = await register("reducido-privado");
+  const organiserCtx = await browser.newContext();
+  const guestCtxs = [];
+
+  try {
+    const page = await organiserCtx.newPage();
+    await signIn(page, organiser);
+
+    // ── A circle offered to six, continued with two ──────────────────────
+    await page.goto(`${WEB}/dashboard/circulos`, {
+      waitUntil: "domcontentloaded",
+    });
+    const start = page.getByRole("link", { name: /Empezar este círculo/i });
+    await start.waitFor({ state: "visible", timeout: 30_000 });
+    await start.click();
+    await page.check('input[name="circulo-tamano"][value="6"]');
+    await page.getByRole("button", { name: /Crear el círculo/i }).click();
+
+    const links = await until(
+      async () => {
+        const text = await page.evaluate(() => document.body.innerText);
+        const found = text.match(/https?:\/\/\S*\/i#[A-Za-z0-9_-]{43}/g) ?? [];
+        return found.length === 5 ? found : null;
+      },
+      "five invitation links for a circle of six",
+      60_000,
+    );
+    const activityId = sqlOne(
+      `SELECT a."id" FROM "CircleActivity" a
+         JOIN "Circle" c ON c."id" = a."circleId"
+        WHERE c."createdByUserId" = '${organiser.userId}'
+        ORDER BY a."createdAt" DESC LIMIT 1`,
+    ).trim();
+
+    const guest = await acceptAsGuest(browser, links[0]);
+    guestCtxs.push(guest.ctx);
+    await continuarConQuienesAceptaron(page, activityId);
+
+    const shape = sqlRows(
+      `SELECT a."kind"::text AS kind, a."requiredParticipants" AS capacity,
+              a."confirmedParticipants" AS "group"
+         FROM "CircleActivity" a WHERE a."id" = '${activityId}'`,
+    )[0];
+    check(
+      shape?.[0] === "GROUP_ADULT" && shape?.[1] === "6" && shape?.[2] === "2",
+      `a GROUP_ADULT of capacity six running with two (${shape?.join("/") ?? "no row"})`,
+    );
+
+    // ── One person confirms real content, so there IS something to lose ──
+    await page.goto(`${WEB}/compartir/${activityId}`, {
+      waitUntil: "domcontentloaded",
+    });
+    await enterRoom(page);
+    await typeDraft(page, { uno: "algo que sí escribí" });
+    await openPreview(page);
+    await confirmShare(page);
+
+    const sealedBefore = sqlOne(
+      `SELECT count(*) FROM "CircleActivityParticipant"
+        WHERE "activityId"='${activityId}' AND "ciphertext" IS NOT NULL`,
+    ).trim();
+    check(
+      sealedBefore === "1",
+      `one confirmed envelope is waiting (${sealedBefore})`,
+    );
+
+    // ── The other chooses to keep everything private ─────────────────────
+    //
+    // Into the room again first. This page has been open since before the
+    // organiser continued, so the view it is holding still says the group is
+    // not fixed — the room polls and would catch up on its own, but a test
+    // that raced the poll would be measuring the refresh, not the copy.
+    await guest.page.goto(`${WEB}/compartir/${activityId}`, {
+      waitUntil: "domcontentloaded",
+    });
+    await enterRoom(guest.page);
+    await typeDraft(guest.page, { uno: "algo privado" });
+    await forwardToSharing(guest.page);
+    await guest.page.check('input[name="modo"][value="KEEP_PRIVATE"]');
+    const warning = await guest.page.evaluate(() => document.body.innerText);
+
+    // The GROUP's consequence, said for two people.
+    check(
+      /termina aquí para las dos personas/i.test(warning),
+      `preparation states the group's ending for two (${warning.match(/Si eliges esto[^]{0,120}/i)?.[0].replace(/\s+/g, " ") ?? "not found"})`,
+    );
+    check(
+      /se descarta sin abrirse/i.test(warning),
+      "and that what the other person wrote is discarded unopened",
+    );
+    check(
+      /no se le dice a nadie quién lo eligió/i.test(warning),
+      "and that nobody is told who chose it",
+    );
+    // The Dúo's promise must NOT appear: this is the sentence that used to be
+    // shown here, and it promises a notice naming the person who ended it.
+    check(
+      !/verá que terminaste/i.test(warning),
+      "and it does NOT promise the other person is told who finished",
+    );
+
+    await guest.page
+      .getByRole("button", { name: /Ver qué se compartirá/i })
+      .click();
+    const preview = await until(
+      async () => {
+        const text = await guest.page.evaluate(() => document.body.innerText);
+        return /Nadie verá nada/i.test(text) ? text : null;
+      },
+      "the confirmation screen to spell out the consequence",
+      30_000,
+    );
+    check(
+      /termina para las dos personas/i.test(preview),
+      "the preview repeats the group's ending, for two people",
+    );
+    check(
+      /la actividad se cierra/i.test(preview) &&
+        /no se puede deshacer/i.test(preview),
+      "and says it cannot be undone",
+    );
+
+    // ── And the API does what the screen just promised ───────────────────
+    await confirmShare(guest.page);
+    await until(
+      () =>
+        sqlOne(
+          `SELECT "status"::text FROM "CircleActivity" WHERE "id"='${activityId}'`,
+        ).trim() === "CANCELLED",
+      "the activity to end without revealing",
+      60_000,
+    );
+    check(true, "keeping it private ends the reduced group");
+
+    const after = sqlRows(
+      `SELECT (SELECT count(*) FROM "CircleEvent"
+                WHERE "activityId"='${activityId}' AND "type"='ACTIVITY_REVEALED') AS revealed,
+              (SELECT count(*) FROM "CircleActivityParticipant"
+                WHERE "activityId"='${activityId}' AND "ciphertext" IS NOT NULL) AS sealed,
+              (SELECT count(*) FROM "CircleGuestSession"
+                WHERE "activityId"='${activityId}' AND "revokedAt" IS NULL) AS sessions,
+              (SELECT count(*) FROM "CircleInvitation"
+                WHERE "activityId"='${activityId}' AND "revokedAt" IS NULL) AS links`,
+    )[0];
+    check(after?.[0] === "0", `nothing was revealed (${after?.[0]} events)`);
+    check(
+      after?.[1] === "0",
+      `the pending envelope is destroyed, not kept (${after?.[1]})`,
+    );
+    check(
+      after?.[2] === "0" && after?.[3] === "0",
+      `every derived access is revoked (${after?.slice(2).join("/") ?? "?"})`,
+    );
+
+    // ── The person who pressed nothing learns it ended, and nothing else ─
+    await page.reload({ waitUntil: "domcontentloaded" });
+    const shown = await until(
+      async () => {
+        const text = await page.evaluate(() => document.body.innerText);
+        return /Esta actividad terminó/i.test(text) ? text : null;
+      },
+      "the organiser to see a terminal screen",
+      60_000,
+    );
+    check(
+      !/algo privado/.test(shown) && !/KEEP_PRIVATE/.test(shown),
+      "no content from the other seat is on it",
+    );
+    check(
+      !/Participante \d/.test(shown) && !/eligi/i.test(shown),
+      "and nobody is named as the person who ended it",
+    );
+
+    // ── The contrast: a real Dúo still runs the Dúo's rules ──────────────
+    //
+    // Same count, different modality. Keeping it private here is an ordinary
+    // confirmation that shares nothing: the other person is told you finished,
+    // and the activity does not end.
+    const duoLink = await createDuo(page);
+    const duoGuest = await acceptAsGuest(browser, duoLink);
+    guestCtxs.push(duoGuest.ctx);
+    const duoId = duoGuest.activityId;
+    check(
+      sqlOne(
+        `SELECT "kind"::text FROM "CircleActivity" WHERE "id"='${duoId}'`,
+      ).trim() === "DUO",
+      "the contrast activity really is a DUO",
+    );
+
+    await enterRoom(duoGuest.page);
+    await typeDraft(duoGuest.page, { uno: "lo del dúo" });
+    await forwardToSharing(duoGuest.page);
+    await duoGuest.page.check('input[name="modo"][value="KEEP_PRIVATE"]');
+    const duoWarning = await duoGuest.page.evaluate(
+      () => document.body.innerText,
+    );
+    check(
+      /La otra persona verá que terminaste/i.test(duoWarning),
+      "a DUO keeps its own promise: the other person is told you finished",
+    );
+    check(
+      !/termina aquí/i.test(duoWarning) &&
+        !/se descarta sin abrirse/i.test(duoWarning),
+      "and it does not claim the activity ends",
+    );
+
+    await duoGuest.page
+      .getByRole("button", { name: /Ver qué se compartirá/i })
+      .click();
+    await until(
+      async () => {
+        const t = await duoGuest.page.evaluate(() => document.body.innerText);
+        return /Verá que terminaste tu parte/i.test(t) ? t : null;
+      },
+      "the DUO preview to say what the other person will see",
+      30_000,
+    );
+    await confirmShare(duoGuest.page);
+
+    // The decisive contrast: the Dúo is still alive.
+    await until(
+      () =>
+        sqlOne(
+          `SELECT "status"::text FROM "CircleActivity" WHERE "id"='${duoId}'`,
+        ).trim() === "PREPARING",
+      "the DUO to stay open after one side kept it private",
+      60_000,
+    );
+    check(
+      true,
+      "keeping it private in a DUO shares nothing and ends nothing",
+    );
+  } finally {
+    await organiserCtx.close().catch(() => {});
+    for (const ctx of guestCtxs) await ctx.close().catch(() => {});
+  }
+}
+
+/**
  * The private exit, retried with the SAME key after its response was lost.
  *
  * ── Why a reload cannot prove this ────────────────────────────────────────
@@ -2569,6 +3559,10 @@ async function keepPrivateRetryAfterLoss(browser) {
       guestCtxs.push(guest.ctx);
       guests.push(guest);
     }
+
+    // The organiser fixes the group first: nobody can confirm to an audience
+    // that is not decided yet.
+    await continuarConQuienesAceptaron(page, activityId);
 
     // A GUEST confirms something real, so there is an envelope the exit has
     // to destroy — otherwise a replay that did nothing would look the same as
@@ -2716,15 +3710,20 @@ async function groupKeepPrivate(browser) {
         ORDER BY a."createdAt" DESC LIMIT 1`,
     ).trim();
 
-    // Nobody may prepare until the roster is complete.
+    // Everybody can prepare from the moment they accept. What nobody can do
+    // is confirm, until the organiser says who the group is.
     const guests = [];
     for (const [index, link] of links.entries()) {
       const before = sqlOne(
         `SELECT "status"::text FROM "CircleActivity" WHERE "id"='${activityId}'`,
       ).trim();
+      // REPLACED, not removed. The room used to wait for the whole roster;
+      // now it waits for the ORGANISER. What still has to hold is that
+      // accepting does not open it by itself — that is what makes preparing
+      // early safe, because nobody's audience is fixed behind their back.
       check(
         before === "INVITING",
-        `the room waits for the whole roster (after ${index} acceptances: ${before})`,
+        `accepting does not open the room by itself (after ${index}: ${before})`,
       );
       const guest = await acceptAsGuest(browser, link);
       guestCtxs.push(guest.ctx);
@@ -2734,8 +3733,18 @@ async function groupKeepPrivate(browser) {
       `SELECT "status"::text FROM "CircleActivity" WHERE "id"='${activityId}'`,
     ).trim();
     check(
-      afterAll === "PREPARING",
-      `the LAST acceptance opens the preparation (${afterAll})`,
+      afterAll === "INVITING",
+      `even a FULL room waits for the organiser (${afterAll})`,
+    );
+    // And this is the new way a room opens: the organiser continues with
+    // whoever accepted, which here is everybody.
+    await continuarConQuienesAceptaron(page, activityId);
+    const afterClose = sqlOne(
+      `SELECT "status"::text FROM "CircleActivity" WHERE "id"='${activityId}'`,
+    ).trim();
+    check(
+      afterClose === "PREPARING",
+      `continuing with the group opens the preparation (${afterClose})`,
     );
 
     // The organiser confirms a real selection first, so there is something
@@ -3451,9 +4460,30 @@ try {
   resetRateLimits();
 
   await scenario(
+    "BROWSER_REDUCED_GROUP",
+    "a circle offered to six that continues with two, to the end",
+    () => reducedGroup(browser),
+  );
+  resetRateLimits();
+
+  await scenario(
     "BROWSER_KEEP_PRIVATE_RETRY_AFTER_LOSS",
     "the private exit, retried with the same key after a lost response",
     () => keepPrivateRetryAfterLoss(browser),
+  );
+  resetRateLimits();
+
+  await scenario(
+    "BROWSER_SEND_ACKNOWLEDGEMENT",
+    "sending your part tells you so, before anybody else acts",
+    () => sendAcknowledgement(browser),
+  );
+  resetRateLimits();
+
+  await scenario(
+    "BROWSER_REDUCED_GROUP_KEEP_PRIVATE",
+    "the private exit of a group that continued with two",
+    () => reducedGroupKeepPrivate(browser),
   );
   resetRateLimits();
 

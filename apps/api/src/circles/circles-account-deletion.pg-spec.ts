@@ -65,6 +65,8 @@ const PURGE_MIGRATION = "20260915000000_circles_artifact_purge";
 const ANALYTICS_MIGRATION = "20260916000000_circles_analytics";
 /** Adult groups. Named for the same reason, and it broke the same two tails. */
 const GROUPS_MIGRATION = "20260916100000_circles_adult_groups";
+/** Flexible onboarding. It broke them again, and naming it is the fix. */
+const FLEXIBLE_MIGRATION = "20260917000000_circles_flexible_onboarding";
 
 /**
  * ── The harness owns only what it created ─────────────────────────────────
@@ -2786,6 +2788,7 @@ suite(
           PURGE_MIGRATION,
           ANALYTICS_MIGRATION,
           GROUPS_MIGRATION,
+          FLEXIBLE_MIGRATION,
         ]);
 
         const { readFileSync } = await import("node:fs");
@@ -2908,6 +2911,7 @@ suite(
           PURGE_MIGRATION,
           ANALYTICS_MIGRATION,
           GROUPS_MIGRATION,
+          FLEXIBLE_MIGRATION,
         ]);
 
         const { readFileSync } = await import("node:fs");

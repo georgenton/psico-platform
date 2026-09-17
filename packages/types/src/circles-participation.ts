@@ -31,6 +31,7 @@
 
 import type {
   CircleActivityStatus,
+  CircleKind,
   CircleOutcomeKind,
   CircleParticipantStatus,
   CircleSharingMode,
@@ -177,16 +178,130 @@ export interface CircleArtifactView {
  * `nonce`, `keyVersion`, `payloadHash`, `contentUnitId`, any internal id of the
  * other participant, and any counter derived from their content.
  */
+/**
+ * How somebody stands in the ROOM — never how they stand with their answers.
+ *
+ * `ORGANIZES` and `PARTICIPATES` are the two ways of being in; `INVITED` is a
+ * link that has not been redeemed. There is deliberately no value for «ya
+ * confirmó», «está escribiendo» or «no compartió»: joining is public to the
+ * people inside, what you do with your own answers is not.
+ */
+export type CircleRosterState = "ORGANIZES" | "PARTICIPATES" | "INVITED";
+
+/** One line in the list of who is here. */
+export interface CircleRosterEntry {
+  /**
+   * The name the other participants see: a member's display name, a guest's
+   * chosen alias, or a seat label for an invitation nobody has redeemed.
+   *
+   * An alias is NOT a verified identity and the screens say so. It is never an
+   * email, a phone number or an internal id.
+   */
+  readonly name: string;
+  readonly state: CircleRosterState;
+  /** This entry is the reader's own seat. */
+  readonly you: boolean;
+}
+
+/**
+ * Four numbers that used to be one, and the list of who is here.
+ *
+ * `capacity` is how many people COULD take part — what the organiser chose and
+ * what every invitee was shown before accepting. `accepted` is how many are
+ * in. `group` is who will actually share the activity, and exists only once
+ * the organiser has fixed it. How many have CONFIRMED is not here: that is
+ * `readyCount`, and in a group it stays absent until the reveal.
+ */
+export interface CircleOnboardingView {
+  /** `FLEXIBLE` rooms continue with whoever accepted. `FIXED` wait for all. */
+  readonly policy: "FIXED" | "FLEXIBLE";
+  readonly capacity: number;
+  readonly accepted: number;
+  readonly group: number | null;
+  /** Still taking people in. */
+  readonly open: boolean;
+  /** The organiser may fix the group right now. Only ever true for them. */
+  readonly canClose: boolean;
+  readonly roster: readonly CircleRosterEntry[];
+}
+
+/**
+ * How many people the activity is actually FOR, from a view.
+ *
+ * The Web twin of the API's `participatingSize`. `requiredParticipants` is the
+ * capacity people were shown before accepting; `onboarding.group` is who ended
+ * up inside. For a Dúo, a `FIXED` room, or a flexible room whose organiser has
+ * not continued yet, they are the same number.
+ *
+ * Screens that describe the CONVERSATION — how many confirmed the agreement,
+ * whether to say «las dos personas» or «todas las personas» — ask this.
+ * Screens that describe the INVITATION keep reading capacity.
+ */
+export function circleParticipatingSize(view: {
+  readonly requiredParticipants: number;
+  readonly onboarding?: { readonly group: number | null };
+}): number {
+  return view.onboarding?.group ?? view.requiredParticipants;
+}
+
+/**
+ * Whether this activity runs under the GROUP's rules.
+ *
+ * ── Why this is not `participantes > 2` ───────────────────────────────────
+ *
+ * Because a room offered to six that continued with two is two people running
+ * under the group's rules, and the two questions have different answers there:
+ *
+ *   · «how many people do I say?» — two. «La otra persona» is correct.
+ *   · «what happens if I choose not to share?» — the GROUP's answer: the
+ *     activity ends for everybody and what the others wrote is discarded
+ *     unopened, with nobody told who chose it.
+ *
+ * Counting people answered the first question and was then reused for the
+ * second, so a reduced group was shown the Dúo's explanation of KEEP_PRIVATE
+ * while the API went on doing the group's cancellation. The screen described
+ * one product and the server ran another.
+ *
+ * `kind` is optional because a view served by an API that predates it has to
+ * keep working. When it is absent this falls back to exactly what the screens
+ * did before the field existed, so an older payload behaves as it always did
+ * rather than differently — it is never a better guess, just the same one.
+ */
+export function circleModalidadEsGrupo(
+  kind: CircleKind | undefined,
+  participantes: number,
+): boolean {
+  return kind !== undefined ? kind === "GROUP_ADULT" : participantes > 2;
+}
+
 export interface CircleActivityView {
   readonly activityId: string;
   readonly status: CircleActivityStatus;
+  /**
+   * MODALITY — which rules this activity runs under, independent of its size.
+   *
+   * Optional for the same reason `onboarding` is: a response produced before
+   * the field existed is still a valid response. Readers resolve it through
+   * `circleModalidadEsGrupo`, which says what to do when it is missing.
+   */
+  readonly kind?: CircleKind;
   readonly templateKey: string;
   readonly templateVersion: number;
   readonly title: string;
   readonly summary: string;
   readonly conversationTurns: readonly string[];
   readonly outcomeKind: CircleOutcomeKind;
+  /**
+   * CAPACITY — how many people could take part.
+   *
+   * Kept under its old name because every existing reader means capacity by
+   * it: for a Dúo and for every room created before flexible onboarding it is
+   * also the group, and those readers are still right. `onboarding.group` is
+   * where the two stop being the same number.
+   */
   readonly requiredParticipants: number;
+  /** Who is here, how many could be, and whether the group is fixed yet. */
+  readonly onboarding?: CircleOnboardingView;
   /**
    * How many seats have confirmed — and ABSENT in a group before the reveal.
    *

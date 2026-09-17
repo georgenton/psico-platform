@@ -33,6 +33,12 @@ jobs:
       R2_PUBLIC_URL: https://x.example.com
       ANTHROPIC_API_KEY: x
       VOYAGE_API_KEY: x
+      # Required because VOICE_PROVIDER defaults to `whisper`. Its absence is
+      # why the API had never actually booted here: env validation rejected it
+      # on every run, and the job passed anyway because the committed
+      # openapi.json satisfied the check that was supposed to wait for a fresh
+      # one. The step below now treats a dead process as the answer.
+      OPENAI_API_KEY: x
       STRIPE_SECRET_KEY: x
       STRIPE_WEBHOOK_SECRET: x
       STRIPE_PRO_MONTHLY_PRICE_ID: x
@@ -64,21 +70,54 @@ jobs:
       - name: Build @psico/api + transitive workspace deps
         run: pnpm turbo run build --filter=@psico/api
 
-      - name: Boot API briefly to emit openapi.json
+      - name: Boot API briefly to emit a FRESH openapi.json
         working-directory: apps/api
         run: |
-          node dist/main &
+          # `apps/api/openapi.json` is COMMITTED, so every checkout already
+          # contains one. Waiting for the file to "appear" therefore succeeded
+          # on the first iteration, before the API had written anything — and
+          # succeeded exactly as well when the API never booted at all. What
+          # the job then compared the client against was the file already in
+          # the tree, which is the one thing it can never disagree with.
+          #
+          # It let real drift through: an endpoint added to the API shipped
+          # with a stale contract and this gate stayed green.
+          #
+          # Deleting it touches only this disposable checkout.
+          rm -f openapi.json
+
+          LOG="${RUNNER_TEMP:-/tmp}/openapi-boot.log"
+          node dist/main > "$LOG" 2>&1 &
           PID=$!
-          # Wait for the file to be written. Cap at 30s.
-          for i in {1..30}; do
-            if [ -f openapi.json ]; then
-              echo "openapi.json emitted after ${i}s"
+          fresh=""
+          for i in $(seq 1 60); do
+            # A process that died is the answer, not something to wait out.
+            if ! kill -0 "$PID" 2>/dev/null; then
+              echo "::error::the API exited before emitting openapi.json"
+              cat "$LOG"
+              exit 1
+            fi
+            # Complete, not merely present: a running process is writing this
+            # file, so an existence test can catch it half-flushed.
+            if [ -s openapi.json ] && node -e '
+              const d = JSON.parse(require("fs").readFileSync("openapi.json", "utf8"));
+              if (!d.openapi || !d.paths || Object.keys(d.paths).length === 0) process.exit(1);
+            ' 2>/dev/null; then
+              echo "fresh openapi.json emitted after ${i}s"
+              fresh=1
               break
             fi
             sleep 1
           done
-          kill $PID 2>/dev/null || true
-          test -f openapi.json || (echo "openapi.json never appeared" && exit 1)
+
+          kill "$PID" 2>/dev/null || true
+          wait "$PID" 2>/dev/null || true
+
+          if [ -z "$fresh" ]; then
+            echo "::error::no complete openapi.json was emitted within 60s"
+            cat "$LOG"
+            exit 1
+          fi
 
       - name: Verify generated client is up to date
         run: pnpm --filter @psico/api-client generate:check

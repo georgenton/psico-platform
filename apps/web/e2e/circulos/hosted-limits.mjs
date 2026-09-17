@@ -398,6 +398,37 @@ check(
   `got ${freshIdentity} (want 404 — minting one requires the Web's secret)`,
 );
 
+// ── C-bis · the same six headers, against the real BFF ──────────────────────
+//
+// Restored, and it is a different question from the one section C asks.
+//
+// C asks the API directly, where the identity is an attested client id. The
+// BFF derives its identity from the address the platform reports, and that
+// derivation is the one a browser could try to influence: a client header is
+// the only thing a caller controls on that path. A run that only asked the
+// API would leave the browser's own path — the one every real person uses —
+// unmeasured.
+console.log("\n▸ C-bis · client headers against the real BFF");
+transport.resetRateLimits();
+const bffBudget = await spendUntilRefused(() => viaBff());
+check(
+  bffBudget !== null && bffBudget - 1 === LIMIT,
+  "the BFF allowance is spent, so a fresh identity would be visible",
+  `spent ${bffBudget === null ? "unbounded" : bffBudget - 1}`,
+);
+const honouredByBff = [];
+for (const [header, value] of Object.entries(spoofs)) {
+  const status = await viaBff({ [header]: value });
+  if (status !== 429) honouredByBff.push(`${header} → ${status}`);
+}
+check(
+  honouredByBff.length === 0,
+  "no client header buys a fresh identity through the BFF either",
+  honouredByBff.length
+    ? `HONOURED: ${honouredByBff.join(", ")}`
+    : "all six still refused with 429",
+);
+
 // ── D · two legitimate clients ──────────────────────────────────────────────
 
 console.log("\n▸ D · a second, genuinely different client");

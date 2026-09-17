@@ -36,6 +36,7 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   const body = (await request.json().catch(() => null)) as {
     secret?: unknown;
+    alias?: unknown;
   } | null;
 
   const secret = body?.secret;
@@ -53,7 +54,17 @@ export async function POST(request: Request): Promise<NextResponse> {
   // can be stale by the time it opens — and a second call would spend two of
   // the ten invitation attempts the throttler allows per fifteen minutes,
   // halving how many times somebody can legitimately retry a flaky network.
-  const session = await acceptInvitation(secret);
+  // The chosen display name, validated for SHAPE here and for meaning by the
+  // API. Anything that is not a short string is dropped rather than refused:
+  // a name is optional, and failing an acceptance over it would cost somebody
+  // their place in a room for a cosmetic field.
+  const rawAlias = body?.alias;
+  const alias =
+    typeof rawAlias === "string" && rawAlias.trim().length > 0
+      ? rawAlias.trim().slice(0, 24)
+      : undefined;
+
+  const session = await acceptInvitation(secret, alias);
   if (!session.ok || !session.data) {
     return refuse(session.status, session.code ?? "CIRCLE_INVITATION_UNUSABLE");
   }

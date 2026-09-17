@@ -3298,6 +3298,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/circles/activities/{activityId}/close-onboarding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Continue with whoever accepted */
+        post: operations["CirclesMemberParticipationController_closeOnboarding"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/circles/activities/{activityId}/artifact": {
         parameters: {
             query?: never;
@@ -5673,6 +5690,8 @@ export interface components {
              * @enum {number}
              */
             accept: true;
+            /** @description Optional short display name, chosen by the person accepting. Not a verified identity and never a contact detail. */
+            alias?: string;
         };
         SelectedFieldDto: {
             /** @description A field key the template declares. */
@@ -17530,6 +17549,25 @@ export interface operations {
         };
     };
     CirclesMemberParticipationController_withdraw: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                activityId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    CirclesMemberParticipationController_closeOnboarding: {
         parameters: {
             query?: never;
             header?: never;

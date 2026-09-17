@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { CircleActivityView } from "@psico/types";
+import { circleParticipatingSize } from "@psico/types";
 
 import { estilos as S } from "./estilos";
 
@@ -40,7 +41,12 @@ export function Artefacto({
   // sentences are left exactly as they are in production: this activity is
   // live, and rewording a screen people are using is not a side effect a group
   // feature gets to have.
-  const grupo = view.requiredParticipants > 2;
+  // The GROUP decides the wording, not the capacity. A room offered to six
+  // that continued with two IS two people, and «las dos personas» is what
+  // happened; «todas las personas» about a pair reads as a room that is not
+  // there. The Dúo's sentences are untouched — for it the two numbers agree.
+  const participantes = circleParticipatingSize(view);
+  const grupo = participantes > 2;
   const [draft, setDraft] = useState("");
   const [editing, setEditing] = useState(false);
 
@@ -125,7 +131,7 @@ export function Artefacto({
           ? grupo
             ? "Todas las personas lo confirmaron."
             : "Las dos personas lo confirmaron."
-          : `${artifact.confirmationCount} de ${view.requiredParticipants} lo confirmaron.`}
+          : `${artifact.confirmationCount} de ${participantes} lo confirmaron.`}
       </p>
 
       {/*

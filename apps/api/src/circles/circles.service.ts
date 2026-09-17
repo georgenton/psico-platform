@@ -332,6 +332,14 @@ export class CirclesService {
   async exchange(
     presented: string,
     now: Date = new Date(),
+    /**
+     * The short name this person will be shown under, chosen as they accept.
+     *
+     * Optional, and trimmed to a display length rather than validated as an
+     * identity — it is not one, and the screens say so. Absent means the room
+     * shows a seat label instead, which is what every room did before.
+     */
+    alias?: string | null,
   ): Promise<ExchangedGuestSession> {
     const invitation = await this.resolveUsableInvitation(presented, now);
     const guestToken = mintInvitationToken();
@@ -422,7 +430,12 @@ export class CirclesService {
             activityId: invitation.activityId,
             status: "INVITED",
           },
-          data: { status: "ACCEPTED" },
+          data: {
+            status: "ACCEPTED",
+            ...(typeof alias === "string" && alias.trim().length > 0
+              ? { alias: alias.trim().slice(0, 24) }
+              : {}),
+          },
         });
         if (moved.count !== 1) throw new CircleStorageError();
 
@@ -448,7 +461,18 @@ export class CirclesService {
         const accepted = await tx.circleActivityParticipant.count({
           where: { activityId: invitation.activityId, status: "ACCEPTED" },
         });
+        // ── Under FLEXIBLE the room does NOT open itself ─────────────────
+        //
+        // Nobody waits for a full roster any more: each person prepares as
+        // soon as they accept, and the ORGANISER decides when the group is
+        // the group. Opening the preparation here would fix the audience
+        // behind their back — the whole point of the close is that the people
+        // inside are told who will read them before they confirm anything.
+        //
+        // A `FIXED` room is untouched: the last acceptance still opens it,
+        // which is the rule its participants entered under.
         if (
+          activity.onboarding === "FIXED" &&
           activity.status === "INVITING" &&
           accepted >= activity.requiredParticipants
         ) {

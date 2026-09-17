@@ -1,4 +1,5 @@
 import type {
+  CircleRosterEntry,
   CircleActivityDefinition,
   CircleActivityView,
   CircleFollowUpDecision,
@@ -63,6 +64,17 @@ export interface ProjectionInput {
    */
   readonly others: readonly ProjectionOther[];
   readonly readyCount: number;
+  /**
+   * Display names for the member seats, resolved by the caller.
+   *
+   * By seat id, and only ever a name somebody already publishes inside the
+   * product. The projection never reads a user row itself — it is the last
+   * thing before the network, and giving it a way to reach account data would
+   * be giving it a way to leak it.
+   */
+  readonly memberNames?: ReadonlyMap<string, string>;
+  /** Invitations that are still waiting, by seat index. Organiser only. */
+  readonly pendingSeatIndexes?: readonly number[];
   readonly artifact: {
     readonly id: string;
     readonly version: number;
@@ -200,6 +212,77 @@ function roomStatus(
   return worst ?? "INVITED";
 }
 
+/**
+ * Who is in the room, for the people who are in it.
+ *
+ * ── What this is allowed to say, and what it must never ───────────────────
+ *
+ * It says who JOINED: the organiser, the people who accepted, and — for the
+ * organiser only — how many invitations are still waiting. That is the
+ * approved visibility, and it is what makes a room feel like a room rather
+ * than a form.
+ *
+ * It says nothing about what anybody is doing with their answers. No «ya
+ * confirmó», no «está escribiendo», no «todavía no ha respondido», and no way
+ * to tell who chose to keep theirs private — those are the five sentences the
+ * design refuses to let a screen build, and the shape here cannot express
+ * them: `state` has three values and none of them is about content.
+ *
+ * Seats that WITHDREW are omitted rather than listed as gone. Naming them
+ * would publish a decision, which is the thing the private exit exists to
+ * avoid.
+ */
+function buildRoster(input: ProjectionInput): CircleRosterEntry[] {
+  const seats = [
+    { participant: input.self, position: selfPosition(input), you: true },
+    ...input.others.map((o) => ({
+      participant: o.participant,
+      position: o.position,
+      you: false,
+    })),
+  ].sort((a, b) => a.position - b.position);
+
+  const entries: CircleRosterEntry[] = [];
+  for (const seat of seats) {
+    const p = seat.participant;
+    // A seat that is still `INVITED` is a seat nobody has taken. It exists
+    // from the moment the invitation is minted, so listing it as somebody who
+    // participates would put a person in the room who has not answered — and
+    // the same person again, correctly, in the pending entries below.
+    //
+    // Withdrawn and declined seats are skipped for a different reason:
+    // naming them publishes a decision the private exit exists not to publish.
+    if (p.status !== "ACCEPTED" && p.status !== "READY") continue;
+    const organizes = p.memberId !== null;
+    const name = organizes
+      ? (input.memberNames?.get(p.id) ?? "Organiza")
+      : (p.alias ?? seatLabel(seat.position));
+    entries.push({
+      name,
+      state: organizes ? "ORGANIZES" : "PARTICIPATES",
+      you: seat.you,
+    });
+  }
+  // The links nobody has redeemed. Labelled by their seat, never by a person:
+  // the product does not know who the organiser sent them to, and inventing a
+  // recipient is worse than admitting it.
+  for (const index of input.pendingSeatIndexes ?? []) {
+    entries.push({
+      name: `Invitación ${index + 1}`,
+      state: "INVITED",
+      you: false,
+    });
+  }
+  return entries;
+}
+
+/** The actor's own position, derived from the gaps the others leave. */
+function selfPosition(input: ProjectionInput): number {
+  const taken = new Set(input.others.map((o) => o.position));
+  for (let i = 1; i <= taken.size + 1; i += 1) if (!taken.has(i)) return i;
+  return taken.size + 1;
+}
+
 export function projectActivity(input: ProjectionInput): CircleActivityView {
   const { activity, definition, self, others } = input;
   const revealedStage =
@@ -223,6 +306,11 @@ export function projectActivity(input: ProjectionInput): CircleActivityView {
     revealedStage &&
     mayReadRevealedContent(self) &&
     !accessIsWithdrawn(activity, [self, ...others.map((o) => o.participant)]);
+  // Counted from the seats themselves rather than taken from a field: a seat
+  // that has already confirmed is READY, and it is still somebody who joined.
+  const acceptedSeats = [self, ...others.map((o) => o.participant)].filter(
+    (p) => p.status === "ACCEPTED" || p.status === "READY",
+  ).length;
   const revealedParticipants = mayReadRevealed
     ? others.flatMap((other) => {
         const share = toRevealedShare(other.body);
@@ -233,6 +321,14 @@ export function projectActivity(input: ProjectionInput): CircleActivityView {
   return {
     activityId: activity.id,
     status: activity.status,
+    // The MODALITY, which this function has always had and never sent.
+    //
+    // Without it the only way a screen could tell a group from a Dúo was to
+    // count the people in it — which is right until a room offered to six
+    // continues with two, and then describes the Dúo's consequences over the
+    // group's behaviour. It is the discriminant the activity already stores;
+    // nothing here decides anything new.
+    kind: activity.kind,
     templateKey: activity.templateKey,
     templateVersion: activity.templateVersion,
     title: definition.title,
@@ -249,6 +345,38 @@ export function projectActivity(input: ProjectionInput): CircleActivityView {
     ...(activity.kind === "GROUP_ADULT" && !revealedStage
       ? {}
       : { readyCount: input.readyCount }),
+    // The room, for the people in it. Absent for a `FIXED` activity: nothing
+    // about it changed, and adding a block that says "capacity 2, accepted 2"
+    // to every Dúo would be noise pretending to be information.
+    // ── And gone once the room is over ────────────────────────────────
+    //
+    // A terminal activity has no onboarding to describe, and the list would
+    // outlive the reason it existed. It matters most after a private exit:
+    // that ending deliberately names nobody, and a roster still hanging on
+    // the closing screen would be a list of who was there to be suspected.
+    ...(activity.onboarding === "FLEXIBLE" &&
+    activity.status !== "CANCELLED" &&
+    activity.status !== "CLOSED"
+      ? {
+          onboarding: {
+            policy: "FLEXIBLE" as const,
+            capacity: activity.requiredParticipants,
+            accepted: acceptedSeats,
+            group: activity.confirmedParticipants,
+            open:
+              activity.status === "INVITING" &&
+              activity.confirmedParticipants === null,
+            // Only the organiser, and only while there is something to close
+            // and enough people to close it with.
+            canClose:
+              self.memberId !== null &&
+              activity.status === "INVITING" &&
+              activity.confirmedParticipants === null &&
+              acceptedSeats >= 2,
+            roster: buildRoster(input),
+          },
+        }
+      : {}),
     revealedAt: activity.revealedAt ? activity.revealedAt.toISOString() : null,
     followUpDueAt: activity.followUpDueAt
       ? activity.followUpDueAt.toISOString()

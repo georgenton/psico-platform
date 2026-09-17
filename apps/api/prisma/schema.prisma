@@ -2916,6 +2916,14 @@ enum CircleActivityStatus {
   CANCELLED
 }
 
+/// Whether everybody invited must accept, or the organiser may continue with
+/// whoever did. Per activity and immutable — see the flexible-onboarding
+/// migration for why it is not a template flag.
+enum CircleOnboardingPolicy {
+  FIXED
+  FLEXIBLE
+}
+
 enum CircleParticipantStatus {
   INVITED
   ACCEPTED
@@ -3116,16 +3124,16 @@ model CircleGuestSession {
 }
 
 model CircleActivity {
-  id                   String               @id @default(cuid())
-  circleId             String
+  id                    String                 @id @default(cuid())
+  circleId              String
   /// The template pin. Immutable after creation, enforced by a SQL trigger —
   /// re-pointing a running activity at different copy is not something a
   /// convention should be trusted to prevent. `contentUnitId` is deliberately
   /// absent: editorial identity is resolved server-side, never carried in a
   /// contract the Web can see.
-  templateKey          String
-  templateVersion      Int
-  status               CircleActivityStatus @default(INVITING)
+  templateKey           String
+  templateVersion       Int
+  status                CircleActivityStatus   @default(INVITING)
   /// Which shape this activity is, copied from its circle and held there by a
   /// composite FK. It exists so the size CHECK below can be conditional without
   /// a subquery — a CHECK cannot ask another table, and "how many seats may
@@ -3134,17 +3142,31 @@ model CircleActivity {
   /// `DUO` by default so an API instance from before this migration can still
   /// insert during a rolling deploy: it writes no kind, gets DUO, and DUO's
   /// rule is the one it was already obeying.
-  kind                 CircleKind           @default(DUO)
+  kind                  CircleKind             @default(DUO)
   /// Exactly 2 for a Dúo and 3–6 for an adult group, by SQL CHECK against
   /// `kind`. Fixed when the activity is created and frozen by trigger: a roster
   /// that can be resized mid-activity is a roster nobody agreed to.
-  requiredParticipants Int
-  revealedAt           DateTime?
-  followUpDueAt        DateTime?
-  closedAt             DateTime?
-  cancelledAt          DateTime?
-  createdAt            DateTime             @default(now())
-  updatedAt            DateTime             @updatedAt
+  requiredParticipants  Int
+  /// Which onboarding rules this activity plays by, fixed at creation.
+  ///
+  /// `FIXED` is every room that existed before flexible onboarding: everybody
+  /// invited must accept, and the last acceptance opens the preparation. It is
+  /// the default so a row written by an older API instance mid-deploy — or any
+  /// row already in the table — keeps the rules its participants entered under.
+  onboarding            CircleOnboardingPolicy @default(FIXED)
+  /// The group that will actually share the activity, written ONCE when the
+  /// organiser closes onboarding. Null while onboarding is open.
+  ///
+  /// `requiredParticipants` is CAPACITY — how many could take part. This is how
+  /// many will. The reveal barrier reads this when it exists and capacity when
+  /// it does not, which is the old behaviour exactly for a `FIXED` room.
+  confirmedParticipants Int?
+  revealedAt            DateTime?
+  followUpDueAt         DateTime?
+  closedAt              DateTime?
+  cancelledAt           DateTime?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
 
   circle        Circle                      @relation(fields: [circleId], references: [id], onDelete: Cascade)
   /// The composite half: this activity's kind must be its circle's kind.
@@ -3176,6 +3198,10 @@ model CircleActivityParticipant {
   memberId     String?
   invitationId String?
   status       CircleParticipantStatus @default(INVITED)
+  /// A guest's short display name, chosen when they accept. Personal data:
+  /// deleted with the seat, never sent to analytics, and never a verified
+  /// identity. Members have none — their account already carries a name.
+  alias        String?
 
   /// The confirmed snapshot. PR3 writes these; PR2 never does. All four are
   /// present together or absent together (SQL CHECK) — a half-written envelope

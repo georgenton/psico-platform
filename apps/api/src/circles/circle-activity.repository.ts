@@ -59,7 +59,12 @@ export interface CircleActivityRow {
    * lock on, not with a catalogue this build happens to carry.
    */
   kind: "DUO" | "GROUP_ADULT";
+  /** CAPACITY: how many people could take part. Never how many will. */
   requiredParticipants: number;
+  /** Which onboarding rules this activity was created under. */
+  onboarding: "FIXED" | "FLEXIBLE";
+  /** The group that will share it, once the organiser fixed one. */
+  confirmedParticipants: number | null;
   revealedAt: Date | null;
   followUpDueAt: Date | null;
   closedAt: Date | null;
@@ -74,6 +79,8 @@ const SELECT = {
   status: true,
   kind: true,
   requiredParticipants: true,
+  onboarding: true,
+  confirmedParticipants: true,
   revealedAt: true,
   followUpDueAt: true,
   closedAt: true,
@@ -111,6 +118,7 @@ export class CircleActivityRepository {
     try {
       const rows = await tx.$queryRaw<CircleActivityRow[]>(Prisma.sql`
         SELECT "id", "circleId", "templateKey", "templateVersion", "status",
+               "onboarding", "confirmedParticipants",
                "kind"::text AS "kind",
                "requiredParticipants", "revealedAt", "followUpDueAt",
                "closedAt", "cancelledAt"
@@ -194,14 +202,62 @@ export class CircleActivityRepository {
          WHERE a."id" = ${activityId}
            AND a."status" = 'PREPARING'
            AND a."revealedAt" IS NULL
+           -- The GROUP when onboarding has fixed one, capacity when it has
+           -- not. For every room created before flexible onboarding the two
+           -- are the same number, so this is the old barrier unchanged.
            AND (
              SELECT count(*) FROM "CircleActivityParticipant" p
               WHERE p."activityId" = a."id" AND p."status" = 'READY'
-           ) = a."requiredParticipants"
+           ) = COALESCE(a."confirmedParticipants", a."requiredParticipants")
            AND (
              SELECT count(*) FROM "CircleActivityParticipant" p
               WHERE p."activityId" = a."id"
-           ) = a."requiredParticipants"
+           ) = COALESCE(a."confirmedParticipants", a."requiredParticipants")
+      `);
+      return updated === 1;
+    } catch {
+      throw new CircleStorageError();
+    }
+  }
+
+  /**
+   * Fix the group, in one conditional UPDATE.
+   *
+   * The predicate IS the rule: only a FLEXIBLE room, only while it is still
+   * `INVITING`, only if it has not already fixed a group, and only for a
+   * `group` that is at least two and no larger than the capacity people were
+   * shown. Nothing here trusts a count the caller computed a statement ago —
+   * the caller holds the locks, and this is still the statement that decides.
+   *
+   * Returns false rather than throwing when it does not apply, so a second
+   * press of the button is a replay and not an error.
+   */
+  async closeOnboarding(
+    activityId: string,
+    group: number,
+    now: Date,
+    tx: CircleActivityTx,
+  ): Promise<boolean> {
+    try {
+      const updated = await tx.$executeRaw(Prisma.sql`
+        UPDATE "CircleActivity" a
+           SET "status" = 'PREPARING',
+               "confirmedParticipants" = ${group},
+               "updatedAt" = ${now}
+         WHERE a."id" = ${activityId}
+           AND a."status" = 'INVITING'
+           AND a."onboarding" = 'FLEXIBLE'
+           AND a."confirmedParticipants" IS NULL
+           AND ${group} >= 2
+           AND ${group} <= a."requiredParticipants"
+           -- And the group is exactly the seats that accepted, counted here
+           -- rather than taken on trust: between the caller's count and this
+           -- statement there is a lock, but there is no reason to rely on it
+           -- when the database can recount for free.
+           AND (
+             SELECT count(*) FROM "CircleActivityParticipant" p
+              WHERE p."activityId" = a."id" AND p."status" = 'ACCEPTED'
+           ) = ${group}
       `);
       return updated === 1;
     } catch {

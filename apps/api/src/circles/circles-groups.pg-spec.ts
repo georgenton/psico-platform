@@ -957,6 +957,9 @@ suite("circles · adult groups (real PostgreSQL)", () => {
           participantId: seat.rows[0].participantId as string,
         });
       }
+      // Everybody is seated, so the organiser continues with everybody — the
+      // room reaches `PREPARING` the way it does now.
+      await continueWithEveryone(created.activityId);
       return {
         ...created,
         organizer: { kind: "USER" as const, userId: ORGANIZER },
@@ -1222,6 +1225,9 @@ suite("circles · adult groups (real PostgreSQL)", () => {
         });
       }
       const organizer = { kind: "USER" as const, userId: ORGANIZER };
+      // The group is the group before anybody confirms: under the flexible
+      // rules the last acceptance does not open the room, the organiser does.
+      await continueWithEveryone(created.activityId);
       for (const actor of [organizer, ...guests]) {
         await open.confirmShare(
           actor,
@@ -1364,7 +1370,7 @@ suite("circles · adult groups (real PostgreSQL)", () => {
 
   // ══ The corrective block ═════════════════════════════════════════════════
 
-  describe("the roster decides when preparation begins", () => {
+  describe("the ORGANISER decides when preparation begins", () => {
     /** A group of `size` with its invitations minted and nobody in yet. */
     async function invitedGroup(size: number) {
       const tokens = mintTokens(size - 1);
@@ -1401,20 +1407,39 @@ suite("circles · adult groups (real PostgreSQL)", () => {
       };
     };
 
-    it("stays INVITING after the first acceptance and moves on the last", async () => {
+    it("stays INVITING however many accept, until the organiser continues", async () => {
+      // REPLACES the roster rule, and keeps the half of it that still holds.
+      //
+      // The original bug was the FIRST acceptance opening preparation, which
+      // left a room with an empty seat that could never reveal. The fix then
+      // was "wait for the LAST one"; the fix now is "wait for the person who
+      // owns the room", which also covers the case the roster rule could not:
+      // somebody who never answers at all.
+      //
+      // What must still hold — and is why preparing early is safe — is that
+      // ACCEPTING does not open the room. Nobody's audience is fixed behind
+      // their back.
       const group = await invitedGroup(3);
       expect(await statusOf(group.activityId)).toBe("INVITING");
 
       await acceptAs(group.tokens[0]!, group.activityId);
-      // The bug this replaces: the FIRST acceptance opened preparation, and a
-      // room with an empty seat could never reveal and was never swept.
       expect(await statusOf(group.activityId)).toBe("INVITING");
 
       await acceptAs(group.tokens[1]!, group.activityId);
+      expect(
+        await statusOf(group.activityId),
+        "even a FULL room waits for the organiser",
+      ).toBe("INVITING");
+
+      await open.closeOnboarding(
+        { kind: "USER", userId: ORGANIZER },
+        group.activityId,
+        randomUUID(),
+      );
       expect(await statusOf(group.activityId)).toBe("PREPARING");
     }, 30_000);
 
-    it("refuses a confirmation while a seat is still empty", async () => {
+    it("refuses a confirmation while the group is not fixed, and SAYS so", async () => {
       const group = await invitedGroup(3);
       const guest = await acceptAs(group.tokens[0]!, group.activityId);
       const organizer = { kind: "USER" as const, userId: ORGANIZER };
@@ -1432,7 +1457,10 @@ suite("circles · adult groups (real PostgreSQL)", () => {
               randomUUID(),
             ),
           ),
-        ).toBe("CIRCLE_ACTIVITY_UNAVAILABLE");
+          // The code changed with the rule, and that is the point of the
+          // change: the old opaque answer was rendered as «esta actividad ya
+          // no admite cambios» to somebody whose room was simply still open.
+        ).toBe("CIRCLE_ONBOARDING_OPEN");
       }
       // And nothing was written on the way to refusing.
       const ready = await pool.query(
@@ -1486,6 +1514,9 @@ suite("circles · adult groups (real PostgreSQL)", () => {
           participantId: seat.rows[0].participantId as string,
         });
       }
+      // Everybody is in, so the organiser continues with everybody. The room
+      // reaches `PREPARING` the way it does now: because somebody said so.
+      await continueWithEveryone(created.activityId);
       return {
         ...created,
         organizer: { kind: "USER" as const, userId: ORGANIZER },
@@ -1723,6 +1754,8 @@ suite("circles · adult groups (real PostgreSQL)", () => {
         });
       }
       const organizer = { kind: "USER" as const, userId: ORGANIZER };
+      // The organiser continues with everybody before anybody confirms.
+      await continueWithEveryone(created.activityId);
       for (const [index, actor] of [organizer, ...guests].entries()) {
         await open.confirmShare(
           actor,
@@ -1925,6 +1958,8 @@ suite("circles · adult groups (real PostgreSQL)", () => {
         idempotencyKey: randomUUID(),
       });
       for (const token of tokens) await access.exchange(token);
+      // Everybody accepted, so the organiser continues with everybody.
+      await continueWithEveryone(created.activityId);
       const organizer = { kind: "USER" as const, userId: ORGANIZER };
       await open.confirmShare(
         organizer,
@@ -1973,6 +2008,8 @@ suite("circles · adult groups (real PostgreSQL)", () => {
           participantId: seat.rows[0].participantId as string,
         });
       }
+      // The group is the group before anybody confirms.
+      await continueWithEveryone(created.activityId);
       for (const actor of actors) {
         await open.confirmShare(
           actor,
@@ -2039,6 +2076,9 @@ suite("circles · adult groups (real PostgreSQL)", () => {
         size: 3,
         idempotencyKey: randomUUID(),
       });
+      // The pre-change rules, which is what this suite is about: one dead
+      // link ends a room where every invited seat was essential.
+      await asLegacyFixedRoom(created.activityId);
       for (const token of tokens.slice(0, accepted)) {
         await access.exchange(token);
       }
@@ -2203,6 +2243,8 @@ suite("circles · adult groups (real PostgreSQL)", () => {
           participantId: seat.rows[0].participantId as string,
         });
       }
+      // The group is the group before anybody confirms.
+      await continueWithEveryone(created.activityId);
       for (const [index, actor] of actors.entries()) {
         await open.confirmShare(
           actor,
@@ -2367,6 +2409,9 @@ suite("circles · adult groups (real PostgreSQL)", () => {
         size: 3,
         idempotencyKey: randomUUID(),
       });
+      // These suites are about the rules a room created BEFORE this change
+      // runs on, and the sweep still owes those rooms the old policy.
+      await asLegacyFixedRoom(created.activityId);
       const sessions: string[] = [];
       for (const token of tokens.slice(0, accepted)) {
         const exchanged = await access.exchange(token);
@@ -2453,6 +2498,52 @@ suite("circles · adult groups (real PostgreSQL)", () => {
       expect(await statusOf(created.activityId)).toBe("CANCELLED");
     }, 90_000);
   });
+
+  /**
+   * Everybody accepted, so the organiser continues with everybody.
+   *
+   * The replacement for a rule this block intentionally removed. The roster
+   * completing used to open the preparation by itself; now a room waits for
+   * the person who owns it to say the group is the group — even when the
+   * group happens to be everyone invited. The fixtures below want a room in
+   * `PREPARING`, and this is how a room gets there.
+   */
+  const continueWithEveryone = (activityId: string) =>
+    open.closeOnboarding(
+      { kind: "USER", userId: ORGANIZER },
+      activityId,
+      randomUUID(),
+    );
+
+  /**
+   * Make a room that predates flexible onboarding — the only way there is.
+   *
+   * `onboarding` is immutable by trigger, deliberately: a room offered under
+   * one set of rules cannot be switched to the other while people are inside
+   * it. That is right, and it also means a room created by today's code can
+   * never BE a legacy room, so the compatibility these suites check —
+   * «las salas ya creadas conservan las reglas con las que entraron sus
+   * participantes» — would be untestable without manufacturing one.
+   *
+   * So the trigger is lifted for exactly one statement, on a database this
+   * suite owns, and put back immediately. Nothing in the product can do this;
+   * if this helper ever stops raising when removed, the trigger is gone.
+   */
+  const asLegacyFixedRoom = async (activityId: string) => {
+    await pool.query(
+      `ALTER TABLE "CircleActivity" DISABLE TRIGGER "CircleActivity_pin_immutable"`,
+    );
+    try {
+      await pool.query(
+        `UPDATE "CircleActivity" SET "onboarding"='FIXED' WHERE "id"=$1`,
+        [activityId],
+      );
+    } finally {
+      await pool.query(
+        `ALTER TABLE "CircleActivity" ENABLE TRIGGER "CircleActivity_pin_immutable"`,
+      );
+    }
+  };
 
   // ══ The race harness: two transactions, both named, no sleeps ═══════════
   //
@@ -2686,6 +2777,9 @@ suite("circles · adult groups (real PostgreSQL)", () => {
         size: 3,
         idempotencyKey: randomUUID(),
       });
+      // A room on the pre-change rules: this race is about the sweep's
+      // FIXED policy, which those rooms still get.
+      await asLegacyFixedRoom(created.activityId);
       await pool.query(
         `UPDATE "CircleInvitation"
             SET "createdAt" = now() - interval '15 days',
@@ -2879,6 +2973,9 @@ suite("circles · adult groups (real PostgreSQL)", () => {
           participantId: seat.rows[0].participantId as string,
         });
       }
+      // Everybody is in, so the organiser continues with everybody. The room
+      // reaches `PREPARING` the way it does now: because somebody said so.
+      await continueWithEveryone(created.activityId);
       return {
         ...created,
         organizer: { kind: "USER" as const, userId: ORGANIZER },
@@ -3133,6 +3230,8 @@ suite("circles · adult groups (real PostgreSQL)", () => {
         size: 3,
         idempotencyKey: randomUUID(),
       });
+      // A room on the pre-change rules, for the same reason as above.
+      await asLegacyFixedRoom(created.activityId);
       // Accept the HIGHEST invitation id, and kill the other one.
       //
       // Deliberate, and the whole reason the guest race is deterministic: the
@@ -3440,6 +3539,773 @@ suite("circles · adult groups (real PostgreSQL)", () => {
       expect(state.sessions, "no credential survives").toBe(0);
       expect(state.invitations, "no link survives").toBe(0);
       expect(state.cancellations, "one cancellation").toBe(1);
+    }, 120_000);
+  });
+
+  // ══ Flexible onboarding ══════════════════════════════════════════════════
+
+  describe("a room that continues with whoever accepted", () => {
+    const participationFor = (env: CirclesRolloutEnv = OPEN) => build(env);
+
+    const statusOf = async (activityId: string) =>
+      (
+        await pool.query(
+          `SELECT "status"::text AS s FROM "CircleActivity" WHERE "id"=$1`,
+          [activityId],
+        )
+      ).rows[0].s as string;
+
+    const shapeOf = async (activityId: string) => {
+      const row = await pool.query(
+        `SELECT "onboarding"::text AS policy,
+                "requiredParticipants" AS capacity,
+                "confirmedParticipants" AS "group",
+                (SELECT count(*)::int FROM "CircleActivityParticipant"
+                  WHERE "activityId"=$1) AS seats,
+                (SELECT count(*)::int FROM "CircleActivityParticipant"
+                  WHERE "activityId"=$1 AND "status"='ACCEPTED') AS accepted,
+                (SELECT count(*)::int FROM "CircleInvitation"
+                  WHERE "activityId"=$1 AND "revokedAt" IS NULL
+                    AND "consumedAt" IS NULL) AS pending
+           FROM "CircleActivity" WHERE "id"=$1`,
+        [activityId],
+      );
+      return row.rows[0] as {
+        policy: string;
+        capacity: number;
+        group: number | null;
+        seats: number;
+        accepted: number;
+        pending: number;
+      };
+    };
+
+    /** A room for `size`, with `accepting` of its guests actually in. */
+    async function room(size: number, accepting: number) {
+      const tokens = mintTokens(size - 1);
+      const created = await open.createDuo({
+        userId: ORGANIZER,
+        templateKey: GROUP.templateKey,
+        templateVersion: GROUP.templateVersion,
+        invitationTokens: tokens,
+        size,
+        idempotencyKey: randomUUID(),
+      });
+      const guests = [];
+      for (const token of tokens.slice(0, accepting)) {
+        const exchanged = await access.exchange(token, undefined, null);
+        const seat = await pool.query(
+          `SELECT "participantId" FROM "CircleGuestSession" WHERE "id"=$1`,
+          [exchanged.guestSessionId],
+        );
+        guests.push({
+          kind: "GUEST" as const,
+          guestSessionId: exchanged.guestSessionId,
+          activityId: created.activityId,
+          participantId: seat.rows[0].participantId as string,
+        });
+      }
+      return {
+        ...created,
+        tokens,
+        guests,
+        organizer: { kind: "USER" as const, userId: ORGANIZER },
+      };
+    }
+
+    const share = (value: string) =>
+      ({
+        mode: "SELECTED_FIELDS",
+        fields: [{ fieldKey: "campo-a", value }],
+      }) as const;
+
+    it("creates a group under the flexible rules and a Dúo under the old ones", async () => {
+      const group = await room(4, 0);
+      expect((await shapeOf(group.activityId)).policy).toBe("FLEXIBLE");
+
+      const token = mintToken();
+      const duo = await open.createDuo({
+        userId: ORGANIZER,
+        templateKey: DUO.templateKey,
+        templateVersion: DUO.templateVersion,
+        invitationTokens: [token],
+        idempotencyKey: randomUUID(),
+      });
+      // A Dúo is two people by definition: "continue with whoever accepted"
+      // is either both of them or nobody, so its rules are left alone.
+      expect((await shapeOf(duo.activityId)).policy).toBe("FIXED");
+    }, 60_000);
+
+    it("does not open the preparation just because somebody accepted", async () => {
+      const group = await room(3, 1);
+      // The old rule moved the room on the LAST acceptance. Under the flexible
+      // rules the organiser decides, so a partly-filled room stays open.
+      expect(await statusOf(group.activityId)).toBe("INVITING");
+    }, 60_000);
+
+    it("tells a person preparing early that the group is not fixed YET", async () => {
+      // The bug this block exists to fix. Confirming while the room is still
+      // taking people in used to answer CIRCLE_ACTIVITY_UNAVAILABLE, which the
+      // screen rendered as «esta actividad ya no admite cambios» — about a
+      // room that was working perfectly.
+      const group = await room(3, 1);
+      expect(
+        await codeOf(() =>
+          participationFor().confirmShare(
+            group.organizer,
+            group.activityId,
+            share("preparado temprano"),
+            randomUUID(),
+          ),
+        ),
+      ).toBe("CIRCLE_ONBOARDING_OPEN");
+      // And nothing was written: preparing is not sending.
+      const envelopes = await pool.query(
+        `SELECT count(*)::int AS n FROM "CircleActivityParticipant"
+          WHERE "activityId"=$1 AND "ciphertext" IS NOT NULL`,
+        [group.activityId],
+      );
+      expect(envelopes.rows[0].n).toBe(0);
+    }, 60_000);
+
+    it("refuses to continue with one person", async () => {
+      const group = await room(3, 0);
+      expect(
+        await codeOf(() =>
+          participationFor().closeOnboarding(
+            group.organizer,
+            group.activityId,
+            randomUUID(),
+          ),
+        ),
+      ).toBe("CIRCLE_GROUP_TOO_SMALL");
+      expect(await statusOf(group.activityId)).toBe("INVITING");
+    }, 60_000);
+
+    it("continues with TWO when the room was planned for three", async () => {
+      const group = await room(3, 1);
+      const closed = await participationFor().closeOnboarding(
+        group.organizer,
+        group.activityId,
+        randomUUID(),
+      );
+      expect(closed).toMatchObject({ group: 2, replayed: false });
+
+      const after = await shapeOf(group.activityId);
+      // Capacity is what people were SHOWN. The group is who is here.
+      expect(after.capacity, "capacity is untouched").toBe(3);
+      expect(after.group, "the group is fixed").toBe(2);
+      expect(after.seats, "no seat nobody sat in survives").toBe(2);
+      expect(after.pending, "no link still admits anybody").toBe(0);
+      expect(await statusOf(group.activityId)).toBe("PREPARING");
+    }, 90_000);
+
+    it("reveals on the GROUP's confirmations, not the capacity", async () => {
+      const group = await room(3, 1);
+      await participationFor().closeOnboarding(
+        group.organizer,
+        group.activityId,
+        randomUUID(),
+      );
+      const first = await participationFor().confirmShare(
+        group.organizer,
+        group.activityId,
+        share("lo mío"),
+        randomUUID(),
+      );
+      expect(first.revealed, "one of two is not the room").toBe(false);
+      const second = await participationFor().confirmShare(
+        group.guests[0]!,
+        group.activityId,
+        share("lo mío también"),
+        randomUUID(),
+      );
+      // Two of two. Under the old barrier this room would have waited forever
+      // for a third person who was never coming.
+      expect(second.revealed, "the group completed").toBe(true);
+      expect(await statusOf(group.activityId)).toBe("REVEALED");
+    }, 90_000);
+
+    it("continues with three when three accepted", async () => {
+      const group = await room(4, 2);
+      const closed = await participationFor().closeOnboarding(
+        group.organizer,
+        group.activityId,
+        randomUUID(),
+      );
+      expect(closed.group).toBe(3);
+      for (const actor of [group.organizer, ...group.guests]) {
+        await participationFor().confirmShare(
+          actor,
+          group.activityId,
+          share("de cada quien"),
+          randomUUID(),
+        );
+      }
+      expect(await statusOf(group.activityId)).toBe("REVEALED");
+    }, 120_000);
+
+    it("shuts the door: a link that was never redeemed stops working", async () => {
+      const group = await room(3, 1);
+      await participationFor().closeOnboarding(
+        group.organizer,
+        group.activityId,
+        randomUUID(),
+      );
+      // The second token was never used. Arriving now is too late, and the
+      // answer is the ordinary one for a link that no longer works.
+      expect(await codeOf(() => access.exchange(group.tokens[1]!))).toBe(
+        "CIRCLE_INVITATION_UNUSABLE",
+      );
+      const after = await shapeOf(group.activityId);
+      expect(after.group).toBe(2);
+      expect(after.seats).toBe(2);
+    }, 90_000);
+
+    it("replays the close under the same key, and refuses a different one", async () => {
+      const group = await room(3, 1);
+      const key = randomUUID();
+      const first = await participationFor().closeOnboarding(
+        group.organizer,
+        group.activityId,
+        key,
+      );
+      expect(first.replayed).toBe(false);
+      const replay = await participationFor().closeOnboarding(
+        group.organizer,
+        group.activityId,
+        key,
+      );
+      expect(replay).toMatchObject({ group: 2, replayed: true });
+      // A DIFFERENT key on a room whose group is already fixed is not a
+      // replay: it is a second attempt to decide something already decided.
+      expect(
+        await codeOf(() =>
+          participationFor().closeOnboarding(
+            group.organizer,
+            group.activityId,
+            randomUUID(),
+          ),
+        ),
+      ).toBe("CIRCLE_ACTIVITY_UNAVAILABLE");
+    }, 90_000);
+
+    it("is the organiser's to close, nobody else's", async () => {
+      const group = await room(3, 1);
+      expect(
+        await codeOf(() =>
+          participationFor().closeOnboarding(
+            group.guests[0]!,
+            group.activityId,
+            randomUUID(),
+          ),
+        ),
+      ).toBe("CIRCLE_FORBIDDEN");
+    }, 60_000);
+
+    it("does not let a timer cancel a flexible room that can still continue", async () => {
+      const sweeper = () =>
+        new CirclesSweepService(
+          prisma as never,
+          new CircleActivityRepository(prisma),
+          new CircleEventRepository(prisma),
+          new CirclesRolloutService(resolveCirclesRolloutConfig(OPEN)),
+          new CircleParticipantRepository(prisma),
+          new CircleInvitationRepository(prisma),
+          new CircleGuestSessionRepository(prisma),
+        );
+      const group = await room(3, 1);
+      // The person who never answered lets their link die. Under the old rule
+      // one dead link cancelled the room; under these rules it cancels
+      // nobody — two people are here and they can still do this.
+      await pool.query(
+        `UPDATE "CircleInvitation"
+            SET "createdAt" = now() - interval '15 days',
+                "expiresAt" = now() - interval '1 hour'
+          WHERE "activityId"=$1 AND "consumedAt" IS NULL`,
+        [group.activityId],
+      );
+      await sweeper().sweep();
+      expect(await statusOf(group.activityId)).toBe("INVITING");
+
+      // And the organiser can still continue with the two who are here.
+      const closed = await participationFor().closeOnboarding(
+        group.organizer,
+        group.activityId,
+        randomUUID(),
+      );
+      expect(closed.group).toBe(2);
+    }, 120_000);
+
+    it("does end a flexible room nobody ever joined", async () => {
+      const sweeper = () =>
+        new CirclesSweepService(
+          prisma as never,
+          new CircleActivityRepository(prisma),
+          new CircleEventRepository(prisma),
+          new CirclesRolloutService(resolveCirclesRolloutConfig(OPEN)),
+          new CircleParticipantRepository(prisma),
+          new CircleInvitationRepository(prisma),
+          new CircleGuestSessionRepository(prisma),
+        );
+      const group = await room(3, 0);
+      await pool.query(
+        `UPDATE "CircleInvitation"
+            SET "createdAt" = now() - interval '15 days',
+                "expiresAt" = now() - interval '1 hour'
+          WHERE "activityId"=$1`,
+        [group.activityId],
+      );
+      await sweeper().sweep();
+      // Every link dead and nobody inside: this one really can never happen.
+      expect(await statusOf(group.activityId)).toBe("CANCELLED");
+    }, 120_000);
+
+    it("lists who JOINED, and pending links as invitations — never both", async () => {
+      // Caught on the hosted candidate, not here: the seats exist from the
+      // moment the invitations are minted, so a room of three with nobody in
+      // it listed two «Participante N» who had answered nothing — and then
+      // the same two again, correctly, as pending invitations.
+      const group = await room(3, 1);
+      const view = await facadeRead(group.organizer, group.activityId);
+      const roster = view.onboarding!.roster;
+      expect(view.onboarding!.accepted, "organiser plus one guest").toBe(2);
+      expect(roster.filter((r) => r.state === "PARTICIPATES")).toHaveLength(1);
+      expect(roster.filter((r) => r.state === "ORGANIZES")).toHaveLength(1);
+      // One link still waiting, listed once, as an invitation.
+      expect(roster.filter((r) => r.state === "INVITED")).toHaveLength(1);
+      expect(roster).toHaveLength(3);
+    }, 60_000);
+
+    it("keeps an alias on the seat and nowhere else", async () => {
+      const tokens = mintTokens(2);
+      const created = await open.createDuo({
+        userId: ORGANIZER,
+        templateKey: GROUP.templateKey,
+        templateVersion: GROUP.templateVersion,
+        invitationTokens: tokens,
+        size: 3,
+        idempotencyKey: randomUUID(),
+      });
+      await access.exchange(tokens[0]!, undefined, "  Ana  ");
+      const row = await pool.query(
+        `SELECT "alias" FROM "CircleActivityParticipant"
+          WHERE "activityId"=$1 AND "alias" IS NOT NULL`,
+        [created.activityId],
+      );
+      expect(row.rows[0].alias, "trimmed, not raw").toBe("Ana");
+      // An alias is a name for the room. It is never an event's payload —
+      // the ledger's grammar has nowhere to put one, and this asserts the
+      // grammar was not widened to make room.
+      const events = await pool.query(
+        `SELECT count(*)::int AS n FROM "CircleEvent"
+          WHERE "activityId"=$1 AND "metadata"::text ILIKE '%Ana%'`,
+        [created.activityId],
+      );
+      expect(events.rows[0].n).toBe(0);
+    }, 60_000);
+
+    // ══ The whole cycle, at the size the group actually is ══════════════════
+
+    it("a room offered to SIX that continued with two reaches an agreement", async () => {
+      // The reported failure, at its widest. Capacity six, one guest in.
+      const group = await room(6, 1);
+      const closed = await participationFor().closeOnboarding(
+        group.organizer,
+        group.activityId,
+        randomUUID(),
+      );
+      expect(closed.group).toBe(2);
+
+      const shape = await shapeOf(group.activityId);
+      expect(shape.capacity, "capacity is what people were shown").toBe(6);
+      expect(shape.group, "the group is who is here").toBe(2);
+
+      for (const actor of [group.organizer, group.guests[0]!]) {
+        await participationFor().confirmShare(
+          actor,
+          group.activityId,
+          share("lo mío"),
+          randomUUID(),
+        );
+      }
+      expect(await statusOf(group.activityId)).toBe("REVEALED");
+
+      const proposed = await open.proposeArtifact(
+        group.organizer,
+        group.activityId,
+        "lo que vamos a intentar",
+        randomUUID(),
+      );
+      const first = await open.confirmArtifact(
+        group.organizer,
+        group.activityId,
+        proposed.artifactId,
+        proposed.version,
+        randomUUID(),
+      );
+      expect(first.agreed, "one of two is not the room").toBe(false);
+      const second = await open.confirmArtifact(
+        group.guests[0]!,
+        group.activityId,
+        proposed.artifactId,
+        proposed.version,
+        randomUUID(),
+      );
+      // The decisive one. Against CAPACITY this room needed six confirmations
+      // and had two people to give them: it could reveal and then never agree.
+      expect(second.agreed, "the group agreed").toBe(true);
+    }, 120_000);
+
+    it("closes the follow-up on the GROUP's decisions, with no worker", async () => {
+      const group = await room(6, 1);
+      await participationFor().closeOnboarding(
+        group.organizer,
+        group.activityId,
+        randomUUID(),
+      );
+      for (const actor of [group.organizer, group.guests[0]!]) {
+        await participationFor().confirmShare(
+          actor,
+          group.activityId,
+          share("lo mío"),
+          randomUUID(),
+        );
+      }
+      await pool.query(
+        `UPDATE "CircleActivity" SET "followUpDueAt" = now() - interval '1 hour'
+          WHERE "id"=$1`,
+        [group.activityId],
+      );
+
+      await open.recordFollowUp(
+        group.organizer,
+        group.activityId,
+        "KEEP",
+        randomUUID(),
+      );
+      expect(
+        await statusOf(group.activityId),
+        "one decision of two does not end it",
+      ).not.toBe("CLOSED");
+      await open.recordFollowUp(
+        group.guests[0]!,
+        group.activityId,
+        "CLOSE",
+        randomUUID(),
+      );
+      // Counted against capacity, these two could never reach six decisions:
+      // the room stayed open until a clock closed it a week later, and nothing
+      // the people inside did could ever have finished it themselves.
+      expect(await statusOf(group.activityId)).toBe("CLOSED");
+    }, 120_000);
+
+    it("a group of three still needs THREE, not the four it was offered to", async () => {
+      const group = await room(4, 2);
+      expect(
+        (
+          await participationFor().closeOnboarding(
+            group.organizer,
+            group.activityId,
+            randomUUID(),
+          )
+        ).group,
+      ).toBe(3);
+      for (const actor of [group.organizer, ...group.guests]) {
+        await participationFor().confirmShare(
+          actor,
+          group.activityId,
+          share("de cada quien"),
+          randomUUID(),
+        );
+      }
+      const proposed = await open.proposeArtifact(
+        group.organizer,
+        group.activityId,
+        "un plan entre tres",
+        randomUUID(),
+      );
+      const seen = [];
+      for (const actor of [group.organizer, ...group.guests]) {
+        seen.push(
+          (
+            await open.confirmArtifact(
+              actor,
+              group.activityId,
+              proposed.artifactId,
+              proposed.version,
+              randomUUID(),
+            )
+          ).agreed,
+        );
+      }
+      // The group's size, not a constant and not the capacity: two is not
+      // enough and three is not one too many.
+      expect(seen).toEqual([false, false, true]);
+    }, 120_000);
+
+    // ══ The sweep is not occupied by the rooms it must preserve ═════════════
+
+    it("reaches an unfinishable room past a batch full of viable ones", async () => {
+      const sweeper = () =>
+        new CirclesSweepService(
+          prisma as never,
+          new CircleActivityRepository(prisma),
+          new CircleEventRepository(prisma),
+          new CirclesRolloutService(resolveCirclesRolloutConfig(OPEN)),
+          new CircleParticipantRepository(prisma),
+          new CircleInvitationRepository(prisma),
+          new CircleGuestSessionRepository(prisma),
+        );
+
+      // Drain whatever earlier tests left cancellable, so the only rooms this
+      // one has to reason about are its own.
+      await sweeper().sweep();
+
+      /** Age EVERY link, consumed ones included — fourteen days pass for all. */
+      const ageAllLinks = (activityId: string) =>
+        pool.query(
+          `UPDATE "CircleInvitation"
+              SET "createdAt" = now() - interval '15 days',
+                  "expiresAt" = now() - interval '1 hour'
+            WHERE "activityId"=$1`,
+          [activityId],
+        );
+
+      // Two rooms the sweep must NOT touch: every link long dead, but people
+      // inside. This is an ordinary room a month old, not a contrivance.
+      const viable = [await room(3, 1), await room(3, 1)];
+      for (const v of viable) await ageAllLinks(v.activityId);
+
+      // And one it must end: nobody ever came, and nobody can any more.
+      const unfinishable = await room(3, 0);
+      await ageAllLinks(unfinishable.activityId);
+
+      // The scan is ordered by id and cut at `batchSize`. Stated, not assumed:
+      // if cuids ever stop being monotonic this fails loudly instead of
+      // quietly testing nothing.
+      expect(
+        viable.every((v) => v.activityId < unfinishable.activityId),
+        "the preserved rooms sort ahead of the one that must be cancelled",
+      ).toBe(true);
+
+      const summary = await sweeper().sweep({ batchSize: viable.length });
+
+      // Before the selection was tightened, the batch was filled by the two
+      // rooms the sweep is not allowed to cancel, and the third was never
+      // looked at — on this run and on every run after it.
+      expect(await statusOf(unfinishable.activityId)).toBe("CANCELLED");
+      expect(summary.incompleteGroupsCancelled).toBe(1);
+      // And the way past them was not to cancel them.
+      for (const v of viable) {
+        expect(await statusOf(v.activityId)).toBe("INVITING");
+      }
+    }, 180_000);
+
+    // ══ An acceptance and the organiser closing, for the same room ══════════
+    //
+    // Where they actually meet is `CircleMember`. `exchange` locks the
+    // inviter's row before it touches the invitation; the organiser's path
+    // locks the same row as step 1 of the canonical order. So they queue on
+    // the FIRST element of that order, which is why they cannot deadlock —
+    // and seaming them anywhere further down produced a test that proved
+    // nothing, because the blocked side never reached its own seam.
+    //
+    // Beyond deadlock, the thing that must hold is this block's own subject:
+    // if the group were recorded as a number that did not match who is inside,
+    // the room would be right back to revealing and never agreeing.
+
+    /** The seam on the row both paths take first. */
+    class SeamedMembers extends CircleMemberRepository {
+      constructor(
+        db: ConstructorParameters<typeof CircleMemberRepository>[0],
+        private readonly seam: Seam,
+      ) {
+        super(db);
+      }
+      override async lockById(
+        memberId: string,
+        tx: Parameters<CircleMemberRepository["lockById"]>[1],
+      ) {
+        // BEFORE the call: this is the statement that blocks, and a pid
+        // announced after it would never be announced at all.
+        await this.seam.enter(tx as unknown as RawCapable);
+        const row = await super.lockById(memberId, tx);
+        await this.seam.hold();
+        return row;
+      }
+    }
+
+    const acceptingWith = (members: CircleMemberRepository) =>
+      new CirclesService(
+        prisma as unknown as ConstructorParameters<typeof CirclesService>[0],
+        new CircleInvitationRepository(prisma),
+        new CircleGuestSessionRepository(prisma),
+        new CircleEventRepository(prisma),
+        members,
+        new CirclesRolloutService(resolveCirclesRolloutConfig(OPEN)),
+        new CircleActivityRepository(prisma),
+      );
+
+    const closingWith = (members: CircleMemberRepository) =>
+      new CirclesParticipationService(
+        prisma as unknown as ConstructorParameters<
+          typeof CirclesParticipationService
+        >[0],
+        new CircleActivityRepository(prisma),
+        new CircleParticipantRepository(prisma),
+        new CircleArtifactRepository(prisma),
+        new CircleEventRepository(prisma),
+        members,
+        new CircleGuestSessionRepository(prisma),
+        new CircleInvitationRepository(prisma),
+        new CirclesRolloutService(resolveCirclesRolloutConfig(OPEN)),
+        cipher,
+        registry,
+      );
+
+    type Ended =
+      | { readonly ok: true }
+      | { readonly ok: false; readonly code: string; readonly message: string };
+
+    const endOf = <T>(p: Promise<T>): Promise<Ended> =>
+      p.then(
+        () => ({ ok: true }) as Ended,
+        (err: unknown) =>
+          ({
+            ok: false,
+            code: (err as CirclesError)?.code ?? "UNKNOWN",
+            message: (err as Error)?.message ?? String(err),
+          }) as Ended,
+      );
+
+    /**
+     * Whatever the interleaving produced, the number must describe the room.
+     *
+     * A deadlock arrives here laundered — both paths surface one as
+     * `CIRCLE_STORAGE_FAILURE` — so both sides are read, because which
+     * transaction PostgreSQL picks as the victim is not a test's to choose.
+     */
+    const assertGroupDescribesTheRoom = async (
+      activityId: string,
+      accepted: Ended,
+      closed: Ended,
+      where: string,
+    ) => {
+      for (const [who, end] of [
+        ["the acceptance", accepted],
+        ["the close", closed],
+      ] as const) {
+        if (!end.ok && end.code === "CIRCLE_STORAGE_FAILURE") {
+          throw new Error(
+            `${where}: ${who} failed with CIRCLE_STORAGE_FAILURE — ${end.message}`,
+          );
+        }
+      }
+
+      const row = await pool.query(
+        `SELECT a."confirmedParticipants" AS "group",
+                (SELECT count(*)::int FROM "CircleActivityParticipant"
+                  WHERE "activityId"=$1 AND "status" IN ('ACCEPTED','READY'))
+                  AS inside
+           FROM "CircleActivity" a WHERE a."id"=$1`,
+        [activityId],
+      );
+      const { group, inside } = row.rows[0] as {
+        group: number | null;
+        inside: number;
+      };
+
+      if (group === null) {
+        // The close lost outright: nothing is fixed, the organiser presses
+        // again, and the room is exactly where it was.
+        expect(
+          closed.ok,
+          `${where}: an unclosed room means the close did not succeed`,
+        ).toBe(false);
+        return;
+      }
+      // The one thing that must never happen: a group that is not the people.
+      // Either the late guest got in and was counted, or was shut out and was
+      // not — never counted out while sitting inside.
+      expect(group, `${where}: the group IS who is inside`).toBe(inside);
+      expect(group).toBeGreaterThanOrEqual(2);
+      if (!accepted.ok) {
+        expect(
+          accepted.code,
+          `${where}: a shut-out guest is told the link is gone`,
+        ).toBe("CIRCLE_INVITATION_UNUSABLE");
+      }
+    };
+
+    /** A flexible room with one guest already in and one link still live. */
+    async function roomWithOneLiveLink() {
+      const group = await room(3, 1);
+      return { ...group, liveToken: group.tokens[1]! };
+    }
+
+    it("acceptance first, then the organiser closes", async () => {
+      const group = await roomWithOneLiveLink();
+
+      const acceptSeam = seamOf(true);
+      const accepted = endOf(
+        acceptingWith(new SeamedMembers(prisma, acceptSeam)).exchange(
+          group.liveToken,
+        ),
+      );
+      await acceptSeam.parked;
+      const acceptPid = await acceptSeam.pid;
+
+      const closeSeam = seamOf(false);
+      const closed = endOf(
+        closingWith(new SeamedMembers(prisma, closeSeam)).closeOnboarding(
+          group.organizer,
+          group.activityId,
+          randomUUID(),
+        ),
+      );
+      const closePid = await closeSeam.pid;
+
+      // Named on both sides: THIS close is waiting on THIS acceptance.
+      await waitUntilBlockedBy(closePid, acceptPid);
+      acceptSeam.release();
+
+      const [a, c] = await Promise.all([accepted, closed]);
+      await assertGroupDescribesTheRoom(
+        group.activityId,
+        a,
+        c,
+        "acceptance first",
+      );
+    }, 120_000);
+
+    it("the organiser closes first, then the acceptance arrives", async () => {
+      const group = await roomWithOneLiveLink();
+
+      const closeSeam = seamOf(true);
+      const closed = endOf(
+        closingWith(new SeamedMembers(prisma, closeSeam)).closeOnboarding(
+          group.organizer,
+          group.activityId,
+          randomUUID(),
+        ),
+      );
+      await closeSeam.parked;
+      const closePid = await closeSeam.pid;
+
+      const acceptSeam = seamOf(false);
+      const accepted = endOf(
+        acceptingWith(new SeamedMembers(prisma, acceptSeam)).exchange(
+          group.liveToken,
+        ),
+      );
+      const acceptPid = await acceptSeam.pid;
+
+      await waitUntilBlockedBy(acceptPid, closePid);
+      closeSeam.release();
+
+      const [a, c] = await Promise.all([accepted, closed]);
+      await assertGroupDescribesTheRoom(group.activityId, a, c, "close first");
     }, 120_000);
   });
 });

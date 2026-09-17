@@ -2,11 +2,12 @@
 
 import { useMemo, useState } from "react";
 import type {
+  CircleKind,
   CirclePreparationField,
   CircleShareConfirmation,
   CircleSharingMode,
 } from "@psico/types";
-import { CIRCLE_SHARE_LIMITS } from "@psico/types";
+import { CIRCLE_SHARE_LIMITS, circleModalidadEsGrupo } from "@psico/types";
 
 import { estilos as S } from "./estilos";
 import { AyudaEcho } from "./AyudaEcho";
@@ -144,6 +145,14 @@ export interface PreparacionPrivadaProps {
   readonly busy: boolean;
   /** How many people are in this activity, the actor included. */
   readonly participantes?: number;
+  /**
+   * Which RULES this activity runs under — not how many people are in it.
+   *
+   * A room offered to six that continued with two is two people under the
+   * group's rules. The count decides how to say things; this decides what
+   * choosing «No compartir» actually does.
+   */
+  readonly modalidad?: CircleKind;
 }
 
 export function PreparacionPrivada({
@@ -156,8 +165,13 @@ export function PreparacionPrivada({
   onHelpOpen,
   busy,
   participantes = 2,
+  modalidad,
 }: PreparacionPrivadaProps) {
+  // Two different questions, two different answers, and they used to share
+  // one variable. `grupo` is about WORDING: with two people «la otra persona»
+  // is right whatever the modality. `reglasDeGrupo` is about CONSEQUENCES.
   const grupo = participantes > 2;
+  const reglasDeGrupo = circleModalidadEsGrupo(modalidad, participantes);
   const { values, summary, mode } = draft;
   const setValues = (next: Record<string, string>) =>
     onDraftChange({ ...draft, values: next });
@@ -312,7 +326,7 @@ export function PreparacionPrivada({
                 style={S.radio}
               />
               <span>
-                {grupo && m === "KEEP_PRIVATE"
+                {reglasDeGrupo && m === "KEEP_PRIVATE"
                   ? "No compartir nada y terminar la actividad"
                   : MODE_LABEL[m]}
               </span>
@@ -380,9 +394,18 @@ export function PreparacionPrivada({
           it is spelled out here rather than discovered afterwards, and again
           on the confirmation screen. */}
       {mode === "KEEP_PRIVATE" && (
-        <p style={grupo ? S.aviso : S.p} role={grupo ? "note" : undefined}>
-          {grupo
-            ? "Si eliges esto, esta actividad termina aquí para todo el grupo: nadie comparte nada y lo que escribieron las demás personas se descarta sin abrirse. No se le dice a nadie quién lo eligió."
+        <p
+          style={reglasDeGrupo ? S.aviso : S.p}
+          role={reglasDeGrupo ? "note" : undefined}
+        >
+          {reglasDeGrupo
+            ? grupo
+              ? "Si eliges esto, esta actividad termina aquí para todo el grupo: nadie comparte nada y lo que escribieron las demás personas se descarta sin abrirse. No se le dice a nadie quién lo eligió."
+              : // A group that continued with two. The group's consequence,
+                // said for two people — and deliberately NOT the Dúo's
+                // promise that the other person will see you finished: in a
+                // group nobody is told who chose this.
+                "Si eliges esto, esta actividad termina aquí para las dos personas: nadie comparte nada y lo que escribió la otra persona se descarta sin abrirse. No se le dice a nadie quién lo eligió."
             : "No compartirás nada de lo que escribiste. La otra persona verá que terminaste, y nada más. No hace falta explicar por qué."}
         </p>
       )}

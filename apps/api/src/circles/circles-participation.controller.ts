@@ -206,6 +206,23 @@ export class CirclesMemberParticipationController {
     );
   }
 
+  @Post("activities/:activityId/close-onboarding")
+  @HttpCode(200)
+  @Throttle(COMMAND_THROTTLE)
+  @ApiOperation({ summary: "Continue with whoever accepted" })
+  closeOnboarding(
+    @CurrentCircleActor() actor: CircleActor,
+    @Param("activityId") activityId: string,
+    @Headers("idempotency-key") key: string | undefined,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    noStore(res);
+    const idempotencyKey = requireIdempotencyKey(key);
+    return mapCirclesErrors(() =>
+      this.facade.closeOnboarding(actor, activityId, idempotencyKey),
+    );
+  }
+
   @Put("activities/:activityId/artifact")
   @HttpCode(200)
   @Throttle(COMMAND_THROTTLE)

@@ -1,5 +1,5 @@
 import { ApiProperty } from "@nestjs/swagger";
-import { Equals, IsString, Length } from "class-validator";
+import { Equals, IsOptional, IsString, Length, Matches } from "class-validator";
 import { MAX_PRESENTED_SECRET_LENGTH } from "../circles-secrets";
 
 /**
@@ -47,4 +47,32 @@ export class AcceptInvitationDto extends InspectInvitationDto {
   })
   @Equals(true)
   accept!: true;
+
+  /**
+   * The short name the other participants will see.
+   *
+   * Optional, and deliberately NOT an identity: a person accepting a link has
+   * no account and nothing here is verified. It exists so a room can say
+   * «Ana» instead of «Participante 2», and the screens say plainly that a name
+   * typed here is only what somebody chose to be called.
+   *
+   * The pattern excludes `@` and digits-only strings so an email address or a
+   * phone number cannot be parked in it and end up on everybody's screen —
+   * this field is shown to the whole room, and the one thing it must never
+   * become is a contact detail.
+   */
+  @ApiProperty({
+    required: false,
+    maxLength: 24,
+    description:
+      "Optional short display name, chosen by the person accepting. Not a " +
+      "verified identity and never a contact detail.",
+  })
+  @IsOptional()
+  @IsString()
+  @Length(1, 24)
+  @Matches(/^(?![0-9\s+()-]+$)[^@\n\r\t]+$/u, {
+    message: "alias must not be an address or a bare number",
+  })
+  alias?: string;
 }

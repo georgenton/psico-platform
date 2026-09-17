@@ -705,6 +705,15 @@ node apps/web/e2e/circulos/stack.mjs --prepare-only /ruta/al/artefacto
 # 2 · Subirlo a los tres servicios (desde /ruta/al/artefacto).
 railway up --project <proyecto> --environment <entorno> --service <api>    --detach
 railway up --project <proyecto> --environment <entorno> --service <worker> --detach
+
+# El artefacto es un directorio recién creado, así que no está vinculado a nada.
+# `vercel deploy` en esa situación CREA un proyecto nuevo con el nombre del
+# directorio y lo construye desde la raíz del repo — donde `pnpm run build`
+# incluye @psico/mobile y falla. Vincular primero es lo que hace que se
+# aplique `apps/web/vercel.json`. Es el mismo aviso que la tabla de producción
+# de más abajo ya da; aquí faltaba, y crear un proyecto suelto cuesta
+# borrarlo a mano.
+vercel link --project circulos-test-web --yes
 vercel deploy --prod --yes
 
 # 3 · El recorrido completo: registra el grupo de cuentas, escribe la lista de

@@ -2514,6 +2514,21 @@ async function groupOfThree(browser) {
  *
  * What must hold: exactly one withdrawal, exactly one cancellation, and the
  * person sees the ending rather than an error about the thing that worked.
+ *
+ * ── Why the ORGANISER is the one who retries ──────────────────────────────
+ *
+ * Not an arbitrary choice, and the first version of this scenario got it
+ * wrong: it had a guest press the button, and the retry timed out waiting for
+ * an ending it could never be shown.
+ *
+ * The exit revokes every guest session on the activity — including the one
+ * belonging to whoever pressed it. A member keeps their session and can
+ * therefore ask again; a guest cannot, and must not, because the window that
+ * would let a revoked session through one more time is the same window a
+ * stolen link uses. `MEMBER_WITHDRAW_REPLAY = response_idempotent`,
+ * `GUEST_WITHDRAW_REPLAY = effect_idempotent_but_credential_is_revoked` —
+ * the asymmetry is documented on `withdraw` rather than engineered away, and
+ * this scenario tests the half that HAS a replayable response.
  */
 async function keepPrivateRetryAfterLoss(browser) {
   const organiser = await register("retry-privado");
@@ -2555,28 +2570,27 @@ async function keepPrivateRetryAfterLoss(browser) {
       guests.push(guest);
     }
 
-    // The organiser confirms something real, so there is an envelope the exit
-    // has to destroy — otherwise a replay that did nothing would look the
-    // same as a replay that did the right thing.
+    // A GUEST confirms something real, so there is an envelope the exit has
+    // to destroy — otherwise a replay that did nothing would look the same as
+    // a replay that did the right thing.
+    const guest = guests[0];
+    await enterRoom(guest.page);
+    await typeDraft(guest.page, { uno: "lo que sí escribió una invitada" });
+    await openPreview(guest.page);
+    await confirmShare(guest.page);
+
+    // The ORGANISER is the one who keeps it private, and the one who retries.
     await page.goto(`${WEB}/compartir/${activityId}`, {
       waitUntil: "domcontentloaded",
     });
     await enterRoom(page);
-    await typeDraft(page, { uno: "lo que el organizador sí escribió" });
-    await openPreview(page);
-    await confirmShare(page);
-
-    const guest = guests[0];
-    await enterRoom(guest.page);
-    await typeDraft(guest.page, { uno: "algo que no va a salir" });
-    await forwardToSharing(guest.page);
-    await guest.page.check('input[name="modo"][value="KEEP_PRIVATE"]');
-    await guest.page
-      .getByRole("button", { name: /Ver qué se compartirá/i })
-      .click();
+    await typeDraft(page, { uno: "algo que no va a salir" });
+    await forwardToSharing(page);
+    await page.check('input[name="modo"][value="KEEP_PRIVATE"]');
+    await page.getByRole("button", { name: /Ver qué se compartirá/i }).click();
     await until(
       async () => {
-        const text = await guest.page.evaluate(() => document.body.innerText);
+        const text = await page.evaluate(() => document.body.innerText);
         return /Nadie verá nada/i.test(text) ? text : null;
       },
       "the confirmation screen",
@@ -2585,14 +2599,14 @@ async function keepPrivateRetryAfterLoss(browser) {
 
     // Let the command REACH the API and commit, then drop the response.
     let servedAndDropped = false;
-    await guest.page.route("**/comando", async (route) => {
+    await page.route("**/comando", async (route) => {
       const response = await route.fetch(); // the server really runs this
       void response.status();
       servedAndDropped = true;
       await route.abort("connectionfailed"); // the browser never sees it
     });
 
-    await confirmShare(guest.page);
+    await confirmShare(page);
     await until(
       () => servedAndDropped,
       "the private exit to be served",
@@ -2627,12 +2641,12 @@ async function keepPrivateRetryAfterLoss(browser) {
     // The retry: same page, same intention, so the same key is still in the
     // `useRef` map. This is the press a person makes when the screen tells
     // them the network failed.
-    await guest.page.unroute("**/comando");
-    await confirmShare(guest.page);
+    await page.unroute("**/comando");
+    await confirmShare(page);
 
     const closed = await until(
       async () => {
-        const text = await guest.page.evaluate(() => document.body.innerText);
+        const text = await page.evaluate(() => document.body.innerText);
         return /Esta actividad terminó/i.test(text) ? text : null;
       },
       "the retry to land on the ending rather than an error",

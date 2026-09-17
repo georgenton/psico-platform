@@ -13,6 +13,7 @@ import { CircleParticipantRepository } from "./circle-participant.repository";
 import { CircleInvitationRepository } from "./circle-invitation.repository";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { CircleGuestSessionRepository } from "./circle-guest-session.repository";
+import { lockActivityAccessRows } from "./circles-activity-locks";
 
 /**
  * The two transitions a clock is allowed to make, and nothing else.
@@ -210,31 +211,24 @@ export class CirclesSweepService {
     let cancelled = 0;
     for (const activity of stranded) {
       const moved = await this.prisma.$transaction(async (tx) => {
-        // ── The locks, in the order the rest of the domain takes them ─────
+        // ── The access rows first, through the shared protocol ────────────
         //
-        // CircleInvitation → CircleGuestSession → CircleActivity →
-        // CircleActivityParticipant. This used to start at the ACTIVITY and
-        // reach the invitations three statements later, which is the opposite
-        // of what `exchange` does — it locks the member, then the invitation
-        // it is consuming, and only then the activity. Two transactions
-        // taking the same two rows in opposite orders is the definition of a
-        // deadlock, and it was reachable from a link that was still valid: a
-        // guest accepting while the sweep was cancelling the room they were
-        // accepting into. PostgreSQL resolved it by killing one of them, so
-        // the loser was either a person told their invitation had failed or a
-        // sweep that stopped mid-batch.
+        // This used to start at the ACTIVITY and reach the invitations three
+        // statements later, which is the opposite of what `exchange` and
+        // every command that ends an activity do. Two transactions taking the
+        // same rows in opposite orders is the definition of a deadlock, and
+        // it was reachable from a link that was still valid: a guest
+        // accepting while the sweep was cancelling the room they were
+        // accepting into.
         //
-        // Within each set the order is the repository's `ORDER BY "id"`, for
-        // the same reason: two sweeps over the same room must walk its rows
-        // the same way.
-        //
-        // Nothing here waits, retries or sleeps. The inversion is removed,
-        // so there is no cycle left to recover from.
-        const links = await this.invitations.lockForActivity(
+        // The order itself lives in `lockActivityAccessRows`, so this is the
+        // same statement the participation service and account deletion make.
+        // Nothing here waits, retries or sleeps — the cycle is gone.
+        const links = await lockActivityAccessRows(
+          { invitations: this.invitations, guestSessions: this.guestSessions },
           activity.id,
           tx as never,
         );
-        await this.guestSessions.lockForActivity(activity.id, tx as never);
 
         // Re-read under the lock. A last acceptance, a withdrawal or another
         // worker may have settled this between the scan and here, and the

@@ -1466,11 +1466,8 @@ suite("circles · participation (real PostgreSQL)", () => {
   /**
    * A guest-session repository that stops the command at a chosen point.
    *
-   * `lockById` is where the command commits to a decision, so pausing just
-   * before it is the exact window an attacker — or an unlucky retry — lives
-   * in. The hook runs on the FIRST lock only: `resolveAuthority` is called
-   * once per command, and re-pausing would deadlock the test rather than the
-   * subject.
+   * The hook runs ONCE: `resolveAuthority` is called once per command, and
+   * re-pausing would deadlock the test rather than the subject.
    */
   class PausingGuestSessions extends CircleGuestSessionRepository {
     private armed = true;
@@ -1480,16 +1477,20 @@ suite("circles · participation (real PostgreSQL)", () => {
       /**
        * WHERE to stop, and it matters.
        *
-       * `"lock"` parks the command after the member and invitation are
-       * locked — the right window for revoking the SESSION, which those
-       * locks do not cover.
+       * `"peek"` parks the command at its very first unlocked read, before
+       * any lock exists. It is the ONLY window in which the test's own
+       * connection can still change a row the command is about to read —
+       * member, invitation or session alike.
        *
-       * `"peek"` parks it at the very first unlocked read, before any lock
-       * exists. That is the only usable window for interfering with the
-       * MEMBER or the INVITATION: at `"lock"` the command already holds both
-       * rows, so an UPDATE from the test's own connection would block on the
-       * transaction it is trying to race and the test would time out —
-       * proving nothing except that `FOR UPDATE` works.
+       * `"lock"` parks it at this guest's own `lockById`. That used to be a
+       * window for revoking the SESSION and no longer is: the command now
+       * takes EVERY invitation and EVERY guest session of the activity
+       * before the activity itself, so by the time it reaches its own row it
+       * is already holding it. An UPDATE from the test's connection would
+       * block on the transaction it is trying to race and the test would
+       * time out — proving nothing except that `FOR UPDATE` works. It is
+       * kept because parking there is still a legitimate way to hold a
+       * command still; it is no longer a way to get underneath it.
        */
       private readonly at: "peek" | "lock" = "lock",
     ) {
@@ -1549,14 +1550,25 @@ suite("circles · participation (real PostgreSQL)", () => {
   it("refuses a guest whose session is revoked while the command is in flight", async () => {
     const duo = await fastDuo();
     // The revocation commits on a DIFFERENT connection, while the command is
-    // parked immediately before it takes the session lock. No sleep decides
-    // the order: the hook does.
-    const seam = new PausingGuestSessions(prisma, async () => {
-      await pool.query(
-        `UPDATE "CircleGuestSession" SET "revokedAt"=now() WHERE id=$1`,
-        [duo.guestSessionId],
-      );
-    });
+    // parked at its first unlocked read — before it holds anything. No sleep
+    // decides the order: the hook does.
+    //
+    // `"peek"` rather than `"lock"`, and the move is the point: the command
+    // now locks every guest session of the activity before the activity
+    // itself, so by `lockById` this row is already held and an outside
+    // UPDATE could not land at all. The window this test is about is the one
+    // before any lock — which is exactly where a stolen or stale credential
+    // would arrive.
+    const seam = new PausingGuestSessions(
+      prisma,
+      async () => {
+        await pool.query(
+          `UPDATE "CircleGuestSession" SET "revokedAt"=now() WHERE id=$1`,
+          [duo.guestSessionId],
+        );
+      },
+      "peek",
+    );
     const { participation } = build("on", { guestSessions: seam });
 
     expect(
@@ -1651,12 +1663,18 @@ suite("circles · participation (real PostgreSQL)", () => {
 
     let reachedLock = () => {};
     const atLock = new Promise<void>((r) => (reachedLock = r));
+    // `"peek"` only says "the command has started". Where it BLOCKS is what
+    // this test measures, and that is now earlier than it used to be: the
+    // command takes every guest session of the activity before the activity,
+    // so it meets the uncommitted revocation there rather than at its own
+    // `lockById`. The assertion below is unchanged — a real waiter on the
+    // real table — because the property is unchanged.
     const seam = new PausingGuestSessions(
       prisma,
       async () => {
         reachedLock();
       },
-      "lock",
+      "peek",
     );
     const { participation } = build("on", { guestSessions: seam });
 

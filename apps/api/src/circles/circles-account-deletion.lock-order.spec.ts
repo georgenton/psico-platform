@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { CirclesAccountDeletionService } from "./circles-account-deletion.service";
 
 /**
@@ -17,14 +20,22 @@ import { CirclesAccountDeletionService } from "./circles-account-deletion.servic
  * deadlock it claims to detect.
  *
  * So it is pinned here instead, at the only place it is unambiguous: the
- * sequence of `lockById` calls. The repositories are recorders, the transaction
- * is a stub, and the assertion is the documented order:
+ * sequence of lock acquisitions. The repositories are recorders, the
+ * transaction is a stub, and the assertion is the documented order:
  *
  *   1 CircleMember → 2 CircleInvitation → 3 CircleGuestSession → 4 CircleActivity
  *
  * This is the inversion that actually happened once: the first cut took the
  * ACTIVITY first and only then invitations and guest sessions, which deadlocks
  * against a guest redeeming an invitation.
+ *
+ * ── Steps 2 and 3 moved, and the assertion moved with them ────────────────
+ *
+ * Those two sets are now taken by `lockActivityAccessRows`, the one place
+ * that order is written down and the same call the sweep and the
+ * participation service make. So this pins the SET acquisitions rather than a
+ * per-row loop, and "lowest id first" is asserted where it now lives: the
+ * repositories\' `ORDER BY "id"`, checked below against the SQL itself.
  */
 
 type Acquisition = { kind: string; id: string };
@@ -41,12 +52,13 @@ function buildService() {
 
   const members = { lockById: record("member") };
   const invitations = {
-    lockById: record("invitation"),
+    // The SET, in one statement, ordered by the repository's own SQL.
+    lockForActivity: record("invitation"),
     // Not part of the ordering assertion; present so the method can proceed.
     cancelOpenForActivity: async () => 0,
   };
   const guestSessions = {
-    lockById: record("guestSession"),
+    lockForActivity: record("guestSession"),
     revokeForActivity: async () => 0,
   };
   const activities = {
@@ -71,8 +83,9 @@ function buildService() {
     guestSessions as never,
   );
 
-  // Two invitations and two guest sessions, deliberately returned OUT of id
-  // order, so the assertion below also covers the "lowest id first" rule.
+  // The service no longer reads these itself — the repositories do, inside
+  // their locking statement — but the stub keeps them so a regression that
+  // reintroduces a service-side read fails loudly rather than silently.
   const tx = {
     circleInvitation: {
       findMany: async () => [{ id: "inv-a" }, { id: "inv-b" }],
@@ -109,10 +122,15 @@ describe("the deletion takes locks in the canonical order", () => {
     expect(order.map((a) => a.kind)).toEqual([
       "member",
       "invitation",
-      "invitation",
-      "guestSession",
       "guestSession",
       "activity",
+    ]);
+    // Each set is asked for BY ACTIVITY, in one statement — not row by row
+    // from a list the service assembled.
+    expect(order.filter((a) => a.kind !== "member").map((a) => a.id)).toEqual([
+      "act-1",
+      "act-1",
+      "act-1",
     ]);
   });
 
@@ -132,14 +150,26 @@ describe("the deletion takes locks in the canonical order", () => {
     expect(activityAt).toBeGreaterThan(lastSession);
   });
 
-  it("takes each set lowest id first, so two deletions queue instead of interleaving", async () => {
-    const { service, order, tx } = buildService();
-
-    await endOne(service, tx);
-
-    const idsOf = (kind: string) =>
-      order.filter((a) => a.kind === kind).map((a) => a.id);
-    expect(idsOf("invitation")).toEqual(["inv-a", "inv-b"]);
-    expect(idsOf("guestSession")).toEqual(["ses-a", "ses-b"]);
+  it("takes each set lowest id first, so two deletions queue instead of interleaving", () => {
+    // Now a property of the repositories' locking statement rather than of a
+    // loop here: `ORDER BY "id"` is what makes two transactions walk the same
+    // rows the same way. Asserted against the SQL because that is where it
+    // is, and because a mock cannot reorder rows it never returns.
+    const sqlOf = (file: string) => readFileSync(join(__dirname, file), "utf8");
+    for (const file of [
+      "circle-invitation.repository.ts",
+      "circle-guest-session.repository.ts",
+    ]) {
+      const source = sqlOf(file);
+      // A window rather than brace-matching: the statement is a tagged
+      // template, so the first `}` inside it belongs to an interpolation.
+      const at = source.indexOf("async lockForActivity");
+      const body = source.slice(at, at + 900);
+      expect(body, `${file} locks a whole activity`).toContain(
+        'WHERE "activityId"',
+      );
+      expect(body, `${file} takes them in id order`).toContain('ORDER BY "id"');
+      expect(body, `${file} actually locks`).toContain("FOR UPDATE");
+    }
   });
 });

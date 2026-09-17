@@ -2463,11 +2463,25 @@ async function groupOfThree(browser) {
       aliasRows?.[0] === "1",
       `the alias landed on exactly one seat (${aliasRows?.[0] ?? "no row"})`,
     );
-    await page.reload({ waitUntil: "domcontentloaded" });
-    const rosterShown = await page.evaluate(
-      () =>
-        document.querySelector('[aria-labelledby="sala-quien"]')?.innerText ??
-        "",
+    // Into the ROOM first. The organiser has been on the creation screen since
+    // the links appeared, and that screen has no roster on it — reading from
+    // wherever the page happened to be returned an empty string, which is not
+    // the same as "the name is missing" and must not be reported as if it were.
+    await page.goto(`${WEB}/compartir/${activityId}`, {
+      waitUntil: "domcontentloaded",
+    });
+    const rosterShown = await until(
+      async () => {
+        await page.reload({ waitUntil: "domcontentloaded" });
+        const t = await page.evaluate(
+          () =>
+            document.querySelector('[aria-labelledby="sala-quien"]')
+              ?.innerText ?? "",
+        );
+        return t.trim().length > 0 ? t : null;
+      },
+      "the organiser's room to render its roster",
+      60_000,
     );
     check(
       rosterShown.includes(ALIAS),

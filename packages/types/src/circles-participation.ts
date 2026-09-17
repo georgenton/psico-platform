@@ -31,6 +31,7 @@
 
 import type {
   CircleActivityStatus,
+  CircleKind,
   CircleOutcomeKind,
   CircleParticipantStatus,
   CircleSharingMode,
@@ -243,9 +244,47 @@ export function circleParticipatingSize(view: {
   return view.onboarding?.group ?? view.requiredParticipants;
 }
 
+/**
+ * Whether this activity runs under the GROUP's rules.
+ *
+ * ── Why this is not `participantes > 2` ───────────────────────────────────
+ *
+ * Because a room offered to six that continued with two is two people running
+ * under the group's rules, and the two questions have different answers there:
+ *
+ *   · «how many people do I say?» — two. «La otra persona» is correct.
+ *   · «what happens if I choose not to share?» — the GROUP's answer: the
+ *     activity ends for everybody and what the others wrote is discarded
+ *     unopened, with nobody told who chose it.
+ *
+ * Counting people answered the first question and was then reused for the
+ * second, so a reduced group was shown the Dúo's explanation of KEEP_PRIVATE
+ * while the API went on doing the group's cancellation. The screen described
+ * one product and the server ran another.
+ *
+ * `kind` is optional because a view served by an API that predates it has to
+ * keep working. When it is absent this falls back to exactly what the screens
+ * did before the field existed, so an older payload behaves as it always did
+ * rather than differently — it is never a better guess, just the same one.
+ */
+export function circleModalidadEsGrupo(
+  kind: CircleKind | undefined,
+  participantes: number,
+): boolean {
+  return kind !== undefined ? kind === "GROUP_ADULT" : participantes > 2;
+}
+
 export interface CircleActivityView {
   readonly activityId: string;
   readonly status: CircleActivityStatus;
+  /**
+   * MODALITY — which rules this activity runs under, independent of its size.
+   *
+   * Optional for the same reason `onboarding` is: a response produced before
+   * the field existed is still a valid response. Readers resolve it through
+   * `circleModalidadEsGrupo`, which says what to do when it is missing.
+   */
+  readonly kind?: CircleKind;
   readonly templateKey: string;
   readonly templateVersion: number;
   readonly title: string;

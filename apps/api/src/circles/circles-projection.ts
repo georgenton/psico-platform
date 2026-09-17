@@ -321,6 +321,14 @@ export function projectActivity(input: ProjectionInput): CircleActivityView {
   return {
     activityId: activity.id,
     status: activity.status,
+    // The MODALITY, which this function has always had and never sent.
+    //
+    // Without it the only way a screen could tell a group from a Dúo was to
+    // count the people in it — which is right until a room offered to six
+    // continues with two, and then describes the Dúo's consequences over the
+    // group's behaviour. It is the discriminant the activity already stores;
+    // nothing here decides anything new.
+    kind: activity.kind,
     templateKey: activity.templateKey,
     templateVersion: activity.templateVersion,
     title: definition.title,

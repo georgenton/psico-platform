@@ -2977,6 +2977,265 @@ async function reducedGroup(browser) {
 }
 
 /**
+ * The private exit of a group that continued with TWO.
+ *
+ * ── The distinction this exists to hold ───────────────────────────────────
+ *
+ * A GROUP_ADULT that continues with two people is still a group. The API
+ * always knew that — keeping it private cancels the activity for everybody
+ * and destroys what the others wrote unopened. The SCREENS did not: they
+ * decided which explanation to show by counting people, so at two they showed
+ * the Dúo's, which promises that the other person will be told you finished
+ * without sharing. In a group nobody is told who ended it.
+ *
+ * So the screen described one product while the server ran another, and the
+ * gap only opens at exactly two. This walks it: the warning before the press,
+ * the warning on the preview, and then the consequence the API actually
+ * produces — with a real Dúo alongside to show its rules are untouched.
+ *
+ * Deliberately a SEPARATE activity from the positive walk: that one has to end
+ * in an agreement, and this one has to end in a cancellation.
+ */
+async function reducedGroupKeepPrivate(browser) {
+  const organiser = await register("reducido-privado");
+  const organiserCtx = await browser.newContext();
+  const guestCtxs = [];
+
+  try {
+    const page = await organiserCtx.newPage();
+    await signIn(page, organiser);
+
+    // ── A circle offered to six, continued with two ──────────────────────
+    await page.goto(`${WEB}/dashboard/circulos`, {
+      waitUntil: "domcontentloaded",
+    });
+    const start = page.getByRole("link", { name: /Empezar este círculo/i });
+    await start.waitFor({ state: "visible", timeout: 30_000 });
+    await start.click();
+    await page.check('input[name="circulo-tamano"][value="6"]');
+    await page.getByRole("button", { name: /Crear el círculo/i }).click();
+
+    const links = await until(
+      async () => {
+        const text = await page.evaluate(() => document.body.innerText);
+        const found = text.match(/https?:\/\/\S*\/i#[A-Za-z0-9_-]{43}/g) ?? [];
+        return found.length === 5 ? found : null;
+      },
+      "five invitation links for a circle of six",
+      60_000,
+    );
+    const activityId = sqlOne(
+      `SELECT a."id" FROM "CircleActivity" a
+         JOIN "Circle" c ON c."id" = a."circleId"
+        WHERE c."createdByUserId" = '${organiser.userId}'
+        ORDER BY a."createdAt" DESC LIMIT 1`,
+    ).trim();
+
+    const guest = await acceptAsGuest(browser, links[0]);
+    guestCtxs.push(guest.ctx);
+    await continuarConQuienesAceptaron(page, activityId);
+
+    const shape = sqlRows(
+      `SELECT a."kind"::text AS kind, a."requiredParticipants" AS capacity,
+              a."confirmedParticipants" AS "group"
+         FROM "CircleActivity" a WHERE a."id" = '${activityId}'`,
+    )[0];
+    check(
+      shape?.[0] === "GROUP_ADULT" && shape?.[1] === "6" && shape?.[2] === "2",
+      `a GROUP_ADULT of capacity six running with two (${shape?.join("/") ?? "no row"})`,
+    );
+
+    // ── One person confirms real content, so there IS something to lose ──
+    await page.goto(`${WEB}/compartir/${activityId}`, {
+      waitUntil: "domcontentloaded",
+    });
+    await enterRoom(page);
+    await typeDraft(page, { uno: "algo que sí escribí" });
+    await openPreview(page);
+    await confirmShare(page);
+
+    const sealedBefore = sqlOne(
+      `SELECT count(*) FROM "CircleActivityParticipant"
+        WHERE "activityId"='${activityId}' AND "ciphertext" IS NOT NULL`,
+    ).trim();
+    check(
+      sealedBefore === "1",
+      `one confirmed envelope is waiting (${sealedBefore})`,
+    );
+
+    // ── The other chooses to keep everything private ─────────────────────
+    //
+    // Into the room again first. This page has been open since before the
+    // organiser continued, so the view it is holding still says the group is
+    // not fixed — the room polls and would catch up on its own, but a test
+    // that raced the poll would be measuring the refresh, not the copy.
+    await guest.page.goto(`${WEB}/compartir/${activityId}`, {
+      waitUntil: "domcontentloaded",
+    });
+    await enterRoom(guest.page);
+    await typeDraft(guest.page, { uno: "algo privado" });
+    await forwardToSharing(guest.page);
+    await guest.page.check('input[name="modo"][value="KEEP_PRIVATE"]');
+    const warning = await guest.page.evaluate(() => document.body.innerText);
+
+    // The GROUP's consequence, said for two people.
+    check(
+      /termina aquí para las dos personas/i.test(warning),
+      `preparation states the group's ending for two (${warning.match(/Si eliges esto[^]{0,120}/i)?.[0].replace(/\s+/g, " ") ?? "not found"})`,
+    );
+    check(
+      /se descarta sin abrirse/i.test(warning),
+      "and that what the other person wrote is discarded unopened",
+    );
+    check(
+      /no se le dice a nadie quién lo eligió/i.test(warning),
+      "and that nobody is told who chose it",
+    );
+    // The Dúo's promise must NOT appear: this is the sentence that used to be
+    // shown here, and it promises a notice naming the person who ended it.
+    check(
+      !/verá que terminaste/i.test(warning),
+      "and it does NOT promise the other person is told who finished",
+    );
+
+    await guest.page
+      .getByRole("button", { name: /Ver qué se compartirá/i })
+      .click();
+    const preview = await until(
+      async () => {
+        const text = await guest.page.evaluate(() => document.body.innerText);
+        return /Nadie verá nada/i.test(text) ? text : null;
+      },
+      "the confirmation screen to spell out the consequence",
+      30_000,
+    );
+    check(
+      /termina para las dos personas/i.test(preview),
+      "the preview repeats the group's ending, for two people",
+    );
+    check(
+      /la actividad se cierra/i.test(preview) &&
+        /no se puede deshacer/i.test(preview),
+      "and says it cannot be undone",
+    );
+
+    // ── And the API does what the screen just promised ───────────────────
+    await confirmShare(guest.page);
+    await until(
+      () =>
+        sqlOne(
+          `SELECT "status"::text FROM "CircleActivity" WHERE "id"='${activityId}'`,
+        ).trim() === "CANCELLED",
+      "the activity to end without revealing",
+      60_000,
+    );
+    check(true, "keeping it private ends the reduced group");
+
+    const after = sqlRows(
+      `SELECT (SELECT count(*) FROM "CircleEvent"
+                WHERE "activityId"='${activityId}' AND "type"='ACTIVITY_REVEALED') AS revealed,
+              (SELECT count(*) FROM "CircleActivityParticipant"
+                WHERE "activityId"='${activityId}' AND "ciphertext" IS NOT NULL) AS sealed,
+              (SELECT count(*) FROM "CircleGuestSession"
+                WHERE "activityId"='${activityId}' AND "revokedAt" IS NULL) AS sessions,
+              (SELECT count(*) FROM "CircleInvitation"
+                WHERE "activityId"='${activityId}' AND "revokedAt" IS NULL) AS links`,
+    )[0];
+    check(after?.[0] === "0", `nothing was revealed (${after?.[0]} events)`);
+    check(
+      after?.[1] === "0",
+      `the pending envelope is destroyed, not kept (${after?.[1]})`,
+    );
+    check(
+      after?.[2] === "0" && after?.[3] === "0",
+      `every derived access is revoked (${after?.slice(2).join("/") ?? "?"})`,
+    );
+
+    // ── The person who pressed nothing learns it ended, and nothing else ─
+    await page.reload({ waitUntil: "domcontentloaded" });
+    const shown = await until(
+      async () => {
+        const text = await page.evaluate(() => document.body.innerText);
+        return /Esta actividad terminó/i.test(text) ? text : null;
+      },
+      "the organiser to see a terminal screen",
+      60_000,
+    );
+    check(
+      !/algo privado/.test(shown) && !/KEEP_PRIVATE/.test(shown),
+      "no content from the other seat is on it",
+    );
+    check(
+      !/Participante \d/.test(shown) && !/eligi/i.test(shown),
+      "and nobody is named as the person who ended it",
+    );
+
+    // ── The contrast: a real Dúo still runs the Dúo's rules ──────────────
+    //
+    // Same count, different modality. Keeping it private here is an ordinary
+    // confirmation that shares nothing: the other person is told you finished,
+    // and the activity does not end.
+    const duoLink = await createDuo(page);
+    const duoGuest = await acceptAsGuest(browser, duoLink);
+    guestCtxs.push(duoGuest.ctx);
+    const duoId = duoGuest.activityId;
+    check(
+      sqlOne(
+        `SELECT "kind"::text FROM "CircleActivity" WHERE "id"='${duoId}'`,
+      ).trim() === "DUO",
+      "the contrast activity really is a DUO",
+    );
+
+    await enterRoom(duoGuest.page);
+    await typeDraft(duoGuest.page, { uno: "lo del dúo" });
+    await forwardToSharing(duoGuest.page);
+    await duoGuest.page.check('input[name="modo"][value="KEEP_PRIVATE"]');
+    const duoWarning = await duoGuest.page.evaluate(
+      () => document.body.innerText,
+    );
+    check(
+      /La otra persona verá que terminaste/i.test(duoWarning),
+      "a DUO keeps its own promise: the other person is told you finished",
+    );
+    check(
+      !/termina aquí/i.test(duoWarning) &&
+        !/se descarta sin abrirse/i.test(duoWarning),
+      "and it does not claim the activity ends",
+    );
+
+    await duoGuest.page
+      .getByRole("button", { name: /Ver qué se compartirá/i })
+      .click();
+    await until(
+      async () => {
+        const t = await duoGuest.page.evaluate(() => document.body.innerText);
+        return /Verá que terminaste tu parte/i.test(t) ? t : null;
+      },
+      "the DUO preview to say what the other person will see",
+      30_000,
+    );
+    await confirmShare(duoGuest.page);
+
+    // The decisive contrast: the Dúo is still alive.
+    await until(
+      () =>
+        sqlOne(
+          `SELECT "status"::text FROM "CircleActivity" WHERE "id"='${duoId}'`,
+        ).trim() === "PREPARING",
+      "the DUO to stay open after one side kept it private",
+      60_000,
+    );
+    check(
+      true,
+      "keeping it private in a DUO shares nothing and ends nothing",
+    );
+  } finally {
+    await organiserCtx.close().catch(() => {});
+    for (const ctx of guestCtxs) await ctx.close().catch(() => {});
+  }
+}
+
+/**
  * The private exit, retried with the SAME key after its response was lost.
  *
  * ── Why a reload cannot prove this ────────────────────────────────────────
@@ -3962,6 +4221,13 @@ try {
     "BROWSER_KEEP_PRIVATE_RETRY_AFTER_LOSS",
     "the private exit, retried with the same key after a lost response",
     () => keepPrivateRetryAfterLoss(browser),
+  );
+  resetRateLimits();
+
+  await scenario(
+    "BROWSER_REDUCED_GROUP_KEEP_PRIVATE",
+    "the private exit of a group that continued with two",
+    () => reducedGroupKeepPrivate(browser),
   );
   resetRateLimits();
 

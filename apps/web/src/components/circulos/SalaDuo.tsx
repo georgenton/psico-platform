@@ -482,6 +482,9 @@ export function SalaDuo({
       {stageName === "prepare" && (
         <PreparacionPrivada
           participantes={circleParticipatingSize(view)}
+          // The count above says how many people; this says which rules. They
+          // are the same answer until a room offered to six continues with two.
+          modalidad={view.kind}
           fields={fields}
           allowedModes={allowedModes}
           draft={draft}
@@ -498,6 +501,7 @@ export function SalaDuo({
       {stageName === "preview" && local.stage === "preview" && (
         <PreviewCompartir
           participantes={view.onboarding?.group ?? view.requiredParticipants}
+          modalidad={view.kind}
           incorporacionAbierta={view.onboarding?.open ?? false}
           confirmation={local.confirmation}
           fields={fields}

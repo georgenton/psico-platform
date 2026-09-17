@@ -81,7 +81,20 @@ export const CIRCLE_ROLES: readonly CircleRole[] = [
 
 // ─── Circle and activity states ──────────────────────────────────────────────
 
-export type CircleKind = "DUO";
+/**
+ * What KIND of activity this is — the modality, not the size.
+ *
+ * `GROUP_ADULT` was missing here while the database enum has carried it since
+ * adult groups shipped. Nothing read this type, so nothing broke; what it
+ * meant in practice is that the only way the Web could tell a group from a
+ * Dúo was by counting people, and counting people is precisely the thing that
+ * stops working when a room offered to six continues with two.
+ *
+ * A reduced group is a GROUP_ADULT with two people in it. It keeps the group's
+ * rules — its consequences are the group's consequences — and only the wording
+ * follows the count.
+ */
+export type CircleKind = "DUO" | "GROUP_ADULT";
 
 export type CircleStatus = "ACTIVE" | "CLOSED";
 

@@ -67,6 +67,7 @@ const LABELS = [
   "analytics",
   "grupo",
   "reducido",
+  "reducido-privado",
   "grupo-privado",
   "retry-privado",
 ];

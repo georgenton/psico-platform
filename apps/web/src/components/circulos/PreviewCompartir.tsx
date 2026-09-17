@@ -1,9 +1,11 @@
 "use client";
 
 import type {
+  CircleKind,
   CirclePreparationField,
   CircleShareConfirmation,
 } from "@psico/types";
+import { circleModalidadEsGrupo } from "@psico/types";
 
 import { estilos as S } from "./estilos";
 
@@ -41,6 +43,14 @@ export interface PreviewCompartirProps {
    * does not exist until the organiser fixes it.
    */
   readonly incorporacionAbierta?: boolean;
+  /**
+   * Which RULES this activity runs under — not how many people are in it.
+   *
+   * The count below decides whether to say «la otra persona» or «las demás
+   * personas». This decides what confirming KEEP_PRIVATE actually does, which
+   * is not the same question and used to be answered by the same number.
+   */
+  readonly modalidad?: CircleKind;
 }
 
 export function PreviewCompartir({
@@ -51,8 +61,12 @@ export function PreviewCompartir({
   onConfirm,
   participantes = 2,
   incorporacionAbierta = false,
+  modalidad,
 }: PreviewCompartirProps) {
+  // Wording versus consequences. A group that continued with two says «la otra
+  // persona» and still ends for everybody if this person keeps it private.
   const grupo = participantes > 2;
+  const reglasDeGrupo = circleModalidadEsGrupo(modalidad, participantes);
   const label = (key: string) =>
     fields.find((f) => f.fieldKey === key)?.label ?? key;
 
@@ -66,8 +80,13 @@ export function PreviewCompartir({
 
       {confirmation.mode === "KEEP_PRIVATE" && (
         <p style={S.cita}>
-          {grupo
-            ? "Nadie verá nada. Al confirmar, esta actividad termina para todo el grupo: lo que escribieron las demás personas se descarta sin abrirse, y no se le dice a nadie quién lo eligió."
+          {reglasDeGrupo
+            ? grupo
+              ? "Nadie verá nada. Al confirmar, esta actividad termina para todo el grupo: lo que escribieron las demás personas se descarta sin abrirse, y no se le dice a nadie quién lo eligió."
+              : // Two people, the group's rules. Not the Dúo's sentence: there
+                // the other person is told you finished without sharing, and
+                // here nobody is told who ended it.
+                "Nadie verá nada. Al confirmar, esta actividad termina para las dos personas: lo que escribió la otra persona se descarta sin abrirse, y no se le dice a nadie quién lo eligió."
             : "Verá que terminaste tu parte y que elegiste no compartir contenido. No verá nada de lo que escribiste, ni por qué."}
         </p>
       )}
@@ -90,7 +109,7 @@ export function PreviewCompartir({
       )}
 
       <p style={S.aviso} role="note">
-        {grupo && confirmation.mode === "KEEP_PRIVATE"
+        {reglasDeGrupo && confirmation.mode === "KEEP_PRIVATE"
           ? "Al confirmar, la actividad se cierra. No se puede deshacer."
           : `Al confirmar, esto se envía y ya no se puede editar. Se abrirá cuando ${
               grupo

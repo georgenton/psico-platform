@@ -809,17 +809,25 @@ async function revealBarrier(browser) {
       "the second person cannot see the first person's words before confirming",
     );
 
+    // The heading is the RECEIPT for their own send. It used to lead with what
+    // was missing — «Falta la otra persona» — and was reachable only once a
+    // later read came back; the property here is unchanged (the first to
+    // confirm is told where things stand) and the sentence now starts with
+    // what they did.
     let toldWaiting = true;
     try {
       await page
-        .getByRole("heading", { name: /Falta la otra persona/i })
+        .getByRole("heading", { name: /Tu parte ya quedó enviada/i })
         .waitFor({ state: "visible", timeout: 30_000 });
     } catch {
       toldWaiting = false;
     }
+    check(toldWaiting, "the first to confirm is told their part was sent");
     check(
-      toldWaiting,
-      "the first to confirm is told the other person is missing",
+      /se abrirá cuando la otra persona/i.test(
+        await page.evaluate(() => document.body.innerText),
+      ),
+      "and that the opening waits for the other person",
     );
 
     // Second confirmation opens both at once.
@@ -2542,7 +2550,7 @@ async function groupOfThree(browser) {
     // ban on the sentences that would attach a CONFIRMATION to a person.
     const waiting = await page.evaluate(() => document.body.innerText);
     check(
-      /Falta el grupo/i.test(waiting),
+      /grupo confirmado hayan enviado/i.test(waiting),
       "the waiting screen speaks about the group, not about a person",
     );
     check(
@@ -2551,7 +2559,9 @@ async function groupOfThree(browser) {
     );
     check(
       !/confirm[óo]|list[ao]\b|termin[óo]|envi[óo]/i.test(
-        waiting.replace(/Listo\. Falta el grupo\./gi, ""),
+        // The reader's own receipt is about THEM and is exempt; what must not
+        // appear is a sentence attaching a confirmation to somebody else.
+        waiting.replace(/Tu parte ya quedó enviada\./gi, ""),
       ),
       "and attaches no confirmation to any name",
     );

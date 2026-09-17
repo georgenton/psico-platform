@@ -3904,5 +3904,202 @@ suite("circles · adult groups (real PostgreSQL)", () => {
       );
       expect(events.rows[0].n).toBe(0);
     }, 60_000);
+
+    // ══ The whole cycle, at the size the group actually is ══════════════════
+
+    it("a room offered to SIX that continued with two reaches an agreement", async () => {
+      // The reported failure, at its widest. Capacity six, one guest in.
+      const group = await room(6, 1);
+      const closed = await participationFor().closeOnboarding(
+        group.organizer,
+        group.activityId,
+        randomUUID(),
+      );
+      expect(closed.group).toBe(2);
+
+      const shape = await shapeOf(group.activityId);
+      expect(shape.capacity, "capacity is what people were shown").toBe(6);
+      expect(shape.group, "the group is who is here").toBe(2);
+
+      for (const actor of [group.organizer, group.guests[0]!]) {
+        await participationFor().confirmShare(
+          actor,
+          group.activityId,
+          share("lo mío"),
+          randomUUID(),
+        );
+      }
+      expect(await statusOf(group.activityId)).toBe("REVEALED");
+
+      const proposed = await open.proposeArtifact(
+        group.organizer,
+        group.activityId,
+        "lo que vamos a intentar",
+        randomUUID(),
+      );
+      const first = await open.confirmArtifact(
+        group.organizer,
+        group.activityId,
+        proposed.artifactId,
+        proposed.version,
+        randomUUID(),
+      );
+      expect(first.agreed, "one of two is not the room").toBe(false);
+      const second = await open.confirmArtifact(
+        group.guests[0]!,
+        group.activityId,
+        proposed.artifactId,
+        proposed.version,
+        randomUUID(),
+      );
+      // The decisive one. Against CAPACITY this room needed six confirmations
+      // and had two people to give them: it could reveal and then never agree.
+      expect(second.agreed, "the group agreed").toBe(true);
+    }, 120_000);
+
+    it("closes the follow-up on the GROUP's decisions, with no worker", async () => {
+      const group = await room(6, 1);
+      await participationFor().closeOnboarding(
+        group.organizer,
+        group.activityId,
+        randomUUID(),
+      );
+      for (const actor of [group.organizer, group.guests[0]!]) {
+        await participationFor().confirmShare(
+          actor,
+          group.activityId,
+          share("lo mío"),
+          randomUUID(),
+        );
+      }
+      await pool.query(
+        `UPDATE "CircleActivity" SET "followUpDueAt" = now() - interval '1 hour'
+          WHERE "id"=$1`,
+        [group.activityId],
+      );
+
+      await open.recordFollowUp(
+        group.organizer,
+        group.activityId,
+        "KEEP",
+        randomUUID(),
+      );
+      expect(
+        await statusOf(group.activityId),
+        "one decision of two does not end it",
+      ).not.toBe("CLOSED");
+      await open.recordFollowUp(
+        group.guests[0]!,
+        group.activityId,
+        "CLOSE",
+        randomUUID(),
+      );
+      // Counted against capacity, these two could never reach six decisions:
+      // the room stayed open until a clock closed it a week later, and nothing
+      // the people inside did could ever have finished it themselves.
+      expect(await statusOf(group.activityId)).toBe("CLOSED");
+    }, 120_000);
+
+    it("a group of three still needs THREE, not the four it was offered to", async () => {
+      const group = await room(4, 2);
+      expect(
+        (
+          await participationFor().closeOnboarding(
+            group.organizer,
+            group.activityId,
+            randomUUID(),
+          )
+        ).group,
+      ).toBe(3);
+      for (const actor of [group.organizer, ...group.guests]) {
+        await participationFor().confirmShare(
+          actor,
+          group.activityId,
+          share("de cada quien"),
+          randomUUID(),
+        );
+      }
+      const proposed = await open.proposeArtifact(
+        group.organizer,
+        group.activityId,
+        "un plan entre tres",
+        randomUUID(),
+      );
+      const seen = [];
+      for (const actor of [group.organizer, ...group.guests]) {
+        seen.push(
+          (
+            await open.confirmArtifact(
+              actor,
+              group.activityId,
+              proposed.artifactId,
+              proposed.version,
+              randomUUID(),
+            )
+          ).agreed,
+        );
+      }
+      // The group's size, not a constant and not the capacity: two is not
+      // enough and three is not one too many.
+      expect(seen).toEqual([false, false, true]);
+    }, 120_000);
+
+    // ══ The sweep is not occupied by the rooms it must preserve ═════════════
+
+    it("reaches an unfinishable room past a batch full of viable ones", async () => {
+      const sweeper = () =>
+        new CirclesSweepService(
+          prisma as never,
+          new CircleActivityRepository(prisma),
+          new CircleEventRepository(prisma),
+          new CirclesRolloutService(resolveCirclesRolloutConfig(OPEN)),
+          new CircleParticipantRepository(prisma),
+          new CircleInvitationRepository(prisma),
+          new CircleGuestSessionRepository(prisma),
+        );
+
+      // Drain whatever earlier tests left cancellable, so the only rooms this
+      // one has to reason about are its own.
+      await sweeper().sweep();
+
+      /** Age EVERY link, consumed ones included — fourteen days pass for all. */
+      const ageAllLinks = (activityId: string) =>
+        pool.query(
+          `UPDATE "CircleInvitation"
+              SET "createdAt" = now() - interval '15 days',
+                  "expiresAt" = now() - interval '1 hour'
+            WHERE "activityId"=$1`,
+          [activityId],
+        );
+
+      // Two rooms the sweep must NOT touch: every link long dead, but people
+      // inside. This is an ordinary room a month old, not a contrivance.
+      const viable = [await room(3, 1), await room(3, 1)];
+      for (const v of viable) await ageAllLinks(v.activityId);
+
+      // And one it must end: nobody ever came, and nobody can any more.
+      const unfinishable = await room(3, 0);
+      await ageAllLinks(unfinishable.activityId);
+
+      // The scan is ordered by id and cut at `batchSize`. Stated, not assumed:
+      // if cuids ever stop being monotonic this fails loudly instead of
+      // quietly testing nothing.
+      expect(
+        viable.every((v) => v.activityId < unfinishable.activityId),
+        "the preserved rooms sort ahead of the one that must be cancelled",
+      ).toBe(true);
+
+      const summary = await sweeper().sweep({ batchSize: viable.length });
+
+      // Before the selection was tightened, the batch was filled by the two
+      // rooms the sweep is not allowed to cancel, and the third was never
+      // looked at — on this run and on every run after it.
+      expect(await statusOf(unfinishable.activityId)).toBe("CANCELLED");
+      expect(summary.incompleteGroupsCancelled).toBe(1);
+      // And the way past them was not to cancel them.
+      for (const v of viable) {
+        expect(await statusOf(v.activityId)).toBe("INVITING");
+      }
+    }, 180_000);
   });
 });

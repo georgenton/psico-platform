@@ -216,10 +216,39 @@ export class CirclesSweepService {
           // Once onboarding is closed the room is `PREPARING` with no pending
           // seats at all, so it never matches here: what ends it then is a
           // person leaving, which is a decision rather than a timer.
+          //
+          // ── Rooms this sweep must PRESERVE are discarded HERE ─────────────
+          //
+          // The authoritative check below asks two things: that nothing is
+          // left to redeem, AND that the room cannot reach two people. This
+          // scan only asked the first. So a room whose links had all simply
+          // aged out — fourteen days pass for consumed invitations too — while
+          // people were already inside matched every run, was locked, examined
+          // and correctly left alone, and then matched again on the next run,
+          // forever.
+          //
+          // That is not a wasted transaction, it is a stuck job: the scan is
+          // ordered by id and cut at `take: batchSize`, so enough preserved
+          // rooms at the front fill the batch with rooms the sweep is not
+          // allowed to touch, and the rooms that DO need ending are never
+          // reached. Raising the batch only moves the number at which it
+          // happens.
+          //
+          // «Fewer than two» is exactly «no guest accepted»: the organiser's
+          // seat is created `ACCEPTED`, and an organiser who leaves cancels
+          // the room rather than leaving it `INVITING`, so the organiser is
+          // always one of the two. That is the form a relation filter can
+          // state, and it is the same condition — the transaction still
+          // re-checks it by counting, because somebody can accept between
+          // this scan and that lock, and the lock is the only place an answer
+          // can be trusted.
           {
             onboarding: "FLEXIBLE",
             status: "INVITING",
             invitations: { some: {}, every: dead },
+            participants: {
+              none: { memberId: null, status: { in: ["ACCEPTED", "READY"] } },
+            },
           },
         ],
       },

@@ -136,8 +136,13 @@ export function PreviewCompartir({
           style={S.primary}
           onClick={onConfirm}
           disabled={busy || incorporacionAbierta}
+          // While the request is in flight the button says what is happening
+          // rather than going quietly grey. A disabled control with unchanged
+          // copy is indistinguishable from one that ignored the press, which
+          // is exactly what the person reported seeing.
+          aria-busy={busy || undefined}
         >
-          Confirmar y enviar
+          {busy ? "Enviando…" : "Confirmar y enviar"}
         </button>
         <button
           type="button"

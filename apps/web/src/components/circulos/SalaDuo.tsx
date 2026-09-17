@@ -70,6 +70,20 @@ type Local =
   | { stage: "consent" }
   | { stage: "prepare" }
   | { stage: "preview"; confirmation: CircleShareConfirmation }
+  /**
+   * Sent, and acknowledged by the server — before any read has come back.
+   *
+   * The whole of the fix. `command()` used to fire the refetch without
+   * awaiting it and return, and `onConfirm` then put the local stage back to
+   * `prepare`; the waiting screen was reachable only through a LATER read
+   * reporting `you.status === "READY"`. Between those two moments the person
+   * who had just sent was looking at the empty form they had submitted.
+   *
+   * It carries what the acknowledgement said, because keeping your part
+   * private ENDS a group and «esperando al resto» would be a lie about an
+   * activity that is already over.
+   */
+  | { stage: "sent"; revealed: boolean; cancelled: boolean }
   | { stage: "left" };
 
 export function SalaDuo({
@@ -150,8 +164,19 @@ export function SalaDuo({
     return minted;
   }, []);
 
+  /**
+   * What a command answered. `ok` is the only thing most callers need; the
+   * share is the one that acts on the rest.
+   */
   const command = useCallback(
-    async (kind: string, payload?: unknown): Promise<boolean> => {
+    async (
+      kind: string,
+      payload?: unknown,
+    ): Promise<{
+      readonly ok: boolean;
+      readonly revealed: boolean;
+      readonly cancelled: boolean;
+    }> => {
       setBusy(true);
       setCommandError(null);
       const idempotencyKey = keyFor(kind, payload);
@@ -164,26 +189,33 @@ export function SalaDuo({
             body: JSON.stringify({ kind, payload, idempotencyKey }),
           },
         );
+        const body = (await res.json().catch(() => null)) as {
+          code?: unknown;
+          result?: { revealed?: unknown; cancelled?: unknown };
+        } | null;
         if (!res.ok) {
-          const body = (await res.json().catch(() => null)) as {
-            code?: unknown;
-          } | null;
           setCommandError(
             typeof body?.code === "string" ? body.code : "CIRCLE_UNAVAILABLE",
           );
-          return false;
+          return { ok: false, revealed: false, cancelled: false };
         }
         // Settled. The key has done its job and a later, genuinely new
         // intention with the same text should not replay this one.
         keys.current.delete(`${kind}:${JSON.stringify(payload ?? null)}`);
+        // Still asked for — the room should catch up — but the screen no
+        // longer WAITS on it to tell the person what just happened.
         refresh();
-        return true;
+        return {
+          ok: true,
+          revealed: body?.result?.revealed === true,
+          cancelled: body?.result?.cancelled === true,
+        };
       } catch {
         // Deliberately KEEPS the key: a network failure is the case where the
         // command may or may not have landed, and the retry must ask about the
         // same act rather than start a new one.
         setCommandError("CIRCLE_UNAVAILABLE");
-        return false;
+        return { ok: false, revealed: false, cancelled: false };
       } finally {
         setBusy(false);
       }
@@ -207,7 +239,7 @@ export function SalaDuo({
    * screen all stay — and the person can retry under the same idempotency key.
    */
   const withdrawAndLeave = useCallback(async () => {
-    if (!(await command("withdraw"))) return false;
+    if (!(await command("withdraw")).ok) return false;
 
     setDraft(borradorInicial(allowedModes));
     setBusy(true);
@@ -380,7 +412,7 @@ export function SalaDuo({
                 view.onboarding.roster.filter((r) => r.state === "INVITED")
                   .length
               }
-              onConfirm={() => command("close-onboarding")}
+              onConfirm={() => command("close-onboarding").then((a) => a.ok)}
             />
           )}
         </section>
@@ -510,11 +542,17 @@ export function SalaDuo({
           // this component, so unmounting the form does not touch it.
           onBack={() => setLocal({ stage: "prepare" })}
           onConfirm={async () => {
-            if (await command("share", local.confirmation)) {
-              // Confirmed. The text is on the server now, so the local copy
-              // has no reason to exist.
+            const ack = await command("share", local.confirmation);
+            if (ack.ok) {
+              // Confirmed BY THE SERVER. The text is on its side now, so the
+              // local copy has no reason to exist — and the screen says so
+              // immediately, from this answer, not from the next read.
               setDraft(borradorInicial(allowedModes));
-              setLocal({ stage: "prepare" });
+              setLocal({
+                stage: "sent",
+                revealed: ack.revealed,
+                cancelled: ack.cancelled,
+              });
             }
             // On failure: stay on the preview, keep the draft, show the error.
             // The person can retry the identical confirmation under the same
@@ -525,16 +563,36 @@ export function SalaDuo({
 
       {stageName === "waiting" && (
         <section style={S.section} aria-labelledby="wait-h">
+          {/* The heading is the receipt.
+              It used to read «Listo. Falta la otra persona.», which leads with
+              what is MISSING — and it was only reachable once a later read
+              came back, so the person who had just pressed send saw an empty
+              form instead. It now leads with what they did, and it is on
+              screen from the acknowledgement onwards. */}
           <h2 id="wait-h" style={S.h2}>
-            {esGrupo(view)
-              ? "Listo. Falta el grupo."
-              : "Listo. Falta la otra persona."}
+            Tu parte ya quedó enviada.
           </h2>
           <p style={S.p}>
-            {esGrupo(view)
-              ? "Ya confirmamos lo tuyo. Cuando todas las personas hayan confirmado lo suyo, se abren todas a la vez — ni antes, ni sólo algunas."
-              : "Ya confirmamos lo tuyo. Cuando la otra persona confirme lo suyo, se abren los dos a la vez — ni antes, ni sólo uno."}
+            No necesitas volver a enviarla.{" "}
+            {local.stage === "sent" && local.revealed
+              ? "Ya está todo: la sala se está abriendo."
+              : esGrupo(view)
+                ? "Lo compartido se abrirá cuando todas las personas del grupo confirmado hayan enviado su parte — a la vez, ni antes ni sólo algunas."
+                : "Lo compartido se abrirá cuando la otra persona haya enviado la suya — las dos a la vez, ni antes ni sólo una."}
           </p>
+          {/* Said in the body, not only in the live region: somebody who is
+              not using a screen reader has to be able to read it too. */}
+          <p style={S.p}>
+            No hace falta que dejes esta página abierta esperando.
+          </p>
+          {/* The send is committed; only the refresh failed. Reporting that as
+              a failed send would call a finished act lost. */}
+          {error && local.stage === "sent" && (
+            <p role="status" style={S.aviso}>
+              Tu parte está enviada. No pudimos actualizar la sala ahora mismo;
+              vuelve a abrirla en un momento para ver cómo va.
+            </p>
+          )}
           <p style={S.p}>
             Puedes cerrar esta página y volver a{" "}
             <strong>la dirección de esta sala</strong> mientras tu sesión siga
@@ -553,9 +611,13 @@ export function SalaDuo({
           <Artefacto
             view={view}
             busy={busy}
-            onPropose={(body) => command("artifact", { body })}
+            onPropose={(body) =>
+              command("artifact", { body }).then((a) => a.ok)
+            }
             onConfirm={(artifactId, version) =>
-              command("artifact-confirm", { artifactId, version })
+              command("artifact-confirm", { artifactId, version }).then(
+                (a) => a.ok,
+              )
             }
           />
         </>
@@ -565,7 +627,9 @@ export function SalaDuo({
         <Seguimiento
           view={view}
           busy={busy}
-          onDecide={(decision) => command("follow-up", { decision })}
+          onDecide={(decision) =>
+            command("follow-up", { decision }).then((a) => a.ok)
+          }
         />
       )}
 
@@ -690,6 +754,17 @@ function derivedStage(view: CircleActivityView, local: Local): string {
   }
   if (view.status === "FOLLOW_UP") return "follow-up";
   if (view.status === "REVEALED") return "revealed";
+  // ── What the server said when it took the send ──────────────────────────
+  //
+  // Above a stale read and below a real terminal state, which is exactly its
+  // standing: a read describing the room BEFORE this send arrives late and
+  // must not undo it, while a read that has genuinely moved on — revealed,
+  // closed, cancelled — is the truth and wins.
+  //
+  // `cancelled` is the group's private exit, which ENDS the activity: telling
+  // that person to wait for the others would describe a room that no longer
+  // exists.
+  if (local.stage === "sent") return local.cancelled ? "closed" : "waiting";
   if (view.you.status === "READY") return "waiting";
   if (local.stage === "preview") return "preview";
   if (local.stage === "prepare") return "prepare";

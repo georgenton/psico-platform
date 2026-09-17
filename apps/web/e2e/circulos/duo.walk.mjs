@@ -80,6 +80,12 @@ const { chromium } = await import("playwright");
  */
 const transport = makeTransport(process.env);
 
+/** The room's polling interval. Anything visible sooner did not come from it. */
+const POLL_MS = 10_000;
+
+/** How long the reproduction holds the next read back. Under the poll. */
+const SLOW_READ_MS = 6_000;
+
 // ── Result bookkeeping ──────────────────────────────────────────────────────
 
 const scenarios = [];
@@ -2977,6 +2983,239 @@ async function reducedGroup(browser) {
 }
 
 /**
+ * Sending your part tells YOU it was sent — before anyone else does anything.
+ *
+ * ── The report this reproduces ────────────────────────────────────────────
+ *
+ * Two people: an organiser signed in, a guest in a private window. The guest
+ * pressed send and saw no confirmation. The result only appeared once the
+ * organiser opened the room and answered.
+ *
+ * Four different things look identical from the outside, so this separates
+ * them before it concludes anything:
+ *
+ *   1. the click emits no request at all;
+ *   2. the request is emitted and REFUSED;
+ *   3. the server commits and the screen does not say so;
+ *   4. onboarding is still open, so sending is not permitted yet.
+ *
+ * The status, the code and the seat's own state in PostgreSQL are all read,
+ * so the answer is observed rather than reached by elimination. The screen is
+ * read within two seconds of the acknowledgement and with no reload: the poll
+ * is ten seconds, so anything visible here cannot have come from it.
+ */
+async function sendAcknowledgement(browser) {
+  const organiser = await register("acuse");
+  const organiserCtx = await browser.newContext();
+  let guest = null;
+
+  try {
+    const page = await organiserCtx.newPage();
+    await signIn(page, organiser);
+    const link = await createDuo(page);
+    guest = await acceptAsGuest(browser, link);
+    const activityId = guest.activityId;
+
+    // ── The guest sends. The organiser does NOTHING. ─────────────────────
+    //
+    // The organiser's page is not touched again until every assertion below
+    // has been made, because "it appeared once the other person answered" is
+    // precisely the behaviour under test.
+    await enterRoom(guest.page);
+    await typeDraft(guest.page, { uno: "lo que preparé" });
+    await openPreview(guest.page);
+
+    // Everything the page sends and everything it is answered, by path only —
+    // no bodies, no query strings, no headers. A timeout here must be a
+    // DIAGNOSIS, not a dead end, so nothing below throws on absence.
+    const sent = [];
+    const answered = [];
+    guest.page.on("request", (req) => {
+      try {
+        sent.push(new URL(req.url()).pathname);
+      } catch {
+        /* not a URL we can parse is not a URL we need */
+      }
+    });
+    guest.page.on("response", (res) => {
+      try {
+        answered.push({
+          path: new URL(res.url()).pathname,
+          status: res.status(),
+          at: Date.now(),
+        });
+      } catch {
+        /* same */
+      }
+    });
+
+    // ── Make the later read SLOW, deliberately ───────────────────────────
+    //
+    // On a fast connection the un-awaited refetch lands in a few hundred
+    // milliseconds and hides the defect completely: the screen is correct by
+    // accident. Jorge's guest was in a private window on a real connection and
+    // saw the empty form, so the condition to reproduce is a read that has not
+    // come back yet — which is also the requirement, stated as a test: the
+    // acknowledgement must not depend on the next read at all.
+    //
+    // Only the activity GET is delayed. The command POST is untouched, and
+    // nothing is mocked: the same server answers, a little later.
+    await guest.page.route(
+      /\/api\/circulos\/actividad\/[^/]+$/,
+      async (route) => {
+        if (route.request().method() !== "GET") return route.continue();
+        await new Promise((r) => setTimeout(r, SLOW_READ_MS));
+        return route.continue();
+      },
+    );
+
+    const isCommand = (r) => r.path.endsWith("/comando");
+    const pressedAt = Date.now();
+    await confirmShare(guest.page);
+
+    let ack = null;
+    try {
+      ack = await until(
+        () => answered.find(isCommand) ?? null,
+        "the send to be answered",
+        30_000,
+      );
+    } catch {
+      /* answered below, with what WAS seen */
+    }
+    const ackAt = Date.now();
+
+    // ── 1 · did the click emit anything? ─────────────────────────────────
+    const commandsSent = sent.filter((p) => p.endsWith("/comando")).length;
+    check(
+      commandsSent >= 1,
+      `the press emits a command (${commandsSent} sent; paths after the press: ${
+        sent.slice(-6).join(", ") || "none"
+      })`,
+    );
+
+    // ── 2 · was it refused? ──────────────────────────────────────────────
+    check(
+      ack !== null && ack.status >= 200 && ack.status < 300,
+      `and the server accepts it (${
+        ack ? `status ${ack.status}` : "no answer observed"
+      })`,
+    );
+
+    // ── 4 · was sending even permitted yet? ──────────────────────────────
+    //
+    // A Dúo has no flexible onboarding, so this cannot be the cause — checked
+    // rather than assumed, because that refusal has its own status and would
+    // otherwise read as a generic failure.
+    check(
+      ack === null || ack.status !== 409,
+      `and it is not a conflict with an earlier intention (${ack?.status ?? "n/a"})`,
+    );
+
+    // ── 3 · did the server actually commit? ──────────────────────────────
+    const seat = sqlOne(
+      `SELECT p."status"::text FROM "CircleActivityParticipant" p
+         JOIN "CircleGuestSession" g ON g."participantId" = p."id"
+        WHERE p."activityId"='${activityId}' AND g."revokedAt" IS NULL
+        LIMIT 1`,
+    ).trim();
+    check(
+      seat === "READY",
+      `the seat is committed as sent in PostgreSQL (${seat || "no row"})`,
+    );
+
+    // ── And now the only question left: does the SCREEN say so? ──────────
+    const shown = await guest.page.evaluate(() => document.body.innerText);
+    const elapsed = ackAt - pressedAt;
+    check(
+      elapsed < SLOW_READ_MS,
+      `the screen is read ${elapsed}ms after the press, while the next read ` +
+        `is still in flight (${SLOW_READ_MS}ms)`,
+    );
+    // The delay has to BITE, or this scenario proves nothing: an unthrottled
+    // refetch lands in a few hundred milliseconds and makes the screen correct
+    // by accident, which is exactly how this defect survived. So the read that
+    // followed the press is timed, and a read that came back quickly is
+    // reported as a broken fixture rather than passed over.
+    const readAfterPress = answered.find(
+      (r) => !isCommand(r) && r.at > pressedAt && r.path.includes("/actividad/"),
+    );
+    check(
+      readAfterPress === undefined ||
+        readAfterPress.at - pressedAt >= SLOW_READ_MS,
+      `the next read really was held back (${
+        readAfterPress
+          ? `${readAfterPress.at - pressedAt}ms`
+          : "none had returned yet"
+      })`,
+    );
+
+    // The heading, by role: a substring can be satisfied by the template's own
+    // prose, and "it said something somewhere" is not what is being claimed.
+    const heading = await guest.page
+      .getByRole("heading", { name: /ya quedó enviada|Listo\./i })
+      .first()
+      .textContent()
+      .catch(() => null);
+    check(
+      heading !== null,
+      `the sender is told their part was sent (headings: ${(
+        await guest.page
+          .getByRole("heading")
+          .allTextContents()
+          .catch(() => [])
+      )
+        .join(" | ")
+        .slice(0, 180)})`,
+    );
+    check(
+      !/ya quedó enviada|Listo\./i.test(heading ?? "")
+        ? true
+        : !(await guest.page
+            .getByRole("button", { name: /Confirmar y enviar/i })
+            .isVisible()
+            .catch(() => false)),
+      "and the form they just submitted is gone",
+    );
+    check(
+      /falta|esperando|cuando/i.test(shown),
+      "and the wait for the other person is explained",
+    );
+
+    // ── The organiser, still inactive, has seen nothing revealed ─────────
+    const revealed = sqlOne(
+      `SELECT count(*) FROM "CircleEvent"
+        WHERE "activityId"='${activityId}' AND "type"='ACTIVITY_REVEALED'`,
+    ).trim();
+    check(
+      revealed === "0",
+      `one part sent reveals nothing (${revealed} reveal events)`,
+    );
+
+    // ── Now the organiser answers, and the room opens for both ───────────
+    await page.goto(`${WEB}/compartir/${activityId}`, {
+      waitUntil: "domcontentloaded",
+    });
+    await enterRoom(page);
+    await typeDraft(page, { uno: "lo mío" });
+    await openPreview(page);
+    await confirmShare(page);
+    await until(
+      () =>
+        sqlOne(
+          `SELECT "status"::text FROM "CircleActivity" WHERE "id"='${activityId}'`,
+        ).trim() === "REVEALED",
+      "the room to open once both parts are in",
+      60_000,
+    );
+    check(true, "the reveal still waits for everybody, as it always did");
+  } finally {
+    await organiserCtx.close().catch(() => {});
+    if (guest) await guest.ctx.close().catch(() => {});
+  }
+}
+
+/**
  * The private exit of a group that continued with TWO.
  *
  * ── The distinction this exists to hold ───────────────────────────────────
@@ -4221,6 +4460,13 @@ try {
     "BROWSER_KEEP_PRIVATE_RETRY_AFTER_LOSS",
     "the private exit, retried with the same key after a lost response",
     () => keepPrivateRetryAfterLoss(browser),
+  );
+  resetRateLimits();
+
+  await scenario(
+    "BROWSER_SEND_ACKNOWLEDGEMENT",
+    "sending your part tells you so, before anybody else acts",
+    () => sendAcknowledgement(browser),
   );
   resetRateLimits();
 

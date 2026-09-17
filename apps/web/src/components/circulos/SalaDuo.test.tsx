@@ -69,10 +69,15 @@ describe("nothing of the other person exists before the reveal", () => {
 describe("the first confirmation waits; the second reveals", () => {
   it("shows the waiting stage once this person is READY", () => {
     render(<SalaDuo {...base} initialView={ESPERANDO} />);
+    // The property is unchanged — a READY seat is shown the waiting stage —
+    // and the heading now leads with what this person DID rather than with
+    // what is missing, because it is the receipt for their send.
     expect(
-      screen.getByRole("heading", { name: /falta la otra persona/i }),
+      screen.getByRole("heading", { name: /tu parte ya quedó enviada/i }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/se abren los dos a la vez/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/se abrirá cuando la otra persona/i),
+    ).toBeInTheDocument();
   });
 
   it("announces the wait to assistive technology", () => {
@@ -218,7 +223,7 @@ describe("leaving means withdrawing, not just losing the cookie", () => {
     expect(calls).toEqual(["withdraw"]);
     expect(screen.queryByRole("heading", { name: /te retiraste/i })).toBeNull();
     expect(
-      screen.getByRole("heading", { name: /falta la otra persona/i }),
+      screen.getByRole("heading", { name: /tu parte ya quedó enviada/i }),
     ).toBeInTheDocument();
   });
 

@@ -124,10 +124,38 @@ export async function POST(
 
   return noStore(
     NextResponse.json(
-      result.ok ? { ok: true } : { ok: false, code: result.code },
+      result.ok
+        ? { ok: true, result: outcomeOf(result.data) }
+        : { ok: false, code: result.code },
       { status: result.status },
     ),
   );
+}
+
+/**
+ * What the command DID, as two booleans and nothing else.
+ *
+ * The API answers every command with a small result — whether the share
+ * opened the room, whether keeping it private ended the activity — and this
+ * route used to drop all of it on the floor and reply `{ ok: true }`. The
+ * browser was then left with no way to know what had happened except to read
+ * the activity again, which is why the person who had just sent their part
+ * sat looking at an empty form until the next read came back.
+ *
+ * A whitelist, not a pass-through: only these two names, only when they are
+ * booleans. Nothing the API adds later reaches the browser by accident, and
+ * no content can travel here — the reveal still has to be READ, with the
+ * barrier enforced server-side, exactly as before.
+ */
+function outcomeOf(data: unknown): {
+  readonly revealed: boolean;
+  readonly cancelled: boolean;
+} {
+  const d = (data ?? {}) as Record<string, unknown>;
+  return {
+    revealed: d.revealed === true,
+    cancelled: d.cancelled === true,
+  };
 }
 
 /** Sentinel so `undefined` (a legitimately empty body) stays distinguishable. */

@@ -4101,5 +4101,211 @@ suite("circles · adult groups (real PostgreSQL)", () => {
         expect(await statusOf(v.activityId)).toBe("INVITING");
       }
     }, 180_000);
+
+    // ══ An acceptance and the organiser closing, for the same room ══════════
+    //
+    // Where they actually meet is `CircleMember`. `exchange` locks the
+    // inviter's row before it touches the invitation; the organiser's path
+    // locks the same row as step 1 of the canonical order. So they queue on
+    // the FIRST element of that order, which is why they cannot deadlock —
+    // and seaming them anywhere further down produced a test that proved
+    // nothing, because the blocked side never reached its own seam.
+    //
+    // Beyond deadlock, the thing that must hold is this block's own subject:
+    // if the group were recorded as a number that did not match who is inside,
+    // the room would be right back to revealing and never agreeing.
+
+    /** The seam on the row both paths take first. */
+    class SeamedMembers extends CircleMemberRepository {
+      constructor(
+        db: ConstructorParameters<typeof CircleMemberRepository>[0],
+        private readonly seam: Seam,
+      ) {
+        super(db);
+      }
+      override async lockById(
+        memberId: string,
+        tx: Parameters<CircleMemberRepository["lockById"]>[1],
+      ) {
+        // BEFORE the call: this is the statement that blocks, and a pid
+        // announced after it would never be announced at all.
+        await this.seam.enter(tx as unknown as RawCapable);
+        const row = await super.lockById(memberId, tx);
+        await this.seam.hold();
+        return row;
+      }
+    }
+
+    const acceptingWith = (members: CircleMemberRepository) =>
+      new CirclesService(
+        prisma as unknown as ConstructorParameters<typeof CirclesService>[0],
+        new CircleInvitationRepository(prisma),
+        new CircleGuestSessionRepository(prisma),
+        new CircleEventRepository(prisma),
+        members,
+        new CirclesRolloutService(resolveCirclesRolloutConfig(OPEN)),
+        new CircleActivityRepository(prisma),
+      );
+
+    const closingWith = (members: CircleMemberRepository) =>
+      new CirclesParticipationService(
+        prisma as unknown as ConstructorParameters<
+          typeof CirclesParticipationService
+        >[0],
+        new CircleActivityRepository(prisma),
+        new CircleParticipantRepository(prisma),
+        new CircleArtifactRepository(prisma),
+        new CircleEventRepository(prisma),
+        members,
+        new CircleGuestSessionRepository(prisma),
+        new CircleInvitationRepository(prisma),
+        new CirclesRolloutService(resolveCirclesRolloutConfig(OPEN)),
+        cipher,
+        registry,
+      );
+
+    type Ended =
+      | { readonly ok: true }
+      | { readonly ok: false; readonly code: string; readonly message: string };
+
+    const endOf = <T>(p: Promise<T>): Promise<Ended> =>
+      p.then(
+        () => ({ ok: true }) as Ended,
+        (err: unknown) =>
+          ({
+            ok: false,
+            code: (err as CirclesError)?.code ?? "UNKNOWN",
+            message: (err as Error)?.message ?? String(err),
+          }) as Ended,
+      );
+
+    /**
+     * Whatever the interleaving produced, the number must describe the room.
+     *
+     * A deadlock arrives here laundered — both paths surface one as
+     * `CIRCLE_STORAGE_FAILURE` — so both sides are read, because which
+     * transaction PostgreSQL picks as the victim is not a test's to choose.
+     */
+    const assertGroupDescribesTheRoom = async (
+      activityId: string,
+      accepted: Ended,
+      closed: Ended,
+      where: string,
+    ) => {
+      for (const [who, end] of [
+        ["the acceptance", accepted],
+        ["the close", closed],
+      ] as const) {
+        if (!end.ok && end.code === "CIRCLE_STORAGE_FAILURE") {
+          throw new Error(
+            `${where}: ${who} failed with CIRCLE_STORAGE_FAILURE — ${end.message}`,
+          );
+        }
+      }
+
+      const row = await pool.query(
+        `SELECT a."confirmedParticipants" AS "group",
+                (SELECT count(*)::int FROM "CircleActivityParticipant"
+                  WHERE "activityId"=$1 AND "status" IN ('ACCEPTED','READY'))
+                  AS inside
+           FROM "CircleActivity" a WHERE a."id"=$1`,
+        [activityId],
+      );
+      const { group, inside } = row.rows[0] as {
+        group: number | null;
+        inside: number;
+      };
+
+      if (group === null) {
+        // The close lost outright: nothing is fixed, the organiser presses
+        // again, and the room is exactly where it was.
+        expect(
+          closed.ok,
+          `${where}: an unclosed room means the close did not succeed`,
+        ).toBe(false);
+        return;
+      }
+      // The one thing that must never happen: a group that is not the people.
+      // Either the late guest got in and was counted, or was shut out and was
+      // not — never counted out while sitting inside.
+      expect(group, `${where}: the group IS who is inside`).toBe(inside);
+      expect(group).toBeGreaterThanOrEqual(2);
+      if (!accepted.ok) {
+        expect(
+          accepted.code,
+          `${where}: a shut-out guest is told the link is gone`,
+        ).toBe("CIRCLE_INVITATION_UNUSABLE");
+      }
+    };
+
+    /** A flexible room with one guest already in and one link still live. */
+    async function roomWithOneLiveLink() {
+      const group = await room(3, 1);
+      return { ...group, liveToken: group.tokens[1]! };
+    }
+
+    it("acceptance first, then the organiser closes", async () => {
+      const group = await roomWithOneLiveLink();
+
+      const acceptSeam = seamOf(true);
+      const accepted = endOf(
+        acceptingWith(new SeamedMembers(prisma, acceptSeam)).exchange(
+          group.liveToken,
+        ),
+      );
+      await acceptSeam.parked;
+      const acceptPid = await acceptSeam.pid;
+
+      const closeSeam = seamOf(false);
+      const closed = endOf(
+        closingWith(new SeamedMembers(prisma, closeSeam)).closeOnboarding(
+          group.organizer,
+          group.activityId,
+          randomUUID(),
+        ),
+      );
+      const closePid = await closeSeam.pid;
+
+      // Named on both sides: THIS close is waiting on THIS acceptance.
+      await waitUntilBlockedBy(closePid, acceptPid);
+      acceptSeam.release();
+
+      const [a, c] = await Promise.all([accepted, closed]);
+      await assertGroupDescribesTheRoom(
+        group.activityId,
+        a,
+        c,
+        "acceptance first",
+      );
+    }, 120_000);
+
+    it("the organiser closes first, then the acceptance arrives", async () => {
+      const group = await roomWithOneLiveLink();
+
+      const closeSeam = seamOf(true);
+      const closed = endOf(
+        closingWith(new SeamedMembers(prisma, closeSeam)).closeOnboarding(
+          group.organizer,
+          group.activityId,
+          randomUUID(),
+        ),
+      );
+      await closeSeam.parked;
+      const closePid = await closeSeam.pid;
+
+      const acceptSeam = seamOf(false);
+      const accepted = endOf(
+        acceptingWith(new SeamedMembers(prisma, acceptSeam)).exchange(
+          group.liveToken,
+        ),
+      );
+      const acceptPid = await acceptSeam.pid;
+
+      await waitUntilBlockedBy(acceptPid, closePid);
+      closeSeam.release();
+
+      const [a, c] = await Promise.all([accepted, closed]);
+      await assertGroupDescribesTheRoom(group.activityId, a, c, "close first");
+    }, 120_000);
   });
 });

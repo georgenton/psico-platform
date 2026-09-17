@@ -2,6 +2,8 @@
 
 import type { CircleRosterEntry } from "@psico/types";
 
+import { useHidratado } from "./useHidratado";
+
 /**
  * «Continuar con quienes aceptaron», and the sentence before it.
  *
@@ -57,6 +59,16 @@ export function ContinuarConQuienesAceptaron({
   onCancel,
   busy,
 }: ContinuarProps) {
+  // The same gate every other door into an activity uses, and for the reason
+  // `useHidratado` documents: this button's whole behaviour is an `onClick`,
+  // its markup arrives from the server looking ready, and a press before React
+  // attaches is swallowed — no navigation, no error, nothing. Over a real
+  // network that window is long enough to eat the organiser's first press on
+  // the one action that moves the room forward.
+  //
+  // Found on the hosted candidate exactly that way: the walk clicked, nothing
+  // happened, and «Continuar» was still on screen.
+  const hidratado = useHidratado();
   const inside = roster.filter((r) => r.state !== "INVITED");
 
   if (!asking) {
@@ -64,6 +76,7 @@ export function ContinuarConQuienesAceptaron({
       <button
         type="button"
         onClick={onAsk}
+        disabled={!hidratado}
         data-testid="continuar-con-aceptaron"
         style={{
           marginTop: ".4rem",
@@ -111,7 +124,7 @@ export function ContinuarConQuienesAceptaron({
       <div style={{ display: "flex", gap: ".6rem", flexWrap: "wrap" }}>
         <button
           type="button"
-          disabled={busy}
+          disabled={busy || !hidratado}
           data-testid="continuar-confirmar"
           onClick={async () => {
             const ok = await onConfirm();

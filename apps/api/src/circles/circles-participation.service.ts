@@ -15,6 +15,7 @@ import { CircleInvitationRepository } from "./circle-invitation.repository";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { CirclesRolloutService } from "./circles-rollout.service";
 import { lockActivityAccessRows } from "./circles-activity-locks";
+import { participatingSize } from "./circle-group-size";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { CircleActivityRepository } from "./circle-activity.repository";
 import type { CircleActivityRow } from "./circle-activity.repository";
@@ -1759,7 +1760,11 @@ export class CirclesParticipationService {
           tx,
         );
         let agreed = false;
-        if (confirmations >= ctx.activity.requiredParticipants) {
+        // The GROUP, not the capacity. A room offered to six that continued
+        // with two is an agreement between those two: asking for six
+        // confirmations would mean the people actually in the conversation
+        // could never reach one.
+        if (confirmations >= participatingSize(ctx.activity)) {
           agreed = await this.artifacts.agree(target.id, now, tx);
         }
         return { agreed, replayed: false };
@@ -1845,7 +1850,11 @@ export class CirclesParticipationService {
         );
         const decided = seats.filter((p) => p.followUpDecision !== null).length;
         let closed = false;
-        if (decided >= current.requiredParticipants) {
+        // Same rule, same reason: the follow-up is over when the people who
+        // were IN it have all answered. Against capacity, two participants
+        // could never close their own conversation — only the clock could, a
+        // week later, and closing on time is not the same as them deciding.
+        if (decided >= participatingSize(current)) {
           closed = await this.activities.close(
             ctx.activity.id,
             now,

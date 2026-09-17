@@ -290,3 +290,140 @@ describe("a link that no longer works says so, and nothing more", () => {
     ).toBeInTheDocument();
   });
 });
+
+/**
+ * The chosen name travels with the ACCEPTANCE.
+ *
+ * It used to be attached to `inspect` — the one request that does not create
+ * anything — where the BFF route quietly dropped it, so a name typed into the
+ * box reached nothing at all. A test that calls `exchange(..., alias)` straight
+ * would still have passed: it skips the whole journey that was broken.
+ */
+describe("the name rides on the acceptance, not on the look", () => {
+  const PREVIEW = {
+    title: "Una conversación",
+    summary: "Un rato para hablar",
+    estimatedMinutes: 20,
+    inviterFirstName: "Jorge",
+    participants: 3,
+  };
+
+  /** Like `route`, but keeps each request's parsed body. */
+  function routeBodies(overrides: { sesion?: () => Response } = {}) {
+    const sent: { url: string; body: Record<string, unknown> }[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = String(input);
+      const raw = (init as RequestInit | undefined)?.body;
+      sent.push({
+        url,
+        body: typeof raw === "string" ? JSON.parse(raw) : {},
+      });
+      if (url.includes("/api/circulos/inspeccion")) {
+        return new Response(
+          JSON.stringify({ usable: true, preview: PREVIEW }),
+          { status: 200 },
+        );
+      }
+      if (url.includes("/api/circulos/sesion/scope")) {
+        return new Response(JSON.stringify({ activityId: "act-1" }), {
+          status: 200,
+        });
+      }
+      return (
+        overrides.sesion?.() ??
+        new Response(JSON.stringify({ ok: true }), { status: 201 })
+      );
+    });
+    return sent;
+  }
+
+  async function arrive() {
+    land(`#${SECRET}`);
+    render(<EntradaInvitacion />);
+    return screen.findByRole("button", { name: /aceptar invitación/i });
+  }
+
+  it("sends the name on the exchange and never on the inspection", async () => {
+    const sent = routeBodies();
+    const boton = await arrive();
+
+    await userEvent.type(screen.getByLabelText(/nombre corto/i), "Ana");
+    await userEvent.click(boton);
+    await waitFor(() => expect(replace).toHaveBeenCalled());
+
+    const inspeccion = sent.find((r) => r.url.includes("/inspeccion"));
+    const sesion = sent.find((r) => r.url.endsWith("/api/circulos/sesion"));
+
+    // Looking asked only what the invitation is.
+    expect(inspeccion?.body).toEqual({ secret: SECRET });
+    expect(inspeccion?.body).not.toHaveProperty("alias");
+    // Accepting carried the name to the request that creates the seat.
+    expect(sesion?.body).toEqual({ secret: SECRET, alias: "Ana" });
+  });
+
+  it("omits the field entirely when no name was typed", async () => {
+    const sent = routeBodies();
+    await userEvent.click(await arrive());
+    await waitFor(() => expect(replace).toHaveBeenCalled());
+
+    const sesion = sent.find((r) => r.url.endsWith("/api/circulos/sesion"));
+    expect(sesion?.body).toEqual({ secret: SECRET });
+  });
+
+  it("refuses a malformed name BEFORE spending the invitation", async () => {
+    const sent = routeBodies();
+    const boton = await arrive();
+
+    const caja = screen.getByLabelText(/nombre corto/i);
+    await userEvent.type(caja, "ana@correo.com");
+    await userEvent.click(boton);
+
+    // Nothing was exchanged: the link is still worth exactly what it was.
+    expect(sent.some((r) => r.url.endsWith("/api/circulos/sesion"))).toBe(
+      false,
+    );
+    // The person is told what to fix, still holding what they typed…
+    expect(await screen.findByRole("alert")).toHaveTextContent(/correo/i);
+    expect(caja).toHaveValue("ana@correo.com");
+    // …and is NOT looking at the screen that says the link is finished.
+    expect(boton).toBeInTheDocument();
+    expect(screen.queryByText(/ya no (sirve|es válida)/i)).toBeNull();
+  });
+
+  it("keeps the link usable when the API is the one that refuses the name", async () => {
+    let status = 400;
+    const sent = routeBodies({
+      sesion: () =>
+        new Response(JSON.stringify({ code: "VALIDATION_ERROR" }), { status }),
+    });
+    const boton = await arrive();
+
+    // A name this screen lets through — so the refusal can only come from the
+    // API. That is the case this branch exists for: the two validators are
+    // meant to agree, and the link must survive the day they do not.
+    await userEvent.type(screen.getByLabelText(/nombre corto/i), "Ana");
+    await userEvent.click(boton);
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(
+      sent.filter((r) => r.url.endsWith("/api/circulos/sesion")),
+    ).toHaveLength(1);
+
+    // The decisive part: the secret was NOT discarded, so correcting the name
+    // and pressing again works. Before this fix the retry died on a null
+    // secret and showed the "link no longer works" screen instead.
+    status = 201;
+    await userEvent.clear(screen.getByLabelText(/nombre corto/i));
+    await userEvent.type(screen.getByLabelText(/nombre corto/i), "Beatriz");
+    await userEvent.click(
+      screen.getByRole("button", { name: /aceptar invitación/i }),
+    );
+
+    await waitFor(() =>
+      expect(replace).toHaveBeenCalledWith("/compartir/act-1"),
+    );
+    const intentos = sent.filter((r) => r.url.endsWith("/api/circulos/sesion"));
+    expect(intentos).toHaveLength(2);
+    // Same secret both times — it was never thrown away.
+    expect(intentos[1]?.body).toEqual({ secret: SECRET, alias: "Beatriz" });
+  });
+});

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { circleParticipatingSize } from "@psico/types";
 import { ContinuarConQuienesAceptaron } from "./ContinuarConQuienesAceptaron";
 import { useRouter } from "next/navigation";
 import type {
@@ -480,7 +481,7 @@ export function SalaDuo({
 
       {stageName === "prepare" && (
         <PreparacionPrivada
-          participantes={view.requiredParticipants}
+          participantes={circleParticipatingSize(view)}
           fields={fields}
           allowedModes={allowedModes}
           draft={draft}
@@ -582,7 +583,7 @@ export function SalaDuo({
           <p style={S.p}>
             {view !== null && view.revealedAt === null
               ? "No se abrió nada y no se compartió nada. Lo que escribiste en privado no salió de tu pantalla."
-              : view !== null && view.requiredParticipants > 2
+              : view !== null && circleParticipatingSize(view) > 2
                 ? "Gracias por el rato. Lo que leyeron queda con cada quien; esta sala ya no se puede volver a abrir."
                 : "Gracias por el rato. Lo que compartieron queda entre ustedes."}
           </p>
@@ -688,7 +689,10 @@ function derivedStage(view: CircleActivityView, local: Local): string {
 
 /** Whether this room holds more than two people. */
 function esGrupo(view: CircleActivityView): boolean {
-  return view.requiredParticipants > 2;
+  // The GROUP: a room offered to six that continued with two is two people,
+  // and every sentence this switches on — «las dos personas» versus «todo el
+  // grupo» — is about the conversation, not about the invitation.
+  return circleParticipatingSize(view) > 2;
 }
 
 function anuncio(view: CircleActivityView, stage: string): string {
@@ -718,7 +722,7 @@ function anuncio(view: CircleActivityView, stage: string): string {
       // than one the screen politely declines to render.
       return grupo || view.readyCount === undefined
         ? "Cada quien se prepara por su lado."
-        : `${view.readyCount} de ${view.requiredParticipants} listas.`;
+        : `${view.readyCount} de ${circleParticipatingSize(view)} listas.`;
   }
 }
 

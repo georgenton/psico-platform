@@ -344,8 +344,15 @@ async function createDuo(page) {
   return readLink(page);
 }
 
-/** Accept an invitation in a fresh context and land in the room. */
-async function acceptAsGuest(browser, link) {
+/**
+ * Accept an invitation in a fresh context and land in the room.
+ *
+ * `alias` is typed into the real box on the real screen, so what is being
+ * exercised is the whole journey — component, Web handler, BFF, API — and not
+ * a direct call to `exchange(..., alias)`, which would pass even while the
+ * screen sent the name to the wrong request.
+ */
+async function acceptAsGuest(browser, link, alias = null) {
   const ctx = await browser.newContext();
   const page = await ctx.newPage();
   await page.goto(link, { waitUntil: "domcontentloaded" });
@@ -353,6 +360,11 @@ async function acceptAsGuest(browser, link) {
     name: /Aceptar( la)? invitación/i,
   });
   await accept.waitFor({ state: "visible", timeout: 30_000 });
+  if (alias !== null) {
+    const box = page.getByLabel(/nombre corto/i);
+    await box.waitFor({ state: "visible", timeout: 20_000 });
+    await box.fill(alias);
+  }
   await accept.click();
   await until(
     () => /\/compartir\//.test(page.url()),
@@ -2423,15 +2435,50 @@ async function groupOfThree(browser) {
     // Both guests accept. Neither acceptance opens the room now — the
     // organiser does that — and the SECOND must still work, which is the rule
     // a Dúo could never have exercised.
+    //
+    // The first guest types a name on the way in. Synthetic on purpose: it is
+    // personal data, so the walk invents one rather than borrowing anybody's.
+    const ALIAS = "Prueba Alias";
     const guests = [];
-    for (const link of links) {
-      const guest = await acceptAsGuest(browser, link);
+    for (const [i, link] of links.entries()) {
+      const guest = await acceptAsGuest(browser, link, i === 0 ? ALIAS : null);
       guestCtxs.push(guest.ctx);
       guests.push(guest);
     }
     check(
       guests.every((g) => g.activityId === activityId),
       "every guest lands in the SAME room",
+    );
+
+    // ── The name made the whole journey ──────────────────────────────────
+    //
+    // Written on the acceptance screen, carried by the Web handler, the BFF
+    // and the API, and read back from a DIFFERENT person's room. It reached
+    // the seat it belongs to and no other.
+    const aliasRows = sqlRows(
+      `SELECT count(*) AS n FROM "CircleActivityParticipant"
+        WHERE "activityId" = '${activityId}' AND "alias" = '${ALIAS}'`,
+    )[0];
+    check(
+      aliasRows?.[0] === "1",
+      `the alias landed on exactly one seat (${aliasRows?.[0] ?? "no row"})`,
+    );
+    await page.reload({ waitUntil: "domcontentloaded" });
+    const rosterShown = await page.evaluate(
+      () =>
+        document.querySelector('[aria-labelledby="sala-quien"]')?.innerText ??
+        "",
+    );
+    check(
+      rosterShown.includes(ALIAS),
+      `the organiser's room shows the name the guest chose (${rosterShown.replace(/\s+/g, " ").slice(0, 160)})`,
+    );
+    // Two guests, one name. The other seat keeps its number — which is what
+    // the roster falls back to — so exactly one numbered label is left. Two
+    // would mean the name never arrived.
+    check(
+      (rosterShown.match(/Participante \d/g) ?? []).length === 1,
+      "the named guest is no longer shown as a numbered seat",
     );
 
     // The organiser continues with the group — here, everybody. Until they

@@ -224,6 +224,25 @@ export interface CircleOnboardingView {
   readonly roster: readonly CircleRosterEntry[];
 }
 
+/**
+ * How many people the activity is actually FOR, from a view.
+ *
+ * The Web twin of the API's `participatingSize`. `requiredParticipants` is the
+ * capacity people were shown before accepting; `onboarding.group` is who ended
+ * up inside. For a Dúo, a `FIXED` room, or a flexible room whose organiser has
+ * not continued yet, they are the same number.
+ *
+ * Screens that describe the CONVERSATION — how many confirmed the agreement,
+ * whether to say «las dos personas» or «todas las personas» — ask this.
+ * Screens that describe the INVITATION keep reading capacity.
+ */
+export function circleParticipatingSize(view: {
+  readonly requiredParticipants: number;
+  readonly onboarding?: { readonly group: number | null };
+}): number {
+  return view.onboarding?.group ?? view.requiredParticipants;
+}
+
 export interface CircleActivityView {
   readonly activityId: string;
   readonly status: CircleActivityStatus;

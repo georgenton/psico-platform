@@ -48,6 +48,31 @@ type Phase =
   | "manual"
   | "error";
 
+/**
+ * The same shape `AcceptInvitationDto` enforces, asked here first.
+ *
+ * Not a second authority — the server still decides, and it is the only one
+ * that can. Asking early buys one thing: the difference between «fix this
+ * word» and «this link no longer works», which is decided entirely by whether
+ * the check happens before or after the invitation is consumed.
+ *
+ * The two refusals are the DTO's, in the DTO's words: an address or a bare
+ * number, because this field is shown to the whole room and the one thing it
+ * must never become is a way to contact somebody.
+ */
+function aliasProblema(nombre: string): string | null {
+  if (nombre.length > 24) {
+    return "Es un poco largo: 24 caracteres como máximo.";
+  }
+  if (/[@\n\r\t]/.test(nombre)) {
+    return "Mejor un nombre, no un correo. Lo verán las demás personas.";
+  }
+  if (/^[0-9\s+()-]+$/.test(nombre)) {
+    return "Mejor un nombre, no un número. Lo verán las demás personas.";
+  }
+  return null;
+}
+
 export function EntradaInvitacion() {
   const router = useRouter();
   const secretRef = useRef<string | null>(null);
@@ -61,6 +86,14 @@ export function EntradaInvitacion() {
    * a chosen name rather than a verified one.
    */
   const [alias, setAlias] = useState("");
+  /**
+   * Something correctable about the name — never a reason to spend the link.
+   *
+   * Separate from `phase` on purpose: the phases describe what is happening to
+   * the INVITATION, and a name that needs another try is not something
+   * happening to the invitation at all.
+   */
+  const [aliasError, setAliasError] = useState<string | null>(null);
   // Accepting an invitation is the guest's first press, on markup the server
   // sent. Until this is true, the press would be swallowed in silence.
   const hidratado = useHidratado();
@@ -76,11 +109,14 @@ export function EntradaInvitacion() {
       const res = await fetch("/api/circulos/inspeccion", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(
-          alias.trim().length > 0
-            ? { secret, alias: alias.trim().slice(0, 24) }
-            : { secret },
-        ),
+        // The secret, and nothing else.
+        //
+        // Looking is not accepting, so the name somebody may type further down
+        // has no business on the request that only asks what this invitation
+        // is — and this runs on mount, before there is anything to send. The
+        // name travels with the acceptance, which is the one request that
+        // creates the seat it belongs to.
+        body: JSON.stringify({ secret }),
       });
       if (!res.ok) {
         secretRef.current = null;
@@ -127,20 +163,49 @@ export function EntradaInvitacion() {
       setPhase("error");
       return;
     }
+    // ── Checked BEFORE the invitation is spent ────────────────────────────
+    //
+    // A single-use link and a correctable typo must never meet. If the name is
+    // the only thing wrong, the person edits it and presses again: the secret
+    // is untouched, the value they typed is still in the box, and nothing tells
+    // them the link expired — which is what a refusal AFTER consuming would
+    // have looked like, and would have been unrecoverable.
+    const nombre = alias.trim();
+    const problema = nombre.length > 0 ? aliasProblema(nombre) : null;
+    if (problema) {
+      setAliasError(problema);
+      return;
+    }
+    setAliasError(null);
+
     setPhase("accepting");
     try {
       const res = await fetch("/api/circulos/sesion", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ secret }),
+        body: JSON.stringify(
+          nombre.length > 0 ? { secret, alias: nombre } : { secret },
+        ),
       });
-      // Spent or refused, the secret's job is done either way.
-      secretRef.current = null;
 
       if (!res.ok) {
+        // The API validates the name before its handler opens the invitation,
+        // so a refusal over the name alone leaves the link unspent. We only
+        // read it that way when we actually sent a name — otherwise a 400 is
+        // about the secret, and the secret is then done.
+        if (res.status === 400 && nombre.length > 0) {
+          setAliasError(
+            "Ese nombre no se puede usar. Prueba con otro — tu invitación sigue siendo válida.",
+          );
+          setPhase("decide");
+          return;
+        }
+        // Spent or refused, the secret's job is done either way.
+        secretRef.current = null;
         setPhase("error");
         return;
       }
+      secretRef.current = null;
       const activityId = await resolveActivity();
       if (!activityId) {
         setPhase("error");
@@ -306,7 +371,14 @@ export function EntradaInvitacion() {
               type="text"
               maxLength={24}
               value={alias}
-              onChange={(e) => setAlias(e.target.value)}
+              onChange={(e) => {
+                setAlias(e.target.value);
+                // Editing is the fix. Clear the complaint as soon as they act
+                // on it, rather than leaving it under a box they just changed.
+                if (aliasError) setAliasError(null);
+              }}
+              aria-invalid={aliasError ? true : undefined}
+              aria-describedby={aliasError ? "alias-error" : undefined}
               placeholder="Por ejemplo, Ana"
               style={{
                 display: "block",
@@ -319,6 +391,11 @@ export function EntradaInvitacion() {
                 fontSize: "1rem",
               }}
             />
+            {aliasError && (
+              <p id="alias-error" role="alert" style={S.error}>
+                {aliasError}
+              </p>
+            )}
             <p style={S.aviso} role="note">
               Al aceptar, las personas que participan verán este nombre y que te
               incorporaste. No verán lo que escribas hasta que tú lo confirmes.

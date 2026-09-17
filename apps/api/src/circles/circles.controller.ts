@@ -120,7 +120,11 @@ export class CirclesController {
     @Body() dto: AcceptInvitationDto,
   ): Promise<{ guestSessionToken: string; expiresAt: string }> {
     return mapCirclesErrors(async () => {
-      const session = await this.circles.exchange(dto.secret);
+      const session = await this.circles.exchange(
+        dto.secret,
+        undefined,
+        dto.alias ?? null,
+      );
       return {
         guestSessionToken: session.rawGuestToken,
         expiresAt: session.expiresAt.toISOString(),

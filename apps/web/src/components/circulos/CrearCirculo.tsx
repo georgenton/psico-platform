@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useRef, useState } from "react";
+import { CompartirInvitacion } from "./CompartirInvitacion";
 import Link from "next/link";
 
 import { estilos as S } from "./estilos";
@@ -247,7 +248,7 @@ export function CrearCirculo({
         </h2>
         <p style={S.p}>
           {many
-            ? "Cada enlace es para UNA persona. Envíaselos por donde ya se escriban, uno a cada quien. Cada enlace sirve una sola vez: la primera persona que lo acepte ocupa ese lugar y el enlace deja de funcionar."
+            ? "Un enlace distinto para cada persona. Envíaselos por donde ya se escriban, uno a cada quien. Cada enlace sirve una sola vez: la primera persona que lo acepte ocupa ese lugar y el enlace deja de funcionar."
             : "Envíaselo a la persona con la que vas a hacer esto, por donde ya se escriban. Sirve una sola vez: la primera persona que lo acepte queda dentro y el enlace deja de funcionar."}
         </p>
         <p style={S.aviso}>
@@ -265,9 +266,19 @@ export function CrearCirculo({
                 </p>
               )}
               <p style={S.cita}>{link}</p>
+              {/* One card, one link. Every button here shares THIS seat's
+                  link — never all of them in one message, which would hand
+                  one person every place in the room. */}
+              <CompartirInvitacion
+                url={link}
+                label={many ? seatLabel(index) : "esta invitación"}
+                // This screen has its own copy button below, and it is the one
+                // that names WHICH link was copied.
+                showCopy={false}
+              />
               <button
                 type="button"
-                style={S.secondary}
+                style={{ ...S.secondary, marginTop: ".5rem" }}
                 onClick={() => copy(link, index)}
                 aria-label={
                   many

@@ -113,7 +113,7 @@ export default async function CirculosPage() {
                 <p style={S.p}>{d.summary}</p>
                 <p style={S.aviso}>
                   {people.length > 1
-                    ? `Entre ${people[0]} y ${people[people.length - 1]} personas adultas, contándote.`
+                    ? `Invita hasta ${people[people.length - 1]} personas adultas, contándote. La actividad sigue con quienes acepten, desde ${people[0]}.`
                     : `${people[0]} personas adultas.`}
                 </p>
                 {start ? (

@@ -2262,6 +2262,31 @@ function countActivities(userId) {
  *   · the reveal shows each answer under its own stable label;
  *   · the waiting screen never says who is late.
  */
+/**
+ * Press «Continuar con quienes aceptaron», through the real screen.
+ *
+ * Two clicks on purpose: the confirmation names the exact list and says the
+ * pending invitations will stop admitting anybody, because fixing the group
+ * cannot be undone in this cut.
+ */
+async function continuarConQuienesAceptaron(page) {
+  await page.reload({ waitUntil: "domcontentloaded" });
+  const open = page.getByTestId("continuar-con-aceptaron");
+  await open.waitFor({ state: "visible", timeout: 30_000 });
+  await open.click();
+  const confirm = page.getByTestId("continuar-confirmar");
+  await confirm.waitFor({ state: "visible", timeout: 30_000 });
+  await confirm.click();
+  await until(
+    async () => {
+      const text = await page.evaluate(() => document.body.innerText);
+      return /Prepárate|preparar tu parte|Tu parte/i.test(text) ? true : null;
+    },
+    "the room to open for preparation",
+    60_000,
+  );
+}
+
 async function groupOfThree(browser) {
   const organiser = await register("grupo");
   const organiserCtx = await browser.newContext();
@@ -2364,9 +2389,9 @@ async function groupOfThree(browser) {
       `three seats and two invitations (${shape?.slice(2).join("/") ?? "?"})`,
     );
 
-    // Both guests accept. The FIRST acceptance moves the activity to
-    // PREPARING — and the second must still work, which is the rule a Dúo
-    // could never have exercised.
+    // Both guests accept. Neither acceptance opens the room now — the
+    // organiser does that — and the SECOND must still work, which is the rule
+    // a Dúo could never have exercised.
     const guests = [];
     for (const link of links) {
       const guest = await acceptAsGuest(browser, link);
@@ -2378,10 +2403,14 @@ async function groupOfThree(browser) {
       "every guest lands in the SAME room",
     );
 
-    // Organiser and one guest confirm. Two of three.
+    // The organiser continues with the group — here, everybody. Until they
+    // do, nobody's audience is fixed and nobody can confirm.
     await page.goto(`${WEB}/compartir/${activityId}`, {
       waitUntil: "domcontentloaded",
     });
+    await continuarConQuienesAceptaron(page);
+
+    // Organiser and one guest confirm. Two of three.
     await enterRoom(page);
     await typeDraft(page, { uno: "lo que me ayuda", dos: "lo que no" });
     await openPreview(page);
@@ -2570,6 +2599,13 @@ async function keepPrivateRetryAfterLoss(browser) {
       guests.push(guest);
     }
 
+    // The organiser fixes the group first: nobody can confirm to an audience
+    // that is not decided yet.
+    await page.goto(`${WEB}/compartir/${activityId}`, {
+      waitUntil: "domcontentloaded",
+    });
+    await continuarConQuienesAceptaron(page);
+
     // A GUEST confirms something real, so there is an envelope the exit has
     // to destroy — otherwise a replay that did nothing would look the same as
     // a replay that did the right thing.
@@ -2716,15 +2752,20 @@ async function groupKeepPrivate(browser) {
         ORDER BY a."createdAt" DESC LIMIT 1`,
     ).trim();
 
-    // Nobody may prepare until the roster is complete.
+    // Everybody can prepare from the moment they accept. What nobody can do
+    // is confirm, until the organiser says who the group is.
     const guests = [];
     for (const [index, link] of links.entries()) {
       const before = sqlOne(
         `SELECT "status"::text FROM "CircleActivity" WHERE "id"='${activityId}'`,
       ).trim();
+      // REPLACED, not removed. The room used to wait for the whole roster;
+      // now it waits for the ORGANISER. What still has to hold is that
+      // accepting does not open it by itself — that is what makes preparing
+      // early safe, because nobody's audience is fixed behind their back.
       check(
         before === "INVITING",
-        `the room waits for the whole roster (after ${index} acceptances: ${before})`,
+        `accepting does not open the room by itself (after ${index}: ${before})`,
       );
       const guest = await acceptAsGuest(browser, link);
       guestCtxs.push(guest.ctx);
@@ -2734,8 +2775,18 @@ async function groupKeepPrivate(browser) {
       `SELECT "status"::text FROM "CircleActivity" WHERE "id"='${activityId}'`,
     ).trim();
     check(
-      afterAll === "PREPARING",
-      `the LAST acceptance opens the preparation (${afterAll})`,
+      afterAll === "INVITING",
+      `even a FULL room waits for the organiser (${afterAll})`,
+    );
+    // And this is the new way a room opens: the organiser continues with
+    // whoever accepted, which here is everybody.
+    await continuarConQuienesAceptaron(page);
+    const afterClose = sqlOne(
+      `SELECT "status"::text FROM "CircleActivity" WHERE "id"='${activityId}'`,
+    ).trim();
+    check(
+      afterClose === "PREPARING",
+      `continuing with the group opens the preparation (${afterClose})`,
     );
 
     // The organiser confirms a real selection first, so there is something

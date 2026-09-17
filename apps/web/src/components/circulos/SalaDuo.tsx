@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ContinuarConQuienesAceptaron } from "./ContinuarConQuienesAceptaron";
 import { useRouter } from "next/navigation";
 import type {
   CircleActivityView,
@@ -326,6 +327,53 @@ export function SalaDuo({
         </p>
       )}
 
+      {/* ── Who is here ────────────────────────────────────────────────────
+          Only for a flexible room, and only what joining says: names and
+          whether somebody is in. Never who is writing, who has confirmed, or
+          who chose not to share. */}
+      {view.onboarding && (
+        <section style={S.section} aria-labelledby="sala-quien">
+          <h2 id="sala-quien" style={S.h2}>
+            Quiénes están
+          </h2>
+          <ul style={{ margin: "0 0 .6rem", padding: 0, listStyle: "none" }}>
+            {view.onboarding.roster.map((entry, index) => (
+              <li key={`${entry.state}-${index}`} style={S.p}>
+                <strong>{entry.name}</strong>
+                {entry.you ? " (tú)" : ""} ·{" "}
+                {entry.state === "ORGANIZES"
+                  ? "Organiza"
+                  : entry.state === "PARTICIPATES"
+                    ? "Participa"
+                    : "Invitación pendiente"}
+              </li>
+            ))}
+          </ul>
+          <p style={S.p}>
+            {view.onboarding.group !== null
+              ? `El grupo quedó en ${view.onboarding.group} ${view.onboarding.group === 2 ? "persona" : "personas"}. Las respuestas se comparten entre estas personas.`
+              : `Pueden participar hasta ${view.onboarding.capacity}. Por ahora están dentro ${view.onboarding.accepted}.`}
+          </p>
+          {view.onboarding.open && (
+            <p style={S.p}>
+              Puedes ir preparando tu parte mientras llegan las demás. Lo que
+              escribes se queda en tu pantalla hasta que lo confirmes.
+            </p>
+          )}
+          {view.onboarding.canClose && (
+            <ContinuarConQuienesAceptaron
+              roster={view.onboarding.roster}
+              group={view.onboarding.accepted}
+              pending={
+                view.onboarding.roster.filter((r) => r.state === "INVITED")
+                  .length
+              }
+              onConfirm={() => command("close-onboarding")}
+            />
+          )}
+        </section>
+      )}
+
       {stageName === "consent" && (
         <section style={S.section} aria-labelledby="cons-h">
           <h2 id="cons-h" style={S.h2}>
@@ -437,7 +485,8 @@ export function SalaDuo({
 
       {stageName === "preview" && local.stage === "preview" && (
         <PreviewCompartir
-          participantes={view.requiredParticipants}
+          participantes={view.onboarding?.group ?? view.requiredParticipants}
+          incorporacionAbierta={view.onboarding?.open ?? false}
           confirmation={local.confirmation}
           fields={fields}
           busy={busy}
@@ -715,6 +764,14 @@ function mensaje(code: string | null): string {
       return "Esta sala ya no está abierta para ti. Si deberías estar aquí, pide a quien te invitó un enlace nuevo.";
     case "CIRCLE_ACTIVITY_UNAVAILABLE":
       return "Esta actividad ya no admite cambios. Recarga para ver cómo quedó.";
+    // The two the API now names, and the reason it names them: this exact
+    // screen used to show the sentence above — «ya no admite cambios» — to
+    // somebody whose room was working perfectly and was simply still waiting
+    // for people. It read as "you are too late" when the truth was "not yet".
+    case "CIRCLE_ONBOARDING_OPEN":
+      return "Todavía se están incorporando personas. Puedes preparar tu parte; podrás enviarla cuando quien organiza continúe con el grupo.";
+    case "CIRCLE_GROUP_TOO_SMALL":
+      return "Todavía no hay suficientes personas. Hacen falta al menos dos, contándote.";
     case "CIRCLE_IDEMPOTENCY_CONFLICT":
       return "Esa acción ya se registró de otra forma. Recarga para ver el estado actual.";
     case "CIRCLE_INVALID_PAYLOAD":

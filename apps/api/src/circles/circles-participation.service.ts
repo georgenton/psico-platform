@@ -90,6 +90,16 @@ type CirclesTx = Prisma.TransactionClient;
 
 /** What a caller may not learn. Every refusal here is one of these. */
 const UNUSABLE = "CIRCLE_ACTIVITY_UNAVAILABLE" as const;
+/**
+ * The floor for continuing with whoever accepted: two people, organiser
+ * included.
+ *
+ * Not a template number and not the capacity. The capacity is what COULD have
+ * happened; this is the point below which there is no activity to have — one
+ * person writing for nobody is not the product, and the reveal barrier would
+ * have nothing to hold.
+ */
+const MIN_FLEXIBLE_GROUP = 2;
 
 export interface CreateDuoInput {
   readonly userId: string;
@@ -737,7 +747,17 @@ export class CirclesParticipationService {
             templateVersion: definition.templateVersion,
             status: "INVITING",
             kind,
+            // CAPACITY. How many people COULD take part — what the organiser
+            // chose and what every invitee is shown before accepting. Not how
+            // many will: that is `confirmedParticipants`, written when the
+            // organiser closes onboarding.
             requiredParticipants: size,
+            // A group created from here on runs the flexible rules: people
+            // prepare as they arrive and the organiser continues with whoever
+            // accepted. A Dúo does not — it is two people by definition, so
+            // "continue with whoever accepted" is either both of them or
+            // nobody, and its guarantees are left exactly as they were.
+            onboarding: kind === "GROUP_ADULT" ? "FLEXIBLE" : "FIXED",
             followUpDueAt,
           },
           select: { id: true },
@@ -973,6 +993,24 @@ export class CirclesParticipationService {
           };
         }
 
+        // ── Preparing is not confirming, and the screen must be able to
+        //    say which one is not available yet ──────────────────────────────
+        //
+        // A flexible room still taking people in is `INVITING`, and the old
+        // answer here was the opaque "this activity is unavailable". That is
+        // the sentence Jorge saw on a room of three with one guest in: it read
+        // as «esta actividad ya no admite cambios» about an activity that was
+        // working perfectly and simply had nobody to confirm to yet.
+        //
+        // There is nothing to confirm against until the group is fixed —
+        // confirming means "these people may read this", and the list does not
+        // exist yet — so the refusal is right and only its name was wrong.
+        if (
+          ctx.activity.onboarding === "FLEXIBLE" &&
+          ctx.activity.status === "INVITING"
+        ) {
+          throw new CirclesError("CIRCLE_ONBOARDING_OPEN");
+        }
         if (ctx.activity.status !== "PREPARING")
           throw new CirclesError(UNUSABLE);
         if (ctx.self.status !== "ACCEPTED") throw new CirclesError(UNUSABLE);
@@ -1145,6 +1183,146 @@ export class CirclesParticipationService {
       tx,
     );
     return true;
+  }
+
+  // ══ Closing onboarding ═══════════════════════════════════════════════════
+
+  /**
+   * Continue with whoever accepted.
+   *
+   * ── What this command decides, and what it deliberately does not ──────────
+   *
+   * It fixes the GROUP: from here the people inside are the people who will
+   * read each other, and every confirmation given afterwards is given against
+   * that list. It does not choose who is in it — everybody who accepted is in
+   * it, and there is no way to press this button and quietly leave somebody
+   * out. An organiser who wants a smaller room has to not invite them.
+   *
+   * ── Everything, or nothing ────────────────────────────────────────────────
+   *
+   * One transaction, on the shared lock order, doing four things that only
+   * make sense together:
+   *
+   *   · every invitation nobody redeemed is revoked, so a link shared an hour
+   *     ago cannot admit a seventh person into a conversation five people
+   *     already agreed the shape of;
+   *   · the seats those links opened are dropped — they were never taken up,
+   *     and a seat nobody sits in is a seat the reveal barrier waits for;
+   *   · the group is written, once, and the database refuses to move it after;
+   *   · the activity opens for preparation.
+   *
+   * ── The race, and why it has only two endings ─────────────────────────────
+   *
+   * Somebody accepting while this runs either got there first — their seat is
+   * `ACCEPTED`, the recount below includes them, and they are in the group —
+   * or they arrive after: the invitation they are redeeming is revoked, and
+   * `consume` refuses it exactly as it refuses a link that expired. There is
+   * no third outcome, because both commands take the invitations before the
+   * activity and one of them has to wait.
+   */
+  async closeOnboarding(
+    actor: CircleActor,
+    activityId: string,
+    idempotencyKey: string,
+    now: Date = new Date(),
+  ): Promise<{
+    readonly group: number;
+    readonly replayed: boolean;
+  }> {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const ctx = await this.resolveAuthority(actor, activityId, tx, now);
+
+        // The organiser's, and only theirs. A guest closing the room would be
+        // deciding the audience for everybody else's answers.
+        if (ctx.self.memberId === null) {
+          throw new CirclesError("CIRCLE_FORBIDDEN");
+        }
+        if (ctx.activity.onboarding !== "FLEXIBLE") {
+          throw new CirclesError(UNUSABLE);
+        }
+
+        // Already closed — by an earlier press, or by this very request whose
+        // response was lost. The group is read back from the row rather than
+        // recomputed, because the row is what everybody else is now bound to.
+        if (ctx.activity.confirmedParticipants !== null) {
+          const receipt = await tx.circleEvent.findFirst({
+            where: {
+              type: "INVITATION_REVOKED",
+              actorParticipantId: ctx.self.id,
+              idempotencyKey,
+            },
+            select: { id: true },
+          });
+          // A DIFFERENT key on an already-closed room is not a replay: it is a
+          // second attempt to decide a group that is already decided, and the
+          // honest answer is that this activity is past that point.
+          if (!receipt) throw new CirclesError(UNUSABLE);
+          return {
+            group: ctx.activity.confirmedParticipants,
+            replayed: true,
+          };
+        }
+        if (ctx.activity.status !== "INVITING") {
+          throw new CirclesError(UNUSABLE);
+        }
+
+        const accepted = ctx.participants.filter(
+          (p) => p.status === "ACCEPTED",
+        ).length;
+        // Two, counting the organiser. One person and nobody is not an
+        // activity, and this is the only floor: the capacity they chose when
+        // creating is what could have happened, not what must.
+        if (accepted < MIN_FLEXIBLE_GROUP) {
+          throw new CirclesError("CIRCLE_GROUP_TOO_SMALL");
+        }
+
+        const revoked = await tx.circleInvitation.updateMany({
+          where: {
+            activityId: ctx.activity.id,
+            revokedAt: null,
+            consumedAt: null,
+          },
+          data: { revokedAt: now },
+        });
+        await this.participants.dropUnclaimedSeats(ctx.activity.id, tx);
+
+        const closed = await this.activities.closeOnboarding(
+          ctx.activity.id,
+          accepted,
+          now,
+          tx,
+        );
+        // Under this transaction's locks nothing else could have moved the
+        // row, so a refusal here is the statement disagreeing with the count
+        // taken three lines ago — an invariant failure, not a verdict.
+        if (!closed) throw new CircleStorageError();
+
+        // ONE event, carrying the caller's key so a retry after a lost
+        // response replays instead of being told the room moved on. It says
+        // what the ledger's grammar can say: links were revoked. The
+        // transition itself is visible in the row, as it always was — the
+        // roster-completed path never wrote an event either.
+        {
+          void revoked;
+          const appended = await this.events.append(
+            {
+              circleId: ctx.activity.circleId,
+              activityId: ctx.activity.id,
+              type: "INVITATION_REVOKED",
+              actorParticipantId: ctx.self.id,
+              idempotencyKey,
+            },
+            tx,
+          );
+          if (appended.outcome !== "APPENDED") throw new CircleStorageError();
+        }
+
+        return { group: accepted, replayed: false };
+      });
+    } catch (err) {
+      throw this.asCirclesError(err);
+    }
   }
 
   // ══ Withdraw ═════════════════════════════════════════════════════════════
@@ -1705,6 +1883,10 @@ export class CirclesParticipationService {
     >;
     readonly confirmations: number;
     readonly confirmedByYou: boolean;
+    /** Display names for the member seats, by seat id. */
+    readonly memberNames: ReadonlyMap<string, string>;
+    /** Seat indexes of invitations nobody has redeemed. Organiser only. */
+    readonly pendingSeatIndexes: readonly number[];
   }> {
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -1716,7 +1898,58 @@ export class CirclesParticipationService {
         const confirmedByYou = artifact
           ? await this.artifacts.hasConfirmed(artifact.id, ctx.self.id, tx)
           : false;
-        return { ctx, artifact, confirmations, confirmedByYou };
+
+        // ── The two extra reads the room list needs ───────────────────────
+        //
+        // Names first. `firstName` before `name`, and NEITHER is an email or
+        // an id: the columns are chosen here rather than selected broadly,
+        // because "select the user and pick a field later" is how an address
+        // ends up in a response nobody meant to put it in.
+        const memberNames = new Map<string, string>();
+        const memberSeats = ctx.participants.filter((p) => p.memberId !== null);
+        if (memberSeats.length > 0) {
+          const rows = await tx.circleMember.findMany({
+            where: { id: { in: memberSeats.map((p) => p.memberId!) } },
+            select: {
+              id: true,
+              user: { select: { firstName: true, name: true } },
+            },
+          });
+          const byMember = new Map(rows.map((r) => [r.id, r.user]));
+          for (const seat of memberSeats) {
+            const user = byMember.get(seat.memberId!);
+            const shown = user?.firstName?.trim() || user?.name?.trim() || null;
+            if (shown) memberNames.set(seat.id, shown.slice(0, 24));
+          }
+        }
+
+        // And the links still waiting — for the ORGANISER only. A guest
+        // learning how many invitations are outstanding learns something
+        // about people who have not decided yet.
+        const pendingSeatIndexes =
+          ctx.self.memberId !== null && ctx.activity.onboarding === "FLEXIBLE"
+            ? (
+                await tx.circleInvitation.findMany({
+                  where: {
+                    activityId: ctx.activity.id,
+                    consumedAt: null,
+                    revokedAt: null,
+                    declinedAt: null,
+                  },
+                  select: { seatIndex: true },
+                  orderBy: { seatIndex: "asc" },
+                })
+              ).map((r) => r.seatIndex)
+            : [];
+
+        return {
+          ctx,
+          artifact,
+          confirmations,
+          confirmedByYou,
+          memberNames,
+          pendingSeatIndexes,
+        };
       });
     } catch (err) {
       throw this.asCirclesError(err);

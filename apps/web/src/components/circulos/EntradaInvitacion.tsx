@@ -52,6 +52,15 @@ export function EntradaInvitacion() {
   const router = useRouter();
   const secretRef = useRef<string | null>(null);
   const [phase, setPhase] = useState<Phase>("reading");
+  /**
+   * The name this person will be shown under, kept in component state only.
+   *
+   * It travels with the acceptance and nowhere else — not to storage, not to
+   * a query string, not to a log. It is personal data the moment somebody
+   * types their own name into it, and the copy above says plainly that it is
+   * a chosen name rather than a verified one.
+   */
+  const [alias, setAlias] = useState("");
   // Accepting an invitation is the guest's first press, on markup the server
   // sent. Until this is true, the press would be swallowed in silence.
   const hidratado = useHidratado();
@@ -67,7 +76,11 @@ export function EntradaInvitacion() {
       const res = await fetch("/api/circulos/inspeccion", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ secret }),
+        body: JSON.stringify(
+          alias.trim().length > 0
+            ? { secret, alias: alias.trim().slice(0, 24) }
+            : { secret },
+        ),
       });
       if (!res.ok) {
         secretRef.current = null;
@@ -138,7 +151,7 @@ export function EntradaInvitacion() {
       secretRef.current = null;
       setPhase("error");
     }
-  }, [router]);
+  }, [router, alias]);
 
   /** "Ahora no": forget the secret and leave. No accept, no write. */
   const decline = useCallback(() => {
@@ -212,7 +225,7 @@ export function EntradaInvitacion() {
             {typeof preview.participants === "number" && (
               <p style={S.p}>
                 {preview.participants > 2
-                  ? `Participan ${preview.participants} personas, contándote a ti.`
+                  ? `Pueden participar hasta ${preview.participants} personas, contándote a ti. Puede que sean menos: la actividad sigue con quienes acepten.`
                   : "Participan dos personas: quien te invitó y tú."}
               </p>
             )}
@@ -274,6 +287,46 @@ export function EntradaInvitacion() {
             </li>
           </ul>
         </section>
+
+        {/* The name, and what accepting publishes.
+            Said BEFORE the button, because it is part of what the person is
+            agreeing to: the others will see that you are here, and under what
+            name. What you WRITE is a separate decision, made later. */}
+        {grupo && (
+          <section style={S.section} aria-labelledby="alias-h">
+            <h2 id="alias-h" style={S.h2}>
+              ¿Cómo quieres que te vean?
+            </h2>
+            <label htmlFor="circulo-alias" style={S.p}>
+              Un nombre corto para que las demás personas sepan quién eres.
+            </label>
+            <input
+              id="circulo-alias"
+              name="alias"
+              type="text"
+              maxLength={24}
+              value={alias}
+              onChange={(e) => setAlias(e.target.value)}
+              placeholder="Por ejemplo, Ana"
+              style={{
+                display: "block",
+                width: "100%",
+                maxWidth: "20rem",
+                margin: ".4rem 0 .6rem",
+                padding: ".7rem",
+                borderRadius: ".6rem",
+                border: "1px solid #dfe6e0",
+                fontSize: "1rem",
+              }}
+            />
+            <p style={S.aviso} role="note">
+              Al aceptar, las personas que participan verán este nombre y que te
+              incorporaste. No verán lo que escribas hasta que tú lo confirmes.
+              Es sólo el nombre que elegiste: no lo comprobamos, y no hace falta
+              que sea el tuyo real.
+            </p>
+          </section>
+        )}
 
         <p style={S.aviso} role="note">
           Esta invitación sirve una sola vez. Al aceptarla se abre tu sala en

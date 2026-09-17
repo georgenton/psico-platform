@@ -32,6 +32,15 @@ export interface PreviewCompartirProps {
    * without a migration, and a Dúo is the only shape for which it is right.
    */
   readonly participantes?: number;
+  /**
+   * The room is still taking people in, so there is nobody to confirm TO yet.
+   *
+   * The preview still works — seeing exactly what you would send is the whole
+   * point of preparing early — but sending is not offered, because a
+   * confirmation is permission for a specific list of people and that list
+   * does not exist until the organiser fixes it.
+   */
+  readonly incorporacionAbierta?: boolean;
 }
 
 export function PreviewCompartir({
@@ -41,6 +50,7 @@ export function PreviewCompartir({
   onBack,
   onConfirm,
   participantes = 2,
+  incorporacionAbierta = false,
 }: PreviewCompartirProps) {
   const grupo = participantes > 2;
   const label = (key: string) =>
@@ -89,12 +99,24 @@ export function PreviewCompartir({
             }.`}
       </p>
 
+      {/* Preparing and confirming are two different acts, and this is where
+          the screen has to say so. While the room is still taking people in
+          there is no list of recipients yet, so «Confirmar y enviar» would be
+          asking for permission to share with an audience nobody can see. */}
+      {incorporacionAbierta && (
+        <p style={S.aviso} data-testid="preview-incorporacion-abierta">
+          Todavía se están incorporando personas. Puedes dejar tu parte lista;
+          cuando quien organiza continúe con el grupo, verás quiénes van a
+          leerte y podrás confirmar el envío.
+        </p>
+      )}
+
       <div style={S.acciones}>
         <button
           type="button"
           style={S.primary}
           onClick={onConfirm}
-          disabled={busy}
+          disabled={busy || incorporacionAbierta}
         >
           Confirmar y enviar
         </button>

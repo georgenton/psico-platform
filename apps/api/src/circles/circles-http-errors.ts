@@ -44,6 +44,25 @@ export type CirclesApiErrorCode =
   | "CIRCLE_SHARE_INVALID"
   /** Same idempotency key, different request. Never treated as a replay. */
   | "CIRCLE_IDEMPOTENCY_CONFLICT"
+  /**
+   * Continuing needs at least two people, organiser included.
+   *
+   * Named rather than folded into the opaque activity answer, and that is a
+   * deliberate exception: the caller is the ORGANISER of a room they can
+   * already see, so it confirms nothing they do not know, and the screen has
+   * to be able to say «todavía no hay suficientes personas» instead of «esta
+   * actividad no está disponible», which is the wrong sentence and the bug
+   * this block exists to fix.
+   */
+  | "CIRCLE_GROUP_TOO_SMALL"
+  /**
+   * The group is not fixed yet, so there is nothing to confirm AGAINST.
+   *
+   * Also deliberately named, for the same reason and the same audience: a
+   * person preparing inside a room that is still taking people in must be
+   * told the confirmation is not open yet — not that the activity is gone.
+   */
+  | "CIRCLE_ONBOARDING_OPEN"
   /** Infrastructure — never an editorial or authorization verdict. */
   | "CIRCLE_STORAGE_FAILURE";
 
@@ -61,6 +80,10 @@ const CODE_STATUS: Record<CirclesApiErrorCode, HttpStatus> = {
   CIRCLE_TEMPLATE_UNAVAILABLE: HttpStatus.UNPROCESSABLE_ENTITY,
   CIRCLE_SHARE_INVALID: HttpStatus.UNPROCESSABLE_ENTITY,
   CIRCLE_IDEMPOTENCY_CONFLICT: HttpStatus.CONFLICT,
+  // 409: the request is well-formed and the caller is entitled to make it —
+  // the room is simply not in a state where it can be honoured yet.
+  CIRCLE_GROUP_TOO_SMALL: HttpStatus.CONFLICT,
+  CIRCLE_ONBOARDING_OPEN: HttpStatus.CONFLICT,
   CIRCLE_STORAGE_FAILURE: HttpStatus.INTERNAL_SERVER_ERROR,
 };
 

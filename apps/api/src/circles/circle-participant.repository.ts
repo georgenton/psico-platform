@@ -34,6 +34,8 @@ export interface CircleParticipantRow {
   memberId: string | null;
   invitationId: string | null;
   status: CircleParticipantStatusRow;
+  /** A guest's chosen short name. Null for members, who have an account one. */
+  alias: string | null;
   sharingMode: string | null;
   fieldKeys: string[];
   ciphertext: string | null;
@@ -51,6 +53,7 @@ const SELECT = {
   memberId: true,
   invitationId: true,
   status: true,
+  alias: true,
   sharingMode: true,
   fieldKeys: true,
   ciphertext: true,
@@ -94,13 +97,41 @@ export class CircleParticipantRepository {
     try {
       return await tx.$queryRaw<CircleParticipantRow[]>(Prisma.sql`
         SELECT "id", "activityId", "circleId", "memberId", "invitationId",
-               "status", "sharingMode", "fieldKeys", "ciphertext", "nonce",
-               "keyVersion", "payloadHash", "readyAt", "followUpDecision"
+               "status", "alias", "sharingMode", "fieldKeys", "ciphertext",
+               "nonce", "keyVersion", "payloadHash", "readyAt",
+               "followUpDecision"
           FROM "CircleActivityParticipant"
          WHERE "activityId" = ${activityId}
          ORDER BY "id"
            FOR UPDATE
       `);
+    } catch {
+      throw new CircleStorageError();
+    }
+  }
+
+  /**
+   * Drop the seats of people who never accepted, when the group is fixed.
+   *
+   * Deleted rather than marked. A seat that was never taken up is not somebody
+   * who withdrew — saying so in the ledger would be recording a decision
+   * nobody made — and a row left behind in `INVITED` is a row the reveal
+   * barrier counts, which is exactly what must not happen: the barrier asks
+   * for every seat of the activity, and a seat nobody sits in would hold the
+   * room shut forever.
+   *
+   * Only `INVITED` seats, so an acceptance that landed a moment ago is never
+   * swept away by this: it is `ACCEPTED` and the predicate skips it.
+   */
+  async dropUnclaimedSeats(
+    activityId: string,
+    tx: CircleParticipantTx,
+  ): Promise<number> {
+    try {
+      const { count } = await tx.circleActivityParticipant.deleteMany({
+        where: { activityId, status: "INVITED" },
+      });
+      return count;
     } catch {
       throw new CircleStorageError();
     }

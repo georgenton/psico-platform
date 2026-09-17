@@ -143,6 +143,14 @@ function buildPayload(
       return confirmation ?? INVALID;
     }
 
+    case "close-onboarding":
+      // Like `withdraw`: the command carries no arguments at all. WHO stays is
+      // not a choice the caller makes — everybody who accepted is in — so
+      // there is no field an exclusion could be written into.
+      if (raw === undefined || raw === null) return {};
+      if (typeof raw !== "object" || Array.isArray(raw)) return INVALID;
+      return exactKeys(raw as Record<string, unknown>, []) ? {} : INVALID;
+
     case "withdraw":
       // No reason is accepted. Leaving does not owe an explanation, so there is
       // no field one could be written into — and a body that tries is refused

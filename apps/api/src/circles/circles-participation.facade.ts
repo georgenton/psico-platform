@@ -97,12 +97,27 @@ export class CirclesParticipationFacade {
     return { circleId: created.circleId, activityId: created.activityId };
   }
 
+  /** Fix the group. Organiser only; see the service for why. */
+  closeOnboarding(
+    actor: CircleActor,
+    activityId: string,
+    idempotencyKey: string,
+  ) {
+    return this.domain.closeOnboarding(actor, activityId, idempotencyKey);
+  }
+
   async read(
     actor: CircleActor,
     activityId: string,
   ): Promise<CircleActivityView> {
-    const { ctx, artifact, confirmations, confirmedByYou } =
-      await this.domain.readActivity(actor, activityId);
+    const {
+      ctx,
+      artifact,
+      confirmations,
+      confirmedByYou,
+      memberNames,
+      pendingSeatIndexes,
+    } = await this.domain.readActivity(actor, activityId);
 
     const revealedStage =
       ctx.activity.status === "REVEALED" ||
@@ -140,6 +155,8 @@ export class CirclesParticipationFacade {
       self: ctx.self,
       others,
       readyCount: ctx.participants.filter((p) => p.status === "READY").length,
+      memberNames,
+      pendingSeatIndexes,
       selfBody: this.domain.openEnvelope(
         ctx.self,
         ctx.activity,

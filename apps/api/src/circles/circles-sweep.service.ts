@@ -184,22 +184,44 @@ export class CirclesSweepService {
     batchSize: number,
     dryRun: boolean,
   ): Promise<number> {
+    const dead = {
+      OR: [
+        { revokedAt: { not: null } },
+        { declinedAt: { not: null } },
+        { expiresAt: { lte: now } },
+      ],
+    };
     const stranded = await this.prisma.circleActivity.findMany({
       where: {
         kind: "GROUP_ADULT",
-        status: { in: ["INVITING", "PREPARING"] },
-        participants: {
-          some: {
-            status: "INVITED",
-            invitation: {
-              OR: [
-                { revokedAt: { not: null } },
-                { declinedAt: { not: null } },
-                { expiresAt: { lte: now } },
-              ],
-            },
+        OR: [
+          // ── FIXED: unchanged, and it has to be ────────────────────────────
+          //
+          // Every invited seat is essential under those rules, so one link
+          // that can no longer be redeemed means the room can never open.
+          // Rooms created before flexible onboarding are still running on
+          // this, and their participants agreed to it.
+          {
+            onboarding: "FIXED",
+            status: { in: ["INVITING", "PREPARING"] },
+            participants: { some: { status: "INVITED", invitation: dead } },
           },
-        },
+          // ── FLEXIBLE: a dead link is not a dead room ──────────────────────
+          //
+          // Somebody who never answered no longer blocks anybody: the
+          // organiser continues with whoever accepted. So the clock only ends
+          // a flexible room when it can no longer BECOME one — nothing left
+          // that could still be redeemed, and fewer than two people in it.
+          //
+          // Once onboarding is closed the room is `PREPARING` with no pending
+          // seats at all, so it never matches here: what ends it then is a
+          // person leaving, which is a decision rather than a timer.
+          {
+            onboarding: "FLEXIBLE",
+            status: "INVITING",
+            invitations: { some: {}, every: dead },
+          },
+        ],
       },
       select: { id: true, circleId: true },
       orderBy: { id: "asc" },
@@ -246,7 +268,7 @@ export class CirclesSweepService {
         // may have been filled by the acceptance that was in flight during
         // the scan, and an activity cancelled for a reason that stopped being
         // true is a room taken from people who could still have used it.
-        const dead = links
+        const deadLinks = links
           .filter(
             (link) =>
               link.revokedAt !== null ||
@@ -254,15 +276,31 @@ export class CirclesSweepService {
               link.expiresAt <= now,
           )
           .map((link) => link.id);
-        if (dead.length === 0) return false;
-        const stillStranded = await tx.circleActivityParticipant.count({
-          where: {
-            activityId: activity.id,
-            status: "INVITED",
-            invitationId: { in: dead },
-          },
-        });
-        if (stillStranded === 0) return false;
+        if (deadLinks.length === 0) return false;
+
+        if (live.onboarding === "FLEXIBLE") {
+          // Every link must be dead — one still redeemable means somebody can
+          // still arrive — AND the room must be unable to reach two people.
+          // The organiser's own seat counts, so "fewer than two" is a room
+          // nobody ever joined.
+          if (deadLinks.length !== links.length) return false;
+          const joined = await tx.circleActivityParticipant.count({
+            where: {
+              activityId: activity.id,
+              status: { in: ["ACCEPTED", "READY"] },
+            },
+          });
+          if (joined >= 2) return false;
+        } else {
+          const stillStranded = await tx.circleActivityParticipant.count({
+            where: {
+              activityId: activity.id,
+              status: "INVITED",
+              invitationId: { in: deadLinks },
+            },
+          });
+          if (stillStranded === 0) return false;
+        }
 
         const seats = await tx.circleActivityParticipant.findMany({
           where: { activityId: activity.id },

@@ -177,6 +177,53 @@ export interface CircleArtifactView {
  * `nonce`, `keyVersion`, `payloadHash`, `contentUnitId`, any internal id of the
  * other participant, and any counter derived from their content.
  */
+/**
+ * How somebody stands in the ROOM — never how they stand with their answers.
+ *
+ * `ORGANIZES` and `PARTICIPATES` are the two ways of being in; `INVITED` is a
+ * link that has not been redeemed. There is deliberately no value for «ya
+ * confirmó», «está escribiendo» or «no compartió»: joining is public to the
+ * people inside, what you do with your own answers is not.
+ */
+export type CircleRosterState = "ORGANIZES" | "PARTICIPATES" | "INVITED";
+
+/** One line in the list of who is here. */
+export interface CircleRosterEntry {
+  /**
+   * The name the other participants see: a member's display name, a guest's
+   * chosen alias, or a seat label for an invitation nobody has redeemed.
+   *
+   * An alias is NOT a verified identity and the screens say so. It is never an
+   * email, a phone number or an internal id.
+   */
+  readonly name: string;
+  readonly state: CircleRosterState;
+  /** This entry is the reader's own seat. */
+  readonly you: boolean;
+}
+
+/**
+ * Four numbers that used to be one, and the list of who is here.
+ *
+ * `capacity` is how many people COULD take part — what the organiser chose and
+ * what every invitee was shown before accepting. `accepted` is how many are
+ * in. `group` is who will actually share the activity, and exists only once
+ * the organiser has fixed it. How many have CONFIRMED is not here: that is
+ * `readyCount`, and in a group it stays absent until the reveal.
+ */
+export interface CircleOnboardingView {
+  /** `FLEXIBLE` rooms continue with whoever accepted. `FIXED` wait for all. */
+  readonly policy: "FIXED" | "FLEXIBLE";
+  readonly capacity: number;
+  readonly accepted: number;
+  readonly group: number | null;
+  /** Still taking people in. */
+  readonly open: boolean;
+  /** The organiser may fix the group right now. Only ever true for them. */
+  readonly canClose: boolean;
+  readonly roster: readonly CircleRosterEntry[];
+}
+
 export interface CircleActivityView {
   readonly activityId: string;
   readonly status: CircleActivityStatus;
@@ -186,7 +233,17 @@ export interface CircleActivityView {
   readonly summary: string;
   readonly conversationTurns: readonly string[];
   readonly outcomeKind: CircleOutcomeKind;
+  /**
+   * CAPACITY — how many people could take part.
+   *
+   * Kept under its old name because every existing reader means capacity by
+   * it: for a Dúo and for every room created before flexible onboarding it is
+   * also the group, and those readers are still right. `onboarding.group` is
+   * where the two stop being the same number.
+   */
   readonly requiredParticipants: number;
+  /** Who is here, how many could be, and whether the group is fixed yet. */
+  readonly onboarding?: CircleOnboardingView;
   /**
    * How many seats have confirmed — and ABSENT in a group before the reveal.
    *

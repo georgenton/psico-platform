@@ -23,7 +23,7 @@ import {
 } from "./bff";
 
 describe("BFF · the allow-list is closed", () => {
-  it("names exactly the five commands the guest flow needs", () => {
+  it("names exactly the six commands the flow needs", () => {
     // A literal, so widening it is a diff somebody reviews rather than a
     // behaviour that drifts.
     expect([...CIRCULO_COMMANDS]).toEqual([
@@ -32,6 +32,7 @@ describe("BFF · the allow-list is closed", () => {
       "artifact",
       "artifact-confirm",
       "follow-up",
+      "close-onboarding",
     ]);
   });
 

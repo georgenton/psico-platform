@@ -94,7 +94,10 @@ describe("PR4 adds no backend", () => {
     // …and the one adult groups owes. Still an API migration; the Web cut adds
     // no backend, which is the only thing this assertion is about.
     expect(migrations).toContain("20260916100000_circles_adult_groups");
-    expect(migrations).toHaveLength(68);
+    // …and the one flexible onboarding owes. Still an API migration: the Web
+    // cut adds no backend, which is the only thing this assertion is about.
+    expect(migrations).toContain("20260917000000_circles_flexible_onboarding");
+    expect(migrations).toHaveLength(69);
   });
 
   it("touches no Mobile file", () => {

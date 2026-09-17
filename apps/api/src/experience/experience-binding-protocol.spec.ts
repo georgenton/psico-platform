@@ -939,7 +939,14 @@ describe("ratchet · the cutover migrations say what they do", () => {
     // enumerated in `circles-scope.spec.ts`, which is where loosenings are
     // argued for. Named here for the same reason as the others.
     expect(dirs).toContain("20260916100000_circles_adult_groups");
-    expect(dirs).toHaveLength(68);
+    // …and the one flexible onboarding owes: the room stops meaning "everybody
+    // invited must come". Additive in the sense that matters — `onboarding`
+    // defaults to the rule every existing row was already running, so an older
+    // instance's INSERT keeps meaning what it meant — and it loosens nothing,
+    // which is why it has no entry in `circles-scope.spec.ts`. Named here for
+    // the same reason as the others.
+    expect(dirs).toContain("20260917000000_circles_flexible_onboarding");
+    expect(dirs).toHaveLength(69);
     expect(dirs.filter((d) => d.includes("c3r"))).toEqual([]);
   });
 

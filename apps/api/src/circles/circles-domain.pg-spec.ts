@@ -369,6 +369,7 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
       "20260915000000_circles_artifact_purge",
       "20260916000000_circles_analytics",
       "20260916100000_circles_adult_groups",
+      "20260917000000_circles_flexible_onboarding",
     ]);
     expect(baseline).toHaveLength(63);
 

@@ -57,7 +57,7 @@ describe("circles · PR3 scope — access and participation", () => {
     }
   });
 
-  it("ships six migrations, and every loosening in them is enumerated", () => {
+  it("ships seven migrations, and every loosening in them is enumerated", () => {
     // PR2 added the domain; PR3 the invariants participation needs; the pilot
     // cut added the sanctioned detach PR2 itself predicted ("account deletion,
     // once Círculos is on, will need a sanctioned scrub path that is itself a
@@ -83,6 +83,11 @@ describe("circles · PR3 scope — access and participation", () => {
       "20260915000000_circles_artifact_purge",
       "20260916000000_circles_analytics",
       "20260916100000_circles_adult_groups",
+      // Flexible onboarding. Purely additive: an enum, two columns, one
+      // column on the seat, two CHECKs, and a trigger REPLACED in place —
+      // `CREATE OR REPLACE FUNCTION` is not a loosening, it is the same
+      // guard with two more things it refuses. Hence no entry below.
+      "20260917000000_circles_flexible_onboarding",
     ]);
 
     /**

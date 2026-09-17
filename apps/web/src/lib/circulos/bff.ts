@@ -64,6 +64,9 @@ export const CIRCULO_COMMANDS = [
   "artifact",
   "artifact-confirm",
   "follow-up",
+  // Fixing the group. Organiser-only, and the API is what enforces that — this
+  // list only says the Web is allowed to ASK.
+  "close-onboarding",
 ] as const;
 
 export type CirculoCommandKind = (typeof CIRCULO_COMMANDS)[number];
@@ -77,6 +80,7 @@ interface CommandRoute {
 const COMMAND_ROUTES: Record<CirculoCommandKind, CommandRoute> = {
   share: { method: "POST", path: "/share-confirmations" },
   withdraw: { method: "POST", path: "/withdraw" },
+  "close-onboarding": { method: "POST", path: "/close-onboarding" },
   artifact: { method: "PUT", path: "/artifact" },
   "artifact-confirm": { method: "POST", path: "/artifact/confirm" },
   "follow-up": { method: "POST", path: "/follow-up" },
@@ -293,10 +297,13 @@ export function projectInvitationPreview(
  * handler behind the explicit "Aceptar invitación" button, and reaching it
  * already IS the person's acceptance.
  */
-export function acceptInvitation(secret: string) {
+export function acceptInvitation(secret: string, alias?: string) {
   return call<{ guestSessionToken: string; expiresAt: string }>(
     "/circles/invitations/accept",
-    { method: "POST", body: { secret, accept: true } },
+    {
+      method: "POST",
+      body: alias ? { secret, accept: true, alias } : { secret, accept: true },
+    },
   );
 }
 

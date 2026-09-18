@@ -1008,6 +1008,24 @@ button[type="submit"] {
    que se carga DESPUÉS que esta hoja. Por eso su corrección vive allí, junto a
    las rampas que corrige, y no aquí donde perdería por orden. */
 
+/* ── 1b · El texto de los campos vacíos ────────────────────────────────────
+   Ningún campo del producto declara el color de su marcador de posición, así
+   que todos heredaban el del navegador: el color del campo al 50 % de opacidad.
+   Medido sobre el despliegue, eso deja «••••••••» en 2.72:1 al desbloquear el
+   diario y «Tu nombre» en 3.13:1 en el perfil — texto que hay que poder leer
+   para saber qué se espera en cada campo.
+
+   Un marcador no es un control deshabilitado, así que no se deja a medio tono:
+   toma el mismo escalón de texto apagado que el resto del producto, que ya
+   sigue a cada ambiente. `opacity: 1` es necesario porque algunos navegadores
+   aplican además una opacidad propia sobre este pseudo-elemento.
+
+   Sigue distinguiéndose del valor escrito, que es más oscuro (warm-800). */
+::placeholder {
+  color: var(--color-warm-600);
+  opacity: 1;
+}
+
 /* ── 2 · El fondo lleno de marca ───────────────────────────────────────────
    `--gradient-cover-lavender` hace dos trabajos: es el relleno de las fichas
    de identidad con texto blanco —avatar, marca de la barra, avatares de Eco y

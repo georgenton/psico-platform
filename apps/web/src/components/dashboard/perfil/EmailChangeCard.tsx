@@ -104,7 +104,7 @@ export function EmailChangeCard({ me }: { me: UserMeResponse }) {
           {error ? (
             <p
               className="text-[11px]"
-              style={{ color: "var(--color-rose-600)" }}
+              style={{ color: "var(--color-rose-700)" }}
               role="alert"
             >
               {error}

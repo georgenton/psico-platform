@@ -92,7 +92,7 @@ function ExportRow({
         {error ? (
           <p
             className="mt-1 text-[11px]"
-            style={{ color: "var(--color-rose-600)" }}
+            style={{ color: "var(--color-rose-700)" }}
           >
             {error}
           </p>
@@ -188,7 +188,7 @@ function DeleteRow({
         </p>
         <p
           className="mt-1 text-[12px]"
-          style={{ color: "var(--color-rose-600)" }}
+          style={{ color: "var(--color-rose-700)" }}
         >
           Tu cuenta se eliminará el {scheduledFor}. Hasta entonces, podés
           contactar soporte para cancelar el pedido.
@@ -292,7 +292,7 @@ function DeleteRow({
           {error ? (
             <p
               className="text-[11px]"
-              style={{ color: "var(--color-rose-600)" }}
+              style={{ color: "var(--color-rose-700)" }}
             >
               {error}
             </p>

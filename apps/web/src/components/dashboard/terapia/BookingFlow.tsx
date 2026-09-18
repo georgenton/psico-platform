@@ -73,9 +73,7 @@ export function BookingFlow({ therapist }: { therapist: TherapistDetail }) {
   }
 
   // Group slots by day for the grid.
-  const slotsByDay = availability
-    ? groupSlotsByDay(availability.slots)
-    : null;
+  const slotsByDay = availability ? groupSlotsByDay(availability.slots) : null;
 
   return (
     <div className="mx-auto max-w-2xl space-y-5">
@@ -111,9 +109,7 @@ export function BookingFlow({ therapist }: { therapist: TherapistDetail }) {
                       ? "var(--color-lavender-500)"
                       : "var(--color-warm-200)",
                   background:
-                    modality === m
-                      ? "var(--color-lavender-50)"
-                      : "white",
+                    modality === m ? "var(--color-lavender-50)" : "white",
                   color:
                     modality === m
                       ? "var(--color-lavender-700)"
@@ -194,7 +190,7 @@ export function BookingFlow({ therapist }: { therapist: TherapistDetail }) {
           {error ? (
             <p
               className="mt-3 text-[12px]"
-              style={{ color: "var(--color-rose-600)" }}
+              style={{ color: "var(--color-rose-700)" }}
             >
               {error}
             </p>
@@ -355,7 +351,9 @@ function StepIndicator({ current }: { current: Step }) {
           className="rounded-full px-2.5 py-0.5 font-medium"
           style={{
             background:
-              s === current ? "var(--color-lavender-600)" : "var(--color-warm-100)",
+              s === current
+                ? "var(--color-lavender-600)"
+                : "var(--color-warm-100)",
             color: s === current ? "white" : "var(--color-warm-700)",
           }}
         >

@@ -43,8 +43,12 @@ export function PrivacyInfoButton({
         onClick={() => setOpen(true)}
         aria-label="Cómo protegemos tu diario"
         className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[12px] font-medium transition-colors"
+        // Texto de acento sobre un fondo de acento: usa el escalón de TEXTO de
+        // la rampa. Con lavender-600 este botón medía 3.76:1 en Energía, cuyo
+        // acento es un naranja claro. lavender-700 lo deja en 5.35:1 y sigue
+        // siendo el acento de cada ambiente, incluido el claro de Noche.
         style={{
-          color: "var(--color-lavender-600)",
+          color: "var(--color-lavender-700)",
           background: "var(--color-lavender-50)",
         }}
       >

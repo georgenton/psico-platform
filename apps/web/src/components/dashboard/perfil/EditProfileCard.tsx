@@ -92,7 +92,7 @@ export function EditProfileCard({ me }: { me: UserMeResponse }) {
       {error ? (
         <p
           className="mt-3 text-[12px]"
-          style={{ color: "var(--color-rose-600)" }}
+          style={{ color: "var(--color-rose-700)" }}
           role="alert"
         >
           {error}

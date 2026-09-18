@@ -161,7 +161,7 @@ export default function ResetPasswordForm() {
         {error ? (
           <p
             className="text-xs"
-            style={{ color: "var(--color-rose-600)" }}
+            style={{ color: "var(--color-rose-700)" }}
             role="alert"
           >
             {error}

@@ -782,7 +782,15 @@
   body.amb-noche .amb-menu,
   body.amb-noche .mood-chip,
   body.amb-noche .mood-pop,
+  /* `.btn.ghost` traía `background:#fff` literal, así que en Noche su texto
+     —que sí sigue la rampa invertida— quedaba claro sobre blanco: 1.43:1 en
+     «Exportar». Se suma a la lista de superficies nocturnas, como el resto. */
+  body.amb-noche .btn.ghost,
   body.amb-noche .mp-opt { background: #1d1929; }
+  /* `.btn.primary` se rellena con sage-600, que en Noche es CLARO. El texto
+     blanco encima daba 1.46:1 en «Empezar guía». La tinta pasa a ser oscura,
+     igual que ya se hacía con `.chip.on` unas líneas más abajo. */
+  body.amb-noche .btn.primary { color: var(--color-warm-50); }
   body.amb-noche .topbar { background: rgba(20,17,25,.82); }
   body.amb-noche .mood-checkin { background: linear-gradient(120deg, var(--color-lavender-100), #1d1929 64%); }
   body.amb-noche .chip.on { background: var(--color-lavender-300); color: #1d1929; border-color: transparent; }
@@ -820,3 +828,22 @@
      primer intento. */
   body.amb-enfoque { --color-warm-400: #505a6e; --color-warm-500: #505a6e; } /* su warm-600 */
   body.amb-energia { --color-warm-400: #8a5a31; --color-warm-500: #8a5a31; } /* su warm-600 */
+
+  /* ══════════ Estados de error · la rampa rose en Noche ══════════
+     La rampa `rose` viene del tema de Tailwind y es la única que Noche NO
+     invertía, porque no se declara en esta hoja. El resultado: «Eliminar mi
+     cuenta» a 3.10:1 sobre el fondo nocturno, medido sobre el despliegue.
+
+     Se invierte aquí como ya se invierten warm, lavender y sage: las
+     superficies (50/100/200) se oscurecen y el escalón de TEXTO se aclara.
+     Sólo se toca `rose-700`, que en todo el producto es exclusivamente
+     `color:` —nunca un relleno—; `rose-600` se deja intacto porque además
+     rellena botones destructivos con texto blanco, y ahí sigue midiendo
+     4.53:1. Por eso las pocas reglas que usaban rose-600 COMO TEXTO pasan a
+     rose-700, que es el escalón de texto de esta rampa. */
+  body.amb-noche {
+    --color-rose-50: #2a1520;
+    --color-rose-100: #3a1b2a;
+    --color-rose-200: #55283c;
+    --color-rose-700: #ffa1ad; /* rose-300 de Tailwind: 9.75:1 sobre el fondo */
+  }

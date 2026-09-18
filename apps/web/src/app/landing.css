@@ -407,3 +407,25 @@
   [data-js] .reveal.d2 { transition-delay: .16s; }
   [data-js] .reveal.d3 { transition-delay: .24s; }
   @media (prefers-reduced-motion: reduce) { [data-js] .reveal { opacity: 1 !important; transform: none !important; } }
+
+  /* ── Acabado FeelVerse ────────────────────────────────────────────────────
+     Los titulares de la landing se declaran con la abreviatura `font:`, que
+     fija la familia dentro del mismo valor y por eso nunca recibía la display
+     del theme. Aquí se le devuelve: la familia, el peso y el tracking salen de
+     `--fv-*`, y el TAMAÑO se queda como estaba, que es lo que sostiene la
+     composición. Ninguna sección, texto ni enlace cambia. */
+  .psico-landing h1,
+  .psico-landing h2,
+  .psico-landing h3,
+  .psico-landing h4 {
+    font-family: var(--fv-font-display);
+    font-weight: var(--fv-display-weight);
+    letter-spacing: var(--fv-display-tracking);
+  }
+  /* El wordmark conserva su propia serif y su propio peso: la marca no cambia
+     de tipografía con el theme — eso serían dos wordmarks. */
+  .psico-landing .wordmark {
+    font-family: var(--font-source-serif), Georgia, serif;
+    font-weight: 600;
+    letter-spacing: -0.025em;
+  }

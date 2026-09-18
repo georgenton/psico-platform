@@ -3303,10 +3303,21 @@ async function reducedGroupKeepPrivate(browser) {
     await openPreview(page);
     await confirmShare(page);
 
-    const sealedBefore = sqlOne(
-      `SELECT count(*) FROM "CircleActivityParticipant"
-        WHERE "activityId"='${activityId}' AND "ciphertext" IS NOT NULL`,
-    ).trim();
+    // Esperar al COMMIT, no al clic. La lectura inmediata pasaba en local y
+    // fallaba bajo carga en CI: el envío se confirma en el servidor y la fila
+    // aparece un instante después, así que preguntarlo sin esperar mide la
+    // velocidad de la máquina y no el comportamiento.
+    const sealedBefore = await until(
+      () => {
+        const n = sqlOne(
+          `SELECT count(*) FROM "CircleActivityParticipant"
+            WHERE "activityId"='${activityId}' AND "ciphertext" IS NOT NULL`,
+        ).trim();
+        return n === "1" ? n : null;
+      },
+      "the organiser's confirmed envelope to be stored",
+      60_000,
+    ).catch(() => "not stored");
     check(
       sealedBefore === "1",
       `one confirmed envelope is waiting (${sealedBefore})`,

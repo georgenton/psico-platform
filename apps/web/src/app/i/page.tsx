@@ -16,7 +16,7 @@ import { EntradaInvitacion } from "@/components/circulos/EntradaInvitacion";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Invitación | FeelVerse",
+  title: "Invitación",
   robots: { index: false, follow: false },
 };
 

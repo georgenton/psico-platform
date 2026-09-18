@@ -961,21 +961,3 @@ button[type="submit"] {
 [data-theme="renaissance"] .decor-emoji {
   display: var(--fv-emoji-display);
 }
-
-/* ── Contraste de los rótulos secundarios ─────────────────────────────────
-   `--fg-tertiary` era `warm-400`: 2.09:1 sobre blanco, que es lo que mide hoy
-   el antetítulo «Tu progreso de comprensión» y lo mismo que la auditoría de
-   septiembre ya había registrado como insuficiente. No es algo que introduzca
-   esta ronda, pero el sistema aprobado no tiene un tercer nivel de gris: su
-   `--fv-muted` es warm-600, y con él estos rótulos pasan de 2.09:1 a 5.26:1.
-   Se corrige aquí, que es donde vive el token, y no pantalla por pantalla. */
-:root,
-[data-theme="contemporary"],
-[data-theme="renaissance"] {
-  --fg-tertiary: var(--fv-muted);
-}
-body.amb-noche {
-  --fg-tertiary: var(--fv-muted);
-  --fg-muted: var(--fv-muted);
-  --fg-nav: var(--fv-text-body);
-}

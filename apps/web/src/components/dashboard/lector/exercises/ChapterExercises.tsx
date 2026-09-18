@@ -85,7 +85,11 @@ export function ChapterExercises({
                 return onReflect(ex.prompt);
               }}
               className="mt-3 rounded-full px-4 py-1.5 text-[12.5px] font-semibold text-white"
-              style={{ background: "var(--color-sage-400)" }}
+              // Misma pareja que el botón de enviar de Eco, y el mismo motivo:
+              // blanco sobre sage-400 no llega a AA en ninguna combinación.
+              // `--bg-action` es el token que esta base ya tenía para los
+              // rellenos de acción. Geometría, etiqueta y acción intactas.
+              style={{ background: "var(--bg-action)" }}
             >
               {ex.kind === "breathe"
                 ? "Empezar →"

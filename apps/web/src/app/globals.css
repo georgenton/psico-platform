@@ -961,3 +961,69 @@ button[type="submit"] {
 [data-theme="renaissance"] .decor-emoji {
   display: var(--fv-emoji-display);
 }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   Contraste · corrección dirigida
+   ════════════════════════════════════════════════════════════════════════════
+
+   ── 1 · El texto informativo apagado ──────────────────────────────────────
+
+   El problema no estaba donde lo busqué la primera vez. `--fg-tertiary` no lo
+   lee ningún componente real —sólo un prototipo—, así que tocarlo no podía
+   arreglar nada; lo que sí rompió aquella corrección fue `--fg-nav` y
+   `--fg-muted` en Noche, que sí se leen.
+
+   Quien produce el fallo es `--color-warm-400`, y medido sobre el despliegue:
+   «Recursos», «Generado por Eco» y «2 min» a 2.54:1. De sus 47 usos en estas
+   hojas, TODOS son `color:` — en este producto ese escalón no es una rampa con
+   otro significado, es el color del texto apagado. Por eso se corrige aquí, en
+   una línea por apariencia, y no en cuarenta y cinco reglas.
+
+   Noche conserva su propia definición invertida, que es suya y significa otra
+   cosa: se corrige aparte y con su propio valor, no con el de las claras. */
+:root,
+[data-theme="contemporary"],
+[data-theme="renaissance"] {
+  --color-warm-400: var(--fv-muted);
+}
+/* Noche invierte la rampa: aquí el texto apagado tiene que ACLARARSE, no
+   oscurecerse. Es el mismo valor que la propia noche ya usa para `--fg-muted`,
+   así que no introduce un gris nuevo. */
+body.amb-noche {
+  --color-warm-400: var(--color-warm-500);
+}
+
+/* ── 2 · El fondo lleno de marca ───────────────────────────────────────────
+   `--gradient-cover-lavender` hace dos trabajos: es el relleno de las fichas
+   de identidad con texto blanco —avatar, marca de la barra, avatares de Eco y
+   de las reflexiones— y también la portada de un libro. El adaptador lo mandó
+   entero a `--fv-cover-fill`, que en Renacimiento es papel: el avatar quedó en
+   blanco sobre papel, 1.06:1. Eso lo introduje yo.
+
+   Se separan los dos significados. El relleno de marca vuelve a ser relleno de
+   marca —la ciruela del theme—, y la PORTADA, que es lo que de verdad quiere
+   papel y filete, se trata en sus propios selectores. */
+[data-theme="renaissance"] {
+  --gradient-cover-lavender: linear-gradient(
+    135deg,
+    var(--ren-plum) 0%,
+    var(--ren-plum-text) 100%
+  );
+  --gradient-cover-sage: linear-gradient(
+    135deg,
+    var(--ren-sage) 0%,
+    var(--ren-sage-text) 100%
+  );
+  --gradient-cover-mixed: linear-gradient(
+    135deg,
+    var(--ren-plum) 0%,
+    var(--ren-sage) 100%
+  );
+}
+[data-theme="renaissance"] .continue .cover,
+[data-theme="renaissance"] .ex-cover {
+  background: var(--fv-cover-fill);
+  border: var(--fv-cover-border);
+  color: var(--fv-cover-label-color);
+  box-shadow: var(--fv-shadow-cover);
+}

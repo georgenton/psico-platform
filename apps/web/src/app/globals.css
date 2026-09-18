@@ -411,3 +411,553 @@ body.amb-noche .bg-white {
   outline-offset: 4px;
   box-shadow: 0 0 0 8px var(--color-lavender-100);
 }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   FeelVerse · sistema visual aprobado
+   ════════════════════════════════════════════════════════════════════════════
+
+   Una sola capa, al final de la hoja que ya existía, para que no haya dos
+   sistemas resolviendo lo mismo.
+
+   Cómo encaja con lo que ya había:
+
+   · `--fv-*` son los NOMBRES semánticos. El theme les asigna valores.
+   · Las rampas privadas (`--con-*`, `--ren-*`) no deben leerse desde ningún
+     componente: existen para que el theme tenga de dónde sacar sus valores.
+   · Abajo, los nombres semánticos que la aplicación YA usaba (`--bg-*`,
+     `--fg-*`, `--color-*`) se re-apuntan a `--fv-*`. Ese es el adaptador: las
+     pantallas, las utilidades de Tailwind y los `.css` de dashboard y landing
+     siguen escritos igual y cambian de aspecto sin tocarlos.
+
+   Theme y modo son preferencias distintas:
+
+   · THEME  → `data-theme` en <html>: contemporary (por defecto) | renaissance.
+   · MODO   → `body.amb-*`, el sistema de ambientes que ya existía:
+              calma (por defecto) · enfoque · energía · noche.
+
+   El archivo de diseño llama «mood» a lo que aquí es «ambiente», y su
+   `data-mood` colisiona con el `data-mood` del producto, que es el ÁNIMO de la
+   persona (great/good/ok/low/hard) y no tiene nada que ver. Se conserva el
+   nombre del producto; el mapa es:
+
+     diseño default → calma      diseño focus → enfoque
+     diseño night   → noche      diseño energy → energía
+
+   «energy» sigue marcado como propuesta no validada en el diseño, así que
+   Energía conserva sus valores de producción. `--fv-chrome-visible` existe
+   como token pero no oculta navegación ni controles: el prototipo lo usa para
+   eso y el modo Enfoque de este producto nunca lo hizo.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── Núcleo · invariante al theme ── */
+  --fv-space-1: 4px;
+  --fv-space-2: 8px;
+  --fv-space-3: 12px;
+  --fv-space-4: 16px;
+  --fv-space-5: 20px;
+  --fv-space-6: 24px;
+  --fv-space-8: 32px;
+  --fv-space-10: 40px;
+  --fv-space-12: 48px;
+  --fv-space-18: 72px;
+
+  --fv-content-max: 1280px;
+  --fv-sidebar-w: 248px;
+  --fv-reader-measure: 680px;
+  --fv-target-min: 44px;
+
+  --fv-duration: 160ms;
+  --fv-easing: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  --fv-text-micro: 12px;
+  --fv-text-meta: 13px;
+  --fv-text-sm: 14px;
+  --fv-text-base: 16px;
+  --fv-text-lg: 18px;
+  --fv-text-xl: 20px;
+  --fv-text-2xl: 24px;
+  --fv-text-3xl: 30px;
+
+  /* El ambiente por defecto es Calma; estos tres son los que el modo cambia. */
+  --fv-chrome-visible: 1;
+  --fv-reader-size: 19px;
+  --fv-reader-leading: 1.7;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --fv-duration: 0ms;
+  }
+}
+
+/* ── THEME · contemporary ──────────────────────────────────────────────────
+   Los valores salen del producto que ya existía, con las correcciones de
+   contraste que el diseño declara. Es el theme por defecto: sin `data-theme`
+   la aplicación se ve como hoy. */
+:root,
+[data-theme="contemporary"] {
+  --con-lav-50: #f7f5ff;
+  --con-lav-100: #eeebff;
+  --con-lav-300: #c3baff;
+  --con-lav-500: #8b71f5;
+  --con-lav-600: #7558e0;
+  --con-lav-700: #5e42c0;
+  --con-sage-100: #e4efe0;
+  --con-sage-300: #a5c99e;
+  --con-sage-400: #7fae76;
+  --con-sage-500: #5e9254;
+  --con-sage-600: #4e7d45;
+  --con-sage-700: #416a3a;
+  --con-sage-950: #132211;
+  --con-warm-50: #fafaf8;
+  --con-warm-100: #f5f4f1;
+  --con-warm-200: #eceae5;
+  --con-warm-300: #d9d5ce;
+  --con-warm-500: #928d84;
+  --con-warm-600: #706b62;
+  --con-warm-700: #574f45;
+  --con-warm-800: #3d3730;
+  --con-warm-900: #2a2420;
+
+  --fv-background: var(--con-warm-50);
+  --fv-surface: #ffffff;
+  --fv-surface-subtle: var(--con-warm-100);
+  --fv-surface-accent: var(--con-lav-50);
+  --fv-text: var(--con-warm-900);
+  --fv-text-body: var(--con-warm-700);
+  --fv-muted: var(--con-warm-600);
+  --fv-rule: var(--con-warm-200);
+  --fv-brand: var(--con-lav-500);
+  --fv-brand-soft: var(--con-lav-100);
+  --fv-brand-ground: var(--con-lav-700);
+  --fv-brand-solid: var(--con-lav-700);
+  --fv-action: var(--con-sage-600);
+  --fv-action-hover: var(--con-sage-700);
+  --fv-action-soft: var(--con-sage-100);
+  --fv-action-text: #ffffff;
+  --fv-action-ground: var(--con-sage-700);
+  --fv-error-bg: #fef2f2;
+  --fv-error-border: #fecaca;
+  --fv-error-text: #b91c1c;
+  --fv-border: var(--fv-rule);
+  --fv-border-quiet: var(--con-warm-200);
+  --fv-focus-ring: var(--con-lav-600);
+
+  --fv-font-body:
+    "Geist", var(--font-geist-sans), -apple-system, BlinkMacSystemFont,
+    system-ui, sans-serif;
+  --fv-font-display: var(--font-newsreader), Georgia, serif;
+  --fv-font-mono: "Geist Mono", var(--font-geist-mono), ui-monospace, Menlo,
+    monospace;
+  --fv-font-label: var(--fv-font-body);
+  --fv-font-reader: var(--font-newsreader), Georgia, serif;
+  --fv-display-weight: 500;
+  --fv-display-tracking: -0.01em;
+  --fv-display-leading: 1.15;
+  --fv-label-transform: none;
+  --fv-label-tracking: 0;
+  --fv-label-weight: 600;
+
+  --fv-radius-panel: 24px;
+  --fv-radius-panel-lg: 32px;
+  --fv-radius-control: 12px;
+  --fv-radius-cover: 16px;
+  --fv-radius-pill: 9999px;
+  --fv-border-w: 1px;
+  --fv-border-w-emph: 1px;
+  --fv-shadow-card:
+    0 1px 4px 0 rgb(42 36 32 / 0.06), 0 4px 24px 0 rgb(42 36 32 / 0.04);
+  --fv-shadow-quiet: 0 1px 4px 0 rgb(42 36 32 / 0.05);
+  --fv-shadow-cover: 0 8px 20px 0 rgb(37 24 92 / 0.15);
+
+  --fv-ornament-rule-display: none;
+  --fv-fillet: 0 solid transparent;
+  --fv-spine-w: 0px;
+  --fv-channel-w: 4px;
+  --fv-cover-fill: linear-gradient(
+    135deg,
+    var(--con-lav-600) 0%,
+    var(--con-sage-600) 100%
+  );
+  --fv-cover-border: none;
+  --fv-cover-label-color: rgb(255 255 255 / 0.92);
+  --fv-emoji-display: inline;
+  --fv-decoration-opacity: 0.08;
+  --fv-eco-border: var(--fv-rule);
+  --fv-eco-header-bg: var(--con-lav-50);
+  --fv-eco-accent: var(--fv-brand);
+  --fv-nav-active-bg: var(--con-lav-100);
+  --fv-nav-active-rule: 0px;
+  --fv-selected-bg: var(--con-lav-100);
+  --fv-selected-border: var(--con-lav-500);
+}
+
+/* ── THEME · renaissance ─────────────────────────────────────────────────── */
+[data-theme="renaissance"] {
+  --ren-paper: #faf8f2;
+  --ren-ink: #2a2420;
+  --ren-body: #574f45;
+  --ren-muted: #706b62;
+  --ren-plum: #625078;
+  --ren-plum-soft: #ece7f2;
+  --ren-plum-text: #3b3149;
+  --ren-sage: #4a7742;
+  --ren-sage-soft: #edf2eb;
+  --ren-sage-text: #33562e;
+  --ren-quiet: #d9d5ce;
+
+  --fv-background: var(--ren-paper);
+  --fv-surface: #ffffff;
+  --fv-surface-subtle: var(--ren-paper);
+  --fv-surface-accent: var(--fv-surface);
+  --fv-text: var(--ren-ink);
+  --fv-text-body: var(--ren-body);
+  --fv-muted: var(--ren-muted);
+  --fv-rule: var(--ren-quiet);
+  --fv-brand: var(--ren-plum);
+  --fv-brand-soft: var(--ren-plum-soft);
+  --fv-brand-ground: var(--ren-plum);
+  --fv-brand-solid: var(--ren-plum);
+  --fv-action: var(--ren-sage);
+  --fv-action-hover: #3a5e34;
+  --fv-action-soft: var(--ren-sage-soft);
+  --fv-action-text: #ffffff;
+  --fv-action-ground: var(--ren-sage-text);
+  --fv-error-bg: #fef2f2;
+  --fv-error-border: #fecaca;
+  --fv-error-text: #b91c1c;
+  /* el contorno del panel ES la tinta del fondo: sobrevive a noche sin bifurcar el theme */
+  --fv-border: var(--fv-text);
+  --fv-border-quiet: var(--fv-rule);
+  --fv-focus-ring: var(--fv-text);
+
+  --fv-font-body:
+    "Geist", var(--font-geist-sans), -apple-system, BlinkMacSystemFont,
+    system-ui, sans-serif;
+  --fv-font-display: var(--font-source-serif), Georgia, serif;
+  --fv-font-mono: "Geist Mono", var(--font-geist-mono), ui-monospace, Menlo,
+    monospace;
+  --fv-font-label: var(--fv-font-mono);
+  --fv-font-reader: var(--font-source-serif), Georgia, serif;
+  --fv-display-weight: 700;
+  --fv-display-tracking: -0.015em;
+  --fv-display-leading: 1.05;
+  --fv-label-transform: uppercase;
+  --fv-label-tracking: 0.08em;
+  --fv-label-weight: 500;
+
+  --fv-radius-panel: 6px;
+  --fv-radius-panel-lg: 6px;
+  --fv-radius-control: 5px;
+  --fv-radius-cover: 4px;
+  --fv-radius-pill: 9999px;
+  --fv-border-w: 1px;
+  --fv-border-w-emph: 1.5px;
+  --fv-shadow-card: none;
+  --fv-shadow-quiet: none;
+  --fv-shadow-cover: none;
+
+  --fv-ornament-rule-display: block;
+  --fv-fillet: 1px solid var(--fv-rule);
+  --fv-spine-w: 8px;
+  --fv-channel-w: 3px;
+  --fv-cover-fill: var(--fv-background);
+  --fv-cover-border: 1px dashed var(--fv-rule);
+  --fv-cover-label-color: var(--fv-muted);
+  --fv-emoji-display: none;
+  --fv-decoration-opacity: 1;
+  --fv-eco-border: var(--ren-plum);
+  --fv-eco-header-bg: var(--ren-plum-soft);
+  --fv-eco-accent: var(--ren-plum-text);
+  --fv-nav-active-bg: var(--ren-plum-soft);
+  --fv-nav-active-rule: 2px;
+  --fv-selected-bg: var(--ren-plum-soft);
+  --fv-selected-border: var(--ren-plum);
+}
+
+/* ── MODO · sobre los ambientes que ya existían ────────────────────────────
+   El modo posee exactamente los mismos ocho valores que el archivo de diseño,
+   y nada más. Calma es el estado por defecto y ya está en `:root`. */
+
+body.amb-enfoque {
+  --fv-background: #ffffff;
+  --fv-surface: #ffffff;
+  /* declarado, no aplicado: este producto nunca ocultó navegación en Enfoque */
+  --fv-chrome-visible: 0;
+  --fv-reader-size: 20px;
+  --fv-reader-leading: 1.8;
+}
+
+/* Energía sigue marcado como propuesta no validada en el diseño, así que
+   conserva los valores de producción que ya tenía (terracota, más arriba en
+   esta hoja). Aquí sólo se declaran los tres del contrato de modo. */
+body.amb-energia {
+  --fv-chrome-visible: 1;
+  --fv-reader-size: 18px;
+  --fv-reader-leading: 1.6;
+}
+
+body.amb-noche {
+  --fv-background: #221f1c;
+  --fv-surface: #2b2724;
+  /* noche debe poseer TODAS las superficies: si subtle y accent conservan el
+     valor claro del theme, queda texto claro sobre fondo claro */
+  --fv-surface-subtle: #262320;
+  --fv-surface-accent: #2f2b27;
+  --fv-text: #f0ede6;
+  --fv-text-body: #dcd7ce;
+  --fv-muted: #b8b3aa;
+  --fv-rule: #3d3730;
+  --fv-error-bg: #3a2422;
+  --fv-error-border: #6b3a36;
+  --fv-error-text: #ffb4ab;
+  --fv-chrome-visible: 1;
+  --fv-reader-size: 19px;
+  --fv-reader-leading: 1.7;
+}
+
+/* Correcciones de contraste declaradas por theme para noche. */
+body.amb-noche {
+  --fv-surface-accent: #2f2a33;
+  --fv-action-ground: #a5c99e;
+  --fv-brand-ground: #c3baff;
+  --fv-focus-ring: #f7f5ff;
+  --fv-action-text: var(--con-sage-950);
+  --fv-action: var(--con-sage-300);
+  --fv-action-hover: var(--con-sage-400);
+  --fv-shadow-card: none;
+  --fv-shadow-quiet: none;
+  --fv-brand-soft: #332c46;
+  --fv-action-soft: #26301f;
+  --fv-eco-header-bg: #2f2a3a;
+  --fv-nav-active-bg: #332c46;
+  --fv-selected-bg: #332c46;
+  --fv-selected-border: #c3baff;
+}
+
+[data-theme="renaissance"] body.amb-noche,
+body.amb-noche[data-fv-theme="renaissance"] {
+  --fv-action-ground: #8fbe85;
+  --fv-brand-ground: #c0aedc;
+  --fv-focus-ring: #faf8f2;
+  --fv-brand-soft: #332b3d;
+  --fv-action-soft: #243021;
+  --fv-eco-header-bg: #332b3d;
+  --fv-nav-active-bg: #332b3d;
+  --fv-selected-bg: #332b3d;
+  --fv-selected-border: #c0aedc;
+  --fv-surface-accent: var(--fv-surface);
+  --fv-action: var(--ren-sage);
+  --fv-action-hover: #3a5e34;
+  --fv-action-text: #ffffff;
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   ADAPTADOR — los nombres que la aplicación ya usaba, apuntando a --fv-*
+   ════════════════════════════════════════════════════════════════════════════
+   Esto es lo que hace que el theme se vea en TODAS las superficies sin tocar
+   una sola pantalla: las utilidades de Tailwind y los `.css` de dashboard y
+   landing siguen leyendo `--color-*`, `--bg-*` y `--fg-*`, y esos nombres
+   pasan a resolver contra el theme activo.
+
+   Sólo se re-apunta bajo `[data-theme="renaissance"]`. Contemporary deja los
+   valores tal y como estaban: la apariencia por defecto no cambia de color, y
+   un fallo de este bloque no puede arrastrar al producto que ya funcionaba.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+[data-theme="renaissance"] {
+  --color-lavender-50: var(--ren-plum-soft);
+  --color-lavender-100: var(--ren-plum-soft);
+  --color-lavender-200: #ddd5e6;
+  --color-lavender-300: #c0aedc;
+  --color-lavender-400: #8d7aa6;
+  --color-lavender-500: var(--ren-plum);
+  --color-lavender-600: var(--ren-plum);
+  --color-lavender-700: var(--ren-plum-text);
+  --color-lavender-800: var(--ren-plum-text);
+  --color-lavender-900: var(--ren-ink);
+  --color-lavender-950: var(--ren-ink);
+
+  --color-sage-50: var(--ren-sage-soft);
+  --color-sage-100: var(--ren-sage-soft);
+  --color-sage-200: #d6e4d2;
+  --color-sage-300: #8fbe85;
+  --color-sage-400: #6a9a60;
+  --color-sage-500: var(--ren-sage);
+  --color-sage-600: var(--ren-sage);
+  --color-sage-700: var(--ren-sage-text);
+  --color-sage-800: var(--ren-sage-text);
+  --color-sage-900: #26411f;
+  --color-sage-950: #16250f;
+
+  --color-warm-50: var(--ren-paper);
+  --color-warm-100: #f4f1e9;
+  --color-warm-200: var(--ren-quiet);
+  --color-warm-300: var(--ren-quiet);
+  --color-warm-400: #a8a297;
+  --color-warm-500: var(--ren-muted);
+  --color-warm-600: var(--ren-muted);
+  --color-warm-700: var(--ren-body);
+  --color-warm-800: #3d3730;
+  --color-warm-900: var(--ren-ink);
+
+  --fg-strong: var(--fv-text);
+  --fg-heading: var(--fv-text);
+  --fg-body: var(--fv-text-body);
+  --fg-nav: var(--fv-muted);
+  --fg-muted: var(--fv-muted);
+  --fg-tertiary: var(--fv-muted);
+  --fg-on-brand: #ffffff;
+  --fg-link: var(--fv-brand-ground);
+  --fg-link-strong: var(--fv-brand-ground);
+
+  --bg-page: var(--fv-background);
+  --bg-surface: var(--fv-surface);
+  --bg-subtle: var(--fv-surface-subtle);
+  --bg-divider: var(--fv-rule);
+  --bg-brand: var(--fv-brand);
+  --bg-brand-soft: var(--fv-brand-soft);
+  --bg-brand-tint: var(--fv-brand-soft);
+  --bg-action: var(--fv-action);
+  --bg-action-hover: var(--fv-action-hover);
+  --bg-action-soft: var(--fv-action-soft);
+
+  --shadow-soft: var(--fv-shadow-quiet);
+  --shadow-card: var(--fv-shadow-card);
+  --shadow-card-sm: var(--fv-shadow-quiet);
+  --shadow-cover: var(--fv-shadow-cover);
+
+  --radius-sm: var(--fv-radius-control);
+  --radius-md: var(--fv-radius-control);
+  --radius-lg: var(--fv-radius-panel);
+  --radius-xl: var(--fv-radius-panel);
+  --radius-2xl: var(--fv-radius-panel);
+  --radius-3xl: var(--fv-radius-panel-lg);
+
+  --surface-glass-bg: rgb(250 248 242 / 0.9);
+
+  /* Renacimiento no usa degradados de marca: el fondo es papel y el contorno
+     es tinta. Se neutralizan en vez de dejarlos lavanda sobre papel. */
+  --gradient-hero: linear-gradient(
+    145deg,
+    var(--ren-paper) 0%,
+    var(--fv-surface) 70%
+  );
+  --gradient-cta: linear-gradient(
+    135deg,
+    var(--ren-plum) 0%,
+    var(--ren-plum-text) 100%
+  );
+  --gradient-cover-lavender: var(--fv-cover-fill);
+  --gradient-cover-sage: var(--fv-cover-fill);
+  --gradient-cover-mixed: var(--fv-cover-fill);
+  --gradient-upgrade-banner: linear-gradient(
+    135deg,
+    var(--ren-plum) 0%,
+    var(--ren-plum-text) 100%
+  );
+}
+
+/* Tipografía editorial: se aplica en los dos themes, porque es el acabado
+   aprobado y no una marca de Renacimiento. Los títulos que ya existen pasan a
+   la display del theme sin tocar una sola pantalla. */
+h1,
+h2,
+h3,
+.fv-display {
+  font-family: var(--fv-font-display);
+  font-weight: var(--fv-display-weight);
+  letter-spacing: var(--fv-display-tracking);
+  line-height: var(--fv-display-leading);
+}
+
+/* El lector conserva su propia medida y se sirve de la fuente de lectura. */
+[data-theme] .reader-prose,
+.reader-prose {
+  font-family: var(--fv-font-reader);
+}
+
+/* ── Marca en superficies que no son React ────────────────────────────────
+   La landing se monta como HTML, así que su lockup necesita las mismas reglas
+   que el componente aplica en línea. Una sola definición para los dos. */
+.fv-wm {
+  font-family: var(--font-source-serif), Georgia, serif;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+.fv-wm span {
+  letter-spacing: -0.045em;
+}
+/* El logo es plano y de una tinta: el `stroke` de los iconos del prototipo lo
+   engordaría, porque esta marca se dibuja con relleno. */
+.fv-open-verse {
+  fill: currentColor;
+  stroke: none;
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   Acabado de componente — sobre las clases que la aplicación ya tiene
+   ════════════════════════════════════════════════════════════════════════════
+   El archivo de diseño trae su propio vocabulario (`.fv-panel`, `.fv-btn`,
+   `.fv-label`…), que es el del prototipo. Traerlo entero significaría dos
+   sistemas resolviendo lo mismo y reescribir el marcado de cada pantalla, que
+   es justo lo que este encargo excluye. Lo que se traslada es el ACABADO, y
+   se aplica a las clases y utilidades que ya existen.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* Foco visible, del theme. Antes dependía de cada componente; ahora hay una
+   regla y el anillo cambia con el theme igual que todo lo demás. */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--fv-focus-ring);
+  outline-offset: 2px;
+}
+
+/* Área táctil de los controles principales. 44 px es el objetivo interno de
+   comodidad; no es el mínimo de WCAG 2.2, que es 24 px. Se aplica con
+   `min-height` para no estirar iconos ni romper cajas que ya son mayores. */
+.btn,
+.btn-primary,
+.btn-secondary,
+button[type="submit"] {
+  min-height: var(--fv-target-min);
+}
+
+/* Las tarjetas del dashboard y de la landing toman geometría y sombra del
+   theme. En Renacimiento eso las deja con esquina corta, contorno de tinta y
+   sin elevación; en Contemporary quedan como estaban. */
+[data-theme="renaissance"] .card,
+[data-theme="renaissance"] .side,
+[data-theme="renaissance"] .metric,
+[data-theme="renaissance"] .panel,
+[data-theme="renaissance"] .fv-panel {
+  border-radius: var(--fv-radius-panel);
+  border: var(--fv-border-w) solid var(--fv-border-quiet);
+  box-shadow: var(--fv-shadow-card);
+}
+
+/* El filete interior del panel: el recurso arquitectónico del theme, y sólo
+   en el theme que lo declara. En Contemporary `--fv-fillet` es transparente,
+   así que la misma regla no dibuja nada. */
+[data-theme="renaissance"] .card {
+  outline: var(--fv-fillet);
+  outline-offset: -5px;
+}
+
+/* Etiquetas y antetítulos: versalitas con tracking en Renacimiento, como
+   estaban en Contemporary. Son las clases que el dashboard ya usaba. */
+.eyebrow,
+.label,
+.tb-label,
+.sec-label {
+  font-family: var(--fv-font-label);
+  font-weight: var(--fv-label-weight);
+  letter-spacing: var(--fv-label-tracking);
+  text-transform: var(--fv-label-transform);
+}
+
+/* El emoji decorativo desaparece en un theme que no lo usa; el significado no
+   puede vivir sólo ahí, así que esto es presentación y nada más. */
+[data-theme="renaissance"] .decor-emoji {
+  display: var(--fv-emoji-display);
+}

@@ -16,7 +16,7 @@ const FALLBACK: OnboardingIntro = {
   title: "Empecemos.",
   subtitle: "Antes de leer, queremos conocerte un poco.",
   body: "Son cuatro pasos breves: tres preguntas cortas para entender qué te trae aquí y cómo te sientes hoy, y al final tu recomendación de por dónde empezar a leer. Si prefieres saltar este paso, puedes hacerlo y explorar a tu ritmo.",
-  signature: "— Psico Platform",
+  signature: "— FeelVerse",
   avatarUrl: null,
 };
 

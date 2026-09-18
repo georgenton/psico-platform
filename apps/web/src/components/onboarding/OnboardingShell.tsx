@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+
+import { FeelVerseLockup } from "@/components/brand/FeelVerse";
 import type { ReactNode } from "react";
 
 /**
@@ -26,13 +28,8 @@ export function OnboardingShell({
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-2xl flex-col px-5 pb-10 pt-8 sm:pt-12">
       <header className="mb-8 flex items-center justify-between">
-        <Link
-          href="/dashboard"
-          className="text-[12px] font-semibold"
-          style={{ color: "var(--color-lavender-700)" }}
-          aria-label="Saltar al dashboard"
-        >
-          Psico Platform
+        <Link href="/dashboard" aria-label="Saltar al dashboard">
+          <FeelVerseLockup size={13} />
         </Link>
         <div className="flex items-center gap-3">
           <div

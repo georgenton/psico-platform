@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { FeelVerseLockup } from "@/components/brand/FeelVerse";
+
 export const metadata: Metadata = {
   title: {
     default: "Acceso",
-    template: "%s | Psico Platform",
+    template: "%s | FeelVerse",
   },
 };
 
@@ -19,12 +21,8 @@ export default function AuthLayout({
       style={{ background: "var(--color-lavender-50)" }}
     >
       {/* Brand — Sprint H6 polish: tracking-tight for editorial feel */}
-      <Link
-        href="/"
-        className="mb-8 text-[26px] font-bold leading-none tracking-[-0.5px]"
-        style={{ color: "var(--color-lavender-700)" }}
-      >
-        Psico Platform
+      <Link href="/" className="mb-8" aria-label="FeelVerse">
+        <FeelVerseLockup size={26} />
       </Link>
 
       {/* Card */}

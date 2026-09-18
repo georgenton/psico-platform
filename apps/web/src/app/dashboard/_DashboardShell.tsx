@@ -12,6 +12,7 @@ import { DiaryKeyProvider } from "@/lib/crypto/diary-key-context";
 import { MoodChip } from "@/components/dashboard/shell/MoodChip";
 import { MoodCheckinProvider } from "@/components/dashboard/shell/mood-checkin-context";
 import { AmbiencePicker } from "@/components/dashboard/shell/AmbiencePicker";
+import { ThemePicker } from "@/components/dashboard/shell/ThemePicker";
 import { AmbientThemeApplier } from "@/components/dashboard/shell/AmbientThemeApplier";
 import {
   IconBell,
@@ -30,6 +31,7 @@ import {
 } from "@/components/dashboard/shell/icons";
 import { NavToggleIcon } from "@/components/dashboard/shell/NavToggleIcon";
 import { TourOverlay } from "./_TourOverlay";
+import { FeelVerseLockup } from "@/components/brand/FeelVerse";
 
 // ── Nav config ─────────────────────────────────────────────────────────────
 //
@@ -298,10 +300,7 @@ function Sidebar({
         className="side-mark"
         style={{ textDecoration: "none" }}
       >
-        <span className="mk">
-          <IconLogo size={19} />
-        </span>
-        Psico
+        <FeelVerseLockup size={17} />
       </Link>
 
       {NAV_ITEMS.map((item) => (
@@ -466,6 +465,7 @@ function Topbar({
       <div className="tb-spacer" />
       <MoodChip initialMood={initialMood} />
       <AmbiencePicker initialAmbient={initialAmbient} />
+      <ThemePicker />
       <Link
         href="/dashboard/notifications"
         className="tb-icon"

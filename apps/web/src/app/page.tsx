@@ -23,7 +23,7 @@ import { LandingClient } from "./_landing-client";
  */
 
 export const metadata: Metadata = {
-  title: "Psico — Te estás descubriendo",
+  title: "FeelVerse — Te estás descubriendo",
   description:
     "No es una app para sentirte mejor. Es una práctica para verte con claridad — y avanzar.",
 };

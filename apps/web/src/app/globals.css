@@ -986,12 +986,9 @@ button[type="submit"] {
 [data-theme="renaissance"] {
   --color-warm-400: var(--fv-muted);
 }
-/* Noche invierte la rampa: aquí el texto apagado tiene que ACLARARSE, no
-   oscurecerse. Es el mismo valor que la propia noche ya usa para `--fg-muted`,
-   así que no introduce un gris nuevo. */
-body.amb-noche {
-  --color-warm-400: var(--color-warm-500);
-}
+/* Cada ambiente tiñe su propia rampa y la define en `dashboard-design.css`,
+   que se carga DESPUÉS que esta hoja. Por eso su corrección vive allí, junto a
+   las rampas que corrige, y no aquí donde perdería por orden. */
 
 /* ── 2 · El fondo lleno de marca ───────────────────────────────────────────
    `--gradient-cover-lavender` hace dos trabajos: es el relleno de las fichas

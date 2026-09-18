@@ -789,3 +789,22 @@
   body.amb-noche .mood.on.ok { background: var(--color-warm-200); }
   body.amb-noche .mood.on.ok .face, body.amb-noche .mood.on.ok span { color: var(--color-warm-800); }
 
+
+  /* ══════════ Texto apagado · contraste por ambiente ══════════
+     `--color-warm-400` es, en estas hojas, exclusivamente color de TEXTO: sus
+     47 usos son todos `color:`. Con el valor de cada ambiente, ese texto
+     informativo —«Recursos», «Generado por Eco», «2 min»— queda por debajo de
+     AA: 2.81:1 en Enfoque y 2.44:1 en Energía, medidos sobre el despliegue.
+
+     No es contenido decorativo ni un control deshabilitado: es información que
+     hay que poder leer. Y no se corrige aplastando la rampa desde fuera, que
+     es lo que rompió el intento anterior — cada ambiente tiene su tinte y en
+     Noche la rampa además está invertida.
+
+     Así que cada ambiente se corrige con UN ESCALÓN DE SU PROPIA RAMPA: el
+     primero que alcanza AA sobre sus superficies. Ningún color nuevo, ningún
+     tinte cambiado, y la jerarquía se mantiene porque estos rótulos siguen
+     siendo más pequeños y en versalitas. */
+  body.amb-enfoque { --color-warm-400: #69748a; } /* su warm-500 */
+  body.amb-energia { --color-warm-400: #8a5a31; } /* su warm-600 */
+  body.amb-noche   { --color-warm-400: #a8a1bd; } /* su warm-500, rampa invertida */

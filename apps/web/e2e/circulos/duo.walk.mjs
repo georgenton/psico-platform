@@ -3303,10 +3303,18 @@ async function reducedGroupKeepPrivate(browser) {
     await openPreview(page);
     await confirmShare(page);
 
-    // Esperar al COMMIT, no al clic. La lectura inmediata pasaba en local y
-    // fallaba bajo carga en CI: el envío se confirma en el servidor y la fila
-    // aparece un instante después, así que preguntarlo sin esperar mide la
-    // velocidad de la máquina y no el comportamiento.
+    // Esperar al COMMIT, no al clic.
+    //
+    // Que una ejecución saliera verde y otra roja no demuestra nada por sí
+    // solo. Lo que lo demuestra es la forma del código anterior: leía la fila
+    // inmediatamente después de un clic cuyo efecto se confirma en el
+    // servidor de forma asíncrona, sin ninguna espera entre medias. Eso no
+    // mide el comportamiento, mide lo rápida que es la máquina.
+    //
+    // Esto espera una CONDICIÓN OBSERVABLE —que el sobre confirmado exista—
+    // con un límite claro de 60 s. No es un sleep y no reintenta la acción:
+    // reintenta la pregunta. Si se agota, no lanza: se convierte en una
+    // comprobación roja que dice qué se observó.
     const sealedBefore = await until(
       () => {
         const n = sqlOne(

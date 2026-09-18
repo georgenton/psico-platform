@@ -973,18 +973,36 @@ button[type="submit"] {
    arreglar nada; lo que sí rompió aquella corrección fue `--fg-nav` y
    `--fg-muted` en Noche, que sí se leen.
 
-   Quien produce el fallo es `--color-warm-400`, y medido sobre el despliegue:
-   «Recursos», «Generado por Eco» y «2 min» a 2.54:1. De sus 47 usos en estas
-   hojas, TODOS son `color:` — en este producto ese escalón no es una rampa con
-   otro significado, es el color del texto apagado. Por eso se corrige aquí, en
-   una línea por apariencia, y no en cuarenta y cinco reglas.
+   Quienes producen el fallo son `--color-warm-400` y `--color-warm-500`. De
+   sus 525 usos en todo el producto —hojas y componentes— sólo tres no pintan
+   texto: una trama de radar, un borde punteado y un degradado de portada, y
+   los tres mejoran al oscurecer. En este producto esos dos escalones no son
+   una rampa de superficies con otro significado: son el color del texto
+   apagado y del secundario. Por eso se corrigen aquí, en una línea por
+   apariencia, y no en quinientas reglas.
+
+   Medido sobre el despliegue, con el valor base: «Busca un patrón…» a 3.00:1,
+   «Explora una ruta temática» a 3.16:1 y «A partir de tu actividad reciente» a
+   3.30:1. Son información que hay que poder leer, así que se corrige el color
+   —no se esconde el texto ni se rebaja a estado deshabilitado—.
+
+   Renacimiento ya lo hacía por su cuenta: define `--color-warm-500:
+   var(--ren-muted)`, el mismo valor que su warm-600, y por eso era la única
+   combinación clara que ya pasaba. Aquí se sigue ese mismo criterio ya
+   aprobado, sin inventar un color nuevo.
 
    Noche conserva su propia definición invertida, que es suya y significa otra
-   cosa: se corrige aparte y con su propio valor, no con el de las claras. */
+   cosa: ahí estos escalones son claros sobre fondo oscuro y ya alcanzan AA. */
 :root,
 [data-theme="contemporary"],
 [data-theme="renaissance"] {
   --color-warm-400: var(--fv-muted);
+}
+/* `--color-warm-500` se corrige sólo en Contemporary: Renacimiento ya lo tiene
+   apuntado a `--ren-muted`, y un `:root` aquí —misma especificidad, más abajo—
+   le ganaría a su propia definición y le cambiaría la tinta. */
+[data-theme="contemporary"] {
+  --color-warm-500: var(--fv-muted);
 }
 /* Cada ambiente tiñe su propia rampa y la define en `dashboard-design.css`,
    que se carga DESPUÉS que esta hoja. Por eso su corrección vive allí, junto a

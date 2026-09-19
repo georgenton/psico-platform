@@ -1279,3 +1279,59 @@ incluido el tema **Renacimiento humano** — se entrega aparte, con los estados
 reales de pantalla, en
 [`docs/design/feelverse-circulos-design-handoff.md`](../design/feelverse-circulos-design-handoff.md).
 El motor no debe rehacerse para acomodar una estética.
+
+---
+
+## Despliegue productivo de FeelVerse — 2026-09-19
+
+La entrega visual (PR #722) se integró en `main` como
+`40d2f9aea56e46ae9b698d684fcdd95a82adef67`, un merge commit cuyos padres son
+exactamente la base observada (`7db242fa`) y el HEAD aprobado (`413f8588`). El
+árbol resultante es idéntico al aprobado: no entró trabajo ajeno.
+
+### Qué se desplegó y qué NO
+
+| Servicio         | Estado                      | Versión                                         |
+| ---------------- | --------------------------- | ----------------------------------------------- |
+| Web (Vercel)     | desplegó                    | `dpl_3y6n3okk4SDfqaek4s8ieRraksJn` ← `40d2f9ae` |
+| API (Railway)    | **SKIPPED** por watch paths | sigue en `6ef58944` ← `d6ff9094` (#720)         |
+| Worker (Railway) | **SKIPPED** por watch paths | sigue en `a3de72be` ← `d6ff9094` (#720)         |
+
+El diff de #722 es exclusivamente `apps/web`, así que API y worker registraron
+el commit y lo saltaron — el mismo comportamiento que ya tuvo `7db242fa`. **No
+se forzó ningún redespliegue** para igualar SHAs: la Web corre el merge nuevo y
+API y worker siguen en la versión anterior, que ya contiene los motores de Dúo
+y Círculos.
+
+**Sin migraciones y sin seeds.** El diff no toca `prisma/`, ni esquema, ni
+semillas; no se ejecutó ninguna.
+
+### Configuración del piloto — sin cambios
+
+`CIRCLES_ROLLOUT_MODE=pilot`, `CIRCLES_GROUPS=on`, `CIRCLES_SHARED_DATA_KEY_V1`
+presente y **una sola cuenta** admitida, que sigue siendo el organizador
+productivo verificado. Railway no tenía cambios pendientes antes ni después.
+Esta entrega **no amplía el piloto** ni publica plantillas nuevas.
+
+### Verificación posterior
+
+`production-ready.mjs` → **19/19**, incluida la concordancia del secreto de
+atestación entre Web y API y la CSP con nonce por petición. Marca, ambos temas,
+persistencia por navegador, independencia entre theme y ambiente, navegación,
+salud de los tres servicios y `Mi Evolución` (200) comprobados sobre producción.
+
+### Lo que quedó pendiente y por qué
+
+Los **dos recorridos productivos** —un Dúo y un círculo reducido— **no se
+ejecutaron**. La lista de admitidos contiene exactamente al organizador
+productivo verificado, que es una cuenta real cuya contraseña no está en poder
+de la operación: el propio `production-ready.mjs` lo declara («it needs a
+person»). Las únicas alternativas serían usar esa contraseña o añadir una
+cuenta sintética a `CIRCLES_PILOT_USER_IDS`, y esto último sería ampliar el
+piloto. Quedan para la persona organizadora, con
+[`circulos-production-pilot-handover.md`](../../../.psico-ops/) como guion.
+
+### Punto de retorno
+
+Web `dpl_GVCU59PUEtNrygZMk9kxZe4gTw9o` (← `7db242fa`). API y worker no se
+movieron, así que no necesitan retorno.

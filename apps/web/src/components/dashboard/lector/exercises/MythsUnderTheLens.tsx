@@ -246,7 +246,7 @@ export function MythsUnderTheLens({
               )
             }
             className="rounded-full px-4 py-1.5 text-[12.5px] font-semibold text-white"
-            style={{ background: "var(--color-sage-400)" }}
+            style={{ background: "var(--bg-action)" }}
           >
             🪷 Guardarlo en mi diario
           </button>

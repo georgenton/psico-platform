@@ -205,7 +205,7 @@ export default function RegisterPage() {
           style={{
             background: isPending
               ? "var(--color-sage-300)"
-              : "var(--color-sage-400)",
+              : "var(--bg-action)",
           }}
         >
           {isPending ? "Creando cuenta…" : "Crear cuenta gratis"}

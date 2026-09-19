@@ -282,7 +282,7 @@ function EmptyState({ onNew }: { onNew: () => void }) {
         type="button"
         onClick={onNew}
         className="mt-6 rounded-2xl px-6 py-3 text-sm font-semibold text-white"
-        style={{ background: "var(--color-sage-400)" }}
+        style={{ background: "var(--bg-action)" }}
       >
         Empezar una conversación
       </button>

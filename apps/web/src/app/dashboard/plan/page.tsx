@@ -59,7 +59,7 @@ function UpgradeCard({
       {isFeatured && (
         <span
           className="absolute -top-3.5 left-1/2 -translate-x-1/2 rounded-full px-4 py-1 text-xs font-bold"
-          style={{ background: "var(--color-sage-400)", color: "white" }}
+          style={{ background: "var(--bg-action)", color: "white" }}
         >
           Más popular
         </span>

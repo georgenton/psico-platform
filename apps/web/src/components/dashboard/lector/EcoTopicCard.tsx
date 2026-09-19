@@ -85,7 +85,7 @@ export function EcoTopicCard({
           router.push("/dashboard/eco");
         }}
         className="mt-2.5 rounded-full px-3.5 py-1.5 text-[12.5px] font-semibold"
-        style={{ background: "var(--color-sage-400)", color: "white" }}
+        style={{ background: "var(--bg-action)", color: "white" }}
       >
         Explorar este tema →
       </button>

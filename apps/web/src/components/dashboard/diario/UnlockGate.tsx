@@ -178,7 +178,7 @@ export function UnlockGate({
           disabled={!seedText.trim()}
           onClick={handleSeedUnlock}
           className="mt-4 w-full rounded-xl px-5 py-3 text-[14px] font-semibold text-white disabled:opacity-50"
-          style={{ background: "var(--color-sage-400)" }}
+          style={{ background: "var(--bg-action)" }}
         >
           Recuperar acceso
         </button>
@@ -301,7 +301,7 @@ export function UnlockGate({
         type="submit"
         disabled={unlocking || !password}
         className="mt-4 w-full rounded-xl px-5 py-3 text-[14px] font-semibold text-white disabled:opacity-50"
-        style={{ background: "var(--color-sage-400)" }}
+        style={{ background: "var(--bg-action)" }}
       >
         {unlocking ? "Derivando clave…" : "Desbloquear"}
       </button>

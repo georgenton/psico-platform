@@ -236,7 +236,7 @@ export function SeedPhraseModal({
               disabled={!saved || submitting}
               onClick={handleContinue}
               className="rounded-xl px-5 py-2.5 text-[14px] font-semibold text-white disabled:opacity-50"
-              style={{ background: "var(--color-sage-400)" }}
+              style={{ background: "var(--bg-action)" }}
             >
               {submitting ? "Guardando…" : "Continuar"}
             </button>

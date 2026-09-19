@@ -36,7 +36,7 @@ export function ThreadRail({
         type="button"
         onClick={onNew}
         className="mb-3 w-full rounded-2xl px-4 py-3 text-left text-sm font-semibold text-white transition-opacity hover:opacity-90"
-        style={{ background: "var(--color-sage-400)" }}
+        style={{ background: "var(--bg-action)" }}
       >
         + Nueva conversación
       </button>

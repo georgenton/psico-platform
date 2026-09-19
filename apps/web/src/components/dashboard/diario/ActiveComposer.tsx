@@ -284,7 +284,7 @@ export function ActiveComposer({
           onClick={handleSubmit}
           disabled={submitting || !text.trim()}
           className="inline-flex items-center gap-1.5 rounded-xl px-5 py-3 text-[13px] font-semibold text-white disabled:opacity-50"
-          style={{ background: "var(--color-sage-400)" }}
+          style={{ background: "var(--bg-action)" }}
         >
           {submitting ? "Cifrando…" : "✎ Guardar entrada"}
         </button>

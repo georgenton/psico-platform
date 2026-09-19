@@ -547,7 +547,7 @@ export function ChatArea({
                     disabled={offerState === "saving"}
                     onClick={() => void confirmOffer()}
                     className="rounded-lg px-3 py-1.5 text-[12px] font-bold text-white"
-                    style={{ background: "var(--color-lavender-500)" }}
+                    style={{ background: "var(--bg-brand-strong)" }}
                   >
                     {offerState === "saving" ? "…" : "🌱 Añadir"}
                   </button>
@@ -895,7 +895,13 @@ function Composer({
           onClick={onSend}
           disabled={streaming || !text.trim()}
           className="rounded-xl px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-          style={{ background: "var(--color-sage-400)" }}
+          // `--bg-action` en lugar de sage-400: es el token que esta base ya
+          // creó para justo esto («AA contrast bump from 400 → 600»). Medido
+          // habilitado —que es cuando se puede pulsar—, el blanco sobre
+          // sage-400 daba 2.05–3.28:1 en las ocho combinaciones; con este
+          // token da 4.88–5.24:1 y no se invierte en Noche. Sólo cambia la
+          // pareja de colores: mismo tamaño, mismo peso, misma etiqueta.
+          style={{ background: "var(--bg-action)" }}
         >
           {streaming ? "…" : "Enviar"}
         </button>

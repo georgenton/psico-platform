@@ -3303,10 +3303,29 @@ async function reducedGroupKeepPrivate(browser) {
     await openPreview(page);
     await confirmShare(page);
 
-    const sealedBefore = sqlOne(
-      `SELECT count(*) FROM "CircleActivityParticipant"
-        WHERE "activityId"='${activityId}' AND "ciphertext" IS NOT NULL`,
-    ).trim();
+    // Esperar al COMMIT, no al clic.
+    //
+    // Que una ejecución saliera verde y otra roja no demuestra nada por sí
+    // solo. Lo que lo demuestra es la forma del código anterior: leía la fila
+    // inmediatamente después de un clic cuyo efecto se confirma en el
+    // servidor de forma asíncrona, sin ninguna espera entre medias. Eso no
+    // mide el comportamiento, mide lo rápida que es la máquina.
+    //
+    // Esto espera una CONDICIÓN OBSERVABLE —que el sobre confirmado exista—
+    // con un límite claro de 60 s. No es un sleep y no reintenta la acción:
+    // reintenta la pregunta. Si se agota, no lanza: se convierte en una
+    // comprobación roja que dice qué se observó.
+    const sealedBefore = await until(
+      () => {
+        const n = sqlOne(
+          `SELECT count(*) FROM "CircleActivityParticipant"
+            WHERE "activityId"='${activityId}' AND "ciphertext" IS NOT NULL`,
+        ).trim();
+        return n === "1" ? n : null;
+      },
+      "the organiser's confirmed envelope to be stored",
+      60_000,
+    ).catch(() => "not stored");
     check(
       sealedBefore === "1",
       `one confirmed envelope is waiting (${sealedBefore})`,

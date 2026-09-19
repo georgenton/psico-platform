@@ -36,7 +36,7 @@ export function ThreadRail({
         type="button"
         onClick={onNew}
         className="mb-3 w-full rounded-2xl px-4 py-3 text-left text-sm font-semibold text-white transition-opacity hover:opacity-90"
-        style={{ background: "var(--color-sage-400)" }}
+        style={{ background: "var(--bg-action)" }}
       >
         + Nueva conversación
       </button>
@@ -116,7 +116,10 @@ function ThreadRow({
         >
           {title}
         </p>
-        <p className="text-[11px]" style={{ color: "var(--color-warm-400)" }}>
+        {/* El escalón de texto secundario, no el apagado: esta línea vive
+            sobre el panel teñido del hilo activo, donde warm-400 se quedaba en
+            3.86:1 en Noche. */}
+        <p className="text-[11px]" style={{ color: "var(--color-warm-500)" }}>
           {item.messageCount} {item.messageCount === 1 ? "mensaje" : "mensajes"}
         </p>
       </button>

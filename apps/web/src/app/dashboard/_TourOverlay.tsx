@@ -242,7 +242,7 @@ export function TourOverlay() {
                 type="button"
                 onClick={() => setStepIdx((i) => i + 1)}
                 className="rounded-xl px-3.5 py-1.5 text-[12px] font-semibold text-white"
-                style={{ background: "var(--color-lavender-500)" }}
+                style={{ background: "var(--bg-brand-strong)" }}
               >
                 Siguiente
               </button>
@@ -251,7 +251,7 @@ export function TourOverlay() {
                 type="button"
                 onClick={() => void close(true)}
                 className="rounded-xl px-3.5 py-1.5 text-[12px] font-semibold text-white"
-                style={{ background: "var(--color-lavender-500)" }}
+                style={{ background: "var(--bg-brand-strong)" }}
               >
                 Terminar
               </button>

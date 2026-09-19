@@ -191,7 +191,7 @@ export default async function BookDetailPage({ params }: { params: Params }) {
             <Link
               href="/dashboard/plan"
               className="mt-4 inline-flex items-center gap-1.5 rounded-xl px-5 py-3 text-[13px] font-semibold text-white"
-              style={{ background: "var(--color-sage-400)" }}
+              style={{ background: "var(--bg-action)" }}
             >
               Hazte Pro →
             </Link>

@@ -132,10 +132,7 @@ function SessionRow({
           >
             {session.therapist.name}
           </p>
-          <p
-            className="text-[12px]"
-            style={{ color: "var(--color-warm-700)" }}
-          >
+          <p className="text-[12px]" style={{ color: "var(--color-warm-700)" }}>
             {date.toLocaleString("es-419", {
               dateStyle: "medium",
               timeStyle: "short",
@@ -143,7 +140,10 @@ function SessionRow({
             · {session.durationMin} min
           </p>
         </div>
-        <StatusBadge status={session.status} paymentStatus={session.paymentStatus} />
+        <StatusBadge
+          status={session.status}
+          paymentStatus={session.paymentStatus}
+        />
       </div>
       <div className="mt-3 flex gap-2">
         {kind === "upcoming" ? (
@@ -221,7 +221,7 @@ function StatusBadge({
       {paymentStatus === "PENDING" ? (
         <span
           className="text-[10px] font-medium"
-          style={{ color: "var(--color-rose-600)" }}
+          style={{ color: "var(--color-rose-700)" }}
         >
           Pago pendiente
         </span>

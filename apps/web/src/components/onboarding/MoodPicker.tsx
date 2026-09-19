@@ -130,7 +130,7 @@ export function MoodPicker({ moods }: { moods: OnboardingMood[] }) {
           onClick={submit}
           disabled={submitting || !selected}
           className="inline-flex items-center justify-center rounded-2xl px-6 py-3 text-[14px] font-semibold text-white disabled:opacity-50"
-          style={{ background: "var(--color-lavender-500)" }}
+          style={{ background: "var(--bg-brand-strong)" }}
         >
           {submitting ? "Guardando…" : "Siguiente →"}
         </button>

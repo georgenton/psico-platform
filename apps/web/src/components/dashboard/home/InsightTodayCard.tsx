@@ -77,7 +77,7 @@ export function InsightTodayCard({
           href={insight.ctaHref}
           className="mt-4 inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition-colors"
           style={{
-            background: "var(--color-lavender-500)",
+            background: "var(--bg-brand-strong)",
             borderColor: "var(--color-lavender-500)",
             color: "white",
           }}

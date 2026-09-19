@@ -73,11 +73,7 @@ export function RoleSelector({
           style={{ borderColor: "var(--color-warm-200)" }}
         >
           {ROLES.map((r) => (
-            <option
-              key={r}
-              value={r}
-              disabled={isSelf && r !== "ADMIN"}
-            >
+            <option key={r} value={r} disabled={isSelf && r !== "ADMIN"}>
               {r}
               {isSelf && r !== "ADMIN" ? " — bloqueado (eres tú)" : ""}
             </option>
@@ -130,7 +126,7 @@ export function RoleSelector({
             onClick={submit}
             className="rounded-full px-3 py-1.5 text-[12px] font-semibold disabled:opacity-50"
             style={{
-              background: "var(--color-lavender-500)",
+              background: "var(--bg-brand-strong)",
               color: "white",
             }}
           >

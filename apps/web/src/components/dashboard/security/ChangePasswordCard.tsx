@@ -343,7 +343,7 @@ export function ChangePasswordCard({
             onClick={() => void handleSubmit()}
             disabled={busy}
             className="w-full rounded-xl px-5 py-3 text-[14px] font-semibold text-white disabled:opacity-50"
-            style={{ background: "var(--color-sage-400)" }}
+            style={{ background: "var(--bg-action)" }}
           >
             {busy ? "Procesando…" : "Cambiar contraseña"}
           </button>

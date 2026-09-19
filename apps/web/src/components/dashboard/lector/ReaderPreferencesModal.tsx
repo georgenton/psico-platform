@@ -100,7 +100,7 @@ export function ReaderPreferencesModal({
                   style={
                     active
                       ? {
-                          background: "var(--color-lavender-500)",
+                          background: "var(--bg-brand-strong)",
                           color: "white",
                           borderColor: "var(--color-lavender-500)",
                         }

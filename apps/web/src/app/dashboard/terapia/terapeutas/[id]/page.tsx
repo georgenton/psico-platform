@@ -1,9 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import type {
-  TherapistDetail,
-  TherapistReviewsResponse,
-} from "@psico/types";
+import type { TherapistDetail, TherapistReviewsResponse } from "@psico/types";
 import { isNextThrow, serverFetch } from "@/lib/api.server";
 import { FavoriteButton } from "@/components/dashboard/terapia/FavoriteButton";
 
@@ -117,7 +114,8 @@ export default async function TherapistDetailPage({
                 color: "var(--color-warm-700)",
               }}
             >
-              ⭐ {therapist.avgRating.toFixed(1)} ({therapist.reviewsCount} reseñas)
+              ⭐ {therapist.avgRating.toFixed(1)} ({therapist.reviewsCount}{" "}
+              reseñas)
             </span>
             <span style={{ color: "var(--color-warm-700)" }}>
               ${therapist.priceUsd.toFixed(0)} {therapist.currency} / sesión
@@ -158,7 +156,7 @@ export default async function TherapistDetailPage({
             <Link
               href={`/dashboard/terapia/reservar/${therapist.id}`}
               className="rounded-xl px-4 py-2 text-[13px] font-medium text-white"
-              style={{ background: "var(--color-lavender-600)" }}
+              style={{ background: "var(--bg-brand-strong)" }}
             >
               Reservar primera sesión
             </Link>

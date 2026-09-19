@@ -25,7 +25,7 @@ import { estilos as S } from "@/components/circulos/estilos";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Círculos | FeelVerse",
+  title: "Círculos",
   robots: { index: false, follow: false },
 };
 

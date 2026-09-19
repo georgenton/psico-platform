@@ -220,7 +220,7 @@ export function SessionDetailShell({
               onClick={handleRetry}
               disabled={pending}
               className="rounded-xl px-4 py-2 text-[13px] font-medium text-white"
-              style={{ background: "var(--color-lavender-600)" }}
+              style={{ background: "var(--bg-brand-strong)" }}
             >
               Pagar ahora
             </button>
@@ -276,7 +276,7 @@ export function SessionDetailShell({
               onClick={() => setFeedbackOpen(true)}
               disabled={pending}
               className="rounded-xl px-4 py-2 text-[13px] font-medium text-white"
-              style={{ background: "var(--color-lavender-600)" }}
+              style={{ background: "var(--bg-brand-strong)" }}
             >
               Cerrar y dejar feedback →
             </button>

@@ -21,8 +21,8 @@ export function AchievementsGrid({
             color: "var(--color-warm-500)",
           }}
         >
-          Empezá a usar Psico — leer un capítulo, escribir en el diario, charlar
-          con Eco — y mostraremos acá tus logros.
+          Empezá a usar FeelVerse — leer un capítulo, escribir en el diario,
+          charlar con Eco — y mostraremos acá tus logros.
         </p>
       </section>
     );

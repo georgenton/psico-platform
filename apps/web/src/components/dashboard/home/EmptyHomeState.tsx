@@ -35,7 +35,7 @@ export function EmptyHomeState({ firstName }: { firstName: string }) {
         <Link
           href="/dashboard/biblioteca"
           className="inline-flex items-center gap-1.5 rounded-xl px-5 py-3 text-[13px] font-semibold text-white"
-          style={{ background: "var(--color-sage-400)" }}
+          style={{ background: "var(--bg-action)" }}
         >
           📚 Explorar biblioteca
         </Link>

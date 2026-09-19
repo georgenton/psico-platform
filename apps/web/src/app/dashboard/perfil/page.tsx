@@ -46,7 +46,7 @@ export default async function PerfilPage() {
           {loadError ? (
             <p
               className="mt-2 font-mono text-[12px]"
-              style={{ color: "var(--color-rose-600)" }}
+              style={{ color: "var(--color-rose-700)" }}
             >
               {loadError}
             </p>

@@ -30,7 +30,11 @@ export function ProfileHeader({ me }: { me: UserMeResponse }) {
       style={{ borderColor: "var(--color-warm-200)" }}
     >
       <div
-        className="flex h-16 w-16 items-center justify-center rounded-full text-xl font-semibold text-white"
+        // Negrita, no semi: a 20 px el monograma pasa a contar como texto
+        // grande, cuyo umbral es 3:1, y el blanco sobre el acento lo cumple en
+        // los cuatro ambientes (3.24:1 el peor, Energía). Con semibold medía
+        // 3.63:1 contra un umbral de 4.5:1.
+        className="flex h-16 w-16 items-center justify-center rounded-full text-xl font-bold text-white"
         style={{ background: "var(--color-lavender-500)" }}
         aria-hidden
       >

@@ -48,8 +48,12 @@
     border-radius: 14px; padding: 15px 28px; border: 0; white-space: nowrap;
     transition: background-color .16s var(--easing-default), transform .16s var(--easing-default), box-shadow .16s var(--easing-default), border-color .16s var(--easing-default), color .16s var(--easing-default);
   }
-  .btn.primary { background: var(--color-sage-400); color: #fff; box-shadow: 0 8px 22px rgba(94,146,84,.30); }
-  .btn.primary:hover { background: var(--color-sage-500); transform: translateY(-2px); box-shadow: 0 12px 28px rgba(94,146,84,.34); }
+  /* El relleno de acción usa el token semántico, no sage-400: blanco sobre
+     sage-400 mide 2.56:1 y esta llamada a la acción es la más visible del
+     producto. La landing no cambia de tema ni de ambiente, así que aquí
+     `--bg-action` es siempre el mismo verde. */
+  .btn.primary { background: var(--bg-action); color: #fff; box-shadow: 0 8px 22px rgba(94,146,84,.30); }
+  .btn.primary:hover { background: var(--bg-action-hover); transform: translateY(-2px); box-shadow: 0 12px 28px rgba(94,146,84,.34); }
   .btn.outline { background: #fff; color: var(--color-lavender-600); border: 1.5px solid var(--color-lavender-300); }
   .btn.outline:hover { background: var(--color-lavender-50); border-color: var(--color-lavender-400); }
   .btn.white { background: #fff; color: var(--color-lavender-700); }
@@ -345,8 +349,8 @@
   .grid-price { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; align-items: start; }
   @media (max-width: 920px) { .grid-price { grid-template-columns: 1fr; max-width: 440px; margin: 0 auto; } }
   .plan { background: #fff; border: 1.5px solid var(--color-warm-200); border-radius: 26px; padding: 32px; box-shadow: var(--shadow-card); position: relative; display: flex; flex-direction: column; }
-  .plan.featured { background: var(--color-lavender-500); border: 0; box-shadow: var(--shadow-soft); }
-  .plan-pop { position: absolute; top: -13px; left: 50%; transform: translateX(-50%); background: var(--color-sage-400); color: #fff; border-radius: 9999px; padding: 6px 16px; font: 700 11px/1 var(--font-sans); white-space: nowrap; }
+  .plan.featured { background: var(--bg-brand-strong); border: 0; box-shadow: var(--shadow-soft); }
+  .plan-pop { position: absolute; top: -13px; left: 50%; transform: translateX(-50%); background: var(--bg-action); color: #fff; border-radius: 9999px; padding: 6px 16px; font: 700 11px/1 var(--font-sans); white-space: nowrap; }
   .plan-name { font: 700 17px/1 var(--font-sans); margin-bottom: 14px; }
   .plan-price { display: flex; align-items: baseline; gap: 6px; margin-bottom: 8px; }
   .plan-price b { font: 800 42px/1 var(--font-sans); letter-spacing: -0.03em; }
@@ -407,3 +411,25 @@
   [data-js] .reveal.d2 { transition-delay: .16s; }
   [data-js] .reveal.d3 { transition-delay: .24s; }
   @media (prefers-reduced-motion: reduce) { [data-js] .reveal { opacity: 1 !important; transform: none !important; } }
+
+  /* ── Acabado FeelVerse ────────────────────────────────────────────────────
+     Los titulares de la landing se declaran con la abreviatura `font:`, que
+     fija la familia dentro del mismo valor y por eso nunca recibía la display
+     del theme. Aquí se le devuelve: la familia, el peso y el tracking salen de
+     `--fv-*`, y el TAMAÑO se queda como estaba, que es lo que sostiene la
+     composición. Ninguna sección, texto ni enlace cambia. */
+  .psico-landing h1,
+  .psico-landing h2,
+  .psico-landing h3,
+  .psico-landing h4 {
+    font-family: var(--fv-font-display);
+    font-weight: var(--fv-display-weight);
+    letter-spacing: var(--fv-display-tracking);
+  }
+  /* El wordmark conserva su propia serif y su propio peso: la marca no cambia
+     de tipografía con el theme — eso serían dos wordmarks. */
+  .psico-landing .wordmark {
+    font-family: var(--font-source-serif), Georgia, serif;
+    font-weight: 600;
+    letter-spacing: -0.025em;
+  }

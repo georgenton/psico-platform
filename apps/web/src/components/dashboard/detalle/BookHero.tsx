@@ -275,7 +275,7 @@ export function BookHero({
             style={{
               background: isLocked
                 ? "var(--color-warm-900)"
-                : "var(--color-sage-400)",
+                : "var(--bg-action)",
             }}
           >
             {isLocked ? "🔒" : "▶"} {starting ? "Abriendo…" : ctaLabel}

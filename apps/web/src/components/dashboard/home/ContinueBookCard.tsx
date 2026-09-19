@@ -101,7 +101,7 @@ export function ContinueBookCard({ book }: { book: HomeContinueBook }) {
         // the chapter on screen, but it never decides where this link goes.
         href={readerChapterPath(book.bookSlug, book.readerRef)}
         className="inline-flex items-center gap-1.5 self-start rounded-xl px-5 py-3 text-[13px] font-semibold text-white transition-colors sm:self-center"
-        style={{ background: "var(--color-sage-400)" }}
+        style={{ background: "var(--bg-action)" }}
       >
         <svg
           width="13"

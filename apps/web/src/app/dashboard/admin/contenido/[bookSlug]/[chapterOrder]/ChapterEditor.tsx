@@ -507,7 +507,7 @@ export function ChapterEditor({
           onClick={save}
           disabled={saving || previewing}
           className="rounded-full px-5 py-2.5 text-[13.5px] font-semibold text-white disabled:opacity-60"
-          style={{ background: "var(--color-lavender-600)" }}
+          style={{ background: "var(--bg-brand-strong)" }}
         >
           {saving ? "Guardando…" : "Guardar borrador"}
         </button>

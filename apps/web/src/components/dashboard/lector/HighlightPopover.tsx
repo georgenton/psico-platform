@@ -77,7 +77,7 @@ export function HighlightPopover({
         type="button"
         onClick={onAnnotate}
         className="rounded-full px-3 py-1 text-[12px] font-semibold"
-        style={{ background: "var(--color-lavender-500)", color: "white" }}
+        style={{ background: "var(--bg-brand-strong)", color: "white" }}
       >
         ✎ Nota
       </button>
@@ -93,7 +93,7 @@ export function HighlightPopover({
         type="button"
         onClick={onAskEco}
         className="whitespace-nowrap rounded-full px-3 py-1 text-[12px] font-semibold"
-        style={{ background: "var(--color-sage-400)", color: "white" }}
+        style={{ background: "var(--bg-action)", color: "white" }}
       >
         🌿 Pregúntale a Eco
       </button>

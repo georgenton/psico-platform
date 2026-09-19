@@ -60,7 +60,7 @@ function UpgradeCard() {
       <Link
         href="/dashboard/plan"
         className="relative mt-3 inline-flex items-center gap-1.5 self-start rounded-[10px] px-3.5 py-2.5 text-[12.5px] font-semibold text-white"
-        style={{ background: "var(--color-sage-400)" }}
+        style={{ background: "var(--bg-action)" }}
       >
         Actualizar a Pro
         <svg

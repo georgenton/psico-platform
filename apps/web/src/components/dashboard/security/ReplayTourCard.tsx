@@ -72,7 +72,7 @@ export function ReplayTourCard() {
       {error ? (
         <p
           className="mt-2 text-[12px]"
-          style={{ color: "var(--color-rose-600)" }}
+          style={{ color: "var(--color-rose-700)" }}
           role="alert"
         >
           {error}

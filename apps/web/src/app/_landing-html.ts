@@ -16,8 +16,8 @@ export const LANDING_HTML = String.raw`
   <header class="nav">
     <div class="wrap nav-inner">
       <a href="/" class="wordmark">
-        <span class="mk"><svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4.5" opacity="0.65"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/></svg></span>
-        Psico
+        <span class="mk"><svg class="ic fv-open-verse" width="22" height="22" viewBox="0 0 48 48" fill="currentColor" aria-hidden="true"><path d="M21.5 35 L4 24.5 L4 12.5 L21.5 25 Z"/><path d="M26.5 35 L44 24.5 L44 12.5 L26.5 25 Z"/></svg></span>
+        <span class="fv-wm">Feel<span>V</span>erse</span>
       </a>
       <nav class="nav-links">
         <a href="#mapa">Mapa Emocional</a>
@@ -40,7 +40,7 @@ export const LANDING_HTML = String.raw`
         <div class="hero-copy">
           <span class="hero-badge"><span class="pulse"></span> Autoconocimiento impulsado por IA emocional</span>
           <h1>No estás leyendo.<br><span class="accent">Te estás descubriendo.</span></h1>
-          <p class="hero-lead">Psico transforma cada lectura, reflexión y conversación en un <b>mapa vivo de quién eres</b>. No una biblioteca — un sistema de transformación personal guiado por IA emocional.</p>
+          <p class="hero-lead">FeelVerse transforma cada lectura, reflexión y conversación en un <b>mapa vivo de quién eres</b>. No una biblioteca — un sistema de transformación personal guiado por IA emocional.</p>
           <div class="hero-actions">
             <a href="#planes" class="btn primary btn-lg">Comienza tu mapa →</a>
             <a href="#mapa" class="btn outline btn-lg">Ver cómo funciona</a>
@@ -143,7 +143,7 @@ export const LANDING_HTML = String.raw`
       <div class="sec-head reveal">
         <span class="kicker on-dark">El corazón del producto</span>
         <h2>Un mapa vivo de quién eres</h2>
-        <p>Cada cosa que haces en Psico alimenta una representación viva de tu mundo interior. No mides cuánto lees — descubres cuánto te comprendes.</p>
+        <p>Cada cosa que haces en FeelVerse alimenta una representación viva de tu mundo interior. No mides cuánto lees — descubres cuánto te comprendes.</p>
       </div>
       <div class="cosmos-grid">
         <div class="cosmos-radar reveal" id="cosmosRadar"></div>
@@ -498,7 +498,7 @@ export const LANDING_HTML = String.raw`
       <div class="faq-wrap">
         <details class="faq reveal">
           <summary>¿Entonces no es una app de libros? <svg class="ic chev" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></summary>
-          <div class="faq-a">No. Hay libros, sí — pero son el vehículo, no el destino. Psico es una plataforma de autoconocimiento: la lectura, tus reflexiones y la IA alimentan un Mapa Emocional que te ayuda a comprenderte mejor.</div>
+          <div class="faq-a">No. Hay libros, sí — pero son el vehículo, no el destino. FeelVerse es una plataforma de autoconocimiento: la lectura, tus reflexiones y la IA alimentan un Mapa Emocional que te ayuda a comprenderte mejor.</div>
         </details>
         <details class="faq reveal">
           <summary>¿Qué es exactamente el Mapa Emocional? <svg class="ic chev" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></summary>
@@ -539,8 +539,8 @@ export const LANDING_HTML = String.raw`
       <div class="foot-top">
         <div class="foot-brand">
           <a href="/" class="wordmark">
-            <span class="mk"><svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4.5" opacity="0.65"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/></svg></span>
-            Psico
+            <span class="mk"><svg class="ic fv-open-verse" width="22" height="22" viewBox="0 0 48 48" fill="currentColor" aria-hidden="true"><path d="M21.5 35 L4 24.5 L4 12.5 L21.5 25 Z"/><path d="M26.5 35 L44 24.5 L44 12.5 L26.5 25 Z"/></svg></span>
+            <span class="fv-wm">Feel<span>V</span>erse</span>
           </a>
           <p>Una plataforma de transformación personal basada en psicoeducación e inteligencia artificial emocional. Para Ecuador y LATAM.</p>
         </div>
@@ -565,7 +565,7 @@ export const LANDING_HTML = String.raw`
         </div>
       </div>
       <div class="foot-bottom">
-        <p>© 2026 Psico · Ecuador y LATAM</p>
+        <p>© 2026 FeelVerse · Ecuador y LATAM</p>
         <p>La lectura es la herramienta. La transformación es el producto.</p>
       </div>
     </div>

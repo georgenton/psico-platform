@@ -145,7 +145,7 @@ export function VozRecorder({
           type="button"
           onClick={() => router.push("/dashboard/plan")}
           className="mt-5 rounded-2xl px-5 py-2.5 text-sm font-semibold text-white"
-          style={{ background: "var(--color-sage-400)" }}
+          style={{ background: "var(--bg-action)" }}
         >
           Ver planes
         </button>
@@ -222,7 +222,7 @@ export function VozRecorder({
             onClick={handleUseTranscript}
             disabled={!transcript.trim()}
             className="rounded-2xl px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-            style={{ background: "var(--color-sage-400)" }}
+            style={{ background: "var(--bg-action)" }}
           >
             Usar este texto →
           </button>
@@ -301,7 +301,7 @@ function Idle({ onStart }: { onStart: () => void }) {
         onClick={onStart}
         className="mx-auto mt-7 flex h-24 w-24 items-center justify-center rounded-full text-white transition-transform hover:scale-105"
         style={{
-          background: "var(--color-sage-400)",
+          background: "var(--bg-action)",
           boxShadow: "var(--shadow-card)",
         }}
         aria-label="Empezar a grabar"
@@ -400,7 +400,7 @@ function Stopped({
           type="button"
           onClick={onTranscribe}
           className="rounded-2xl px-5 py-2.5 text-sm font-semibold text-white"
-          style={{ background: "var(--color-sage-400)" }}
+          style={{ background: "var(--bg-action)" }}
         >
           Transcribir
         </button>

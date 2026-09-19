@@ -1,10 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import type {
-  AuthorBookChapter,
-  AuthorChapterBlockDto,
-} from "@psico/types";
+import type { AuthorBookChapter, AuthorChapterBlockDto } from "@psico/types";
 import { updateChapterAction } from "../../actions";
 import { AiHelperModal } from "./AiHelperModal";
 import { AudioUpload } from "./AudioUpload";
@@ -127,7 +124,8 @@ export function ChapterEditor({
             color: "var(--color-warm-700)",
           }}
         >
-          El libro está en revisión o archivado. Los capítulos no pueden editarse.
+          El libro está en revisión o archivado. Los capítulos no pueden
+          editarse.
         </p>
       ) : null}
 
@@ -218,9 +216,7 @@ export function ChapterEditor({
                 </button>
                 <button
                   type="button"
-                  disabled={
-                    disabled || pending || idx === blocks.length - 1
-                  }
+                  disabled={disabled || pending || idx === blocks.length - 1}
                   onClick={() => moveBlock(idx, 1)}
                   className="rounded px-1.5 py-0.5 disabled:opacity-30"
                   title="Mover abajo"
@@ -279,10 +275,7 @@ export function ChapterEditor({
       </div>
 
       {error ? (
-        <p
-          className="text-[11.5px]"
-          style={{ color: "var(--color-rose-700)" }}
-        >
+        <p className="text-[11.5px]" style={{ color: "var(--color-rose-700)" }}>
           {error}
           {conflict ? (
             <a href="" className="ml-1 underline">
@@ -314,7 +307,7 @@ export function ChapterEditor({
             disabled={disabled || pending}
             className="rounded-full px-4 py-2 text-[12.5px] font-semibold transition disabled:opacity-50"
             style={{
-              background: "var(--color-lavender-500)",
+              background: "var(--bg-brand-strong)",
               color: "white",
             }}
           >

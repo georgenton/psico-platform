@@ -174,9 +174,7 @@ export function BreathingExercise({
         className="mt-6 rounded-full px-6 py-2.5 text-[13px] font-semibold"
         style={{
           background:
-            phase === "done"
-              ? "var(--color-sage-400)"
-              : "rgba(255,255,255,0.14)",
+            phase === "done" ? "var(--bg-action)" : "rgba(255,255,255,0.14)",
           color: "white",
         }}
       >

@@ -171,7 +171,7 @@ export function MediaUploadPanel({
           type="submit"
           disabled={busy || !ready}
           className="rounded-full px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-50"
-          style={{ background: "var(--color-lavender-600)" }}
+          style={{ background: "var(--bg-brand-strong)" }}
         >
           {busy ? "Subiendo…" : submitLabel}
         </button>

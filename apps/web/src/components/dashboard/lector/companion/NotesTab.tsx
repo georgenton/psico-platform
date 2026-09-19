@@ -101,7 +101,7 @@ export function NotesTab({
               type="submit"
               disabled={!composerText.trim()}
               className="rounded-xl px-4 py-1.5 text-[12px] font-semibold text-white disabled:opacity-50"
-              style={{ background: "var(--color-lavender-500)" }}
+              style={{ background: "var(--bg-brand-strong)" }}
             >
               Guardar
             </button>
@@ -157,7 +157,7 @@ export function NotesTab({
                     <button
                       type="submit"
                       className="rounded-xl px-3 py-1 text-[12px] font-semibold text-white"
-                      style={{ background: "var(--color-lavender-500)" }}
+                      style={{ background: "var(--bg-brand-strong)" }}
                     >
                       Guardar
                     </button>

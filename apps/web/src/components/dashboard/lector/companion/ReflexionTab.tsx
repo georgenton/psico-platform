@@ -332,7 +332,7 @@ export function ReflexionTab({
         onClick={handleSubmit}
         disabled={saving || !text.trim()}
         className="mt-3 w-full rounded-xl px-5 py-3 text-[13px] font-semibold text-white disabled:opacity-50"
-        style={{ background: "var(--color-sage-400)" }}
+        style={{ background: "var(--bg-action)" }}
       >
         {saving ? "Cifrando…" : "🪷 Guardar reflexión"}
       </button>

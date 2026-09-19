@@ -58,7 +58,7 @@ export default function VerifyEmailFlow() {
         <Link
           href="/login"
           className="rounded-xl py-2.5 px-4 text-sm font-medium text-white inline-block"
-          style={{ background: "var(--color-lavender-600)" }}
+          style={{ background: "var(--bg-brand-strong)" }}
         >
           Volver al login
         </Link>
@@ -97,7 +97,7 @@ export default function VerifyEmailFlow() {
         <Link
           href="/login"
           className="rounded-xl py-2.5 px-4 text-sm font-medium text-white inline-block"
-          style={{ background: "var(--color-lavender-600)" }}
+          style={{ background: "var(--bg-brand-strong)" }}
         >
           Ir al login
         </Link>
@@ -121,7 +121,7 @@ export default function VerifyEmailFlow() {
         <Link
           href="/login"
           className="rounded-xl py-2.5 px-4 text-sm font-medium text-white inline-block"
-          style={{ background: "var(--color-lavender-600)" }}
+          style={{ background: "var(--bg-brand-strong)" }}
         >
           Volver al login
         </Link>
@@ -145,7 +145,7 @@ export default function VerifyEmailFlow() {
         <Link
           href="/login"
           className="rounded-xl py-2.5 px-4 text-sm font-medium text-white inline-block"
-          style={{ background: "var(--color-lavender-600)" }}
+          style={{ background: "var(--bg-brand-strong)" }}
         >
           Volver al login
         </Link>
@@ -168,7 +168,7 @@ export default function VerifyEmailFlow() {
       <Link
         href="/login"
         className="rounded-xl py-2.5 px-4 text-sm font-medium text-white inline-block"
-        style={{ background: "var(--color-lavender-600)" }}
+        style={{ background: "var(--bg-brand-strong)" }}
       >
         Volver al login
       </Link>

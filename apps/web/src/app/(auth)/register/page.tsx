@@ -39,7 +39,7 @@ export default function RegisterPage() {
     <>
       <p
         className="mb-1 text-[11px] font-bold uppercase tracking-[0.6px]"
-        style={{ color: "var(--color-lavender-500)" }}
+        style={{ color: "var(--color-lavender-700)" }}
       >
         Tu primera respiración aquí
       </p>
@@ -205,7 +205,7 @@ export default function RegisterPage() {
           style={{
             background: isPending
               ? "var(--color-sage-300)"
-              : "var(--color-sage-400)",
+              : "var(--bg-action)",
           }}
         >
           {isPending ? "Creando cuenta…" : "Crear cuenta gratis"}

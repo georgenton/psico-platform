@@ -104,7 +104,7 @@ export function EmailChangeCard({ me }: { me: UserMeResponse }) {
           {error ? (
             <p
               className="text-[11px]"
-              style={{ color: "var(--color-rose-600)" }}
+              style={{ color: "var(--color-rose-700)" }}
               role="alert"
             >
               {error}
@@ -116,7 +116,7 @@ export function EmailChangeCard({ me }: { me: UserMeResponse }) {
               onClick={submit}
               disabled={pending}
               className="rounded-xl px-3 py-1.5 text-[12px] font-medium text-white disabled:opacity-50"
-              style={{ background: "var(--color-lavender-600)" }}
+              style={{ background: "var(--bg-brand-strong)" }}
               data-testid="email-change-submit"
             >
               {pending ? "Enviando..." : "Enviar verificación"}

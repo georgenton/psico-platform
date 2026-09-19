@@ -400,7 +400,7 @@ export function ChapterExperienceHome({
           data-testid="chapter-home-continue"
           onClick={onContinueReading}
           className="rounded-2xl px-6 py-3.5 text-[14.5px] font-semibold text-white"
-          style={{ background: "var(--color-sage-400)", minHeight: 44 }}
+          style={{ background: "var(--bg-action)", minHeight: 44 }}
         >
           Seguir leyendo
         </button>

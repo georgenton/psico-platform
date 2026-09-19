@@ -1,5 +1,118 @@
 # @psico/types
 
+## 0.11.0
+
+### Minor Changes
+
+- c7295cd: CC-7.R1 — Guide V1 server-owned pilot rollout gate. Adds
+  `GuideAvailabilityResponse` and the `GUIDE_UNAVAILABLE` error code to
+  `@psico/types`, and a `guideApi.getGuideAvailability()` client for the new
+  opaque `GET /api/guide/availability` endpoint.
+- 1205408: Círculos · adult groups of three to six, on the engine the Dúo already runs.
+
+  `@psico/types` gains the `GROUP_ADULT` audience, participant RANGES rather than
+  a single number (`circleAllowedSizes`, `circleSizeIsAllowed`), and the published
+  `grupo-lo-que-nos-ayuda@1` template. `CircleActivityView.revealed` carries every
+  other seat's snapshot under a stable positional label
+  (`CircleRevealedParticipant`); `revealed.counterpart` remains, and is present
+  only when there IS one other seat. `CircleInvitationPreview` gains
+  `participants`, so somebody deciding whether to accept is told how many people
+  will read what they write.
+
+  The API contract for creating an activity takes `invitationTokens` — one 256-bit
+  secret per seat that is not the organiser's — and an optional `size`. The
+  regenerated client follows.
+
+- 43c1423: Círculos publishes its first approved activity.
+
+  `PRODUCTION_CIRCLE_TEMPLATES` carried nothing while no copy had been approved.
+  It now carries exactly one template — «Lo que me ayuda cuando estoy así»,
+  `duo-lo-que-me-ayuda@1` — with its approved text, its six exclusion conditions
+  and its pin to `eec-c1-cuerpo-antes-que-mente@1`.
+
+  The validator, the participant rules and the privacy posture are unchanged: two
+  adults, `ALL_CONFIRMED` reveal, a way not to share, and a private gate that
+  `REINFORCED` makes mandatory.
+
+- 156fa55: Círculos gains three things and loses one blind spot.
+
+  `CircleActivityDefinition` grows four optional presentation fields —
+  `intro`, `topics`, and per-field `optional` and `help` — validated with limits
+  and rejecting extra keys. Definitions written before them stay valid unchanged.
+
+  `duo-lo-que-me-ayuda@2` is the published template: three questions instead of
+  two, the first asking for a situation rather than a feeling and optional, and
+  two pieces of prepared editorial help per question. `ecoMode` stays `NONE` —
+  static text is not a model with an opinion.
+
+  @1 moves to `ARCHIVED` in the same change rather than staying beside it.
+  Publishing a version is a succession: a link carries a key and no version, so
+  exactly one version of a key may be `PUBLISHED` at a time. Archiving withdraws
+  @1 from everything that offers a template while `getExact` keeps resolving it,
+  so the activities pinned to it keep the wording their participants agreed to.
+
+  `circles-feedback.ts` carries the closed vocabulary of the optional question
+  asked after an activity: seven topic keys, three usefulness answers, and the
+  versioned notice somebody agrees to. There is no free-text option anywhere in
+  it.
+
+  And `observability-redaction.ts` is one shared Sentry redactor for the API and
+  the Web's three runtimes, so the list of credential headers cannot drift
+  between four copies of it.
+
+- df0527a: CMS V1 (#637): chapter experience definitions can now live in the database.
+
+  `@psico/types` gains the back-office view shapes (`AdminChapterExperiences`,
+  `AdminExperienceRow`, `AdminExperienceDraft`); the generated client picks up the
+  ADMIN-only endpoints that create, save and publish them. The runtime read
+  contract is unchanged — `ChapterExperienceDefinition` is still exactly what the
+  Player consumes, which is why the editor can store it verbatim.
+
+- c07d1cf: Chapter illustrations get a shared contract. `imageBlockInfo` reads an IMAGE
+  block's metadata the same way in the web reader, the mobile reader and the
+  Content Studio preview, and refuses an image without alt text rather than
+  rendering one a screen reader cannot describe. The generated client gains the
+  two Content Studio upload endpoints — a book's catalog cover and a chapter's
+  illustration bytes.
+- b96cb9f: Experience Player V2 — the presentation contract (ADR 0021) and server-owned
+  session recovery.
+
+  Adds `ExperienceSceneKind` (twelve ordered panels) alongside the four
+  `GuideStepKind` values, which are unchanged. A scene may bind to at most one
+  pinned Guide step; six of the twelve kinds can never bind at all, so a summary
+  or an intro is structurally incapable of moving somebody's record.
+
+  Also adds `ChapterExperienceDefinition`, `ExperiencePin` and the
+  scene/step binding matrix as data.
+
+  Adds `RecoverableGuideSessionResponse` and
+  `guideApi.getRecoverableSession({ guideKey, guideVersion })` — the read that
+  lets a reader pick a journey back up on another device. The answer is derived
+  from the accepted-step ledger rather than from anything a client stored, and
+  "not recoverable" is one indistinguishable answer for every situation that
+  produces it, so the read cannot be used to learn about sessions that are not
+  the caller's.
+
+- 50752c5: Add the contextual Guide discovery response and its client method.
+
+  `GuideDiscoveryResponse` is a closed union: the unavailable arm carries no pin,
+  so a negative answer cannot be mined for a guide key. `getGuideDiscovery`
+  validates the slug and chapter order before building the route and never emits
+  a request for malformed input.
+
+  Additive: no existing Guide type or command changes.
+
+### Patch Changes
+
+- d232f06: Add the Parejas que perduran chapter concept to the shared catalog.
+
+  One curated entry (`pqp-c1-contacto-sostenido`) so the demo Guide's targets can
+  be materialized in an already-bootstrapped book. Keyed by platform chapter order
+  2 — the book's chapter 1 sits there because the ingest manifest gave order 1 to
+  the preface.
+
+  Additive: no existing key, label or shape changes.
+
 ## 0.10.0
 
 ### Minor Changes

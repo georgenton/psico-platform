@@ -125,7 +125,7 @@ function UpgradeCard({
             isFeatured
               ? {
                   background: "var(--bg-surface)",
-                  color: "var(--color-lavender-600)",
+                  color: "var(--color-lavender-700)",
                 }
               : {
                   background: "var(--color-lavender-100)",
@@ -281,7 +281,7 @@ export default async function PlanPage() {
               style={{ color: "var(--color-warm-700)" }}
             >
               Plan actual:{" "}
-              <span style={{ color: "var(--color-lavender-600)" }}>
+              <span style={{ color: "var(--color-lavender-700)" }}>
                 Gratuito
               </span>{" "}
               — acceso al libro introductorio.

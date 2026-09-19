@@ -123,9 +123,10 @@ export function VideoRoom({ sessionId, backHref }: Props) {
     })();
     return () => {
       cancelled = true;
-      const obj = callObjectRef.current as
-        | { leave?: () => Promise<unknown>; destroy?: () => void }
-        | null;
+      const obj = callObjectRef.current as {
+        leave?: () => Promise<unknown>;
+        destroy?: () => void;
+      } | null;
       if (obj) {
         obj.leave?.().catch(() => {});
         obj.destroy?.();
@@ -136,9 +137,10 @@ export function VideoRoom({ sessionId, backHref }: Props) {
 
   function handleLeave() {
     startTransition(() => {
-      const obj = callObjectRef.current as
-        | { leave?: () => Promise<unknown>; destroy?: () => void }
-        | null;
+      const obj = callObjectRef.current as {
+        leave?: () => Promise<unknown>;
+        destroy?: () => void;
+      } | null;
       if (obj) {
         obj.leave?.().catch(() => {});
         obj.destroy?.();
@@ -186,7 +188,8 @@ export function VideoRoom({ sessionId, backHref }: Props) {
         ref={containerRef}
         className="rounded-2xl bg-black"
         style={{
-          height: isStub || status === "error" || status === "ended" ? 0 : "70vh",
+          height:
+            isStub || status === "error" || status === "ended" ? 0 : "70vh",
           minHeight:
             isStub || status === "error" || status === "ended" ? 0 : "480px",
           overflow: "hidden",
@@ -233,9 +236,9 @@ export function VideoRoom({ sessionId, backHref }: Props) {
             className="mt-2 text-[13px] leading-relaxed"
             style={{ color: "var(--color-warm-700)" }}
           >
-            Estás en modo demo. El proveedor de video aún no está configurado
-            en producción. Cuando se conecte Daily.co, esta sala mostrará tu
-            cámara y la de tu terapeuta.
+            Estás en modo demo. El proveedor de video aún no está configurado en
+            producción. Cuando se conecte Daily.co, esta sala mostrará tu cámara
+            y la de tu terapeuta.
           </p>
           <p
             className="mt-3 text-[11px] font-mono"
@@ -247,7 +250,7 @@ export function VideoRoom({ sessionId, backHref }: Props) {
             type="button"
             onClick={handleFinish}
             className="mt-5 rounded-xl px-4 py-2 text-[13px] font-medium text-white"
-            style={{ background: "var(--color-lavender-600)" }}
+            style={{ background: "var(--bg-brand-strong)" }}
           >
             Terminar sesión demo
           </button>
@@ -275,7 +278,7 @@ export function VideoRoom({ sessionId, backHref }: Props) {
             type="button"
             onClick={handleFinish}
             className="mt-5 rounded-xl px-4 py-2 text-[13px] font-medium text-white"
-            style={{ background: "var(--color-lavender-600)" }}
+            style={{ background: "var(--bg-brand-strong)" }}
           >
             Ir al detalle →
           </button>

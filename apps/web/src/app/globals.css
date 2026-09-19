@@ -73,6 +73,18 @@
   --bg-subtle: var(--color-warm-100);
   --bg-divider: var(--color-warm-200);
   --bg-brand: var(--color-lavender-500);
+  /* El relleno de marca que SÍ lleva texto encima.
+     `--bg-brand` es lavender-500, y en Contemporary eso deja el blanco en
+     3.63:1. No se puede arreglar moviendo la rampa: lavender-500 también pinta
+     degradados, barras de progreso y trazos, y en Noche está invertida.
+     Así que se separa la función: cada apariencia declara AQUÍ el primer
+     escalón de SU PROPIA rampa que llega a AA con blanco, y quien no lo
+     necesita no cambia: Renacimiento conserva su ciruela exacta.
+
+     Sirve a dos funciones con la misma exigencia —el botón de marca, con texto
+     blanco, y el panel destacado, cuyo texto secundario va al 90 %—, así que el
+     escalón se elige por la más dura de las dos. */
+  --bg-brand-strong: var(--color-lavender-700); /* 6.96:1 blanco · 5.98:1 al 90 % */
   --bg-brand-soft: var(--color-lavender-100);
   --bg-brand-tint: var(--color-lavender-50);
   --bg-action: var(--color-sage-600); /* AA contrast bump from 400 → 600 */
@@ -279,6 +291,8 @@ body.amb-enfoque {
   --color-lavender-100: #dde7ff;
   --color-lavender-500: #5b6cf0;
   --color-lavender-600: #4554dc;
+  /* su lavender-600: 5.91:1 con blanco */
+  --bg-brand-strong: var(--color-lavender-600);
   --color-lavender-700: #3640b8;
   --bg-page: #fafbff;
   --bg-surface: #ffffff;
@@ -598,7 +612,10 @@ body.amb-noche .bg-white {
   --ren-paper: #faf8f2;
   --ren-ink: #2a2420;
   --ren-body: #574f45;
-  --ren-muted: #706b62;
+  /* Un punto más oscura que antes (#706b62): sobre los paneles teñidos de
+     Renacimiento —#ece7f2— aquel valor se quedaba en 4.35:1. Éste da
+     4.98:1 ahí y 6.05:1 sobre blanco, y conserva el gris cálido. */
+  --ren-muted: #67625a;
   --ren-plum: #625078;
   --ren-plum-soft: #ece7f2;
   --ren-plum-text: #3b3149;
@@ -817,6 +834,9 @@ body.amb-noche[data-fv-theme="renaissance"] {
   --bg-subtle: var(--fv-surface-subtle);
   --bg-divider: var(--fv-rule);
   --bg-brand: var(--fv-brand);
+  /* Renacimiento no necesita bajar ningún escalón: su ciruela ya mide 7.15:1
+     con blanco. Conserva su color exacto. */
+  --bg-brand-strong: var(--fv-brand);
   --bg-brand-soft: var(--fv-brand-soft);
   --bg-brand-tint: var(--fv-brand-soft);
   --bg-action: var(--fv-action);

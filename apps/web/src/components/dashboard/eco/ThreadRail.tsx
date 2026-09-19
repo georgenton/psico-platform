@@ -116,7 +116,10 @@ function ThreadRow({
         >
           {title}
         </p>
-        <p className="text-[11px]" style={{ color: "var(--color-warm-400)" }}>
+        {/* El escalón de texto secundario, no el apagado: esta línea vive
+            sobre el panel teñido del hilo activo, donde warm-400 se quedaba en
+            3.86:1 en Noche. */}
+        <p className="text-[11px]" style={{ color: "var(--color-warm-500)" }}>
           {item.messageCount} {item.messageCount === 1 ? "mensaje" : "mensajes"}
         </p>
       </button>

@@ -105,7 +105,7 @@ export function EditProfileCard({ me }: { me: UserMeResponse }) {
           onClick={save}
           disabled={!dirty || pending}
           className="rounded-xl px-4 py-2 text-[13px] font-medium text-white disabled:opacity-50"
-          style={{ background: "var(--color-lavender-600)" }}
+          style={{ background: "var(--bg-brand-strong)" }}
         >
           {pending ? "Guardando..." : "Guardar"}
         </button>

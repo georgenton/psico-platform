@@ -186,7 +186,7 @@ export function ReportMessageModal({
             onClick={submit}
             disabled={!reason || submitting}
             className="rounded-xl px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-50"
-            style={{ background: "var(--color-lavender-500)" }}
+            style={{ background: "var(--bg-brand-strong)" }}
           >
             {submitting ? "Enviando…" : "Enviar reporte"}
           </button>

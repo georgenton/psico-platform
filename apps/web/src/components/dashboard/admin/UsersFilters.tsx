@@ -45,14 +45,12 @@ export function UsersFilters({
           className="min-w-[260px] flex-1 rounded-full border-[1.5px] bg-white px-4 py-2 text-[13px] outline-none"
           style={{ borderColor: "var(--color-warm-200)" }}
         />
-        {role ? (
-          <input type="hidden" name="role" value={role} />
-        ) : null}
+        {role ? <input type="hidden" name="role" value={role} /> : null}
         <button
           type="submit"
           className="rounded-full px-4 py-2 text-[12.5px] font-semibold"
           style={{
-            background: "var(--color-lavender-500)",
+            background: "var(--bg-brand-strong)",
             color: "white",
           }}
         >

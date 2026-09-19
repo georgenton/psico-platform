@@ -69,9 +69,7 @@ export function StructureEditor({
   }
 
   function patch(idx: number, next: Partial<Row>) {
-    setRows((prev) =>
-      prev.map((r, i) => (i === idx ? { ...r, ...next } : r)),
-    );
+    setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, ...next } : r)));
   }
 
   function onSave() {
@@ -111,7 +109,8 @@ export function StructureEditor({
             color: "var(--color-warm-700)",
           }}
         >
-          El libro está en revisión o archivado. La estructura no puede editarse.
+          El libro está en revisión o archivado. La estructura no puede
+          editarse.
         </p>
       ) : null}
 
@@ -176,9 +175,7 @@ export function StructureEditor({
               </button>
               <button
                 type="button"
-                disabled={
-                  disabled || pending || idx === rows.length - 1
-                }
+                disabled={disabled || pending || idx === rows.length - 1}
                 onClick={() => move(idx, 1)}
                 className="rounded px-1.5 py-0.5 disabled:opacity-30"
                 title="Mover abajo"
@@ -214,10 +211,7 @@ export function StructureEditor({
       </button>
 
       {error ? (
-        <p
-          className="text-[11.5px]"
-          style={{ color: "var(--color-rose-700)" }}
-        >
+        <p className="text-[11.5px]" style={{ color: "var(--color-rose-700)" }}>
           {error}
         </p>
       ) : null}
@@ -237,7 +231,7 @@ export function StructureEditor({
           disabled={disabled || pending}
           className="rounded-full px-4 py-2 text-[12.5px] font-semibold transition disabled:opacity-50"
           style={{
-            background: "var(--color-lavender-500)",
+            background: "var(--bg-brand-strong)",
             color: "white",
           }}
         >

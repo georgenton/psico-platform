@@ -54,9 +54,7 @@ export function RescheduleModal({
         router.refresh();
         onClose();
       } catch (err) {
-        setError(
-          err instanceof Error ? err.message : "No pudimos re-agendar.",
-        );
+        setError(err instanceof Error ? err.message : "No pudimos re-agendar.");
       }
     });
   }
@@ -139,9 +137,7 @@ export function RescheduleModal({
                             ? "var(--color-lavender-600)"
                             : "var(--color-warm-50)",
                         color:
-                          slotIso === s.iso
-                            ? "white"
-                            : "var(--color-warm-700)",
+                          slotIso === s.iso ? "white" : "var(--color-warm-700)",
                       }}
                     >
                       {new Date(s.iso).toLocaleTimeString("es-419", {
@@ -171,7 +167,7 @@ export function RescheduleModal({
             onClick={handleSubmit}
             disabled={!slotIso || pending}
             className="rounded-xl px-4 py-2 text-[13px] font-medium text-white disabled:opacity-50"
-            style={{ background: "var(--color-lavender-600)" }}
+            style={{ background: "var(--bg-brand-strong)" }}
           >
             {pending ? "Guardando…" : "Confirmar cambio"}
           </button>

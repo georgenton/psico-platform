@@ -52,7 +52,7 @@ export function ReasonChips({
             style={
               isActive
                 ? {
-                    background: "var(--color-lavender-600)",
+                    background: "var(--bg-brand-strong)",
                     color: "white",
                     borderColor: "var(--color-lavender-600)",
                   }

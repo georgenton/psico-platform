@@ -349,7 +349,7 @@
   .grid-price { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; align-items: start; }
   @media (max-width: 920px) { .grid-price { grid-template-columns: 1fr; max-width: 440px; margin: 0 auto; } }
   .plan { background: #fff; border: 1.5px solid var(--color-warm-200); border-radius: 26px; padding: 32px; box-shadow: var(--shadow-card); position: relative; display: flex; flex-direction: column; }
-  .plan.featured { background: var(--color-lavender-500); border: 0; box-shadow: var(--shadow-soft); }
+  .plan.featured { background: var(--bg-brand-strong); border: 0; box-shadow: var(--shadow-soft); }
   .plan-pop { position: absolute; top: -13px; left: 50%; transform: translateX(-50%); background: var(--bg-action); color: #fff; border-radius: 9999px; padding: 6px 16px; font: 700 11px/1 var(--font-sans); white-space: nowrap; }
   .plan-name { font: 700 17px/1 var(--font-sans); margin-bottom: 14px; }
   .plan-price { display: flex; align-items: baseline; gap: 6px; margin-bottom: 8px; }

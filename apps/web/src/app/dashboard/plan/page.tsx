@@ -46,7 +46,10 @@ function UpgradeCard({
       style={
         isFeatured
           ? {
-              background: "var(--color-lavender-500)",
+              // El panel destacado lleva texto blanco y texto secundario
+              // translúcido encima. Sobre lavender-500 eso medía 2.74:1 y
+              // 3.26:1. Usa el relleno de marca que sí carga texto.
+              background: "var(--bg-brand-strong)",
               boxShadow: "var(--shadow-soft)",
             }
           : {
@@ -82,9 +85,7 @@ function UpgradeCard({
       <p
         className="mb-5 text-sm"
         style={{
-          color: isFeatured
-            ? "rgba(255,255,255,0.75)"
-            : "var(--color-warm-400)",
+          color: isFeatured ? "rgba(255,255,255,0.9)" : "var(--color-warm-400)",
         }}
       >
         {plan.description}

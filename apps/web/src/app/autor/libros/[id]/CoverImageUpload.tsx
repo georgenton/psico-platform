@@ -68,7 +68,9 @@ export function CoverImageUpload({
       onUploaded?.(data.coverArtUrl);
       setPhase("idle");
     } catch (e2) {
-      setError(e2 instanceof Error ? e2.message : "No pudimos subir la imagen.");
+      setError(
+        e2 instanceof Error ? e2.message : "No pudimos subir la imagen.",
+      );
       setPhase("error");
     } finally {
       if (e.target) e.target.value = "";
@@ -120,11 +122,15 @@ export function CoverImageUpload({
             onClick={() => inputRef.current?.click()}
             className="rounded-full px-3 py-1.5 text-[12px] font-semibold transition disabled:opacity-50"
             style={{
-              background: "var(--color-lavender-500)",
+              background: "var(--bg-brand-strong)",
               color: "white",
             }}
           >
-            {phase === "uploading" ? "Subiendo…" : url ? "Cambiar imagen" : "Subir imagen"}
+            {phase === "uploading"
+              ? "Subiendo…"
+              : url
+                ? "Cambiar imagen"
+                : "Subir imagen"}
           </button>
           <span
             className="text-[10.5px]"
@@ -135,10 +141,7 @@ export function CoverImageUpload({
         </div>
       </div>
       {error ? (
-        <p
-          className="text-[11.5px]"
-          style={{ color: "var(--color-rose-700)" }}
-        >
+        <p className="text-[11.5px]" style={{ color: "var(--color-rose-700)" }}>
           {error}
         </p>
       ) : null}

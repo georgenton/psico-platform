@@ -162,7 +162,7 @@ export function BookingFlow({ therapist }: { therapist: TherapistDetail }) {
               disabled={!modality}
               onClick={() => setStep(2)}
               className="rounded-xl px-4 py-2 text-[13px] font-medium text-white disabled:opacity-50"
-              style={{ background: "var(--color-lavender-600)" }}
+              style={{ background: "var(--bg-brand-strong)" }}
             >
               Continuar →
             </button>
@@ -263,7 +263,7 @@ export function BookingFlow({ therapist }: { therapist: TherapistDetail }) {
               disabled={!slotIso}
               onClick={() => setStep(3)}
               className="rounded-xl px-4 py-2 text-[13px] font-medium text-white disabled:opacity-50"
-              style={{ background: "var(--color-lavender-600)" }}
+              style={{ background: "var(--bg-brand-strong)" }}
             >
               Continuar →
             </button>

@@ -39,7 +39,7 @@ export function NewBookButton() {
         onClick={() => setOpen(true)}
         className="rounded-full px-4 py-2 text-[13px] font-semibold transition"
         style={{
-          background: "var(--color-lavender-500)",
+          background: "var(--bg-brand-strong)",
           color: "white",
         }}
       >
@@ -85,7 +85,7 @@ export function NewBookButton() {
         disabled={pending}
         className="rounded-full px-3 py-1.5 text-[12px] font-semibold disabled:opacity-50"
         style={{
-          background: "var(--color-lavender-500)",
+          background: "var(--bg-brand-strong)",
           color: "white",
         }}
       >

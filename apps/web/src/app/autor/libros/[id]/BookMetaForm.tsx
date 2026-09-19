@@ -74,8 +74,9 @@ export function BookMetaForm({
             color: "var(--color-warm-700)",
           }}
         >
-          El libro está {book.status === "IN_REVIEW" ? "en revisión" : "archivado"}.
-          La metadata no puede editarse.
+          El libro está{" "}
+          {book.status === "IN_REVIEW" ? "en revisión" : "archivado"}. La
+          metadata no puede editarse.
         </p>
       ) : null}
 
@@ -103,7 +104,9 @@ export function BookMetaForm({
         />
       </Field>
 
-      <Field label={`Resumen (${summary.length}/2000) · mínimo 50 para publicar`}>
+      <Field
+        label={`Resumen (${summary.length}/2000) · mínimo 50 para publicar`}
+      >
         <textarea
           value={summary}
           onChange={(e) => setSummary(e.target.value.slice(0, 2000))}
@@ -145,10 +148,7 @@ export function BookMetaForm({
       </Field>
 
       {error ? (
-        <p
-          className="text-[11.5px]"
-          style={{ color: "var(--color-rose-700)" }}
-        >
+        <p className="text-[11.5px]" style={{ color: "var(--color-rose-700)" }}>
           {error}
         </p>
       ) : null}
@@ -159,7 +159,7 @@ export function BookMetaForm({
           disabled={disabled || pending}
           className="rounded-full px-4 py-2 text-[12.5px] font-semibold transition disabled:opacity-50"
           style={{
-            background: "var(--color-lavender-500)",
+            background: "var(--bg-brand-strong)",
             color: "white",
           }}
         >
@@ -170,7 +170,13 @@ export function BookMetaForm({
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <label className="block">
       <span

@@ -547,7 +547,7 @@ export function ChatArea({
                     disabled={offerState === "saving"}
                     onClick={() => void confirmOffer()}
                     className="rounded-lg px-3 py-1.5 text-[12px] font-bold text-white"
-                    style={{ background: "var(--color-lavender-500)" }}
+                    style={{ background: "var(--bg-brand-strong)" }}
                   >
                     {offerState === "saving" ? "…" : "🌱 Añadir"}
                   </button>

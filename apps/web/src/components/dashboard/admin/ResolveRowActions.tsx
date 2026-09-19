@@ -134,7 +134,7 @@ export function ResolveRowActions({ row }: { row: PulsoReportRow }) {
           onClick={resolve}
           disabled={submitting}
           className="rounded-full px-3 py-1 text-[11.5px] font-medium text-white transition disabled:opacity-50"
-          style={{ background: "var(--color-lavender-500)" }}
+          style={{ background: "var(--bg-brand-strong)" }}
         >
           {submitting ? "Guardando…" : "Marcar resuelto"}
         </button>

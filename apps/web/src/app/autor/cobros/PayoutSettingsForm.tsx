@@ -1,10 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import type {
-  AuthorPayoutMethod,
-  AuthorPayoutSettings,
-} from "@psico/types";
+import type { AuthorPayoutMethod, AuthorPayoutSettings } from "@psico/types";
 import { updatePayoutSettingsAction } from "./actions";
 
 const METHODS: Array<{
@@ -66,7 +63,11 @@ export function PayoutSettingsForm({
     if (detailsText.trim()) {
       try {
         parsed = JSON.parse(detailsText);
-        if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+        if (
+          typeof parsed !== "object" ||
+          parsed === null ||
+          Array.isArray(parsed)
+        ) {
           throw new Error("Detalles debe ser un objeto JSON.");
         }
       } catch (e) {
@@ -205,10 +206,7 @@ export function PayoutSettingsForm({
       </Field>
 
       {error ? (
-        <p
-          className="text-[11.5px]"
-          style={{ color: "var(--color-rose-700)" }}
-        >
+        <p className="text-[11.5px]" style={{ color: "var(--color-rose-700)" }}>
           {error}
         </p>
       ) : null}
@@ -228,7 +226,7 @@ export function PayoutSettingsForm({
           disabled={pending}
           className="rounded-full px-4 py-2 text-[12.5px] font-semibold disabled:opacity-50"
           style={{
-            background: "var(--color-lavender-500)",
+            background: "var(--bg-brand-strong)",
             color: "white",
           }}
         >
@@ -239,7 +237,13 @@ export function PayoutSettingsForm({
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <label className="block">
       <span

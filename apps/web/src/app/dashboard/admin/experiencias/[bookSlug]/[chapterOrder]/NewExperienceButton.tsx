@@ -122,7 +122,7 @@ export function NewExperienceButton({
         type="button"
         onClick={() => setChoosing(true)}
         className="rounded-full px-4 text-[13px] font-semibold text-white"
-        style={{ background: "var(--color-lavender-500)", minHeight: 44 }}
+        style={{ background: "var(--bg-brand-strong)", minHeight: 44 }}
         data-testid="new-experience"
       >
         Nueva experiencia
@@ -157,7 +157,7 @@ export function NewExperienceButton({
           onClick={() => void create()}
           disabled={busy || pin === null}
           className="rounded-full px-4 text-[13px] font-semibold text-white disabled:opacity-60"
-          style={{ background: "var(--color-lavender-500)", minHeight: 44 }}
+          style={{ background: "var(--bg-brand-strong)", minHeight: 44 }}
           data-testid="new-experience-create"
         >
           {busy ? "Creando…" : "Crear borrador"}

@@ -571,7 +571,7 @@ function AddScene({ onAdd }: { onAdd: (kind: ExperienceSceneKind) => void }) {
         type="button"
         onClick={() => onAdd(kind)}
         className="rounded-full px-4 text-[13px] font-semibold text-white"
-        style={{ background: "var(--color-lavender-500)", minHeight: 44 }}
+        style={{ background: "var(--bg-brand-strong)", minHeight: 44 }}
         data-testid="add-scene"
       >
         Añadir escena

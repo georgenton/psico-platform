@@ -64,7 +64,7 @@ export default function ResetPasswordForm() {
         <Link
           href="/forgot-password"
           className="rounded-xl py-2.5 px-4 text-sm font-medium text-white inline-block"
-          style={{ background: "var(--color-lavender-600)" }}
+          style={{ background: "var(--bg-brand-strong)" }}
         >
           Pedir un enlace nuevo
         </Link>
@@ -87,7 +87,7 @@ export default function ResetPasswordForm() {
         <Link
           href="/login"
           className="rounded-xl py-2.5 px-4 text-sm font-medium text-white inline-block"
-          style={{ background: "var(--color-lavender-600)" }}
+          style={{ background: "var(--bg-brand-strong)" }}
         >
           Ir al login
         </Link>
@@ -172,7 +172,7 @@ export default function ResetPasswordForm() {
           type="submit"
           disabled={isPending}
           className="rounded-xl py-2.5 text-sm font-medium text-white transition-all disabled:opacity-60"
-          style={{ background: "var(--color-lavender-600)" }}
+          style={{ background: "var(--bg-brand-strong)" }}
         >
           {isPending ? "Guardando..." : "Restablecer contraseña"}
         </button>

@@ -171,7 +171,7 @@ export function WebPushToggle({
             disabled
             className="rounded-full px-3 py-1.5 text-[12.5px] font-medium opacity-70"
             style={{
-              background: "var(--color-lavender-500)",
+              background: "var(--bg-brand-strong)",
               color: "white",
             }}
           >
@@ -183,7 +183,7 @@ export function WebPushToggle({
             onClick={handleSubscribe}
             className="rounded-full px-3 py-1.5 text-[12.5px] font-medium"
             style={{
-              background: "var(--color-lavender-500)",
+              background: "var(--bg-brand-strong)",
               color: "white",
             }}
           >

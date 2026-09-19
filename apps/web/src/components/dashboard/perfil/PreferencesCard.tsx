@@ -286,7 +286,7 @@ export function PreferencesCard({ initial }: { initial: UserPreferences }) {
               disabled={pending}
               className="rounded-full px-4 py-1.5 text-[12px] font-semibold disabled:opacity-50"
               style={{
-                background: "var(--color-lavender-500)",
+                background: "var(--bg-brand-strong)",
                 color: "white",
               }}
             >
@@ -313,7 +313,13 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <label className="block">
       <span

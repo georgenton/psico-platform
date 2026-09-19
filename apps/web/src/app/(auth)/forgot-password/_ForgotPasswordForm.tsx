@@ -118,7 +118,7 @@ export default function ForgotPasswordForm() {
           type="submit"
           disabled={isPending}
           className="rounded-xl py-2.5 text-sm font-medium text-white transition-all disabled:opacity-60"
-          style={{ background: "var(--color-lavender-600)" }}
+          style={{ background: "var(--bg-brand-strong)" }}
         >
           {isPending ? "Enviando..." : "Enviar enlace"}
         </button>

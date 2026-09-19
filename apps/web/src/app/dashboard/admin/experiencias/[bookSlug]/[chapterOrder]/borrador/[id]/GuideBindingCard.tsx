@@ -151,7 +151,7 @@ export function GuideBindingCard({
               disabled={busy || !changed}
               className="rounded-full px-4 text-[13px] font-semibold text-white disabled:opacity-60"
               style={{
-                background: "var(--color-lavender-500)",
+                background: "var(--bg-brand-strong)",
                 minHeight: 44,
               }}
               data-testid="guide-binding-confirm"

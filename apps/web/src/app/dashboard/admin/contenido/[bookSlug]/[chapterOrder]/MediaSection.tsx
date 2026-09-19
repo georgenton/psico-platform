@@ -272,7 +272,7 @@ export function MediaSection({ bookSlug, chapterOrder }: Props) {
                         onClick={() => void publishMaster(card)}
                         disabled={busyKey === card.mediaKey}
                         className="rounded-full px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-60"
-                        style={{ background: "var(--color-lavender-600)" }}
+                        style={{ background: "var(--bg-brand-strong)" }}
                       >
                         {busyKey === card.mediaKey
                           ? "Publicando…"
@@ -290,7 +290,7 @@ export function MediaSection({ bookSlug, chapterOrder }: Props) {
                         onClick={() => void publish(card)}
                         disabled={busyKey === card.mediaKey}
                         className="rounded-full px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-60"
-                        style={{ background: "var(--color-lavender-600)" }}
+                        style={{ background: "var(--bg-brand-strong)" }}
                       >
                         {busyKey === card.mediaKey
                           ? "Publicando…"
@@ -560,7 +560,7 @@ function MissingMediaRow({
               onClick={() => void create()}
               disabled={busy || !title.trim() || !description.trim()}
               className="rounded-full px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-50"
-              style={{ background: "var(--color-lavender-600)" }}
+              style={{ background: "var(--bg-brand-strong)" }}
             >
               {/* "Crear", not "Crear ficha": the row's own button opens this
                   form, and two controls with the same label are ambiguous for

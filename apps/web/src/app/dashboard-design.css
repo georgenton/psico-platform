@@ -842,6 +842,21 @@
   body.amb-enfoque { --color-warm-400: #505a6e; --color-warm-500: #505a6e; } /* su warm-600 */
   body.amb-energia { --color-warm-400: #8a5a31; --color-warm-500: #8a5a31; } /* su warm-600 */
 
+  /* ══════════ Relleno de marca que lleva texto ══════════
+     `--bg-brand-strong` se declara en `globals.css` a nivel de `:root`, así que
+     resuelve la rampa DE LA RAÍZ. Aquí cada ambiente vuelve a declararlo con la
+     suya, que es lo que conserva su identidad: sin esto, Enfoque y Energía
+     pintarían sus acciones con el morado de Contemporary.
+
+     Cada uno toma el primer escalón de SU rampa que llega a AA con blanco:
+       · Enfoque  lavender-600 #3f43c9 → 7.35:1
+       · Energía  lavender-700 #b23c15 → 5.92:1 (su 600 se queda en 4.14:1)
+       · Noche    lavender-200 #473a78 → 9.79:1 — su rampa está INVERTIDA, así
+         que el escalón oscuro es el 200, no el 700. */
+  body.amb-enfoque { --bg-brand-strong: var(--color-lavender-600); }
+  body.amb-energia { --bg-brand-strong: var(--color-lavender-700); }
+  body.amb-noche   { --bg-brand-strong: var(--color-lavender-200); }
+
   /* ══════════ Estados de error · la rampa rose en Noche ══════════
      La rampa `rose` viene del tema de Tailwind y es la única que Noche NO
      invertía, porque no se declara en esta hoja. El resultado: «Eliminar mi

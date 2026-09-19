@@ -86,7 +86,7 @@ function Inner() {
               onClick={reveal}
               className="rounded-full px-4 py-2 text-[12.5px] font-semibold"
               style={{
-                background: "var(--color-lavender-500)",
+                background: "var(--bg-brand-strong)",
                 color: "white",
               }}
             >
@@ -136,7 +136,7 @@ function Inner() {
             onClick={reveal}
             className="rounded-full px-4 py-2 text-[12.5px] font-semibold"
             style={{
-              background: "var(--color-lavender-500)",
+              background: "var(--bg-brand-strong)",
               color: "white",
             }}
           >

@@ -73,7 +73,7 @@ export default async function OnboardingWelcomePage() {
         <Link
           href="/onboarding/motivos"
           className="inline-flex items-center justify-center rounded-2xl px-6 py-3.5 text-[14px] font-semibold text-white"
-          style={{ background: "var(--color-lavender-500)" }}
+          style={{ background: "var(--bg-brand-strong)" }}
         >
           Empezar →
         </Link>

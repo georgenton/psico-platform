@@ -1,10 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type {
-  AuthorAiHelpResponse,
-  AuthorAiIntent,
-} from "@psico/types";
+import type { AuthorAiHelpResponse, AuthorAiIntent } from "@psico/types";
 
 const INTENTS: Array<{
   key: AuthorAiIntent;
@@ -14,14 +11,12 @@ const INTENTS: Array<{
   {
     key: "revisar",
     label: "Revisar tono",
-    description:
-      "Mejora cadencia y claridad sin cambiar la idea central.",
+    description: "Mejora cadencia y claridad sin cambiar la idea central.",
   },
   {
     key: "ejemplo",
     label: "Sugerir ejemplo",
-    description:
-      "Añade un ejemplo concreto de la vida cotidiana en LATAM.",
+    description: "Añade un ejemplo concreto de la vida cotidiana en LATAM.",
   },
   {
     key: "tono",
@@ -97,7 +92,9 @@ export function AiHelperModal({
       setResult(data);
       setPhase("ready");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No pudimos generar la sugerencia.");
+      setError(
+        e instanceof Error ? e.message : "No pudimos generar la sugerencia.",
+      );
       setPhase("error");
     }
   }
@@ -153,9 +150,7 @@ export function AiHelperModal({
                     ? "var(--color-lavender-500)"
                     : "var(--color-warm-200)",
                 background:
-                  intent === i.key
-                    ? "var(--color-lavender-50)"
-                    : "white",
+                  intent === i.key ? "var(--color-lavender-50)" : "white",
               }}
             >
               <p
@@ -199,17 +194,16 @@ export function AiHelperModal({
               className="mb-1 text-[11.5px] font-bold uppercase"
               style={{ color: "var(--color-lavender-700)" }}
             >
-              {result.source === "model" ? "Sugerencia IA" : "Sugerencia (modo local)"}
+              {result.source === "model"
+                ? "Sugerencia IA"
+                : "Sugerencia (modo local)"}
             </p>
             <p className="whitespace-pre-wrap">{result.suggestion}</p>
           </div>
         ) : null}
 
         {error ? (
-          <p
-            className="text-[12px]"
-            style={{ color: "var(--color-rose-700)" }}
-          >
+          <p className="text-[12px]" style={{ color: "var(--color-rose-700)" }}>
             {error}
           </p>
         ) : null}
@@ -235,7 +229,7 @@ export function AiHelperModal({
               }}
               className="rounded-full px-4 py-2 text-[12.5px] font-semibold"
               style={{
-                background: "var(--color-lavender-500)",
+                background: "var(--bg-brand-strong)",
                 color: "white",
               }}
             >
@@ -248,7 +242,7 @@ export function AiHelperModal({
               disabled={phase === "loading"}
               className="rounded-full px-4 py-2 text-[12.5px] font-semibold disabled:opacity-50"
               style={{
-                background: "var(--color-lavender-500)",
+                background: "var(--bg-brand-strong)",
                 color: "white",
               }}
             >

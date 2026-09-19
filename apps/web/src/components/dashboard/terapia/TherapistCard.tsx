@@ -29,7 +29,7 @@ export function TherapistCard({
       <div className="-mt-8 flex items-start gap-3 p-4">
         <div
           className="flex h-16 w-16 flex-none items-center justify-center rounded-full border-4 border-white text-lg font-semibold text-white"
-          style={{ background: "var(--color-lavender-500)" }}
+          style={{ background: "var(--bg-brand-strong)" }}
         >
           {therapist.initials}
         </div>
@@ -40,10 +40,7 @@ export function TherapistCard({
           >
             {therapist.name}
           </p>
-          <p
-            className="text-[12px]"
-            style={{ color: "var(--color-warm-500)" }}
-          >
+          <p className="text-[12px]" style={{ color: "var(--color-warm-500)" }}>
             {therapist.title}
           </p>
           {isList && (therapist as TherapistListItem).bioShort ? (

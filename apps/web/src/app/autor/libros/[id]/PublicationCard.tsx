@@ -101,10 +101,7 @@ export function PublicationCard({
       ) : null}
 
       {error ? (
-        <p
-          className="text-[11.5px]"
-          style={{ color: "var(--color-rose-700)" }}
-        >
+        <p className="text-[11.5px]" style={{ color: "var(--color-rose-700)" }}>
           {error}
         </p>
       ) : null}
@@ -117,17 +114,20 @@ export function PublicationCard({
         </p>
       ) : null}
 
-      {publication.status === "DRAFT" || publication.reviewState === "REJECTED" ? (
+      {publication.status === "DRAFT" ||
+      publication.reviewState === "REJECTED" ? (
         <button
           type="button"
           onClick={onSubmit}
           disabled={pending || !allDone}
           className="w-full rounded-full px-4 py-2 text-[13px] font-semibold transition disabled:opacity-50"
           style={{
-            background: "var(--color-lavender-500)",
+            background: "var(--bg-brand-strong)",
             color: "white",
           }}
-          title={!allDone ? "Completa los blockers antes de enviar." : undefined}
+          title={
+            !allDone ? "Completa los blockers antes de enviar." : undefined
+          }
         >
           {pending ? "Enviando…" : "Enviar a revisión"}
         </button>

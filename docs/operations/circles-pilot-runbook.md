@@ -1320,7 +1320,11 @@ atestación entre Web y API y la CSP con nonce por petición. Marca, ambos temas
 persistencia por navegador, independencia entre theme y ambiente, navegación,
 salud de los tres servicios y `Mi Evolución` (200) comprobados sobre producción.
 
-### Lo que quedó pendiente y por qué
+### Lo que quedó pendiente y por qué — **resuelto el 2026-09-21**
+
+> Este apartado describe la situación del 19-09 y se conserva por trazabilidad.
+> Los dos recorridos se ejecutaron el **2026-09-21**: ver
+> [«Recorridos productivos reales»](#recorridos-productivos-reales--2026-09-21).
 
 Los **dos recorridos productivos** —un Dúo y un círculo reducido— **no se
 ejecutaron**. La lista de admitidos contiene exactamente al organizador
@@ -1335,3 +1339,123 @@ piloto. Quedan para la persona organizadora, con
 
 Web `dpl_GVCU59PUEtNrygZMk9kxZe4gTw9o` (← `7db242fa`). API y worker no se
 movieron, así que no necesitan retorno.
+
+---
+
+## Recorridos productivos reales — 2026-09-21
+
+Se ejecutaron sobre producción los dos recorridos que el 19-09 quedaron
+pendientes, con la cuenta real del organizador admitido al piloto —sesión ya
+autenticada en su propio navegador— y los invitados en contextos de navegador
+aislados. Todo el contenido fue **sintético**.
+
+```
+FUNCTIONAL_PRODUCTION_CHECK=CLOSED
+DUO_PRODUCTION_WALK=PASS
+GROUP_PRODUCTION_WALK=PASS
+GROUP_ACCEPTANCE_AND_CONTINUE_GATE=PASS
+UNEXPECTED_5XX=0
+PRIVACY_FAILURES=0
+MANUAL_CLEANUP_REQUIRED=false
+```
+
+### Dúo
+
+Sin selector de cantidad y hablando de «la otra persona». Un único enlace de
+invitación. El invitado vio de qué trataba **antes** de aceptar y abrir la
+invitación **no la consumió** —una segunda apertura en un contexto distinto
+seguía ofreciendo aceptar—. Entró sin cuenta. La pantalla inicial lista las
+situaciones en las que la actividad no ayuda.
+
+Con **una sola parte enviada no hubo revelado**, y quien organiza no vio nada
+de la otra persona: ni en pantalla ni en el payload servido a esa pantalla.
+Al confirmar la segunda parte se abrió, con cada respuesta bajo su etiqueta.
+Cierre con acuerdo propuesto y confirmado por ambas personas.
+
+### Círculo reducido (capacidad 3)
+
+Dos enlaces **distintos**. Antes de aceptar, cada invitado leyó que participan
+hasta 3 personas contándose. Las tres aceptaron.
+
+Con **dos de tres ya confirmadas**, la pantalla de quien organiza no mostró
+contador de personas listas, ni quién faltaba, ni marcas de tiempo por asiento,
+ni contenido alguno — tampoco en el payload. Al confirmar la tercera, la
+apertura ocurrió en las tres pantallas.
+
+### Salida sin compartir
+
+El aviso previo advierte que la actividad termina para todo el grupo y que **no
+se dice quién lo eligió**. Tras confirmarlo, quien organiza ve que no se abrió
+ni se compartió nada, **sin que se señale a ninguna persona**.
+
+### Retiro después del revelado
+
+La sala queda cerrada: a las demás personas dejan de servírseles las respuestas
+ajenas y el acuerdo, y quien entró por enlace recibe el mensaje genérico de sala
+no disponible. Las filas no se borran: el contrato es que dejen de servirse, y
+así se comportó.
+
+### La compuerta del grupo, como es de verdad
+
+`GROUP_ACCEPTANCE_AND_CONTINUE_GATE=PASS`.
+
+La regla vigente **no** es «todos los invitados deben aceptar». Desde #720 rige
+la incorporación flexible, y el recorrido la confirmó en producción:
+
+- cada persona **acepta y prepara sin esperar** a las demás;
+- quien organiza dispone de **«Continuar con quienes aceptaron»**, que fija el
+  **grupo definitivo** a partir de un mínimo de dos;
+- **hasta que ese grupo se fija, nadie puede confirmar su envío**: la pantalla
+  lo dice («cuando quien organiza continúe con el grupo … podrás confirmar el
+  envío»);
+- la apertura la decide el **grupo definitivo**, no la capacidad elegida.
+
+Conviene tenerlo presente al operar: si los envíos parecen bloqueados, lo que
+falta es que quien organiza continúe con el grupo.
+
+### Qué NO cambió
+
+- `CIRCLES_PILOT_USER_IDS`: **sin cambios**, una sola cuenta, la del
+  organizador productivo verificado.
+- `CIRCLES_ROLLOUT_MODE=pilot` y `CIRCLES_GROUPS=on`: **sin cambios**.
+- **Sin despliegue**, **sin migraciones**, **sin seeds**, sin tocar variables.
+- Ninguna actividad ajena ni dato de otras personas.
+
+### Actividades sintéticas creadas y su estado final
+
+Cuatro, todas en estado **terminal** y cerradas por caminos normales de
+producto —ningún borrado directo en base—:
+
+| #   | Qué          | Estado final                                            |
+| --- | ------------ | ------------------------------------------------------- |
+| 1   | Dúo          | completado, con acuerdo confirmado por ambas partes     |
+| 2   | Círculo de 3 | cerrado por retiro de quien organiza                    |
+| 3   | Círculo de 3 | cerrado por retiro tras el revelado                     |
+| 4   | Círculo de 3 | cerrado por «no compartir nada y terminar la actividad» |
+
+El círculo #2 quedó sin uso por un error de la operación —se reiniciaron dos
+contextos de invitado sin conservar su sesión, y sus invitaciones de un solo uso
+ya estaban consumidas—, no por un fallo del producto. Se cerró por su camino
+normal.
+
+### Observabilidad durante los recorridos
+
+Sin 5xx, sin errores de Prisma, sin excepciones de Círculos, sin
+`CIRCLES_GROUPS_FLAG_INVALID` y sin reinicios del worker. Los únicos `ERROR` del
+búfer del API eran dos `503 CIRCLES_UNAVAILABLE` del **19-09**, producidos por
+una sonda con cuenta sintética no admitida: el gate del piloto haciendo su
+trabajo, no un fallo.
+
+### Limpieza
+
+`MANUAL_CLEANUP_REQUIRED=false`. Se eliminaron enlaces, sesiones temporales,
+capturas y registros de la prueba, y se limpió el portapapeles. La cuenta del
+organizador quedó intacta, con sus propias preferencias de tema y ambiente.
+
+### Seguimiento abierto, no bloqueante
+
+Un defecto **cosmético** en el revelado de Dúo y de Círculo: las respuestas se
+muestran bajo las claves internas del campo en lugar del enunciado humano.
+No afecta a la privacidad, al reparto ni al cierre. Queda registrado en
+[#723](https://github.com/georgenton/psico-platform/issues/723) y **no se
+corrigió** en esta entrega.

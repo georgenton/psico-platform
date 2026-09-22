@@ -157,20 +157,55 @@ export function GoogleSignInButton({
     /**
      * Una sola pasada de corrección, y medida en vez de adivinada.
      *
-     * El marco que Google añade alrededor de lo pedido son hoy unos 20 px,
-     * pero escribir ese 20 en el código sería atarnos a un detalle suyo que
-     * puede cambiar sin avisar. En vez de eso se mide lo que realmente dibujó
-     * y, si se pasa del hueco, se le vuelve a pedir descontando el exceso.
-     * Es una corrección acotada: se ejecuta una vez y no se realimenta.
+     * El marco que Google añade alrededor de lo pedido son hoy unos 20 px
+     * —comprobado en el origen autorizado, constante de 200 a 400—, pero
+     * escribir ese 20 en el código sería atarnos a un detalle suyo que puede
+     * cambiar sin avisar. En vez de eso se mide lo que realmente dibujó y, si
+     * se pasa del hueco, se le vuelve a pedir descontando el exceso. Es una
+     * corrección acotada: se ejecuta una vez y no se realimenta.
+     *
+     * Dos detalles que sólo se ven con el iframe de verdad delante, y que este
+     * código tuvo mal en su primera versión:
+     *
+     *   · se mide el DESCENDIENTE MÁS ANCHO, no el contenedor. Google ajusta
+     *     nuestro contenedor al ancho pedido y deja que su iframe sobresalga,
+     *     así que medir el contenedor contestaba siempre «cabe».
+     *   · Google dibuja de forma ASÍNCRONA. Medir un fotograma después dejaba
+     *     el contenedor todavía vacío, y la corrección no llegaba a ejecutarse
+     *     nunca. Se espera a que haya algo dibujado, con un límite claro: si
+     *     no aparece, no se corrige y ya está.
      */
-    const id = requestAnimationFrame(() => {
-      if (!marco || !host.isConnected) return;
+    let corregido = false;
+
+    const revisar = () => {
+      if (corregido || !marco || !host.isConnected) return;
       const hueco = marco.getBoundingClientRect().width;
-      const dibujado = host.getBoundingClientRect().width;
+      const dibujado = [...host.querySelectorAll("*")].reduce(
+        (max, el) => Math.max(max, el.getBoundingClientRect().width),
+        0,
+      );
       const exceso = Math.ceil(dibujado - hueco);
-      if (exceso > 0 && pedido > 200) dibujar(pedir(pedido - exceso));
-    });
-    return () => cancelAnimationFrame(id);
+      if (exceso > 0 && pedido > 200) {
+        corregido = true;
+        dibujar(pedir(pedido - exceso));
+      }
+    };
+
+    // Google no dibuja de una vez: primero mete sus propios envoltorios, que
+    // sí respetan el ancho pedido, y el iframe —más ancho— llega después.
+    // Medir en el primer dibujo veía «cabe» y se daba por satisfecho, que es
+    // por lo que esta pasada no se ejecutaba nunca. Así que se observa el
+    // contenedor y se revisa en cada cambio, hasta encontrar un exceso o
+    // hasta que venza el plazo.
+    const observador = new MutationObserver(revisar);
+    observador.observe(host, { childList: true, subtree: true });
+    const plazo = window.setTimeout(() => observador.disconnect(), 5000);
+
+    return () => {
+      corregido = true;
+      observador.disconnect();
+      window.clearTimeout(plazo);
+    };
   }, [scriptLoaded, clientId, text, from, disponible]);
 
   if (!clientId) {

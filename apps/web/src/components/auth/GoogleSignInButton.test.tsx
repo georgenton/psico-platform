@@ -28,7 +28,27 @@ vi.mock("next/script", () => ({
 
 vi.mock("@/actions/auth", () => ({ loginWithGoogleAction: vi.fn() }));
 
-const renderButton = vi.fn();
+/**
+ * Dibuja lo que Google dibuja: un hijo dentro de nuestro contenedor. Su ancho
+ * lo resuelve el doble de `getBoundingClientRect`.
+ */
+type ConfigBoton = { width?: number };
+const renderButton = vi.fn((host: HTMLElement, _config: ConfigBoton) => {
+  // Asíncrono y EN DOS TIEMPOS, como el de verdad: primero los envoltorios de
+  // Google, que respetan el ancho pedido, y su iframe —más ancho— después.
+  // Un doble que dibujase todo de golpe validaría una carrera que en el
+  // navegador no existe, y fue exactamente lo que escondió el fallo.
+  setTimeout(() => {
+    if (!host.isConnected) return;
+    host.appendChild(document.createElement("div"));
+    setTimeout(() => {
+      if (!host.isConnected) return;
+      const marco = document.createElement("div");
+      marco.setAttribute("data-google-iframe", "true");
+      host.appendChild(marco);
+    }, 20);
+  }, 20);
+});
 const initialize = vi.fn();
 
 /** Ancho que devolverá el hueco, y el que "dibujará" Google dentro de él. */
@@ -40,7 +60,7 @@ beforeEach(() => {
     "NEXT_PUBLIC_GOOGLE_CLIENT_ID",
     "prueba.apps.googleusercontent.com",
   );
-  renderButton.mockReset();
+  renderButton.mockClear();
   initialize.mockReset();
   anchoDelHueco = 224;
   marcoDeGoogle = 20;
@@ -57,8 +77,22 @@ beforeEach(() => {
     function (this: Element) {
       const caja = (w: number) =>
         ({ ...real.call(this), width: w, height: 40 }) as DOMRect;
-      if (this.getAttribute("data-testid") === "google-signin-container") {
-        const ultima = renderButton.mock.calls.at(-1)?.[1]?.width ?? 0;
+      // Google ajusta NUESTRO contenedor —y sus propios envoltorios— al ancho
+      // pedido…
+      if (
+        this.getAttribute("data-testid") === "google-signin-container" ||
+        (this.tagName === "DIV" &&
+          !this.hasAttribute("data-google-iframe") &&
+          this.parentElement?.getAttribute("data-testid") ===
+            "google-signin-container")
+      ) {
+        return caja(ultimoAncho());
+      }
+      // …y deja que su iframe, más ancho, sobresalga de él. Modelarlo al revés
+      // —que era lo que hacía este doble— hacía pasar la prueba mientras en el
+      // navegador la pasada de corrección no se ejecutaba nunca.
+      if (this.getAttribute("data-google-iframe") === "true") {
+        const ultima = ultimoAncho();
         return caja(ultima ? ultima + marcoDeGoogle : 0);
       }
       // El hueco es el envoltorio que el componente marca con `max-w-full`.
@@ -87,6 +121,7 @@ async function montar() {
 
 const anchosPedidos = () =>
   renderButton.mock.calls.map((c) => c[1].width as number);
+const ultimoAncho = () => renderButton.mock.calls.at(-1)?.[1]?.width ?? 0;
 
 describe("ancho del botón de Google", () => {
   it("pide el ancho que de verdad hay, no un valor fijo", async () => {
@@ -96,13 +131,15 @@ describe("ancho del botón de Google", () => {
     expect(anchosPedidos()[0]).not.toBe(320);
   });
 
-  it("corrige una sola vez midiendo el exceso, sin descontar un número mágico", async () => {
+  it("espera a que Google dibuje y corrige una sola vez midiendo el exceso", async () => {
     await montar();
     // Primera pasada: pide 224, Google dibuja 244 y se sale del hueco de 224.
     // Segunda: pide 224 − 20 = 204, que ya cabe. Y ahí se detiene.
-    await waitFor(() => expect(anchosPedidos().length).toBe(2));
+    await waitFor(() => expect(anchosPedidos().length).toBe(2), {
+      timeout: 4000,
+    });
     expect(anchosPedidos()).toEqual([224, 204]);
-    await new Promise((r) => setTimeout(r, 30));
+    await new Promise((r) => setTimeout(r, 200));
     expect(anchosPedidos().length).toBe(2);
   });
 
@@ -110,7 +147,7 @@ describe("ancho del botón de Google", () => {
     marcoDeGoogle = 0;
     await montar();
     await waitFor(() => expect(renderButton).toHaveBeenCalled());
-    await new Promise((r) => setTimeout(r, 30));
+    await new Promise((r) => setTimeout(r, 200));
     expect(anchosPedidos()).toEqual([224]);
   });
 

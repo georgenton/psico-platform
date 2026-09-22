@@ -7,6 +7,8 @@ import {
   MOOD_SEED_CATALOG,
   MOTIVO_SEED_CATALOG,
 } from "../src/onboarding/constants";
+import { REFLECTION_PROMPT_CATALOG } from "../src/home/reflection-prompt-catalog";
+import { DIARY_PROMPT_CATALOG } from "../src/reflexiones/diary-prompt-catalog";
 import { lockEditionForBookSlugTx } from "../src/content-core/revision-lifecycle";
 import { runGuardedSeed, type SeedClientHandle } from "./seed-runtime";
 
@@ -332,18 +334,8 @@ async function main() {
   // these directly in the DB; isActive=false soft-disables a prompt.
 
   console.log("\n💭 Reflection prompts…");
-  const prompts = [
-    { id: "rp-1", text: "¿Qué emoción te visitó hoy con más fuerza?" },
-    {
-      id: "rp-2",
-      text: "Si pudieras agradecer una cosa pequeña, ¿cuál sería?",
-    },
-    { id: "rp-3", text: "¿Qué necesita tu cuerpo en este momento?" },
-    { id: "rp-4", text: "¿Hay un pensamiento que se está repitiendo?" },
-    { id: "rp-5", text: "¿Qué te dirías a ti mismo si fueras tu mejor amigo?" },
-    { id: "rp-6", text: "Una palabra para describir este día." },
-    { id: "rp-7", text: "¿Qué te gustaría soltar antes de dormir?" },
-  ];
+  // Single source of truth: apps/api/src/home/reflection-prompt-catalog.ts.
+  const prompts = REFLECTION_PROMPT_CATALOG;
   for (const p of prompts) {
     await prisma.reflectionPrompt.upsert({
       where: { id: p.id },
@@ -359,27 +351,8 @@ async function main() {
   // day-of-year hash — same prompt all day across all users.
 
   console.log("\n📓 Diary prompts…");
-  const diaryPrompts = [
-    {
-      id: "dp-1",
-      text: "Describe un momento de hoy donde te sentiste presente.",
-    },
-    {
-      id: "dp-2",
-      text: "¿Qué emoción dominó tu día? ¿De dónde crees que vino?",
-    },
-    {
-      id: "dp-3",
-      text: "Si pudieras volver a vivir un instante del día, ¿cuál sería?",
-    },
-    {
-      id: "dp-4",
-      text: "¿Hubo algo que te costó decir hoy? Ponlo en palabras aquí.",
-    },
-    { id: "dp-5", text: "Hoy aprendí…" },
-    { id: "dp-6", text: "Una conversación que me quedó dando vueltas." },
-    { id: "dp-7", text: "¿Cómo cuidaste de ti hoy, aunque sea un poco?" },
-  ];
+  // Single source of truth: apps/api/src/reflexiones/diary-prompt-catalog.ts.
+  const diaryPrompts = DIARY_PROMPT_CATALOG;
   for (const p of diaryPrompts) {
     await prisma.diaryPrompt.upsert({
       where: { id: p.id },

@@ -128,7 +128,11 @@ export default function LoginForm() {
           />
           <Link
             href="/forgot-password"
-            className="text-xs mt-1 self-end"
+            // Medía 143×16. No está dentro de un párrafo, así que no le aplica
+            // la excepción de enlace en texto corrido: es un control suelto y
+            // le toca el mínimo de 24×24 (WCAG 2.2 · 2.5.8). Crece el alto
+            // pulsable; el margen negativo conserva la posición.
+            className="text-xs -my-1 mt-1 inline-flex min-h-6 items-center self-end py-1"
             style={{ color: "var(--color-lavender-700)" }}
           >
             ¿Olvidaste tu contraseña?

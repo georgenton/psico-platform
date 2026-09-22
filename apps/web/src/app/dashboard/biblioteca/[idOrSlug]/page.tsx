@@ -75,7 +75,9 @@ export default async function BookDetailPage({ params }: { params: Params }) {
       >
         <Link
           href="/dashboard/biblioteca"
-          className="hover:underline"
+          // 67×16 se queda por debajo del objetivo mínimo de 24×24
+          // (WCAG 2.2 · 2.5.8). Crece el alto pulsable, no la letra.
+          className="-my-1.5 inline-flex min-h-6 items-center py-1.5 hover:underline"
           style={{ color: "var(--color-lavender-700)" }}
         >
           ← Biblioteca

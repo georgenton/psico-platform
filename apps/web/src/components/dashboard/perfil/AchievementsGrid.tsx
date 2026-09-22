@@ -10,7 +10,7 @@ export function AchievementsGrid({
       <section data-testid="achievements-empty">
         <h2
           className="mb-2 text-[14px] font-semibold"
-          style={{ color: "var(--color-warm-900)" }}
+          style={{ color: "var(--fg-strong)" }}
         >
           Logros
         </h2>
@@ -18,7 +18,7 @@ export function AchievementsGrid({
           className="rounded-2xl border-[1.5px] bg-white p-5 text-[13px]"
           style={{
             borderColor: "var(--color-warm-200)",
-            color: "var(--color-warm-500)",
+            color: "var(--fg-muted)",
           }}
         >
           Empezá a usar FeelVerse — leer un capítulo, escribir en el diario,
@@ -32,7 +32,7 @@ export function AchievementsGrid({
     <section data-testid="achievements-grid">
       <h2
         className="mb-2 text-[14px] font-semibold"
-        style={{ color: "var(--color-warm-900)" }}
+        style={{ color: "var(--fg-strong)" }}
       >
         Logros
       </h2>
@@ -54,7 +54,15 @@ export function AchievementsGrid({
                 borderColor: unlocked
                   ? "var(--color-sage-300)"
                   : "var(--color-warm-200)",
-                opacity: unlocked ? 1 : 0.7,
+                // Aquí había `opacity: 0.7` para los logros por conseguir. El
+                // token de texto que usan estas tarjetas llega a 5.29:1 por sí
+                // solo, pero atenuar la tarjeta entera lo bajaba a 2.90 —el
+                // contraste no se perdía en el color, se perdía en la opacidad.
+                //
+                // Que un logro está pendiente ya lo dicen tres cosas: el 🔒 en
+                // lugar del icono, el borde neutro en lugar del verde, y la
+                // barra de progreso que sólo aparece en los pendientes. La
+                // jerarquía se mantiene sin dejar el texto a medio leer.
               }}
               data-testid={`achievement-${a.id}`}
             >
@@ -63,13 +71,13 @@ export function AchievementsGrid({
               </div>
               <p
                 className="mt-1 text-[12px] font-semibold leading-tight"
-                style={{ color: "var(--color-warm-900)" }}
+                style={{ color: "var(--fg-strong)" }}
               >
                 {a.label}
               </p>
               <p
                 className="mt-1 text-[11px] leading-tight"
-                style={{ color: "var(--color-warm-500)" }}
+                style={{ color: "var(--fg-muted)" }}
               >
                 {a.description}
               </p>
@@ -89,7 +97,7 @@ export function AchievementsGrid({
                   </div>
                   <p
                     className="mt-1 text-[10px]"
-                    style={{ color: "var(--color-warm-500)" }}
+                    style={{ color: "var(--fg-muted)" }}
                   >
                     {a.progressCurrent}/{a.progressTarget}
                   </p>

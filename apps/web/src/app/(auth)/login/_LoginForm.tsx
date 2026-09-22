@@ -34,7 +34,12 @@ export default function LoginForm() {
     <>
       <p
         className="mb-1 text-[11px] font-bold uppercase tracking-[0.6px]"
-        style={{ color: "var(--color-lavender-500)" }}
+        // `--color-lavender-500` es un valor crudo de la rampa y se usa además
+        // en degradados y trazos, donde nada exige contraste. Como TEXTO sobre
+        // la página se queda en 3.48:1. `--fg-link-strong` es el nombre que el
+        // sistema ya tiene para un acento legible: 7.70 en Contemporary y 6.73
+        // en Renacimiento, que son los dos estados que esta pantalla alcanza.
+        style={{ color: "var(--fg-link-strong)" }}
       >
         Tu espacio te espera
       </p>
@@ -146,11 +151,20 @@ export default function LoginForm() {
         <button
           type="submit"
           disabled={isPending}
-          className="mt-1 rounded-xl py-2.5 text-sm font-semibold text-white transition-all disabled:opacity-60"
+          aria-busy={isPending}
+          className="mt-1 rounded-xl py-2.5 text-sm font-semibold transition-all"
           style={{
-            background: isPending
-              ? "var(--color-lavender-400)"
-              : "var(--color-lavender-500)",
+            // El resto de la superficie de autenticación ya usa el relleno de
+            // marca pensado para llevar texto: 6.96:1 en Contemporary, 7.15 en
+            // Renacimiento. Este botón se había quedado con la rampa cruda, que
+            // da 3.63:1.
+            //
+            // Mientras envía NO se aclara ni se atenúa. La etiqueta sigue
+            // diciendo algo («Iniciando sesión…»), y un texto que informa tiene
+            // que seguir leyéndose: el escalón más claro de antes lo dejaba
+            // peor todavía. Que está ocupado lo dicen la etiqueta y `aria-busy`.
+            background: "var(--bg-brand-strong)",
+            color: "var(--fg-on-brand)",
           }}
         >
           {isPending ? "Iniciando sesión…" : "Iniciar sesión"}

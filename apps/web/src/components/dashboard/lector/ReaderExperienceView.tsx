@@ -227,8 +227,16 @@ export function ReaderExperienceView({
           <button
             type="button"
             onClick={onMarkComplete}
-            className="rounded-2xl px-6 py-3 text-[13px] font-semibold text-white"
-            style={{ background: "var(--color-sage-500)" }}
+            className="rounded-2xl px-6 py-3 text-[13px] font-semibold"
+            style={{
+              // `--bg-action` es el relleno que el sistema ya eligió para las
+              // acciones del producto, precisamente porque sage-500 con texto
+              // blanco se queda en 3.18–3.67 y en Noche baja a 1.71. Este
+              // componente se quedó fuera de aquella migración; no hace falta
+              // un token nuevo, hace falta el que ya existe.
+              background: "var(--bg-action)",
+              color: "var(--fg-on-brand)",
+            }}
           >
             ✓ Marcar capítulo como leído
           </button>

@@ -1418,8 +1418,59 @@ falta es que quien organiza continúe con el grupo.
 - `CIRCLES_PILOT_USER_IDS`: **sin cambios**, una sola cuenta, la del
   organizador productivo verificado.
 - `CIRCLES_ROLLOUT_MODE=pilot` y `CIRCLES_GROUPS=on`: **sin cambios**.
-- **Sin despliegue**, **sin migraciones**, **sin seeds**, sin tocar variables.
+- **Sin migraciones**, **sin seeds**, sin tocar variables.
+- **Sin despliegue manual y sin cambio de código de aplicación.** Conviene
+  decirlo con precisión, porque «sin despliegue» a secas no era exacto: el push
+  de este mismo cierre documental a `main` **disparó automáticamente** un
+  deployment Web de Vercel. Lo desplegado era exclusivamente documentación; API,
+  worker, configuración productiva, datos, migraciones y seeds quedaron igual.
 - Ninguna actividad ajena ni dato de otras personas.
+
+Dicho en las etiquetas que importan al operar, que separan cosas que «producción
+cambió / no cambió» confunde en una sola:
+
+```
+PRODUCTION_DATA_MUTATED=false
+PRODUCTION_CONFIG_MUTATED=false
+PRODUCTION_APPLICATION_CODE_CHANGED=false
+DEPLOY_EXECUTED_MANUALLY=false
+AUTO_DEPLOY_TRIGGERED_BY_MAIN_PUSH=true
+PRODUCTION_DEPLOYMENT_CHANGED=true
+MIGRATION_EXECUTED=false
+SEED_EXECUTED=false
+ALLOWLIST_CHANGED=false
+FLAGS_CHANGED=false
+```
+
+### El deployment automático del cierre documental
+
+El commit `01c848eb` —que sólo tocaba este runbook— provocó, al llegar a `main`,
+un deployment productivo de Web:
+
+```
+AUTO_DEPLOYMENT_ID=dpl_85nZAEMHRx1geJAkNykL3KR4VLaa
+AUTO_DEPLOYMENT_SOURCE=01c848eb3e5f61bb613262cd5d1db121dae9595e
+AUTO_DEPLOYMENT_STATUS=READY
+```
+
+Qué significa y qué no:
+
+- lo **disparó la integración Git→Vercel**, no una orden de despliegue: nadie
+  ejecutó `vercel deploy` ni promovió nada a mano;
+- **no introdujo código ejecutable nuevo**, porque el diff era exclusivamente
+  documental: el bundle de la aplicación es el mismo que ya servía;
+- **API y worker no se movieron** por ese commit —sus watch paths lo registraron
+  y lo saltaron—, así que siguen en su build anterior;
+- **no hubo migraciones ni seeds**.
+
+Es decir: cambió el _deployment activo_, no el _producto_. Son dos cosas
+distintas y el runbook debe distinguirlas, porque un lector futuro que busque
+«¿tocaron producción el 21-09?» merece la respuesta exacta, no la tranquilizadora.
+
+> **Mejora operativa pendiente, no ejecutada.** Considerar configurar el
+> _Ignored Build Step_ del proyecto Web para que los cambios exclusivamente bajo
+> `docs/` no generen deployments productivos. Requiere una decisión explícita y
+> **no se ha aplicado**.
 
 ### Actividades sintéticas creadas y su estado final
 

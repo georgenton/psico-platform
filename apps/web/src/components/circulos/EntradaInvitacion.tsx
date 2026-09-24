@@ -439,6 +439,15 @@ export function EntradaInvitacion() {
         Si te compartieron un código, escríbelo aquí.
       </p>
       <form
+        // El código de invitación es un secreto portador: quien lo tiene entra
+        // al círculo. Sin `method`, un envío nativo lo pondría en la URL, y de
+        // ahí pasa al historial y a los registros — exactamente el mismo fallo
+        // que en las pantallas de acceso, con otro secreto. Ver #727.
+        //
+        // Este componente además lo guarda en `secretRef` en lugar de en el
+        // estado, precisamente para que no acabe donde no debe; dejarlo escapar
+        // por el formulario sería deshacer ese cuidado desde el otro lado.
+        method="post"
         onSubmit={(e) => {
           e.preventDefault();
           const code = manual.trim();

@@ -206,6 +206,11 @@ export function UnlockGate({
 
   return (
     <form
+      // Este formulario pide la CONTRASEÑA DE LA CUENTA para derivar la clave
+      // del diario, así que le toca la misma defensa declarativa que las
+      // pantallas de acceso: sin `method`, un envío nativo —el que ocurre si
+      // React aún no ha enganchado— la mandaría en la URL. Ver #727.
+      method="post"
       onSubmit={(e) => {
         e.preventDefault();
         if (password) unlock(password);

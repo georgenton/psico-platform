@@ -52,7 +52,15 @@ export default function LoginForm() {
         siguen protegidos — <b>solo tú puedes verlos</b>. <PrivacyInfoButton />
       </p>
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      {/* `method="post"` para que el envío nativo —el que ocurre si React aún
+          no ha enganchado su manejador— mande los campos en el cuerpo y nunca
+          en la URL. Ver #727 y la explicación larga en
+          `app/(auth)/register/page.tsx`. */}
+      <form
+        method="post"
+        onSubmit={handleSubmit}
+        className="flex flex-col gap-4"
+      >
         <div className="flex flex-col gap-1">
           <label
             htmlFor="email"

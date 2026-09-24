@@ -58,7 +58,28 @@ export default function RegisterPage() {
         ni siquiera nuestro equipo. <PrivacyInfoButton />
       </p>
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      {/* `method="post"` no es decoración: es la única defensa que NO depende
+          de que React haya llegado.
+
+          Un `<form>` sin `method` envía por GET, y lo que impedía ese envío era
+          `preventDefault()` dentro de `onSubmit` — es decir, JavaScript ya
+          enganchado. Este formulario SÍ viaja en el HTML del servidor, así que
+          entre que se pinta y que hidrata hay una ventana real en la que pulsar
+          «Crear cuenta gratis» (o Enter) mandaba nombre, correo y CONTRASEÑA a
+          la barra de direcciones — y de ahí al historial y a los registros de
+          acceso. Reproducido sobre el despliegue con datos inventados.
+
+          Con POST el navegador manda los campos en el cuerpo, nunca en la URL.
+          La ruta no atiende POST, así que sin JavaScript el envío termina en un
+          405: un callejón, sí, pero uno que no filtra nada. Y con JavaScript no
+          cambia nada, porque `preventDefault()` sigue corriendo primero.
+
+          Ver #727. Hay un ratchet que falla si alguien quita este atributo. */}
+      <form
+        method="post"
+        onSubmit={handleSubmit}
+        className="flex flex-col gap-4"
+      >
         <div className="flex flex-col gap-1">
           <label
             htmlFor="name"

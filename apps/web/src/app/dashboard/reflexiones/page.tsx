@@ -52,10 +52,10 @@ export default async function ReflexionesPage() {
           marginBottom: 14,
         }}
       >
-        <div className="screen-title">
+        <h1 className="screen-title">
           <span className="eb">Tu hilo de autoconocimiento</span>
           Reflexiones
-        </div>
+        </h1>
         {/* The "Nueva reflexión" CTA from the design is rendered inline by
             the DiarioShell composer below — surfacing it here would create
             two competing entry points. The capture card IS the CTA. */}

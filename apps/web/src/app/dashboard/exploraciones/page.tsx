@@ -46,10 +46,10 @@ export default async function ExploracionesPage() {
   return (
     <>
       <div className="screen-head">
-        <div className="screen-title">
+        <h1 className="screen-title">
           <span className="eb">Recorridos de transformación</span>
           Exploraciones
-        </div>
+        </h1>
       </div>
       <p className="screen-sub" style={{ margin: "-14px 0 26px" }}>
         Guías breves y recorridos más largos que combinan lectura, ejercicios y

@@ -179,8 +179,13 @@ export function BookHero({
         {author ? (
           <div className="mt-4 flex items-center gap-3">
             <span
-              className="inline-flex h-10 w-10 items-center justify-center rounded-full text-[13px] font-bold text-white"
-              style={{ background: "var(--color-lavender-500)" }}
+              // Las iniciales de quien escribe el libro. A 13 px son texto
+              // normal —umbral 4.5— y medían 3.24:1 en el peor ambiente.
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full text-[13px] font-bold"
+              style={{
+                background: "var(--bg-brand-strong)",
+                color: "var(--fg-on-brand)",
+              }}
               aria-hidden
             >
               {author.initials}

@@ -22,7 +22,11 @@ describe("AchievementsGrid", () => {
   it("renders an empty state when the user has no achievements yet", () => {
     render(<AchievementsGrid achievements={[]} />);
     expect(screen.getByTestId("achievements-empty")).toBeInTheDocument();
-    expect(screen.getByText(/mostraremos acá tus logros/i)).toBeInTheDocument();
+    // El texto está en la variedad que usa el resto del producto (tú, no vos):
+    // «Empieza…», «aquí aparecerán…». Antes decía «Empezá … acá», que es
+    // voseo rioplatense y desentonaba con las pantallas de al lado.
+    expect(screen.getByText(/aquí aparecerán tus logros/i)).toBeInTheDocument();
+    expect(screen.queryByText(/acá tus logros/i)).toBeNull();
   });
 
   it("renders each achievement card with its label", () => {

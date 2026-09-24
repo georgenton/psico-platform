@@ -153,7 +153,9 @@ export function EcoShell({
     // The user stays in Eco the whole time.
     return (
       <div className="mx-auto w-full max-w-md">
-        <UnlockGate context="eco" />
+        {/* Aquí la reja ES la pantalla, así que su título encabeza lo que hay.
+            En el lector, en cambio, cuelga de la pestaña del panel. */}
+        <UnlockGate context="eco" nivel={2} />
       </div>
     );
   }

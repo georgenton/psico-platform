@@ -1,8 +1,13 @@
 "use client";
 
-import type { CircleActivityView, CircleRevealedShare } from "@psico/types";
+import type {
+  CircleActivityView,
+  CirclePreparationField,
+  CircleRevealedShare,
+} from "@psico/types";
 
 import { estilos as S } from "./estilos";
+import { RespuestasPorCampo } from "./RespuestasPorCampo";
 
 /**
  * What everybody else confirmed, plus the turns that structure the talk.
@@ -29,9 +34,24 @@ import { estilos as S } from "./estilos";
  * The list is driven by `revealed.participants`, which exists in both cases.
  * Reading `revealed.counterpart` here would have worked for a Dúo and rendered
  * one of five answers in a group, silently.
+ *
+ * ── Las preguntas vienen de fuera ──────────────────────────────────────────
+ *
+ * Una respuesta suelta no se entiende; hace falta bajo qué pregunta se
+ * escribió. Esa pregunta no está en la proyección —el servidor manda claves y
+ * valores— sino en la plantilla a la que la actividad está anclada, que la sala
+ * ya resolvió una vez y reparte a todo el que la necesite. Por eso `fields`
+ * entra por prop y no se resuelve aquí: una segunda resolución sería una
+ * segunda oportunidad de divergir. Ver `RespuestasPorCampo`.
  */
 
-function Compartido({ share }: { readonly share: CircleRevealedShare }) {
+function Compartido({
+  share,
+  fields,
+}: {
+  readonly share: CircleRevealedShare;
+  readonly fields: readonly CirclePreparationField[];
+}) {
   if (share.mode === "KEEP_PRIVATE") {
     return (
       <p style={S.cita}>
@@ -42,21 +62,16 @@ function Compartido({ share }: { readonly share: CircleRevealedShare }) {
   if (share.mode === "EDITED_SUMMARY") {
     return <blockquote style={S.cita}>{share.summary}</blockquote>;
   }
-  return (
-    <dl style={{ margin: 0, display: "grid", gap: ".75rem" }}>
-      {share.fields.map((f) => (
-        <div key={f.fieldKey}>
-          <dt style={S.label}>{f.fieldKey}</dt>
-          <dd style={{ margin: ".25rem 0 0" }}>
-            <blockquote style={S.cita}>{f.value}</blockquote>
-          </dd>
-        </div>
-      ))}
-    </dl>
-  );
+  return <RespuestasPorCampo respuestas={share.fields} fields={fields} />;
 }
 
-export function Reveal({ view }: { readonly view: CircleActivityView }) {
+export function Reveal({
+  view,
+  fields,
+}: {
+  readonly view: CircleActivityView;
+  readonly fields: readonly CirclePreparationField[];
+}) {
   const revealed = view.revealed;
   if (!revealed) return null;
   const others = revealed.participants;
@@ -72,7 +87,7 @@ export function Reveal({ view }: { readonly view: CircleActivityView }) {
         </h2>
 
         {alone ? (
-          <Compartido share={others[0]!.share} />
+          <Compartido share={others[0]!.share} fields={fields} />
         ) : (
           <div style={{ display: "grid", gap: "1.1rem" }}>
             {others.map((participant) => (
@@ -80,7 +95,7 @@ export function Reveal({ view }: { readonly view: CircleActivityView }) {
                 <h3 style={{ ...S.label, marginBottom: ".3rem" }}>
                   {participant.label}
                 </h3>
-                <Compartido share={participant.share} />
+                <Compartido share={participant.share} fields={fields} />
               </div>
             ))}
           </div>
@@ -95,7 +110,7 @@ export function Reveal({ view }: { readonly view: CircleActivityView }) {
           {view.you.confirmed.mode === "KEEP_PRIVATE" ? (
             <p style={S.cita}>Elegiste no compartir contenido.</p>
           ) : (
-            <Compartido share={view.you.confirmed} />
+            <Compartido share={view.you.confirmed} fields={fields} />
           )}
         </section>
       )}

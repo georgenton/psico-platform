@@ -202,10 +202,10 @@ function ScreenHead({ period }: { period: PatronesPeriod }) {
           marginBottom: 14,
         }}
       >
-        <div className="screen-title">
+        <h1 className="screen-title">
           <span className="eb">Lo más valioso que descubrirás</span>
           Patrones IA
-        </div>
+        </h1>
         <nav style={{ display: "flex", gap: 6 }} aria-label="Período">
           {(["30d", "90d", "1y"] as const).map((p) => {
             const active = p === period;

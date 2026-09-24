@@ -61,7 +61,7 @@ export function EmailChangeCard({ me }: { me: UserMeResponse }) {
           }}
           role="status"
         >
-          Te enviamos un enlace de confirmación a {sentTo}. Hacé click para
+          Te enviamos un enlace de confirmación a {sentTo}. Haz clic en él para
           activar el cambio.
         </p>
       ) : !open ? (

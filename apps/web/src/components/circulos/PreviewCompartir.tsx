@@ -8,6 +8,7 @@ import type {
 import { circleModalidadEsGrupo } from "@psico/types";
 
 import { estilos as S } from "./estilos";
+import { RespuestasPorCampo } from "./RespuestasPorCampo";
 
 /**
  * Exactly what will be sent, before it is sent.
@@ -67,8 +68,6 @@ export function PreviewCompartir({
   // persona» and still ends for everybody if this person keeps it private.
   const grupo = participantes > 2;
   const reglasDeGrupo = circleModalidadEsGrupo(modalidad, participantes);
-  const label = (key: string) =>
-    fields.find((f) => f.fieldKey === key)?.label ?? key;
 
   return (
     <section style={S.section} aria-labelledby="prev-h">
@@ -96,16 +95,11 @@ export function PreviewCompartir({
       )}
 
       {confirmation.mode === "SELECTED_FIELDS" && (
-        <dl style={{ margin: 0, display: "grid", gap: ".75rem" }}>
-          {confirmation.fields.map((f) => (
-            <div key={f.fieldKey}>
-              <dt style={S.label}>{label(f.fieldKey)}</dt>
-              <dd style={{ margin: ".25rem 0 0" }}>
-                <blockquote style={S.cita}>{f.value}</blockquote>
-              </dd>
-            </div>
-          ))}
-        </dl>
+        // La misma lista que verá la otra persona en el revelado, pintada por
+        // el mismo componente. Que la vista previa y el revelado coincidan
+        // palabra por palabra no es estético: la vista previa es la promesa de
+        // lo que se envía, y la cumplía a medias. Ver `RespuestasPorCampo`.
+        <RespuestasPorCampo respuestas={confirmation.fields} fields={fields} />
       )}
 
       <p style={S.aviso} role="note">

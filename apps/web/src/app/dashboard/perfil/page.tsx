@@ -31,10 +31,10 @@ export default async function PerfilPage() {
     return (
       <div className="mx-auto max-w-3xl">
         <div className="screen-head">
-          <div className="screen-title">
+          <h1 className="screen-title">
             <span className="eb">Cuenta y privacidad</span>
             Perfil
-          </div>
+          </h1>
         </div>
         <div
           className="rounded-2xl border-[1.5px] bg-white p-6"
@@ -79,10 +79,10 @@ export default async function PerfilPage() {
     <div className="mx-auto max-w-3xl space-y-5">
       {/* Sprint G3 — generic screen-head sweep. */}
       <div className="screen-head">
-        <div className="screen-title">
+        <h1 className="screen-title">
           <span className="eb">Cuenta y privacidad</span>
           Perfil
-        </div>
+        </h1>
       </div>
       <p className="screen-sub" style={{ margin: "-14px 0 26px" }}>
         Tus datos, tu actividad y los ajustes de la cuenta.

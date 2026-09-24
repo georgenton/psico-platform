@@ -32,10 +32,10 @@ export default async function EvolucionPage() {
     return (
       <>
         <div className="screen-head">
-          <div className="screen-title">
+          <h1 className="screen-title">
             <span className="eb">Tu recorrido, registrado</span>
             Mi Evolución
-          </div>
+          </h1>
         </div>
         <div className="card">
           <p
@@ -55,10 +55,10 @@ export default async function EvolucionPage() {
   return (
     <>
       <div className="screen-head">
-        <div className="screen-title">
+        <h1 className="screen-title">
           <span className="eb">Tu recorrido, registrado</span>
           Mi Evolución
-        </div>
+        </h1>
         <ExportButton />
       </div>
       {/*

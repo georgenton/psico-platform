@@ -203,7 +203,17 @@
 
   .insight { position: relative; overflow: hidden; padding: 30px 32px; display: flex; flex-direction: column; }
   .insight::before { content:""; position:absolute; top:-70px; right:-50px; width: 220px; height: 220px; border-radius:50%; background: radial-gradient(circle, var(--color-lavender-100), transparent 70%); }
-  .insight .ins-top { display: flex; align-items: center; justify-content: space-between; position: relative; margin-bottom: 18px; }
+  /* La cabecera del insight se reparte en dos: la etiqueta a la izquierda y
+     «Generado por Eco» a la derecha. Sin permiso para envolver, cuando la
+     tarjeta se estrecha —a 320 px con el navegador al 200 %, por ejemplo— la
+     segunda se sale por el borde derecho, y como `.insight` oculta su
+     desbordamiento para contener el círculo decorativo, lo que se sale no se
+     recorta a medias: desaparece. Medido: se leía «GENER…» y «POR E…».
+
+     Envolver es lo que ya hace el resto de la pantalla al estrecharse. La fila
+     mantiene su reparto mientras quepa, y cuando no cabe, la segunda baja en
+     vez de perderse. El `gap` sólo se nota cuando hay dos líneas. */
+  .insight .ins-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 14px; position: relative; margin-bottom: 18px; }
   .insight .ins-date { font: 500 11px/1 var(--font-mono); letter-spacing:.05em; text-transform: uppercase; color: var(--color-warm-400); }
   .insight q { display: block; quotes: none; font: 500 clamp(18px,1.7vw,23px)/1.42 var(--font-sans); color: var(--color-warm-900); letter-spacing: -0.01em; text-wrap: pretty; position: relative; flex: 1; }
   .insight q b { color: var(--color-lavender-700); font-weight: 700; }

@@ -215,7 +215,10 @@
   .mini-map .mm-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
   .mini-map .mm-title { font: 700 14px/1 var(--font-sans); color: var(--color-warm-900); display:flex; align-items:center; gap:8px; }
   .mini-map .mm-title .d { width:8px;height:8px;border-radius:50%; background: var(--color-sage-400); box-shadow:0 0 0 4px var(--color-sage-100); }
-  .mini-map .mm-link { font: 600 12px/1 var(--font-sans); color: var(--color-lavender-700); cursor: pointer; background:0; border:0; }
+  /* El área pulsable llega a 24 px de alto (WCAG 2.2 · 2.5.8) sin que la
+     tipografía crezca: el relleno vertical agranda el objetivo y el margen
+     negativo devuelve la posición que tenía, así que la maqueta no se mueve. */
+  .mini-map .mm-link { font: 600 12px/1 var(--font-sans); color: var(--color-lavender-700); cursor: pointer; background:0; border:0; display: inline-flex; align-items: center; min-height: 24px; padding-block: 6px; margin-block: -6px; }
   .mini-map .radar-holder { flex: 1; display: flex; align-items: center; justify-content: center; }
   .mini-map .radar-holder svg { width: 100%; max-width: 280px; height: auto; overflow: visible; }
   .mini-map .mm-foot { display: flex; align-items: center; gap: 12px; padding-top: 14px; border-top: 1px solid var(--color-warm-200); }
@@ -316,7 +319,8 @@
 
   /* ── Reflexiones (hilo) ─────────────────────── */
   .r-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
-  .r-all { font: 600 12.5px/1 var(--font-sans); color: var(--color-lavender-700); background: 0; border: 0; cursor: pointer; }
+  /* Mismo criterio que `.mm-link`: 24 px de objetivo, misma posición visual. */
+  .r-all { font: 600 12.5px/1 var(--font-sans); color: var(--color-lavender-700); background: 0; border: 0; cursor: pointer; display: inline-flex; align-items: center; min-height: 24px; padding-block: 6px; margin-block: -6px; }
   .r-all:hover { opacity: .7; }
   .r-capture { display: flex; align-items: center; gap: 12px; margin: 16px 0 6px; padding: 13px 15px; border: 1.5px dashed var(--color-warm-300); border-radius: 14px; cursor: text; transition: border-color .14s, background .14s; }
   .r-capture:hover { border-color: var(--color-lavender-300); background: var(--color-lavender-50); }

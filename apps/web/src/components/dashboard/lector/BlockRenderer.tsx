@@ -162,9 +162,17 @@ export function BlockRenderer({
         {...baseProps}
         className="reader-block reader-block-pause my-6 rounded-2xl px-5 py-4 text-[14px]"
         style={{
+          // El panel verde SÍ acompaña al ambiente: `--color-sage-50` se
+          // oscurece en Noche como debe. El texto no lo hacía —
+          // `--color-sage-800` se queda oscuro siempre—, así que en Noche
+          // quedaba verde oscuro sobre verde oscuro: 1.61:1.
+          //
+          // La pausa conserva su identidad en el panel y en el 🌿 del rótulo;
+          // el cuerpo pasa al color de texto del sistema, que sí sigue al
+          // ambiente. Medido sobre este mismo fondo: 7.09–10.70 en las ocho.
           background: "var(--color-sage-50)",
           border: "1.5px solid var(--color-sage-200)",
-          color: "var(--color-sage-800)",
+          color: "var(--fg-body)",
         }}
       >
         <div

@@ -1662,7 +1662,10 @@ export function LectorShell({
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-4 py-3">
           <Link
             href={`/dashboard/biblioteca/${bookSlug}`}
-            className="text-[18px]"
+            // La flecha de volver medía 14 px de ancho: por debajo del mínimo
+            // de 24×24 (WCAG 2.2 · 2.5.8), y es la única salida del lector.
+            // El glifo no cambia de tamaño; cambia el área que responde.
+            className="-mx-1.5 inline-flex h-6 min-w-6 items-center justify-center text-[18px]"
             aria-label="Volver al libro"
             style={{ color: "var(--reader-text, var(--color-warm-700))" }}
           >
@@ -2289,6 +2292,33 @@ function romanize(n: number): string {
   return ROMAN[n] ?? String(n);
 }
 
+/**
+ * El lector sin tema propio debe seguir al ambiente de la aplicación.
+ *
+ * Antes no lo hacía, y el fallo era estructural, no de un color suelto: cada
+ * punto de uso escribía `var(--reader-text, var(--color-warm-900))` para el
+ * texto y `var(--reader-bg-tint, rgba(250,250,248,0.92))` para el fondo. Con
+ * el tema «system» ninguna de las dos variables existía, así que el texto caía
+ * en un TOKEN —que se invierte en Noche— y el fondo en un LITERAL claro —que
+ * no—. En Noche el resultado era blanco sobre casi blanco: 1.23:1 el título
+ * del capítulo, 2.01:1 el subtítulo.
+ *
+ * La familia se declara aquí entera, una sola vez, en términos de los tokens
+ * semánticos que ya existen. Fuera de Noche resuelven a los mismos valores que
+ * los literales anteriores, así que la apariencia por defecto no cambia; en
+ * Noche, por fin, cambia entera y coordinada. Los temas explícitos siguen
+ * mandando sobre esto, como hasta ahora.
+ */
+const READER_FOLLOWS_AMBIENT = {
+  ["--reader-bg" as string]: "var(--bg-page)",
+  ["--reader-bg-tint" as string]: "var(--surface-glass-bg)",
+  ["--reader-text" as string]: "var(--fg-strong)",
+  ["--reader-muted" as string]: "var(--fg-muted)",
+  ["--reader-border" as string]: "var(--bg-divider)",
+  ["--reader-chip-bg" as string]: "var(--bg-subtle)",
+  ["--reader-track" as string]: "var(--bg-subtle)",
+} as React.CSSProperties;
+
 function themeStyle(theme: ReaderPrefs["theme"]): React.CSSProperties {
   switch (theme) {
     case "sepia":
@@ -2314,12 +2344,23 @@ function themeStyle(theme: ReaderPrefs["theme"]): React.CSSProperties {
         color: "#E5E5EA",
       };
     case "light":
+      // «Claro» fija un fondo blanco, así que tiene que fijar también el texto
+      // que va encima. Antes sólo declaraba el fondo y dejaba el color al
+      // token del ambiente: en Noche eso era blanco sobre blanco. Ahora el
+      // tema está completo, como sepia y oscuro ya lo estaban.
       return {
         background: "#FFFFFF",
+        ["--reader-bg" as string]: "#FFFFFF",
         ["--reader-bg-tint" as string]: "rgba(255, 255, 255, 0.92)",
+        ["--reader-text" as string]: "#2A2420",
+        ["--reader-muted" as string]: "#6B655D",
+        ["--reader-border" as string]: "rgba(0, 0, 0, 0.08)",
+        ["--reader-chip-bg" as string]: "rgba(0, 0, 0, 0.05)",
+        ["--reader-track" as string]: "rgba(0, 0, 0, 0.08)",
+        color: "#2A2420",
       };
     case "system":
     default:
-      return {};
+      return READER_FOLLOWS_AMBIENT;
   }
 }

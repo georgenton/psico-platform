@@ -271,11 +271,25 @@ export function BookHero({
             type="button"
             onClick={isLocked ? undefined : handleStart}
             disabled={starting || !token}
-            className="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-[14px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+            className="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-[14px] font-semibold transition-opacity hover:opacity-90 disabled:opacity-60"
             style={{
+              // Dos acciones distintas, dos rellenos semánticos distintos:
+              // leer es la acción del producto (`--bg-action`), y pasar a Pro
+              // es una acción de MARCA, que es lo que `--bg-brand-strong`
+              // nombra — el escalón de la rampa de marca elegido precisamente
+              // para llevar texto encima.
+              //
+              // Antes decía `--color-warm-900`, un valor crudo de la rampa. En
+              // Noche esa rampa está invertida, así que el relleno salía casi
+              // blanco bajo el texto blanco: 1.00:1, el botón desaparecía.
+              // Medido en las ocho combinaciones, este par da 5.92–9.79.
               background: isLocked
-                ? "var(--color-warm-900)"
+                ? "var(--bg-brand-strong)"
                 : "var(--bg-action)",
+              // El color del texto se declara junto al relleno en vez de
+              // confiarlo a una utilidad `text-white`: así el par viaja junto y
+              // no puede desemparejarse en un cambio futuro.
+              color: "var(--fg-on-brand)",
             }}
           >
             {isLocked ? "🔒" : "▶"} {starting ? "Abriendo…" : ctaLabel}

@@ -111,7 +111,12 @@ export function BookCard({
             disabled={!token}
             aria-label={favActive ? "Quitar de favoritos" : "Marcar favorito"}
             aria-pressed={favActive}
-            className="shrink-0 text-[16px] leading-none transition-transform hover:scale-110 disabled:opacity-30"
+            // El corazón medía 15×16: un objetivo por debajo del mínimo de
+            // 24×24 (WCAG 2.2 · 2.5.8), y encima es el control que más se pulsa
+            // de la tarjeta. El icono conserva su tamaño; lo que crece es la
+            // zona que responde, con el margen negativo devolviendo la
+            // posición para que la fila no se descoloque.
+            className="-m-1 inline-flex h-6 w-6 shrink-0 items-center justify-center text-[16px] leading-none transition-transform hover:scale-110 disabled:opacity-30"
             style={{
               color: favActive
                 ? "var(--color-lavender-600)"

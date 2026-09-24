@@ -63,7 +63,8 @@ function DiarioInner({
   const [ackInThisSession, setAckInThisSession] = useState(false);
 
   if (!key) {
-    return <UnlockGate />;
+    // Debajo del h1 de «Reflexiones» no hay nada más que la reja: h2.
+    return <UnlockGate nivel={2} />;
   }
 
   const showSeedModal = !seedAlreadyShown && !ackInThisSession && masterKey;

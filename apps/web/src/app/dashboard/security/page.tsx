@@ -29,10 +29,10 @@ export default async function SecurityPage() {
           internal screens. Design HTML v2 doesn't cover settings pages, so
           we apply the same eb + title pattern as a coherence sweep. */}
       <div className="screen-head">
-        <div className="screen-title">
+        <h1 className="screen-title">
           <span className="eb">Cuenta y privacidad</span>
           Seguridad
-        </div>
+        </h1>
       </div>
       <p className="screen-sub" style={{ margin: "-14px 0 26px" }}>
         Cambia tu contraseña, gestiona el acceso a tu cuenta y revisa tu frase

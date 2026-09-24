@@ -35,10 +35,10 @@ export default async function MapaPage() {
     return (
       <>
         <div className="screen-head">
-          <div className="screen-title">
+          <h1 className="screen-title">
             <span className="eb">El corazón de tu experiencia</span>
             Tu Mapa Emocional
-          </div>
+          </h1>
         </div>
         <div className="card">
           <p
@@ -60,10 +60,10 @@ export default async function MapaPage() {
     return (
       <>
         <div className="screen-head">
-          <div className="screen-title">
+          <h1 className="screen-title">
             <span className="eb">El corazón de tu experiencia</span>
             Tu Mapa Emocional
-          </div>
+          </h1>
         </div>
         <div className="card">
           <p style={{ margin: 0, fontWeight: 600, fontSize: 15 }}>
@@ -92,10 +92,10 @@ export default async function MapaPage() {
   return (
     <>
       <div className="screen-head">
-        <div className="screen-title">
+        <h1 className="screen-title">
           <span className="eb">El corazón de tu experiencia</span>
           Tu Mapa Emocional
-        </div>
+        </h1>
         <ExportButton />
       </div>
       <p className="screen-sub" style={{ margin: "-14px 0 26px" }}>

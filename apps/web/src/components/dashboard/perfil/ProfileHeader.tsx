@@ -41,12 +41,18 @@ export function ProfileHeader({ me }: { me: UserMeResponse }) {
         {user.initials}
       </div>
       <div className="flex-1">
-        <h1
+        {/* El nombre de la persona encabeza ESTA tarjeta, no la pantalla: el
+            título de «Perfil» es el de arriba, a 28 px. Mientras este era un
+            <h1> había dos títulos de página compitiendo y el que ganaba —por
+            orden— era el nombre, así que la pantalla se anunciaba con el nombre
+            de quien la mira en vez de con lo que es. A 20 px, al lado de las
+            demás tarjetas de la pantalla, su sitio es h2. */}
+        <h2
           className="text-[20px] font-bold leading-tight"
           style={{ color: "var(--color-warm-900)" }}
         >
           {user.firstName}
-        </h1>
+        </h2>
         <p className="text-[13px]" style={{ color: "var(--color-warm-500)" }}>
           {user.email}
         </p>

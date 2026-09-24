@@ -110,9 +110,14 @@ export function InicioV2({ home }: { home: HomeResponse }) {
     <>
       <div style={{ marginBottom: 24 }}>
         <div className="greet-eyebrow">{todayLabel(home.user.city)}</div>
-        <div className="greet">
+        {/* El saludo ES el título de Inicio: lo que está arriba del todo, a
+            30px, y lo que la persona lee primero. Hasta ahora era un <div>, así
+            que la pantalla no anunciaba ningún título y se entraba a ella sin
+            saber dónde se estaba. No hay copy nuevo — sólo el nivel que le
+            correspondía. */}
+        <h1 className="greet">
           {home.greeting.text}, {home.user.firstName}.
-        </div>
+        </h1>
         <div className="greet-sub">
           {home.greeting.subtitle ?? "Una pausa para mirar hacia adentro."}
         </div>

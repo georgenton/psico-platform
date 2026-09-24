@@ -255,10 +255,10 @@ export default async function PlanPage() {
     <div className="max-w-3xl">
       {/* Sprint G3 — generic screen-head sweep. */}
       <div className="screen-head">
-        <div className="screen-title">
+        <h1 className="screen-title">
           <span className="eb">Cuenta y privacidad</span>
           Mi plan
-        </div>
+        </h1>
       </div>
       <p className="screen-sub" style={{ margin: "-14px 0 26px" }}>
         {isFreePlan

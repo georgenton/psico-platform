@@ -26,10 +26,10 @@ export default async function NotificationsPage() {
     return (
       <div className="mx-auto max-w-3xl">
         <div className="screen-head">
-          <div className="screen-title">
+          <h1 className="screen-title">
             <span className="eb">Cuenta y privacidad</span>
             Notificaciones
-          </div>
+          </h1>
         </div>
         <p
           className="rounded-2xl border-[1.5px] bg-white p-6 text-[13px]"
@@ -48,10 +48,10 @@ export default async function NotificationsPage() {
     <div className="mx-auto max-w-3xl space-y-5">
       {/* Sprint G3 — generic screen-head sweep. */}
       <div className="screen-head">
-        <div className="screen-title">
+        <h1 className="screen-title">
           <span className="eb">Cuenta y privacidad</span>
           Notificaciones
-        </div>
+        </h1>
       </div>
       <p className="screen-sub" style={{ margin: "-14px 0 26px" }}>
         Controla qué te avisamos y cuándo. Estos ajustes aplican tanto al email

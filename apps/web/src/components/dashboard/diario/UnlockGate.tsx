@@ -24,6 +24,7 @@ import { PrivacyInfoButton } from "@/components/privacy/PrivacyInfoButton";
  */
 export function UnlockGate({
   context = "diario",
+  nivel = 3,
 }: {
   /**
    * Which surface is asking for the unlock. Both derive the SAME key (the
@@ -31,7 +32,20 @@ export function UnlockGate({
    * they are — unlocking from Eco shouldn't read like "go to your diary".
    */
   context?: "diario" | "eco";
+  /**
+   * El nivel del título de la reja, que NO es una propiedad de la reja sino de
+   * dónde se la pone.
+   *
+   * En Reflexiones y en Eco la reja es la pantalla entera: debajo del título de
+   * la página no hay nada más, así que su sitio es h2. Dentro de la tarjeta de
+   * la frase de respaldo, en Seguridad, cuelga de un h2 que ya existe y su
+   * sitio es h3. Fijarlo a 3 hacía que Reflexiones saltara de h1 a h3; fijarlo
+   * a 2 pondría dos h2 hermanos donde uno contiene al otro. Por eso lo decide
+   * quien la coloca, y el valor por defecto es el que había.
+   */
+  nivel?: 2 | 3;
 } = {}) {
+  const Titulo = (nivel === 2 ? "h2" : "h3") as "h2" | "h3";
   const {
     unlock,
     adoptMasterKey,
@@ -98,12 +112,12 @@ export function UnlockGate({
         >
           🔓
         </div>
-        <h3
+        <Titulo
           className="mt-4 text-center text-[18px] font-bold leading-tight"
           style={{ color: "var(--color-warm-900)" }}
         >
           Tu cuenta no tiene cifrado E2E activado
-        </h3>
+        </Titulo>
         <p
           className="mx-auto mt-2 max-w-md text-center text-[13px] leading-relaxed"
           style={{ color: "var(--color-warm-500)" }}
@@ -129,12 +143,12 @@ export function UnlockGate({
         >
           🔑
         </div>
-        <h3
+        <Titulo
           className="mt-4 text-center text-[18px] font-bold leading-tight"
           style={{ color: "var(--color-warm-900)" }}
         >
           Recupera con tu frase de respaldo
-        </h3>
+        </Titulo>
         <p
           className="mx-auto mt-2 max-w-md text-center text-[13px] leading-relaxed"
           style={{ color: "var(--color-warm-500)" }}
@@ -225,12 +239,12 @@ export function UnlockGate({
       >
         {copy.icon}
       </div>
-      <h3
+      <Titulo
         className="mt-4 text-center text-[18px] font-bold leading-tight"
         style={{ color: "var(--color-warm-900)" }}
       >
         {copy.title}
-      </h3>
+      </Titulo>
       <p
         className="mx-auto mt-2 max-w-md text-center text-[13px] leading-relaxed"
         style={{ color: "var(--color-warm-500)" }}

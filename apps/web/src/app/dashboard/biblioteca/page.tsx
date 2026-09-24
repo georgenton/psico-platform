@@ -77,10 +77,10 @@ export default async function BibliotecaPage({
           eyebrow + lib-note callout que recuerda al usuario que los libros
           son herramienta del mapa, no destino. */}
       <div className="screen-head">
-        <div className="screen-title">
+        <h1 className="screen-title">
           <span className="eb">El vehículo, no el destino</span>
           Biblioteca
-        </div>
+        </h1>
       </div>
       <div className="lib-note">
         <svg

@@ -16,11 +16,11 @@ export function AvatarUploadCard({ me }: { me: UserMeResponse }) {
 
   async function handleFile(file: File) {
     if (!ALLOWED.test(file.type)) {
-      setError("Formato no soportado. Usá PNG, JPG, WebP o GIF.");
+      setError("Formato no soportado. Usa PNG, JPG, WebP o GIF.");
       return;
     }
     if (file.size > MAX_BYTES) {
-      setError("La imagen pesa más de 5 MB. Probá una más liviana.");
+      setError("La imagen pesa más de 5 MB. Prueba con una más ligera.");
       return;
     }
     setError(null);

@@ -119,7 +119,7 @@ export function WebPushToggle({
             {phase.kind === "unsupported"
               ? "Tu navegador no soporta notificaciones del sistema (requiere HTTPS + navegador moderno)."
               : phase.kind === "blocked"
-                ? "Negaste el permiso. Activalo desde la configuración del navegador."
+                ? "Negaste el permiso. Actívalo desde la configuración del navegador."
                 : phase.kind === "on"
                   ? "Activadas — recibirás alertas aún cuando la pestaña esté cerrada."
                   : "Recibí alertas del recordatorio diario, racha y Eco aún sin abrir FeelVerse."}

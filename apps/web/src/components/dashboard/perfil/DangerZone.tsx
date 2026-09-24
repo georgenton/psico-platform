@@ -190,7 +190,7 @@ function DeleteRow({
           className="mt-1 text-[12px]"
           style={{ color: "var(--color-rose-700)" }}
         >
-          Tu cuenta se eliminará el {scheduledFor}. Hasta entonces, podés
+          Tu cuenta se eliminará el {scheduledFor}. Hasta entonces, puedes
           contactar soporte para cancelar el pedido.
         </p>
       </div>
@@ -212,7 +212,7 @@ function DeleteRow({
           </p>
           <p className="text-[11px]" style={{ color: "var(--color-warm-500)" }}>
             Cooldown de 30 días desde la solicitud. Tu Diario se pierde si no
-            tenés la frase de respaldo.
+            tienes la frase de respaldo.
           </p>
           {/*
            * What happens to something written WITH another person is the part

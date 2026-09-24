@@ -21,8 +21,8 @@ export function AchievementsGrid({
             color: "var(--fg-muted)",
           }}
         >
-          Empezá a usar FeelVerse — leer un capítulo, escribir en el diario,
-          charlar con Eco — y mostraremos acá tus logros.
+          Empieza a usar FeelVerse — leer un capítulo, escribir en el diario,
+          charlar con Eco — y aquí aparecerán tus logros.
         </p>
       </section>
     );

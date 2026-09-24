@@ -127,6 +127,44 @@ export const CERRADA: CircleActivityView = {
 };
 
 /**
+ * The same reveal, but with the mode that carries several answers.
+ *
+ * `REVELADA` uses `EDITED_SUMMARY` — one passage, no questions around it — so
+ * nothing that reads it ever exercised the branch where each answer needs the
+ * question it was written under. That is the branch that was printing
+ * `fieldKey` at people (#723), and this is the fixture that reaches it.
+ *
+ * The keys are the ones `PLANTILLA` declares, because the API refuses a
+ * confirmation carrying any key the pinned template does not.
+ */
+export const REVELADA_POR_CAMPOS: CircleActivityView = {
+  ...REVELADA,
+  you: {
+    status: "READY",
+    sharingMode: "SELECTED_FIELDS",
+    confirmed: {
+      mode: "SELECTED_FIELDS",
+      fields: [{ fieldKey: "algo", value: "lo mío del primer campo" }],
+    },
+    followUpDecision: null,
+  },
+  revealed: {
+    participants: [
+      {
+        label: "Participante 2",
+        share: {
+          mode: "SELECTED_FIELDS",
+          fields: [
+            { fieldKey: "algo", value: "lo suyo del primer campo" },
+            { fieldKey: "otro", value: "lo suyo del segundo campo" },
+          ],
+        },
+      },
+    ],
+  },
+};
+
+/**
  * Walk the private preparation the way a person does: one question, then the
  * next, then the sharing decision.
  *

@@ -607,7 +607,7 @@ export function SalaDuo({
 
       {stageName === "revealed" && view.revealed && (
         <>
-          <Reveal view={view} />
+          <Reveal view={view} fields={fields} />
           <Artefacto
             view={view}
             busy={busy}

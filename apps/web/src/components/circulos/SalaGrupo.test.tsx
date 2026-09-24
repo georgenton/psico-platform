@@ -7,7 +7,7 @@ vi.mock("server-only", () => ({}));
 import { Reveal } from "./Reveal";
 import { Artefacto } from "./Artefacto";
 import { PreviewCompartir } from "./PreviewCompartir";
-import { REVELADA } from "./__fixtures__/actividad";
+import { PLANTILLA, REVELADA } from "./__fixtures__/actividad";
 
 /**
  * What a room of more than two says, and what it refuses to say.
@@ -18,10 +18,13 @@ import { REVELADA } from "./__fixtures__/actividad";
  * will read what you write.
  */
 
+/** Los enunciados de la plantilla a la que la sala está anclada. */
+const CAMPOS = PLANTILLA.privatePreparation;
+
 const share = (value: string) =>
   ({
     mode: "SELECTED_FIELDS" as const,
-    fields: [{ fieldKey: "campo-a", value }],
+    fields: [{ fieldKey: "algo", value }],
   }) satisfies CircleActivityView["you"]["confirmed"];
 
 /** The fixture, resized into a room of four. */
@@ -46,7 +49,7 @@ function room(over: Partial<CircleActivityView> = {}): CircleActivityView {
 
 describe("the reveal keeps three answers apart", () => {
   it("renders one labelled block per person, in roster order", () => {
-    render(<Reveal view={room()} />);
+    render(<Reveal view={room()} fields={CAMPOS} />);
     expect(screen.getByText("Lo que compartió cada quien")).toBeVisible();
     const labels = screen
       .getAllByRole("heading", { level: 3 })
@@ -61,21 +64,21 @@ describe("the reveal keeps three answers apart", () => {
   });
 
   it("reports KEEP_PRIVATE as a fact, with no reason and no blame", () => {
-    render(<Reveal view={room()} />);
+    render(<Reveal view={room()} fields={CAMPOS} />);
     expect(
       screen.getByText(/eligió no compartir contenido esta vez/),
     ).toBeVisible();
   });
 
   it("does not name one of the three the counterpart", () => {
-    render(<Reveal view={room()} />);
+    render(<Reveal view={room()} fields={CAMPOS} />);
     expect(screen.queryByText(/la otra persona/i)).toBeNull();
   });
 
   it("keeps the Dúo's wording when there is exactly one other person", () => {
     // The production activity, untouched: one other answer, no labels, and the
     // sentence people are reading today.
-    render(<Reveal view={REVELADA} />);
+    render(<Reveal view={REVELADA} fields={CAMPOS} />);
     expect(screen.getByText("Lo que compartió la otra persona")).toBeVisible();
     expect(screen.queryAllByRole("heading", { level: 3 })).toHaveLength(0);
   });
@@ -91,7 +94,7 @@ describe("the reveal keeps three answers apart", () => {
         ],
       },
     });
-    render(<Reveal view={partial} />);
+    render(<Reveal view={partial} fields={CAMPOS} />);
     expect(screen.queryByText("Participante 3")).toBeNull();
     expect(screen.getAllByRole("heading", { level: 3 })).toHaveLength(2);
   });

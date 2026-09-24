@@ -30,12 +30,24 @@ export function ProfileHeader({ me }: { me: UserMeResponse }) {
       style={{ borderColor: "var(--color-warm-200)" }}
     >
       <div
-        // Negrita, no semi: a 20 px el monograma pasa a contar como texto
-        // grande, cuyo umbral es 3:1, y el blanco sobre el acento lo cumple en
-        // los cuatro ambientes (3.24:1 el peor, Energía). Con semibold medía
-        // 3.63:1 contra un umbral de 4.5:1.
-        className="flex h-16 w-16 items-center justify-center rounded-full text-xl font-bold text-white"
-        style={{ background: "var(--color-lavender-500)" }}
+        // El monograma sobre relleno de marca: `--bg-brand-strong` es el token
+        // que existe justamente para «relleno de marca que lleva texto», y cada
+        // ambiente ya lo declara con el escalón de SU rampa que llega a AA con
+        // blanco. Medido en las ocho combinaciones: peor caso 5.92:1 (Energía),
+        // frente a 3.24:1 con `lavender-500`, que es donde estaba.
+        //
+        // Clavar un escalón concreto NO sirve: en Noche la rampa está invertida
+        // y `lavender-600` mide 2.59:1 y `lavender-700`, 1.86:1. Por eso se usa
+        // el token de rol y no un número.
+        //
+        // La negrita se queda: bajaba el umbral de 4.5 a 3 por tamaño, y ahora
+        // que el relleno cumple 4.5 de todos modos, sigue siendo la que mejor
+        // se lee en un círculo pequeño.
+        className="flex h-16 w-16 items-center justify-center rounded-full text-xl font-bold"
+        style={{
+          background: "var(--bg-brand-strong)",
+          color: "var(--fg-on-brand)",
+        }}
         aria-hidden
       >
         {user.initials}

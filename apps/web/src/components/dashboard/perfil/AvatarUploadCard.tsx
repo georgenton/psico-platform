@@ -83,8 +83,14 @@ export function AvatarUploadCard({ me }: { me: UserMeResponse }) {
           />
         ) : (
           <div
-            className="flex h-16 w-16 items-center justify-center rounded-full text-xl font-semibold text-white"
-            style={{ background: "var(--color-lavender-500)" }}
+            // Mismo monograma que en la cabecera del perfil y, hasta ahora,
+            // mismo 3.24:1. Aquí además pesa semibold a 20 px, que no llega a
+            // «texto grande», así que su umbral era 4.5 y medía 3.63:1.
+            className="flex h-16 w-16 items-center justify-center rounded-full text-xl font-semibold"
+            style={{
+              background: "var(--bg-brand-strong)",
+              color: "var(--fg-on-brand)",
+            }}
             data-testid="avatar-placeholder"
           >
             {me.user.initials}

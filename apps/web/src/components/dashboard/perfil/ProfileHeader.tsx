@@ -68,7 +68,13 @@ export function ProfileHeader({ me }: { me: UserMeResponse }) {
         </p>
       </div>
       <div
-        className="rounded-full px-3 py-1 text-[12px] font-semibold"
+        // Una píldora no puede partirse en dos líneas: el redondeo la convierte
+        // en una cápsula torcida. «Gratuito» cabe, pero el mismo componente
+        // pinta «Pro Anual», y ese se partía a 320, 360 y 375 px porque la
+        // píldora podía encogerse y el texto podía envolver. Se le quitan las
+        // dos cosas a ESTA insignia; la columna del correo, que ya recorta con
+        // puntos suspensivos, es la que cede sitio.
+        className="shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-[12px] font-semibold"
         style={{
           background: PLAN_BG[tier],
           color: PLAN_FG[tier],

@@ -208,7 +208,11 @@ export function BookCard({
         <div className="mt-4 flex items-center justify-between gap-2">
           <Link
             href={`/dashboard/biblioteca/${book.slug}`}
-            className="inline-flex flex-1 items-center justify-center rounded-xl px-3 py-2 text-[12px] font-semibold transition-opacity hover:opacity-90"
+            // `min-w-0`: sin esto el enlace no baja de la anchura de su texto
+            // —«Desbloquear con Pro →» es largo— y el que cedía sitio era el
+            // botón de al lado, que acababa fuera de la tarjeta. Ahora el que
+            // se estrecha (y envuelve) es el que tiene sitio para hacerlo.
+            className="inline-flex min-w-0 flex-1 items-center justify-center rounded-xl px-3 py-2 text-[12px] font-semibold transition-opacity hover:opacity-90"
             style={
               book.tierRequired === "pro"
                 ? {
@@ -233,7 +237,10 @@ export function BookCard({
             disabled={!token}
             aria-label={bmActive ? "Quitar marcador" : "Guardar para luego"}
             aria-pressed={bmActive}
-            className="rounded-xl px-2 py-2 text-[13px] transition-colors disabled:opacity-30"
+            // `shrink-0`: es un control, y un control que se sale de su tarjeta
+            // —la tarjeta oculta lo que desborda— deja de poder pulsarse.
+            // Reproducido a 320 px con el navegador al 200 %.
+            className="shrink-0 rounded-xl px-2 py-2 text-[13px] transition-colors disabled:opacity-30"
             style={{
               color: bmActive
                 ? "var(--color-lavender-600)"

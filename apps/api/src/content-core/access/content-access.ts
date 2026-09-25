@@ -51,6 +51,40 @@ export interface ContentEntitlementTarget {
 }
 
 /**
+ * El código de dominio de la negativa.
+ *
+ * Viaja en `code`, no en `message`. Antes se lanzaba como cadena suelta, que el
+ * filtro coloca en `message` y deja `code` en el genérico `FORBIDDEN`: un
+ * cliente que conmute por `code` no podía distinguir «hazte Pro» de «esto no es
+ * tuyo», y el único dato que los separaba era un texto. La forma de objeto es
+ * la que el proyecto ya usa para sus errores de dominio. Ver #736.
+ */
+export const PRO_REQUIRED = "PRO_REQUIRED";
+
+/**
+ * LA condición. Una sola expresión para las dos preguntas que hay que
+ * responder sobre un contenido:
+ *
+ *   · ¿puedo abrirlo?        → `assertContentAccess`, que lanza
+ *   · ¿lo pinto bloqueado?   → esta, que devuelve un booleano
+ *
+ * Tenerlas separadas fue exactamente el fallo de #736: la lista de capítulos se
+ * calculaba su propia respuesta con otros datos y decía que sí estaba bloqueado
+ * el capítulo que el lector servía sin problema.
+ */
+export function isContentLockedByPlan(input: {
+  userPlan: string;
+  bookPlan: string;
+  isFreePreview: boolean;
+}): boolean {
+  return (
+    input.bookPlan === "PRO" &&
+    !input.isFreePreview &&
+    input.userPlan === "FREE"
+  );
+}
+
+/**
  * THE gate. The only place the FREE/PRO condition lives.
  *
  * It now asks whether the unit IS the free preview rather than whether it sits
@@ -63,12 +97,11 @@ export function assertContentAccess(input: {
   bookPlan: string;
   isFreePreview: boolean;
 }): void {
-  if (
-    input.bookPlan === "PRO" &&
-    !input.isFreePreview &&
-    input.userPlan === "FREE"
-  ) {
-    throw new ForbiddenException("PRO_REQUIRED");
+  if (isContentLockedByPlan(input)) {
+    throw new ForbiddenException({
+      code: PRO_REQUIRED,
+      message: PRO_REQUIRED,
+    });
   }
 }
 

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { PaywallPro } from "@/components/dashboard/detalle/PaywallPro";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { BookDetailResponse } from "@psico/types";
@@ -170,34 +171,11 @@ export default async function BookDetailPage({ params }: { params: Params }) {
         />
       </div>
 
-      {/* Paywall block when locked */}
+      {/* El mismo bloque que ve el lector cuando un capítulo pide Pro: una
+          tarjeta, no dos. Ver `PaywallPro`. */}
       {isLocked ? (
         <section className="mt-10">
-          <div
-            className="relative overflow-hidden rounded-2xl p-7 text-white"
-            style={{
-              background:
-                "linear-gradient(135deg, var(--color-lavender-500), var(--color-lavender-800))",
-            }}
-          >
-            <h3 className="text-[18px] font-bold leading-tight tracking-tight">
-              Este libro está disponible con Pro
-            </h3>
-            <p
-              className="mt-2 max-w-md text-[13px] leading-relaxed"
-              style={{ color: "rgba(255,255,255,0.85)" }}
-            >
-              Por $7/mes accedes a todos los libros, audios guiados y Eco dentro
-              del capítulo. Cancelas cuando quieras.
-            </p>
-            <Link
-              href="/dashboard/plan"
-              className="mt-4 inline-flex items-center gap-1.5 rounded-xl px-5 py-3 text-[13px] font-semibold text-white"
-              style={{ background: "var(--bg-action)" }}
-            >
-              Hazte Pro →
-            </Link>
-          </div>
+          <PaywallPro />
         </section>
       ) : null}
     </div>

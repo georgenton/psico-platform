@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { esProRequerido, renderChapterLocked } from "../reader-page";
 import type { ReaderChapterRef } from "@psico/types";
 import { readerChapterPath } from "@psico/types";
 
@@ -44,8 +45,10 @@ export default async function PositionalChapterPage({
   } catch (err) {
     if (isNextThrow(err)) throw err;
     if (err instanceof ApiError && err.status === 404) notFound();
-    // 403 (PRO_REQUIRED) bubbles to the dashboard error boundary, exactly as it
-    // did when this route rendered the reader itself.
+    // El 403 llega ya en el LOCALIZADOR, antes de redirigir: por eso esta ruta
+    // también tiene que saber representarlo. El comentario anterior decía que
+    // burbujeaba a un error boundary; lo que salía era un 500. Ver #736.
+    if (esProRequerido(err)) return renderChapterLocked();
     throw err;
   }
 

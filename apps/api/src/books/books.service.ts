@@ -7,6 +7,10 @@ import {
 } from "@nestjs/common";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { PrismaService } from "../prisma";
+import {
+  isContentLockedByPlan,
+  isFreePreviewByPosition,
+} from "../content-core/access/content-access";
 import type {
   BookAuthorDetail,
   BookAuthorSummary,
@@ -63,13 +67,6 @@ const PLAN_TO_TIER: Record<string, UserTier> = {
   ANNUAL: "pro",
   B2B: "pro",
 };
-const PLAN_RANK: Record<string, number> = {
-  FREE: 0,
-  PRO: 1,
-  ANNUAL: 2,
-  B2B: 3,
-};
-
 const DEFAULT_PER_PAGE = 24;
 const DEFAULT_RECO_LIMIT = 4;
 const DEFAULT_REVIEW_PER_PAGE = 10;
@@ -324,6 +321,16 @@ export class BooksService {
   async getDetail(
     userId: string | null,
     idOrSlug: string,
+    /**
+     * El plan de QUIEN mira. Antes no llegaba, y por eso `lockedByTier` se
+     * calculaba con el plan del LIBRO en los dos lados de la comparación: decía
+     * «bloqueado» para todos los capítulos de un libro PRO, incluida la vista
+     * previa, y también a una persona que ya paga. Ver #736.
+     *
+     * Opcional porque la ficha se sirve con sesión opcional: sin sesión, FREE
+     * es la respuesta correcta y la más prudente.
+     */
+    userPlan: string = "FREE",
   ): Promise<BookDetailResponse> {
     const book = await this.findByIdOrSlug(idOrSlug, userId);
     if (!book) throw new NotFoundException(`Book '${idOrSlug}' not found`);
@@ -403,6 +410,7 @@ export class BooksService {
 
     const chaptersList = this.buildChaptersList(
       book.plan,
+      userPlan,
       effective,
       progressById,
       startedIds,
@@ -904,13 +912,13 @@ export class BooksService {
    * its position.
    */
   private buildChaptersList(
-    plan: string,
+    bookPlan: string,
+    userPlan: string,
     effective: EffectiveChapter[],
     progressById: Map<string, { completedAt: Date | null }>,
     startedIds: Set<string>,
     userId: string | null,
   ): ChapterListItem[] {
-    const tier = PLAN_TO_TIER[plan] ?? "free";
     return effective.map((ch) => {
       const progress = userId ? progressById.get(ch.readerRef.id) : undefined;
       // Completion wins. A finished chapter also has a session behind it, and
@@ -933,9 +941,15 @@ export class BooksService {
         readerRef: ch.readerRef,
         title: ch.title,
         durationMinutes: ch.durationMinutes,
-        // Unchanged display rule: locked rows stay VISIBLE and locked. This
-        // list is a table of contents, not an entitlement filter.
-        lockedByTier: tier === "pro" && (PLAN_RANK[plan] ?? 0) > 0,
+        // Locked rows stay VISIBLE and locked: esta lista es un índice, no un
+        // filtro de permisos. Lo que cambió es QUIÉN decide — ahora la misma
+        // expresión que usa el gate del lector, con los mismos tres datos. La
+        // versión anterior comparaba el plan del libro consigo mismo.
+        lockedByTier: isContentLockedByPlan({
+          userPlan,
+          bookPlan,
+          isFreePreview: isFreePreviewByPosition(ch.order),
+        }),
         partNumber: ch.partNumber,
         partTitle: ch.partTitle,
         userProgress: {

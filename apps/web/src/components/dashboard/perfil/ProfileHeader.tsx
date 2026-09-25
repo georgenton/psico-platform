@@ -1,6 +1,15 @@
 import type { UserMeResponse } from "@psico/types";
 
-const PLAN_LABEL: Record<string, string> = {
+/**
+ * Las etiquetas que la insignia sabe pintar.
+ *
+ * Hoy sólo llegan dos: `tier` se deriva de `user.tier`, que es `"free" | "pro"`.
+ * `ANNUAL` y `B2B` son código muerto — pero código muerto que algún día se
+ * conectará, y las dos son de DOS PALABRAS, que es justo la forma que rompía la
+ * píldora. Se exporta para que la prueba pueda recorrerlas todas y para que el
+ * día que se enciendan lleguen ya cubiertas. Ver #733.
+ */
+export const PLAN_LABEL: Record<string, string> = {
   FREE: "Gratuito",
   PRO: "Pro",
   ANNUAL: "Pro Anual",
@@ -26,7 +35,27 @@ export function ProfileHeader({ me }: { me: UserMeResponse }) {
   const tier = user.tier === "pro" ? "PRO" : "FREE";
   return (
     <section
-      className="flex items-center gap-4 rounded-2xl border-[1.5px] bg-white p-5"
+      // ── Por qué esta fila envuelve ──────────────────────────────────────
+      //
+      // Tres piezas —monograma, identidad, insignia— y a 320 px no caben en una
+      // línea. Sin permiso para envolver, `flex` no deja de repartir: le quita
+      // sitio a quien se deje. Medido a 320 px antes de este cambio: el
+      // monograma, que es un círculo de 64 px, se pintaba a 27.4 px de ancho
+      // por 64 de alto —una elipse—, la columna de identidad se plantaba en su
+      // mínimo de 152.5 px y no cedía más, y la insignia acababa 7.6 px fuera
+      // de la tarjeta («Gratuito») o 29.2 px fuera y con la página
+      // desplazándose 17 px («Empresarial»). Issue #733.
+      //
+      // Envolver la FILA es lo que arregla las tres cosas a la vez: cuando la
+      // insignia no cabe, baja entera a una segunda línea en vez de que alguien
+      // se estruje. No hace falta ningún breakpoint: el punto en el que ocurre
+      // lo decide el contenido —cuánto mide el nombre, el correo y la etiqueta
+      // del plan—, que es precisamente lo que un ancho fijo no sabría.
+      //
+      // `ms-auto` en la insignia la mantiene pegada a la derecha en las dos
+      // situaciones, así que en la segunda línea sigue donde la vista la
+      // buscaba y la cabecera se lee como una, no como tres bloques sueltos.
+      className="flex flex-wrap items-center gap-4 rounded-2xl border-[1.5px] bg-white p-5"
       style={{ borderColor: "var(--color-warm-200)" }}
     >
       <div
@@ -43,7 +72,11 @@ export function ProfileHeader({ me }: { me: UserMeResponse }) {
         // La negrita se queda: bajaba el umbral de 4.5 a 3 por tamaño, y ahora
         // que el relleno cumple 4.5 de todos modos, sigue siendo la que mejor
         // se lee en un círculo pequeño.
-        className="flex h-16 w-16 items-center justify-center rounded-full text-xl font-bold"
+        // `shrink-0`: un círculo con medida propia no negocia. `h-16 w-16` fija
+        // los 64 px, pero sin esto era el primero al que la fila le quitaba
+        // sitio, y a 320 px se pintaba a 27.4 px de ancho por 64 de alto. Un
+        // círculo aplastado en óvalo con las iniciales apretadas dentro.
+        className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full text-xl font-bold"
         style={{
           background: "var(--bg-brand-strong)",
           color: "var(--fg-on-brand)",
@@ -81,12 +114,12 @@ export function ProfileHeader({ me }: { me: UserMeResponse }) {
       </div>
       <div
         // Una píldora no puede partirse en dos líneas: el redondeo la convierte
-        // en una cápsula torcida. «Gratuito» cabe, pero el mismo componente
-        // pinta «Pro Anual», y ese se partía a 320, 360 y 375 px porque la
-        // píldora podía encogerse y el texto podía envolver. Se le quitan las
-        // dos cosas a ESTA insignia; la columna del correo, que ya recorta con
-        // puntos suspensivos, es la que cede sitio.
-        className="shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-[12px] font-semibold"
+        // en una cápsula torcida. Por eso no se encoge ni envuelve su texto.
+        //
+        // Lo que sí puede es bajar de línea, y eso lo decide la fila (ver el
+        // comentario de la sección). `ms-auto` la deja pegada al borde derecho
+        // tanto si comparte línea como si baja sola.
+        className="ms-auto shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-[12px] font-semibold"
         style={{
           background: PLAN_BG[tier],
           color: PLAN_FG[tier],

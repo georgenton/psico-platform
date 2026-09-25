@@ -90,3 +90,58 @@ email address, never a password. A refusal prints one of:
 
 `QA_FIXTURE_FORBIDDEN_IN_PRODUCTION` · `QA_FIXTURE_NOT_AUTHORIZED` ·
 `QA_FIXTURE_DATABASE_LOOKS_REAL`
+
+## Personas (`pnpm qa:personas`)
+
+El fixture llena el catálogo y **nunca crea cuentas** — esa frase es lo que lo
+hace fácil de revisar. Pero una auditoría que sólo dispone de cuentas FREE sin
+desbloquear ve muros de pago y rejas, no el producto. Las personas son la otra
+mitad: cuatro cuentas sintéticas con estado.
+
+| Persona     | rol    | plan | para qué                                          |
+| ----------- | ------ | ---- | ------------------------------------------------- |
+| `QA_FREE`   | USER   | FREE | muros de pago, estados FREE, biblioteca, perfil   |
+| `QA_PRO`    | USER   | PRO  | lector PRO, Patrones, Voz                         |
+| `QA_CRYPTO` | USER   | PRO  | Reflexiones, Diario y Eco al otro lado de la reja |
+| `QA_AUTHOR` | AUTHOR | PRO  | `/autor/*`                                        |
+
+Las cuatro viven en `@psico.test`. RFC 2606 reserva `.test`: nadie recibe correo
+ahí.
+
+```bash
+cd apps/api
+QA_PERSONAS_PASSWORD='…' pnpm qa:personas              # en seco, no escribe
+QA_PERSONAS_PASSWORD='…' pnpm qa:personas -- --apply   # escribe
+```
+
+### Las cuatro barreras
+
+Las **tres del fixture**, heredadas tal cual (postura del proceso, autorización
+explícita, identidad de la base), más una **cuarta que es suya**:
+`assertIsOwnPersona` se niega a escribir sobre cualquier dirección que no sea
+una de esas cuatro. Las tres primeras responden «¿es este sitio de pruebas?».
+La cuarta responde «¿es esta fila mía?», que es la que protege a una persona
+real de un `upsert` con el correo equivocado.
+
+### La contraseña
+
+No hay valor por defecto, a propósito: un valor por defecto en el repositorio es
+una credencial publicada el día que alguien apunte la herramienta a un sitio que
+importe. Llega por `QA_PERSONAS_PASSWORD`, pide al menos 10 caracteres, y no se
+imprime nunca — ni en el informe, ni en los registros, ni en un error.
+
+Una cuenta que ya existe **no** cambia de contraseña salvo que se pase
+`--rotate-passwords`: una auditoría en marcha no debería quedarse fuera porque
+alguien volvió a lanzar la herramienta.
+
+### Qué escribe, y qué no
+
+Escribe la cuenta, su rol, su plan, su `cryptoSalt` y el onboarding ya cerrado.
+No escribe contenido personal: ni reflexiones, ni conversaciones, ni mapa. Ese
+contenido lo produce la auditoría usando el producto, que es de lo que se trata.
+
+El informe publica el `userId` de cada persona, y es deliberado: autorizar a una
+de ellas como organizadora de Círculos en QA se hace escribiendo su id en
+`CIRCLES_PILOT_USER_IDS`, así que quien ejecuta la herramienta necesita leerlo.
+No es un dato personal — la cuarta barrera garantiza que sólo puede ser una de
+esas cuatro cuentas sintéticas.

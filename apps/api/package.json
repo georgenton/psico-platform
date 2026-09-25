@@ -23,6 +23,7 @@
     "test:locks": "vitest run --config vitest.locks.config.ts",
     "pg:locks": "node scripts/pg-locks-env.mjs",
     "qa:fixture": "ts-node src/qa/visual-fixture-cli.ts",
+    "qa:personas": "ts-node src/qa/personas-cli.ts",
     "content:book:bootstrap": "ts-node src/content-core/bootstrap-cli.ts",
     "content:book:activate-learning": "ts-node src/content-core/learning-activation-cli.ts",
     "smoke:r2": "node --env-file-if-exists=.env scripts/r2-smoke.mjs",

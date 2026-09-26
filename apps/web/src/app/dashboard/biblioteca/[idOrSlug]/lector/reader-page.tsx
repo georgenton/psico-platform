@@ -9,6 +9,7 @@ import type {
 import { classifyMarksReadFailure, shouldFetchUnitMarks } from "@psico/types";
 
 import { ApiError } from "@/lib/api";
+import { PaywallPro } from "@/components/dashboard/detalle/PaywallPro";
 import { getAccessToken, isNextThrow, serverFetch } from "@/lib/api.server";
 import { LectorShell } from "@/components/dashboard/lector/LectorShell";
 
@@ -107,8 +108,13 @@ export async function renderReader(fetchChapter: ChapterFetch) {
   } catch (err) {
     if (isNextThrow(err)) throw err;
     if (err instanceof ApiError && err.status === 404) notFound();
-    // For 403 (PRO_REQUIRED on chapter 2+ of a PRO book) we let the error
-    // bubble — the dashboard error boundary shows the user-facing message.
+    // «Esto necesita Pro» no es una excepción: es un estado normal del
+    // producto, y hasta ahora salía por el mismo desagüe que un fallo de
+    // servidor. El comentario que había aquí decía que el 403 «burbujea al
+    // error boundary del panel»; lo que ocurría de verdad era un 500 en blanco,
+    // sin explicación y sin salida — justo a quien sigue un enlace compartido o
+    // un marcador de cuando sí tenía Pro. Ver #736.
+    if (esProRequerido(err)) return <LectorBloqueado />;
     throw err;
   }
 
@@ -152,5 +158,46 @@ export async function renderReader(fetchChapter: ChapterFetch) {
       // hrefs from it, and `idOrSlug` may be an id.
       bookSlug={chapter.book.slug}
     />
+  );
+}
+
+/**
+ * ¿Es esta negativa un «hazte Pro»?
+ *
+ * Se mira `code`, que es el campo estable —el propio `ApiError` lo dice: el
+ * texto de `message` puede cambiar sin romper el contrato—. Se acepta además
+ * el token en `message` durante la transición: la Web y la API se despliegan
+ * por separado, y si la Web llegara primero, `code` todavía vendría como
+ * `FORBIDDEN` y volveríamos al 500 que esto viene a quitar. Se puede retirar
+ * esa segunda rama cuando la API con `code: "PRO_REQUIRED"` esté desplegada en
+ * todas partes.
+ */
+export function esProRequerido(err: unknown): boolean {
+  if (!(err instanceof ApiError) || err.status !== 403) return false;
+  return err.code === "PRO_REQUIRED" || err.message === "PRO_REQUIRED";
+}
+
+/** Alias con el nombre que usa la ruta posicional. */
+export const renderChapterLocked = () => <LectorBloqueado />;
+
+/**
+ * Lo que ve quien abre un capítulo que su plan no cubre.
+ *
+ * No se pinta ni un bloque —el servidor no los ha entregado, así que no hay
+ * nada que esconder— ni se dice nada del capítulo que el contrato no haya
+ * dado. Sólo la razón y dos salidas.
+ */
+export function LectorBloqueado() {
+  return (
+    <div className="mx-auto max-w-2xl px-4 py-12">
+      <PaywallPro
+        titulo="Este capítulo está disponible con Pro"
+        cuerpo="El primer capítulo de cada libro es gratuito. Para seguir leyendo este, y todos los demás, hazte Pro por $7/mes. Cancelas cuando quieras."
+        volver={{
+          href: "/dashboard/biblioteca",
+          texto: "Volver a la biblioteca",
+        }}
+      />
+    </div>
   );
 }

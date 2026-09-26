@@ -444,6 +444,69 @@ describe("BooksService.getDetail", () => {
     expect(result.rating.count).toBe(2);
   });
 
+  describe("lockedByTier responde por la persona, no por el libro (#736)", () => {
+    /**
+     * Antes esto se calculaba con el plan del LIBRO en los dos lados de la
+     * comparación, así que decía lo mismo para todo el mundo: «bloqueado» en
+     * cada capítulo de un libro de pago, incluida la vista previa que el lector
+     * sirve sin problema, y también a quien ya paga.
+     *
+     * Ahora usa la misma expresión que el gate del lector. Estas pruebas son la
+     * matriz entera: si alguna vez vuelven a divergir, la lista y el lector
+     * dirán cosas distintas sobre el mismo capítulo, que es el fallo original.
+     */
+    const prepararLibroPro = () => {
+      const conCapitulos = {
+        ...baseProBook,
+        chapters: baseFreeBook.chapters,
+      };
+      prisma.book.findUnique
+        .mockResolvedValueOnce(null) // primer intento, por id
+        .mockResolvedValueOnce(conCapitulos); // segundo, por slug
+      prisma.bookReview.groupBy.mockResolvedValue([]);
+      prisma.bookReview.findMany.mockResolvedValue([]);
+    };
+
+    it("libro PRO · cuenta FREE: la vista previa NO está bloqueada, el resto sí", async () => {
+      prepararLibroPro();
+      const r = await service.getDetail(
+        "user-1",
+        "familias-ensambladas",
+        "FREE",
+      );
+      expect(r.chaptersList[0].n).toBe(1);
+      expect(r.chaptersList[0].lockedByTier).toBe(false);
+      expect(r.chaptersList[1].lockedByTier).toBe(true);
+    });
+
+    it("libro PRO · cuenta PRO: nada está bloqueado", async () => {
+      prepararLibroPro();
+      const r = await service.getDetail(
+        "user-1",
+        "familias-ensambladas",
+        "PRO",
+      );
+      expect(r.chaptersList.map((c) => c.lockedByTier)).toEqual([false, false]);
+    });
+
+    it("libro FREE · cuenta FREE: nada está bloqueado", async () => {
+      prisma.book.findUnique
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(baseFreeBook);
+      prisma.bookReview.groupBy.mockResolvedValue([]);
+      prisma.bookReview.findMany.mockResolvedValue([]);
+      const r = await service.getDetail("user-1", "emociones", "FREE");
+      expect(r.chaptersList.map((c) => c.lockedByTier)).toEqual([false, false]);
+    });
+
+    it("sin sesión se responde como FREE, que es lo prudente", async () => {
+      prepararLibroPro();
+      const r = await service.getDetail(null, "familias-ensambladas");
+      expect(r.chaptersList[0].lockedByTier).toBe(false);
+      expect(r.chaptersList[1].lockedByTier).toBe(true);
+    });
+  });
+
   it("hides licenseNumber for unverified author", async () => {
     const unverifiedBook = {
       ...baseFreeBook,

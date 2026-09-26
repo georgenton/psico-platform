@@ -103,8 +103,15 @@ export class BooksController {
   @UseGuards(OptionalJwtAuthGuard)
   @Get(":idOrSlug")
   getDetail(@Req() req: Request, @Param("idOrSlug") idOrSlug: string) {
-    const userId = (req.user as AuthenticatedUser | undefined)?.userId ?? null;
-    return this.booksService.getDetail(userId, idOrSlug);
+    const user = req.user as AuthenticatedUser | undefined;
+    // El plan viaja junto al id: sin él, `lockedByTier` no puede responder
+    // «¿bloqueado para ESTA persona?» y acaba respondiendo «¿es un libro de
+    // pago?», que es otra pregunta. Sin sesión, FREE. Ver #736.
+    return this.booksService.getDetail(
+      user?.userId ?? null,
+      idOrSlug,
+      user?.plan ?? "FREE",
+    );
   }
 
   @Get(":idOrSlug/reviews")

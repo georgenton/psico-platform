@@ -6,7 +6,7 @@ import Link from "next/link";
 import { DIARY_MOODS, EXPLICIT_SELECTION_VERSION } from "@psico/types";
 import type { DiaryDetailResponse, DiaryMoodId } from "@psico/types";
 import { decryptString, encryptString } from "@psico/crypto";
-import { DiaryKeyProvider, useDiaryKey } from "@/lib/crypto/diary-key-context";
+import { useDiaryKey } from "@/lib/crypto/diary-key-context";
 import { UnlockGate } from "./UnlockGate";
 
 const EXCERPT_MAX_CHARS = 280;
@@ -22,41 +22,31 @@ function normalizeTag(raw: string): string | null {
 }
 
 /**
- * EntryDetailView — wraps the detail in a DiaryKeyProvider so the same
- * UnlockGate / decryption flow as the list page applies.
+ * EntryDetailView — el detalle de una reflexión, descifrado con la clave que
+ * ya tiene la sesión.
  *
- * The Server Component page fetches the entry with full ciphertext + nonce
- * (the body, not just the excerpt). When the key is present, this client
- * component decrypts the body and renders it; otherwise the UnlockGate is
- * shown.
+ * QUÉ PASABA ANTES. Este componente montaba su PROPIO `DiaryKeyProvider` con
+ * `initialWrapKey={null}`, y su comentario decía para qué: «keeps the test path
+ * simple». Ese proveedor anidado ensombrecía al del panel, así que abría
+ * siempre con la clave en null. Desbloqueabas Reflexiones, pulsabas una entrada
+ * —navegación de cliente, sin recargar, con el árbol de React intacto— y la
+ * reja volvía a pedirte la contraseña. Volver a derivar cuesta 2,3 s de
+ * Argon2id, y la lista de la que venías seguía desbloqueada detrás.
  *
- * Delete: simple confirm + DELETE /api/reflexiones/entries/:id, then redirect
- * to /dashboard/reflexiones. router.refresh() is not enough because we navigate
- * away — router.push handles that.
+ * Quien es dueño del estado criptográfico es `_DashboardShell`, que monta el
+ * proveedor por encima de todo `/dashboard`. Aquí sólo se consume.
+ *
+ * Lo que NO cambia: si la sesión está bloqueada de verdad —primera visita,
+ * recarga completa, pestaña nueva— este componente sigue enseñando el
+ * `UnlockGate`. La reja no se ha quitado; se ha dejado de fabricar una falsa.
+ *
+ * El Server Component trae la entrada con su ciphertext y nonce completos (el
+ * cuerpo, no sólo el extracto).
+ *
+ * Delete: confirmación + DELETE /api/reflexiones/entries/:id y `router.push`,
+ * porque navegamos fuera y `router.refresh()` no bastaría.
  */
 export function EntryDetailView({
-  detail,
-  cryptoSalt,
-  apiBase,
-  token,
-}: {
-  detail: DiaryDetailResponse;
-  cryptoSalt: string | null;
-  apiBase: string;
-  token: string | null;
-}) {
-  return (
-    // Standalone provider used by the detail-page tests + the route's own
-    // standalone unlock prompt. The dashboard layout's provider handles the
-    // shared unlock — this nested one keeps the test path simple by
-    // skipping persistence (initialWrapKey={null}).
-    <DiaryKeyProvider cryptoSalt={cryptoSalt} initialWrapKey={null}>
-      <EntryDetailInner detail={detail} apiBase={apiBase} token={token} />
-    </DiaryKeyProvider>
-  );
-}
-
-function EntryDetailInner({
   detail,
   apiBase,
   token,

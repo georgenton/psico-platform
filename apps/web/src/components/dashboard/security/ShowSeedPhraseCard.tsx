@@ -23,12 +23,18 @@ export function ShowSeedPhraseCard({
 }: {
   cryptoSalt: string | null;
 }) {
-  // Standalone provider for the seed phrase card. It lives on a page nested
-  // INSIDE the dashboard layout, but the layout's provider already owns the
-  // unlocked state for the rest of the dashboard. This local provider gives
-  // the card its own unlock prompt without leaking state to siblings.
-  // `initialWrapKey={null}` keeps the cross-card persistence semantics
-  // simple — the only way to unlock here is the password prompt.
+  // PROVEEDOR ANIDADO A PROPÓSITO — el único que queda, y no es un descuido.
+  //
+  // El detalle de una reflexión tenía otro igual y hubo que quitarlo: allí
+  // ensombrecía al del panel y hacía repetir la contraseña al abrir una entrada
+  // ya desbloqueada. Aquí el aislamiento ES la función. Estas 12 palabras
+  // descifran el Diario entero para siempre, así que tener la sesión abierta no
+  // basta para verlas: hay que volver a demostrar que sabes la contraseña.
+  // `initialWrapKey={null}` cierra también la puerta de atrás — ni siquiera un
+  // par envuelto guardado en este dispositivo sirve para saltarse el prompt.
+  //
+  // Si algún día esta tarjeta empieza a consumir el proveedor compartido, la
+  // frase quedará a un clic de cualquiera que se siente ante una sesión abierta.
   return (
     <DiaryKeyProvider cryptoSalt={cryptoSalt} initialWrapKey={null}>
       <Inner />

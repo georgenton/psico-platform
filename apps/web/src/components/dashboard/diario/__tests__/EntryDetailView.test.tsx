@@ -57,9 +57,13 @@ function makeDetail(
 
 function renderDetail(detail = makeDetail()) {
   render(
+    // Sin `cryptoSalt`: el componente ya no monta un proveedor propio, así que
+    // no tiene salt que pasarle. La clave se la da el proveedor del panel —
+    // aquí, el mock de arriba. Que este archivo sustituya el contexto entero es
+    // justamente por lo que el proveedor anidado pasó desapercibido; quien
+    // vigila eso ahora es `crypto-session-scope.test.tsx`, con el real.
     <EntryDetailView
       detail={detail}
-      cryptoSalt="salt"
       apiBase="https://api.test/api"
       token="tok"
     />,

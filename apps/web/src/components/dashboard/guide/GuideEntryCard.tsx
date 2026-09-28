@@ -1,4 +1,5 @@
-"use client";
+import type { ReactNode } from "react";
+("use client");
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -34,6 +35,8 @@ const CARD_PIN = {
  * an empty or invented one would be worse than drawing none.
  */
 export interface GuideEntryCardProps {
+  /** #732 — el nivel del título lo decide quien monta la tarjeta. */
+  tituloComo?: "h2" | "h3" | "h4";
   /**
    * Opaque partition derived server-side — see `guide-recovery-scope.server`.
    * `null` when the layout could not resolve the authenticated identity this
@@ -42,7 +45,10 @@ export interface GuideEntryCardProps {
   actorScope: string | null;
 }
 
-export function GuideEntryCard({ actorScope }: GuideEntryCardProps) {
+export function GuideEntryCard({
+  actorScope,
+  tituloComo = "h3",
+}: GuideEntryCardProps) {
   const [storage, setStorage] = useState<"empty" | "valid" | "unavailable">(
     "empty",
   );
@@ -82,15 +88,11 @@ export function GuideEntryCard({ actorScope }: GuideEntryCardProps) {
     >
       <div style={{ minWidth: 240, flex: "1 1 320px" }}>
         <span className="card-tag sage">{presentation.tag}</span>
-        <h3
-          style={{
-            font: "700 19px/1.25 var(--font-sans)",
-            color: "var(--color-warm-900)",
-            margin: "10px 0 8px",
-          }}
-        >
+        {/* El nivel lo pide quien monta la tarjeta (#732). El estilo va en
+            línea, así que cambiarlo no toca el aspecto. */}
+        <TituloDeTarjeta como={tituloComo}>
           {presentation.title}
-        </h3>
+        </TituloDeTarjeta>
         <p
           style={{
             fontSize: 14,
@@ -126,5 +128,27 @@ export function GuideEntryCard({ actorScope }: GuideEntryCardProps) {
         </p>
       ) : null}
     </div>
+  );
+}
+
+/** El título de la tarjeta de entrada, con el nivel que le pasan. */
+function TituloDeTarjeta({
+  como,
+  children,
+}: {
+  como: "h2" | "h3" | "h4";
+  children: ReactNode;
+}) {
+  const Tag = como;
+  return (
+    <Tag
+      style={{
+        font: "700 19px/1.25 var(--font-sans)",
+        color: "var(--color-warm-900)",
+        margin: "10px 0 8px",
+      }}
+    >
+      {children}
+    </Tag>
   );
 }

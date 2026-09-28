@@ -95,4 +95,28 @@ describe("ExCard", () => {
     );
     expect(screen.getByText(/3 lecturas/i)).toBeInTheDocument();
   });
+
+  /**
+   * #732 — el nivel del título lo decide quien monta la tarjeta.
+   *
+   * Antes esta tarjeta fijaba h4, y en `/dashboard/exploraciones` eso
+   * producía h1 → h4: un salto que no rompe WCAG por sí solo, pero que
+   * delataba quién estaba decidiendo. Ahora la página pide h2 y el defecto
+   * conserva el nivel de antes para cualquier otro consumidor.
+   */
+  describe("#732 · el nivel del título", () => {
+    it("por defecto conserva h4", () => {
+      render(<ExCard journey={journey()} index={0} />);
+      expect(screen.getAllByRole("heading", { level: 4 })).toHaveLength(1);
+    });
+
+    it("acepta h2 cuando la pantalla se lo pide", () => {
+      render(<ExCard journey={journey()} index={0} tituloComo="h2" />);
+      const h2s = screen.getAllByRole("heading", { level: 2 });
+      expect(h2s).toHaveLength(1);
+      expect(h2s[0]).toHaveTextContent(journey().title);
+      // Y no queda ninguno del nivel viejo.
+      expect(screen.queryAllByRole("heading", { level: 4 })).toHaveLength(0);
+    });
+  });
 });

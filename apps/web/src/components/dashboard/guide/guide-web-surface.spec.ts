@@ -331,7 +331,10 @@ describe("ratchet · guide web surface", () => {
   it("the guide never enters the Journey list or its components", () => {
     const page = readFileSync(join(EXPLORACIONES_DIR, "page.tsx"), "utf8");
     // The guide card is rendered through its own mount, not a journey component.
-    expect(page).toMatch(/<GuideEntryCardMount\s*\/>/);
+    // El patrón admite atributos: desde #732 la página le pasa el nivel de su
+    // título (`tituloComo`), y lo que esta prueba protege es de dónde SALE la
+    // tarjeta, no que se monte sin props.
+    expect(page).toMatch(/<GuideEntryCardMount(\s[^>]*)?\/>/);
     expect(page).not.toMatch(/journeys\.(push|concat|unshift)/);
     expect(page).not.toMatch(/ExFeaturedCard\s+journey=\{\s*guide/);
   });

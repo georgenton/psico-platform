@@ -159,7 +159,7 @@ export default async function PulsoCirculosPage() {
 
   if (!data) {
     return (
-      <main className="mx-auto max-w-4xl px-4 py-8">
+      <div className="mx-auto max-w-4xl px-4 py-8">
         <h1 className="text-[20px] font-semibold">Pulso · Círculos</h1>
         <p
           className="mt-2 text-[13px]"
@@ -167,12 +167,12 @@ export default async function PulsoCirculosPage() {
         >
           No pudimos leer los agregados.
         </p>
-      </main>
+      </div>
     );
   }
 
   return (
-    <main className="mx-auto max-w-4xl space-y-6 px-4 py-8">
+    <div className="mx-auto max-w-4xl space-y-6 px-4 py-8">
       <header>
         <p
           className="text-[11px] uppercase tracking-wide"
@@ -366,6 +366,6 @@ export default async function PulsoCirculosPage() {
         otra a la vista. Reduce exposición; no garantiza anonimato. Definiciones
         completas en <code>docs/operations/circles-metric-dictionary.md</code>.
       </p>
-    </main>
+    </div>
   );
 }

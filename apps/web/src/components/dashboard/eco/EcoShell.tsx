@@ -144,7 +144,12 @@ export function EcoShell({
   }, [ecoKey, rail.length, activeThreadId, createThread]);
 
   if (isLegacyAccount) {
-    return <LegacyFallback />;
+    return (
+      <>
+        <CabeceraDeEco />
+        <LegacyFallback />
+      </>
+    );
   }
 
   if (!ecoKey) {
@@ -152,11 +157,16 @@ export function EcoShell({
     // shared context, so this component re-renders straight into the chat.
     // The user stays in Eco the whole time.
     return (
-      <div className="mx-auto w-full max-w-md">
-        {/* Aquí la reja ES la pantalla, así que su título encabeza lo que hay.
-            En el lector, en cambio, cuelga de la pestaña del panel. */}
-        <UnlockGate context="eco" nivel={2} />
-      </div>
+      <>
+        <CabeceraDeEco />
+        <div className="mx-auto w-full max-w-md">
+          {/* La reja queda bajo el título de la pantalla, así que su propio
+              título es el segundo nivel. Ya recibía su `nivel` de quien la
+              monta: es el precedente de la política de #732. En el lector, en
+              cambio, cuelga de la pestaña del panel. */}
+          <UnlockGate context="eco" nivel={2} />
+        </div>
+      </>
     );
   }
 
@@ -179,6 +189,10 @@ export function EcoShell({
               />
             )}
             <ChatArea
+              // La conversación ES esta pantalla, así que su título visible es
+              // el `<h1>` de la ruta (#732). En el panel del lector el mismo
+              // chat no lo recibe, porque allí el `<h1>` es el capítulo.
+              tituloComo="h1"
               threadId={activeThreadId}
               caps={caps}
               apiBase={apiBase}
@@ -194,7 +208,10 @@ export function EcoShell({
             />
           </>
         ) : (
-          <EmptyState onNew={createThread} />
+          <>
+            <CabeceraDeEco />
+            <EmptyState onNew={createThread} />
+          </>
         )}
       </div>
       <div className="eco-rail">
@@ -236,6 +253,30 @@ function EcoDisclaimer() {
 }
 
 // ─── Sub-components ────────────────────────────────────────────────────────
+
+/**
+ * El título de la pantalla para los estados en los que el chat no está montado.
+ *
+ * POR QUÉ EXISTE (#732). El contrato es que toda variante de `/dashboard/eco`
+ * tenga exactamente un `<h1>` visible que diga «Eco». Cuando hay conversación
+ * abierta, ese título ya existe: el del propio chat, que pasa a `<h1>`. Pero
+ * bloqueada, sin hilo o en el caso legado la pantalla no tenía NINGÚN título —
+ * ni visible ni semántico—, así que aquí aparece el de siempre del panel,
+ * `.screen-head` + `.screen-title`, el mismo que usan Reflexiones o
+ * Exploraciones.
+ *
+ * Deliberadamente NO es un `<h1 className="sr-only">`: un título que sólo
+ * existe para el lector de pantalla describe una interfaz que nadie ve. Y
+ * deliberadamente no se monta junto al chat: serían dos «Eco» en la misma
+ * pantalla.
+ */
+function CabeceraDeEco() {
+  return (
+    <div className="screen-head">
+      <h1 className="screen-title">Eco</h1>
+    </div>
+  );
+}
 
 function LegacyFallback() {
   return (

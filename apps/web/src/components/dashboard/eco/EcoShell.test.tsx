@@ -114,4 +114,64 @@ describe("EcoShell", () => {
       ),
     ).toBeInTheDocument();
   });
+
+  /**
+   * #732 — el contrato de títulos de `/dashboard/eco`.
+   *
+   * Antes de este arreglo la pantalla tenía CERO `<h1>` en sus cuatro estados:
+   * bloqueada sólo mostraba la reja (con su propio h2), sin hilo sólo la
+   * tarjeta vacía, y con conversación el título «Eco» era un `<p>`.
+   *
+   * El contrato ahora: exactamente un `<h1>` visible que diga «Eco», en todos.
+   * Cuando hay conversación lo da el título del propio chat, que pasa a `<h1>`
+   * por prop; cuando no la hay, la cabecera nativa del panel. Nunca los dos, y
+   * nunca uno oculto para el lector de pantalla.
+   */
+  describe("#732 · el título de la pantalla", () => {
+    const estados = [
+      ["bloqueada", { ecoKey: null }],
+      ["cuenta legada", { isLegacyAccount: true }],
+      [
+        "desbloqueada sin hilo",
+        { ecoKey: new Uint8Array(32).fill(7), key: new Uint8Array(32).fill(7) },
+      ],
+    ] as const;
+
+    for (const [nombre, override] of estados) {
+      it(`${nombre}: exactamente un h1 visible que dice «Eco»`, () => {
+        mockDiaryKey(override as Parameters<typeof mockDiaryKey>[0]);
+        render(
+          <EcoShell
+            caps={PERSONA}
+            initialRail={[]}
+            apiBase="http://api.test"
+            token="t"
+          />,
+        );
+        const h1s = screen.getAllByRole("heading", { level: 1 });
+        expect(h1s).toHaveLength(1);
+        expect(h1s[0]).toHaveTextContent("Eco");
+        // Visible, no `sr-only`: el título que se anuncia es el que se ve.
+        expect(h1s[0].className).not.toMatch(/sr-only/);
+      });
+    }
+
+    it("bloqueada: la reja queda por debajo, en h2", () => {
+      // Su nivel ya venía del caller antes de #732 — es el precedente de la
+      // política. Lo que cambia es que ahora hay un h1 encima del que colgar.
+      mockDiaryKey({ ecoKey: null });
+      render(
+        <EcoShell
+          caps={PERSONA}
+          initialRail={[]}
+          apiBase="http://api.test"
+          token="t"
+        />,
+      );
+      expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+      expect(
+        screen.getAllByRole("heading", { level: 2 }).length,
+      ).toBeGreaterThan(0);
+    });
+  });
 });

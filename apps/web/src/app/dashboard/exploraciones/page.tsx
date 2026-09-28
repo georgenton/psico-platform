@@ -56,14 +56,16 @@ export default async function ExploracionesPage() {
         reflexión. Cada experiencia dice por sí misma qué registra.
       </p>
 
-      <GuideEntryCardMount />
+      <GuideEntryCardMount tituloComo="h2" />
 
       {featured ? (
         <>
           <div className="sec-label" style={{ marginTop: 8 }}>
             Recorridos
           </div>
-          <ExFeaturedCard journey={featured} />
+          {/* h1 de pantalla → h2 de cada tarjeta primaria. El nivel lo pide
+              la página, que es la que sabe a qué profundidad va (#732). */}
+          <ExFeaturedCard journey={featured} tituloComo="h2" />
         </>
       ) : null}
 
@@ -74,7 +76,12 @@ export default async function ExploracionesPage() {
           </div>
           <div className="explore-grid">
             {rest.map((journey, i) => (
-              <ExCard key={journey.id} journey={journey} index={i} />
+              <ExCard
+                key={journey.id}
+                journey={journey}
+                index={i}
+                tituloComo="h2"
+              />
             ))}
           </div>
         </>

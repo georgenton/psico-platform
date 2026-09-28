@@ -313,6 +313,25 @@ body.amb-energia {
   --bg-brand-soft: #fde6d4;
 }
 
+/* El nombre que veinticinco componentes ya escriben.
+
+   Todos ponen `var(--color-error-text, #B91C1C)`, y ese nombre no existía en
+   ninguna parte: siempre ganaba el respaldo escrito a mano — un rojo oscuro que
+   NO se invierte en Noche y que ahí medía 2,54:1 (#741). Dos de ellos ni
+   siquiera pasan respaldo, así que llevaban tiempo sin pintar color alguno.
+
+   VA EN `body`, Y ESO IMPORTA. Primero lo puse en `:root` y el contraste siguió
+   en 2,54. Un `--a: var(--b)` se resuelve DONDE SE DECLARA, no donde se usa: en
+   `:root` capturaba el `--fv-error-text` del tema y nunca veía el que
+   `body.amb-noche` pone en `body`. Declarado aquí recoge el valor que gane en
+   `body`, ambiente incluido.
+
+   Una regla en lugar de veinticinco ediciones, y sin tocar ninguna rampa
+   (#728 sigue siendo suyo). */
+body {
+  --color-error-text: var(--fv-error-text);
+}
+
 body.amb-noche {
   --color-warm-50: #15131a;
   --color-warm-100: #1d1a23;
@@ -464,6 +483,7 @@ body.amb-noche .bg-white {
    ════════════════════════════════════════════════════════════════════════════ */
 
 :root {
+
   /* ── Núcleo · invariante al theme ── */
   --fv-space-1: 4px;
   --fv-space-2: 8px;

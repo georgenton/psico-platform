@@ -9,6 +9,7 @@ import type {
   EcoThreadResponse,
 } from "@psico/types";
 import { apiClient } from "./client";
+import { ApiError } from "./error";
 
 /**
  * ecoApi — Sprint S10 client surface for the Eco companion.
@@ -80,8 +81,15 @@ export const ecoApi = {
       signal: options.signal,
     });
     if (!res.ok || !res.body) {
-      const txt = await res.text().catch(() => res.statusText);
-      throw new Error(`ECO_STREAM_HTTP_${res.status}: ${txt}`);
+      // El cuerpo de la respuesta NO entra en el error.
+      //
+      // Aquí se concatenaba: `ECO_STREAM_HTTP_${status}: ${await res.text()}`.
+      // Quien lo recogía pintaba `err.message`, así que la burbuja del chat
+      // acababa mostrando el sobre JSON entero del API —código interno
+      // incluido— a la persona que sólo quería escribir (#741). Ahora viaja el
+      // estado, que es lo único que hace falta para elegir una frase humana, y
+      // el detalle técnico se queda donde sirve: en el log del servidor.
+      throw new ApiError(res.status, `ECO_STREAM_HTTP_${res.status}`);
     }
 
     const reader = res.body.getReader();

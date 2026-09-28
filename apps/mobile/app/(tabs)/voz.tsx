@@ -12,8 +12,22 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Audio } from "expo-av";
 import type { VoiceTranscribeResponse } from "@psico/types";
+import { vozErrorCopy } from "@psico/types";
 import { ApiError, apiClient } from "@psico/api-client";
 import { setVoiceHandoff } from "@/lib/voice/handoff";
+
+/**
+ * Qué pantalla toca según el estado; el texto sale de `vozErrorCopy`.
+ *
+ * Sólo estos dos: son los únicos paneles propios que esta pantalla tiene. El
+ * 413 y el 415 existen en la web, donde hay pantalla para ellos; aquí caen al
+ * aviso genérico con su frase correspondiente, que es lo honesto — inventarles
+ * un panel que no existe sería peor que no tenerlo.
+ */
+const PANTALLA_POR_ESTADO: Record<number, "PRO_REQUIRED" | "QUOTA_EXCEEDED"> = {
+  403: "PRO_REQUIRED",
+  402: "QUOTA_EXCEEDED",
+};
 import { Colors, Radius, Spacing } from "@/theme";
 
 /**
@@ -115,13 +129,11 @@ export default function VozScreen() {
       setElapsedMs(0);
       setPhase("recording");
     } catch (err) {
-      setError({
-        code: "OTHER",
-        message:
-          err instanceof Error
-            ? err.message
-            : "No pudimos iniciar la grabación.",
-      });
+      // Fallo del micrófono, no del servidor: aquí `err.message` es del sistema
+      // operativo, no un código nuestro. Aun así no se pinta, por la misma
+      // razón: no es un texto escrito para leerse.
+      console.error("Voz start failed", err);
+      setError({ code: "OTHER", message: "No pudimos iniciar la grabación." });
     }
   }
 
@@ -172,27 +184,18 @@ export default function VozScreen() {
       setTranscript(result.transcript);
       setPhase("ready");
     } catch (err) {
-      const status = err instanceof ApiError ? err.statusCode : 0;
-      if (status === 403) {
-        setError({
-          code: "PRO_REQUIRED",
-          message: "Voz es una función Pro. Mejora tu plan para usarla.",
-        });
-      } else if (status === 402) {
-        setError({
-          code: "QUOTA_EXCEEDED",
-          message:
-            "Ya usaste tus minutos de voz para este período. Vuelve al inicio del próximo ciclo.",
-        });
-      } else {
-        setError({
-          code: "OTHER",
-          message:
-            err instanceof Error
-              ? err.message
-              : "No pudimos transcribir el audio.",
-        });
-      }
+      // Mismo cambio que en la web (#741): el `message` del servidor no se
+      // pinta. Con el proveedor caído traía `WHISPER_HTTP_401`, que además de
+      // ilegible nombra al proveedor. El diagnóstico va a la consola.
+      console.error("Voz transcribe failed", err);
+      const status = err instanceof ApiError ? err.statusCode : null;
+      setError({
+        code:
+          status !== null && status in PANTALLA_POR_ESTADO
+            ? PANTALLA_POR_ESTADO[status]
+            : "OTHER",
+        message: vozErrorCopy(status).message,
+      });
       setPhase("stopped");
       // Keep the URI around so the user can retry without re-recording.
     }

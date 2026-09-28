@@ -3886,6 +3886,9 @@ export * from "./eco-chapter-prompts";
 // ─── Backlog — interactive chapter exercises (reflect + breathe) ─────────
 export * from "./chapter-exercises";
 
+// ─── #741 — el copy cerrado que Eco y Voz enseñan cuando algo falla ───────
+export * from "./error-copy";
+
 // ─── Fase E (V2) — ARC cycle: chapter concepts + resonance wire types ─────
 export * from "./book-structure";
 export * from "./chapter-concepts";

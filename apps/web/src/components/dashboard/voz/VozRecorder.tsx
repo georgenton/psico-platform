@@ -3,12 +3,28 @@
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { VoiceTranscribeResponse } from "@psico/types";
+import { vozErrorCopy } from "@psico/types";
 import {
   formatDuration,
   MAX_RECORDING_MS,
   useRecorder,
 } from "@/lib/voice/use-recorder";
 import { setVoiceHandoff } from "@/lib/voice/handoff";
+
+/**
+ * Qué pantalla toca según el estado. El texto viene aparte, de `vozErrorCopy`:
+ * esto sólo decide si se pinta el panel de «Voz es Pro», el de «sin minutos» o
+ * el aviso en línea de siempre.
+ */
+const PANTALLA_POR_ESTADO: Record<
+  number,
+  "PRO_REQUIRED" | "QUOTA_EXCEEDED" | "TOO_LARGE" | "FORMAT"
+> = {
+  403: "PRO_REQUIRED",
+  402: "QUOTA_EXCEEDED",
+  413: "TOO_LARGE",
+  415: "FORMAT",
+};
 
 /**
  * VozRecorder — Sprint front-voz (web).
@@ -66,49 +82,36 @@ export function VozRecorder({
         body: form,
       });
       if (!res.ok) {
+        // El `message` del servidor NO se pinta.
+        //
+        // Aquí ponía `body.message ?? «No pudimos transcribir…»`: el texto
+        // humano sólo se usaba cuando el servidor no mandaba nada, que es al
+        // revés de lo que conviene. Con el proveedor caído, el sobre traía
+        // `message: "WHISPER_HTTP_401"` y eso era literalmente lo que se leía
+        // en pantalla, en rojo, nombrando al proveedor (#741). El diagnóstico
+        // va a la consola; la frase sale del catálogo cerrado.
         const body = (await res.json().catch(() => ({}))) as {
           code?: string;
           message?: string;
         };
-        if (res.status === 403) {
-          setError({
-            code: "PRO_REQUIRED",
-            message: "Voz es una función Pro. Mejora tu plan para usarla.",
-          });
-        } else if (res.status === 402) {
-          setError({
-            code: "QUOTA_EXCEEDED",
-            message:
-              "Ya usaste tus minutos de voz para este período. Vuelve al inicio del próximo ciclo.",
-          });
-        } else if (res.status === 413) {
-          setError({
-            code: "TOO_LARGE",
-            message: "El audio es demasiado grande. Graba menos de 20 minutos.",
-          });
-        } else if (res.status === 415) {
-          setError({
-            code: "FORMAT",
-            message: "Tu navegador grabó en un formato que no soportamos.",
-          });
-        } else {
-          setError({
-            code: "OTHER",
-            message:
-              body.message ?? "No pudimos transcribir el audio. Reintenta.",
-          });
-        }
+        console.error("Voz transcribe failed", {
+          status: res.status,
+          code: body.code,
+          message: body.message,
+        });
+        setError({
+          code: PANTALLA_POR_ESTADO[res.status] ?? "OTHER",
+          message: vozErrorCopy(res.status, body.code ?? null).message,
+        });
         return;
       }
       const result = (await res.json()) as VoiceTranscribeResponse;
       setTranscribed(result);
       setTranscript(result.transcript);
     } catch (err) {
-      setError({
-        code: "OTHER",
-        message:
-          err instanceof Error ? err.message : "Error de red. Reintenta.",
-      });
+      // Ni siquiera hubo respuesta: red caída o petición abortada.
+      console.error("Voz transcribe failed", err);
+      setError({ code: "OTHER", message: vozErrorCopy(null).message });
     } finally {
       setTranscribing(false);
     }
@@ -336,7 +339,10 @@ function Recording({
         <span
           aria-hidden
           className="inline-block h-3 w-3 animate-pulse rounded-full"
-          style={{ background: "var(--color-error-text, #B91C1C)" }}
+          // Rojo fijo, no el token de error: esto no es un mensaje, es el
+          // indicador de que se está grabando, y «rojo = grabando» no debería
+          // cambiar porque alguien elija el ambiente Noche.
+          style={{ background: "#B91C1C" }}
         />
         <p
           className="text-3xl font-mono font-bold tabular-nums"
@@ -354,7 +360,9 @@ function Recording({
         onClick={onStop}
         className="mx-auto mt-7 flex h-20 w-20 items-center justify-center rounded-full text-white transition-transform hover:scale-105"
         style={{
-          background: "var(--color-error-text, #B91C1C)",
+          // Igual que el punto: rojo fijo. Además lleva un cuadrado blanco
+          // encima, que sobre el salmón claro de Noche apenas se vería.
+          background: "#B91C1C",
           boxShadow: "var(--shadow-card)",
         }}
         aria-label="Detener grabación"

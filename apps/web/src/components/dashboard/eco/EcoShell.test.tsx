@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { EcoPersona } from "@psico/types";
+import { MASTER_KEY_LEN } from "@psico/crypto";
 import { EcoShell } from "./EcoShell";
 import * as diaryKeyContext from "@/lib/crypto/diary-key-context";
 
@@ -81,9 +82,12 @@ describe("EcoShell", () => {
 
   it("renders the eco-layout grid (with rail + disclaimer) when ecoKey is unlocked", () => {
     mockDiaryKey({
+      // Las subclaves miden 32; la maestra, 16 (`MASTER_KEY_LEN`, ADR 0007 §G v2).
+      // Aquí las tres decían 32 — inofensivo, porque es un doble y nadie valida
+      // su longitud, pero repetía justo el número que causó #740.
       key: new Uint8Array(32),
       ecoKey: new Uint8Array(32),
-      masterKey: new Uint8Array(32),
+      masterKey: new Uint8Array(MASTER_KEY_LEN),
     });
     const { container } = render(
       <EcoShell

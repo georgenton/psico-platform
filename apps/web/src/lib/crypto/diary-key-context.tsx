@@ -18,6 +18,7 @@ import {
   DIARY_KEY_INFO,
   ECO_KEY_INFO,
   encryptString,
+  MASTER_KEY_LEN,
   randomBytes,
 } from "@psico/crypto";
 import { clearDiaryWrapKey, saveDiaryWrapKey } from "@/actions/diary-session";
@@ -54,6 +55,23 @@ import { clearDiaryWrapKey, saveDiaryWrapKey } from "@/actions/diary-session";
  */
 
 const LOCAL_STORAGE_KEY = "psico:diary:wrapped";
+
+/**
+ * ¿Es esto una clave maestra de este esquema?
+ *
+ * La longitud la manda `MASTER_KEY_LEN`, no un número escrito aquí. Antes había
+ * dos comprobaciones contra `32` —la longitud de la v1— en sitios distintos, y
+ * ninguna de las dos podía cumplirse: desde `MASTER_KEY_VERSION = 2` las claves
+ * miden 16. Que las dos pregunten lo mismo, en un solo sitio, es lo que impide
+ * que vuelvan a separarse.
+ *
+ * Cuidado al leer el resto del archivo: los `32` que quedan son correctos y no
+ * hablan de esto. Las subclaves de HKDF sí miden 32, y la clave que envuelve el
+ * sobre también, porque XChaCha20-Poly1305 la necesita así.
+ */
+function esClaveMaestraValida(bytes: Uint8Array): boolean {
+  return bytes.length === MASTER_KEY_LEN;
+}
 /**
  * Per-device preference: does the user want us to keep the diary unlocked on
  * THIS browser ("recordar") or ask for the password every session ("pedir
@@ -96,7 +114,13 @@ export interface DiaryKeyState {
    */
   ecoKey: Uint8Array | null;
   /**
-   * 32-byte master key from Argon2id(password, cryptoSalt). null = locked.
+   * La clave maestra de Argon2id(password, cryptoSalt). null = bloqueado.
+   *
+   * Mide `MASTER_KEY_LEN` — 16 bytes desde `MASTER_KEY_VERSION = 2`
+   * (ADR 0007 §G v2, julio 2026). Aquí ponía «32-byte», que era la v1, y ese
+   * comentario sobrevivió al cambio: los dos guards de este archivo se
+   * escribieron contra él y rechazaban todas las claves reales. Por eso ahora
+   * la longitud no se escribe a mano en ninguna parte.
    *
    * Kept in memory (in addition to the diary subkey) for two reasons:
    *   1. The seed-phrase modal can render the 12-word backup without
@@ -266,7 +290,7 @@ export function DiaryKeyProvider({
       );
       wrap.fill(0);
       const master = base64UrlToBytes(masterB64u);
-      if (master.length !== 32) throw new Error("INVALID_LENGTH");
+      if (!esClaveMaestraValida(master)) throw new Error("INVALID_LENGTH");
       const diaryKey = deriveSubKey(master, DIARY_KEY_INFO);
       const ecoSub = deriveSubKey(master, ECO_KEY_INFO);
       setMasterKey(master);
@@ -312,12 +336,20 @@ export function DiaryKeyProvider({
         setUnlocking(false);
       }
     },
-    [cryptoSalt, persistMasterKey],
+    // `remember` va aquí porque la línea de arriba lo lee.
+    //
+    // Sin él, `unlock` se memoizaba una sola vez y se quedaba para siempre con
+    // el valor del primer render — `true`, el que hay por defecto. Quien
+    // desmarcara «Recordar en este dispositivo» EN LA PROPIA REJA, que es donde
+    // el texto dice «Desmárcalo si es un equipo compartido», veía cómo se
+    // guardaba el sobre igualmente. `adoptMasterKey`, cuatro líneas más abajo,
+    // sí lo declaraba; sólo este se había quedado atrás.
+    [cryptoSalt, persistMasterKey, remember],
   );
 
   const adoptMasterKey = useCallback(
     (nextMaster: Uint8Array) => {
-      if (nextMaster.length !== 32) {
+      if (!esClaveMaestraValida(nextMaster)) {
         setError("La clave maestra tiene un tamaño inválido.");
         return;
       }

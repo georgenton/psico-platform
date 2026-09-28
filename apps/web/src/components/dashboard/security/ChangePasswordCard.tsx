@@ -209,8 +209,20 @@ export function ChangePasswordCard({
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
-      // Server revoked all OTHER refresh tokens, but our current access token
-      // still works. Refresh the route so /user/me re-reads cryptoSalt.
+      // El servidor cierra TODAS las sesiones, esta incluida: `revokeAllUserSessions`
+      // sube `authRevision` —lo que invalida cualquier token de acceso ya emitido,
+      // sin esperar sus 15 minutos— y borra todos los refresh tokens (ADR 0015).
+      // Así que la siguiente petición de esta pestaña acaba en /login y la persona
+      // vuelve a entrar con su contraseña nueva.
+      //
+      // Aquí ponía que el servidor revocaba «all OTHER refresh tokens» y que el
+      // token de esta pestaña seguía valiendo. Era verdad antes del ADR 0015 y
+      // dejó de serlo sin que nadie actualizara la frase. Un comentario que
+      // describe un comportamiento inexistente es justo lo que causó #740.
+      //
+      // `adoptMasterKey` de arriba se queda: si algún día la revocación deja
+      // fuera a la pestaña que hace el cambio, la sesión ya está preparada para
+      // seguir descifrando sin pedir nada. Hoy no llega a notarse.
       router.refresh();
     } catch (err) {
       setPhase("idle");

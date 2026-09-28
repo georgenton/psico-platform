@@ -31,14 +31,18 @@
   .nav-item.on svg { color: var(--color-lavender-600); }
   .nav-badge { margin-left: auto; font: 700 10px/1 var(--font-sans); background: var(--color-sage-100); color: var(--color-sage-700); border-radius: 9999px; padding: 4px 8px; }
   .side-spacer { flex: 1; }
-  .side-comp { background: linear-gradient(150deg, var(--color-lavender-500), var(--color-lavender-800)); border-radius: 18px; padding: 16px; color: #fff; }
-  .side-comp .sc-h { display: flex; align-items: center; justify-content: space-between; font: 600 11px/1 var(--font-mono); letter-spacing: .06em; text-transform: uppercase; color: rgba(255,255,255,.7); margin-bottom: 12px; }
+  /* La tarjeta del Mapa usa el PAR de superficie de marca, no la rampa.
+     Arrancaba en `lavender-500` (#8b71f5) y su texto al 70 % de blanco medía
+     2,58:1 — fallaba en 7 de 8 combinaciones, en las 18 pantallas del panel
+     (#728). Una rampa es un valor y no promete legibilidad; el par sí. */
+  .side-comp { background: var(--bg-brand-surface); border-radius: 18px; padding: 16px; color: var(--fg-on-brand-surface); }
+  .side-comp .sc-h { display: flex; align-items: center; justify-content: space-between; font: 600 11px/1 var(--font-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--fg-on-brand-surface-muted); margin-bottom: 12px; }
   .side-comp .sc-val { display: flex; align-items: baseline; gap: 6px; }
   .side-comp .sc-val b { font: 800 28px/1 var(--font-sans); letter-spacing: -0.02em; }
-  .side-comp .sc-val span { font: 500 12px/1 var(--font-sans); color: rgba(255,255,255,.75); }
+  .side-comp .sc-val span { font: 500 12px/1 var(--font-sans); color: var(--fg-on-brand-surface-muted); }
   .side-comp .sc-bar { height: 6px; border-radius: 9999px; background: rgba(255,255,255,.22); overflow: hidden; margin-top: 12px; }
   .side-comp .sc-bar > i { display: block; height: 100%; width: 74%; border-radius: 9999px; background: #fff; }
-  .side-comp .sc-foot { font: 500 11px/1.3 var(--font-sans); color: rgba(255,255,255,.7); margin-top: 10px; }
+  .side-comp .sc-foot { font: 500 11px/1.3 var(--font-sans); color: var(--fg-on-brand-surface-muted); margin-top: 10px; }
 
   /* ── Main ─────────────────────────────────────────────────────── */
   .main { padding: 0; min-width: 0; }
@@ -49,7 +53,7 @@
   .tb-icon { width: 40px; height: 40px; border-radius: 11px; border: 1px solid var(--color-warm-200); background: #fff; display: inline-flex; align-items: center; justify-content: center; color: var(--color-warm-600); cursor: pointer; position: relative; }
   .tb-icon:hover { background: var(--color-warm-100); }
   .tb-icon .dot { position: absolute; top: 9px; right: 10px; width: 7px; height: 7px; border-radius: 50%; background: var(--color-sage-400); border: 2px solid #fff; }
-  .tb-ava { width: 40px; height: 40px; border-radius: 50%; background: var(--gradient-cover-lavender); color: #fff; display: inline-flex; align-items: center; justify-content: center; font: 700 14px/1 var(--font-sans); cursor: pointer; }
+  .tb-ava { width: 40px; height: 40px; border-radius: 50%; background: var(--bg-brand-surface); color: var(--fg-on-brand-surface); display: inline-flex; align-items: center; justify-content: center; font: 700 14px/1 var(--font-sans); cursor: pointer; }
 
   .screen { display: block; padding: 36px; max-width: 1280px; animation: fade .4s var(--easing-default); }
 
@@ -264,7 +268,7 @@
   .continue .c-foot .note { font: 500 12px/1.4 var(--font-sans); color: var(--color-warm-400); display: flex; align-items: center; gap: 7px; }
   .continue .c-foot .note svg { color: var(--color-lavender-500); }
 
-  .card.eco-rec { padding: 22px; background: linear-gradient(155deg, var(--color-lavender-500), var(--color-lavender-800)); border: 0; color: #fff; display: flex; flex-direction: column; }
+  .card.eco-rec { padding: 22px; background: var(--bg-brand-surface); border: 0; color: var(--fg-on-brand-surface); display: flex; flex-direction: column; }
   .eco-rec .er-head { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
   .eco-rec .er-glyph { width: 42px; height: 42px; border-radius: 12px; background: rgba(255,255,255,.16); display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
   .eco-rec .er-name { font: 700 14px/1 var(--font-sans); }
@@ -334,7 +338,7 @@
   .r-all:hover { opacity: .7; }
   .r-capture { display: flex; align-items: center; gap: 12px; margin: 16px 0 6px; padding: 13px 15px; border: 1.5px dashed var(--color-warm-300); border-radius: 14px; cursor: text; transition: border-color .14s, background .14s; }
   .r-capture:hover { border-color: var(--color-lavender-300); background: var(--color-lavender-50); }
-  .r-capture .rc-ava { width: 30px; height: 30px; border-radius: 50%; background: var(--gradient-cover-lavender); color: #fff; display: inline-flex; align-items: center; justify-content: center; font: 700 12px/1 var(--font-sans); flex-shrink: 0; }
+  .r-capture .rc-ava { width: 30px; height: 30px; border-radius: 50%; background: var(--bg-brand-surface); color: var(--fg-on-brand-surface); display: inline-flex; align-items: center; justify-content: center; font: 700 12px/1 var(--font-sans); flex-shrink: 0; }
   .r-capture .rc-prompt { flex: 1; font: 400 14px/1 var(--font-sans); color: var(--color-warm-600); }
   .r-capture .rc-btn { display: inline-flex; align-items: center; gap: 7px; background: var(--color-lavender-100); color: var(--color-lavender-700); border-radius: 10px; padding: 9px 14px; font: 600 12.5px/1 var(--font-sans); white-space: nowrap; }
   .refl-mood { width: 34px; height: 34px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }

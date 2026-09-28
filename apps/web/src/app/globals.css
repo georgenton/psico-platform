@@ -91,6 +91,61 @@
   --bg-action-hover: var(--color-sage-700);
   --bg-action-soft: var(--color-sage-100);
 
+  /* ══════════════════════════════════════════════════════════════════════
+     TRES CLASES DE COLOR. Da igual cuál uses; importa saber cuál es.
+
+       RAMPA        `--color-lavender-500`, `--color-sage-100`.
+                    Un valor. NO promete contraste. Bordes, gráficos, adorno.
+                    Los ambientes invierten unas y otras no, sin avisar.
+
+       SEMÁNTICO    `--fg-body`, `--bg-page`. Dice su FUNCIÓN, pero por sí solo
+                    no dice sobre qué es legible.
+
+       PAR          Un fondo y el primer plano autorizado encima, con contraste
+                    comprobado en los ocho estados del panel y los dos de fuera.
+
+     Si vas a poner texto encima de algo, usa un PAR. La lista viva está en
+     `lib/design/color-contracts.ts` y hay una prueba que la cobra. Añadir una
+     fila ahí es prometer algo; elegir dos tokens que suenan bien no lo es.
+     ══════════════════════════════════════════════════════════════════════ */
+
+  /* ── Pares declarados ──
+     Un fondo y el primer plano AUTORIZADO encima. La lista viva, con lo que
+     promete cada uno y dónde vive, está en `lib/design/color-contracts.ts`, y
+     una prueba la cobra en cada estado que ese par puede alcanzar.
+
+     Estos valores NO se derivan de una rampa a propósito. Los ambientes
+     redefinen unas rampas y otras no: `--bg-brand-strong` salía de
+     `lavender-700`, que Noche invierte a un lila claro, mientras
+     `--fg-on-brand` seguía siendo blanco — 2,25:1. Un par que parecía diseñado
+     para ir junto y no lo estaba (#728).
+
+     LOS DOS LADOS DEL PAR VIVEN EN EL MISMO SITIO, Y ESO ES EL CONTRATO.
+     `--a: var(--b)` se sustituye DONDE SE DECLARA. Un alias escrito aquí, en
+     `html`, congela la rampa en este punto y NO acompaña al ambiente: por eso
+     `--bg-action` vale el mismo verde oscuro en Calma y en Noche, aunque
+     `body.amb-noche` invierta `--color-sage-600` después. Un componente que
+     escribe `var(--color-sage-600)` a mano sí la sigue, porque ahí la
+     sustitución ocurre en el elemento. Mismo color, dos comportamientos, y el
+     nombre no lo dice: eso es exactamente lo que #728 describía.
+
+     Consecuencia práctica: la tinta de un par se declara junto a su fondo y se
+     congela con él. Probé a mover sólo la tinta en `body.amb-noche` y rompí el
+     botón —tinta oscura sobre el verde oscuro que nunca cambió, 3,57— porque
+     movía un lado de un par cuyo otro lado estaba clavado. Si algún día un
+     fondo de esta lista pasa a redeclararse por ambiente, su tinta tiene que
+     mudarse con él. */
+  --fg-on-action: #ffffff;
+  --fg-on-action-soft: var(--color-sage-800);
+  /* La superficie de marca con texto encima. Arranca en el escalón 700 y no en
+     el 500: sobre el 500 (#8b71f5) el blanco da 3,63 y su versión atenuada
+     2,58, que es lo que medía la tarjeta del Mapa. */
+  --bg-brand-surface: linear-gradient(150deg, #5e42c0, #4d36a0);
+  --fg-on-brand-surface: #ffffff;
+  /* El texto de apoyo. Iba al 70 % de blanco; al 86 % sigue leyéndose como
+     secundario y cumple sobre el extremo claro del gradiente. */
+  --fg-on-brand-surface-muted: rgba(255, 255, 255, 0.86);
+
   /* ── Typography · families ──
      Geist is the default. Spline Sans + Bricolage Grotesque are loaded
      on demand by the ambient themes (Sprint B) and stay dormant on the

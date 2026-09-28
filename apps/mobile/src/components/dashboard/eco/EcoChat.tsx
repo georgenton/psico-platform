@@ -11,7 +11,7 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { apiClient, ecoApi, resonancesApi } from "@psico/api-client";
+import { ApiError, apiClient, ecoApi, resonancesApi } from "@psico/api-client";
 import type {
   EcoMessage,
   EcoMessageReportReason,
@@ -20,6 +20,7 @@ import type {
   EcoSseEvent,
   EcoThreadResponse,
 } from "@psico/types";
+import { ecoErrorCopy } from "@psico/types";
 import { decryptString, encryptString } from "@psico/crypto";
 import { CrisisModal } from "@/components/dashboard/eco/CrisisModal";
 import { Colors, Radius, Spacing } from "@/theme";
@@ -217,10 +218,12 @@ export function EcoChat({
         },
       );
     } catch (err) {
+      // Mismo cambio que en la web (#741): el diagnóstico va a la consola y a
+      // la pantalla sólo llega una frase escrita para leerse. `err.message`
+      // traía el sobre JSON del API con su código dentro.
+      console.error("Eco sendMessage failed", err);
       setSendError(
-        err instanceof Error
-          ? err.message
-          : "No pudimos enviar tu mensaje. Reintenta.",
+        ecoErrorCopy(err instanceof ApiError ? err.statusCode : null).message,
       );
       setMessages((m) => m.filter((msg) => msg.id !== optimisticId));
       setText(plain);

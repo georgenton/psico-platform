@@ -9,7 +9,8 @@ import type {
   EcoSseEvent,
   EcoThreadResponse,
 } from "@psico/types";
-import { ecoApi, resonancesApi } from "@psico/api-client";
+import { ecoErrorCopy } from "@psico/types";
+import { ApiError, ecoApi, resonancesApi } from "@psico/api-client";
 import { decryptString, encryptString } from "@psico/crypto";
 import { CrisisModal } from "./CrisisModal";
 import { ReportMessageModal } from "./ReportMessageModal";
@@ -309,10 +310,13 @@ export function ChatArea({
         },
       );
     } catch (err) {
+      // El diagnóstico se queda en la consola, que es donde sirve; a la pantalla
+      // sólo va una frase escrita para leerse. Antes iba `err.message`, y como
+      // el cliente metía ahí el cuerpo de la respuesta, la burbuja llegó a
+      // enseñar el sobre JSON del API con su código dentro (#741).
+      console.error("Eco sendMessage failed", err);
       setSendError(
-        err instanceof Error
-          ? err.message
-          : "No pudimos enviar tu mensaje. Reintenta.",
+        ecoErrorCopy(err instanceof ApiError ? err.statusCode : null).message,
       );
       // Roll back the optimistic user msg so the user can edit + resend.
       setMessages((m) => m.filter((msg) => msg.id !== optimisticId));

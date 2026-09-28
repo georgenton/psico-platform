@@ -16,9 +16,14 @@ import { useGuideAvailability } from "./guide-availability";
  * entirely (returns null): the rest of Exploraciones is unaffected, so a user
  * outside the pilot simply never sees the guide offered.
  */
-export function GuideEntryCardMount() {
+export function GuideEntryCardMount({
+  tituloComo = "h3",
+}: {
+  /** #732 — se reenvía a la tarjeta; la página es la que sabe el nivel. */
+  tituloComo?: "h2" | "h3" | "h4";
+} = {}) {
   const available = useGuideAvailability();
   const scope = useGuideActorScope();
   if (!available) return null;
-  return <GuideEntryCard actorScope={scope} />;
+  return <GuideEntryCard actorScope={scope} tituloComo={tituloComo} />;
 }

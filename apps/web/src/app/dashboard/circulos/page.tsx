@@ -52,19 +52,19 @@ export default async function CirculosPage() {
 
   if (!available) {
     return (
-      <main style={S.page}>
+      <div style={S.page}>
         <h1 style={S.h1}>Círculos todavía no está abierto</h1>
         <p style={S.p}>
           Es una forma de hacer una actividad con otra persona: cada quien se
           prepara por su lado y deciden qué compartir. Te avisaremos cuando esté
           disponible para tu cuenta.
         </p>
-      </main>
+      </div>
     );
   }
 
   return (
-    <main style={S.page}>
+    <div style={S.page}>
       <header>
         <h1 style={S.h1}>Círculos</h1>
         <p style={S.p}>
@@ -132,6 +132,6 @@ export default async function CirculosPage() {
           })}
         </ul>
       )}
-    </main>
+    </div>
   );
 }

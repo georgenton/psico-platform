@@ -441,7 +441,9 @@
   .ex-feature .exf-body { padding: 26px 28px; display: flex; flex-direction: column; }
   .ex-feature .exf-tag { display: inline-flex; align-items: center; gap: 8px; font: 600 10.5px/1 var(--font-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--color-lavender-700); margin-bottom: 12px; }
   .ex-feature .exf-tag::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--color-lavender-500); }
-  .ex-feature h3 { font: 700 24px/1.15 var(--font-sans); color: var(--color-warm-900); letter-spacing: -0.02em; margin: 0 0 8px; }
+  /* Por clase y no por elemento: el nivel del heading lo decide quien monta
+     la tarjeta (#732), así que el estilo no puede depender del tag. */
+  .ex-feature .exf-title { font: 700 24px/1.15 var(--font-sans); color: var(--color-warm-900); letter-spacing: -0.02em; margin: 0 0 8px; }
   .ex-feature p { font: 400 14.5px/1.55 var(--font-sans); color: var(--color-warm-600); margin: 0 0 18px; max-width: 560px; }
   .ex-feature .exf-foot { display: flex; align-items: center; gap: 18px; margin-top: auto; flex-wrap: wrap; }
   .ex-feature .exf-prog { flex: 1; min-width: 180px; }
@@ -458,7 +460,7 @@
   .ex-cover.c2 { background: var(--gradient-cover-sage); }
   .ex-cover.c3 { background: var(--gradient-cover-mixed); }
   .ex-cbody { padding: 20px; display: flex; flex-direction: column; flex: 1; }
-  .ex-cbody h4 { font: 700 17px/1.2 var(--font-sans); color: var(--color-warm-900); margin: 0 0 7px; letter-spacing: -0.01em; }
+  .ex-cbody .ex-card-title { font: 700 17px/1.2 var(--font-sans); color: var(--color-warm-900); margin: 0 0 7px; letter-spacing: -0.01em; }
   .ex-cbody .ex-desc { font: 400 13px/1.5 var(--font-sans); color: var(--color-warm-600); margin: 0 0 14px; flex: 1; }
   .ex-steps { display: flex; gap: 12px; margin-bottom: 14px; }
   .ex-step { display: inline-flex; align-items: center; gap: 6px; font: 600 11px/1 var(--font-sans); color: var(--color-warm-500); }

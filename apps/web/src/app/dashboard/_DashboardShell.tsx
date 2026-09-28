@@ -623,7 +623,28 @@ export function DashboardShell({
               onToggleNav={() => setNavOpen((v) => !v)}
               toggleRef={toggleRef}
             />
-            <section className="screen">{children}</section>
+            {/* ══ ESTRUCTURA SEMÁNTICA DEL PANEL · #732 ══════════════════════
+                Tres dueños, y sólo tres:
+
+                  · EL ARMAZÓN es dueño de `<main>`. Este de aquí. Una ruta del
+                    panel NO declara el suyo: dos `<main>` anidados dejan la
+                    navegación por landmarks sin un destino claro, que es
+                    justamente lo que un lector de pantalla usa para saltarse el
+                    rail y la barra.
+                  · LA RUTA es dueña del `<h1>`. El patrón nativo es
+                    `.screen-head` + `<h1 className="screen-title">`.
+                  · UN COMPONENTE REUTILIZABLE no fija su nivel de heading: lo
+                    RECIBE, porque su nivel depende de dónde se inserte. El
+                    precedente es `UnlockGate`, que ya toma `nivel`.
+
+                Va en `<main>` y no en `.main` a propósito: la barra superior
+                vive dentro de `.main` y no es el contenido de la ruta.
+
+                Hay trinquetes que lo cobran en
+                `components/a11y-semantic-structure.test.ts`. ═══════════════ */}
+            <main className="screen" id="dashboard-main">
+              {children}
+            </main>
           </div>
 
           {showTour ? <TourOverlay /> : null}

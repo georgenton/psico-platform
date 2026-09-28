@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   EcoMessage,
@@ -51,6 +52,7 @@ export function ChatArea({
   initialComposerText,
   onComposerSeedConsumed,
   scope,
+  tituloComo = "p",
 }: {
   threadId: string;
   caps: EcoPersona;
@@ -61,6 +63,16 @@ export function ChatArea({
   /** Sprint B — reader→Eco handoff: pre-fill the composer once (then clear). */
   initialComposerText?: string | null;
   onComposerSeedConsumed?: () => void;
+  /**
+   * #732 — el nivel del título lo decide QUIÉN monta el chat, no el chat.
+   *
+   * En `/dashboard/eco` la conversación ES la pantalla, así que su título
+   * visible es el `<h1>` de la ruta. En el panel del lector, el mismo chat
+   * cuelga de una pestaña dentro de una página cuyo `<h1>` es el capítulo:
+   * ahí un `<h1>` sería el segundo de la ruta. Por eso el valor por defecto
+   * conserva el comportamiento que ya tenía el dock.
+   */
+  tituloComo?: "p" | "h1";
   /**
    * Fase H — reading context for a reader-dock conversation. Scopes the RAG
    * to the book and lets the server offer the chapter's concept as a
@@ -398,12 +410,10 @@ export function ChatArea({
               🌿
             </span>
             <div>
-              <p
-                className="text-[14px] font-bold"
-                style={{ color: "var(--color-warm-900)" }}
-              >
-                {caps.name}
-              </p>
+              {/* El mismo texto que ve una persona mirando la pantalla es el
+                  que anuncia un lector de pantalla: no se inventa un título
+                  oculto ni se duplica el visible. */}
+              <TituloDeEco como={tituloComo}>{caps.name}</TituloDeEco>
               <p
                 className="text-[11px]"
                 style={{ color: "var(--color-warm-500)" }}
@@ -684,6 +694,30 @@ function useSmoothReveal(target: string, active: boolean): string {
 }
 
 // ─── Sub-components ────────────────────────────────────────────────────────
+
+/**
+ * El título del chat, con el nivel que le pasa quien lo monta.
+ *
+ * Las dos formas comparten clase y estilo, así que cambiar de `<p>` a `<h1>`
+ * no mueve un píxel: sólo cambia lo que el árbol de accesibilidad anuncia.
+ */
+function TituloDeEco({
+  como,
+  children,
+}: {
+  como: "p" | "h1";
+  children: ReactNode;
+}) {
+  const Tag = como;
+  return (
+    <Tag
+      className="text-[14px] font-bold"
+      style={{ color: "var(--color-warm-900)", margin: 0 }}
+    >
+      {children}
+    </Tag>
+  );
+}
 
 function Welcome({ caps }: { caps: EcoPersona }) {
   return (

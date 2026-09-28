@@ -100,7 +100,12 @@ export function ReaderExperienceView({
       </div>
 
       {/* Reading area */}
-      <main
+      {/* Es un `<div>` y no un `<main>`: el único consumidor de esta vista es
+          `LectorShell`, y `LectorShell` sólo se monta bajo `DashboardShell`, que
+          ya declara el `<main>` del panel. Dos anidados dejan la navegación por
+          landmarks sin un destino claro (#732). El `data-testid` se conserva
+          porque es el gancho del recorrido responsive, y no dependía del tag. */}
+      <div
         // A stable hook for the responsive gate: «the panel does not cover the
         // text» has to name WHICH element is the text.
         data-testid="reader-chapter-column"
@@ -241,7 +246,7 @@ export function ReaderExperienceView({
             ✓ Marcar capítulo como leído
           </button>
         </footer>
-      </main>
+      </div>
     </div>
   );
 }

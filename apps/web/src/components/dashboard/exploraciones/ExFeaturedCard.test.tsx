@@ -83,4 +83,28 @@ describe("ExFeaturedCard", () => {
     expect(screen.getByText(/2 libros/i)).toBeInTheDocument();
     expect(screen.getByText(/2 horas/i)).toBeInTheDocument();
   });
+
+  /**
+   * #732 — el nivel del título lo decide quien monta la tarjeta.
+   *
+   * Antes esta tarjeta fijaba h3, y en `/dashboard/exploraciones` eso
+   * producía h1 → h3: un salto que no rompe WCAG por sí solo, pero que
+   * delataba quién estaba decidiendo. Ahora la página pide h2 y el defecto
+   * conserva el nivel de antes para cualquier otro consumidor.
+   */
+  describe("#732 · el nivel del título", () => {
+    it("por defecto conserva h3", () => {
+      render(<ExFeaturedCard journey={journey()} />);
+      expect(screen.getAllByRole("heading", { level: 3 })).toHaveLength(1);
+    });
+
+    it("acepta h2 cuando la pantalla se lo pide", () => {
+      render(<ExFeaturedCard journey={journey()} tituloComo="h2" />);
+      const h2s = screen.getAllByRole("heading", { level: 2 });
+      expect(h2s).toHaveLength(1);
+      expect(h2s[0]).toHaveTextContent(journey().title);
+      // Y no queda ninguno del nivel viejo.
+      expect(screen.queryAllByRole("heading", { level: 3 })).toHaveLength(0);
+    });
+  });
 });

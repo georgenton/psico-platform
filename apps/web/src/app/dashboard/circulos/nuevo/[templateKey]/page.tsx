@@ -94,7 +94,7 @@ export default function NuevoDuoPage({
   const group = definition.audience === "GROUP_ADULT";
 
   return (
-    <main style={S.page}>
+    <div style={S.page}>
       <h1 style={S.h1}>{preview.title}</h1>
       <p style={S.p}>{preview.summary}</p>
 
@@ -173,6 +173,6 @@ export default function NuevoDuoPage({
         templateVersion={preview.templateVersion}
         sizes={sizes}
       />
-    </main>
+    </div>
   );
 }

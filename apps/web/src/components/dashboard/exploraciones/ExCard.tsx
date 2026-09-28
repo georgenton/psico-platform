@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import type { JourneyListItem, JourneyCoverToken } from "@psico/types";
 import {
@@ -16,6 +17,8 @@ import {
  * count + duration in the footer.
  */
 interface Props {
+  /** #732 — el nivel del título lo decide quien monta la tarjeta. */
+  tituloComo?: "h2" | "h3" | "h4";
   journey: JourneyListItem;
   index: number;
 }
@@ -41,7 +44,7 @@ const COVER_CLASS: Record<JourneyCoverToken, string> = {
 // of the dashboard.
 const ICONS = [IconPatterns, IconExplore, IconBook];
 
-export function ExCard({ journey, index }: Props) {
+export function ExCard({ journey, index, tituloComo = "h4" }: Props) {
   const coverClass = COVER_CLASS[journey.coverToken];
   const Icon = ICONS[index % ICONS.length] ?? IconExplore;
   const firstBook = journey.books[0];
@@ -62,7 +65,7 @@ export function ExCard({ journey, index }: Props) {
           <IconPatterns size={13} />
           {journey.subtitle}
         </span>
-        <h4>{journey.title}</h4>
+        <Titulo como={tituloComo}>{journey.title}</Titulo>
         <p className="ex-desc">{journey.description ?? journey.subtitle}</p>
         <div className="ex-steps">
           <span className="ex-step">
@@ -98,4 +101,23 @@ export function ExCard({ journey, index }: Props) {
       </div>
     </div>
   );
+}
+
+/**
+ * El título de la tarjeta, con el nivel que le pasa quien la monta (#732).
+ *
+ * Fijar un nivel absoluto en un componente reutilizable es decidir por el
+ * llamador: la misma tarjeta puede colgar de un `<h1>` de pantalla o de una
+ * sección más honda. La clase es la que da el estilo, así que cambiar de nivel
+ * no mueve un píxel.
+ */
+function Titulo({
+  como,
+  children,
+}: {
+  como: "h2" | "h3" | "h4";
+  children: ReactNode;
+}) {
+  const Tag = como;
+  return <Tag className="ex-card-title">{children}</Tag>;
 }

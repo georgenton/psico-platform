@@ -398,6 +398,19 @@ function Sidebar({
               whiteSpace: "nowrap",
               maxWidth: 130,
               fontSize: 12,
+              // La altura de línea va explícita porque `.nav-item` declara
+              // `font: 500 14px/1`, y un `line-height` numérico se hereda y se
+              // recalcula: a 12px daba una caja de 12 exactos. El área del tipo
+              // necesita 14, así que el `overflow: hidden` que trunca de ancho
+              // recortaba también por abajo. Con Geist cargada la tinta llegaba
+              // a 11,94 y no se veía; con cualquier cara de reserva de la misma
+              // pila —mientras el webfont carga o si falla— se cortaban 0,33 a
+              // 0,67px de las descendentes de q, y, p.
+              //
+              // 1.35 da 16,2px de caja: sobra para el área del tipo en todas
+              // ellas. La fila no cambia de alto porque la marca el avatar de
+              // 28px, y la elipsis se conserva intacta (#746).
+              lineHeight: 1.35,
             }}
           >
             {user?.email ?? "Usuario"}

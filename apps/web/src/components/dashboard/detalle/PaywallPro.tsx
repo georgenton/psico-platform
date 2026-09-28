@@ -25,27 +25,40 @@ export function PaywallPro({
   volver?: { href: string; texto: string };
 }) {
   return (
+    // El par de superficie de marca, no la rampa. El gradiente arrancaba en
+    // `lavender-500` y sus tres textos medían 1,65–1,95 (#728). Al ser un
+    // componente compartido, arreglarlo aquí lo arregla en la ficha del libro y
+    // en el lector a la vez — que es para lo que se unificó.
     <div
-      className="relative overflow-hidden rounded-2xl p-7 text-white"
+      className="relative overflow-hidden rounded-2xl p-7"
       style={{
-        background:
-          "linear-gradient(135deg, var(--color-lavender-500), var(--color-lavender-800))",
+        background: "var(--bg-brand-surface)",
+        color: "var(--fg-on-brand-surface)",
       }}
     >
-      <h2 className="text-[18px] font-bold leading-tight tracking-tight">
+      {/* El color va explícito: hay una regla global de encabezados que pisa el
+          `color` heredado del contenedor, así que el título salía con la tinta
+          oscura de los títulos sobre el morado — 1,52:1. Heredar no bastaba. */}
+      <h2
+        className="text-[18px] font-bold leading-tight tracking-tight"
+        style={{ color: "var(--fg-on-brand-surface)" }}
+      >
         {titulo}
       </h2>
       <p
         className="mt-2 max-w-md text-[13px] leading-relaxed"
-        style={{ color: "rgba(255,255,255,0.85)" }}
+        style={{ color: "var(--fg-on-brand-surface-muted)" }}
       >
         {cuerpo}
       </p>
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <Link
           href="/dashboard/plan"
-          className="inline-flex items-center gap-1.5 rounded-xl px-5 py-3 text-[13px] font-semibold text-white"
-          style={{ background: "var(--bg-action)" }}
+          className="inline-flex items-center gap-1.5 rounded-xl px-5 py-3 text-[13px] font-semibold"
+          style={{
+            background: "var(--bg-action)",
+            color: "var(--fg-on-action)",
+          }}
         >
           Hazte Pro →
         </Link>
@@ -54,7 +67,7 @@ export function PaywallPro({
             href={volver.href}
             className="inline-flex items-center rounded-xl px-4 py-3 text-[13px] font-semibold"
             style={{
-              color: "#fff",
+              color: "var(--fg-on-brand-surface)",
               background: "rgba(255,255,255,0.16)",
             }}
           >

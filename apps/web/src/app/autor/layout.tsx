@@ -28,7 +28,10 @@ export default function AuthorLayout({ children }: { children: ReactNode }) {
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-5 py-3">
           <Link
             href="/autor/dashboard"
-            className="text-[14.5px] font-bold tracking-tight"
+            // 21,8px de alto no llegan a los 24 que pide 2.5.8. `min-h`
+            // sobre un `inline-flex` los da sin tocar la tipografía ni el alto
+            // de la cabecera, que ya la fija «Ir al consumer» con 30,8 (#747).
+            className="inline-flex min-h-[24px] items-center text-[14.5px] font-bold tracking-tight"
             style={{ color: "var(--color-warm-900)" }}
           >
             📚 Editor de autor
@@ -39,13 +42,13 @@ export default function AuthorLayout({ children }: { children: ReactNode }) {
           >
             <Link
               href="/autor/dashboard"
-              className="hover:underline"
+              className="inline-flex min-h-[24px] items-center hover:underline"
             >
               Mis libros
             </Link>
             <Link
               href="/autor/cobros"
-              className="hover:underline"
+              className="inline-flex min-h-[24px] items-center hover:underline"
             >
               Cobros
             </Link>

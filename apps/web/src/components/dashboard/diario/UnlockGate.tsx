@@ -203,7 +203,9 @@ export function UnlockGate({
             setSeedError(null);
             setSeedText("");
           }}
-          className="mt-3 w-full text-center text-[12px] underline"
+          // El gemelo del de abajo, en el otro modo del gate, y con el mismo
+          // relleno por la misma razón (#747).
+          className="mt-3 w-full py-1 text-center text-[12px] underline"
           style={{ color: "var(--color-warm-500)" }}
         >
           Volver a usar contraseña
@@ -327,7 +329,10 @@ export function UnlockGate({
       <button
         type="button"
         onClick={() => setMode("seed")}
-        className="mt-3 w-full text-center text-[12px] underline"
+        // Es una acción propia, no un enlace dentro de una frase, así que no
+        // le vale la excepción inline de 2.5.8. Medía 18px de alto; el relleno
+        // vertical lo lleva a 26 sin agrandar la letra (#747).
+        className="mt-3 w-full py-1 text-center text-[12px] underline"
         style={{ color: "var(--color-warm-500)" }}
       >
         Olvidé mi contraseña — usar frase de respaldo

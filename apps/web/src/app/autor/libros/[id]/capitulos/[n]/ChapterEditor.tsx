@@ -199,8 +199,12 @@ export function ChapterEditor({
                   type="button"
                   disabled={disabled || pending || !b.content.trim()}
                   onClick={() => setAiTarget(idx)}
-                  className="rounded px-1.5 py-0.5 font-semibold disabled:opacity-30"
+                  className="inline-flex min-h-[24px] min-w-[24px] items-center justify-center rounded font-semibold disabled:opacity-30"
                   style={{ color: "var(--color-lavender-600)" }}
+                  // 24×24 de zona útil con el glifo intacto, y nombre real:
+                  // el `title` no nombra un botón que ya tiene contenido, así
+                  // que se anunciaba «✨ botón» (#747).
+                  aria-label="Asistente de edición (IA)"
                   title="Asistente de edición (IA)"
                 >
                   ✨
@@ -209,7 +213,8 @@ export function ChapterEditor({
                   type="button"
                   disabled={disabled || pending || idx === 0}
                   onClick={() => moveBlock(idx, -1)}
-                  className="rounded px-1.5 py-0.5 disabled:opacity-30"
+                  className="inline-flex min-h-[24px] min-w-[24px] items-center justify-center rounded disabled:opacity-30"
+                  aria-label="Mover el bloque arriba"
                   title="Mover arriba"
                 >
                   ↑
@@ -218,7 +223,8 @@ export function ChapterEditor({
                   type="button"
                   disabled={disabled || pending || idx === blocks.length - 1}
                   onClick={() => moveBlock(idx, 1)}
-                  className="rounded px-1.5 py-0.5 disabled:opacity-30"
+                  className="inline-flex min-h-[24px] min-w-[24px] items-center justify-center rounded disabled:opacity-30"
+                  aria-label="Mover el bloque abajo"
                   title="Mover abajo"
                 >
                   ↓
@@ -227,8 +233,9 @@ export function ChapterEditor({
                   type="button"
                   disabled={disabled || pending || blocks.length === 1}
                   onClick={() => removeBlock(idx)}
-                  className="rounded px-1.5 py-0.5 disabled:opacity-30"
+                  className="inline-flex min-h-[24px] min-w-[24px] items-center justify-center rounded disabled:opacity-30"
                   style={{ color: "var(--color-rose-700)" }}
+                  aria-label="Eliminar bloque"
                   title="Eliminar bloque"
                 >
                   ✕

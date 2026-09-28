@@ -168,7 +168,12 @@ export function StructureEditor({
                 type="button"
                 disabled={disabled || pending || idx === 0}
                 onClick={() => move(idx, -1)}
-                className="rounded px-1.5 py-0.5 disabled:opacity-30"
+                className="inline-flex min-h-[24px] min-w-[24px] items-center justify-center rounded disabled:opacity-30"
+                // El glifo sigue igual de pequeño: lo que llega a 24×24 es la
+                // zona que responde. `aria-label` porque el `title` NO da
+                // nombre accesible cuando el botón ya tiene contenido — el
+                // árbol de accesibilidad anunciaba «↑ botón» (#747).
+                aria-label="Mover arriba"
                 title="Mover arriba"
               >
                 ↑
@@ -177,7 +182,12 @@ export function StructureEditor({
                 type="button"
                 disabled={disabled || pending || idx === rows.length - 1}
                 onClick={() => move(idx, 1)}
-                className="rounded px-1.5 py-0.5 disabled:opacity-30"
+                className="inline-flex min-h-[24px] min-w-[24px] items-center justify-center rounded disabled:opacity-30"
+                // El glifo sigue igual de pequeño: lo que llega a 24×24 es la
+                // zona que responde. `aria-label` porque el `title` NO da
+                // nombre accesible cuando el botón ya tiene contenido — el
+                // árbol de accesibilidad anunciaba «↓ botón» (#747).
+                aria-label="Mover abajo"
                 title="Mover abajo"
               >
                 ↓
@@ -186,8 +196,9 @@ export function StructureEditor({
                 type="button"
                 disabled={disabled || pending || rows.length === 1}
                 onClick={() => remove(idx)}
-                className="rounded px-1.5 py-0.5 disabled:opacity-30"
+                className="inline-flex min-h-[24px] min-w-[24px] items-center justify-center rounded disabled:opacity-30"
                 style={{ color: "var(--color-rose-700)" }}
+                aria-label="Eliminar capítulo"
                 title="Eliminar capítulo"
               >
                 ✕

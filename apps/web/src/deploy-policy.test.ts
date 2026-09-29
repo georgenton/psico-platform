@@ -284,11 +284,24 @@ describe("#725 · en un clon superficial, que es lo que Vercel hace", () => {
   }
 
   /** Una rama con un cambio, clonada como la clonaría Vercel. */
+  /**
+   * La rama que hará de «producción» para el clon anidado.
+   *
+   * No se usa `main` directamente: en el checkout de CI existe
+   * `refs/remotes/origin/main` pero NO una rama local `main`, así que el clon no
+   * puede traérsela y el script se queda sin base. Eso hizo que este caso pasara
+   * verde en local y rojo en CI. Una rama temporal propia sí se puede servir, y
+   * ejercita exactamente el mismo camino del script.
+   */
+  const RAMA_PRODUCCION = "prueba-superficial-produccion";
+
   function clonarSuperficial(
     rama: string,
     archivo: string,
     desde: string,
   ): string {
+    git(["branch", "-f", RAMA_PRODUCCION, desde]);
+    if (!ramas.includes(RAMA_PRODUCCION)) ramas.push(RAMA_PRODUCCION);
     git(["branch", "-f", rama, desde]);
     ramas.push(rama);
 
@@ -346,7 +359,11 @@ describe("#725 · en un clon superficial, que es lo que Vercel hace", () => {
         [join(repo, "scripts", "vercel-ignore-web.sh")],
         {
           cwd: repo,
-          env: { ...process.env, PATH: `${binRepo}:${process.env.PATH ?? ""}` },
+          env: {
+            ...process.env,
+            PATH: `${binRepo}:${process.env.PATH ?? ""}`,
+            VERCEL_GIT_REPO_DEFAULT_BRANCH: RAMA_PRODUCCION,
+          },
           stdio: ["ignore", "pipe", "pipe"],
         },
       );

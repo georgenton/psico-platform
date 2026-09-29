@@ -46,6 +46,12 @@ const PASSWORD_2 = "AnotherPassword456!";
 const PLAINTEXT =
   "Hoy fue un día complicado pero terminé un capítulo importante del libro.";
 
+/**
+ * 60 s — 2,1× el peor caso medido (28,3 s). La nota de la propia prueba explica
+ * de dónde sale el número y por qué no se abarata la criptografía en su lugar.
+ */
+const PRESUPUESTO_ARGON2_E2E_MS = 60_000;
+
 describe("Diario rekey · E2E (real crypto)", () => {
   let h: E2EHarness;
 
@@ -63,178 +69,211 @@ describe("Diario rekey · E2E (real crypto)", () => {
     await h.resetMocks();
   });
 
-  it("round-trip: cipher with key₁ → POST entry → rekey to key₂ → decrypt with key₂", async () => {
-    // ── Step 1 · derive key₁ and encrypt the plaintext ─────────────────
-    // deriveMasterKey expects the salt already encoded as base64url —
-    // that mirrors the wire format the backend stores in User.cryptoSalt.
-    // 16 raw bytes → 22 chars b64url unpadded, exactly what
-    // auth.service.ts produces via Node `randomBytes(16).toString("base64url")`.
-    // The rekey DTO accepts 22–28 chars (loosened by `fix-salt-length-dto`).
-    const salt1B64 = bytesToBase64Url(randomBytes(16));
-    const masterKey1 = await deriveMasterKey(PASSWORD_1, salt1B64);
-    const diaryKey1 = deriveSubKey(masterKey1, DIARY_KEY_INFO);
-    const envelope1 = encryptString(PLAINTEXT, diaryKey1);
+  /**
+   * PRESUPUESTO DE TIEMPO, MEDIDO (#731).
+   *
+   * Esta prueba hace DOS derivaciones Argon2id reales —64 MB, t=3, p=4 cada
+   * una—, arranca la app de Nest y va y viene por HTTP. Medido en la misma
+   * máquina, con la misma prueba:
+   *
+   *   aislada                          6,5 – 9,1 s
+   *   con la suite de la API           10,4 – 16,4 s
+   *   con `pnpm test` de la raíz       18,8 – 23,9 s   (5 corridas)
+   *   raíz + 10 procesos comiendo CPU  28,3 s          ← el peor caso medido
+   *
+   * El presupuesto anterior eran 20 s, así que en la raíz esta prueba se pasaba
+   * de su plazo en CUATRO de cada cinco corridas. Que no fallara siempre es un
+   * accidente del planificador: `argon2id` es trabajo SINCRÓNICO y bloquea el
+   * event loop, así que el temporizador del timeout no puede dispararse mientras
+   * deriva — sólo en los huecos interrumpibles (el arranque de Nest, las
+   * peticiones HTTP, el intervalo entre las dos derivaciones). Si el plazo vence
+   * dentro de una derivación, la prueba termina antes de que nadie mire el reloj
+   * y pasa; si vence en un hueco, falla. De ahí la intermitencia, y de ahí que
+   * 28,3 s «pasaran» contra un plazo de 20. Que el plazo SÍ gobierna esta prueba
+   * se comprobó bajándolo a 1 s: falla con «Test timed out in 1000ms».
+   *
+   * 60 s son 2,1× el peor caso medido. Lo que NO se hace: tocar los parámetros
+   * de Argon2id —su coste ES la defensa, y abaratarlo aquí lo abarata para quien
+   * intente fuerza bruta—, mockear la derivación, ni subir el techo global del
+   * workspace, porque las otras 3 262 pruebas no tienen por qué heredar el
+   * presupuesto de la criptografía.
+   */
+  it(
+    "round-trip: cipher with key₁ → POST entry → rekey to key₂ → decrypt with key₂",
+    async () => {
+      // ── Step 1 · derive key₁ and encrypt the plaintext ─────────────────
+      // deriveMasterKey expects the salt already encoded as base64url —
+      // that mirrors the wire format the backend stores in User.cryptoSalt.
+      // 16 raw bytes → 22 chars b64url unpadded, exactly what
+      // auth.service.ts produces via Node `randomBytes(16).toString("base64url")`.
+      // The rekey DTO accepts 22–28 chars (loosened by `fix-salt-length-dto`).
+      const salt1B64 = bytesToBase64Url(randomBytes(16));
+      const masterKey1 = await deriveMasterKey(PASSWORD_1, salt1B64);
+      const diaryKey1 = deriveSubKey(masterKey1, DIARY_KEY_INFO);
+      const envelope1 = encryptString(PLAINTEXT, diaryKey1);
 
-    // ── Step 2 · login through real HTTP → obtain JWT ──────────────────
-    const realHash = await bcrypt.hash(PASSWORD_1, 12);
-    const USER_ID = "user-rekey-1";
-    h.prisma.user.findUnique.mockResolvedValue({
-      id: USER_ID,
-      email: "rekey@example.com",
-      name: "Rekey User",
-      role: "USER",
-      plan: "FREE",
-      passwordHash: realHash,
-      authProvider: "LOCAL",
-      isActive: true,
-      authRevision: 0,
-    });
-    h.prisma.refreshToken.create.mockResolvedValue({});
+      // ── Step 2 · login through real HTTP → obtain JWT ──────────────────
+      const realHash = await bcrypt.hash(PASSWORD_1, 12);
+      const USER_ID = "user-rekey-1";
+      h.prisma.user.findUnique.mockResolvedValue({
+        id: USER_ID,
+        email: "rekey@example.com",
+        name: "Rekey User",
+        role: "USER",
+        plan: "FREE",
+        passwordHash: realHash,
+        authProvider: "LOCAL",
+        isActive: true,
+        authRevision: 0,
+      });
+      h.prisma.refreshToken.create.mockResolvedValue({});
 
-    const loginRes = await request(h.app.getHttpServer())
-      .post("/api/auth/login")
-      .send({ email: "rekey@example.com", password: PASSWORD_1 });
+      const loginRes = await request(h.app.getHttpServer())
+        .post("/api/auth/login")
+        .send({ email: "rekey@example.com", password: PASSWORD_1 });
 
-    expect(loginRes.status).toBe(200);
-    const { accessToken } = loginRes.body;
-    expect(typeof accessToken).toBe("string");
+      expect(loginRes.status).toBe(200);
+      const { accessToken } = loginRes.body;
+      expect(typeof accessToken).toBe("string");
 
-    // ── Step 3 · POST entry with cipher₁ ───────────────────────────────
-    const ENTRY_ID = "entry-1";
-    h.prisma.diaryEntry.create.mockResolvedValue({
-      id: ENTRY_ID,
-      userId: USER_ID,
-      textCiphertext: envelope1.ciphertext,
-      textNonce: envelope1.nonce,
-      createdAt: new Date(),
-      mood: null,
-      kind: "FREEFORM",
-      tags: [],
-    });
-
-    const postRes = await request(h.app.getHttpServer())
-      .post("/api/reflexiones/entries")
-      .set("Authorization", `Bearer ${accessToken}`)
-      .send({
-        mood: "good",
-        kind: "free",
-        tags: ["dev"],
+      // ── Step 3 · POST entry with cipher₁ ───────────────────────────────
+      const ENTRY_ID = "entry-1";
+      h.prisma.diaryEntry.create.mockResolvedValue({
+        id: ENTRY_ID,
+        userId: USER_ID,
         textCiphertext: envelope1.ciphertext,
         textNonce: envelope1.nonce,
+        createdAt: new Date(),
+        mood: null,
+        kind: "FREEFORM",
+        tags: [],
       });
 
-    expect(postRes.status).toBe(201);
-    // The cipher arrives at the prisma layer unmodified — server never
-    // touches plaintext.
-    const createCall = h.prisma.diaryEntry.create.mock.calls[0]?.[0] as {
-      data: { textCiphertext: string; textNonce: string };
-    };
-    expect(createCall.data.textCiphertext).toBe(envelope1.ciphertext);
-    expect(createCall.data.textNonce).toBe(envelope1.nonce);
+      const postRes = await request(h.app.getHttpServer())
+        .post("/api/reflexiones/entries")
+        .set("Authorization", `Bearer ${accessToken}`)
+        .send({
+          mood: "good",
+          kind: "free",
+          tags: ["dev"],
+          textCiphertext: envelope1.ciphertext,
+          textNonce: envelope1.nonce,
+        });
 
-    // ── Step 4 · derive key₂ and re-encrypt cipher₁ → cipher₂ ──────────
-    // In real life the client decrypts cipher₁ in-memory with key₁ and
-    // re-encrypts the plaintext with key₂. The plaintext never touches
-    // the wire. We mirror that here.
-    const salt2B64 = bytesToBase64Url(randomBytes(16));
-    const masterKey2 = await deriveMasterKey(PASSWORD_2, salt2B64);
-    const diaryKey2 = deriveSubKey(masterKey2, DIARY_KEY_INFO);
-    const recovered = decryptString(envelope1, diaryKey1);
-    expect(recovered).toBe(PLAINTEXT); // sanity — key₁ decrypts cipher₁
-    const envelope2 = encryptString(recovered, diaryKey2);
+      expect(postRes.status).toBe(201);
+      // The cipher arrives at the prisma layer unmodified — server never
+      // touches plaintext.
+      const createCall = h.prisma.diaryEntry.create.mock.calls[0]?.[0] as {
+        data: { textCiphertext: string; textNonce: string };
+      };
+      expect(createCall.data.textCiphertext).toBe(envelope1.ciphertext);
+      expect(createCall.data.textNonce).toBe(envelope1.nonce);
 
-    // ── Step 5 · POST password-change-with-rekey ──────────────────────
-    // Re-prime mocks the rekey endpoint depends on. The service calls:
-    //   user.findUnique({ passwordHash + authProvider })
-    //   diaryEntry.count (validate ownership)
-    //   $transaction([user.update, ...diaryEntry.update, refreshToken.updateMany])
-    h.prisma.user.findUnique.mockResolvedValue({
-      // `id` is required now that JwtStrategy resolves req.user.userId from the
-      // DB lookup (ADR 0015), not from the token payload.
-      id: USER_ID,
-      passwordHash: realHash,
-      authProvider: "LOCAL",
-      isActive: true,
-      authRevision: 0,
-    });
-    h.prisma.diaryEntry.count.mockResolvedValue(1);
-    h.prisma.user.update.mockResolvedValue({});
-    h.prisma.diaryEntry.update.mockResolvedValue({});
-    h.prisma.refreshToken.deleteMany.mockResolvedValue({ count: 1 });
-    // The rekey now runs the transaction in callback form (ADR 0015: bump
-    // authRevision + delete refresh tokens). Pass the prisma mock itself as
-    // the tx client so writes land on the spies asserted below.
-    h.prisma.$transaction.mockImplementation(async (arg: unknown) => {
-      if (typeof arg === "function") {
-        return (arg as (tx: unknown) => unknown)(h.prisma);
-      }
-      throw new Error("Unexpected $transaction shape");
-    });
+      // ── Step 4 · derive key₂ and re-encrypt cipher₁ → cipher₂ ──────────
+      // In real life the client decrypts cipher₁ in-memory with key₁ and
+      // re-encrypts the plaintext with key₂. The plaintext never touches
+      // the wire. We mirror that here.
+      const salt2B64 = bytesToBase64Url(randomBytes(16));
+      const masterKey2 = await deriveMasterKey(PASSWORD_2, salt2B64);
+      const diaryKey2 = deriveSubKey(masterKey2, DIARY_KEY_INFO);
+      const recovered = decryptString(envelope1, diaryKey1);
+      expect(recovered).toBe(PLAINTEXT); // sanity — key₁ decrypts cipher₁
+      const envelope2 = encryptString(recovered, diaryKey2);
 
-    const rekeyRes = await request(h.app.getHttpServer())
-      .post("/api/user/password-change-with-rekey")
-      .set("Authorization", `Bearer ${accessToken}`)
-      .send({
-        currentPassword: PASSWORD_1,
-        newPassword: PASSWORD_2,
-        newCryptoSalt: salt2B64,
-        reencryptedEntries: [
-          {
-            id: ENTRY_ID,
-            textCiphertext: envelope2.ciphertext,
-            textNonce: envelope2.nonce,
-          },
-        ],
+      // ── Step 5 · POST password-change-with-rekey ──────────────────────
+      // Re-prime mocks the rekey endpoint depends on. The service calls:
+      //   user.findUnique({ passwordHash + authProvider })
+      //   diaryEntry.count (validate ownership)
+      //   $transaction([user.update, ...diaryEntry.update, refreshToken.updateMany])
+      h.prisma.user.findUnique.mockResolvedValue({
+        // `id` is required now that JwtStrategy resolves req.user.userId from the
+        // DB lookup (ADR 0015), not from the token payload.
+        id: USER_ID,
+        passwordHash: realHash,
+        authProvider: "LOCAL",
+        isActive: true,
+        authRevision: 0,
+      });
+      h.prisma.diaryEntry.count.mockResolvedValue(1);
+      h.prisma.user.update.mockResolvedValue({});
+      h.prisma.diaryEntry.update.mockResolvedValue({});
+      h.prisma.refreshToken.deleteMany.mockResolvedValue({ count: 1 });
+      // The rekey now runs the transaction in callback form (ADR 0015: bump
+      // authRevision + delete refresh tokens). Pass the prisma mock itself as
+      // the tx client so writes land on the spies asserted below.
+      h.prisma.$transaction.mockImplementation(async (arg: unknown) => {
+        if (typeof arg === "function") {
+          return (arg as (tx: unknown) => unknown)(h.prisma);
+        }
+        throw new Error("Unexpected $transaction shape");
       });
 
-    expect(rekeyRes.status).toBe(200);
-    expect(rekeyRes.body.ok).toBe(true);
-    expect(rekeyRes.body.cryptoSalt).toBe(salt2B64);
-    expect(rekeyRes.body.rekeyed).toBe(1);
+      const rekeyRes = await request(h.app.getHttpServer())
+        .post("/api/user/password-change-with-rekey")
+        .set("Authorization", `Bearer ${accessToken}`)
+        .send({
+          currentPassword: PASSWORD_1,
+          newPassword: PASSWORD_2,
+          newCryptoSalt: salt2B64,
+          reencryptedEntries: [
+            {
+              id: ENTRY_ID,
+              textCiphertext: envelope2.ciphertext,
+              textNonce: envelope2.nonce,
+            },
+          ],
+        });
 
-    // ── Step 6 · Verify the cipher passed into prisma.diaryEntry.update
-    //   round-trips via key₂. This is the full-circle assertion. If the
-    //   service silently re-shaped the payload (e.g. base64 vs base64url
-    //   confusion) decryptString would throw.
-    const updateCall = h.prisma.diaryEntry.update.mock.calls[0]?.[0] as {
-      where: { id: string };
-      data: { textCiphertext: string; textNonce: string };
-    };
-    expect(updateCall.where.id).toBe(ENTRY_ID);
-    expect(updateCall.data.textCiphertext).toBe(envelope2.ciphertext);
-    expect(updateCall.data.textNonce).toBe(envelope2.nonce);
+      expect(rekeyRes.status).toBe(200);
+      expect(rekeyRes.body.ok).toBe(true);
+      expect(rekeyRes.body.cryptoSalt).toBe(salt2B64);
+      expect(rekeyRes.body.rekeyed).toBe(1);
 
-    const decryptedAfterRekey = decryptString(
-      {
-        ciphertext: updateCall.data.textCiphertext,
-        nonce: updateCall.data.textNonce,
-      },
-      diaryKey2,
-    );
-    expect(decryptedAfterRekey).toBe(PLAINTEXT);
+      // ── Step 6 · Verify the cipher passed into prisma.diaryEntry.update
+      //   round-trips via key₂. This is the full-circle assertion. If the
+      //   service silently re-shaped the payload (e.g. base64 vs base64url
+      //   confusion) decryptString would throw.
+      const updateCall = h.prisma.diaryEntry.update.mock.calls[0]?.[0] as {
+        where: { id: string };
+        data: { textCiphertext: string; textNonce: string };
+      };
+      expect(updateCall.where.id).toBe(ENTRY_ID);
+      expect(updateCall.data.textCiphertext).toBe(envelope2.ciphertext);
+      expect(updateCall.data.textNonce).toBe(envelope2.nonce);
 
-    // ── Step 7 · Negative control: key₁ no longer decrypts cipher₂.
-    // Without this we couldn't tell whether the rekey actually changed
-    // the key or was a no-op pretending to.
-    expect(() =>
-      decryptString(
+      const decryptedAfterRekey = decryptString(
         {
           ciphertext: updateCall.data.textCiphertext,
           nonce: updateCall.data.textNonce,
         },
-        diaryKey1,
-      ),
-    ).toThrow();
+        diaryKey2,
+      );
+      expect(decryptedAfterRekey).toBe(PLAINTEXT);
 
-    // ── Step 8 · Every session revoked atomically with the rekey (ADR 0015):
-    // authRevision bumped + all refresh tokens deleted.
-    expect(h.prisma.user.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ authRevision: { increment: 1 } }),
-      }),
-    );
-    expect(h.prisma.refreshToken.deleteMany).toHaveBeenCalledWith({
-      where: { userId: USER_ID },
-    });
-  }, 20_000);
+      // ── Step 7 · Negative control: key₁ no longer decrypts cipher₂.
+      // Without this we couldn't tell whether the rekey actually changed
+      // the key or was a no-op pretending to.
+      expect(() =>
+        decryptString(
+          {
+            ciphertext: updateCall.data.textCiphertext,
+            nonce: updateCall.data.textNonce,
+          },
+          diaryKey1,
+        ),
+      ).toThrow();
+
+      // ── Step 8 · Every session revoked atomically with the rekey (ADR 0015):
+      // authRevision bumped + all refresh tokens deleted.
+      expect(h.prisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ authRevision: { increment: 1 } }),
+        }),
+      );
+      expect(h.prisma.refreshToken.deleteMany).toHaveBeenCalledWith({
+        where: { userId: USER_ID },
+      });
+    },
+    PRESUPUESTO_ARGON2_E2E_MS,
+  );
 });

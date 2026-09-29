@@ -265,9 +265,30 @@ describe("#725 · en un clon superficial, que es lo que Vercel hace", () => {
     }
   }, 120_000);
 
+  /**
+   * La punta de la rama de producción, que es contra lo que el script compara
+   * cuando no hay deployment previo. La rama sintética se construye SOBRE ella,
+   * no sobre `HEAD`: si se partiera de HEAD, en una rama que ya toca `apps/web`
+   * —como la que introdujo esta misma prueba— el diff arrastraría esos cambios y
+   * el caso «sólo docs» daría «construye» por motivos ajenos a lo que mide.
+   */
+  function puntaDeProduccion(): string | null {
+    for (const ref of ["origin/main", "main"]) {
+      try {
+        return git(["rev-parse", "--verify", ref]);
+      } catch {
+        /* ese ref no está en este clon */
+      }
+    }
+    return null;
+  }
+
   /** Una rama con un cambio, clonada como la clonaría Vercel. */
-  function clonarSuperficial(rama: string, archivo: string): string {
-    const desde = git(["rev-parse", "HEAD"]);
+  function clonarSuperficial(
+    rama: string,
+    archivo: string,
+    desde: string,
+  ): string {
     git(["branch", "-f", rama, desde]);
     ramas.push(rama);
 
@@ -317,33 +338,49 @@ describe("#725 · en un clon superficial, que es lo que Vercel hace", () => {
     return repo;
   }
 
-  function decidirEn(repo: string): number {
+  /** Devuelve la decisión y lo que el script dijo, para que un fallo se explique. */
+  function decidirEn(repo: string): { codigo: number; dijo: string } {
     try {
-      execFileSync("sh", [join(repo, "scripts", "vercel-ignore-web.sh")], {
-        cwd: repo,
-        env: { ...process.env, PATH: `${binRepo}:${process.env.PATH ?? ""}` },
-        stdio: "pipe",
-      });
-      return 0;
+      const salida = execFileSync(
+        "sh",
+        [join(repo, "scripts", "vercel-ignore-web.sh")],
+        {
+          cwd: repo,
+          env: { ...process.env, PATH: `${binRepo}:${process.env.PATH ?? ""}` },
+          stdio: ["ignore", "pipe", "pipe"],
+        },
+      );
+      return { codigo: 0, dijo: salida.toString() };
     } catch (e) {
-      return (e as { status?: number }).status ?? -1;
+      const err = e as { status?: number; stderr?: Buffer };
+      return { codigo: err.status ?? -1, dijo: err.stderr?.toString() ?? "" };
     }
   }
 
-  it("sólo docs, sin deployment previo en la rama → omite", () => {
+  it("sólo docs, sin deployment previo en la rama → omite", (ctx) => {
+    const desde = puntaDeProduccion();
+    // Sin la rama de producción en este clon no hay nada contra lo que comparar,
+    // y un fallo aquí hablaría del clon, no de la política.
+    if (!desde) return ctx.skip();
     const repo = clonarSuperficial(
       "prueba-superficial-docs",
       "docs/operations/prueba-de-politica.md",
+      desde,
     );
-    expect(decidirEn(repo)).toBe(OMITIR);
+    const r = decidirEn(repo);
+    expect(r.codigo, r.dijo).toBe(OMITIR);
   }, 180_000);
 
-  it("un cambio en Web, sin deployment previo en la rama → construye", () => {
+  it("un cambio en Web, sin deployment previo en la rama → construye", (ctx) => {
+    const desde = puntaDeProduccion();
+    if (!desde) return ctx.skip();
     const repo = clonarSuperficial(
       "prueba-superficial-web",
       "apps/web/src/app/globals.css",
+      desde,
     );
-    expect(decidirEn(repo)).toBe(CONSTRUIR);
+    const r = decidirEn(repo);
+    expect(r.codigo, r.dijo).toBe(CONSTRUIR);
   }, 180_000);
 });
 

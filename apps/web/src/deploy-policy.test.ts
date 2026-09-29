@@ -230,6 +230,18 @@ describe("#725 · cambios que SÍ afectan a Web → se construye", () => {
     expect(decidir(base)).toBe(CONSTRUIR);
   }, 120_000);
 
+  it("POLICY_SCRIPT — el script que decide esto mismo", () => {
+    // Vive en `scripts/`, fuera de todo workspace, así que el grafo no lo ve y
+    // daba «nada afectado». Pero si se cambia la regla y Web no se reconstruye,
+    // no hay forma de comprobar que la regla nueva funciona.
+    situarEn("HEAD");
+    const { base } = cambiarYCommitear(
+      "scripts/vercel-ignore-web.sh",
+      "\n# comentario de prueba\n",
+    );
+    expect(decidir(base)).toBe(CONSTRUIR);
+  }, 120_000);
+
   it("ROOT_CONFIG — la propia política", () => {
     // Un PR que cambia la regla de despliegue tiene que desplegar, o no se puede
     // comprobar el cambio (§19 del ciclo).

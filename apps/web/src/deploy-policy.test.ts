@@ -239,6 +239,114 @@ describe("#725 · cambios que SÍ afectan a Web → se construye", () => {
   }, 120_000);
 });
 
+describe("#725 · en un clon superficial, que es lo que Vercel hace", () => {
+  /**
+   * EL CASO QUE SE ESCAPÓ Y HAY QUE FIJAR. Vercel clona UNA sola rama y a
+   * profundidad 1. En ese clon no existe `origin/main`, y —peor— `turbo query
+   * affected` calcula un merge base por dentro: sin historia que enlace, avisa
+   * «no merge base found», asume que cambió TODO y responde que Web está
+   * afectada siempre.
+   *
+   * O sea que una política que funciona en el árbol local puede omitir nada en
+   * producción. Por eso estos dos casos clonan de verdad, en vez de confiar en
+   * el worktree.
+   */
+  const clones: string[] = [];
+  const ramas: string[] = [];
+
+  afterAll(() => {
+    for (const d of clones) rmSync(d, { recursive: true, force: true });
+    for (const r of ramas) {
+      try {
+        git(["branch", "-D", r]);
+      } catch {
+        /* ya no está */
+      }
+    }
+  }, 120_000);
+
+  /** Una rama con un cambio, clonada como la clonaría Vercel. */
+  function clonarSuperficial(rama: string, archivo: string): string {
+    const desde = git(["rev-parse", "HEAD"]);
+    git(["branch", "-f", rama, desde]);
+    ramas.push(rama);
+
+    // El commit se hace en el worktree para no tocar el árbol real.
+    git(["checkout", "--detach", "--force", desde], arbol);
+    git(["clean", "-qfd"], arbol);
+    const destino = join(arbol, archivo);
+    mkdirSync(dirname(destino), { recursive: true });
+    appendFileSync(destino, "\n/* cambio de prueba */\n");
+    git(["add", "--", archivo], arbol);
+    git(
+      [
+        "-c",
+        "user.name=t",
+        "-c",
+        "user.email=t@t",
+        "commit",
+        "-qm",
+        `prueba: ${rama}`,
+      ],
+      arbol,
+    );
+    git(["branch", "-f", rama, git(["rev-parse", "HEAD"], arbol)]);
+
+    const clon = mkdtempSync(join(tmpdir(), "clon-superficial-"));
+    clones.push(clon);
+    execFileSync(
+      "git",
+      [
+        "clone",
+        "--quiet",
+        "--depth=1",
+        "--single-branch",
+        "--branch",
+        rama,
+        `file://${raiz}`,
+        join(clon, "repo"),
+      ],
+      { stdio: "pipe" },
+    );
+    const repo = join(clon, "repo");
+    mkdirSync(join(repo, "scripts"), { recursive: true });
+    writeFileSync(
+      join(repo, "scripts", "vercel-ignore-web.sh"),
+      execFileSync("cat", [script], { encoding: "utf8" }),
+    );
+    return repo;
+  }
+
+  function decidirEn(repo: string): number {
+    try {
+      execFileSync("sh", [join(repo, "scripts", "vercel-ignore-web.sh")], {
+        cwd: repo,
+        env: { ...process.env, PATH: `${binRepo}:${process.env.PATH ?? ""}` },
+        stdio: "pipe",
+      });
+      return 0;
+    } catch (e) {
+      return (e as { status?: number }).status ?? -1;
+    }
+  }
+
+  it("sólo docs, sin deployment previo en la rama → omite", () => {
+    const repo = clonarSuperficial(
+      "prueba-superficial-docs",
+      "docs/operations/prueba-de-politica.md",
+    );
+    expect(decidirEn(repo)).toBe(OMITIR);
+  }, 180_000);
+
+  it("un cambio en Web, sin deployment previo en la rama → construye", () => {
+    const repo = clonarSuperficial(
+      "prueba-superficial-web",
+      "apps/web/src/app/globals.css",
+    );
+    expect(decidirEn(repo)).toBe(CONSTRUIR);
+  }, 180_000);
+});
+
 describe("#725 · si no se puede demostrar, se construye", () => {
   it("UNKNOWN_BASE — una base que no está en el clon", () => {
     // Pasa con clones superficiales. Omitir aquí dejaría producción atrás sin

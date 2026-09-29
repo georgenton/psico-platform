@@ -1,6 +1,7 @@
 {
   "installCommand": "cd ../.. && corepack enable && pnpm install --frozen-lockfile",
   "buildCommand": "cd ../.. && pnpm turbo run build --filter=@psico/web",
+  "ignoreCommand": "sh ../../scripts/vercel-ignore-web.sh",
   "outputDirectory": ".next",
   "framework": "nextjs"
 }

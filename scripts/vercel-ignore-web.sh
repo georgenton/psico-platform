@@ -61,17 +61,49 @@ if [ -n "$base" ] && ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
   exit "$CONSTRUIR"
 fi
 
-# Sin base —primer deployment de la rama— se intenta el punto de divergencia con
-# la rama de producción, que es lo que un PR compara de verdad.
+# Sin base —primer deployment de una rama— hay que compararse con la rama de
+# producción. Pero Vercel clona UNA sola rama y superficialmente, así que aquí no
+# existe ni `origin/main` ni su historia: hay que traerla antes de preguntar.
 if [ -z "$base" ]; then
   produccion="${VERCEL_GIT_REPO_DEFAULT_BRANCH:-main}"
+
+  # Primero por si ya está (clon completo: desarrollo local, o CI que sí clona
+  # todo). Si no, se trae acotada: 200 commits cubren de sobra la vida de una
+  # rama de PR, y si el punto de divergencia queda más atrás se construye.
   for ref in "origin/$produccion" "$produccion"; do
-    if candidato=$(git merge-base "$ref" HEAD 2>/dev/null) && [ -n "$candidato" ]; then
-      base="$candidato"
-      decir "sin base previa; se compara con el punto de divergencia de $ref"
+    if git rev-parse --verify --quiet "$ref" >/dev/null 2>&1; then
+      punta=$(git rev-parse "$ref")
       break
     fi
   done
+
+  if [ -z "${punta:-}" ]; then
+    # HAY QUE PROFUNDIZAR LAS DOS RAMAS, NO SÓLO TRAER PRODUCCIÓN. `turbo query
+    # affected` calcula un merge base por dentro, y en un clon superficial la
+    # historia está cortada: avisa «no merge base found», asume que cambió TODO
+    # y responde que Web está afectada siempre. Traer producción sin profundizar
+    # esta rama no arregla nada, porque el antepasado común sigue sin enlazar.
+    # 200 commits cubren de sobra la vida de una rama de PR.
+    if [ -f "$(git rev-parse --git-dir)/shallow" ]; then
+      git fetch --no-tags --quiet --deepen=200 2>/dev/null || true
+    fi
+    if git fetch --no-tags --quiet --depth=200 origin "$produccion" 2>/dev/null; then
+      punta=$(git rev-parse FETCH_HEAD 2>/dev/null || true)
+      decir "el clon no traía $produccion; se trajo acotada a 200 commits"
+    fi
+  fi
+
+  if [ -n "${punta:-}" ]; then
+    # El punto de divergencia es la comparación exacta de un PR. Si la historia
+    # sigue sin alcanzar, se usa la punta de producción: puede contar de más —y
+    # construir de más—, que es el lado seguro del error.
+    if base=$(git merge-base "$punta" HEAD 2>/dev/null) && [ -n "$base" ]; then
+      decir "sin base previa; se compara con el punto de divergencia de $produccion"
+    else
+      base="$punta"
+      decir "sin punto de divergencia alcanzable; se compara con la punta de $produccion"
+    fi
+  fi
 fi
 
 if [ -z "$base" ]; then

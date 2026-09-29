@@ -85,11 +85,22 @@ if [ -z "$base" ]; then
     # esta rama no arregla nada, porque el antepasado común sigue sin enlazar.
     # 200 commits cubren de sobra la vida de una rama de PR.
     if [ -f "$(git rev-parse --git-dir)/shallow" ]; then
-      git fetch --no-tags --quiet --deepen=200 2>/dev/null || true
+      if ! salida=$(git fetch --no-tags --quiet --deepen=200 2>&1); then
+        decir "no se pudo profundizar la historia: ${salida:-sin mensaje}"
+      fi
     fi
-    if git fetch --no-tags --quiet --depth=200 origin "$produccion" 2>/dev/null; then
+    # El error se REPORTA. Silenciarlo dejó un «sin base con la que comparar» sin
+    # explicación en los logs de Vercel, y costó tres despliegues averiguar que el
+    # problema estaba aquí y no en la lógica.
+    if salida=$(git fetch --no-tags --quiet --depth=200 origin "$produccion" 2>&1); then
       punta=$(git rev-parse FETCH_HEAD 2>/dev/null || true)
-      decir "el clon no traía $produccion; se trajo acotada a 200 commits"
+      if [ -n "$punta" ]; then
+        decir "el clon no traía $produccion; se trajo acotada a 200 commits"
+      else
+        decir "se trajo $produccion pero FETCH_HEAD no resuelve"
+      fi
+    else
+      decir "no se pudo traer $produccion: ${salida:-sin mensaje}"
     fi
   fi
 

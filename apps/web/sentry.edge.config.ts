@@ -7,7 +7,14 @@ const dsn = process.env.SENTRY_DSN;
 if (dsn) {
   Sentry.init({
     dsn,
-    environment: process.env.NODE_ENV ?? "development",
+    // NODE_ENV no distingue staging de produccion: en cualquier build de
+    // produccion vale "production". Era impreciso ya antes de ADR 0024 y con un
+    // staging propio pasa a ser enganoso justo cuando leemos Sentry para validar.
+    environment:
+      process.env.PSICO_ENV ??
+      process.env.VERCEL_ENV ??
+      process.env.NODE_ENV ??
+      "development",
     release: process.env.SENTRY_RELEASE,
     tracesSampleRate: process.env.NODE_ENV === "production" ? 0.05 : 1.0,
     sendDefaultPii: false,

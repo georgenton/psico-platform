@@ -14,7 +14,16 @@ const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
 if (dsn) {
   Sentry.init({
     dsn,
-    environment: process.env.NEXT_PUBLIC_VERCEL_ENV ?? "development",
+    // `NEXT_PUBLIC_PSICO_ENV` primero, y `NEXT_PUBLIC_VERCEL_ENV` como respaldo
+    // mientras Vercel siga encendido (ADR 0024). Tiene que ser una variable
+    // `NEXT_PUBLIC_*`: esto corre en el navegador, así que el valor se inlinea en
+    // el bundle durante el build. Sin ninguna de las dos, todos los errores de
+    // producción se reportarían como «development» y el panel perdería la
+    // separación entre entornos.
+    environment:
+      process.env.NEXT_PUBLIC_PSICO_ENV ??
+      process.env.NEXT_PUBLIC_VERCEL_ENV ??
+      "development",
     release: process.env.NEXT_PUBLIC_SENTRY_RELEASE,
     tracesSampleRate: 0.1,
     // Session Replay disabled for now — opt in once we validate the

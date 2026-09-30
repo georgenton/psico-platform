@@ -18,6 +18,7 @@ import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { AppModule } from "./app.module";
 import { HttpExceptionFilter } from "./shared";
 import { assertEmotionalMapConfigured } from "./emotional-map/cache-identity";
+import { releaseSha } from "./shared/release-sha";
 import { GUIDE_START_LOCK_PROTOCOL } from "./guide/guide-active-capability";
 import { EXPERIENCE_BINDING_PROTOCOL } from "./experience/experience-binding-lock";
 
@@ -167,19 +168,31 @@ async function bootstrap(): Promise<void> {
   // are for.
   //
   // Deliberately a log and not an endpoint — operational detail, and no public
-  // surface needs to grow to carry it. One line per boot per replica, so
-  // `railway logs` shows the whole fleet rather than whichever replica a load
-  // balancer happened to pick. Nothing here is a secret: a protocol name, a
+  // surface needs to grow to carry it. One line per boot per replica, so the
+  // platform's log view shows the whole fleet rather than whichever replica a
+  // load balancer happened to pick. Nothing here is a secret: a protocol name, a
   // commit SHA and a replica id.
   //
-  // `RAILWAY_GIT_COMMIT_SHA` and `RAILWAY_REPLICA_ID` are Railway's documented
-  // variables, present only on a deployed box. Locally there are none, and a
-  // missing value must never keep the process from starting — it is reported
-  // as `unknown`/`local` rather than guessed.
+  // Both values must be platform-neutral, and not as a matter of tidiness: the
+  // C.0B2 and C.3A gates read BUILD_SHA to establish that no pre-change replica
+  // is still serving. A platform that does not happen to set Railway's variable
+  // would print `unknown` on every replica and quietly leave those gates with
+  // nothing to tell the old binary from the new one. `releaseSha()` already
+  // resolves the SHA across platforms; the replica id falls back to the
+  // container hostname, which Docker always sets.
+  //
+  // A missing value must never keep the process from starting: it is reported as
+  // `unknown`/`local` rather than guessed.
+  const buildSha = releaseSha() ?? "unknown";
+  const replicaId =
+    process.env.RAILWAY_REPLICA_ID ??
+    process.env.COOLIFY_CONTAINER_NAME ??
+    process.env.HOSTNAME ??
+    "local";
   new Logger("Bootstrap").log(
     `GUIDE_START_LOCK_PROTOCOL=${GUIDE_START_LOCK_PROTOCOL} ` +
-      `BUILD_SHA=${process.env.RAILWAY_GIT_COMMIT_SHA ?? "unknown"} ` +
-      `REPLICA=${process.env.RAILWAY_REPLICA_ID ?? "local"}`,
+      `BUILD_SHA=${buildSha} ` +
+      `REPLICA=${replicaId}`,
   );
   // C.3A — the binding protocol, surfaced the same way and for the same reason:
   // the C.3B backfill and the C.3C cutover each have a gate that needs the
@@ -187,8 +200,8 @@ async function bootstrap(): Promise<void> {
   // is executing.
   new Logger("Bootstrap").log(
     `EXPERIENCE_BINDING_PROTOCOL=${EXPERIENCE_BINDING_PROTOCOL} ` +
-      `BUILD_SHA=${process.env.RAILWAY_GIT_COMMIT_SHA ?? "unknown"} ` +
-      `REPLICA=${process.env.RAILWAY_REPLICA_ID ?? "local"}`,
+      `BUILD_SHA=${buildSha} ` +
+      `REPLICA=${replicaId}`,
   );
 
   await app.listen(port);

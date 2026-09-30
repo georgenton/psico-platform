@@ -140,14 +140,27 @@ describe("it is inert", () => {
 describe("it stays out of production", () => {
   const root = join(__dirname, "..", "..", "..");
 
-  it("the route 404s when VERCEL_ENV is production", () => {
+  it("the route 404s in production, and asks a resolver rather than one vendor", () => {
+    // This used to assert the literal `process.env.VERCEL_ENV === "production"`.
+    // That spelling tied the gate to one platform: on a host that does not set
+    // VERCEL_ENV the condition is simply never true and the prototype becomes
+    // reachable in production (ADR 0024). What is ratcheted now is that the page
+    // is gated at all, by the shared resolver whose own tests cover the table of
+    // cases — including "deployed but nobody declared the environment", which is
+    // the case this repo could not express before.
     const page = readFileSync(
       join(root, "app", "prototipos", "book-experience", "page.tsx"),
       "utf8",
     );
-    expect(page).toContain('process.env.VERCEL_ENV === "production"');
+    expect(page).toContain("prototypeRoutesHidden()");
     expect(page).toContain("notFound()");
     expect(page).toContain("index: false");
+
+    // And the gate is evaluated per request. Without this the page has no
+    // params, so Next prerenders it and the gate resolves against the BUILD's
+    // environment — which on a platform that only sets it at runtime would
+    // publish the prototype as static HTML that no live variable can close.
+    expect(page).toContain('export const dynamic = "force-dynamic"');
   });
 
   it("is not linked from the product navigation", () => {

@@ -154,29 +154,42 @@ builder no coge la configuración».
 
 ## 4 · Base de datos
 
-|                |                                                                                               |
-| -------------- | --------------------------------------------------------------------------------------------- |
-| ENGINE         | PostgreSQL                                                                                    |
-| VERSIÓN        | 16 en local (`pgvector/pgvector:pg16`); la de Railway no se consultó para no tocar producción |
-| POSTGIS        | **no**                                                                                        |
-| EXTENSIONES    | `vector` (pgvector), creada por la migración `20260508154842_add_ai_rag_tables`               |
-| MIGRATION TOOL | Prisma Migrate · `prisma migrate deploy`                                                      |
-| `DATABASE_URL` | obligatoria; sin pooling explícito en el esquema                                              |
-| SEED           | `prisma/seed.ts`, idempotente y no destructivo desde el fix del 2026-07-13                    |
-| MIGRACIONES    | 69                                                                                            |
+|                |                                                                                 |
+| -------------- | ------------------------------------------------------------------------------- |
+| ENGINE         | PostgreSQL                                                                      |
+| VERSIÓN        | **18**, probada por el propio CI (ver abajo)                                    |
+| POSTGIS        | **no**                                                                          |
+| EXTENSIONES    | `vector` (pgvector), creada por la migración `20260508154842_add_ai_rag_tables` |
+| MIGRATION TOOL | Prisma Migrate · `prisma migrate deploy`                                        |
+| `DATABASE_URL` | obligatoria; sin pooling explícito en el esquema                                |
+| SEED           | `prisma/seed.ts`, idempotente y no destructivo desde el fix del 2026-07-13      |
+| MIGRACIONES    | 69                                                                              |
 
 **Regla que no se negocia:** la base de staging es distinta de la de producción, y
 ninguna de las dos publica puerto al host. Se hablan por la red Docker.
 
 Imagen requerida en Coolify: una con `pgvector` disponible. El Postgres por defecto
-de Coolify **no** la trae; el entorno de pruebas actual usa `pgvector/pgvector:pg16`
-y eso es lo que hay que replicar.
+de Coolify **no** la trae, y sin la extensión la migración
+`20260508154842_add_ai_rag_tables` falla en su `CREATE EXTENSION vector`.
 
-**Pendiente antes de producción, no antes de staging:** la versión exacta de
-PostgreSQL en Railway no se consultó, para no tocar producción. Staging se monta en
-16 por paridad con lo que el repositorio usa. Antes de migrar datos reales hay que
-leer la versión de producción y decidir si el salto de major va en la migración (no
-recomendado: dos cambios a la vez) o después.
+**Corrección a una versión previa de este documento.** Decía «16 en local» y
+construía sobre eso un argumento de paridad con producción. El argumento estaba al
+revés, y la evidencia estaba en el repositorio todo el tiempo:
+
+| evidencia                                                   | qué dice                                                                                                                                                                                                         |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.github/workflows/ci.yml:106-111`                          | el servicio de PostgreSQL del job es `pgvector/pgvector:pg18`, y el comentario dice literalmente **«postgres 18 (matches production)»**. Introducido en `2a805a6b`, 2026-07-15, en el sync de PR-2A a producción |
+| `apps/api/src/mood/mood-normalization-migration.pg-spec.ts` | ejecuta `pnpm exec prisma migrate deploy` — la **historia completa** de migraciones — dentro de un esquema efímero `pr2a_migrate`, contra ese pg18                                                               |
+| `apps/api/vitest.locks.config.ts`                           | lo incluye vía `src/**/*.pg-spec.ts`, así que esa cadena de migraciones se aplica contra 18 **en cada corrida de CI**, no una vez                                                                                |
+| `apps/api/prisma/schema.prisma:8`                           | `extensions = [pgvector(map: "vector")]` con `previewFeatures = ["postgresqlExtensions"]`: la extensión no es opcional, y por eso la imagen tiene que traerla                                                    |
+| `apps/api/package.json`                                     | Prisma 7.8, que es la que CI usa contra 18                                                                                                                                                                       |
+
+Dónde aparece 16, y por qué no cuenta como prueba: `docker-compose.yml` para
+desarrollo local, y contenedores desechables del runbook del piloto de Círculos.
+Ninguno aplica la cadena de migraciones como parte de un gate.
+
+Así que el objetivo es **`pgvector/pgvector:pg18`**. No hace falta consultar
+producción para saberlo, y no se consulta.
 
 ---
 
@@ -247,34 +260,73 @@ Lo que sí cambia con el despliegue, y hay que cuidar:
 
 ---
 
-## 8 · TO-BE — arquitectura en Coolify
+## 8 · TO-BE — mapa de red
+
+Corregido tras auditar el camino de red real de los clientes (§9.6): la API es
+pública porque el navegador y el móvil la llaman directamente.
 
 ```
-                        Internet
-                            │
-                   Cloudflare DNS
-                   feelverse.app
-                   staging.feelverse.app
-                            │
-                    Traefik (80/443, UDP 443)
-                            │
-        ┌───────────────────┴───────────────────┐
-        │                                       │
-   web  (interno 3000)                    api  (interno 3001)
-        │                                       │
-        └───────────────┬───────────────────────┘
-                        │
-              red privada de Docker
-                        │
-        ┌───────────────┼───────────────┬───────────────┐
-        │               │               │               │
-   postgres        redis            worker         (sin puerto
-   (pgvector)      (colas+cache)   (sin HTTP)       publicado)
+   ┌──────────────┐   ┌──────────────┐   ┌──────────────────┐
+   │  navegador   │   │  app móvil   │   │  Stripe / Daily  │
+   │   (web SSR   │   │   (Expo)     │   │    webhooks      │
+   │  + cliente)  │   │              │   │                  │
+   └──────┬───────┘   └──────┬───────┘   └────────┬─────────┘
+          │                  │                    │
+          │  PÚBLICO ────────┼────────────────────┘
+          ▼                  ▼
+   ══════════════════ Internet ══════════════════
+                      │
+             Cloudflare DNS (148.113.254.26, DNS only)
+             staging.feelverse.app · api-staging.feelverse.app
+                      │
+             Traefik 3.6.25  ·  80 → 443  ·  ACME
+                      │
+      ┌───────────────┴────────────────┐
+      ▼                                ▼
+  ┌────────────────────┐      ┌────────────────────────┐
+  │ web                │      │ api                    │   ← PÚBLICO
+  │ interno 3000       │      │ interno 3001           │
+  │ /api/health        │      │ /health                │
+  └─────────┬──────────┘      └───────────┬────────────┘
+            │  SSR → api                  │
+            └──────────────┬──────────────┘
+                           │
+        ╔══════════ red Docker `coolify` ══════════╗
+        ║             PRIVADO                      ║
+        ║   ┌──────────────┐  ┌─────────────────┐  ║
+        ║   │ postgres     │  │ redis           │  ║
+        ║   │ pgvector:18  │  │ colas + caché   │  ║
+        ║   │ 5432 NO pub. │  │ 6379 NO pub.    │  ║
+        ║   └──────┬───────┘  └────────┬────────┘  ║
+        ║          └────────┬──────────┘           ║
+        ║                   ▼                      ║
+        ║        ┌────────────────────────┐        ║
+        ║        │ worker                 │        ║
+        ║        │ sin puerto, sin dominio│        ║
+        ║        └────────────────────────┘        ║
+        ╚══════════════════════════════════════════╝
+                           │
+                  R2 (S3 API, saliente)
+          media privada · exports · backups de la base
 ```
 
-Nada más que `web` y `api` cruza Traefik. Postgres, Redis y el worker no publican
-puerto al host: la política `DOCKER-USER` del VPS los bloquearía de todos modos, y
-no hacen falta.
+| superficie                      | expuesta                           | por qué                                               |
+| ------------------------------- | ---------------------------------- | ----------------------------------------------------- |
+| web `staging.feelverse.app`     | **PÚBLICO** por Traefik            | es el producto                                        |
+| api `api-staging.feelverse.app` | **PÚBLICO** por Traefik            | el navegador y el móvil la llaman directamente (§9.6) |
+| postgres 5432                   | **PRIVADO**, sin puerto al host    | `is_public: false`, `public_port: null`               |
+| redis 6379                      | **PRIVADO**, sin puerto al host    | idem                                                  |
+| worker                          | **PRIVADO**, sin puerto ni dominio | no escucha nada                                       |
+| R2                              | saliente desde api y worker        | almacenamiento, no entrada                            |
+
+Sólo `web` y `api` cruzan Traefik. La comprobación de que eso es cierto no es esta
+tabla, es `docker ps` en el paso VALIDATE del runbook: si aparece un `0.0.0.0:5432`
+o un `0.0.0.0:6379`, el mapa está mintiendo y se corrige antes de seguir.
+
+Detalle que conviene no perder: la web habla con la API **dos veces** por camino
+distinto. En SSR sale del contenedor (puede ir por la red privada), y en el navegador
+sale del cliente (va por el dominio público). Por eso `NEXT_PUBLIC_API_URL` tiene que
+ser la URL pública: es la que termina en el bundle del navegador.
 
 ---
 
@@ -286,17 +338,17 @@ Verificado por lectura: el entorno **ya existe** y está vacío.
 
 ### 9.1 `feelverse-staging-postgres`
 
-|                    |                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| TYPE               | Database · PostgreSQL                                                                                                                                                                                                                                                                                                                                                                                                             |
-| IMAGEN             | `pgvector/pgvector:pg16`, **fijada por digest**                                                                                                                                                                                                                                                                                                                                                                                   |
-| POR QUÉ 16 Y NO 17 | el vecino en este mismo Coolify corre PostgreSQL 17 con pgvector 0.8.0 (`imresamu/postgis:17-3.5-bundle0@sha256:…`) y es tentador reutilizarlo: está probado en este host. Pero staging existe para validar la migración, y una staging en 17 contra una producción en 16 valida otra cosa. La paridad de versión con producción pesa más que reutilizar una imagen, y el bundle de PostGIS añade superficie que FeelVerse no usa |
-| DOMAIN             | ninguno                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| PUERTO AL HOST     | **ninguno**                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| PERSISTENCE        | volumen de datos gestionado por Coolify                                                                                                                                                                                                                                                                                                                                                                                           |
-| BACKUP             | patrón del vecino, ya en marcha en este host: cron `0 3 * * *`, retención local 0, `save_s3` a un destino S3 propio. Bucket `syntavera-feelverse-db-backups`, **sin crear hasta aprobar el naming**, y nunca el del plano de control                                                                                                                                                                                              |
-| HEALTHCHECK        | activo, patrón del vecino: interval 15s · timeout 5s · retries 5 · start period 5s                                                                                                                                                                                                                                                                                                                                                |
-| DEPENDENCIES       | ninguna                                                                                                                                                                                                                                                                                                                                                                                                                           |
+|                |                                                                                                                                                                                                                                                                                                                                                       |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| TYPE           | Database · PostgreSQL                                                                                                                                                                                                                                                                                                                                 |
+| IMAGEN         | `pgvector/pgvector:pg18`, **fijada por digest**                                                                                                                                                                                                                                                                                                       |
+| POR QUÉ 18     | es la única versión contra la que este repositorio **prueba** la cadena completa de migraciones, en cada corrida de CI, y el propio CI la declara igual a producción (§4). No se elige por lo que corra el producto vecino: su PostgreSQL 17 con bundle de PostGIS añade superficie que FeelVerse no usa y divergiría de lo que el repositorio valida |
+| DOMAIN         | ninguno                                                                                                                                                                                                                                                                                                                                               |
+| PUERTO AL HOST | **ninguno**                                                                                                                                                                                                                                                                                                                                           |
+| PERSISTENCE    | volumen de datos gestionado por Coolify                                                                                                                                                                                                                                                                                                               |
+| BACKUP         | patrón del vecino, ya en marcha en este host: cron `0 3 * * *`, retención local 0, `save_s3` a un destino S3 propio. Bucket `syntavera-feelverse-db-backups`, **sin crear hasta aprobar el naming**, y nunca el del plano de control                                                                                                                  |
+| HEALTHCHECK    | activo, patrón del vecino: interval 15s · timeout 5s · retries 5 · start period 5s                                                                                                                                                                                                                                                                    |
+| DEPENDENCIES   | ninguna                                                                                                                                                                                                                                                                                                                                               |
 
 ### 9.2 `feelverse-staging-redis`
 
@@ -309,18 +361,19 @@ Verificado por lectura: el entorno **ya existe** y está vacío.
 
 ### 9.3 `feelverse-staging-api`
 
-|                |                                                                                                                                    |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| TYPE           | Application                                                                                                                        |
-| SOURCE         | repositorio `georgenton/psico-platform`, rama `main`                                                                               |
-| BUILD          | a decidir en la Fase de contenedorización: Nixpacks con comandos explícitos o Dockerfile propio                                    |
-| START          | `node apps/api/dist/main`                                                                                                          |
-| PUERTO INTERNO | **3001**, fijado explícitamente (hoy Railway inyecta 3000 y el código cae a 3001 por defecto)                                      |
-| DOMAIN         | ninguno inicialmente — la web habla con la API por la red privada. Sólo si se demuestra que hace falta API pública se crea dominio |
-| HEALTHCHECK    | `GET /health` · 200 · start period generoso: arranca Nest, valida env y conecta Prisma                                             |
-| MIGRACIONES    | `pnpm --filter @psico/api migrate:deploy` como paso previo, **nunca** encadenado con seed                                          |
-| DEPENDENCIES   | postgres, redis                                                                                                                    |
-| PERSISTENCE    | ninguna                                                                                                                            |
+|                |                                                                                                                                                                                                                            |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| TYPE           | Application                                                                                                                                                                                                                |
+| SOURCE         | repositorio `georgenton/psico-platform`, rama `main`                                                                                                                                                                       |
+| BUILD          | a decidir en la Fase de contenedorización: Nixpacks con comandos explícitos o Dockerfile propio                                                                                                                            |
+| START          | `node apps/api/dist/main`                                                                                                                                                                                                  |
+| PUERTO INTERNO | **3001**, fijado explícitamente (hoy Railway inyecta 3000 y el código cae a 3001 por defecto)                                                                                                                              |
+| DOMAIN         | **`api-staging.feelverse.app`** · PÚBLICO. Corrección a la versión previa, que la dejaba privada: el navegador de la web y el móvil llaman a la API **directamente** (§9.6). Sin dominio no hay Eco, lector, voz ni Diario |
+| CORS           | `ALLOWED_ORIGINS` debe incluir `https://staging.feelverse.app`. `main.ts` pasa la lista a `enableCors` con `credentials: true`; sin el origen, cada llamada del navegador falla en preflight                               |
+| HEALTHCHECK    | `GET /health` · 200 · start period generoso: arranca Nest, valida env y conecta Prisma                                                                                                                                     |
+| MIGRACIONES    | `pnpm --filter @psico/api migrate:deploy` como paso previo, **nunca** encadenado con seed                                                                                                                                  |
+| DEPENDENCIES   | postgres, redis                                                                                                                                                                                                            |
+| PERSISTENCE    | ninguna                                                                                                                                                                                                                    |
 
 ### 9.4 `feelverse-staging-worker`
 
@@ -345,6 +398,28 @@ Verificado por lectura: el entorno **ya existe** y está vacío.
 | HEALTHCHECK    | `GET /api/health` · 200 · **implementado** en esta rama. Deliberadamente no comprueba API, base ni Redis: un healthcheck que depende de terceros convierte la caída de un tercero en el reinicio de este contenedor                                                                                                                                          |
 | DEPENDENCIES   | api                                                                                                                                                                                                                                                                                                                                                          |
 
+### 9.6 Por qué la API es pública · evidencia
+
+Este punto cambia la topología, así que va con referencias de fichero y línea.
+
+| cliente         | fichero                                                                                                                                                             | qué hace                                                                                                                                                                                 |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| navegador (web) | `apps/web/src/app/dashboard/_ApiClientBootstrap.tsx`                                                                                                                | Client Component que hace `apiClient.configure(apiBase, …)` con `NEXT_PUBLIC_API_URL`. Su comentario: «It wires the singleton so those typed wrappers actually reach the API on Railway» |
+| navegador (web) | `apps/web/src/app/dashboard/layout.tsx:29,143`                                                                                                                      | inyecta `API_ROOT` como prop a ese bootstrap                                                                                                                                             |
+| navegador (web) | Eco `ChatArea`/`EcoShell`, `LectorShell`, `AudioBar`, `VozRecorder`, `ActiveComposer`, `WebPushToggle`, `ChangePasswordCard`, medios del capítulo, panel de la guía | Client Components que reciben `apiBase` y hacen fetch desde el navegador                                                                                                                 |
+| móvil           | `apps/mobile/src/context/auth.tsx:20,24,74`                                                                                                                         | `EXPO_PUBLIC_API_URL` → `API_BASE = ${API_URL}/api`, y `apiClient.configure(API_URL, …)`                                                                                                 |
+| móvil           | `apps/mobile/src/lib/asset-url.ts`                                                                                                                                  | compone URLs de imagen contra el host de la API (las privadas las sirve la propia API)                                                                                                   |
+| móvil           | `apps/mobile/app/(tabs)/voz.tsx:171-179`                                                                                                                            | sube audio multipart con `apiClient.postFormData`                                                                                                                                        |
+| móvil           | `apps/mobile/src/components/dashboard/eco/EcoChat.tsx:28,190`                                                                                                       | abre el SSE de Eco contra ese host                                                                                                                                                       |
+
+**Camino de red del móvil: B — directo a la API.** El único uso del origen web es
+`EXPO_PUBLIC_WEB_ORIGIN` en la pantalla de reserva de terapia, y sólo para las URLs
+de éxito y cancelación de Stripe, que son destinos de navegador.
+
+**Sin WebSocket.** Cero coincidencias de `WebSocket`, `ws://`, `wss://` o
+`socket.io` en el móvil. Eco transmite por SSE sobre HTTPS, mismo host y mismo
+puerto: no hay que abrir nada más en Traefik ni crear un dominio de realtime.
+
 `production` replicará la forma con recursos **separados**. Ningún recurso con
 estado se comparte entre entornos.
 
@@ -352,16 +427,45 @@ estado se comparte entre entornos.
 
 ## 10 · Dominios
 
-| entorno    | dominio                 | notas                                                                                                                                                          |
-| ---------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| production | `feelverse.app`         | canónico                                                                                                                                                       |
-| production | `www.feelverse.app`     | redirección al canónico                                                                                                                                        |
-| staging    | `staging.feelverse.app` |                                                                                                                                                                |
-| —          | `api.feelverse.app`     | **no se crea**: la web habla con la API por la red privada. Se creará sólo si el móvil u otro cliente externo lo exige, y entonces con su propia justificación |
+| entorno    | dominio                     | recurso | notas                                                               |
+| ---------- | --------------------------- | ------- | ------------------------------------------------------------------- |
+| staging    | `staging.feelverse.app`     | web     | ✅ ya resuelve a `148.113.254.26`, DNS only                         |
+| staging    | `api-staging.feelverse.app` | api     | **necesario** (§9.6). DNS pendiente                                 |
+| production | `feelverse.app`             | web     | ⚠️ **ya resuelve al VPS** — ver el aviso                            |
+| production | `www.feelverse.app`         | web     | CNAME a `feelverse.app`                                             |
+| production | `api.feelverse.app`         | api     | necesario cuando llegue producción, por el mismo motivo que staging |
 
 Sin wildcard.
 
----
+### Aviso: el DNS de producción ya apunta aquí
+
+Medido el 2026-09-30 en tres resolvers públicos y en el autoritativo de Cloudflare:
+
+```
+staging.feelverse.app → 148.113.254.26   (DNS only)
+feelverse.app         → 148.113.254.26   (DNS only)
+www.feelverse.app     → feelverse.app → 148.113.254.26
+```
+
+Y lo que contesta hoy en `feelverse.app` es el **certificado por defecto de
+Traefik** (`issuer=CN=TRAEFIK DEFAULT CERT`), o sea: ninguna ruta configurada. El
+único dominio registrado en este servidor es `test.syntavera.dev`.
+
+Dos lecturas, y las dos importan:
+
+1. **`feelverse.app` no está en uso.** Los usuarios llegan por
+   `psico-platform-web.vercel.app`, que responde 200. Nada está roto; el dominio
+   estaba preparado de antemano.
+2. **Por eso mismo es peligroso.** El DNS ya está puesto, así que el momento en que
+   un recurso de Coolify reclame `feelverse.app`, ese hostname queda **en vivo al
+   instante**, con certificado y todo. Escribir `feelverse.app` en el campo de
+   dominio de un recurso de _staging_ publicaría staging en el hostname de
+   producción sin ningún paso intermedio que lo frene.
+
+Regla operativa: **ningún recurso de staging lleva `feelverse.app` ni
+`www.feelverse.app` en su campo de dominio.** Staging sólo usa los dos subdominios
+`*-staging`. El paso de cutover del runbook deja de ser «apuntar el DNS» y pasa a
+ser «reclamar el hostname», que es una operación de Coolify y no de Cloudflare.
 
 ## 11 · Inventario de secretos (sólo nombres)
 
@@ -516,25 +620,37 @@ Ninguna migración destructiva se ejecuta automáticamente. Cuando una lo requie
 
 ## 16 · Límites de recursos
 
-No se ponen números inventados.
+**Corrección a una versión previa de este documento.** Proponía `2g / 512m / 2 CPU`
+para Postgres citando que «el vecino los usa en este host y está sano». Eso no es
+evidencia sobre FeelVerse: es evidencia de que **otro** workload cabe en esos
+números. Los dos productos no tienen ni el mismo esquema, ni el mismo volumen, ni
+las mismas consultas, ni pgvector.
 
-| recurso  | estado                                                                                                                                                                                         |
-| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| api      | **MEASURE** — arranca Nest completo con 11 módulos; hay que medir                                                                                                                              |
-| worker   | **MEASURE**                                                                                                                                                                                    |
-| web      | **MEASURE** — Next 14 SSR                                                                                                                                                                      |
-| postgres | **KNOWN** como punto de partida: el Postgres de staging del vecino en este mismo host corre con `2g` de memoria, `512m` de reserva y `2` CPU, y está sano. Se replica y se ajusta con medición |
-| redis    | **KNOWN**: cache y colas pequeñas; conservador basta                                                                                                                                           |
+Lo que sí hay, y lo que no:
 
-Un aviso sobre la medición: `is_metrics_enabled: false` y `is_sentinel_enabled: true`
-con 7 días de historia. O sea que hoy no se puede leer CPU/RAM del host por la API de
-Coolify. Tomar los números de producción exigirá habilitar métricas o mirar el host,
-y eso es una decisión de infraestructura que no entra en esta tarea.
+| recurso  | evidencia local disponible                                                                                                                    | propuesta                                        | clase                                                        |
+| -------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ | ------------------------------------------------------------ |
+| postgres | el esquema tiene 69 migraciones y una extensión `vector`; el índice vectorial vive en RAM cuando se consulta. Ningún dato de uso real         | `1g` mem / `1` CPU **como arranque conservador** | MEDIR EN STAGING                                             |
+| redis    | tres usos —colas BullMQ, caché del mapa y de Pulso, throttler e idempotencia—, todos con TTL o volumen pequeño; ninguna estructura grande     | `256m` / `0.5` CPU                               | MEDIR EN STAGING                                             |
+| api      | arranca Nest con todos los módulos, valida el entorno con Zod y conecta Prisma; es el proceso más gordo del conjunto. Ningún dato de uso real | `1g` / `1` CPU                                   | MEDIR EN STAGING                                             |
+| worker   | mismo build, sin servidor HTTP; procesa colas, y una de ellas llama al LLM                                                                    | `768m` / `0.5` CPU                               | MEDIR EN STAGING                                             |
+| web      | Next 14 en SSR; el build es el pico, no el servicio, y aquí se construye en la misma máquina que sirve (`is_build_server: false`)             | `1g` / `1` CPU en servicio                       | MEDIR EN STAGING · el **build** necesita más que el servicio |
 
-Staging puede empezar sin límites estrictos y medirse; producción no se abre sin
-números tomados de staging.
+Todos los números de arriba son **límites iniciales de contención**, no
+dimensionamiento. Su único propósito es que un proceso que se descontrole no se lleve
+el host por delante, y que staging arranque con algo declarado en vez de con nada.
+Ninguno se traslada a producción sin medición.
 
----
+Suma de los arranques: 4 GB de memoria y 4 CPU en límites, para un host cuya
+capacidad **no se puede leer** desde la API de Coolify (`is_metrics_enabled: false`,
+`is_sentinel_enabled: true` con 7 días de historia). Antes de crear los recursos hay
+que comprobar que el host tiene ese margen por encima de lo que ya corre —Coolify,
+Traefik, dos Postgres y dos servicios del producto vecino—, y eso se mira en el host
+o habilitando métricas. Es una decisión de infraestructura y no entra en esta tarea.
+
+Qué medir en staging, para que «medir» signifique algo: RSS en reposo y en el
+recorrido funcional del paso VALIDATE, memoria y CPU durante un build, tamaño de la
+base tras el seed, y profundidad de colas con el worker trabajando.
 
 ## 17 · Observabilidad
 

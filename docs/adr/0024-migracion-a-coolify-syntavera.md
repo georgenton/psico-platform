@@ -156,17 +156,52 @@ móvil. Ninguno se migra: no son hosting.
 
 ## Mapeo de componentes
 
-| Hoy                   | Plataforma actual                          | Destino Coolify                                                              |
-| --------------------- | ------------------------------------------ | ---------------------------------------------------------------------------- |
-| `apps/web` (Next 14)  | Vercel · proyecto `psico-platform-web`     | Application, Dockerfile o Nixpacks, puerto interno 3000, dominio por Traefik |
-| `apps/api` (NestJS)   | Railway · servicio `psico-platform`        | Application, puerto interno 3001, `/health`                                  |
-| `apps/api` worker     | Railway · servicio `psico-platform-worker` | Application sin dominio ni puerto público                                    |
-| PostgreSQL + pgvector | Railway Postgres                           | Database Coolify (imagen con pgvector), red privada, sin puerto al host      |
-| Redis                 | Railway Redis                              | Database Coolify, red privada, sin puerto al host                            |
-| Variables de servicio | Railway variables / Vercel env             | Coolify environment variables, con el scope más estrecho                     |
-| Volúmenes             | ninguno en uso                             | ninguno necesario; el estado vive en Postgres y R2                           |
-| Dominios              | `*.vercel.app`, `*.up.railway.app`         | `feelverse.app`, `staging.feelverse.app` por Traefik                         |
-| Deploy                | push a `main` + política de #725           | Coolify deploy                                                               |
+| Hoy                   | Plataforma actual                          | Destino Coolify                                                                                   |
+| --------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| `apps/web` (Next 14)  | Vercel · proyecto `psico-platform-web`     | Application, Nixpacks, puerto interno 3000, `staging.feelverse.app`                               |
+| `apps/api` (NestJS)   | Railway · servicio `psico-platform`        | Application, puerto interno 3001, `/health`, **con dominio público** — ver la corrección de abajo |
+| `apps/api` worker     | Railway · servicio `psico-platform-worker` | Application sin dominio ni puerto público                                                         |
+| PostgreSQL + pgvector | Railway Postgres                           | Database Coolify (`pgvector/pgvector:pg18`), red privada, sin puerto al host                      |
+| Redis                 | Railway Redis                              | Database Coolify, red privada, sin puerto al host                                                 |
+| Variables de servicio | Railway variables / Vercel env             | Coolify environment variables, con el scope más estrecho                                          |
+| Volúmenes             | ninguno en uso                             | ninguno necesario; el estado vive en Postgres y R2                                                |
+| Dominios              | `*.vercel.app`, `*.up.railway.app`         | `staging.feelverse.app` + `api-staging.feelverse.app`; producción después                         |
+| Deploy                | push a `main` + política de #725           | Coolify deploy                                                                                    |
+
+## Una corrección al plan: la API no puede ser privada
+
+La primera versión de este ADR daba por hecho que la API viviría sin dominio
+público, hablando con la web por la red privada. **Eso es falso, y el código lo
+dice sin ambigüedad.**
+
+`apps/web/src/app/dashboard/_ApiClientBootstrap.tsx` es un Client Component —corre
+en el navegador— que hace `apiClient.configure(apiBase, …)` con
+`NEXT_PUBLIC_API_URL`. Su propio comentario lo explica: «It wires the singleton so
+those typed wrappers actually reach the API on Railway». Docenas de componentes
+cliente reciben ese `apiBase` y salen desde el navegador: el chat de Eco por SSE, el
+lector, el grabador de voz, el composer del Diario, el alta de Web Push, el cambio
+de contraseña, el reproductor de medios, el panel de la guía.
+
+El móvil hace lo mismo por su cuenta: `apps/mobile/src/context/auth.tsx:20` lee
+`EXPO_PUBLIC_API_URL` y construye `API_BASE = ${API_URL}/api`; `assetUrl()` compone
+URLs de imagen contra ese host; `voz.tsx` sube audio multipart ahí; `EcoChat.tsx`
+abre el SSE ahí. El único uso del origen web desde el móvil es
+`EXPO_PUBLIC_WEB_ORIGIN`, y sólo para las URLs de retorno de Stripe.
+
+Consecuencias, que son de arquitectura y no de comodidad:
+
+- la API necesita **dominio público** en cada entorno: `api-staging.feelverse.app`
+  para staging. No es un dominio inventado por si acaso; sin él no hay Eco, ni
+  lector, ni voz, ni Diario, ni en web ni en móvil;
+- `ALLOWED_ORIGINS` tiene que incluir el origen de la web —`main.ts` lo pasa a
+  `enableCors` con `credentials: true`—, porque las peticiones del navegador sí
+  están sujetas a CORS;
+- **no hace falta dominio de WebSocket.** No hay ni uno: Eco transmite por SSE sobre
+  HTTPS, mismo host y mismo puerto. Cero coincidencias de `WebSocket`, `ws://`,
+  `wss://` o `socket.io` en el móvil.
+
+Lo que sí sigue privado, sin puerto al host y sin dominio: PostgreSQL, Redis y el
+worker.
 
 ## Criterios de apagado de Vercel y Railway
 

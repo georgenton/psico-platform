@@ -219,11 +219,14 @@ Redis **sí** existe y se usa para tres cosas distintas, que conviene no confund
 | cache del mapa emocional y de Pulso   | **CACHE**         | no — se regenera                                          |
 | throttler (rate limit) y idempotencia | **CACHE** con TTL | no                                                        |
 
-`REDIS_URL` es **opcional** en el esquema: sin ella, `createRedisClient` cae a
-`ioredis-mock`. Eso está bien para tests y es peligroso en un despliegue, porque un
-Redis ausente no rompería el arranque: las colas simplemente no harían nada. El
-`superRefine` del esquema exige `REDIS_URL` en producción, así que el riesgo real
-está en staging si se olvida.
+`REDIS_URL` es **opcional** en el esquema, y `superRefine` la exige cuando
+`NODE_ENV=production`. Así que en un despliegue con `NODE_ENV=production` su ausencia
+aborta la validación y el proceso no arranca — falla rápido.
+
+El fallback a `ioredis-mock` de `createRedisClient` sólo entra donde el esquema tolera
+Redis ausente: dev y test, donde es una comodidad deliberada (ADR 0008). El riesgo real
+es olvidar `NODE_ENV=production` en una caja desplegada: entonces el esquema deja de
+exigir Redis, el proceso arranca con un mock y las colas quedan mudas en silencio.
 
 No se publica 6379.
 

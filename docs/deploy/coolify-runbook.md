@@ -142,10 +142,16 @@ equivocada y se para aquí.
 
 Database · Redis 7. Sin dominio, **sin puerto al host**, con volumen.
 
-Que `REDIS_URL` sea opcional en el esquema de la API es la trampa de este paso: sin
-ella el arranque **no falla**, `createRedisClient` cae a `ioredis-mock` y las colas
-quedan sin hacer nada, en silencio. Así que se comprueba explícitamente que la
-variable está puesta en la API y en el worker antes de darlos por buenos.
+`REDIS_URL` es opcional en el esquema, pero `superRefine` la exige cuando
+`NODE_ENV=production` — que es el perfil de staging. Así que su ausencia **aborta la
+validación y el arranque** de api y worker: falla rápido, que es lo que uno quiere.
+
+La trampa está un paso antes, y de ahí que este runbook la nombre: si alguien no pone
+`NODE_ENV=production`, el default es `development`, el esquema deja de exigir Redis,
+`createRedisClient` cae a `ioredis-mock` y las colas quedan mudas en silencio. Se
+comprueba que las dos variables están puestas en api y worker antes de darlos por
+buenos. Detalle completo en
+[§1.2 del inventario](coolify-staging-env-inventory.md).
 
 ### 1.3 `feelverse-staging-api`
 

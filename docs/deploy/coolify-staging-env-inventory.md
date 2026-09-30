@@ -10,23 +10,110 @@ Cada exigencia lleva su fichero y su línea, para que se pueda comprobar en vez 
 creer.
 
 ```
-TOTAL_VARIABLES=73
-REQUIRED_TO_BOOT=26
-REQUIRED_FOR_INITIAL_SMOKE=34        (35 si Voz entra en el smoke)
+TOTAL_VARIABLES=74
+
+BOOT_REQUIREMENTS=35                 condiciones que el bootstrap comprueba
+EXPLICIT_BOOT_VALUES=28              de esas, las que deben llevar un valor
+INITIAL_SMOKE_REQUIREMENTS=35        = 28 de arranque + 7 de smoke
+
 OWNER_DECISION_REQUIRED=10
 CLIENT_ATTESTATION_REQUIRED_FOR_SECURE_STAGING=true
+VOICE_KEY_REQUIRED_AT_BOOT=true
+REDIS_PRODUCTION_BEHAVIOR=FAIL_FAST_WITHOUT_REDIS_URL
 ```
+
+`BOOT_REQUIREMENTS` y `INITIAL_SMOKE_REQUIREMENTS` valen 35 los dos, y **no es un
+error de copia**: cuentan cosas distintas. El primero son condiciones que el bootstrap
+comprueba —28 exigen un valor, 7 las satisface el perfil sin poner nada—. El segundo
+son claves que deben llevar valor para que el recorrido sintético pase: las 28 del
+arranque más 7 que no impiden arrancar pero rompen el recorrido.
 
 `TOTAL_VARIABLES` cuenta nombres distintos de runtime en api, worker, web y móvil.
 Excluye las 5 de QA/ops y las 8 de plataforma heredada, que tienen su sección y **no**
 se ponen en Coolify.
 
+### Correcciones sobre la primera versión de este documento
+
+No se esconden, porque las dos eran errores de bulto y las dos habrían costado un
+despliegue fallido:
+
+1. **La clave del proveedor de Voz es requisito de ARRANQUE, no de smoke.** Decía
+   «34 (35 si Voz entra)», como si la clave dependiera de incluir Voz en el recorrido.
+   No depende: el `superRefine` **no está gateado por `NODE_ENV`** y su propio
+   comentario lo dice —«We don't gate by NODE_ENV»—. `VOICE_PROVIDER` tiene default
+   `whisper`, así que `OPENAI_API_KEY` es obligatoria para arrancar aunque Voz no se
+   toque. Ver §1.3.
+2. **Sin `REDIS_URL`, staging NO arranca.** Decía que «el arranque no falla» y que cae
+   a `ioredis-mock`. Eso es cierto en dev y test, donde el esquema permite Redis
+   ausente — y era exactamente lo contrario de lo que pasa en el perfil de staging, que
+   corre con `NODE_ENV=production`. Ver §1.2.
+3. **`EMOTIONAL_MAP_PROVIDER` faltaba** (73 → 74). Mi barrido buscaba `process.env.*` y
+   esta variable se lee por `ConfigService.get()`, así que se me escapó. Ver §2.7.
+
+---
+
+## 0 · Perfil de referencia
+
+Los números de este documento son reproducibles **sólo** contra este perfil. Cambiar
+una línea cambia los conteos, y por eso el perfil se declara antes que los números.
+
+```
+INITIAL_STAGING_PROFILE
+
+NODE_ENV=production
+PSICO_ENV=staging
+PSICO_DEPLOYED=true
+VOICE_PROVIDER=whisper
+VIDEO_PROVIDER=console
+DEFAULT_PAYMENT_PROVIDER=stripe
+STRIPE_MODE=test
+GUIDE_ROLLOUT_MODE=off
+CIRCLES_ROLLOUT_MODE=off
+WEB_PUSH=off
+CLOUDFLARE_STREAM_UPLOADS_ENABLED=false
+```
+
+Sentry, email y Google OAuth siguen siendo decisiones abiertas porque **no afectan al
+arranque**: las tres variables son opcionales en el esquema.
+
 ---
 
 ## 1 · El contrato de arranque
 
-Sin estas 26, el proceso no arranca. No es una recomendación: es lo que el código
-comprueba antes de aceptar la primera petición.
+Lo que el bootstrap comprueba antes de aceptar la primera petición. No es una
+recomendación: son condiciones que abortan el proceso.
+
+Quién las comprueba, y por qué importa que sean cuatro sitios y no uno:
+
+| comprobación                   | dónde                                                                                                     | qué aborta       |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------- | ---------------- |
+| esquema de env + `superRefine` | `config/env.validation.ts` → `validate` lanza; enganchado en `app.module.ts:48` y en el módulo del worker | api **y** worker |
+| barreras del mapa              | `assertEmotionalMapConfigured()` en `main.ts:30` y `worker.ts:35`                                         | api **y** worker |
+| rollout de la Guía             | `resolveGuideRolloutConfig` en `guide.module.ts:55`                                                       | api              |
+| cifrado de Círculos            | `resolveCirclesCipher` en `circles.module.ts:85`, sólo si el modo ≠ `off`                                 | api              |
+
+### 1.0 Las 28 que deben llevar valor
+
+```
+EXPLICIT_BOOT_VALUES=28
+```
+
+13 del esquema (§1.1) · `REDIS_URL` por `NODE_ENV=production` (§1.2) ·
+`OPENAI_API_KEY` por `VOICE_PROVIDER=whisper` (§1.3) · `NODE_ENV` porque su default es
+`development` · 12 barreras de caja desplegada (§1.4).
+
+Y 7 condiciones que el perfil satisface **sin poner nada**, listadas aquí para que no
+se confundan con «no se comprueban»:
+
+```
+VOICE_PROVIDER              default whisper → el selector es válido
+VIDEO_PROVIDER              default console → DAILY_* no se exige
+trio VAPID                  todo-sin-poner es un estado aceptado
+trio CLOUDFLARE_STREAM      todo-sin-poner es aceptado
+CIRCLES_ROLLOUT_MODE        sin poner → off → la clave de cifrado no se lee
+EMOTIONAL_MAP_PROVIDER      sin poner → anthropic
+PORT                        default 3001, y en Coolify es configuración del recurso
+```
 
 ### 1.1 Exigidas por el esquema de env · 13
 
@@ -58,11 +145,52 @@ placeholders. Ver §5.
 | ----------- | --------------------------------------------------- |
 | `REDIS_URL` | `superRefine` la exige cuando `NODE_ENV=production` |
 
-Y es la trampa del módulo: si falta, el arranque **no falla**. `createRedisClient` cae
-a `ioredis-mock`, y las colas quedan mudas en silencio. Por eso el runbook la comprueba
-explícitamente en vez de confiar en que el proceso se queje.
+**Corrección.** La primera versión de este documento decía que sin `REDIS_URL` «el
+arranque no falla» y que cae a `ioredis-mock`. En el perfil de staging es al revés:
 
-### 1.3 Barreras de caja desplegada, fuera del esquema · 12
+```
+REDIS_URL ausente + NODE_ENV=production
+  → superRefine añade una issue
+  → validate() lanza  (config/env.validation.ts)
+  → api y worker NO arrancan
+```
+
+El fallback a `ioredis-mock` pertenece **sólo** a los contextos donde el esquema permite
+Redis ausente —dev y test—, y ahí es una comodidad deliberada (ADR 0008). Traerlo al
+perfil de staging invertía el comportamiento: describía como silencioso algo que en
+realidad falla rápido, que es lo que uno quiere.
+
+El riesgo real vive un paso antes. Si alguien **no** pone `NODE_ENV=production`, el
+default es `development`, `superRefine` deja de exigir Redis, y entonces sí arranca con
+un mock y las colas quedan mudas. Por eso `NODE_ENV` está entre las 28 y no se da por
+supuesto.
+
+### 1.3 Condicional al proveedor de Voz · 1
+
+| variable         | nota                                                              |
+| ---------------- | ----------------------------------------------------------------- |
+| `OPENAI_API_KEY` | exigida porque `VOICE_PROVIDER` vale `whisper`, que es su default |
+
+**Requisito de arranque, no de smoke**, y es la corrección más importante de esta
+revisión. El `superRefine` **no está gateado por `NODE_ENV`**, y el comentario que lleva
+encima explica por qué: «We don't gate by NODE_ENV because dev should also fail fast if
+you set VOICE_PROVIDER=deepgram without DEEPGRAM_API_KEY — easier to catch at boot than
+at the first /voz/transcribe call».
+
+Conviene ver la consecuencia entera: el enum admite sólo `whisper` y `deepgram`, y
+**cada valor exige su clave**. No existe ninguna configuración de `VOICE_PROVIDER` con
+la que staging arranque sin una de las dos.
+
+```
+VOICE_PROVIDER=whisper   → OPENAI_API_KEY obligatoria
+VOICE_PROVIDER=deepgram  → DEEPGRAM_API_KEY obligatoria
+```
+
+Si se quisiera un staging capaz de arrancar **sin** proveedor de Voz haría falta un
+cambio de esquema —un tercer valor `none`, o la clave condicionada a una bandera de
+capacidad—. Es un cambio de código, y no se hace en un PR de documentación.
+
+### 1.4 Barreras de caja desplegada, fuera del esquema · 12
 
 Éstas son las que no aparecen en ningún `.env.example` y son la razón de que un primer
 despliegue pueda entrar en bucle de reinicio. Las verifica
@@ -94,7 +222,7 @@ Dos trampas dentro de esta tabla:
   es `true`, así que «a box that simply forgot to set it would let an LLM invent
   psychological scores».
 
-### 1.4 Del arranque al smoke · +8
+### 1.5 Del arranque al smoke · +7
 
 Sobre las 26, el recorrido sintético inicial necesita estas ocho. Ninguna impide
 arrancar; cada una rompe algo que el smoke comprueba.
@@ -103,15 +231,16 @@ arrancar; cada una rompe algo que el smoke comprueba.
 | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | `ALLOWED_ORIGINS`           | el default es `http://localhost:3000`, así que **toda** llamada del navegador muere en el preflight. Debe ser `https://staging.feelverse.app` |
 | `APP_URL`                   | el default es localhost; los enlaces que salen en emails apuntarían fuera de staging                                                          |
-| `NODE_ENV`                  | el default es `development`; en producción activa optimizaciones y exige `REDIS_URL`                                                          |
 | `PSICO_DEPLOYED`            | marcador propio. Los de Coolify también sirven, pero éste es el único que no depende de que un proveedor mantenga sus nombres                 |
 | `CLIENT_ATTESTATION_SECRET` | ver §6. Sin él el guard del BFF **deja pasar todo**                                                                                           |
 | `NEXT_PUBLIC_API_URL`       | el navegador no encuentra la API: sin Eco, lector, voz ni Diario                                                                              |
 | `NEXT_PUBLIC_APP_URL`       | enlaces internos del cliente                                                                                                                  |
 | `NEXT_PUBLIC_PSICO_ENV`     | Sentry del navegador etiquetaría todo como `development`                                                                                      |
 
-**34** = 26 + 8. Con Voz dentro del smoke son **35**, porque `VOICE_PROVIDER=whisper`
-arrastra `OPENAI_API_KEY`.
+**35** = 28 + 7. No hay variante «con Voz»: su clave ya está dentro de las 28 (§1.3).
+
+`NODE_ENV` no aparece en esta lista porque pasó a las 28: el perfil exige
+`NODE_ENV=production`, y es justamente eso lo que hace obligatoria `REDIS_URL`.
 
 ---
 
@@ -174,23 +303,34 @@ EXPO_PUBLIC_API_URL       EXPO_PUBLIC_WEB_ORIGIN
 EXPO_PUBLIC_SENTRY_DSN    EXPO_PUBLIC_SENTRY_RELEASE
 ```
 
-### 2.5 `GENERATED_INTERNAL` · 5
+### 2.5 `GENERATED_SECRET_VALUES` · 3
 
-Las genera el ciclo de creación. **No se piden al propietario.**
+Secretos que **genera** el ciclo de creación. No se piden al propietario.
 
 ```
 JWT_SECRET                  aleatoria, ≥32 caracteres
 CLIENT_ATTESTATION_SECRET   aleatoria; el MISMO valor en api y en web
 contraseña de Postgres      al crear el recurso; nunca impresa
-DATABASE_URL                derivada del recurso
-REDIS_URL                   derivada del recurso
 ```
 
 Más `CIRCLES_SHARED_DATA_KEY_V1` (base64 que decodifique a exactamente 32 bytes,
 `circles-crypto.ts:54,134`) y el trío VAPID (`pnpm --filter @psico/api gen:vapid`) si
 esas capacidades se habilitan.
 
-### 2.6 `NOT_NEEDED_INITIAL` · 20
+### 2.6 `DERIVED_RESOURCE_CONFIG` · 2
+
+```
+DATABASE_URL     se construye del recurso Postgres de staging
+REDIS_URL        se construye del recurso Redis de staging
+```
+
+Antes iban con los generados, y mezclarlos hacía el handoff confuso: **no son secretos
+generados, son configuración derivada**. Nadie las inventa; salen del recurso una vez
+existe, con su nombre de red interno. La diferencia práctica es que una clave generada
+se puede crear en cualquier momento y estas dos **no pueden existir antes que su
+recurso** — que es exactamente por lo que no están en el checklist del propietario.
+
+### 2.7 `NOT_NEEDED_INITIAL` · 20
 
 Capacidades apagadas en el primer staging. Cada una con su motivo en §7.
 
@@ -207,7 +347,7 @@ R2_PUBLIC_URL
 GUIDE_PILOT_USER_IDS
 ```
 
-### 2.7 `NO_OWNER_ACTION_REQUIRED` · 9
+### 2.8 `NO_OWNER_ACTION_REQUIRED` · 10
 
 Tienen default y el default sirve para staging inicial. No se pide configurarlas.
 
@@ -217,7 +357,16 @@ AI_MAX_CONTEXT_CHUNKS=5            DEFAULT_PAYMENT_PROVIDER=stripe
 PORT=3001                          EMAIL_FROM=no-reply@psico.app
 VOICE_PROVIDER=whisper             VIDEO_PROVIDER=console
 CLOUDFLARE_STREAM_UPLOADS_ENABLED=false
+EMOTIONAL_MAP_PROVIDER             sin poner → anthropic
 ```
+
+`EMOTIONAL_MAP_PROVIDER` merece una nota, y es la tercera corrección de esta revisión:
+**faltaba en el inventario**. Se me escapó porque mi barrido buscaba `process.env.*` y
+ésta se lee por `ConfigService.get()` (`emotional-map.module.ts:32`). No está declarada
+en el esquema, así que zod la descarta del objeto validado — pero `ConfigService` cae a
+`process.env` (`skipProcessEnv` es `false` por defecto), de modo que **sigue siendo un
+mando vivo**: ponerla con cualquier valor distinto de `anthropic` hace que el módulo
+lance al inicializar. Lo correcto es dejarla sin poner.
 
 `PORT` merece una nota: es `RESOURCE_CONFIGURATION`. Lo fija Coolify como propiedad
 del recurso; no es un valor que nadie escriba a mano.
@@ -250,10 +399,12 @@ externos    los valores de §2.1 a §2.3 para las capacidades elegidas
 No se piden antes porque todavía no pueden existir:
 
 ```
-DATABASE_URL · REDIS_URL · contraseña de Postgres
-JWT_SECRET · CLIENT_ATTESTATION_SECRET
-CIRCLES_SHARED_DATA_KEY_V1  (si Círculos se habilita)
-trío VAPID                  (si Web Push se habilita)
+GENERATED_SECRET_VALUES     contraseña de Postgres · JWT_SECRET
+                            CLIENT_ATTESTATION_SECRET
+                            CIRCLES_SHARED_DATA_KEY_V1  (si Círculos se habilita)
+                            trío VAPID                  (si Web Push se habilita)
+
+DERIVED_RESOURCE_CONFIG     DATABASE_URL · REDIS_URL
 ```
 
 ---
@@ -289,7 +440,7 @@ cobrar de verdad.
 ## 6 · `CLIENT_ATTESTATION_SECRET`
 
 ```
-CLASSIFICATION=GENERATED_INTERNAL
+CLASSIFICATION=GENERATED_SECRET_VALUES
 REQUIRED_FOR_SECURE_STAGING_DEPLOY=true
 ```
 
@@ -317,18 +468,18 @@ evalúa como requisito de seguridad.
 `OWNER_DECISION_REQUIRED=10`. Ninguna se toma en silencio. La columna «recomendación»
 es una propuesta para aprobar o rechazar, no una decisión tomada.
 
-| #   | decisión                              | recomendación                                   | arrastra                                                                                                                           |
-| --- | ------------------------------------- | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | **Voz** · `VOICE_PROVIDER`            | `whisper` si Voz entra en el smoke; fuera si no | whisper → `OPENAI_API_KEY`; deepgram → `DEEPGRAM_API_KEY`. El esquema falla al arrancar si el selector y su clave no concuerdan    |
-| 2   | **Vídeo** · `VIDEO_PROVIDER`          | `console`                                       | con `console`, `DAILY_*` queda `NOT_NEEDED_FOR_INITIAL_STAGING`                                                                    |
-| 3   | **Stripe**                            | test mode                                       | los 5 valores de §5                                                                                                                |
-| 4   | **Email** · `RESEND_API_KEY`          | fuera del smoke inicial                         | ver §8                                                                                                                             |
-| 5   | **Google OAuth**                      | diferir                                         | ver §9                                                                                                                             |
-| 6   | **Sentry**                            | proyecto compartido                             | ver §10                                                                                                                            |
-| 7   | **Guía** · `GUIDE_ROLLOUT_MODE`       | `off`                                           | **obligatoria para arrancar**. `pilot` exige allowlist, y sólo con IDs sintéticos                                                  |
-| 8   | **Círculos** · `CIRCLES_ROLLOUT_MODE` | `off`                                           | con `off` no se lee la clave de cifrado (`circles-crypto.ts:315`). El resolver nunca lanza, así que un error aquí no tira Círculos |
-| 9   | **Web Push**                          | fuera del smoke inicial                         | trío VAPID completo o nada; el esquema rechaza el estado a medias                                                                  |
-| 10  | **Credenciales R2**                   | token scoped al bucket de staging               | mínimo privilegio: una credencial compartida podría escribir en los medios de producción                                           |
+| #   | decisión                              | recomendación                     | arrastra                                                                                                                                                                                   |
+| --- | ------------------------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | **Voz** · `VOICE_PROVIDER`            | `whisper`                         | **No es «Voz entra o no entra en el smoke»**: es `whisper` o `deepgram`, y cada uno exige su clave **para arrancar** (§1.3). Arrancar sin ninguna de las dos exigiría un cambio de esquema |
+| 2   | **Vídeo** · `VIDEO_PROVIDER`          | `console`                         | con `console`, `DAILY_*` queda `NOT_NEEDED_FOR_INITIAL_STAGING`                                                                                                                            |
+| 3   | **Stripe**                            | test mode                         | los 5 valores de §5                                                                                                                                                                        |
+| 4   | **Email** · `RESEND_API_KEY`          | fuera del smoke inicial           | ver §8                                                                                                                                                                                     |
+| 5   | **Google OAuth**                      | diferir                           | ver §9                                                                                                                                                                                     |
+| 6   | **Sentry**                            | proyecto compartido               | ver §10                                                                                                                                                                                    |
+| 7   | **Guía** · `GUIDE_ROLLOUT_MODE`       | `off`                             | **obligatoria para arrancar**. `pilot` exige allowlist, y sólo con IDs sintéticos                                                                                                          |
+| 8   | **Círculos** · `CIRCLES_ROLLOUT_MODE` | `off`                             | con `off` no se lee la clave de cifrado (`circles-crypto.ts:315`). El resolver nunca lanza, así que un error aquí no tira Círculos                                                         |
+| 9   | **Web Push**                          | fuera del smoke inicial           | trío VAPID completo o nada; el esquema rechaza el estado a medias                                                                                                                          |
+| 10  | **Credenciales R2**                   | token scoped al bucket de staging | mínimo privilegio: una credencial compartida podría escribir en los medios de producción                                                                                                   |
 
 ---
 

@@ -3,6 +3,12 @@
 Autoridad: [ADR 0024](../adr/0024-migracion-a-coolify-syntavera.md).
 Inventario y decisiones: [coolify-migration-as-is-to-be.md](coolify-migration-as-is-to-be.md).
 
+**La fuente canónica de variables de staging es
+[coolify-staging-env-inventory.md](coolify-staging-env-inventory.md).** Este runbook
+describe el **proceso**; el inventario describe la **configuración**. Las tablas de
+variables no se repiten aquí a propósito: contadas en dos sitios, divergen — y la que
+se queda vieja es siempre la que alguien lee.
+
 Mientras Vercel y Railway sigan encendidos, **son el respaldo**. Nada de lo que hay
 aquí borra, apaga ni reconfigura nada suyo.
 
@@ -19,17 +25,17 @@ Traefik base, el demonio de Docker, el plano de control de Coolify ni sus backup
 Todo esto se cumple **antes** de crear un solo recurso. Estado verificado el
 2026-09-30.
 
-| #   | qué                                                                       | cómo se comprueba                                                                       | estado                    |
-| --- | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ------------------------- |
-| 1   | La App de GitHub tiene acceso a `georgenton/psico-platform`               | `list_github_repositories` lo devuelve, y `list_github_branches` lista `main`           | ✅ **READY**              |
-| 2   | El proyecto y el entorno existen                                          | `get_project` sobre `FeelVerse` lista `staging`                                         | ✅ existen y están vacíos |
-| 3   | El servidor está sano                                                     | `get_server` → `is_reachable`, `is_usable`, Traefik `running`                           | ✅                        |
-| 4   | Credencial WRITE disponible                                               | `~/.config/syntavera/coolify-write.token`: existe, 52 bytes, `600`, en directorio `700` | ✅ **READY**              |
-| 5   | DNS de `staging.feelverse.app`                                            | tres resolvers públicos + el autoritativo → `148.113.254.26`, DNS only                  | ✅ **READY**              |
-| 6   | DNS de `api-staging.feelverse.app`                                        | el móvil y el navegador llaman a la API directamente                                    | ⬜ **pendiente**          |
-| 7   | Secretos de staging preparados fuera del repositorio                      | la lista de nombres del §11 del inventario                                              | ⬜                        |
-| 8   | El repositorio pasa lint, typecheck, pruebas y build                      | CI del PR #758                                                                          | ✅ 17/17 en verde         |
-| 9   | Almacenamiento S3 de Coolify apuntando a `syntavera-feelverse-db-backups` | lleva credenciales de R2, así que lo crea el propietario en la UI                       | ⬜                        |
+| #   | qué                                                                       | cómo se comprueba                                                                         | estado                    |
+| --- | ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | ------------------------- |
+| 1   | La App de GitHub tiene acceso a `georgenton/psico-platform`               | `list_github_repositories` lo devuelve, y `list_github_branches` lista `main`             | ✅ **READY**              |
+| 2   | El proyecto y el entorno existen                                          | `get_project` sobre `FeelVerse` lista `staging`                                           | ✅ existen y están vacíos |
+| 3   | El servidor está sano                                                     | `get_server` → `is_reachable`, `is_usable`, Traefik `running`                             | ✅                        |
+| 4   | Credencial WRITE disponible                                               | `~/.config/syntavera/coolify-write.token`: existe, 52 bytes, `600`, en directorio `700`   | ✅ **READY**              |
+| 5   | DNS de `staging.feelverse.app`                                            | tres resolvers públicos + el autoritativo → `148.113.254.26`, DNS only                    | ✅ **READY**              |
+| 6   | DNS de `api-staging.feelverse.app`                                        | el móvil y el navegador llaman a la API directamente                                      | ⬜ **pendiente**          |
+| 7   | Secretos de staging preparados fuera del repositorio                      | los nombres y su clasificación viven en [el inventario](coolify-staging-env-inventory.md) | ⬜                        |
+| 8   | El repositorio pasa lint, typecheck, pruebas y build                      | CI del PR #758                                                                            | ✅ 17/17 en verde         |
+| 9   | Almacenamiento S3 de Coolify apuntando a `syntavera-feelverse-db-backups` | lleva credenciales de R2, así que lo crea el propietario en la UI                         | ⬜                        |
 
 Los prerrequisitos 6, 7 y 9 son los que faltan, y los tres son del propietario.
 
@@ -136,10 +142,16 @@ equivocada y se para aquí.
 
 Database · Redis 7. Sin dominio, **sin puerto al host**, con volumen.
 
-Que `REDIS_URL` sea opcional en el esquema de la API es la trampa de este paso: sin
-ella el arranque **no falla**, `createRedisClient` cae a `ioredis-mock` y las colas
-quedan sin hacer nada, en silencio. Así que se comprueba explícitamente que la
-variable está puesta en la API y en el worker antes de darlos por buenos.
+`REDIS_URL` es opcional en el esquema, pero `superRefine` la exige cuando
+`NODE_ENV=production` — que es el perfil de staging. Así que su ausencia **aborta la
+validación y el arranque** de api y worker: falla rápido, que es lo que uno quiere.
+
+La trampa está un paso antes, y de ahí que este runbook la nombre: si alguien no pone
+`NODE_ENV=production`, el default es `development`, el esquema deja de exigir Redis,
+`createRedisClient` cae a `ioredis-mock` y las colas quedan mudas en silencio. Se
+comprueba que las dos variables están puestas en api y worker antes de darlos por
+buenos. Detalle completo en
+[§1.2 del inventario](coolify-staging-env-inventory.md).
 
 ### 1.3 `feelverse-staging-api`
 
@@ -157,15 +169,12 @@ Diario en las dos plataformas. No es un dominio de conveniencia.
 lista a `enableCors` con `credentials: true`, y sin el origen cada llamada del
 navegador muere en el preflight.
 
-Variables que no pueden faltar, y por qué exactamente estas:
-
-| variable            | por qué                                                                                     |
-| ------------------- | ------------------------------------------------------------------------------------------- |
-| `PSICO_ENV=staging` | sin ella la API **se niega a arrancar** en una caja desplegada. Es la barrera, no un adorno |
-| `PSICO_DEPLOYED=1`  | marcador propio, el único que no depende de que un proveedor mantenga sus nombres           |
-| `DATABASE_URL`      | apuntando al Postgres de staging por su nombre de red interno                               |
-| `REDIS_URL`         | ver 1.2                                                                                     |
-| resto               | inventario §11                                                                              |
+Las variables, su clasificación y el contrato de arranque están en
+[el inventario](coolify-staging-env-inventory.md). Lo que este paso añade es el
+**orden**: el contrato de arranque son **26 variables**, y doce de ellas son barreras
+que no aparecen en el esquema de env (§1.3 del inventario). Si faltan, el contenedor
+no arranca y el despliegue entra en bucle de reinicio — así que se cargan **antes** de
+desplegar, no después de ver el primer fallo.
 
 #### El gate de migración
 
@@ -215,16 +224,15 @@ Application, mismo repositorio y rama. Puerto interno **3000**. Dominio
 que escribirlo aquí publicaría staging en el hostname de producción al instante (§10
 del inventario). Healthcheck `GET /api/health`.
 
-Dos variables tienen que estar disponibles **en build**, no sólo en runtime, porque
-Next las inlinea o las evalúa al construir: `NEXT_PUBLIC_*` (van al bundle del
-navegador) y `PSICO_ENV`. Marcar la casilla de variable de build en Coolify.
+Las `NEXT_PUBLIC_*` se inlinean en el bundle al construir, así que tienen que estar
+disponibles **en build**, no sólo en runtime — y la API documentada de Coolify no puede
+marcarlas. La lista exacta y el gate están en
+[§12 del inventario](coolify-staging-env-inventory.md): **Web no se despliega** hasta
+que esas casillas estén marcadas en la UI.
 
-| variable                        | por qué                                                          |
-| ------------------------------- | ---------------------------------------------------------------- |
-| `PSICO_ENV=staging`             | cierra el gate de `/prototipos/*` y etiqueta Sentry del servidor |
-| `NEXT_PUBLIC_PSICO_ENV=staging` | etiqueta Sentry del navegador                                    |
-| `NEXT_PUBLIC_API_URL`           | la API por su nombre de red interno                              |
-| resto                           | inventario §11                                                   |
+Y sólo `staging.feelverse.app` en el campo de dominio. Nunca `feelverse.app`: su DNS ya
+resuelve a este VPS, así que escribirlo aquí publicaría staging en el hostname de
+producción al instante.
 
 ### 1.5 `feelverse-staging-worker`
 

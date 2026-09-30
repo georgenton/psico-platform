@@ -188,8 +188,24 @@ Dónde aparece 16, y por qué no cuenta como prueba: `docker-compose.yml` para
 desarrollo local, y contenedores desechables del runbook del piloto de Círculos.
 Ninguno aplica la cadena de migraciones como parte de un gate.
 
-Así que el objetivo es **`pgvector/pgvector:pg18`**. No hace falta consultar
-producción para saberlo, y no se consulta.
+Y confirmado de la única forma que no toca producción: leyendo la **configuración
+declarada** del servicio por la API de Railway (`describe-service`, de sólo lectura),
+sin conectarse a la base, sin consultarla y sin cambiar nada.
+
+```
+image: ghcr.io/railwayapp-templates/postgres-ssl:18
+volumen: 500 MB · us-west2 · live
+```
+
+O sea que producción corre PostgreSQL **18**, el comentario de CI era exacto, y el
+argumento de paridad apunta a 18 — no a 16, que era lo que este documento decía.
+
+Así que el objetivo es **`pgvector/pgvector:pg18`**, fijado por digest. La imagen de
+Railway es una plantilla propia con SSL; la de Coolify tiene que traer `pgvector`
+porque la extensión no es opcional (§4, `schema.prisma:8`).
+
+Dato útil para el dimensionamiento: el volumen de la base de producción es de **500
+MB**. El de staging no necesita más, y eso acota el disco que hay que reservar.
 
 ---
 

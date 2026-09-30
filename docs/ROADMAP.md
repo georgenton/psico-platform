@@ -26,6 +26,10 @@ Cuando el estado cambie, edita este documento en lugar de crear uno nuevo. Las b
 - **716 tests verdes** total — API 654, web 135, crypto 34, mobile 29.
 - **3 paquetes shared** publicables: `@psico/types@0.9.0`, `@psico/api-client@0.1.0`, `@psico/crypto@0.2.0`.
 - **Deploy:** API + worker en Railway, web en Vercel. Smoke walk con users reales ya hecho.
+  **En migración a Coolify** (infraestructura propia SyntaVera) desde 2026-09-29 —
+  [ADR 0024](adr/0024-migracion-a-coolify-syntavera.md). Railway y Vercel siguen
+  encendidos como respaldo; los items de credenciales de abajo aplican a los dos
+  destinos mientras el cutover no cierre.
 
 ## 2. Cobertura de las 17 áreas del diseño
 

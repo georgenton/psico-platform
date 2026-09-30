@@ -131,10 +131,34 @@ Cross-workspace code (shared types, ESLint/TypeScript configs, UI primitives, et
 
 ## Deployment
 
+**En migración a Coolify sobre infraestructura propia (SyntaVera).** Autoridad:
+[ADR 0024](docs/adr/0024-migracion-a-coolify-syntavera.md) · inventario AS-IS/TO-BE en
+[docs/deploy/coolify-migration-as-is-to-be.md](docs/deploy/coolify-migration-as-is-to-be.md) ·
+pasos y rollback en [docs/deploy/coolify-runbook.md](docs/deploy/coolify-runbook.md).
+
+Hoy, lo que sirve a los usuarios:
+
 | Target     | Platform | Notes                                            |
 | ---------- | -------- | ------------------------------------------------ |
 | `apps/api` | Railway  | PostgreSQL and Redis also provisioned on Railway |
-| `apps/web` | Vercel   | Connected to the `main` branch                   |
+| `apps/web` | Vercel   | Connected to the `main` branch. Cuándo se despliega: [docs/operations/web-deployment-policy.md](docs/operations/web-deployment-policy.md) |
+
+Railway y Vercel **siguen encendidos y son el respaldo** durante todo el cutover. No
+se borra ningún proyecto, base, dominio ni variable suya hasta que se cumplan los seis
+criterios de apagado del ADR 0024. Las bitácoras que describen el despliegue anterior
+se conservan como historia, no se reescriben.
+
+Dos cosas del código que la migración obligó a cambiar, y que conviene conocer antes
+de tocarlas:
+
+- **`PSICO_ENV` es obligatoria en cualquier caja desplegada**, y `PSICO_DEPLOYED=1` es
+  el marcador neutral que la acompaña. Sin la primera, la API se niega a arrancar; eso
+  es deliberado (`apps/api/src/emotional-map/cache-identity.ts`). El detector reconoce
+  Railway y Coolify a la vez, porque durante el cutover las dos son reales.
+- **Nada de runtime debe depender de `VERCEL_ENV` ni de `RAILWAY_*`.** Esas variables
+  desaparecen con el proveedor, y una condición que desaparece abre el gate que
+  protegía. En Web se pregunta a `@/lib/deploy-env`; en la API, a
+  `shared/release-sha` y al resolutor de entorno.
 
 ## Quality stack
 

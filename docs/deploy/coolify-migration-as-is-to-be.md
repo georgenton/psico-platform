@@ -483,61 +483,24 @@ Regla operativa: **ningún recurso de staging lleva `feelverse.app` ni
 `*-staging`. El paso de cutover del runbook deja de ser «apuntar el DNS» y pasa a
 ser «reclamar el hostname», que es una operación de Coolify y no de Cloudflare.
 
-## 11 · Inventario de secretos (sólo nombres)
+## 11 · Inventario de secretos
 
-Scope propuesto: el más estrecho que funcione. `PROJECT` para lo que comparten los
-dos entornos y no cambia entre ellos; `ENVIRONMENT` para todo lo que difiere;
-`RESOURCE` cuando sólo un recurso lo necesita.
+**Movido.** La fuente canónica es
+[coolify-staging-env-inventory.md](coolify-staging-env-inventory.md), derivada del
+código y revisable en un PR.
 
-### API y worker
+Se movió porque este documento describe el AS-IS y el TO-BE —qué corre hoy, qué forma
+tendrá— y una lista de variables es configuración viva: cambia con cada capacidad que
+se enciende, y aquí se habría quedado vieja sin que nadie lo notara. Lo que el
+inventario añade y esta sección no tenía:
 
-| VARIABLE                                                                                               | COMPONENT   | PLATAFORMA HOY        | BUILD/RUNTIME | SECRET        | STAGING | PROD | SCOPE                                     |
-| ------------------------------------------------------------------------------------------------------ | ----------- | --------------------- | ------------- | ------------- | ------- | ---- | ----------------------------------------- |
-| `DATABASE_URL`                                                                                         | api, worker | Railway               | runtime       | sí            | sí      | sí   | ENVIRONMENT                               |
-| `REDIS_URL`                                                                                            | api, worker | Railway               | runtime       | sí            | sí      | sí   | ENVIRONMENT                               |
-| `JWT_SECRET`                                                                                           | api         | Railway               | runtime       | sí            | sí      | sí   | ENVIRONMENT                               |
-| `PSICO_ENV`                                                                                            | api, worker | Railway               | runtime       | no            | sí      | sí   | ENVIRONMENT                               |
-| `APP_URL`                                                                                              | api         | Railway               | runtime       | no            | sí      | sí   | ENVIRONMENT                               |
-| `ALLOWED_ORIGINS`                                                                                      | api         | Railway               | runtime       | no            | sí      | sí   | ENVIRONMENT                               |
-| `PORT`                                                                                                 | api         | inyectada por Railway | runtime       | no            | sí      | sí   | RESOURCE                                  |
-| `NODE_ENV`                                                                                             | api, worker | Railway               | runtime       | no            | sí      | sí   | ENVIRONMENT                               |
-| `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`                          | api         | Railway               | runtime       | sí (3 de 4)   | sí      | sí   | ENVIRONMENT (bucket distinto por entorno) |
-| `R2_PUBLIC_URL`                                                                                        | api         | Railway               | runtime       | no            | sí      | sí   | ENVIRONMENT                               |
-| `ANTHROPIC_API_KEY`, `VOYAGE_API_KEY`                                                                  | api, worker | Railway               | runtime       | sí            | sí      | sí   | PROJECT                                   |
-| `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`                                                           | api         | Railway               | runtime       | sí            | sí      | sí   | ENVIRONMENT (claves de test en staging)   |
-| `STRIPE_PRO_MONTHLY_PRICE_ID`, `STRIPE_PRO_YEARLY_PRICE_ID`, `STRIPE_B2B_PRICE_ID`                     | api         | Railway               | runtime       | no            | sí      | sí   | ENVIRONMENT                               |
-| `RESEND_API_KEY`, `EMAIL_FROM`                                                                         | api, worker | Railway               | runtime       | sí / no       | sí      | sí   | ENVIRONMENT                               |
-| `GOOGLE_CLIENT_ID`                                                                                     | api         | Railway               | runtime       | no            | sí      | sí   | PROJECT                                   |
-| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`                                               | api, worker | Railway               | runtime       | sí (privada)  | sí      | sí   | ENVIRONMENT                               |
-| `VOICE_PROVIDER`, `OPENAI_API_KEY`, `DEEPGRAM_API_KEY`                                                 | api         | Railway               | runtime       | sí (claves)   | sí      | sí   | PROJECT                                   |
-| `VIDEO_PROVIDER`, `DAILY_API_KEY`, `DAILY_DOMAIN`, `DAILY_WEBHOOK_SECRET`                              | api         | Railway               | runtime       | sí (2)        | sí      | sí   | ENVIRONMENT                               |
-| `CLOUDFLARE_STREAM_*` (4)                                                                              | api         | Railway               | runtime       | sí (token)    | sí      | sí   | ENVIRONMENT                               |
-| `SENTRY_DSN`, `SENTRY_RELEASE`                                                                         | api, worker | Railway               | runtime       | no            | sí      | sí   | ENVIRONMENT                               |
-| `CLIENT_ATTESTATION_SECRET`                                                                            | api, web    | Railway + Vercel      | runtime       | sí            | sí      | sí   | ENVIRONMENT                               |
-| `CIRCLES_ROLLOUT_MODE`, `CIRCLES_GROUPS`, `CIRCLES_PILOT_USER_IDS`, `CIRCLES_SHARED_DATA_KEY_V1`       | api         | Railway               | runtime       | sí (la clave) | sí      | sí   | ENVIRONMENT                               |
-| `GUIDE_ROLLOUT_MODE`, `GUIDE_PILOT_USER_IDS`                                                           | api         | Railway               | runtime       | no            | sí      | sí   | ENVIRONMENT                               |
-| `EMOTIONAL_MAP_*` (9 flags)                                                                            | api, worker | Railway               | runtime       | no            | sí      | sí   | ENVIRONMENT                               |
-| `CONTENT_RESONANCE`                                                                                    | api         | Railway               | runtime       | no            | sí      | sí   | ENVIRONMENT                               |
-| `DEFAULT_PAYMENT_PROVIDER`, `AI_MAX_CONTEXT_CHUNKS`, `JWT_ACCESS_EXPIRES_IN`, `JWT_REFRESH_EXPIRES_IN` | api         | Railway               | runtime       | no            | sí      | sí   | PROJECT                                   |
-
-### Web
-
-| VARIABLE                                               | BUILD/RUNTIME | SECRET | SCOPE       | nota                                            |
-| ------------------------------------------------------ | ------------- | ------ | ----------- | ----------------------------------------------- |
-| `NEXT_PUBLIC_API_URL`                                  | **build**     | no     | ENVIRONMENT | se hornea en el bundle: cambiarla exige rebuild |
-| `NEXT_PUBLIC_APP_URL`                                  | **build**     | no     | ENVIRONMENT | ídem                                            |
-| `NEXT_PUBLIC_GOOGLE_CLIENT_ID`                         | **build**     | no     | PROJECT     | ídem                                            |
-| `NEXT_PUBLIC_VAPID_PUBLIC_KEY`                         | **build**     | no     | ENVIRONMENT | ídem                                            |
-| `NEXT_PUBLIC_SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_RELEASE` | **build**     | no     | ENVIRONMENT | ídem                                            |
-| `SENTRY_DSN`, `SENTRY_RELEASE`                         | runtime       | no     | ENVIRONMENT | lado servidor                                   |
-| `CLIENT_ATTESTATION_SECRET`                            | runtime       | **sí** | ENVIRONMENT | route handlers de Círculos                      |
-
-**Advertencia operativa:** las siete `NEXT_PUBLIC_*` son de **build**, no de
-runtime. En Vercel eso se resolvía solo porque cada deploy reconstruye. En Coolify,
-cambiar una de ellas sin reconstruir no tiene efecto, y ese es un error fácil de
-cometer y difícil de ver.
-
-Nunca se imprimen valores.
+- el **contrato de arranque** completo, 26 variables, con las doce barreras que no
+  aparecen en el esquema de env y sin las cuales el contenedor no arranca;
+- una clasificación que **no llama secreto a todo**: valores secretos, identificadores
+  de credencial, configuración no secreta y configuración pública de build;
+- la separación entre lo que el propietario aporta antes de crear recursos y lo que el
+  ciclo de creación genera — `DATABASE_URL` no puede pedirse antes de que exista
+  Postgres.
 
 ---
 

@@ -119,7 +119,10 @@ describe("ratchet · the lock protocol", () => {
     expect(main).toMatch(
       /EXPERIENCE_BINDING_PROTOCOL=\$\{EXPERIENCE_BINDING_PROTOCOL\}/,
     );
-    expect(main).toMatch(/REPLICA=\$\{process\.env\.RAILWAY_REPLICA_ID/);
+    // Platform-neutral since ADR 0024: the drain gate needs A replica id, not
+    // one vendor's variable name. `replicaId` is resolved above the marker.
+    expect(main).toMatch(/REPLICA=\$\{replicaId\}/);
+    expect(main).toMatch(/const replicaId =/);
   });
 });
 

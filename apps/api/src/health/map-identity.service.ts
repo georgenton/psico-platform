@@ -20,7 +20,7 @@ import {
  * PR-0.1 — makes the API/worker emotional-map identity OBSERVABLE.
  *
  * Importing the same helper does not make the two services agree: they are
- * separate Railway deployments with separate environments, and a deploy can
+ * separate deployments with separate environments, and a deploy can
  * leave them on different commits. Same code + `EMOTIONAL_MAP_FACTS_EPOCH=2` on
  * the API and `=1` on the worker → the cron writes snapshots the API refuses to
  * read, silently, forever.
@@ -162,7 +162,7 @@ export class MapIdentityService {
         api,
         worker,
         match: false,
-        reason: `Cannot establish which build is running (api=${api.releaseSha ?? "unknown"} worker=${worker.releaseSha ?? "unknown"}). On a deployed box the commit SHA must be present (RAILWAY_GIT_COMMIT_SHA / RELEASE_SHA). An unknown build cannot be certified as matching.`,
+        reason: `Cannot establish which build is running (api=${api.releaseSha ?? "unknown"} worker=${worker.releaseSha ?? "unknown"}). On a deployed box the commit SHA must be present (RAILWAY_GIT_COMMIT_SHA / SOURCE_COMMIT / RELEASE_SHA, depending on the platform). An unknown build cannot be certified as matching.`,
         workerHeartbeatAgeSeconds: ageSeconds,
       };
     }
@@ -190,9 +190,7 @@ export class MapIdentityService {
     if (worker.fingerprint !== api.fingerprint) {
       const drift = (Object.keys(api) as Array<keyof PublishedIdentity>)
         .filter((k) => k !== "fingerprint" && k !== "publishedAt")
-        .filter(
-          (k) => JSON.stringify(api[k]) !== JSON.stringify(worker?.[k]),
-        );
+        .filter((k) => JSON.stringify(api[k]) !== JSON.stringify(worker?.[k]));
       return {
         api,
         worker,

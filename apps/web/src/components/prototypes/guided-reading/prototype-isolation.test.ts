@@ -181,6 +181,25 @@ describe("prototipo — exposición en producción", () => {
     expect(Page({ searchParams: {} })).toBeTruthy();
   });
 
+  it("devuelve notFound cuando el entorno declarado es produccion", async () => {
+    // ADR 0024 — `PSICO_ENV` es el nombre que la API ya usa, y el que sobrevive
+    // al cambio de plataforma. Las dos pruebas de VERCEL_ENV de arriba siguen
+    // pasando a proposito: Vercel sigue encendido como rollback.
+    vi.stubEnv("PSICO_ENV", "production");
+    const { default: Page } =
+      await import("@/app/prototipos/lectura-guiada/page");
+    expect(() => Page({ searchParams: {} })).toThrow("NEXT_NOT_FOUND");
+  });
+
+  it("devuelve notFound en una caja desplegada que no declara su entorno", async () => {
+    // El caso que este repositorio no podia expresar: sin VERCEL_ENV la
+    // condicion vieja nunca era cierta, asi que el prototipo quedaba publicado.
+    vi.stubEnv("COOLIFY_RESOURCE_UUID", "abc123");
+    const { default: Page } =
+      await import("@/app/prototipos/lectura-guiada/page");
+    expect(() => Page({ searchParams: {} })).toThrow("NEXT_NOT_FOUND");
+  });
+
   it("declara noindex, nofollow", async () => {
     const { metadata } = await import("@/app/prototipos/lectura-guiada/page");
     expect(metadata.robots).toEqual({ index: false, follow: false });

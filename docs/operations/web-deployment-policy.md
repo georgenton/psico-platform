@@ -93,6 +93,22 @@ comportamiento con cambios fuera de los workspaces (`docs/`, `CLAUDE.md`,
 ciegas. Si algún día se prefiere ese camino, el trabajo pendiente es medir esos
 casos y decidir a conciencia; la tabla de arriba sirve de contrato de aceptación.
 
+## Qué pasa con esto en Coolify
+
+Nada, por ahora, y a propósito. [ADR 0024](../adr/0024-migracion-a-coolify-syntavera.md)
+mueve el runtime a Coolify, pero Vercel sigue encendido como respaldo, así que esta
+política sigue vigente y sin tocar mientras lo esté.
+
+Cuando Web se sirva desde Coolify hará falta el equivalente, y **no es el mismo
+mecanismo**: un `ignoreCommand` es una pieza de Vercel. La regla —«se construye si el
+commit afecta a `@psico/web`, directa o transitivamente»— y su polaridad —fail open—
+son lo que hay que conservar; el sitio donde se declara cambia. Lo que sí se resuelve
+solo es el efecto secundario de esta sección: en Coolify no se crea un deployment para
+después abortarlo, así que el `CANCELED` que cuenta como deployment desaparece.
+
+El retiro de este fichero es el último paso del runbook de decomisado, no un paso del
+cutover.
+
 ## De dónde viene esto
 
 [#725](https://github.com/georgenton/psico-platform/issues/725). La regla anterior

@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 
 import { FLAGS, type FlagName } from "../shared/flags";
+import { releaseSha } from "../shared/release-sha";
 
 /**
  * PR-0.1 — cache + snapshot identity for the emotional map.
@@ -81,21 +82,21 @@ const VALID_ENVIRONMENTS: readonly string[] = [
 ];
 
 /**
- * Relying on NODE_ENV alone is fragile: a Railway box that ships without it
+ * Relying on NODE_ENV alone is fragile: a deployed box that ships without it
  * silently looks like "development" and every safety barrier below quietly
  * turns itself off. That is precisely the failure we are trying to make
  * impossible, so a DEPLOYED box must say what it is.
  *
  * `PSICO_ENV` is the explicit answer. NODE_ENV is accepted as a fallback for
- * local work and CI. If neither is valid AND we can see we are on Railway, we
- * refuse to guess — and refuse to boot.
+ * local work and CI. If neither is valid AND we can see we are on a hosting
+ * platform, we refuse to guess — and refuse to boot.
  */
 export function resolveEnvironment(): PsicoEnvironment {
   const explicit = process.env.PSICO_ENV?.trim().toLowerCase();
 
   // ── On a deployed box, the rules are strict and PSICO_ENV is the ONLY word ──
   //
-  // The previous version accepted PSICO_ENV=development on a Railway box, and
+  // An earlier version accepted PSICO_ENV=development on a deployed box, and
   // that quietly turned every safety barrier off — the exact failure this whole
   // mechanism exists to prevent, now reachable by writing "development" into a
   // variable. A box the platform says is deployed IS deployed; it does not get
@@ -105,10 +106,11 @@ export function resolveEnvironment(): PsicoEnvironment {
   // for a hundred reasons that have nothing to do with our safety posture (a test
   // runner, a build step, a base image default). Deployment posture must be
   // stated deliberately, in a variable that means only that.
-  if (looksDeployed()) {
+  const platform = deploymentPlatform();
+  if (platform) {
     if (!explicit) {
       throw new Error(
-        "This box is running on Railway but does not declare PSICO_ENV. Set PSICO_ENV=production or PSICO_ENV=staging. NODE_ENV is not accepted here: a deployed box must state its posture deliberately, and an unset value would silently disable every safety barrier.",
+        `This box is running on ${platform} but does not declare PSICO_ENV. Set PSICO_ENV=production or PSICO_ENV=staging. NODE_ENV is not accepted here: a deployed box must state its posture deliberately, and an unset value would silently disable every safety barrier.`,
       );
     }
     if (explicit !== "production" && explicit !== "staging") {
@@ -137,13 +139,45 @@ export function resolveEnvironment(): PsicoEnvironment {
   return "development";
 }
 
-/** True when platform variables say we are on Railway, whatever the env claims. */
-function looksDeployed(): boolean {
-  return Boolean(
+/**
+ * Which hosting platform we appear to be running on, or null for a local box.
+ *
+ * This is a list of vendor-specific markers, so it is structurally incomplete:
+ * it can only recognise platforms someone has taught it. That is why
+ * `PSICO_DEPLOYED` comes first — one variable WE set, which keeps working on the
+ * next platform nobody has thought of yet — and why the vendor markers are kept
+ * as a backstop for the day somebody forgets to set it.
+ *
+ * Both Railway and Coolify are listed on purpose: during the migration
+ * (ADR 0024) Railway stays up as rollback, so the two must be recognised at
+ * once. Removing Railway is part of decommissioning it, not of arriving.
+ *
+ * Adding a marker can only ever turn the barriers ON for a box that used to
+ * look local. There is no entry here that relaxes anything.
+ */
+function deploymentPlatform(): string | null {
+  // Explicit and platform-neutral. Set it on every deployed service.
+  if (process.env.PSICO_DEPLOYED?.trim()) return "a deployed host";
+
+  if (
     process.env.RAILWAY_ENVIRONMENT ??
     process.env.RAILWAY_PROJECT_ID ??
-    process.env.RAILWAY_SERVICE_ID,
-  );
+    process.env.RAILWAY_SERVICE_ID
+  ) {
+    return "Railway";
+  }
+
+  // Only variables that exist INSIDE a Coolify-managed container. Deliberately
+  // NOT `COOLIFY_URL` or `COOLIFY_TOKEN`: those are how a CLIENT is configured to
+  // TALK to a Coolify, so any laptop with the CLI or the MCP configured carries
+  // them. Treating them as "I am deployed" switched every barrier on for local
+  // work and made ordinary scripts refuse to run — the test suite caught it on
+  // the first run, which is the whole reason the barrier has tests.
+  if (process.env.COOLIFY_RESOURCE_UUID ?? process.env.COOLIFY_CONTAINER_NAME) {
+    return "Coolify";
+  }
+
+  return null;
 }
 
 /** Deployed environments enforce the barriers; local ones stay ergonomic. */
@@ -546,18 +580,15 @@ export interface RuntimeIdentity {
   flags: Record<string, boolean>;
 }
 
-/** Short commit SHA of the running build, or null when the platform hides it. */
-export function releaseSha(): string | null {
-  const raw =
-    process.env.RAILWAY_GIT_COMMIT_SHA ??
-    process.env.RELEASE_SHA ??
-    process.env.GIT_COMMIT_SHA ??
-    process.env.SOURCE_VERSION;
-  const trimmed = raw?.trim();
-  if (!trimmed) return null;
-  // A commit SHA is public information; we still truncate it for log hygiene.
-  return trimmed.slice(0, 12);
-}
+/**
+ * Short commit SHA of the running build, or null when the platform hides it.
+ *
+ * Re-exported from the shared kernel, where it now lives: a build identity is not
+ * an emotional-map concern, and the CC-6C invariant forbids the marks code path
+ * from importing anything under `emotional-map/`. Every existing importer keeps
+ * working through this name.
+ */
+export { releaseSha };
 
 export function runtimeIdentity(): RuntimeIdentity {
   const flags: Record<string, boolean> = {};

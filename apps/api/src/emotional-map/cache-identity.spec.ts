@@ -13,6 +13,7 @@ import {
   assertEmotionalMapConfigured,
   buildCacheKey,
   isDeployedEnvironment,
+  identityLogLine,
   resolveEnvironment,
   bumpGeneration,
   cacheEpoch,
@@ -54,6 +55,13 @@ const ENVS = [
   "RAILWAY_ENVIRONMENT",
   "RAILWAY_PROJECT_ID",
   "RAILWAY_SERVICE_ID",
+  // ADR 0024 — the deployment markers must be cleared too, or a laptop that
+  // happens to export one of them makes these tests read a different box.
+  "PSICO_DEPLOYED",
+  "COOLIFY_RESOURCE_UUID",
+  "COOLIFY_CONTAINER_NAME",
+  "COOLIFY_FQDN",
+  "COOLIFY_URL",
 ] as const;
 
 /** In-memory stand-in for the Redis surface the identity module needs. */
@@ -431,6 +439,17 @@ describe("emotional-map — structural invariants and environment (PR-0.1)", () 
     "RAILWAY_ENVIRONMENT",
     "RAILWAY_PROJECT_ID",
     "RAILWAY_SERVICE_ID",
+    // ADR 0024 — see the note on the module-level list.
+    "PSICO_DEPLOYED",
+    "COOLIFY_RESOURCE_UUID",
+    "COOLIFY_CONTAINER_NAME",
+    "COOLIFY_FQDN",
+    "COOLIFY_URL",
+    "RAILWAY_GIT_COMMIT_SHA",
+    "SOURCE_COMMIT",
+    "RELEASE_SHA",
+    "GIT_COMMIT_SHA",
+    "SOURCE_VERSION",
     "EMOTIONAL_MAP_CACHE_EPOCH",
     "EMOTIONAL_MAP_FACTS_EPOCH",
     "EMOTIONAL_MAP_V2",
@@ -569,6 +588,114 @@ describe("emotional-map — structural invariants and environment (PR-0.1)", () 
     expect(resolveEnvironment()).toBe("development");
     expect(isDeployedEnvironment()).toBe(false);
     expect(() => assertEmotionalMapConfigured()).not.toThrow();
+  });
+
+  // ── ADR 0024 — the same barrier, on a platform Railway never named ──────────
+  //
+  // The hole this closes is the migration itself. `looksDeployed()` asked only
+  // about RAILWAY_*, so the first Coolify box would have answered "no, I am a
+  // laptop", skipped the strict branch, resolved to `development` and turned
+  // every barrier off — with nothing in the logs to say so. The detector is a
+  // list of vendor markers, so it can only ever be incomplete; what these tests
+  // fix is that it recognises BOTH platforms at once, because Railway stays up
+  // as rollback while Coolify comes up.
+
+  for (const marker of [
+    "COOLIFY_RESOURCE_UUID",
+    "COOLIFY_CONTAINER_NAME",
+  ] as const) {
+    it(`refuses to boot on Coolify (${marker}) with no PSICO_ENV`, () => {
+      process.env[marker] = "abc123";
+
+      expect(() => resolveEnvironment()).toThrow(/running on Coolify/i);
+      expect(() => assertEmotionalMapConfigured()).toThrow(
+        /running on Coolify/i,
+      );
+    });
+  }
+
+  it("refuses to boot on Coolify when PSICO_ENV claims development", () => {
+    // The typo-wide production disable, reachable from the new platform.
+    process.env.COOLIFY_RESOURCE_UUID = "abc123";
+    process.env.PSICO_ENV = "development";
+
+    expect(() => resolveEnvironment()).toThrow(/not valid on a deployed box/i);
+  });
+
+  it("boots on Coolify with PSICO_ENV=staging, and treats it as deployed", () => {
+    process.env.COOLIFY_RESOURCE_UUID = "abc123";
+    process.env.PSICO_ENV = "staging";
+
+    expect(resolveEnvironment()).toBe("staging");
+    expect(isDeployedEnvironment()).toBe(true);
+  });
+
+  it("honours PSICO_DEPLOYED alone, so a platform nobody taught it still gets the barriers", () => {
+    // This is the one that does not rot. Vendor markers cover the platforms
+    // somebody remembered; this covers the next one.
+    process.env.PSICO_DEPLOYED = "1";
+
+    expect(() => resolveEnvironment()).toThrow(/does not declare PSICO_ENV/i);
+
+    process.env.PSICO_ENV = "production";
+    expect(resolveEnvironment()).toBe("production");
+    expect(isDeployedEnvironment()).toBe(true);
+  });
+
+  it("prints one boot line carrying the SHA, and prints it on a laptop too", () => {
+    // Untested until ADR 0024, and it cost something: moving `releaseSha` out of
+    // this module left the identifier out of local scope, and the whole suite
+    // stayed green because nothing here ever called this function. `tsc` caught
+    // it. A line that both services print at boot deserves better than that.
+    process.env.PSICO_ENV = "test";
+    process.env.RELEASE_SHA = "abcdef1234567890";
+
+    const line = identityLogLine("api");
+    expect(line).toContain("EmotionalMap identity [api]");
+    expect(line).toContain("env=test");
+    // Truncated to 12 chars for log hygiene.
+    expect(line).toContain("sha=abcdef123456");
+    expect(line).not.toContain("abcdef1234567890");
+
+    delete process.env.RELEASE_SHA;
+    expect(identityLogLine("worker")).toContain("sha=unknown");
+  });
+
+  it("does NOT treat a Coolify CLIENT as a deployed box — COOLIFY_URL is not a marker", () => {
+    // Negative control, and it is here because the broad version of this list
+    // shipped for about ten minutes and broke 36 tests: `COOLIFY_URL` and
+    // `COOLIFY_TOKEN` are how a laptop is configured to TALK to a Coolify, so
+    // every developer with the CLI or the MCP set up carries them. If they
+    // counted as "deployed", local scripts would refuse to run and the barriers
+    // would be switched on for a machine that is not serving anyone.
+    process.env.COOLIFY_URL = "https://coolify.example";
+    process.env.COOLIFY_FQDN = "app.example";
+
+    expect(resolveEnvironment()).toBe("development");
+    expect(isDeployedEnvironment()).toBe(false);
+    expect(() => assertEmotionalMapConfigured()).not.toThrow();
+  });
+
+  it("does not treat an empty PSICO_DEPLOYED as deployed", () => {
+    // An env var set to "" is how a half-filled form arrives. It must not be
+    // able to claim a laptop is production, nor to make a deployed box unable to
+    // boot for the wrong reason.
+    process.env.PSICO_DEPLOYED = "  ";
+
+    expect(resolveEnvironment()).toBe("development");
+    expect(isDeployedEnvironment()).toBe(false);
+  });
+
+  it("recognises Railway and Coolify at the same time — the migration window", () => {
+    // During the cutover both are real: Railway serving, Coolify being proven.
+    // Neither may stop being recognised because the other appeared.
+    process.env.RAILWAY_PROJECT_ID = "proj_abc";
+    process.env.COOLIFY_RESOURCE_UUID = "abc123";
+
+    expect(() => resolveEnvironment()).toThrow(/does not declare PSICO_ENV/i);
+
+    process.env.PSICO_ENV = "production";
+    expect(resolveEnvironment()).toBe("production");
   });
 
   it("treats staging as deployed, and local as not", () => {

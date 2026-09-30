@@ -9,6 +9,7 @@ import {
   sanitizeErrorCode,
   serializeDryRunReport,
 } from "./backfill-runner";
+import { releaseSha } from "../shared/release-sha";
 
 /**
  * Content Core — CC-6F targeted backfill CLI.
@@ -68,9 +69,11 @@ async function main(): Promise<void> {
     console.log(
       `previous_published_revision_id=${edition?.publishedRevisionId ?? "null"}`,
     );
-    console.log(
-      `previous_main_sha=${process.env.RAILWAY_GIT_COMMIT_SHA ?? "unknown"}`,
-    );
+    // `releaseSha()` y no la variable de Railway: esta línea es el registro de
+    // rollback que se pega en el PR, y en una plataforma que no defina esa
+    // variable quedaria en "unknown" justo cuando hace falta saber a que commit
+    // volver (ADR 0024).
+    console.log(`previous_main_sha=${releaseSha() ?? "unknown"}`);
 
     const stats = await applyTargetedBackfill(prisma, args.bookSlug);
     console.log("mode=apply");

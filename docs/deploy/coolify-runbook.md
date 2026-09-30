@@ -237,6 +237,10 @@ producción al instante.
 ### 1.5 `feelverse-staging-worker`
 
 Application, mismo build, arranque distinto (ADR 0010): `node apps/api/dist/worker`.
+
+**Cuidado con el dominio autogenerado.** Si se crea la aplicación **sin** enviar el campo
+`domains`, Coolify le asigna uno del comodín del servidor (`<uuid>.syntavera.dev`) —
+medido. Se envía vacío a propósito y se verifica que `fqdn` queda `null`.
 Sin puerto, sin dominio, **sin healthcheck HTTP posible** — no escucha. Su salud se
 observa por logs y por profundidad de colas.
 

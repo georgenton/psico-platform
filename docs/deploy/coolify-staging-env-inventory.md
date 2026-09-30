@@ -10,7 +10,7 @@ Cada exigencia lleva su fichero y su línea, para que se pueda comprobar en vez 
 creer.
 
 ```
-TOTAL_VARIABLES=74
+TOTAL_VARIABLES=75
 
 BOOT_REQUIREMENTS=35                 condiciones que el bootstrap comprueba
 EXPLICIT_BOOT_VALUES=28              de esas, las que deben llevar un valor
@@ -48,7 +48,14 @@ despliegue fallido:
    ausente — y era exactamente lo contrario de lo que pasa en el perfil de staging, que
    corre con `NODE_ENV=production`. Ver §1.2.
 3. **`EMOTIONAL_MAP_PROVIDER` faltaba** (73 → 74). Mi barrido buscaba `process.env.*` y
-   esta variable se lee por `ConfigService.get()`, así que se me escapó. Ver §2.7.
+   esta variable se lee por `ConfigService.get()`, así que se me escapó. Ver §2.8.
+4. **`CIRCLES_GROUPS` también faltaba** (74 → 75), y por un tercer punto ciego: se lee
+   del objeto `env` que se pasa como parámetro a `resolveCirclesRolloutConfig`, así que
+   nunca aparece como `process.env.X` ni como `ConfigService.get("X")`. Ver §2.7.
+5. **Cuatro gates de CLI de ops faltaban en la lista de «no copiar»**, por el mismo
+   motivo. Ver §13.
+6. **La sección de Sentry daba por hecho que hay un proyecto que reutilizar.** No lo
+   hay: `SENTRY_DSN` está **ausente** en las variables de la API de producción. Ver §10.
 
 ---
 
@@ -330,7 +337,7 @@ existe, con su nombre de red interno. La diferencia práctica es que una clave g
 se puede crear en cualquier momento y estas dos **no pueden existir antes que su
 recurso** — que es exactamente por lo que no están en el checklist del propietario.
 
-### 2.7 `NOT_NEEDED_INITIAL` · 20
+### 2.7 `NOT_NEEDED_INITIAL` · 21
 
 Capacidades apagadas en el primer staging. Cada una con su motivo en §7.
 
@@ -339,7 +346,7 @@ DEEPGRAM_API_KEY
 DAILY_API_KEY · DAILY_DOMAIN · DAILY_WEBHOOK_SECRET
 CLOUDFLARE_STREAM_ACCOUNT_ID · _API_TOKEN · _CUSTOMER_CODE
 VAPID_PUBLIC_KEY · VAPID_PRIVATE_KEY · VAPID_SUBJECT · NEXT_PUBLIC_VAPID_PUBLIC_KEY
-CIRCLES_SHARED_DATA_KEY_V1 · CIRCLES_PILOT_USER_IDS
+CIRCLES_SHARED_DATA_KEY_V1 · CIRCLES_PILOT_USER_IDS · CIRCLES_GROUPS
 EEC_C01_GUIDED_SUITE_V1 · EEC_C01_OPERATOR_USER_ID
 RESEND_API_KEY
 GOOGLE_CLIENT_ID · NEXT_PUBLIC_GOOGLE_CLIENT_ID
@@ -522,10 +529,15 @@ Google no se modifica desde este repositorio ni desde ningún ciclo automático.
 `SENTRY_DSN` y `NEXT_PUBLIC_SENTRY_DSN` **no son secretos**: el segundo está en el
 bundle por definición.
 
-Compartir proyecto con producción es técnicamente correcto desde
-[#758](https://github.com/georgenton/psico-platform/pull/758), porque `environment`
-sale de `PSICO_ENV` y los errores quedan separados en el panel. La razón para separar
-sería cuotas y alertas, no la separación de datos.
+**Corrección.** Esta sección planteaba «compartir proyecto o separarlo». La pregunta no
+aplica todavía: `SENTRY_DSN` y `SENTRY_RELEASE` están **ausentes** en las variables de la
+API de producción — verificado con `describe-service`, que devuelve nombres sin valores.
+
+Sentry está cableado en el código desde el Sprint 2 y **nunca se le configuró un DSN en
+producción**. Así que la decisión real es «configurarlo por primera vez o dejarlo fuera
+del smoke inicial», y lo segundo no cuesta nada: ninguna variable de Sentry es
+obligatoria y `environment=staging` funcionará el día que llegue el DSN, gracias a
+[#758](https://github.com/georgenton/psico-platform/pull/758).
 
 ---
 
@@ -579,17 +591,23 @@ MANUAL_COOLIFY_BUILD_TIME_FLAGS =
   NODE_ENV
 ```
 
-**La API documentada de Coolify no puede marcarlas.** `is_build_time` aparece en la
-respuesta de los endpoints de variables pero **no** en el cuerpo de la petición, ni al
-crear ni al actualizar. Así que se crean por API y la casilla «Build Variable» se marca
-en la UI.
+`is_build_time` no aparece en el cuerpo de petición documentado de los endpoints de
+variables, sólo en la respuesta. De ahí salió la previsión de que habría que marcar una
+casilla a mano.
+
+**Medido: no hace falta.** Al crear las variables con
+`POST /applications/{uuid}/envs`, Coolify las deja con `is_buildtime: true` **por
+defecto**. Comprobado por lectura sobre el recurso real: las siete variables de
+`feelverse-staging-web` —incluidas las cinco que importan— devuelven
+`is_runtime: true` **y** `is_buildtime: true` sin haber tocado la interfaz.
 
 ```
-WEB_BUILD_TIME_ENV_GATE=WAITING_FOR_OWNER
+WEB_BUILD_TIME_ENV_GATE=SATISFIED_BY_DEFAULT
 ```
 
-Web **no se despliega** hasta que esa confirmación llegue. Esto no se arregla metiendo
-valores en el repositorio.
+Queda una comprobación visual recomendada antes del primer build de Web, porque el coste
+de equivocarse es un bundle con la URL de la API vacía: abrir el recurso en la UI y ver
+que las cinco aparecen marcadas como variable de build. Es mirar, no configurar.
 
 Las rutas de `/prototipos/*` ya **no** dependen de esto: son `force-dynamic` desde
 #758, así que su gate se resuelve por petición.
@@ -600,12 +618,22 @@ Las rutas de `/prototipos/*` ya **no** dependen de esto: son `force-dynamic` des
 
 ```
 DO_NOT_COPY_TO_COOLIFY_RUNTIME =
-  ALLOW_QA_VISUAL_FIXTURE     gate del fixture visual
-  QA_PERSONAS_PASSWORD        CLI de personas de QA
-  CONTENT_STUDIO_R2_SMOKE     spec de imagen en R2
-  CIRCLES_SPEC_TRACE          traza de specs
-  TEST_DATABASE_URL           sólo suites pg-spec
+  ALLOW_QA_VISUAL_FIXTURE          gate del fixture visual
+  QA_PERSONAS_PASSWORD             CLI de personas de QA
+  CONTENT_STUDIO_R2_SMOKE          spec de imagen en R2
+  CIRCLES_SPEC_TRACE               traza de specs
+  TEST_DATABASE_URL                sólo suites pg-spec
+  ALLOW_BOOK_LEARNING_ACTIVATION   gate del CLI de activación de aprendizaje
+  ALLOW_CONTENT_CORE_BACKFILL      gate del CLI de backfill
+  ALLOW_CONTENT_CORE_BOOK_INGEST   gate del CLI de ingesta de libros
+  ALLOW_CONTENT_CORE_UNIT_INGEST   gate del CLI de ingesta de unidades
 ```
+
+Los cuatro `ALLOW_*` son gates de **CLI de operaciones**: existen para que una ingesta
+destructiva no se ejecute por accidente. Ningún módulo, controlador ni bootstrap del
+servidor los lee — se comprobó uno por uno. Copiarlos a un servicio desplegado añadiría
+superficie sin añadir capacidad, y peor: dejaría abierto un gate pensado para estar
+cerrado.
 
 No son runtime del producto. Copiarlas a un servicio desplegado añade superficie sin
 añadir capacidad.

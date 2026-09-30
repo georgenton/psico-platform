@@ -157,7 +157,7 @@ builder no coge la configuración».
 |                |                                                                                 |
 | -------------- | ------------------------------------------------------------------------------- |
 | ENGINE         | PostgreSQL                                                                      |
-| VERSIÓN        | **18**, probada por el propio CI (ver abajo)                                    |
+| VERSIÓN        | **18** — declarada por el servicio de producción y probada por CI (ver abajo)   |
 | POSTGIS        | **no**                                                                          |
 | EXTENSIONES    | `vector` (pgvector), creada por la migración `20260508154842_add_ai_rag_tables` |
 | MIGRATION TOOL | Prisma Migrate · `prisma migrate deploy`                                        |

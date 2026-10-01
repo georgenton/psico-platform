@@ -283,6 +283,21 @@ separados y ninguno de los dos últimos corre en un despliegue:
 | **seed**      | `prisma/seed.ts`      | `prisma db seed`                     | catálogo: libros, autores, capítulos, prompts     | no              |
 | **fixture**   | `prisma/seed-test.ts` | `pnpm --filter @psico/api seed:test` | sólo `User` — tres cuentas `.test`                | no              |
 
+El **fixture acuña credenciales vivas**, una con rol `ADMIN` que abre el
+back-office de Pulso, y una caja desplegada responde a internet: staging también.
+Desde [ADR 0025](../adr/0025-qa-user-fixture-credential-posture.md) se niega a
+correr contra cualquier caja desplegada salvo autorización explícita para esa
+única invocación, y la contraseña **no tiene default** — la generas tú, la
+guardas en tu propio gestor de secretos y no la commiteas:
+
+```bash
+ALLOW_QA_USER_SEED_ON_DEPLOYED_BOX=1 QA_USER_PASSWORD='…' \
+  pnpm --filter @psico/api seed:test
+```
+
+Al cerrar la ventana de pruebas, `seed:test:wipe` (mismo interruptor, sin
+contraseña — borrar no puede ser más difícil que haber creado).
+
 **En Prisma 7 nada encadena el seed.** La documentación lo dice sin ambigüedad: «In
 Prisma ORM v7, seeding is only triggered explicitly by running `npx prisma db seed`.
 Automatic seeding during `prisma migrate dev` or `prisma migrate reset` has been

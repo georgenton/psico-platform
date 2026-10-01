@@ -60,6 +60,16 @@ model User {
   // firstName is nullable initially; backfilled from `name` by data migration before the field is made required
   firstName     String?
   city          String?
+  // Mixed by design, and every reader has to cope with all three shapes:
+  //   1. `/api/content-assets/avatars/<userId>/<16hex>.<ext>` — our own upload.
+  //      A stable path on this API that redirects to a short-lived signed GET,
+  //      because the bucket is private.
+  //   2. an absolute third-party URL — Google sign-in stores `claims.picture`
+  //      here, and `PATCH /user/profile` accepts any URL.
+  //   3. an absolute URL into our own R2 — written before the fix above, and
+  //      never loadable by a browser, since that base is the authenticated S3
+  //      endpoint. Those avatars have always been broken; a re-upload fixes one.
+  // Clients absolutise (1) with `assetUrl()` and leave (2) alone.
   avatarUrl     String?
   role          Role         @default(USER)
   plan          Plan         @default(FREE)
@@ -563,6 +573,15 @@ model Audio {
   id              String   @id @default(cuid())
   chapterId       String
   title           String
+  // Despite the name, this holds the R2 OBJECT KEY — e.g.
+  // "audio/<slug>/<order>/<16hex>.m4a" — not a URL. The bucket is private, so
+  // `LectorService.getAudio` mints a short-lived signed GET from it, behind the
+  // PRO gate. Rows written before that fix hold `${R2_PUBLIC_URL}/${key}`, which
+  // points at the authenticated S3 endpoint and was never loadable; the read
+  // path passes those through unchanged rather than guessing.
+  //
+  // The column keeps its name because renaming it would be a migration on a
+  // table whose only reader already branches on the two shapes.
   fileUrl         String
   durationSeconds Int
   transcription   String?
@@ -1460,6 +1479,17 @@ model DataExportRequest {
   userId      String
   // "PENDING" | "PROCESSING" | "READY" | "FAILED"
   status      String    @default("PENDING")
+  // Despite the name, this holds the R2 OBJECT KEY —
+  // "data-exports/<userId>/<requestId>.json" — not a URL, and deliberately so.
+  // The file is the user's entire profile, reading history and subscription; a
+  // URL in this column would be a link that keeps working for anyone who ever
+  // reads the row. A key is worthless without our credentials, and is signed for
+  // two minutes only when the owner asks through
+  // `UsersService.getDataExportDownload`.
+  //
+  // Rows written before that change hold `${R2_PUBLIC_URL}/${key}`, which no
+  // browser could load. The download endpoint refuses them rather than
+  // pretending: the remedy is a fresh export.
   fileUrl     String?
   expectedAt  DateTime
   completedAt DateTime?

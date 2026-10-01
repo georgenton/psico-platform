@@ -18,7 +18,7 @@ describe("UsersController · auth posture", () => {
     expect(guards).toContain(JwtAuthGuard);
   });
 
-  it("exposes the expected 14 handlers", () => {
+  it("exposes the expected 16 handlers", () => {
     const proto = UsersController.prototype as unknown as Record<
       string,
       unknown
@@ -43,6 +43,7 @@ describe("UsersController · auth posture", () => {
         "changePasswordWithRekey",
         "acknowledgeCryptoSeed",
         "requestDataExport",
+        "getDataExportDownload",
         "requestDelete",
       ].sort(),
     );

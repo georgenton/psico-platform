@@ -333,6 +333,18 @@ describe("LectorService.getAudio (Pro gate)", () => {
     );
   });
 
+  it("refuses a FREE user BEFORE anything is signed", async () => {
+    // The gate and the signature are one line apart, and the order is the whole
+    // protection: a signed URL minted and then thrown away is still a signed URL
+    // that existed, and anything that logged or returned it would have handed out
+    // the master. Asserting the refusal alone would not catch a reordering.
+    const svc = new LectorService(makePrisma(), config, storage);
+    await expect(svc.getAudio("FREE" as Plan, "any", 1)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    expect(storage.getSignedUrl).not.toHaveBeenCalled();
+  });
+
   it("returns AUDIO_NOT_AVAILABLE when no audio for the chapter", async () => {
     const prisma = makePrisma({
       chapter: {

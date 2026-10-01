@@ -9,11 +9,21 @@ import { PrismaService } from "../prisma";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { StorageService } from "../storage/storage.service";
 import { assertUploadableImage, imageExtension } from "../shared/image-upload";
+import { contentAssetPath } from "../shared/content-asset";
+import {
+  AUTHOR_AUDIO_SIGNED_TTL_SEC,
+  authorAudioPrefix,
+} from "./author-audio-asset";
 import { randomBytes } from "node:crypto";
 
 // The image rules live in one place now — `/autor` and Content Studio accept
 // exactly the same thing, so neither can drift into accepting more.
-
+//
+// The AUDIO rules stay local on purpose. `shared/audio-upload.ts` exists, but it
+// is the CATALOG's rule and is deliberately narrower — it drops wav, webm and
+// ogg for reasons about Safari and file size. Adopting it here would quietly
+// stop accepting three formats `/autor` has always taken, which is a product
+// decision and not part of moving bytes to a private bucket.
 const AUDIO_MIME_ALLOWED = new Set([
   "audio/mpeg",
   "audio/mp3",
@@ -79,7 +89,14 @@ export class AuthorUploadsService {
     const random = randomBytes(8).toString("hex");
     const key = `autor-books/${book.id}/cover-${random}.${ext}`;
 
-    const url = await this.storage.uploadFile(file.buffer, key, file.mimetype);
+    // `putObject`, not `uploadFile`: the bucket is private, so the URL
+    // `uploadFile` returns points at the authenticated S3 endpoint and no
+    // browser can load it. What we persist is a stable path on our own API,
+    // which redirects to a short-lived signed GET. This key shape is already in
+    // `content-asset.ts`'s allowlist — it had to be, because approving a book
+    // copies this value onto `Book.coverArtUrl`.
+    await this.storage.putObject(file.buffer, key, file.mimetype);
+    const url = contentAssetPath(key);
 
     await this.prisma.authorBook.update({
       where: { id: book.id },
@@ -126,24 +143,30 @@ export class AuthorUploadsService {
     });
     if (!chapter) throw new NotFoundException("CHAPTER_NOT_FOUND");
 
+    // Same prefix and shape as before — `authorAudioPrefix` is the single
+    // definition the read-side resolver checks against, so the two cannot drift.
     const ext = fileExtension(file.mimetype, "mp3");
     const random = randomBytes(8).toString("hex");
-    const key = `autor-books/${book.id}/audio/${chapter.id}-${random}.${ext}`;
+    const key = `${authorAudioPrefix(book.id)}${chapter.id}-${random}.${ext}`;
 
-    const url = await this.storage.uploadFile(file.buffer, key, file.mimetype);
+    // `putObject` and a KEY in the block, not a URL. Audio is protected media:
+    // it is never served through the unauthenticated `/api/content-assets`
+    // route, only signed on the way out of `AuthorService.getChapter`, which has
+    // already checked that this author owns this book.
+    await this.storage.putObject(file.buffer, key, file.mimetype);
 
     // Append an AUDIO block to the chapter's blocks JSON.
     const existing = Array.isArray(chapter.blocks) ? chapter.blocks : [];
-    const audioBlock = {
+    const persistedBlock = {
       kind: "audio",
       content: title?.trim() || "Audio del capítulo",
       meta: {
-        url,
+        key,
         mimeType: file.mimetype,
         sizeBytes: file.size,
       },
     };
-    const nextBlocks = [...(existing as unknown[]), audioBlock];
+    const nextBlocks = [...(existing as unknown[]), persistedBlock];
 
     const updated = await this.prisma.authorBookChapter.update({
       where: { id: chapter.id },
@@ -153,6 +176,14 @@ export class AuthorUploadsService {
       },
     });
 
+    // The response carries a playable URL so the editor can hear what it just
+    // uploaded without a round-trip, but that URL is minted here and stored
+    // nowhere. Only the key was persisted.
+    const url = await this.storage.getSignedUrl(
+      key,
+      AUTHOR_AUDIO_SIGNED_TTL_SEC,
+    );
+
     this.logger.log(
       `[author-uploads] audio uploaded book=${book.id} chapter=${chapter.id} key=${key} size=${file.size}`,
     );
@@ -161,7 +192,7 @@ export class AuthorUploadsService {
       ok: true as const,
       url,
       version: updated.version,
-      block: audioBlock,
+      block: { ...persistedBlock, meta: { ...persistedBlock.meta, url } },
     };
   }
 

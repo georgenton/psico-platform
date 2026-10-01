@@ -31,7 +31,11 @@ describe("DataExportProcessor", () => {
     guideSession: { findMany: vi.fn().mockResolvedValue([]) },
   };
   const mockStorage = {
+    // `uploadFile` stays mocked so a test can prove the processor never calls it:
+    // it returns `${R2_PUBLIC_URL}/${key}`, and that base is the authenticated S3
+    // endpoint, so the link it produced was never downloadable.
     uploadFile: vi.fn().mockResolvedValue("https://r2.example/exports/x.json"),
+    putObject: vi.fn().mockResolvedValue(undefined),
   };
   const mockResend = { send: vi.fn().mockResolvedValue(undefined) };
   const mockConfig = {
@@ -45,9 +49,7 @@ describe("DataExportProcessor", () => {
     vi.spyOn(Logger.prototype, "error").mockImplementation(() => undefined);
 
     mockPrisma.dataExportRequest.update.mockResolvedValue({});
-    mockStorage.uploadFile.mockResolvedValue(
-      "https://r2.example/exports/x.json",
-    );
+    mockStorage.putObject.mockResolvedValue(undefined);
     mockResend.send.mockResolvedValue(undefined);
 
     processor = new DataExportProcessor(
@@ -104,26 +106,42 @@ describe("DataExportProcessor", () => {
     });
 
     // Upload happened with a JSON-shaped buffer
-    expect(mockStorage.uploadFile).toHaveBeenCalledTimes(1);
-    const [buffer, key, mime] = mockStorage.uploadFile.mock.calls[0];
+    expect(mockStorage.putObject).toHaveBeenCalledTimes(1);
+    expect(mockStorage.uploadFile).not.toHaveBeenCalled();
+    const [buffer, key, mime] = mockStorage.putObject.mock.calls[0];
     expect(mime).toBe("application/json");
     expect(key).toMatch(/^data-exports\/user-1\/req-1\.json$/);
     const parsed = JSON.parse(buffer.toString("utf-8"));
     expect(parsed._meta.exportSchemaVersion).toBe(1);
     expect(parsed.user.id).toBe("user-1");
 
-    // READY write with the uploaded URL
+    // READY write with the OBJECT KEY, not a URL. A URL in this column is a
+    // link that keeps working for anybody who ever reads the row, and the file
+    // is the user's whole profile and reading history.
     expect(mockPrisma.dataExportRequest.update).toHaveBeenLastCalledWith({
       where: { id: "req-1" },
       data: expect.objectContaining({
         status: "READY",
-        fileUrl: "https://r2.example/exports/x.json",
+        fileUrl: "data-exports/user-1/req-1.json",
       }),
     });
+    const readyWrite = mockPrisma.dataExportRequest.update.mock.calls.at(-1)![0]
+      .data as { fileUrl: string };
+    expect(readyWrite.fileUrl).not.toMatch(/^https?:\/\//);
+    expect(readyWrite.fileUrl).not.toContain("X-Amz-Signature");
 
-    // Notification email
+    // Notification email — and it must NOT carry the file. A link to the export
+    // in an inbox outlives every expiry we could set on it.
     expect(mockResend.send).toHaveBeenCalledTimes(1);
-    expect(mockResend.send.mock.calls[0][0].tag).toBe("data-export-ready");
+    const mail = mockResend.send.mock.calls[0][0] as {
+      tag: string;
+      html: string;
+      text: string;
+    };
+    expect(mail.tag).toBe("data-export-ready");
+    expect(mail.html).not.toContain("data-exports/");
+    expect(mail.text).not.toContain("data-exports/");
+    expect(mail.html).toContain("/dashboard/perfil");
   });
 
   it("skips quietly if the user requested deletion before the worker ran", async () => {
@@ -143,7 +161,7 @@ describe("DataExportProcessor", () => {
       }),
     );
 
-    expect(mockStorage.uploadFile).not.toHaveBeenCalled();
+    expect(mockStorage.putObject).not.toHaveBeenCalled();
     expect(mockResend.send).not.toHaveBeenCalled();
   });
 
@@ -174,7 +192,7 @@ describe("DataExportProcessor", () => {
       notificationSettings: null,
       privacySettings: null,
     });
-    mockStorage.uploadFile.mockRejectedValueOnce(new Error("R2 timeout"));
+    mockStorage.putObject.mockRejectedValueOnce(new Error("R2 timeout"));
 
     await expect(
       processor.process(
@@ -221,7 +239,7 @@ describe("DataExportProcessor", () => {
       notificationSettings: null,
       privacySettings: null,
     });
-    mockStorage.uploadFile.mockRejectedValueOnce(new Error("R2 timeout"));
+    mockStorage.putObject.mockRejectedValueOnce(new Error("R2 timeout"));
 
     await expect(
       processor.process(

@@ -1464,6 +1464,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/user/data-export/{id}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The owner's temporary download for a finished export.
+         *
+         *     Returns the signed URL rather than redirecting to it: the caller is a
+         *     `fetch` with a bearer token, and following a 302 to R2 would carry that
+         *     header to a host that has no business seeing it. The client opens the URL it
+         *     is handed.
+         */
+        get: operations["UsersController_getDataExportDownload"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/user/delete-request": {
         parameters: {
             query?: never;
@@ -9987,6 +10011,41 @@ export interface operations {
                 content: {
                     "application/json": Record<string, never>;
                 };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    UsersController_getDataExportDownload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             400: {
                 headers: {

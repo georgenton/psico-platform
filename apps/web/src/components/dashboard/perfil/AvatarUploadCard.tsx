@@ -2,9 +2,18 @@
 
 import { useRef, useState } from "react";
 import type { UserMeResponse } from "@psico/types";
+import { assetUrl } from "@/lib/asset-url";
 
 const MAX_BYTES = 5 * 1024 * 1024;
-const ALLOWED = /^image\/(png|jpeg|webp|gif)$/i;
+/**
+ * No GIF. The API accepts PNG, JPEG and WebP — the same set as Content Studio
+ * and `/autor` — so offering GIF here would send a file the server refuses.
+ *
+ * Nothing that worked is lost: avatars used to be stored as a URL into the
+ * private bucket that no browser could load, so a GIF avatar never displayed
+ * either. It just failed later and more quietly.
+ */
+const ALLOWED = /^image\/(png|jpeg|webp)$/i;
 
 export function AvatarUploadCard({ me }: { me: UserMeResponse }) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -16,7 +25,7 @@ export function AvatarUploadCard({ me }: { me: UserMeResponse }) {
 
   async function handleFile(file: File) {
     if (!ALLOWED.test(file.type)) {
-      setError("Formato no soportado. Usa PNG, JPG, WebP o GIF.");
+      setError("Formato no soportado. Usa PNG, JPG o WebP.");
       return;
     }
     if (file.size > MAX_BYTES) {
@@ -70,13 +79,18 @@ export function AvatarUploadCard({ me }: { me: UserMeResponse }) {
         className="mt-0.5 text-[12px]"
         style={{ color: "var(--color-warm-500)" }}
       >
-        PNG, JPG, WebP o GIF. Hasta 5 MB. Se reduce a un cuadrado.
+        PNG, JPG o WebP. Hasta 5 MB. Se reduce a un cuadrado.
       </p>
 
       <div className="mt-4 flex items-center gap-4">
         {avatarUrl ? (
           <img
-            src={avatarUrl}
+            // The API returns a path on itself (`/api/content-assets/...`) that
+            // redirects to a short-lived signed GET, because the bucket is
+            // private. Rendering it raw would resolve against THIS origin and
+            // 404; `assetUrl` puts it back on the API. Absolute values — a
+            // Google sign-in picture, say — pass through untouched.
+            src={assetUrl(avatarUrl)}
             alt="Tu avatar"
             className="h-16 w-16 rounded-full object-cover"
             data-testid="avatar-preview"

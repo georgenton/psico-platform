@@ -5300,6 +5300,55 @@
         ]
       }
     },
+    "/api/user/data-export/{id}/download": {
+      "get": {
+        "operationId": "UsersController_getDataExportDownload",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The owner's temporary download for a finished export.\n\nReturns the signed URL rather than redirecting to it: the caller is a\n`fetch` with a bearer token, and following a 302 to R2 would carry that\nheader to a host that has no business seeing it. The client opens the URL it\nis handed.",
+        "tags": [
+          "Users"
+        ]
+      }
+    },
     "/api/user/delete-request": {
       "post": {
         "operationId": "UsersController_requestDelete",

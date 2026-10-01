@@ -272,6 +272,34 @@ nuevo**; el anterior sigue sirviendo. Entonces:
   **expand → deploy → contract**, en despliegues separados, y el paso _contract_ nunca
   en el mismo despliegue que introduce el código que deja de usar la columna.
 
+#### Migrar no siembra: tres cosas distintas
+
+Tras migrar, el catálogo queda **vacío**, y eso es correcto. Son tres mecanismos
+separados y ninguno de los dos últimos corre en un despliegue:
+
+| concepto      | fichero               | lo invoca                            | toca                                              | ¿en despliegue? |
+| ------------- | --------------------- | ------------------------------------ | ------------------------------------------------- | --------------- |
+| **migración** | `prisma/migrations/*` | `prisma migrate deploy`              | esquema (DDL), registrado en `_prisma_migrations` | **sí**          |
+| **seed**      | `prisma/seed.ts`      | `prisma db seed`                     | catálogo: libros, autores, capítulos, prompts     | no              |
+| **fixture**   | `prisma/seed-test.ts` | `pnpm --filter @psico/api seed:test` | sólo `User` — tres cuentas `.test`                | no              |
+
+**En Prisma 7 nada encadena el seed.** La documentación lo dice sin ambigüedad: «In
+Prisma ORM v7, seeding is only triggered explicitly by running `npx prisma db seed`.
+Automatic seeding during `prisma migrate dev` or `prisma migrate reset` has been
+removed.» Y `migrate deploy` nunca sembró, ni antes ni ahora.
+
+> **Corrección.** La bitácora del 2026-07-13 afirma que `prisma migrate deploy` (Prisma 7)
+> encadena el seed vía `migrations.seed`. Eso es falso: es precisamente lo que v7 eliminó.
+> Verificado en staging el 2026-10-01 — `ts-node` y `prisma/seed.ts` **están** en la imagen,
+> así que el seed podría haber corrido, y tras un `migrate deploy` limpio el catálogo tenía
+> cero filas. El P2002 que esa sesión observó era real, pero su mecanismo no era éste; sin
+> el log de aquel despliegue no se puede cerrar el porqué. El arreglo que hizo —volver
+> `seed.ts` idempotente y no destructivo— sigue siendo correcto por sus propios motivos.
+
+Consecuencia operativa: un entorno recién migrado necesita `prisma db seed` **explícito**
+para tener catálogo, y `seed:test` para tener cuentas. Ninguno de los dos debe colgarse del
+pipeline de despliegue sin decidirlo a propósito.
+
 ### 1.4 `feelverse-staging-web`
 
 Application, mismo repositorio y rama. Puerto interno **3000**. Dominio
@@ -444,6 +472,75 @@ Cómo se comprueba que sigue cerrado, sin cuentas ni escrituras:
 # Cero filas = nada que proteger todavía.
 psql -d feelverse_staging -tAc 'SELECT count(*) FROM "User"'
 ```
+
+### 2.9 Backup y restore drill
+
+Política vigente en staging, registrada el 2026-10-01 sobre
+`feelverse-staging-postgres`:
+
+| campo                              | valor               | por qué                                                                                                                                         |
+| ---------------------------------- | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `frequency`                        | `0 0 * * *` (UTC)   | 00:00 UTC = 19:00 del día anterior en America/Guayaquil. Es la única hora libre: los crons de la app ocupan 02:00, 02:30, 03:00 lun y 23:00 dom |
+| `dump_all` / `databases_to_backup` | `false` / una base  | `pg_dump` custom se restaura selectivamente con `pg_restore`; `pg_dumpall` gzip es todo-o-nada                                                  |
+| retención local                    | 3 · 3 días · 1 GB   | local es área de paso para reintentar la subida, no archivo                                                                                     |
+| retención S3                       | 14 · 14 días · 1 GB | 14 diarios de ~330 KB son unos pocos MB. El tope en GB es guardia anti-desbordamiento, no estimación                                            |
+| `timeout`                          | 3600                | el dump tarda ~1 s; un techo ajustado convierte una noche lenta en un backup fallido                                                            |
+| `missing_backup_notification_days` | 2                   | lo único que detecta un cron que dejó de correr, que es el modo de fallo recurrente de este proyecto                                            |
+
+La cadencia diaria no es por valor del dato — staging todavía no guarda nada
+irremplazable. Es para que la ruta de recuperación siga **ejercitada y observable**.
+
+#### La API de 4.3.23 no es la de la documentación
+
+La documentación pública describe una versión posterior. En 4.3.23, medido:
+
+| documentación                              | 4.3.23                                  |
+| ------------------------------------------ | --------------------------------------- |
+| `POST /databases/{uuid}/backups/create`    | **404** — usar `POST .../backups`       |
+| `GET /databases/{uuid}/backups/executions` | **404** — existe sólo `GET .../backups` |
+| `PATCH /databases/{uuid}/backups`          | **404**                                 |
+| `POST /databases/import` y `/import/*`     | **404** — no hay API de importación     |
+
+El cuerpo de `POST .../backups` sí es el documentado, incluido `backup_now: true`,
+que configura y ejecuta en una sola llamada. Las ejecuciones se leen por MCP
+(`list_backup_executions`, que exige `database_uuid` **y** `scheduled_backup_uuid`).
+
+Sin API de importación, el restore es `pg_restore` controlado.
+
+#### El drill, con sus dos trampas
+
+```bash
+# 1. Base desechable con el MISMO digest que staging, privada y sin puerto:
+#    POST /databases/postgresql  { image: "pgvector/pgvector:pg18@sha256:...", is_public: false }
+#    Omitir postgres_password: Coolify la genera y nadie tiene que manejarla.
+
+# 2. TRAMPA: dentro del contenedor, PGDATABASE apunta al usuario de la imagen, que
+#    no es una base existente. Todo psql necesita -d explícito o falla con
+#    «database "<usuario>" does not exist».
+docker exec -u postgres <drill> psql -d postgres -tAc 'select 1'
+
+# 3. TRAMPA: el dump trae ALTER ... OWNER TO feelverse_migrator. Si el rol no existe,
+#    pg_restore --exit-on-error muere en el primer objeto. Crearlo NOLOGIN preserva la
+#    propiedad real, que es más fiel que aplanarla con --no-owner.
+docker exec -u postgres <drill> psql -d postgres -tAc \
+  "create role feelverse_migrator nologin"
+
+docker exec -u postgres <drill> \
+  pg_restore --dbname=feelverse_staging --no-privileges --exit-on-error /tmp/restore.dmp
+```
+
+**La validación compara, no cuenta.** Contar 101 tablas en los dos lados no demuestra
+que sean las mismas tablas. Lo que sí: una huella del esquema completo.
+
+```sql
+SELECT md5(string_agg(t||'.'||c||':'||d,'|' ORDER BY t,c)) FROM (
+  SELECT table_name t, column_name c, data_type d
+  FROM information_schema.columns WHERE table_schema='public') x;
+```
+
+En el drill del 2026-10-01 las dos bases dieron `690ee762056309e8fe17ce143a9af85e`,
+y la huella de nombres de migración coincidió igual. Correr lo mismo contra el origen
+antes y después del drill es además la prueba de que no se tocó.
 
 ---
 

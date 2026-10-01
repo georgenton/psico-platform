@@ -6,6 +6,15 @@ import {
 } from "@nestjs/common";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { PrismaService } from "../prisma";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { StorageService } from "../storage";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { ConfigService } from "@nestjs/config";
+import type { Env } from "../config";
+import {
+  AUTHOR_AUDIO_SIGNED_TTL_SEC,
+  withResolvedAudioUrls,
+} from "./author-audio-asset";
 import type { CreateAuthorBookDto } from "./dto/create-book.dto";
 import type { UpdateAuthorBookDto } from "./dto/update-book.dto";
 import type { UpdateChapterDto } from "./dto/update-chapter.dto";
@@ -31,7 +40,11 @@ import type { UpdateStructureDto } from "./dto/update-structure.dto";
  */
 @Injectable()
 export class AuthorService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly storage: StorageService,
+    private readonly config: ConfigService<Env, true>,
+  ) {}
 
   // ── Dashboard ────────────────────────────────────────────────────────────
 
@@ -182,7 +195,15 @@ export class AuthorService {
       n: chapter.n,
       title: chapter.title,
       subtitle: chapter.subtitle,
-      blocks: chapter.blocks,
+      // Audio blocks persist an object key; the playable URL is signed here, on
+      // the way out, now that ownership of the book is established. Ordinary
+      // blocks pass through untouched.
+      blocks: await withResolvedAudioUrls(
+        Array.isArray(chapter.blocks) ? (chapter.blocks as unknown[]) : [],
+        bookId,
+        this.config.get("R2_PUBLIC_URL", { infer: true }) as string | undefined,
+        (key) => this.storage.getSignedUrl(key, AUTHOR_AUDIO_SIGNED_TTL_SEC),
+      ),
       isLocked: chapter.isLocked,
       isHidden: chapter.isHidden,
       version: chapter.version,
@@ -229,7 +250,11 @@ export class AuthorService {
 
   // ── Structure (reordenar / añadir / eliminar) ────────────────────────────
 
-  async updateStructure(userId: string, bookId: string, dto: UpdateStructureDto) {
+  async updateStructure(
+    userId: string,
+    bookId: string,
+    dto: UpdateStructureDto,
+  ) {
     await this.findOwnedBookOr404(userId, bookId);
 
     // Verify all n's are unique and contiguous from 1.

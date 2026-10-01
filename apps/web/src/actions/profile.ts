@@ -60,6 +60,25 @@ export async function requestDataExportAction(): Promise<{
   );
 }
 
+/**
+ * Ask the API for a temporary download of the caller's finished export.
+ *
+ * The URL is minted per request and lives for two minutes, so it is fetched when
+ * the button is pressed rather than rendered into the page — a signed URL sitting
+ * in HTML is one that was already expired by the time anybody clicked it.
+ *
+ * `latest` instead of a row id: the 30-day cooldown means a user only ever has
+ * one export in hand, and nothing in `/user/me` carries the id.
+ */
+export async function getDataExportDownloadAction(): Promise<{
+  url: string;
+  expiresInSec: number;
+}> {
+  return await serverFetch<{ url: string; expiresInSec: number }>(
+    "/user/data-export/latest/download",
+  );
+}
+
 export async function requestAccountDeleteAction(
   password: string,
   reason?: string,

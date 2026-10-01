@@ -9,6 +9,11 @@ import { PrismaService } from "../prisma";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { StorageService } from "../storage";
 import { lockEditionForBookSlugTx } from "../content-core/revision-lifecycle";
+// Only the MIME→extension map, not `audioObjectKey`: that mints keys under the
+// `media/` prefix owned by the newer ChapterMedia system, and an object written
+// by this legacy uploader must stay distinguishable from one of those.
+import { audioExtension } from "../shared/audio-upload";
+import { randomBytes } from "node:crypto";
 import type { CreateChapterDto } from "./dto/create-chapter.dto";
 import type { UploadAudioDto } from "./dto/upload-audio.dto";
 
@@ -122,19 +127,28 @@ export class ChaptersService {
       );
     }
 
-    const ext = file.originalname.split(".").pop() ?? "mp3";
-    const key = `audio/${slug}/${order}/${Date.now()}.${ext}`;
-    const fileUrl = await this.storage.uploadFile(
-      file.buffer,
-      key,
-      file.mimetype,
-    );
+    // `Audio.fileUrl` holds the OBJECT KEY, not a URL — `LectorService.getAudio`
+    // mints a short-lived signed GET from it behind the PRO gate, and the audio
+    // fixtures have always stored bare keys.
+    //
+    // This used to call `storage.uploadFile`, which returns
+    // `${R2_PUBLIC_URL}/${key}`. That took the master OUT of the signing path:
+    // the read side sees an `http` value, passes it through unsigned, and the
+    // player gets a URL that R2 refuses because it carries no credentials. A
+    // key is also the only one of the two that cannot go stale.
+    // The leaf is server-chosen. It used to be `Date.now()` plus the extension
+    // from `file.originalname` — attacker-controlled text deciding where bytes
+    // land, and a timestamp anybody could guess. The extension now comes from
+    // the MIME we were given; the object's Content-Type is set from that same
+    // value, which is what players actually read.
+    const key = `audio/${slug}/${order}/${randomBytes(8).toString("hex")}.${audioExtension(file.mimetype)}`;
+    await this.storage.putObject(file.buffer, key, file.mimetype);
 
     return this.prisma.audio.create({
       data: {
         chapterId: chapter.id,
         title: dto.title,
-        fileUrl,
+        fileUrl: key,
         durationSeconds: dto.durationSeconds,
       },
     });

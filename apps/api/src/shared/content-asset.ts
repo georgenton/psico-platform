@@ -57,24 +57,39 @@ export const CONTENT_ASSET_SIGNED_TTL_SEC = 5 * 60;
  * name the server chose; an uploader's filename never reaches a key, so nothing
  * here has to tolerate arbitrary text.
  *
- * Three shapes, because three uploaders write public artwork:
+ * Four shapes, because four uploaders write artwork a plain `<img>` must load:
  *
  *   catalog-books/  Content Studio cover        (`uploadCover`)
  *   content/        Content Studio illustration (`uploadChapterImage`)
  *   autor-books/    an author's own cover       (`AuthorUploadsService`)
+ *   avatars/        a user's own avatar         (`UsersService.uploadAvatar`)
  *
  * The third is not optional. Approving an author's book COPIES
  * `AuthorBook.coverArtUrl` onto `Book.coverArtUrl`, so a catalog cover can be a
  * key under that prefix — and leaving it out would make every approved author
  * book lose its cover the moment reads started resolving through here.
  *
- * The book id segment is bounded and contains no separator or dot, so it cannot
- * climb out of its directory whatever the id generator produces.
+ * The fourth is a judgement worth stating, because this route is
+ * UNAUTHENTICATED and an avatar is a photograph of a person. It is here because
+ * the product already treats avatars as visible to other people and the code
+ * says so in four independent places: `StorageService.uploadFile` names avatars
+ * among assets "meant to be public"; `BooksService` emits a review author's
+ * `avatarUrl` to every reader of that book; Google sign-in stores the public
+ * `claims.picture` URL in the same column; and the web renders it in an `<img>`,
+ * which cannot carry a bearer token. Serving our own avatars here is the
+ * exposure that was always intended — not a new one. What changes is that it
+ * now actually loads.
+ *
+ * The id segments are bounded and contain no separator or dot, so a key cannot
+ * climb out of its directory whatever the id generator produces. Every filename
+ * is 16 server-chosen hex characters: an uploader's filename never reaches a
+ * key, so none of these patterns has to tolerate arbitrary text.
  */
 const ALLOWED_ASSET_KEY = [
   /^catalog-books\/[a-z0-9][a-z0-9-]*\/cover\/[0-9a-f]{16}\.(png|jpg|webp)$/,
   /^content\/[a-z0-9][a-z0-9-]*\/chapter-\d+\/images\/[0-9a-f]{16}\.(png|jpg|webp)$/,
   /^autor-books\/[A-Za-z0-9_-]{8,64}\/cover-[0-9a-f]{16}\.(png|jpg|webp)$/,
+  /^avatars\/[A-Za-z0-9_-]{8,64}\/[0-9a-f]{16}\.(png|jpg|webp)$/,
 ];
 
 /** Is this a key the asset route may sign? */

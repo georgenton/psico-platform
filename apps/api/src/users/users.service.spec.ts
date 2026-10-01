@@ -9,6 +9,7 @@ import {
 import * as bcrypt from "bcryptjs";
 import { UsersService } from "./users.service";
 import { generationKey } from "../emotional-map/cache-identity";
+import { isAllowedAssetKey } from "../shared/content-asset";
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -76,6 +77,7 @@ const mockPrisma = {
   },
   dataExportRequest: {
     findFirst: vi.fn(),
+    findUnique: vi.fn(),
     create: vi.fn(),
   },
   userProgress: {
@@ -102,7 +104,12 @@ const mockPrisma = {
 };
 
 const mockStorage = {
+  // `uploadFile` is still mocked so a test can prove it is NEVER reached. It
+  // returns `${R2_PUBLIC_URL}/${key}` against a private bucket, which is the
+  // whole bug this migration removes.
   uploadFile: vi.fn(),
+  putObject: vi.fn().mockResolvedValue(undefined),
+  getSignedUrl: vi.fn().mockResolvedValue("https://signed.example/x?sig=1"),
 };
 
 const mockJobs = {
@@ -251,19 +258,54 @@ describe("UsersService", () => {
       size: 1024,
     } as Express.Multer.File;
 
-    it("uploads to storage and updates user.avatarUrl", async () => {
-      mockStorage.uploadFile.mockResolvedValue(
-        "https://r2.example/avatars/user-1/123.png",
-      );
+    it("stores the bytes under a server-chosen key and persists OUR path", async () => {
       mockPrisma.user.update.mockResolvedValue(baseUser);
 
       const res = await service.uploadAvatar(userId, okFile);
 
-      expect(res.avatarUrl).toMatch(/^https:\/\//);
+      // The key is minted here, not taken from the upload. `me.png` must not
+      // appear in it: a filename is attacker-controlled text and would
+      // otherwise decide where bytes land.
+      const key = mockStorage.putObject.mock.calls[0]![1] as string;
+      expect(key).toMatch(new RegExp(`^avatars/${userId}/[0-9a-f]{16}\\.png$`));
+      expect(key).not.toContain("me.png");
+
+      // What is persisted is a stable path on our own API — never an R2 URL,
+      // and never a signed URL, which would be a dead link within minutes.
+      expect(res.avatarUrl).toBe(`/api/content-assets/${key}`);
+      expect(res.avatarUrl).not.toMatch(/^https?:\/\//);
+      expect(res.avatarUrl).not.toContain("X-Amz-Signature");
       expect(mockPrisma.user.update).toHaveBeenCalledWith({
         where: { id: userId },
         data: { avatarUrl: res.avatarUrl },
       });
+    });
+
+    it("never calls uploadFile — the private bucket has no public base", async () => {
+      mockPrisma.user.update.mockResolvedValue(baseUser);
+
+      await service.uploadAvatar(userId, okFile);
+
+      // The regression this guards: `uploadFile` throws
+      // R2_PUBLIC_URL_NOT_CONFIGURED where the variable is unset, and persists an
+      // unreadable URL where it is set. Either way it must not be on this path.
+      expect(mockStorage.uploadFile).not.toHaveBeenCalled();
+    });
+
+    it("persists a key the public asset route is willing to sign", async () => {
+      mockPrisma.user.update.mockResolvedValue(baseUser);
+
+      // A real id, not this file's `user-1`: the allowlist requires at least 8
+      // characters in the id segment, and every id Prisma mints is a 25-character
+      // cuid. Loosening the pattern so a short fixture passes would widen a
+      // security boundary to suit a test.
+      const realisticId = "cmql4vasx0000abcdefghijkl";
+      const res = await service.uploadAvatar(realisticId, okFile);
+      const key = res.avatarUrl!.replace("/api/content-assets/", "");
+
+      // Minting a key the route refuses would store a path that 404s forever,
+      // so the uploader and the allowlist are checked against each other here.
+      expect(isAllowedAssetKey(key)).toBe(true);
     });
 
     it("rejects non-image mime types", async () => {
@@ -282,6 +324,112 @@ describe("UsersService", () => {
           size: 6 * 1024 * 1024,
         } as Express.Multer.File),
       ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  // ── getDataExportDownload ─────────────────────────────────────────────────
+  //
+  // The export is the user's whole profile, reading history and subscription.
+  // Everything here is about who gets a signature and who does not.
+
+  describe("getDataExportDownload", () => {
+    const readyRow = {
+      userId,
+      status: "READY",
+      fileUrl: `data-exports/${userId}/req-1.json`,
+    };
+
+    it("signs the owner's own export, and returns the URL without storing it", async () => {
+      mockPrisma.dataExportRequest.findUnique.mockResolvedValue(readyRow);
+
+      const res = await service.getDataExportDownload(userId, "req-1");
+
+      expect(mockStorage.getSignedUrl).toHaveBeenCalledWith(
+        `data-exports/${userId}/req-1.json`,
+        120,
+      );
+      expect(res.url).toBe("https://signed.example/x?sig=1");
+      expect(res.expiresInSec).toBe(120);
+      // Nothing is written back: a signed URL in a row is a link that outlives
+      // the request that asked for it.
+      expect(mockPrisma.user.update).not.toHaveBeenCalled();
+    });
+
+    it("refuses another user's export, and refuses it as NOT_FOUND", async () => {
+      mockPrisma.dataExportRequest.findUnique.mockResolvedValue({
+        ...readyRow,
+        userId: "someone-else",
+      });
+
+      // 404 rather than 403 on purpose: a 403 would confirm that this id is
+      // somebody's export, which is exactly what an enumerating caller wants.
+      await expect(
+        service.getDataExportDownload(userId, "req-1"),
+      ).rejects.toThrow(NotFoundException);
+      expect(mockStorage.getSignedUrl).not.toHaveBeenCalled();
+    });
+
+    it("refuses an id that does not exist", async () => {
+      mockPrisma.dataExportRequest.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.getDataExportDownload(userId, "nope"),
+      ).rejects.toThrow(NotFoundException);
+      expect(mockStorage.getSignedUrl).not.toHaveBeenCalled();
+    });
+
+    it("refuses an export that is not READY", async () => {
+      mockPrisma.dataExportRequest.findUnique.mockResolvedValue({
+        ...readyRow,
+        status: "PROCESSING",
+      });
+
+      await expect(
+        service.getDataExportDownload(userId, "req-1"),
+      ).rejects.toThrow(HttpException);
+      expect(mockStorage.getSignedUrl).not.toHaveBeenCalled();
+    });
+
+    it("refuses a stored value outside the caller's own prefix", async () => {
+      // Defence in depth against a tampered row: the column is written by the
+      // worker, but signing whatever it contains would turn this endpoint into a
+      // way to read any object in the bucket.
+      mockPrisma.dataExportRequest.findUnique.mockResolvedValue({
+        ...readyRow,
+        fileUrl: "data-exports/someone-else/req-1.json",
+      });
+
+      await expect(
+        service.getDataExportDownload(userId, "req-1"),
+      ).rejects.toThrow(HttpException);
+      expect(mockStorage.getSignedUrl).not.toHaveBeenCalled();
+    });
+
+    it("refuses a legacy row holding an absolute URL", async () => {
+      // Rows written before this migration hold `${R2_PUBLIC_URL}/${key}`, which
+      // no browser could ever load. There is nothing to recover: a fresh export
+      // stores a key.
+      mockPrisma.dataExportRequest.findUnique.mockResolvedValue({
+        ...readyRow,
+        fileUrl: `https://acct.r2.cloudflarestorage.com/bucket/data-exports/${userId}/req-1.json`,
+      });
+
+      await expect(
+        service.getDataExportDownload(userId, "req-1"),
+      ).rejects.toThrow(HttpException);
+      expect(mockStorage.getSignedUrl).not.toHaveBeenCalled();
+    });
+
+    it("refuses a traversal segment in the stored key", async () => {
+      mockPrisma.dataExportRequest.findUnique.mockResolvedValue({
+        ...readyRow,
+        fileUrl: `data-exports/${userId}/../../media/book/c1/audiobook/x.m4a`,
+      });
+
+      await expect(
+        service.getDataExportDownload(userId, "req-1"),
+      ).rejects.toThrow(HttpException);
+      expect(mockStorage.getSignedUrl).not.toHaveBeenCalled();
     });
   });
 

@@ -83,24 +83,38 @@ export class DataExportProcessor extends WorkerHost {
       const payload = await this.buildPayload(userId);
 
       // 3. Upload JSON to R2.
+      //
+      // `putObject`, and what we persist is the KEY. This used to call
+      // `uploadFile`, which returns `${R2_PUBLIC_URL}/${key}` — and that base is
+      // the authenticated S3 endpoint, so the link mailed to the user was never
+      // downloadable by a browser, and on a box without the variable the job
+      // threw `R2_PUBLIC_URL_NOT_CONFIGURED` and burned its retries.
+      //
+      // A key is also the only representation that is safe to store here. This
+      // file is the user's whole profile, reading history and subscription; a
+      // long-lived URL sitting in a database row is a link that works for
+      // anybody who ever sees it. The key is worthless on its own — it is signed
+      // only when the owner asks, through `UsersService.getDataExportDownload`.
       const buffer = Buffer.from(JSON.stringify(payload, null, 2), "utf-8");
       const key = `data-exports/${userId}/${requestId}.json`;
-      const fileUrl = await this.storage.uploadFile(
-        buffer,
-        key,
-        "application/json",
-      );
+      await this.storage.putObject(buffer, key, "application/json");
 
-      // 4. Mark READY + persist the URL.
+      // 4. Mark READY + persist the object key.
       await this.prisma.dataExportRequest.update({
         where: { id: requestId },
-        data: { status: "READY", fileUrl, completedAt: new Date() },
+        data: { status: "READY", fileUrl: key, completedAt: new Date() },
       });
 
       // 5. Notify the user — separate Resend send (could be queued through
       //    the email queue, but we're already in a worker so a direct call
       //    is fine).
+      // The mail no longer carries a link to the file itself. It used to, and
+      // that is a copy of the user's entire export living in an inbox forever —
+      // readable by anyone who later reads that mailbox. It now points at the
+      // profile page, where the download is one authenticated click and the
+      // signed URL lives for minutes.
       const appUrl = this.config.get("APP_URL", { infer: true });
+      const profileUrl = `${appUrl.replace(/\/$/, "")}/dashboard/perfil`;
       const html = emailShell({
         preheader: "Tu exportación de datos está lista.",
         bodyHtml: `
@@ -109,21 +123,21 @@ export class DataExportProcessor extends WorkerHost {
             Generamos un archivo JSON con tu perfil, progreso de lectura y suscripción.
           </p>
           <p style="margin:24px 0;">
-            <a href="${escape(fileUrl)}"
+            <a href="${escape(profileUrl)}"
                style="display:inline-block; padding:14px 28px; border-radius:14px; background:#7C5BC4; color:#FFFFFF; text-decoration:none; font-weight:600; font-size:15px;">
-              Descargar mi exportación
+              Descargar desde mi perfil
             </a>
           </p>
           <p style="margin:24px 0 0; color:#7E6F5F; font-size:13px;">
-            El enlace estará disponible por 7 días. También puedes pedir otro export
-            desde tu perfil en ${escape(appUrl)}.
+            Te pedimos iniciar sesión para descargarla: el archivo contiene tus datos
+            y no viaja en un enlace público. Desde ahí también puedes pedir otra.
           </p>`,
       });
       await this.resend.send({
         to: request.user.email,
         subject: "Tu exportación de datos · Psico Platform",
         html,
-        text: `Tu exportación está lista. Descárgala en: ${fileUrl}\nEl enlace vence en 7 días.`,
+        text: `Tu exportación está lista. Descárgala, con tu sesión iniciada, en: ${profileUrl}`,
         tag: "data-export-ready",
       });
 

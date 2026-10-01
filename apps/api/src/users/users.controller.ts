@@ -4,6 +4,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Param,
   Patch,
   Post,
   UploadedFile,
@@ -174,6 +175,22 @@ export class UsersController {
   @HttpCode(HttpStatus.ACCEPTED)
   requestDataExport(@CurrentUser() user: AuthenticatedUser) {
     return this.usersService.requestDataExport(user.userId);
+  }
+
+  /**
+   * The owner's temporary download for a finished export.
+   *
+   * Returns the signed URL rather than redirecting to it: the caller is a
+   * `fetch` with a bearer token, and following a 302 to R2 would carry that
+   * header to a host that has no business seeing it. The client opens the URL it
+   * is handed.
+   */
+  @Get("data-export/:id/download")
+  getDataExportDownload(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("id") id: string,
+  ) {
+    return this.usersService.getDataExportDownload(user.userId, id);
   }
 
   @Post("delete-request")

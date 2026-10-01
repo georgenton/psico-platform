@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { UserMeResponse } from "@psico/types";
 
 import {
+  getDataExportDownloadAction,
   logoutFromPerfilAction,
   requestAccountDeleteAction,
   requestDataExportAction,
@@ -114,19 +115,72 @@ function ExportRow({
           </p>
         ) : null}
       </div>
+      <div className="flex shrink-0 items-center gap-2">
+        {/* Only offered once an export has been asked for. The file itself is
+            never linked from the email: it contains everything we hold about
+            this person, so the download is minted here, for a signed-in caller,
+            and expires in two minutes. */}
+        {alreadyRequested ? <DownloadExportButton /> : null}
+        <button
+          type="button"
+          onClick={trigger}
+          disabled={pending || Boolean(done)}
+          className="rounded-xl border-[1.5px] bg-white px-3 py-1.5 text-[12px] font-medium disabled:opacity-50"
+          style={{
+            borderColor: "var(--color-warm-300)",
+            color: "var(--color-warm-700)",
+          }}
+          data-testid="export-btn"
+        >
+          {pending ? "Procesando..." : "Solicitar export"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function DownloadExportButton() {
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function download() {
+    setPending(true);
+    setError(null);
+    try {
+      const { url } = await getDataExportDownloadAction();
+      // Opened, never rendered: the URL is alive for two minutes and putting it
+      // in the DOM would leave a dead link behind and a live one in devtools.
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch {
+      setError("Aún no está listo");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <div className="text-right">
       <button
         type="button"
-        onClick={trigger}
-        disabled={pending || Boolean(done)}
+        onClick={download}
+        disabled={pending}
         className="rounded-xl border-[1.5px] bg-white px-3 py-1.5 text-[12px] font-medium disabled:opacity-50"
         style={{
-          borderColor: "var(--color-warm-300)",
-          color: "var(--color-warm-700)",
+          borderColor: "var(--color-sage-400)",
+          color: "var(--color-sage-700)",
         }}
-        data-testid="export-btn"
+        data-testid="export-download-btn"
       >
-        {pending ? "Procesando..." : "Solicitar export"}
+        {pending ? "Preparando..." : "Descargar"}
       </button>
+      {error ? (
+        <p
+          className="mt-1 text-[11px]"
+          style={{ color: "var(--color-warm-500)" }}
+        >
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }

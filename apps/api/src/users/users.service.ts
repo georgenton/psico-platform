@@ -33,6 +33,8 @@ import { REDIS_CLIENT } from "../redis";
 import { bumpGeneration } from "../emotional-map/cache-identity";
 import { lockUserExclusive } from "../emotional-map/privacy-barrier";
 import { emailShell, escape } from "../notifications/templates/base";
+import { contentAssetPath } from "../shared/content-asset";
+import { assertUploadableImage, imageObjectKey } from "../shared/image-upload";
 import type { UpdateProfileDto } from "./dto/update-profile.dto";
 import type { UpdateTimezoneDto } from "./dto/update-timezone.dto";
 import { isValidTimezone } from "../jobs/utils/timezone";
@@ -85,6 +87,16 @@ const DEFAULT_PRIVACY = {
 const EMAIL_VERIFICATION_TTL_HOURS = 24;
 const DATA_EXPORT_COOLDOWN_DAYS = 30;
 const DATA_EXPORT_EXPECTED_HOURS = 24;
+/**
+ * How long a download URL for an export lives.
+ *
+ * Shorter than the five minutes images get, and for the opposite reason: an
+ * illustration is re-requested constantly through its stable path, while this is
+ * one deliberate click on a file containing everything we know about a person.
+ * Two minutes is enough for a browser to start the download and short enough
+ * that a URL copied out of devtools is dead before it can be pasted anywhere.
+ */
+const DATA_EXPORT_SIGNED_TTL_SEC = 120;
 const DELETE_COOLDOWN_DAYS = 30;
 
 @Injectable()
@@ -275,25 +287,34 @@ export class UsersService {
 
   // ── POST /api/user/avatar ──────────────────────────────────────────────────
 
+  /**
+   * The bucket is PRIVATE, so this stores the bytes and persists a stable path
+   * on our own API rather than a URL into R2.
+   *
+   * It used to call `storage.uploadFile`, which returns `${R2_PUBLIC_URL}/${key}`
+   * — and `R2_PUBLIC_URL` is the AUTHENTICATED S3 endpoint. The write carried
+   * SigV4 credentials and succeeded; the browser's GET of that same URL carried
+   * none and was refused. Every avatar uploaded that way is a broken image, and
+   * on a box where the variable is unset the upload throws outright. What we
+   * persist now never expires and what the browser follows expires in minutes
+   * (see `content-asset.ts`).
+   *
+   * The key is built entirely server-side. The old one took its extension from
+   * `file.originalname`, which is attacker-controlled text deciding where bytes
+   * land; `imageObjectKey` derives it from the MIME we accepted instead.
+   */
   async uploadAvatar(
     userId: string,
     file: Express.Multer.File,
   ): Promise<AvatarUploadResponse> {
     if (!file) throw new BadRequestException("No file uploaded");
-    if (!file.mimetype.startsWith("image/")) {
-      throw new BadRequestException("Avatar must be an image");
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      throw new BadRequestException("Avatar must be under 5 MB");
-    }
+    // Shared with Content Studio and `/autor`, so none of the three can drift
+    // into accepting something the others refuse. Same 5 MB ceiling as before.
+    assertUploadableImage(file);
 
-    const ext = file.originalname.split(".").pop() ?? "jpg";
-    const key = `avatars/${userId}/${Date.now()}.${ext}`;
-    const avatarUrl = await this.storage.uploadFile(
-      file.buffer,
-      key,
-      file.mimetype,
-    );
+    const key = imageObjectKey(`avatars/${userId}`, file.mimetype);
+    await this.storage.putObject(file.buffer, key, file.mimetype);
+    const avatarUrl = contentAssetPath(key);
 
     await this.prisma.user.update({
       where: { id: userId },
@@ -704,11 +725,84 @@ export class UsersService {
     });
 
     // Worker picks this up (see `apps/api/src/jobs/processors/data-export.processor.ts`).
-    // Generates JSON dump, uploads to R2, updates DataExportRequest.fileUrl
-    // + status="READY", emails the user a signed download URL.
+    // Generates the JSON dump, stores it in R2 under an object key, writes that
+    // key to `DataExportRequest.fileUrl` with status="READY", and mails the user
+    // a link to their profile — never to the file.
     await this.jobs.enqueueDataExport({ requestId: created.id, userId });
 
     return { ok: true, expectedAt };
+  }
+
+  // ── GET /api/user/data-export/:id/download ─────────────────────────────────
+
+  /**
+   * Mint a short-lived signed URL for one export, for its owner only.
+   *
+   * The export is the user's whole profile, reading history and subscription, so
+   * three things have to be true before anything is signed: the row exists, it
+   * belongs to the caller, and it is READY. A row that belongs to somebody else
+   * answers exactly like a row that does not exist — 404 either way, because a
+   * 403 would confirm that this id is somebody's export.
+   *
+   * The URL is returned, never stored. Nothing persisted can be replayed: what
+   * the database holds is an object key, which is useless without our
+   * credentials.
+   */
+  async getDataExportDownload(
+    userId: string,
+    requestId: string,
+  ): Promise<{ url: string; expiresInSec: number }> {
+    // `latest` resolves to the caller's most recent export. Without it the UI
+    // would need the row id, which nothing currently tells it — and the 30-day
+    // cooldown means "the latest one" is the only one a user ever has in hand.
+    // It is scoped by `userId` in the query itself, so it cannot name somebody
+    // else's row however it is spelled.
+    const request =
+      requestId === "latest"
+        ? await this.prisma.dataExportRequest.findFirst({
+            where: { userId },
+            orderBy: { createdAt: "desc" },
+            select: { userId: true, status: true, fileUrl: true },
+          })
+        : await this.prisma.dataExportRequest.findUnique({
+            where: { id: requestId },
+            select: { userId: true, status: true, fileUrl: true },
+          });
+
+    if (!request || request.userId !== userId) {
+      throw new NotFoundException({ code: "DATA_EXPORT_NOT_FOUND" });
+    }
+    if (request.status !== "READY" || !request.fileUrl) {
+      throw new HttpException(
+        { code: "DATA_EXPORT_NOT_READY", status: request.status },
+        HttpStatus.CONFLICT,
+      );
+    }
+
+    // Only ever this user's own prefix. The column is the one the worker wrote,
+    // but a stored string is still a stored string: checking the prefix means a
+    // row tampered with in the database cannot be turned into a signature for
+    // somebody else's object.
+    const expectedPrefix = `data-exports/${userId}/`;
+    if (
+      !request.fileUrl.startsWith(expectedPrefix) ||
+      request.fileUrl.includes("..")
+    ) {
+      // Legacy rows hold `${R2_PUBLIC_URL}/${key}` — a URL that was never
+      // downloadable by a browser, because that base is the authenticated S3
+      // endpoint. There is nothing to recover for the user here: ask for a fresh
+      // export, which now stores a key.
+      throw new HttpException(
+        { code: "DATA_EXPORT_UNAVAILABLE" },
+        HttpStatus.CONFLICT,
+      );
+    }
+
+    const url = await this.storage.getSignedUrl(
+      request.fileUrl,
+      DATA_EXPORT_SIGNED_TTL_SEC,
+    );
+    return { url, expiresInSec: DATA_EXPORT_SIGNED_TTL_SEC };
   }
 
   // ── POST /api/user/delete-request ──────────────────────────────────────────

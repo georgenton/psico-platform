@@ -22,12 +22,47 @@ const COVER =
   "catalog-books/emociones-en-construccion/cover/a1b2c3d4e5f60718.jpg";
 const ILLUSTRATION =
   "content/emociones-en-construccion/chapter-3/images/0123456789abcdef.png";
+const AVATAR = "avatars/cmql4vasx0000abcdefghijkl/0123456789abcdef.png";
+const AUTHOR_COVER =
+  "autor-books/cmql4vbi0001abcdefghijkl/cover-fedcba9876543210.jpg";
 
 describe("which keys may be signed", () => {
-  it("accepts the two shapes our own uploaders mint", () => {
+  it("accepts the shapes our own uploaders mint", () => {
     expect(isAllowedAssetKey(COVER)).toBe(true);
     expect(isAllowedAssetKey(ILLUSTRATION)).toBe(true);
     expect(isAllowedAssetKey(ILLUSTRATION.replace(".png", ".webp"))).toBe(true);
+    expect(isAllowedAssetKey(AUTHOR_COVER)).toBe(true);
+    expect(isAllowedAssetKey(AVATAR)).toBe(true);
+    expect(isAllowedAssetKey(AVATAR.replace(".png", ".jpg"))).toBe(true);
+  });
+
+  it("refuses an avatar key that is not the exact minted shape", () => {
+    // The old uploader named avatars `<timestamp>.<ext from filename>`. Both
+    // halves of that are wrong here: a timestamp is guessable and the extension
+    // was attacker-controlled. Those legacy keys are refused rather than
+    // tolerated — they were never loadable anyway, so nothing working breaks.
+    expect(
+      isAllowedAssetKey("avatars/cmql4vasx0000abcdefghijkl/1759300000000.png"),
+    ).toBe(false);
+    // Short id: every id Prisma mints is a 25-character cuid.
+    expect(isAllowedAssetKey("avatars/u1/0123456789abcdef.png")).toBe(false);
+    // No nesting under the id, so one user's prefix cannot contain a path that
+    // walks into another's.
+    expect(
+      isAllowedAssetKey(
+        "avatars/cmql4vasx0000abcdefghijkl/sub/0123456789abcdef.png",
+      ),
+    ).toBe(false);
+    expect(
+      isAllowedAssetKey(
+        "avatars/cmql4vasx0000abcdefghijkl/0123456789abcdef.svg",
+      ),
+    ).toBe(false);
+    expect(
+      isAllowedAssetKey(
+        "avatars/../media/eec/c1/audiobook/0123456789abcdef.m4a",
+      ),
+    ).toBe(false);
   });
 
   it("refuses protected media", () => {

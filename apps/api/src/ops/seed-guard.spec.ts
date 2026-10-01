@@ -4,12 +4,26 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   ProductionSeedNotAuthorizedError,
+  QA_SEED_AUTHORIZATION_VAR,
+  QaUserSeedForbiddenInProductionError,
+  QaUserSeedNotAuthorizedError,
   SEED_AUTHORIZATION_VAR,
+  assertQaUserSeedAllowed,
   assertSeedAllowed,
+  isDeployedEnvironment,
   isProductionEnvironment,
+  isQaUserSeedAuthorized,
   isSeedAuthorized,
 } from "../../prisma/seed-guard";
 import { runGuardedSeed } from "../../prisma/seed-runtime";
+// The pure resolver, NOT `seed-test.ts` itself: importing the fixture would
+// run `dotenv/config` and mutate this process's env.
+import {
+  QA_PASSWORD_MAX_LENGTH,
+  QA_PASSWORD_MIN_LENGTH,
+  QA_PASSWORD_VAR,
+  resolveQaSeedConfig,
+} from "../../prisma/seed-test-config";
 
 /**
  * C.0A1 — the seed must never run as part of a deployment again.
@@ -231,6 +245,464 @@ describe("seed runtime · the guard precedes client construction", () => {
       }),
     ).rejects.toThrow("seed blew up");
     expect(f.calls.disposed).toBe(1);
+  });
+});
+
+/**
+ * The QA user fixture (`prisma/seed-test.ts`) had a different, worse problem
+ * than the catalog seed: three plain-text passwords tracked in a PUBLIC
+ * repository, one of them for an ADMIN account that opens the Pulso
+ * back-office — and no environment guard of any kind, so nothing stopped
+ * `DATABASE_URL` pointing at production. It also printed the passwords to
+ * stdout, putting them in CI logs.
+ */
+describe("qa seed guard · refusing any deployed host", () => {
+  const stagingCoolify = { PSICO_ENV: "staging", NODE_ENV: "production" };
+
+  it("refuses production, with the stricter production error", () => {
+    // Production does not take part in the token-gated path at all; the
+    // unconditional guarantee is pinned in "production is a hard deny" below.
+    expect(() => assertQaUserSeedAllowed({ PSICO_ENV: "production" })).toThrow(
+      QaUserSeedForbiddenInProductionError,
+    );
+  });
+
+  it("refuses STAGING too — the distinction production/staging is not the point", () => {
+    // api-staging.feelverse.app answers to the internet, so an ADMIN login
+    // there is a live credential. This is the case the catalog seed's
+    // production-only guard would have waved through.
+    expect(() => assertQaUserSeedAllowed(stagingCoolify)).toThrow(
+      QaUserSeedNotAuthorizedError,
+    );
+  });
+
+  it("allows a deployed host with the exact single-invocation authorization", () => {
+    expect(() =>
+      assertQaUserSeedAllowed({
+        ...stagingCoolify,
+        [QA_SEED_AUTHORIZATION_VAR]: "1",
+      }),
+    ).not.toThrow();
+  });
+
+  it("leaves a local box alone", () => {
+    expect(() => assertQaUserSeedAllowed({})).not.toThrow();
+    expect(() =>
+      assertQaUserSeedAllowed({ NODE_ENV: "development" }),
+    ).not.toThrow();
+    expect(() => assertQaUserSeedAllowed({ NODE_ENV: "test" })).not.toThrow();
+  });
+
+  it.each(["true", "TRUE", "yes", "01", "1 ", " 1", "0", "", "on"])(
+    "%s does not authorize",
+    (value) => {
+      expect(
+        isQaUserSeedAuthorized({ [QA_SEED_AUTHORIZATION_VAR]: value }),
+      ).toBe(false);
+      expect(() =>
+        assertQaUserSeedAllowed({
+          ...stagingCoolify,
+          [QA_SEED_AUTHORIZATION_VAR]: value,
+        }),
+      ).toThrow(QaUserSeedNotAuthorizedError);
+    },
+  );
+
+  it("the two authorizations are NOT interchangeable", () => {
+    // The load-bearing separation: authorizing a catalog refresh must never
+    // also authorize minting an ADMIN login, and vice versa.
+    // Checked on STAGING on purpose: production refuses on its own axis, which
+    // would pass this assertion for the wrong reason and hide a swap of tokens.
+    expect(() =>
+      assertQaUserSeedAllowed({
+        ...stagingCoolify,
+        [SEED_AUTHORIZATION_VAR]: "1",
+      }),
+    ).toThrow(QaUserSeedNotAuthorizedError);
+
+    expect(() =>
+      assertSeedAllowed({
+        NODE_ENV: "production",
+        [QA_SEED_AUTHORIZATION_VAR]: "1",
+      }),
+    ).toThrow(ProductionSeedNotAuthorizedError);
+  });
+
+  it("the refusal explains the credential hazard and leaks no values", () => {
+    let caught: unknown;
+    try {
+      // Staging, because this asserts the TOKEN-GATED refusal's message. The
+      // production refusal has its own wording and its own test.
+      assertQaUserSeedAllowed({
+        PSICO_ENV: "staging",
+        NODE_ENV: "production",
+        COOLIFY_RESOURCE_UUID: "abc123",
+      });
+    } catch (err) {
+      caught = err;
+    }
+    const message = String((caught as Error).message);
+    expect(message).not.toMatch(/postgres(ql)?:\/\/|redis:\/\/|@[\w.-]+:\d+/);
+    expect(message).not.toMatch(/DATABASE_URL|PASSWORD|SECRET|TOKEN|API_KEY/i);
+    expect(message).not.toMatch(/PSICO_ENV\s*=|NODE_ENV\s*=|abc123/);
+    expect(message).toContain(QA_SEED_AUTHORIZATION_VAR);
+    expect(message).toMatch(/ADMIN/);
+  });
+});
+
+describe("qa seed guard · what counts as deployed", () => {
+  it("PSICO_ENV is believed for both deployed postures", () => {
+    expect(isDeployedEnvironment({ PSICO_ENV: "production" })).toBe(true);
+    expect(isDeployedEnvironment({ PSICO_ENV: "staging" })).toBe(true);
+  });
+
+  it.each([
+    ["PSICO_DEPLOYED", { PSICO_DEPLOYED: "1" }],
+    ["RAILWAY_ENVIRONMENT", { RAILWAY_ENVIRONMENT: "production" }],
+    ["RAILWAY_PROJECT_ID", { RAILWAY_PROJECT_ID: "p-1" }],
+    ["RAILWAY_SERVICE_ID", { RAILWAY_SERVICE_ID: "s-1" }],
+    ["RAILWAY_ENVIRONMENT_NAME", { RAILWAY_ENVIRONMENT_NAME: "staging" }],
+    ["COOLIFY_RESOURCE_UUID", { COOLIFY_RESOURCE_UUID: "u-1" }],
+    ["COOLIFY_CONTAINER_NAME", { COOLIFY_CONTAINER_NAME: "c-1" }],
+    ["NODE_ENV=production", { NODE_ENV: "production" }],
+  ])("%s marks the box as deployed", (_name, env) => {
+    expect(isDeployedEnvironment(env)).toBe(true);
+  });
+
+  it("a Coolify CLIENT is not a deployed box", () => {
+    // COOLIFY_URL / COOLIFY_TOKEN are how a client is configured to TALK to a
+    // Coolify, so any laptop with the CLI or the MCP configured carries them.
+    // Reading them as "I am deployed" would make the fixture refuse on the
+    // maintainer's own machine — where it is legitimately used. Same exclusion
+    // that `deploymentPlatform()` in cache-identity.ts learned the hard way.
+    expect(
+      isDeployedEnvironment({
+        COOLIFY_URL: "https://coolify.example",
+        COOLIFY_TOKEN: "t",
+      } as Parameters<typeof isDeployedEnvironment>[0]),
+    ).toBe(false);
+  });
+
+  it("a clean local environment is not deployed", () => {
+    expect(isDeployedEnvironment({})).toBe(false);
+    expect(isDeployedEnvironment({ NODE_ENV: "development" })).toBe(false);
+    expect(isDeployedEnvironment({ PSICO_ENV: "development" })).toBe(false);
+  });
+
+  it("production detection now also believes PSICO_ENV", () => {
+    // Additive: the platform-neutral marker is the only word that counts on a
+    // deployed box, and a Coolify production service that sets PSICO_ENV but
+    // not NODE_ENV was previously invisible to this guard.
+    expect(isProductionEnvironment({ PSICO_ENV: "production" })).toBe(true);
+    expect(isProductionEnvironment({ PSICO_ENV: "staging" })).toBe(false);
+  });
+
+  it("a stray space or capital does not open the guard", () => {
+    expect(isProductionEnvironment({ NODE_ENV: " production" })).toBe(true);
+    expect(isProductionEnvironment({ NODE_ENV: "PRODUCTION" })).toBe(true);
+    expect(isProductionEnvironment({ PSICO_ENV: "Production " })).toBe(true);
+    // Still not a false positive on something merely production-shaped.
+    expect(isProductionEnvironment({ NODE_ENV: "production-like" })).toBe(
+      false,
+    );
+  });
+});
+
+describe("qa seed config · the password has no default", () => {
+  const argv = (...rest: string[]) => ["node", "seed-test", ...rest];
+
+  it("aborts when neither --password nor the env var is set", () => {
+    expect(() => resolveQaSeedConfig({ argv: argv(), env: {} })).toThrow(
+      /password is required/i,
+    );
+  });
+
+  it("accepts a password from --password=…", () => {
+    const cfg = resolveQaSeedConfig({
+      argv: argv("--password=Sup3r!Secret"),
+      env: {},
+    });
+    expect(cfg).toEqual({ wipe: false, password: "Sup3r!Secret" });
+  });
+
+  it(`accepts a password from ${QA_PASSWORD_VAR}`, () => {
+    const cfg = resolveQaSeedConfig({
+      argv: argv(),
+      env: { [QA_PASSWORD_VAR]: "Sup3r!Secret" },
+    });
+    expect(cfg).toEqual({ wipe: false, password: "Sup3r!Secret" });
+  });
+
+  it("a bare --password fails closed instead of seeding the string 'true'", () => {
+    expect(() =>
+      resolveQaSeedConfig({ argv: argv("--password"), env: {} }),
+    ).toThrow(/password is required/i);
+  });
+
+  it("--password wins over the env var", () => {
+    const cfg = resolveQaSeedConfig({
+      argv: argv("--password=FromFlag!1"),
+      env: { [QA_PASSWORD_VAR]: "FromEnv!1" },
+    });
+    expect(cfg).toEqual({ wipe: false, password: "FromFlag!1" });
+  });
+
+  it("enforces the app's own length window", () => {
+    const short = "x".repeat(QA_PASSWORD_MIN_LENGTH - 1);
+    const long = "x".repeat(QA_PASSWORD_MAX_LENGTH + 1);
+    expect(() =>
+      resolveQaSeedConfig({ argv: argv(), env: { [QA_PASSWORD_VAR]: short } }),
+    ).toThrow(/too short/i);
+    // Past 72 bytes bcrypt truncates silently, so a longer value would seed a
+    // password no form in the app could reproduce.
+    expect(() =>
+      resolveQaSeedConfig({ argv: argv(), env: { [QA_PASSWORD_VAR]: long } }),
+    ).toThrow(/too long/i);
+
+    const atBounds = [
+      "x".repeat(QA_PASSWORD_MIN_LENGTH),
+      "x".repeat(QA_PASSWORD_MAX_LENGTH),
+    ];
+    for (const value of atBounds) {
+      expect(() =>
+        resolveQaSeedConfig({
+          argv: argv(),
+          env: { [QA_PASSWORD_VAR]: value },
+        }),
+      ).not.toThrow();
+    }
+  });
+
+  it("never echoes the rejected value", () => {
+    const secret = "tiny";
+    let caught: unknown;
+    try {
+      resolveQaSeedConfig({ argv: argv(), env: { [QA_PASSWORD_VAR]: secret } });
+    } catch (err) {
+      caught = err;
+    }
+    expect(String((caught as Error).message)).not.toContain(secret);
+  });
+
+  it("a wipe needs no password — the remediation path stays the easy one", () => {
+    // If an ADMIN fixture account turns up on a deployed box, deleting it must
+    // not be harder than creating it was.
+    expect(resolveQaSeedConfig({ argv: argv("--wipe"), env: {} })).toEqual({
+      wipe: true,
+    });
+  });
+});
+
+describe("ratchet · the QA fixture carries no credential", () => {
+  const src = () =>
+    readFileSync(join(process.cwd(), "prisma/seed-test.ts"), "utf8");
+
+  /**
+   * Comments stripped, so these assertions read CODE and not prose. The
+   * docstring legitimately contains `QA_USER_PASSWORD='…'` in its usage
+   * examples, and a ratchet that forced the documentation to stop showing
+   * people how to run the thing would be the tail wagging the dog.
+   */
+  const code = () =>
+    src()
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/^\s*\/\/.*$/gm, "");
+
+  /**
+   * The three passwords this file used to carry are deliberately NOT listed
+   * here. They are already public and permanent in git history, so an
+   * assertion naming them would add nothing except a fresh copy of three
+   * published credentials in the PR diff of a public repository — the exact
+   * mistake being corrected, committed by the test that forbids it.
+   *
+   * The two checks below are stronger than a denylist anyway: whatever route a
+   * password takes, it has to be written down somewhere and it has to reach
+   * `bcrypt.hash`. Both routes are closed to literals, so a specific value
+   * cannot come back under a different name either.
+   */
+  it("no password-shaped identifier is assigned a literal", () => {
+    expect(code()).not.toMatch(/(password|passwd|pwd)\s*[:=]\s*["'`]/i);
+  });
+
+  it("the hashed value never originates as a literal", () => {
+    expect(code()).not.toMatch(/bcrypt\.hash\(\s*["'`]/);
+  });
+
+  it("no log line interpolates a password", () => {
+    // The original printed each one to stdout, so the values also landed in
+    // CI logs and terminal scrollback that outlive the run.
+    expect(code()).not.toMatch(/\$\{[^}]*password/i);
+  });
+
+  it("asks the deployed-host guard, not the production-only one", () => {
+    expect(code()).toMatch(/assertQaUserSeedAllowed/);
+  });
+
+  it("builds Prisma inside a factory, not at module scope", () => {
+    // Exactly the defect it shipped with: a module-scope Pool and
+    // PrismaClient, constructed at import — which is before any refusal could
+    // possibly execute.
+    expect(code()).not.toMatch(/^const (prisma|pool|adapter) = new /m);
+    expect(code()).toMatch(/function createSeedClient\(\)/);
+  });
+
+  it("delegates the ordering to the guarded runner", () => {
+    expect(code()).toMatch(/runGuardedSeed\(\{/);
+  });
+
+  /**
+   * `--wipe` must not be a side door.
+   *
+   * It needs no password, which is correct — making the remediation path harder
+   * than the hazardous one would mean a compromised QA account stays alive out of
+   * inconvenience. But "no password" must not slide into "no guard": a wipe
+   * DELETEs rows from whatever database `DATABASE_URL` happens to name.
+   *
+   * The ordering is what guarantees it: the environment is asked before argv is
+   * even parsed, so there is no branch in which `--wipe` is known about and the
+   * guard is not.
+   */
+  it("asks the guard BEFORE it parses --wipe", () => {
+    const src = code();
+    const guardAt = src.indexOf("assertQaUserSeedAllowed(process.env)");
+    const configAt = src.indexOf("resolveQaSeedConfig(");
+    expect(guardAt).toBeGreaterThan(-1);
+    expect(configAt).toBeGreaterThan(-1);
+    expect(guardAt).toBeLessThan(configAt);
+  });
+
+  it("performs the wipe inside the guarded runner's callback", () => {
+    // If `wipeTestUsers()` were called from `main` directly it would run after
+    // the first guard but outside the runner's — losing the second, structural
+    // check that no client exists on a refusal.
+    const runner = code().slice(code().indexOf("runGuardedSeed({"));
+    expect(runner).toMatch(/wipeTestUsers\(\)/);
+  });
+
+  // Deliberately NOT ratcheted: "no longer claims to be SAFE in any
+  // environment". The docstring quotes that old claim in order to explain why
+  // it was false, so a grep for the phrase matches the very paragraph that
+  // debunks it — and the test would only pass if the history were paraphrased
+  // to suit the grep. The claims worth pinning are material, not prose, and
+  // the cases above pin those.
+});
+
+describe("seed runtime · a custom refusal keeps the ordering", () => {
+  it("the QA guard also precedes client construction", async () => {
+    const createClient = vi.fn(() => ({ dispose: async () => undefined }));
+    const seed = vi.fn(async () => undefined);
+
+    await expect(
+      runGuardedSeed({
+        env: { PSICO_ENV: "staging" },
+        assert: assertQaUserSeedAllowed,
+        createClient,
+        seed,
+        log: () => undefined,
+      }),
+    ).rejects.toBeInstanceOf(QaUserSeedNotAuthorizedError);
+
+    expect(createClient).not.toHaveBeenCalled();
+    expect(seed).not.toHaveBeenCalled();
+  });
+
+  it("the default refusal is still the catalog seed's", async () => {
+    // Omitting `assert` must not silently downgrade seed.ts's guard.
+    const createClient = vi.fn(() => ({ dispose: async () => undefined }));
+    await expect(
+      runGuardedSeed({
+        env: { NODE_ENV: "production" },
+        createClient,
+        seed: vi.fn(async () => undefined),
+        log: () => undefined,
+      }),
+    ).rejects.toBeInstanceOf(ProductionSeedNotAuthorizedError);
+    expect(createClient).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Production is not "a deployed host that needs a token" — it is off limits.
+ *
+ * `ALLOW_QA_USER_SEED_ON_DEPLOYED_BOX` exists so staging can run the fixture on
+ * purpose. Letting that same token also work in production would mean the
+ * difference between "staging, deliberately" and "production, by a typo in which
+ * terminal was focused" is one environment variable the operator has already got
+ * into the habit of typing — which is exactly the habit the staging gate creates.
+ *
+ * So production refuses unconditionally, with its own error: telling an operator
+ * to set a token that cannot work would send them looking for a configuration
+ * problem instead of reading the sentence.
+ */
+describe("qa seed guard · production is a hard deny", () => {
+  const prodShapes: ReadonlyArray<[string, Record<string, string>]> = [
+    ["PSICO_ENV", { PSICO_ENV: "production" }],
+    ["NODE_ENV", { NODE_ENV: "production" }],
+    ["RAILWAY_ENVIRONMENT_NAME", { RAILWAY_ENVIRONMENT_NAME: "production" }],
+    ["PSICO_ENV with whitespace/case", { PSICO_ENV: " Production " }],
+  ];
+
+  it.each(prodShapes)(
+    "refuses production detected via %s even WITH the QA authorization",
+    (_label, env) => {
+      expect(() =>
+        assertQaUserSeedAllowed({ ...env, [QA_SEED_AUTHORIZATION_VAR]: "1" }),
+      ).toThrow(QaUserSeedForbiddenInProductionError);
+    },
+  );
+
+  it("refuses production even with BOTH tokens set", () => {
+    expect(() =>
+      assertQaUserSeedAllowed({
+        PSICO_ENV: "production",
+        [QA_SEED_AUTHORIZATION_VAR]: "1",
+        [SEED_AUTHORIZATION_VAR]: "1",
+      }),
+    ).toThrow(QaUserSeedForbiddenInProductionError);
+  });
+
+  it("the production refusal does NOT advertise a token that cannot work", () => {
+    let caught: unknown;
+    try {
+      assertQaUserSeedAllowed({ PSICO_ENV: "production" });
+    } catch (err) {
+      caught = err;
+    }
+    const message = (caught as Error).message;
+    // Naming the variable here would read as "set this and it will work".
+    expect(message).not.toContain(QA_SEED_AUTHORIZATION_VAR);
+    expect(message).toMatch(/production/i);
+    // And it still leaks nothing about the environment.
+    expect(message).not.toMatch(/PSICO_ENV\s*=|NODE_ENV\s*=/);
+  });
+
+  it("staging keeps its token-gated path — the deny is production-only", () => {
+    const staging = { PSICO_ENV: "staging", NODE_ENV: "production" };
+    expect(() => assertQaUserSeedAllowed(staging)).toThrow(
+      QaUserSeedNotAuthorizedError,
+    );
+    expect(() =>
+      assertQaUserSeedAllowed({
+        ...staging,
+        [QA_SEED_AUTHORIZATION_VAR]: "1",
+      }),
+    ).not.toThrow();
+  });
+
+  it("refuses production BEFORE any client is constructed", async () => {
+    const createClient = vi.fn(() => ({
+      dispose: vi.fn(async () => undefined),
+    }));
+    await expect(
+      runGuardedSeed({
+        env: { PSICO_ENV: "production", [QA_SEED_AUTHORIZATION_VAR]: "1" },
+        assert: assertQaUserSeedAllowed,
+        createClient,
+        seed: vi.fn(async () => undefined),
+        log: () => undefined,
+      }),
+    ).rejects.toBeInstanceOf(QaUserSeedForbiddenInProductionError);
+    expect(createClient).not.toHaveBeenCalled();
   });
 });
 

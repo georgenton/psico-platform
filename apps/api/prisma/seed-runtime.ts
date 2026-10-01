@@ -26,6 +26,16 @@ export interface RunGuardedSeedOptions<T extends SeedClientHandle> {
   createClient: () => T;
   seed: (client: T) => Promise<void>;
   log?: (message: string) => void;
+  /**
+   * Which refusal applies. Defaults to the catalog seed's production guard.
+   *
+   * The ordering guarantee this module exists to provide — refuse before a
+   * client, an adapter or a pool is constructed — is not specific to one
+   * hazard, so the hazard is a parameter. The QA user fixture passes
+   * `assertQaUserSeedAllowed`: a different question (any deployed host, not
+   * just production) behind a different token, with the same ordering.
+   */
+  assert?: (env: SeedGuardEnv) => void;
 }
 
 /**
@@ -50,7 +60,7 @@ export async function runGuardedSeed<T extends SeedClientHandle>(
   }
 
   // Throws before anything is constructed.
-  assertSeedAllowed(opts.env);
+  (opts.assert ?? assertSeedAllowed)(opts.env);
 
   const client = opts.createClient();
   try {

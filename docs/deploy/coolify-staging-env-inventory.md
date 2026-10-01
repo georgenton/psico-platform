@@ -554,11 +554,55 @@ prueba cayera en los medios reales.
 
 | variable               | clasificación                                                                                                                                                                     |
 | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `R2_ACCOUNT_ID`        | `SAFE_SHARED_NONSECRET_CONFIG` — es la cuenta, la misma; no aísla nada por sí sola                                                                                                |
+| `R2_ACCOUNT_ID`        | `SAFE_SHARED_NONSECRET_CONFIG` — es la cuenta, la misma; no aísla nada por sí sola. **Hex de 32 caracteres**, no el nombre del bucket (ver abajo)                                 |
 | `R2_ACCESS_KEY_ID`     | `STAGING_CREDENTIAL`                                                                                                                                                              |
 | `R2_SECRET_ACCESS_KEY` | `STAGING_SECRET`                                                                                                                                                                  |
 | `R2_BUCKET_NAME`       | `STAGING_SPECIFIC_NONSECRET_CONFIG`                                                                                                                                               |
 | `R2_PUBLIC_URL`        | sólo si staging va a probar portadas e ilustraciones públicas. Ausente es una configuración legítima: `StorageService` se niega en el punto de uso en vez de exigirla al arrancar |
+
+#### `R2_ACCOUNT_ID` no es el bucket
+
+Son dos variables que se parecen de lejos y confundirlas no da un error legible. En el
+despliegue de staging del 2026-10-01, `R2_ACCOUNT_ID` acabó conteniendo
+`syntavera-feelverse-staging-media` — el nombre del bucket. El síntoma no fue un 403 ni
+un «bucket not found», sino esto:
+
+```
+write EPROTO ... ssl3_read_bytes:sslv3 alert handshake failure
+```
+
+El endpoint se construye como `https://<account-id>.r2.cloudflarestorage.com`. El DNS
+resuelve igual porque `*.r2.cloudflarestorage.com` es comodín, y Cloudflare rechaza el
+**SNI** de una cuenta que no existe. Un fallo de TLS no sugiere «me equivoqué de
+variable», así que conviene comprobar la forma antes de buscar en la red:
+
+```bash
+# Dentro del contenedor, sin imprimir el valor. Un account id de R2 es hex de 32.
+node -e 'const v=process.env.R2_ACCOUNT_ID||"";
+  console.log(v.length, /^[0-9a-f]{32}$/.test(v) ? "forma OK" : "FORMA INVÁLIDA")'
+```
+
+`R2_BUCKET_NAME` mide 33 caracteres y `R2_ACCOUNT_ID` 32: si las dos dan la misma
+longitud, una de ellas tiene el valor de la otra.
+
+#### No rellenar `R2_PUBLIC_URL` con el endpoint S3
+
+La tentación, al ver `uploadFile` fallar con `R2_PUBLIC_URL_NOT_CONFIGURED`, es poner ahí
+el endpoint de R2. Eso ya se hizo en producción y está documentado como incidente en
+`apps/api/src/shared/content-asset.ts`: la escritura lleva credenciales SigV4 y funciona,
+el GET del navegador no las lleva y se rechaza — «un editor sube un JPG, el bloque
+aparece, y la imagen nunca carga».
+
+El bucket es privado. La vía correcta es `putObject` + `getSignedUrl`, que es la que
+`content-studio` ya adoptó. Quedan cuatro llamadores legados de `uploadFile` que lanzan
+sin esta variable, y la deuda es migrarlos, no inventarles una URL pública:
+
+| llamador                                   | flujo                            |
+| ------------------------------------------ | -------------------------------- |
+| `users.service.ts`                         | subida de avatar                 |
+| `chapters.service.ts`                      | audio de capítulo                |
+| `author-uploads.service.ts` (×2)           | portadas y assets de autor (B2B) |
+| `jobs/processors/data-export.processor.ts` | exportación de datos del usuario |
 
 ### Cuatro buckets que no se mezclan
 

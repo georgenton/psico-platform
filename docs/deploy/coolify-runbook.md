@@ -185,13 +185,26 @@ y en ningún otro sitio:
 pnpm --filter @psico/api migrate:deploy
 ```
 
+**Para comprobar que está guardado**, hay que preguntárselo al API crudo, no al MCP: el
+envoltorio del MCP recorta los campos de configuración y por eso parece que no existen.
+
+```bash
+coolify-api.sh applications/<uuid> | jq '{pre_deployment_command, build_command, start_command}'
+```
+
+`is_auto_deploy_enabled` e `is_preview_deployments_enabled`, en cambio, no los proyecta
+**ninguna** de las dos vías: se escriben por `PATCH` y se comprueban por conducta —
+`list_deployments` y mirar si algún despliegue trae `is_webhook: true` después de haberlos
+apagado.
+
 Cuatro propiedades, y ninguna es accidental:
 
 1. **Exactamente una vez por despliegue.** Coolify corre el pre-deployment command una
-   vez, antes de arrancar el contenedor nuevo. Si estuviera en el `start` de la
-   aplicación, N réplicas lo lanzarían N veces en paralelo. Prisma toma un advisory
-   lock, así que no corromperían el esquema, pero sí se serializarían esperándose y
-   una migración lenta se convertiría en un arranque fallido por timeout.
+   vez, **dentro del contenedor actual de la aplicación**, antes de sustituirlo por el
+   nuevo. Si estuviera en el `start` de la aplicación, N réplicas lo lanzarían N veces
+   en paralelo. Prisma toma un advisory lock, así que no corromperían el esquema, pero
+   sí se serializarían esperándose y una migración lenta se convertiría en un arranque
+   fallido por timeout.
 2. **Antes de que arranque código que dependa del esquema nuevo.** Es lo que
    «pre-deployment» significa; por eso no va en el `start`.
 3. **Sólo en api, nunca en worker.** Los dos comparten build y base. Si los dos lo
@@ -202,9 +215,51 @@ Cuatro propiedades, y ninguna es accidental:
    reescritura de contenido curado llegaron juntas a producción una vez. Sin seed, sin
    backfill, sin ingesta: un comando.
 
+#### ⚠️ El primer despliegue NO migra
+
+Como el comando corre **dentro del contenedor actual**, cuando no hay contenedor actual
+no hay dónde correrlo: Coolify **lo omite**, y el despliegue termina en `finished` sin
+avisar de nada. El primer despliegue de un recurso nuevo es exactamente ese caso.
+
+Esto se midió, no se supone. En staging, el 2026-10-01:
+
+| Despliegue                       | Contenedor previo | Pre-deployment | Resultado en la base                                  |
+| -------------------------------- | ----------------- | -------------- | ----------------------------------------------------- |
+| `cwqwogpx3dipdsyou4ksdy2q` (1.º) | no existía        | **omitido**    | 0 tablas · sin `_prisma_migrations` · sin pgvector    |
+| `xrcgdgjce1etwhury6l3zs3f` (2.º) | corriendo         | **ejecutado**  | 69 migraciones en 1,2 s · 101 tablas · pgvector 0.8.6 |
+
+La API del primero arrancó sana y respondió `/health` 200 **con la base vacía**: los
+endpoints que no tocan Postgres funcionaban y los que sí devolvían 500. Un `/health`
+verde no dice nada sobre el esquema.
+
+El recorrido de §2.6 lo habría detectado, pero exige crear una cuenta. Para saber sólo si
+el esquema existe basta una lectura pública, sin cuenta y sin escribir nada:
+
+```bash
+# 200 con catálogo (aunque esté vacío) = esquema aplicado. 500 = sin migrar.
+curl -s -o /dev/null -w '%{http_code}\n' https://api-staging.feelverse.app/api/books
+```
+
+**Para un entorno nuevo**, entonces, no se confía en que el primer despliegue migre:
+
+1. desplegar una vez — crea el contenedor, la base queda sin esquema;
+2. **redesplegar** — ahora sí corre `migrate deploy` contra la base vacía;
+3. verificar `_prisma_migrations` antes de dar el entorno por listo.
+
+Un _migration job_ explícito (recurso aparte que corra sólo el comando) evitaría el doble
+paso, al coste de un recurso más que mantener sincronizado con el build. Sin decidir.
+
+**El contenedor tiene que poder ejecutar el comando.** `prisma` es `devDependency`, así
+que si el runtime se construyera con dependencias de producción podadas, el comando
+fallaría con `command not found` en vez de migrar. Con Railpack hoy no se poda: node,
+pnpm y la CLI de Prisma resuelven dentro del contenedor por `/mise/shims`. Un detalle
+con filo: `/etc/profile` sobrescribe el `PATH` y tira `/mise/shims`, así que el comando
+funciona bajo `sh -c` y `bash -c` y **falla** bajo `sh -lc` o `bash -lc`. Coolify usa la
+primera forma. Si una versión futura cambiara a un shell de login, el síntoma sería
+`pnpm: command not found` y el arreglo, fijar el `PATH` en el propio comando.
+
 **Si la migración falla.** Coolify aborta el despliegue y **no arranca el contenedor
-nuevo**; el anterior sigue sirviendo, que en el primer despliegue de staging significa
-que no hay nada sirviendo. Entonces:
+nuevo**; el anterior sigue sirviendo. Entonces:
 
 - se lee el error en el log del despliegue, no se reintenta a ciegas: una migración
   que falla dos veces falla por la misma razón;
@@ -329,6 +384,31 @@ GET /api/health/integrations      (ADMIN)
 Devuelve booleanos, nunca valores. Se revisa la bandera `stub`: marca una clave que
 parece de prueba, que es cómo una caja mal configurada pasa por buena.
 
+**Es ADMIN-only**, así que en un entorno recién creado — sin cuentas todavía — no se puede
+usar. Y «configurada» no es «funciona»: la bandera sólo dice que la variable no está
+vacía. En staging el 2026-10-01, las cuatro variables de R2 estaban presentes y la subida
+fallaba igual, porque una llevaba el valor de otra.
+
+Para R2 concretamente, el smoke que sí lo demuestra se ejecuta **dentro del contenedor**,
+de modo que las credenciales nunca salen de él ni aparecen en una terminal:
+
+```js
+// PUT → GET → DELETE sobre staging-smoke/<id>, con dos salvaguardas que no son opcionales:
+//  1. se niega si R2_BUCKET_NAME no es exactamente el bucket de staging;
+//  2. tras el DELETE hace un GET y espera un 404 — borrar sin comprobar no es borrar.
+import {
+  S3Client,
+  PutObjectCommand,
+  GetObjectCommand,
+  DeleteObjectCommand,
+} from "@aws-sdk/client-s3";
+const EXPECTED = "syntavera-feelverse-staging-media";
+if (process.env.R2_BUCKET_NAME !== EXPECTED) process.exit(3);
+```
+
+El fichero va a `/app/apps/api/` y no a `/tmp`: Node resuelve `node_modules` desde el
+directorio del script hacia arriba, y desde `/tmp` no encuentra `@aws-sdk/client-s3`.
+
 ### 2.6 Recorrido funcional mínimo
 
 Registro, inicio de sesión, desbloqueo del Diario (cripto E2E real), una entrada, una
@@ -339,6 +419,31 @@ el despliegue de 2026-06-01, y sirve porque atraviesa base, Redis, LLM y cripto.
 
 Encolar un trabajo y ver el procesamiento en logs. El worker no tiene healthcheck: si
 no se mira, no se sabe.
+
+### 2.8 El gate de datos reales
+
+**`REAL_DATA_GATE` es un gate operativo, no una variable de entorno.** No existe en
+`apps/`, ni en `packages/`, ni en Coolify, y no debe crearse: nada en el código lo lee, así
+que una variable con ese nombre daría una falsa sensación de que algo la respeta.
+
+Mientras el gate esté **CERRADO**, staging se prueba con cuentas sintéticas y se asume que
+su base puede perderse entera sin consecuencias.
+
+Para abrirlo hacen falta las tres cosas, en este orden y verificadas:
+
+1. el bucket `syntavera-feelverse-db-backups` existe;
+2. un backup de `feelverse_staging` se ha completado **y se ha mirado** (tamaño y fecha);
+3. un **restore drill** ha reconstruido esa base en un destino desechable.
+
+El punto 3 no es ceremonia. Un backup cuya restauración nunca se ejecutó es una copia de
+la que no se sabe nada, y el día que se necesite no es el día de descubrirlo.
+
+Cómo se comprueba que sigue cerrado, sin cuentas ni escrituras:
+
+```bash
+# Cero filas = nada que proteger todavía.
+psql -d feelverse_staging -tAc 'SELECT count(*) FROM "User"'
+```
 
 ---
 

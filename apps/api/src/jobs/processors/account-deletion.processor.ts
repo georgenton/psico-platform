@@ -5,6 +5,12 @@ import type { Job } from "bullmq";
 import { PrismaService } from "../../prisma";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { CirclesAccountDeletionService } from "../../circles/circles-account-deletion.service";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { StorageService } from "../../storage";
+import {
+  collectUserOwnedObjects,
+  isUserOwnedKey,
+} from "../../users/user-owned-objects";
 import {
   JobName,
   QueueName,
@@ -44,6 +50,7 @@ export class AccountDeletionProcessor extends WorkerHost {
   constructor(
     private readonly prisma: PrismaService,
     private readonly circles: CirclesAccountDeletionService,
+    private readonly storage: StorageService,
   ) {
     super();
   }
@@ -145,12 +152,69 @@ export class AccountDeletionProcessor extends WorkerHost {
           );
         }
 
+        // ── Personal objects in R2, BEFORE the rows that name them ─────────
+        //
+        // PostgreSQL and R2 are not one transaction, and nothing here pretends
+        // otherwise. What this code chooses is the ORDER, and it chooses it for
+        // personal data:
+        //
+        //   objects first → if R2 refuses, this throws, the transaction rolls
+        //   back, the account SURVIVES, and BullMQ retries. The account lives a
+        //   little longer with its data intact.
+        //
+        //   rows first → if R2 then refused, the account would be gone and the
+        //   export would sit in the bucket forever, unreachable because the key
+        //   died with the row. Unrecoverable.
+        //
+        // The failure this ordering can still produce is the mild one: objects
+        // deleted, then the transaction fails for its own reasons, leaving an
+        // account whose avatar or export is missing. That is a broken image, and
+        // it is recoverable. Privacy over availability, deliberately.
+        //
+        // Read inside the lock, not before it: an avatar committed moments ago
+        // is visible here, and one arriving now blocks on this very lock.
+        const [owner, exports] = await Promise.all([
+          tx.user.findUnique({
+            where: { id: userId },
+            select: { avatarUrl: true },
+          }),
+          tx.dataExportRequest.findMany({
+            where: { userId, fileUrl: { not: null } },
+            select: { id: true, fileUrl: true },
+          }),
+        ]);
+
+        const objects = collectUserOwnedObjects({
+          userId,
+          avatarUrl: owner?.avatarUrl ?? null,
+          dataExports: exports,
+        });
+
+        for (const object of objects) {
+          // Should never fire — every key came from the helpers above. It is
+          // here because being wrong means deleting somebody else's object, and
+          // an assertion is a better place to learn that than a bucket.
+          if (!isUserOwnedKey(object.key, userId)) {
+            throw new Error(
+              `ACCOUNT_DELETION_KEY_NOT_OWNED: refusing to delete ${object.kind} outside this user's prefixes`,
+            );
+          }
+          // `DeleteObject` is idempotent in S3 semantics: a key that is already
+          // gone answers success. So a retry after a partial pass is safe, and
+          // an object deleted on an earlier attempt does not fail this one.
+          await this.storage.deleteObject(object.key);
+        }
+
         // Prisma cascades through every relation. The User row is removed and
         // all its data with it. AuthEvent rows survive with userId=null, and
         // the three Círculos references detach (circle creator, membership,
         // ledger actor) — see `20260913000000_circles_account_deletion`.
         await tx.user.delete({ where: { id: userId } });
-        return { deleted: true as const, circles };
+        return {
+          deleted: true as const,
+          circles,
+          objectsDeleted: objects.length,
+        };
       },
       // The cleanup is bounded by one account's participation, but it is more
       // than the 5s Prisma allows an interactive transaction by default.
@@ -186,6 +250,10 @@ export class AccountDeletionProcessor extends WorkerHost {
       );
     }
 
-    this.logger.log(`User ${userId} deleted`);
+    // A COUNT, never a key: an object key carries the user id and the request
+    // id, which is exactly the shape that must not end up in a log line.
+    this.logger.log(
+      `User ${userId} deleted · r2ObjectsErased=${outcome.objectsDeleted}`,
+    );
   }
 }

@@ -5,6 +5,7 @@ import {
   HttpStatus,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
   UnauthorizedException,
 } from "@nestjs/common";
@@ -35,6 +36,10 @@ import { lockUserExclusive } from "../emotional-map/privacy-barrier";
 import { emailShell, escape } from "../notifications/templates/base";
 import { contentAssetPath } from "../shared/content-asset";
 import { assertUploadableImage, imageObjectKey } from "../shared/image-upload";
+import {
+  DATA_EXPORT_RETENTION_DAYS,
+  DATA_EXPORT_STATUS,
+} from "./data-export-retention";
 import type { UpdateProfileDto } from "./dto/update-profile.dto";
 import type { UpdateTimezoneDto } from "./dto/update-timezone.dto";
 import { isValidTimezone } from "../jobs/utils/timezone";
@@ -88,19 +93,26 @@ const EMAIL_VERIFICATION_TTL_HOURS = 24;
 const DATA_EXPORT_COOLDOWN_DAYS = 30;
 const DATA_EXPORT_EXPECTED_HOURS = 24;
 /**
- * How long a download URL for an export lives.
+ * How long a download URL for an export lives. **ACCESS TTL, not retention.**
  *
  * Shorter than the five minutes images get, and for the opposite reason: an
  * illustration is re-requested constantly through its stable path, while this is
  * one deliberate click on a file containing everything we know about a person.
  * Two minutes is enough for a browser to start the download and short enough
  * that a URL copied out of devtools is dead before it can be pasted anywhere.
+ *
+ * How long the OBJECT itself lives is a separate clock and a separate number —
+ * `DATA_EXPORT_RETENTION_DAYS` in `./data-export-retention`. Reading this one as
+ * the answer to "when is the file gone?" is the confusion that file exists to
+ * prevent.
  */
 const DATA_EXPORT_SIGNED_TTL_SEC = 120;
 const DELETE_COOLDOWN_DAYS = 30;
 
 @Injectable()
 export class UsersService {
+  private readonly logger = new Logger("UsersService");
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
@@ -316,10 +328,43 @@ export class UsersService {
     await this.storage.putObject(file.buffer, key, file.mimetype);
     const avatarUrl = contentAssetPath(key);
 
-    await this.prisma.user.update({
-      where: { id: userId },
+    // ── Conditional on the account not being on its way out ───────────────
+    //
+    // This closes a real race rather than narrowing it. The write order here is
+    // object-then-row, so an upload running against `AccountDeletionProcessor`
+    // could put its bytes in the bucket, then block on the `FOR UPDATE` lock
+    // that transaction holds, and find the row gone when the lock released —
+    // leaving the new object orphaned forever, because the key died with the
+    // row that would have named it.
+    //
+    // `updateMany` with `deleteRequestedAt: null` in the WHERE makes the write
+    // conditional: either it lands (so the account was not marked, and any later
+    // deletion reads this very `avatarUrl` under its lock) or it matches nothing
+    // and we take our own bytes back out. A plain pre-check could not do this —
+    // it would still leave a window between the check and the put.
+    const written = await this.prisma.user.updateMany({
+      where: { id: userId, deleteRequestedAt: null },
       data: { avatarUrl },
     });
+
+    if (written.count !== 1) {
+      // Our object, written moments ago, referenced by nothing. Deleting it is
+      // not a cleanup of somebody else's data — it is withdrawing a write that
+      // did not take.
+      await this.storage.deleteObject(key).catch(() => {
+        // A failure here leaves one orphan and must not mask the real answer
+        // below. The nightly sweep does not cover `avatars/`, so this is
+        // reported rather than silently hoped away.
+        this.logger.warn(
+          `Avatar object left orphaned after a rejected write for user ${userId}`,
+        );
+      });
+      throw new ConflictException({
+        code: "ACCOUNT_DELETION_PENDING",
+        message:
+          "This account is scheduled for deletion. Cancel the request before changing your avatar.",
+      });
+    }
 
     return { avatarUrl };
   }
@@ -691,6 +736,22 @@ export class UsersService {
   // ── POST /api/user/data-export ─────────────────────────────────────────────
 
   async requestDataExport(userId: string): Promise<DataExportRequestResponse> {
+    // An account on its way out does not start new work. `DataExportProcessor`
+    // already refuses to run for a user with `deleteRequestedAt` set, so without
+    // this the request would be accepted, enqueued, and then quietly never
+    // become READY — a 202 that means nothing. Refusing here says so.
+    const pending = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { deleteRequestedAt: true },
+    });
+    if (pending?.deleteRequestedAt) {
+      throw new ConflictException({
+        code: "ACCOUNT_DELETION_PENDING",
+        message:
+          "This account is scheduled for deletion. Cancel the request before asking for a new export.",
+      });
+    }
+
     const cutoff = new Date(
       Date.now() - DATA_EXPORT_COOLDOWN_DAYS * 24 * 3600 * 1000,
     );
@@ -772,7 +833,26 @@ export class UsersService {
     if (!request || request.userId !== userId) {
       throw new NotFoundException({ code: "DATA_EXPORT_NOT_FOUND" });
     }
-    if (request.status !== "READY" || !request.fileUrl) {
+
+    // EXPIRED is a different answer from "not ready yet", and the status codes
+    // say which: 410 means this existed and is gone for good, so a client stops
+    // retrying and offers a fresh request instead. 409 means wait. Collapsing
+    // the two into one code would have the UI poll forever for a file the sweep
+    // deleted a month ago.
+    //
+    // Note it stays BELOW the ownership check: a stranger's expired export must
+    // still answer 404, or the status becomes an oracle for which ids exist.
+    if (request.status === DATA_EXPORT_STATUS.EXPIRED) {
+      throw new HttpException(
+        {
+          code: "DATA_EXPORT_EXPIRED",
+          retentionDays: DATA_EXPORT_RETENTION_DAYS,
+        },
+        HttpStatus.GONE,
+      );
+    }
+
+    if (request.status !== DATA_EXPORT_STATUS.READY || !request.fileUrl) {
       throw new HttpException(
         { code: "DATA_EXPORT_NOT_READY", status: request.status },
         HttpStatus.CONFLICT,

@@ -1477,7 +1477,16 @@ model EmailChangeRequest {
 model DataExportRequest {
   id          String    @id @default(cuid())
   userId      String
-  // "PENDING" | "PROCESSING" | "READY" | "FAILED"
+  // "PENDING" | "PROCESSING" | "READY" | "FAILED" | "EXPIRED"
+  //
+  // Canonical values live in `src/users/data-export-retention.ts`. A plain
+  // String rather than an enum, so EXPIRED needed no migration — and nothing
+  // branches exhaustively on this column, so no reader was left incomplete.
+  //
+  // EXPIRED means retention elapsed: the object was deleted and `fileUrl`
+  // cleared, while the row stays as the record of who asked for their data and
+  // when. The download endpoint answers 410 for it, not 409 — gone for good
+  // rather than not ready yet.
   status      String    @default("PENDING")
   // Despite the name, this holds the R2 OBJECT KEY —
   // "data-exports/<userId>/<requestId>.json" — not a URL, and deliberately so.

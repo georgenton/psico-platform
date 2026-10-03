@@ -9,6 +9,7 @@ import {
   type CirclesSweepJobPayload,
   type DailyUsageJobPayload,
   type EmotionalMapSnapshotJobPayload,
+  type DataExportRetentionJobPayload,
   type DataExportJobPayload,
   type EmailJobPayload,
   type InactiveNudgeJobPayload,
@@ -59,6 +60,13 @@ const EMOTIONAL_MAP_SNAPSHOT_SCHEDULER_ID =
 // that usually finds nothing. Inert while the rollout is off.
 const CIRCLES_SWEEP_SCHEDULER_ID = "circles-sweep-hourly";
 
+// Sprint B.2 — data-export retention sweep. Daily at 03:30 UTC: after the
+// platform snapshot (02:30) and clear of the Monday cohort recomputation
+// (03:00). They share no data; the spacing is about not stacking I/O on one
+// minute. Daily because retention is a day-grained policy — an export is not
+// more private for being deleted an hour earlier.
+const DATA_EXPORT_RETENTION_SCHEDULER_ID = "data-export-retention-03-30-utc";
+
 /**
  * Producer-side API for enqueuing background work. Feature services inject
  * this and call the relevant `enqueueX()` method. They never touch BullMQ
@@ -102,6 +110,9 @@ export class JobsService implements OnModuleInit {
     // Sprint G2 — monthly emotional-map snapshot.
     @InjectQueue(QueueName.EMOTIONAL_MAP_SNAPSHOT)
     private readonly emotionalMapSnapshotQueue: Queue<EmotionalMapSnapshotJobPayload>,
+    // Sprint B.2 — daily data-export retention sweep.
+    @InjectQueue(QueueName.DATA_EXPORT_RETENTION)
+    private readonly dataExportRetentionQueue: Queue<DataExportRetentionJobPayload>,
   ) {}
 
   /**
@@ -344,6 +355,35 @@ export class JobsService implements OnModuleInit {
     } catch (err) {
       this.logger.error(
         `Failed to register emotional-map-snapshot scheduler: ${(err as Error).message}`,
+      );
+    }
+
+    // Sprint B.2 — data-export retention sweep. Deletes the R2 object behind
+    // every READY export past its retention and marks the row EXPIRED. Nothing
+    // deleted these objects before: no lifecycle rule, no sweep, and account
+    // deletion did not touch storage. Idempotent — a key already gone answers
+    // success, and an EXPIRED row is not selected again — so retries are safe.
+    try {
+      await this.dataExportRetentionQueue.upsertJobScheduler(
+        DATA_EXPORT_RETENTION_SCHEDULER_ID,
+        { pattern: "30 3 * * *", tz: "UTC" }, // 03:30 UTC daily
+        {
+          name: JobName.RUN_DATA_EXPORT_RETENTION,
+          data: {},
+          opts: {
+            attempts: 3,
+            backoff: { type: "exponential", delay: 5 * 60_000 },
+            removeOnComplete: { age: 30 * 24 * 60 * 60 },
+            removeOnFail: false,
+          },
+        },
+      );
+      this.logger.log(
+        `Data-export retention scheduled · id=${DATA_EXPORT_RETENTION_SCHEDULER_ID} · cron=30 3 * * * UTC`,
+      );
+    } catch (err) {
+      this.logger.error(
+        `Failed to register data-export-retention scheduler: ${(err as Error).message}`,
       );
     }
   }

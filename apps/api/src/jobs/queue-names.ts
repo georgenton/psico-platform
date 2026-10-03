@@ -184,6 +184,30 @@ export const QueueName = {
    * unique (userId, month) so retries on the same month overwrite.
    */
   EMOTIONAL_MAP_SNAPSHOT: "emotional-map-snapshot",
+
+  /**
+   * Data-export retention sweep. Daily at 03:30 UTC.
+   *
+   * Deletes the R2 object behind every READY export whose retention has
+   * elapsed, then marks the row EXPIRED and clears `fileUrl`. The row itself
+   * stays: it is the operational record of who asked for their own data and
+   * when, which is worth keeping precisely because the file is not.
+   *
+   * Why this exists at all: nothing deleted these objects. No lifecycle rule, no
+   * sweep, and account deletion did not touch storage either — so a file
+   * containing a person's entire profile sat in the bucket indefinitely.
+   *
+   * 03:30 UTC puts it after the platform snapshot (02:30) and clear of the
+   * Monday cohort recomputation (03:00), neither of which it shares data with;
+   * the spacing is about not stacking I/O on one minute.
+   *
+   * Producer: `JobsService.onModuleInit` registers the cron.
+   * Consumer: `apps/api/src/jobs/processors/data-export-retention.processor.ts`
+   *
+   * Retry: 3 attempts, exp 5min/25min/2h. Idempotent — an object already gone
+   * answers success in S3 semantics, and a row already EXPIRED is not selected.
+   */
+  DATA_EXPORT_RETENTION: "data-export-retention",
 } as const;
 
 export type QueueName = (typeof QueueName)[keyof typeof QueueName];
@@ -348,6 +372,21 @@ export const JobName = {
   RUN_COHORT_RETENTION: "run-cohort-retention",
   RUN_CIRCLES_SWEEP: "run-circles-sweep",
   RUN_EMOTIONAL_MAP_SNAPSHOT: "run-emotional-map-snapshot",
+  RUN_DATA_EXPORT_RETENTION: "run-data-export-retention",
 } as const;
 
 export type JobName = (typeof JobName)[keyof typeof JobName];
+
+/**
+ * Sprint B.2 — data-export retention sweep.
+ *
+ * `nowIso` is a test-only escape hatch, the same one the timezone-aware
+ * processors use: it pins the instant the cutoff is computed from, so a boundary
+ * test states the date it means instead of mocking the clock globally.
+ */
+export interface DataExportRetentionJobPayload {
+  /** ISO instant to compute the retention cutoff from. Defaults to now. */
+  nowIso?: string;
+  /** When true, selects and reports but deletes nothing and writes nothing. */
+  dryRun?: boolean;
+}

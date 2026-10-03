@@ -52,6 +52,7 @@ import type { Env } from "../config";
       { name: QueueName.CIRCLES_SWEEP },
       // Sprint G2 — monthly emotional-map snapshot.
       { name: QueueName.EMOTIONAL_MAP_SNAPSHOT },
+      { name: QueueName.DATA_EXPORT_RETENTION },
     ),
   ],
   providers: [JobsService],

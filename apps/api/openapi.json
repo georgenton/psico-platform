@@ -25603,8 +25603,7 @@
           "avatarUrl": {
             "type": "string",
             "nullable": true,
-            "description": "R2 signed URL to the user's avatar image. Set by the avatar upload\nendpoint (`POST /user/avatar`); callers can also pass `null` to\nclear and revert to initials-based fallback.",
-            "format": "uri"
+            "description": "The user's avatar, as one of exactly two shapes:\n\n  - a path this API issued — `/api/content-assets/avatars/…`, what\n    `POST /user/avatar` returns since the bucket became private. It is a\n    stable path that redirects to a short-lived signed GET; it is NOT a\n    signed URL, which is what the previous docstring here claimed and would\n    have been a dead link within minutes of being stored.\n  - an absolute http(s) URL, for an image hosted elsewhere. Google sign-in\n    writes `claims.picture` into this same column.\n\nPass `null` to clear and revert to the initials fallback."
           }
         }
       },

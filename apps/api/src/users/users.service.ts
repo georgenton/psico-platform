@@ -37,6 +37,7 @@ import { emailShell, escape } from "../notifications/templates/base";
 import { contentAssetPath } from "../shared/content-asset";
 import { assertUploadableImage, imageObjectKey } from "../shared/image-upload";
 import {
+  DATA_EXPORT_COOLDOWN_DAYS,
   DATA_EXPORT_RETENTION_DAYS,
   DATA_EXPORT_STATUS,
 } from "./data-export-retention";
@@ -90,7 +91,6 @@ const DEFAULT_PRIVACY = {
 };
 
 const EMAIL_VERIFICATION_TTL_HOURS = 24;
-const DATA_EXPORT_COOLDOWN_DAYS = 30;
 const DATA_EXPORT_EXPECTED_HOURS = 24;
 /**
  * How long a download URL for an export lives. **ACCESS TTL, not retention.**

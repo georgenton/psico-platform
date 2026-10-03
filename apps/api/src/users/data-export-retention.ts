@@ -25,6 +25,20 @@
 export const DATA_EXPORT_RETENTION_DAYS = 30;
 
 /**
+ * How long a user must wait between export requests.
+ *
+ * It lives HERE, beside retention, because the two are one decision: retention
+ * matches the cooldown so the file survives exactly as long as it is the only
+ * one the user is allowed to have. Kept in `users.service.ts` they were two
+ * numbers that happened to agree, and changing either one alone silently
+ * reopens the gap — a file deleted while a replacement is still refused.
+ *
+ * `data-export-retention.spec.ts` asserts they are equal, so a future edit to
+ * one of them fails a test instead of stranding somebody.
+ */
+export const DATA_EXPORT_COOLDOWN_DAYS = 30;
+
+/**
  * `DataExportRequest.status` values.
  *
  * A plain `String` column with no Prisma enum, so these strings ARE the

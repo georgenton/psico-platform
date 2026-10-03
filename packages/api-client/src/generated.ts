@@ -4805,10 +4805,17 @@ export interface components {
              */
             country?: string | null;
             /**
-             * Format: uri
-             * @description R2 signed URL to the user's avatar image. Set by the avatar upload
-             *     endpoint (`POST /user/avatar`); callers can also pass `null` to
-             *     clear and revert to initials-based fallback.
+             * @description The user's avatar, as one of exactly two shapes:
+             *
+             *       - a path this API issued — `/api/content-assets/avatars/…`, what
+             *         `POST /user/avatar` returns since the bucket became private. It is a
+             *         stable path that redirects to a short-lived signed GET; it is NOT a
+             *         signed URL, which is what the previous docstring here claimed and would
+             *         have been a dead link within minutes of being stored.
+             *       - an absolute http(s) URL, for an image hosted elsewhere. Google sign-in
+             *         writes `claims.picture` into this same column.
+             *
+             *     Pass `null` to clear and revert to the initials fallback.
              */
             avatarUrl?: string | null;
         };

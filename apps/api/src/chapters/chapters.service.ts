@@ -12,7 +12,7 @@ import { lockEditionForBookSlugTx } from "../content-core/revision-lifecycle";
 // Only the MIME→extension map, not `audioObjectKey`: that mints keys under the
 // `media/` prefix owned by the newer ChapterMedia system, and an object written
 // by this legacy uploader must stay distinguishable from one of those.
-import { audioExtension } from "../shared/audio-upload";
+import { assertUploadableAudio, audioExtension } from "../shared/audio-upload";
 import { randomBytes } from "node:crypto";
 import type { CreateChapterDto } from "./dto/create-chapter.dto";
 import type { UploadAudioDto } from "./dto/upload-audio.dto";
@@ -136,10 +136,23 @@ export class ChaptersService {
     // the read side sees an `http` value, passes it through unsigned, and the
     // player gets a URL that R2 refuses because it carries no credentials. A
     // key is also the only one of the two that cannot go stale.
+    // Checked BEFORE a key is minted, bytes are stored or a row is written — so
+    // a refusal leaves nothing behind in R2 or the database.
+    //
+    // This endpoint had no file validation at all: `audioExtension` falls back
+    // to `m4a`, so any bytes at all — a PDF, an executable — landed in the
+    // bucket labelled as audio, with no size ceiling. It is ADMIN-only, which
+    // bounds who could do it but not what the object then claims to be.
+    //
+    // The policy is the catalog's existing one rather than a new one. It accepts
+    // the mp3 and m4a family, which is every format production actually holds
+    // (3 mp3 + 1 m4a at the time of writing), so nothing in use is narrowed.
+    assertUploadableAudio(file);
+
     // The leaf is server-chosen. It used to be `Date.now()` plus the extension
     // from `file.originalname` — attacker-controlled text deciding where bytes
     // land, and a timestamp anybody could guess. The extension now comes from
-    // the MIME we were given; the object's Content-Type is set from that same
+    // the MIME we accepted; the object's Content-Type is set from that same
     // value, which is what players actually read.
     const key = `audio/${slug}/${order}/${randomBytes(8).toString("hex")}.${audioExtension(file.mimetype)}`;
     await this.storage.putObject(file.buffer, key, file.mimetype);

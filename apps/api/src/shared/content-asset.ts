@@ -129,6 +129,30 @@ export function contentAssetPath(key: string): string {
 }
 
 /**
+ * Is this one of OUR avatar paths, exactly?
+ *
+ * `User.avatarUrl` is the only column a client may write a value into — the
+ * profile PATCH accepts it — so its validator needs to recognise the path this
+ * API now produces without becoming "any relative string".
+ *
+ * Narrower than `isAllowedAssetKey` in one deliberate way: the key must be an
+ * AVATAR. A cover or a chapter illustration is a perfectly signable asset and
+ * still has no business being written into somebody's avatar field, which is
+ * rendered next to their name.
+ *
+ * Built on top of the same patterns rather than its own regex, so a change to
+ * what an avatar key looks like cannot leave the two disagreeing — one of them
+ * refusing what the other mints is how a column fills with paths that 404.
+ */
+export function isAvatarAssetPath(value: string): boolean {
+  const prefix = `${CONTENT_ASSET_ROUTE}/`;
+  if (!value.startsWith(prefix)) return false;
+  const key = safeDecode(value.slice(prefix.length));
+  if (!key || !isAllowedAssetKey(key)) return false;
+  return key.startsWith("avatars/");
+}
+
+/**
  * The object key behind a value we stored at some point, or null.
  *
  * Three shapes are recognised, and only three:

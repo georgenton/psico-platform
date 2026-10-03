@@ -20,6 +20,7 @@ import {
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { ErrorEnvelopeDto } from "../shared/dto/error-envelope.dto";
 import { FileInterceptor } from "@nestjs/platform-express";
+import { AUDIO_TRANSPORT_LIMIT } from "../shared/audio-upload";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { ChaptersService } from "./chapters.service";
 import type { AuthenticatedUser } from "../auth";
@@ -73,7 +74,14 @@ export class ChaptersController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @RequiredRole("ADMIN")
   @ApiBearerAuth("bearer")
-  @UseInterceptors(FileInterceptor("file"))
+  // A transport ceiling, matching Content Studio's audiobook upload. Without it
+  // Multer buffers whatever arrives in memory with no bound, so a single request
+  // decides how much of a 1 GB container it occupies. The service re-checks the
+  // size itself, because a transport limit aborts the request while the service
+  // is what produces a legible answer.
+  @UseInterceptors(
+    FileInterceptor("file", { limits: { fileSize: AUDIO_TRANSPORT_LIMIT } }),
+  )
   uploadAudio(
     @Param("slug") slug: string,
     @Param("order", ParseIntPipe) order: number,

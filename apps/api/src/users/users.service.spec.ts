@@ -49,6 +49,9 @@ const mockPrisma = {
   user: {
     findUnique: vi.fn(),
     update: vi.fn(),
+    // Sprint B.2 — the avatar write is conditional on the account not being
+    // scheduled for deletion, which `update` cannot express.
+    updateMany: vi.fn().mockResolvedValue({ count: 1 }),
   },
   profile: {
     upsert: vi.fn(),
@@ -109,6 +112,9 @@ const mockStorage = {
   // whole bug this migration removes.
   uploadFile: vi.fn(),
   putObject: vi.fn().mockResolvedValue(undefined),
+  // Withdrawing our own just-written object when the conditional avatar write
+  // matches no row — see the deletion-cooldown tests.
+  deleteObject: vi.fn().mockResolvedValue(undefined),
   getSignedUrl: vi.fn().mockResolvedValue("https://signed.example/x?sig=1"),
 };
 
@@ -275,8 +281,12 @@ describe("UsersService", () => {
       expect(res.avatarUrl).toBe(`/api/content-assets/${key}`);
       expect(res.avatarUrl).not.toMatch(/^https?:\/\//);
       expect(res.avatarUrl).not.toContain("X-Amz-Signature");
-      expect(mockPrisma.user.update).toHaveBeenCalledWith({
-        where: { id: userId },
+      // Conditional on the account not being scheduled for deletion. The write
+      // order here is object-then-row, so an unconditional update could land
+      // after a deletion transaction removed the row — leaving the new object
+      // orphaned, because the key dies with the row that names it.
+      expect(mockPrisma.user.updateMany).toHaveBeenCalledWith({
+        where: { id: userId, deleteRequestedAt: null },
         data: { avatarUrl: res.avatarUrl },
       });
     });
@@ -418,6 +428,37 @@ describe("UsersService", () => {
         service.getDataExportDownload(userId, "req-1"),
       ).rejects.toThrow(HttpException);
       expect(mockStorage.getSignedUrl).not.toHaveBeenCalled();
+    });
+
+    it("answers 410 GONE for an export the retention sweep expired", async () => {
+      // A different answer from "not ready yet", and the status code says which:
+      // 410 means this existed and is gone for good, so a client stops polling
+      // and offers a fresh request. 409 would have it wait forever for a file
+      // deleted a month ago.
+      mockPrisma.dataExportRequest.findUnique.mockResolvedValue({
+        userId,
+        status: "EXPIRED",
+        fileUrl: null,
+      });
+
+      await expect(
+        service.getDataExportDownload(userId, "req-1"),
+      ).rejects.toMatchObject({ status: 410 });
+      expect(mockStorage.getSignedUrl).not.toHaveBeenCalled();
+    });
+
+    it("still answers 404 for a STRANGER's expired export", async () => {
+      // The status must not become an oracle for which ids exist, so the
+      // ownership check stays above the expiry check.
+      mockPrisma.dataExportRequest.findUnique.mockResolvedValue({
+        userId: "someone-else",
+        status: "EXPIRED",
+        fileUrl: null,
+      });
+
+      await expect(
+        service.getDataExportDownload(userId, "req-1"),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it("refuses a traversal segment in the stored key", async () => {
@@ -689,6 +730,59 @@ describe("UsersService", () => {
       await expect(
         service.requestDelete(userId, { password: "nope" }),
       ).rejects.toThrow(UnauthorizedException);
+    });
+  });
+
+  // ── New personal objects during the deletion cooldown (Sprint B.2) ───────
+
+  describe("uploads while the account is scheduled for deletion", () => {
+    const okFile = {
+      buffer: Buffer.from("png"),
+      originalname: "me.png",
+      mimetype: "image/png",
+      size: 1024,
+    } as Express.Multer.File;
+
+    it("withdraws the avatar object when the conditional write matches no row", async () => {
+      // The race this closes: the object is written BEFORE the row, so an upload
+      // running against AccountDeletionProcessor could put its bytes in the
+      // bucket, block on the lock that transaction holds, and find the row gone
+      // when the lock released. The object would be orphaned forever, because
+      // the key dies with the row that names it. Matching zero rows means the
+      // write did not take, so we take our own bytes back out.
+      mockPrisma.user.updateMany.mockResolvedValue({ count: 0 });
+
+      await expect(service.uploadAvatar(userId, okFile)).rejects.toMatchObject({
+        status: 409,
+      });
+
+      const key = mockStorage.putObject.mock.calls[0]![1] as string;
+      expect(mockStorage.deleteObject).toHaveBeenCalledWith(key);
+    });
+
+    it("refuses a new export rather than accepting one that will never finish", async () => {
+      // `DataExportProcessor` already skips a user with `deleteRequestedAt` set,
+      // so without this the request would be accepted, enqueued, and silently
+      // never become READY — a 202 that means nothing.
+      mockPrisma.user.findUnique.mockResolvedValue({
+        deleteRequestedAt: new Date(),
+      });
+
+      await expect(service.requestDataExport(userId)).rejects.toMatchObject({
+        status: 409,
+      });
+      expect(mockJobs.enqueueDataExport).not.toHaveBeenCalled();
+    });
+
+    it("still allows an export for an account that is not being deleted", async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ deleteRequestedAt: null });
+      mockPrisma.dataExportRequest.findFirst.mockResolvedValue(null);
+      mockPrisma.dataExportRequest.create.mockResolvedValue({ id: "export-1" });
+      mockPrisma.privacySettings.upsert.mockResolvedValue({});
+
+      await service.requestDataExport(userId);
+
+      expect(mockJobs.enqueueDataExport).toHaveBeenCalled();
     });
   });
 });

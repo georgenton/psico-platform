@@ -20,6 +20,7 @@ import { CirclesSweepProcessor } from "./processors/circles-sweep.processor";
 import { createBullConnection } from "./bull-connection";
 import { QueueName } from "./queue-names";
 import { EmailProcessor } from "./processors/email.processor";
+import { DataExportRetentionProcessor } from "./processors/data-export-retention.processor";
 import { DataExportProcessor } from "./processors/data-export.processor";
 import { AccountDeletionProcessor } from "./processors/account-deletion.processor";
 import { DailyUsageProcessor } from "./processors/daily-usage.processor";
@@ -84,6 +85,7 @@ export const WORKER_QUEUES: readonly string[] = [
   QueueName.EMOTIONAL_MAP_SNAPSHOT,
   // Círculos — the temporal sweep. Inert while the rollout is off.
   QueueName.CIRCLES_SWEEP,
+  QueueName.DATA_EXPORT_RETENTION,
 ];
 
 @Module({
@@ -123,6 +125,7 @@ export const WORKER_QUEUES: readonly string[] = [
     CirclesSweepProcessor,
     // Sprint G2 — monthly emotional-map snapshot.
     EmotionalMapSnapshotProcessor,
+    DataExportRetentionProcessor,
   ],
 })
 export class WorkerAppModule {}

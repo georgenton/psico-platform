@@ -38,6 +38,14 @@ describe("JobsService", () => {
     upsertJobScheduler: vi.fn().mockResolvedValue(undefined),
   };
   // Sprint G2 — emotional map snapshot queue.
+  const mockCirclesSweepQueue = {
+    add: vi.fn().mockResolvedValue(undefined),
+    upsertJobScheduler: vi.fn().mockResolvedValue(undefined),
+  };
+  const mockDataExportRetentionQueue = {
+    add: vi.fn().mockResolvedValue(undefined),
+    upsertJobScheduler: vi.fn().mockResolvedValue(undefined),
+  };
   const mockEmotionalMapSnapshotQueue = {
     add: vi.fn().mockResolvedValue(undefined),
     upsertJobScheduler: vi.fn().mockResolvedValue(undefined),
@@ -70,7 +78,9 @@ describe("JobsService", () => {
       mockWeeklySummaryQueue as never,
       mockPlatformSnapshotQueue as never,
       mockCohortRetentionQueue as never,
+      mockCirclesSweepQueue as never,
       mockEmotionalMapSnapshotQueue as never,
+      mockDataExportRetentionQueue as never,
     );
   });
 
@@ -198,6 +208,34 @@ describe("JobsService", () => {
         { pattern: "0 3 * * 1", tz: "UTC" },
         expect.objectContaining({
           name: JobName.RUN_COHORT_RETENTION,
+          opts: expect.objectContaining({
+            attempts: 3,
+            backoff: { type: "exponential", delay: 5 * 60_000 },
+          }),
+        }),
+      );
+    } finally {
+      process.env.NODE_ENV = previous;
+    }
+  });
+
+  it("onModuleInit registers the 03:30 UTC data-export retention scheduler (B.2)", async () => {
+    // 03:30 lands after the platform snapshot (02:30) and clear of the Monday
+    // cohort recomputation (03:00). Nothing deleted these objects before this
+    // cron existed — no lifecycle rule, no sweep, and account deletion did not
+    // touch storage either.
+    const previous = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    try {
+      await service.onModuleInit();
+
+      expect(
+        mockDataExportRetentionQueue.upsertJobScheduler,
+      ).toHaveBeenCalledWith(
+        "data-export-retention-03-30-utc",
+        { pattern: "30 3 * * *", tz: "UTC" },
+        expect.objectContaining({
+          name: JobName.RUN_DATA_EXPORT_RETENTION,
           opts: expect.objectContaining({
             attempts: 3,
             backoff: { type: "exponential", delay: 5 * 60_000 },

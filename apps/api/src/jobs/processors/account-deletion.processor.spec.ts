@@ -29,6 +29,11 @@ describe("AccountDeletionProcessor", () => {
       findUnique: vi.fn(),
       delete: vi.fn().mockResolvedValue({}),
     },
+    // Sprint B.2 — the personal objects in R2 are enumerated inside the same
+    // locked transaction that decides the deletion, so they are read here.
+    dataExportRequest: {
+      findMany: vi.fn().mockResolvedValue([]),
+    },
     $queryRaw: vi.fn(async () => lockedRow.rows),
     $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) =>
       fn(mockPrisma),
@@ -42,6 +47,17 @@ describe("AccountDeletionProcessor", () => {
    * after removing the account leaves a window where the seat is unreachable
    * and the activity still live), and one of the tests below asserts it.
    */
+  /**
+   * R2. A spy because the ORDER is the contract: objects are deleted before
+   * `user.delete`, so a refusal from R2 aborts the whole transaction and the
+   * account survives with its data intact. The reverse order would delete the
+   * account and leave a dump of its data in the bucket, unreachable because the
+   * key died with the row that named it.
+   */
+  const storage = {
+    deleteObject: vi.fn().mockResolvedValue(undefined),
+  };
+
   const circles = {
     countLiveParticipation: vi.fn().mockResolvedValue(0),
     detachUser: vi.fn().mockResolvedValue({
@@ -60,6 +76,8 @@ describe("AccountDeletionProcessor", () => {
     vi.spyOn(Logger.prototype, "log").mockImplementation(() => undefined);
     vi.spyOn(Logger.prototype, "warn").mockImplementation(() => undefined);
     mockPrisma.user.delete.mockResolvedValue({});
+    mockPrisma.dataExportRequest.findMany.mockResolvedValue([]);
+    storage.deleteObject.mockResolvedValue(undefined);
     circles.countLiveParticipation.mockResolvedValue(0);
     // By default the locked re-read agrees with the unlocked one.
     lockedRow.rows = [{ id: "user-1", deleteRequestedAt: THIRTY_ONE_DAYS_AGO }];
@@ -75,6 +93,7 @@ describe("AccountDeletionProcessor", () => {
     processor = new AccountDeletionProcessor(
       mockPrisma as never,
       circles as never,
+      storage as never,
     );
   });
 
@@ -336,5 +355,150 @@ describe("AccountDeletionProcessor", () => {
         buildJob("wrong-name", { userId: "user-1", requestedAt: "now" }),
       ),
     ).rejects.toThrow(/unknown job name/);
+  });
+  // ── R2 erasure (Sprint B.2) ─────────────────────────────────────────────
+  //
+  // Before this, the processor called `user.delete()` and touched storage not at
+  // all. Prisma cascades the rows, which takes the KEYS with them — so a JSON
+  // file holding a person's entire profile stayed in the bucket, unreachable and
+  // un-deletable by any code path. Erasure, not housekeeping.
+
+  describe("personal objects in R2", () => {
+    // A real cuid, not this file's `user-1`: the avatar allowlist requires at
+    // least 8 characters in the id segment, and every id Prisma mints is a
+    // 25-character cuid. Loosening that pattern so a short fixture passes would
+    // widen a security boundary to suit a test.
+    const USER = "cmupxz8sf0000wolm2wemalb7";
+    const AVATAR_KEY = `avatars/${USER}/0123456789abcdef.png`;
+
+    function requestDeletion(avatarUrl: string | null = null) {
+      mockPrisma.user.findUnique
+        // the unlocked pre-check
+        .mockResolvedValueOnce({
+          id: USER,
+          deleteRequestedAt: thirtyOneDaysAgo,
+        })
+        // the read inside the locked transaction
+        .mockResolvedValueOnce({ avatarUrl });
+      return buildJob(JobName.FINALIZE_ACCOUNT_DELETION, {
+        userId: USER,
+        requestedAt: thirtyOneDaysAgo.toISOString(),
+      });
+    }
+
+    it("deletes this user's own avatar", async () => {
+      await processor.process(
+        requestDeletion(`/api/content-assets/${AVATAR_KEY}`),
+      );
+      expect(storage.deleteObject).toHaveBeenCalledWith(AVATAR_KEY);
+      expect(mockPrisma.user.delete).toHaveBeenCalled();
+    });
+
+    it("deletes every data-export object the user has", async () => {
+      mockPrisma.dataExportRequest.findMany.mockResolvedValue([
+        { id: "req-1", fileUrl: `data-exports/${USER}/req-1.json` },
+        { id: "req-2", fileUrl: `data-exports/${USER}/req-2.json` },
+      ]);
+
+      await processor.process(requestDeletion());
+
+      expect(storage.deleteObject).toHaveBeenCalledWith(
+        `data-exports/${USER}/req-1.json`,
+      );
+      expect(storage.deleteObject).toHaveBeenCalledWith(
+        `data-exports/${USER}/req-2.json`,
+      );
+    });
+
+    it("never deletes a third-party avatar", async () => {
+      // Google sign-in writes `claims.picture` into this column. Those bytes
+      // are not ours to erase.
+      await processor.process(
+        requestDeletion("https://lh3.googleusercontent.com/a/abc123"),
+      );
+      expect(storage.deleteObject).not.toHaveBeenCalled();
+      expect(mockPrisma.user.delete).toHaveBeenCalled();
+    });
+
+    it("never deletes another user's avatar, even if the column names one", async () => {
+      await processor.process(
+        requestDeletion(
+          "/api/content-assets/avatars/cmqlzzzzz0009abcdefghijkl/0123456789abcdef.png",
+        ),
+      );
+      expect(storage.deleteObject).not.toHaveBeenCalled();
+    });
+
+    it("never deletes an unrelated prefix", async () => {
+      // A catalog cover, an author's book, an audiobook master: all live in the
+      // same bucket and none of them leaves when a reader does.
+      for (const stored of [
+        "/api/content-assets/catalog-books/eec/cover/a1b2c3d4e5f60718.jpg",
+        "/api/content-assets/autor-books/cmql4vbi0001abcdefghijkl/cover-fedcba9876543210.jpg",
+        "/api/content-assets/media/eec/c1/audiobook/0123456789abcdef.m4a",
+      ]) {
+        vi.clearAllMocks();
+        lockedRow.rows = [{ id: USER, deleteRequestedAt: thirtyOneDaysAgo }];
+        mockPrisma.dataExportRequest.findMany.mockResolvedValue([]);
+        await processor.process(requestDeletion(stored));
+        expect(storage.deleteObject).not.toHaveBeenCalled();
+      }
+    });
+
+    it("deletes the objects BEFORE removing the account", async () => {
+      // The order IS the contract. Reversed, a failing R2 delete would leave the
+      // account gone and its export orphaned forever.
+      const order: string[] = [];
+      storage.deleteObject.mockImplementation(async () => {
+        order.push("r2");
+      });
+      mockPrisma.user.delete.mockImplementation(async () => {
+        order.push("db");
+        return {};
+      });
+      mockPrisma.dataExportRequest.findMany.mockResolvedValue([
+        { id: "req-1", fileUrl: `data-exports/${USER}/req-1.json` },
+      ]);
+
+      await processor.process(requestDeletion());
+
+      expect(order).toEqual(["r2", "db"]);
+    });
+
+    it("does NOT delete the account when R2 refuses", async () => {
+      // Privacy over availability: the account lives a little longer with its
+      // data intact, and BullMQ retries. The alternative is unrecoverable.
+      storage.deleteObject.mockRejectedValue(new Error("R2 unavailable"));
+      mockPrisma.dataExportRequest.findMany.mockResolvedValue([
+        { id: "req-1", fileUrl: `data-exports/${USER}/req-1.json` },
+      ]);
+
+      await expect(processor.process(requestDeletion())).rejects.toThrow(
+        /R2 unavailable/,
+      );
+      expect(mockPrisma.user.delete).not.toHaveBeenCalled();
+    });
+
+    it("touches no object at all when the request was cancelled under the lock", async () => {
+      // Nothing may be destroyed on a path that then decides not to delete.
+      lockedRow.rows = [{ id: USER, deleteRequestedAt: null }];
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: USER,
+        deleteRequestedAt: thirtyOneDaysAgo,
+      });
+      mockPrisma.dataExportRequest.findMany.mockResolvedValue([
+        { id: "req-1", fileUrl: `data-exports/${USER}/req-1.json` },
+      ]);
+
+      await processor.process(
+        buildJob(JobName.FINALIZE_ACCOUNT_DELETION, {
+          userId: USER,
+          requestedAt: thirtyOneDaysAgo.toISOString(),
+        }),
+      );
+
+      expect(storage.deleteObject).not.toHaveBeenCalled();
+      expect(mockPrisma.user.delete).not.toHaveBeenCalled();
+    });
   });
 });

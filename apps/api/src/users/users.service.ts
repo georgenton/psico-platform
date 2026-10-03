@@ -842,11 +842,24 @@ export class UsersService {
     //
     // Note it stays BELOW the ownership check: a stranger's expired export must
     // still answer 404, or the status becomes an oracle for which ids exist.
+    // ── The envelope, and why these three fields and no others ─────────────
+    //
+    // `HttpExceptionFilter` rebuilds every error response from exactly
+    // `{ statusCode, code, message, details?, timestamp, path }`. A key placed
+    // anywhere else on the thrown payload is silently discarded — which is what
+    // happened to the `retentionDays` and `status` hints that used to sit at the
+    // top level here. They read as part of the contract in the source and never
+    // reached a client.
+    //
+    // `message` is not optional either: with an object payload that omits it,
+    // Nest derives the string "Http Exception", and that is what the user was
+    // being shown. Measured, not assumed.
     if (request.status === DATA_EXPORT_STATUS.EXPIRED) {
       throw new HttpException(
         {
           code: "DATA_EXPORT_EXPIRED",
-          retentionDays: DATA_EXPORT_RETENTION_DAYS,
+          message: `This export was deleted after ${DATA_EXPORT_RETENTION_DAYS} days. Request a new one.`,
+          details: { retentionDays: DATA_EXPORT_RETENTION_DAYS },
         },
         HttpStatus.GONE,
       );
@@ -854,7 +867,11 @@ export class UsersService {
 
     if (request.status !== DATA_EXPORT_STATUS.READY || !request.fileUrl) {
       throw new HttpException(
-        { code: "DATA_EXPORT_NOT_READY", status: request.status },
+        {
+          code: "DATA_EXPORT_NOT_READY",
+          message: "This export is not ready to download yet.",
+          details: { status: request.status },
+        },
         HttpStatus.CONFLICT,
       );
     }
@@ -872,8 +889,15 @@ export class UsersService {
       // downloadable by a browser, because that base is the authenticated S3
       // endpoint. There is nothing to recover for the user here: ask for a fresh
       // export, which now stores a key.
+      // No `details`: there is nothing structured to hand a client here, and the
+      // reason is not theirs to act on beyond asking again. A `message` it does
+      // get, so the response is not the bare string "Http Exception".
       throw new HttpException(
-        { code: "DATA_EXPORT_UNAVAILABLE" },
+        {
+          code: "DATA_EXPORT_UNAVAILABLE",
+          message:
+            "This export can no longer be downloaded. Request a new one.",
+        },
         HttpStatus.CONFLICT,
       );
     }

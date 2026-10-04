@@ -67,8 +67,10 @@ describe("staging-seed wrapper · what it refuses to do", () => {
     expect(targets).toMatch(/catalog/);
     expect(targets).toMatch(/qa-users/);
     expect(targets).toMatch(/demo-users/);
-    // Exactly three, each with exactly one command.
-    expect(targets.match(/command:/g)).toHaveLength(3);
+    expect(targets).toMatch(/mood-history/);
+    // Exactly four, each with exactly one command. The count is asserted so
+    // adding a target is a visible decision rather than a quiet one.
+    expect(targets.match(/command:/g)).toHaveLength(4);
   });
 
   it("gives the catalog and the login-minting seeds DIFFERENT variables", () => {

@@ -25,6 +25,7 @@
     "seed:staging:catalog": "node scripts/staging-seed.mjs catalog",
     "seed:staging:qa-users": "node scripts/staging-seed.mjs qa-users",
     "seed:staging:demo-users": "node scripts/staging-seed.mjs demo-users",
+    "seed:staging:mood-history": "node scripts/staging-seed.mjs mood-history",
     "test:locks": "vitest run --config vitest.locks.config.ts",
     "pg:locks": "node scripts/pg-locks-env.mjs",
     "qa:fixture": "ts-node src/qa/visual-fixture-cli.ts",

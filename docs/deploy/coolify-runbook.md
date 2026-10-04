@@ -277,12 +277,13 @@ nuevo**; el anterior sigue sirviendo. Entonces:
 Tras migrar, el catálogo queda **vacío**, y eso es correcto. Son tres mecanismos
 separados y ninguno de los dos últimos corre en un despliegue:
 
-| concepto      | fichero                       | lo invoca                 | toca                                              | ¿en despliegue? |
-| ------------- | ----------------------------- | ------------------------- | ------------------------------------------------- | --------------- |
-| **migración** | `prisma/migrations/*`         | `prisma migrate deploy`   | esquema (DDL), registrado en `_prisma_migrations` | **sí**          |
-| **seed**      | `prisma/seed.ts`              | `seed:staging:catalog`    | catálogo: libros, autores, capítulos, prompts     | no              |
-| **fixture**   | `prisma/seed-test.ts`         | `seed:staging:qa-users`   | sólo `User` — tres cuentas `.test`                | no              |
-| **demo**      | `scripts/seed-demo-users.mjs` | `seed:staging:demo-users` | cuentas demo + actividad sintética                | no              |
+| concepto      | fichero                         | lo invoca                   | toca                                                  | ¿en despliegue? |
+| ------------- | ------------------------------- | --------------------------- | ----------------------------------------------------- | --------------- |
+| **migración** | `prisma/migrations/*`           | `prisma migrate deploy`     | esquema (DDL), registrado en `_prisma_migrations`     | **sí**          |
+| **seed**      | `prisma/seed.ts`                | `seed:staging:catalog`      | catálogo: libros, autores, capítulos, prompts         | no              |
+| **fixture**   | `prisma/seed-test.ts`           | `seed:staging:qa-users`     | sólo `User` — tres cuentas `.test`                    | no              |
+| **demo**      | `scripts/seed-demo-users.mjs`   | `seed:staging:demo-users`   | cuentas demo + actividad sintética                    | no              |
+| **ánimo**     | `scripts/seed-mood-history.mjs` | `seed:staging:mood-history` | `MoodLog` retrodatado de **una** cuenta `@psico.test` | no              |
 
 **Migrar no es sembrar, y nunca se vuelven a encadenar.** `migrate deploy` es un
 paso de despliegue; sembrar es una operación administrativa que reescribe
@@ -307,7 +308,20 @@ QA_USER_PASSWORD='…' pnpm --filter @psico/api seed:staging:qa-users
 
 # cuentas demo con actividad sintética
 DEMO_USER_PASSWORD='…' pnpm --filter @psico/api seed:staging:demo-users
+
+# historial de ánimo retrodatado para UNA cuenta sintética
+pnpm --filter @psico/api seed:staging:mood-history -- --email=demo-recuperando@psico.test
 ```
+
+`seed:staging:mood-history` lleva una **segunda** barrera que los demás no
+necesitan: escribe emociones sintéticas marcadas `moodEligibleForDynamics`, así
+que cambia lo que el Mapa Emocional dice de esa persona. En una caja desplegada
+sólo acepta direcciones `@psico.test`, **aunque la autorización esté puesta** —
+autorizar el host no es autorizar cada cuenta guardada en él. En producción es
+negación dura, incluso para `@psico.test`. En local no se impone el namespace:
+apuntarlo a tu propia cuenta de desarrollo es el uso normal.
+
+`--reset` pasa por exactamente las mismas barreras; no hay un camino aparte.
 
 Si la caja no es staging, el wrapper se niega y dice por qué: producción tiene su
 propia decisión (y los fixtures de cuentas la rechazan de plano, sin variable que

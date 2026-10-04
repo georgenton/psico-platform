@@ -32,11 +32,31 @@ function walk(dir: string, out: string[] = []): string[] {
 }
 
 describe("secret hygiene · structural ratchets", () => {
-  it("the demo seed keeps its production gate (no prod seed without an explicit flag)", () => {
+  it("the demo seed keeps its production gate", () => {
     const src = readFileSync(SEED, "utf8");
-    // The guard must key off BOTH the environment AND the explicit allow-flag.
-    expect(src).toMatch(/PSICO_ENV\s*===\s*["'`]production["'`]/);
-    expect(src).toMatch(/ALLOW_DEMO_USERS_IN_PRODUCTION\s*!==\s*["'`]on["'`]/);
+
+    // This ratchet used to assert the guard's exact source shape — a bare
+    // `PSICO_ENV === "production"` plus its own override variable — and so it
+    // pinned the IMPLEMENTATION rather than the property. Strengthening the
+    // guard broke it, which is the wrong signal from a safety test: it fired on
+    // the fix, not on a regression.
+    //
+    // It now asserts the property instead. The gate must classify through the
+    // shared posture mirror (the one the conformance spec watches) rather than
+    // comparing an environment variable inline, and production must be refused
+    // on its own branch with no variable in it.
+    expect(src).toMatch(
+      /import \{[^}]*\bseedPosture\b[^}]*\} from "\.\/seed-posture\.mjs"/,
+    );
+    expect(src).toMatch(/posture\s*===\s*["'`]production["'`]/);
+    expect(src).toMatch(/posture\s*===\s*["'`]invalid["'`]/);
+    // The deployed-box branch is the only one with a variable, and it is the
+    // shared one, compared exactly.
+    expect(src).toMatch(
+      /ALLOW_QA_USER_SEED_ON_DEPLOYED_BOX\s*!==\s*["'`]1["'`]/,
+    );
+    // Behaviour, not shape: `src/auth/seed-demo-users.spec.ts` runs the resolver
+    // and proves production refuses even with every known variable set.
   });
 
   it("never logs a password / passwordHash VALUE anywhere in auth/users/scripts", () => {

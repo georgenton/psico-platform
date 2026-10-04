@@ -148,6 +148,15 @@ export function resolveEnvironment(): PsicoEnvironment {
  * next platform nobody has thought of yet — and why the vendor markers are kept
  * as a backstop for the day somebody forgets to set it.
  *
+ * `RAILWAY_ENVIRONMENT_NAME` was one of the gaps that incompleteness predicts.
+ * `seed-environment-conformance.spec.ts` found it: the seed guard counted it and
+ * this did not, so a box carrying only that marker was "deployed, undeclared" to
+ * the seed and "development" — every barrier off — to the runtime. Adding it
+ * changes nothing for a real Railway service, which injects all four of these
+ * together (verified against the live service's variable names), and it closes
+ * the gap for partial sets. Note that the legacy Railway box does NOT carry
+ * `PSICO_DEPLOYED`, so on that platform detection rests entirely on this list.
+ *
  * Both Railway and Coolify are listed on purpose: during the migration
  * (ADR 0024) Railway stays up as rollback, so the two must be recognised at
  * once. Removing Railway is part of decommissioning it, not of arriving.
@@ -161,6 +170,7 @@ function deploymentPlatform(): string | null {
 
   if (
     process.env.RAILWAY_ENVIRONMENT ??
+    process.env.RAILWAY_ENVIRONMENT_NAME ??
     process.env.RAILWAY_PROJECT_ID ??
     process.env.RAILWAY_SERVICE_ID
   ) {

@@ -104,6 +104,13 @@ dejaba pasar.
 
 ## Lo que esta ADR deliberadamente NO decide
 
+> **Resuelto el 2026-10-04 — Workstream C.** Lo que esta sección dejó pendiente
+> («unificar el criterio de entorno… con su propia revisión») es exactamente la
+> revisión que se hizo, y el falso positivo de staging ya no existe. El
+> razonamiento original se conserva íntegro abajo porque explica por qué no se
+> arregló entonces; lo que cambió está en **«Addendum C — postura de seed
+> unificada»** al final.
+
 **Unificar el criterio de entorno entre los dos guards queda pendiente, con su
 propia revisión.**
 
@@ -150,3 +157,146 @@ Eso es una revisión, no una línea de código al final de otro cambio.
   era específica de un peligro, así que el peligro pasa a ser un parámetro. El
   default sigue siendo el del seed de catálogo, con un test que fija que omitir el
   argumento no lo degrada en silencio.
+
+---
+
+## Addendum C — postura de seed unificada (2026-10-04)
+
+Esta es la revisión que la sección «lo que no decide» reservó. Nada de lo
+anterior se reescribe: lo que sigue dice qué cambió y por qué.
+
+### La postura decide, no una disyunción de señales
+
+`seed-guard.ts` gana `seedPosture(env)`, que responde una de cinco cosas:
+`development` · `test` · `staging` · `production` · `invalid`. Reemplaza al `OR`
+sobre todas las señales como entrada del guard de catálogo, y sigue exactamente
+la norma del resolutor canónico: en una caja desplegada `PSICO_ENV` es la única
+palabra que cuenta.
+
+`invalid` **no es un entorno**. Es la respuesta cuando la caja no dice qué es, en
+dos formas: desplegada y callada (o llamándose «development»), y cualquier caja
+cuyo `PSICO_ENV` sea una palabra que nadie puede interpretar. **Ninguna variable
+lo levanta.** Eso cierra un agujero que existía: una caja de Railway o Coolify sin
+`PSICO_ENV` se leía como producción, y entonces el token de producción la
+autorizaba. Una postura que nadie declaró no es una postura.
+
+### Staging tiene su propio interruptor
+
+`ALLOW_STAGING_BOOTSTRAP_SEED=1` —exactamente `"1"`—. El falso positivo que esta
+ADR aceptaba (staging-sobre-Coolify lleva `NODE_ENV=production`, así que el seed
+de catálogo pedía el token de producción) desaparece **sin estrechar nada**: la
+precedencia de `PSICO_ENV` ya era la norma del proyecto, y ampliar el guard de
+producción para dejar pasar staging habría aflojado producción como efecto
+colateral. Ninguno de los dos tokens sustituye al otro, en ninguna dirección, y
+hay un test que lo fija.
+
+### Por qué el guard sigue sin importar el resolutor del runtime
+
+Se mantiene la decisión de no acoplar el guard de Prisma al runtime, por dos
+razones medidas: el runtime **lanza** en una caja que no puede clasificar —
+correcto para un servidor que no debe arrancar, y equivocado para una CLI, cuyo
+rechazo correcto es un mensaje que nombra la variable a poner—; y el guard recibe
+un `env` inyectable, así que su matriz se ejerce como datos en vez de mutando el
+proceso y confiando en que el `finally` corrió.
+
+Lo que hace aceptable esa duplicación es que ahora hay un trinquete:
+`seed-environment-conformance.spec.ts` pasa **una sola tabla de fixtures** por los
+tres clasificadores —el resolutor del runtime, el guard TypeScript y el espejo
+`.mjs` que importan los scripts ejecutables— y rompe la build en cuanto dos
+discrepan. El acuerdo verificado por un test es mejor que código compartido que
+arrastraría un grafo de dependencias dentro de un script cuyo valor entero es
+negarse antes de construir nada.
+
+**La tabla ya se pagó sola, dos veces:**
+
+1. `PSICO_ENV=prod` —el atajo que la gente teclea de verdad— hacía **lanzar** al
+   runtime y el guard respondía `development`, así que el seed corría **sin
+   autorización ninguna**. No es una discrepancia cosmética: el seed elige su
+   base de datos por `DATABASE_URL`, nunca por `PSICO_ENV`, así que un portátil
+   apuntado a producción más ese error de tecleo llegaba justo al fallo que
+   C.0A1 existe para evitar. Ahora es `invalid` en ambos.
+2. `RAILWAY_ENVIRONMENT_NAME` no estaba en la lista de marcadores del runtime —el
+   propio comentario de `deploymentPlatform()` advierte que la lista es
+   estructuralmente incompleta—. El guard sí lo contaba, así que una caja con
+   sólo ese marcador era «desplegada, sin declarar» para el seed y
+   «development» —todas las barreras apagadas— para el runtime. Se añadió al
+   runtime: un servicio real de Railway inyecta los cuatro juntos (verificado
+   contra los nombres de variables del servicio en vivo, sin leer valores), así
+   que no cambia nada para ninguna caja real y cierra el hueco para conjuntos
+   parciales. Nota: la caja legada de Railway **no** lleva `PSICO_DEPLOYED`, así
+   que allí la detección descansa entera en esa lista.
+
+### El tercer vocabulario de autorización, eliminado
+
+`scripts/seed-demo-users.mjs` tenía su propio guard: un `===` contra `PSICO_ENV`
+más una variable de override con forma de valor distinta (`=on`). Tres defectos
+a la vez: **fallaba abierto** en una caja desplegada sin `PSICO_ENV`, la
+comparación **no estaba normalizada** (`"Production"` pasaba de largo), y era un
+**tercer vocabulario** —tres vocabularios son tres oportunidades de echar mano
+del más flojo—. La variable era `ALLOW_DEMO_USERS_IN_PRODUCTION`; se borró en vez
+de endurecerse, y un trinquete en `src/auth/seed-demo-users.spec.ts` rompe la
+build si ese nombre reaparece en el script, incluso en un comentario.
+
+Ahora: producción es **negación dura** sin variable que la levante, cualquier otra
+caja desplegada reutiliza `ALLOW_QA_USER_SEED_ON_DEPLOYED_BOX=1` —el mismo
+interruptor del fixture QA, porque es el mismo peligro: un login que funciona en
+un host que responde a internet—, y la contraseña sigue siendo obligatoria y sin
+default.
+
+### Disponibilidad de terapeutas: lo que ya existe se posee a sí mismo
+
+El paso de `TherapistAvailability` hacía `deleteMany({ therapistId })` y reinsertaba
+las ocho franjas canónicas. Es idempotente **contra las constantes del fichero** y
+destructivo contra todo lo demás —y el comentario dos líneas arriba dice que la
+disponibilidad es «tunable per therapist via ops UI», así que un rerun descartaba
+exactamente lo que se espera que ops cambie—. Sobrevivió a la revisión porque la
+única señal observable era el **número de filas**, y ese número es idéntico se
+preserven ocho filas o se borren y reescriban.
+
+Nueva política: si hay ≥1 franja, el seed **no la toca**. Mismo principio que el
+paso de `ChapterBlock`.
+
+Un horario **parcial** (1..7 filas) también se preserva, deliberadamente. No hay
+metadato que distinga «un seed interrumpido» de «ops borró la franja del viernes
+por la tarde», y equivocarse en la dirección de completar reinstala en silencio
+una franja que alguien quitó a propósito. Reparar un horario roto de verdad es
+una operación administrativa aparte, no un efecto secundario de sembrar. **No se
+añadió ninguna bandera `--reset-availability` en este ciclo**: una bandera
+destructiva que nadie ha pedido todavía es una bandera que alguien teclea antes
+de que exista el caso de uso que la justifique.
+
+El paso vive ahora en `prisma/seed-therapists.ts` con un cliente de tipo
+**estrecho** (`TherapistSeedClient`) que no tiene `delete` ni `deleteMany`: la
+versión destructiva no falla un test, **no compila**. Y
+`src/ops/therapist-availability.spec.ts` observa la secuencia de llamadas, no el
+conteo de filas — el control negativo está verificado: restaurar `deleteMany`
+(incluso ensanchando el tipo para acomodarlo) pone los nueve tests en rojo.
+
+### Sembrar es administrativo, con un comando por objetivo
+
+`seed:catalog` · `seed:staging:catalog` · `seed:staging:qa-users` ·
+`seed:staging:demo-users`. **No hay «sembrar todo»**, así que refrescar catálogo no
+puede significar además acuñar logins.
+
+El wrapper (`scripts/staging-seed.mjs`) comprueba la postura y aplica la
+autorización **sólo al entorno del proceso hijo**: no se exporta al shell del
+operador, no se escribe en ningún fichero y **no** se añade a las variables de
+Coolify —que es cómo una autorización efímera se vuelve un bypass permanente—.
+Deliberadamente no construye `DATABASE_URL`, no lee ningún otro secreto, no corre
+migraciones, no encadena seeds y no inventa comprobaciones de hostname: una
+ejecución de seed no llega a ver ninguno, y fiarse de una cadena que parece una
+URL de staging es cómo se siembra producción desde un comando copiado.
+
+### El coste de compilar, medido en vez de supuesto
+
+Compilar `prisma/seed.ts` con comprobación de tipos completa pica en **~837 MiB**
+de RSS y tarda ~3,9 s; con `--transpile-only`, **~269 MiB** y ~0,5 s. El wrapper
+usa `--transpile-only`. **No se subió el límite de memoria de ningún servicio**:
+habría hecho permanente el coste para no comprar nada.
+
+Lo que eso quita es la comprobación de tipos — y resulta que era **lo único** que
+comprobaba estos ficheros: `tsconfig.json` es `include: ["src/**/*"]` con
+`rootDir: "./src"`, así que `prisma/*.ts` quedaba fuera de `pnpm typecheck` **y** de
+`pnpm build`. Un error de tipos en el seed se descubría ejecutando el seed. El
+control compensatorio es `tsconfig.seed.json`, enganchado a `pnpm typecheck`: la
+comprobación se mueve de la ejecución del operador a CI, que es donde le tocaba.

@@ -17,18 +17,22 @@
  * credential. This script therefore:
  *   - has NO default password. Provide one via --password=… or the
  *     DEMO_USER_PASSWORD env var; otherwise it aborts before connecting.
- *   - refuses to run when PSICO_ENV=production unless
- *     ALLOW_DEMO_USERS_IN_PRODUCTION=on is set explicitly.
+ *   - HARD DENIES production. No environment variable lifts it.
+ *   - refuses any other deployed box (staging) unless
+ *     ALLOW_QA_USER_SEED_ON_DEPLOYED_BOX=1 is set for that one invocation —
+ *     the same switch the QA user fixture uses, because it is the same hazard.
+ *   - refuses a deployed box that does not declare PSICO_ENV, rather than
+ *     proceeding as it used to.
  *   - never rotates an EXISTING account's password unless --rotate-passwords
  *     is passed (a fresh account still gets the provided password on create).
  *   - never prints the password.
  *
  * Run it where DATABASE_URL points at the target DB:
  *   cd apps/api
- *   DEMO_USER_PASSWORD='…' railway run node scripts/seed-demo-users.mjs
- *   # or: railway run node scripts/seed-demo-users.mjs --password='…'
+ *   DEMO_USER_PASSWORD='…' node scripts/seed-demo-users.mjs
+ *   # or: node scripts/seed-demo-users.mjs --password='…'
  *   # options: --reset (wipe + recreate mood/checkins) · --rotate-passwords
- *   # in production also: ALLOW_DEMO_USERS_IN_PRODUCTION=on
+ *   # on staging also: ALLOW_QA_USER_SEED_ON_DEPLOYED_BOX=1 (one invocation)
  *
  * If REDIS_URL is set, each account's map cache is busted so the data shows up
  * on the first visit.
@@ -40,6 +44,10 @@ import { Pool } from "pg";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "node:crypto";
 import { pathToFileURL } from "node:url";
+// Classification only. The posture rules live in `prisma/seed-guard.ts`; this is
+// the dependency-free mirror that plain `node` can import, kept honest by
+// `src/auth/seed-environment-conformance.spec.ts`.
+import { isDeployedPlatform, seedPosture } from "./seed-posture.mjs";
 
 const MOODS = ["hard", "low", "ok", "good", "great"];
 
@@ -83,10 +91,33 @@ function parseArgs(argv) {
  * credential):
  *   - No default password. It MUST come from --password=… or DEMO_USER_PASSWORD;
  *     missing → throw.
- *   - In production (PSICO_ENV=production) it refuses to run unless
- *     ALLOW_DEMO_USERS_IN_PRODUCTION=on.
+ *   - PRODUCTION is a hard deny. No variable lifts it (see below).
+ *   - Any other deployed box (staging) needs
+ *     ALLOW_QA_USER_SEED_ON_DEPLOYED_BOX=1 for that single invocation.
  *   - An EXISTING account's password is rotated only with --rotate-passwords.
  *   - The password is never logged (returned only for hashing).
+ *
+ * ── Why the old guard was not enough ──────────────────────────────────────
+ *
+ * It was a single `===` against `PSICO_ENV` with its own override variable, and
+ * it failed in three ways at once:
+ *
+ *   1. It failed OPEN. A deployed box with no `PSICO_ENV` — a Railway or Coolify
+ *      service that never declared its posture — matched nothing, and the script
+ *      proceeded to mint working logins on it.
+ *   2. The comparison was not normalized, so `PSICO_ENV="Production"` or a
+ *      value with a stray space walked straight past it.
+ *   3. Its override was a THIRD authorization vocabulary alongside the catalog
+ *      seed's and the QA fixture's, with a different value shape. Three
+ *      vocabularies is three chances to reach for whichever one happens to be
+ *      loosest, so it was deleted rather than tightened. ADR 0025 records the
+ *      name; a source ratchet in `src/auth/seed-demo-users.spec.ts` fails the
+ *      build if it reappears here, including in a comment.
+ *
+ * So: the posture decides, production is unconditional, and staging reuses the
+ * QA fixture's existing variable rather than inventing a fourth. Demo accounts
+ * are working logins seeded with activity, which is the same hazard that
+ * variable already governs — one switch for one hazard.
  *
  * @param {{ argv: string[], env: Record<string, string | undefined> }} io
  * @returns {{ password: string, rotatePasswords: boolean, reset: boolean }}
@@ -94,11 +125,53 @@ function parseArgs(argv) {
 export function resolveSeedConfig({ argv, env }) {
   const args = parseArgs(argv);
 
-  if (env.PSICO_ENV === "production" &&
-    env.ALLOW_DEMO_USERS_IN_PRODUCTION !== "on") {
+  const posture = seedPosture(env);
+
+  if (posture === "production") {
     throw new Error(
-      "Refusing to seed demo users in production. Set " +
-        "ALLOW_DEMO_USERS_IN_PRODUCTION=on to override (deliberately).",
+      "Refusing to seed demo users against PRODUCTION.\n" +
+        "This is not a missing-authorization error and no environment variable " +
+        "lifts it. Demo accounts are working logins with a password you chose; " +
+        "in production they are live credentials next to real users' data.\n" +
+        "If production genuinely needs an account, create it through the normal " +
+        "registration path, which is auditable.",
+    );
+  }
+
+  if (posture === "invalid") {
+    // Two shapes reach here, and they need different remedies: a deployed box
+    // that declared nothing, and ANY box whose PSICO_ENV is a word nobody can
+    // interpret. Saying "this box is deployed" for the second sent the operator
+    // looking for a platform problem that was really a typo — caught by running
+    // the refusals rather than only unit-testing that they fire.
+    throw new Error(
+      isDeployedPlatform(env)
+        ? "Refusing to seed demo users: this box is deployed but does not " +
+            "declare a valid posture.\n" +
+            "Set PSICO_ENV=production or PSICO_ENV=staging on the RESOURCE, not " +
+            "on the command. NODE_ENV is not accepted here — a build sets it for " +
+            "reasons that say nothing about safety posture.\n" +
+            "No authorization variable lifts this: a posture nobody declared " +
+            "cannot be turned into staging by naming staging on the command line."
+        : "Refusing to seed demo users: PSICO_ENV is set to a value this does " +
+            "not recognize.\n" +
+            "It must be one of production | staging | development | test. Check " +
+            'it for a typo — "prod" and "stage" are not accepted, deliberately, ' +
+            "because a value nobody can interpret must not be read as a " +
+            "development machine while DATABASE_URL points somewhere real.",
+    );
+  }
+
+  if (posture === "staging" && env.ALLOW_QA_USER_SEED_ON_DEPLOYED_BOX !== "1") {
+    // Exactly "1" — not "true", not "on", not "01". A loose check is how a
+    // bypass ends up switched on by a value somebody typed for another reason.
+    throw new Error(
+      "Refusing to seed demo users against a deployed host without " +
+        "authorization.\n" +
+        "Seeding mints working logins on a host that answers to the internet, " +
+        "staging included.\n" +
+        "To do it deliberately, set ALLOW_QA_USER_SEED_ON_DEPLOYED_BOX=1 for " +
+        "that single invocation. Never persist it as a service variable.",
     );
   }
 
@@ -298,13 +371,16 @@ async function main() {
         for (let d = checkinDays - 1; d >= 0; d--) {
           const itemKey =
             CHECKIN_ITEM_KEYS[(checkinDays - 1 - d) % CHECKIN_ITEM_KEYS.length];
-          const base = u.pattern === "volatile" ? 1 + Math.floor(Math.random() * 3) : 3;
+          const base =
+            u.pattern === "volatile" ? 1 + Math.floor(Math.random() * 3) : 3;
           const score = Math.min(4, base + (Math.random() < 0.4 ? 1 : 0));
           checkinRows.push({
             userId: user.id,
             itemKey,
             score,
-            createdAt: new Date(now - d * DAY - Math.floor(Math.random() * DAY)),
+            createdAt: new Date(
+              now - d * DAY - Math.floor(Math.random() * DAY),
+            ),
           });
         }
         await prisma.checkinResponse.createMany({ data: checkinRows });
@@ -342,7 +418,9 @@ async function main() {
             social: 0.015,
             selfKind: kind,
             selfCritic: critic,
-            createdAt: new Date(now - d * DAY - Math.floor(Math.random() * DAY)),
+            createdAt: new Date(
+              now - d * DAY - Math.floor(Math.random() * DAY),
+            ),
           });
         }
         await prisma.diaryTextFeature.createMany({ data: featureRows });
@@ -387,7 +465,9 @@ async function main() {
       // ── A reading session → Conexión / Propósito axes
       if (u.reading && chapter) {
         await prisma.readingSession.upsert({
-          where: { userId_chapterId: { userId: user.id, chapterId: chapter.id } },
+          where: {
+            userId_chapterId: { userId: user.id, chapterId: chapter.id },
+          },
           create: {
             userId: user.id,
             chapterId: chapter.id,
@@ -416,7 +496,9 @@ async function main() {
     );
     for (const r of results) {
       console.log(`• ${r.email}`);
-      console.log(`    datos:   ${r.days} días de ánimo (${r.moods} registros, patrón "${r.pattern}")${r.reading ? " + 1 lectura completada" : ""} · racha ${r.streak}d`);
+      console.log(
+        `    datos:   ${r.days} días de ánimo (${r.moods} registros, patrón "${r.pattern}")${r.reading ? " + 1 lectura completada" : ""} · racha ${r.streak}d`,
+      );
       console.log(`    verás:   ${r.expect}\n`);
     }
     console.log(

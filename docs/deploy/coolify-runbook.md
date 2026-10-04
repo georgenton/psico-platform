@@ -277,26 +277,58 @@ nuevo**; el anterior sigue sirviendo. Entonces:
 Tras migrar, el catálogo queda **vacío**, y eso es correcto. Son tres mecanismos
 separados y ninguno de los dos últimos corre en un despliegue:
 
-| concepto      | fichero               | lo invoca                            | toca                                              | ¿en despliegue? |
-| ------------- | --------------------- | ------------------------------------ | ------------------------------------------------- | --------------- |
-| **migración** | `prisma/migrations/*` | `prisma migrate deploy`              | esquema (DDL), registrado en `_prisma_migrations` | **sí**          |
-| **seed**      | `prisma/seed.ts`      | `prisma db seed`                     | catálogo: libros, autores, capítulos, prompts     | no              |
-| **fixture**   | `prisma/seed-test.ts` | `pnpm --filter @psico/api seed:test` | sólo `User` — tres cuentas `.test`                | no              |
+| concepto      | fichero                       | lo invoca                 | toca                                              | ¿en despliegue? |
+| ------------- | ----------------------------- | ------------------------- | ------------------------------------------------- | --------------- |
+| **migración** | `prisma/migrations/*`         | `prisma migrate deploy`   | esquema (DDL), registrado en `_prisma_migrations` | **sí**          |
+| **seed**      | `prisma/seed.ts`              | `seed:staging:catalog`    | catálogo: libros, autores, capítulos, prompts     | no              |
+| **fixture**   | `prisma/seed-test.ts`         | `seed:staging:qa-users`   | sólo `User` — tres cuentas `.test`                | no              |
+| **demo**      | `scripts/seed-demo-users.mjs` | `seed:staging:demo-users` | cuentas demo + actividad sintética                | no              |
 
-El **fixture acuña credenciales vivas**, una con rol `ADMIN` que abre el
-back-office de Pulso, y una caja desplegada responde a internet: staging también.
-Desde [ADR 0025](../adr/0025-qa-user-fixture-credential-posture.md) se niega a
-correr contra cualquier caja desplegada salvo autorización explícita para esa
-única invocación, y la contraseña **no tiene default** — la generas tú, la
-guardas en tu propio gestor de secretos y no la commiteas:
+**Migrar no es sembrar, y nunca se vuelven a encadenar.** `migrate deploy` es un
+paso de despliegue; sembrar es una operación administrativa que reescribe
+catálogo curado. Encadenarlas (`migrate deploy && seed`) es exactamente lo que
+C.0A1 quitó del pre-deploy, así que no se escribe esa línea ni «sólo esta vez».
+
+#### Sembrar staging
+
+Un comando por objetivo, y **no existe un «sembrar todo»**: refrescar catálogo no
+puede significar además acuñar logins. El wrapper comprueba que la caja es
+staging y aplica la autorización **sólo al proceso hijo** — nunca se exporta a tu
+shell, nunca se escribe en un fichero y **nunca** se añade a las variables de
+Coolify, que es cómo una autorización efímera se convierte en un bypass
+permanente.
 
 ```bash
-ALLOW_QA_USER_SEED_ON_DEPLOYED_BOX=1 QA_USER_PASSWORD='…' \
-  pnpm --filter @psico/api seed:test
+# catálogo (libros, capítulos, prompts, terapeutas)
+pnpm --filter @psico/api seed:staging:catalog
+
+# cuentas QA — acuña logins, uno con rol ADMIN
+QA_USER_PASSWORD='…' pnpm --filter @psico/api seed:staging:qa-users
+
+# cuentas demo con actividad sintética
+DEMO_USER_PASSWORD='…' pnpm --filter @psico/api seed:staging:demo-users
 ```
 
-Al cerrar la ventana de pruebas, `seed:test:wipe` (mismo interruptor, sin
-contraseña — borrar no puede ser más difícil que haber creado).
+Si la caja no es staging, el wrapper se niega y dice por qué: producción tiene su
+propia decisión (y los fixtures de cuentas la rechazan de plano, sin variable que
+lo levante), una caja desplegada que no declara `PSICO_ENV` se niega sin remedio
+por línea de comandos —se arregla declarando el recurso—, y una caja local no
+necesita autorización ninguna.
+
+Los **fixtures de cuentas acuñan credenciales vivas**, una con rol `ADMIN` que
+abre el back-office de Pulso, y una caja desplegada responde a internet: staging
+también. Desde [ADR 0025](../adr/0025-qa-user-fixture-credential-posture.md) la
+contraseña **no tiene default** — la generas tú, la guardas en tu propio gestor
+de secretos y no la commiteas. Al cerrar la ventana de pruebas,
+`seed:test:wipe` (mismo interruptor, sin contraseña — borrar no puede ser más
+difícil que haber creado).
+
+Para correr el seed a mano sin el wrapper, la autorización va **delante del
+comando**, para esa única invocación:
+
+```bash
+ALLOW_STAGING_BOOTSTRAP_SEED=1 pnpm --filter @psico/api seed:catalog
+```
 
 **En Prisma 7 nada encadena el seed.** La documentación lo dice sin ambigüedad: «In
 Prisma ORM v7, seeding is only triggered explicitly by running `npx prisma db seed`.

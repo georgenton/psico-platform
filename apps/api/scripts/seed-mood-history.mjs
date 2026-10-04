@@ -19,17 +19,26 @@
  * no environment guard at all: it took whatever `DATABASE_URL` pointed at and a
  * `--email` of any stored account, which included production and real users.
  *
- * Two independent barriers now, and the second is the one that matters here:
+ * Two independent barriers now, and the second is the one that matters here.
+ * BOTH are keyed to the declared POSTURE, never to a platform marker:
  *
- *   1. POSTURE — production is a hard deny that no variable lifts; a deployed
- *      box that will not declare itself is denied the same way; a deployed
- *      staging box needs `ALLOW_QA_USER_SEED_ON_DEPLOYED_BOX=1` for that single
- *      invocation. Classification comes from `scripts/seed-posture.mjs`, the
- *      same mirror the other seeds use — not a fresh comparison.
- *   2. TARGET NAMESPACE — on a deployed box the account must be `@psico.test`,
- *      EVEN WITH the authorization present. Authorizing a host is not the same
- *      as authorizing every account stored on it, and this script's whole effect
- *      is to rewrite one person's emotional history.
+ *   1. POSTURE — production is a hard deny that no variable lifts; a box that
+ *      will not declare itself is denied the same way; a STAGING posture needs
+ *      `ALLOW_QA_USER_SEED_ON_DEPLOYED_BOX=1` for that single invocation.
+ *      Classification comes from `scripts/seed-posture.mjs`, the same mirror the
+ *      other seeds use — not a fresh comparison.
+ *   2. TARGET NAMESPACE — in a staging environment the account must be
+ *      `@psico.test`, EVEN WITH the authorization present. Authorizing an
+ *      environment is not the same as authorizing every account stored in it,
+ *      and this script's whole effect is to rewrite one person's emotional
+ *      history.
+ *
+ * "Staging posture" and not "staging container": a laptop with
+ * `PSICO_ENV=staging` and `DATABASE_URL` pointed at the staging database is
+ * writing to staging, and the first version of this guard let exactly that
+ * through because it asked `isDeployedPlatform()` instead. Where the database
+ * actually is cannot be read from the environment, so the declared posture is
+ * the only honest input.
  *
  * Locally the namespace is NOT enforced: pointing this at your own dev account
  * is the normal use, and a local box is not a shared one. The posture gate is
@@ -39,16 +48,17 @@
  *   node scripts/seed-mood-history.mjs --email=you@example.com
  *   node scripts/seed-mood-history.mjs --email=you@example.com --days=90 --pattern=volatile --reset
  *
- * On deployed staging, prefer the wrapper, which supplies the authorization to
+ * Under a staging posture, prefer the wrapper, which supplies the authorization to
  * the child process only:
  *   pnpm --filter @psico/api seed:staging:mood-history -- --email=demo-x@psico.test
  *
  * Flags:
- *   --email    (required) account to seed; `@psico.test` on a deployed box
+ *   --email    (required) account to seed; `@psico.test` under a staging posture
  *   --days     window length in days (1..3650, default 90)
  *   --pattern  stable | volatile | improving | declining (default volatile)
  *   --skip     fraction of days to skip for irregular sampling, 0 ≤ skip < 1
  *   --reset    delete existing MoodLog in the window before inserting
+ *              (`--reset=false` is honoured; any other value is refused)
  *
  * If REDIS_URL is set, the emotional-map cache for that user is busted so the
  * change shows up immediately.
@@ -165,16 +175,36 @@ export function resolveMoodSeedConfig({ argv, env }) {
     );
   }
 
-  // ── 2. Authorization, for a deployed box ────────────────────────────────
-  const deployed = isDeployedPlatform(env);
-  if (deployed && env.ALLOW_QA_USER_SEED_ON_DEPLOYED_BOX !== "1") {
+  // ── 2. Authorization, decided by POSTURE ────────────────────────────────
+  //
+  // `posture === "staging"`, NOT `isDeployedPlatform(env)`. The first version
+  // gated on the platform marker and that was a real bypass: a laptop with
+  // `PSICO_ENV=staging` and `DATABASE_URL` pointed at the staging database
+  // classifies as staging but carries no Coolify/Railway marker, so neither the
+  // authorization nor the namespace restriction applied — and the script wrote
+  // to a real account with `--reset`, unauthorized. Reproduced before fixing.
+  //
+  // It also made this script WEAKER than its siblings, which both decide by
+  // posture: `assertSeedAllowed` refuses that same environment with
+  // `StagingSeedNotAuthorizedError`, and `seed-demo-users.mjs` refuses it too.
+  // The conformance table could not catch the divergence because it pins
+  // CLASSIFICATION, and this was an AUTHORIZATION policy that disagreed with
+  // its own classifier.
+  //
+  // The lesson generalizes: the posture is the answer to "how much does a
+  // mistake cost here", and the platform marker only ever answered "is a vendor
+  // telling us where we are". Where the database is cannot be read from the
+  // environment at all, so the declared posture is the only honest input.
+  const isStaging = posture === "staging";
+  if (isStaging && env.ALLOW_QA_USER_SEED_ON_DEPLOYED_BOX !== "1") {
     // Exactly "1" — not "true", not "on", not "01". A loose check is how a
     // bypass gets switched on by a value somebody typed for another reason.
     throw new Error(
-      "Refusing to write mood history against a deployed host without " +
+      "Refusing to write mood history against a STAGING environment without " +
         "authorization.\n" +
-        "A deployed host answers to the internet, staging included, and the " +
-        "accounts on it are reachable.\n" +
+        "Staging answers to the internet and its accounts are reachable, and " +
+        "this applies wherever the command runs: a laptop pointed at the " +
+        "staging database is writing to staging.\n" +
         "To do it deliberately, set ALLOW_QA_USER_SEED_ON_DEPLOYED_BOX=1 for " +
         "that single invocation. Never persist it as a service variable.",
     );
@@ -198,13 +228,17 @@ export function resolveMoodSeedConfig({ argv, env }) {
   const isSynthetic =
     normalized.endsWith(SYNTHETIC_EMAIL_SUFFIX) && localPart.length > 0;
 
-  if (deployed && !isSynthetic) {
+  // Same correction as the authorization gate: keyed to the POSTURE, so a
+  // laptop pointed at the staging database is held to the same namespace as a
+  // command run inside the staging container.
+  if (isStaging && !isSynthetic) {
     throw new Error(
       `Refusing to write mood history to an account outside ${SYNTHETIC_EMAIL_SUFFIX} ` +
-        "on a deployed host.\n" +
-        "The authorization variable authorizes the HOST, not every account " +
-        "stored on it. This script rewrites one person's emotional history, so " +
-        "on a shared box it may only touch the synthetic namespace.\n" +
+        "in a STAGING environment.\n" +
+        "The authorization variable authorizes the ENVIRONMENT, not every " +
+        "account stored in it. This script rewrites one person's emotional " +
+        "history, so on a shared database it may only touch the synthetic " +
+        "namespace.\n" +
         `Use an address ending in ${SYNTHETIC_EMAIL_SUFFIX}.`,
     );
   }
@@ -240,9 +274,14 @@ export function resolveMoodSeedConfig({ argv, env }) {
     );
   }
 
-  // `Boolean("false")` is TRUE, so `--reset=false` used to DELETE. A flag whose
-  // negation triggers the destructive branch is not a flag worth keeping loose:
-  // bare `--reset` or an explicit `--reset=true`, nothing else.
+  // `Boolean("false")` is TRUE, so `--reset=false` used to DELETE — somebody
+  // writing what looks like an explicit opt-out got the destructive branch.
+  //
+  // The rule is: `--reset` and `--reset=true` delete, `--reset=false` does not,
+  // and any OTHER value is refused rather than guessed. An earlier comment here
+  // said "nothing else", which read as though `=false` were rejected too; it is
+  // honoured, because refusing somebody's explicit "no" would be its own small
+  // trap. What must never come back is a value silently meaning its opposite.
   const resetRaw = args.reset;
   let reset;
   if (resetRaw === undefined) reset = false;

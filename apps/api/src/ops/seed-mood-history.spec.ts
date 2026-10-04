@@ -8,6 +8,12 @@ import {
   SYNTHETIC_EMAIL_SUFFIX,
   resolveMoodSeedConfig,
 } from "../../scripts/seed-mood-history.mjs";
+// The sibling guard, so one test can assert this script is never MORE permissive
+// than the catalog seed for an identical environment.
+import {
+  StagingSeedNotAuthorizedError,
+  assertSeedAllowed,
+} from "../../prisma/seed-guard";
 
 /**
  * C.1 — the mood-history tool writes SYNTHETIC EMOTIONS into a real account.
@@ -219,7 +225,116 @@ describe("seed-mood-history · deployed staging needs the existing variable", ()
   });
 });
 
-describe("seed-mood-history · the target account, on a deployed box", () => {
+/**
+ * The bypass this cycle's review found, pinned shut.
+ *
+ * The first version gated authorization and the namespace on
+ * `isDeployedPlatform(env)`. A laptop with `PSICO_ENV=staging` and
+ * `DATABASE_URL` pointed at the staging database classifies as staging and
+ * carries NO Coolify/Railway marker, so neither barrier applied: the script
+ * wrote to a real account with `--reset`, unauthorized. Reproduced before the
+ * fix, and it is the most likely way this tool is actually used — nobody opens a
+ * shell inside the container to seed moods when `DATABASE_URL` is in their .env.
+ *
+ * It also made this script WEAKER than its siblings, which both decide by
+ * posture: `assertSeedAllowed` raises `StagingSeedNotAuthorizedError` for that
+ * same environment, and `seed-demo-users.mjs` refuses it too. The conformance
+ * table could not catch it, because that pins CLASSIFICATION and this was an
+ * AUTHORIZATION policy disagreeing with its own classifier.
+ *
+ * So: both gates key to the POSTURE. The platform marker survives for one job
+ * only — choosing which `invalid` message to print.
+ */
+describe("seed-mood-history · a staging posture with no platform marker", () => {
+  const laptopAtStaging = { PSICO_ENV: "staging" };
+
+  it("refuses without the authorization, exactly like a container would", () => {
+    expect(() =>
+      resolveMoodSeedConfig({
+        argv: withEmail(ok.email),
+        env: laptopAtStaging,
+      }),
+    ).toThrow(/ALLOW_QA_USER_SEED_ON_DEPLOYED_BOX/);
+  });
+
+  it("refuses a real account even WITH the authorization", () => {
+    expect(() =>
+      resolveMoodSeedConfig({
+        argv: withEmail("real@gmail.com"),
+        env: {
+          ...laptopAtStaging,
+          ALLOW_QA_USER_SEED_ON_DEPLOYED_BOX: "1",
+        },
+      }),
+    ).toThrow(new RegExp(`outside ${SYNTHETIC_EMAIL_SUFFIX}`));
+  });
+
+  it("allows a synthetic account with the authorization", () => {
+    const cfg = resolveMoodSeedConfig({
+      argv: withEmail(ok.email),
+      env: {
+        ...laptopAtStaging,
+        ALLOW_QA_USER_SEED_ON_DEPLOYED_BOX: "1",
+      },
+    });
+    expect(cfg.email).toBe(ok.email);
+  });
+
+  it("holds --reset to the same barriers from a laptop", () => {
+    // The exact shape of the reproduced bypass: real account, --reset, no token.
+    expect(() =>
+      resolveMoodSeedConfig({
+        argv: argv("--email=real@gmail.com", "--reset"),
+        env: laptopAtStaging,
+      }),
+    ).toThrow(/ALLOW_QA_USER_SEED_ON_DEPLOYED_BOX/);
+
+    // And with the token, the namespace still stops it.
+    expect(() =>
+      resolveMoodSeedConfig({
+        argv: argv("--email=real@gmail.com", "--reset"),
+        env: {
+          ...laptopAtStaging,
+          ALLOW_QA_USER_SEED_ON_DEPLOYED_BOX: "1",
+        },
+      }),
+    ).toThrow(new RegExp(`outside ${SYNTHETIC_EMAIL_SUFFIX}`));
+  });
+
+  it("the refusal does not claim the box is deployed", () => {
+    // It is not, and saying so would send the operator looking for a platform
+    // problem instead of reading which database they are pointed at.
+    let caught: unknown;
+    try {
+      resolveMoodSeedConfig({
+        argv: withEmail(ok.email),
+        env: laptopAtStaging,
+      });
+    } catch (err) {
+      caught = err;
+    }
+    const message = String((caught as Error).message);
+    expect(message).toMatch(/STAGING environment/);
+    expect(message).toMatch(/laptop pointed at the\s+staging database/);
+    expect(message).not.toMatch(/deployed host answers/);
+  });
+
+  it("matches what the sibling seeds do with the same environment", () => {
+    // The invariant that was broken. If this script is ever more permissive
+    // than the catalog seed for an identical environment, that is the bug.
+    expect(() =>
+      resolveMoodSeedConfig({
+        argv: withEmail(ok.email),
+        env: laptopAtStaging,
+      }),
+    ).toThrow();
+    expect(() => assertSeedAllowed(laptopAtStaging)).toThrow(
+      StagingSeedNotAuthorizedError,
+    );
+  });
+});
+
+describe("seed-mood-history · the target account, under a staging posture", () => {
   it.each([
     "user@gmail.com",
     "persona@empresa.com",
@@ -262,7 +377,7 @@ describe("seed-mood-history · the target account, on a deployed box", () => {
       caught = err;
     }
     expect(String((caught as Error).message)).toMatch(
-      /authorizes the HOST, not every account/,
+      /authorizes the ENVIRONMENT, not every\s+account/,
     );
   });
 
@@ -489,6 +604,29 @@ describe("seed-mood-history · source ratchets", () => {
   );
   /** Executable text only, so prose about what was avoided stays allowed. */
   const CODE = RAW.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+
+  it("decides authorization by POSTURE, never by the platform marker", () => {
+    // The bypass, as a ratchet. `isDeployedPlatform` may still pick the
+    // `invalid` MESSAGE — it answers "is a vendor telling us where we are" —
+    // but it must not decide whether a staging posture needs authorization.
+    expect(CODE).toMatch(/const isStaging = posture === "staging"/);
+    expect(CODE).toMatch(
+      /if \(isStaging && env\.ALLOW_QA_USER_SEED_ON_DEPLOYED_BOX !== "1"\)/,
+    );
+    expect(CODE).toMatch(/if \(isStaging && !isSynthetic\)/);
+    // No gate anywhere keyed to the marker.
+    expect(CODE).not.toMatch(/const deployed = isDeployedPlatform/);
+    expect(CODE).not.toMatch(/if \(deployed /);
+    // Its one surviving use is inside the invalid branch.
+    const invalidBranch = CODE.slice(
+      CODE.indexOf('posture === "invalid"'),
+      CODE.indexOf("const isStaging"),
+    );
+    expect(invalidBranch).toMatch(/isDeployedPlatform\(env\)/);
+    // Exactly one CALL in the whole file, and it is the one above. (The named
+    // import carries no parenthesis, so it is not counted here.)
+    expect(CODE.match(/isDeployedPlatform\(/g)).toHaveLength(1);
+  });
 
   it("classifies with the shared mirror, not its own comparison", () => {
     expect(CODE).toMatch(

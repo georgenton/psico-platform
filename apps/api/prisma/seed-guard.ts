@@ -24,6 +24,21 @@
 export const SEED_AUTHORIZATION_VAR = "ALLOW_PRODUCTION_BOOTSTRAP_SEED";
 
 /**
+ * The catalog seed's authorization for a STAGING box, separate from production's.
+ *
+ * Staging needed its own switch rather than a relaxation of the production one.
+ * Our Coolify staging box runs with `NODE_ENV=production` — set by the build, not
+ * by us — so the old `OR` over every signal read it as production and refused,
+ * and the only way to seed it was a workaround. Widening what counts as
+ * "authorized production" to let staging through would have handed production a
+ * quieter guard as a side effect.
+ *
+ * Two switches also keep the blast radius honest: a token typed for a staging
+ * refresh cannot be the token that authorizes a production one.
+ */
+export const STAGING_SEED_AUTHORIZATION_VAR = "ALLOW_STAGING_BOOTSTRAP_SEED";
+
+/**
  * Authorization for the QA user fixture, deliberately SEPARATE from the
  * catalog seed's.
  *
@@ -51,7 +66,92 @@ export interface SeedGuardEnv {
   COOLIFY_RESOURCE_UUID?: string;
   COOLIFY_CONTAINER_NAME?: string;
   [SEED_AUTHORIZATION_VAR]?: string;
+  [STAGING_SEED_AUTHORIZATION_VAR]?: string;
   [QA_SEED_AUTHORIZATION_VAR]?: string;
+}
+
+/**
+ * What kind of box this is, as the seed tooling classifies it.
+ *
+ * ── Why a posture, and why it is computed here rather than imported ───────
+ *
+ * The runtime already has a resolver — `resolveEnvironment()`, reached through
+ * `src/shared/psico-environment` — and it is the semantic AUTHORITY: PSICO_ENV
+ * normalized, the only word that counts on a deployed box, NODE_ENV explicitly
+ * not a substitute. This function must agree with it, and
+ * `seed-environment-conformance.spec.ts` fails the build if the two ever
+ * classify the same inputs differently.
+ *
+ * It is not the same code for two measured reasons:
+ *
+ *   1. The runtime reads `process.env` directly and THROWS on an undeclared
+ *      deployed box. Throwing is right for a server that must not boot; for a
+ *      CLI the right answer is a legible refusal naming the variable to set.
+ *   2. This takes an injectable `env`, so the matrix below is exercised as data
+ *      rather than by mutating the process and hoping the restore ran.
+ *
+ * Agreement enforced by a test beats shared code that drags a dependency graph
+ * into a script whose whole value is refusing before anything is constructed.
+ *
+ * `"invalid"` is not an environment — it is the answer when the box is deployed
+ * and will not say what it is. No token lifts it: a posture nobody declared
+ * cannot be turned into staging by typing a staging token.
+ */
+export type SeedPosture =
+  | "development"
+  | "test"
+  | "staging"
+  | "production"
+  | "invalid";
+
+export function seedPosture(env: SeedGuardEnv): SeedPosture {
+  const explicit = marker(env.PSICO_ENV);
+
+  // ── Deployed: PSICO_ENV is the only word ────────────────────────────────
+  //
+  // Identical to the runtime's rule, and for the same reason: NODE_ENV is set by
+  // tooling for a hundred reasons that say nothing about safety posture, and a
+  // box that declines to declare itself is the one case where guessing is worst.
+  // `isDeployedPlatform`, NOT `isDeployedEnvironment`. The two answer different
+  // questions and §4 of this design depends on the difference: CLASSIFICATION
+  // must match the runtime, which counts only vendor markers and our own
+  // `PSICO_DEPLOYED`. The broader predicate additionally treats a bare
+  // `NODE_ENV=production` as deployed — right for the QA fixture's hazard ("could
+  // this box answer the internet?"), wrong here, because the runtime would call
+  // that same box `production` and the conformance test would catch us.
+  if (isDeployedPlatform(env)) {
+    if (explicit === "production" || explicit === "staging") return explicit;
+    // Includes `PSICO_ENV=development` on a deployed box: a configuration
+    // conflict, not a development machine. A deployed box does not get to opt
+    // out of the barriers by renaming itself.
+    return "invalid";
+  }
+
+  // ── Local / CI ──────────────────────────────────────────────────────────
+  if (explicit === "production") return "production";
+  if (explicit === "staging") return "staging";
+  if (explicit === "test") return "test";
+  if (explicit === "development") return "development";
+
+  // A PSICO_ENV that is set but not one of the four is "invalid", not "whatever
+  // NODE_ENV says". Found by the conformance test, which is the whole reason it
+  // exists: the runtime THROWS on an unrecognized value here, and this used to
+  // fall through to the NODE_ENV branch and answer "development" — so
+  // `PSICO_ENV=prod`, the shorthand people actually type, classified a box as a
+  // development machine and the seed ran with no authorization at all.
+  //
+  // That is not a cosmetic disagreement. The seed chooses its database from
+  // DATABASE_URL, never from PSICO_ENV, so a laptop pointed at the production
+  // database plus that one typo reached exactly the failure C.0A1 exists to
+  // prevent. A value nobody can interpret is refused.
+  if (explicit) return "invalid";
+
+  const node = marker(env.NODE_ENV);
+  if (node === "test") return "test";
+  if (node === "production") return "production";
+  if (node === "staging") return "staging";
+
+  return "development";
 }
 
 export class ProductionSeedNotAuthorizedError extends Error {
@@ -115,6 +215,34 @@ export function isProductionEnvironment(env: SeedGuardEnv): boolean {
  * Reading those as "I am deployed" would make this refuse on the maintainer's
  * own machine — which is where the fixture is legitimately used.
  */
+/**
+ * Is a hosting PLATFORM telling us this box is deployed?
+ *
+ * Mirrors `deploymentPlatform()` in the runtime resolver exactly: our own
+ * neutral marker first, then the vendor ones. Deliberately does NOT consider
+ * `NODE_ENV` — a build sets that for its own reasons, and the runtime does not
+ * accept it here either. `seed-environment-conformance.spec.ts` is what keeps
+ * the two in step.
+ *
+ * `COOLIFY_URL` / `COOLIFY_TOKEN` are excluded for the same hard-won reason as
+ * in the runtime: those are how a CLIENT is configured to talk to a Coolify, so
+ * any laptop with the CLI carries them.
+ */
+export function isDeployedPlatform(env: SeedGuardEnv): boolean {
+  if (marker(env.PSICO_DEPLOYED)) return true;
+  if (
+    marker(env.RAILWAY_ENVIRONMENT_NAME) ||
+    marker(env.RAILWAY_ENVIRONMENT) ||
+    marker(env.RAILWAY_PROJECT_ID) ||
+    marker(env.RAILWAY_SERVICE_ID)
+  ) {
+    return true;
+  }
+  return Boolean(
+    marker(env.COOLIFY_RESOURCE_UUID) || marker(env.COOLIFY_CONTAINER_NAME),
+  );
+}
+
 export function isDeployedEnvironment(env: SeedGuardEnv): boolean {
   const posture = marker(env.PSICO_ENV);
   if (posture === "production" || posture === "staging") return true;
@@ -153,6 +281,62 @@ export function isSeedAuthorized(env: SeedGuardEnv): boolean {
 /** Same exactness, separate switch. See `QA_SEED_AUTHORIZATION_VAR`. */
 export function isQaUserSeedAuthorized(env: SeedGuardEnv): boolean {
   return env[QA_SEED_AUTHORIZATION_VAR] === "1";
+}
+
+/** Same exactness again, for the staging catalog refresh. */
+export function isStagingSeedAuthorized(env: SeedGuardEnv): boolean {
+  return env[STAGING_SEED_AUTHORIZATION_VAR] === "1";
+}
+
+export class StagingSeedNotAuthorizedError extends Error {
+  readonly code = "STAGING_SEED_NOT_AUTHORIZED" as const;
+  constructor() {
+    super(
+      "Refusing to seed a staging environment without authorization.\n" +
+        "The catalog seed is an administrative operation, not a deployment step: " +
+        "it rewrites curated catalogs. Staging is cheap to refresh, but not by " +
+        "accident.\n" +
+        `To run it deliberately, set ${STAGING_SEED_AUTHORIZATION_VAR}=1 for that ` +
+        "single invocation. Never persist it as a service variable.",
+    );
+    this.name = "StagingSeedNotAuthorizedError";
+  }
+}
+
+/**
+ * The box will not say what it is, in one of two shapes:
+ *
+ *   - deployed and silent (or calling itself "development"), or
+ *   - any box whose `PSICO_ENV` is set to a word nobody can interpret —
+ *     `PSICO_ENV=prod` is the one that actually happens.
+ *
+ * Both get the same answer because both leave the same question unanswered, and
+ * no authorization variable lifts either. The message distinguishes them only so
+ * the operator is pointed at the right fix; the refusal is identical.
+ *
+ * Deliberately does NOT echo the offending value. Naming it would read as
+ * confirmation that the value was seen and considered, and it is one of the very
+ * few environment values this code touches at all.
+ */
+export class DeployedSeedEnvironmentInvalidError extends Error {
+  readonly code = "DEPLOYED_SEED_ENVIRONMENT_INVALID" as const;
+  constructor(deployed = true) {
+    super(
+      (deployed
+        ? "Refusing to seed: this box is deployed but does not declare a valid posture.\n" +
+          "Set PSICO_ENV=production or PSICO_ENV=staging on the RESOURCE, not on the " +
+          "command. NODE_ENV is not accepted here — a build sets it for reasons that " +
+          "say nothing about safety posture.\n"
+        : "Refusing to seed: PSICO_ENV is set to a value this does not recognize.\n" +
+          "It must be one of production | staging | development | test. Check it for " +
+          'a typo — "prod" and "stage" are not accepted, deliberately, because a ' +
+          "value nobody can interpret must not be read as a development machine " +
+          "while DATABASE_URL points somewhere real.\n") +
+        "No authorization variable lifts this: a posture nobody declared cannot " +
+        "be turned into staging by naming staging on the command line.",
+    );
+    this.name = "DeployedSeedEnvironmentInvalidError";
+  }
 }
 
 export class QaUserSeedNotAuthorizedError extends Error {
@@ -252,6 +436,17 @@ export function assertQaUserSeedAllowed(env: SeedGuardEnv = process.env): void {
   if (isQaSeedProductionPosture(env)) {
     throw new QaUserSeedForbiddenInProductionError();
   }
+  // A box that will not say what it is gets the same answer as production:
+  // refused, and no variable lifts it. Two shapes reach here — an undeclared
+  // Coolify or Railway box (which used to be reachable with the deployed-box
+  // variable), and ANY box whose PSICO_ENV is an uninterpretable word like
+  // `prod`. The second is not conditioned on `isDeployedPlatform`, deliberately:
+  // this fixture mints an ADMIN login into whatever DATABASE_URL points at, and
+  // a typo'd posture on a laptop pointed at a real database is the same hazard
+  // as an undeclared host, not a smaller one.
+  if (seedPosture(env) === "invalid") {
+    throw new DeployedSeedEnvironmentInvalidError(isDeployedPlatform(env));
+  }
   if (!isDeployedEnvironment(env)) return;
   if (isQaUserSeedAuthorized(env)) return;
   throw new QaUserSeedNotAuthorizedError();
@@ -261,8 +456,39 @@ export function assertQaUserSeedAllowed(env: SeedGuardEnv = process.env): void {
  * Throws before the seed touches anything. Call it FIRST — ahead of any Prisma
  * client use, so a refusal costs no connection.
  */
+/**
+ * Throws before the catalog seed touches anything. Call it FIRST — ahead of any
+ * Prisma client use, so a refusal costs no connection.
+ *
+ * Posture-driven, and the order is the policy:
+ *
+ *   1. invalid (deployed, undeclared or calling itself development) → refuse,
+ *      unconditionally. This is the case that used to be reachable: a Railway or
+ *      Coolify box with no `PSICO_ENV` read as production, and the production
+ *      token then authorized it. A posture nobody stated is not a posture.
+ *   2. production → refuse unless `ALLOW_PRODUCTION_BOOTSTRAP_SEED=1`.
+ *   3. staging  → refuse unless `ALLOW_STAGING_BOOTSTRAP_SEED=1`. Its own
+ *      switch, because our Coolify staging box carries `NODE_ENV=production`
+ *      and the old single-signal check read that as production — the false
+ *      positive this replaces. Widening the production gate to let staging
+ *      through would have loosened production as a side effect.
+ *   4. development / test → allow. A local box is the one place this is routine.
+ *
+ * Neither token substitutes for the other, in either direction.
+ */
 export function assertSeedAllowed(env: SeedGuardEnv = process.env): void {
-  if (!isProductionEnvironment(env)) return;
-  if (isSeedAuthorized(env)) return;
-  throw new ProductionSeedNotAuthorizedError();
+  const posture = seedPosture(env);
+
+  if (posture === "invalid") {
+    throw new DeployedSeedEnvironmentInvalidError(isDeployedPlatform(env));
+  }
+  if (posture === "production") {
+    if (isSeedAuthorized(env)) return;
+    throw new ProductionSeedNotAuthorizedError();
+  }
+  if (posture === "staging") {
+    if (isStagingSeedAuthorized(env)) return;
+    throw new StagingSeedNotAuthorizedError();
+  }
+  // development | test
 }

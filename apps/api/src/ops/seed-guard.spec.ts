@@ -3,17 +3,21 @@ import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  DeployedSeedEnvironmentInvalidError,
   ProductionSeedNotAuthorizedError,
   QA_SEED_AUTHORIZATION_VAR,
   QaUserSeedForbiddenInProductionError,
   QaUserSeedNotAuthorizedError,
   SEED_AUTHORIZATION_VAR,
+  STAGING_SEED_AUTHORIZATION_VAR,
+  StagingSeedNotAuthorizedError,
   assertQaUserSeedAllowed,
   assertSeedAllowed,
   isDeployedEnvironment,
   isProductionEnvironment,
   isQaUserSeedAuthorized,
   isSeedAuthorized,
+  isStagingSeedAuthorized,
 } from "../../prisma/seed-guard";
 import { runGuardedSeed } from "../../prisma/seed-runtime";
 // The pure resolver, NOT `seed-test.ts` itself: importing the fixture would
@@ -35,8 +39,24 @@ import {
  * re-adding it fail loudly instead of quietly reverting operational data.
  */
 
-const prodRailway = { RAILWAY_ENVIRONMENT_NAME: "production" };
+/**
+ * A Railway production box AS IT ACTUALLY IS: the vendor marker and our own
+ * posture marker both present.
+ *
+ * It used to be the vendor marker alone, which quietly made it a different box
+ * than the real one — a deployed host that never declared a posture. The guard
+ * inferred "production" from the vendor signal and the production variable then
+ * authorized it, so the fixture passed while modelling the exact gap that
+ * `undeclaredRailway` below now pins shut. Verified against the live service's
+ * variables: `PSICO_ENV` is set there.
+ */
+const prodRailway = {
+  RAILWAY_ENVIRONMENT_NAME: "production",
+  PSICO_ENV: "production",
+};
 const prodNode = { NODE_ENV: "production" };
+/** Deployed, and silent about what it is. The case with no way in. */
+const undeclaredRailway = { RAILWAY_ENVIRONMENT_NAME: "production" };
 
 describe("seed guard · refusing production", () => {
   it("refuses a Railway production environment without authorization", () => {
@@ -46,8 +66,9 @@ describe("seed guard · refusing production", () => {
   });
 
   it("refuses when only NODE_ENV says production", () => {
-    // Either signal is enough: a box that reports one and not the other is
-    // still production, and guessing wrong here is the expensive direction.
+    // NODE_ENV is not a deployment marker, so this is a LOCAL box calling
+    // itself production — which still refuses, and still on the production
+    // branch. Guessing wrong here is the expensive direction.
     expect(() => assertSeedAllowed(prodNode)).toThrow(
       ProductionSeedNotAuthorizedError,
     );
@@ -59,11 +80,189 @@ describe("seed guard · refusing production", () => {
     ).not.toThrow();
   });
 
-  it("leaves non-production untouched", () => {
+  it("leaves local and test boxes untouched", () => {
     expect(() => assertSeedAllowed({})).not.toThrow();
+    expect(() => assertSeedAllowed({ NODE_ENV: "test" })).not.toThrow();
+    expect(() => assertSeedAllowed({ PSICO_ENV: "development" })).not.toThrow();
+  });
+});
+
+describe("seed guard · a deployed box that will not say what it is", () => {
+  /**
+   * The hole this closes. Before posture classification, an undeclared deployed
+   * box was read as production by the OR over every signal — which meant the
+   * PRODUCTION variable authorized seeding a box nobody had identified. Worse in
+   * the other direction: once staging got its own variable, that variable plus a
+   * vendor marker would have been a second way in.
+   *
+   * So "deployed and undeclared" is now its own answer, and nothing lifts it.
+   * The remedy is to declare the resource, not to type a stronger command.
+   */
+  it("refuses, and names the posture problem rather than a missing token", () => {
+    expect(() => assertSeedAllowed(undeclaredRailway)).toThrow(
+      DeployedSeedEnvironmentInvalidError,
+    );
+  });
+
+  it.each([
+    ["the production variable", SEED_AUTHORIZATION_VAR],
+    ["the staging variable", STAGING_SEED_AUTHORIZATION_VAR],
+  ])("%s does not lift it", (_label, variable) => {
     expect(() =>
-      assertSeedAllowed({ NODE_ENV: "test", RAILWAY_ENVIRONMENT_NAME: "dev" }),
+      assertSeedAllowed({ ...undeclaredRailway, [variable]: "1" }),
+    ).toThrow(DeployedSeedEnvironmentInvalidError);
+  });
+
+  it("both variables together do not lift it either", () => {
+    expect(() =>
+      assertSeedAllowed({
+        ...undeclaredRailway,
+        [SEED_AUTHORIZATION_VAR]: "1",
+        [STAGING_SEED_AUTHORIZATION_VAR]: "1",
+      }),
+    ).toThrow(DeployedSeedEnvironmentInvalidError);
+  });
+
+  it("a deployed box calling itself development is a conflict, not a dev box", () => {
+    // Renaming a deployed box does not let it opt out of the barriers. This is
+    // the shape a copy-pasted local variable set produces on a real host.
+    expect(() =>
+      assertSeedAllowed({
+        COOLIFY_RESOURCE_UUID: "res-abc",
+        PSICO_ENV: "development",
+      }),
+    ).toThrow(DeployedSeedEnvironmentInvalidError);
+  });
+
+  it.each([
+    ["Railway", { RAILWAY_PROJECT_ID: "proj-1" }],
+    ["Railway (service)", { RAILWAY_SERVICE_ID: "svc-1" }],
+    ["Coolify", { COOLIFY_CONTAINER_NAME: "api-xyz" }],
+    ["our own neutral marker", { PSICO_DEPLOYED: "1" }],
+  ])("%s alone is enough to be deployed, so undeclared refuses", (_l, env) => {
+    expect(() => assertSeedAllowed(env)).toThrow(
+      DeployedSeedEnvironmentInvalidError,
+    );
+  });
+
+  it("a configured Coolify CLIENT is not a deployed box", () => {
+    // COOLIFY_URL / COOLIFY_TOKEN are how a client is configured to TALK to a
+    // Coolify, so the maintainer's own laptop carries them. Reading those as
+    // "deployed" would refuse exactly where seeding is routine.
+    expect(() =>
+      assertSeedAllowed({
+        COOLIFY_URL: "https://coolify.example",
+        COOLIFY_TOKEN: "redacted",
+      } as never),
     ).not.toThrow();
+  });
+});
+
+describe("seed guard · staging has its own variable", () => {
+  /**
+   * The false positive this replaces: our Coolify staging box is built with
+   * `NODE_ENV=production`, so the old OR-over-every-signal check called it
+   * production and refused. The only ways out were to widen the production
+   * check — handing production a quieter guard as a side effect — or a
+   * workaround. It gets its own variable instead.
+   */
+  const coolifyStaging = {
+    COOLIFY_RESOURCE_UUID: "res-abc",
+    PSICO_ENV: "staging",
+    NODE_ENV: "production",
+  };
+
+  it("refuses staging without its own authorization", () => {
+    expect(() => assertSeedAllowed(coolifyStaging)).toThrow(
+      StagingSeedNotAuthorizedError,
+    );
+  });
+
+  it("allows staging with the exact single-invocation authorization", () => {
+    expect(() =>
+      assertSeedAllowed({
+        ...coolifyStaging,
+        [STAGING_SEED_AUTHORIZATION_VAR]: "1",
+      }),
+    ).not.toThrow();
+  });
+
+  it("PSICO_ENV beats NODE_ENV, so staging is not treated as production", () => {
+    // If NODE_ENV won, this would be the production refusal and the staging
+    // variable would be useless on the one box it was written for.
+    let caught: unknown;
+    try {
+      assertSeedAllowed(coolifyStaging);
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).not.toBeInstanceOf(ProductionSeedNotAuthorizedError);
+    expect((caught as { code: string }).code).toBe(
+      "STAGING_SEED_NOT_AUTHORIZED",
+    );
+  });
+
+  it("neither variable substitutes for the other, in either direction", () => {
+    // The whole reason there are two. A command typed for a staging refresh
+    // must not be the command that authorizes a production one.
+    expect(() =>
+      assertSeedAllowed({ ...coolifyStaging, [SEED_AUTHORIZATION_VAR]: "1" }),
+    ).toThrow(StagingSeedNotAuthorizedError);
+
+    expect(() =>
+      assertSeedAllowed({
+        ...prodRailway,
+        [STAGING_SEED_AUTHORIZATION_VAR]: "1",
+      }),
+    ).toThrow(ProductionSeedNotAuthorizedError);
+  });
+
+  it.each(["true", "TRUE", "on", "yes", "01", " 1", "1 ", "0", ""])(
+    "%s does not authorize staging either",
+    (value) => {
+      expect(
+        isStagingSeedAuthorized({
+          [STAGING_SEED_AUTHORIZATION_VAR]: value,
+        }),
+      ).toBe(false);
+      expect(() =>
+        assertSeedAllowed({
+          ...coolifyStaging,
+          [STAGING_SEED_AUTHORIZATION_VAR]: value,
+        }),
+      ).toThrow(StagingSeedNotAuthorizedError);
+    },
+  );
+
+  it("the staging refusal leaks nothing either", () => {
+    let caught: unknown;
+    try {
+      assertSeedAllowed(coolifyStaging);
+    } catch (err) {
+      caught = err;
+    }
+    const message = String((caught as Error).message);
+    expect(message).not.toMatch(/postgres(ql)?:\/\/|redis:\/\/|@[\w.-]+:\d+/);
+    expect(message).not.toMatch(/DATABASE_URL|PASSWORD|SECRET|TOKEN|API_KEY/i);
+    expect(message).not.toMatch(/PSICO_ENV\s*=|NODE_ENV\s*=|COOLIFY/i);
+    expect(message).toContain(STAGING_SEED_AUTHORIZATION_VAR);
+  });
+
+  it("the undeclared refusal leaks nothing and says what to declare", () => {
+    let caught: unknown;
+    try {
+      assertSeedAllowed(undeclaredRailway);
+    } catch (err) {
+      caught = err;
+    }
+    const message = String((caught as Error).message);
+    expect(message).not.toMatch(/postgres(ql)?:\/\/|redis:\/\/|@[\w.-]+:\d+/);
+    expect(message).not.toMatch(/DATABASE_URL|PASSWORD|SECRET|TOKEN|API_KEY/i);
+    expect(message).not.toMatch(/RAILWAY_ENVIRONMENT_NAME\s*=/);
+    expect(message).toContain("PSICO_ENV");
+    // And it must NOT read as "set a variable and it will work".
+    expect(message).not.toContain(SEED_AUTHORIZATION_VAR);
+    expect(message).not.toContain(STAGING_SEED_AUTHORIZATION_VAR);
   });
 });
 

@@ -1,0 +1,25 @@
+{
+  // The seed scripts, type-checked.
+  //
+  // `tsconfig.json` is `include: ["src/**/*"]` with `rootDir: "./src"`, so
+  // `prisma/*.ts` sat outside every compile gate: `pnpm typecheck` passed
+  // whatever those files contained, and `pnpm build` never emitted them. The
+  // only thing checking their types was `ts-node` at run time — which means a
+  // type error in the seed was discovered by running the seed.
+  //
+  // That mattered the moment we moved the deployed-box path to
+  // `--transpile-only`, which drops the check entirely (837 MiB peak RSS down to
+  // 269 MiB, worth having). This config is the compensating control, wired into
+  // `pnpm typecheck` so the gate is CI's, not the operator's.
+  //
+  // `noEmit` only — nothing here belongs in `dist/`.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "incremental": false,
+    "rootDir": ".",
+    "types": ["node"]
+  },
+  "include": ["prisma/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}

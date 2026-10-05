@@ -119,6 +119,17 @@ export default function BookDetailScreen() {
     load();
   }, [load]);
 
+  // Declared with the other hooks, ABOVE the early returns below.
+  //
+  // It used to sit after them, next to the code that uses it. That is a
+  // rules-of-hooks violation and it crashed the screen on EVERY open: the first
+  // render returns early while `loading` is true and never reaches the hook, the
+  // next render does, and React throws "Rendered more hooks than during the
+  // previous render". Nothing caught it — `react-hooks/rules-of-hooks` is not
+  // configured for this workspace, CI does not bundle the app, and this route
+  // has no screen test.
+  const [startFailed, setStartFailed] = useState(false);
+
   if (!user) return null;
 
   if (loading) {
@@ -144,7 +155,6 @@ export default function BookDetailScreen() {
   // A book opened but not progressed sits at exactly 0%, so a percentage
   // cannot answer "has this been started" — the summary's existence can.
   const started = userProgress !== null;
-  const [startFailed, setStartFailed] = useState(false);
 
   async function handleStart() {
     if (!slug || isLocked) return;

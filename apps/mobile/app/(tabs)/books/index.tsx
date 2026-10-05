@@ -63,9 +63,13 @@ export default function BooksScreen() {
     load();
   }, [load]);
 
-  if (!user) return null;
-
   // Categories chip list — prepend "Todas" sentinel.
+  //
+  // Declared ABOVE the early return below. It used to sit after it, which is a
+  // Rules of Hooks violation: a render where `user` is null returns before the
+  // hook and a later one reaches it, changing the hook count. It did not crash
+  // in practice only because this screen is normally reached with a user
+  // already set — a logout or a cold start would have found it.
   const chips = useMemo(
     () => [
       { id: null, label: "Todas", count: books.length } as const,
@@ -73,6 +77,8 @@ export default function BooksScreen() {
     ],
     [categories, books.length],
   );
+
+  if (!user) return null;
 
   return (
     <View style={styles.root}>

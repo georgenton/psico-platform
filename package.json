@@ -13,7 +13,8 @@
     "prepare": "husky",
     "eec:build": "node scripts/eec/build-chapter.mjs",
     "eec:c01:build": "node scripts/eec/build-chapter.mjs --chapter=C01",
-    "eec:c02:build": "node scripts/eec/build-chapter.mjs --chapter=C02"
+    "eec:c02:build": "node scripts/eec/build-chapter.mjs --chapter=C02",
+    "mobile:staging": "pnpm --filter @psico/mobile start:staging"
   },
   "devDependencies": {
     "@changesets/cli": "^2.27.1",

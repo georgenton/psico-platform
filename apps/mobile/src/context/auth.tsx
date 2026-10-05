@@ -12,15 +12,17 @@ import { apiClient, authApi, usersApi } from "@psico/api-client";
 import type { AuthUser } from "@psico/types";
 import { tokenStore, pushIdStore } from "../store/secure-store";
 import { diaryKeyStore } from "../crypto/diary-key-store";
+import { apiOrigin } from "@/config/environment";
 import {
   tryRegisterPushToken,
   tryUnregisterPushToken,
 } from "../notifications/push-registration";
 
-const API_ROOT = process.env.EXPO_PUBLIC_API_URL ?? "";
+// Single source for where the API lives — see `config/environment`. This file
+// used to parse `EXPO_PUBLIC_API_URL` itself, one of three places that did.
+const API_URL = apiOrigin();
 // Cold-start refresh hits the raw fetch (not apiClient — see below comment),
 // so it must compose the /api prefix itself. ADR 0006 — Sprint 0.A.
-const API_URL = API_ROOT.replace(/\/$/, "");
 const API_BASE = `${API_URL}/api`;
 
 type TokenPair = { accessToken: string; refreshToken: string };

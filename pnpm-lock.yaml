@@ -283,6 +283,9 @@ importers:
       '@babel/core':
         specifier: ^7.24.5
         version: 7.29.0
+      '@babel/runtime':
+        specifier: ^7.29.2
+        version: 7.29.2
       '@psico/eslint-config':
         specifier: workspace:*
         version: link:../../config/eslint-config

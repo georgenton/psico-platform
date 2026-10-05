@@ -12,6 +12,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { ApiError, subscriptionApi } from "@psico/api-client";
 import type { Subscription } from "@psico/types";
+import { webOrigin } from "@/config/environment";
 import { Colors, Radius, Spacing } from "@/theme";
 
 /**
@@ -43,8 +44,10 @@ export function SubscriptionActions({
   async function handlePortal() {
     setPortalLoading(true);
     try {
+      // Was hardcoded to `https://psico.app/account` — not the product's
+      // domain, and not environment-aware.
       const session = await subscriptionApi.createPortalSession(
-        "https://psico.app/account",
+        `${webOrigin()}/dashboard/perfil`,
       );
       const { Linking } = await import("react-native");
       await Linking.openURL(session.url);

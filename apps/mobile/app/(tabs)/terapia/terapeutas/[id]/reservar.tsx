@@ -16,6 +16,7 @@ import type {
   TherapistDetail,
   TherapyModality,
 } from "@psico/types";
+import { webOrigin } from "@/config/environment";
 import { Colors, Radius, Spacing } from "@/theme";
 
 const MODALITY_LABEL: Record<TherapyModality, string> = {
@@ -24,9 +25,9 @@ const MODALITY_LABEL: Record<TherapyModality, string> = {
   FAMILY: "Familia",
 };
 
-// Web origin where Stripe success/cancel URLs live.
-const WEB_ORIGIN =
-  process.env.EXPO_PUBLIC_WEB_ORIGIN ?? "https://psico-platform-web.vercel.app";
+// Web origin where Stripe success/cancel URLs live. Resolved centrally; the
+// default here used to be a hardcoded `psico-platform-web.vercel.app`, which is
+// frozen legacy infrastructure and no longer even the product's domain.
 
 export default function ReservarScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -70,8 +71,8 @@ export default function ReservarScreen() {
         slotIso,
         modality,
         durationMin: 50,
-        successUrl: `${WEB_ORIGIN}/dashboard/terapia/sesiones?paid=true`,
-        cancelUrl: `${WEB_ORIGIN}/dashboard/terapia/terapeutas/${therapist.id}`,
+        successUrl: `${webOrigin()}/dashboard/terapia/sesiones?paid=true`,
+        cancelUrl: `${webOrigin()}/dashboard/terapia/terapeutas/${therapist.id}`,
       });
       if (res.checkoutUrl) {
         await Linking.openURL(res.checkoutUrl);
@@ -82,7 +83,9 @@ export default function ReservarScreen() {
         );
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No pudimos crear la reserva.");
+      setError(
+        err instanceof Error ? err.message : "No pudimos crear la reserva.",
+      );
     } finally {
       setSubmitting(false);
     }
@@ -123,12 +126,8 @@ export default function ReservarScreen() {
               style={[
                 styles.modalityChip,
                 {
-                  borderColor: active
-                    ? Colors.lavender[500]
-                    : Colors.warm[200],
-                  backgroundColor: active
-                    ? Colors.lavender[50]
-                    : Colors.white,
+                  borderColor: active ? Colors.lavender[500] : Colors.warm[200],
+                  backgroundColor: active ? Colors.lavender[50] : Colors.white,
                 },
               ]}
             >
@@ -136,9 +135,7 @@ export default function ReservarScreen() {
                 style={[
                   styles.modalityChipText,
                   {
-                    color: active
-                      ? Colors.lavender[700]
-                      : Colors.warm[700],
+                    color: active ? Colors.lavender[700] : Colors.warm[700],
                   },
                 ]}
               >

@@ -24,13 +24,21 @@ import { useAuth } from "@/context/auth";
 import { InvoicesList } from "@/components/dashboard/plan/InvoicesList";
 import { SubscriptionActions } from "@/components/dashboard/plan/SubscriptionActions";
 import { UsageCards } from "@/components/dashboard/plan/UsageCards";
+import { webOrigin } from "@/config/environment";
 import { Colors, Radius, Spacing } from "@/theme";
 
 // These URLs must pass IsUrl() validation on the server.
 // Stripe redirects here after checkout; actual subscription activation
 // happens via webhook on the backend.
-const SUCCESS_URL = "https://psico.app/upgrade/success";
-const CANCEL_URL = "https://psico.app/upgrade/cancel";
+//
+// Built from the configured web origin rather than hardcoded. They used to be
+// `https://psico.app/...` — a host that is not the product's domain, so a
+// staging checkout returned to a page that does not exist and a production one
+// to the wrong brand.
+const returnUrls = () => ({
+  success: `${webOrigin()}/upgrade/success`,
+  cancel: `${webOrigin()}/upgrade/cancel`,
+});
 
 const PLAN_RANK: Record<UserPlan, number> = {
   FREE: 0,
@@ -133,10 +141,14 @@ export default function PlanScreen() {
   const handleUpgrade = async (billingPlan: BillingInterval) => {
     setCheckoutLoading(billingPlan);
     try {
+      // Resolved here rather than at module load: `webOrigin()` throws when the
+      // variable is absent, and that should surface when somebody actually
+      // starts a checkout, not stop the Plan screen from rendering at all.
+      const urls = returnUrls();
       const session = await billingApi.createCheckoutSession(
         billingPlan,
-        SUCCESS_URL,
-        CANCEL_URL,
+        urls.success,
+        urls.cancel,
       );
       await Linking.openURL(session.url);
     } catch (err) {

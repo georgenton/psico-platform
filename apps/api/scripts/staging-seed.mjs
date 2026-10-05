@@ -94,6 +94,14 @@ const TARGETS = {
     command: ["node", "scripts/seed-demo-users.mjs"],
     describe: "demo accounts with synthetic activity",
   },
+  // Writes synthetic mood history into ONE existing account, so it needs
+  // `-- --email=…` and refuses anything outside `@psico.test` on a deployed box.
+  // Same variable as the account fixtures: same hazard, one switch.
+  "mood-history": {
+    token: "ALLOW_QA_USER_SEED_ON_DEPLOYED_BOX",
+    command: ["node", "scripts/seed-mood-history.mjs"],
+    describe: "backdated MoodLog for one @psico.test account (needs --email)",
+  },
 };
 
 function fail(message) {

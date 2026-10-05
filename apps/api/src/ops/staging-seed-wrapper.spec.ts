@@ -67,25 +67,62 @@ describe("staging-seed wrapper · what it refuses to do", () => {
     expect(targets).toMatch(/catalog/);
     expect(targets).toMatch(/qa-users/);
     expect(targets).toMatch(/demo-users/);
-    // Exactly three, each with exactly one command.
-    expect(targets.match(/command:/g)).toHaveLength(3);
+    expect(targets).toMatch(/mood-history/);
+    // Exactly four, each with exactly one command. The count is asserted so
+    // adding a target is a visible decision rather than a quiet one.
+    expect(targets.match(/command:/g)).toHaveLength(4);
   });
 
-  it("gives the catalog and the login-minting seeds DIFFERENT variables", () => {
-    // The whole reason there are two. A command typed to refresh content must
-    // not be the command that mints an ADMIN login.
+  it("pins every target to its own variable, and no other", () => {
+    /**
+     * All four mappings, asserted exactly.
+     *
+     * The whole reason there is more than one variable: a command typed to
+     * refresh content must not be the command that mints an ADMIN login or
+     * rewrites somebody's mood history. Pinning each pair here means swapping
+     * one — the quiet way a two-switch design collapses into one — fails the
+     * build rather than passing review.
+     */
     const targets = CODE.slice(
       CODE.indexOf("const TARGETS"),
       CODE.indexOf("function fail"),
     );
-    expect(targets).toMatch(
-      /catalog:[\s\S]*?token: "ALLOW_STAGING_BOOTSTRAP_SEED"/,
+
+    const EXPECTED: ReadonlyArray<readonly [string, string]> = [
+      ["catalog", "ALLOW_STAGING_BOOTSTRAP_SEED"],
+      ["qa-users", "ALLOW_QA_USER_SEED_ON_DEPLOYED_BOX"],
+      ["demo-users", "ALLOW_QA_USER_SEED_ON_DEPLOYED_BOX"],
+      ["mood-history", "ALLOW_QA_USER_SEED_ON_DEPLOYED_BOX"],
+    ];
+
+    // Parse the table rather than pattern-matching across it, so a target
+    // missing its own block cannot be satisfied by a neighbour's token.
+    const found = new Map<string, string>();
+    for (const m of targets.matchAll(
+      /"?([a-z-]+)"?:\s*\{\s*token:\s*"([A-Z_]+)"/g,
+    )) {
+      found.set(m[1]!, m[2]!);
+    }
+
+    expect([...found.entries()].sort()).toStrictEqual(
+      EXPECTED.map(([k, v]) => [k, v]).sort(),
     );
-    expect(targets).toMatch(
-      /"qa-users":[\s\S]*?token: "ALLOW_QA_USER_SEED_ON_DEPLOYED_BOX"/,
-    );
-    // And production's variable appears nowhere in this file.
+
+    // The catalog's variable belongs to the catalog ALONE.
+    const catalogVar = "ALLOW_STAGING_BOOTSTRAP_SEED";
+    expect(
+      [...found.entries()].filter(([, v]) => v === catalogVar),
+    ).toStrictEqual([["catalog", catalogVar]]);
+
+    // And the account/data variable never reaches the catalog.
+    expect(found.get("catalog")).not.toBe("ALLOW_QA_USER_SEED_ON_DEPLOYED_BOX");
+
+    // Production's variable appears nowhere in this file at all.
     expect(CODE).not.toMatch(/ALLOW_PRODUCTION_BOOTSTRAP_SEED/);
+    // No variable beyond the two this wrapper is allowed to supply.
+    expect(new Set(CODE.match(/ALLOW_[A-Z_]+/g) ?? [])).toStrictEqual(
+      new Set([catalogVar, "ALLOW_QA_USER_SEED_ON_DEPLOYED_BOX"]),
+    );
   });
 
   it("scopes the authorization to the child process", () => {

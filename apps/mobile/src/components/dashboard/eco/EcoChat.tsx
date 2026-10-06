@@ -23,9 +23,8 @@ import type {
 import { ecoErrorCopy } from "@psico/types";
 import { decryptString, encryptString } from "@psico/crypto";
 import { CrisisModal } from "@/components/dashboard/eco/CrisisModal";
+import { apiOrigin } from "@/config/environment";
 import { Colors, Radius, Spacing } from "@/theme";
-
-const API_ROOT = process.env.EXPO_PUBLIC_API_URL ?? "";
 
 /**
  * EcoChat — the single-thread chat surface, extracted from the Eco screen so
@@ -187,7 +186,7 @@ export function EcoChat({
           ...(scope ? { scope } : {}),
         },
         {
-          baseUrl: API_ROOT.replace(/\/$/, ""),
+          baseUrl: apiOrigin(),
           accessToken: token,
           onEvent: (ev: EcoSseEvent) => {
             switch (ev.event) {

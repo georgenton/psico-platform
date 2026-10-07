@@ -18,6 +18,13 @@ import {
   PRODUCTION_GUIDE_DEFINITIONS,
   productionGuideRegistry,
 } from "./guide-catalog";
+import { materializableExercisePairs } from "../content-core/exercise-ingestion-catalog";
+
+/** The live recall this suite asserts on, from the catalog rather than copied. */
+const RECALL_CONTENT = materializableExercisePairs(
+  "emociones-en-construccion",
+).find((p) => p.recall.exerciseKey === "eec-c1-recall-teorias-como-lentes")!
+  .recall.content;
 
 /**
  * CC-7.4B.3 — the FIRST production GuideDefinition, cross-checked against REAL
@@ -41,7 +48,7 @@ const API_DIR = process.cwd();
 const DB = "cc74b3_guide_db";
 
 const BOOK_SLUG = "emociones-en-construccion";
-const GUIDE_KEY = "eec-c1-cuerpo-antes-que-mente";
+const GUIDE_KEY = "eec-c1-teorias-como-lentes";
 const PRACTICE_HEADING =
   EXERCISE_INGESTION_CATALOG[BOOK_SLUG][0].practice.sourceHeading;
 
@@ -211,8 +218,12 @@ suite("CC-7.4B.3 · first production GuideDefinition (real PostgreSQL)", () => {
     // C08's five, which close the book). Editorial approval 2026-09-08.
     expect(PRODUCTION_GUIDE_DEFINITIONS.length).toBe(85);
     expect(productionGuideRegistry.latestStartableVersion(GUIDE_KEY)).toBe(1);
+    // By key, not by index: index 0 is the retired V1 pilot, which stays first
+    // in the array precisely because it is never removed.
     expect(productionGuideRegistry.getExact(GUIDE_KEY, 1)).toEqual(
-      PRODUCTION_GUIDE_DEFINITIONS[0],
+      PRODUCTION_GUIDE_DEFINITIONS.find(
+        (d) => d.guideKey === GUIDE_KEY && d.guideVersion === 1,
+      ),
     );
     // No fallback of any kind for a version/key that was never published.
     expect(() => productionGuideRegistry.getExact(GUIDE_KEY, 2)).toThrow(
@@ -286,7 +297,7 @@ suite("CC-7.4B.3 · first production GuideDefinition (real PostgreSQL)", () => {
       "editionKey",
       "unitKey",
       "correctOptionKey",
-      "opcion-cuerpo-primero",
+      RECALL_CONTENT.correctOptionKey,
     ]) {
       expect(serialized).not.toContain(forbidden);
     }
@@ -309,21 +320,19 @@ suite("CC-7.4B.3 · first production GuideDefinition (real PostgreSQL)", () => {
     const practice = await resolver.resolveExercise(practiceStep.exerciseKey);
     const recall = await resolver.resolveRecallItem(recallStep.itemKey);
 
-    expect(concept.conceptKey).toBe("eec-cuerpo-antes-que-mente");
-    expect(practice.exerciseKey).toBe("eec-c1-practice-escucharte-por-dentro");
-    expect(recall.itemKey).toBe("eec-c1-recall-cuerpo-antes-que-mente");
+    expect(concept.conceptKey).toBe("eec-teorias-como-lentes");
+    expect(practice.exerciseKey).toBe("eec-c1-practice-revisar-un-lente");
+    expect(recall.itemKey).toBe("eec-c1-recall-teorias-como-lentes");
 
     // The recall is objective and server-graded; its options are closed.
     expect(recall.mode).toBe("objective");
-    expect(recall.conceptKey).toBe("eec-cuerpo-antes-que-mente");
-    expect([...recall.optionKeys].sort()).toEqual([
-      "opcion-cuerpo-primero",
-      "opcion-mente-primero",
-      "opcion-simultanea",
-    ]);
+    expect(recall.conceptKey).toBe("eec-teorias-como-lentes");
+    expect([...recall.optionKeys].sort()).toEqual(
+      [...RECALL_CONTENT.options.map((o) => o.key)].sort(),
+    );
     // INTERNAL grading datum — present only in the resolution, never in the
     // GuideDefinition (asserted above).
-    expect(recall.correctOptionKey).toBe("opcion-cuerpo-primero");
+    expect(recall.correctOptionKey).toBe(RECALL_CONTENT.correctOptionKey);
 
     // GUIDE_CONTEXT_POLICY=SERVER_DERIVED_FROM_TARGETS — all three converge.
     expect(contextOf(practice)).toEqual(contextOf(concept));
@@ -336,7 +345,7 @@ suite("CC-7.4B.3 · first production GuideDefinition (real PostgreSQL)", () => {
   it("rejects a QUIZ as a practice and an unknown target", async () => {
     // A recall item is NOT a completable practice.
     await expectHttp(
-      resolver.resolveExercise("eec-c1-recall-cuerpo-antes-que-mente"),
+      resolver.resolveExercise("eec-c1-recall-teorias-como-lentes"),
       422,
     );
     // Unknown targets: 404 for the key that does not exist, per chain.

@@ -4,7 +4,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { bootstrapBook, type BootstrapInput } from "./bootstrap-book";
-import { EXERCISE_INGESTION_CATALOG } from "./exercise-ingestion-catalog";
+import { materializableExercisePairs } from "./exercise-ingestion-catalog";
 import { unitKeyFromLegacyChapterId } from "./lib/block-key";
 import { relateLegacyToManifest } from "./lib/legacy-adoption";
 import {
@@ -34,7 +34,7 @@ const DB = "cc_native_exercise_owner_db";
 const API_DIR = process.cwd();
 
 const SLUG = "emociones-en-construccion";
-const PAIRS = EXERCISE_INGESTION_CATALOG[SLUG];
+const PAIRS = materializableExercisePairs(SLUG);
 /** Orders served by a real legacy `Chapter`, exactly as in production. */
 const LEGACY_ORDERS = [1, 2, 3];
 const NATIVE_ORDERS = [4, 5, 6, 7, 8, 9, 10];

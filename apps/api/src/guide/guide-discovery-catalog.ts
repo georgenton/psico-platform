@@ -465,6 +465,48 @@ export const PRODUCTION_LEGACY_GUIDE_PINS: readonly GuideLegacyPinEntry[] = [
   },
 ];
 
+/**
+ * Pins that may no longer begin a NEW session.
+ *
+ * Three states, and they are not the same one:
+ *
+ *   REGISTERED    — `productionGuideRegistry.getExact` still returns it, so a
+ *                   session already pinned to it keeps resolving, stepping and
+ *                   completing. Unconditional: history does not expire.
+ *   STARTABLE     — a new session may be created from it. This list says no.
+ *   MATERIALIZABLE— a fresh environment may create its targets. Said elsewhere,
+ *                   by `materializableExercisePairs`.
+ *
+ * Absence from discovery is NOT the criterion: a guide can be out of discovery
+ * while editorial prepares it, and that one must still start by exact pin. Only
+ * an explicit entry here refuses.
+ *
+ * `eec-c1-cuerpo-antes-que-mente@1` is here because its CATALOG_PRACTICE step
+ * anchors to a heading the canonical EEC C01 v1.0 no longer contains. Its
+ * `guideKey@guideVersion` is immutable, so it is not reanchored and not edited;
+ * recovering that experience would mean a new version with its own targets and
+ * its own editorial approval, which is a different workstream.
+ *
+ * Without this, `POST /guide/sessions` accepts the exact pin, resolves targets
+ * that a fresh environment never materialized, and fails with the generic
+ * "editorial link is broken" verdict — an accident reported as a defect. The
+ * refusal belongs here, where it is a decision.
+ */
+const RETIRED_FOR_NEW_STARTS: ReadonlySet<string> = new Set([
+  "eec-c1-cuerpo-antes-que-mente@1",
+]);
+
+/**
+ * Whether a pin may begin a NEW session. Says nothing about resolving one that
+ * already exists — that path must never consult this.
+ */
+export function isStartableGuidePin(
+  guideKey: string,
+  guideVersion: number,
+): boolean {
+  return !RETIRED_FOR_NEW_STARTS.has(`${guideKey}@${guideVersion}`);
+}
+
 export const productionGuideDiscoveryCatalog = new GuideDiscoveryCatalog(
   [
     ...PRODUCTION_GUIDE_DISCOVERY_ENTRIES,

@@ -16,7 +16,7 @@ import type { GuideExperienceCardState } from "@psico/types";
 import type { PrismaService } from "../prisma";
 import type { AuthenticatedUser } from "../auth";
 import { backfillContentCore } from "../content-core/backfill";
-import { EXERCISE_INGESTION_CATALOG } from "../content-core/exercise-ingestion-catalog";
+import { materializableExercisePairs } from "../content-core/exercise-ingestion-catalog";
 import { ContentAccessService } from "../content-core/access/content-access.service";
 import { LearningCatalogResolver } from "../learning/learning-catalog.resolver";
 import { LearningEventRepository } from "../learning/learning-event.repository";
@@ -27,7 +27,11 @@ import { productionGuideRegistry } from "./guide-catalog";
 import { GuideTargetContextService } from "./guide-target-context.service";
 import { GuideReaderApplicabilityService } from "./guide-reader-applicability.service";
 import { GuideLifecycleService } from "./guide-lifecycle.service";
-import { seedPracticeHeadings } from "../content-core/test-support/seed-practice-headings";
+import {
+  seedPracticeHeadings,
+  seedRetiredPairExercises,
+  seedRetiredPairHeadings,
+} from "../content-core/test-support/seed-practice-headings";
 
 /**
  * C.1 — the card state of EACH experience, against real PostgreSQL.
@@ -53,16 +57,18 @@ const DB = "c1_experience_card_states_db";
 
 const BOOK_A = "emociones-en-construccion";
 const BOOK_B = "parejas-que-perduran";
-const GUIDE_A = "eec-c1-cuerpo-antes-que-mente";
+const GUIDE_A = "eec-c1-teorias-como-lentes";
 const GUIDE_B = "pqp-c1-contacto-sostenido";
-const HEADING_A = EXERCISE_INGESTION_CATALOG[BOOK_A][0].practice.sourceHeading;
-const HEADING_B = EXERCISE_INGESTION_CATALOG[BOOK_B][0].practice.sourceHeading;
+const HEADING_A = materializableExercisePairs(BOOK_A)[0].practice.sourceHeading;
+const HEADING_B = materializableExercisePairs(BOOK_B)[0].practice.sourceHeading;
 const A_STEPS = [
-  "explorar-cuerpo-antes-que-mente",
-  "practicar-escucharte-por-dentro",
+  "explorar-teorias-como-lentes",
+  "practicar-revisar-un-lente",
 ] as const;
-const A_RECALL = "recordar-cuerpo-antes-que-mente";
-const A_CORRECT = "opcion-cuerpo-primero";
+const A_RECALL = "recordar-teorias-como-lentes";
+const A_CORRECT = materializableExercisePairs("emociones-en-construccion").find(
+  (p) => p.recall.exerciseKey === "eec-c1-recall-teorias-como-lentes",
+)!.recall.content.correctOptionKey;
 
 const PIN_A = { guideKey: GUIDE_A, guideVersion: 1 };
 const PIN_B = { guideKey: GUIDE_B, guideVersion: 1 };
@@ -169,7 +175,12 @@ suite("C.1 · one card state per experience", () => {
       });
       if (bk) await seedPracticeHeadings(prisma, c.id, bk.slug);
     }
+    // Historical subject: these suites describe the world an already-ingested
+    // pilot lives in, so they rebuild its ground explicitly. The heading first,
+    // so the backfill projects it; the rows after, when the units exist.
+    await seedRetiredPairHeadings(prisma, "emociones-en-construccion");
     await backfillContentCore(prisma);
+    await seedRetiredPairExercises(prisma, "emociones-en-construccion");
 
     const u = await prisma.user.create({
       data: { email: "c1-cards@example.test", name: "Cards", plan: "FREE" },

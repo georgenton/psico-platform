@@ -392,8 +392,19 @@ export async function ingestUnitExercises(
   bookSlug: string,
   ownerByOrder: ReadonlyMap<number, ExerciseOwner>,
   unitIdByOrder: ReadonlyMap<number, string>,
+  /**
+   * Which pairs to write. Defaults to the materializable ones, which is what
+   * every production caller wants and none of them passes.
+   *
+   * It exists for ONE caller: the test fixture that rebuilds a RETIRED pair's
+   * rows to assert what an already-ingested pilot still does. Making that an
+   * argument keeps a single write path — a fixture that hand-rolled the row
+   * shape would drift from this one and start passing for the wrong reason.
+   */
+  pairs: readonly UnitExerciseDefinitions[] = materializableExercisePairs(
+    bookSlug,
+  ),
 ): Promise<void> {
-  const pairs = materializableExercisePairs(bookSlug);
   if (pairs.length === 0) return; // nothing to materialize → the only no-op
 
   for (const pair of pairs) {

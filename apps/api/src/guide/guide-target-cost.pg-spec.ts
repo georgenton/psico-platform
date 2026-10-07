@@ -272,7 +272,7 @@ suite("C.3R · batch cost by target composition", () => {
     tag: string,
   ): Promise<GuideDefinition[]> {
     const shipped = productionGuideRegistry.getExact(
-      "eec-c1-cuerpo-antes-que-mente",
+      "eec-c1-teorias-como-lentes",
       1,
     );
     const out: GuideDefinition[] = [];
@@ -561,7 +561,7 @@ suite("C.3R · batch cost by target composition", () => {
     if (!place) throw new Error("fixture: EEC chapter 1 missing");
 
     const shipped = productionGuideRegistry.getExact(
-      "eec-c1-cuerpo-antes-que-mente",
+      "eec-c1-teorias-como-lentes",
       1,
     );
     // The SAME published pin, served two ways: the shipped definition (which

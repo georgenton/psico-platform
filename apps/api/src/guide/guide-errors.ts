@@ -33,6 +33,13 @@ export type GuideLifecycleErrorCode =
   | "GUIDE_STEP_NOT_CURRENT"
   | "GUIDE_STEP_COMMAND_MISMATCH"
   | "GUIDE_CONTEXT_UNRESOLVED"
+  /**
+   * The pin exists and still resolves for the sessions already on it, but no
+   * NEW session may begin from it. Deliberately opaque: the client learns that
+   * this guide cannot be started, never which guide, which exercise, or why the
+   * catalog moved on.
+   */
+  | "GUIDE_NOT_STARTABLE"
   | "GUIDE_CONTEXT_MISMATCH"
   | "GUIDE_FORBIDDEN"
   | "GUIDE_STORAGE_FAILURE";

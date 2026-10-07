@@ -84,6 +84,7 @@ import {
   mapGuideErrors,
   translateGuideError,
 } from "./guide-errors";
+import { isStartableGuidePin } from "./guide-discovery-catalog";
 
 /**
  * CC-7.4C — the complete INTERNAL Guide V1 lifecycle (ADR 0019).
@@ -773,6 +774,15 @@ export class GuideLifecycleService {
     user: AuthenticatedUser,
     command: GuideStartCommandInput,
   ): Promise<GuideCommandResult> {
+    // Startability, before anything. Not inside the transaction and not after
+    // `getExact`: a retired pin must not take a lock, not resolve targets, and
+    // not reach the resolver — otherwise its refusal arrives dressed as a
+    // broken editorial link, which is a defect report for a decision.
+    // RECOVER / step / complete deliberately do NOT consult this: a session
+    // already pinned here keeps working.
+    if (!isStartableGuidePin(command.guideKey, command.guideVersion)) {
+      return mapGuideErrors(() => guideFail("GUIDE_NOT_STARTABLE"));
+    }
     return mapGuideErrors(() =>
       this.prisma.$transaction(
         async (tx) => {

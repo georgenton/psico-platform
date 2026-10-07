@@ -42,17 +42,22 @@ const API_DIR = process.cwd();
 const DB = "cc74d_guide_http_db";
 
 const BOOK_SLUG = "emociones-en-construccion";
-const GUIDE_KEY = "eec-c1-cuerpo-antes-que-mente";
+const GUIDE_KEY = "eec-c1-teorias-como-lentes";
 const PRACTICE_HEADING =
   EXERCISE_INGESTION_CATALOG[BOOK_SLUG][0].practice.sourceHeading;
 
-const STEP_CONCEPT = "explorar-cuerpo-antes-que-mente";
-const STEP_PRACTICE = "practicar-escucharte-por-dentro";
-const STEP_RECALL = "recordar-cuerpo-antes-que-mente";
+const STEP_CONCEPT = "explorar-teorias-como-lentes";
+const STEP_PRACTICE = "practicar-revisar-un-lente";
+const STEP_RECALL = "recordar-teorias-como-lentes";
 /** The catalog item that step grades — where its approved copy comes from. */
-const RECALL_ITEM_KEY = "eec-c1-recall-cuerpo-antes-que-mente";
-const CORRECT_OPTION = "opcion-cuerpo-primero";
-const WRONG_OPTION = "opcion-mente-primero";
+const RECALL_ITEM_KEY = "eec-c1-recall-teorias-como-lentes";
+const RECALL_DEF = EXERCISE_INGESTION_CATALOG["emociones-en-construccion"].find(
+  (p) => p.recall.exerciseKey === RECALL_ITEM_KEY,
+)!.recall;
+const CORRECT_OPTION = RECALL_DEF.content.correctOptionKey;
+const WRONG_OPTION = RECALL_DEF.content.options.find(
+  (o) => o.key !== CORRECT_OPTION,
+)!.key;
 
 /** Zero-entropy canonical UUIDs (Gitleaks-safe). */
 const key = (n: number) =>
@@ -474,7 +479,7 @@ suite("CC-7.4D · Guide HTTP surface (real app + real PostgreSQL)", () => {
     for (const extra of [
       { result: "correct" },
       { evaluationSource: "server" },
-      { itemKey: "eec-c1-recall-cuerpo-antes-que-mente" },
+      { itemKey: "eec-c1-recall-teorias-como-lentes" },
       { correctOptionKey: CORRECT_OPTION },
     ]) {
       await http()

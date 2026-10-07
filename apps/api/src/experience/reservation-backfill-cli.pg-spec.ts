@@ -5,8 +5,12 @@ import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { backfillContentCore } from "../content-core/backfill";
-import { EXERCISE_INGESTION_CATALOG } from "../content-core/exercise-ingestion-catalog";
-import { seedPracticeHeadings } from "../content-core/test-support/seed-practice-headings";
+import { materializableExercisePairs } from "../content-core/exercise-ingestion-catalog";
+import {
+  seedPracticeHeadings,
+  seedRetiredPairExercises,
+  seedRetiredPairHeadings,
+} from "../content-core/test-support/seed-practice-headings";
 
 /**
  * C.3B (#639) — the LITERAL operator command, run as a process.
@@ -29,7 +33,7 @@ const suite = base ? describe : describe.skip;
 const API_DIR = process.cwd();
 const DB = "c3b_cli_literal_db";
 const BOOK = "emociones-en-construccion";
-const HEADING = EXERCISE_INGESTION_CATALOG[BOOK][0].practice.sourceHeading;
+const HEADING = materializableExercisePairs(BOOK)[0].practice.sourceHeading;
 /**
  * The OTHER book, and it is load-bearing.
  *
@@ -40,7 +44,7 @@ const HEADING = EXERCISE_INGESTION_CATALOG[BOOK][0].practice.sourceHeading;
  * an environment production is not.
  */
 const BOOK_B = "parejas-que-perduran";
-const HEADING_B = EXERCISE_INGESTION_CATALOG[BOOK_B][0].practice.sourceHeading;
+const HEADING_B = materializableExercisePairs(BOOK_B)[0].practice.sourceHeading;
 
 const withDatabase = (url: string, db: string): string => {
   const u = new URL(url);
@@ -101,7 +105,12 @@ suite("C.3B · the command an operator actually types", () => {
       });
       if (b) await seedPracticeHeadings(prisma, ch.id, b.slug);
     }
+    // The CLI reserves against the PRODUCTION experience, whose pin is the retired
+    // pilot. This suite therefore describes the historical world and rebuilds its
+    // ground: the heading before the backfill projects it, the rows after.
+    await seedRetiredPairHeadings(prisma, "emociones-en-construccion");
     await backfillContentCore(prisma);
+    await seedRetiredPairExercises(prisma, "emociones-en-construccion");
   }, 240_000);
 
   afterAll(async () => {

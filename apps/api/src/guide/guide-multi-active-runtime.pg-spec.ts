@@ -45,11 +45,11 @@ const DB = "c0b2_multi_active_runtime_db";
 
 const BOOK_A = "emociones-en-construccion";
 const BOOK_B = "parejas-que-perduran";
-const GUIDE_A = "eec-c1-cuerpo-antes-que-mente";
+const GUIDE_A = "eec-c1-teorias-como-lentes";
 const GUIDE_B = "pqp-c1-contacto-sostenido";
 const HEADING_A = EXERCISE_INGESTION_CATALOG[BOOK_A][0].practice.sourceHeading;
 const HEADING_B = EXERCISE_INGESTION_CATALOG[BOOK_B][0].practice.sourceHeading;
-const STEP_A_CONCEPT = "explorar-cuerpo-antes-que-mente";
+const STEP_A_CONCEPT = "explorar-teorias-como-lentes";
 
 /** Zero-entropy canonical UUIDs (Gitleaks-safe). */
 const key = (n: number) =>

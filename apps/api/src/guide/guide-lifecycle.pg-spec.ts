@@ -61,15 +61,21 @@ const API_DIR = process.cwd();
 const DB = "cc74c_lifecycle_db";
 
 const BOOK_SLUG = "emociones-en-construccion";
-const GUIDE_KEY = "eec-c1-cuerpo-antes-que-mente";
+const GUIDE_KEY = "eec-c1-teorias-como-lentes";
 const PRACTICE_HEADING =
   EXERCISE_INGESTION_CATALOG[BOOK_SLUG][0].practice.sourceHeading;
 
-const STEP_CONCEPT = "explorar-cuerpo-antes-que-mente";
-const STEP_PRACTICE = "practicar-escucharte-por-dentro";
-const STEP_RECALL = "recordar-cuerpo-antes-que-mente";
-const CORRECT_OPTION = "opcion-cuerpo-primero";
-const WRONG_OPTION = "opcion-mente-primero";
+const STEP_CONCEPT = "explorar-teorias-como-lentes";
+const STEP_PRACTICE = "practicar-revisar-un-lente";
+const STEP_RECALL = "recordar-teorias-como-lentes";
+const RECALL_ITEM_KEY = "eec-c1-recall-teorias-como-lentes";
+const RECALL_DEF = EXERCISE_INGESTION_CATALOG["emociones-en-construccion"].find(
+  (p) => p.recall.exerciseKey === RECALL_ITEM_KEY,
+)!.recall;
+const CORRECT_OPTION = RECALL_DEF.content.correctOptionKey;
+const WRONG_OPTION = RECALL_DEF.content.options.find(
+  (o) => o.key !== CORRECT_OPTION,
+)!.key;
 
 /** Zero-entropy canonical UUIDs (Gitleaks-safe). */
 const key = (n: number) =>
@@ -493,11 +499,11 @@ suite("CC-7.4C · Guide V1 lifecycle (real PostgreSQL)", () => {
     // The approved sentence for THIS outcome, resolved from the catalog.
     expect(result.feedback.outcome).toBe("CORRECT");
     expect(result.feedback.message).toBe(
-      recallFeedbackMessage("eec-c1-recall-cuerpo-antes-que-mente", "CORRECT"),
+      recallFeedbackMessage("eec-c1-recall-teorias-como-lentes", "CORRECT"),
     );
     // And not the other branch's: holding both would be holding the answer.
     expect(result.feedback.message).not.toBe(
-      recallFeedbackMessage("eec-c1-recall-cuerpo-antes-que-mente", "REVIEW"),
+      recallFeedbackMessage("eec-c1-recall-teorias-como-lentes", "REVIEW"),
     );
   });
 
@@ -523,7 +529,7 @@ suite("CC-7.4C · Guide V1 lifecycle (real PostgreSQL)", () => {
     expect(replay.feedback).toEqual(first.feedback);
     expect(replay.feedback.outcome).toBe("REVIEW");
     expect(replay.feedback.message).toBe(
-      recallFeedbackMessage("eec-c1-recall-cuerpo-antes-que-mente", "REVIEW"),
+      recallFeedbackMessage("eec-c1-recall-teorias-como-lentes", "REVIEW"),
     );
   });
 
@@ -1019,7 +1025,7 @@ suite("CC-7.4C · Guide V1 lifecycle (real PostgreSQL)", () => {
     // Break the concept→unit link: the concept can no longer be resolved to
     // exactly one owning unit, so the step must refuse.
     const links = await prisma.conceptLink.findMany({
-      where: { concept: { conceptKey: "eec-cuerpo-antes-que-mente" } },
+      where: { concept: { conceptKey: "eec-teorias-como-lentes" } },
       select: { id: true },
     });
     expect(links.length).toBeGreaterThan(0);

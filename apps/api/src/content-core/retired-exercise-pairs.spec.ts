@@ -1,6 +1,12 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { productionGuideRegistry } from "../guide/guide-catalog";
+import {
+  isStartableGuidePin,
+  PRODUCTION_GUIDE_DISCOVERY_ENTRIES,
+  PRODUCTION_LEGACY_GUIDE_PINS,
+} from "../guide/guide-discovery-catalog";
 import {
   EXERCISE_INGESTION_CATALOG,
   materializableExercisePairs,
@@ -155,5 +161,52 @@ describe("retired exercise pairs — resolution vs materialization", () => {
     };
     walk(SRC);
     expect(offenders).toEqual([]);
+  });
+});
+
+describe("retired pilot — the three states, stated separately", () => {
+  const PILOT_GUIDE = "eec-c1-cuerpo-antes-que-mente";
+  const CURRENT_GUIDE = "eec-c1-teorias-como-lentes";
+
+  it("REGISTERED · the pin still resolves, so pinned sessions keep working", () => {
+    expect(() =>
+      productionGuideRegistry.getExact(PILOT_GUIDE, 1),
+    ).not.toThrow();
+    const def = productionGuideRegistry.getExact(PILOT_GUIDE, 1);
+    expect(def.steps).toHaveLength(3);
+  });
+
+  it("STARTABLE · no new session may begin from it", () => {
+    expect(isStartableGuidePin(PILOT_GUIDE, 1)).toBe(false);
+  });
+
+  it("STARTABLE · a current guide still may — absence from the list is the default", () => {
+    expect(isStartableGuidePin(CURRENT_GUIDE, 1)).toBe(true);
+    // A guide out of discovery while editorial prepares it must still start by
+    // exact pin, so discovery is deliberately NOT the criterion.
+    expect(isStartableGuidePin("una-guia-que-nadie-ofrece-todavia", 1)).toBe(
+      true,
+    );
+  });
+
+  it("STARTABLE · the refusal is per VERSION, not per key", () => {
+    // Retiring @1 says nothing about a @2 that editorial may approve later.
+    expect(isStartableGuidePin(PILOT_GUIDE, 2)).toBe(true);
+  });
+
+  it("DISCOVERABLE · the pilot is not offered as a route", () => {
+    const offered = PRODUCTION_GUIDE_DISCOVERY_ENTRIES.map(
+      (e) => `${e.pin.guideKey}@${e.pin.guideVersion}`,
+    );
+    expect(offered).not.toContain(`${PILOT_GUIDE}@1`);
+  });
+
+  it("DISCOVERABLE · but it stays in the legacy pins a rolling deploy binds", () => {
+    // Not the same question as startability: this map exists so the previous
+    // binary keeps meaning what it meant, and it shrinks on its own schedule.
+    const legacy = PRODUCTION_LEGACY_GUIDE_PINS.map(
+      (e) => `${e.pin.guideKey}@${e.pin.guideVersion}`,
+    );
+    expect(legacy).toContain(`${PILOT_GUIDE}@1`);
   });
 });

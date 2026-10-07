@@ -1,7 +1,7 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { CHAPTER_CONCEPTS } from "@psico/types";
 import { resolveEnvironment } from "../shared/psico-environment";
-import { EXERCISE_INGESTION_CATALOG } from "./exercise-ingestion-catalog";
+import { materializableExercisePairs } from "./exercise-ingestion-catalog";
 import {
   assertBookExerciseCatalogValid,
   compareStoredJson,
@@ -216,7 +216,7 @@ export function catalogChapterOrders(bookSlug: string): number[] {
   for (const k of Object.keys(CHAPTER_CONCEPTS[bookSlug] ?? {})) {
     orders.add(Number(k));
   }
-  for (const p of EXERCISE_INGESTION_CATALOG[bookSlug] ?? []) {
+  for (const p of materializableExercisePairs(bookSlug)) {
     orders.add(p.practice.chapterOrder);
   }
   return [...orders].sort((a, b) => a - b);
@@ -481,7 +481,7 @@ export async function planBookLearningActivation(
   bookSlug: string,
 ): Promise<LearningActivationPlan> {
   const concepts = CHAPTER_CONCEPTS[bookSlug] ?? {};
-  const pairs = EXERCISE_INGESTION_CATALOG[bookSlug] ?? [];
+  const pairs = materializableExercisePairs(bookSlug);
 
   const conceptC: TargetCounts = { create: 0, verify: 0, conflict: 0 };
   const linkC: TargetCounts = { create: 0, verify: 0, conflict: 0 };
@@ -706,7 +706,10 @@ export async function activateBookLearningCatalog(
   assertConceptCatalogValid();
   assertBookExerciseCatalogValid(bookSlug);
 
-  const pairs = EXERCISE_INGESTION_CATALOG[bookSlug] ?? [];
+  // Materializable only: the counts below report what THIS activation writes or
+  // verifies, and a retired pair is neither — its rows predate the manuscript
+  // revision that stranded its anchor.
+  const pairs = materializableExercisePairs(bookSlug);
   const concepts = CHAPTER_CONCEPTS[bookSlug] ?? {};
   const exerciseKeys = pairs.flatMap((p) => [
     p.practice.exerciseKey,

@@ -115,6 +115,27 @@ export interface ObjectiveRecallDefinition {
 export interface UnitExerciseDefinitions {
   readonly practice: PracticeExerciseDefinition;
   readonly recall: ObjectiveRecallDefinition;
+  /**
+   * The pair is kept for RESOLUTION but must never be MATERIALIZED again.
+   *
+   * A retired pair anchored to a heading that a later canonical revision of the
+   * manuscript no longer contains. Its rows already exist where it was ingested,
+   * guide steps and prior sessions still point at its `exerciseKey`, and the
+   * runtime must keep answering for them — so deleting the entry is not an
+   * option. But a FRESH environment built from the current canonical source has
+   * no such heading, and asking the ingestion to anchor it there is asking it to
+   * invent editorial text. It refuses, correctly, with
+   * `EXERCISE_INGEST_SOURCE_MISSING`, and takes the whole book down with it.
+   *
+   * So the two concerns are separated here instead of in each caller: lookup
+   * walks the whole catalog, materialization walks
+   * {@link materializableExercisePairs}.
+   *
+   * Retiring is a one-way editorial fact, not a feature flag: the manuscript
+   * moved on. Never set this to silence a failure whose heading is simply
+   * mistyped.
+   */
+  readonly retired?: true;
 }
 
 /**
@@ -175,6 +196,13 @@ export const EXERCISE_INGESTION_CATALOG: Readonly<
             "Revisa la idea central: el capítulo describe que la reacción corporal puede adelantarse a la identificación consciente, no que ocurran siempre a la vez.",
         },
       },
+      // Retired 2026-09-02, when `content/books/eec/C01/chapter.md` replaced the
+      // pilot source this pair was written against (2026-07-21). The canonical
+      // v1.0 manuscript has no "🌿 Una exploración emocional guiada…" heading,
+      // so a fresh environment cannot anchor this practice — and must not try.
+      // The rows where it was already ingested keep resolving: guide steps and
+      // past sessions reference `eec-c1-practice-escucharte-por-dentro`.
+      retired: true,
     },
     // ── EEC-C01 · the five-microguide route (author decision, 2026-09-03) ──
     //
@@ -1181,8 +1209,30 @@ export const EXERCISE_INGESTION_CATALOG: Readonly<
  * added — which is exactly how a suite ends up reporting SOURCE_MISSING for
  * content that is perfectly fine in production.
  */
+/**
+ * The pairs a fresh environment may create, which is every pair the current
+ * canonical manuscript can still anchor.
+ *
+ * Materialization paths — the backfill's exercise ingestion and the learning
+ * activation — walk THIS. Resolution paths (recall feedback, the public
+ * experience view, guide discovery) keep walking the whole catalog, because a
+ * retired target still has to answer for the rows and sessions that already
+ * reference it.
+ */
+export function materializableExercisePairs(
+  bookSlug: string,
+): readonly UnitExerciseDefinitions[] {
+  return (EXERCISE_INGESTION_CATALOG[bookSlug] ?? []).filter((p) => !p.retired);
+}
+
+/**
+ * The headings the editorial ground must contain, for the pairs that are still
+ * materializable. A retired pair's heading is deliberately absent: it is not in
+ * the canonical source any more, and a fixture that seeds it would hide exactly
+ * the failure this list exists to catch.
+ */
 export function practiceSourceHeadings(bookSlug: string): readonly string[] {
-  return (EXERCISE_INGESTION_CATALOG[bookSlug] ?? []).map(
+  return materializableExercisePairs(bookSlug).map(
     (p) => p.practice.sourceHeading,
   );
 }

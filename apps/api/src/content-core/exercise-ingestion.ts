@@ -6,7 +6,7 @@ import {
   type ExerciseOwner,
 } from "./lib/exercise-owner";
 import {
-  EXERCISE_INGESTION_CATALOG,
+  materializableExercisePairs,
   type ObjectiveRecallDefinition,
   type PracticeExerciseDefinition,
   type UnitExerciseDefinitions,
@@ -147,7 +147,7 @@ export function assertPairValid(
  * an invalid catalog can never reach a transaction.
  */
 export function assertBookExerciseCatalogValid(bookSlug: string): void {
-  for (const pair of EXERCISE_INGESTION_CATALOG[bookSlug] ?? []) {
+  for (const pair of materializableExercisePairs(bookSlug)) {
     assertPairValid(bookSlug, pair);
   }
 }
@@ -393,8 +393,8 @@ export async function ingestUnitExercises(
   ownerByOrder: ReadonlyMap<number, ExerciseOwner>,
   unitIdByOrder: ReadonlyMap<number, string>,
 ): Promise<void> {
-  const pairs = EXERCISE_INGESTION_CATALOG[bookSlug];
-  if (!pairs) return; // book not in the catalog → the ONLY allowed no-op
+  const pairs = materializableExercisePairs(bookSlug);
+  if (pairs.length === 0) return; // nothing to materialize → the only no-op
 
   for (const pair of pairs) {
     assertPairValid(bookSlug, pair); // pure, before any DB touch

@@ -13,7 +13,11 @@ import { backfillContentCore } from "../content-core/backfill";
 import { EXERCISE_INGESTION_CATALOG } from "../content-core/exercise-ingestion-catalog";
 import { productionExperienceRepository } from "./experience-production-catalog";
 import { ExperienceAdminService } from "./experience-admin.service";
-import { seedPracticeHeadings } from "../content-core/test-support/seed-practice-headings";
+import {
+  seedPracticeHeadings,
+  seedRetiredPairExercises,
+  seedRetiredPairHeadings,
+} from "../content-core/test-support/seed-practice-headings";
 
 /**
  * C.3C+C.4 (#639) — can the binary being REPLACED still operate on the schema
@@ -258,7 +262,12 @@ suite("C.3C · the previous binary, on the schema this PR ships", () => {
       });
       if (b) await seedPracticeHeadings(prisma, ch.id, b.slug);
     }
+    // Historical subject: these suites describe the world an already-ingested
+    // pilot lives in, so they rebuild its ground explicitly. The heading first,
+    // so the backfill projects it; the rows after, when the units exist.
+    await seedRetiredPairHeadings(prisma, "emociones-en-construccion");
     await backfillContentCore(prisma);
+    await seedRetiredPairExercises(prisma, "emociones-en-construccion");
 
     const u = await prisma.user.create({
       data: { email: "c3c-v1-compat@example.test", name: "CMS", plan: "FREE" },

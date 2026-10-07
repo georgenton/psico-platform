@@ -9,7 +9,7 @@ import type { ChapterExperienceDefinition } from "@psico/types";
 import { GuideTargetContextService } from "../guide/guide-target-context.service";
 import { LearningCatalogResolver } from "../learning/learning-catalog.resolver";
 import { backfillContentCore } from "../content-core/backfill";
-import { EXERCISE_INGESTION_CATALOG } from "../content-core/exercise-ingestion-catalog";
+import { materializableExercisePairs } from "../content-core/exercise-ingestion-catalog";
 import { productionExperienceRepository } from "./experience-production-catalog";
 import { ExperienceAdminService } from "./experience-admin.service";
 import {
@@ -21,7 +21,11 @@ import { productionCodeOwnedClaims } from "./experience-code-owned-identity";
 import { GUIDE_READER_ANCHOR, PAREJAS_READER_ANCHOR } from "@psico/types";
 import { productionGuideRegistry } from "../guide/guide-catalog";
 import type { ExperienceBindingCatalog } from "./experience-guide-options";
-import { seedPracticeHeadings } from "../content-core/test-support/seed-practice-headings";
+import {
+  seedPracticeHeadings,
+  seedRetiredPairExercises,
+  seedRetiredPairHeadings,
+} from "../content-core/test-support/seed-practice-headings";
 
 /**
  * C.3C+C.4 (#639) — the cutover: archive, rebind, and a fleet where the bridge
@@ -51,8 +55,8 @@ const PQP_PIN = {
 
 const BOOK_A = "emociones-en-construccion";
 const BOOK_B = "parejas-que-perduran";
-const HEADING_A = EXERCISE_INGESTION_CATALOG[BOOK_A][0].practice.sourceHeading;
-const HEADING_B = EXERCISE_INGESTION_CATALOG[BOOK_B][0].practice.sourceHeading;
+const HEADING_A = materializableExercisePairs(BOOK_A)[0].practice.sourceHeading;
+const HEADING_B = materializableExercisePairs(BOOK_B)[0].practice.sourceHeading;
 
 const withDatabase = (url: string, db: string): string => {
   const u = new URL(url);
@@ -141,7 +145,12 @@ suite("C.3C+C.4 · cutover, archive and a mixed fleet", () => {
       });
       if (b) await seedPracticeHeadings(prisma, ch.id, b.slug);
     }
+    // Historical subject: these suites describe the world an already-ingested
+    // pilot lives in, so they rebuild its ground explicitly. The heading first,
+    // so the backfill projects it; the rows after, when the units exist.
+    await seedRetiredPairHeadings(prisma, "emociones-en-construccion");
     await backfillContentCore(prisma);
+    await seedRetiredPairExercises(prisma, "emociones-en-construccion");
 
     const u = await prisma.user.create({
       data: { email: "c3c-cutover@example.test", name: "CMS", plan: "FREE" },

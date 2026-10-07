@@ -524,6 +524,12 @@ export type GuideLifecycleErrorCode =
   | "GUIDE_CONTEXT_UNRESOLVED"
   | "GUIDE_CONTEXT_MISMATCH"
   | "GUIDE_FORBIDDEN"
+  /**
+   * The guide exists and still answers for the sessions already pinned to it,
+   * but no NEW session may begin from it. Opaque on purpose: it names no guide,
+   * no exercise and no reason.
+   */
+  | "GUIDE_NOT_STARTABLE"
   | "GUIDE_STORAGE_FAILURE";
 
 /** Every code a Guide route can return. */

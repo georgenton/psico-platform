@@ -56,7 +56,7 @@ const PQP = "parejas-que-perduran";
 
 /** The two pins the build actually publishes. */
 const PINS = [
-  { guideKey: "eec-c1-cuerpo-antes-que-mente", guideVersion: 1, book: EEC },
+  { guideKey: "eec-c1-teorias-como-lentes", guideVersion: 1, book: EEC },
   { guideKey: "pqp-c1-contacto-sostenido", guideVersion: 1, book: PQP },
 ] as const;
 

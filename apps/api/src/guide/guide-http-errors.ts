@@ -35,6 +35,10 @@ const CODE_STATUS: Record<GuideApiErrorCode, HttpStatus> = {
   // The command does not describe this guide / the catalog cannot answer.
   GUIDE_STEP_COMMAND_MISMATCH: HttpStatus.UNPROCESSABLE_ENTITY,
   GUIDE_CONTEXT_UNRESOLVED: HttpStatus.UNPROCESSABLE_ENTITY,
+  // 410: the pin was startable once and is not any more. Not 404 — it still
+  // exists and still answers for its own sessions; not 422 — nothing here is
+  // broken, the answer is intentional.
+  GUIDE_NOT_STARTABLE: HttpStatus.GONE,
 
   // Infrastructure — never an editorial verdict.
   GUIDE_STORAGE_FAILURE: HttpStatus.INTERNAL_SERVER_ERROR,

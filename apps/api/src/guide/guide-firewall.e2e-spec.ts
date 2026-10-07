@@ -58,14 +58,21 @@ const API_DIR = process.cwd();
 const DB = "cc74d_guide_firewall_db";
 
 const BOOK_SLUG = "emociones-en-construccion";
-const GUIDE_KEY = "eec-c1-cuerpo-antes-que-mente";
+const GUIDE_KEY = "eec-c1-teorias-como-lentes";
 const PRACTICE_HEADING =
   EXERCISE_INGESTION_CATALOG[BOOK_SLUG][0].practice.sourceHeading;
 
-const STEP_CONCEPT = "explorar-cuerpo-antes-que-mente";
-const STEP_PRACTICE = "practicar-escucharte-por-dentro";
-const STEP_RECALL = "recordar-cuerpo-antes-que-mente";
-const CORRECT_OPTION = "opcion-cuerpo-primero";
+const STEP_CONCEPT = "explorar-teorias-como-lentes";
+const STEP_PRACTICE = "practicar-revisar-un-lente";
+const STEP_RECALL = "recordar-teorias-como-lentes";
+const RECALL_ITEM_KEY = "eec-c1-recall-teorias-como-lentes";
+const RECALL_DEF = EXERCISE_INGESTION_CATALOG["emociones-en-construccion"].find(
+  (p) => p.recall.exerciseKey === RECALL_ITEM_KEY,
+)!.recall;
+const CORRECT_OPTION = RECALL_DEF.content.correctOptionKey;
+const WRONG_OPTION = RECALL_DEF.content.options.find(
+  (o) => o.key !== CORRECT_OPTION,
+)!.key;
 
 const key = (n: number) =>
   `eeeeeeee-eeee-4eee-8eee-${String(n).padStart(12, "0")}`;
@@ -303,7 +310,7 @@ suite("CC-7.4D · Guide full-stack emotional firewall", () => {
       .post("/api/resonances")
       .set(auth(token))
       .send({
-        conceptKey: "eec-cuerpo-antes-que-mente",
+        conceptKey: "eec-teorias-como-lentes",
         conceptLabel: "El cuerpo sabe antes que la mente",
         bookSlug: BOOK_SLUG,
         chapterOrder: 1,

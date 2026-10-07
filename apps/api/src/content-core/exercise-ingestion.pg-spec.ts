@@ -13,6 +13,7 @@ import {
 } from "./lib/block-key";
 import {
   EXERCISE_INGESTION_CATALOG,
+  materializableExercisePairs,
   type UnitExerciseDefinitions,
 } from "./exercise-ingestion-catalog";
 import {
@@ -40,7 +41,7 @@ const suite = base ? describe : describe.skip;
 const API_DIR = process.cwd();
 
 const BOOK_SLUG = "emociones-en-construccion";
-const PAIR = EXERCISE_INGESTION_CATALOG[BOOK_SLUG][0];
+const PAIR = materializableExercisePairs(BOOK_SLUG)[0];
 const PRACTICE = PAIR.practice;
 const RECALL = PAIR.recall;
 
@@ -158,8 +159,8 @@ suite(
       // than a literal so adding a microguide does not turn this into a failing
       // test about arithmetic — and it is filtered by CHAPTER, because the rows
       // read below belong to chapter 1 and the catalog now teaches in two.
-      const pairs = (
-        EXERCISE_INGESTION_CATALOG["emociones-en-construccion"] ?? []
+      const pairs = materializableExercisePairs(
+        "emociones-en-construccion",
       ).filter((p) => p.practice.chapterOrder === 1);
       const rows = await prisma.exercise.findMany({
         where: { chapterId },
@@ -184,8 +185,7 @@ suite(
       // El total del entorno es el del catálogo COMPLETO del libro — las dos
       // parejas de chapter 1 y las de chapter 2 —: nada se creó fuera de él.
       expect(await prisma.exercise.count()).toBe(
-        (EXERCISE_INGESTION_CATALOG["emociones-en-construccion"] ?? []).length *
-          2,
+        materializableExercisePairs("emociones-en-construccion").length * 2,
       );
     });
 
@@ -195,15 +195,16 @@ suite(
       });
       expect(practice.chapterId).toBe(chapterId);
       expect(practice.type).toBe("REFLECTION");
-      expect(practice.order).toBe(1);
+      expect(practice.order).toBe(PAIR.practice.order);
       expect(practice.title).toBe(PRACTICE.title);
 
       const content = practice.content as Record<string, unknown>;
       expect(Object.keys(content).sort()).toEqual([
+        ...(PAIR.practice.interaction === undefined ? [] : ["interaction"]),
         "practiceKind",
         "sourceBlockKey",
       ]);
-      expect(content.practiceKind).toBe("guided_reflection");
+      expect(content.practiceKind).toBe(PAIR.practice.practiceKind);
 
       const expectedKey = blockKeyFromLegacyId(practiceBlockId);
       expect(content.sourceBlockKey).toBe(expectedKey);
@@ -230,7 +231,7 @@ suite(
       });
       expect(recall.chapterId).toBe(chapterId);
       expect(recall.type).toBe("QUIZ");
-      expect(recall.order).toBe(2);
+      expect(recall.order).toBe(PAIR.recall.order);
       expect(recall.title).toBe(RECALL.title);
 
       const content = recall.content as Record<string, unknown>;
@@ -241,8 +242,10 @@ suite(
         "recallMode",
       ]);
       expect(content.recallMode).toBe("objective");
-      expect(content.conceptKey).toBe("eec-cuerpo-antes-que-mente");
-      expect(content.correctOptionKey).toBe("opcion-cuerpo-primero");
+      expect(content.conceptKey).toBe("eec-teorias-como-lentes");
+      expect(content.correctOptionKey).toBe(
+        PAIR.recall.content.correctOptionKey,
+      );
 
       const options = content.options as Array<{ key: string; label: string }>;
       expect(options).toHaveLength(3);
@@ -284,13 +287,11 @@ suite(
       const item = await resolver.resolveRecallItem(RECALL.exerciseKey);
       expect(item.itemKey).toBe(RECALL.exerciseKey);
       expect(item.mode).toBe("objective");
-      expect(item.conceptKey).toBe("eec-cuerpo-antes-que-mente");
-      expect([...item.optionKeys].sort()).toEqual([
-        "opcion-cuerpo-primero",
-        "opcion-mente-primero",
-        "opcion-simultanea",
-      ]);
-      expect(item.correctOptionKey).toBe("opcion-cuerpo-primero");
+      expect(item.conceptKey).toBe("eec-teorias-como-lentes");
+      expect([...item.optionKeys].sort()).toEqual(
+        [...PAIR.recall.content.options.map((o) => o.key)].sort(),
+      );
+      expect(item.correctOptionKey).toBe(PAIR.recall.content.correctOptionKey);
 
       const practiceCtx = await resolver.resolveExercise(PRACTICE.exerciseKey);
       expect(item.unitId).toBe(practiceCtx.unitId);
@@ -316,7 +317,7 @@ suite("CC-7.4B.2 · exercise ingestion — drift fails closed, atomically", () =
         type: "QUIZ",
         content: {
           recallMode: "objective",
-          conceptKey: "eec-cuerpo-antes-que-mente",
+          conceptKey: "eec-teorias-como-lentes",
           options: [
             { key: "x", label: "x" },
             { key: "y", label: "y" },

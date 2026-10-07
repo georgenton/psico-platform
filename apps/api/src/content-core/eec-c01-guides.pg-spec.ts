@@ -11,7 +11,11 @@ import type { PrismaService } from "../prisma";
 import { backfillContentCore } from "./backfill";
 import { activateBookLearningCatalog } from "./learning-activation";
 import { ExperienceAdminService } from "../experience/experience-admin.service";
-import { seedPracticeHeadings } from "./test-support/seed-practice-headings";
+import {
+  seedPracticeHeadings,
+  seedRetiredPairExercises,
+  seedRetiredPairHeadings,
+} from "./test-support/seed-practice-headings";
 import {
   loadManifests,
   planGuides,
@@ -192,7 +196,12 @@ suite("EEC-C01 · manifests → targets → five DRAFTs (real PostgreSQL)", () =
     // catalog needs, and a chapter it created before this fixture reached the
     // same order would collide on `(bookId, order)`.
     await seedPracticeHeadings(prisma, chapter.id, BOOK);
+    // Historical subject: these suites describe the world an already-ingested
+    // pilot lives in, so they rebuild its ground explicitly. The heading first,
+    // so the backfill projects it; the rows after, when the units exist.
+    await seedRetiredPairHeadings(prisma, "emociones-en-construccion");
     await backfillContentCore(prisma);
+    await seedRetiredPairExercises(prisma, "emociones-en-construccion");
 
     // Parejas' own targets, for the same reason: without them its shipped
     // definition has no chapter, and the set fails closed.

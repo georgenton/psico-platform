@@ -7,7 +7,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { PrismaService } from "../prisma";
 import type { ChapterExperienceDefinition } from "@psico/types";
 import { backfillContentCore } from "../content-core/backfill";
-import { EXERCISE_INGESTION_CATALOG } from "../content-core/exercise-ingestion-catalog";
+import { materializableExercisePairs } from "../content-core/exercise-ingestion-catalog";
 import { productionExperienceRepository } from "./experience-production-catalog";
 import { ExperienceAdminService } from "./experience-admin.service";
 import {
@@ -24,7 +24,11 @@ import {
 } from "./experience-binding-schema";
 import { codeOwnedClaimsByUnit } from "./experience-code-owned-identity";
 import { GUIDE_READER_ANCHOR } from "@psico/types";
-import { seedPracticeHeadings } from "../content-core/test-support/seed-practice-headings";
+import {
+  seedPracticeHeadings,
+  seedRetiredPairExercises,
+  seedRetiredPairHeadings,
+} from "../content-core/test-support/seed-practice-headings";
 
 /** The lineage every fixture here works with, taken from the catalog. */
 const EEC_GUIDE_KEY = GUIDE_READER_ANCHOR.guideKey;
@@ -48,8 +52,8 @@ const DB = "c3a_experience_binding_db";
 
 const BOOK_A = "emociones-en-construccion";
 const BOOK_B = "parejas-que-perduran";
-const HEADING_A = EXERCISE_INGESTION_CATALOG[BOOK_A][0].practice.sourceHeading;
-const HEADING_B = EXERCISE_INGESTION_CATALOG[BOOK_B][0].practice.sourceHeading;
+const HEADING_A = materializableExercisePairs(BOOK_A)[0].practice.sourceHeading;
+const HEADING_B = materializableExercisePairs(BOOK_B)[0].practice.sourceHeading;
 
 const withDatabase = (url: string, db: string): string => {
   const u = new URL(url);
@@ -166,7 +170,12 @@ suite("C.3A · the binding bridge", () => {
       });
       if (b) await seedPracticeHeadings(prisma, ch.id, b.slug);
     }
+    // Historical subject: these suites describe the world an already-ingested
+    // pilot lives in, so they rebuild its ground explicitly. The heading first,
+    // so the backfill projects it; the rows after, when the units exist.
+    await seedRetiredPairHeadings(prisma, "emociones-en-construccion");
     await backfillContentCore(prisma);
+    await seedRetiredPairExercises(prisma, "emociones-en-construccion");
 
     const u = await prisma.user.create({
       data: { email: "c3a-binding@example.test", name: "CMS", plan: "FREE" },

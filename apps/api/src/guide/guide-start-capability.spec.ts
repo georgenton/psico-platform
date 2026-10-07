@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { GuideLifecycleService } from "./guide-lifecycle.service";
 import { GuideLifecycleError } from "./guide-errors";
-import { EEC_C1_BODY_BEFORE_MIND_GUIDE } from "./guide-catalog";
+import { EEC_C1_MG01_LENSES_GUIDE } from "./guide-catalog";
 import type * as CapabilityModuleNs from "./guide-active-capability";
 import {
   guideStartLockKeys,
@@ -39,7 +39,9 @@ vi.mock("./guide-active-capability", async (importOriginal) => {
  * real PostgreSQL in the pg-spec).
  */
 
-const GUIDE = EEC_C1_BODY_BEFORE_MIND_GUIDE;
+// The V1 pilot is retired for new starts, so a START suite uses a current
+// guide — the capability it exercises is the same one.
+const GUIDE = EEC_C1_MG01_LENSES_GUIDE;
 const USER = { userId: "user-1" } as never;
 const COMMAND = {
   idempotencyKey: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",

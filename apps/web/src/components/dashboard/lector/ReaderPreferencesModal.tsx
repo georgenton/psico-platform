@@ -1,6 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+
+/** What a focus trap considers reachable. */
+const FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 export interface ReaderPrefs {
   theme: "system" | "light" | "sepia" | "dark";
@@ -43,6 +47,85 @@ export function ReaderPreferencesModal({
   onChange,
 }: Props) {
   const [prefs, setPrefs] = useState<ReaderPrefs>(initial);
+  const panelRef = useRef<HTMLDivElement>(null);
+  /** Who had the keyboard when this opened — almost always the Aa button. */
+  const restoreRef = useRef<HTMLElement | null>(null);
+
+  // Focus goes in when the sheet opens and comes back out when it closes. A
+  // dialog that declares `aria-modal` and then leaves the keyboard behind on
+  // the chapter is worse than no dialog: the reader tabs through text they
+  // cannot see. Handing focus back is the other half of the same promise.
+  useEffect(() => {
+    if (!isOpen) return;
+    restoreRef.current = document.activeElement as HTMLElement | null;
+    panelRef.current?.focus();
+    return () => {
+      const back = restoreRef.current;
+      if (back?.isConnected) {
+        back.focus();
+        return;
+      }
+      // The trigger can be gone — the reader re-rendered, or the bar changed
+      // shape. Aa is the logical destination; if it is not there either, the
+      // browser's default is better than focusing something arbitrary.
+      document
+        .querySelector<HTMLElement>(
+          'button[aria-label="Preferencias de lectura"]',
+        )
+        ?.focus();
+    };
+  }, [isOpen]);
+
+  // Escape closes, and the keyboard stays inside while it is open.
+  //
+  // This is a NATIVE listener on the dialog element, not a React `onKeyDown`
+  // prop and not a listener on `document`, and the difference is the whole
+  // point. React 18 delegates events from the root container — which under the
+  // App Router is `document` itself — so by the time a synthetic handler runs,
+  // the event has ALREADY reached `document`, and `stopPropagation()` there
+  // cannot stop a listener sitting on that same node. The reader's companion
+  // dock has exactly such a listener, so one Escape used to close two
+  // surfaces. Measured: with the synthetic handler, Escape still arrived at
+  // `document` once; with this one, zero times.
+  //
+  // Attached to the dialog, it is not a global shortcut either: it exists only
+  // while this dialog is open, reacts only to Escape and Tab, and dismisses
+  // only itself.
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const onKey = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        onClose();
+        return;
+      }
+      if (e.key !== "Tab") return;
+      const items = panelRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE);
+      if (!items || items.length === 0) return;
+      const first = items[0]!;
+      const last = items[items.length - 1]!;
+      const active = document.activeElement;
+      // Only the two edges need handling; in between the browser is right.
+      if (!e.shiftKey && active === last) {
+        e.preventDefault();
+        first.focus();
+      } else if (
+        e.shiftKey &&
+        (active === first || active === panelRef.current)
+      ) {
+        e.preventDefault();
+        last.focus();
+      }
+    },
+    [onClose],
+  );
+
+  useEffect(() => {
+    const overlay = overlayRef.current;
+    if (!isOpen || !overlay) return;
+    overlay.addEventListener("keydown", onKey);
+    return () => overlay.removeEventListener("keydown", onKey);
+  }, [isOpen, onKey]);
 
   if (!isOpen) return null;
 
@@ -54,13 +137,17 @@ export function ReaderPreferencesModal({
 
   return (
     <div
+      ref={overlayRef}
       role="dialog"
+      aria-modal="true"
       aria-label="Preferencias de lectura"
       className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md rounded-3xl bg-white p-6"
+        ref={panelRef}
+        tabIndex={-1}
+        className="w-full max-w-md rounded-3xl bg-white p-6 outline-none"
         onClick={(e) => e.stopPropagation()}
       >
         <header className="mb-4 flex items-center justify-between">
@@ -73,6 +160,9 @@ export function ReaderPreferencesModal({
           <button
             type="button"
             onClick={onClose}
+            // The «×» glyph is not an accessible name: without this a screen
+            // reader announces "button" and nothing else.
+            aria-label="Cerrar preferencias de lectura"
             className="text-[20px]"
             style={{ color: "var(--color-warm-500)" }}
           >

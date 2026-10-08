@@ -68,9 +68,9 @@
  *                       computed styles, and a layering check failed. A login
  *                       or navigation error can never stand in for that.
  *   --scope-control     pushes the AMBIENTE menu off the left edge and requires
- *                       that to be reported as a FAILURE — proving the narrow
- *                       known-defect exception does not quietly absorb an
- *                       overflow outside its documented scope.
+ *                       that to be reported as a FAILURE — proving the
+ *                       off-viewport check can still see an overflow now that
+ *                       WS-01B is fixed and nothing is excused any more.
  *
  * Both only ever make things worse; neither clears anything to help a check
  * pass. Both are isolated to this browser context: nothing is written to any
@@ -99,8 +99,9 @@ const ORIGINAL_CAUSE = `
 `;
 
 /**
- * Pushes ONE menu outside the viewport, to prove the known-defect exception is
- * scoped. Ambiente, because the documented exception is ánimo's alone.
+ * Pushes ONE menu outside the viewport, to prove the off-viewport check still
+ * fires. Ambiente, because ánimo is the control WS-01B just fixed and a check
+ * should be proven on a case it was not written around.
  */
 const SCOPE_PUSH = `
   [role="menu"][aria-label="Selecciona un ambiente"] {
@@ -110,27 +111,16 @@ const SCOPE_PUSH = `
 `;
 
 /**
- * The ONE overflow this suite tolerates, bounded by what was measured rather
- * than by a guess. The ánimo popover is a fixed 322 px anchored to the right of
- * the bar, so on a narrow screen its left edge leaves the viewport:
+ * WS-01B is FIXED, so there is no tolerated overflow left: every option of
+ * every menu must sit whole inside the viewport, at every width in the matrix.
  *
- *   390 px → menu left −128 · «Muy bien» cx −89 · «Bien» cx −28
- *   320 px → menu left −152 · «Muy bien» cx −113 · «Bien» cx −52
- *   768 px and 1365 px → nothing outside the viewport
- *
- * The two widths do NOT share geometry, only the set of affected options. The
- * exception is therefore pinned to the control, to the widths where it was
- * actually observed, to those two labels and to that count. Ambiente, estilo,
- * any wider viewport, a third affected option or a vanished menu all fail.
- *
- * This is a boundary around a known-open defect (WS-01B), not a licence.
+ * What used to be excused: the ánimo popover is a fixed 322px anchored to its
+ * chip, and in the compact bar the chip's right edge arrives before 322px, so
+ * the popover hung off the left — 3 of 5 faces unreachable at 320px. Below
+ * 600px it now hangs from the bar instead of the chip and is bounded by the
+ * screen. The exception is gone rather than widened; if it ever needs to come
+ * back, that is a product decision and not a test edit.
  */
-const KNOWN_MOOD_OVERFLOW = {
-  control: "ánimo",
-  maxViewportWidth: 390,
-  labels: new Set(["Muy bien", "Bien"]),
-  maxOptions: 2,
-};
 
 // ── the three global controls ───────────────────────────────────────────────
 const CONTROLS = [
@@ -258,12 +248,41 @@ function menuReach([menuSel, optSel, barSel]) {
     return n.tagName.toLowerCase() + (c ? "." + c.split(/\s+/).slice(0, 2).join(".") : "");
   };
 
+  // The CENTRE is not enough: a control can have its middle clear and its
+  // edges under something else, and a finger does not always land dead
+  // centre. Five points — the centre and four insets — plus the requirement
+  // that the whole box is on screen.
+  const SAMPLES = [
+    [0.5, 0.5],
+    [0.15, 0.22],
+    [0.85, 0.22],
+    [0.15, 0.78],
+    [0.85, 0.78],
+  ];
   const options = [...menu.querySelectorAll(optSel)].map((o, i) => {
     const r = o.getBoundingClientRect();
     const cx = Math.round(r.left + r.width / 2);
     const cy = Math.round(r.top + r.height / 2);
-    const inView = cx >= 0 && cy >= 0 && cx <= innerWidth && cy <= innerHeight;
-    const hit = inView ? document.elementFromPoint(cx, cy) : null;
+    // The WHOLE box inside the viewport, not merely its midpoint.
+    const inView =
+      r.left >= -0.5 &&
+      r.top >= -0.5 &&
+      r.right <= innerWidth + 0.5 &&
+      r.bottom <= innerHeight + 0.5;
+    let sampled = 0;
+    let reached = 0;
+    let blocker = null;
+    if (inView) {
+      for (const [fx, fy] of SAMPLES) {
+        const x = Math.round(r.left + r.width * fx);
+        const y = Math.round(r.top + r.height * fy);
+        if (x < 0 || y < 0 || x > innerWidth || y > innerHeight) continue;
+        sampled += 1;
+        const h = document.elementFromPoint(x, y);
+        if (belongs(h, o)) reached += 1;
+        else if (!blocker) blocker = name(h);
+      }
+    }
     return {
       i,
       label: (o.getAttribute("aria-label") || o.textContent || "")
@@ -276,8 +295,11 @@ function menuReach([menuSel, optSel, barSel]) {
       cx,
       inView,
       active: o.getAttribute("aria-checked") === "true" || o.classList.contains("on"),
-      reachable: inView && belongs(hit, o),
-      topmost: name(hit),
+      // Every sampled point must land on the option, not just its middle.
+      reachable: inView && sampled > 0 && reached === sampled,
+      sampled,
+      reached,
+      topmost: blocker ?? name(document.elementFromPoint(cx, cy)),
     };
   });
 
@@ -341,7 +363,6 @@ function causeIsInPlace(barSel) {
 
 // ── reporting ───────────────────────────────────────────────────────────────
 const failures = [];
-const known = [];
 const notes = [];
 const notMeasured = [];
 let checks = 0;
@@ -356,18 +377,6 @@ function check(id, category, ok, what, detail, control) {
   checks += 1;
   if (!ok) failures.push({ id, category, control, text: `${what} — ${detail}` });
   console.log(`  ${ok ? "ok   " : "FAIL "} ${what}${detail ? ` · ${detail}` : ""}`);
-  return ok;
-}
-
-/**
- * A defect that is real, measured, out of this file's scope and documented as
- * open elsewhere. Printed and counted; it never decides the exit code, because
- * a suite that could not go green while a separate bug is open would stop being
- * usable as a gate for the one invariant it does own.
- */
-function knownDefect(id, ok, what, detail, owner, control) {
-  if (!ok) known.push({ id, control, text: `${what} — ${detail} · ${owner}` });
-  console.log(`  ${ok ? "ok   " : "KNOWN"} ${what}${detail ? ` · ${detail}` : ""}`);
   return ok;
 }
 
@@ -501,38 +510,18 @@ async function exerciseControl(c, { label, effect = true }) {
     c.id,
   );
 
-  // ── the one tolerated overflow, strictly bounded ─────────────────────────
+  // ── every option whole inside the screen · WS-01B ────────────────────────
   const off = r.options.filter((o) => !o.inView);
-  const withinKnownScope =
-    off.length > 0 &&
-    c.id === KNOWN_MOOD_OVERFLOW.control &&
-    r.viewport <= KNOWN_MOOD_OVERFLOW.maxViewportWidth &&
-    off.length <= KNOWN_MOOD_OVERFLOW.maxOptions &&
-    off.every((o) => KNOWN_MOOD_OVERFLOW.labels.has(o.label));
-  const offDetail = off.length
-    ? `fuera: ${off.map((o) => `«${o.label}»(cx=${o.cx})`).join(", ")} · viewport ${r.viewport}px`
-    : "todas dentro";
-  if (off.length === 0 || withinKnownScope) {
-    knownDefect(
-      "off-viewport",
-      off.length === 0,
-      `${label} · ${c.id} · ninguna opción cae fuera del viewport`,
-      offDetail,
-      "WS-01B, abierto: ancho del popover de ánimo en pantallas estrechas",
-      c.id,
-    );
-  } else {
-    // Outside the documented exception: ambiente, estilo, a wider viewport, a
-    // third option, or a label nobody measured. That is a regression.
-    check(
-      "off-viewport",
-      "layering",
-      false,
-      `${label} · ${c.id} · ninguna opción cae fuera del viewport`,
-      `${offDetail} · fuera del alcance de la excepción conocida`,
-      c.id,
-    );
-  }
+  check(
+    "off-viewport",
+    "layering",
+    off.length === 0,
+    `${label} · ${c.id} · las ${r.options.length} opciones caben enteras en la pantalla`,
+    off.length
+      ? `fuera: ${off.map((o) => `«${o.label}»(cx=${o.cx})`).join(", ")} · viewport ${r.viewport}px`
+      : `viewport ${r.viewport}px`,
+    c.id,
+  );
 
   if (effect) {
     // Prefer the LAST option that is not already selected: it sits deepest into
@@ -657,12 +646,67 @@ try {
   check("dock-close-reachable", "upper-layer", dockClosed, "el cierre del panel del lector sigue siendo pulsable", dockClosed ? "aceptado" : "interceptado");
   await page.waitForTimeout(400);
 
-  await page.click('button[aria-label="Preferencias de lectura"]');
-  await page.waitForSelector('[role="dialog"][aria-label="Preferencias de lectura"]', { timeout: 10_000 });
-  const dialogOverBar = await page.evaluate(topmostAt, ['[role="dialog"][aria-label="Preferencias de lectura"]', 1100, 28]);
+  const AA = '[role="dialog"][aria-label="Preferencias de lectura"]';
+  const AA_TRIGGER = 'button[aria-label="Preferencias de lectura"]';
+  await page.click(AA_TRIGGER);
+  await page.waitForSelector(AA, { timeout: 10_000 });
+  const dialogOverBar = await page.evaluate(topmostAt, [AA, 1100, 28]);
   check("dialog-above-bar", "upper-layer", dialogOverBar.onTop, "el modal Aa sigue por encima de la barra global", `en (1100,28) manda ${dialogOverBar.topmost}`);
-  await page.keyboard.press("Escape").catch(() => {});
-  await page.waitForTimeout(300);
+
+  // ── Aa, from the keyboard ────────────────────────────────────────────────
+  // Focus enters the panel on open: a dialog that declares `aria-modal` and
+  // then leaves the keyboard outside is worse than no dialog at all.
+  const focusInside = await page.evaluate(
+    (sel) => !!document.activeElement?.closest(sel),
+    AA,
+  );
+  check("dialog-takes-focus", "upper-layer", focusInside, "el modal Aa recibe el foco al abrirse", focusInside ? "dentro" : "el foco se quedó fuera");
+
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(400);
+  const aaClosed = (await page.locator(AA).count()) === 0;
+  check("dialog-escape-closes", "upper-layer", aaClosed, "Escape cierra el modal Aa", aaClosed ? "cerrado" : "sigue abierto");
+  const backOnTrigger = await page.evaluate(
+    (sel) => document.activeElement === document.querySelector(sel),
+    AA_TRIGGER,
+  );
+  check("dialog-returns-focus", "upper-layer", backOnTrigger, "el foco vuelve a Aa al cerrar", backOnTrigger ? "en Aa" : "quedó en otro sitio");
+
+  // One key, ONE layer. The reader's panel and the mobile drawer both listen
+  // for Escape on `document`. If the dialog let the event through, a single
+  // Escape would close them too and the reader would lose a surface they
+  // never asked to dismiss.
+  //
+  // This probes the mechanism rather than staging two panels at once: with
+  // the dock open it covers the Aa trigger — correctly, it is a drawer over
+  // that corner — so the two cannot be opened together by clicking. A counter
+  // on `document` is the same listener the dock installs, and it answers the
+  // real question: does Escape inside the dialog reach `document` at all?
+  await page.evaluate(() => {
+    const w = window;
+    w.__escapesAtDocument = 0;
+    w.__countEscape = (e) => {
+      if (e.key === "Escape") w.__escapesAtDocument += 1;
+    };
+    document.addEventListener("keydown", w.__countEscape);
+  });
+  await page.click(AA_TRIGGER);
+  await page.waitForSelector(AA, { timeout: 10_000 });
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(400);
+  const leak = await page.evaluate(() => {
+    const w = window;
+    document.removeEventListener("keydown", w.__countEscape);
+    return w.__escapesAtDocument;
+  });
+  const closedAgain = (await page.locator(AA).count()) === 0;
+  check(
+    "escape-closes-one-layer",
+    "upper-layer",
+    closedAgain && leak === 0,
+    "Escape cierra el modal Aa y no llega a otras capas",
+    `Aa ${closedAgain ? "cerrado" : "abierto"} · escapes que alcanzaron document: ${leak}`,
+  );
 
   // ══ 5 · Renacimiento ════════════════════════════════════════════════════
   console.log("\n══ 5 · los tres selectores · escritorio · Renacimiento ══");
@@ -819,24 +863,20 @@ if (benchError) {
 
 const layeringFailures = failures.filter((f) => LAYERING_IDS.has(f.id));
 console.log(
-  `  comprobaciones: ${checks} · fallos: ${failures.length} (de apilamiento: ${layeringFailures.length}) · defectos conocidos ajenos: ${known.length}`,
+  `  comprobaciones: ${checks} · fallos: ${failures.length} (de apilamiento: ${layeringFailures.length})`,
 );
 for (const f of failures) console.log(`  FAIL  · [${f.category}/${f.id}] ${f.text}`);
-for (const k of known) console.log(`  KNOWN · [${k.id}] ${k.text}`);
 
 console.log(`\n  LAYERING_REGRESSION = ${failures.length === 0 ? "PASS" : "FAIL"}`);
-console.log(`  MOOD_MOBILE_OVERFLOW = ${known.length ? "KNOWN_OPEN" : "NOT_OBSERVED_THIS_RUN"}`);
+console.log(
+  `  MOOD_VIEWPORT = ${failures.some((f) => f.id === "off-viewport") ? "FAIL" : "PASS"}`,
+);
 
 if (SCOPE) {
-  // The exception must NOT have absorbed the pushed ambiente menu.
-  const absorbed = known.filter((k) => k.control === "ambiente");
+  // An off-screen menu must be REPORTED, never swallowed. WS-01B used to be
+  // excused here; now nothing is, and this control is what proves the check
+  // can still see an overflow when one exists.
   const caught = failures.filter((k) => k.control === "ambiente" && k.id === "off-viewport");
-  if (absorbed.length > 0) {
-    console.error(
-      `\nCONTROL DE ALCANCE FALLIDO: la excepción conocida absorbió ${absorbed.length} caso(s) de ambiente.`,
-    );
-    process.exit(1);
-  }
   if (caught.length === 0) {
     console.error(
       "\nCONTROL DE ALCANCE FALLIDO: el desbordamiento simulado de ambiente no se reportó como fallo.",
@@ -844,7 +884,7 @@ if (SCOPE) {
     process.exit(1);
   }
   console.log(
-    `\nCONTROL DE ALCANCE OK: el desbordamiento de ambiente se reportó como fallo (${caught.length}) y la excepción no lo absorbió.`,
+    `\nCONTROL DE ALCANCE OK: el desbordamiento de ambiente se reportó como fallo (${caught.length}).`,
   );
   process.exit(0);
 }

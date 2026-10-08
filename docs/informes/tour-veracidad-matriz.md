@@ -163,10 +163,60 @@ Verificado el 2026-10-08 contra `main` en `85188dfd` y, donde se indica, contra
 
 ---
 
+## Segunda pasada (2026-10-08) — tres filas que seguían mal
+
+La primera pasada corrigió afirmaciones y dejó otras tres sin tocar, dos de
+ellas porque la propia matriz las daba por buenas.
+
+**La frase de recuperación.** Decía 24 palabras. La constante real,
+`SEED_PHRASE_WORD_COUNT`, es **12** desde la revisión de ADR 0007 de julio de 2026. Además presentaba la primera exhibición como la única, cuando
+`ShowSeedPhraseCard` la vuelve a derivar desde Ajustes → Seguridad con el
+diario desbloqueado. Las tres frases finales están en la fila de arriba; el
+número queda atado a la constante por un test, no por disciplina.
+
+**El aviso de audio.** Prometía, a todo el mundo, que si un capítulo aún no
+tiene audio «te lo dice en su sitio». El reproductor sí lo dice —«Este
+capítulo aún no tiene audio»— pero sólo a quien llega a esa respuesta:
+`LectorService.getAudio` lanza `PRO_REQUIRED` para el plan FREE **antes** de
+buscar el archivo. Como el tour corre justo después del onboarding, casi todo
+el que leía esa línea estaba en FREE, o sea en el único caso en que no era
+cierta. Texto final: «Algunos capítulos tienen audio y el lector lo ofrece
+junto al texto. Escucharlo es una función Pro: el reproductor te dice si tu
+plan lo incluye y, cuando sí, si ese capítulo ya lo tiene.» No se construyó
+ninguna función para sostener el texto anterior.
+
+**La autoría.** La fila justificaba la atribución diciendo que, consultada la
+base, los libros sembrados «sí son suyos». Esa frase se retira porque el
+argumento es circular: el valor de la base lo escribe el mismo seed que fija
+el nombre. Lo que `BookAuthor` acredita es una atribución **registrada**.
+
+### Lo que la ruta del seed sí expone (verificado en local, sólo lectura)
+
+`apps/api/prisma/seed.ts` fija, además del nombre, un título profesional, un
+número de colegiatura y `isVerified: true`; el `update` reafirma título y
+verificación en cada corrida. De ahí:
+
+| Dónde                                 | Qué                                                                                                                                                                  |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `schema.prisma` · `BookAuthor`        | `title`, `licenseNumber`, `isVerified` existen como columnas de exhibición                                                                                           |
+| `books.service.ts` · `toAuthorDetail` | el detalle de libro envía los tres; la colegiatura va condicionada a `isVerified`, que el seed pone en `true`, así que **sí viaja**                                  |
+| `BookHero.tsx`                        | pinta el nombre, el título profesional y un **✓ con `title="Verificado"`**; la colegiatura no se pinta en ninguna superficie, pero está en el cuerpo de la respuesta |
+
+Comprobado contra el stack local (contenedor `psico-postgres`, base
+`psico_dev`): el campo llega al cliente con contenido, no nulo. **No** se
+comprobó en staging ni en producción —requeriría leer datos desplegados, fuera
+del alcance de esta ronda—, así que para esos entornos queda `NOT_VERIFIED`.
+Esto es un asunto editorial separado: no se reasignó autoría, no se tocó el
+seed y no se cambió ningún dato.
+
+---
+
 ## Lo que esta matriz no afirma
 
 No se midió la disponibilidad real de audio en staging (403 por plan). No se
 auditó el ciclo completo de cambio y restablecimiento de contraseña más allá de
 lo necesario para la frase de recuperación. No se verificaron Dúo ni Círculos
-porque el tour no los menciona. Nada de esto cambia cifrado, permisos, planes,
-rollout ni proveedores.
+porque el tour no los menciona. No se afirma nada sobre la validez profesional
+del título o la colegiatura que el seed fija: sólo sobre su recorrido hasta la
+interfaz. Nada de esto cambia cifrado, permisos, planes, rollout ni
+proveedores.

@@ -44,7 +44,7 @@ const ALT: IncomingRecommendation = {
 
 /** A body that never carried `tierRequired` at all — an older API's shape. */
 const withoutTier = (b: IncomingRecommendation): IncomingRecommendation => {
-  const copy: Record<string, unknown> = { ...b };
+  const copy: Partial<IncomingRecommendation> = { ...b };
   delete copy.tierRequired;
   return copy as IncomingRecommendation;
 };

@@ -59,6 +59,21 @@
  * hit test at each option's own centre, and the real click sits on top of it.
  * No `force`, no `dispatchEvent`, no `element.click()` from `evaluate`.
  *
+ * The keyboard is measured the same way. `page.keyboard.press("Tab")` enters
+ * through the browser's own input pipeline, so Chromium computes the next
+ * focus target with its sequential-navigation algorithm over the whole live
+ * document. Nothing here calls `focus()` to move the keyboard: a focus trap
+ * that only held against a synthetic event would be caught, and the log prints
+ * the traversal it actually walked rather than asserting that one exists.
+ *
+ * ── The matrix ─────────────────────────────────────────────────────────────
+ *
+ * 320 / 390 / 768 / 1365 px, each in both approved themes. 1365 is covered by
+ * §3 (Contemporary) and §5 (Renacimiento); §7 walks the three narrow widths in
+ * both. The themes are not interchangeable: they differ in type scale and chip
+ * padding, so the global bar wraps at different widths and the band the reader
+ * header competes for is not the same one.
+ *
  * ── Two self-checks of the harness itself ──────────────────────────────────
  *
  *   --negative-control  re-injects the ORIGINAL cause (bar at z-index 20,
@@ -91,6 +106,15 @@ const READER = `${BASE}/dashboard/biblioteca/${BOOK}/lector/${CHAPTER}`;
 
 /** The reader's sticky header. Matches before and after the fix. */
 const READER_BAR = "header.sticky.z-30";
+
+/**
+ * What counts as reachable by keyboard. Deliberately the same selector the Aa
+ * sheet uses for its own trap, so this bench reads the dialog's ends the way
+ * the dialog does; if the two ever drift, the wrap checks below name the
+ * element they actually landed on and the mismatch is visible in the log.
+ */
+const FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /** Exactly the pre-fix declarations, nothing else. */
 const ORIGINAL_CAUSE = `
@@ -662,6 +686,96 @@ try {
   );
   check("dialog-takes-focus", "upper-layer", focusInside, "el modal Aa recibe el foco al abrirse", focusInside ? "dentro" : "el foco se quedó fuera");
 
+  // Tab and Shift+Tab, pressed for real.
+  //
+  // `page.keyboard.press("Tab")` goes in through the browser's own input
+  // pipeline: Chromium computes the next focus target with its sequential
+  // navigation algorithm, over the whole live document, with the real CSS.
+  // Nothing here calls `focus()` to move the keyboard, so a trap that only
+  // worked against a simulated event would fail here. The reader behind this
+  // overlay is a long document full of tabbables — chapter links, the
+  // annotations toggle, the global bar — so an unclosed trap escapes within a
+  // press or two.
+  const aaControls = await page.evaluate(
+    ([sel, focusable]) =>
+      [
+        ...(document.querySelector(sel)?.querySelectorAll(focusable) ?? []),
+      ].length,
+    [AA, FOCUSABLE],
+  );
+  check("dialog-has-controls", "sanity", aaControls > 1, "el modal Aa tiene controles que recorrer", `${aaControls} enfocables`);
+
+  /** Where is the keyboard right now, and is it still inside the sheet? */
+  const focusNow = () =>
+    page.evaluate((sel) => {
+      const a = document.activeElement;
+      if (!a || a === document.body) return { inside: false, where: "<body>" };
+      const label =
+        a.getAttribute("aria-label") ||
+        a.textContent?.trim().slice(0, 24) ||
+        `${a.tagName.toLowerCase()}[${a.getAttribute("type") ?? ""}]`;
+      return { inside: !!a.closest(sel), where: label };
+    }, AA);
+
+  // Enough presses to cross both ends several times.
+  const laps = aaControls * 2 + 4;
+  const fwd = [];
+  let escaped = null;
+  for (let i = 0; i < laps && !escaped; i += 1) {
+    await page.keyboard.press("Tab");
+    const at = await focusNow();
+    fwd.push(at.where);
+    if (!at.inside) escaped = `tras ${i + 1} Tab el foco salió a ${at.where}`;
+  }
+  check("dialog-tab-stays-inside", "upper-layer", escaped === null, `el foco no sale del modal Aa en ${laps} pulsaciones de Tab`, escaped ?? `recorrido: ${fwd.join(" → ")}`);
+
+  const back = [];
+  let escapedBack = null;
+  for (let i = 0; i < laps && !escapedBack; i += 1) {
+    await page.keyboard.press("Shift+Tab");
+    const at = await focusNow();
+    back.push(at.where);
+    if (!at.inside)
+      escapedBack = `tras ${i + 1} Shift+Tab el foco salió a ${at.where}`;
+  }
+  check("dialog-shift-tab-stays-inside", "upper-layer", escapedBack === null, `el foco no sale del modal Aa en ${laps} pulsaciones de Shift+Tab`, escapedBack ?? `recorrido: ${back.join(" → ")}`);
+
+  // The two wraps, named. Walking to an end by pressing Tab — not by calling
+  // focus() — and then asking what the next press does.
+  const edges = await page.evaluate(
+    ([sel, focusable]) => {
+      const items = [
+        ...(document.querySelector(sel)?.querySelectorAll(focusable) ?? []),
+      ];
+      const label = (n) =>
+        n?.getAttribute("aria-label") ||
+        n?.textContent?.trim().slice(0, 24) ||
+        `${n?.tagName.toLowerCase()}[${n?.getAttribute("type") ?? ""}]`;
+      return { first: label(items[0]), last: label(items[items.length - 1]) };
+    },
+    [AA, FOCUSABLE],
+  );
+
+  /** Press `key` until the keyboard sits on `want`, or report how it went. */
+  async function walkTo(key, want) {
+    for (let i = 0; i < laps; i += 1) {
+      const at = await focusNow();
+      if (at.where === want) return true;
+      await page.keyboard.press(key);
+    }
+    return (await focusNow()).where === want;
+  }
+
+  const onLast = await walkTo("Tab", edges.last);
+  await page.keyboard.press("Tab");
+  const afterLast = await focusNow();
+  check("dialog-tab-wraps", "upper-layer", onLast && afterLast.inside && afterLast.where === edges.first, `Tab en «${edges.last}» vuelve a «${edges.first}»`, onLast ? `cayó en ${afterLast.where}` : `no se llegó a «${edges.last}» pulsando Tab`);
+
+  const onFirst = await walkTo("Tab", edges.first);
+  await page.keyboard.press("Shift+Tab");
+  const afterFirst = await focusNow();
+  check("dialog-shift-tab-wraps", "upper-layer", onFirst && afterFirst.inside && afterFirst.where === edges.last, `Shift+Tab en «${edges.first}» va a «${edges.last}»`, onFirst ? `cayó en ${afterFirst.where}` : `no se llegó a «${edges.first}» pulsando Tab`);
+
   await page.keyboard.press("Escape");
   await page.waitForTimeout(400);
   const aaClosed = (await page.locator(AA).count()) === 0;
@@ -726,14 +840,23 @@ try {
   check("noche-applied", "sanity", noche, "el ambiente Noche está aplicado", `body.amb-noche=${noche}`);
   for (const c of CONTROLS) await exerciseControl(c, { label: "noche", effect: false });
 
-  // ══ 7 · narrow widths, including the wrapping bar ═══════════════════════
-  for (const v of [
-    { width: 390, height: 844 },
-    { width: 320, height: 720 },
-  ]) {
-    console.log(`\n══ 7 · ${v.width}×${v.height} ══`);
+  // ══ 7 · the responsive matrix · 768/390/320 × both themes ═══════════════
+  //
+  // 1365 is covered in its own right by §3 (Contemporary) and §5
+  // (Renacimiento). This loop walks the rest of the declared matrix, and
+  // walks it in BOTH approved themes rather than in whichever one the
+  // previous section happened to leave in localStorage: the two differ in
+  // type scale and chip padding, so the global bar wraps at different widths
+  // and the band the reader header competes for is not the same.
+  async function runNarrowCell(v, theme) {
+    const cell = `${v.width}px·${theme === "renaissance" ? "renacimiento" : "contemporary"}`;
+    console.log(`\n══ 7 · ${v.width}×${v.height} · ${theme} ══`);
     await page.setViewportSize(v);
-    await openReader();
+    await openReader({ theme });
+    const themeNow = await page.evaluate(
+      () => document.documentElement.dataset.theme,
+    );
+    check("theme-applied", "sanity", themeNow === theme, `${cell} · el tema está aplicado`, `data-theme=${themeNow}`);
     const rows = await page.evaluate(() => {
       const bar = document.querySelector(".topbar");
       const tops = new Set(
@@ -748,16 +871,33 @@ try {
       await page.evaluate((yy) => window.scrollTo(0, yy), y);
       await page.waitForTimeout(300);
       const b = await page.evaluate(barOverlap, READER_BAR);
-      check("bars-share-band", "layering", b.overlap === 0, `${v.width}px · scrollY=${y} · las barras no se solapan`, `lector top=${b.reader.top} · solape ${b.overlap}px`);
+      check("bars-share-band", "layering", b.overlap === 0, `${cell} · scrollY=${y} · las barras no se solapan`, `lector top=${b.reader.top} · solape ${b.overlap}px`);
     }
     await page.evaluate(() => window.scrollTo(0, 0));
-    for (const c of CONTROLS) await exerciseControl(c, { label: `${v.width}px`, effect: false });
+    for (const c of CONTROLS) await exerciseControl(c, { label: cell, effect: false });
 
     // Mobile navigation, measured: the drawer and its scrim must still win.
+    //
+    // The toggle only exists while the sidebar is collapsed. At 768 px it can
+    // be laid out permanently, and clicking a control that is not there would
+    // raise a bench error — an infrastructure failure standing in for a
+    // measurement. So the absence is reported as NOT MEASURED, which is what
+    // it is, and the cell goes on.
+    const hasToggle =
+      (await page.locator(".nav-toggle").count()) > 0 &&
+      (await page.locator(".nav-toggle").first().isVisible());
+    if (!hasToggle) {
+      notMeasured.push(
+        `cajón y velo de navegación en ${cell}: no hay disparador «.nav-toggle» visible a este ancho, así que no hay cajón que medir.`,
+      );
+      await page.keyboard.press("Escape").catch(() => {});
+      await page.waitForTimeout(200);
+      return;
+    }
     await page.click(".nav-toggle");
     await page.waitForTimeout(600);
     const drawer = await page.evaluate(topmostAt, [".side", 100, 30]);
-    check("mobile-drawer-above-bar", "upper-layer", drawer.onTop, `${v.width}px · el cajón de navegación sigue por encima de la barra global`, `en (100,30) manda ${drawer.topmost}`);
+    check("mobile-drawer-above-bar", "upper-layer", drawer.onTop, `${cell} · el cajón de navegación sigue por encima de la barra global`, `en (100,30) manda ${drawer.topmost}`);
     // The scrim is whatever strip the drawer leaves uncovered, and the drawer
     // is wide: at 320 px it takes almost the whole screen. So the probe point
     // comes from the measured geometry instead of a guessed margin.
@@ -784,14 +924,24 @@ try {
       };
     });
     if (scrim.exposed) {
-      check("mobile-scrim-above-bar", "upper-layer", scrim.onTop, `${v.width}px · el velo de navegación sigue por encima`, `en (${scrim.x},320) manda ${scrim.topmost}`);
+      check("mobile-scrim-above-bar", "upper-layer", scrim.onTop, `${cell} · el velo de navegación sigue por encima`, `en (${scrim.x},320) manda ${scrim.topmost}`);
     } else {
       notMeasured.push(
-        `velo de navegación a ${v.width}px: el cajón no deja franja visible (hueco ${scrim.gap ?? 0}px), así que no hay punto donde medirlo.`,
+        `velo de navegación en ${cell}: el cajón no deja franja visible (hueco ${scrim.gap ?? 0}px), así que no hay punto donde medirlo.`,
       );
     }
     await page.keyboard.press("Escape").catch(() => {});
     await page.waitForTimeout(400);
+  }
+
+  for (const theme of ["contemporary", "renaissance"]) {
+    for (const v of [
+      { width: 768, height: 1024 },
+      { width: 390, height: 844 },
+      { width: 320, height: 720 },
+    ]) {
+      await runNarrowCell(v, theme);
+    }
   }
 
   // ══ 8 · resize must not re-open it ══════════════════════════════════════

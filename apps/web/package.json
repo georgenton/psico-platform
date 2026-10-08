@@ -12,7 +12,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
-    "test:responsive": "node e2e/responsive.mjs"
+    "test:responsive": "node e2e/responsive.mjs",
+    "test:reader-layers": "node e2e/reader-header-layers.mjs"
   },
   "dependencies": {
     "@daily-co/daily-js": "^0.90.0",

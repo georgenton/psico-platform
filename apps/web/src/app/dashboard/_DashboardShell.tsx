@@ -448,15 +448,18 @@ function Topbar({
   navOpen,
   onToggleNav,
   toggleRef,
+  barRef,
 }: {
   initialMood: DiaryMoodId | null;
   initialAmbient: AmbientId;
   navOpen: boolean;
   onToggleNav: () => void;
   toggleRef: React.RefObject<HTMLButtonElement>;
+  // The shell measures this element to publish `--app-topbar-h`.
+  barRef: React.RefObject<HTMLDivElement>;
 }) {
   return (
-    <div className="topbar">
+    <div className="topbar" ref={barRef}>
       {/* Below the desktop breakpoint the rail is a drawer, so it needs a
           trigger. CSS hides this button on desktop, where the rail is
           permanent — there is only ONE navigation, in two presentations. */}
@@ -532,6 +535,43 @@ export function DashboardShell({
   const [navOpen, setNavOpen] = useState(false);
   const panelRef = useRef<HTMLElement>(null);
   const toggleRef = useRef<HTMLButtonElement>(null);
+  const topbarRef = useRef<HTMLDivElement>(null);
+
+  // ── How tall is the global bar, right now? ────────────────────────────────
+  //
+  // A route that sticks something of its own to the top — the reader's header
+  // is the one that matters — has to come to rest BENEATH this bar rather than
+  // BEHIND it. Both pin to `top: 0`, so without an offset they claim the same
+  // band and whichever loses on z-index simply vanishes.
+  //
+  // The height cannot be written down: measured on this page it is 65 px on a
+  // phone, 69 px on a tablet, 85 px on a desktop, and 113 px at 320 px, where
+  // the bar wraps to three rows. A constant would be a desktop-only fix. So it
+  // is published as a custom property and kept current.
+  //
+  // Same shape as `GoogleSignInButton`: measure unconditionally, and only
+  // subscribe where `ResizeObserver` exists — jsdom does not have it, and a
+  // first measurement is still better than none.
+  useEffect(() => {
+    const bar = topbarRef.current;
+    if (!bar) return;
+    const publish = () => {
+      document.documentElement.style.setProperty(
+        "--app-topbar-h",
+        `${Math.round(bar.getBoundingClientRect().height)}px`,
+      );
+    };
+    publish();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(publish);
+    ro.observe(bar);
+    return () => {
+      ro.disconnect();
+      // Leaving a stale height behind would offset a page that no longer has
+      // a bar above it.
+      document.documentElement.style.removeProperty("--app-topbar-h");
+    };
+  }, []);
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 1023px)");
@@ -622,6 +662,7 @@ export function DashboardShell({
               navOpen={navOpen}
               onToggleNav={() => setNavOpen((v) => !v)}
               toggleRef={toggleRef}
+              barRef={topbarRef}
             />
             {/* ══ ESTRUCTURA SEMÁNTICA DEL PANEL · #732 ══════════════════════
                 Tres dueños, y sólo tres:

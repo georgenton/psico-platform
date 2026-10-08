@@ -1652,11 +1652,19 @@ export function LectorShell({
     >
       {/* Top bar */}
       <header
-        className="sticky top-0 z-30 backdrop-blur"
+        // Docks UNDER the dashboard's global bar rather than on top of it.
+        // Both used to pin at `top: 0`, so once the page scrolled they claimed
+        // the same band: this header won on z-index and took the ánimo,
+        // ambiente and estilo controls with it. The shell publishes the bar's
+        // measured height as `--app-topbar-h` (it is 65–113 px depending on
+        // width and on whether the bar wraps), and the fallback of 0 keeps the
+        // old behaviour anywhere this reader renders without that shell.
+        className="sticky z-30 backdrop-blur"
         style={{
           background: "var(--reader-bg-tint, rgba(250, 250, 248, 0.92))",
           borderBottom: "1px solid var(--reader-border, rgba(0,0,0,0.06))",
           position: "sticky",
+          top: "var(--app-topbar-h, 0px)",
         }}
       >
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-4 py-3">

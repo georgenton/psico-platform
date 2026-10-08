@@ -77,11 +77,15 @@ export default async function OnboardingWelcomePage() {
         >
           Empezar →
         </Link>
+        {/* The old line promised sixty seconds. Nobody had measured it, and
+            a duration invented to sound friendly is still a promise the
+            product can miss. What is true, and more useful, is that leaving
+            is always allowed. */}
         <p
           className="text-center text-[11.5px]"
           style={{ color: "var(--color-warm-500)" }}
         >
-          Tarda 60 segundos. Puedes saltarlo cuando quieras.
+          Son cuatro pasos breves. Puedes saltarlos cuando quieras.
         </p>
       </footer>
     </OnboardingShell>

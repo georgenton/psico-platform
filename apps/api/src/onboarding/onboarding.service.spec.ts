@@ -58,10 +58,27 @@ describe("OnboardingService", () => {
       // Author B2B module (S22+).
       expect(intro.title.length).toBeGreaterThan(0);
       expect(intro.body.length).toBeGreaterThan(50);
-      expect(intro.signature).toBe("— Psico Platform");
+      // The visible brand is FeelVerse. The welcome used to sign itself
+      // "— Psico Platform", which is the repository's name and the
+      // product's history, not what a person is looking at.
+      expect(intro.signature).toBe("— FeelVerse");
       // Guard against accidental re-introduction of personal-name copy.
       expect(intro.title).not.toMatch(/Marina|Jorge|Tomás/);
       expect(intro.signature).not.toMatch(/Marina|Jorge|Tomás/);
+      // …and against the internal name returning to a user-facing surface.
+      // Renaming packages, tables or history is NOT the fix; not signing
+      // the welcome with them is.
+      for (const text of [
+        intro.title,
+        intro.subtitle,
+        intro.body,
+        intro.signature,
+      ]) {
+        expect(text).not.toMatch(/Psico\s*-?\s*Platform/i);
+      }
+      // No invented duration: the welcome promised "60 segundos" with
+      // nothing measured behind it.
+      expect(intro.body).not.toMatch(/\d+\s*segundos?/i);
     });
 
     it("getMotivos returns only active rows in `order` asc", async () => {

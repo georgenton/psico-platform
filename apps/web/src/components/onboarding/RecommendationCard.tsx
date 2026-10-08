@@ -66,6 +66,28 @@ export function RecommendationCard({ primary, alternatives }: Props) {
             >
               {active.title}
             </h2>
+            {/* What it costs to open, said here and not after the CTA. A
+                recommendation that leads straight into a paywall is a
+                surprise, and the first two minutes are the worst possible
+                place to spring one. */}
+            <p
+              className="mt-2 inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.1em]"
+              style={
+                active.tierRequired === "pro"
+                  ? {
+                      background: "var(--color-lavender-100)",
+                      color: "var(--color-lavender-700)",
+                    }
+                  : {
+                      background: "var(--color-sage-50)",
+                      color: "var(--color-sage-700)",
+                    }
+              }
+            >
+              {active.tierRequired === "pro"
+                ? "Incluido en Pro"
+                : "Incluido en tu plan"}
+            </p>
             <p
               className="mt-3 text-[14px] leading-relaxed"
               style={{ color: "var(--color-warm-700)" }}

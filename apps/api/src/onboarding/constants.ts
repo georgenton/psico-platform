@@ -20,16 +20,20 @@ import type { OnboardingIntro, OnboardingTourStep } from "@psico/types";
 export const ONBOARDING_INTRO: OnboardingIntro = {
   title: "Empecemos.",
   subtitle: "Antes de leer, queremos conocerte un poco.",
-  // The step counter the user meets on the very next screen says "Paso 1
-  // de 4", so the welcome has to count the same way: three questions plus
-  // the recommendation. Promising three steps and showing four is the kind
-  // of small dishonesty that costs trust before anyone has read a line.
+  // Four steps after this screen — motivos, ánimo, tu nombre and the
+  // recommendation — and the counter now agrees. This copy was already
+  // right; what disagreed was the indicator, which counted the welcome as a
+  // step and announced "Paso 1 de 5" while the paragraph said four.
+  //
+  // No duration is promised either. The welcome used to say sixty seconds
+  // and nobody had measured it; a number invented to sound friendly is
+  // still a number the product can fail to keep.
   body:
     "Son cuatro pasos breves: tres preguntas cortas para entender qué te " +
     "trae aquí y cómo te sientes hoy, y al final tu recomendación de por " +
     "dónde empezar a leer. " +
     "Si prefieres saltar este paso, puedes hacerlo y explorar a tu ritmo.",
-  signature: "— Psico Platform",
+  signature: "— FeelVerse",
   avatarUrl: null,
 };
 
@@ -60,15 +64,20 @@ export const TOUR_STEPS: OnboardingTourStep[] = [
   {
     order: 2,
     target: "biblioteca",
+    // "Cada libro está escrito por psicólogos especializados" was a
+    // credential claim with nothing behind it in this codebase, and "muchos
+    // vienen con audio" a quantity nobody had counted. Both are gone. What
+    // is left is what the product actually shows: authorship on the card,
+    // audio where a chapter has it, filters that exist, marks that work.
     title: "Tu Biblioteca",
     body:
-      "Todos los libros, audios y ejercicios de la plataforma. Filtra por " +
-      "tema o autor para encontrar lo que te haga clic.",
+      "Los libros y ejercicios de FeelVerse. Busca por título o autor y " +
+      "filtra por tema para decidir por dónde seguir.",
     learnMore: {
       title: "¿Qué la hace distinta?",
       points: [
-        "📚 Cada libro está escrito por psicólogos especializados.",
-        "🎧 Muchos vienen con audio para escuchar mientras caminas o descansas.",
+        "📚 Cada libro lleva su autoría y su ficha: puedes mirarla antes de empezar.",
+        "🎧 Cuando un capítulo tiene audio, el lector lo ofrece junto al texto; si todavía no está publicado, te lo dice en su sitio.",
         "🔍 Los filtros ayudan a decidir sin abrumar — elige un tema y empieza.",
         "✏️ Puedes resaltar frases y guardar notas mientras lees.",
       ],
@@ -77,35 +86,54 @@ export const TOUR_STEPS: OnboardingTourStep[] = [
   {
     order: 3,
     target: "diario",
-    title: "Tu Diario",
+    // The navigation calls this «Reflexiones»; the tour used to call it «Tu
+    // Diario» and sent people looking for a section with that name.
+    //
+    // The recovery line was backwards, and that is the sentence that
+    // mattered. The phrase is shown ONCE, the first time the diary opens,
+    // and it has to be saved THEN. It cannot be handed over afterwards:
+    // that is the whole point of a key the server never holds. Telling
+    // somebody we will give it to them when they forget is a promise the
+    // cryptography makes impossible to keep.
+    title: "Tus Reflexiones",
     body:
-      "Un espacio privado para escribir cómo te sientes. Solo tú puedes " +
-      "leerlo — ni siquiera nuestro equipo tiene acceso.",
+      "Un espacio privado para escribir cómo te sientes. Se cifra en tu " +
+      "dispositivo antes de salir, así que nosotros no podemos leerlo.",
     learnMore: {
       title: "¿Cómo funciona la privacidad?",
       analogy:
-        "Piensa en tu diario como una caja fuerte con una llave única — " +
-        "tú eres el único que la tiene.",
+        "Piensa en tus reflexiones como una caja fuerte con una llave " +
+        "única — tú eres quien la tiene.",
       points: [
         "🔑 Tu llave se crea con tu contraseña y nunca sale de tu dispositivo.",
-        "👀 Nosotros solo vemos texto revuelto que no significa nada.",
-        "📝 Si olvidas tu contraseña, te daremos una frase de 24 palabras para poder volver a entrar.",
+        "👀 En nuestros servidores solo queda texto cifrado.",
+        "📝 La primera vez que abres tus reflexiones te mostramos una frase de 24 palabras: guárdala en ese momento. Es la única forma de volver a abrirlas si olvidas la contraseña.",
+        "⚠️ Recuperar la cuenta y recuperar lo escrito no son lo mismo: si pierdes la contraseña y la frase, podemos devolverte el acceso a FeelVerse, pero el contenido cifrado no se puede recuperar.",
       ],
     },
   },
   {
     order: 4,
     target: "eco",
+    // The old text said Eco was "igual de privado que tu diario — solo tú
+    // las lees". It is not, and the service says so plainly: the message
+    // arrives in plaintext, is checked for crisis signals, goes to the
+    // embeddings service and to the conversational provider, and the reply
+    // is stored unencrypted. Equating it with the diary was the single most
+    // misleading line in this tour.
+    //
+    // "Entrenada" is gone too — it suggests training of our own that we
+    // cannot evidence — and so is "inmediatas" next to professional help.
     title: "Eco",
     body:
-      "Un compañero de conversación pensado para acompañarte. Está aquí " +
-      "para escucharte y ayudarte a poner palabras a lo que sientes.",
+      "Un compañero de conversación para pensar en voz alta y poner " +
+      "palabras a lo que sientes. Funciona con inteligencia artificial.",
     learnMore: {
       title: "¿Qué es exactamente Eco?",
       points: [
-        "🌿 Una IA entrenada para acompañarte con calma, no para juzgarte.",
-        "🔒 Tus conversaciones son igual de privadas que tu diario — solo tú las lees.",
-        "🩺 Si detecta señales de crisis, te muestra líneas de ayuda profesional inmediatas.",
+        "🌿 Es una IA conversacional: responde con calma y no te juzga.",
+        "🔒 Para responderte, Eco procesa lo que escribes mediante servicios de inteligencia artificial. Tu mensaje se guarda cifrado; su respuesta, no. No es lo mismo que tus reflexiones.",
+        "🩺 Si aparecen señales de crisis, te muestra líneas de ayuda. No detecta todos los casos y no sustituye a una urgencia.",
         "🙋 Complementa el trabajo con un terapeuta — no lo reemplaza.",
       ],
     },
@@ -113,17 +141,24 @@ export const TOUR_STEPS: OnboardingTourStep[] = [
   {
     order: 5,
     target: "patrones",
-    title: "Tus Patrones",
+    // Two different sections were being described as one. «Patrones IA» and
+    // «Mapa Emocional» are separate places in the navigation and answer
+    // different questions; the tour used to hand the map's description to
+    // the patterns step. The seven entries are now stated as the code
+    // counts them: seven reflections within the same week, which is what
+    // the weekly summary needs.
+    title: "Patrones",
     body:
-      "Cuando reflexiones un poco más, aquí verás tu mapa emocional: qué " +
-      "emociones se repiten, cuándo escribes y qué temas van surgiendo.",
+      "Cuando lleves unas cuantas reflexiones, aquí verás qué se repite: " +
+      "emociones, momentos del día y temas. Tu Mapa Emocional es una " +
+      "sección aparte.",
     learnMore: {
       title: "¿Qué son los patrones?",
       points: [
-        "🗺️ Un mapa visual de las tendencias en tu ánimo a lo largo del tiempo.",
         "🏷️ Etiquetas que se repiten en tus reflexiones (por ejemplo: trabajo, familia, descanso).",
-        "📈 Con unas 7 entradas de diario empiezan a aparecer los primeros insights.",
-        "✨ Es una función Pro — desde aquí siempre ves un preview.",
+        "🕑 A qué horas sueles escribir y cómo te sientes en cada franja.",
+        "📈 El resumen de la semana necesita unas 7 reflexiones dentro de esos siete días.",
+        "✨ Es una función Pro — desde aquí siempre ves una vista previa.",
       ],
     },
   },

@@ -52,12 +52,13 @@
      bar at 20 and the reader's own sticky header at 30, every global dropdown
      was painted behind the reader. Global chrome has to outrank route content.
 
-     35 is chosen against the real neighbours, not picked large:
+     35 is chosen against the real neighbours, read off the code and then
+     confirmed in the browser by `e2e/reader-header-layers.mjs`:
        30  reader sticky header · reader audio panel   → below (this is the fix)
        35  THIS BAR and everything it contains
-       40  reader companion dock · tour spotlight      → still above
-       50  route dialogs (Aa, crisis, informe…) · nav scrim · tour coachmark
-       60  mobile navigation drawer
+       40  reader companion dock · tour backdrop       → still above
+       50  route dialogs (Aa, crisis, informe…) · nav scrim · tour spotlight
+       60  mobile navigation drawer · tour coachmark
      Above 40 would cover the dock's own header and close control; at or below
      30 the defect returns. The reader header docks below this bar instead of
      on top of it — see `--app-topbar-h` in `_DashboardShell`. */

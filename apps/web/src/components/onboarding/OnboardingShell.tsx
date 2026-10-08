@@ -7,16 +7,23 @@ import type { ReactNode } from "react";
 
 /**
  * OnboardingShell — wraps each step with shared chrome:
- *   - top: progress dots (5 steps total: welcome + 4 questions) + skip
+ *   - top: progress dots (4 steps) + skip
  *   - bottom: nothing — primary CTA lives inside each step component
  *
  * `currentStep` is 0-indexed; 0 = welcome, 1 = motivos, …, 4 = recommendation.
+ *
+ * THE WELCOME IS NOT A STEP. It used to be counted as one, so the screen
+ * announced "Paso 1 de 5" while its own paragraph promised four — a small
+ * dishonesty, but the first one a person meets. There are four steps after
+ * the welcome (motivos, ánimo, tu nombre, recomendación) and the dots now
+ * say so; on the welcome itself nothing is numbered yet.
+ *
  * `onSkip` is optional; when omitted (e.g. after step 3 when the user is
  * almost done), the skip button is hidden.
  */
 export function OnboardingShell({
   currentStep,
-  totalSteps = 5,
+  totalSteps = 4,
   onSkip,
   children,
 }: {
@@ -34,10 +41,14 @@ export function OnboardingShell({
         <div className="flex items-center gap-3">
           <div
             className="flex gap-1.5"
-            aria-label={`Paso ${currentStep + 1} de ${totalSteps}`}
+            aria-label={
+              currentStep === 0
+                ? `Antes de empezar · ${totalSteps} pasos`
+                : `Paso ${currentStep} de ${totalSteps}`
+            }
           >
             {Array.from({ length: totalSteps }).map((_, i) => {
-              const filled = i <= currentStep;
+              const filled = i < currentStep;
               return (
                 <span
                   key={i}

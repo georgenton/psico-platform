@@ -3,27 +3,7 @@
 import { useState, useTransition } from "react";
 import type { OnboardingMood } from "@psico/types";
 import { saveStep2 } from "@/actions/onboarding";
-
-/**
- * Emoji glyph rendered above each mood label. The mood catalog persists a
- * `swatch` (color hex) used downstream by PatronesModule heatmap, but the
- * onboarding UI needs an explicit visual cue — emojis are kept here as a
- * presentation-only mapping so we don't need a schema migration to add a
- * column the rest of the system doesn't consume.
- *
- * Falls back gracefully (empty string) when an unknown id appears, so a
- * future mood added by a backend deploy doesn't crash the UI before the web
- * follows.
- */
-const MOOD_EMOJI: Record<string, string> = {
-  calma: "😌",
-  foco: "🎯",
-  energia: "⚡",
-  reflexion: "🌿",
-  alegria: "☀️",
-  ansiedad: "😟",
-  tristeza: "🌧️",
-};
+import { IconMoodFace } from "@/components/dashboard/shell/icons";
 
 export function MoodPicker({ moods }: { moods: OnboardingMood[] }) {
   const [selected, setSelected] = useState<string | null>(null);
@@ -63,7 +43,8 @@ export function MoodPicker({ moods }: { moods: OnboardingMood[] }) {
           className="mt-2 text-[14px]"
           style={{ color: "var(--color-warm-500)" }}
         >
-          Sin pensarlo mucho. Lo que llega primero suele ser lo cierto.
+          Elige lo que mejor describe cómo te sientes ahora. No hay una
+          respuesta correcta.
         </p>
 
         <ul
@@ -98,15 +79,32 @@ export function MoodPicker({ moods }: { moods: OnboardingMood[] }) {
                         }
                   }
                 >
-                  <span className="text-[28px] leading-none" aria-hidden>
-                    {MOOD_EMOJI[m.id] ?? ""}
-                  </span>
+                  {/* The same face the top bar uses, from the same
+                      component. Onboarding used to draw an emoji here while
+                      the header drew a face, so the first thing a person
+                      learned about the scale was contradicted one screen
+                      later. The ids are the shared contract between both. */}
+                  <IconMoodFace
+                    variant={
+                      m.id as Parameters<typeof IconMoodFace>[0]["variant"]
+                    }
+                    size={28}
+                  />
                   <span
                     className="h-1.5 w-8 rounded-full"
                     style={{ background: m.swatch }}
                     aria-hidden
                   />
                   <span className="text-[13px] font-semibold">{m.label}</span>
+                  {/* Colour is never the only carrier: the face says it, the
+                      label says it, and this says it with a shape. */}
+                  <span
+                    aria-hidden
+                    className="text-[12px] font-bold leading-none"
+                    style={{ opacity: active ? 1 : 0 }}
+                  >
+                    ✓ Elegido
+                  </span>
                 </button>
               </li>
             );

@@ -20,16 +20,20 @@ import type { OnboardingIntro, OnboardingTourStep } from "@psico/types";
 export const ONBOARDING_INTRO: OnboardingIntro = {
   title: "Empecemos.",
   subtitle: "Antes de leer, queremos conocerte un poco.",
-  // The step counter the user meets on the very next screen says "Paso 1
-  // de 4", so the welcome has to count the same way: three questions plus
-  // the recommendation. Promising three steps and showing four is the kind
-  // of small dishonesty that costs trust before anyone has read a line.
+  // Four steps after this screen — motivos, ánimo, tu nombre and the
+  // recommendation — and the counter now agrees. This copy was already
+  // right; what disagreed was the indicator, which counted the welcome as a
+  // step and announced "Paso 1 de 5" while the paragraph said four.
+  //
+  // No duration is promised either. The welcome used to say sixty seconds
+  // and nobody had measured it; a number invented to sound friendly is
+  // still a number the product can fail to keep.
   body:
     "Son cuatro pasos breves: tres preguntas cortas para entender qué te " +
     "trae aquí y cómo te sientes hoy, y al final tu recomendación de por " +
     "dónde empezar a leer. " +
     "Si prefieres saltar este paso, puedes hacerlo y explorar a tu ritmo.",
-  signature: "— Psico Platform",
+  signature: "— FeelVerse",
   avatarUrl: null,
 };
 
@@ -60,15 +64,44 @@ export const TOUR_STEPS: OnboardingTourStep[] = [
   {
     order: 2,
     target: "biblioteca",
+    // "Cada libro está escrito por psicólogos especializados" was a
+    // credential claim with nothing behind it in this codebase, and "muchos
+    // vienen con audio" a quantity nobody had counted. Both are gone. What
+    // is left is what the product actually shows: authorship on the card,
+    // audio where a chapter has it, filters that exist, marks that work.
+    //
+    // The audio line needed two passes, and both were about claiming more
+    // than we can show.
+    //
+    // It first promised, to everybody, that "si todavía no está publicado, te
+    // lo dice en su sitio". The player does say «Este capítulo aún no tiene
+    // audio» — but only to someone who can reach that answer.
+    // `LectorService.getAudio` throws `PRO_REQUIRED` for a FREE plan BEFORE it
+    // ever looks for the file, so a free reader is told they need Pro and
+    // never learns whether that chapter has audio at all. Since the tour runs
+    // immediately after onboarding, nearly everybody reading this line is on
+    // FREE, i.e. in the one case where it was not true.
+    //
+    // The replacement then opened with "Algunos capítulos tienen audio", which
+    // is a claim about the catalogue: it asserts that playable tracks exist.
+    // Nothing in this delivery measured the environment's inventory, and
+    // measuring it is not the point — a tour can describe a CONDITIONAL
+    // capability without inventorying it. So the line now states only the two
+    // conditions that are true by construction: Pro, and a published track.
+    //
+    // Deliberately NOT said: that buying Pro gets you audio for a given
+    // chapter. Pro is necessary, not sufficient, and the second condition is
+    // editorial, not commercial. No audio was generated and no plan was
+    // changed to make any wording true.
     title: "Tu Biblioteca",
     body:
-      "Todos los libros, audios y ejercicios de la plataforma. Filtra por " +
-      "tema o autor para encontrar lo que te haga clic.",
+      "Los libros y ejercicios de FeelVerse. Busca por título o autor y " +
+      "filtra por tema para decidir por dónde seguir.",
     learnMore: {
       title: "¿Qué la hace distinta?",
       points: [
-        "📚 Cada libro está escrito por psicólogos especializados.",
-        "🎧 Muchos vienen con audio para escuchar mientras caminas o descansas.",
+        "📚 Cada libro lleva su autoría y su ficha: puedes mirarla antes de empezar.",
+        "🎧 El audio requiere Pro y sólo está disponible cuando el capítulo tiene una pista publicada. El reproductor del lector te dice en qué caso estás.",
         "🔍 Los filtros ayudan a decidir sin abrumar — elige un tema y empieza.",
         "✏️ Puedes resaltar frases y guardar notas mientras lees.",
       ],
@@ -77,35 +110,85 @@ export const TOUR_STEPS: OnboardingTourStep[] = [
   {
     order: 3,
     target: "diario",
-    title: "Tu Diario",
+    // The navigation calls this «Reflexiones»; the tour used to call it «Tu
+    // Diario» and sent people looking for a section with that name.
+    //
+    // The recovery line was backwards, and that is the sentence that
+    // mattered. The original promised we would hand over a phrase once
+    // somebody had forgotten their password — a promise the cryptography
+    // makes impossible to keep, because the key never reaches the server.
+    //
+    // Three facts the copy has to get right, and did not:
+    //
+    //   · The length. It says 12 because `SEED_PHRASE_WORD_COUNT` is 12
+    //     (16-byte master key, Spanish wordlist). It said 24, which was
+    //     true until ADR 0007 was revised in July 2026 and stopped being
+    //     true then. `onboarding.service.spec.ts` now binds the number in
+    //     this text to that constant, so the two cannot drift apart again.
+    //   · The phrase is not a one-shot. `ShowSeedPhraseCard` re-derives and
+    //     re-shows it from Ajustes → Seguridad whenever the diary is
+    //     unlocked. "Save it now, it is your only chance" overstated the
+    //     stakes and made the feature sound more fragile than it is.
+    //   · Resetting the password restores access to the account. It does
+    //     not, by itself, decrypt anything already written — those are two
+    //     different recoveries and the tour is where people form the wrong
+    //     model of which one they are getting.
+    //
+    // And the loss condition is a conjunction of THREE things, not two. The
+    // previous wording ended "si pierdes la contraseña y la frase, el
+    // contenido cifrado no se puede recuperar", which contradicts the bullet
+    // right above it: `ShowSeedPhraseCard` reads `masterKey` straight from
+    // `useDiaryKey()`, so a session that still holds the diary unlocked can
+    // reveal the phrase with no password at all — it only falls back to
+    // unlocking when that key is gone. Checked against the component, not
+    // assumed. So an unlocked session is a third way out, and it is the one
+    // somebody in trouble is most likely to still have open. Saying otherwise
+    // would push a reader to give up while the rescue was on screen.
+    //
+    // Also added: do not share it. The phrase IS the key — `masterKey`
+    // serialized — so whoever holds it can open the diary. The tour asked
+    // people to store something that powerful without ever saying so.
+    title: "Tus Reflexiones",
     body:
-      "Un espacio privado para escribir cómo te sientes. Solo tú puedes " +
-      "leerlo — ni siquiera nuestro equipo tiene acceso.",
+      "Un espacio privado para escribir cómo te sientes. Se cifra en tu " +
+      "dispositivo antes de salir, así que nosotros no podemos leerlo.",
     learnMore: {
       title: "¿Cómo funciona la privacidad?",
       analogy:
-        "Piensa en tu diario como una caja fuerte con una llave única — " +
-        "tú eres el único que la tiene.",
+        "Piensa en tus reflexiones como una caja fuerte con una llave " +
+        "única — tú eres quien la tiene.",
       points: [
         "🔑 Tu llave se crea con tu contraseña y nunca sale de tu dispositivo.",
-        "👀 Nosotros solo vemos texto revuelto que no significa nada.",
-        "📝 Si olvidas tu contraseña, te daremos una frase de 24 palabras para poder volver a entrar.",
+        "👀 En nuestros servidores solo queda texto cifrado.",
+        "📝 La primera vez que abres tus reflexiones te mostramos una frase de 12 palabras. Guárdala en un lugar seguro y no la compartas con nadie: quien la tenga puede abrir tus reflexiones.",
+        "🔁 No es tu única oportunidad de verla: puedes volver a consultarla en Ajustes → Seguridad, mientras tengas tus reflexiones desbloqueadas en ese momento.",
+        "⚠️ Recuperar la cuenta y recuperar lo escrito no son lo mismo. Restablecer tu contraseña recupera el acceso a tu cuenta, pero no descifra por sí solo tus reflexiones anteriores. Si aún las tienes desbloqueadas, guarda tu frase desde Ajustes → Seguridad.",
+        "🔒 Sin la contraseña que permite abrirlas, sin la frase de recuperación y sin una sesión que las conserve desbloqueadas, no podremos recuperar ese contenido.",
       ],
     },
   },
   {
     order: 4,
     target: "eco",
+    // The old text said Eco was "igual de privado que tu diario — solo tú
+    // las lees". It is not, and the service says so plainly: the message
+    // arrives in plaintext, is checked for crisis signals, goes to the
+    // embeddings service and to the conversational provider, and the reply
+    // is stored unencrypted. Equating it with the diary was the single most
+    // misleading line in this tour.
+    //
+    // "Entrenada" is gone too — it suggests training of our own that we
+    // cannot evidence — and so is "inmediatas" next to professional help.
     title: "Eco",
     body:
-      "Un compañero de conversación pensado para acompañarte. Está aquí " +
-      "para escucharte y ayudarte a poner palabras a lo que sientes.",
+      "Un compañero de conversación para pensar en voz alta y poner " +
+      "palabras a lo que sientes. Funciona con inteligencia artificial.",
     learnMore: {
       title: "¿Qué es exactamente Eco?",
       points: [
-        "🌿 Una IA entrenada para acompañarte con calma, no para juzgarte.",
-        "🔒 Tus conversaciones son igual de privadas que tu diario — solo tú las lees.",
-        "🩺 Si detecta señales de crisis, te muestra líneas de ayuda profesional inmediatas.",
+        "🌿 Es una IA conversacional: responde con calma y no te juzga.",
+        "🔒 Para responderte, Eco procesa lo que escribes mediante servicios de inteligencia artificial. Tu mensaje se guarda cifrado; su respuesta, no. No es lo mismo que tus reflexiones.",
+        "🩺 Si aparecen señales de crisis, te muestra líneas de ayuda. No detecta todos los casos y no sustituye a una urgencia.",
         "🙋 Complementa el trabajo con un terapeuta — no lo reemplaza.",
       ],
     },
@@ -113,17 +196,24 @@ export const TOUR_STEPS: OnboardingTourStep[] = [
   {
     order: 5,
     target: "patrones",
-    title: "Tus Patrones",
+    // Two different sections were being described as one. «Patrones IA» and
+    // «Mapa Emocional» are separate places in the navigation and answer
+    // different questions; the tour used to hand the map's description to
+    // the patterns step. The seven entries are now stated as the code
+    // counts them: seven reflections within the same week, which is what
+    // the weekly summary needs.
+    title: "Patrones",
     body:
-      "Cuando reflexiones un poco más, aquí verás tu mapa emocional: qué " +
-      "emociones se repiten, cuándo escribes y qué temas van surgiendo.",
+      "Cuando lleves unas cuantas reflexiones, aquí verás qué se repite: " +
+      "emociones, momentos del día y temas. Tu Mapa Emocional es una " +
+      "sección aparte.",
     learnMore: {
       title: "¿Qué son los patrones?",
       points: [
-        "🗺️ Un mapa visual de las tendencias en tu ánimo a lo largo del tiempo.",
         "🏷️ Etiquetas que se repiten en tus reflexiones (por ejemplo: trabajo, familia, descanso).",
-        "📈 Con unas 7 entradas de diario empiezan a aparecer los primeros insights.",
-        "✨ Es una función Pro — desde aquí siempre ves un preview.",
+        "🕑 A qué horas sueles escribir y cómo te sientes en cada franja.",
+        "📈 El resumen de la semana necesita unas 7 reflexiones dentro de esos siete días.",
+        "✨ Es una función Pro — desde aquí siempre ves una vista previa.",
       ],
     },
   },

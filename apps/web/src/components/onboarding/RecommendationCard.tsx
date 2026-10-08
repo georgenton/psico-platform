@@ -1,26 +1,54 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import type { OnboardingBookRecommendation } from "@psico/types";
 import { completeOnboarding } from "@/actions/onboarding";
+import {
+  accessCopy,
+  resolveBookAccess,
+  type IncomingRecommendation,
+} from "@/lib/onboarding/book-access";
 
 interface Props {
-  primary: OnboardingBookRecommendation;
-  alternatives: OnboardingBookRecommendation[];
+  primary: IncomingRecommendation;
+  alternatives: IncomingRecommendation[];
 }
 
-const COVER_BG: Record<OnboardingBookRecommendation["cover"], string> = {
+const COVER_BG: Record<IncomingRecommendation["cover"], string> = {
   cool: "linear-gradient(135deg, var(--color-lavender-300), var(--color-lavender-600))",
   warm: "linear-gradient(135deg, #F4B080, #C76A4D)",
   mixed:
     "linear-gradient(135deg, var(--color-lavender-300), var(--color-sage-400))",
 };
 
+/** Badge palettes, one per resolved access state. */
+const BADGE_STYLE = {
+  pro: {
+    background: "var(--color-lavender-100)",
+    color: "var(--color-lavender-700)",
+  },
+  included: {
+    background: "var(--color-sage-50)",
+    color: "var(--color-sage-700)",
+  },
+  neutral: {
+    background: "var(--color-warm-100)",
+    color: "var(--color-warm-700)",
+  },
+} as const;
+
 export function RecommendationCard({ primary, alternatives }: Props) {
-  const [active, setActive] = useState<OnboardingBookRecommendation>(primary);
+  const [active, setActive] = useState<IncomingRecommendation>(primary);
   const [submitting, startTransition] = useTransition();
 
-  function pick(book: OnboardingBookRecommendation | null) {
+  // Badge and button read the SAME resolution. Derived here rather than twice
+  // below, so they cannot drift into telling the reader two different things
+  // about the book they are about to open — and this recomputes when the
+  // reader switches to an alternative, which is a state the binary version
+  // also got wrong whenever the alternative's field was missing.
+  const access = resolveBookAccess(active.tierRequired);
+  const copy = accessCopy(access, active.title);
+
+  function pick(book: IncomingRecommendation | null) {
     startTransition(async () => {
       try {
         await completeOnboarding({ chosenBookId: book?.bookId ?? null });
@@ -66,6 +94,17 @@ export function RecommendationCard({ primary, alternatives }: Props) {
             >
               {active.title}
             </h2>
+            {/* What it costs to open, said here and not after the CTA. A
+                recommendation that leads straight into a paywall is a
+                surprise, and the first two minutes are the worst possible
+                place to spring one. */}
+            <p
+              data-access={access}
+              className="mt-2 inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.1em]"
+              style={BADGE_STYLE[copy.tone]}
+            >
+              {copy.badge}
+            </p>
             <p
               className="mt-3 text-[14px] leading-relaxed"
               style={{ color: "var(--color-warm-700)" }}
@@ -147,7 +186,7 @@ export function RecommendationCard({ primary, alternatives }: Props) {
           className="inline-flex items-center justify-center rounded-2xl px-6 py-3 text-[14px] font-semibold text-white disabled:opacity-50"
           style={{ background: "var(--color-sage-500)" }}
         >
-          {submitting ? "Preparando…" : `Empezar a leer "${active.title}" →`}
+          {submitting ? "Preparando…" : `${copy.cta} →`}
         </button>
       </footer>
     </>

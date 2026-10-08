@@ -911,7 +911,14 @@ export interface OnboardingStep2Request {
 
 export interface OnboardingStep3Request {
   firstName: string;
-  voicePreference: OnboardingVoicePreference;
+  /**
+   * Optional since the onboarding stopped asking: nothing consumes the
+   * answer yet, so the question was removed rather than left as a promise
+   * the product does not keep. Omitting it writes nothing — an existing
+   * preference survives and no default is invented. Clients that still
+   * send it keep working.
+   */
+  voicePreference?: OnboardingVoicePreference;
 }
 
 export interface OnboardingStepResponse {
@@ -926,7 +933,14 @@ export interface OnboardingStepResponse {
 export interface OnboardingBookRecommendation {
   bookId: string;
   title: string;
+  /**
+   * The book's real author. Was hard-coded to a single name for every
+   * recommendation until the first-experience pass; attribution shown to a
+   * person on their first screen is not a placeholder.
+   */
   author: string;
+  /** What it costs to open, so the CTA never becomes a payment surprise. */
+  tierRequired: "free" | "pro";
   cover: "cool" | "warm" | "mixed";
   chapter1Preview: string;
   why: string;

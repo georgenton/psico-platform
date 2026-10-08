@@ -69,6 +69,17 @@ export const TOUR_STEPS: OnboardingTourStep[] = [
     // vienen con audio" a quantity nobody had counted. Both are gone. What
     // is left is what the product actually shows: authorship on the card,
     // audio where a chapter has it, filters that exist, marks that work.
+    //
+    // The audio line needed a second pass. It used to promise, to everybody,
+    // that "si todavía no está publicado, te lo dice en su sitio". The player
+    // does say «Este capítulo aún no tiene audio» — but only to someone who
+    // can reach that answer. `LectorService.getAudio` throws
+    // `PRO_REQUIRED` for a FREE plan BEFORE it ever looks for the file, so a
+    // free reader is told they need Pro and never learns whether that chapter
+    // has audio at all. Since the tour runs immediately after onboarding,
+    // nearly everybody who reads this line is on FREE, i.e. in the one case
+    // where it was not true. The plan condition is now stated instead of
+    // being left out, and nothing was built to make the old wording true.
     title: "Tu Biblioteca",
     body:
       "Los libros y ejercicios de FeelVerse. Busca por título o autor y " +
@@ -77,7 +88,7 @@ export const TOUR_STEPS: OnboardingTourStep[] = [
       title: "¿Qué la hace distinta?",
       points: [
         "📚 Cada libro lleva su autoría y su ficha: puedes mirarla antes de empezar.",
-        "🎧 Cuando un capítulo tiene audio, el lector lo ofrece junto al texto; si todavía no está publicado, te lo dice en su sitio.",
+        "🎧 Algunos capítulos tienen audio y el lector lo ofrece junto al texto. Escucharlo es una función Pro: el reproductor te dice si tu plan lo incluye y, cuando sí, si ese capítulo ya lo tiene.",
         "🔍 Los filtros ayudan a decidir sin abrumar — elige un tema y empieza.",
         "✏️ Puedes resaltar frases y guardar notas mientras lees.",
       ],
@@ -90,11 +101,25 @@ export const TOUR_STEPS: OnboardingTourStep[] = [
     // Diario» and sent people looking for a section with that name.
     //
     // The recovery line was backwards, and that is the sentence that
-    // mattered. The phrase is shown ONCE, the first time the diary opens,
-    // and it has to be saved THEN. It cannot be handed over afterwards:
-    // that is the whole point of a key the server never holds. Telling
-    // somebody we will give it to them when they forget is a promise the
-    // cryptography makes impossible to keep.
+    // mattered. The original promised we would hand over a phrase once
+    // somebody had forgotten their password — a promise the cryptography
+    // makes impossible to keep, because the key never reaches the server.
+    //
+    // Three facts the copy has to get right, and did not:
+    //
+    //   · The length. It says 12 because `SEED_PHRASE_WORD_COUNT` is 12
+    //     (16-byte master key, Spanish wordlist). It said 24, which was
+    //     true until ADR 0007 was revised in July 2026 and stopped being
+    //     true then. `onboarding.service.spec.ts` now binds the number in
+    //     this text to that constant, so the two cannot drift apart again.
+    //   · The phrase is not a one-shot. `ShowSeedPhraseCard` re-derives and
+    //     re-shows it from Ajustes → Seguridad whenever the diary is
+    //     unlocked. "Save it now, it is your only chance" overstated the
+    //     stakes and made the feature sound more fragile than it is.
+    //   · Resetting the password restores access to the account. It does
+    //     not, by itself, decrypt anything already written — those are two
+    //     different recoveries and the tour is where people form the wrong
+    //     model of which one they are getting.
     title: "Tus Reflexiones",
     body:
       "Un espacio privado para escribir cómo te sientes. Se cifra en tu " +
@@ -107,8 +132,9 @@ export const TOUR_STEPS: OnboardingTourStep[] = [
       points: [
         "🔑 Tu llave se crea con tu contraseña y nunca sale de tu dispositivo.",
         "👀 En nuestros servidores solo queda texto cifrado.",
-        "📝 La primera vez que abres tus reflexiones te mostramos una frase de 24 palabras: guárdala en ese momento. Es la única forma de volver a abrirlas si olvidas la contraseña.",
-        "⚠️ Recuperar la cuenta y recuperar lo escrito no son lo mismo: si pierdes la contraseña y la frase, podemos devolverte el acceso a FeelVerse, pero el contenido cifrado no se puede recuperar.",
+        "📝 La primera vez que abres tus reflexiones te mostramos una frase de 12 palabras. Guárdala en un lugar seguro: si olvidas la contraseña, es lo que te permite volver a abrirlas.",
+        "🔁 No es tu única oportunidad de verla: puedes volver a consultarla en Ajustes → Seguridad, mientras tengas tus reflexiones desbloqueadas en ese momento.",
+        "⚠️ Recuperar la cuenta y recuperar lo escrito no son lo mismo: restablecer la contraseña te devuelve el acceso a FeelVerse, pero por sí solo no descifra nada de lo que ya escribiste. Si pierdes la contraseña y la frase, el contenido cifrado no se puede recuperar.",
       ],
     },
   },

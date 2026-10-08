@@ -94,6 +94,27 @@ function makePrismaMock() {
     profile: {
       upsert: fn(),
     },
+    // Onboarding: the step writes, plus the preference row step 3 must leave
+    // alone when no voice was asked for.
+    onboardingState: {
+      findUnique: fn(),
+      findFirst: fn(),
+      create: fn(),
+      update: fn(),
+      upsert: fn(),
+    },
+    userPreferences: {
+      findUnique: fn(),
+      create: fn(),
+      update: fn(),
+      upsert: fn(),
+    },
+    onboardingMotivo: {
+      findMany: fn(),
+    },
+    onboardingMood: {
+      findMany: fn(),
+    },
     diaryEntry: {
       findMany: fn(),
       findFirst: fn(),

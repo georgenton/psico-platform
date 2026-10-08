@@ -171,8 +171,27 @@ ellas porque la propia matriz las daba por buenas.
 **La frase de recuperación.** Decía 24 palabras. La constante real,
 `SEED_PHRASE_WORD_COUNT`, es **12** desde la revisión de ADR 0007 de julio de 2026. Además presentaba la primera exhibición como la única, cuando
 `ShowSeedPhraseCard` la vuelve a derivar desde Ajustes → Seguridad con el
-diario desbloqueado. Las tres frases finales están en la fila de arriba; el
-número queda atado a la constante por un test, no por disciplina.
+diario desbloqueado. El número queda atado a la constante por un test, no por
+disciplina.
+
+Quedaba un absoluto que **se contradecía con la línea de arriba**: «si pierdes
+la contraseña y la frase, el contenido cifrado no se puede recuperar». La
+pérdida exige **tres** cosas, no dos. Comprobado en el componente, no supuesto:
+`ShowSeedPhraseCard` lee `masterKey` directamente de `useDiaryKey()`, así que
+una sesión que aún conserve las reflexiones desbloqueadas puede revelar la
+frase **sin contraseña**; sólo cae al desbloqueo cuando esa clave ya no está.
+Una sesión abierta es la tercera salida, y es la que alguien en apuros tiene
+más probabilidad de seguir teniendo delante: decir lo contrario empujaría a
+rendirse mientras el rescate está en pantalla.
+
+Texto final, repartido entre los puntos: «Restablecer tu contraseña recupera el
+acceso a tu cuenta, pero no descifra por sí solo tus reflexiones anteriores. Si
+aún las tienes desbloqueadas, guarda tu frase desde Ajustes → Seguridad.» Y:
+«Sin la contraseña que permite abrirlas, sin la frase de recuperación y sin una
+sesión que las conserve desbloqueadas, no podremos recuperar ese contenido.»
+Se añade además **no compartirla**: la frase _es_ la clave —`masterKey`
+serializado—, así que quien la tenga puede abrir el diario, y el tour pedía
+guardar algo así sin decirlo nunca.
 
 **El aviso de audio.** Prometía, a todo el mundo, que si un capítulo aún no
 tiene audio «te lo dice en su sitio». El reproductor sí lo dice —«Este
@@ -180,10 +199,17 @@ capítulo aún no tiene audio»— pero sólo a quien llega a esa respuesta:
 `LectorService.getAudio` lanza `PRO_REQUIRED` para el plan FREE **antes** de
 buscar el archivo. Como el tour corre justo después del onboarding, casi todo
 el que leía esa línea estaba en FREE, o sea en el único caso en que no era
-cierta. Texto final: «Algunos capítulos tienen audio y el lector lo ofrece
-junto al texto. Escucharlo es una función Pro: el reproductor te dice si tu
-plan lo incluye y, cuando sí, si ese capítulo ya lo tiene.» No se construyó
-ninguna función para sostener el texto anterior.
+cierta. No se construyó ninguna función para sostener el texto anterior.
+
+El primer reemplazo todavía abría con «Algunos capítulos tienen audio», que es
+una afirmación sobre el **catálogo**: dice que existen pistas reproducibles.
+Nada en esta entrega midió el inventario del entorno, y medirlo no es el
+punto — un tour puede describir una capacidad **condicional** sin
+inventariarla. Texto final: «El audio requiere Pro y sólo está disponible
+cuando el capítulo tiene una pista publicada. El reproductor del lector te
+dice en qué caso estás.» Deliberadamente **no** se dice que comprar Pro
+consiga audio para un capítulo dado: Pro es necesario, no suficiente, y la
+segunda condición es editorial, no comercial.
 
 **La autoría.** La fila justificaba la atribución diciendo que, consultada la
 base, los libros sembrados «sí son suyos». Esa frase se retira porque el
@@ -211,9 +237,35 @@ seed y no se cambió ningún dato.
 
 ---
 
+### Cómo queda cubierto
+
+Dos mitades, porque ninguna basta sola.
+
+**En la API**, `onboarding.service.spec.ts` ata las afirmaciones a sus fuentes:
+el número a `SEED_PHRASE_WORD_COUNT` (comparado además con la longitud de una
+frase realmente derivada), la condición de pérdida a las tres cosas, la
+petición de no compartir, y el audio a sus dos condiciones — rechazando tanto
+la afirmación de catálogo («algunos capítulos tienen audio») como la promesa de
+que Pro consiga audio.
+
+**En la Web**, `_TourOverlay.test.tsx` comprueba que ese texto **llega al ojo**:
+monta el componente real con el catálogo real importado de la API, llega al paso
+con los controles del tour, abre «Saber más» y lee el panel renderizado. Las
+ampliaciones de **Biblioteca** y **Reflexiones** están parametrizadas sobre el
+mismo cuerpo y seleccionadas por `target`, no por índice — el orden del tour es
+editorial y ya cambió una vez, y un índice empezaría a comprobar otro panel sin
+avisar. Se conservan Entendido, velo y Escape para ambas, con el tour sin
+completarse.
+
+Las dos mitades se verificaron con un control negativo: devolviendo los textos
+anteriores fallan **4** pruebas de la API y **3** de la Web. Sin eso, una
+aserción sobre una constante que nadie renderiza no probaría nada.
+
 ## Lo que esta matriz no afirma
 
-No se midió la disponibilidad real de audio en staging (403 por plan). No se
+No se midió la disponibilidad real de audio en staging (403 por plan) ni se
+inventarió qué capítulos tienen pista publicada en ningún entorno — por eso el
+texto describe la condición y no el catálogo. No se
 auditó el ciclo completo de cambio y restablecimiento de contraseña más allá de
 lo necesario para la frase de recuperación. No se verificaron Dúo ni Círculos
 porque el tour no los menciona. No se afirma nada sobre la validez profesional

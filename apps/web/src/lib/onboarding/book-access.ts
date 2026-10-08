@@ -10,12 +10,24 @@
  * every value that is not the string "pro" — including the two the web can
  * genuinely receive:
  *
- *   · `undefined`, from an API deployed before the field existed. That is not
- *     hypothetical: the promotion order for this change is API first, Web
- *     second, so a Web that is newer than the API is a state the plan
- *     explicitly passes through, and the rollback path revisits it.
+ *   · `undefined`, from an API that predates the field.
  *   · anything else, from a future tier the server learns to emit before this
  *     client learns to render it.
+ *
+ * To be precise about the first one, because an earlier version of this
+ * comment had it backwards: the promotion order is API first, Web second, and
+ * that order exists precisely to AVOID this pairing. A Web newer than its API
+ * is not a window the plan passes through on purpose — it is the state the
+ * ordering is designed to skip. (The pairing has a harder symptom than this
+ * badge anyway: the deployed API still requires `voicePreference`, so step 3
+ * of the onboarding returns 400 and nobody gets this far. No copy here fixes
+ * that; deploying the API does.)
+ *
+ * What this resolver is, then, is a defence against receiving an old response
+ * at all — a promotion applied out of order, a rollback in flight, a stale or
+ * cached body, an API that did not actually take the deploy. Those are
+ * accidents, not steps. The reason to handle them here is that the cost of
+ * being wrong is asymmetric, which is the paragraph below.
  *
  * In both the binary version tells someone their first book is included in
  * their plan without having been told so. The cost of being wrong is not

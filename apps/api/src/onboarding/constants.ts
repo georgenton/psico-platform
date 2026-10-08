@@ -70,16 +70,29 @@ export const TOUR_STEPS: OnboardingTourStep[] = [
     // is left is what the product actually shows: authorship on the card,
     // audio where a chapter has it, filters that exist, marks that work.
     //
-    // The audio line needed a second pass. It used to promise, to everybody,
-    // that "si todavía no está publicado, te lo dice en su sitio". The player
-    // does say «Este capítulo aún no tiene audio» — but only to someone who
-    // can reach that answer. `LectorService.getAudio` throws
-    // `PRO_REQUIRED` for a FREE plan BEFORE it ever looks for the file, so a
-    // free reader is told they need Pro and never learns whether that chapter
-    // has audio at all. Since the tour runs immediately after onboarding,
-    // nearly everybody who reads this line is on FREE, i.e. in the one case
-    // where it was not true. The plan condition is now stated instead of
-    // being left out, and nothing was built to make the old wording true.
+    // The audio line needed two passes, and both were about claiming more
+    // than we can show.
+    //
+    // It first promised, to everybody, that "si todavía no está publicado, te
+    // lo dice en su sitio". The player does say «Este capítulo aún no tiene
+    // audio» — but only to someone who can reach that answer.
+    // `LectorService.getAudio` throws `PRO_REQUIRED` for a FREE plan BEFORE it
+    // ever looks for the file, so a free reader is told they need Pro and
+    // never learns whether that chapter has audio at all. Since the tour runs
+    // immediately after onboarding, nearly everybody reading this line is on
+    // FREE, i.e. in the one case where it was not true.
+    //
+    // The replacement then opened with "Algunos capítulos tienen audio", which
+    // is a claim about the catalogue: it asserts that playable tracks exist.
+    // Nothing in this delivery measured the environment's inventory, and
+    // measuring it is not the point — a tour can describe a CONDITIONAL
+    // capability without inventorying it. So the line now states only the two
+    // conditions that are true by construction: Pro, and a published track.
+    //
+    // Deliberately NOT said: that buying Pro gets you audio for a given
+    // chapter. Pro is necessary, not sufficient, and the second condition is
+    // editorial, not commercial. No audio was generated and no plan was
+    // changed to make any wording true.
     title: "Tu Biblioteca",
     body:
       "Los libros y ejercicios de FeelVerse. Busca por título o autor y " +
@@ -88,7 +101,7 @@ export const TOUR_STEPS: OnboardingTourStep[] = [
       title: "¿Qué la hace distinta?",
       points: [
         "📚 Cada libro lleva su autoría y su ficha: puedes mirarla antes de empezar.",
-        "🎧 Algunos capítulos tienen audio y el lector lo ofrece junto al texto. Escucharlo es una función Pro: el reproductor te dice si tu plan lo incluye y, cuando sí, si ese capítulo ya lo tiene.",
+        "🎧 El audio requiere Pro y sólo está disponible cuando el capítulo tiene una pista publicada. El reproductor del lector te dice en qué caso estás.",
         "🔍 Los filtros ayudan a decidir sin abrumar — elige un tema y empieza.",
         "✏️ Puedes resaltar frases y guardar notas mientras lees.",
       ],
@@ -120,6 +133,21 @@ export const TOUR_STEPS: OnboardingTourStep[] = [
     //     not, by itself, decrypt anything already written — those are two
     //     different recoveries and the tour is where people form the wrong
     //     model of which one they are getting.
+    //
+    // And the loss condition is a conjunction of THREE things, not two. The
+    // previous wording ended "si pierdes la contraseña y la frase, el
+    // contenido cifrado no se puede recuperar", which contradicts the bullet
+    // right above it: `ShowSeedPhraseCard` reads `masterKey` straight from
+    // `useDiaryKey()`, so a session that still holds the diary unlocked can
+    // reveal the phrase with no password at all — it only falls back to
+    // unlocking when that key is gone. Checked against the component, not
+    // assumed. So an unlocked session is a third way out, and it is the one
+    // somebody in trouble is most likely to still have open. Saying otherwise
+    // would push a reader to give up while the rescue was on screen.
+    //
+    // Also added: do not share it. The phrase IS the key — `masterKey`
+    // serialized — so whoever holds it can open the diary. The tour asked
+    // people to store something that powerful without ever saying so.
     title: "Tus Reflexiones",
     body:
       "Un espacio privado para escribir cómo te sientes. Se cifra en tu " +
@@ -132,9 +160,10 @@ export const TOUR_STEPS: OnboardingTourStep[] = [
       points: [
         "🔑 Tu llave se crea con tu contraseña y nunca sale de tu dispositivo.",
         "👀 En nuestros servidores solo queda texto cifrado.",
-        "📝 La primera vez que abres tus reflexiones te mostramos una frase de 12 palabras. Guárdala en un lugar seguro: si olvidas la contraseña, es lo que te permite volver a abrirlas.",
+        "📝 La primera vez que abres tus reflexiones te mostramos una frase de 12 palabras. Guárdala en un lugar seguro y no la compartas con nadie: quien la tenga puede abrir tus reflexiones.",
         "🔁 No es tu única oportunidad de verla: puedes volver a consultarla en Ajustes → Seguridad, mientras tengas tus reflexiones desbloqueadas en ese momento.",
-        "⚠️ Recuperar la cuenta y recuperar lo escrito no son lo mismo: restablecer la contraseña te devuelve el acceso a FeelVerse, pero por sí solo no descifra nada de lo que ya escribiste. Si pierdes la contraseña y la frase, el contenido cifrado no se puede recuperar.",
+        "⚠️ Recuperar la cuenta y recuperar lo escrito no son lo mismo. Restablecer tu contraseña recupera el acceso a tu cuenta, pero no descifra por sí solo tus reflexiones anteriores. Si aún las tienes desbloqueadas, guarda tu frase desde Ajustes → Seguridad.",
+        "🔒 Sin la contraseña que permite abrirlas, sin la frase de recuperación y sin una sesión que las conserve desbloqueadas, no podremos recuperar ese contenido.",
       ],
     },
   },

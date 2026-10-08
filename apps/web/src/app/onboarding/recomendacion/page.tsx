@@ -15,10 +15,11 @@ export const dynamic = "force-dynamic";
  * checks nothing. Naming the expected type `OnboardingRecommendationResponse`
  * here would tell TypeScript that `tierRequired` is always present, which is
  * true of the API in this repository and not true of every API this build can
- * be pointed at — the promotion plan for this change deploys the API first and
- * the Web second, so a Web newer than the API is a state we pass through on
- * purpose. `IncomingRecommendation` leaves the field `unknown`, which is what
- * it is until `resolveBookAccess` looks at it.
+ * be pointed at. The promotion order — API first, Web second — exists to AVOID
+ * that pairing rather than to pass through it; what this guards against is
+ * receiving an old response by accident (an out-of-order promotion, a rollback
+ * in flight, a stale body). `IncomingRecommendation` leaves the field
+ * `unknown`, which is what it is until `resolveBookAccess` looks at it.
  */
 interface IncomingRecommendationResponse {
   recommendation: IncomingRecommendation;

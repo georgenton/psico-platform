@@ -568,5 +568,47 @@ describe("OnboardingService", () => {
       // after the fact.
       expect(text).not.toMatch(/te (daremos|damos|enviaremos) una frase/i);
     });
+
+    it("states the loss condition as the three things it really takes", () => {
+      const text = everyTourSentence().join(" ");
+      // An unlocked session is a third way out, and the one somebody in
+      // trouble is most likely to still have open: `ShowSeedPhraseCard` reads
+      // `masterKey` from the context, so it can reveal the phrase with no
+      // password at all. The earlier copy named only two, which contradicted
+      // the bullet above it and would push a reader to give up while the
+      // rescue was on screen.
+      expect(text).toMatch(/sesión que las conserve desbloqueadas/i);
+      expect(text).not.toMatch(
+        /si pierdes la contraseña y la frase, el contenido cifrado no se puede recuperar/i,
+      );
+    });
+
+    it("tells the reader not to share the phrase", () => {
+      // The phrase IS the key — `masterKey` serialized — so whoever holds it
+      // can open the diary. The tour asked people to store something that
+      // powerful without ever saying so.
+      expect(everyTourSentence().join(" ")).toMatch(/no la compartas/i);
+    });
+
+    it("does not claim a catalogue of audio it has not measured", () => {
+      const text = everyTourSentence().join(" ");
+      // "Algunos capítulos tienen audio" asserts that playable tracks exist.
+      // A tour can describe a CONDITIONAL capability without inventorying it,
+      // and nothing here measured the environment's inventory.
+      expect(text).not.toMatch(/algunos capítulos tienen audio/i);
+      expect(text).not.toMatch(/muchos (vienen|tienen) (con )?audio/i);
+      // What is left are the two conditions that hold by construction.
+      expect(text).toMatch(/audio requiere Pro/i);
+      expect(text).toMatch(/pista publicada/i);
+    });
+
+    it("does not promise that paying for Pro gets you audio", () => {
+      // Pro is necessary, not sufficient: the second condition is editorial.
+      const text = everyTourSentence().join(" ");
+      expect(text).not.toMatch(
+        /con Pro (tienes|tendrás|accedes a) (el )?audio/i,
+      );
+      expect(text).not.toMatch(/Pro incluye (el )?audio de (todos|cada)/i);
+    });
   });
 });

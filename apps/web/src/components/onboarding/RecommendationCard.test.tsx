@@ -16,9 +16,10 @@ import {
  * response this repository's API produces, so TypeScript considers a binary
  * `=== "pro"` exhaustive and the original version used one. These tests exist
  * because the values the WEB can receive are a wider set than the values the
- * API promises: the promotion plan deploys the API before the Web, so a Web
- * newer than its API is a state we pass through deliberately, and a body with
- * no `tierRequired` at all is what that looks like.
+ * API promises. A body with no `tierRequired` comes from an API that predates
+ * the field — reached by accident, not by plan: the promotion order is API
+ * first, Web second, precisely so that pairing does not happen. These cases
+ * are the out-of-order promotion, the rollback in flight, the stale response.
  */
 
 const completeOnboarding = vi.hoisted(() => vi.fn());

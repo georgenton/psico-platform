@@ -771,6 +771,44 @@
   .mood-chip .mc-txt { font: 500 13px/1 var(--font-sans); color: var(--color-warm-600); white-space: nowrap; }
   .mood-chip .mc-txt b { color: var(--color-warm-900); font-weight: 700; }
 
+  /* ── The ánimo picker, kept on screen · WS-01B ─────────────────────────
+     The popover is a fixed 322px anchored to the right of its chip. In the
+     compact bar the chip sits mid-row, so its right edge arrives before
+     322px and the popover hangs off the left of the screen. Measured:
+
+       320px → wrap.right 170 · 152px off screen · 3 of 5 faces unreachable
+       360px → 164 · 158px · 3 of 5
+       390px → 194 · 128px · 2 of 5
+       430px → 224 ·  98px · 2 of 5
+       480px → 274 ·  48px · 1 of 5
+       560px and up → fits whole
+
+     Below 600px the popover stops hanging from the chip and hangs from the
+     bar instead: `.mood-wrap` goes static, so the containing block becomes
+     `.topbar`, which spans the screen. With both `left` and `right` set and
+     `width: auto` the width IS the space available; `max-width` returns it
+     to 322px as soon as there is room, and `margin-left: auto` keeps it on
+     the side it has always been on.
+
+     At 320px that is 296px wide with ~50×69 options: nothing is hidden, no
+     touch target shrinks below a comfortable size, and no `overflow-x:
+     hidden` on the document — which would hide the symptom rather than fix
+     it. 600 and not 560 because the bar's right-hand cluster can grow; the
+     margin is deliberate.
+
+     The scale, its ids, the mood record and the follow-up check-in are
+     untouched. This is placement. */
+  @media (max-width: 600px) {
+    .mood-wrap { position: static; }
+    .mood-pop {
+      left: 12px;
+      right: 12px;
+      width: auto;
+      max-width: 322px;
+      margin-left: auto;
+    }
+  }
+
   /* ═══ Ambience picker ═══ */
   .amb { position: relative; }
   .amb-btn { display: inline-flex; align-items: center; gap: 9px; padding: 9px 13px; border-radius: 11px; border: 1px solid var(--color-warm-200); background: #fff; cursor: pointer; font: 600 13px/1 var(--font-sans); color: var(--color-warm-700); }

@@ -127,16 +127,28 @@ existente es una decisión editorial que este plan no toma.
 
 ## 6 · Procedimiento
 
+La herramienta **no lee `.env`**. `DATABASE_URL` se pasa en el entorno de cada
+invocación, a propósito: el destino tiene que ser una elección visible en la
+línea que se ejecuta, no un archivo que estaba ahí. Sin ella, se detiene
+diciendo que no usa un destino por defecto.
+
 ```bash
 # Dry-run — no escribe. Es el modo por defecto. Congela el plan en disco.
-pnpm --filter @psico/api catalog:authorship:plan -- --plan-out=~/.psico-ops/authorship-plan.json
+DATABASE_URL=<cadena del destino> \
+  pnpm --filter @psico/api catalog:authorship:plan -- \
+  --plan-out=~/.psico-ops/authorship-plan.json
 
 # Aplicar CONSUMIENDO ese plan, declarando el destino y con respaldo previo.
-pnpm --filter @psico/api catalog:authorship:apply -- \
+DATABASE_URL=<la misma cadena> \
+  pnpm --filter @psico/api catalog:authorship:apply -- \
   --plan=~/.psico-ops/authorship-plan.json \
   --reversal-out=~/.psico-ops/authorship-reversal.json \
   --expect-database=<nombre> --expect-posture=<local|staging>
 ```
+
+`--json` deja en la salida estándar **sólo** el informe sanitizado, para poder
+canalizarlo; el relato humano sigue imprimiéndose, por la salida de error. El
+informe dice si un campo estaba presente, nunca qué decía.
 
 ### El plan es un archivo, no un recálculo
 

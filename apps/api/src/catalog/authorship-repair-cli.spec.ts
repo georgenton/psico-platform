@@ -72,6 +72,17 @@ describe("parseArgs", () => {
     expect(() => parseArgs(["--force"])).toThrow(/ARGUMENTO DESCONOCIDO/);
   });
 
+  it("tolera el separador `--` que pnpm reenvía, sin aflojar la estrictez", () => {
+    // `pnpm run <script> -- --plan-out=…` forwards the separator verbatim. If
+    // it is treated as an argument, the documented command cannot run — but a
+    // misspelling must still be caught in the same breath.
+    const a = parseArgs(["--", "--plan-out=/tmp/p.json"]);
+    expect(a.planOut).toBe("/tmp/p.json");
+    expect(() => parseArgs(["--", "--plan-ou=/tmp/p.json"])).toThrow(
+      /ARGUMENTO DESCONOCIDO/,
+    );
+  });
+
   it("rechaza una bandera con valor vacío", () => {
     expect(() => parseArgs(["--plan="])).toThrow(/necesita un valor/);
   });
@@ -378,5 +389,35 @@ describe("informe compartible", () => {
     expect(body).not.toContain(TITULO_A);
     expect(body).not.toContain(LICENCIA_A);
     expect(body).toContain("titlePresent");
+  });
+
+  it("con --json, la salida estándar lleva sólo el informe", () => {
+    // `main` needs a database, so this pins the property statically: inside
+    // `main` the narrative goes through `say` (stderr under --json) and the
+    // ONLY writes to stdout are the two sanitized reports. A banner added
+    // later with a plain console.log would make `--json` unparseable for a
+    // caller piping it, which is how this broke the first time.
+    const src = readFileSync(
+      join(__dirname, "authorship-repair-cli.ts"),
+      "utf8",
+    )
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/(^|[^:])\/\/.*$/gm, "$1");
+    const body = src.slice(
+      src.indexOf("async function main"),
+      src.indexOf("require.main === module"),
+    );
+    expect(body.length).toBeGreaterThan(500); // guard the guard
+
+    const stdoutWrites = [
+      ...body.matchAll(/console\.log\(|process\.stdout\.write\(/g),
+    ];
+    expect(stdoutWrites).toHaveLength(2);
+    for (const m of stdoutWrites) {
+      const after = body.slice(m.index, m.index + 120);
+      expect(after).toMatch(/JSON\.stringify\(\s*\n?\s*sanitizedReport/);
+    }
+    // And the narrative is not silently dropped — it is still printed.
+    expect(body).toMatch(/say\(/);
   });
 });

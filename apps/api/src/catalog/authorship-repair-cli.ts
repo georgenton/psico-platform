@@ -87,6 +87,11 @@ export class CliUsageError extends Error {
 export function parseArgs(argv: string[]): CliArgs {
   const out: CliArgs = { apply: false, json: false };
   for (const raw of argv) {
+    // A bare `--` is the POSIX end-of-options separator, not an argument, and
+    // `pnpm run <script> -- --flag` forwards it verbatim. Rejecting it made the
+    // documented invocation fail. Strictness is about unknown FLAGS; dropping
+    // the separator does not let a misspelling through.
+    if (raw === "--") continue;
     const eq = raw.indexOf("=");
     const flag = eq === -1 ? raw : raw.slice(0, eq);
     const value = eq === -1 ? undefined : raw.slice(eq + 1);
@@ -264,6 +269,13 @@ async function main() {
     );
   }
 
+  // With --json, stdout must carry ONLY the sanitized report, so a caller can
+  // pipe it. The human narrative still has to be visible, so it goes to stderr
+  // rather than being suppressed: an operator reading along loses nothing.
+  const say = (line = "") => {
+    process[args.json ? "stderr" : "stdout"].write(`${line}\n`);
+  };
+
   const pool = new Pool({ connectionString: env.DATABASE_URL });
   const prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
 
@@ -279,12 +291,12 @@ async function main() {
       );
     }
 
-    console.log("══ reparación de autoría del catálogo ══");
-    console.log(
+    say("══ reparación de autoría del catálogo ══");
+    say(
       `  destino   : ${target.database}@${target.host} (loopback=${target.isLoopback})`,
     );
-    console.log(`  postura   : ${posture}`);
-    console.log(
+    say(`  postura   : ${posture}`);
+    say(
       `  modo      : ${args.apply ? "APLICAR (escribe)" : "DRY-RUN (no escribe)"}`,
     );
 
@@ -292,13 +304,11 @@ async function main() {
       ? loadFrozenPlan(args.planPath as string, target)
       : freezePlan(planAuthorshipRepair(await readSnapshot(prisma)), target);
 
-    console.log(
-      `  plan      : ${frozen.planId}${args.apply ? "" : " (nuevo)"}`,
-    );
-    console.log(`  hash      : ${frozen.planHash}`);
-    console.log("");
-    console.log(describePlan(frozen));
-    console.log("");
+    say(`  plan      : ${frozen.planId}${args.apply ? "" : " (nuevo)"}`);
+    say(`  hash      : ${frozen.planHash}`);
+    say("");
+    say(describePlan(frozen));
+    say("");
 
     if (frozen.blockers.length > 0) {
       console.error(
@@ -313,12 +323,10 @@ async function main() {
         writeFileSync(args.planOut, `${JSON.stringify(frozen, null, 2)}\n`, {
           mode: 0o600,
         });
-        console.log(`  plan congelado escrito en ${args.planOut}`);
-        console.log(
-          "  revísalo y pásalo con --plan=<esa ruta>; apply no recalcula.",
-        );
+        say(`  plan congelado escrito en ${args.planOut}`);
+        say("  revísalo y pásalo con --plan=<esa ruta>; apply no recalcula.");
       } else {
-        console.log(
+        say(
           "  (sin --plan-out no se congela nada, y --apply exigirá un plan en disco)",
         );
       }
@@ -326,11 +334,11 @@ async function main() {
       // target author does not exist yet, and records the reversal it would
       // need.
       const entries = await collectReversal(prisma as never, frozen);
-      console.log("");
-      console.log(`  reversión prevista: ${entries.length} entrada(s)`);
-      for (const e of entries) console.log(`    · ${e.subject}`);
-      console.log("");
-      console.log("DRY-RUN: no se escribió nada.");
+      say("");
+      say(`  reversión prevista: ${entries.length} entrada(s)`);
+      for (const e of entries) say(`    · ${e.subject}`);
+      say("");
+      say("DRY-RUN: no se escribió nada.");
       if (args.json) {
         console.log(JSON.stringify(sanitizedReport(target, frozen), null, 2));
       }
@@ -349,7 +357,7 @@ async function main() {
       entries,
       note: "Valores previos literales. Archivo privado, permisos 600, fuera del árbol del producto. Un archivo en estado 'intended' NO acredita que se haya aplicado nada.",
     });
-    console.log(`  respaldo de reversión verificado en ${args.reversalOut}`);
+    say(`  respaldo de reversión verificado en ${args.reversalOut}`);
 
     let result;
     try {
@@ -362,13 +370,11 @@ async function main() {
     }
     settleReversal(args.reversalOut as string, "applied");
 
-    console.log("");
-    console.log("══ resultado ══");
-    console.log(`  filas escritas: ${result.rowsWritten}`);
+    say("");
+    say("══ resultado ══");
+    say(`  filas escritas: ${result.rowsWritten}`);
     for (const a of result.applied) {
-      console.log(
-        `  · ${a.subject} — ${a.op} — ${a.wrote ? "escrito" : "sin cambio"}`,
-      );
+      say(`  · ${a.subject} — ${a.op} — ${a.wrote ? "escrito" : "sin cambio"}`);
     }
     if (args.json) {
       console.log(

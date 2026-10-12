@@ -17,6 +17,7 @@ import {
   applyAuthorshipRepair,
   collectReversal,
   RepairConflictError,
+  RepairPreconditionError,
   type RepairTx,
 } from "./authorship-repair-apply";
 
@@ -42,16 +43,23 @@ import {
  * Runs only when TEST_DATABASE_URL is set (`test:locks`); skipped otherwise.
  */
 
-import { mkdtempSync, readFileSync, existsSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { runRepair, describeError } from "./authorship-repair-cli";
+import { describeError, runRepair } from "./authorship-repair-cli";
 import {
+  computePlanHash,
+  describeOutcome,
   loadFrozenPlan,
   outcomePathFor,
   readOutcome,
-  computePlanHash,
 } from "./authorship-plan-file";
 
 const base = process.env.TEST_DATABASE_URL;
@@ -589,6 +597,21 @@ suite("Catálogo · reparación de autoría (PostgreSQL real)", () => {
      */
     const outDir = () => mkdtempSync(join(tmpdir(), "authorship-journey-"));
 
+    /** The apply argv for a reviewed plan — both halves of its identity. */
+    const applyArgvFor = (
+      planPath: string,
+      preimage: string,
+      dry: { plan: { planId: string; planHash: string } },
+    ) => [
+      "--apply",
+      `--plan=${planPath}`,
+      `--reversal-out=${preimage}`,
+      "--expect-database=" + target().database,
+      "--expect-posture=test",
+      `--expect-plan-id=${dry.plan.planId}`,
+      `--expect-plan-hash=${dry.plan.planHash}`,
+    ];
+
     const deps = (argv: string[], over: Record<string, string> = {}) => ({
       argv,
       env: { DATABASE_URL: url, ...over },
@@ -624,6 +647,7 @@ suite("Catálogo · reparación de autoría (PostgreSQL real)", () => {
           "--expect-database=" + target().database,
           "--expect-posture=test",
           `--expect-plan-id=${dry.plan.planId}`,
+          `--expect-plan-hash=${dry.plan.planHash}`,
         ]),
       );
       expect(run.mode).toBe("apply");
@@ -672,6 +696,7 @@ suite("Catálogo · reparación de autoría (PostgreSQL real)", () => {
         "--expect-database=" + target().database,
         "--expect-posture=test",
         `--expect-plan-id=${dry.plan.planId}`,
+        `--expect-plan-hash=${dry.plan.planHash}`,
       ];
 
       const one = await runRepair(deps(applyArgv(first)));
@@ -715,10 +740,16 @@ suite("Catálogo · reparación de autoría (PostgreSQL real)", () => {
         "--expect-database=" + target().database,
         "--expect-posture=test",
         `--expect-plan-id=${dry.plan.planId}`,
+        `--expect-plan-hash=${dry.plan.planHash}`,
       ];
       await runRepair(deps(argv));
       const kept = readFileSync(preimage, "utf8");
-      await expect(runRepair(deps(argv))).rejects.toThrow(/RESPALDO EXISTENTE/);
+      // The outcome check now fires FIRST, which is strictly earlier than the
+      // preimage check and therefore better: it stops before the plan is even
+      // re-read. Either refusal protects the only copy of the prior values.
+      await expect(runRepair(deps(argv))).rejects.toThrow(
+        /RESULTADO PREVIO|RESPALDO EXISTENTE/,
+      );
       expect(readFileSync(preimage, "utf8")).toBe(kept);
     }, 60_000);
 
@@ -743,6 +774,7 @@ suite("Catálogo · reparación de autoría (PostgreSQL real)", () => {
             "--expect-database=" + target().database,
             "--expect-posture=test",
             `--expect-plan-id=${dry.plan.planId}`,
+            `--expect-plan-hash=${dry.plan.planHash}`,
           ]),
         ),
       ).rejects.toThrow(/no son los que el plan revisado observó/);
@@ -786,6 +818,7 @@ suite("Catálogo · reparación de autoría (PostgreSQL real)", () => {
             "--expect-database=" + target().database,
             "--expect-posture=test",
             `--expect-plan-id=${dry.plan.planId}`,
+            `--expect-plan-hash=${dry.plan.planHash}`,
           ]),
         ),
       ).rejects.toThrow(/RESPALDO EXISTENTE/);
@@ -876,6 +909,246 @@ suite("Catálogo · reparación de autoría (PostgreSQL real)", () => {
       expect(d.message).toMatch(/no se imprime/);
     }, 60_000);
 
+    it("rollback confirmado: estado correcto y cero cambios de reparación", async () => {
+      // A REAL rollback: the callback applies the repair against the real
+      // transaction and then throws one of our own errors, so PostgreSQL rolls
+      // it back. The failure's scope settles the question, so it is recorded
+      // as `rolled-back` rather than guessed at. The throw is injected; the
+      // rollback is not.
+      const dir = outDir();
+      const planPath = join(dir, "plan.json");
+      const preimage = join(dir, "pre.json");
+      const dry = await runRepair(deps([`--plan-out=${planPath}`]));
+      const base = deps(applyArgvFor(planPath, preimage, dry));
+
+      const before = await prisma.bookAuthor.findUnique({
+        where: { slug: "marina-quintana" },
+      });
+
+      await expect(
+        runRepair({
+          ...base,
+          prisma: {
+            ...(base.prisma as object),
+            $transaction: (fn: (tx: unknown) => Promise<unknown>) =>
+              prisma.$transaction(async (tx) => {
+                await fn(tx);
+                throw new RepairPreconditionError(
+                  "prueba",
+                  "fallo posterior forzado",
+                );
+              }),
+          },
+        } as never),
+      ).rejects.toThrow(/fallo posterior forzado/);
+
+      // Nothing of the repair survived.
+      const after = await prisma.bookAuthor.findUnique({
+        where: { slug: "marina-quintana" },
+      });
+      expect(after).toMatchObject({
+        title: before?.title,
+        licenseNumber: before?.licenseNumber,
+        isVerified: true,
+      });
+      expect(
+        await prisma.bookAuthor.findUnique({
+          where: { slug: "jorge-quizamanchuro" },
+        }),
+      ).toBeNull();
+
+      // And the record says exactly that, paired with its plan.
+      const outcome = readOutcome(preimage);
+      expect(outcome?.state).toBe("rolled-back");
+      expect(outcome?.planId).toBe(dry.plan.planId);
+      expect(JSON.parse(readFileSync(preimage, "utf8")).state).toBe("intended");
+    }, 60_000);
+
+    it("fallo del registro tras un commit confirmado: filas verificadas, preimagen intacta, salida no cero", async () => {
+      // Simulated by making the outcome path unwritable — the commit is real,
+      // the paperwork failure is injected. Presented as what it is.
+      const dir = outDir();
+      const planPath = join(dir, "plan.json");
+      const preimage = join(dir, "pre.json");
+      const dry = await runRepair(deps([`--plan-out=${planPath}`]));
+
+      // The paperwork is made impossible AFTER the commit, which is the only
+      // honest place to inject it: the pre-flight check would otherwise stop
+      // the run before it ever wrote anything. A directory where the outcome
+      // file belongs makes `openSync(..., "wx")` fail for a real reason.
+      const base = deps(applyArgvFor(planPath, preimage, dry));
+      const lines: string[] = [];
+      const run = await runRepair({
+        ...base,
+        say: (l: string) => lines.push(l),
+        prisma: {
+          ...(base.prisma as object),
+          $transaction: async (fn: (tx: unknown) => Promise<unknown>) => {
+            const r = await prisma.$transaction(fn);
+            mkdirSync(outcomePathFor(preimage));
+            return r;
+          },
+        },
+      } as never);
+
+      // The transaction committed, and the rows prove it.
+      expect(run.transactionOutcome).toBe("committed");
+      expect(run.rowsWritten).toBe(3);
+      const eec = await prisma.book.findUnique({
+        where: { slug: "emociones-en-construccion" },
+      });
+      const sourced = await prisma.bookAuthor.findUnique({
+        where: { slug: "jorge-quizamanchuro" },
+      });
+      expect(eec?.authorId).toBe(sourced?.id);
+
+      // No outcome file exists, and none is claimed.
+      expect(run.outcomeRecorded).toBe(false);
+      expect(run.outcome).toBeUndefined();
+      expect(readOutcome(preimage)).toBeNull();
+
+      // The preimage is intact, the warning separates the two facts, and the
+      // exit code demands attention.
+      expect(JSON.parse(readFileSync(preimage, "utf8")).state).toBe("intended");
+      const said = lines.join("\n");
+      expect(said).toMatch(
+        /la transacción se CONFIRMÓ y el registro del resultado falló/,
+      );
+      expect(said).toMatch(/La base cambió: 3 fila\(s\)/);
+      expect(said).toMatch(/no se afirma que exista/);
+      expect(run.exitCode).toBe(6);
+    }, 60_000);
+
+    it("cero filas por idempotencia: no se dice que se modificaron datos", async () => {
+      const dir = outDir();
+      const planPath = join(dir, "plan.json");
+      const dry = await runRepair(deps([`--plan-out=${planPath}`]));
+      const first = join(dir, "pre-1.json");
+      await runRepair(deps(applyArgvFor(planPath, first, dry)));
+
+      // Second run: nothing to write. The record is broken after the commit.
+      const second = join(dir, "pre-2.json");
+      const base = deps(applyArgvFor(planPath, second, dry));
+      const lines: string[] = [];
+      const run = await runRepair({
+        ...base,
+        say: (l: string) => lines.push(l),
+        prisma: {
+          ...(base.prisma as object),
+          $transaction: async (fn: (tx: unknown) => Promise<unknown>) => {
+            const r = await prisma.$transaction(fn);
+            mkdirSync(outcomePathFor(second));
+            return r;
+          },
+        },
+      } as never);
+      expect(run.rowsWritten).toBe(0);
+      const said = lines.join("\n");
+      expect(said).toMatch(/La base NO cambió: 0 filas escritas/);
+      expect(said).not.toMatch(/La base cambió:/);
+      expect(run.exitCode).toBe(6);
+    }, 60_000);
+
+    it("resultado de commit desconocido (inyección): no se etiqueta como aborto ni se reintenta", async () => {
+      // SIMULATION, not an observed incident: the transport failure is
+      // injected by wrapping $transaction so it rejects with a connection
+      // class error after the callback ran.
+      const dir = outDir();
+      const planPath = join(dir, "plan.json");
+      const preimage = join(dir, "pre.json");
+      const dry = await runRepair(deps([`--plan-out=${planPath}`]));
+
+      let callbackRuns = 0;
+      const base = deps(applyArgvFor(planPath, preimage, dry));
+      const lines: string[] = [];
+      const injected = {
+        ...base,
+        say: (l: string) => lines.push(l),
+        prisma: {
+          ...(base.prisma as object),
+          $queryRawUnsafe: (sql: string) =>
+            (
+              prisma as never as {
+                $queryRawUnsafe: (s: string) => Promise<unknown>;
+              }
+            ).$queryRawUnsafe(sql),
+          $transaction: async () => {
+            callbackRuns += 1;
+            throw Object.assign(new Error("connection terminated"), {
+              code: "08006",
+            });
+          },
+          bookAuthor: prisma.bookAuthor,
+          book: prisma.book,
+        },
+      } as never;
+
+      await expect(runRepair(injected)).rejects.toThrow(
+        /connection terminated/,
+      );
+
+      // Attempted exactly once: no retry on a guess.
+      expect(callbackRuns).toBe(1);
+      // Recorded as undetermined — NOT as a confirmed abort.
+      const outcome = readOutcome(preimage);
+      expect(outcome?.state).toBe("undetermined");
+      expect(outcome?.state).not.toBe("rolled-back");
+      const said = lines.join("\n");
+      expect(said).toMatch(/no se pudo determinar el resultado/);
+      expect(said).toMatch(/NO se afirma que la reparación no se aplicara/);
+      // The preimage is untouched and still only `intended`.
+      expect(JSON.parse(readFileSync(preimage, "utf8")).state).toBe("intended");
+    }, 60_000);
+
+    it("un resultado previo detiene la ejecución ANTES de modificar la base", async () => {
+      const dir = outDir();
+      const planPath = join(dir, "plan.json");
+      const dry = await runRepair(deps([`--plan-out=${planPath}`]));
+
+      // A fresh preimage path whose outcome file already exists: archiving the
+      // backup and leaving the record is an ordinary thing to do.
+      const preimage = join(dir, "pre.json");
+      writeFileSync(outcomePathFor(preimage), "{}");
+
+      const before = await prisma.bookAuthor.findUnique({
+        where: { slug: "marina-quintana" },
+      });
+      await expect(
+        runRepair(deps(applyArgvFor(planPath, preimage, dry))),
+      ).rejects.toThrow(/RESULTADO PREVIO/);
+
+      // Zero changes, and the preimage was never written.
+      const after = await prisma.bookAuthor.findUnique({
+        where: { slug: "marina-quintana" },
+      });
+      expect(after?.isVerified).toBe(before?.isVerified);
+      expect(existsSync(preimage)).toBe(false);
+      expect(
+        await prisma.bookAuthor.findUnique({
+          where: { slug: "jorge-quizamanchuro" },
+        }),
+      ).toBeNull();
+    }, 60_000);
+
+    it("un resultado de otro plan no se acepta como evidencia", async () => {
+      const dir = outDir();
+      const planPath = join(dir, "plan.json");
+      const preimage = join(dir, "pre.json");
+      const dry = await runRepair(deps([`--plan-out=${planPath}`]));
+      await runRepair(deps(applyArgvFor(planPath, preimage, dry)));
+
+      // Tamper with the record so it claims another plan.
+      const op = outcomePathFor(preimage);
+      const f = JSON.parse(readFileSync(op, "utf8"));
+      f.planId = "otro-plan";
+      writeFileSync(op, JSON.stringify(f));
+
+      expect(readOutcome(preimage)).toBeNull();
+      const read = describeOutcome(preimage);
+      expect(read.ok).toBe(false);
+      expect(read.ok === false && read.reason).toMatch(/otro plan/);
+    }, 60_000);
+
     it("el hash cubre la postura: un plan de otra postura no se aplica", async () => {
       const dir = outDir();
       const planPath = join(dir, "plan.json");
@@ -897,6 +1170,7 @@ suite("Catálogo · reparación de autoría (PostgreSQL real)", () => {
             "--expect-database=" + target().database,
             "--expect-posture=test",
             `--expect-plan-id=${dry.plan.planId}`,
+            `--expect-plan-hash=${dry.plan.planHash}`,
           ]),
         ),
       ).rejects.toThrow(/POSTURA DISCORDANTE/);

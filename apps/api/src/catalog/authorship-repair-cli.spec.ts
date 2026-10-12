@@ -1,17 +1,21 @@
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
+  classifyTransactionFailure,
   CliUsageError,
   describeError,
   parseArgs,
   resolveTarget,
+  runRepair,
   sanitizedReport,
   STAGING_TOKEN,
 } from "./authorship-repair-cli";
 import {
   freezePlan,
+  loadFrozenPlan,
   PlanFileError,
   targetIdentityFromUrl,
 } from "./authorship-plan-file";
@@ -318,6 +322,141 @@ describe("la puerta del destino", () => {
   });
 });
 
+describe("el plan aprobado es obligatorio para aplicar", () => {
+  /**
+   * R1. The flags existed and the loader compared them only when supplied, so
+   * the ordinary invocation applied whatever valid plan sat at that path.
+   * These exercise the ORCHESTRATION's gate, which is where the requirement
+   * has to live — `loadFrozenPlan` keeps its optional parameter so a review
+   * can inspect a file without claiming authorisation to write it.
+   */
+  const deps = (extra: string[]) => ({
+    argv: [
+      "--apply",
+      "--plan=/tmp/p.json",
+      "--reversal-out=/tmp/r.json",
+      "--expect-database=psico_dev",
+      "--expect-posture=development",
+      ...extra,
+    ],
+    env: { DATABASE_URL: LOCAL },
+    posture: "development",
+    prisma: {
+      $queryRawUnsafe: async () => {
+        throw new Error("no debió conectarse");
+      },
+      $transaction: async () => {
+        throw new Error("no debió escribir");
+      },
+      bookAuthor: { findMany: async () => [] },
+      book: { findMany: async () => [] },
+    } as never,
+  });
+
+  it("aplicar sin ID ni hash esperados: rechazo antes de escribir", async () => {
+    await expect(runRepair(deps([]))).rejects.toThrow(
+      /PLAN APROBADO NO DECLARADO.*--expect-plan-id y --expect-plan-hash/s,
+    );
+  });
+
+  it("sólo el ID: rechazo", async () => {
+    await expect(runRepair(deps(["--expect-plan-id=abc"]))).rejects.toThrow(
+      /--expect-plan-hash/,
+    );
+  });
+
+  it("sólo el hash: rechazo", async () => {
+    await expect(
+      runRepair(deps([`--expect-plan-hash=sha256:${"a".repeat(64)}`])),
+    ).rejects.toThrow(/--expect-plan-id/);
+  });
+
+  it("un valor vacío no cuenta como declarado", async () => {
+    // `--expect-plan-id=` is rejected by the parser, and whitespace by the gate.
+    expect(() => parseArgs(["--apply", "--expect-plan-id="])).toThrow(
+      /necesita un valor/,
+    );
+    await expect(
+      runRepair(
+        deps([
+          "--expect-plan-id=   ",
+          `--expect-plan-hash=sha256:${"a".repeat(64)}`,
+        ]),
+      ),
+    ).rejects.toThrow(/--expect-plan-id/);
+  });
+
+  it("el rechazo ocurre ANTES de consultar la base", async () => {
+    // The stub throws if anything touches it, so reaching the database at all
+    // would fail with a different message than the one asserted above.
+    await expect(runRepair(deps([]))).rejects.toThrow(/PLAN APROBADO/);
+  });
+
+  it("inspeccionar un plan NO exige esas expectativas", () => {
+    // Reading is not writing: a review must be able to load a file without
+    // asserting any authorisation over it.
+    const dir = mkdtempSync(join(tmpdir(), "authorship-inspect-"));
+    const t = targetIdentityFromUrl(LOCAL, "development");
+    const frozen = freezePlan(planAuthorshipRepair(snapshot()), t);
+    const path = join(dir, "plan.json");
+    writeFileSync(path, JSON.stringify(frozen));
+    expect(loadFrozenPlan(path, t).planId).toBe(frozen.planId);
+  });
+});
+
+describe("clasificación del fallo de transacción", () => {
+  /**
+   * R3-A. Every rejection used to be recorded as `aborted`, which claims
+   * evidence the tool does not have.
+   */
+  it("nuestras precondiciones y conflictos: no se confirmó", () => {
+    expect(
+      classifyTransactionFailure(
+        new RepairPreconditionError("autor x", "ya no existe"),
+      ),
+    ).toBe("not-committed");
+    expect(
+      classifyTransactionFailure(new RepairConflictError("autor x", "cambió")),
+    ).toBe("not-committed");
+    expect(classifyTransactionFailure(new PlanFileError("x"))).toBe(
+      "not-committed",
+    );
+  });
+
+  it("un SQLSTATE que no es de conexión: no se confirmó", () => {
+    expect(
+      classifyTransactionFailure(
+        Object.assign(new Error("dup"), { code: "23505" }),
+      ),
+    ).toBe("not-committed");
+  });
+
+  it("clase 08 y caída del servidor: indeterminado", () => {
+    for (const code of ["08006", "08003", "08000", "57P01", "57P02"]) {
+      expect(
+        classifyTransactionFailure(Object.assign(new Error("x"), { code })),
+      ).toBe("undetermined");
+    }
+  });
+
+  it("fallos de socket: indeterminado", () => {
+    for (const code of ["ECONNRESET", "EPIPE", "ETIMEDOUT"]) {
+      expect(
+        classifyTransactionFailure(Object.assign(new Error("x"), { code })),
+      ).toBe("undetermined");
+    }
+  });
+
+  it("un fallo irreconocible es una PREGUNTA, no un «no pasó nada»", () => {
+    // The default matters: answering an unknown failure with "nothing
+    // happened" is the error this classification exists to avoid.
+    expect(classifyTransactionFailure(new Error("vete a saber"))).toBe(
+      "undetermined",
+    );
+    expect(classifyTransactionFailure(undefined)).toBe("undetermined");
+  });
+});
+
 describe("errores acotados", () => {
   it("un error ajeno no vuelca su mensaje", () => {
     // A driver error can carry the connection string, a statement's
@@ -418,9 +557,12 @@ describe("informe compartible", () => {
     const at = (needle: string) => body.lastIndexOf(needle);
     expect(at("persistReversal(")).toBeGreaterThan(at("collectReversal("));
     expect(at("$transaction(")).toBeGreaterThan(at("persistReversal("));
-    // Both outcomes are recorded, and neither reopens the preimage.
-    expect(body).toMatch(/recordOutcome\([^)]*"aborted"/);
-    expect(body).toMatch(/recordOutcome\([^)]*"applied"\)/);
+    // A prior outcome stops the run BEFORE the preimage is written.
+    expect(at("outcomeExists(")).toBeLessThan(at("persistReversal("));
+    // Every outcome is recorded beside the preimage, never onto it.
+    expect(body).toMatch(/state: "rolled-back"/);
+    expect(body).toMatch(/state: "undetermined"/);
+    expect(body).toMatch(/state: "applied"/);
     expect(body).not.toMatch(/settleReversal/);
   });
 });

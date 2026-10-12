@@ -9,6 +9,8 @@ import {
 import {
   freezePlan,
   loadFrozenPlan,
+  outcomeExists,
+  outcomePathFor,
   persistReversal,
   PlanFileError,
   PREIMAGE_FORMAT,
@@ -290,8 +292,10 @@ export function sanitizedReport(
     dryRun: boolean;
     rowsWritten: number;
     applied: Array<Record<string, unknown>>;
-    /** applied | aborted | uncertain — never inferred from the preimage. */
-    outcome?: string;
+    /** What is known about the transaction, never inferred from a file. */
+    transaction?: string;
+    outcomeRecorded?: boolean;
+    recordFailure?: string;
   },
 ): Record<string, unknown> {
   return {
@@ -359,6 +363,59 @@ export function describeError(err: unknown): {
   };
 }
 
+/**
+ * Can we say the repair did not commit, or only that we do not know?
+ *
+ * `aborted` used to absorb every rejection of `$transaction`, which claimed
+ * evidence the tool does not have. The distinction that matters:
+ *
+ *   · `not-committed` — the failure is one whose scope settles the question.
+ *     Our own precondition and conflict errors are raised INSIDE the callback,
+ *     before or instead of the write, so the transaction rolls back. A SQL
+ *     error reported with a SQLSTATE is likewise a statement the server
+ *     rejected, which rolls the transaction back.
+ *   · `undetermined` — a connection or transport failure. From here, a
+ *     connection lost while committing is indistinguishable from a commit
+ *     that succeeded and whose acknowledgement never arrived.
+ *
+ * The default is `undetermined`, deliberately: an unrecognised failure is a
+ * question, and answering it with "nothing happened" is the error this exists
+ * to avoid.
+ */
+export function classifyTransactionFailure(
+  err: unknown,
+): "not-committed" | "undetermined" {
+  // Ours, raised inside the callback: nothing was committed.
+  if (err instanceof RepairPreconditionError) return "not-committed";
+  if (err instanceof PlanFileError) return "not-committed";
+  if (err instanceof CliUsageError) return "not-committed";
+
+  const e = err as { code?: unknown; name?: unknown };
+  const code = typeof e?.code === "string" ? e.code : "";
+
+  // PostgreSQL class 08 is "connection exception", 57P01/57P02/57P03 are the
+  // server going away, and these Node errors are the socket itself. All of
+  // them leave the commit's fate unknown.
+  const TRANSPORT = new Set([
+    "57P01",
+    "57P02",
+    "57P03",
+    "ECONNRESET",
+    "ECONNREFUSED",
+    "EPIPE",
+    "ETIMEDOUT",
+    "ENOTFOUND",
+    "EHOSTUNREACH",
+  ]);
+  if (code.startsWith("08") || TRANSPORT.has(code)) return "undetermined";
+
+  // A SQLSTATE that is not a connection class is a statement the server
+  // rejected, so the transaction rolled back.
+  if (/^[0-9A-Z]{5}$/.test(code)) return "not-committed";
+
+  return "undetermined";
+}
+
 /* ── The orchestration, invocable ──────────────────────────────────────── */
 
 /**
@@ -392,7 +449,16 @@ export interface RepairRun {
   preimage?: string;
   /** Absolute path of the outcome record, when one was written. */
   outcome?: string;
-  outcomeState?: "applied" | "aborted" | "uncertain";
+  /** What is KNOWN about the transaction. Absent when it never ran. */
+  transactionOutcome?: "committed";
+  /** Only "applied" here: the other states are reported by throwing. */
+  outcomeState?: "applied";
+  /** Whether the outcome file was actually written. */
+  outcomeRecorded?: boolean;
+  /** Set when the transaction committed and the record failed. */
+  recordFailure?: string;
+  /** Non-zero when the run needs a human to look. */
+  exitCode?: number;
   rowsWritten: number;
   report: Record<string, unknown>;
   /** Set when blockers stopped the run before anything else happened. */
@@ -413,6 +479,36 @@ export async function runRepair(deps: RepairDeps): Promise<RepairRun> {
     throw new CliUsageError(
       "RESPALDO NO DECLARADO: --apply exige --reversal-out=<ruta> fuera del árbol del producto. Sin respaldo persistido y verificado no se modifica la base.",
     );
+  }
+  /**
+   * Both halves of the reviewed plan's identity are REQUIRED to apply.
+   *
+   * They were optional, and the loader only compared them when they were
+   * supplied — so the ordinary invocation applied whatever valid plan sat at
+   * that path. The id says *which file* was approved; the hash binds *what it
+   * contained*. One without the other leaves the gap open: a different file
+   * can carry the same id, and the same content can be in a file nobody
+   * reviewed.
+   *
+   * They come from the invocation, never from the file being validated: a
+   * substituted file would answer the question about itself.
+   *
+   * Reading a plan does NOT require them — `loadFrozenPlan` keeps the
+   * parameter optional so a review can inspect a file without claiming any
+   * authorisation to write it.
+   */
+  if (args.apply) {
+    const missing = [
+      ...(args.expectPlanId?.trim() ? [] : ["--expect-plan-id"]),
+      ...(args.expectPlanHash?.trim() ? [] : ["--expect-plan-hash"]),
+    ];
+    if (missing.length > 0) {
+      throw new CliUsageError(
+        `PLAN APROBADO NO DECLARADO: --apply exige ${missing.join(
+          " y ",
+        )}. El identificador dice qué archivo se aprobó y el hash qué contenía; sin los dos, aplicar ejecuta cualquier plan válido que esté en esa ruta. Ninguno de los dos sustituye tu autorización para un entorno alojado.`,
+      );
+    }
   }
 
   // The server must really be the database the connection string names.
@@ -470,7 +566,13 @@ export async function runRepair(deps: RepairDeps): Promise<RepairRun> {
       });
       say(`  plan congelado escrito en ${args.planOut}`);
       say(
-        `  revísalo y pásalo con --plan=<esa ruta> --expect-plan-id=${frozen.planId}; apply no recalcula.`,
+        "  revísalo y pásalo con AMBAS mitades de su identidad; apply no recalcula:",
+      );
+      say(`    --plan=${args.planOut}`);
+      say(`    --expect-plan-id=${frozen.planId}`);
+      say(`    --expect-plan-hash=${frozen.planHash}`);
+      say(
+        "  El id dice qué archivo aprobaste; el hash, qué contenía. Ninguno sustituye tu autorización para un entorno alojado.",
       );
     } else {
       say(
@@ -497,6 +599,24 @@ export async function runRepair(deps: RepairDeps): Promise<RepairRun> {
 
   // ── apply ──────────────────────────────────────────────────────────────
   const preimage = args.reversalOut as string;
+
+  /**
+   * A prior outcome record stops the run BEFORE anything is written.
+   *
+   * `persistReversal` refuses an existing preimage, but a missing preimage
+   * does not mean its `.outcome.json` is missing too — somebody can archive
+   * the backup and leave the record, or reuse a path a previous run settled.
+   * Discovering that after the commit means the record cannot be written and
+   * the only file answering "what happened?" belongs to another run.
+   */
+  if (outcomeExists(preimage)) {
+    throw new PlanFileError(
+      `RESULTADO PREVIO: ya existe ${outcomePathFor(
+        preimage,
+      )}. Se detiene ANTES de modificar la base: un resultado anterior no se sobrescribe ni se adopta como evidencia de esta ejecución. Usa otra ruta.`,
+    );
+  }
+
   const entries = await collectReversal(deps.prisma as never, frozen);
   persistReversal(preimage, {
     format: PREIMAGE_FORMAT,
@@ -510,33 +630,88 @@ export async function runRepair(deps: RepairDeps): Promise<RepairRun> {
   });
   say(`  preimagen verificada en ${preimage}`);
 
+  const identity = { planId: frozen.planId, planHash: frozen.planHash };
   let result;
   try {
     result = await deps.prisma.$transaction(async (tx: unknown) =>
       applyAuthorshipRepair(tx as never, frozen, { apply: true }),
     );
   } catch (err) {
-    // The transaction rolled back, so the database is untouched. Record that
-    // beside the preimage, never onto it.
-    const outcome = recordOutcome(preimage, "aborted", describeError(err).kind);
-    say(`  resultado: abortado · registrado en ${outcome}`);
+    const described = describeError(err);
+    const scope = classifyTransactionFailure(err);
+
+    if (scope === "not-committed") {
+      // There is evidence the repair did not commit: the failure came from a
+      // precondition this tool raised, or from the statement itself, which
+      // means the transaction rolled back.
+      const outcome = recordOutcome(preimage, {
+        ...identity,
+        state: "rolled-back",
+        detail: described.kind,
+      });
+      say(`  resultado: revertido · registrado en ${outcome}`);
+      say("  No se aplicó la reparación; la base quedó como estaba.");
+      throw err;
+    }
+
+    /**
+     * The result cannot be determined.
+     *
+     * A connection lost while committing is indistinguishable, from here,
+     * from a commit that succeeded and whose acknowledgement never arrived.
+     * Calling that "aborted" would claim evidence the tool does not have, so
+     * it is recorded as what it is — and nothing is re-planned, retried or
+     * reverted on a guess.
+     */
+    let recorded: string | undefined;
+    try {
+      recorded = recordOutcome(preimage, {
+        ...identity,
+        state: "undetermined",
+        detail: `${described.kind}${described.code ? ` [${described.code}]` : ""}`,
+      });
+    } catch {
+      recorded = undefined;
+    }
+    say("  ATENCIÓN: no se pudo determinar el resultado de la transacción.");
+    say(
+      `  Fallo de transporte o de conexión (${described.kind}). NO se afirma que la reparación no se aplicara: eso no se observó.`,
+    );
+    say(
+      recorded
+        ? `  Registrado como indeterminado en ${recorded}. Comprueba el estado real antes de reintentar; no se reintenta por cuenta propia.`
+        : "  Tampoco se pudo registrar el resultado. La preimagen sigue intacta; comprueba el estado real antes de reintentar.",
+    );
     throw err;
   }
 
-  // Committed. If recording that fails, the outcome is UNCERTAIN as far as
-  // any later reader is concerned — and saying "nothing changed" would be a
-  // lie. The preimage is intact either way, because nothing rewrites it.
+  /**
+   * Committed, and observed to commit. If the RECORD then fails there is no
+   * outcome file, so none is claimed: the command reports the two facts
+   * separately — what is known about the transaction, and that the paperwork
+   * failed — and exits non-zero so somebody looks.
+   */
   let outcomePath: string | undefined;
-  let outcomeState: RepairRun["outcomeState"] = "applied";
+  let outcomeRecorded = true;
+  let recordFailure: string | undefined;
   try {
-    outcomePath = recordOutcome(preimage, "applied");
+    outcomePath = recordOutcome(preimage, { ...identity, state: "applied" });
   } catch (err) {
-    outcomeState = "uncertain";
+    outcomeRecorded = false;
+    recordFailure = describeError(err).kind;
+    say("");
     say(
-      `  ATENCIÓN: la transacción se confirmó y el registro del resultado falló (${describeError(err).kind}).`,
+      "  ATENCIÓN: la transacción se CONFIRMÓ y el registro del resultado falló.",
     );
     say(
-      "  La base SÍ cambió. La preimagen sigue intacta en su ruta; no se informa que nada cambió.",
+      // Said against the real count: with zero rows written by idempotence,
+      // "the database changed" would be false.
+      result.rowsWritten > 0
+        ? `  La base cambió: ${result.rowsWritten} fila(s) escrita(s).`
+        : "  La base NO cambió: 0 filas escritas (el plan ya estaba aplicado).",
+    );
+    say(
+      `  No existe archivo de resultado (${recordFailure}), así que no se afirma que exista. La preimagen sigue intacta en su ruta.`,
     );
   }
 
@@ -554,13 +729,20 @@ export async function runRepair(deps: RepairDeps): Promise<RepairRun> {
     reversalEntries: entries.length,
     preimage,
     ...(outcomePath ? { outcome: outcomePath } : {}),
-    outcomeState,
+    outcomeState: "applied",
+    outcomeRecorded,
+    ...(recordFailure ? { recordFailure } : {}),
+    transactionOutcome: "committed",
     rowsWritten: result.rowsWritten,
+    // Non-zero when the paperwork failed, so the shell demands attention.
+    exitCode: outcomeRecorded ? 0 : 6,
     report: sanitizedReport(target, frozen, {
       dryRun: result.dryRun,
       rowsWritten: result.rowsWritten,
       applied: result.applied as unknown as Array<Record<string, unknown>>,
-      outcome: outcomeState,
+      transaction: "committed",
+      outcomeRecorded,
+      ...(recordFailure ? { recordFailure } : {}),
     }),
   };
 }
@@ -593,6 +775,9 @@ async function main() {
       say: (line) => process[json ? "stderr" : "stdout"].write(`${line}\n`),
     });
     if (run.stopped === "blockers") process.exitCode = 2;
+    // A run that changed the database but could not record it exits non-zero:
+    // it finished, and it still needs somebody to look.
+    if (run.exitCode) process.exitCode = run.exitCode;
     if (json) console.log(JSON.stringify(run.report, null, 2));
   } finally {
     await prisma.$disconnect().catch(() => undefined);

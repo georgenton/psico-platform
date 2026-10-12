@@ -149,16 +149,32 @@ DATABASE_URL=<cadena del destino> \
   pnpm --filter @psico/api catalog:authorship:plan -- \
   --plan-out="$HOME/.psico-ops/authorship-plan.json"
 
-# Revísalo. El dry-run imprime el planId; pásalo como esperado al aplicar.
-# Aplicar CONSUMIENDO ese plan, declarando el destino y con respaldo previo.
+# Revísalo. El dry-run imprime las DOS mitades de su identidad, y las dos son
+# obligatorias para aplicar. El directorio privado tiene que existir ya.
+mkdir -p "$HOME/.psico-ops" && chmod 700 "$HOME/.psico-ops"
+
 DATABASE_URL=<la misma cadena> \
   pnpm --filter @psico/api catalog:authorship:apply -- \
   --plan="$HOME/.psico-ops/authorship-plan.json" \
   --reversal-out="$HOME/.psico-ops/authorship-preimagen.json" \
   --expect-database=<nombre> \
   --expect-posture=<development|test|staging> \
-  --expect-plan-id=<el planId que revisaste>
+  --expect-plan-id=<el planId que revisaste> \
+  --expect-plan-hash=<el planHash que revisaste>
 ```
+
+**`--expect-plan-id` y `--expect-plan-hash` son obligatorias para aplicar.**
+Eran opcionales y el cargador sólo las comparaba cuando se suministraban, así
+que la invocación corriente aplicaba **cualquier plan válido** que estuviera en
+esa ruta. El id dice _qué archivo_ se aprobó; el hash, _qué contenía_. Una sin
+la otra deja el hueco abierto: otro archivo puede llevar el mismo id, y el
+mismo contenido puede estar en un archivo que nadie revisó. Las dos vienen de
+la invocación, nunca del archivo que se está validando — un archivo sustituido
+respondería por sí mismo.
+
+**Leer un plan no las exige.** Inspeccionar un archivo es una lectura, no una
+escritura, y no hace falta reclamar autorización para escribir sólo para
+mirarlo.
 
 `--apply` y `--json` son interruptores y **no llevan valor**:
 `--apply=false` se rechaza en vez de interpretarse como activación. Una
@@ -274,12 +290,13 @@ verificar, la base no se toca.
 
 Cuatro propiedades del archivo, cada una por un fallo distinto:
 
-| Propiedad                     | Por qué                                                                                                                                                                              |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Ruta privada comprobada       | se exige absoluta, sin `..`, fuera del repositorio, sin enlace en el componente final, y con el directorio resuelto también fuera. Lo que se comprueba es dónde **resuelve** la ruta |
-| Creación exclusiva (`wx`)     | un `existsSync` seguido de una escritura deja una ventana en la que el archivo puede aparecer y perderse                                                                             |
-| `fsync` explícito             | `writeFileSync` no promete que llegó al disco                                                                                                                                        |
-| Comparación íntegra al releer | antes se comparaban `planId`, hash y número de entradas: eso coincidía aunque los **valores** de una entrada hubieran cambiado                                                       |
+| Propiedad                        | Por qué                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Ruta privada comprobada          | se exige absoluta, sin `..`, fuera del repositorio, sin enlace en el componente final, y con el directorio resuelto también fuera. Lo que se comprueba es dónde **resuelve** la ruta                                                                                                                                                                                                                                                                             |
+| Directorio privado **existente** | el `realpath` sólo se resolvía cuando el padre existía, y la escritura creaba los padres que faltaran. Juntos dejaban un hueco con nombre: un enlace en una ruta externa apuntando al repositorio, un subdirectorio aún inexistente bajo él, y el `mkdir` recursivo lo creaba **dentro del árbol del producto** con la preimagen y sus literales. Ahora el directorio tiene que existir y resolverse fuera **antes** de escribir nada; no se crea implícitamente |
+| Creación exclusiva (`wx`)        | un `existsSync` seguido de una escritura deja una ventana en la que el archivo puede aparecer y perderse                                                                                                                                                                                                                                                                                                                                                         |
+| `fsync` explícito                | `writeFileSync` no promete que llegó al disco                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Comparación íntegra al releer    | antes se comparaban `planId`, hash y número de entradas: eso coincidía aunque los **valores** de una entrada hubieran cambiado                                                                                                                                                                                                                                                                                                                                   |
 
 Y la preimagen **no se reabre para escribir**. El resultado va a un archivo
 hermano (`<ruta>.outcome.json`), porque estampar el estado sobre el respaldo
@@ -287,11 +304,26 @@ significaba truncar y reescribir la única copia de los valores previos
 **después** de que la base ya había cambiado: un fallo ahí destruía justo lo
 que el archivo existía para proteger.
 
-Cuatro estados, y el último es el honesto: `intended` (preparada, sin
-resultado), `applied`, `aborted` y **`uncertain`** — la transacción se confirmó
-y registrar ese hecho falló. **Una preimagen sin su resultado al lado no
-acredita que se aplicara nada**, y en el caso incierto no se informa que la
-base no cambió.
+Los estados dicen **lo que se observó**, no lo que conviene suponer:
+
+| Estado         | Qué significa                                                                                                                                                                          |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `intended`     | la preimagen está en disco. No se afirma nada más                                                                                                                                      |
+| `applied`      | se observó que la transacción se confirmó                                                                                                                                              |
+| `rolled-back`  | hay **evidencia** de que la reparación no se confirmó: el fallo vino de una precondición de esta herramienta, o de un enunciado que el servidor rechazó                                |
+| `undetermined` | el resultado de la transacción **no se pudo determinar**. Una conexión perdida al confirmar es indistinguible, desde aquí, de una confirmación que sí ocurrió y cuyo acuse nunca llegó |
+
+`aborted` ya no existe: absorbía todos los rechazos de `$transaction` y con
+ello afirmaba una evidencia que la herramienta no tiene. Ante incertidumbre
+**no se replanifica, ni se reintenta, ni se revierte** por cuenta propia.
+
+Y no hay un estado que signifique «se confirmó pero el registro falló»: si el
+registro no se pudo escribir, **no existe archivo de resultado**, e inventar
+uno sería el mismo error con otra forma. Ese caso lo informa el comando,
+separando los dos hechos —qué se sabe de la transacción y que el registro
+falló—, con la preimagen intacta y **salida distinta de cero** para que alguien
+mire. Si se escribieron cero filas por idempotencia, lo dice así: no afirma que
+se modificaron datos.
 
 El dry-run comprueba todas las precondiciones que puede **comprobar sin
 escribir**, incluido el autor de destino tanto cuando está pendiente de alta
@@ -348,13 +380,29 @@ Cuando haya autorización específica sobre el plan revisado:
    `isVerified: false`.
 5. Confirmar que _Familias Ensambladas_ sigue donde estaba y que ningún otro
    autor cambió.
-6. Leer el archivo de resultado, `<ruta de la preimagen>.outcome.json`:
-   - `applied` → la reparación se confirmó.
-   - `aborted` → **nada se aplicó**; el motivo está en la salida.
-   - `uncertain` → la transacción **sí** se confirmó y registrar ese hecho
-     falló. La base cambió; no se lee como «no pasó nada».
-   - **sin archivo de resultado** → no hay evidencia de que se aplicara nada.
-     La preimagen sigue en `intended`, que es su único estado.
+6. Leer el archivo de resultado, `<ruta de la preimagen>.outcome.json`.
+   **Antes de usarlo para decidir qué pasó, tiene que validarse**: formato,
+   estado reconocido, identidad del plan, y que su campo `preimage` apunte a la
+   preimagen que lo acompaña. Un JSON legible no es evidencia, y un archivo
+   ajeno o de otro plan **no decide nada** — la herramienta lo descarta y dice
+   por qué.
+   - `applied` → se observó que la transacción se confirmó.
+   - `rolled-back` → hay evidencia de que **no** se confirmó; el motivo está en
+     la salida.
+   - `undetermined` → el resultado **no se pudo determinar**. No se lee como
+     «se aplicó» ni como «no pasó nada»: hay que comprobar el estado real de
+     las filas antes de reintentar.
+   - **sin archivo de resultado** → **no demuestra que no hubo cambios.**
+     Demuestra que nadie lo registró. Pueden ser dos cosas distintas: que el
+     comando nunca llegó a la transacción, o que se confirmó y el registro
+     falló — y en ese segundo caso el comando lo dijo y salió con código
+     distinto de cero. La preimagen sigue en `intended`, que es su único
+     estado, así que no responde la pregunta por sí sola.
+
+   Si la ruta de resultado ya existía antes de aplicar, el comando **se detiene
+   antes de modificar la base**: un resultado anterior no se sobrescribe ni se
+   adopta como evidencia de la ejecución nueva. Una preimagen archivada no
+   implica que su `.outcome.json` también se archivara.
 
 **Reversión**, con el archivo del paso 3: restaurar los tres campos de la fila
 de fixture y el `authorId` previo del libro, en una transacción. La fila de
@@ -401,3 +449,13 @@ valor.
   mensaje. Eso evita volcar valores, cadenas de conexión o argumentos de
   consulta, y significa que el detalle de un fallo del driver hay que buscarlo
   en los registros del propio servidor.
+- **La clasificación del fallo de transacción es una heurística declarada**,
+  no una certeza del protocolo. Una precondición nuestra y un SQLSTATE que no
+  sea de clase de conexión rollean; una clase 08, una caída del servidor o un
+  fallo de socket quedan indeterminados. Un fallo irreconocible se trata como
+  indeterminado **a propósito**: responder «no pasó nada» a una pregunta
+  abierta es el error que esta distinción existe para evitar.
+- El caso «se confirmó y el registro falló» se **simula** en las pruebas
+  (haciendo imposible escribir el archivo después del commit) y el de resultado
+  desconocido también (inyectando un error de clase 08). Son simulaciones de
+  transporte, no incidencias observadas en un entorno alojado.

@@ -5,14 +5,13 @@ import {
   existsSync,
   fsyncSync,
   lstatSync,
-  mkdirSync,
   openSync,
   readFileSync,
   realpathSync,
   statSync,
   writeSync,
 } from "node:fs";
-import { dirname, isAbsolute, resolve, sep } from "node:path";
+import { basename, dirname, isAbsolute, resolve, sep } from "node:path";
 
 import { AUTHORSHIP_SOURCES, FIXTURE_AUTHOR_SLUGS } from "./authorship-sources";
 import type { RepairOp, RepairPlan } from "./authorship-repair";
@@ -644,7 +643,29 @@ export function loadFrozenPlan(
 
 /* ── The private preimage, and the outcome beside it ───────────────────── */
 
-export type ReversalState = "intended" | "applied" | "aborted" | "uncertain";
+/**
+ * What is known about a repair, and nothing more.
+ *
+ * `aborted` used to absorb every rejection of `$transaction`, which claimed
+ * evidence the tool did not have: a connection lost while committing is
+ * indistinguishable, from here, from a commit that succeeded and whose
+ * acknowledgement never arrived. So the states say what was observed:
+ *
+ *   · `intended`     — the preimage is on disk; nothing is claimed.
+ *   · `applied`      — the transaction was observed to commit.
+ *   · `rolled-back`  — there is evidence the repair did NOT commit.
+ *   · `undetermined` — the transaction's result could not be determined.
+ *
+ * There is deliberately no state meaning "committed but the record failed":
+ * if the record could not be written then no outcome file exists, and
+ * inventing one would be the same mistake in a new shape. That case is
+ * reported by the command, with a non-zero exit, and the preimage is intact.
+ */
+export type ReversalState =
+  | "intended"
+  | "applied"
+  | "rolled-back"
+  | "undetermined";
 
 export interface ReversalFile {
   format: string;
@@ -705,13 +726,27 @@ const within = (parent: string, child: string) =>
  * tree, and must not be written *through* a link that redirects it somewhere
  * this check never evaluated.
  *
- * Note what is deliberately NOT done: rejecting every symlink on the way.
+ * ── Why the directory must already exist ──────────────────────────────────
+ *
+ * The previous version resolved the parent's real path only when the parent
+ * existed, and `persistReversal` then created missing parents recursively.
+ * Those two together left a hole with a name: put a link on an external path
+ * pointing at the repository, ask for a subdirectory under it that does not
+ * exist yet, and the `realpath` comparison was skipped — then the recursive
+ * `mkdir` created that directory *inside the repository* and the preimage,
+ * literal values and all, was written into the product tree.
+ *
+ * So the directory has to exist, be resolved, and be validated BEFORE
+ * anything is written. Creating it implicitly is refused: the operator
+ * creating their private directory once is a smaller cost than a check that
+ * cannot see where it is about to write.
+ *
+ * ── Why not reject every symlink on the way ───────────────────────────────
+ *
  * `/var` and `/tmp` are symlinks on macOS, so walking each component would
  * refuse every temporary path on the platform this runs on — a check that
  * fires on the normal case gets disabled, and then it defends nothing. What
- * matters is where the path RESOLVES, so the parent's real path is compared
- * against the repository root, and a link sitting on the final component is
- * named explicitly instead of surfacing as a confusing `EEXIST`.
+ * matters is where the path RESOLVES.
  */
 export function assertPrivateReversalPath(path: string): void {
   if (!isAbsolute(path)) {
@@ -753,16 +788,27 @@ export function assertPrivateReversalPath(path: string): void {
     // ENOENT is the normal case: the preimage does not exist yet.
   }
 
-  // And the directory must still be outside the repository once resolved —
-  // this is what catches a link that points back into the product tree.
+  // The directory must EXIST — no implicit creation — and must still be
+  // outside the repository once resolved. This is what catches a link that
+  // points back into the product tree, including when the directory under it
+  // has not been created yet.
   const dir = dirname(resolve(path));
-  if (existsSync(dir)) {
-    const real = realpathSync(dir);
-    if (within(root, real)) {
-      throw new PlanFileError(
-        `RUTA NO PRIVADA: ${dir} resuelve en ${real}, dentro del repositorio.`,
-      );
-    }
+  if (!existsSync(dir)) {
+    throw new PlanFileError(
+      `DIRECTORIO PRIVADO AUSENTE: ${dir} no existe y no se crea. Créalo tú (p. ej. \`mkdir -p\` con permisos 700): un directorio que esta comprobación no puede resolver es un directorio en el que no sabe dónde va a escribir.`,
+    );
+  }
+  const real = realpathSync(dir);
+  if (within(root, real)) {
+    throw new PlanFileError(
+      `RUTA NO PRIVADA: ${dir} resuelve en ${real}, dentro del repositorio.`,
+    );
+  }
+  // And the resolved file path too, in case the basename itself climbs out.
+  if (within(root, resolve(real, basename(path)))) {
+    throw new PlanFileError(
+      `RUTA NO PRIVADA: ${path} resuelve dentro del repositorio.`,
+    );
   }
 }
 
@@ -778,10 +824,10 @@ export function assertPrivateReversalPath(path: string): void {
  * first.
  */
 export function persistReversal(path: string, file: ReversalFile): void {
+  // This validates the directory exists and resolves outside the repository,
+  // so nothing below creates a parent: that recursive `mkdir` was how a link
+  // into the product tree got a real directory made inside it.
   assertPrivateReversalPath(path);
-
-  const dir = dirname(path);
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true, mode: 0o700 });
 
   const body = `${JSON.stringify(file, null, 2)}\n`;
   let fd: number;
@@ -824,37 +870,59 @@ export function persistReversal(path: string, file: ReversalFile): void {
 }
 
 /**
+ * Is there already an outcome recorded for this preimage?
+ *
+ * Checked BEFORE any data changes. A missing preimage does not mean its
+ * `.outcome.json` is missing too — someone can have archived the backup and
+ * left the record, or passed a path a previous run already settled. Finding
+ * that out after the transaction committed is finding out too late: the
+ * record could not be written, and the only evidence of what happened would
+ * be a file belonging to a different run.
+ */
+export const outcomeExists = (preimagePath: string): boolean =>
+  existsSync(outcomePathFor(preimagePath));
+
+/**
  * Record the outcome in a file of its own.
  *
  * Never reopens the preimage. Stamping the state onto the backup meant
  * truncating and rewriting the only copy of the previous values *after* the
  * database had already changed — a failure there destroyed exactly what the
  * file existed to protect.
+ *
+ * The plan identity is passed in, not read back from the preimage: the caller
+ * is holding the frozen plan, and reading a file to label a record that must
+ * be written *right now* adds a failure mode for no gain. A record that
+ * cannot be paired with its plan is not evidence of anything, so there is no
+ * path here that writes one.
  */
 export function recordOutcome(
   preimagePath: string,
-  state: Exclude<ReversalState, "intended">,
-  detail?: string,
+  outcome: {
+    planId: string;
+    planHash: string;
+    state: Exclude<ReversalState, "intended">;
+    detail?: string;
+  },
 ): string {
   const path = outcomePathFor(preimagePath);
+  if (
+    !isNonEmptyString(outcome.planId) ||
+    !isNonEmptyString(outcome.planHash)
+  ) {
+    throw new PlanFileError(
+      "RESULTADO SIN IDENTIDAD: no se registra un resultado que no se pueda emparejar con su plan.",
+    );
+  }
   const file: OutcomeFile = {
     format: OUTCOME_FORMAT,
-    planId: "",
-    planHash: "",
-    state,
+    planId: outcome.planId,
+    planHash: outcome.planHash,
+    state: outcome.state,
     settledAt: new Date().toISOString(),
     preimage: preimagePath,
-    ...(detail ? { detail } : {}),
+    ...(outcome.detail ? { detail: outcome.detail } : {}),
   };
-  // Carry the plan identity from the preimage when it is readable, so the two
-  // files can be paired later; never fail the record for want of it.
-  try {
-    const pre = JSON.parse(readFileSync(preimagePath, "utf8")) as ReversalFile;
-    file.planId = pre.planId;
-    file.planHash = pre.planHash;
-  } catch {
-    file.detail = `${file.detail ? `${file.detail} · ` : ""}preimagen no legible al registrar el resultado`;
-  }
 
   const body = `${JSON.stringify(file, null, 2)}\n`;
   let fd: number;
@@ -880,15 +948,108 @@ export function recordOutcome(
   return path;
 }
 
-/** Read a recorded outcome, if there is one. */
-export function readOutcome(preimagePath: string): OutcomeFile | null {
+/** Why an outcome file cannot be taken as evidence, when it cannot. */
+export type OutcomeReading =
+  | { ok: true; file: OutcomeFile }
+  | { ok: false; reason: string };
+
+/**
+ * Read an outcome AND prove it describes this preimage's run.
+ *
+ * A readable JSON file is not evidence. It has to carry the right format, a
+ * known state, the plan identity of the preimage beside it, and a `preimage`
+ * field pointing back at that same file. Without those checks a stale record
+ * from another plan would answer "what happened?" about a run it never saw.
+ */
+export function describeOutcome(
+  preimagePath: string,
+  expected?: { planId?: string; planHash?: string },
+): OutcomeReading {
   const path = outcomePathFor(preimagePath);
-  if (!existsSync(path)) return null;
-  try {
-    return JSON.parse(readFileSync(path, "utf8")) as OutcomeFile;
-  } catch {
-    return null;
+  if (!existsSync(path)) {
+    return {
+      ok: false,
+      // Said precisely: absence is absence of a RECORD, not of a change.
+      reason:
+        "no hay archivo de resultado; eso no demuestra que la base no cambiara, sólo que nadie lo registró",
+    };
   }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(readFileSync(path, "utf8"));
+  } catch {
+    return { ok: false, reason: "el archivo de resultado no es JSON válido" };
+  }
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return { ok: false, reason: "el archivo de resultado no es un objeto" };
+  }
+  const file = parsed as Partial<OutcomeFile>;
+  if (file.format !== OUTCOME_FORMAT) {
+    return {
+      ok: false,
+      reason: `formato ${JSON.stringify(file.format)}; se esperaba ${OUTCOME_FORMAT}`,
+    };
+  }
+  const states: ReversalState[] = ["applied", "rolled-back", "undetermined"];
+  if (!file.state || !states.includes(file.state)) {
+    return {
+      ok: false,
+      reason: `estado ${JSON.stringify(file.state)} no reconocido`,
+    };
+  }
+  if (!isNonEmptyString(file.planId) || !isNonEmptyString(file.planHash)) {
+    return {
+      ok: false,
+      reason: "el resultado no declara la identidad del plan",
+    };
+  }
+  if (file.preimage !== preimagePath) {
+    return {
+      ok: false,
+      reason:
+        "el resultado apunta a otra preimagen; no describe esta ejecución",
+    };
+  }
+
+  // Pair it with the preimage when that file is readable.
+  if (existsSync(preimagePath)) {
+    try {
+      const pre = JSON.parse(
+        readFileSync(preimagePath, "utf8"),
+      ) as Partial<ReversalFile>;
+      if (pre.planId !== file.planId || pre.planHash !== file.planHash) {
+        return {
+          ok: false,
+          reason:
+            "el resultado pertenece a otro plan que la preimagen que acompaña",
+        };
+      }
+    } catch {
+      return {
+        ok: false,
+        reason:
+          "la preimagen no es legible, así que el resultado no se puede emparejar",
+      };
+    }
+  }
+
+  if (expected?.planId && expected.planId !== file.planId) {
+    return { ok: false, reason: "el resultado pertenece a otro plan" };
+  }
+  if (expected?.planHash && expected.planHash !== file.planHash) {
+    return { ok: false, reason: "el resultado corresponde a otro contenido" };
+  }
+
+  return { ok: true, file: file as OutcomeFile };
+}
+
+/** The validated outcome, or null. Use `describeOutcome` for the reason. */
+export function readOutcome(
+  preimagePath: string,
+  expected?: { planId?: string; planHash?: string },
+): OutcomeFile | null {
+  const read = describeOutcome(preimagePath, expected);
+  return read.ok ? read.file : null;
 }
 
 /**

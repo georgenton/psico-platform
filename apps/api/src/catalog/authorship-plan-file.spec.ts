@@ -1,11 +1,21 @@
-import { mkdtempSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
   assertPrivateReversalPath,
   assertTargetCoherent,
+  describeOutcome,
+  outcomeExists,
   computePlanHash,
   fieldDigest,
   freezePlan,
@@ -444,6 +454,54 @@ describe("rutas privadas", () => {
     );
   });
 
+  it("enlace al repo con el padre INEXISTENTE: rechazo antes de escribir", () => {
+    // The hole this closes: the realpath comparison was skipped when the
+    // parent did not exist, and `persistReversal` then created missing
+    // parents recursively — so the preimage, literals and all, landed inside
+    // the product tree. Nothing is written here: the refusal is the point.
+    const dir = tmp();
+    const link = join(dir, "parece-fuera");
+    symlinkSync(__dirname, link); // apunta dentro del repositorio
+    for (const p of [
+      join(link, "aun-no-existe", "r.json"),
+      join(link, "ni", "esto", "ni", "aquello", "r.json"),
+    ]) {
+      expect(() => persistReversal(p, file())).toThrow(
+        /DIRECTORIO PRIVADO AUSENTE|dentro del repositorio/,
+      );
+      expect(existsSync(dirname(p))).toBe(false);
+    }
+    // And with the parent present it is still refused, by resolution.
+    mkdirSync(join(link, "ya-existe"), { recursive: true });
+    try {
+      expect(() =>
+        persistReversal(join(link, "ya-existe", "r.json"), file()),
+      ).toThrow(/dentro del repositorio/);
+    } finally {
+      rmSync(join(__dirname, "ya-existe"), { recursive: true, force: true });
+    }
+  });
+
+  it("no crea el directorio privado por su cuenta", () => {
+    // Implicit creation is what let the check be bypassed. The operator
+    // creates the directory once; the tool never guesses where to write.
+    const path = join(tmp(), "no-existe-aun", "r.json");
+    expect(() => persistReversal(path, file())).toThrow(
+      /DIRECTORIO PRIVADO AUSENTE/,
+    );
+    expect(existsSync(dirname(path))).toBe(false);
+  });
+
+  it("un directorio privado válido ya existente funciona", () => {
+    const dir = join(tmp(), "privado");
+    mkdirSync(dir, { recursive: true, mode: 0o700 });
+    const path = join(dir, "r.json");
+    expect(() => persistReversal(path, file())).not.toThrow();
+    expect(JSON.parse(readFileSync(path, "utf8")).entries).toHaveLength(1);
+    // And a second write to the same path does not overwrite it.
+    expect(() => persistReversal(path, file())).toThrow(/RESPALDO EXISTENTE/);
+  });
+
   it("una ruta temporal normal se acepta (el chequeo no dispara en el caso normal)", () => {
     // `/var` and `/tmp` are symlinks on macOS. A path check that refuses every
     // temporary directory is a check somebody will disable.
@@ -536,6 +594,7 @@ describe("resultado registrado aparte de la preimagen", () => {
     entries: [{ subject: "bookAuthor id=a", restore: { title: TITULO_A } }],
     note: "privado",
   });
+  const ident = { planId: "p1", planHash: "sha256:abc" };
 
   it("registrar el resultado NO toca la preimagen", () => {
     // Stamping the state onto the backup meant truncating the only copy of
@@ -543,36 +602,146 @@ describe("resultado registrado aparte de la preimagen", () => {
     const path = join(tmp(), "rev.json");
     persistReversal(path, file());
     const before = readFileSync(path, "utf8");
-    recordOutcome(path, "applied");
+    recordOutcome(path, { ...ident, state: "applied" });
     expect(readFileSync(path, "utf8")).toBe(before);
     expect(JSON.parse(before).state).toBe("intended");
   });
 
-  it("distingue abortado, aplicado e incierto", () => {
-    for (const state of ["aborted", "applied", "uncertain"] as const) {
+  it("distingue aplicado, revertido e indeterminado", () => {
+    // `aborted` used to absorb every failure, including the ones where the
+    // transaction's fate is unknown.
+    for (const state of ["applied", "rolled-back", "undetermined"] as const) {
       const path = join(tmp(), "rev.json");
       persistReversal(path, file());
-      recordOutcome(path, state);
+      recordOutcome(path, { ...ident, state });
       expect(readOutcome(path)?.state).toBe(state);
       expect(readOutcome(path)?.planId).toBe("p1");
     }
+  });
+
+  it("no registra un resultado que no se pueda emparejar con su plan", () => {
+    const path = join(tmp(), "rev.json");
+    persistReversal(path, file());
+    expect(() =>
+      recordOutcome(path, { planId: "", planHash: "", state: "applied" }),
+    ).toThrow(/SIN IDENTIDAD/);
   });
 
   it("una preimagen sin resultado no acredita que se aplicara nada", () => {
     const path = join(tmp(), "rev.json");
     persistReversal(path, file());
     expect(readOutcome(path)).toBeNull();
+    // And the reason says it precisely: absence of a RECORD, not of a change.
+    const read = describeOutcome(path);
+    expect(read.ok).toBe(false);
+    expect(read.ok === false && read.reason).toMatch(
+      /no demuestra que la base no cambiara/,
+    );
     expect(JSON.parse(readFileSync(path, "utf8")).state).toBe("intended");
   });
 
   it("no sobrescribe un resultado anterior y lo dice sin arriesgar la preimagen", () => {
     const path = join(tmp(), "rev.json");
     persistReversal(path, file());
-    recordOutcome(path, "applied");
+    recordOutcome(path, { ...ident, state: "applied" });
     const pre = readFileSync(path, "utf8");
-    expect(() => recordOutcome(path, "aborted")).toThrow(/RESULTADO EXISTENTE/);
+    expect(() =>
+      recordOutcome(path, { ...ident, state: "rolled-back" }),
+    ).toThrow(/RESULTADO EXISTENTE/);
     expect(readFileSync(path, "utf8")).toBe(pre);
     expect(outcomePathFor(path)).toMatch(/\.outcome\.json$/);
+  });
+
+  it("un resultado puede existir aunque la preimagen no esté", () => {
+    // Which is why the run checks for it BEFORE touching data: archiving the
+    // backup and leaving the record is an ordinary thing to do.
+    const dir = tmp();
+    const path = join(dir, "rev.json");
+    persistReversal(path, file());
+    recordOutcome(path, { ...ident, state: "applied" });
+    rmSync(path);
+    expect(outcomeExists(path)).toBe(true);
+  });
+});
+
+describe("un resultado legible no es evidencia", () => {
+  const ident = { planId: "p1", planHash: "sha256:abc" };
+  const preimage = (dir: string) => {
+    const path = join(dir, "rev.json");
+    persistReversal(path, {
+      format: PREIMAGE_FORMAT,
+      planId: ident.planId,
+      planHash: ident.planHash,
+      state: "intended",
+      target: target(),
+      preparedAt: "2026-10-12T00:00:00.000Z",
+      entries: [{ subject: "bookAuthor id=a", restore: { title: TITULO_A } }],
+      note: "privado",
+    });
+    return path;
+  };
+
+  it("un JSON ilegible no decide el resultado", () => {
+    const dir = tmp();
+    const path = preimage(dir);
+    writeFileSync(outcomePathFor(path), "no es json");
+    const read = describeOutcome(path);
+    expect(read.ok).toBe(false);
+    expect(read.ok === false && read.reason).toMatch(/no es JSON válido/);
+  });
+
+  it("un formato desconocido no decide el resultado", () => {
+    const dir = tmp();
+    const path = preimage(dir);
+    writeFileSync(
+      outcomePathFor(path),
+      JSON.stringify({ format: "otro/v9", state: "applied" }),
+    );
+    expect(describeOutcome(path).ok).toBe(false);
+  });
+
+  it("un estado no reconocido no decide el resultado", () => {
+    const dir = tmp();
+    const path = preimage(dir);
+    recordOutcome(path, { ...ident, state: "applied" });
+    const op = outcomePathFor(path);
+    const f = JSON.parse(readFileSync(op, "utf8"));
+    f.state = "todo-bien";
+    writeFileSync(op, JSON.stringify(f));
+    expect(describeOutcome(path).ok).toBe(false);
+  });
+
+  it("un resultado de OTRO plan no se acepta como evidencia", () => {
+    const dir = tmp();
+    const path = preimage(dir);
+    recordOutcome(path, {
+      planId: "otro-plan",
+      planHash: "sha256:otro",
+      state: "applied",
+    });
+    const read = describeOutcome(path);
+    expect(read.ok).toBe(false);
+    expect(read.ok === false && read.reason).toMatch(/otro plan/);
+  });
+
+  it("un resultado que apunta a otra preimagen no describe esta ejecución", () => {
+    const dir = tmp();
+    const path = preimage(dir);
+    recordOutcome(path, { ...ident, state: "applied" });
+    const op = outcomePathFor(path);
+    const f = JSON.parse(readFileSync(op, "utf8"));
+    f.preimage = join(dir, "otra.json");
+    writeFileSync(op, JSON.stringify(f));
+    expect(describeOutcome(path).ok).toBe(false);
+  });
+
+  it("una identidad esperada distinta lo descarta", () => {
+    const dir = tmp();
+    const path = preimage(dir);
+    recordOutcome(path, { ...ident, state: "applied" });
+    expect(describeOutcome(path, { planId: "otro" }).ok).toBe(false);
+    expect(describeOutcome(path, { planHash: "sha256:x" }).ok).toBe(false);
+    expect(describeOutcome(path, ident).ok).toBe(true);
   });
 });
 

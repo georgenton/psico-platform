@@ -21,15 +21,21 @@ import {
  * That split is what makes "a concurrent change blocks the application" a
  * property we can test rather than a hope.
  *
- * ── Why expectations are shapes, not literals ─────────────────────────────
+ * ── Why expectations are digests, not literals and not shapes ─────────────
  *
  * An operation that withdraws an unfounded licence number must check it is
  * withdrawing the value it meant to. It must NOT do that by pinning the
  * literal string: this repository is public, and committing a fabricated
  * credential into the very file that removes it would publish the thing being
- * retired. So expectations are structural — "a non-null title", "verified" —
- * which is enough to detect that the row is the one the plan described and to
- * stop when it is not.
+ * retired.
+ *
+ * The first version therefore used structural expectations — "a non-null
+ * title", "verified" — and that was not enough: a title changing from one
+ * non-null string to a DIFFERENT non-null string satisfied them, so the
+ * applier would have withdrawn a value nobody reviewed. Expectations are now
+ * per-field SHA-256 digests, which are exact enough to catch A → B and reveal
+ * nothing. The row's `name` and `slug` travel with them, because the right
+ * fields on the wrong row is still the wrong write.
  */
 
 /** Everything the planner needs to know about the live catalogue. */

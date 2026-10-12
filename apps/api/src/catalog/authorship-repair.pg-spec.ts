@@ -42,6 +42,18 @@ import {
  * Runs only when TEST_DATABASE_URL is set (`test:locks`); skipped otherwise.
  */
 
+import { mkdtempSync, readFileSync, existsSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import { runRepair, describeError } from "./authorship-repair-cli";
+import {
+  loadFrozenPlan,
+  outcomePathFor,
+  readOutcome,
+  computePlanHash,
+} from "./authorship-plan-file";
+
 const base = process.env.TEST_DATABASE_URL;
 const suite = base ? describe : describe.skip;
 const API_DIR = process.cwd();
@@ -565,5 +577,329 @@ suite("Catálogo · reparación de autoría (PostgreSQL real)", () => {
         orderBy: { slug: "asc" },
       }),
     ).toEqual(before);
+  });
+
+  /* ── El recorrido del CLI, no la posición del código ──────────────────── */
+
+  describe("recorrido completo del comando", () => {
+    /**
+     * Drives `runRepair` with injected dependencies against this disposable
+     * database. The static assertions elsewhere pin where a call sits in the
+     * source; this is the only thing that shows the command works.
+     */
+    const outDir = () => mkdtempSync(join(tmpdir(), "authorship-journey-"));
+
+    const deps = (argv: string[], over: Record<string, string> = {}) => ({
+      argv,
+      env: { DATABASE_URL: url, ...over },
+      posture: "test",
+      prisma: prisma as never,
+      say: () => undefined,
+    });
+
+    it("preparar, revisar, aplicar y comprobar filas", async () => {
+      const dir = outDir();
+      const planPath = join(dir, "plan.json");
+      const preimage = join(dir, "preimagen.json");
+
+      // 1 · prepare and freeze.
+      const dry = await runRepair(deps([`--plan-out=${planPath}`]));
+      expect(dry.mode).toBe("dry-run");
+      expect(dry.rowsWritten).toBe(0);
+      expect(existsSync(planPath)).toBe(true);
+
+      // 2 · review: the file loads under its own expected identity.
+      const reviewed = loadFrozenPlan(planPath, target(), {
+        planId: dry.plan.planId,
+        planHash: dry.plan.planHash,
+      });
+      expect(reviewed.ops).toHaveLength(3);
+
+      // 3 · apply, consuming THAT plan.
+      const run = await runRepair(
+        deps([
+          "--apply",
+          `--plan=${planPath}`,
+          `--reversal-out=${preimage}`,
+          "--expect-database=" + target().database,
+          "--expect-posture=test",
+          `--expect-plan-id=${dry.plan.planId}`,
+        ]),
+      );
+      expect(run.mode).toBe("apply");
+      expect(run.rowsWritten).toBe(3);
+      expect(run.outcomeState).toBe("applied");
+
+      // 4 · the rows, and the files beside them.
+      const fixture = await prisma.bookAuthor.findUnique({
+        where: { slug: "marina-quintana" },
+      });
+      expect(fixture).toMatchObject({
+        title: null,
+        licenseNumber: null,
+        isVerified: false,
+      });
+      const eec = await prisma.book.findUnique({
+        where: { slug: "emociones-en-construccion" },
+      });
+      const sourced = await prisma.bookAuthor.findUnique({
+        where: { slug: "jorge-quizamanchuro" },
+      });
+      expect(eec?.authorId).toBe(sourced?.id);
+
+      // The preimage holds the literals and stays `intended`; the outcome is
+      // a separate file.
+      const pre = JSON.parse(readFileSync(preimage, "utf8"));
+      expect(pre.state).toBe("intended");
+      expect(JSON.stringify(pre)).toContain(TITULO_A);
+      expect(readOutcome(preimage)?.state).toBe("applied");
+      // And nothing shareable carries the literals.
+      expect(JSON.stringify(run.report)).not.toContain(TITULO_A);
+      expect(JSON.stringify(run.report)).not.toContain(LICENCIA_A);
+    }, 60_000);
+
+    it("repetir el mismo plan con otra ruta de resultado: cero cambios, sin duplicados", async () => {
+      const dir = outDir();
+      const planPath = join(dir, "plan.json");
+      const first = join(dir, "pre-1.json");
+      const second = join(dir, "pre-2.json");
+
+      const dry = await runRepair(deps([`--plan-out=${planPath}`]));
+      const applyArgv = (rev: string) => [
+        "--apply",
+        `--plan=${planPath}`,
+        `--reversal-out=${rev}`,
+        "--expect-database=" + target().database,
+        "--expect-posture=test",
+        `--expect-plan-id=${dry.plan.planId}`,
+      ];
+
+      const one = await runRepair(deps(applyArgv(first)));
+      expect(one.rowsWritten).toBe(3);
+
+      // The second run is the documented idempotence. It used to fail here:
+      // `collectReversal` read the already-repaired book, compared it against
+      // `expectAuthorId`, and threw a CONFLICT before the applier could reach
+      // its no-op — so the whole journey was not idempotent even though the
+      // applier alone was.
+      const two = await runRepair(deps(applyArgv(second)));
+      expect(two.rowsWritten).toBe(0);
+      expect(two.reversalEntries).toBe(0);
+      expect(two.outcomeState).toBe("applied");
+
+      // The first preimage was not touched, and the second is its own file.
+      expect(readOutcome(first)?.state).toBe("applied");
+      expect(readOutcome(second)?.state).toBe("applied");
+      expect(outcomePathFor(first)).not.toBe(outcomePathFor(second));
+
+      // No duplicate author, and the rows are where the first run left them.
+      const sourced = await prisma.bookAuthor.findMany({
+        where: { slug: "jorge-quizamanchuro" },
+      });
+      expect(sourced).toHaveLength(1);
+      const eec = await prisma.book.findUnique({
+        where: { slug: "emociones-en-construccion" },
+      });
+      expect(eec?.authorId).toBe(sourced[0]!.id);
+    }, 60_000);
+
+    it("reusar la misma ruta de respaldo no destruye la única copia", async () => {
+      const dir = outDir();
+      const planPath = join(dir, "plan.json");
+      const preimage = join(dir, "pre.json");
+      const dry = await runRepair(deps([`--plan-out=${planPath}`]));
+      const argv = [
+        "--apply",
+        `--plan=${planPath}`,
+        `--reversal-out=${preimage}`,
+        "--expect-database=" + target().database,
+        "--expect-posture=test",
+        `--expect-plan-id=${dry.plan.planId}`,
+      ];
+      await runRepair(deps(argv));
+      const kept = readFileSync(preimage, "utf8");
+      await expect(runRepair(deps(argv))).rejects.toThrow(/RESPALDO EXISTENTE/);
+      expect(readFileSync(preimage, "utf8")).toBe(kept);
+    }, 60_000);
+
+    it("conflicto real: rechazo sin adoptar el estado nuevo ni replanificar", async () => {
+      const dir = outDir();
+      const planPath = join(dir, "plan.json");
+      const dry = await runRepair(deps([`--plan-out=${planPath}`]));
+
+      // Somebody changes the row after the plan was reviewed.
+      await prisma.bookAuthor.update({
+        where: { slug: "marina-quintana" },
+        data: { title: TITULO_B },
+      });
+
+      const preimage = join(dir, "pre.json");
+      await expect(
+        runRepair(
+          deps([
+            "--apply",
+            `--plan=${planPath}`,
+            `--reversal-out=${preimage}`,
+            "--expect-database=" + target().database,
+            "--expect-posture=test",
+            `--expect-plan-id=${dry.plan.planId}`,
+          ]),
+        ),
+      ).rejects.toThrow(/no son los que el plan revisado observó/);
+
+      // Nothing was written, no preimage was created (the refusal happens
+      // while collecting it), and the new value was NOT adopted.
+      const row = await prisma.bookAuthor.findUnique({
+        where: { slug: "marina-quintana" },
+      });
+      expect(row?.title).toBe(TITULO_B);
+      expect(row?.isVerified).toBe(true);
+      expect(existsSync(preimage)).toBe(false);
+      expect(
+        await prisma.bookAuthor.findUnique({
+          where: { slug: "jorge-quizamanchuro" },
+        }),
+      ).toBeNull();
+    }, 60_000);
+
+    it("un fallo al guardar el respaldo deja cero escrituras de reparación", async () => {
+      const dir = outDir();
+      const planPath = join(dir, "plan.json");
+      const preimage = join(dir, "pre.json");
+      const dry = await runRepair(deps([`--plan-out=${planPath}`]));
+
+      // The backup path is already taken, so persisting refuses. Every
+      // precondition of the plan still holds, which is what makes this a test
+      // of the BACKUP and not of the plan: the only reason to stop is that the
+      // previous values could not be secured.
+      writeFileSync(preimage, "{}");
+
+      const before = await prisma.bookAuthor.findUnique({
+        where: { slug: "marina-quintana" },
+      });
+      await expect(
+        runRepair(
+          deps([
+            "--apply",
+            `--plan=${planPath}`,
+            `--reversal-out=${preimage}`,
+            "--expect-database=" + target().database,
+            "--expect-posture=test",
+            `--expect-plan-id=${dry.plan.planId}`,
+          ]),
+        ),
+      ).rejects.toThrow(/RESPALDO EXISTENTE/);
+
+      // Zero repair writes: the claims are still there and no author was made.
+      const after = await prisma.bookAuthor.findUnique({
+        where: { slug: "marina-quintana" },
+      });
+      expect(after).toMatchObject({
+        title: before?.title,
+        licenseNumber: before?.licenseNumber,
+        isVerified: true,
+      });
+      expect(
+        await prisma.bookAuthor.findUnique({
+          where: { slug: "jorge-quizamanchuro" },
+        }),
+      ).toBeNull();
+      // And the file that was in the way is untouched.
+      expect(readFileSync(preimage, "utf8")).toBe("{}");
+    }, 60_000);
+
+    it("el dry-run valida el autor de destino tanto pendiente como existente", async () => {
+      const dir = outDir();
+      // Pending: no sourced author row yet.
+      const pending = await runRepair(
+        deps([`--plan-out=${join(dir, "a.json")}`]),
+      );
+      expect(pending.reversalEntries).toBe(3);
+
+      // Existing: create it, re-plan, and the dry run still validates it.
+      await prisma.bookAuthor.create({
+        data: { slug: "jorge-quizamanchuro", name: "Jorge Quizamanchuro" },
+      });
+      const existing = await runRepair(
+        deps([`--plan-out=${join(dir, "b.json")}`]),
+      );
+      // The create-author op is satisfied, so only two entries remain.
+      expect(existing.reversalEntries).toBe(2);
+      expect(existing.rowsWritten).toBe(0);
+    }, 60_000);
+
+    it("un cambio de nombre entre validación y escritura no se pisa", async () => {
+      // `slug` and `name` are part of the conditional WHERE, so an identity
+      // change in the window makes the statement match zero rows instead of
+      // writing to a row that is no longer the one the plan described.
+      const plan = await freeze();
+      const op = plan.ops.find(
+        (o) => o.kind === "withdraw-author-credentials",
+      ) as Extract<
+        FrozenPlan["ops"][number],
+        { kind: "withdraw-author-credentials" }
+      >;
+
+      await expect(
+        prisma.$transaction(async (tx) => {
+          const patched = interleave(tx as never, "author", async () => {
+            await other.bookAuthor.update({
+              where: { id: op.authorId },
+              data: { name: "Nombre Cambiado" },
+            });
+          });
+          return applyAuthorshipRepair(patched, plan, { apply: true });
+        }),
+      ).rejects.toThrow(/escritura condicionada|identidad/);
+
+      const row = await prisma.bookAuthor.findUnique({
+        where: { id: op.authorId },
+      });
+      expect(row?.name).toBe("Nombre Cambiado");
+      expect(row?.isVerified).toBe(true); // not withdrawn
+    }, 60_000);
+
+    it("describeError no vuelca el detalle de un fallo del driver", async () => {
+      // A real constraint violation, to prove the sanitation on a genuine
+      // driver error rather than a synthetic one.
+      let caught: unknown;
+      try {
+        await prisma.bookAuthor.create({
+          data: { slug: "marina-quintana", name: "Duplicada" },
+        });
+      } catch (err) {
+        caught = err;
+      }
+      expect(caught).toBeTruthy();
+      const d = describeError(caught);
+      expect(d.message).not.toContain("marina-quintana");
+      expect(d.message).toMatch(/no se imprime/);
+    }, 60_000);
+
+    it("el hash cubre la postura: un plan de otra postura no se aplica", async () => {
+      const dir = outDir();
+      const planPath = join(dir, "plan.json");
+      const dry = await runRepair(deps([`--plan-out=${planPath}`]));
+      const edited = JSON.parse(readFileSync(planPath, "utf8"));
+      edited.target.posture = "staging";
+      edited.planHash = computePlanHash(edited.ops, edited.target, {
+        blockers: edited.blockers,
+        satisfied: edited.satisfied,
+        untouched: edited.untouched,
+      });
+      writeFileSync(planPath, JSON.stringify(edited));
+      await expect(
+        runRepair(
+          deps([
+            "--apply",
+            `--plan=${planPath}`,
+            `--reversal-out=${join(dir, "pre.json")}`,
+            "--expect-database=" + target().database,
+            "--expect-posture=test",
+            `--expect-plan-id=${dry.plan.planId}`,
+          ]),
+        ),
+      ).rejects.toThrow(/POSTURA DISCORDANTE/);
+    }, 60_000);
   });
 });

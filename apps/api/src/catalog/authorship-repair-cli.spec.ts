@@ -1,10 +1,10 @@
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
   CliUsageError,
+  describeError,
   parseArgs,
   resolveTarget,
   sanitizedReport,
@@ -12,24 +12,30 @@ import {
 } from "./authorship-repair-cli";
 import {
   freezePlan,
-  loadFrozenPlan,
-  persistReversal,
   PlanFileError,
-  settleReversal,
   targetIdentityFromUrl,
 } from "./authorship-plan-file";
+import {
+  RepairConflictError,
+  RepairPreconditionError,
+} from "./authorship-repair-apply";
 import {
   planAuthorshipRepair,
   type CatalogSnapshot,
 } from "./authorship-repair";
 
 /**
- * The CLI's gate and its files, without a database.
+ * The CLI's arguments, its gate, and what it is allowed to print.
  *
- * Importing the CLI must connect to nothing and run nothing — `main` is behind
- * `require.main === module`. That is what makes this file possible: the parsing
- * and the target decision are exported pure functions, so every refusal can be
- * exercised without a hosted target anywhere near the test.
+ * Importing this file must connect to nothing and run nothing — `main` is
+ * behind `require.main === module`, and the orchestration is `runRepair`,
+ * which takes its dependencies. That is what makes this file possible: every
+ * refusal is exercised with no hosted target anywhere near the test.
+ *
+ * The journey itself — freeze, load, apply, re-run — is exercised against a
+ * real disposable PostgreSQL in `authorship-repair.pg-spec.ts`. Asserting
+ * where a call sits in the source is not evidence that the command works, and
+ * the two are kept apart on purpose.
  */
 
 const LOCAL = "postgresql://u:p@localhost:5433/psico_dev";
@@ -59,23 +65,17 @@ const snapshot = (): CatalogSnapshot => ({
   ],
 });
 
-const tmp = () => mkdtempSync(join(tmpdir(), "authorship-cli-"));
-
 describe("parseArgs", () => {
   it("dry-run es el modo por defecto", () => {
     expect(parseArgs([]).apply).toBe(false);
   });
 
   it("rechaza un argumento desconocido en vez de ignorarlo", () => {
-    // Una bandera mal escrita no debe convertirse en silencio en otro modo.
     expect(() => parseArgs(["--aply"])).toThrow(CliUsageError);
     expect(() => parseArgs(["--force"])).toThrow(/ARGUMENTO DESCONOCIDO/);
   });
 
   it("tolera el separador `--` que pnpm reenvía, sin aflojar la estrictez", () => {
-    // `pnpm run <script> -- --plan-out=…` forwards the separator verbatim. If
-    // it is treated as an argument, the documented command cannot run — but a
-    // misspelling must still be caught in the same breath.
     const a = parseArgs(["--", "--plan-out=/tmp/p.json"]);
     expect(a.planOut).toBe("/tmp/p.json");
     expect(() => parseArgs(["--", "--plan-ou=/tmp/p.json"])).toThrow(
@@ -84,30 +84,101 @@ describe("parseArgs", () => {
   });
 
   it("rechaza una bandera con valor vacío", () => {
-    expect(() => parseArgs(["--plan="])).toThrow(/necesita un valor/);
+    expect(() => parseArgs(["--plan-out="])).toThrow(/necesita un valor/);
   });
 
-  it("lee las rutas y las declaraciones de destino", () => {
-    const a = parseArgs([
-      "--apply",
-      "--plan=/tmp/p.json",
-      "--reversal-out=/tmp/r.json",
-      "--expect-database=psico_dev",
-      "--expect-posture=development",
-      "--json",
-    ]);
-    expect(a).toMatchObject({
+  it("`--apply=false` NO activa la escritura: se rechaza", () => {
+    // The defect: the value was read off the flag name and then discarded, so
+    // the most natural way to say "do not write" was the way to write.
+    for (const raw of [
+      "--apply=false",
+      "--apply=0",
+      "--apply=no",
+      "--apply=",
+    ]) {
+      expect(() => parseArgs([raw])).toThrow(/NO LLEVA VALOR|necesita/);
+    }
+    // And no accepted form of it leaves apply true.
+    expect(parseArgs([]).apply).toBe(false);
+  });
+
+  it("`--json=false` también se rechaza", () => {
+    expect(() => parseArgs(["--json=false"])).toThrow(/NO LLEVA VALOR/);
+  });
+
+  it("rechaza una bandera repetida en vez de quedarse con la última", () => {
+    expect(() =>
+      parseArgs(["--apply", "--plan=/tmp/a.json", "--plan=/tmp/b.json"]),
+    ).toThrow(/ARGUMENTO REPETIDO/);
+    expect(() => parseArgs(["--apply", "--apply"])).toThrow(
+      /ARGUMENTO REPETIDO/,
+    );
+  });
+
+  it("rechaza modos incompatibles en vez de ignorar uno", () => {
+    expect(() =>
+      parseArgs([
+        "--apply",
+        "--plan=/tmp/a.json",
+        "--reversal-out=/tmp/r.json",
+        "--plan-out=/tmp/b.json",
+      ]),
+    ).toThrow(/MODOS INCOMPATIBLES/);
+  });
+
+  it("rechaza argumentos de aplicación en un dry-run", () => {
+    // A dry run that accepts them looks like it applied something.
+    expect(() => parseArgs(["--plan=/tmp/a.json"])).toThrow(
+      /ARGUMENTO SIN EFECTO/,
+    );
+    expect(() => parseArgs(["--reversal-out=/tmp/r.json"])).toThrow(
+      /ARGUMENTO SIN EFECTO/,
+    );
+    expect(() => parseArgs(["--expect-plan-id=x"])).toThrow(
+      /ARGUMENTO SIN EFECTO/,
+    );
+  });
+
+  it("los argumentos y modos válidos mantienen su comportamiento", () => {
+    expect(parseArgs(["--plan-out=/tmp/p.json", "--json"])).toMatchObject({
+      apply: false,
+      planOut: "/tmp/p.json",
+      json: true,
+    });
+    expect(
+      parseArgs([
+        "--apply",
+        "--plan=/tmp/p.json",
+        "--reversal-out=/tmp/r.json",
+        "--expect-database=psico_dev",
+        "--expect-posture=development",
+        "--expect-plan-id=abc",
+        "--expect-plan-hash=sha256:def",
+        "--json",
+      ]),
+    ).toMatchObject({
       apply: true,
       planPath: "/tmp/p.json",
       reversalOut: "/tmp/r.json",
       expectDatabase: "psico_dev",
       expectPosture: "development",
+      expectPlanId: "abc",
+      expectPlanHash: "sha256:def",
       json: true,
     });
   });
 });
 
-describe("resolveTarget", () => {
+describe("la puerta del destino", () => {
+  const applyArgs = (db: string, posture: string) =>
+    parseArgs([
+      "--apply",
+      "--plan=/tmp/p.json",
+      "--reversal-out=/tmp/r.json",
+      `--expect-database=${db}`,
+      `--expect-posture=${posture}`,
+    ]);
+
   it("sin DATABASE_URL no hay destino por defecto", () => {
     expect(() => resolveTarget(parseArgs([]), {}, "development")).toThrow(
       /CONEXIÓN AUSENTE/,
@@ -137,7 +208,11 @@ describe("resolveTarget", () => {
   it("aplicar sin declarar destino y postura se rechaza", () => {
     expect(() =>
       resolveTarget(
-        parseArgs(["--apply"]),
+        parseArgs([
+          "--apply",
+          "--plan=/tmp/p.json",
+          "--reversal-out=/tmp/r.json",
+        ]),
         { DATABASE_URL: LOCAL },
         "development",
       ),
@@ -147,11 +222,7 @@ describe("resolveTarget", () => {
   it("una base declarada que no coincide se rechaza", () => {
     expect(() =>
       resolveTarget(
-        parseArgs([
-          "--apply",
-          "--expect-database=otra_base",
-          "--expect-posture=development",
-        ]),
+        applyArgs("otra_base", "development"),
         { DATABASE_URL: LOCAL },
         "development",
       ),
@@ -161,73 +232,85 @@ describe("resolveTarget", () => {
   it("una postura declarada que no coincide se rechaza", () => {
     expect(() =>
       resolveTarget(
-        parseArgs([
-          "--apply",
-          "--expect-database=psico_dev",
-          "--expect-posture=staging",
-        ]),
+        applyArgs("psico_dev", "staging"),
         { DATABASE_URL: LOCAL },
         "development",
       ),
     ).toThrow(/POSTURA DISCORDANTE/);
   });
 
-  it("producción se rechaza sin token posible", () => {
+  it("producción se rechaza incluso con el token", () => {
     expect(() =>
       resolveTarget(
-        parseArgs([
-          "--apply",
-          "--expect-database=psico_dev",
-          "--expect-posture=production",
-        ]),
+        applyArgs("psico_dev", "production"),
         { DATABASE_URL: LOCAL, [STAGING_TOKEN]: "1" },
         "production",
       ),
     ).toThrow(/postura production/);
   });
 
-  it("una etiqueta development NO autoriza una base alojada", () => {
-    // El hallazgo central del punto 5: resolveEnvironment clasifica el
-    // proceso, DATABASE_URL elige el destino, y una etiqueta local no debe
-    // bastar para escribir fuera de loopback.
+  it("staging POR LOCALHOST sin permiso: rechazo", () => {
+    // The defect: the token was required only for a non-loopback host, which
+    // treated `localhost` as proof that nothing else could be behind it. A
+    // tunnel, a proxy, or a staging box with a local database all present as
+    // loopback.
     expect(() =>
       resolveTarget(
-        parseArgs([
-          "--apply",
-          "--expect-database=feelverse_staging",
-          "--expect-posture=development",
-        ]),
+        applyArgs("psico_dev", "staging"),
+        { DATABASE_URL: LOCAL },
+        "staging",
+      ),
+    ).toThrow(new RegExp(STAGING_TOKEN));
+  });
+
+  it("staging por otro host sin permiso: rechazo", () => {
+    expect(() =>
+      resolveTarget(
+        applyArgs("feelverse_staging", "staging"),
         { DATABASE_URL: HOSTED },
+        "staging",
+      ),
+    ).toThrow(new RegExp(STAGING_TOKEN));
+  });
+
+  it("staging con permiso y destino correcto: permitido", () => {
+    const porHost = resolveTarget(
+      applyArgs("feelverse_staging", "staging"),
+      { DATABASE_URL: HOSTED, [STAGING_TOKEN]: "1" },
+      "staging",
+    );
+    expect(porHost.isLoopback).toBe(false);
+    const porLocalhost = resolveTarget(
+      applyArgs("psico_dev", "staging"),
+      { DATABASE_URL: LOCAL, [STAGING_TOKEN]: "1" },
+      "staging",
+    );
+    expect(porLocalhost.isLoopback).toBe(true);
+  });
+
+  it("una etiqueta development NO autoriza una base alojada", () => {
+    // resolveEnvironment classifies the PROCESS; DATABASE_URL picks the
+    // target. A local label must not reach a hosted database.
+    expect(() =>
+      resolveTarget(
+        applyArgs("feelverse_staging", "development"),
+        { DATABASE_URL: HOSTED },
+        "development",
+      ),
+    ).toThrow(/no es loopback/);
+    // Not even with the staging token, because the posture is still local.
+    expect(() =>
+      resolveTarget(
+        applyArgs("feelverse_staging", "development"),
+        { DATABASE_URL: HOSTED, [STAGING_TOKEN]: "1" },
         "development",
       ),
     ).toThrow(/no es loopback/);
   });
 
-  it("staging alojado exige el token de ESTA invocación", () => {
-    const args = parseArgs([
-      "--apply",
-      "--expect-database=feelverse_staging",
-      "--expect-posture=staging",
-    ]);
-    expect(() =>
-      resolveTarget(args, { DATABASE_URL: HOSTED }, "staging"),
-    ).toThrow(new RegExp(STAGING_TOKEN));
-    // Con el token, pasa — y el mensaje dice por qué no debe quedar fijado.
-    const ok = resolveTarget(
-      args,
-      { DATABASE_URL: HOSTED, [STAGING_TOKEN]: "1" },
-      "staging",
-    );
-    expect(ok.isLoopback).toBe(false);
-  });
-
   it("local con destino declarado sí puede aplicar", () => {
     const t = resolveTarget(
-      parseArgs([
-        "--apply",
-        "--expect-database=psico_dev",
-        "--expect-posture=development",
-      ]),
+      applyArgs("psico_dev", "development"),
       { DATABASE_URL: LOCAL },
       "development",
     );
@@ -235,149 +318,46 @@ describe("resolveTarget", () => {
   });
 });
 
-describe("plan congelado en disco", () => {
-  const target = targetIdentityFromUrl(LOCAL, "development");
-
-  it("un plan ausente se rechaza con instrucciones", () => {
-    expect(() => loadFrozenPlan(join(tmp(), "no-existe.json"), target)).toThrow(
-      /PLAN AUSENTE/,
+describe("errores acotados", () => {
+  it("un error ajeno no vuelca su mensaje", () => {
+    // A driver error can carry the connection string, a statement's
+    // parameters, or a row's values — including the credential being
+    // withdrawn. Its identity is useful; its payload is not ours to print.
+    const err = Object.assign(
+      new Error(
+        `no se pudo escribir title='${TITULO_A}' licenseNumber='${LICENCIA_A}' en postgresql://u:secreto@host/db`,
+      ),
+      { name: "PostgresError", code: "23505" },
     );
+    const d = describeError(err);
+    expect(d.kind).toBe("PostgresError");
+    expect(d.code).toBe("23505");
+    expect(d.message).not.toContain(TITULO_A);
+    expect(d.message).not.toContain(LICENCIA_A);
+    expect(d.message).not.toContain("secreto");
+    expect(d.message).not.toContain("postgresql://");
+    expect(d.exitCode).toBe(1);
   });
 
-  it("un plan editado a mano no se aplica", () => {
-    const dir = tmp();
-    const path = join(dir, "plan.json");
-    const frozen = freezePlan(planAuthorshipRepair(snapshot()), target);
-    const tampered = { ...frozen, ops: frozen.ops.slice(0, 1) };
-    writeFileSync(path, JSON.stringify(tampered));
-    expect(() => loadFrozenPlan(path, target)).toThrow(/PLAN ALTERADO/);
+  it("nuestros propios errores sí pasan su mensaje, porque lo escribimos", () => {
+    expect(
+      describeError(new CliUsageError("DESTINO NO DECLARADO: x")),
+    ).toMatchObject({ kind: "CliUsageError", exitCode: 4 });
+    expect(describeError(new PlanFileError("PLAN ALTERADO: y"))).toMatchObject({
+      kind: "PlanFileError",
+      exitCode: 5,
+    });
+    expect(
+      describeError(new RepairPreconditionError("autor x", "ya no existe")),
+    ).toMatchObject({ kind: "RepairPreconditionError", exitCode: 3 });
+    expect(
+      describeError(new RepairConflictError("autor x", "cambió la fila")),
+    ).toMatchObject({ kind: "RepairConflictError", exitCode: 3 });
   });
 
-  it("un plan de otra base no se aplica aquí", () => {
-    const dir = tmp();
-    const path = join(dir, "plan.json");
-    const otro = targetIdentityFromUrl(
-      "postgresql://u:p@localhost:5433/otra_base",
-      "development",
-    );
-    writeFileSync(
-      path,
-      JSON.stringify(freezePlan(planAuthorshipRepair(snapshot()), otro)),
-    );
-    expect(() => loadFrozenPlan(path, target)).toThrow(/DESTINO DISCORDANTE/);
-  });
-
-  it("un plan con otra postura no se aplica", () => {
-    const dir = tmp();
-    const path = join(dir, "plan.json");
-    const otra = targetIdentityFromUrl(LOCAL, "staging");
-    writeFileSync(
-      path,
-      JSON.stringify(freezePlan(planAuthorshipRepair(snapshot()), otra)),
-    );
-    expect(() => loadFrozenPlan(path, target)).toThrow(/POSTURA DISCORDANTE/);
-  });
-
-  it("una operación fuera de alcance se rechaza", () => {
-    // El archivo no es una lista arbitraria de escrituras.
-    const dir = tmp();
-    const path = join(dir, "plan.json");
-    const frozen = freezePlan(planAuthorshipRepair(snapshot()), target);
-    const evil = {
-      ...frozen,
-      ops: [...frozen.ops, { kind: "delete-everything" }],
-    };
-    // Rehash para que el único fallo sea el alcance, no la integridad.
-    writeFileSync(path, JSON.stringify(evil));
-    expect(() => loadFrozenPlan(path, target)).toThrow(
-      /OPERACIÓN FUERA DE ALCANCE|PLAN ALTERADO/,
-    );
-  });
-
-  it("un plan congelado con bloqueos no se aplica", () => {
-    const dir = tmp();
-    const path = join(dir, "plan.json");
-    const frozen = freezePlan(
-      {
-        ops: [],
-        satisfied: [],
-        blockers: [{ subject: "x", reason: "ambigüedad" }],
-        untouched: [],
-      },
-      target,
-    );
-    writeFileSync(path, JSON.stringify(frozen));
-    expect(() => loadFrozenPlan(path, target)).toThrow(/PLAN BLOQUEADO/);
-  });
-
-  it("un plan íntegro y del mismo destino se acepta", () => {
-    const dir = tmp();
-    const path = join(dir, "plan.json");
-    const frozen = freezePlan(planAuthorshipRepair(snapshot()), target);
-    writeFileSync(path, JSON.stringify(frozen));
-    expect(loadFrozenPlan(path, target).planId).toBe(frozen.planId);
-  });
-});
-
-describe("respaldo de reversión", () => {
-  const target = targetIdentityFromUrl(LOCAL, "development");
-  const file = (state: "intended" | "applied" | "aborted" = "intended") => ({
-    format: "feelverse.catalog-authorship-reversal/v1",
-    planId: "p1",
-    planHash: "sha256:abc",
-    state,
-    target,
-    preparedAt: new Date().toISOString(),
-    entries: [
-      {
-        subject: "bookAuthor id=a-demo",
-        restore: {
-          title: TITULO_A,
-          licenseNumber: LICENCIA_A,
-          isVerified: true,
-        },
-      },
-    ],
-    note: "privado",
-  });
-
-  it("persiste con permisos restrictivos y se puede volver a leer", () => {
-    const path = join(tmp(), "rev.json");
-    persistReversal(path, file());
-    const back = JSON.parse(readFileSync(path, "utf8"));
-    expect(back.entries).toHaveLength(1);
-    // Los literales SÍ viven aquí: es el único sitio que permite revertir.
-    expect(JSON.stringify(back)).toContain(TITULO_A);
-  });
-
-  it("no sobrescribe un respaldo anterior", () => {
-    const path = join(tmp(), "rev.json");
-    persistReversal(path, file());
-    // Repetir el comando no debe destruir la única copia del estado previo.
-    expect(() => persistReversal(path, file())).toThrow(/RESPALDO EXISTENTE/);
-  });
-
-  it("distingue previsto, aplicado y abortado", () => {
-    const path = join(tmp(), "rev.json");
-    persistReversal(path, file());
-    expect(JSON.parse(readFileSync(path, "utf8")).state).toBe("intended");
-    // Un archivo preparado NO acredita que se aplicara nada.
-    settleReversal(path, "aborted");
-    const after = JSON.parse(readFileSync(path, "utf8"));
-    expect(after.state).toBe("aborted");
-    expect(after.settledAt).toBeTruthy();
-    expect(after.entries).toHaveLength(1);
-  });
-
-  it("el error de persistencia es de un tipo que el CLI trata como bloqueo", () => {
-    const path = join(tmp(), "rev.json");
-    persistReversal(path, file());
-    try {
-      persistReversal(path, file());
-      throw new Error("debía fallar");
-    } catch (e) {
-      expect(e).toBeInstanceOf(PlanFileError);
-    }
+  it("un error sin nombre no inventa uno", () => {
+    expect(describeError("algo").kind).toBe("Error");
+    expect(describeError(null).kind).toBe("Error");
   });
 });
 
@@ -391,42 +371,11 @@ describe("informe compartible", () => {
     expect(body).toContain("titlePresent");
   });
 
-  it("el respaldo se guarda ANTES de la primera escritura", () => {
-    // The crux of the finding: a reversal printed after the transaction is not
-    // a backup. `main` needs a database to run, so the ORDER is pinned over
-    // its source — collect, persist (which re-reads to verify), only then open
-    // the transaction, and settle the file either way.
-    const src = readFileSync(
-      join(__dirname, "authorship-repair-cli.ts"),
-      "utf8",
-    )
-      .replace(/\/\*[\s\S]*?\*\//g, "")
-      .replace(/(^|[^:])\/\/.*$/gm, "$1");
-    // Anchor on CODE, not on a section comment: the comments are stripped
-    // above, so a marker inside one would slice an empty string and the
-    // assertions below would pass over nothing.
-    const apply = src.slice(
-      src.lastIndexOf("collectReversal("),
-      src.indexOf("require.main === module"),
-    );
-    expect(apply).toMatch(/collectReversal\(/); // guard the guard
-    expect(apply.length).toBeGreaterThan(200);
-
-    const at = (needle: string) => apply.indexOf(needle);
-    expect(at("collectReversal(")).toBeGreaterThan(-1);
-    expect(at("persistReversal(")).toBeGreaterThan(at("collectReversal("));
-    expect(at("$transaction(")).toBeGreaterThan(at("persistReversal("));
-    // And the outcome is recorded, so a prepared file never looks applied.
-    expect(apply).toMatch(/settleReversal\([^)]*"aborted"\)/);
-    expect(apply).toMatch(/settleReversal\([^)]*"applied"\)/);
-  });
-
   it("con --json, la salida estándar lleva sólo el informe", () => {
-    // `main` needs a database, so this pins the property statically: inside
-    // `main` the narrative goes through `say` (stderr under --json) and the
-    // ONLY writes to stdout are the two sanitized reports. A banner added
-    // later with a plain console.log would make `--json` unparseable for a
-    // caller piping it, which is how this broke the first time.
+    // `main` needs a database, so this pins the property statically: the
+    // narrative goes through the injected `say`, and the ONLY write to stdout
+    // is the sanitized report. A banner added later with a plain console.log
+    // would make `--json` unparseable for a caller piping it.
     const src = readFileSync(
       join(__dirname, "authorship-repair-cli.ts"),
       "utf8",
@@ -434,20 +383,44 @@ describe("informe compartible", () => {
       .replace(/\/\*[\s\S]*?\*\//g, "")
       .replace(/(^|[^:])\/\/.*$/gm, "$1");
     const body = src.slice(
-      src.indexOf("async function main"),
-      src.indexOf("require.main === module"),
+      src.indexOf("export async function runRepair"),
+      src.length,
     );
-    expect(body.length).toBeGreaterThan(500); // guard the guard
+    expect(body).toMatch(/runRepair/); // guard the guard
 
     const stdoutWrites = [
       ...body.matchAll(/console\.log\(|process\.stdout\.write\(/g),
     ];
-    expect(stdoutWrites).toHaveLength(2);
-    for (const m of stdoutWrites) {
-      const after = body.slice(m.index, m.index + 120);
-      expect(after).toMatch(/JSON\.stringify\(\s*\n?\s*sanitizedReport/);
-    }
-    // And the narrative is not silently dropped — it is still printed.
+    expect(stdoutWrites).toHaveLength(1);
+    expect(
+      body.slice(stdoutWrites[0]!.index, stdoutWrites[0]!.index + 80),
+    ).toMatch(/JSON\.stringify\(run\.report/);
     expect(body).toMatch(/say\(/);
+  });
+
+  it("el respaldo se guarda y se verifica ANTES de la primera escritura", () => {
+    // The crux of the finding: a reversal recorded after the transaction is
+    // not a backup. The ORDER is pinned over the source — collect, persist
+    // (which re-reads to verify), only then open the transaction — and the
+    // outcome is recorded in a separate file, never onto the preimage.
+    const src = readFileSync(
+      join(__dirname, "authorship-repair-cli.ts"),
+      "utf8",
+    )
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/(^|[^:])\/\/.*$/gm, "$1");
+    const body = src.slice(
+      src.indexOf("export async function runRepair"),
+      src.indexOf("async function main()"),
+    );
+    expect(body).toMatch(/collectReversal\(/); // guard the guard
+
+    const at = (needle: string) => body.lastIndexOf(needle);
+    expect(at("persistReversal(")).toBeGreaterThan(at("collectReversal("));
+    expect(at("$transaction(")).toBeGreaterThan(at("persistReversal("));
+    // Both outcomes are recorded, and neither reopens the preimage.
+    expect(body).toMatch(/recordOutcome\([^)]*"aborted"/);
+    expect(body).toMatch(/recordOutcome\([^)]*"applied"\)/);
+    expect(body).not.toMatch(/settleReversal/);
   });
 });

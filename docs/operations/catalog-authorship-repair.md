@@ -132,23 +132,44 @@ invocación, a propósito: el destino tiene que ser una elección visible en la
 línea que se ejecuta, no un archivo que estaba ahí. Sin ella, se detiene
 diciendo que no usa un destino por defecto.
 
+Las rutas se pasan **expandidas**. `--plan-out=~/x.json` NO expande la tilde:
+un shell la expande al principio de una palabra, no después de un `=`, y Node
+no la expande en absoluto. El comando de abajo usa `$HOME`, que sí se expande
+ahí. Con la tilde literal se crearía un directorio llamado `~` en el
+directorio actual — dentro del repositorio si se ejecuta desde él — y el
+respaldo se niega a escribirse allí.
+
+Las posturas son las que `resolveEnvironment()` devuelve:
+`development`, `test`, `staging` y `production` (esta última, rechazada). No
+existe una postura `local`.
+
 ```bash
 # Dry-run — no escribe. Es el modo por defecto. Congela el plan en disco.
 DATABASE_URL=<cadena del destino> \
   pnpm --filter @psico/api catalog:authorship:plan -- \
-  --plan-out=~/.psico-ops/authorship-plan.json
+  --plan-out="$HOME/.psico-ops/authorship-plan.json"
 
+# Revísalo. El dry-run imprime el planId; pásalo como esperado al aplicar.
 # Aplicar CONSUMIENDO ese plan, declarando el destino y con respaldo previo.
 DATABASE_URL=<la misma cadena> \
   pnpm --filter @psico/api catalog:authorship:apply -- \
-  --plan=~/.psico-ops/authorship-plan.json \
-  --reversal-out=~/.psico-ops/authorship-reversal.json \
-  --expect-database=<nombre> --expect-posture=<local|staging>
+  --plan="$HOME/.psico-ops/authorship-plan.json" \
+  --reversal-out="$HOME/.psico-ops/authorship-preimagen.json" \
+  --expect-database=<nombre> \
+  --expect-posture=<development|test|staging> \
+  --expect-plan-id=<el planId que revisaste>
 ```
+
+`--apply` y `--json` son interruptores y **no llevan valor**:
+`--apply=false` se rechaza en vez de interpretarse como activación. Una
+bandera repetida también se rechaza, y los argumentos de aplicación en un
+dry-run (o `--plan-out` junto a `--apply`) se rechazan en lugar de ignorarse en
+silencio.
 
 `--json` deja en la salida estándar **sólo** el informe sanitizado, para poder
 canalizarlo; el relato humano sigue imprimiéndose, por la salida de error. El
-informe dice si un campo estaba presente, nunca qué decía.
+informe dice si un campo estaba presente, nunca qué decía, y tampoco publica
+digests de esos valores.
 
 ### El plan es un archivo, no un recálculo
 
@@ -158,12 +179,42 @@ pareciera en ese momento, adoptando en silencio condiciones que nadie había
 visto. Ahora `plan` congela un archivo con `planId` y `planHash`, y `apply` lo
 consume.
 
-El `planHash` cubre **las operaciones y el destino**, así que un plan revisado
-para una base no valida contra otra. Al cargarlo se comprueban el formato, el
-hash, que cada operación sea una de las tres que esta herramienta ejecuta, y
-que el destino y la postura coincidan con la conexión actual. **Un archivo de
-plan no es una lista arbitraria de escrituras.** El identificador vincula lo
-revisado con lo aplicado; **no sustituye la autorización humana**.
+El `planHash` cubre **todo lo que decide qué va a pasar**: las operaciones, el
+destino completo —host, puerto, base, postura e `isLoopback`—, los bloqueos y
+las notas que alguien leyó. La primera versión cubría sólo las operaciones y la
+huella del destino, así que un archivo podía tener su **postura** editada, o
+sus **bloqueos** borrados, y seguir cuadrando el hash — y los bloqueos son el
+mecanismo que detiene un plan ambiguo.
+
+Fuera del hash quedan a propósito el `planId` y la fecha: el hash direcciona
+**contenido**, así que dos congelados de un catálogo sin cambios coinciden.
+Distinguir dos **archivos** es trabajo del `planId` esperado, que el operador
+pasa con `--expect-plan-id` — una entrada independiente del archivo, porque un
+archivo sustituido respondería por sí mismo. **El hash vincula; no sustituye el
+permiso humano.**
+
+### El archivo no es una lista de escrituras
+
+Comprobar los **nombres** de las operaciones no bastaba. Los payloads llegaban
+sin validar al aplicador, y `op.next` —un objeto del JSON— se pasaba a `data`
+de Prisma. Un archivo con un `kind` permitido y campos de más era, por tanto,
+una lista arbitraria de escrituras con la etiqueta correcta.
+
+Ahora el plan se valida como entrada no confiable, y el **alcance se comprueba
+antes que la integridad**: un archivo rehasheado correctamente y lleno de
+payloads prohibidos falla por lo que pide, no sólo por su hash.
+
+| Comprobación                            | Qué rechaza                                                                                                                                                                          |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Conjunto exacto de claves por operación | campos de más y campos de menos                                                                                                                                                      |
+| Tipos                                   | un booleano que llega como texto, un digest que es un literal                                                                                                                        |
+| Referencias coherentes                  | `expect.slug` que no corresponde al `authorSlug`; un libro que espera un alta que el plan no da                                                                                      |
+| Correspondencias sustentadas            | retirar credenciales a quien no es una identidad de fixture; atribuir una obra a un autor que **ninguna fuente de este repositorio** pareja con ella; un alta con una cita inventada |
+| Retirada fija                           | `next` sólo puede ser exactamente `{title: null, licenseNumber: null, isVerified: false}`                                                                                            |
+| Coherencia del destino                  | una huella o un `isLoopback` **declarados** que no corresponden al host                                                                                                              |
+
+Y la retirada que se ejecuta es una **constante del módulo**, no el objeto del
+archivo: el plan dice _cuál_ operación correr, no qué escribe.
 
 ### Expectativas exactas
 
@@ -203,31 +254,50 @@ marcadores devuelve `development` sin lanzar, mientras `DATABASE_URL` elige el
 cierto en una caja desplegada reconocida, y una etiqueta `development` no debe
 autorizar escribir en una base alojada.
 
-| Comprobación                             | Comportamiento                                                                                                                                                                                                                                                                                      |
-| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL` ausente                   | rechazo. No hay destino por defecto: elegir una base implícitamente es cómo se repara la equivocada                                                                                                                                                                                                 |
-| `--expect-database` / `--expect-posture` | obligatorias para aplicar, y deben coincidir con la conexión real. Una orden copiada no aterriza en otra caja                                                                                                                                                                                       |
-| `current_database()`                     | se consulta y debe coincidir con la cadena de conexión                                                                                                                                                                                                                                              |
-| host no loopback                         | cuenta como **alojado** diga lo que diga la etiqueta: exige postura `staging` **y** `ALLOW_STAGING_CATALOG_AUTHORSHIP_REPAIR=1` en **esa** invocación. El token del seed no sirve, y no debe quedar fijado en las variables del servicio — eso convierte un permiso puntual en un bypass permanente |
-| `production`                             | **rechazado en esta versión**, sin token que lo habilite                                                                                                                                                                                                                                            |
-| argumento desconocido                    | rechazo, en vez de ignorarlo: una bandera mal escrita no debe convertirse en silencio en otro modo                                                                                                                                                                                                  |
+| Comprobación                                           | Comportamiento                                                                                                                                                                                                                                                                                                                                                                |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL` ausente                                 | rechazo. No hay destino por defecto: elegir una base implícitamente es cómo se repara la equivocada                                                                                                                                                                                                                                                                           |
+| `--expect-database` / `--expect-posture`               | obligatorias para aplicar, y deben coincidir con la conexión real. Una orden copiada no aterriza en otra caja                                                                                                                                                                                                                                                                 |
+| `current_database()`                                   | se consulta y debe coincidir con la cadena de conexión                                                                                                                                                                                                                                                                                                                        |
+| postura `staging`                                      | exige `ALLOW_STAGING_CATALOG_AUTHORSHIP_REPAIR=1` en **esa** invocación, **también por loopback**. El permiso es de la postura, no del host: un túnel, un proxy o una caja de staging con base local se presentan como loopback. El token del seed no sirve, y no debe quedar fijado en las variables del servicio — eso convierte un permiso puntual en un bypass permanente |
+| host no loopback con etiqueta local                    | rechazo, con token o sin él: una etiqueta `development` no autoriza escribir en una base alojada                                                                                                                                                                                                                                                                              |
+| `production`                                           | **rechazado en esta versión**, sin token que lo habilite                                                                                                                                                                                                                                                                                                                      |
+| argumento desconocido                                  | rechazo, en vez de ignorarlo: una bandera mal escrita no debe convertirse en silencio en otro modo                                                                                                                                                                                                                                                                            |
+| `--apply=false`, bandera repetida, modos incompatibles | rechazo. Un interruptor no lleva valor, no se elige el último de dos valores en silencio, y un argumento que se ignoraría parecería haber hecho algo                                                                                                                                                                                                                          |
 
-### Reversión antes de escribir
+### Preimagen antes de escribir, resultado al lado
 
 El CLI imprimía los valores previos **después** de que la transacción
-terminara, y no exigía respaldo. Ahora el archivo de reversión se **persiste y
-se vuelve a leer antes de la primera escritura**; si no se puede guardar o
-verificar, la base no se toca. **No sobrescribe** un respaldo anterior: repetir
-el comando no debe destruir la única copia del estado previo.
+terminara, y no exigía respaldo. Ahora la **preimagen** se persiste y se
+vuelve a leer antes de la primera escritura; si no se puede guardar o
+verificar, la base no se toca.
 
-Tres estados distintos, escritos en momentos distintos: `intended` (preparado),
-`applied` y `aborted`. **Un archivo en `intended` no acredita que se aplicara
-nada.**
+Cuatro propiedades del archivo, cada una por un fallo distinto:
 
-El dry-run comprueba **todas** las precondiciones que puede, incluido el caso
-del plan inicial —autor destino ausente—, donde la versión anterior salía antes
-de validar `expectAuthorId` y **sin guardar el vínculo previo del libro**, que
-es justo el valor que después no se puede reconstruir.
+| Propiedad                     | Por qué                                                                                                                                                                              |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Ruta privada comprobada       | se exige absoluta, sin `..`, fuera del repositorio, sin enlace en el componente final, y con el directorio resuelto también fuera. Lo que se comprueba es dónde **resuelve** la ruta |
+| Creación exclusiva (`wx`)     | un `existsSync` seguido de una escritura deja una ventana en la que el archivo puede aparecer y perderse                                                                             |
+| `fsync` explícito             | `writeFileSync` no promete que llegó al disco                                                                                                                                        |
+| Comparación íntegra al releer | antes se comparaban `planId`, hash y número de entradas: eso coincidía aunque los **valores** de una entrada hubieran cambiado                                                       |
+
+Y la preimagen **no se reabre para escribir**. El resultado va a un archivo
+hermano (`<ruta>.outcome.json`), porque estampar el estado sobre el respaldo
+significaba truncar y reescribir la única copia de los valores previos
+**después** de que la base ya había cambiado: un fallo ahí destruía justo lo
+que el archivo existía para proteger.
+
+Cuatro estados, y el último es el honesto: `intended` (preparada, sin
+resultado), `applied`, `aborted` y **`uncertain`** — la transacción se confirmó
+y registrar ese hecho falló. **Una preimagen sin su resultado al lado no
+acredita que se aplicara nada**, y en el caso incierto no se informa que la
+base no cambió.
+
+El dry-run comprueba todas las precondiciones que puede **comprobar sin
+escribir**, incluido el autor de destino tanto cuando está pendiente de alta
+como cuando ya existe. La versión anterior salía antes de validar
+`expectAuthorId` y **sin guardar el vínculo previo del libro**, que es justo el
+valor que después no se puede reconstruir.
 
 ### Identidad y ambigüedad
 
@@ -246,8 +316,13 @@ prometía bloquear el plan completo y lo dejaba continuar.
 - **Una sola transacción.** Un fallo en la segunda operación no deja aplicada
   la primera: una corrección a medias es peor que ninguna, porque parece
   terminada.
-- **Idempotencia.** Repetir encuentra las filas en su valor final, cuenta cero
-  escrituras y no acuña un segundo autor.
+- **Idempotencia del recorrido completo.** Repetir encuentra las filas en su
+  valor final, cuenta cero escrituras y no acuña un segundo autor. Esto era
+  falso de extremo a extremo hasta este cierre: el aplicador sí era
+  idempotente, pero la recogida de la reversión leía el libro ya reparado, lo
+  comparaba con `expectAuthorId` y lanzaba un **conflicto** antes de que el
+  aplicador llegara a su no-op. Un estado final reconocido no es una
+  divergencia ajena.
 - **Número real de filas escritas**, no de operaciones planificadas.
 
 Lo que el procedimiento **no** hace: no usa el seed como herramienta de
@@ -264,16 +339,22 @@ Cuando haya autorización específica sobre el plan revisado:
    se aprobó. **Apply rechaza cualquier otro**, y rechaza también un plan de
    otra base o de otra postura.
 3. `catalog:authorship:apply` con `--plan`, `--reversal-out`,
-   `--expect-database`, `--expect-posture` y, en una base alojada, el token de
-   esta invocación. El respaldo se persiste y se verifica **antes** de la
-   primera escritura; si eso falla, la base no se toca.
+   `--expect-database`, `--expect-posture`, `--expect-plan-id` y, en postura
+   `staging`, el token de esta invocación. La preimagen se persiste y se
+   verifica **antes** de la primera escritura; si eso falla, la base no se
+   toca.
 4. Comprobar el cuerpo público: `GET /api/books/emociones-en-construccion` debe
    devolver el autor de fuente con `title: null`, `licenseNumber: null` e
    `isVerified: false`.
 5. Confirmar que _Familias Ensambladas_ sigue donde estaba y que ningún otro
    autor cambió.
-6. Comprobar que el archivo de reversión quedó en estado `applied`. Si quedó en
-   `aborted`, **nada se aplicó** y el motivo está en la salida.
+6. Leer el archivo de resultado, `<ruta de la preimagen>.outcome.json`:
+   - `applied` → la reparación se confirmó.
+   - `aborted` → **nada se aplicó**; el motivo está en la salida.
+   - `uncertain` → la transacción **sí** se confirmó y registrar ese hecho
+     falló. La base cambió; no se lee como «no pasó nada».
+   - **sin archivo de resultado** → no hay evidencia de que se aplicara nada.
+     La preimagen sigue en `intended`, que es su único estado.
 
 **Reversión**, con el archivo del paso 3: restaurar los tres campos de la fila
 de fixture y el `authorId` previo del libro, en una transacción. La fila de
@@ -281,9 +362,10 @@ autor creada se retira **sólo** si ningún libro la referencia, y eso necesita
 su propia autorización de alcance. No se restaura la base, y no hay borrado
 automático de autores.
 
-El archivo de reversión contiene los **valores literales** previos. Vive fuera
-del repositorio, con permisos 600, y no se adjunta a un PR ni se pega en una
-bitácora.
+La **preimagen** contiene los valores literales previos. Vive fuera del
+repositorio, con permisos 600, se escribe una sola vez y no se adjunta a un PR
+ni se pega en una bitácora. El archivo de resultado, al lado, no lleva ningún
+valor.
 
 ## 8 · Límites
 
@@ -309,3 +391,13 @@ bitácora.
 - Aplicar en una base alojada necesita una autorización **explícita para ese
   entorno**. Ni el plan ni su hash la sustituyen: vinculan el archivo al que se
   revisó, y eso es todo lo que hacen.
+- El recorrido del comando se ejercita contra una base **local desechable**.
+  Eso demuestra que el comando funciona; no demuestra nada sobre una base
+  alojada, que no se ha tocado.
+- Las correspondencias permitidas son las de `authorship-sources.ts`. Añadir
+  una atribución es editar ese archivo con su cita, no pasar un plan distinto:
+  un archivo no puede ampliar el alcance de la herramienta.
+- `describeError` imprime la clase y el código de un fallo ajeno, no su
+  mensaje. Eso evita volcar valores, cadenas de conexión o argumentos de
+  consulta, y significa que el detalle de un fallo del driver hay que buscarlo
+  en los registros del propio servidor.

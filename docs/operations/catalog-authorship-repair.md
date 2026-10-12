@@ -306,12 +306,12 @@ que el archivo existía para proteger.
 
 Los estados dicen **lo que se observó**, no lo que conviene suponer:
 
-| Estado         | Qué significa                                                                                                                                                                          |
-| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `intended`     | la preimagen está en disco. No se afirma nada más                                                                                                                                      |
-| `applied`      | se observó que la transacción se confirmó                                                                                                                                              |
-| `rolled-back`  | hay **evidencia** de que la reparación no se confirmó: el fallo vino de una precondición de esta herramienta, o de un enunciado que el servidor rechazó                                |
-| `undetermined` | el resultado de la transacción **no se pudo determinar**. Una conexión perdida al confirmar es indistinguible, desde aquí, de una confirmación que sí ocurrió y cuyo acuse nunca llegó |
+| Estado         | Qué significa                                                                                                                                                                                                                                  |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `intended`     | la preimagen está en disco. No se afirma nada más                                                                                                                                                                                              |
+| `applied`      | se observó que la transacción se confirmó                                                                                                                                                                                                      |
+| `rolled-back`  | hay **evidencia** de que la reparación no se confirmó: el fallo vino de una precondición de esta herramienta, o de un SQLSTATE de un conjunto corto y justificado (clases 22, 23, 42 y `40001`/`40P01`) donde el servidor rechazó el enunciado |
+| `undetermined` | el resultado de la transacción **no se pudo determinar**. Una conexión perdida al confirmar es indistinguible, desde aquí, de una confirmación que sí ocurrió y cuyo acuse nunca llegó                                                         |
 
 `aborted` ya no existe: absorbía todos los rechazos de `$transaction` y con
 ello afirmaba una evidencia que la herramienta no tiene. Ante incertidumbre
@@ -386,6 +386,13 @@ Cuando haya autorización específica sobre el plan revisado:
    preimagen que lo acompaña. Un JSON legible no es evidencia, y un archivo
    ajeno o de otro plan **no decide nada** — la herramienta lo descarta y dice
    por qué.
+
+   Y la validación de forma no basta: tiene que **emparejarse con algo
+   independiente del propio archivo**, que es la preimagen que lo acompaña o el
+   `planId` **y** el `planHash` aprobados. Si la preimagen falta y no se pasan
+   las dos mitades, el resultado es **no verificable** — se puede inspeccionar,
+   pero no responde qué pasó, y su falta de pareja tampoco significa que la
+   base no cambiara.
    - `applied` → se observó que la transacción se confirmó.
    - `rolled-back` → hay evidencia de que **no** se confirmó; el motivo está en
      la salida.
@@ -449,13 +456,28 @@ valor.
   mensaje. Eso evita volcar valores, cadenas de conexión o argumentos de
   consulta, y significa que el detalle de un fallo del driver hay que buscarlo
   en los registros del propio servidor.
-- **La clasificación del fallo de transacción es una heurística declarada**,
-  no una certeza del protocolo. Una precondición nuestra y un SQLSTATE que no
-  sea de clase de conexión rollean; una clase 08, una caída del servidor o un
-  fallo de socket quedan indeterminados. Un fallo irreconocible se trata como
-  indeterminado **a propósito**: responder «no pasó nada» a una pregunta
-  abierta es el error que esta distinción existe para evitar.
+- **La clasificación del fallo de transacción es una lista corta y declarada**,
+  no una certeza del protocolo ni un reconocedor general de errores. Un fallo
+  ajeno es **indeterminado salvo prueba en contra**, y la prueba es pertenecer
+  a un conjunto pequeño justificado: una precondición de esta herramienta, o un
+  SQLSTATE de clase 22, 23 o 42, o `40001`/`40P01`, donde el enunciado lo
+  rechazó el servidor y la transacción cae con él. Todo lo demás —clase 08,
+  caída del servidor, socket, `XX000`, clase 25 y **cualquier código `P####`
+  de Prisma**— queda indeterminado. **No se clasifica por la longitud del
+  código**: `P1017` («el servidor cerró la conexión»), `P2028` y `P2010`
+  (envoltorios) y hasta un `ABCDE` inventado tienen cinco caracteres, y una de
+  las versiones anteriores los leía por eso como reversión confirmada. Tampoco
+  se clasifica por palabras del mensaje, que puede llevar valores de fila, una
+  cadena de conexión o argumentos de consulta.
+- **«Resultado verificado» no significa «JSON legible».** Un registro que sólo
+  concuerda consigo mismo no acredita nada: hace falta algo **independiente**
+  del archivo — la preimagen que lo acompaña, o el `planId` **y** el `planHash`
+  aprobados, las dos mitades. Sin ninguno de los dos, la respuesta es **no
+  verificable**, y el archivo se puede inspeccionar pero no presentar como
+  evidencia. La preimagen no se recrea para cerrar ese hueco: un respaldo
+  inventado para validar un registro no es respaldo de nada.
 - El caso «se confirmó y el registro falló» se **simula** en las pruebas
   (haciendo imposible escribir el archivo después del commit) y el de resultado
-  desconocido también (inyectando un error de clase 08). Son simulaciones de
-  transporte, no incidencias observadas en un entorno alojado.
+  desconocido también (inyectando el rechazo con la forma que Prisma produce de
+  verdad: un envoltorio con código `P1017` o `P2028`). Son simulaciones de
+  transporte y de disco, **no incidencias observadas en un entorno alojado**.

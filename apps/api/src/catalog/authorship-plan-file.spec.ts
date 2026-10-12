@@ -15,6 +15,7 @@ import {
   assertPrivateReversalPath,
   assertTargetCoherent,
   describeOutcome,
+  inspectOutcome,
   outcomeExists,
   computePlanHash,
   fieldDigest,
@@ -742,6 +743,102 @@ describe("un resultado legible no es evidencia", () => {
     expect(describeOutcome(path, { planId: "otro" }).ok).toBe(false);
     expect(describeOutcome(path, { planHash: "sha256:x" }).ok).toBe(false);
     expect(describeOutcome(path, ident).ok).toBe(true);
+  });
+});
+
+describe("un resultado huérfano no es un resultado verificado", () => {
+  /**
+   * R3-C. The pairing was skipped when the preimage was gone, so a record
+   * that declared its own identity reached `ok: true` on nothing but its own
+   * say-so. Verification needs something INDEPENDENT of the file.
+   */
+  const ident = { planId: "p1", planHash: "sha256:abc" };
+  const make = (over: Partial<typeof ident> = {}) => {
+    const dir = tmp();
+    const path = join(dir, "rev.json");
+    persistReversal(path, {
+      format: PREIMAGE_FORMAT,
+      planId: over.planId ?? ident.planId,
+      planHash: over.planHash ?? ident.planHash,
+      state: "intended",
+      target: target(),
+      preparedAt: "2026-10-12T00:00:00.000Z",
+      entries: [{ subject: "bookAuthor id=a", restore: { title: TITULO_A } }],
+      note: "privado",
+    });
+    return path;
+  };
+
+  it("outcome legible, preimagen ausente y sin expectativas: NO VERIFICABLE", () => {
+    const path = make();
+    recordOutcome(path, { ...ident, state: "applied" });
+    rmSync(path); // la preimagen se archiva, el registro queda
+
+    const read = describeOutcome(path);
+    expect(read.ok).toBe(false);
+    expect(read.ok === false && read.reason).toMatch(/NO VERIFICABLE/);
+    expect(readOutcome(path)).toBeNull();
+
+    // Se puede inspeccionar — pero inspeccionar no es acreditar.
+    const seen = inspectOutcome(path);
+    expect(seen.present).toBe(true);
+    expect(seen.shapeOk).toBe(true);
+    expect(seen.file?.state).toBe("applied");
+    // Y no se recrea la preimagen para cerrar el hueco.
+    expect(existsSync(path)).toBe(false);
+  });
+
+  it("la misma situación con el planId y el planHash aprobados: verificado", () => {
+    const path = make();
+    recordOutcome(path, { ...ident, state: "applied" });
+    rmSync(path);
+    const read = describeOutcome(path, ident);
+    expect(read.ok).toBe(true);
+    expect(read.ok === true && read.corroboratedBy).toBe("expectations");
+  });
+
+  it("una sola de las dos mitades no basta", () => {
+    const path = make();
+    recordOutcome(path, { ...ident, state: "applied" });
+    rmSync(path);
+    expect(describeOutcome(path, { planId: ident.planId }).ok).toBe(false);
+    expect(describeOutcome(path, { planHash: ident.planHash }).ok).toBe(false);
+  });
+
+  it("outcome correcto y preimagen correspondiente: verificado", () => {
+    const path = make();
+    recordOutcome(path, { ...ident, state: "applied" });
+    const read = describeOutcome(path);
+    expect(read.ok).toBe(true);
+    expect(read.ok === true && read.corroboratedBy).toBe("preimage");
+  });
+
+  it("una preimagen de otro plan o con otro hash: rechazo", () => {
+    for (const over of [{ planId: "otro" }, { planHash: "sha256:otro" }]) {
+      const path = make(over);
+      // El registro declara la identidad original; la preimagen, otra.
+      recordOutcome(path, { ...ident, state: "applied" });
+      const read = describeOutcome(path);
+      expect(read.ok).toBe(false);
+      expect(read.ok === false && read.reason).toMatch(/otro plan/);
+    }
+  });
+
+  it("una preimagen ilegible: NO VERIFICABLE", () => {
+    const path = make();
+    recordOutcome(path, { ...ident, state: "applied" });
+    writeFileSync(path, "esto no es json");
+    const read = describeOutcome(path);
+    expect(read.ok).toBe(false);
+    expect(read.ok === false && read.reason).toMatch(/NO VERIFICABLE/);
+  });
+
+  it("outcome ausente: ausencia de registro, no afirmación de cero cambios", () => {
+    const path = make();
+    const seen = inspectOutcome(path);
+    expect(seen.present).toBe(false);
+    expect(seen.reason).toMatch(/no demuestra que la base no cambiara/);
+    expect(describeOutcome(path).ok).toBe(false);
   });
 });
 

@@ -950,26 +950,36 @@ export function recordOutcome(
 
 /** Why an outcome file cannot be taken as evidence, when it cannot. */
 export type OutcomeReading =
-  | { ok: true; file: OutcomeFile }
+  | {
+      ok: true;
+      file: OutcomeFile;
+      /** What corroborated it — never the outcome's own say-so. */
+      corroboratedBy: "preimage" | "expectations";
+    }
   | { ok: false; reason: string };
 
 /**
- * Read an outcome AND prove it describes this preimage's run.
+ * What the outcome file SAYS, with its shape checked and nothing corroborated.
  *
- * A readable JSON file is not evidence. It has to carry the right format, a
- * known state, the plan identity of the preimage beside it, and a `preimage`
- * field pointing back at that same file. Without those checks a stale record
- * from another plan would answer "what happened?" about a run it never saw.
+ * Separate from verification on purpose. An operator looking at a stranded
+ * record still wants to read it, but reading it is not the same as being able
+ * to trust it — and a function that verifies must not quietly return a record
+ * nothing was paired against.
+ *
+ * `present: false` means there is no file. That is the absence of a RECORD; it
+ * is not evidence that the database was left alone.
  */
-export function describeOutcome(
-  preimagePath: string,
-  expected?: { planId?: string; planHash?: string },
-): OutcomeReading {
+export function inspectOutcome(preimagePath: string): {
+  present: boolean;
+  shapeOk: boolean;
+  file?: OutcomeFile;
+  reason?: string;
+} {
   const path = outcomePathFor(preimagePath);
   if (!existsSync(path)) {
     return {
-      ok: false,
-      // Said precisely: absence is absence of a RECORD, not of a change.
+      present: false,
+      shapeOk: false,
       reason:
         "no hay archivo de resultado; eso no demuestra que la base no cambiara, sólo que nadie lo registró",
     };
@@ -978,72 +988,135 @@ export function describeOutcome(
   try {
     parsed = JSON.parse(readFileSync(path, "utf8"));
   } catch {
-    return { ok: false, reason: "el archivo de resultado no es JSON válido" };
+    return {
+      present: true,
+      shapeOk: false,
+      reason: "el archivo de resultado no es JSON válido",
+    };
   }
   if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
-    return { ok: false, reason: "el archivo de resultado no es un objeto" };
+    return {
+      present: true,
+      shapeOk: false,
+      reason: "el archivo de resultado no es un objeto",
+    };
   }
   const file = parsed as Partial<OutcomeFile>;
   if (file.format !== OUTCOME_FORMAT) {
     return {
-      ok: false,
+      present: true,
+      shapeOk: false,
       reason: `formato ${JSON.stringify(file.format)}; se esperaba ${OUTCOME_FORMAT}`,
     };
   }
   const states: ReversalState[] = ["applied", "rolled-back", "undetermined"];
   if (!file.state || !states.includes(file.state)) {
     return {
-      ok: false,
+      present: true,
+      shapeOk: false,
       reason: `estado ${JSON.stringify(file.state)} no reconocido`,
     };
   }
   if (!isNonEmptyString(file.planId) || !isNonEmptyString(file.planHash)) {
     return {
-      ok: false,
+      present: true,
+      shapeOk: false,
       reason: "el resultado no declara la identidad del plan",
     };
   }
   if (file.preimage !== preimagePath) {
     return {
-      ok: false,
+      present: true,
+      shapeOk: false,
       reason:
         "el resultado apunta a otra preimagen; no describe esta ejecución",
     };
   }
+  return { present: true, shapeOk: true, file: file as OutcomeFile };
+}
 
-  // Pair it with the preimage when that file is readable.
+/**
+ * Read an outcome AND prove it describes this preimage's run.
+ *
+ * A readable JSON file is not evidence, and neither is one that merely agrees
+ * with itself. The shape checks are necessary but not sufficient: something
+ * INDEPENDENT of the file has to corroborate its identity. Two things can:
+ *
+ *   · the preimage beside it, when that file is readable; or
+ *   · a planId AND planHash supplied by the caller — both halves, for the
+ *     same reason `--apply` needs both.
+ *
+ * Without either, the answer is "not verifiable". The earlier version skipped
+ * the pairing when the preimage was gone, so a record that declared its own
+ * identity reached `ok: true` on nothing but its own say-so. The preimage is
+ * never recreated to close that gap: a backup conjured to validate a record
+ * is not a backup of anything.
+ */
+export function describeOutcome(
+  preimagePath: string,
+  expected?: { planId?: string; planHash?: string },
+): OutcomeReading {
+  const seen = inspectOutcome(preimagePath);
+  if (!seen.shapeOk || !seen.file) {
+    return { ok: false, reason: seen.reason ?? "resultado no legible" };
+  }
+  const file = seen.file;
+
+  // Independent corroboration (a): the preimage beside it.
   if (existsSync(preimagePath)) {
+    let pre: Partial<ReversalFile>;
     try {
-      const pre = JSON.parse(
+      pre = JSON.parse(
         readFileSync(preimagePath, "utf8"),
       ) as Partial<ReversalFile>;
-      if (pre.planId !== file.planId || pre.planHash !== file.planHash) {
-        return {
-          ok: false,
-          reason:
-            "el resultado pertenece a otro plan que la preimagen que acompaña",
-        };
-      }
     } catch {
       return {
         ok: false,
         reason:
-          "la preimagen no es legible, así que el resultado no se puede emparejar",
+          "la preimagen no es legible, así que el resultado no se puede emparejar: NO VERIFICABLE",
       };
     }
+    if (pre.planId !== file.planId || pre.planHash !== file.planHash) {
+      return {
+        ok: false,
+        reason:
+          "el resultado pertenece a otro plan que la preimagen que acompaña",
+      };
+    }
+    if (expected?.planId && expected.planId !== file.planId) {
+      return { ok: false, reason: "el resultado pertenece a otro plan" };
+    }
+    if (expected?.planHash && expected.planHash !== file.planHash) {
+      return { ok: false, reason: "el resultado corresponde a otro contenido" };
+    }
+    return { ok: true, file, corroboratedBy: "preimage" };
   }
 
-  if (expected?.planId && expected.planId !== file.planId) {
-    return { ok: false, reason: "el resultado pertenece a otro plan" };
-  }
-  if (expected?.planHash && expected.planHash !== file.planHash) {
-    return { ok: false, reason: "el resultado corresponde a otro contenido" };
+  // Independent corroboration (b): both halves, from the caller.
+  if (expected?.planId && expected?.planHash) {
+    if (expected.planId !== file.planId) {
+      return { ok: false, reason: "el resultado pertenece a otro plan" };
+    }
+    if (expected.planHash !== file.planHash) {
+      return { ok: false, reason: "el resultado corresponde a otro contenido" };
+    }
+    return { ok: true, file, corroboratedBy: "expectations" };
   }
 
-  return { ok: true, file: file as OutcomeFile };
+  return {
+    ok: false,
+    reason:
+      "NO VERIFICABLE: falta la preimagen con la que emparejar el resultado, y no se suministró el planId y el planHash aprobados. El archivo se puede inspeccionar, pero no acredita esta ejecución — y su ausencia de pareja no significa que la base no cambiara",
+  };
 }
 
-/** The validated outcome, or null. Use `describeOutcome` for the reason. */
+/**
+ * The VERIFIED outcome, or null.
+ *
+ * Null means "not verified", which is not the same as "nothing happened".
+ * `inspectOutcome` says what the file contains and `describeOutcome` says why
+ * it was or was not corroborated.
+ */
 export function readOutcome(
   preimagePath: string,
   expected?: { planId?: string; planHash?: string },

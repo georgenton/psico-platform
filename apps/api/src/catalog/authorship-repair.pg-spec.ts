@@ -53,7 +53,11 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { describeError, runRepair } from "./authorship-repair-cli";
+import {
+  classifyTransactionFailure,
+  describeError,
+  runRepair,
+} from "./authorship-repair-cli";
 import {
   computePlanHash,
   describeOutcome,
@@ -1099,6 +1103,84 @@ suite("Catálogo · reparación de autoría (PostgreSQL real)", () => {
       // The preimage is untouched and still only `intended`.
       expect(JSON.parse(readFileSync(preimage, "utf8")).state).toBe("intended");
     }, 60_000);
+
+    it("rechazo con un error de Prisma: no se declara revertido ni se reintenta", async () => {
+      // SIMULATION, not an observed incident. The injected rejection is the
+      // shape Prisma really produces — a wrapper with a `P####` code — rather
+      // than a bare SQLSTATE, because that is the case the shape rule got
+      // wrong: `P1017` is "the server closed the connection" and it matched
+      // /^[0-9A-Z]{5}$/, so it was recorded as a confirmed rollback.
+      const dir = outDir();
+      const planPath = join(dir, "plan.json");
+      const dry = await runRepair(deps([`--plan-out=${planPath}`]));
+
+      for (const code of ["P1017", "P2028"]) {
+        const preimage = join(dir, `pre-${code}.json`);
+        let attempts = 0;
+        const base = deps(applyArgvFor(planPath, preimage, dry));
+        const lines: string[] = [];
+
+        await expect(
+          runRepair({
+            ...base,
+            say: (l: string) => lines.push(l),
+            prisma: {
+              ...(base.prisma as object),
+              $queryRawUnsafe: (sql: string) =>
+                (
+                  prisma as never as {
+                    $queryRawUnsafe: (q: string) => Promise<unknown>;
+                  }
+                ).$queryRawUnsafe(sql),
+              $transaction: async () => {
+                attempts += 1;
+                throw Object.assign(new Error("Transaction already closed"), {
+                  name: "PrismaClientKnownRequestError",
+                  code,
+                  clientVersion: "7.0.0",
+                });
+              },
+              bookAuthor: prisma.bookAuthor,
+              book: prisma.book,
+            },
+          } as never),
+        ).rejects.toThrow(/Transaction already closed/);
+
+        // Attempted once: no retry, no re-plan, no automatic reversal.
+        expect(attempts).toBe(1);
+
+        // NOT recorded as a confirmed rollback on that signal alone.
+        const outcome = readOutcome(preimage);
+        expect(outcome?.state).toBe("undetermined");
+        expect(outcome?.state).not.toBe("rolled-back");
+
+        // And it does not tell the operator the repair did not happen.
+        const said = lines.join("\n");
+        expect(said).toMatch(/no se pudo determinar el resultado/);
+        expect(said).not.toMatch(/No se aplicó la reparación/);
+        expect(said).not.toMatch(/la base quedó como estaba/);
+
+        // The preimage is intact and still only `intended`.
+        expect(JSON.parse(readFileSync(preimage, "utf8")).state).toBe(
+          "intended",
+        );
+      }
+    }, 90_000);
+
+    it("la salida exige intervención cuando el resultado es indeterminado", async () => {
+      // `runRepair` rethrows, and the entry point maps a foreign failure to a
+      // non-zero exit. Asserted on the classification the orchestration used,
+      // since the process boundary is `main`.
+      expect(
+        classifyTransactionFailure(
+          Object.assign(new Error("x"), { code: "P1017" }),
+        ),
+      ).toBe("undetermined");
+      expect(
+        describeError(Object.assign(new Error("x"), { code: "P1017" }))
+          .exitCode,
+      ).toBe(1);
+    });
 
     it("un resultado previo detiene la ejecución ANTES de modificar la base", async () => {
       const dir = outDir();

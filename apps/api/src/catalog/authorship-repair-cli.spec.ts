@@ -423,12 +423,68 @@ describe("clasificación del fallo de transacción", () => {
     );
   });
 
-  it("un SQLSTATE que no es de conexión: no se confirmó", () => {
+  it("sólo los SQLSTATE cuyo alcance lo decide: no se confirmó", () => {
+    // A statement the SERVER rejected takes its transaction down with it.
+    for (const code of ["23505", "22001", "42703", "40001", "40P01"]) {
+      expect(
+        classifyTransactionFailure(Object.assign(new Error("x"), { code })),
+      ).toBe("not-committed");
+    }
+  });
+
+  it("P1017 (el servidor cerró la conexión): INDETERMINADO", () => {
+    // The textbook undetermined case, and it used to be classified as a
+    // rollback purely for matching /^[0-9A-Z]{5}$/.
     expect(
       classifyTransactionFailure(
-        Object.assign(new Error("dup"), { code: "23505" }),
+        Object.assign(new Error("x"), { code: "P1017" }),
       ),
-    ).toBe("not-committed");
+    ).toBe("undetermined");
+  });
+
+  it("un envoltorio de Prisma no acredita el resultado: INDETERMINADO", () => {
+    // P2028 is a transaction-API error and P2010 a failed raw query. A
+    // wrapper describes what the client saw, not what the server did with
+    // this transaction.
+    for (const code of ["P2028", "P2010", "P2002", "P1001"]) {
+      expect(
+        classifyTransactionFailure(Object.assign(new Error("x"), { code })),
+      ).toBe("undetermined");
+    }
+  });
+
+  it("un código de cinco caracteres desconocido: INDETERMINADO", () => {
+    // Five characters is a SHAPE, not evidence. Prisma codes, driver codes
+    // and SQLSTATEs are three vocabularies that happen to share a length.
+    for (const code of ["ABCDE", "XX000", "ZZZZZ", "25P02"]) {
+      expect(
+        classifyTransactionFailure(Object.assign(new Error("x"), { code })),
+      ).toBe("undetermined");
+    }
+  });
+
+  it("un error transaccional genérico sin código: INDETERMINADO", () => {
+    expect(
+      classifyTransactionFailure(
+        Object.assign(new Error("Transaction already closed"), {
+          name: "PrismaClientKnownRequestError",
+        }),
+      ),
+    ).toBe("undetermined");
+  });
+
+  it("no se clasifica por palabras del mensaje", () => {
+    // A message can carry row values, a connection string or query
+    // arguments. Two errors whose text says opposite things, same code:
+    // both undetermined, because the text is never read.
+    const a = Object.assign(new Error("rolled back, nothing applied"), {
+      code: "P2028",
+    });
+    const b = Object.assign(new Error("committed successfully"), {
+      code: "P2028",
+    });
+    expect(classifyTransactionFailure(a)).toBe("undetermined");
+    expect(classifyTransactionFailure(b)).toBe("undetermined");
   });
 
   it("clase 08 y caída del servidor: indeterminado", () => {

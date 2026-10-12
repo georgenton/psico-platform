@@ -366,53 +366,65 @@ export function describeError(err: unknown): {
 /**
  * Can we say the repair did not commit, or only that we do not know?
  *
- * `aborted` used to absorb every rejection of `$transaction`, which claimed
- * evidence the tool does not have. The distinction that matters:
+ * ── Why this is an allowlist and not a pattern ────────────────────────────
  *
- *   · `not-committed` — the failure is one whose scope settles the question.
- *     Our own precondition and conflict errors are raised INSIDE the callback,
- *     before or instead of the write, so the transaction rolls back. A SQL
- *     error reported with a SQLSTATE is likewise a statement the server
- *     rejected, which rolls the transaction back.
- *   · `undetermined` — a connection or transport failure. From here, a
- *     connection lost while committing is indistinguishable from a commit
- *     that succeeded and whose acknowledgement never arrived.
+ * The first version treated anything shaped like a SQLSTATE —
+ * `/^[0-9A-Z]{5}$/` — as evidence of a rollback. That confuses the SHAPE of a
+ * code with knowledge of what happened, and three cases show why:
  *
- * The default is `undetermined`, deliberately: an unrecognised failure is a
- * question, and answering it with "nothing happened" is the error this exists
- * to avoid.
+ *   · `P1017` is Prisma's "the server closed the connection". It matches that
+ *     pattern, and it is the textbook UNDETERMINED case.
+ *   · `P2028` and `P2010` are wrappers — a transaction-API error and a failed
+ *     raw query. A wrapper does not, by itself, settle the fate of *this*
+ *     transaction.
+ *   · `ABCDE` is not a code at all, and was classified as a rollback purely
+ *     for being five characters long.
+ *
+ * Prisma codes, driver codes and SQLSTATEs are three different vocabularies
+ * that happen to share a length. So the rule is inverted: a foreign error is
+ * `undetermined` unless it is in a small set whose scope genuinely settles the
+ * question. Recognising every possible error is not the goal — being wrong
+ * about one is the thing to avoid.
+ *
+ * The message is never inspected: it can carry row values, a connection
+ * string or query arguments, and classifying on words would both leak and
+ * mislead.
  */
 export function classifyTransactionFailure(
   err: unknown,
 ): "not-committed" | "undetermined" {
-  // Ours, raised inside the callback: nothing was committed.
+  // Ours, raised INSIDE the callback, before or instead of the write. The
+  // transaction had not committed when it was thrown, so it rolled back.
   if (err instanceof RepairPreconditionError) return "not-committed";
   if (err instanceof PlanFileError) return "not-committed";
   if (err instanceof CliUsageError) return "not-committed";
 
-  const e = err as { code?: unknown; name?: unknown };
+  const e = err as { code?: unknown };
   const code = typeof e?.code === "string" ? e.code : "";
 
-  // PostgreSQL class 08 is "connection exception", 57P01/57P02/57P03 are the
-  // server going away, and these Node errors are the socket itself. All of
-  // them leave the commit's fate unknown.
-  const TRANSPORT = new Set([
-    "57P01",
-    "57P02",
-    "57P03",
-    "ECONNRESET",
-    "ECONNREFUSED",
-    "EPIPE",
-    "ETIMEDOUT",
-    "ENOTFOUND",
-    "EHOSTUNREACH",
-  ]);
-  if (code.startsWith("08") || TRANSPORT.has(code)) return "undetermined";
+  /**
+   * The only foreign codes whose scope settles it: a statement the SERVER
+   * rejected, which takes the enclosing transaction down with it.
+   *
+   *   · class 22 — data exception
+   *   · class 23 — integrity constraint violation
+   *   · class 42 — syntax error or access rule violation
+   *   · 40001 / 40P01 — serialization failure and deadlock, where PostgreSQL
+   *     states it rolled the transaction back
+   *
+   * Deliberately NOT here: class 08 (connection), 57P0x (server shutdown),
+   * class 25 (invalid transaction state — ambiguous by definition), `XX000`
+   * (internal error), and every Prisma `P####` code. A Prisma code describes
+   * what the client saw, not what the server did with the transaction.
+   */
+  const SETTLES =
+    /^(2[23]|42)[0-9A-Z]{3}$/.test(code) ||
+    code === "40001" ||
+    code === "40P01";
+  if (SETTLES) return "not-committed";
 
-  // A SQLSTATE that is not a connection class is a statement the server
-  // rejected, so the transaction rolled back.
-  if (/^[0-9A-Z]{5}$/.test(code)) return "not-committed";
-
+  // Everything else is a question, and answering it with "nothing happened"
+  // is the error this classification exists to avoid.
   return "undetermined";
 }
 

@@ -1,3 +1,4 @@
+import { fieldDigest } from "./authorship-plan-file";
 import {
   AUTHORSHIP_PENDING,
   AUTHORSHIP_SOURCES,
@@ -59,8 +60,23 @@ export type RepairOp =
       kind: "withdraw-author-credentials";
       authorId: string;
       authorSlug: string;
-      /** Structural expectation; see the header on why it is not a literal. */
-      expect: { hasTitle: boolean; hasLicense: boolean; isVerified: boolean };
+      /**
+       * EXACT expectation, as digests plus the row's identity.
+       *
+       * Presence booleans were not enough: a title changing from one non-null
+       * string to a different non-null string left `hasTitle: true` either
+       * way, so the applier would have withdrawn a value nobody reviewed. A
+       * per-field digest catches A → B. `name` and `slug` are here because
+       * identity matters too — the right fields on the wrong row is still the
+       * wrong write.
+       */
+      expect: {
+        name: string;
+        slug: string;
+        titleDigest: string | null;
+        licenseDigest: string | null;
+        isVerified: boolean;
+      };
       next: { title: null; licenseNumber: null; isVerified: false };
     }
   /** Create a source-backed author row. Name only — no credentials, ever. */
@@ -79,6 +95,16 @@ export type RepairOp =
       authorName: string;
       /** The author id the book points at now; null when it has none. */
       expectAuthorId: string | null;
+      /**
+       * The id resolved at PLAN time, when the author already existed.
+       *
+       * Frozen here so the applier does not re-resolve by canonical slug: the
+       * planner accepts a normalised match (` Jorge-Quizamanchuro ` is the
+       * same identity), and an exact `findUnique({ slug })` in the applier
+       * would miss exactly that row and mint a duplicate. `null` means "the
+       * plan expects this author to be created by its own create-author op".
+       */
+      targetAuthorId: string | null;
       source: string;
     };
 
@@ -100,17 +126,45 @@ export interface RepairPlan {
   untouched: RepairNote[];
 }
 
-/** Resolve a book slug to exactly one row, or say why not. */
-function findBook(snapshot: CatalogSnapshot, slug: string) {
+/**
+ * Resolve a book slug to exactly one row.
+ *
+ * Absence and ambiguity are NOT the same answer, and the first version
+ * collapsed both into "no book" — which sent an ambiguous slug to `untouched`
+ * while the procedure documented that ambiguity blocks the whole plan. A work
+ * that is not here is nothing to do; two rows claiming the same slug is a
+ * question nobody has answered, and guessing which one to rewrite is exactly
+ * the failure this tool exists to avoid.
+ */
+type BookResolution =
+  | { kind: "found"; book: CatalogSnapshot["books"][number] }
+  | { kind: "absent" }
+  | { kind: "ambiguous"; count: number };
+
+function findBook(snapshot: CatalogSnapshot, slug: string): BookResolution {
   const matches = snapshot.books.filter((b) => b.slug === slug);
-  if (matches.length === 1) return { book: matches[0]!, error: null as null };
-  return {
-    book: null,
-    error:
-      matches.length === 0
-        ? "no existe en el catálogo de este entorno"
-        : `${matches.length} filas comparten el slug, no se puede identificar inequívocamente`,
-  };
+  if (matches.length === 1) return { kind: "found", book: matches[0]! };
+  if (matches.length === 0) return { kind: "absent" };
+  return { kind: "ambiguous", count: matches.length };
+}
+
+/**
+ * Resolve an author slug under normalisation, refusing to pick a winner.
+ *
+ * `find` would silently take the first of several normalised matches. Two rows
+ * that normalise to the same slug are two identities the catalogue cannot tell
+ * apart; choosing one would attach a book to a coin flip.
+ */
+type AuthorResolution =
+  | { kind: "found"; author: CatalogSnapshot["authors"][number] }
+  | { kind: "absent" }
+  | { kind: "ambiguous"; count: number };
+
+function findAuthor(snapshot: CatalogSnapshot, slug: string): AuthorResolution {
+  const matches = snapshot.authors.filter((a) => sameSlug(a.slug, slug));
+  if (matches.length === 1) return { kind: "found", author: matches[0]! };
+  if (matches.length === 0) return { kind: "absent" };
+  return { kind: "ambiguous", count: matches.length };
 }
 
 /**
@@ -136,14 +190,22 @@ export function planAuthorshipRepair(
 
   // ── 1 · withdraw credentials nobody accredited ──────────────────────────
   for (const slug of FIXTURE_AUTHOR_SLUGS) {
-    const author = snapshot.authors.find((a) => sameSlug(a.slug, slug));
-    if (!author) {
+    const resolved = findAuthor(snapshot, slug);
+    if (resolved.kind === "ambiguous") {
+      plan.blockers.push({
+        subject: `autor ${slug}`,
+        reason: `${resolved.count} filas normalizan al mismo slug; no se elige una para retirarle credenciales`,
+      });
+      continue;
+    }
+    if (resolved.kind === "absent") {
       plan.untouched.push({
         subject: `autor ${slug}`,
         note: "no existe en este entorno; nada que retirar",
       });
       continue;
     }
+    const author = resolved.author;
     const hasClaims =
       author.title !== null ||
       author.licenseNumber !== null ||
@@ -159,8 +221,10 @@ export function planAuthorshipRepair(
       authorId: author.id,
       authorSlug: author.slug,
       expect: {
-        hasTitle: author.title !== null,
-        hasLicense: author.licenseNumber !== null,
+        name: author.name,
+        slug: author.slug,
+        titleDigest: fieldDigest(author.title),
+        licenseDigest: fieldDigest(author.licenseNumber),
         isVerified: author.isVerified,
       },
       next: { title: null, licenseNumber: null, isVerified: false },
@@ -169,20 +233,42 @@ export function planAuthorshipRepair(
 
   // ── 2 · attribute the works a source names ──────────────────────────────
   for (const source of sources) {
-    const { book, error } = findBook(snapshot, source.bookSlug);
-    if (!book) {
-      // Not a failure of the repair: the work may simply not exist here. The
-      // attribution stays prepared for whenever the row is created.
-      plan.untouched.push({
+    const resolvedBook = findBook(snapshot, source.bookSlug);
+
+    if (resolvedBook.kind === "ambiguous") {
+      // Documented as blocking, so it blocks. Previously this landed in
+      // `untouched` and the plan carried on.
+      plan.blockers.push({
         subject: `${source.bookTitle} (${source.bookSlug})`,
-        note: `${error}; la atribución a ${source.authorName} queda preparada, no pendiente de decisión`,
+        reason: `${resolvedBook.count} filas comparten el slug; no se puede identificar inequívocamente la obra a corregir`,
       });
       continue;
     }
 
-    const existing = snapshot.authors.find((a) =>
-      sameSlug(a.slug, source.authorSlug),
-    );
+    if (resolvedBook.kind === "absent") {
+      // Not a failure of the repair, and not proof the work does not exist:
+      // this snapshot is the catalogue rows this tool can see. The attribution
+      // stays prepared for whenever the row is identified.
+      plan.untouched.push({
+        subject: `${source.bookTitle} (${source.bookSlug})`,
+        note: `sin fila identificada en el alcance consultado de este entorno; la atribución a ${source.authorName} queda preparada, sin bootstrap ni ingesta`,
+      });
+      continue;
+    }
+
+    const book = resolvedBook.book;
+    const resolvedAuthor = findAuthor(snapshot, source.authorSlug);
+
+    if (resolvedAuthor.kind === "ambiguous") {
+      plan.blockers.push({
+        subject: `autor ${source.authorSlug}`,
+        reason: `${resolvedAuthor.count} filas normalizan al mismo slug; no se elige una para atribuirle la obra`,
+      });
+      continue;
+    }
+
+    const existing =
+      resolvedAuthor.kind === "found" ? resolvedAuthor.author : null;
 
     // A row under this slug carrying a different name is two people colliding.
     // Attaching the book to it would misattribute the work — the same refusal
@@ -218,14 +304,18 @@ export function planAuthorshipRepair(
       authorSlug: source.authorSlug,
       authorName: source.authorName,
       expectAuthorId: book.authorId,
+      // Frozen when the row exists, so the applier uses the id the planner
+      // resolved under normalisation instead of re-looking-up an exact slug.
+      targetAuthorId: existing?.id ?? null,
       source: source.source,
     });
   }
 
   // ── 3 · what stays untouched, and why ───────────────────────────────────
   for (const slug of AUTHORSHIP_PENDING) {
-    const { book } = findBook(snapshot, slug);
-    if (!book) continue;
+    const r = findBook(snapshot, slug);
+    if (r.kind !== "found") continue;
+    const book = r.book;
     plan.untouched.push({
       subject: `${book.title} (${slug})`,
       note: "AUTHORSHIP_SOURCE = PENDING — ninguna fuente de este repositorio lo atribuye; extrapolar un nombre de otra obra sería inventarlo",
@@ -259,9 +349,13 @@ export function describePlan(plan: RepairPlan): string {
   for (const op of plan.ops) {
     if (op.kind === "withdraw-author-credentials") {
       push(`  · retirar credenciales sin fuente — autor ${op.authorSlug}`);
+      // Presence and identity only: the digests stay out of the report, and
+      // the literals were never in the plan to begin with.
       push(
-        `      espera: título=${op.expect.hasTitle ? "presente" : "nulo"} · colegiatura=${
-          op.expect.hasLicense ? "presente" : "nula"
+        `      espera: fila «${op.expect.name}» · título=${
+          op.expect.titleDigest ? "presente" : "nulo"
+        } · colegiatura=${
+          op.expect.licenseDigest ? "presente" : "nula"
         } · verificado=${op.expect.isVerified}`,
       );
       push(`      queda:  título=null · colegiatura=null · verificado=false`);

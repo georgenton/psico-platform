@@ -90,12 +90,42 @@ describe("prisma/seed.ts · autoría y credenciales", () => {
   });
 
   it("atribuye el libro ancla a su autor de fuente, no al de fixture", () => {
-    // On a fresh database EEC must be created under the sourced author.
+    // On a fresh database EEC must be created under the identifier that the
+    // sourced-author resolution produced — not under the fixture identity, and
+    // not under some other row. The identifier is read out of the resolution
+    // itself instead of being hardcoded here, so renaming the variable does
+    // not turn this into a false alarm while still catching a swap.
+    const assigned = /(\w+)\s*=\s*created\.id;/.exec(SEED_CODE)?.[1];
+    expect(assigned).toBeTruthy();
+
     const idx = SEED.indexOf('slug: "emociones-en-construccion"');
     expect(idx).toBeGreaterThan(0);
     const region = SEED.slice(idx, idx + 1400);
-    expect(region).toMatch(/authorId: eecAuthor\.id/);
+    expect(region).toMatch(new RegExp(`authorId: ${assigned}\\b`));
     expect(region).not.toMatch(/authorId: fixtureAuthor\.id/);
+  });
+
+  it("no adopta una fila homónima por coincidencia de slug", () => {
+    // The hazard a plain `upsert` carries: keyed on the slug, it returns
+    // whatever row already holds it, so the anchor book would be attributed to
+    // a stranger because a string matched. The seed must resolve the row and
+    // compare the name before adopting it — and must NOT reach that row
+    // through an upsert, which would also rename it on the way in.
+    const slug = /EEC_AUTHOR_SLUG = "([^"]+)"/.exec(SEED_CODE)?.[1];
+    expect(slug).toBeTruthy();
+
+    // Resolution, not creation-by-coincidence.
+    expect(SEED_CODE).toMatch(
+      /findUnique\(\{\s*where: \{ slug: EEC_AUTHOR_SLUG \}/,
+    );
+    // The adopted row's name has to be checked against the canonical one.
+    expect(SEED_CODE).toMatch(/\.name\.trim\(\) === EEC_AUTHOR_NAME/);
+    // And no upsert may be keyed on that slug, by constant or by literal.
+    const upserts = /bookAuthor\.upsert\(\{[\s\S]{0,200}/g;
+    for (const [block] of SEED_CODE.matchAll(upserts)) {
+      expect(block).not.toMatch(/EEC_AUTHOR_SLUG/);
+      expect(block).not.toContain(`"${slug}"`);
+    }
   });
 
   it("la sinopsis del libro ancla no arrastra el nombre equivocado", () => {

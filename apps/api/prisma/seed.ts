@@ -132,12 +132,44 @@ async function main() {
   // being credited to a fixture identity on a fresh database. Name only: being
   // the author of a book is not a professional credential, and this must never
   // become a route to `isVerified`.
-  const eecAuthor = await prisma.bookAuthor.upsert({
-    where: { slug: "jorge-quizamanchuro" },
-    create: { slug: "jorge-quizamanchuro", name: "Jorge Quizamanchuro" },
-    update: {},
+  //
+  // Resolved, never upserted blindly. An `upsert` keyed on the slug returns
+  // whatever row holds it — so if somebody (or another import) already owns
+  // `jorge-quizamanchuro` under a different name, the upsert would hand that
+  // row back and the anchor book would be attributed to a stranger, purely
+  // because a slug matched. `bootstrap-book` refuses exactly this with
+  // `BOOK_AUTHOR_CONFLICT`; a seed cannot throw without taking the whole
+  // catalogue down, so it declines the attribution instead and says why.
+  //
+  // `Book.authorId` is nullable, and a book with no author renders as
+  // «Autoría por confirmar» — which is the honest outcome when the identity
+  // is in doubt. The curated row is NOT renamed to make the slug fit.
+  const EEC_AUTHOR_NAME = "Jorge Quizamanchuro";
+  const EEC_AUTHOR_SLUG = "jorge-quizamanchuro";
+  const existingEecAuthor = await prisma.bookAuthor.findUnique({
+    where: { slug: EEC_AUTHOR_SLUG },
   });
-  console.log(`✅  BookAuthor (fuente editorial): ${eecAuthor.name}`);
+  let eecAuthorId: string | null = null;
+  if (existingEecAuthor) {
+    if (existingEecAuthor.name.trim() === EEC_AUTHOR_NAME) {
+      eecAuthorId = existingEecAuthor.id;
+      console.log(
+        `✅  BookAuthor (fuente editorial): ${existingEecAuthor.name}`,
+      );
+    } else {
+      console.warn(
+        `⚠️  BookAuthor «${EEC_AUTHOR_SLUG}» existe con el nombre «${existingEecAuthor.name}», ` +
+          `que no es «${EEC_AUTHOR_NAME}». No se atribuye el libro a esa fila ni se renombra: ` +
+          `queda sin autor y se resuelve con la reparación de catálogo.`,
+      );
+    }
+  } else {
+    const created = await prisma.bookAuthor.create({
+      data: { slug: EEC_AUTHOR_SLUG, name: EEC_AUTHOR_NAME },
+    });
+    eecAuthorId = created.id;
+    console.log(`✅  BookAuthor (fuente editorial): ${created.name}`);
+  }
 
   // ─── Book 1: FREE — Emociones en Construcción ─────────────────────────────
 
@@ -162,7 +194,7 @@ async function main() {
       plan: "FREE",
       isPublished: true,
       totalChapters: 2,
-      authorId: eecAuthor.id,
+      authorId: eecAuthorId,
       categoryId: "cat-emociones",
       publishedAt: new Date("2026-01-15"),
     },

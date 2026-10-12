@@ -23,8 +23,12 @@ Tres consecuencias, que son tres problemas distintos:
    `title="Verificado"`. Comprobado sin autenticación contra staging: el
    detalle de _Emociones en Construcción_ devolvía `title`, `licenseNumber` e
    `isVerified: true`.
-3. **Corregir una fila a mano no servía de nada.** El `update` del seed
-   reimponía el autor y la verificación en el despliegue siguiente.
+3. **Corregir una fila a mano no bastaba.** El `update` del seed reimponía el
+   autor y la verificación. Con precisión: el seed **no** está encadenado al
+   despliegue actual —`migrate deploy` corre como pre-deploy y C.0A1 quitó el
+   encadenado del seed—, así que la reintroducción corresponde a **una futura
+   ejecución del seed**, no a cada deploy. Eso la hace menos inmediata y no
+   menos real: cualquier refresco de catálogo habría devuelto los valores.
 
 `BookAuthor` registra lo que alguien escribió. No registra quién lo dijo ni con
 qué autoridad — y hasta este cambio nada en el repositorio lo registraba.
@@ -103,10 +107,17 @@ personales ni información financiera.
 | `AuthorBook`, `AuthorProfile`, `AuthorEarning`, usuarios, roles, planes, cobros            | fuera de alcance por completo                                                                                                              |
 | Slugs, ids de obra y de capítulo, revisiones, bloques, anclas, experiencias, `TEXT_LOCKED` | no se cambian para corregir una atribución                                                                                                 |
 
-**`parejas-que-perduran`** no tiene fila `Book` en staging: no aparece en el
-catálogo público. No hay nada que reparar allí; la atribución a David Jaramillo
-queda **preparada** para cuando la fila exista, y el código que la crearía
-(`bootstrap-book`) ya usa `authorSlug: david-jaramillo`.
+**`parejas-que-perduran`** **no aparece en el catálogo público consultado** de
+staging. El alcance de esa consulta es `GET /api/books`, que lista lo
+publicado: **no demuestra la ausencia de una fila no publicada**, y la primera
+versión de este documento la presentó como si lo hiciera.
+
+De ahí lo que se hace y lo que no: no se repara una fila que no se ha
+identificado, y **no se hace bootstrap ni ingesta** por esa inferencia. La
+atribución a David Jaramillo queda **preparada** para cuando la fila se
+identifique, y el código que la crearía (`bootstrap-book`) ya usa
+`authorSlug: david-jaramillo`. El planificador lo dice con el mismo cuidado:
+«sin fila identificada en el alcance consultado».
 
 **Pendiente de decisión, no automatizado:** la sinopsis de _Emociones en
 Construcción_ en bases ya sembradas sigue empezando con el nombre equivocado
@@ -117,41 +128,115 @@ existente es una decisión editorial que este plan no toma.
 ## 6 · Procedimiento
 
 ```bash
-# Dry-run — no escribe. Es el modo por defecto.
-pnpm --filter @psico/api catalog:authorship:plan
+# Dry-run — no escribe. Es el modo por defecto. Congela el plan en disco.
+pnpm --filter @psico/api catalog:authorship:plan -- --plan-out=~/.psico-ops/authorship-plan.json
 
-# Aplicar en local
-pnpm --filter @psico/api catalog:authorship:apply
+# Aplicar CONSUMIENDO ese plan, declarando el destino y con respaldo previo.
+pnpm --filter @psico/api catalog:authorship:apply -- \
+  --plan=~/.psico-ops/authorship-plan.json \
+  --reversal-out=~/.psico-ops/authorship-reversal.json \
+  --expect-database=<nombre> --expect-posture=<local|staging>
 ```
 
-**La puerta de entrada.** La postura sale de `resolveEnvironment()`, alcanzada
-por la vía neutral `shared/psico-environment` — la autoridad semántica de
-`PSICO_ENV` que `prisma/seed-guard` nombra en sus propios comentarios. Se
-reutiliza, no se re-deriva ni se relaja.
+### El plan es un archivo, no un recálculo
 
-| Postura                | Comportamiento                                                                                                                                                                                                   |
-| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `production`           | **rechazado en esta versión**, sin token que lo habilite. Una reparación en producción es una decisión aparte                                                                                                    |
-| `staging`              | exige `ALLOW_STAGING_CATALOG_AUTHORSHIP_REPAIR=1` en la invocación. **El token del seed de staging no sirve**: sembrar catálogo y reparar atribuciones son decisiones distintas, con radios de impacto distintos |
-| `development` / `test` | `--apply` basta                                                                                                                                                                                                  |
-| sin clasificar         | `resolveEnvironment()` lanza antes de llegar aquí; se rechaza                                                                                                                                                    |
+La primera versión replanificaba en cada invocación, así que `--apply` **no
+ejecutaba el dry-run que alguien había revisado**: ejecutaba lo que la base
+pareciera en ese momento, adoptando en silencio condiciones que nadie había
+visto. Ahora `plan` congela un archivo con `planId` y `planHash`, y `apply` lo
+consume.
 
-**Garantías, cada una con prueba:**
+El `planHash` cubre **las operaciones y el destino**, así que un plan revisado
+para una base no valida contra otra. Al cargarlo se comprueban el formato, el
+hash, que cada operación sea una de las tres que esta herramienta ejecuta, y
+que el destino y la postura coincidan con la conexión actual. **Un archivo de
+plan no es una lista arbitraria de escrituras.** El identificador vincula lo
+revisado con lo aplicado; **no sustituye la autorización humana**.
 
-- **Dry-run por defecto.** Sin `--apply` no se escribe nada, en ningún entorno.
-- **Verificación de valores esperados dentro de la transacción.** El plan se
-  construye desde una instantánea; si la fila cambió desde entonces, la
-  operación se rechaza en vez de sobrescribir el cambio de otra persona.
+### Expectativas exactas
+
+Las expectativas eran presencias (`hasTitle`, `hasLicense`). Un título que
+cambia de un valor no nulo a **otro** valor no nulo dejaba esas presencias
+iguales, y el aplicador habría retirado un valor que nadie revisó. Ahora el
+plan lleva un **digest SHA-256 por campo** más el `name` y el `slug` de la
+fila: detecta A → B, y comprueba que son los campos correctos **de la fila
+correcta**.
+
+Los digests permiten comparar sin publicar nada. Los **valores literales viven
+en un único sitio**: el archivo de reversión, privado, permisos 600, fuera del
+árbol del producto. El resumen compartible no lleva ni los valores ni sus
+digests.
+
+### La ventana entre comprobar y escribir
+
+El aplicador releía y después escribía **por id**, así que otra conexión podía
+cambiar la fila en el intervalo y la escritura aterrizaba igual: la lectura no
+probaba nada sobre el estado en el momento de escribir.
+
+Ahora **toda escritura es condicionada por los valores recién leídos** —
+`updateMany` con los valores antiguos en el `WHERE`, exigiendo exactamente una
+fila afectada. Es un compare-and-set en SQL, así que la garantía viene **del
+propio enunciado** y no de un nivel de aislamiento que nadie declaró. Si otra
+operación cambió el dato, cero filas coinciden, nada se sobrescribe y la
+reparación se detiene.
+
+Ante un conflicto **no se replanifica con el dato nuevo**: adoptarlo sería
+autorizar un estado que nadie revisó.
+
+### Destino explícito
+
+`resolveEnvironment()` clasifica el **proceso**. En una máquina local sin
+marcadores devuelve `development` sin lanzar, mientras `DATABASE_URL` elige el
+**destino** por separado — así que «sin clasificar siempre lanza» sólo era
+cierto en una caja desplegada reconocida, y una etiqueta `development` no debe
+autorizar escribir en una base alojada.
+
+| Comprobación                             | Comportamiento                                                                                                                                                                                                                                                                                      |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL` ausente                   | rechazo. No hay destino por defecto: elegir una base implícitamente es cómo se repara la equivocada                                                                                                                                                                                                 |
+| `--expect-database` / `--expect-posture` | obligatorias para aplicar, y deben coincidir con la conexión real. Una orden copiada no aterriza en otra caja                                                                                                                                                                                       |
+| `current_database()`                     | se consulta y debe coincidir con la cadena de conexión                                                                                                                                                                                                                                              |
+| host no loopback                         | cuenta como **alojado** diga lo que diga la etiqueta: exige postura `staging` **y** `ALLOW_STAGING_CATALOG_AUTHORSHIP_REPAIR=1` en **esa** invocación. El token del seed no sirve, y no debe quedar fijado en las variables del servicio — eso convierte un permiso puntual en un bypass permanente |
+| `production`                             | **rechazado en esta versión**, sin token que lo habilite                                                                                                                                                                                                                                            |
+| argumento desconocido                    | rechazo, en vez de ignorarlo: una bandera mal escrita no debe convertirse en silencio en otro modo                                                                                                                                                                                                  |
+
+### Reversión antes de escribir
+
+El CLI imprimía los valores previos **después** de que la transacción
+terminara, y no exigía respaldo. Ahora el archivo de reversión se **persiste y
+se vuelve a leer antes de la primera escritura**; si no se puede guardar o
+verificar, la base no se toca. **No sobrescribe** un respaldo anterior: repetir
+el comando no debe destruir la única copia del estado previo.
+
+Tres estados distintos, escritos en momentos distintos: `intended` (preparado),
+`applied` y `aborted`. **Un archivo en `intended` no acredita que se aplicara
+nada.**
+
+El dry-run comprueba **todas** las precondiciones que puede, incluido el caso
+del plan inicial —autor destino ausente—, donde la versión anterior salía antes
+de validar `expectAuthorId` y **sin guardar el vínculo previo del libro**, que
+es justo el valor que después no se puede reconstruir.
+
+### Identidad y ambigüedad
+
+El planificador acepta un slug normalizado; el aplicador volvía a buscar el
+slug **canónico exacto**, así que una fila como ` Jorge-Quizamanchuro` se le
+escapaba y habría acuñado un duplicado. Ahora el plan **congela el id que el
+planificador resolvió** y el aplicador revalida su identidad antes de tocar
+cualquier relación.
+
+Dos coincidencias normalizadas **bloquean**: no se elige una con `find`. Y la
+ambigüedad de libro va a `blockers`, no a `untouched` — la primera versión
+prometía bloquear el plan completo y lo dejaba continuar.
+
+### Lo demás, que se conserva
+
 - **Una sola transacción.** Un fallo en la segunda operación no deja aplicada
   la primera: una corrección a medias es peor que ninguna, porque parece
   terminada.
-- **Idempotencia.** Repetir encuentra las filas ya en su valor final, cuenta
-  cero escrituras y no acuña un segundo autor.
-- **Detención ante ambigüedad.** Dos filas con el mismo slug de libro, o un
-  slug de autor con otro nombre, bloquean el plan completo.
-- **Resumen antes/después y número real de filas escritas**, no de operaciones
-  planificadas.
-- **Metadatos de reversión** emitidos antes de aplicar.
+- **Idempotencia.** Repetir encuentra las filas en su valor final, cuenta cero
+  escrituras y no acuña un segundo autor.
+- **Número real de filas escritas**, no de operaciones planificadas.
 
 Lo que el procedimiento **no** hace: no usa el seed como herramienta de
 reparación, no borra autores, no cambia slugs ni ids, y no restaura la base
@@ -159,23 +244,34 @@ como estrategia de reversión.
 
 ## 7 · Aplicación posterior y reversión (propuesta, no ejecutada)
 
-Aplicación, cuando haya autorización específica sobre este plan:
+Cuando haya autorización específica sobre el plan revisado:
 
-1. `catalog:authorship:plan` en el entorno objetivo y revisar el plan impreso.
-2. **Guardar los metadatos de reversión fuera del repositorio.** Contienen los
-   valores previos, incluidas las credenciales sin fuente que se retiran; no
-   deben entrar al árbol del producto.
-3. `catalog:authorship:apply` con el token de la postura.
-4. Comprobar el cuerpo público: `GET /api/books/emociones-en-construccion`
-   debe devolver el autor de fuente con `title: null`, `licenseNumber: null` e
+1. `catalog:authorship:plan -- --plan-out=<ruta privada>` en el entorno
+   objetivo. Revisar el plan impreso y el archivo congelado.
+2. Comprobar que el `planId` y el `planHash` del archivo son los del plan que
+   se aprobó. **Apply rechaza cualquier otro**, y rechaza también un plan de
+   otra base o de otra postura.
+3. `catalog:authorship:apply` con `--plan`, `--reversal-out`,
+   `--expect-database`, `--expect-posture` y, en una base alojada, el token de
+   esta invocación. El respaldo se persiste y se verifica **antes** de la
+   primera escritura; si eso falla, la base no se toca.
+4. Comprobar el cuerpo público: `GET /api/books/emociones-en-construccion` debe
+   devolver el autor de fuente con `title: null`, `licenseNumber: null` e
    `isVerified: false`.
 5. Confirmar que _Familias Ensambladas_ sigue donde estaba y que ningún otro
    autor cambió.
+6. Comprobar que el archivo de reversión quedó en estado `applied`. Si quedó en
+   `aborted`, **nada se aplicó** y el motivo está en la salida.
 
-Reversión, con los metadatos del paso 2: restaurar los tres campos de la fila
+**Reversión**, con el archivo del paso 3: restaurar los tres campos de la fila
 de fixture y el `authorId` previo del libro, en una transacción. La fila de
-autor creada se retira **sólo** si ningún libro la referencia. No se restaura
-la base.
+autor creada se retira **sólo** si ningún libro la referencia, y eso necesita
+su propia autorización de alcance. No se restaura la base, y no hay borrado
+automático de autores.
+
+El archivo de reversión contiene los **valores literales** previos. Vive fuera
+del repositorio, con permisos 600, y no se adjunta a un PR ni se pega en una
+bitácora.
 
 ## 8 · Límites
 
@@ -188,3 +284,10 @@ la base.
   ninguna de las dos cosas y este documento no las afirma.
 - `AUTHOR_CREDENTIAL_INTEGRITY` sigue **abierto** hasta que el plan se aplique
   y se verifique en el entorno objetivo.
+- Las pruebas de concurrencia intercalan una segunda conexión de forma
+  determinista, dirigida por código. Eso demuestra que la escritura
+  condicionada cierra **esa** ventana; no es un modelo de todas las
+  concurrencias posibles del sistema.
+- La garantía de la escritura condicionada viene del `WHERE`, no de un nivel de
+  aislamiento. El procedimiento **no** cambia la configuración de la base ni
+  depende de una no declarada.

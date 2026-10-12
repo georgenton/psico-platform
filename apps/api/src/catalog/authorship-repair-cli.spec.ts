@@ -391,6 +391,36 @@ describe("informe compartible", () => {
     expect(body).toContain("titlePresent");
   });
 
+  it("el respaldo se guarda ANTES de la primera escritura", () => {
+    // The crux of the finding: a reversal printed after the transaction is not
+    // a backup. `main` needs a database to run, so the ORDER is pinned over
+    // its source — collect, persist (which re-reads to verify), only then open
+    // the transaction, and settle the file either way.
+    const src = readFileSync(
+      join(__dirname, "authorship-repair-cli.ts"),
+      "utf8",
+    )
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/(^|[^:])\/\/.*$/gm, "$1");
+    // Anchor on CODE, not on a section comment: the comments are stripped
+    // above, so a marker inside one would slice an empty string and the
+    // assertions below would pass over nothing.
+    const apply = src.slice(
+      src.lastIndexOf("collectReversal("),
+      src.indexOf("require.main === module"),
+    );
+    expect(apply).toMatch(/collectReversal\(/); // guard the guard
+    expect(apply.length).toBeGreaterThan(200);
+
+    const at = (needle: string) => apply.indexOf(needle);
+    expect(at("collectReversal(")).toBeGreaterThan(-1);
+    expect(at("persistReversal(")).toBeGreaterThan(at("collectReversal("));
+    expect(at("$transaction(")).toBeGreaterThan(at("persistReversal("));
+    // And the outcome is recorded, so a prepared file never looks applied.
+    expect(apply).toMatch(/settleReversal\([^)]*"aborted"\)/);
+    expect(apply).toMatch(/settleReversal\([^)]*"applied"\)/);
+  });
+
   it("con --json, la salida estándar lleva sólo el informe", () => {
     // `main` needs a database, so this pins the property statically: inside
     // `main` the narrative goes through `say` (stderr under --json) and the

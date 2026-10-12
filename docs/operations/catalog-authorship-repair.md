@@ -303,3 +303,9 @@ bitácora.
 - La garantía de la escritura condicionada viene del `WHERE`, no de un nivel de
   aislamiento. El procedimiento **no** cambia la configuración de la base ni
   depende de una no declarada.
+- **Un plan es de un entorno.** El congelado para una base local no sirve para
+  staging: el hash cubre el destino, así que apply lo rechaza. Hay que generar
+  el plan **en** el entorno objetivo y revisarlo allí.
+- Aplicar en una base alojada necesita una autorización **explícita para ese
+  entorno**. Ni el plan ni su hash la sustituyen: vinculan el archivo al que se
+  revisó, y eso es todo lo que hacen.

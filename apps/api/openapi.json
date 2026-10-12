@@ -25950,7 +25950,7 @@
           },
           "voicePreference": {
             "type": "string",
-            "description": "Preferred narrator voice for audio playback:\n- `\"marina\"` — Marina Quintana voice (the anchor author's own)\n- `\"tomas\"` — Tomás voice (paired contributor)\n- `\"none\"` — opt out of audio entirely\n\nPersisted to `UserPreferences.voicePreference`. The audio file URL\nthe Lector serves picks the right track based on this preference.\nPlugin emits the enum in OpenAPI.",
+            "description": "Preferred narrator voice. OPTIONAL since the onboarding stopped asking.\n\nThe previous docstring here said \"the audio file URL the Lector serves\npicks the right track based on this preference\". It does not. Traced\nacross the API, the web and the shared packages, this value is only\never WRITTEN and then read back to display itself in the preferences\ncard: no audio player, no narration, no transcription and no Eco\npersona reads it. Asking somebody to choose a voice during their first\ntwo minutes, and then changing nothing, is a promise the product does\nnot keep — so the question was removed from the onboarding.\n\nThe field is NOT removed, and nothing is written in its place. When it\nis absent the service skips the write entirely: a previously chosen\npreference stays exactly as it was, and a person who was never asked\ndoes not get a silent default invented for them. Existing clients that\nstill send it keep working unchanged.\n\nWhen there is a real listener for it, the question can come back where\nit belongs — next to the audio.",
             "enum": [
               "marina",
               "tomas",
@@ -25959,8 +25959,7 @@
           }
         },
         "required": [
-          "firstName",
-          "voicePreference"
+          "firstName"
         ]
       },
       "OnboardingCompleteDto": {

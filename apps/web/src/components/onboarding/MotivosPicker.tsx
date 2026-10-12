@@ -81,7 +81,7 @@ export function MotivosPicker({ motivos }: { motivos: OnboardingMotivo[] }) {
                   aria-selected={active}
                   onClick={() => toggle(m.id)}
                   disabled={submitting}
-                  className="flex w-full flex-col items-start gap-1 rounded-2xl border-[1.5px] p-4 text-left transition-colors disabled:opacity-50"
+                  className="flex w-full items-center justify-between gap-2 rounded-2xl border-[1.5px] p-4 text-left transition-colors disabled:opacity-50"
                   style={
                     active
                       ? {
@@ -96,10 +96,20 @@ export function MotivosPicker({ motivos }: { motivos: OnboardingMotivo[] }) {
                         }
                   }
                 >
-                  <span className="text-[18px]" aria-hidden>
-                    {m.icon}
-                  </span>
+                  {/* `m.icon` still exists in the catalogue and is left
+                      alone: each motivo's key and meaning are a contract.
+                      What goes is the emoji on the card — decoration that
+                      made a question which is not childish look childish. */}
                   <span className="text-[13.5px] font-semibold">{m.label}</span>
+                  {/* Selection is not said with colour alone: a check is a
+                      shape, and it reads the same with low colour vision. */}
+                  <span
+                    aria-hidden
+                    className="text-[13px] font-bold"
+                    style={{ opacity: active ? 1 : 0 }}
+                  >
+                    ✓
+                  </span>
                 </button>
               </li>
             );

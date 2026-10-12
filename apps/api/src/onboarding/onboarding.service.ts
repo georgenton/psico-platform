@@ -176,17 +176,24 @@ export class OnboardingService {
     const firstName = dto.firstName.trim();
     const now = new Date();
 
+    // The onboarding no longer asks for a voice, because nothing consumes
+    // the answer (see `Step3Dto.voicePreference`). When it is absent we
+    // write NOTHING for it: no audit value, no preference row touched. A
+    // default chosen here would be a preference the person never expressed,
+    // and it would also overwrite one they may have set in their profile.
+    const voice = dto.voicePreference;
+
     await this.prisma.$transaction([
       // Audit
       this.prisma.onboardingState.upsert({
         where: { userId },
         create: {
           userId,
-          initialVoicePreference: dto.voicePreference,
+          ...(voice ? { initialVoicePreference: voice } : {}),
           step3CompletedAt: now,
         },
         update: {
-          initialVoicePreference: dto.voicePreference,
+          ...(voice ? { initialVoicePreference: voice } : {}),
           step3CompletedAt: now,
         },
       }),
@@ -195,12 +202,16 @@ export class OnboardingService {
         where: { id: userId },
         data: { firstName },
       }),
-      // Long-term voice pref on UserPreferences
-      this.prisma.userPreferences.upsert({
-        where: { userId },
-        create: { userId, voicePreference: dto.voicePreference },
-        update: { voicePreference: dto.voicePreference },
-      }),
+      // Long-term voice pref on UserPreferences, only when asked for
+      ...(voice
+        ? [
+            this.prisma.userPreferences.upsert({
+              where: { userId },
+              create: { userId, voicePreference: voice },
+              update: { voicePreference: voice },
+            }),
+          ]
+        : []),
     ]);
 
     return { ok: true as const, next: "step4" };
@@ -237,6 +248,7 @@ export class OnboardingService {
         where: { isPublished: true, slug: { not: primarySlug } },
         orderBy: { createdAt: "asc" },
         take: 2,
+        include: { author: { select: { name: true } } },
       }),
     ]);
 
@@ -396,6 +408,8 @@ export class OnboardingService {
   private async findRecommendableBook(slug: string) {
     return this.prisma.book.findFirst({
       where: { slug, isPublished: true },
+      // The real author, not a placeholder. See `toRecommendation`.
+      include: { author: { select: { name: true } } },
     });
   }
 
@@ -405,6 +419,8 @@ export class OnboardingService {
       slug: string;
       title: string;
       description: string | null;
+      plan: string;
+      author: { name: string } | null;
     },
     matchedMotivo: string | null,
     bookSlug: string,
@@ -417,9 +433,17 @@ export class OnboardingService {
     return {
       bookId: book.id,
       title: book.title,
-      // Book model doesn't have an `author` column yet (BookAuthor is Sprint S5).
-      // Show a sensible fallback until then.
-      author: "Marina Quintana",
+      // The real author, from `BookAuthor`. This was hard-coded to "Marina
+      // Quintana" for EVERY recommendation, a leftover from before the
+      // relation existed (S5). Today the two seeded books really are hers,
+      // so nothing was being misattributed yet — but the first screen a
+      // person sees would have started claiming it the moment a second
+      // author appeared, which is exactly what Author B2B is for.
+      // Attribution is not a placeholder; when a book has no author on
+      // record, say so instead of inventing one.
+      author: book.author?.name ?? "Autoría por confirmar",
+      // What it costs to open, stated BEFORE the CTA promises a read.
+      tierRequired: book.plan === "FREE" ? ("free" as const) : ("pro" as const),
       cover: this.pickCoverToken(book.id),
       // Until ContentModule exposes chapter 1 preview, use the description as
       // a stand-in. Sprint S5 plugs the real chapter 1 first paragraph.

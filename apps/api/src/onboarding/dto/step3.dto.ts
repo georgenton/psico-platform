@@ -1,4 +1,11 @@
-import { IsIn, IsString, Matches, MaxLength, MinLength } from "class-validator";
+import {
+  IsIn,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+  MinLength,
+} from "class-validator";
 
 /**
  * Body for `POST /api/onboarding/step3` — capture the user's display
@@ -27,15 +34,27 @@ export class OnboardingStep3Dto {
   firstName!: string;
 
   /**
-   * Preferred narrator voice for audio playback:
-   * - `"marina"` — Marina Quintana voice (the anchor author's own)
-   * - `"tomas"` — Tomás voice (paired contributor)
-   * - `"none"` — opt out of audio entirely
+   * Preferred narrator voice. OPTIONAL since the onboarding stopped asking.
    *
-   * Persisted to `UserPreferences.voicePreference`. The audio file URL
-   * the Lector serves picks the right track based on this preference.
-   * Plugin emits the enum in OpenAPI.
+   * The previous docstring here said "the audio file URL the Lector serves
+   * picks the right track based on this preference". It does not. Traced
+   * across the API, the web and the shared packages, this value is only
+   * ever WRITTEN and then read back to display itself in the preferences
+   * card: no audio player, no narration, no transcription and no Eco
+   * persona reads it. Asking somebody to choose a voice during their first
+   * two minutes, and then changing nothing, is a promise the product does
+   * not keep — so the question was removed from the onboarding.
+   *
+   * The field is NOT removed, and nothing is written in its place. When it
+   * is absent the service skips the write entirely: a previously chosen
+   * preference stays exactly as it was, and a person who was never asked
+   * does not get a silent default invented for them. Existing clients that
+   * still send it keep working unchanged.
+   *
+   * When there is a real listener for it, the question can come back where
+   * it belongs — next to the audio.
    */
+  @IsOptional()
   @IsIn(["marina", "tomas", "none"])
-  voicePreference!: "marina" | "tomas" | "none";
+  voicePreference?: "marina" | "tomas" | "none";
 }

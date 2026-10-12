@@ -18,6 +18,7 @@ import {
   isNextThrow,
   serverFetch,
 } from "@/lib/api.server";
+import { resolveOnboardingGate } from "@/lib/onboarding/gate";
 import { deriveGuideRecoveryActorScope } from "@/lib/guide-recovery-scope.server";
 import { getDiaryWrapKey } from "@/actions/diary-session";
 import { GuideActorScopeProvider } from "@/components/dashboard/guide/guide-actor-scope";
@@ -62,20 +63,16 @@ export default async function DashboardLayout({
   // — the user has not yet decided about onboarding.
   //
   // Sprint S37: compute showTour at the layout level so the check happens
-  // server-side per navigation, not per render. Tour fires only for users
-  // who finished onboarding (`completedAt`) but never saw the tour yet
-  // (`tourCompletedAt === null`). Users who explicitly skipped the whole
-  // onboarding (`skippedAt`) DON'T get the tour either — they opted out.
+  // server-side per navigation, not per render. The rule itself lives in
+  // `resolveOnboardingGate` — a pure function with its own tests — because
+  // this component can neither be rendered nor asserted on outside a Next
+  // request scope, and the rule has four distinct people to get right. What
+  // stays here is the part only a layout can do: fetch, and throw.
   let showTour = false;
   if (me) {
-    const onboarding = me.onboardingState;
-    const onboardingDone = Boolean(
-      onboarding?.completedAt || onboarding?.skippedAt,
-    );
-    if (!onboardingDone) {
-      redirect("/onboarding");
-    }
-    showTour = Boolean(onboarding?.completedAt && !onboarding?.tourCompletedAt);
+    const gate = resolveOnboardingGate(me.onboardingState);
+    if (gate.kind === "redirect") redirect(gate.to);
+    else showTour = gate.showTour;
   }
 
   // Sprint S53 — auto-detect the user's timezone on first dashboard load

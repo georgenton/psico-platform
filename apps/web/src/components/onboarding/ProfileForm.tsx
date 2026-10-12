@@ -1,31 +1,31 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import type { OnboardingVoicePreference } from "@psico/types";
 import { saveStep3 } from "@/actions/onboarding";
 
-// Voice options. The stored DB values stay the same (`marina`, `tomas`,
-// `none`) so prior catalogs and any analytics don't break — only the user-
-// facing labels are descriptive traits, no personal names.
-const VOICES: Array<{
-  value: OnboardingVoicePreference;
-  label: string;
-  hint: string;
-}> = [
-  { value: "marina", label: "Cálida", hint: "Voz suave, ritmo pausado" },
-  {
-    value: "tomas",
-    label: "Cercana",
-    hint: "Voz natural, ritmo conversacional",
-  },
-  { value: "none", label: "Sin voz", hint: "Solo texto, por ahora" },
-];
+/**
+ * The voice question used to live here. It is gone, and the field is not.
+ *
+ * `voicePreference` was only ever written and read back to display itself:
+ * no audio player, narration, transcription or Eco persona consumes it.
+ * Asking for it in the first two minutes and then changing nothing is a
+ * promise the product does not keep. Nothing is written in its place —
+ * `Step3Dto` made the field optional and the service skips the write — so
+ * preferences set elsewhere survive and nobody gets a silent default.
+ *
+ * The profile's own preferences card still offers it; that surface is not
+ * part of this change and is flagged for review rather than quietly
+ * emptied.
+ */
 
 const NAME_REGEX = /^[\p{L}\p{M}'\- ]+$/u; // letras (incl. acentos), apóstrofo, guion, espacio
 
-export function ProfileForm() {
-  const [firstName, setFirstName] = useState("");
-  const [voice, setVoice] = useState<OnboardingVoicePreference>("marina");
+export function ProfileForm({ initialName = "" }: { initialName?: string }) {
+  // Prefilled from the account, so this is a confirmation and not a second
+  // request for something registration already asked. It stays editable:
+  // the name somebody signs up with is not always the one they want read
+  // back to them.
+  const [firstName, setFirstName] = useState(initialName);
   const [submitting, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -48,10 +48,7 @@ export function ProfileForm() {
     setError(null);
     startTransition(async () => {
       try {
-        await saveStep3({
-          firstName: firstName.trim(),
-          voicePreference: voice,
-        });
+        await saveStep3({ firstName: firstName.trim() });
       } catch {
         setError("No pudimos guardar. Reintenta.");
       }
@@ -77,7 +74,9 @@ export function ProfileForm() {
           className="mt-2 text-[14px]"
           style={{ color: "var(--color-warm-500)" }}
         >
-          Solo tu nombre. Luego eliges la voz que te acompañará en los audios.
+          {initialName
+            ? "Lo tomamos de tu registro. Cámbialo si prefieres que te llamemos de otra forma."
+            : "Así sabremos cómo dirigirnos a ti."}
         </p>
 
         <div className="mt-6">
@@ -107,62 +106,6 @@ export function ProfileForm() {
             }}
           />
         </div>
-
-        <fieldset className="mt-6">
-          <legend
-            className="text-[11px] font-bold uppercase tracking-[0.14em]"
-            style={{ color: "var(--color-warm-500)" }}
-          >
-            Voz preferida
-          </legend>
-          <div className="mt-2 flex flex-col gap-2">
-            {VOICES.map((v) => {
-              const active = voice === v.value;
-              return (
-                <label
-                  key={v.value}
-                  className="flex cursor-pointer items-start gap-3 rounded-2xl border-[1.5px] px-4 py-3 transition-colors"
-                  style={
-                    active
-                      ? {
-                          background: "var(--color-lavender-50)",
-                          borderColor: "var(--color-lavender-400)",
-                        }
-                      : {
-                          background: "white",
-                          borderColor: "var(--color-warm-200)",
-                        }
-                  }
-                >
-                  <input
-                    type="radio"
-                    name="voice"
-                    value={v.value}
-                    checked={active}
-                    onChange={() => setVoice(v.value)}
-                    disabled={submitting}
-                    className="mt-1"
-                    style={{ accentColor: "var(--color-lavender-500)" }}
-                  />
-                  <div className="min-w-0">
-                    <div
-                      className="text-[14px] font-semibold"
-                      style={{ color: "var(--color-warm-900)" }}
-                    >
-                      {v.label}
-                    </div>
-                    <div
-                      className="text-[12px]"
-                      style={{ color: "var(--color-warm-500)" }}
-                    >
-                      {v.hint}
-                    </div>
-                  </div>
-                </label>
-              );
-            })}
-          </div>
-        </fieldset>
 
         {error ? (
           <p

@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { BadRequestException, NotFoundException } from "@nestjs/common";
+import { SEED_PHRASE_WORD_COUNT, masterKeyToSeedPhrase } from "@psico/crypto";
 import { OnboardingService } from "./onboarding.service";
-import { ONBOARDING_INTRO } from "./constants";
+import { ONBOARDING_INTRO, TOUR_STEPS } from "./constants";
 
 const userId = "user-1";
 
@@ -58,10 +59,27 @@ describe("OnboardingService", () => {
       // Author B2B module (S22+).
       expect(intro.title.length).toBeGreaterThan(0);
       expect(intro.body.length).toBeGreaterThan(50);
-      expect(intro.signature).toBe("— Psico Platform");
+      // The visible brand is FeelVerse. The welcome used to sign itself
+      // "— Psico Platform", which is the repository's name and the
+      // product's history, not what a person is looking at.
+      expect(intro.signature).toBe("— FeelVerse");
       // Guard against accidental re-introduction of personal-name copy.
       expect(intro.title).not.toMatch(/Marina|Jorge|Tomás/);
       expect(intro.signature).not.toMatch(/Marina|Jorge|Tomás/);
+      // …and against the internal name returning to a user-facing surface.
+      // Renaming packages, tables or history is NOT the fix; not signing
+      // the welcome with them is.
+      for (const text of [
+        intro.title,
+        intro.subtitle,
+        intro.body,
+        intro.signature,
+      ]) {
+        expect(text).not.toMatch(/Psico\s*-?\s*Platform/i);
+      }
+      // No invented duration: the welcome promised "60 segundos" with
+      // nothing measured behind it.
+      expect(intro.body).not.toMatch(/\d+\s*segundos?/i);
     });
 
     it("getMotivos returns only active rows in `order` asc", async () => {
@@ -311,6 +329,91 @@ describe("OnboardingService", () => {
         NotFoundException,
       );
     });
+
+    // ── authorship ─────────────────────────────────────────────────────────
+    //
+    // The old code shipped `author: "Marina Quintana"` as a literal for every
+    // recommendation. These tests deliberately use a DIFFERENT name: pinning
+    // the seeded one would pass just as well against the hard-coded literal,
+    // and would quietly re-assert an attribution this repository cannot
+    // verify. What is checked is that the value comes FROM the relation.
+    it("shows the author registered on the book, not a fixed name", async () => {
+      mockPrisma.onboardingState.findUnique.mockResolvedValue({
+        motivosIds: ["unknown-motivo"],
+      });
+      mockPrisma.book.findFirst.mockResolvedValue({
+        id: "book-ec",
+        slug: "emociones-en-construccion",
+        title: "Emociones en Construcción",
+        description: "",
+        author: { name: "Autora Registrada de Prueba" },
+      });
+      mockPrisma.book.findMany.mockResolvedValue([]);
+
+      const res = await service.getRecommendation(userId);
+
+      expect(res.recommendation.author).toBe("Autora Registrada de Prueba");
+      expect(res.recommendation.author).not.toBe("Marina Quintana");
+    });
+
+    it("says «Autoría por confirmar» when the book has no author registered", async () => {
+      mockPrisma.onboardingState.findUnique.mockResolvedValue({
+        motivosIds: ["unknown-motivo"],
+      });
+      mockPrisma.book.findFirst.mockResolvedValue({
+        id: "book-ec",
+        slug: "emociones-en-construccion",
+        title: "Emociones en Construcción",
+        description: "",
+        author: null,
+      });
+      mockPrisma.book.findMany.mockResolvedValue([]);
+
+      const res = await service.getRecommendation(userId);
+
+      // Not a name, not an empty string that renders as a blank line, and
+      // above all not somebody else's name standing in.
+      expect(res.recommendation.author).toBe("Autoría por confirmar");
+    });
+
+    it("reads the author of each alternative too, not just the primary", async () => {
+      mockPrisma.onboardingState.findUnique.mockResolvedValue({
+        motivosIds: ["unknown-motivo"],
+      });
+      mockPrisma.book.findFirst.mockResolvedValue({
+        id: "book-ec",
+        slug: "emociones-en-construccion",
+        title: "Emociones en Construcción",
+        description: "",
+        author: { name: "Primera Autora" },
+      });
+      mockPrisma.book.findMany.mockResolvedValue([
+        {
+          id: "book-fe",
+          slug: "familias-ensambladas",
+          title: "Familias Ensambladas",
+          description: "",
+          author: { name: "Segundo Autor" },
+        },
+        {
+          id: "book-x",
+          slug: "sin-autoria",
+          title: "Sin autoría",
+          description: "",
+          author: null,
+        },
+      ]);
+
+      const res = await service.getRecommendation(userId);
+
+      // A single author for the whole list is exactly the bug being fixed,
+      // and the alternatives are where it would survive unnoticed.
+      expect(res.alternatives.map((a) => a.author)).toEqual([
+        "Segundo Autor",
+        "Autoría por confirmar",
+      ]);
+      expect(res.recommendation.author).toBe("Primera Autora");
+    });
   });
 
   // ── complete ──────────────────────────────────────────────────────────────
@@ -407,6 +510,105 @@ describe("OnboardingService", () => {
     it("still says the three questions are short and that skipping is allowed", () => {
       expect(ONBOARDING_INTRO.body).toContain("tres preguntas cortas");
       expect(ONBOARDING_INTRO.body).toContain("saltar este paso");
+    });
+  });
+
+  describe("the tour does not state numbers the product cannot back", () => {
+    /** Every sentence the tour can put in front of a reader. */
+    const everyTourSentence = () =>
+      TOUR_STEPS.flatMap((s) => [
+        s.title,
+        s.body,
+        s.learnMore?.title ?? "",
+        s.learnMore?.analogy ?? "",
+        ...(s.learnMore?.points ?? []),
+      ]);
+
+    it("any «N palabras» it mentions is the real SEED_PHRASE_WORD_COUNT", () => {
+      const mentions = everyTourSentence().flatMap((t) => [
+        ...t.matchAll(/(\d+)\s*palabras/gi),
+      ]);
+
+      // Guard the guard: a copy edit that drops the sentence entirely would
+      // otherwise make this test vacuously green.
+      expect(mentions.length).toBeGreaterThan(0);
+
+      for (const m of mentions) {
+        expect(Number(m[1])).toBe(SEED_PHRASE_WORD_COUNT);
+      }
+      // And the number really is the one the crypto uses, not a second copy
+      // of 12 that happens to agree today.
+      expect(SEED_PHRASE_WORD_COUNT).toBe(
+        masterKeyToSeedPhrase(new Uint8Array(16)).trim().split(/\s+/).length,
+      );
+    });
+
+    it("does not say the phrase can only ever be seen once", () => {
+      // `ShowSeedPhraseCard` re-derives it from Ajustes → Seguridad whenever
+      // the diary is unlocked, so "your only chance" was both alarming and
+      // untrue. The tour has to point at where it can be consulted again.
+      expect(everyTourSentence().join(" ")).toContain("Ajustes → Seguridad");
+
+      // Said per sentence rather than over the joined text, because the
+      // current copy raises the idea in order to deny it — "no es tu única
+      // oportunidad de verla". A substring search over everything cannot tell
+      // an assertion from its negation; this can. If someone rewrites the
+      // sentence to claim single viewing, it fails.
+      for (const s of everyTourSentence()) {
+        if (/única (forma|oportunidad) de ver/i.test(s)) {
+          expect(s).toMatch(/\bno\s+es\b/i);
+        }
+      }
+    });
+
+    it("separates recovering the account from decrypting what was written", () => {
+      const text = everyTourSentence().join(" ");
+      expect(text).toContain("no descifra");
+      // The promise the cryptography cannot keep: handing the phrase over
+      // after the fact.
+      expect(text).not.toMatch(/te (daremos|damos|enviaremos) una frase/i);
+    });
+
+    it("states the loss condition as the three things it really takes", () => {
+      const text = everyTourSentence().join(" ");
+      // An unlocked session is a third way out, and the one somebody in
+      // trouble is most likely to still have open: `ShowSeedPhraseCard` reads
+      // `masterKey` from the context, so it can reveal the phrase with no
+      // password at all. The earlier copy named only two, which contradicted
+      // the bullet above it and would push a reader to give up while the
+      // rescue was on screen.
+      expect(text).toMatch(/sesión que las conserve desbloqueadas/i);
+      expect(text).not.toMatch(
+        /si pierdes la contraseña y la frase, el contenido cifrado no se puede recuperar/i,
+      );
+    });
+
+    it("tells the reader not to share the phrase", () => {
+      // The phrase IS the key — `masterKey` serialized — so whoever holds it
+      // can open the diary. The tour asked people to store something that
+      // powerful without ever saying so.
+      expect(everyTourSentence().join(" ")).toMatch(/no la compartas/i);
+    });
+
+    it("does not claim a catalogue of audio it has not measured", () => {
+      const text = everyTourSentence().join(" ");
+      // "Algunos capítulos tienen audio" asserts that playable tracks exist.
+      // A tour can describe a CONDITIONAL capability without inventorying it,
+      // and nothing here measured the environment's inventory.
+      expect(text).not.toMatch(/algunos capítulos tienen audio/i);
+      expect(text).not.toMatch(/muchos (vienen|tienen) (con )?audio/i);
+      // What is left are the two conditions that hold by construction.
+      expect(text).toMatch(/audio requiere Pro/i);
+      expect(text).toMatch(/pista publicada/i);
+    });
+
+    it("does not promise that paying for Pro gets you audio", () => {
+      // Pro is necessary, not sufficient: the second condition is editorial.
+      const text = everyTourSentence().join(" ");
+      expect(text).not.toMatch(
+        /con Pro (tienes|tendrás|accedes a) (el )?audio/i,
+      );
+      expect(text).not.toMatch(/Pro incluye (el )?audio de (todos|cada)/i);
     });
   });
 });

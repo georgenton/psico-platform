@@ -608,9 +608,14 @@ export class UsersService {
   // Sprint seed-and-password-rekey · ADR 0007 §G.
   //
   // Idempotent stamp: the client has shown the BIP39 seed phrase to the user
-  // and they confirmed (e.g. by re-typing 3 of 24 words). We never bother
-  // them again. The actual seed phrase is NOT stored — it's the master key
-  // serialized, and the server must remain blind to it.
+  // and they confirmed. We never bother them again. The actual seed phrase is
+  // NOT stored — it's the master key serialized, and the server must remain
+  // blind to it.
+  //
+  // This used to say "e.g. by re-typing 3 of 24 words", describing a flow that
+  // no longer exists on either count: ADR 0007 was revised in July 2026 to a
+  // 12-word phrase (`SEED_PHRASE_WORD_COUNT`) saved in one tap, with no
+  // re-type quiz — see `SeedPhraseModal`.
   async acknowledgeCryptoSeed(
     userId: string,
   ): Promise<{ ok: true; shownAt: Date }> {

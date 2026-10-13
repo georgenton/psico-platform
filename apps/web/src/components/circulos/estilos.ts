@@ -23,12 +23,15 @@ import type { CSSProperties } from "react";
  * distinto en Calma, Enfoque, Energía y en Renaissance, y un literal no sigue
  * a ninguno.
  *
- * Cada valor de abajo es un PAR declarado en `lib/design/color-contracts.ts`,
- * medido con la misma maquinaria que cobra esos contratos. Los peores casos de
- * los ocho estados del panel: PÁGINA 7,58 · PANEL 8,05 · apoyo sobre tarjeta
- * 5,29 · cuerpo sobre `subtle` 7,04 · apoyo sobre `subtle` 4,63 · ACCIÓN 4,88 ·
- * ERROR 6,47. Fuera del panel —la sala de invitado, donde hay tema pero no
- * ambiente— ninguno baja de 4,81.
+ * Cada valor de abajo es un token del sistema. Los PARES concretos que esta
+ * pantalla forma no viven en `lib/design/color-contracts.ts` —ese archivo
+ * declara el contrato global y los diez estados— sino que `estilos.test.ts`
+ * los DERIVA de este objeto y los mide con la misma maquinaria. Es la
+ * diferencia que importa: cambiar un token de aquí cambia lo que se mide, sin
+ * tocar la prueba. Peores casos hoy: `--fg-body` 7,04 (sobre `subtle`) ·
+ * `--fg-muted` 4,63 (sobre `subtle`) · ACCIÓN 4,88 · ERROR 6,47. Fuera del
+ * panel —la sala de invitado, donde hay tema pero no ambiente— ninguno baja
+ * de 4,81.
  *
  * Tres tokens se midieron y NO se usan: `--fg-tertiary` da 2,09 sobre tarjeta y
  * `--fg-link` / `--fg-link-strong` caen a 2,30 en Renaissance Noche. Por eso el
@@ -97,9 +100,15 @@ export const estilos: Record<string, CSSProperties> = {
     padding: ".6rem .7rem",
     borderRadius: ".5rem",
     border: "1px solid var(--bg-divider)",
-    // El fondo y la tinta van explícitos a propósito. Sin ellos el control se
-    // queda con el blanco del navegador —la app no declara `color-scheme`— y
-    // en Noche la tinta heredada es clara: texto claro sobre caja blanca.
+    // El fondo y la tinta van explícitos a propósito. La app no declara
+    // `color-scheme`, así que sin valores propios el control mezcla dos
+    // fuentes: la caja por defecto del navegador y una tinta que sí sigue al
+    // token. Fijar ambos lo deja entero dentro del par declarado.
+    //
+    // Este control vive HOY sólo en `/compartir/[activityId]` —`SalaDuo` →
+    // `PreparacionPrivada`—, que está fuera del panel y por tanto nunca ve un
+    // ambiente: medido ahí pinta `#ffffff` con tinta `#574f45`, unos 7,6:1. Si
+    // algún día la sala entra al panel, esto ya está preparado para Noche.
     background: "var(--bg-surface)",
     color: "var(--fg-body)",
     fontSize: "1rem",
@@ -118,9 +127,14 @@ export const estilos: Record<string, CSSProperties> = {
    * Quieter than `p` and much quieter than `aviso`, which is a box and reads as
    * a warning. These notes are not warnings — they are the one sentence a
    * person needs to choose correctly, and they earn their place only by being
-   * next to the choice. `--fg-muted` sobre `--bg-surface` da 5,29 en el peor de
-   * los ocho estados, así que «más callado» sigue siendo cuestión de tamaño y
-   * peso, no de legibilidad.
+   * next to the choice.
+   *
+   * `--fg-muted` se mide contra los tres fondos sobre los que esta nota puede
+   * acabar, porque acaba en los tres: dentro de una tarjeta (5,29), dentro de
+   * un `aviso` o del panel de ayuda (4,63) y suelta sobre la página (4,98),
+   * que es lo que hace `OpinionOpcional` cuando la persona ya respondió. El
+   * peor caso sigue por encima de 4,5, así que «más callado» es cuestión de
+   * tamaño y peso, no de legibilidad.
    */
   nota: {
     margin: 0,

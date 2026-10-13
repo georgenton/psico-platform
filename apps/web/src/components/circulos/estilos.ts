@@ -10,7 +10,30 @@ import type { CSSProperties } from "react";
  *
  * Two things here are requirements, not taste: every interactive control is at
  * least 44px tall (a thumb target on a phone) and text sits on backgrounds that
- * clear WCAG AA. The palette is the one FeelVerse already uses elsewhere.
+ * clear WCAG AA.
+ *
+ * ── Por qué tokens y no hexadecimales ────────────────────────────────────────
+ *
+ * Los valores eran literales, y eso congelaba estas pantallas en el claro de
+ * Contemporary. Las rutas de `dashboard/circulos/*` heredan el armazón del
+ * panel, que monta `AmbientThemeApplier`, así que en Noche la página pasa a
+ * `#141119` y la superficie a `#211d2e` con tinta `#dad5e8` — mientras esto
+ * seguía pintando `#fbfaf8` sobre `#ffffff` con `#26262b`. Una tarjeta clara
+ * dentro de un panel oscuro. Y no sólo en Noche: `--bg-page` tiene un tinte
+ * distinto en Calma, Enfoque, Energía y en Renaissance, y un literal no sigue
+ * a ninguno.
+ *
+ * Cada valor de abajo es un PAR declarado en `lib/design/color-contracts.ts`,
+ * medido con la misma maquinaria que cobra esos contratos. Los peores casos de
+ * los ocho estados del panel: PÁGINA 7,58 · PANEL 8,05 · apoyo sobre tarjeta
+ * 5,29 · cuerpo sobre `subtle` 7,04 · apoyo sobre `subtle` 4,63 · ACCIÓN 4,88 ·
+ * ERROR 6,47. Fuera del panel —la sala de invitado, donde hay tema pero no
+ * ambiente— ninguno baja de 4,81.
+ *
+ * Tres tokens se midieron y NO se usan: `--fg-tertiary` da 2,09 sobre tarjeta y
+ * `--fg-link` / `--fg-link-strong` caen a 2,30 en Renaissance Noche. Por eso el
+ * texto que antes era verde (`#33402f`) pasa a `--fg-body` y la señal verde se
+ * queda en el borde, que no promete legibilidad.
  */
 export const estilos: Record<string, CSSProperties> = {
   page: {
@@ -20,7 +43,7 @@ export const estilos: Record<string, CSSProperties> = {
     display: "flex",
     flexDirection: "column",
     gap: "1.25rem",
-    color: "#26262b",
+    color: "var(--fg-body)",
   },
   section: {
     display: "flex",
@@ -28,20 +51,20 @@ export const estilos: Record<string, CSSProperties> = {
     gap: ".85rem",
     padding: "1.1rem",
     borderRadius: ".75rem",
-    background: "#fbfaf8",
-    border: "1px solid #e6e3dd",
+    background: "var(--bg-surface)",
+    border: "1px solid var(--bg-divider)",
   },
   h1: { fontSize: "1.45rem", lineHeight: 1.3, margin: 0 },
   h2: { fontSize: "1.15rem", lineHeight: 1.35, margin: 0 },
-  p: { margin: 0, lineHeight: 1.65, color: "#3d3d45" },
+  p: { margin: 0, lineHeight: 1.65, color: "var(--fg-body)" },
   aviso: {
     margin: 0,
     padding: ".8rem .9rem",
     borderRadius: ".5rem",
-    background: "#f2efe6",
-    border: "1px solid #ddd6c4",
+    background: "var(--bg-subtle)",
+    border: "1px solid var(--bg-divider)",
     lineHeight: 1.6,
-    color: "#3d3a2f",
+    color: "var(--fg-body)",
   },
   /**
    * A short list inside an `aviso`. Bullets kept, because six situations read
@@ -73,27 +96,37 @@ export const estilos: Record<string, CSSProperties> = {
     width: "100%",
     padding: ".6rem .7rem",
     borderRadius: ".5rem",
-    border: "1px solid #cfcbc2",
+    border: "1px solid var(--bg-divider)",
+    // El fondo y la tinta van explícitos a propósito. Sin ellos el control se
+    // queda con el blanco del navegador —la app no declara `color-scheme`— y
+    // en Noche la tinta heredada es clara: texto claro sobre caja blanca.
+    background: "var(--bg-surface)",
+    color: "var(--fg-body)",
     fontSize: "1rem",
     lineHeight: 1.55,
     fontFamily: "inherit",
     resize: "vertical",
   },
-  counter: { fontSize: ".85rem", color: "#6b6b75", alignSelf: "flex-end" },
+  counter: {
+    fontSize: ".85rem",
+    color: "var(--fg-muted)",
+    alignSelf: "flex-end",
+  },
   /**
    * A short clarification next to the control it clarifies.
    *
    * Quieter than `p` and much quieter than `aviso`, which is a box and reads as
    * a warning. These notes are not warnings — they are the one sentence a
    * person needs to choose correctly, and they earn their place only by being
-   * next to the choice. #55555e on #fbfaf8 is 7.1:1, so "quieter" stays a
-   * matter of size and weight rather than of legibility.
+   * next to the choice. `--fg-muted` sobre `--bg-surface` da 5,29 en el peor de
+   * los ocho estados, así que «más callado» sigue siendo cuestión de tamaño y
+   * peso, no de legibilidad.
    */
   nota: {
     margin: 0,
     fontSize: ".9rem",
     lineHeight: 1.55,
-    color: "#55555e",
+    color: "var(--fg-muted)",
   },
   acciones: {
     display: "flex",
@@ -106,8 +139,8 @@ export const estilos: Record<string, CSSProperties> = {
     padding: ".7rem 1.15rem",
     borderRadius: ".5rem",
     border: "none",
-    background: "#4c5f4a",
-    color: "#ffffff",
+    background: "var(--bg-action)",
+    color: "var(--fg-on-action)",
     fontSize: "1rem",
     cursor: "pointer",
   },
@@ -115,9 +148,9 @@ export const estilos: Record<string, CSSProperties> = {
     minHeight: "44px",
     padding: ".7rem 1.15rem",
     borderRadius: ".5rem",
-    border: "1px solid #4c5f4a",
-    background: "#ffffff",
-    color: "#33402f",
+    border: "1px solid var(--bg-action)",
+    background: "var(--bg-surface)",
+    color: "var(--fg-body)",
     fontSize: "1rem",
     cursor: "pointer",
   },
@@ -125,9 +158,9 @@ export const estilos: Record<string, CSSProperties> = {
     minHeight: "44px",
     padding: ".7rem 1rem",
     borderRadius: ".5rem",
-    border: "1px solid #cfcbc2",
+    border: "1px solid var(--bg-divider)",
     background: "transparent",
-    color: "#4a4a52",
+    color: "var(--fg-body)",
     fontSize: "1rem",
     cursor: "pointer",
   },
@@ -143,9 +176,9 @@ export const estilos: Record<string, CSSProperties> = {
     minHeight: "44px",
     padding: ".6rem .9rem",
     borderRadius: ".5rem",
-    border: "1px dashed #b9c4b3",
+    border: "1px dashed var(--bg-action)",
     background: "transparent",
-    color: "#33402f",
+    color: "var(--fg-body)",
     fontSize: ".95rem",
     cursor: "pointer",
   },
@@ -155,33 +188,33 @@ export const estilos: Record<string, CSSProperties> = {
     gap: ".7rem",
     padding: ".9rem 1rem",
     borderRadius: ".6rem",
-    background: "#f4f6f2",
-    border: "1px solid #dbe3d7",
+    background: "var(--bg-subtle)",
+    border: "1px solid var(--bg-divider)",
   },
   ayudaEtiqueta: {
     margin: 0,
     fontSize: ".82rem",
     letterSpacing: ".01em",
-    color: "#55604f",
+    color: "var(--fg-muted)",
   },
   /** Which step of how many. Quiet, and never the main thing on screen. */
   paso: {
     margin: 0,
     fontSize: ".85rem",
-    color: "#6b6b75",
+    color: "var(--fg-muted)",
   },
   /** The FeelVerse signature. Present, small, and not a banner. */
   firma: {
     margin: 0,
     fontSize: ".8rem",
     letterSpacing: ".02em",
-    color: "#6b6b75",
+    color: "var(--fg-muted)",
   },
   /** A disclosure that opens in place, with its own summary as the control. */
   detalle: {
     borderRadius: ".5rem",
-    border: "1px solid #e6e3dd",
-    background: "#ffffff",
+    border: "1px solid var(--bg-divider)",
+    background: "var(--bg-surface)",
     padding: ".2rem .4rem",
   },
   detalleResumen: {
@@ -191,25 +224,25 @@ export const estilos: Record<string, CSSProperties> = {
     padding: ".6rem .5rem",
     cursor: "pointer",
     fontWeight: 600,
-    color: "#33402f",
+    color: "var(--fg-body)",
   },
   cita: {
     margin: 0,
     padding: ".75rem .9rem",
-    borderLeft: "3px solid #b9c4b3",
-    background: "#ffffff",
+    borderLeft: "3px solid var(--bg-action)",
+    background: "var(--bg-surface)",
     lineHeight: 1.6,
     whiteSpace: "pre-wrap",
     overflowWrap: "anywhere",
   },
-  turno: { margin: 0, lineHeight: 1.65, color: "#3d3d45" },
+  turno: { margin: 0, lineHeight: 1.65, color: "var(--fg-body)" },
   error: {
     margin: 0,
     padding: ".8rem .9rem",
     borderRadius: ".5rem",
-    background: "#f6ebe9",
-    border: "1px solid #e0c4bf",
-    color: "#6a2f26",
+    background: "var(--bg-surface)",
+    border: "1px solid var(--bg-divider)",
+    color: "var(--color-error-text)",
     lineHeight: 1.6,
   },
 };

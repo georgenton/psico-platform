@@ -507,6 +507,63 @@ describe("BooksService.getDetail", () => {
     });
   });
 
+  /**
+   * The repaired shape, read off the RESPONSE BODY.
+   *
+   * A credential disappearing from the screen is not the same as it being
+   * withdrawn: if it still travels in the payload, anyone who opens the
+   * network tab still sees it. So this asserts over the serialized body, not
+   * over what a component chose to render.
+   */
+  it("un autor sin credenciales no envía ninguna en el cuerpo de la respuesta", async () => {
+    const repairedBook = {
+      ...baseFreeBook,
+      author: {
+        ...freeAuthor,
+        name: "Jorge Quizamanchuro",
+        title: null,
+        licenseNumber: null,
+        isVerified: false,
+      },
+    };
+    prisma.book.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(repairedBook);
+    prisma.bookReview.groupBy.mockResolvedValue([]);
+    prisma.bookReview.findMany.mockResolvedValue([]);
+
+    const result = await service.getDetail(null, "emociones-en-construccion");
+
+    expect(result.author?.name).toBe("Jorge Quizamanchuro");
+    expect(result.author?.title).toBeNull();
+    expect(result.author?.licenseNumber).toBeNull();
+    expect(result.author?.isVerified).toBe(false);
+
+    // Nothing invented in their place: no placeholder title, no fake licence,
+    // and the absence is not reported as an error about the book.
+    const body = JSON.stringify(result);
+    expect(body).not.toMatch(/Dra?\./);
+    expect(body).not.toMatch(/EC-PSI/);
+    expect(body).not.toMatch(/sin t[íi]tulo|no verificado|error/i);
+    // The initials still work, so the avatar fallback has something to show.
+    expect(result.author?.initials).toBe("JQ");
+  });
+
+  it("un libro sin autor no se representa como un error", async () => {
+    const authorlessBook = { ...baseFreeBook, author: null };
+    prisma.book.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(authorlessBook);
+    prisma.bookReview.groupBy.mockResolvedValue([]);
+    prisma.bookReview.findMany.mockResolvedValue([]);
+
+    const result = await service.getDetail(null, "emociones-en-construccion");
+
+    expect(result.author).toBeNull();
+    // The absence of an author is a null, not a fabricated identity.
+    expect(JSON.stringify(result)).not.toMatch(/Marina|Quintana/);
+  });
+
   it("hides licenseNumber for unverified author", async () => {
     const unverifiedBook = {
       ...baseFreeBook,

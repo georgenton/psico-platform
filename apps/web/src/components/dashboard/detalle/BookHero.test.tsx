@@ -57,11 +57,12 @@ function mount(opts: {
   cont?: ReaderChapterRef | null;
   isLocked?: boolean;
   token?: string | null;
+  author?: React.ComponentProps<typeof BookHero>["author"];
 }) {
   return render(
     <BookHero
       book={book}
-      author={null}
+      author={opts.author ?? null}
       userProgress={opts.userProgress ?? null}
       isLocked={opts.isLocked ?? false}
       apiBase="https://api.test"
@@ -261,5 +262,59 @@ describe("BookHero — gates that must not change", () => {
 
     expect(push).not.toHaveBeenCalled();
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * What the detail screen says about authorship.
+ *
+ * The API half of this lives in `books.service.spec.ts`, which asserts that a
+ * withdrawn credential leaves the response body. This is the other half: that
+ * the screen reads coherently once it does, and that a missing professional
+ * title is never dressed up as a problem with the book.
+ */
+describe("BookHero — autoría y credenciales", () => {
+  const authorBase = {
+    id: "a1",
+    slug: "jorge-quizamanchuro",
+    name: "Jorge Quizamanchuro",
+    initials: "JQ",
+    avatarUrl: null,
+    cover: "warm" as const,
+    bookCount: 1,
+    bio: null,
+    title: null,
+    licenseNumber: null,
+    isVerified: false,
+  };
+
+  it("un autor sin título ni verificación se muestra sólo con su nombre", () => {
+    mount({ author: authorBase });
+
+    expect(screen.getByText("Jorge Quizamanchuro")).toBeInTheDocument();
+    // No verification tick: being the author of a book is not an accreditation.
+    expect(screen.queryByTitle("Verificado")).toBeNull();
+    // And no invented stand-in for the missing title.
+    expect(screen.queryByText(/sin t[íi]tulo/i)).toBeNull();
+    expect(screen.queryByText(/Dra?\./)).toBeNull();
+    expect(screen.queryByText(/no verificad/i)).toBeNull();
+  });
+
+  it("la ausencia de título no se presenta como un error del libro", () => {
+    mount({ author: authorBase });
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByText(/error|no pudimos/i)).toBeNull();
+  });
+
+  it("muestra el visto sólo cuando la fila está verificada de verdad", () => {
+    mount({ author: { ...authorBase, isVerified: true, title: "Su título" } });
+    expect(screen.getByTitle("Verificado")).toBeInTheDocument();
+    expect(screen.getByText("Su título")).toBeInTheDocument();
+  });
+
+  it("un libro sin autor no inventa una identidad", () => {
+    mount({ author: null });
+    expect(screen.queryByText(/Marina|Quintana/)).toBeNull();
+    expect(screen.queryByTitle("Verificado")).toBeNull();
   });
 });

@@ -93,26 +93,83 @@ async function main() {
 
   // ─── Book Authors (S5) ───────────────────────────────────────────────────
 
-  const marina = await prisma.bookAuthor.upsert({
+  // The seed used to mint this row with a doctorate, a licence number and
+  // `isVerified: true`, and re-assert the title and the verification on every
+  // `update`. Nobody had accredited any of it, and the public book detail
+  // served all three fields — so a fixture identity was being presented as a
+  // verified clinician, and correcting the row by hand was pointless because
+  // the next deploy put the claims back.
+  //
+  // Two separate problems, fixed separately:
+  //
+  //   · The CLAIMS. No title, no licence, no verification — in `create` or in
+  //     `update`. `isVerified` keeps its schema default (false), which is the
+  //     honest state for an identity with no accreditation on file. Nothing is
+  //     invented in their place.
+  //   · The OVERWRITING. `update` is now empty, so a curated or repaired row
+  //     survives every later run. This is the discipline `bootstrap-book` and
+  //     `author-review` already follow: an author is resolved, never
+  //     overwritten.
+  //
+  // The row is NOT renamed. One `BookAuthor` can carry several books, so
+  // renaming it would silently re-attribute the others and fuse two
+  // identities. What this identity is, and what happens to the books that
+  // still point at it, is a data decision — see
+  // `src/catalog/authorship-sources.ts` and the repair plan.
+  const fixtureAuthor = await prisma.bookAuthor.upsert({
     where: { slug: "marina-quintana" },
     create: {
       slug: "marina-quintana",
       name: "Marina Quintana",
-      title: "Dra. en Psicología Clínica",
-      bio: "Especialista en psicoeducación y familias ensambladas. Autora ancla de la plataforma.",
+      bio: "Identidad de fixture del catálogo sembrado. Sin fuente editorial en este repositorio.",
       cover: "warm",
-      licenseNumber: "EC-PSI-2018-001",
-      isVerified: true,
     },
-    update: {
-      name: "Marina Quintana",
-      title: "Dra. en Psicología Clínica",
-      bio: "Especialista en psicoeducación y familias ensambladas. Autora ancla de la plataforma.",
-      cover: "warm",
-      isVerified: true,
-    },
+    update: {},
   });
-  console.log(`✅  BookAuthor: ${marina.name}`);
+  console.log(`✅  BookAuthor (fixture): ${fixtureAuthor.name}`);
+
+  // Attribution backed by the coordination document, so the anchor book stops
+  // being credited to a fixture identity on a fresh database. Name only: being
+  // the author of a book is not a professional credential, and this must never
+  // become a route to `isVerified`.
+  //
+  // Resolved, never upserted blindly. An `upsert` keyed on the slug returns
+  // whatever row holds it — so if somebody (or another import) already owns
+  // `jorge-quizamanchuro` under a different name, the upsert would hand that
+  // row back and the anchor book would be attributed to a stranger, purely
+  // because a slug matched. `bootstrap-book` refuses exactly this with
+  // `BOOK_AUTHOR_CONFLICT`; a seed cannot throw without taking the whole
+  // catalogue down, so it declines the attribution instead and says why.
+  //
+  // `Book.authorId` is nullable, and a book with no author renders as
+  // «Autoría por confirmar» — which is the honest outcome when the identity
+  // is in doubt. The curated row is NOT renamed to make the slug fit.
+  const EEC_AUTHOR_NAME = "Jorge Quizamanchuro";
+  const EEC_AUTHOR_SLUG = "jorge-quizamanchuro";
+  const existingEecAuthor = await prisma.bookAuthor.findUnique({
+    where: { slug: EEC_AUTHOR_SLUG },
+  });
+  let eecAuthorId: string | null = null;
+  if (existingEecAuthor) {
+    if (existingEecAuthor.name.trim() === EEC_AUTHOR_NAME) {
+      eecAuthorId = existingEecAuthor.id;
+      console.log(
+        `✅  BookAuthor (fuente editorial): ${existingEecAuthor.name}`,
+      );
+    } else {
+      console.warn(
+        `⚠️  BookAuthor «${EEC_AUTHOR_SLUG}» existe con el nombre «${existingEecAuthor.name}», ` +
+          `que no es «${EEC_AUTHOR_NAME}». No se atribuye el libro a esa fila ni se renombra: ` +
+          `queda sin autor y se resuelve con la reparación de catálogo.`,
+      );
+    }
+  } else {
+    const created = await prisma.bookAuthor.create({
+      data: { slug: EEC_AUTHOR_SLUG, name: EEC_AUTHOR_NAME },
+    });
+    eecAuthorId = created.id;
+    console.log(`✅  BookAuthor (fuente editorial): ${created.name}`);
+  }
 
   // ─── Book 1: FREE — Emociones en Construcción ─────────────────────────────
 
@@ -124,8 +181,12 @@ async function main() {
       subtitle: "Una guía práctica desde adentro",
       description:
         "Una guía práctica para entender, nombrar y gestionar tus emociones desde adentro.",
+      // The synopsis used to open with the fixture author's name, which made
+      // the wrong attribution travel in editorial copy as well as in the FK.
+      // Minimal factual fix: drop the name. Nothing else about the sentence
+      // changes, and no new editorial claim is introduced.
       summary:
-        "Marina Quintana acompaña al lector en un recorrido por las seis emociones básicas, con ejercicios cortos al final de cada capítulo.",
+        "Un recorrido por las seis emociones básicas, con ejercicios cortos al final de cada capítulo.",
       cover: "warm",
       pages: 96,
       durationMinutes: 20,
@@ -133,7 +194,7 @@ async function main() {
       plan: "FREE",
       isPublished: true,
       totalChapters: 2,
-      authorId: marina.id,
+      authorId: eecAuthorId,
       categoryId: "cat-emociones",
       publishedAt: new Date("2026-01-15"),
     },
@@ -142,6 +203,11 @@ async function main() {
     // the actual chapter count (3 for Parte I). Re-affirming 2 here on every
     // deploy would revert it and break chapter navigation (cap 2 → cap 3). The
     // `create` above still seeds 2 for a fresh/empty database.
+    // `authorId` is intentionally NOT in `update`, for the same reason as
+    // `totalChapters` right above: a corrected attribution must survive the
+    // next deploy. Re-asserting it here is exactly what made repairing the row
+    // by hand pointless. `create` still attributes a fresh database from the
+    // source.
     update: {
       title: "Emociones en Construcción",
       subtitle: "Una guía práctica desde adentro",
@@ -149,7 +215,6 @@ async function main() {
       durationMinutes: 20,
       pages: 96,
       isPublished: true,
-      authorId: marina.id,
       categoryId: "cat-emociones",
     },
   });
@@ -211,10 +276,17 @@ async function main() {
       plan: "PRO",
       isPublished: true,
       totalChapters: 3,
-      authorId: marina.id,
+      // AUTHORSHIP_SOURCE = PENDING. No document in this repository attributes
+      // this work to anyone, so a fresh database gets the fixture identity and
+      // says so in `authorship-sources.ts` rather than borrowing a name from
+      // one of the two sourced books — that would be inventing an attribution.
+      authorId: fixtureAuthor.id,
       categoryId: "cat-familia",
       publishedAt: new Date("2026-02-01"),
     },
+    // `authorId` out of `update` for the same reason as book 1: whatever this
+    // work's editorial source turns out to be, a correction must survive the
+    // next deploy.
     update: {
       title: "Familias Ensambladas",
       subtitle: "Herramientas para construir vínculos",
@@ -223,7 +295,6 @@ async function main() {
       durationMinutes: 43,
       isPublished: true,
       totalChapters: 3,
-      authorId: marina.id,
       categoryId: "cat-familia",
     },
   });

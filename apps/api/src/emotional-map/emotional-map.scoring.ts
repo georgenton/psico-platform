@@ -6,7 +6,7 @@ import type {
   EmotionalMapResult,
   ReflectionTextFeatures,
 } from "@psico/types";
-import { CHECKIN_ITEMS } from "@psico/types";
+import { CHECKIN_ITEMS, EMOTIONAL_MAP_CONFIDENCE_FLOOR } from "@psico/types";
 
 import type {
   EmotionalMapMetadataPayload,
@@ -61,8 +61,13 @@ export const TREND_PUBLIC_MIN_OBS = 60;
  * Below this confidence an axis is treated as "still gathering data" — the
  * value is forced to 0 and the client renders "reuniendo datos" instead of a
  * fabricated number.
+ *
+ * The number itself lives in `@psico/types` because the radar applies the same
+ * threshold to decide what it may draw. It was duplicated on both sides, kept
+ * in step by a comment; a drift would not have broken anything visibly — it
+ * would have painted an axis this scoring does not stand behind.
  */
-export const CONFIDENCE_FLOOR = 0.15;
+export const CONFIDENCE_FLOOR = EMOTIONAL_MAP_CONFIDENCE_FLOOR;
 
 /** Moods that signal a hard emotional moment (DIARY_MOODS ids). */
 const HARD_MOODS = new Set(["low", "hard"]);

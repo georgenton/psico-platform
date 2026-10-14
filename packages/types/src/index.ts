@@ -1394,6 +1394,23 @@ export type EmotionalMapDimensionKey =
  * confidence is below a small threshold instead of showing a fabricated
  * number. `sources` is a short human summary of what feeds the axis today.
  */
+/**
+ * Por debajo de esta confianza un eje está «reuniendo datos».
+ *
+ * Vive aquí, y no en cada lado, porque la cifra la usan DOS códigos para
+ * decidir lo mismo: el scoring la aplica para no publicar un número que no
+ * sostiene, y el radar la aplica para no dibujar una punta que el modelo
+ * considera poco fiable. Estaban duplicadas, sincronizadas por un comentario
+ * que pedía «mantener igual que el backend».
+ *
+ * Lo que una deriva habría producido no es un fallo visible: es un eje
+ * pintado con un valor que el propio producto no respalda, o uno escondido
+ * que sí lo estaba. Exactamente la clase de representación engañosa que el
+ * Mapa existe para no hacer. Compartir la constante elimina esa posibilidad
+ * en vez de vigilarla.
+ */
+export const EMOTIONAL_MAP_CONFIDENCE_FLOOR = 0.15;
+
 export interface EmotionalMapDimension {
   key: EmotionalMapDimensionKey;
   value: number;

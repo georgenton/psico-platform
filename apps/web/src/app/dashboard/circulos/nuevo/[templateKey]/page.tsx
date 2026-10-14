@@ -85,7 +85,43 @@ function exitCopy(modes: readonly CircleSharingMode[]): string[] {
  * — `serverFetch` throws one when there is no usable session — which must
  * propagate so a logged-out visitor is bounced to login instead of being shown
  * the unavailable screen.
+ *
+ * ── Por qué se valida la forma, y no basta el tipo ─────────────────────────
+ *
+ * `serverFetch<CirclesAccessResponse>` es una ANOTACIÓN: TypeScript la borra al
+ * compilar y nadie comprueba el JSON. Una respuesta `null`, `{}` o incluso
+ * `{available:false}` se resolvía sin lanzar, y la versión anterior de esta
+ * función devolvía `disponible: true` por el mero hecho de haber resuelto. Es
+ * decir: exactamente el fallo que esta pantalla corrige, reintroducido por la
+ * puerta del tipado. La disponibilidad se afirma ahora sólo con una forma
+ * válida y `available === true`.
  */
+
+/** Disponibilidad afirmada por el cuerpo, no por el hecho de haber resuelto. */
+function leeDisponible(res: unknown): boolean {
+  return (
+    typeof res === "object" &&
+    res !== null &&
+    (res as { available?: unknown }).available === true
+  );
+}
+
+/**
+ * Grupos: sólo con un `true` literal.
+ *
+ * Una API anterior responde `{available:true}` sin el segundo campo, y esa
+ * ausencia se lee como «no». Lo mismo cualquier otro valor —`"true"`, `1`,
+ * `null`— porque un booleano que llega como cadena es un contrato roto, no un
+ * permiso.
+ */
+function leeGrupos(res: unknown): boolean {
+  return (
+    typeof res === "object" &&
+    res !== null &&
+    (res as { canCreateGroups?: unknown }).canCreateGroups === true
+  );
+}
+
 async function capacidades(): Promise<{
   disponible: boolean;
   puedeCrearGrupos: boolean;
@@ -94,13 +130,13 @@ async function capacidades(): Promise<{
     const res = await serverFetch<CirclesAccessResponse>("/circles/access", {
       cache: "no-store",
     });
+    const disponible = leeDisponible(res);
     return {
-      disponible: true,
-      // An older API answers `{available:true}` with no second field. Reading a
-      // missing value as `false` keeps this page honest against a server that
-      // has not been promoted yet, instead of inferring groups from
-      // availability — which is the inference this whole change removes.
-      puedeCrearGrupos: res?.canCreateGroups === true,
+      disponible,
+      // Nunca grupos sin disponibilidad: el segundo interruptor sólo estrecha,
+      // así que una respuesta que concediera grupos sin conceder el acceso
+      // sería contradictoria y se lee cerrada.
+      puedeCrearGrupos: disponible && leeGrupos(res),
     };
   } catch (err) {
     if (isNextThrow(err)) throw err;

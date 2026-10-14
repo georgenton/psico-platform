@@ -75,9 +75,28 @@ export class CirclesController {
   @Get("access")
   @UseGuards(JwtAuthGuard, CirclesRolloutGuard)
   @ApiOperation({ summary: "What Círculos allows the caller to do" })
+  // El esquema va DECLARADO, no sólo descrito. Sin `schema` el documento emite
+  // un 200 sin cuerpo, el cliente generado recibe `content?: never`, y quien lo
+  // consuma no ve el campo que esta ruta existe para dar.
   @ApiResponse({
     status: 200,
-    description: "Enabled; body carries capabilities.",
+    description: "Enabled; the body carries the caller's capabilities.",
+    schema: {
+      type: "object",
+      required: ["available", "canCreateGroups"],
+      properties: {
+        available: {
+          type: "boolean",
+          enum: [true],
+          description: "Always true here; a 503 is the negative answer.",
+        },
+        canCreateGroups: {
+          type: "boolean",
+          description:
+            "Whether this caller may create an adult GROUP. Narrower than availability, never wider.",
+        },
+      },
+    },
   })
   @ApiResponse({ status: 503, description: "CIRCLES_UNAVAILABLE." })
   access(@CurrentCircleActor() actor: CircleActor): CirclesAccessResponse {

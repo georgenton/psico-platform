@@ -21407,7 +21407,31 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": "Enabled; body carries capabilities."
+            "description": "Enabled; the body carries the caller's capabilities.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "available",
+                    "canCreateGroups"
+                  ],
+                  "properties": {
+                    "available": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ],
+                      "description": "Always true here; a 503 is the negative answer."
+                    },
+                    "canCreateGroups": {
+                      "type": "boolean",
+                      "description": "Whether this caller may create an adult GROUP. Narrower than availability, never wider."
+                    }
+                  }
+                }
+              }
+            }
           },
           "503": {
             "description": "CIRCLES_UNAVAILABLE."

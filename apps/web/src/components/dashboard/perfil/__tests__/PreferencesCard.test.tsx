@@ -1,5 +1,3 @@
-import { readFileSync, readdirSync } from "node:fs";
-import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -78,60 +76,61 @@ describe("PreferencesCard", () => {
 });
 
 /**
- * La voz se ofrece, se guarda… y hoy no la consume nadie.
+ * La voz dice lo que hace, en los dos sitios donde se ve.
  *
  * El expediente lo registra como pendiente demostrado: «tarjeta de voz de
  * perfil sin consumidor real». La respuesta correcta no es retirar la
- * preferencia —está en el modelo y persiste— ni inventarle un consumidor para
- * justificarla, sino decir la verdad junto a la elección.
+ * preferencia —está en el modelo y persiste— ni inventarle un consumidor,
+ * sino decirlo junto a la elección.
  *
- * Este trinquete ata las dos cosas. Mientras NINGUNA superficie lea
- * `voicePreference`, la nota tiene que estar. El día que exista un consumidor
- * real, este test deja de exigirla — y hasta ese día, quitarla falla.
+ * Una versión anterior de este trinquete recorría el árbol buscando el
+ * literal `voicePreference` y dejaba de exigir el aviso en cuanto encontraba
+ * una mención. Eso no demuestra nada: una mención no es un consumidor
+ * funcional, y un comentario bastaba para apagar la comprobación. Se sustituye
+ * por lo que de verdad importa — que el aviso esté donde la persona mira — y
+ * por que decirlo no haya tocado el guardado.
+ *
+ * El día que la narración use la preferencia, esto se actualiza junto con el
+ * comportamiento y el texto. No es algo que un analizador deba adivinar.
  */
 describe("la voz dice lo que de verdad hace", () => {
-  /** Consumidores reales: quien LEE la preferencia para cambiar algo. */
-  const consumidores = () => {
-    const raiz = join(__dirname, "..", "..", "..", "..");
-    const encontrados: string[] = [];
-    const visitar = (dir: string) => {
-      for (const e of readdirSync(dir, { withFileTypes: true })) {
-        const ruta = join(dir, e.name);
-        if (e.isDirectory()) {
-          if (e.name === "node_modules" || e.name === "__tests__") continue;
-          visitar(ruta);
-          continue;
-        }
-        if (!/\.(ts|tsx)$/.test(e.name)) continue;
-        if (/\.test\.|\.spec\./.test(e.name)) continue;
-        // Guardarla y volver a mostrarla no es consumirla: el Perfil y el
-        // onboarding son las superficies que la EDITAN.
-        const rel = ruta.slice(raiz.length);
-        if (rel.includes("/perfil/") || rel.includes("/onboarding/")) continue;
-        if (readFileSync(ruta, "utf8").includes("voicePreference")) {
-          encontrados.push(rel);
-        }
-      }
-    };
-    visitar(raiz);
-    return encontrados;
-  };
+  const AVISO = /por ahora no cambia el audio/i;
 
-  it("mientras nadie la consuma, la pantalla lo advierte", () => {
-    const reales = consumidores().filter(
-      // `book-access.ts` sólo la menciona en un comentario sobre el contrato
-      // de la API; no cambia nada con ella.
-      (f) => !f.includes("book-access"),
-    );
-    if (reales.length > 0) {
-      // Hay consumidor: la limitación dejó de ser cierta y la nota sobra.
-      // Este test no exige nada más; actualízalo junto con la tarjeta.
-      expect(reales.length).toBeGreaterThan(0);
-      return;
-    }
+  it("lo advierte en el resumen, que es lo que casi todo el mundo mira", () => {
     render(<PreferencesCard initial={basePrefs()} />);
-    expect(
-      screen.getByText(/todav[ií]a no hay narraci[oó]n/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(AVISO)).toBeInTheDocument();
+  });
+
+  it("y también al editar, junto al selector", async () => {
+    const user = userEvent.setup();
+    render(<PreferencesCard initial={basePrefs()} />);
+    await user.click(screen.getByRole("button", { name: /editar/i }));
+
+    expect(screen.getByLabelText(/voz de la app/i)).toBeInTheDocument();
+    expect(screen.getByText(AVISO)).toBeInTheDocument();
+  });
+
+  it("no afirma nada sobre el resto del producto", () => {
+    // Decir «no hay narración en la app» sería un inventario que nadie hizo.
+    render(<PreferencesCard initial={basePrefs()} />);
+    const texto = screen.getByText(AVISO).textContent ?? "";
+    expect(texto).not.toMatch(/narraci[oó]n/i);
+    expect(texto).not.toMatch(/en la app/i);
+  });
+
+  it("decirlo no cambió el guardado de la preferencia", async () => {
+    const user = userEvent.setup();
+    mockAction.mockResolvedValue({ ok: true });
+    render(<PreferencesCard initial={basePrefs()} />);
+
+    await user.click(screen.getByRole("button", { name: /editar/i }));
+    await user.selectOptions(screen.getByLabelText(/voz de la app/i), "tomas");
+    await user.click(screen.getByRole("button", { name: /guardar/i }));
+
+    expect(mockAction).toHaveBeenCalledTimes(1);
+    const enviado = mockAction.mock.calls[0]?.[0] as {
+      voicePreference?: string;
+    };
+    expect(enviado.voicePreference).toBe("tomas");
   });
 });

@@ -8,12 +8,14 @@ import {
 } from "@nestjs/common";
 import { ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
-import type { CircleActor } from "@psico/types";
+import type { CircleActor, CirclesAccessResponse } from "@psico/types";
 import { JwtAuthGuard } from "../auth";
 import { CirclesGuestGuard } from "./circles-guest.guard";
 import { CirclesBffOnlyGuard } from "./circles-bff-only.guard";
 import { CirclesGuestSurfaceGuard } from "./circles-guest-surface.guard";
 import { CirclesRolloutGuard } from "./circles-rollout.guard";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { CirclesRolloutService } from "./circles-rollout.service";
 import { CurrentCircleActor } from "./current-circle-actor.decorator";
 import { circlesException, mapCirclesErrors } from "./circles-http-errors";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
@@ -44,21 +46,47 @@ const INVITATION_THROTTLE = { default: { limit: 10, ttl: 15 * 60_000 } };
 @ApiTags("circles")
 @Controller("circles")
 export class CirclesController {
-  constructor(private readonly circles: CirclesService) {}
+  constructor(
+    private readonly circles: CirclesService,
+    // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+    private readonly rollout: CirclesRolloutService,
+  ) {}
 
   /**
-   * The authenticated probe. Its only job is to answer whether Círculos is on
-   * for THIS actor, which is the same question the rollout guard already
-   * answered by letting the request through — so the body is a constant and
-   * the information is entirely in the status code.
+   * The authenticated probe: what THIS actor may do, and nothing about anyone
+   * else.
+   *
+   * The status code still carries availability — the rollout guard answered it
+   * by letting the request through, so a 200 means «Círculos is on for you» and
+   * a 503 means it is not. That has not changed, and callers reading only the
+   * status keep working.
+   *
+   * What the body adds is the second switch. Groups have their own enablement
+   * that can only NARROW availability, so «Círculos is on» does not imply «you
+   * may create a group», and a surface that inferred one from the other would
+   * offer a button the server refuses. `canCreateGroups` is that bit, asked of
+   * the same service the creation path asks, so the screen and the POST cannot
+   * disagree.
+   *
+   * It reports a CAPABILITY, never a configuration: no mode, no allowlist, no
+   * other person's id. Someone reading this learns what they can do, not how
+   * the rollout is set up.
    */
   @Get("access")
   @UseGuards(JwtAuthGuard, CirclesRolloutGuard)
-  @ApiOperation({ summary: "Whether Círculos is enabled for the caller" })
-  @ApiResponse({ status: 200, description: "Enabled." })
+  @ApiOperation({ summary: "What Círculos allows the caller to do" })
+  @ApiResponse({
+    status: 200,
+    description: "Enabled; body carries capabilities.",
+  })
   @ApiResponse({ status: 503, description: "CIRCLES_UNAVAILABLE." })
-  access(): { available: true } {
-    return { available: true };
+  access(@CurrentCircleActor() actor: CircleActor): CirclesAccessResponse {
+    return {
+      available: true,
+      canCreateGroups: this.rollout.isGroupCreationAvailable(
+        actor.kind === "USER" ? actor.userId : null,
+      ),
+    };
   }
 
   /**

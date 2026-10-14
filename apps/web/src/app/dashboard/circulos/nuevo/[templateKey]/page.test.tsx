@@ -1,164 +1,142 @@
-import { describe, expect, it, vi } from "vitest";
-import { CircleTemplateRegistry } from "@psico/types";
-// Type-only, so it is erased before `vi.mock`'s hoisted factory runs.
-import type * as EligibilityModule from "@/lib/circulos/eligibility";
+import { render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-/** The sentinel Next's own `notFound()` throws, stood in for here. */
-const NOT_FOUND = new Error("NEXT_NOT_FOUND");
+/**
+ * La pantalla de creación ofrece exactamente lo que el servidor permite.
+ *
+ * ── El fallo que esto impide ────────────────────────────────────────────────
+ *
+ * La página decidía con el catálogo y nada más: si la plantilla estaba
+ * PUBLISHED, renderizaba el formulario con su botón. Para quien el rollout no
+ * admite, eso era ofrecer una creación que la API contesta con 503 — el
+ * rechazo llegaba después de pulsar. Medido en staging el 14-10: la pantalla
+ * se renderizaba entera para una cuenta a la que `/circles/access` respondía
+ * 503.
+ *
+ * Y una segunda trampa, más silenciosa: los grupos tienen su propio
+ * interruptor, que sólo puede estrechar. Preguntar «¿está Círculos abierto?» y
+ * deducir «entonces puedo crear un grupo» vuelve a producir el mismo botón
+ * muerto, esta vez sólo para la plantilla de grupo.
+ *
+ * Lo que NO cambia y se comprueba aquí igual: una clave desconocida sigue
+ * siendo `notFound()`, y la falta de sesión sigue propagándose como redirección
+ * en vez de convertirse en «no disponible» — confundir esas dos cosas dejaría a
+ * quien cerró sesión mirando una pantalla que no le corresponde.
+ */
 
-vi.mock("next/navigation", () => ({
-  notFound: () => {
-    throw NOT_FOUND;
-  },
-}));
+// `server-only` existe para romper si un bundle de cliente lo toca, y en un
+// entorno jsdom eso es siempre. Mismo idioma que `guide-recovery-scope.server.spec`.
 vi.mock("server-only", () => ({}));
 
-/**
- * Records what the page hands the resolver, then delegates to the REAL one.
- *
- * A recording wrapper rather than a stub: the behaviour under test is the
- * page's, so replacing the resolver would only prove the test's own double
- * works.
- */
-const keysSeen = vi.hoisted(() => [] as string[]);
-vi.mock("@/lib/circulos/eligibility", async (importOriginal) => {
-  const actual = await importOriginal<typeof EligibilityModule>();
-  return {
-    ...actual,
-    resolvePublishedTemplateByKey: (key: string, deps?: unknown) => {
-      keysSeen.push(key);
-      return (
-        actual.resolvePublishedTemplateByKey as (
-          k: string,
-          d?: unknown,
-        ) => unknown
-      )(key, deps);
-    },
-  };
+const serverFetch = vi.fn();
+const notFound = vi.fn(() => {
+  throw new Error("NEXT_NOT_FOUND");
 });
 
-import NuevoDuoPage from "./page";
-import {
-  resolvePublishedTemplateByKey,
-  type DuoEligibilityDeps,
-} from "@/lib/circulos/eligibility";
-import { PLANTILLA } from "@/components/circulos/__fixtures__/actividad";
+vi.mock("@/lib/api.server", () => ({
+  serverFetch: (...args: unknown[]) => serverFetch(...args),
+  // La implementación real: reconoce los throws de Next por su `digest`.
+  isNextThrow: (err: unknown) =>
+    typeof (err as { digest?: unknown })?.digest === "string",
+}));
 
-/**
- * The organiser route's refusal is uniform, and it never throws.
- *
- * `params.templateKey` arrives ALREADY decoded — Next decodes dynamic segments
- * itself. The page used to decode it a second time, which is not a harmless
- * redundancy: a key containing a literal `%` (`100%`, `50%-50%`) makes
- * `decodeURIComponent` throw `URIError`, and an unhandled throw is a 500 on a
- * route whose every other refusal is a quiet 404. The single input most likely
- * to be probed would have been the single input that answered differently.
- */
+vi.mock("next/navigation", () => ({
+  notFound: () => notFound(),
+}));
 
-function render(templateKey: string): { threw: unknown } {
-  try {
-    NuevoDuoPage({ params: { templateKey } });
-    return { threw: null };
-  } catch (err) {
-    return { threw: err };
-  }
-}
+// El formulario es un Client Component con su propio estado; aquí sólo importa
+// SI se ofrece, no cómo se comporta por dentro.
+vi.mock("@/components/circulos/CrearCirculo", () => ({
+  CrearCirculo: () => <div data-testid="formulario-creacion" />,
+}));
 
-describe("a malformed decoded key is refused, not thrown at", () => {
-  const MALFORMED = ["100%", "50%-50%", "%", "%E0%A4%A", "descuento-%%", "%zz"];
+const { default: NuevoDuoPage } = await import("./page");
 
-  it("never raises URIError for a key containing a literal %", () => {
-    for (const key of MALFORMED) {
-      const { threw } = render(key);
-      expect(threw, key).not.toBeInstanceOf(URIError);
-      expect((threw as Error)?.name, key).not.toBe("URIError");
-    }
-  });
+const DUO = "duo-lo-que-me-ayuda";
+const GRUPO = "grupo-lo-que-nos-ayuda";
 
-  it("takes the same notFound() path as any unknown key", () => {
-    const baseline = render("una-clave-que-no-existe").threw;
-    expect(baseline).toBe(NOT_FOUND);
+const pintar = async (templateKey: string) =>
+  render(await NuevoDuoPage({ params: { templateKey } }));
 
-    for (const key of MALFORMED) {
-      // Not merely "a 404" — the very same sentinel, by the very same route.
-      expect(render(key).threw, key).toBe(baseline);
-    }
-  });
+const seOfreceLaCreacion = () =>
+  screen.queryByTestId("formulario-creacion") !== null;
 
-  it("hands the key to the resolver verbatim, decoding nothing", () => {
-    // If the page decoded a second time, `a%20b` would arrive as `a b` and
-    // `100%` would not arrive at all — it would have thrown on the way.
-    keysSeen.length = 0;
-    render("100%");
-    render("a%20b");
-    render("eec-c1-cuerpo-antes-que-mente");
-    expect(keysSeen).toEqual([
-      "100%",
-      "a%20b",
-      "eec-c1-cuerpo-antes-que-mente",
-    ]);
-  });
+beforeEach(() => {
+  vi.clearAllMocks();
 });
 
-describe("the refusal reveals nothing about WHY", () => {
-  it("unknown, ambiguous, DRAFT and ARCHIVED are one answer", () => {
-    // The page turns `null` into `notFound()`. So the question is whether the
-    // resolver's four refusals are distinguishable — they must not be, or the
-    // address bar becomes a way to enumerate the catalog.
-    const withSource = (over = {}) => ({
-      ...PLANTILLA,
-      source: {
-        bookSlug: "fixture-book",
-        chapterOrder: 1,
-        experiencePin: { experienceKey: "x", experienceVersion: 1 },
-      },
-      ...over,
+describe("la pantalla de creación sigue la autoridad del servidor", () => {
+  it("sin sesión usable, la redirección se propaga — no se pinta «no disponible»", async () => {
+    const redireccion = Object.assign(new Error("NEXT_REDIRECT"), {
+      digest: "NEXT_REDIRECT;replace;/login;307;",
     });
-    const d = (definitions: ReturnType<typeof withSource>[]) =>
-      ({
-        catalog: [],
-        registry: new CircleTemplateRegistry(definitions),
-      }) as DuoEligibilityDeps;
+    serverFetch.mockRejectedValue(redireccion);
 
-    const answers = [
-      // unknown
-      resolvePublishedTemplateByKey("no-existe", d([withSource()])),
-      // DRAFT
-      resolvePublishedTemplateByKey(
-        "fixture-duo",
-        d([withSource({ status: "DRAFT" })]),
-      ),
-      // ARCHIVED
-      resolvePublishedTemplateByKey(
-        "fixture-duo",
-        d([withSource({ status: "ARCHIVED" })]),
-      ),
-      // ambiguous — two PUBLISHED versions of one key
-      resolvePublishedTemplateByKey(
-        "fixture-duo",
-        d([withSource(), withSource({ templateVersion: 2 })]),
-      ),
-      // malformed
-      resolvePublishedTemplateByKey("100%", d([withSource()])),
-      // empty
-      resolvePublishedTemplateByKey("fixture-duo", d([])),
-    ];
-
-    // One value, six causes. Nothing carries the reason outward.
-    expect(answers).toEqual([null, null, null, null, null, null]);
-    expect(new Set(answers).size).toBe(1);
+    await expect(pintar(DUO)).rejects.toThrow("NEXT_REDIRECT");
   });
 
-  it("production answers notFound for every key, including C07's", () => {
-    // The catalog is empty, so this route is a 404 in production whatever is
-    // typed into it — and C07's key is not a special case, it is the same case.
-    for (const key of [
-      "fixture-duo",
-      "pqp-c7-reconocer-la-violencia",
-      "eec-c1-cuerpo-antes-que-mente",
-      "100%",
-    ]) {
-      expect(render(key).threw, key).toBe(NOT_FOUND);
-    }
+  it("autenticado pero no habilitado: lo dice, y no ofrece crear nada", async () => {
+    serverFetch.mockRejectedValue(
+      Object.assign(new Error("CIRCLES_UNAVAILABLE"), { statusCode: 503 }),
+    );
+
+    await pintar(DUO);
+
+    expect(screen.getByRole("heading")).toHaveTextContent(
+      /todavía no está abierto/i,
+    );
+    expect(seOfreceLaCreacion()).toBe(false);
+  });
+
+  it("habilitado para Dúo: el recorrido actual se conserva", async () => {
+    serverFetch.mockResolvedValue({ available: true, canCreateGroups: false });
+
+    await pintar(DUO);
+
+    expect(seOfreceLaCreacion()).toBe(true);
+  });
+
+  it("grupos deshabilitados: la plantilla de GRUPO no se ofrece, aunque Círculos esté abierto", async () => {
+    // El caso que la deducción «disponible ⇒ grupos» rompía.
+    serverFetch.mockResolvedValue({ available: true, canCreateGroups: false });
+
+    await pintar(GRUPO);
+
+    expect(screen.getByRole("heading")).toHaveTextContent(
+      /todavía no puedes crear un grupo/i,
+    );
+    expect(seOfreceLaCreacion()).toBe(false);
+  });
+
+  it("grupos habilitados: la plantilla de GRUPO sí se ofrece", async () => {
+    serverFetch.mockResolvedValue({ available: true, canCreateGroups: true });
+
+    await pintar(GRUPO);
+
+    expect(seOfreceLaCreacion()).toBe(true);
+  });
+
+  it("si la consulta de disponibilidad falla, falla cerrada", async () => {
+    serverFetch.mockRejectedValue(new Error("ECONNREFUSED"));
+
+    await pintar(DUO);
+
+    expect(seOfreceLaCreacion()).toBe(false);
+  });
+
+  it("una API antigua, sin el segundo campo, no concede grupos por omisión", async () => {
+    // Compatibilidad hacia atrás: si Web se promueve antes que API, el campo
+    // no viene. Leerlo como ausente ⇒ cerrado es lo único honesto.
+    serverFetch.mockResolvedValue({ available: true });
+
+    await pintar(GRUPO);
+
+    expect(seOfreceLaCreacion()).toBe(false);
+  });
+
+  it("una clave desconocida sigue siendo notFound, sin consultar nada", async () => {
+    await expect(pintar("no-existe")).rejects.toThrow("NEXT_NOT_FOUND");
+    expect(notFound).toHaveBeenCalled();
+    expect(serverFetch).not.toHaveBeenCalled();
   });
 });

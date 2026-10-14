@@ -15,6 +15,22 @@ const VOICE_OPTIONS: Array<{ key: VoicePreference; label: string }> = [
   { key: "none", label: "Sin voz" },
 ];
 
+/**
+ * La voz se guarda y se relee, pero hoy no la consume nadie.
+ *
+ * Ninguna superficie de lectura o audio lee `voicePreference`: no existe
+ * todavía la narración que esta elección escogería. La preferencia NO se
+ * retira —está en el modelo, persiste, y el día que haya voces será la que
+ * valga— pero ofrecerla en silencio hace que la pantalla prometa algo que no
+ * ocurre. Decirlo cuesta una línea y es la diferencia entre una preferencia
+ * guardada y una promesa falsa.
+ *
+ * Cuando exista un consumidor real, esta nota se retira: el trinquete que la
+ * acompaña está escrito para fallar si se retira ANTES.
+ */
+const VOZ_SIN_CONSUMIDOR =
+  "Se guarda tu elección. Todavía no hay narración en la app, así que por ahora no cambia lo que escuchas.";
+
 const BEST_TIME_OPTIONS: Array<{ key: BestTime; label: string }> = [
   { key: "morning", label: "Mañana" },
   { key: "noon", label: "Mediodía" },
@@ -115,6 +131,7 @@ export function PreferencesCard({ initial }: { initial: UserPreferences }) {
               VOICE_OPTIONS.find((v) => v.key === initial.voicePreference)
                 ?.label ?? initial.voicePreference
             }
+            nota={VOZ_SIN_CONSUMIDOR}
           />
           <Row
             label="Tema"
@@ -156,7 +173,7 @@ export function PreferencesCard({ initial }: { initial: UserPreferences }) {
           }}
           className="mt-4 space-y-4"
         >
-          <Field label="Voz de la app">
+          <Field label="Voz de la app" nota={VOZ_SIN_CONSUMIDOR}>
             <select
               value={draft.voicePreference}
               onChange={(e) =>
@@ -299,7 +316,18 @@ export function PreferencesCard({ initial }: { initial: UserPreferences }) {
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function Row({
+  label,
+  value,
+  nota,
+}: {
+  label: string;
+  value: string;
+  /** La misma aclaración que en el formulario: el resumen es lo que casi todo
+   * el mundo lee, así que una limitación que sólo se contara al editar
+   * seguiría siendo una promesa falsa para la mayoría. */
+  nota?: string;
+}) {
   return (
     <div>
       <dt
@@ -309,6 +337,14 @@ function Row({ label, value }: { label: string; value: string }) {
         {label}
       </dt>
       <dd className="mt-0.5">{value}</dd>
+      {nota ? (
+        <dd
+          className="mt-0.5 text-[11.5px] leading-snug"
+          style={{ color: "var(--color-warm-500)" }}
+        >
+          {nota}
+        </dd>
+      ) : null}
     </div>
   );
 }
@@ -316,9 +352,16 @@ function Row({ label, value }: { label: string; value: string }) {
 function Field({
   label,
   children,
+  nota,
 }: {
   label: string;
   children: React.ReactNode;
+  /**
+   * Una aclaración corta bajo el control, para cuando lo que se elige todavía
+   * no hace lo que su nombre promete. Va aquí y no en un `aviso` aparte porque
+   * sólo se entiende junto a la elección que matiza.
+   */
+  nota?: string;
 }) {
   return (
     <label className="block">
@@ -329,6 +372,14 @@ function Field({
         {label}
       </span>
       {children}
+      {nota ? (
+        <span
+          className="mt-1 block text-[11.5px] leading-snug"
+          style={{ color: "var(--color-warm-500)" }}
+        >
+          {nota}
+        </span>
+      ) : null}
     </label>
   );
 }

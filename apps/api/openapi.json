@@ -21407,13 +21407,13 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": "Enabled."
+            "description": "Enabled; body carries capabilities."
           },
           "503": {
             "description": "CIRCLES_UNAVAILABLE."
           }
         },
-        "summary": "Whether Círculos is enabled for the caller",
+        "summary": "What Círculos allows the caller to do",
         "tags": [
           "circles"
         ]

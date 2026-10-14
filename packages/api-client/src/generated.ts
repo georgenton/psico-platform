@@ -3193,7 +3193,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Whether Círculos is enabled for the caller */
+        /** What Círculos allows the caller to do */
         get: operations["CirclesController_access"];
         put?: never;
         post?: never;
@@ -17432,7 +17432,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Enabled. */
+            /** @description Enabled; body carries capabilities. */
             200: {
                 headers: {
                     [name: string]: unknown;

@@ -1274,6 +1274,19 @@ export function LectorShell({
   const readingHeartbeatEnabled =
     surface === "reader" &&
     effectiveMode === "leer" &&
+    // Sin contenido no hay lectura que acreditar.
+    //
+    // El retorno de «Contenido temporalmente no disponible» ocurre DESPUÉS de
+    // los hooks —tiene que ser así para que el orden de hooks sea estable—, de
+    // modo que el latido seguía corriendo detrás de esa pantalla: se sumaba
+    // tiempo de lectura y avanzaba `lastChapterRead` sobre un capítulo cuyo
+    // texto nunca se mostró. Medido en la pila local con Content Core vacío:
+    // la sesión quedó escrita y el progreso llegó al capítulo 2 sin que se
+    // pintara una sola palabra.
+    //
+    // Las demás condiciones de esta lista dicen «esta persona no está leyendo
+    // ahora mismo». Ésta dice algo más simple: no hay nada que leer.
+    unit !== null &&
     !guideOpen &&
     !dockOpen &&
     !prefsOpen &&

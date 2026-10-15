@@ -1166,3 +1166,61 @@ describe("LectorShell — highlight version anchor (#579)", () => {
     });
   });
 });
+
+/**
+ * Sin contenido no se acredita lectura.
+ *
+ * ── El defecto que esto impide ──────────────────────────────────────────────
+ *
+ * El retorno de «Contenido temporalmente no disponible» ocurre después de los
+ * hooks —tiene que ser así para que su orden sea estable—, de modo que el
+ * latido seguía corriendo DETRÁS de esa pantalla. Resultado: se sumaba tiempo
+ * de lectura y avanzaba `lastChapterRead` sobre un capítulo cuyo texto nunca
+ * se mostró.
+ *
+ * No se encontró leyendo el componente, sino recorriendo el producto en una
+ * pila local con Content Core vacío: el lector enseñó correctamente su estado
+ * de no disponible, y aun así la base terminó con una sesión de lectura y el
+ * progreso en el capítulo 2. Una prueba de componente no podía verlo, porque
+ * la pregunta no es qué pinta la pantalla sino qué se escribe mientras la
+ * pinta.
+ */
+describe("el latido de lectura y el contenido ausente", () => {
+  const pulsos = () =>
+    (
+      globalThis.fetch as unknown as { mock: { calls: unknown[][] } }
+    ).mock.calls.filter(
+      ([url, init]) =>
+        String(url).includes("/lector/session") &&
+        (init as { method?: string })?.method === "PATCH",
+    );
+
+  it("no late mientras muestra «contenido no disponible»", async () => {
+    vi.useFakeTimers();
+    try {
+      renderShell({}, null);
+      expect(
+        screen.getByText(/Contenido temporalmente no disponible/i),
+      ).toBeInTheDocument();
+
+      // Muy por encima del intervalo de 5 s del latido.
+      await vi.advanceTimersByTimeAsync(20_000);
+      expect(pulsos()).toHaveLength(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("sí late cuando hay capítulo que leer", async () => {
+    // Guard the guard: si el latido estuviera roto del todo, la prueba de
+    // arriba pasaría sin demostrar nada.
+    vi.useFakeTimers();
+    try {
+      renderShell();
+      await vi.advanceTimersByTimeAsync(20_000);
+      expect(pulsos().length).toBeGreaterThan(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

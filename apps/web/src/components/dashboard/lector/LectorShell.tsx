@@ -1274,15 +1274,21 @@ export function LectorShell({
   const readingHeartbeatEnabled =
     surface === "reader" &&
     effectiveMode === "leer" &&
-    // Sin contenido no hay lectura que acreditar.
+    // Sin contenido no hay nada que latir.
     //
     // El retorno de «Contenido temporalmente no disponible» ocurre DESPUÉS de
-    // los hooks —tiene que ser así para que el orden de hooks sea estable—, de
-    // modo que el latido seguía corriendo detrás de esa pantalla: se sumaba
-    // tiempo de lectura y avanzaba `lastChapterRead` sobre un capítulo cuyo
-    // texto nunca se mostró. Medido en la pila local con Content Core vacío:
-    // la sesión quedó escrita y el progreso llegó al capítulo 2 sin que se
-    // pintara una sola palabra.
+    // los hooks —tiene que ser así para que su orden sea estable—, de modo que
+    // el latido seguía corriendo detrás de esa pantalla. Sin bloques no hay
+    // `lastBlockId`, y el servidor rechaza cada intento: medido en la pila
+    // local con Content Core vacío, `PATCH /api/lector/session` devolvía
+    // `400 VALIDATION_ERROR` cada cinco segundos, indefinidamente, mientras la
+    // persona miraba una pantalla de error.
+    //
+    // No se perdía progreso por ello —quien registra que abriste el capítulo
+    // es el GET que lo carga, no este latido— pero reintentar para siempre una
+    // escritura que no puede salir bien no es gratis: gasta red y batería del
+    // teléfono, y llena el registro del servidor de un fallo que no indica
+    // nada que arreglar ahí.
     //
     // Las demás condiciones de esta lista dicen «esta persona no está leyendo
     // ahora mismo». Ésta dice algo más simple: no hay nada que leer.

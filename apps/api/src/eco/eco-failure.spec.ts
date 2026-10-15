@@ -21,7 +21,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   EcoStageError,
   classifyEcoFailure,
+  correlacionSegura,
   describeEcoFailure,
+  marcosSeguros,
   runStage,
   upstreamStatusOf,
 } from "./eco-failure";
@@ -147,6 +149,44 @@ describe("atribución de fallos de Eco", () => {
       expect(a.dependency).toBe("internal");
       expect(a.upstreamStatus).toBeNull();
       expect(describeEcoFailure(a)).not.toContain("upstreamStatus");
+    });
+
+    it("un HttpException 5xx NO es una negativa deliberada (R1)", () => {
+      // Tener `getStatus()` no significa «dijimos que no a propósito». Un 500
+      // o un 503 lanzados como HttpException son un fallo NUESTRO, y
+      // clasificarlos como negativa los sacaba del registro de errores y de
+      // Sentry: justo los que hay que mirar.
+      for (const estado of [500, 502, 503]) {
+        const err = new HttpException({ code: "X", message: "…" }, estado);
+        const a = classifyEcoFailure(err);
+        expect(a.category).toBe("internal");
+      }
+      for (const estado of [400, 402, 403, 404, 429]) {
+        const err = new HttpException({ code: "X", message: "…" }, estado);
+        expect(classifyEcoFailure(err).category).toBe("deliberate_refusal");
+      }
+    });
+
+    it("la correlación se valida antes de tratarla como metadato", () => {
+      expect(correlacionSegura("cmv8upveo001m6qvvknmhqmyz")).not.toBeNull();
+      expect(correlacionSegura("thread-1")).not.toBeNull();
+      expect(correlacionSegura("con espacio")).toBeNull();
+      expect(correlacionSegura("con\nsalto")).toBeNull();
+      expect(correlacionSegura("x".repeat(65))).toBeNull();
+      expect(correlacionSegura(42)).toBeNull();
+    });
+
+    it("los marcos se reducen a su ubicación, sin nombres arbitrarios", () => {
+      // Quitar la primera línea del stack no basta: `at <nombre> (<sitio>)`
+      // lleva texto arbitrario en `<nombre>`, y una prueba con marcadores
+      // sintéticos lo destapó.
+      const e = new Error("mensaje");
+      e.stack =
+        "Error: mensaje\n    at FUGA_EN_NOMBRE (/app/a.js:1:2)\n    at /app/b.js:3:4";
+      const marcos = marcosSeguros(e);
+      expect(marcos.join(" ")).not.toContain("FUGA_EN_NOMBRE");
+      expect(marcos).toContain("/app/a.js:1:2");
+      expect(marcos).toContain("/app/b.js:3:4");
     });
 
     it("lee el estado de `status` y de `statusCode`, y descarta basura", () => {

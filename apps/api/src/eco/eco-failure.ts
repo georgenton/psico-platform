@@ -129,6 +129,18 @@ export async function runStage<T>(
   }
 }
 
+/** El estado de un `HttpException`, leído por su forma observable. */
+function estadoDeHttpException(err: unknown): number | null {
+  const fn = (err as { getStatus?: () => unknown }).getStatus;
+  if (typeof fn !== "function") return null;
+  try {
+    const v = fn.call(err);
+    return typeof v === "number" && Number.isInteger(v) ? v : null;
+  } catch {
+    return null;
+  }
+}
+
 /** `HttpException` sin importar Nest aquí: basta su forma observable. */
 function esHttpException(err: unknown): boolean {
   return (
@@ -159,11 +171,18 @@ export function upstreamStatusOf(err: unknown): number | null {
 export function classifyEcoFailure(err: unknown): EcoFailureAttribution {
   // Una negativa deliberada del servicio no es un fallo de nadie, y su código
   // es nuestro: leerlo como `upstreamStatus` inventaría un tercero.
+  //
+  // Pero tener `getStatus()` no basta para llamarla deliberada. Un 500 o un
+  // 503 lanzados como `HttpException` son un fallo NUESTRO, y clasificarlos
+  // como «dijimos que no a propósito» los sacaba del registro de errores y de
+  // Sentry — exactamente los que hay que mirar. Sólo los 4xx son negativas.
   if (esHttpException(err)) {
+    const estado = estadoDeHttpException(err);
+    const esNegativa = estado !== null && estado >= 400 && estado < 500;
     return {
       stage: "unknown",
       dependency: "internal",
-      category: "deliberate_refusal",
+      category: esNegativa ? "deliberate_refusal" : "internal",
       upstreamStatus: null,
     };
   }
@@ -216,4 +235,91 @@ export function describeEcoFailure(
   if (correlation.threadId) partes.push(`threadId=${correlation.threadId}`);
   if (correlation.messageId) partes.push(`messageId=${correlation.messageId}`);
   return partes.join(" ");
+}
+
+/**
+ * Una correlación sólo es metadato seguro si se parece a un identificador.
+ *
+ * `threadId` llega en el cuerpo de la petición: es una cadena que elige el
+ * cliente. Pasarla al registro sin mirar convierte el log en un canal por el
+ * que cualquiera puede escribir lo que quiera —incluido texto de otra persona,
+ * o algo que rompa a quien después lo parsee—. Se acepta la forma de los
+ * identificadores que el propio proyecto genera (cuid) y se descarta el resto.
+ */
+export function correlacionSegura(valor: unknown): string | null {
+  if (typeof valor !== "string") return null;
+  return /^[A-Za-z0-9_-]{1,64}$/.test(valor) ? valor : null;
+}
+
+/**
+ * Las trazas sin el mensaje.
+ *
+ * La primera línea de un `stack` ES el mensaje del error, así que entregar el
+ * stack entero entrega también el texto crudo del proveedor. Los marcos son
+ * rutas y números: sirven para localizar el fallo y no pueden llevar datos de
+ * una persona. Se recortan además a unos pocos, porque el resto es ruido del
+ * framework.
+ */
+export function marcosSeguros(err: unknown, maximo = 8): string[] {
+  const stack =
+    err instanceof Error && typeof err.stack === "string" ? err.stack : "";
+  return stack
+    .split("\n")
+    .slice(1)
+    .map((l) => l.trim())
+    .filter((l) => l.startsWith("at "))
+    .map(ubicacionDelMarco)
+    .filter((l): l is string => l !== null)
+    .slice(0, maximo);
+}
+
+/**
+ * De un marco, sólo su ubicación: archivo, línea y columna.
+ *
+ * Quitar la primera línea del stack NO basta, y lo descubrió una prueba con
+ * marcadores sintéticos: un marco es `at <nombre> (<ubicación>)`, y ese
+ * `<nombre>` es texto arbitrario —el nombre de una función generada, o lo que
+ * un SDK haya puesto ahí—. La ubicación es una ruta y dos números: localiza el
+ * fallo y no puede llevar el contenido de nadie.
+ */
+function ubicacionDelMarco(linea: string): string | null {
+  const entreParentesis = linea.match(/\(([^()]+:\d+:\d+)\)\s*$/);
+  if (entreParentesis) return entreParentesis[1] ?? null;
+  // `at /ruta/archivo.js:1:1` — sin nombre de función.
+  const desnudo = linea.match(/^at\s+([^\s()]+:\d+:\d+)$/);
+  return desnudo ? (desnudo[1] ?? null) : null;
+}
+
+/**
+ * Lo único que sale de aquí hacia el registro y hacia Sentry.
+ *
+ * Deliberadamente NO lleva el error original, su `message`, su `stack`
+ * completo, su `cause`, su `original`, ni ninguna propiedad que el SDK haya
+ * colgado —un `response.body` de un proveedor puede traer el texto que se le
+ * envió—. Lo que lleva: constantes del código, un número de estado y marcos.
+ */
+export interface EcoSafeFailure {
+  readonly surface: "eco.sendMessage";
+  readonly stage: EcoStage;
+  readonly dependency: EcoDependency;
+  readonly category: EcoFailureCategory;
+  readonly upstreamStatus: number | null;
+  readonly threadId: string | null;
+  readonly frames: string[];
+}
+
+export function toSafeFailure(
+  err: unknown,
+  correlation: { threadId?: unknown } = {},
+): EcoSafeFailure {
+  const a = classifyEcoFailure(err);
+  return {
+    surface: "eco.sendMessage",
+    stage: a.stage,
+    dependency: a.dependency,
+    category: a.category,
+    upstreamStatus: a.upstreamStatus,
+    threadId: correlacionSegura(correlation.threadId),
+    frames: marcosSeguros(err),
+  };
 }

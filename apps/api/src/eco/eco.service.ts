@@ -34,9 +34,9 @@ import { PLAN_QUOTAS } from "../subscription/quotas";
 import { UsageService } from "../subscription/usage.service";
 import {
   EcoStageError,
-  classifyEcoFailure,
   describeEcoFailure,
   runStage,
+  toSafeFailure,
 } from "./eco-failure";
 import {
   CRISIS_HOTLINE,
@@ -267,10 +267,28 @@ export class EcoService {
       // no dice a cuál escribirle. Ahora se nombra la etapa, la dependencia y
       // una categoría cerrada; el mensaje original sigue delante porque es lo
       // que da la pista concreta, y el `stack` del SDK viaja en `cause`.
-      const atribucion = classifyEcoFailure(err);
-      const linea =
-        `Eco sendMessage failed: ${(err as Error).message} · ` +
-        describeEcoFailure(atribucion, { threadId: body.threadId });
+      // Lo que sale de aquí es una representación SEGURA, no el error.
+      //
+      // Antes se concatenaba `err.message`, se entregaba `err.stack` al logger
+      // y se pasaba `err` entero a Sentry. Las tres cosas transportan texto
+      // crudo del proveedor: un mensaje puede traer el cuerpo que se le envió,
+      // el stack empieza por ese mismo mensaje, y el objeto arrastra `cause`,
+      // `original` y cualquier `response.body` que el SDK haya colgado. En un
+      // camino donde el texto de la persona viaja in-flight hacia el modelo,
+      // eso es una fuga esperando una excepción con el contenido dentro.
+      //
+      // `toSafeFailure` deja sólo constantes del código, un número de estado,
+      // marcos de pila sin su primera línea y una correlación validada.
+      const seguro = toSafeFailure(err, { threadId: body.threadId });
+      const atribucion = {
+        stage: seguro.stage,
+        dependency: seguro.dependency,
+        category: seguro.category,
+        upstreamStatus: seguro.upstreamStatus,
+      };
+      const linea = `Eco sendMessage failed · ${describeEcoFailure(atribucion, {
+        threadId: seguro.threadId ?? undefined,
+      })}`;
 
       if (atribucion.category === "deliberate_refusal") {
         // Una cuota agotada o un hilo ajeno no son una caída: el servicio dijo
@@ -279,11 +297,17 @@ export class EcoService {
         // Sentry, que es para lo que hay que ir a mirar.
         this.logger.warn(linea);
       } else {
-        this.logger.error(linea, err instanceof Error ? err.stack : undefined);
+        // Ni el stack crudo como segundo argumento: los marcos ya van en la
+        // línea, sin la primera —que es el mensaje del proveedor—.
+        this.logger.error(
+          seguro.frames.length > 0
+            ? `${linea} frames=${seguro.frames.join(" | ")}`
+            : linea,
+        );
         // Este camino nunca pasaba por el filtro HTTP —el error viaja DENTRO
-        // del stream SSE—, así que ningún fallo de Eco llegaba a Sentry. Va
-        // sólo la atribución: constantes del código y un número de estado.
-        captureException(err, { surface: "eco.sendMessage", ...atribucion });
+        // del stream SSE—, así que ningún fallo de Eco llegaba a Sentry. Va un
+        // error SINTÉTICO con la etiqueta segura, nunca el original.
+        captureException(new Error(`eco.sendMessage ${linea}`), { ...seguro });
       }
       subject.next({
         data: {

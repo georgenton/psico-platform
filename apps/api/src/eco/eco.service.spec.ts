@@ -29,6 +29,14 @@ vi.mock("@prisma/client", () => ({
 
 // Anthropic SDK gets fully mocked — we exercise the streaming path with
 // a fake `messages.stream` that takes a controllable token feed.
+const capturados: Array<{ err: unknown; ctx: unknown }> = [];
+vi.mock("../observability/sentry", () => ({
+  captureException: (err: unknown, ctx: unknown) => {
+    capturados.push({ err, ctx });
+  },
+  initSentry: () => {},
+}));
+
 vi.mock("@anthropic-ai/sdk", () => {
   return {
     default: class MockAnthropic {
@@ -377,6 +385,141 @@ describe("EcoService", () => {
   });
 
   /**
+   * R1 — nada crudo del proveedor sale hacia el registro ni hacia Sentry.
+   *
+   * El error que se inyecta lleva marcadores sintéticos en TODOS los sitios
+   * por los que el texto podría escaparse: el `message`, el `stack`, una
+   * propiedad anidada tipo `response.body` —que es donde un SDK deja lo que
+   * envió— y la `cause`. Si alguno aparece en la salida, la fuga existe.
+   *
+   * Se comprueban todos los argumentos del logger, no sólo el primero: el
+   * segundo era precisamente donde iba el stack.
+   */
+  describe("sendMessage — privacidad de la salida de error (R1)", () => {
+    const SECRETO_MSG = "SECRETO_EN_MENSAJE";
+    const SECRETO_STACK = "SECRETO_EN_STACK";
+    const SECRETO_BODY = "SECRETO_EN_BODY";
+    const SECRETO_CAUSE = "SECRETO_EN_CAUSE";
+
+    function errorVenenoso() {
+      const e = new Error(`fallo del proveedor ${SECRETO_MSG}`) as Error & {
+        status: number;
+        response: { body: string };
+        cause: Error;
+      };
+      e.status = 500;
+      e.stack = `Error: ${SECRETO_MSG}\n    at ${SECRETO_STACK} (/app/x.js:1:1)\n    at real (/app/y.js:2:2)`;
+      e.response = { body: SECRETO_BODY };
+      e.cause = new Error(SECRETO_CAUSE);
+      return e;
+    }
+
+    async function provocar(threadId = THREAD_ID) {
+      const prisma = makePrisma({
+        plan: Plan.PRO,
+        hasActiveSub: true,
+        userMessagesInPeriod: 0,
+      });
+      const embedding = makeEmbedding();
+      embedding.embed.mockRejectedValue(errorVenenoso());
+      const { service } = makeService({ prisma, embedding });
+      const errores = vi
+        .spyOn(Logger.prototype, "error")
+        .mockImplementation(() => {});
+      const avisos = vi
+        .spyOn(Logger.prototype, "warn")
+        .mockImplementation(() => {});
+      capturados.length = 0;
+
+      const events = await lastValueFrom(
+        service
+          .sendMessage(USER_ID, {
+            threadId,
+            textPlaintext: "texto privado de la persona",
+            textCiphertext: "ct",
+            textNonce: "n",
+          })
+          .pipe(toArray()),
+      );
+      const todo = JSON.stringify({
+        errores: errores.mock.calls,
+        avisos: avisos.mock.calls,
+        sentry: capturados.map((c) => ({
+          mensaje: (c.err as Error)?.message,
+          stack: (c.err as Error)?.stack,
+          ctx: c.ctx,
+        })),
+        sse: events,
+      });
+      errores.mockRestore();
+      avisos.mockRestore();
+      return { todo, events, errores, capturados };
+    }
+
+    it("ningún marcador del proveedor llega al registro, a Sentry ni al SSE", async () => {
+      const { todo } = await provocar();
+      for (const marcador of [
+        SECRETO_MSG,
+        SECRETO_STACK,
+        SECRETO_BODY,
+        SECRETO_CAUSE,
+        "texto privado de la persona",
+      ]) {
+        expect(todo).not.toContain(marcador);
+      }
+    });
+
+    it("pero sí queda la etapa, la dependencia y la categoría", async () => {
+      const { todo } = await provocar();
+      expect(todo).toContain("stage=embeddings");
+      expect(todo).toContain("dependency=voyage");
+      expect(todo).toContain("category=upstream_unavailable");
+    });
+
+    it("a Sentry va un error sintético, no el original", async () => {
+      await provocar();
+      expect(capturados).toHaveLength(1);
+      const err = capturados[0]?.err as Error & { response?: unknown };
+      expect(err.message).not.toContain(SECRETO_MSG);
+      // Y sin las propiedades que el SDK colgó.
+      expect(err.response).toBeUndefined();
+      expect((err as { original?: unknown }).original).toBeUndefined();
+      const ctx = capturados[0]?.ctx as Record<string, unknown>;
+      expect(Object.keys(ctx).sort()).toEqual(
+        [
+          "category",
+          "dependency",
+          "frames",
+          "stage",
+          "surface",
+          "threadId",
+          "upstreamStatus",
+        ].sort(),
+      );
+    });
+
+    it("una correlación que no parece identificador se descarta", async () => {
+      // `threadId` lo elige el cliente: sin validarlo, el registro se vuelve
+      // un canal por el que cualquiera escribe lo que quiera.
+      const { todo } = await provocar("no es un id\nINYECTADO");
+      expect(todo).not.toContain("INYECTADO");
+      expect(todo).not.toContain("threadId=no es");
+    });
+
+    it("el mensaje que lee la persona no cambia", async () => {
+      const { events } = await provocar();
+      const ultimo = events.at(-1)?.data as {
+        event: string;
+        data: { message: string };
+      };
+      expect(ultimo.event).toBe("error");
+      expect(ultimo.data.message).toBe(
+        "Algo salió mal. Reintenta en unos segundos.",
+      );
+    });
+  });
+
+  /**
    * Los dos proveedores externos, cayéndose por separado.
    *
    * Medido antes en una pila local: con una clave de Voyage falsa, TODOS los
@@ -420,7 +563,7 @@ describe("EcoService", () => {
           .sendMessage(USER_ID, {
             threadId: THREAD_ID,
             textPlaintext: "un texto privado que no debe aparecer en el log",
-            textCiphertext: "ct",
+            textCiphertext: "CIFRADO_QUE_NO_DEBE_APARECER",
             textNonce: "n",
           })
           .pipe(toArray()),
@@ -436,7 +579,9 @@ describe("EcoService", () => {
       expect(linea).toContain(`threadId=${THREAD_ID}`);
       // Lo que el registro NO puede llevar.
       expect(linea).not.toContain("un texto privado");
-      expect(linea).not.toContain("ct");
+      // Antes buscaba "ct": dos letras que aparecen por casualidad en
+      // cualquier ruta. Una aserción así pasa o falla por azar.
+      expect(linea).not.toContain("CIFRADO_QUE_NO_DEBE_APARECER");
 
       // El mensaje de la persona se conserva; no se inventa una respuesta.
       const creados = prisma.ecoMessage.create.mock.calls.map(

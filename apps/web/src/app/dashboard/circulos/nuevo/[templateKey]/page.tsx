@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import type { CircleSharingMode } from "@psico/types";
 import { circleAllowedSizes, toCircleTemplatePreview } from "@psico/types";
+import type { CirclesAccessResponse } from "@psico/types";
 
+import { isNextThrow, serverFetch } from "@/lib/api.server";
 import { resolvePublishedTemplateByKey } from "@/lib/circulos/eligibility";
 import { CrearCirculo } from "@/components/circulos/CrearCirculo";
 import { estilos as S } from "@/components/circulos/estilos";
@@ -68,7 +70,91 @@ function exitCopy(modes: readonly CircleSharingMode[]): string[] {
   return lines;
 }
 
-export default function NuevoDuoPage({
+/**
+ * What the server says THIS person may do, asked of the server.
+ *
+ * The page used to decide on the catalogue alone: if the template was
+ * PUBLISHED it rendered the form, button included. That is wrong for anyone
+ * the rollout does not admit — the screen offered a creation the API answers
+ * with 503, so the refusal arrived only after they pressed. The authority on
+ * who may create is the server, and this asks it.
+ *
+ * Fails CLOSED. A 503, a network error, a shape that does not parse: all of
+ * them land on "you cannot", because offering an action we could not confirm
+ * is the failure this exists to prevent. The one exception is a Next redirect
+ * — `serverFetch` throws one when there is no usable session — which must
+ * propagate so a logged-out visitor is bounced to login instead of being shown
+ * the unavailable screen.
+ *
+ * ── Por qué se valida la forma, y no basta el tipo ─────────────────────────
+ *
+ * `serverFetch<CirclesAccessResponse>` es una ANOTACIÓN: TypeScript la borra al
+ * compilar y nadie comprueba el JSON. Una respuesta `null`, `{}` o incluso
+ * `{available:false}` se resolvía sin lanzar, y la versión anterior de esta
+ * función devolvía `disponible: true` por el mero hecho de haber resuelto. Es
+ * decir: exactamente el fallo que esta pantalla corrige, reintroducido por la
+ * puerta del tipado. La disponibilidad se afirma ahora sólo con una forma
+ * válida y `available === true`.
+ */
+
+/** Disponibilidad afirmada por el cuerpo, no por el hecho de haber resuelto. */
+function leeDisponible(res: unknown): boolean {
+  return (
+    typeof res === "object" &&
+    res !== null &&
+    (res as { available?: unknown }).available === true
+  );
+}
+
+/**
+ * Grupos: sólo con un `true` literal.
+ *
+ * Una API anterior responde `{available:true}` sin el segundo campo, y esa
+ * ausencia se lee como «no». Lo mismo cualquier otro valor —`"true"`, `1`,
+ * `null`— porque un booleano que llega como cadena es un contrato roto, no un
+ * permiso.
+ */
+function leeGrupos(res: unknown): boolean {
+  return (
+    typeof res === "object" &&
+    res !== null &&
+    (res as { canCreateGroups?: unknown }).canCreateGroups === true
+  );
+}
+
+async function capacidades(): Promise<{
+  disponible: boolean;
+  puedeCrearGrupos: boolean;
+}> {
+  try {
+    const res = await serverFetch<CirclesAccessResponse>("/circles/access", {
+      cache: "no-store",
+    });
+    const disponible = leeDisponible(res);
+    return {
+      disponible,
+      // Nunca grupos sin disponibilidad: el segundo interruptor sólo estrecha,
+      // así que una respuesta que concediera grupos sin conceder el acceso
+      // sería contradictoria y se lee cerrada.
+      puedeCrearGrupos: disponible && leeGrupos(res),
+    };
+  } catch (err) {
+    if (isNextThrow(err)) throw err;
+    return { disponible: false, puedeCrearGrupos: false };
+  }
+}
+
+/** Una pantalla honesta y sin acción, para cuando el servidor dice que no. */
+function NoDisponible({ titulo, cuerpo }: { titulo: string; cuerpo: string }) {
+  return (
+    <div style={S.page}>
+      <h1 style={S.h1}>{titulo}</h1>
+      <p style={S.p}>{cuerpo}</p>
+    </div>
+  );
+}
+
+export default async function NuevoDuoPage({
   params,
 }: {
   params: { templateKey: string };
@@ -92,6 +178,31 @@ export default function NuevoDuoPage({
   // would refuse.
   const sizes = circleAllowedSizes(definition);
   const group = definition.audience === "GROUP_ADULT";
+
+  // El catálogo dice QUÉ es esta plantilla; el servidor dice si esta persona
+  // puede crearla. Las dos preguntas son distintas y aquí hacen falta ambas:
+  // la plantilla decide cuál de los dos permisos aplica, y el servidor decide
+  // si lo tiene. Deducir el de grupos del de disponibilidad es precisamente el
+  // atajo que dejaba un botón que el POST rechaza.
+  const { disponible, puedeCrearGrupos } = await capacidades();
+
+  if (!disponible) {
+    return (
+      <NoDisponible
+        titulo="Círculos todavía no está abierto"
+        cuerpo="Es una forma de hacer una actividad con otra persona: cada quien se prepara por su lado y deciden qué compartir. Te avisaremos cuando esté disponible para tu cuenta."
+      />
+    );
+  }
+
+  if (group && !puedeCrearGrupos) {
+    return (
+      <NoDisponible
+        titulo="Todavía no puedes crear un grupo"
+        cuerpo="Los grupos se están abriendo por partes. Tu cuenta ya tiene Círculos, así que puedes hacer una actividad con otra persona mientras tanto."
+      />
+    );
+  }
 
   return (
     <div style={S.page}>

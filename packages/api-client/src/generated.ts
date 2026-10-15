@@ -3193,7 +3193,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Whether Círculos is enabled for the caller */
+        /** What Círculos allows the caller to do */
         get: operations["CirclesController_access"];
         put?: never;
         post?: never;
@@ -17432,12 +17432,22 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Enabled. */
+            /** @description Enabled; the body carries the caller's capabilities. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        /**
+                         * @description Always true here; a 503 is the negative answer.
+                         * @enum {boolean}
+                         */
+                        available: true;
+                        /** @description Whether this caller may create an adult GROUP. Narrower than availability, never wider. */
+                        canCreateGroups: boolean;
+                    };
+                };
             };
             /** @description CIRCLES_UNAVAILABLE. */
             503: {

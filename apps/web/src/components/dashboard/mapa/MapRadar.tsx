@@ -2,6 +2,7 @@ import type {
   EmotionalMapDimension,
   EmotionalMapDimensionKey,
 } from "@psico/types";
+import { EMOTIONAL_MAP_CONFIDENCE_FLOOR } from "@psico/types";
 
 /**
  * MapRadar — the honest hexagonal radar (supersedes the 3-axis MapSelfReport
@@ -33,8 +34,15 @@ const AXES: ReadonlyArray<{ key: EmotionalMapDimensionKey; label: string }> = [
   { key: "consciencia", label: "Consciencia" },
 ];
 
-/** Must match `CONFIDENCE_FLOOR` in the backend scoring. */
-const CONFIDENCE_FLOOR = 0.15;
+/**
+ * El mismo umbral que aplica el scoring, importado en vez de copiado.
+ *
+ * Antes era una copia con un comentario pidiendo mantenerla igual. Si hubiera
+ * derivado, este radar habría dibujado una punta que el backend considera sin
+ * señal suficiente — un número que el producto no respalda, que es justo lo
+ * que el estado «Reuniendo datos» existe para evitar.
+ */
+const CONFIDENCE_FLOOR = EMOTIONAL_MAP_CONFIDENCE_FLOOR;
 
 function isReady(
   dim: EmotionalMapDimension | undefined,

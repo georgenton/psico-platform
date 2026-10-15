@@ -61,6 +61,27 @@ export type CircleActor =
       readonly participantId: string;
     };
 
+/**
+ * What `GET /api/circles/access` tells an authenticated caller about ITSELF.
+ *
+ * `available` is redundant with the 200 — the route answers 503 when Círculos
+ * is off for the caller — and it stays because callers already read it, and
+ * because a body that says what it means survives being logged or cached.
+ *
+ * `canCreateGroups` is the part that is NOT redundant. Group creation has a
+ * second switch that can only narrow availability, so the two questions have
+ * different answers and a surface that derived one from the other would offer
+ * an action the server refuses.
+ *
+ * Both are capabilities OF THE CALLER. Nothing here describes the rollout: no
+ * mode, no allowlist, no other person's id. That boundary is the reason this
+ * shape is safe to hand to a browser.
+ */
+export interface CirclesAccessResponse {
+  readonly available: true;
+  readonly canCreateGroups: boolean;
+}
+
 /** The role a permission question is asked about. */
 export type CircleRole =
   /** The authenticated member who created the circle. */

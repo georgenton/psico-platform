@@ -15,6 +15,21 @@ const VOICE_OPTIONS: Array<{ key: VoicePreference; label: string }> = [
   { key: "none", label: "Sin voz" },
 ];
 
+/**
+ * La voz se guarda y se relee, y hoy no cambia el audio.
+ *
+ * La preferencia NO se retira: está en el modelo, persiste, y el día que la
+ * narración la use será la que valga. Pero ofrecerla en silencio hace que la
+ * pantalla prometa algo que no ocurre.
+ *
+ * El texto dice exactamente lo comprobado y ni una palabra más. No afirma que
+ * no exista narración en ninguna parte del producto —eso sería un inventario
+ * que no se ha hecho— sino lo único que se sostiene: eliges, se guarda, y de
+ * momento no altera lo que suena.
+ */
+const VOZ_SIN_CONSUMIDOR =
+  "Se guarda tu elección. Por ahora no cambia el audio que escuchas.";
+
 const BEST_TIME_OPTIONS: Array<{ key: BestTime; label: string }> = [
   { key: "morning", label: "Mañana" },
   { key: "noon", label: "Mediodía" },
@@ -115,6 +130,7 @@ export function PreferencesCard({ initial }: { initial: UserPreferences }) {
               VOICE_OPTIONS.find((v) => v.key === initial.voicePreference)
                 ?.label ?? initial.voicePreference
             }
+            nota={VOZ_SIN_CONSUMIDOR}
           />
           <Row
             label="Tema"
@@ -156,7 +172,7 @@ export function PreferencesCard({ initial }: { initial: UserPreferences }) {
           }}
           className="mt-4 space-y-4"
         >
-          <Field label="Voz de la app">
+          <Field label="Voz de la app" nota={VOZ_SIN_CONSUMIDOR}>
             <select
               value={draft.voicePreference}
               onChange={(e) =>
@@ -299,7 +315,18 @@ export function PreferencesCard({ initial }: { initial: UserPreferences }) {
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function Row({
+  label,
+  value,
+  nota,
+}: {
+  label: string;
+  value: string;
+  /** La misma aclaración que en el formulario: el resumen es lo que casi todo
+   * el mundo lee, así que una limitación que sólo se contara al editar
+   * seguiría siendo una promesa falsa para la mayoría. */
+  nota?: string;
+}) {
   return (
     <div>
       <dt
@@ -309,6 +336,14 @@ function Row({ label, value }: { label: string; value: string }) {
         {label}
       </dt>
       <dd className="mt-0.5">{value}</dd>
+      {nota ? (
+        <dd
+          className="mt-0.5 text-[11.5px] leading-snug"
+          style={{ color: "var(--color-warm-500)" }}
+        >
+          {nota}
+        </dd>
+      ) : null}
     </div>
   );
 }
@@ -316,9 +351,16 @@ function Row({ label, value }: { label: string; value: string }) {
 function Field({
   label,
   children,
+  nota,
 }: {
   label: string;
   children: React.ReactNode;
+  /**
+   * Una aclaración corta bajo el control, para cuando lo que se elige todavía
+   * no hace lo que su nombre promete. Va aquí y no en un `aviso` aparte porque
+   * sólo se entiende junto a la elección que matiza.
+   */
+  nota?: string;
 }) {
   return (
     <label className="block">
@@ -329,6 +371,14 @@ function Field({
         {label}
       </span>
       {children}
+      {nota ? (
+        <span
+          className="mt-1 block text-[11.5px] leading-snug"
+          style={{ color: "var(--color-warm-500)" }}
+        >
+          {nota}
+        </span>
+      ) : null}
     </label>
   );
 }

@@ -45,9 +45,18 @@ Inventario del servidor, leído el 15-10:
 - Build packs: 3 `railpack`, 3 `dockerfile`, 4 `dockerimage`. Los **seis primeros construyen en el host**; los cuatro últimos sólo descargan una imagen.
 - **0 de 10 con autodespliegue.** Todo despliegue de esa máquina lo dispara una persona o una llamada explícita.
 
-El dato que más explica el incidente es **swap = 0**. Sin swap, un pico de
-memoria no se degrada en lentitud: el kernel elige un proceso y lo mata. Y
-eligió `buildkitd` porque era el más grande en ese instante (3,7 GB).
+El dato que más llama la atención es **swap = 0**. Sin swap no hay margen que
+degrade un pico en lentitud antes de que el kernel actúe.
+
+Conviene no estirar lo que la evidencia sostiene. Lo observado es: el kernel
+invocó al OOM-killer, eligió `buildkitd`, y su RSS en ese momento era 3,7 GB.
+El OOM-killer puntúa por memoria **y** por otros factores (`oom_score_adj`,
+cgroup, antigüedad), así que **no está demostrado que lo eligiera sólo por ser
+el mayor**: es coherente con serlo, nada más. Tampoco está demostrado que
+añadir swap hubiera evitado este OOM, ni que evite el próximo — con suficiente
+presión el kernel mata igual, y antes de eso el sistema puede volverse
+inservible por paginación. Lo que swap cambia es el modo de fallo típico, no
+la existencia del límite.
 
 ## 2 · Qué puede competir por la memoria
 

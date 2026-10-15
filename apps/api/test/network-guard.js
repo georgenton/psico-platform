@@ -37,6 +37,28 @@
  * red de seguridad para lo que no lo use. `http.request` y `https.request`
  * terminan abriendo un socket, de modo que quedan cubiertos por la segunda.
  *
+ * ── Qué cubre, y qué NO ────────────────────────────────────────────────────
+ *
+ * Cubre, comprobado en la suite:
+ *
+ *   · `fetch` directo (undici).
+ *   · `http.get` / `https.request` a través de su Agent, que llaman a
+ *     `net.createConnection` y por tanto a `connect` con argumentos
+ *     NORMALIZADOS —un array `[options, cb]`—. Ésa era la rendija: el guardia
+ *     leía `args[0].host`, que ahí es `undefined`, y delegaba.
+ *   · Las formas `(options)` y `(port, host)` de `connect`.
+ *
+ * NO cubre, y conviene saberlo antes de confiarse:
+ *
+ *   · Sockets de dominio Unix: no tienen host y no salen de la máquina.
+ *   · Procesos HIJOS con su propio Node. El guardia se instala por proceso;
+ *     un `child_process` no lo hereda salvo que también lo precargue.
+ *   · Conexiones ya abiertas ANTES de instalarlo. Por eso va con `--require`,
+ *     que corre antes que el código de la aplicación.
+ *   · Resolución DNS por sí sola: se bloquea por nombre, antes de resolver.
+ *     Un destino escrito como IP literal no permitida también se bloquea,
+ *     pero una IP que alguien considere «local» y no esté en la lista, no.
+ *
  * ── Dónde vive y dónde NO ──────────────────────────────────────────────────
  *
  * Fuera de `src/`, que es lo único que compila el build. Este archivo no viaja

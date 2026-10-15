@@ -731,16 +731,42 @@ async function main() {
     EMOTIONAL_MAP_PUBLIC: "on",
   };
 
+  /**
+   * El guardia de red, SÓLO para los procesos que sirven.
+   *
+   * Esta pila arranca con claves de proveedor obviamente falsas para que los
+   * procesos puedan bootear. Durante el macro bloque B eso resultó NO ser
+   * inocuo: el RAG de Eco pide embeddings antes de llamar al modelo, así que
+   * una corrida emitió una petición REAL a `api.voyageai.com` y recibió un
+   * 401. Las claves falsas evitan cobrar; no evitan salir.
+   *
+   * Va en el entorno de EJECUCIÓN y no en el compartido, y eso lo decidió una
+   * medición: al ponerlo en el compartido, el guardia también cubría el build,
+   * y ahí bloqueó `fonts.googleapis.com` — `next/font/google` descarga las
+   * fuentes al construir. Es tráfico externo real que nadie había notado, así
+   * que el guardia no se equivocaba; el que se equivocó fue su alcance. Un
+   * build que descarga una dependencia declarada no es un recorrido, y
+   * bloquearlo rompe la pila sin decir nada sobre el producto.
+   *
+   * Si un recorrido necesita un proveedor local en otro host, se añade por
+   * `NETWORK_GUARD_ALLOW`: una decisión explícita, no un descuido.
+   */
+  const runtimeEnv = {
+    ...sharedEnv,
+    NETWORK_GUARD: "1",
+    NODE_OPTIONS: `--require ${join(WORK, "apps/api/test/network-guard.js")}`,
+  };
+
   const apiOffPort = await freePort();
 
   log("7/8 start API, worker and Web");
   start("api", "node", ["apps/api/dist/main"], {
     cwd: WORK,
-    env: { ...sharedEnv, PORT: String(apiPort) },
+    env: { ...runtimeEnv, PORT: String(apiPort) },
   });
   start("worker", "node", ["apps/api/dist/worker"], {
     cwd: WORK,
-    env: sharedEnv,
+    env: runtimeEnv,
   });
 
   // A SECOND API from the same build, with the rollout off.
@@ -753,7 +779,7 @@ async function main() {
   start("api-off", "node", ["apps/api/dist/main"], {
     cwd: WORK,
     env: {
-      ...sharedEnv,
+      ...runtimeEnv,
       PORT: String(apiOffPort),
       CIRCLES_ROLLOUT_MODE: "off",
     },

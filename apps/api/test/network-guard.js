@@ -80,6 +80,37 @@ function permitido(host, lista) {
 }
 
 /**
+ * El host que un `connect` va a usar, mirando TODAS sus formas.
+ *
+ * `Socket.prototype.connect` acepta `(options)`, `(port, host)` y `(path)`.
+ * Pero `net.createConnection` —que es por donde pasan `http` y `https` a
+ * través de su Agent— NORMALIZA primero y llama con un ARRAY `[options, cb]`.
+ *
+ * El guardia leía `args[0].host`, que en ese array es `undefined`, así que
+ * delegaba y la conexión salía. La revisión lo señaló y se reprodujo en la
+ * suite antes de tocar nada: un `http.get` a un nombre no permitido, con
+ * `lookup` propio apuntando a un servidor local, llegaba a entregarse.
+ *
+ * Por eso se mira dentro del array además de la forma directa. El socket de
+ * dominio Unix —`(path)`— no tiene host y no sale de la máquina: se ignora.
+ */
+function hostDeArgumentosDeConexion(args) {
+  const primero = args[0];
+  // Forma normalizada: [options, cb]
+  if (Array.isArray(primero)) {
+    const opciones = primero[0];
+    return opciones && typeof opciones === "object"
+      ? (opciones.host ?? null)
+      : null;
+  }
+  // Forma directa: (options)
+  if (primero && typeof primero === "object") return primero.host ?? null;
+  // Forma (port, host)
+  if (typeof args[1] === "string") return args[1];
+  return null;
+}
+
+/**
  * Instala el guardia.
  *
  * @param {{allow?: string[]}} [opciones] destinos permitidos, además de los
@@ -132,17 +163,20 @@ function installNetworkGuard(opciones = {}) {
   // ── Capa 2: socket ───────────────────────────────────────────────────────
   const connectOriginal = net.Socket.prototype.connect;
   net.Socket.prototype.connect = function guardedConnect(...args) {
-    // `connect` acepta (options), (port, host) o (path). Sólo interesa el
-    // caso con host: un socket de dominio Unix no sale de la máquina.
-    let host = null;
-    const primero = args[0];
-    if (primero && typeof primero === "object") host = primero.host;
-    else if (typeof args[1] === "string") host = args[1];
+    const host = hostDeArgumentosDeConexion(args);
 
     if (host && !permitido(host, lista)) {
       registrar(host, "socket.connect");
       // Antes de abrir el TCP: no se escribe un solo byte hacia fuera.
-      throw new NetworkGuardError(host, "socket.connect");
+      //
+      // Se EMITE el error en vez de lanzarlo. `http.get` y `https.request`
+      // esperan que `connect` devuelva el socket y que cualquier problema
+      // llegue como evento `error`; un `throw` síncrono se escapa de su
+      // manejador y, en un proceso que sirve, lo mata. Medido: el caso de
+      // `https.get` reventaba la prueba en vez de reportarse.
+      const err = new NetworkGuardError(host, "socket.connect");
+      process.nextTick(() => this.destroy(err));
+      return this;
     }
     return connectOriginal.apply(this, args);
   };

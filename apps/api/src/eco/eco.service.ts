@@ -256,8 +256,17 @@ export class EcoService {
     body: EcoSendMessageRequest,
     subject: Subject<{ data: EcoSseEvent }>,
   ): Promise<void> {
+    // La correlación que se registra tiene que haberla acreditado el servidor.
+    //
+    // `body.threadId` lo elige quien llama: que tenga forma de identificador
+    // no demuestra que exista ni que sea suyo. Validar la FORMA no basta —una
+    // cadena alfanumérica cualquiera pasaba el filtro y aterrizaba en el
+    // registro y en Sentry—. Este contenedor sólo se rellena después de que
+    // la consulta de pertenencia haya devuelto un hilo de ESTA persona; si el
+    // fallo ocurre antes, no hay correlación y no se escribe ninguna.
+    const acreditado: { threadId?: string } = {};
     try {
-      await this.runSendMessageInner(userId, body, subject);
+      await this.runSendMessageInner(userId, body, subject, acreditado);
     } catch (err) {
       // Any uncaught error becomes a single `error` SSE event so the client
       // can show a retry banner. We DO NOT leak the user's plaintext here.
@@ -279,7 +288,7 @@ export class EcoService {
       //
       // `toSafeFailure` deja sólo constantes del código, un número de estado,
       // marcos de pila sin su primera línea y una correlación validada.
-      const seguro = toSafeFailure(err, { threadId: body.threadId });
+      const seguro = toSafeFailure(err, { threadId: acreditado.threadId });
       const atribucion = {
         stage: seguro.stage,
         dependency: seguro.dependency,
@@ -338,6 +347,7 @@ export class EcoService {
     userId: string,
     body: EcoSendMessageRequest,
     subject: Subject<{ data: EcoSseEvent }>,
+    acreditado: { threadId?: string } = {},
   ): Promise<void> {
     // ── 1. Quota gate ────────────────────────────────────────────────────
     const remainingBefore = await this.computeQuotaRemaining(userId);
@@ -359,6 +369,10 @@ export class EcoService {
       select: { id: true },
     });
     if (!thread) throw new NotFoundException("ECO_THREAD_NOT_FOUND");
+    // Desde aquí el identificador está acreditado: la consulta de arriba
+    // comprobó que existe Y que es de esta persona. Antes de este punto no
+    // hay correlación que registrar.
+    acreditado.threadId = thread.id;
 
     // ── 3. Persist the user message (ciphertext only) ────────────────────
     const userMessage = await this.prisma.ecoMessage.create({

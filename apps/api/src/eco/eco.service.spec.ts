@@ -506,6 +506,64 @@ describe("EcoService", () => {
       expect(todo).not.toContain("threadId=no es");
     });
 
+    /**
+     * Dos contrapruebas que la revisión pidió, reproducidas antes de corregir.
+     *
+     * A · `threadId` llega del cliente. Que tenga forma de identificador no
+     *     demuestra que exista ni que sea suyo: una cadena alfanumérica
+     *     cualquiera pasaba el filtro y aterrizaba en el registro y en Sentry.
+     *
+     * B · Un marco de pila conserva su RUTA. Si el stack trae una ruta que no
+     *     es nuestra —la pone el SDK, o viene de un `Error` fabricado—, esa
+     *     ruta sale en `frames`, en el log y en el contexto de Sentry.
+     */
+    it("A · una correlación con forma válida pero sin acreditar NO se registra", async () => {
+      const { todo } = await provocar("MARCADOR_DE_HILO_AJENO");
+      expect(todo).not.toContain("MARCADOR_DE_HILO_AJENO");
+    });
+
+    it("B · una ruta ajena del stack NO sale en frames, log ni Sentry", async () => {
+      const prisma = makePrisma({
+        plan: Plan.PRO,
+        hasActiveSub: true,
+        userMessagesInPeriod: 0,
+      });
+      const embedding = makeEmbedding();
+      const e = new Error("fallo") as Error & { status: number };
+      e.status = 500;
+      e.stack =
+        "Error: fallo\n" +
+        "    at algo (/tmp/MARCADOR_EN_RUTA/secreto.js:1:1)\n" +
+        "    at https://proveedor.example/v1?token=MARCADOR_EN_URL:2:2";
+      embedding.embed.mockRejectedValue(e);
+      const { service } = makeService({ prisma, embedding });
+
+      const errores = vi
+        .spyOn(Logger.prototype, "error")
+        .mockImplementation(() => {});
+      capturados.length = 0;
+      const events = await lastValueFrom(
+        service
+          .sendMessage(USER_ID, {
+            threadId: THREAD_ID,
+            textPlaintext: "hola",
+            textCiphertext: "ct",
+            textNonce: "n",
+          })
+          .pipe(toArray()),
+      );
+      const todo = JSON.stringify({
+        errores: errores.mock.calls,
+        sentry: capturados,
+        sse: events,
+      });
+      errores.mockRestore();
+
+      expect(todo).not.toContain("MARCADOR_EN_RUTA");
+      expect(todo).not.toContain("MARCADOR_EN_URL");
+      expect(todo).not.toContain("proveedor.example");
+    });
+
     it("el mensaje que lee la persona no cambia", async () => {
       const { events } = await provocar();
       const ultimo = events.at(-1)?.data as {

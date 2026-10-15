@@ -180,13 +180,30 @@ describe("atribución de fallos de Eco", () => {
       // Quitar la primera línea del stack no basta: `at <nombre> (<sitio>)`
       // lleva texto arbitrario en `<nombre>`, y una prueba con marcadores
       // sintéticos lo destapó.
+      //
+      // Y la ubicación tampoco basta por sí sola: ahora sólo sobreviven los
+      // marcos bajo la raíz de la aplicación, emitidos RELATIVOS a ella. Se
+      // usa este propio archivo, que por construcción está dentro.
+      const e = new Error("mensaje");
+      const marcos = marcosSeguros(e);
+      expect(marcos.length).toBeGreaterThan(0);
+      expect(marcos.join(" ")).toContain("eco-failure.spec.ts");
+      // Relativos: ninguna ruta absoluta de la máquina sale de aquí.
+      for (const m of marcos) expect(m.startsWith("/")).toBe(false);
+    });
+
+    it("una ruta ajena al proyecto se descarta entera", () => {
+      // Contraprueba B de la revisión: el stack de un error ajeno puede traer
+      // un fichero temporal o una URL con un token en la query. Ninguno es
+      // información de diagnóstico cuya seguridad podamos demostrar.
       const e = new Error("mensaje");
       e.stack =
-        "Error: mensaje\n    at FUGA_EN_NOMBRE (/app/a.js:1:2)\n    at /app/b.js:3:4";
+        "Error: mensaje\n" +
+        "    at algo (/tmp/MARCADOR_EN_RUTA/secreto.js:1:1)\n" +
+        "    at https://proveedor.example/v1?token=MARCADOR_EN_URL:2:2\n" +
+        "    at otro (/app/node_modules/sdk/index.js:3:3)";
       const marcos = marcosSeguros(e);
-      expect(marcos.join(" ")).not.toContain("FUGA_EN_NOMBRE");
-      expect(marcos).toContain("/app/a.js:1:2");
-      expect(marcos).toContain("/app/b.js:3:4");
+      expect(marcos).toEqual([]);
     });
 
     it("lee el estado de `status` y de `statusCode`, y descarta basura", () => {

@@ -1,3 +1,5 @@
+import { isAbsolute, relative, resolve, sep } from "node:path";
+
 /**
  * De qué se cayó Eco, dicho con suficiente precisión para arreglarlo.
  *
@@ -238,13 +240,20 @@ export function describeEcoFailure(
 }
 
 /**
- * Una correlación sólo es metadato seguro si se parece a un identificador.
+ * Último filtro de forma — NO la barrera.
  *
- * `threadId` llega en el cuerpo de la petición: es una cadena que elige el
- * cliente. Pasarla al registro sin mirar convierte el log en un canal por el
- * que cualquiera puede escribir lo que quiera —incluido texto de otra persona,
- * o algo que rompa a quien después lo parsee—. Se acepta la forma de los
- * identificadores que el propio proyecto genera (cuid) y se descarta el resto.
+ * Esta función comprueba que una correlación tenga forma de identificador, y
+ * eso por sí solo **no demuestra nada**: una cadena alfanumérica cualquiera la
+ * pasa. Es exactamente lo que la revisión señaló, y el contraejemplo está en
+ * `eco.service.spec.ts`: un `threadId` inventado por el cliente, bien formado
+ * y ajeno, aterrizaba en el registro y en Sentry.
+ *
+ * La barrera de verdad vive en quien llama: `runSendMessage` sólo pasa un
+ * identificador DESPUÉS de que la consulta de pertenencia haya devuelto un
+ * hilo de esa persona. Si el fallo ocurre antes, no hay correlación.
+ *
+ * Esto se conserva como segunda red: impide que un salto de línea o un texto
+ * largo ensucien el registro aunque el primer filtro algún día falle.
  */
 export function correlacionSegura(valor: unknown): string | null {
   if (typeof valor !== "string") return null;
@@ -274,20 +283,58 @@ export function marcosSeguros(err: unknown, maximo = 8): string[] {
 }
 
 /**
- * De un marco, sólo su ubicación: archivo, línea y columna.
+ * La raíz de nuestro propio código.
  *
- * Quitar la primera línea del stack NO basta, y lo descubrió una prueba con
- * marcadores sintéticos: un marco es `at <nombre> (<ubicación>)`, y ese
- * `<nombre>` es texto arbitrario —el nombre de una función generada, o lo que
- * un SDK haya puesto ahí—. La ubicación es una ruta y dos números: localiza el
- * fallo y no puede llevar el contenido de nadie.
+ * Este archivo vive en `apps/api/src/eco` y, compilado, en `apps/api/dist/eco`.
+ * Dos niveles arriba es `apps/api` en los dos casos, así que sirve como la
+ * frontera entre «esto lo escribimos nosotros» y todo lo demás.
+ */
+const RAIZ_APP = resolve(__dirname, "..", "..");
+
+/**
+ * De un marco, sólo su ubicación — y sólo si la ubicación es NUESTRA.
+ *
+ * Dos recortes, y cada uno lo pidió un contraejemplo.
+ *
+ * El primero: un marco es `at <nombre> (<ubicación>)` y ese `<nombre>` es
+ * texto arbitrario —el nombre de una función generada, o lo que un SDK ponga
+ * ahí—. Se descarta y queda la ubicación.
+ *
+ * El segundo: la ubicación tampoco es de fiar por sí sola. El stack de un
+ * error ajeno puede traer la ruta de un fichero temporal, o una URL con un
+ * token en la query —`at https://proveedor/v1?token=…:2:2`—, y eso acabaría
+ * en el registro y en Sentry. Así que sólo sobreviven los marcos bajo
+ * `RAIZ_APP`, y se emiten RELATIVOS a ella: localizan el fallo sin publicar
+ * rutas de la máquina ni nada de procedencia desconocida.
+ *
+ * Lo que se pierde —los marcos de `node_modules` y del runtime— casi nunca
+ * dice dónde está nuestro error, y su coste aquí es que podrían no ser
+ * nuestros.
  */
 function ubicacionDelMarco(linea: string): string | null {
   const entreParentesis = linea.match(/\(([^()]+:\d+:\d+)\)\s*$/);
-  if (entreParentesis) return entreParentesis[1] ?? null;
-  // `at /ruta/archivo.js:1:1` — sin nombre de función.
   const desnudo = linea.match(/^at\s+([^\s()]+:\d+:\d+)$/);
-  return desnudo ? (desnudo[1] ?? null) : null;
+  const bruto = entreParentesis?.[1] ?? desnudo?.[1] ?? null;
+  if (bruto === null) return null;
+
+  // `/ruta/archivo.ts:12:3` → separar la parte de fichero.
+  const partido = bruto.match(/^(.*):(\d+):(\d+)$/);
+  if (!partido) return null;
+  const [, fichero, linea_, columna] = partido;
+  if (!fichero) return null;
+
+  // Una URL no es una ruta nuestra, por mucho que termine en `:1:1`.
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(fichero)) return null;
+
+  const absoluto = isAbsolute(fichero) ? fichero : resolve(RAIZ_APP, fichero);
+  const relativo = relative(RAIZ_APP, absoluto);
+  // Fuera de la raíz: `relative` empieza por `..`, o el camino es absoluto
+  // porque está en otro volumen.
+  if (relativo.startsWith("..") || isAbsolute(relativo)) return null;
+  // `node_modules` está bajo la raíz pero no es código nuestro.
+  if (relativo.split(sep).includes("node_modules")) return null;
+
+  return `${relativo}:${linea_}:${columna}`;
 }
 
 /**

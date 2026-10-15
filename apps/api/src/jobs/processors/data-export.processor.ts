@@ -255,11 +255,25 @@ export class DataExportProcessor extends WorkerHost {
       _meta: {
         exportSchemaVersion: 1,
         generatedAt: new Date().toISOString(),
+        // El aviso decía que el Diario y Eco llegarían «en el Sprint S6/S9».
+        // Esos sprints cerraron hace meses: ambas funciones están en
+        // producción y sus datos siguen sin exportarse. Quien leyera la nota
+        // entendía que la ausencia era temporal y que había trabajo en curso;
+        // no lo hay. Decir el motivo real —el servidor no tiene la clave— es
+        // más honesto que prometer una fecha que ya pasó.
+        //
+        // Qué incluir, y si tiene sentido entregar cifrado que sólo la propia
+        // persona puede abrir, es una decisión de producto que este cambio NO
+        // toma: sólo deja de afirmar algo falso.
         note:
-          "This file contains data Psico Platform stores about your account. " +
-          "Diario and Eco data are end-to-end encrypted and not yet included " +
-          "in this export (Sprint S6/S9 will add them as ciphertext + your " +
-          "key derivation notes).",
+          "Este archivo contiene los datos que Psico Platform guarda sobre tu " +
+          "cuenta: perfil, preferencias, progreso de lectura, suscripción y " +
+          "sesiones de guía. NO incluye tu Diario ni tus conversaciones con " +
+          "Eco: están cifrados de extremo a extremo y el servidor no tiene la " +
+          "clave, así que no puede entregarlos como texto legible. Tampoco " +
+          "incluye todavía otras categorías (ánimo, check-ins, resonancias, " +
+          "marcas de lectura, notificaciones). Si necesitas alguna de ellas, " +
+          "escríbenos y te decimos qué podemos entregar.",
       },
       user: {
         id: user.id,

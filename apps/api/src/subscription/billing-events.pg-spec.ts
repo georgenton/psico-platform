@@ -20,6 +20,11 @@ import { execSync } from "node:child_process";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
 import { Pool } from "pg";
+
+import {
+  createThrowawayDatabase,
+  type ThrowawayDatabase,
+} from "../test/throwaway-database";
 import {
   afterAll,
   beforeAll,
@@ -45,19 +50,13 @@ vi.mock("stripe", () => {
   return { default: MockStripe, Stripe: MockStripe };
 });
 
-const DB = "billing_events_db";
 const API_DIR = process.cwd();
-
-function withDatabase(url: string, dbName: string): string {
-  const u = new URL(url);
-  u.pathname = `/${dbName}`;
-  return u.toString();
-}
 
 const base = process.env.TEST_DATABASE_URL;
 const suite = base ? describe : describe.skip;
 
 suite("eventos de suscripción contra PostgreSQL real", () => {
+  let desechable: ThrowawayDatabase;
   let prisma: PrismaClient;
   let pool: Pool;
   // Tipado laxo a propósito: el proveedor se construye con dependencias
@@ -70,12 +69,14 @@ suite("eventos de suscripción contra PostgreSQL real", () => {
   const BRUNO = "user-bruno";
 
   beforeAll(async () => {
-    const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
-    await admin.query(`CREATE DATABASE "${DB}"`);
-    await admin.end();
-
-    const url = withDatabase(base as string, DB);
+    // Nombre único por ejecución, y borrado acotado a lo que esta suite creó.
+    // El `DROP ... WITH (FORCE)` sobre un nombre fijo destruía cualquier base
+    // homónima —de quien fuera— cerrándole las conexiones abiertas.
+    desechable = await createThrowawayDatabase(
+      base as string,
+      "billing_events",
+    );
+    const url = desechable.url;
     execSync("pnpm exec prisma migrate deploy", {
       cwd: API_DIR,
       env: { ...process.env, DATABASE_URL: url, PRISMA_SKIP_SEED: "1" },
@@ -109,9 +110,7 @@ suite("eventos de suscripción contra PostgreSQL real", () => {
   afterAll(async () => {
     await prisma?.$disconnect();
     await pool?.end();
-    const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
-    await admin.end();
+    await desechable?.drop();
   });
 
   beforeEach(async () => {

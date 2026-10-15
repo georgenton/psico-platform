@@ -23,6 +23,7 @@ import {
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { BillingService } from "./billing.service";
+import { ProviderCapabilityUnsupportedError } from "../subscription/provider-errors";
 
 const USER = "user-1";
 
@@ -85,12 +86,36 @@ describe("GET /billing/return", () => {
     await expect(service.getReturn(USER, "cs_ajena")).rejects.toBe(negativa);
   });
 
-  it("sigue devolviendo 501 cuando el proveedor de verdad no sabe mirar", async () => {
+  it("501 sólo ante la señal específica de capacidad ausente", async () => {
     const { service } = hacerServicio(
-      new Error("Provider payphone does not support checkout session lookup."),
+      new ProviderCapabilityUnsupportedError(
+        "payphone",
+        "checkout_session_lookup",
+      ),
     );
-    await expect(service.getReturn(USER, "cs_test_123")).rejects.toThrow(
-      NotImplementedException,
+    const cuerpo = await service
+      .getReturn(USER, "cs_test_123")
+      .catch(
+        (e: NotImplementedException) =>
+          e.getResponse() as Record<string, string>,
+      );
+    expect(cuerpo.code).toBe("PROVIDER_NO_SESSION_LOOKUP");
+    // Y con un mensaje nuestro, no el del error.
+    expect(cuerpo.message).not.toContain("does not support");
+  });
+
+  it("un fallo de red NO se disfraza de capacidad ausente", async () => {
+    // Antes la condición se reconocía por descarte —«no es HttpException»—,
+    // así que cualquier caída salía afirmando que la integración no soporta la
+    // consulta, con el texto crudo del error dentro.
+    const red = Object.assign(new Error("ECONNRESET texto crudo"), {
+      type: "StripeAPIConnectionError",
+    });
+    const { service } = hacerServicio(red);
+    const err = await service.getReturn(USER, "cs_test_123").catch((e) => e);
+    expect(err).not.toBeInstanceOf(NotImplementedException);
+    expect(JSON.stringify((err as HttpException).getResponse())).not.toContain(
+      "ECONNRESET",
     );
   });
 

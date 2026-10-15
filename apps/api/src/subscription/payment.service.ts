@@ -5,6 +5,7 @@ import type { InvoiceSummary } from "@psico/types";
 import type { Env } from "../config";
 import type { BillingPlan } from "./dto/checkout-session.dto";
 import type { CreatePortalSessionDto } from "./dto/create-portal-session.dto";
+import { ProviderCapabilityUnsupportedError } from "./provider-errors";
 import type {
   CancelSubscriptionResult,
   CheckoutSessionResult,
@@ -125,8 +126,10 @@ export class PaymentService {
   }> {
     const provider = this.selectProvider();
     if (!provider.getCheckoutSessionStatus) {
-      throw new Error(
-        `Provider ${provider.name} does not support checkout session lookup.`,
+      // Señal específica, no un `Error` cuyo texto haya que reconocer después.
+      throw new ProviderCapabilityUnsupportedError(
+        provider.name,
+        "checkout_session_lookup",
       );
     }
     // El `userId` viaja hasta el proveedor porque la comprobación de

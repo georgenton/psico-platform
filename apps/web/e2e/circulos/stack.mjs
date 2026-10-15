@@ -662,6 +662,21 @@ async function main() {
     NODE_ENV: "production",
     DATABASE_URL: databaseUrl,
     REDIS_URL: redisUrl,
+    // ── El guardia de red ───────────────────────────────────────────────────
+    //
+    // Esta pila arranca con claves de proveedor obviamente falsas para que los
+    // procesos puedan bootear. Durante el macro bloque B eso resultó NO ser
+    // inocuo: el RAG de Eco pide embeddings antes de llamar al modelo, así que
+    // una corrida emitió una petición REAL a `api.voyageai.com` y recibió un
+    // 401. Las claves falsas evitan cobrar; no evitan salir.
+    //
+    // El guardia bloquea cualquier destino que no sea local ANTES de enviar
+    // nada, y deja constancia. Si un recorrido necesita un proveedor local en
+    // otro host, se añade por `NETWORK_GUARD_ALLOW`, que es una decisión
+    // explícita y no un descuido. Vive fuera de `src/`, así que no viaja en la
+    // imagen de producción ni se instala en ningún entorno alojado.
+    NETWORK_GUARD: "1",
+    NODE_OPTIONS: `--require ${join(WORK, "apps/api/test/network-guard.js")}`,
     JWT_SECRET: randomBytes(32).toString("hex"),
     JWT_ACCESS_EXPIRES_IN: "15m",
     JWT_REFRESH_EXPIRES_IN: "7d",

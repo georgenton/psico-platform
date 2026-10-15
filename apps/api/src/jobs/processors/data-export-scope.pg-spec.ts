@@ -22,21 +22,19 @@ import { PrismaClient } from "@prisma/client";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import {
+  createThrowawayDatabase,
+  type ThrowawayDatabase,
+} from "../../test/throwaway-database";
 import { DataExportProcessor } from "./data-export.processor";
 
-const DB = "data_export_scope_db";
 const API_DIR = process.cwd();
-
-function withDatabase(url: string, dbName: string): string {
-  const u = new URL(url);
-  u.pathname = `/${dbName}`;
-  return u.toString();
-}
 
 const base = process.env.TEST_DATABASE_URL;
 const suite = base ? describe : describe.skip;
 
 suite("alcance de la exportación de datos", () => {
+  let desechable: ThrowawayDatabase;
   let prisma: PrismaClient;
   let pool: Pool;
   let payload: Record<string, unknown>;
@@ -45,12 +43,10 @@ suite("alcance de la exportación de datos", () => {
   const BRUNO = "user-bruno";
 
   beforeAll(async () => {
-    const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
-    await admin.query(`CREATE DATABASE "${DB}"`);
-    await admin.end();
-
-    const url = withDatabase(base as string, DB);
+    // Nombre único por ejecución; no se borra nada previo. El `DROP` sobre un
+    // nombre fijo destruía cualquier base homónima, de quien fuera.
+    desechable = await createThrowawayDatabase(base as string, "export_scope");
+    const url = desechable.url;
     execSync("pnpm exec prisma migrate deploy", {
       cwd: API_DIR,
       env: { ...process.env, DATABASE_URL: url, PRISMA_SKIP_SEED: "1" },
@@ -109,9 +105,7 @@ suite("alcance de la exportación de datos", () => {
   afterAll(async () => {
     await prisma?.$disconnect();
     await pool?.end();
-    const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
-    await admin.end();
+    await desechable?.drop();
   });
 
   it("entrega los datos de quien lo pidió", () => {
@@ -153,24 +147,40 @@ suite("alcance de la exportación de datos", () => {
 
     it("no promete sprints que ya cerraron", () => {
       // Decía que el Diario y Eco llegarían «en el Sprint S6/S9». Ambos están
-      // en producción desde hace meses y sus datos siguen sin exportarse, así
-      // que la nota dejaba creer que la ausencia era temporal.
+      // en producción desde hace meses y sus datos siguen sin exportarse.
       expect(nota()).not.toMatch(/Sprint S\d/i);
       expect(nota()).not.toMatch(/will add|not yet included/i);
     });
 
-    it("dice por qué el Diario no puede venir como texto legible", () => {
-      // Es la razón real y no una promesa: el servidor no tiene la clave.
-      expect(nota().toLowerCase()).toContain("cifrados de extremo a extremo");
-      expect(nota().toLowerCase()).toContain("no tiene la clave");
+    it("no promete fechas ni atención manual sin definir", () => {
+      expect(nota()).not.toMatch(/escríbenos|contáct|próximamente|pronto/i);
     });
 
-    it("nombra lo que sí incluye y admite lo que falta", () => {
+    it("separa lo que incluye, lo que exige tu clave y lo que falta", () => {
       const n = nota().toLowerCase();
-      for (const incluido of ["perfil", "progreso", "suscripción"]) {
-        expect(n).toContain(incluido);
-      }
-      expect(n).toContain("tampoco incluye");
+      expect(n).toContain("incluye");
+      expect(n).toContain("requiere tu clave");
+      expect(n).toContain("no está incluido");
+    });
+
+    it("atribuye la imposibilidad SÓLO a lo que de verdad está cifrado", () => {
+      // Trinquete contra la afirmación general que la revisión señaló: decir
+      // que «las conversaciones con Eco» están cifradas y el servidor no puede
+      // leerlas es falso para las RESPUESTAS, que se guardan en
+      // `assistantText` en claro. La frase que lo excusaba no puede volver.
+      const n = nota().toLowerCase();
+      expect(n).not.toMatch(/conversaciones con eco[^.]{0,40}cifrad/);
+      expect(n).not.toMatch(/eco[^.]{0,30}no tiene la clave/);
+      // Y lo que sí debe decir: que lo cifrado son TUS mensajes.
+      expect(n).toMatch(/mensajes que tú escribiste a eco/);
+    });
+
+    it("las respuestas de Eco figuran como omisión, no como imposibilidad", () => {
+      const n = nota().toLowerCase();
+      const iOmision = n.indexOf("no está incluido");
+      const iRespuestas = n.indexOf("las respuestas de eco");
+      expect(iOmision).toBeGreaterThanOrEqual(0);
+      expect(iRespuestas).toBeGreaterThan(iOmision);
     });
   });
 });

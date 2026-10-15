@@ -255,25 +255,31 @@ export class DataExportProcessor extends WorkerHost {
       _meta: {
         exportSchemaVersion: 1,
         generatedAt: new Date().toISOString(),
-        // El aviso decía que el Diario y Eco llegarían «en el Sprint S6/S9».
-        // Esos sprints cerraron hace meses: ambas funciones están en
-        // producción y sus datos siguen sin exportarse. Quien leyera la nota
-        // entendía que la ausencia era temporal y que había trabajo en curso;
-        // no lo hay. Decir el motivo real —el servidor no tiene la clave— es
-        // más honesto que prometer una fecha que ya pasó.
+        // Tres grupos, y la diferencia entre ellos importa.
         //
-        // Qué incluir, y si tiene sentido entregar cifrado que sólo la propia
-        // persona puede abrir, es una decisión de producto que este cambio NO
-        // toma: sólo deja de afirmar algo falso.
+        // La primera versión de esta nota decía que el Diario y Eco «están
+        // cifrados de extremo a extremo y el servidor no tiene la clave».
+        // Eso es cierto del Diario y de los MENSAJES de la persona
+        // (`textCiphertext` + `textNonce`), y **falso** de las respuestas de
+        // Eco: se guardan en `assistantText`, en claro. Presentar una decisión
+        // de alcance como una imposibilidad criptográfica es excusarse con una
+        // propiedad que ahí no existe.
+        //
+        // Tampoco promete una fecha ni una atención manual: la versión
+        // anterior invitaba a escribir «y te decimos qué podemos entregar»,
+        // que es un compromiso que nadie ha definido.
+        //
+        // Qué incluir sigue siendo una decisión de alcance abierta (D-EXP).
         note:
-          "Este archivo contiene los datos que Psico Platform guarda sobre tu " +
-          "cuenta: perfil, preferencias, progreso de lectura, suscripción y " +
-          "sesiones de guía. NO incluye tu Diario ni tus conversaciones con " +
-          "Eco: están cifrados de extremo a extremo y el servidor no tiene la " +
-          "clave, así que no puede entregarlos como texto legible. Tampoco " +
-          "incluye todavía otras categorías (ánimo, check-ins, resonancias, " +
-          "marcas de lectura, notificaciones). Si necesitas alguna de ellas, " +
-          "escríbenos y te decimos qué podemos entregar.",
+          "Este archivo incluye: tu perfil y preferencias, tu progreso de " +
+          "lectura, tu suscripción y tus sesiones de guía. " +
+          "Requiere tu clave y por eso NO puede venir aquí como texto " +
+          "legible: tu Diario y los mensajes que tú escribiste a Eco, " +
+          "cifrados de extremo a extremo con una clave que sólo tú tienes. " +
+          "No está incluido en esta exportación, aunque no dependa de tu " +
+          "clave: las respuestas de Eco, tu registro de ánimo, los " +
+          "check-ins, las resonancias, tus marcas de lectura y los ajustes " +
+          "de notificaciones.",
       },
       user: {
         id: user.id,

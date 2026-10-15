@@ -129,7 +129,9 @@ export class StripeProvider implements IPaymentProvider {
     });
 
     if (!session.url) {
-      throw new BadRequestException("Failed to create therapy checkout session");
+      throw new BadRequestException(
+        "Failed to create therapy checkout session",
+      );
     }
 
     return { url: session.url, stripeCheckoutSessionId: session.id };
@@ -234,7 +236,10 @@ export class StripeProvider implements IPaymentProvider {
     return { cancelAtPeriodEnd: false };
   }
 
-  async getCheckoutSessionStatus(sessionId: string): Promise<{
+  async getCheckoutSessionStatus(
+    sessionId: string,
+    userId: string,
+  ): Promise<{
     status: "success" | "processing" | "failed";
     subscriptionId: string | null;
   }> {
@@ -244,6 +249,25 @@ export class StripeProvider implements IPaymentProvider {
     const session = await this.stripe.checkout.sessions.retrieve(sessionId, {
       expand: ["subscription"],
     });
+
+    // La sesión se pide por un identificador que viaja en la URL de retorno,
+    // así que llega desde el navegador y no prueba nada por sí mismo. Sin esta
+    // comprobación, cualquiera con una sesión ajena recibía su estado: el
+    // endpoint respondía sobre un objeto que no es suyo, y el mensaje que ve
+    // la persona se compone a partir de ese estado.
+    //
+    // La sesión se crea con `metadata.userId` —tanto la de suscripción como la
+    // de pago único—, de modo que la pertenencia se comprueba contra lo que el
+    // propio proveedor guardó, no contra algo que nosotros reconstruyamos.
+    //
+    // Se responde «no existe» y no «no es tuya»: distinguirlas confirmaría que
+    // el identificador es válido, que es justo lo que no se quiere revelar.
+    if (session.metadata?.userId !== userId) {
+      throw new NotFoundException({
+        code: "CHECKOUT_SESSION_NOT_FOUND",
+        message: "No encontramos esa sesión de pago.",
+      });
+    }
 
     // Stripe's payment_status disambiguates the three cases we care about:
     // - "paid" → user got Pro right now.

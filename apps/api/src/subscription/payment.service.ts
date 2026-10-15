@@ -116,7 +116,10 @@ export class PaymentService {
    * and never reaches `/api/billing/return`, so we keep this method
    * provider-bound rather than synthesising a fake status.
    */
-  getCheckoutSessionStatus(sessionId: string): Promise<{
+  getCheckoutSessionStatus(
+    sessionId: string,
+    userId: string,
+  ): Promise<{
     status: "success" | "processing" | "failed";
     subscriptionId: string | null;
   }> {
@@ -126,6 +129,8 @@ export class PaymentService {
         `Provider ${provider.name} does not support checkout session lookup.`,
       );
     }
-    return provider.getCheckoutSessionStatus(sessionId);
+    // El `userId` viaja hasta el proveedor porque la comprobación de
+    // pertenencia sólo puede hacerla quien tiene la sesión delante.
+    return provider.getCheckoutSessionStatus(sessionId, userId);
   }
 }

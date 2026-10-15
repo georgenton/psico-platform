@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotImplementedException } from "@nestjs/common";
+import {
+  HttpException,
+  Injectable,
+  Logger,
+  NotImplementedException,
+} from "@nestjs/common";
 import type {
   BillingReturnResponse,
   CancelSubscriptionResponse,
@@ -71,8 +76,20 @@ export class BillingService {
     // surface that as 501 below.
     let result: { status: "success" | "processing" | "failed" };
     try {
-      result = await this.paymentService.getCheckoutSessionStatus(sessionId);
+      result = await this.paymentService.getCheckoutSessionStatus(
+        sessionId,
+        userId,
+      );
     } catch (err) {
+      // Sólo el «este proveedor no sabe mirar sesiones» se convierte en 501.
+      //
+      // Antes se convertía cualquier error, y eso enmascaraba el caso que
+      // importa: la negativa por pertenencia —la sesión no es de quien
+      // pregunta— salía como «el proveedor no soporta la consulta», que es
+      // una afirmación falsa sobre la integración y además esconde un intento
+      // de leer algo ajeno. Una excepción HTTP ya trae su código y su estado:
+      // se propaga tal cual.
+      if (err instanceof HttpException) throw err;
       const message = err instanceof Error ? err.message : "Unknown error";
       this.logger.warn(`Provider lookup failed for ${sessionId}: ${message}`);
       throw new NotImplementedException({

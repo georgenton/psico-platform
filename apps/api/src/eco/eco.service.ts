@@ -28,9 +28,16 @@ import { EmbeddingService } from "../ai/embedding/embedding.service";
 import { VectorStoreService } from "../ai/vector-store/vector-store.service";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { PrismaService } from "../prisma";
+import { captureException } from "../observability/sentry";
 import { PLAN_QUOTAS } from "../subscription/quotas";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { UsageService } from "../subscription/usage.service";
+import {
+  EcoStageError,
+  classifyEcoFailure,
+  describeEcoFailure,
+  runStage,
+} from "./eco-failure";
 import {
   CRISIS_HOTLINE,
   CRISIS_LLM_SENTINEL,
@@ -254,7 +261,30 @@ export class EcoService {
     } catch (err) {
       // Any uncaught error becomes a single `error` SSE event so the client
       // can show a retry banner. We DO NOT leak the user's plaintext here.
-      this.logger.error(`Eco sendMessage failed: ${(err as Error).message}`);
+      //
+      // La línea decía sólo el mensaje del error. Con dos dependencias
+      // externas en el mismo camino —embeddings y modelo—, `Status code: 401`
+      // no dice a cuál escribirle. Ahora se nombra la etapa, la dependencia y
+      // una categoría cerrada; el mensaje original sigue delante porque es lo
+      // que da la pista concreta, y el `stack` del SDK viaja en `cause`.
+      const atribucion = classifyEcoFailure(err);
+      const linea =
+        `Eco sendMessage failed: ${(err as Error).message} · ` +
+        describeEcoFailure(atribucion, { threadId: body.threadId });
+
+      if (atribucion.category === "deliberate_refusal") {
+        // Una cuota agotada o un hilo ajeno no son una caída: el servicio dijo
+        // que no a propósito. Se registran como aviso y sin traza, igual que
+        // `HttpExceptionFilter` hace con cualquier 4xx — y no se envían a
+        // Sentry, que es para lo que hay que ir a mirar.
+        this.logger.warn(linea);
+      } else {
+        this.logger.error(linea, err instanceof Error ? err.stack : undefined);
+        // Este camino nunca pasaba por el filtro HTTP —el error viaja DENTRO
+        // del stream SSE—, así que ningún fallo de Eco llegaba a Sentry. Va
+        // sólo la atribución: constantes del código y un número de estado.
+        captureException(err, { surface: "eco.sendMessage", ...atribucion });
+      }
       subject.next({
         data: {
           event: "error",
@@ -370,13 +400,19 @@ export class EcoService {
       };
     }
 
-    const queryEmbedding = await this.embeddingService.embed(
-      body.textPlaintext,
+    // Las dos dependencias externas del envío viven una detrás de la otra, y
+    // hasta ahora un fallo de cualquiera producía la misma línea de registro.
+    // `runStage` sólo les pone etiqueta: no reintenta, no envuelve la
+    // respuesta y no cambia el camino feliz.
+    const queryEmbedding = await runStage("embeddings", "voyage", () =>
+      this.embeddingService.embed(body.textPlaintext),
     );
-    const chunks = await this.vectorStore.searchSimilar(
-      queryEmbedding,
-      this.maxContextChunks,
-      scopeBookId, // undefined = platform-wide (unchanged pre-Fase-H behavior)
+    const chunks = await runStage("retrieval", "database", () =>
+      this.vectorStore.searchSimilar(
+        queryEmbedding,
+        this.maxContextChunks,
+        scopeBookId, // undefined = platform-wide (unchanged pre-Fase-H behavior)
+      ),
     );
     const bookContext =
       chunks.length > 0
@@ -440,7 +476,10 @@ export class EcoService {
       usage = final.usage;
     } catch (err) {
       // If we aborted because of CRISIS_LLM_SENTINEL, this is expected.
-      if (!crisisDetected) throw err;
+      // Si no, es el modelo el que se cayó: se etiqueta aquí porque es el
+      // punto donde el fallo del proveedor se vuelve observable, y sin
+      // etiqueta se confundía con el de embeddings dos llamadas antes.
+      if (!crisisDetected) throw new EcoStageError("model", "anthropic", err);
     }
 
     // ── 6. Persist + finalise ────────────────────────────────────────────

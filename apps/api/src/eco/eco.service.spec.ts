@@ -1,4 +1,9 @@
-import { HttpException, HttpStatus, NotFoundException } from "@nestjs/common";
+import {
+  HttpException,
+  HttpStatus,
+  Logger,
+  NotFoundException,
+} from "@nestjs/common";
 import { Plan, EcoMessageKind } from "@prisma/client";
 import { firstValueFrom, lastValueFrom, toArray } from "rxjs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -369,5 +374,123 @@ describe("EcoService", () => {
   it.skip("HttpException sentinel reference", () => {
     expect(HttpException).toBeDefined();
     expect(HttpStatus.PAYMENT_REQUIRED).toBe(402);
+  });
+
+  /**
+   * Los dos proveedores externos, cayéndose por separado.
+   *
+   * Medido antes en una pila local: con una clave de Voyage falsa, TODOS los
+   * envíos terminaban en error y el registro decía sólo
+   * `Eco sendMessage failed: Status code: 401`. Como el RAG pide embeddings
+   * ANTES de llamar al modelo, esa línea era compatible con las dos
+   * dependencias y no permitía decidir a cuál escribirle.
+   *
+   * Estas dos pruebas reproducen cada caída por separado y fijan lo que la
+   * línea tiene que decir ahora. También fijan lo que NO debe cambiar: el
+   * texto que lee la persona, y que no se persista una respuesta inventada.
+   */
+  describe("sendMessage — atribución de fallos de proveedor", () => {
+    function errorConEstado(status: number) {
+      const e = new Error(`Status code: ${status}`) as Error & {
+        status: number;
+      };
+      e.status = status;
+      return e;
+    }
+
+    function prismaListo() {
+      return makePrisma({
+        plan: Plan.PRO,
+        hasActiveSub: true,
+        userMessagesInPeriod: 0,
+      });
+    }
+
+    it("un 401 de embeddings se atribuye a Voyage, no al modelo", async () => {
+      const prisma = prismaListo();
+      const embedding = makeEmbedding();
+      embedding.embed.mockRejectedValue(errorConEstado(401));
+      const { service } = makeService({ prisma, embedding });
+      const registro = vi
+        .spyOn(Logger.prototype, "error")
+        .mockImplementation(() => {});
+
+      const events = await lastValueFrom(
+        service
+          .sendMessage(USER_ID, {
+            threadId: THREAD_ID,
+            textPlaintext: "un texto privado que no debe aparecer en el log",
+            textCiphertext: "ct",
+            textNonce: "n",
+          })
+          .pipe(toArray()),
+      );
+
+      expect(events.at(-1)?.data.event).toBe("error");
+
+      const linea = String(registro.mock.calls.at(-1)?.[0] ?? "");
+      expect(linea).toContain("stage=embeddings");
+      expect(linea).toContain("dependency=voyage");
+      expect(linea).toContain("category=upstream_auth");
+      expect(linea).toContain("upstreamStatus=401");
+      expect(linea).toContain(`threadId=${THREAD_ID}`);
+      // Lo que el registro NO puede llevar.
+      expect(linea).not.toContain("un texto privado");
+      expect(linea).not.toContain("ct");
+
+      // El mensaje de la persona se conserva; no se inventa una respuesta.
+      const creados = prisma.ecoMessage.create.mock.calls.map(
+        (c) => (c[0] as { data: { kind: string } }).data.kind,
+      );
+      expect(creados).toContain("USER");
+      expect(creados).not.toContain("ASSISTANT");
+
+      registro.mockRestore();
+    });
+
+    it("un 500 del modelo se atribuye a Anthropic, no a embeddings", async () => {
+      const prisma = prismaListo();
+      const embedding = makeEmbedding(); // los embeddings van bien
+      const { service } = makeService({ prisma, embedding });
+
+      // El stream del SDK falla al resolverse, que es donde una caída del
+      // proveedor se vuelve observable para el servicio.
+      const anthropic = (
+        service as unknown as {
+          anthropic: { messages: { stream: ReturnType<typeof vi.fn> } };
+        }
+      ).anthropic;
+      anthropic.messages.stream.mockReturnValue({
+        on: vi.fn(),
+        abort: vi.fn(),
+        finalMessage: vi.fn().mockRejectedValue(errorConEstado(500)),
+      });
+
+      const registro = vi
+        .spyOn(Logger.prototype, "error")
+        .mockImplementation(() => {});
+
+      const events = await lastValueFrom(
+        service
+          .sendMessage(USER_ID, {
+            threadId: THREAD_ID,
+            textPlaintext: "hola",
+            textCiphertext: "ct",
+            textNonce: "n",
+          })
+          .pipe(toArray()),
+      );
+
+      expect(events.at(-1)?.data.event).toBe("error");
+
+      const linea = String(registro.mock.calls.at(-1)?.[0] ?? "");
+      expect(linea).toContain("stage=model");
+      expect(linea).toContain("dependency=anthropic");
+      expect(linea).toContain("category=upstream_unavailable");
+      expect(linea).toContain("upstreamStatus=500");
+      expect(embedding.embed).toHaveBeenCalled(); // llegó más allá de embeddings
+
+      registro.mockRestore();
+    });
   });
 });

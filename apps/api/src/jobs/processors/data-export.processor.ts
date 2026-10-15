@@ -16,19 +16,34 @@ import { JobName, QueueName, type DataExportJobPayload } from "../queue-names";
 /**
  * Generates a user data export and uploads it to R2.
  *
- * Scope for Sprint S3 (per user decision):
- *   - profile + preferences + privacy settings + notifications
- *   - reading progress (UserProgress entries with chapter metadata)
- *   - subscription history
+ * Qué sale, en tres grupos — y la diferencia entre ellos importa, porque
+ * presentar una decisión de alcance como una imposibilidad criptográfica es
+ * excusarse con una propiedad que no está ahí.
  *
- * NOT yet included (added when their modules land):
- *   - Diary entries (S6) — will arrive as opaque ciphertext (E2E encrypted)
- *   - Eco threads (S9) — same
- *   - Highlights / annotations (S6) — plaintext
- *   - Auth events (S25 when we surface them via Pulso)
+ * INCLUIDO:
+ *   - perfil, preferencias, ajustes de privacidad y notificaciones
+ *   - progreso de lectura (`UserProgress` con metadatos del capítulo)
+ *   - suscripción
+ *   - sesiones de guía
  *
- * Output format: JSON with `_meta.exportSchemaVersion`. When we add Diary,
- * we bump the version so consumers can detect schema changes.
+ * REQUIERE LA CLAVE DE LA PERSONA — el servidor no puede descifrarlo:
+ *   - entradas del Diario (`textCiphertext` + `textNonce`)
+ *   - los mensajes que la persona escribió a Eco (los mismos campos)
+ *
+ * NO IMPLEMENTADO en esta exportación, aunque el servidor SÍ podría leerlo:
+ *   - las respuestas de Eco (`assistantText`, en claro)
+ *   - registro de ánimo, check-ins, resonancias
+ *   - marcas de lectura (highlights, anotaciones)
+ *   - eventos de autenticación
+ *
+ * Este bloque decía antes que el Diario y los hilos de Eco llegarían «en el
+ * Sprint S6/S9» y que ambos eran cifrado opaco. Los dos sprints cerraron hace
+ * meses, y lo segundo nunca fue cierto de las respuestas del asistente. Qué
+ * incluir sigue siendo una decisión de alcance abierta (D-EXP); lo que no
+ * puede volver es afirmar una imposibilidad donde hay una omisión.
+ *
+ * Output format: JSON with `_meta.exportSchemaVersion`. Si algún día entra una
+ * categoría nueva, se sube la versión para que los consumidores lo detecten.
  *
  * On success: writes file URL + status="READY" + emails the user.
  * On final failure (after retries): writes status="FAILED" and logs.

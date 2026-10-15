@@ -177,19 +177,22 @@ se haya cambiado el almacén después.
 
 Ninguna se ha aplicado. Todas tocan infraestructura.
 
-| #   | decisión                                                                         | a favor                                                                  | en contra                                        |
-| --- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------ |
-| D1  | **Añadir swap al VPS** (p. ej. 4–8 GB)                                           | un pico se vuelve lentitud en vez de un proceso muerto; es lo más barato | degrada el rendimiento del resto mientras se usa |
-| D2  | **Construir fuera del host servidor** (build server dedicado o registro externo) | el build deja de competir con lo que sirve a usuarios                    | coste nuevo y una pieza más que mantener         |
-| D3  | **Limitar la memoria del build** con cgroups                                     | el OOM mata el build y no un servicio                                    | si el límite queda corto, el build no pasa nunca |
-| D4  | **Fijar `git_commit_sha` al promover**, en vez de `HEAD`                         | el rollback vuelve a ser determinista                                    | un paso más en cada promoción                    |
-| D5  | **Retención explícita de imágenes** por aplicación                               | garantiza que el artefacto anterior exista                               | ocupa disco (57 de 96 GB usados hoy)             |
-| D6  | **Registrar memoria y builds activos antes de cada despliegue**                  | da los datos de §3 sin tocar nada                                        | sólo sirve si alguien los mira                   |
+| #   | decisión                                                                         | a favor                                                                                                                              | en contra                                                                              |
+| --- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| D1  | **Añadir swap al VPS** (p. ej. 4–8 GB)                                           | cambia el modo de fallo típico: un pico tiende a degradarse en lentitud en vez de matar un proceso. **No garantiza** evitar otro OOM | degrada el rendimiento del resto mientras se usa; con presión suficiente el OOM vuelve |
+| D2  | **Construir fuera del host servidor** (build server dedicado o registro externo) | el build deja de competir con lo que sirve a usuarios                                                                                | coste nuevo y una pieza más que mantener                                               |
+| D3  | **Limitar la memoria del build** con cgroups                                     | el OOM mata el build y no un servicio                                                                                                | si el límite queda corto, el build no pasa nunca                                       |
+| D4  | **Fijar `git_commit_sha` al promover**, en vez de `HEAD`                         | el rollback vuelve a ser determinista                                                                                                | un paso más en cada promoción                                                          |
+| D5  | **Retención explícita de imágenes** por aplicación                               | garantiza que el artefacto anterior exista                                                                                           | ocupa disco (57 de 96 GB usados hoy)                                                   |
+| D6  | **Registrar memoria y builds activos antes de cada despliegue**                  | da los datos de §3 sin tocar nada                                                                                                    | sólo sirve si alguien los mira                                                         |
 
-Mi recomendación, si hay que elegir una: **D1 y D6**. La primera convierte el
-modo de fallo más caro —un proceso muerto a mitad— en uno recuperable; la
-segunda es la única que produce las mediciones que faltan, y no interviene
-nada. D4 es barata y elimina una trampa silenciosa del rollback.
+Mi recomendación, si hay que elegir: **D6 primero**, porque es la única que no
+interviene nada y produce las mediciones sin las cuales D1 y D3 se eligen a
+ciegas; **D1** después, como propuesta y no como cura; y **D4**, barata, que
+elimina una trampa silenciosa del rollback.
+
+**D6 y la selección o retención de artefactos pertenecen al próximo preflight
+autorizado**, no a una intervención ahora. Este documento no ejecuta ninguna.
 
 ---
 

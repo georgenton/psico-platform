@@ -20,8 +20,10 @@ import "./landing.css";
 
 export const metadata: Metadata = {
   title: "FeelVerse — Psicoeducación para leer, explorar y poner en práctica",
+  // Sin «audios» ni «videos»: no hay ninguno publicado todavía, y una
+  // descripción que los anuncia viaja a buscadores y a cada enlace compartido.
   description:
-    "Libros de psicología y experiencias guiadas con audios, videos y ejercicios. " +
+    "Libros de psicología y experiencias guiadas paso a paso, con ejercicios. " +
     "Pregunta a Eco sobre lo que aprendes y practica por tu cuenta o con otras personas.",
 };
 

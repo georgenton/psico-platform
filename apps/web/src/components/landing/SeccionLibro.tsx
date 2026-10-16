@@ -398,6 +398,12 @@ export function SeccionLibro() {
             </div>
           ))}
         </div>
+        {/* La maqueta cerraba con «Cada libro indica qué formatos incluye. No
+            todos los tienen todos», que describe variación entre obras. Hoy el
+            caso es otro: no hay NINGÚN audio ni video publicado, así que cuatro
+            tarjetas de formato sin esa aclaración prometen material que no
+            existe. Se dice el estado real; los formatos se quedan porque el
+            modo guiado sí los admite. */}
         <p
           style={{
             textAlign: "center",
@@ -406,8 +412,8 @@ export function SeccionLibro() {
             maxWidth: "60ch",
           }}
         >
-          Cada libro y experiencia indica qué formatos incluye. No todos los
-          tienen todos.
+          Formatos que admite el modo guiado. Todavía no hay audio ni video
+          publicados.
         </p>
       </div>
 

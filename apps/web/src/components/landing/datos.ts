@@ -297,12 +297,12 @@ export const PREGUNTAS: readonly Pregunta[] = [
   {
     pregunta: "¿Qué encuentro en el modo guiado?",
     respuesta:
-      "Explicaciones, ejemplos y actividades para explorar las ideas paso a paso. Según el contenido, también encontrarás recursos de audio, video o podcast.",
+      "Explicaciones, ejemplos y actividades para explorar las ideas paso a paso. El modo guiado admite además audio, video y podcast, pero todavía no hay ninguno publicado: cada ficha indicará los suyos cuando los tenga.",
   },
   {
     pregunta: "¿Todos los libros incluyen todos los formatos?",
     respuesta:
-      "No necesariamente. Cada libro indica los modos y recursos que tiene disponibles para que puedas conocerlos antes de elegir.",
+      "No necesariamente. Cada libro indica los modos y recursos que tiene disponibles. Hoy sólo hay lectura y modo guiado publicados, y únicamente en una obra.",
   },
   {
     pregunta: "¿Para qué sirve Eco?",
@@ -322,12 +322,12 @@ export const PREGUNTAS: readonly Pregunta[] = [
   {
     pregunta: "¿Puedo acceder a un solo libro?",
     respuesta:
-      "Sí. La opción por libro se centra en la obra elegida y en los recursos que incluya su paquete. La membresía amplía el acceso al catálogo y a las herramientas del plan.",
+      "Esa opción es una propuesta en revisión: todavía no se puede comprar ni contratar nada. Tal como está planteada, se centraría en la obra elegida y en los recursos de su paquete, mientras que la membresía ampliaría el acceso al catálogo y a las herramientas del plan.",
   },
   {
     pregunta: "¿Qué diferencia hay entre un libro y la membresía?",
     respuesta:
-      "El pase limita el acceso a un título y sus recursos. La membresía permite explorar el catálogo incluido mientras esté activa. El uso de Eco y las modalidades compartidas tienen condiciones específicas.",
+      "Son las dos formas de acceso que se proponen, ninguna disponible todavía. El pase se limitaría a un título y sus recursos; la membresía permitiría explorar el catálogo incluido mientras estuviera activa. El uso de Eco y las modalidades compartidas tendrían condiciones específicas.",
   },
   {
     pregunta: "¿Mensual y anual incluyen cosas distintas?",

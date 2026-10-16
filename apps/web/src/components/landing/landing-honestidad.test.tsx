@@ -180,4 +180,32 @@ describe("la página servida", () => {
     expect(texto).toContain("Puedes probarla en esta página");
     expect(texto).toContain("Aún no disponible");
   });
+
+  it("no anuncia audio ni video como algo que ya exista", () => {
+    // No hay ni un archivo publicado. La página puede decir que el modo
+    // guiado los admite; lo que no puede es dar a entender que los
+    // encontrarás. Si algún día se publican, esta prueba falla y obliga a
+    // revisar los textos en lugar de dejarlos desfasados al revés.
+    const { container } = render(<Landing />);
+    const texto = (container.textContent ?? "").toLowerCase();
+
+    for (const promesa of [
+      "experiencias guiadas con audios",
+      "también encontrarás recursos de audio",
+      "con audios, videos",
+    ]) {
+      expect(texto).not.toContain(promesa);
+    }
+    expect(texto).toContain("todavía no hay audio ni video publicados");
+  });
+
+  it("el acceso por libro se presenta como propuesta, no como algo contratable", () => {
+    const pregunta = PREGUNTAS.find((q) =>
+      q.pregunta.includes("un solo libro"),
+    );
+    expect(pregunta).toBeDefined();
+    // Decía «Sí.» a secas, que se lee como «ya puedes».
+    expect(pregunta?.respuesta.startsWith("Sí.")).toBe(false);
+    expect(pregunta?.respuesta).toContain("propuesta en revisión");
+  });
 });

@@ -29,11 +29,15 @@ export function Hero() {
           <h1 className="fh-h1" id="h1">
             Aprende a entender tus emociones y tus relaciones
           </h1>
+          {/* La maqueta decía «experiencias guiadas con audios, videos y
+              ejercicios». Hoy no hay ni un audio ni un video publicados —los
+              archivos no están subidos—, así que esa frase prometía dos cosas
+              que no existen. Se nombran las que sí. El resto es el aprobado. */}
           <p className="fh-lede">
-            Explora libros de psicología y experiencias guiadas con audios,
-            videos y ejercicios. Pregunta a Eco, la IA de FeelVerse, sobre lo
-            que aprendes y descubre actividades para practicar por tu cuenta o
-            con otras personas.
+            Explora libros de psicología y experiencias guiadas paso a paso, con
+            ejercicios. Pregunta a Eco, la IA de FeelVerse, sobre lo que
+            aprendes y descubre actividades para practicar por tu cuenta o con
+            otras personas.
           </p>
           <p className="fh-hero-short">Empieza por un libro o por un tema.</p>
           <div className="fh-row">

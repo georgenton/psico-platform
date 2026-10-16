@@ -110,7 +110,11 @@ describe("las superficies standalone conservan el suyo", () => {
   // La política es del panel. Aplicarla a una pantalla que no vive en el
   // armazón la dejaría SIN landmark, que es peor que tener dos.
   const standalone = [
-    ["app/page.tsx", "la portada"],
+    // La portada declara su landmark en el componente de la landing, no en la
+    // ruta: `app/page.tsx` sólo aporta los metadatos y monta `<Landing>`. El
+    // dueño cambió al implementar la referencia aprobada F2.1; la garantía es
+    // la misma, y por eso se sigue el archivo en vez de relajar la prueba.
+    ["components/landing/Landing.tsx", "la portada"],
     ["app/autor/layout.tsx", "el armazón de Autor"],
     ["app/compartir/[activityId]/page.tsx", "la sala compartida"],
     ["app/actividades/[templateKey]/page.tsx", "una actividad suelta"],

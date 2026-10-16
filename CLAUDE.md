@@ -3342,8 +3342,9 @@ Plan sólido, por etapas, cada una un PR aparte que se valida contra el banco de
 
 ### Sesión — 2026-10-16 ✅ COMPLETADA — Landing aprobada F2.1 + Open Verse e iconos
 
-**Rama:** `feat/landing-aprobada-f21` (local, **sin empujar**) · 5 commits sobre `main` `8cb480c0`
-**Tests:** Web 205 archivos / 2384 casos · 48 comprobaciones de navegador · API y crypto sin tocar
+**Rama:** `feat/landing-aprobada-f21` · head `00bd5864`, 11 commits sobre `main` `8cb480c0`
+**Publicada en `580a9151`** por decisión de Jorge; los **4 commits más nuevos no están subidos** —publicar antes no es permiso retroactivo de divulgación—.
+**Tests:** Web 205 archivos / 2386 casos · 50 comprobaciones de navegador · API y crypto sin tocar
 
 **Qué se construyó.** La portada servía `docs/design/redesign-v2/`, la dirección que la
 auditoría del 27-09 descartó. Se sustituye por la referencia aprobada ese día con su
@@ -3359,9 +3360,18 @@ exactas del encargo 2.1 en Notion.
 `src/components/landing/sprite-iconos.ts` son **generados** desde la referencia por
 `apps/web/scripts/landing/generar-*.mjs`; el generador falla si una de sus cuatro
 adaptaciones deja de aplicar. Las secciones que el prototipo pintaba con JavaScript se
-renderizan en servidor desde `datos.ts`. Resultado: **8 de 9 secciones coinciden al
-píxel** a 1440, 1280, 768, 390 y 320 px en los dos temas; la novena es la biblioteca,
-por el catálogo confirmado de tres obras.
+renderizan en servidor desde `datos.ts`. Medido sección por sección a 1440, 1280, 768,
+390 y 320 px en los dos temas: **68 de 80 comparaciones coinciden**, con ±1 px CSS de
+tolerancia porque capturar a 2× convierte medio píxel en uno. Las 12 restantes tienen
+dos causas, las dos pedidas por el encargo: `biblioteca` en 10 —tres obras confirmadas
+en lugar de los cuatro títulos de la maqueta, hasta −872 px en móvil, donde desaparece
+una fila— y `libro` a 320 px en 2, porque la leyenda de formatos ya no promete audio ni
+video. Los dos temas se comportan igual, así que no hay divergencia por tema. El
+reflujo a 320 px lo corrige la implementación: la referencia desborda y esta no.
+
+`capturar.mjs` también vive en el repositorio. Sin él, `paquete-revision.mjs`
+documentaba entradas que sólo un script temporal sabía producir: el paquete se podía
+armar una vez y no volver a armar.
 
 **Lo que el reinicio de Tailwind rompía** (medido, no supuesto): márgenes de párrafo,
 el interlineado de `h1/h2/h3` desde un token inexistente, `svg{display:block}` y el
@@ -3378,13 +3388,45 @@ aviso «Propuesta de precios · No disponible para compra», sin pasarela, y las
 condiciones que bloquean abrir cobros aparecen como «Por definir». **D-ORD sigue
 abierto.**
 
+**Componentes comunes: el sistema llega fiel.** De 46 tokens `--fv-*` resolubles en la
+raíz, **46 coinciden** con la referencia en los dos temas por los cuatro ambientes. Las
+únicas diferencias son cuatro alias de tipografía que pasan por `next/font`, `160ms`
+escrito `.16s`, y una corrección de contraste declarada con números: `--ren-muted` de
+`#706b62` a `#67625a`, porque el valor del diseño se queda en 4,35:1 sobre los paneles
+teñidos de Renacimiento. Esa se conserva; reproducir el diseño no incluye reintroducir
+un fallo de contraste.
+
+Dos cosas que parecían defectos y no lo son: el radio **cambia con el tema por diseño**
+(panel 24 px en Contemporary, 6 px en Renacimiento) y el control principal de envío mide
+384×44. El elemento de 24 px era el enlace auxiliar «¿Cómo?».
+
+**Hallazgo del ambiente Noche (#728), inventariado y no corregido.** Doce alias
+declarados en `<html>` como `var()` de un token que Noche redefine en `body` se quedan
+con el valor claro: bordes y sombras conservan el claro, y un acento de enlace cae a
+2,65:1 / 2,58:1 en vez de subir al claro del ambiente. El resolutor determinista ya
+modelaba el fenómeno y Círculos lo esquivó en su hoja, pero no estaba escrito qué
+alcanza; ahora sí, en `globals.css`. **Hoy es latente** en lo visitable sin sesión
+—acceso y registro sólo llegan a Calma, y la landing lleva tema y ambiente en el mismo
+elemento—. Las pantallas del panel sí llegan a Noche y **no se recorrieron con sesión**.
+Corregirlo mueve valores que fijan `color-contracts.ts`, el trinquete de
+`a11y-token-contract` y el apaño de Círculos: es el sistema de color, no la landing.
+
 **Deuda y decisiones abiertas:**
 
-- **Publicar la rama** es decisión de Jorge: el repositorio es público y los importes
-  hipotéticos quedarían visibles en `datos.ts` y en los dos `data-f2*.js` del espejo.
+- **Subir los 4 commits, abrir PR y preview de Web en staging**: una sola decisión de
+  Jorge, propuesta con su reversión en FV-42. Nada de eso se ejecutó.
+- **El espejo de `docs/design/`** no se elimina y **no se da por aprobada su
+  exposición**: repositorio público, exportación privada de Claude Design.
+- Los importes hipotéticos quedan visibles en `datos.ts` y en los dos `data-f2*.js` del
+  espejo.
 - La landing carga Geist, Geist Mono, Newsreader y Source Serif 4 **dos veces** —por
-  `next/font` y por el `@import` del diseño—. Unificarlas se probó y se revirtió:
-  bajaba la fidelidad de 8/9 secciones a 1–4/9 porque cambian las métricas.
+  `next/font` y por el `<link>` a Google Fonts—. Unificarlas se probó y se revirtió:
+  bajaba la fidelidad de 8/9 secciones a 1–4/9 porque cambian las métricas. Sobre la
+  cadena externa, pasar el `@import` de la hoja a un `<link>` en el documento ganó
+  **36 ms**, no el orden de magnitud esperado; el remedio real —carga no bloqueante,
+  ~90 ms constantes— deja sin resolver el destello de texto.
+- **Las pantallas del panel no se revisaron con sesión** en Contemporary/Renacimiento ×
+  cuatro ambientes. Es el hueco que queda de la revisión por familias.
 - Los CTA de las tarjetas se alinean al pie, que la referencia no hace; con tres obras
   de contenido desigual, sin eso quedaba un hueco de ~190 px.
 

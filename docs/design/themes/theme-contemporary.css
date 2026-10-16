@@ -1,0 +1,100 @@
+/* theme = contemporary — values lifted from colors_and_type.css (the existing product).
+   Private ramp: --con-*. Components must never read it. */
+
+[data-theme="contemporary"]{
+  --con-lav-50:#f7f5ff;--con-lav-100:#eeebff;--con-lav-300:#c3baff;--con-lav-500:#8b71f5;--con-lav-600:#7558e0;--con-lav-700:#5e42c0;
+  --con-sage-100:#e4efe0;--con-sage-300:#a5c99e;--con-sage-400:#7fae76;--con-sage-500:#5e9254;--con-sage-600:#4e7d45;--con-sage-700:#416a3a;--con-sage-950:#132211;
+  --con-warm-50:#fafaf8;--con-warm-100:#f5f4f1;--con-warm-200:#eceae5;--con-warm-300:#d9d5ce;--con-warm-500:#928d84;--con-warm-600:#706b62;--con-warm-700:#574f45;--con-warm-800:#3d3730;--con-warm-900:#2a2420;
+
+  /* color — the 4 tokens mood may override live in moods.css */
+  --fv-background:var(--con-warm-50);
+  --fv-surface:#ffffff;
+  --fv-surface-subtle:var(--con-warm-100);
+  --fv-surface-accent:var(--con-lav-50);
+  --fv-text:var(--con-warm-900);
+  --fv-text-body:var(--con-warm-700);
+  /* accesibilidad: warm-500 daba 3.30:1 sobre superficie blanca. warm-600 da 5.26:1. */
+  --fv-muted:var(--con-warm-600);
+  --fv-rule:var(--con-warm-200);
+  --fv-brand:var(--con-lav-500);
+  --fv-brand-soft:var(--con-lav-100);
+  --fv-brand-ground:var(--con-lav-700);
+  /* fondo lleno de marca (app icon, splash, avatar): tinta oscura saturada, INVARIABLE al mood.
+     No usar --fv-brand-ground aquí: es tinta de primer plano y night la invierte a claro. */
+  --fv-brand-solid:var(--con-lav-700);
+  /* accesibilidad: sage-400 daba 2.56:1 con texto blanco. sage-600 da 4.84:1. */
+  --fv-action:var(--con-sage-600);
+  --fv-action-hover:var(--con-sage-700);
+  --fv-action-soft:var(--con-sage-100);
+  --fv-action-text:#ffffff;
+  --fv-error-bg:#FEF2F2;--fv-error-border:#FECACA;--fv-error-text:#B91C1C;
+  /* texto de acción sobre fondo claro: sage-500 daba 3.53:1. sage-700 da 6.0:1. */
+  --fv-action-ground:var(--con-sage-700);
+  --fv-border:var(--fv-rule);
+  --fv-border-quiet:var(--con-warm-200);
+  --fv-focus-ring:var(--con-lav-600);
+
+  /* type */
+  --fv-font-body:"Geist",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+  --fv-font-display:"Newsreader",Georgia,serif;
+  --fv-font-mono:"Geist Mono",ui-monospace,Menlo,monospace;
+  --fv-font-label:var(--fv-font-body);
+  --fv-font-reader:"Newsreader",Georgia,serif;
+  --fv-display-weight:500;
+  --fv-display-tracking:-.01em;
+  --fv-display-leading:1.15;
+  --fv-label-transform:none;
+  --fv-label-tracking:0;
+  --fv-label-weight:600;
+
+  /* geometry */
+  --fv-radius-panel:24px;
+  --fv-radius-panel-lg:32px;
+  --fv-radius-control:12px;
+  --fv-radius-cover:16px;
+  --fv-radius-pill:9999px;
+  --fv-border-w:1px;
+  --fv-border-w-emph:1px;
+  --fv-shadow-card:0 1px 4px 0 rgb(42 36 32/.06),0 4px 24px 0 rgb(42 36 32/.04);
+  --fv-shadow-quiet:0 1px 4px 0 rgb(42 36 32/.05);
+  --fv-shadow-cover:0 8px 20px 0 rgb(37 24 92/.15);
+
+  /* ornament */
+  --fv-ornament-rule-display:none;
+  --fv-fillet:0 solid transparent;
+  --fv-spine-w:0px;
+  --fv-channel-w:4px;
+  /* la etiqueta blanca sobre lav-300 daba 1.78:1. Rampa oscurecida: mínimo 4.84:1. */
+  --fv-cover-fill:linear-gradient(135deg,var(--con-lav-600) 0%,var(--con-sage-600) 100%);
+  --fv-cover-border:none;
+  --fv-cover-label-color:rgb(255 255 255/.92);
+  --fv-emoji-display:inline;
+  --fv-decoration-opacity:.08;
+  --fv-eco-border:var(--fv-rule);
+  --fv-eco-header-bg:var(--con-lav-50);
+  --fv-eco-accent:var(--fv-brand);
+  --fv-nav-active-bg:var(--con-lav-100);
+  --fv-nav-active-rule:0px;
+  --fv-selected-bg:var(--con-lav-100);
+  --fv-selected-border:var(--con-lav-500);
+}
+
+/* night · declared contrast corrections for THIS theme (3 derived values, not identity choices) */
+[data-theme="contemporary"][data-mood="night"]{
+  --fv-surface-accent:#2F2A33;
+  --fv-action-ground:#a5c99e;   /* 9.0:1 on #221F1C */
+  --fv-brand-ground:#c3baff;    /* 9.8:1 on #221F1C */
+  --fv-focus-ring:#f7f5ff;
+  --fv-action-text:var(--con-sage-950);
+  /* en noche la acción invierte: tinta clara + texto oscuro. sage-600 con sage-950 daba 3.43:1; sage-300 da 9.2:1. */
+  --fv-action:var(--con-sage-300);
+  --fv-action-hover:var(--con-sage-400);
+  --fv-shadow-card:none;        /* elevation is invisible on dark ground */
+  --fv-shadow-quiet:none;
+  --fv-brand-soft:#332C46;
+  --fv-action-soft:#26301F;
+  --fv-eco-header-bg:#2F2A3A;
+  --fv-nav-active-bg:#332C46;
+  --fv-selected-bg:#332C46;
+  --fv-selected-border:#c3baff;
+}

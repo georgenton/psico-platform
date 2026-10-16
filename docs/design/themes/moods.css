@@ -1,0 +1,46 @@
+/* mood layer — independent of theme. Owns EXACTLY eight variables.
+   Load order: theme files, then this file. Switch with data-mood on <html>. */
+
+[data-mood="default"]{
+  /* background / surface / text / muted come from the theme */
+  --fv-chrome-visible:1;
+  --fv-reader-size:19px;
+  --fv-reader-leading:1.7;
+}
+
+[data-mood="focus"]{
+  --fv-background:#FFFFFF;
+  --fv-surface:#FFFFFF;
+  --fv-chrome-visible:0;
+  --fv-reader-size:20px;
+  --fv-reader-leading:1.8;
+}
+
+[data-mood="night"]{
+  --fv-background:#221F1C;
+  --fv-surface:#2B2724;
+  /* night debe poseer TODAS las superficies, no solo dos: surface-subtle y surface-accent
+     conservaban el valor claro del theme y dejaban texto claro sobre fondo claro (1.3:1)
+     en .fv-private, .fv-chip, .fv-empty, .fv-sec-alt, .fv-axis-track y .fv-btn-2:hover.
+     Los overrides de noche por theme siguen ganando por especificidad. */
+  --fv-surface-subtle:#262320;
+  --fv-surface-accent:#2F2B27;
+  --fv-text:#F0EDE6;
+  --fv-text-body:#DCD7CE;
+  --fv-muted:#B8B3AA;
+  --fv-rule:#3D3730;
+  /* el bloque de error era claro sobre pantalla oscura: texto de cuerpo a 1.31:1 */
+  --fv-error-bg:#3A2422;
+  --fv-error-border:#6B3A36;
+  --fv-error-text:#FFB4AB;
+  --fv-chrome-visible:1;
+  --fv-reader-size:19px;
+  --fv-reader-leading:1.7;
+}
+
+/* PROPUESTA — no validada, no desplegar. Existe solo para que la matriz 4×2 renderice. */
+[data-mood="energy"]{
+  --fv-chrome-visible:1;
+  --fv-reader-size:18px;
+  --fv-reader-leading:1.6;
+}

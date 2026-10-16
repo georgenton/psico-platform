@@ -1,0 +1,87 @@
+/* theme = renaissance — values from FeelVerse_Renaissance_Theme_Handoff_v1 only.
+   Private ramp: --ren-*. Components must never read it. */
+
+[data-theme="renaissance"]{
+  --ren-paper:#FAF8F2;--ren-ink:#2A2420;--ren-body:#574F45;--ren-muted:#706B62;
+  --ren-plum:#625078;--ren-plum-soft:#ECE7F2;--ren-plum-text:#3B3149;
+  --ren-sage:#4A7742;--ren-sage-soft:#EDF2EB;--ren-sage-text:#33562E;
+  --ren-quiet:#D9D5CE;
+
+  --fv-background:var(--ren-paper);
+  --fv-surface:#ffffff;
+  --fv-surface-subtle:var(--ren-paper);
+  --fv-surface-accent:var(--fv-surface);
+  --fv-text:var(--ren-ink);
+  --fv-text-body:var(--ren-body);
+  --fv-muted:var(--ren-muted);
+  --fv-rule:var(--ren-quiet);
+  --fv-brand:var(--ren-plum);
+  --fv-brand-soft:var(--ren-plum-soft);
+  --fv-brand-ground:var(--ren-plum);
+  /* fondo lleno de marca: invariable al mood. Ver nota en theme-contemporary.css */
+  --fv-brand-solid:var(--ren-plum);
+  --fv-action:var(--ren-sage);
+  --fv-action-hover:#3A5E34;
+  --fv-action-soft:var(--ren-sage-soft);
+  --fv-action-text:#ffffff;
+  --fv-error-bg:#FEF2F2;--fv-error-border:#FECACA;--fv-error-text:#B91C1C;
+  --fv-action-ground:var(--ren-sage-text);
+  /* primary panel outline IS the ink of the ground — so it survives night without a theme fork */
+  --fv-border:var(--fv-text);
+  --fv-border-quiet:var(--fv-rule);
+  --fv-focus-ring:var(--fv-text);
+
+  --fv-font-body:"Geist",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+  --fv-font-display:"Source Serif 4",Georgia,serif;
+  --fv-font-mono:"Geist Mono",ui-monospace,Menlo,monospace;
+  --fv-font-label:var(--fv-font-mono);
+  --fv-font-reader:"Source Serif 4",Georgia,serif;
+  --fv-display-weight:700;
+  --fv-display-tracking:-.015em;
+  --fv-display-leading:1.05;
+  --fv-label-transform:uppercase;
+  --fv-label-tracking:.08em;
+  --fv-label-weight:500;
+
+  --fv-radius-panel:6px;
+  --fv-radius-panel-lg:6px;
+  --fv-radius-control:5px;
+  --fv-radius-cover:4px;
+  --fv-radius-pill:9999px;
+  --fv-border-w:1px;
+  --fv-border-w-emph:1.5px;
+  --fv-shadow-card:none;
+  --fv-shadow-quiet:none;
+  --fv-shadow-cover:none;
+
+  --fv-ornament-rule-display:block;
+  --fv-fillet:1px solid var(--fv-rule);
+  --fv-spine-w:8px;
+  --fv-channel-w:3px;
+  --fv-cover-fill:var(--fv-background);
+  --fv-cover-border:1px dashed var(--fv-rule);
+  --fv-cover-label-color:var(--fv-muted);
+  --fv-emoji-display:none;
+  --fv-decoration-opacity:1;
+  --fv-eco-border:var(--ren-plum);
+  --fv-eco-header-bg:var(--ren-plum-soft);
+  --fv-eco-accent:var(--ren-plum-text);
+  --fv-nav-active-bg:var(--ren-plum-soft);
+  --fv-nav-active-rule:2px;
+  --fv-selected-bg:var(--ren-plum-soft);
+  --fv-selected-border:var(--ren-plum);
+}
+
+/* night · the three declared contrast corrections from §5 of the handoff */
+[data-theme="renaissance"][data-mood="night"]{
+  --fv-action-ground:#8FBE85;   /* 7.9:1 on #221F1C — measured in the handoff */
+  --fv-brand-ground:#C0AEDC;    /* 8.4:1 on #221F1C */
+  --fv-focus-ring:#FAF8F2;
+  --fv-brand-soft:#332B3D;
+  --fv-action-soft:#243021;
+  --fv-eco-header-bg:#332B3D;
+  --fv-nav-active-bg:#332B3D;
+  --fv-selected-bg:#332B3D;
+  --fv-selected-border:#C0AEDC;
+  --fv-surface-accent:var(--fv-surface);
+}

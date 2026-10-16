@@ -3340,6 +3340,56 @@ Plan sólido, por etapas, cada una un PR aparte que se valida contra el banco de
 
 ---
 
+### Sesión — 2026-10-16 ✅ COMPLETADA — Landing aprobada F2.1 + Open Verse e iconos
+
+**Rama:** `feat/landing-aprobada-f21` (local, **sin empujar**) · 5 commits sobre `main` `8cb480c0`
+**Tests:** Web 205 archivos / 2384 casos · 48 comprobaciones de navegador · API y crypto sin tocar
+
+**Qué se construyó.** La portada servía `docs/design/redesign-v2/`, la dirección que la
+auditoría del 27-09 descartó. Se sustituye por la referencia aprobada ese día con su
+ajuste 2.1, recuperada del proyecto de Claude Design `019e08a5-…` y espejada en
+`docs/design/web-publica-f2-1/` y `web-publica-f2/` (sin sus cuatro notas internas, que
+son privadas, y sin los 20 KB de andamiaje que inyecta la herramienta).
+
+La referencia se identificó **por contenido**: el proyecto tenía cinco carpetas con
+nombres parecidos, y la nota de entrega de F2.1 se titula con las tres peticiones
+exactas del encargo 2.1 en Notion.
+
+**Cómo se porta sin perder fidelidad.** `src/app/landing.css` y
+`src/components/landing/sprite-iconos.ts` son **generados** desde la referencia por
+`apps/web/scripts/landing/generar-*.mjs`; el generador falla si una de sus cuatro
+adaptaciones deja de aplicar. Las secciones que el prototipo pintaba con JavaScript se
+renderizan en servidor desde `datos.ts`. Resultado: **8 de 9 secciones coinciden al
+píxel** a 1440, 1280, 768, 390 y 320 px en los dos temas; la novena es la biblioteca,
+por el catálogo confirmado de tres obras.
+
+**Lo que el reinicio de Tailwind rompía** (medido, no supuesto): márgenes de párrafo,
+el interlineado de `h1/h2/h3` desde un token inexistente, `svg{display:block}` y el
+subrayado de enlaces. Se devuelven dentro de `.fh` con la especificidad justa.
+
+**Open Verse e iconos.** La landing traía un segundo componente de marca; ahora toda la
+aplicación usa `components/brand/FeelVerse.tsx`. De los iconos de la barra, cinco de los
+siete comunes ya eran idénticos al sistema aprobado —la cabecera que los atribuía a
+`redesign-v2` era falsa—; los dos que divergían, salir y diario, se alinearon.
+`icons.design.test.ts` lo fija comparando contra `docs/design/assets/icons.jsx`.
+
+**Lo que NO hace esta landing.** No vende: los importes son los de la maqueta, con su
+aviso «Propuesta de precios · No disponible para compra», sin pasarela, y las seis
+condiciones que bloquean abrir cobros aparecen como «Por definir». **D-ORD sigue
+abierto.**
+
+**Deuda y decisiones abiertas:**
+
+- **Publicar la rama** es decisión de Jorge: el repositorio es público y los importes
+  hipotéticos quedarían visibles en `datos.ts` y en los dos `data-f2*.js` del espejo.
+- La landing carga Geist, Geist Mono, Newsreader y Source Serif 4 **dos veces** —por
+  `next/font` y por el `@import` del diseño—. Unificarlas se probó y se revirtió:
+  bajaba la fidelidad de 8/9 secciones a 1–4/9 porque cambian las métricas.
+- Los CTA de las tarjetas se alinean al pie, que la referencia no hace; con tres obras
+  de contenido desigual, sin eso quedaba un hueco de ~190 px.
+
+---
+
 ### Próximo paso — arco de libros cerrado
 
 📖 **El roadmap maestro del Mapa Emocional vive en la tabla de arriba** (Etapas 0-6 ✅, R = paper). **El roadmap de infra vive en [docs/ROADMAP.md](docs/ROADMAP.md)** (Sprints 1-5 cerrados + bug de Sprint 3).

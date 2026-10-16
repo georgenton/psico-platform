@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 import { CubiertaConceptual } from "./CubiertaConceptual";
-import { OBRAS, OFERTA, type Obra } from "./datos";
+import { OBRAS, OFERTA, TEXTO_DISPONIBILIDAD, type Obra } from "./datos";
 import { Dialogo } from "./Dialogo";
 import { useLanding } from "./estado";
 import { Icono } from "./Icono";
@@ -15,12 +15,24 @@ import { desplazarA } from "./navegacion";
  * El apoyo de la sección nombra los temas del catálogo, así que cambia con él:
  * la maqueta decía «Emociones, relaciones, familia y crianza digital» porque
  * listaba cuatro títulos, uno de ellos no confirmado. Aquí nombra los tres que
- * sí lo están. Es la misma adaptación que explica `datos.ts`, y se hace aquí
- * porque dejar el texto antiguo describiría un catálogo que no existe.
+ * sí lo están.
  *
- * La ficha es UNA plantilla con tantos registros como obras, no un diseño por
- * libro. Cuando un dato no está verificado, la plantilla lo dice en lugar de
- * rellenarlo: ni formatos inventados, ni sinopsis, ni fecha de lanzamiento.
+ * ── Qué se dice cuando un dato no está verificado ─────────────────────────
+ *
+ * Nada. La maqueta rellenaba esos huecos con avisos que describen el estado
+ * del equipo, no lo que puede hacer quien visita: «La ficha publicada
+ * presentará esta obra», «indicará sus formatos», «Cubiertas conceptuales y
+ * fichas de demostración para revisión». Son notas internas y se han
+ * retirado de la página.
+ *
+ * En su lugar no hay invención: una obra sin frase de orientación no la
+ * muestra, y una sin formatos publicados no enumera ninguno. Lo que sí se
+ * dice, porque es lo que de verdad importa a quien mira, es si puede usarla
+ * ahora: «Puedes probarla en esta página» o «Aún no disponible». Eso ocupa el
+ * mismo sitio que ocupaban los formatos, así que el ritmo de la tarjeta no
+ * cambia.
+ *
+ * La ficha sigue siendo UNA plantilla con tantos registros como obras.
  */
 export function Biblioteca() {
   const [fichaDe, setFichaDe] = useState<Obra | null>(null);
@@ -58,9 +70,8 @@ export function Biblioteca() {
                 <span className="fh-mono">{obra.tema}</span>
                 <h3 id={`bk-${obra.id}`}>{obra.titulo}</h3>
                 {obra.autoria && <p className="fh-autoria">{obra.autoria}</p>}
-                <p>
-                  {obra.frase ?? "La ficha publicada presentará esta obra."}
-                </p>
+                {obra.frase && <p>{obra.frase}</p>}
+
                 {obra.formatos.length > 0 ? (
                   <div className="fh-fmt" aria-label="Formatos">
                     {obra.formatos.map((f) => (
@@ -71,10 +82,11 @@ export function Biblioteca() {
                     ))}
                   </div>
                 ) : (
-                  <p className="fh-fmt-q">
-                    La ficha publicada indicará sus formatos.
+                  <p className="fh-estado">
+                    {TEXTO_DISPONIBILIDAD[obra.disponibilidad]}
                   </p>
                 )}
+
                 <button
                   className="fh-btn fh-btn-2 fh-btn-sm"
                   type="button"
@@ -86,13 +98,6 @@ export function Biblioteca() {
               </div>
             </article>
           ))}
-        </div>
-
-        <div className="fh-review">
-          <span>
-            <Icono nombre="info" style={{ width: 16, height: 16 }} />
-            Cubiertas conceptuales y fichas de demostración para revisión
-          </span>
         </div>
       </div>
 
@@ -124,29 +129,28 @@ function FichaDeObra({
         <div className="fh-detail">
           <CubiertaConceptual obra={obra} />
           <div>
-            <span className="fh-tag">Ficha de demostración</span>
+            <span className="fh-tag">
+              {TEXTO_DISPONIBILIDAD[obra.disponibilidad]}
+            </span>
             <h2 id="db-t">{obra.titulo}</h2>
             {obra.autoria && (
               <p className="fh-autoria" style={{ margin: "2px 0 0" }}>
                 {obra.autoria}
               </p>
             )}
-            <p style={{ margin: 0, fontSize: 17 }}>
-              {obra.frase ?? "La ficha publicada presentará esta obra."}
-            </p>
+            {obra.frase && (
+              <p style={{ margin: 0, fontSize: 17 }}>{obra.frase}</p>
+            )}
 
-            <h3>Temas que explora</h3>
-            {obra.explora.length > 0 ? (
-              <ul>
-                {obra.explora.map((t) => (
-                  <li key={t}>{t}</li>
-                ))}
-              </ul>
-            ) : (
-              <p style={{ margin: 0 }}>
-                Se publicarán con la ficha. No se enumeran aquí para no
-                describir una obra que todavía no está presentada.
-              </p>
+            {obra.explora.length > 0 && (
+              <>
+                <h3>Temas que explora</h3>
+                <ul>
+                  {obra.explora.map((t) => (
+                    <li key={t}>{t}</li>
+                  ))}
+                </ul>
+              </>
             )}
 
             <h3>Cómo puedes usarlo</h3>
@@ -172,7 +176,7 @@ function FichaDeObra({
                     <Icono nombre="book" />
                     Leer
                   </b>
-                  La ficha publicada indicará si está disponible.
+                  Aún no disponible.
                 </div>
               )}
 
@@ -197,7 +201,7 @@ function FichaDeObra({
                     <Icono nombre="bulb" />
                     Modo guiado
                   </b>
-                  La ficha publicada indicará si lo incluye.
+                  Aún no disponible.
                 </div>
               )}
             </div>
@@ -236,17 +240,6 @@ function FichaDeObra({
                 Todo el catálogo, mensual o anual · propuesta
               </button>
             </div>
-
-            <p
-              style={{
-                margin: "16px 0 0",
-                fontSize: "13.5px",
-                color: "var(--fv-muted)",
-              }}
-            >
-              Cubierta conceptual para revisión. Disponibilidad y acceso se
-              confirmarán en la ficha publicada. Estado: {obra.estado}.
-            </p>
           </div>
         </div>
       )}

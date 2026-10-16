@@ -48,6 +48,16 @@ describe("el catálogo es el confirmado, no el de la maqueta", () => {
     expect(perduran?.frase).toBeNull();
     expect(perduran?.explora).toHaveLength(0);
   });
+
+  it("la disponibilidad se dice en términos de quien visita", () => {
+    // «Estado por confirmar» describía al equipo. Lo que necesita saber quien
+    // mira es si puede usarla ahora.
+    expect(OBRAS.map((o) => o.disponibilidad)).toEqual([
+      "probar-aqui",
+      "aun-no",
+      "aun-no",
+    ]);
+  });
 });
 
 describe("la oferta se presenta como propuesta, sin vender", () => {
@@ -139,5 +149,35 @@ describe("la página servida", () => {
   it("declara un único landmark principal", () => {
     const { container } = render(<Landing />);
     expect(container.querySelectorAll("main")).toHaveLength(1);
+  });
+
+  it("no publica vocabulario de trabajo interno", () => {
+    const { container } = render(<Landing />);
+    // El texto de los diálogos cuenta: vive en el documento aunque estén
+    // cerrados, y una nota interna escondida en una ficha es igual de pública.
+    const todo = (container.textContent ?? "").toLowerCase();
+    const anclas = [...container.querySelectorAll("[aria-label]")]
+      .map((e) => e.getAttribute("aria-label") ?? "")
+      .join(" ")
+      .toLowerCase();
+
+    for (const frase of [
+      "la ficha publicada",
+      "ficha de demostración",
+      "cubierta conceptual",
+      "cubiertas conceptuales",
+      "estado por confirmar",
+      "portada pendiente",
+      "autor por confirmar",
+    ]) {
+      expect(`${todo} ${anclas}`).not.toContain(frase);
+    }
+  });
+
+  it("dice si una obra se puede usar ahora o todavía no", () => {
+    const { container } = render(<Landing />);
+    const texto = container.textContent ?? "";
+    expect(texto).toContain("Puedes probarla en esta página");
+    expect(texto).toContain("Aún no disponible");
   });
 });

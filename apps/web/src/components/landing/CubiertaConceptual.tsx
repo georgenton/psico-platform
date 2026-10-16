@@ -3,11 +3,15 @@ import type { Obra } from "./datos";
 /**
  * Cubierta conceptual de una obra.
  *
- * No es una portada definitiva y se dice en voz alta: el texto accesible la
- * nombra «Cubierta conceptual de …». El encargo es explícito en que no se
- * simule una portada real, ni un ISBN, ni una editorial, ni un premio; y
- * también en que no se rellenen las tarjetas con «portada pendiente». Una
- * cubierta tipográfica cuidada, identificada como tal, resuelve las dos cosas.
+ * No simula una portada definitiva: no hay ISBN, editorial ni premio, sólo el
+ * título y los elementos del sistema. Tampoco rellena la tarjeta con «portada
+ * pendiente», que es una nota de trabajo interno.
+ *
+ * El nombre accesible es el título de la obra y nada más. Decía «Cubierta
+ * conceptual de …», y «conceptual» es vocabulario del equipo: a quien usa un
+ * lector de pantalla no le dice nada útil y le cuenta en qué punto está la
+ * producción. Que la cubierta sea tipográfica y provisional sigue anotado en
+ * el inventario interno, que es donde importa.
  *
  * El motivo hexagonal es el del sistema: el mismo que aparece en el pie.
  */
@@ -25,7 +29,7 @@ export function CubiertaConceptual({
         pequena ? `fh-cv ${obra.cubierta} sm` : `fh-cv ${obra.cubierta}`
       }
       role="img"
-      aria-label={`Cubierta conceptual de ${obra.titulo}`}
+      aria-label={obra.titulo}
     >
       <span className="b">
         <span>FeelVerse</span>

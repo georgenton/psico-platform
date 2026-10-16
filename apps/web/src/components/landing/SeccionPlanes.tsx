@@ -3,7 +3,13 @@
 import { useState } from "react";
 
 import { CubiertaConceptual } from "./CubiertaConceptual";
-import { OBRAS, OFERTA, type Prestacion } from "./datos";
+import {
+  OBRAS,
+  OFERTA,
+  TEXTO_DISPONIBILIDAD,
+  type Disponibilidad,
+  type Prestacion,
+} from "./datos";
 import { Dialogo } from "./Dialogo";
 import { useLanding, type Periodicidad } from "./estado";
 import { Icono } from "./Icono";
@@ -91,7 +97,7 @@ export function SeccionPlanes() {
                   <div>
                     <span className="fh-mono">Obra elegida</span>
                     <b>{obra.titulo}</b>
-                    <small>{obra.estado}</small>
+                    <small>{TEXTO_DISPONIBILIDAD[obra.disponibilidad]}</small>
                   </div>
                   <button
                     className="fh-btn fh-btn-3"
@@ -272,14 +278,13 @@ export function SeccionPlanes() {
               <CubiertaConceptual obra={o} pequena />
               <span>
                 <b>{o.titulo}</b>
-                <small>{o.estado}</small>
+                <small>{TEXTO_DISPONIBILIDAD[o.disponibilidad]}</small>
               </span>
             </button>
           ))}
         </div>
         <p style={{ margin: 0, fontSize: "13.5px", color: "var(--fv-muted)" }}>
-          Cubiertas conceptuales. Elegir una obra no la compra ni abre su
-          lectura.
+          Elegir una obra no la compra ni abre su lectura.
         </p>
       </Dialogo>
 
@@ -312,7 +317,7 @@ export function SeccionPlanes() {
                 resumen,
                 periodicidad,
                 obra?.titulo,
-                obra?.estado,
+                obra?.disponibilidad,
               ).map((f) => (
                 <div key={f[0]}>
                   <dt>{f[0]}</dt>
@@ -364,18 +369,21 @@ function filasResumen(
   alcance: "libro" | "catalogo",
   periodicidad: Periodicidad,
   tituloObra?: string,
-  estadoObra?: string,
+  disponibilidadObra?: Disponibilidad,
 ): ReadonlyArray<readonly [string, string]> {
   if (alcance === "libro") {
-    const noAdquirible = estadoObra === "Estado por confirmar";
+    // Que no esté disponible se dice entero, no insinuado: quien revisa un
+    // resumen de compra tiene que leer ahí que esa obra todavía no se adquiere.
+    const noAdquirible = disponibilidadObra === "aun-no";
+    const disponibilidad = disponibilidadObra
+      ? TEXTO_DISPONIBILIDAD[disponibilidadObra]
+      : "Sin elegir";
     return [
       ["Alcance", "Un libro"],
       ["Obra", tituloObra ?? "Sin elegir"],
       [
-        "Estado",
-        `${estadoObra ?? "Sin elegir"}${
-          noAdquirible ? ". Esta obra no puede adquirirse todavía." : ""
-        }`,
+        "Disponibilidad",
+        `${disponibilidad}${noAdquirible ? ". Esta obra no puede adquirirse todavía." : ""}`,
       ],
       ["Moneda", OFERTA.moneda],
       ["Importe", `${OFERTA.moneda} ${OFERTA.pase.importe}`],

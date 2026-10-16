@@ -51,6 +51,20 @@ export interface FormatoObra {
   readonly icono: NombreIcono;
 }
 
+/**
+ * Disponibilidad real de la obra, dicha como la leería alguien de fuera.
+ *
+ * No son etiquetas de trabajo interno. «Estado por confirmar» o «ficha de
+ * demostración» describen en qué punto está el equipo, no qué puede hacer
+ * quien visita, y no tienen sitio en la página pública.
+ */
+export type Disponibilidad = "probar-aqui" | "aun-no";
+
+export const TEXTO_DISPONIBILIDAD: Record<Disponibilidad, string> = {
+  "probar-aqui": "Puedes probarla en esta página",
+  "aun-no": "Aún no disponible",
+};
+
 export interface Obra {
   readonly id: string;
   readonly titulo: string;
@@ -59,12 +73,15 @@ export interface Obra {
   /** Etiqueta de tema. Es una categorización, no una afirmación de contenido. */
   readonly tema: string;
   /**
-   * Frase de orientación. `null` cuando no hay una verificada: la tarjeta dice
-   * entonces que la ficha publicada presentará la obra, en vez de inventarla.
+   * Frase de orientación. `null` cuando no hay una verificada.
+   *
+   * La tarjeta entonces no dice nada en su lugar: ni una sinopsis inventada ni
+   * un aviso de que la ficha llegará. Un hueco en silencio es más honesto que
+   * una promesa editorial.
    */
   readonly frase: string | null;
   readonly cubierta: TonoCubierta;
-  readonly estado: string;
+  readonly disponibilidad: Disponibilidad;
   /** Temas que explora. Vacío cuando no hay material aprobado que citar. */
   readonly explora: readonly string[];
   readonly formatos: readonly FormatoObra[];
@@ -81,7 +98,7 @@ export const OBRAS: readonly Obra[] = [
     frase:
       "Descubre cómo se construye lo que sientes y explora nuevas formas de comprenderlo.",
     cubierta: "deep",
-    estado: "Muestra en esta página",
+    disponibilidad: "probar-aqui",
     explora: [
       "Teorías de la emoción como lentes",
       "El rostro como pista",
@@ -103,7 +120,7 @@ export const OBRAS: readonly Obra[] = [
     frase:
       "Comprende los vínculos, acuerdos y retos de una familia que se construye de nuevo.",
     cubierta: "sage",
-    estado: "Estado por confirmar",
+    disponibilidad: "aun-no",
     explora: [
       "Vínculos nuevos y previos",
       "Acuerdos de convivencia",
@@ -116,10 +133,10 @@ export const OBRAS: readonly Obra[] = [
     id: "parejas-que-perduran",
     titulo: "Parejas que perduran",
     autoria: "David Jaramillo",
-    tema: "Relaciones de pareja",
+    tema: "Pareja",
     frase: null,
     cubierta: "lav",
-    estado: "Estado por confirmar",
+    disponibilidad: "aun-no",
     explora: [],
     formatos: [],
     tieneGuia: false,

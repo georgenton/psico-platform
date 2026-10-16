@@ -280,6 +280,103 @@ console.log("\n9 · Estados honestos");
   await ctx.close();
 }
 
+// ── 10 · Destinos: que cada llamada a la acción lleve a algo real ──────────
+// eslint-disable-next-line no-console
+console.log("\n10 · Destinos");
+{
+  const { ctx, page } = await abrir(1440);
+
+  // Toda ancla de la página tiene que existir en la página.
+  const anclas = await page.evaluate(() => {
+    const as = [...document.querySelectorAll('#fh a[href^="#"]')];
+    return {
+      total: as.length,
+      rotas: as
+        .map((a) => a.getAttribute("href"))
+        .filter((h) => h && h !== "#" && !document.querySelector(h)),
+    };
+  });
+  comprobar(
+    anclas.rotas.length === 0,
+    `las ${anclas.total} anclas de la página resuelven`,
+    anclas.rotas.join(" "),
+  );
+
+  // Y toda ruta tiene que responder de verdad, no sólo existir en el marcado.
+  const rutas = await page.evaluate(() => [
+    ...new Set(
+      [...document.querySelectorAll("#fh a[href]")]
+        .map((a) => a.getAttribute("href"))
+        .filter((h) => h && !h.startsWith("#")),
+    ),
+  ]);
+  for (const r of rutas) {
+    const resp = await page.request.get(new URL(r, BASE).toString());
+    comprobar(resp.ok(), `«${r}» responde`, `HTTP ${resp.status()}`);
+  }
+
+  // «Explorar libros» tiene que dejar la biblioteca a la vista.
+  await page.getByRole("link", { name: "Explorar libros", exact: true }).first().click();
+  await page.waitForTimeout(900);
+  const bibliotecaVisible = await page.evaluate(() => {
+    const r = document.querySelector("#biblioteca").getBoundingClientRect();
+    return r.top < window.innerHeight && r.bottom > 0;
+  });
+  comprobar(bibliotecaVisible, "«Explorar libros» lleva a la biblioteca");
+
+  // «Conocer el libro» abre la ficha de ESA obra, no de otra.
+  const tarjetas = page.locator(".fh-book");
+  const n = await tarjetas.count();
+  for (let k = 0; k < n; k++) {
+    const titulo = (await tarjetas.nth(k).locator("h3").textContent())?.trim();
+    await tarjetas.nth(k).getByRole("button", { name: /Conocer el libro/ }).click();
+    await page.waitForTimeout(400);
+    const abierto = (await page.locator("#db-t").textContent())?.trim();
+    comprobar(abierto === titulo, `«Conocer el libro» abre ${titulo}`, abierto ?? "");
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(300);
+  }
+  await ctx.close();
+}
+
+// ── 11 · Sin vocabulario de trabajo interno en la página ───────────────────
+// eslint-disable-next-line no-console
+console.log("\n11 · Nada de notas internas");
+{
+  const { ctx, page } = await abrir(1440);
+  // Se abre todo lo que la página puede mostrar, para mirar también dentro de
+  // los diálogos: una nota interna escondida en una ficha sigue siendo pública.
+  await page.evaluate(() => {
+    document.querySelectorAll(".fh-q").forEach((d) => d.setAttribute("open", ""));
+    document.querySelectorAll("details").forEach((d) => d.setAttribute("open", ""));
+  });
+  const texto = await page.evaluate(() => document.getElementById("fh").innerText);
+  const fichas = await page.evaluate(() => {
+    // El contenido de las fichas vive en el DOM aunque el diálogo esté cerrado.
+    return [...document.querySelectorAll("dialog")].map((d) => d.innerText).join("\n");
+  });
+  const todo = `${texto}\n${fichas}`;
+
+  const PROHIBIDAS = [
+    "La ficha publicada",
+    "ficha de demostración",
+    "Cubiertas conceptuales",
+    "cubierta conceptual",
+    "Estado por confirmar",
+    "para revisión ·",
+    "portada pendiente",
+    "autor por confirmar",
+  ];
+  for (const f of PROHIBIDAS) {
+    comprobar(
+      !todo.toLowerCase().includes(f.toLowerCase()),
+      `no aparece «${f}»`,
+      todo.toLowerCase().includes(f.toLowerCase()) ? "la dice" : "",
+    );
+  }
+  await ctx.close();
+}
+
 await navegador.close();
 
 const fallos = resultados.filter((r) => !r.ok);

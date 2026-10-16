@@ -901,6 +901,73 @@ details[open]>summary .fh-chev{transform:rotate(90deg)}
   .fh .fh-head-in{gap:8px;padding-left:12px;padding-right:12px}
 }
 
+/* 3 · Biblioteca de tres obras, centrada.
+
+   La maqueta llevaba cuatro títulos y la rejilla tiene cuatro columnas, así
+   que tres tarjetas quedaban pegadas a la izquierda con un hueco a la
+   derecha. Se centra la fila CONSERVANDO el ancho de tarjeta de la maqueta:
+   la pista se calcula con la fórmula de cuatro columnas
+   —(100% menos tres huecos) partido por 4— y sólo se dibujan tres. La tarjeta
+   sigue midiendo lo que medía (259 px a 1440); lo que cambia es dónde empieza
+   la fila. Ensanchar la tarjeta a un tercio del ancho la habría dejado un 44 %
+   más grande, que ya no son «tamaños próximos al diseño aprobado».
+
+   Entre 560 y 1100 px la rejilla es de dos columnas y la tercera quedaba sola
+   a la izquierda: ahí se centra la última. Por debajo de 560 es una columna y
+   no hace falta nada. */
+.fh .fh-lib{
+  --fh-lib-hueco:clamp(16px,1.6vw,24px);
+  justify-content:center;
+  grid-template-columns:repeat(3,minmax(0,calc((100% - 3*var(--fh-lib-hueco))/4)));
+}
+@media (max-width:1100px){
+  .fh .fh-lib{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .fh .fh-lib .fh-book:nth-child(3):last-child{
+    grid-column:1/-1;
+    justify-self:center;
+    width:calc((100% - var(--fh-lib-hueco))/2);
+  }
+}
+@media (max-width:560px){
+  .fh .fh-lib{grid-template-columns:minmax(0,1fr)}
+  .fh .fh-lib .fh-book:nth-child(3):last-child{grid-column:auto;width:auto}
+}
+
+/* 5 · La llamada a la acción, al pie de su tarjeta.
+
+   Las tarjetas de una fila miden lo mismo, y con tres obras ya no todas
+   tienen la misma cantidad de texto: una sin frase de orientación dejaba un
+   hueco entre su última línea y el botón. En la maqueta no pasaba porque sus
+   cuatro títulos tenían frases parecidas.
+
+   El cuerpo pasa a columna flexible y el último elemento se empuja abajo, así
+   que los tres botones quedan alineados. En las tarjetas que llenan su alto no
+   cambia nada: no hay espacio sobrante que repartir. No se inventa texto para
+   rellenar, que es lo que el encargo descarta. */
+.fh .fh-book-body{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+.fh .fh-book-body > :last-child{
+  margin-top:auto;
+  /* En columna flexible los hijos se estiran a lo ancho, y el botón pasaba de
+     169 a 213 px. «start» le devuelve su ancho natural, el de la maqueta; los
+     demás hijos siguen estirados para que el texto se parta igual. */
+  align-self:start;
+}
+
+/* 4 · Disponibilidad de la obra en la tarjeta.
+
+   Ocupa el sitio donde la maqueta ponía «La ficha publicada indicará sus
+   formatos», que era una nota interna. Hereda el tamaño y el tono de esa
+   línea para que el ritmo de la tarjeta no cambie. */
+.fh .fh-estado{
+  margin:0;
+  font-size:13.5px;
+  color:var(--fv-muted);
+}
+
 /* 2 · Autoría de la obra.
 
    La maqueta no mostraba autor porque en septiembre no estaba

@@ -2,7 +2,7 @@
 
 import { ControlApariencia } from "./ControlApariencia";
 import { useLanding } from "./estado";
-import { Lockup } from "./Marca";
+import { FeelVerseLockup } from "@/components/brand/FeelVerse";
 
 /**
  * Cierre y pie corporativo.
@@ -101,7 +101,7 @@ export function PieCorporativo() {
               aria-label="FeelVerse, inicio"
               style={{ color: "#fff", textDecoration: "none" }}
             >
-              <Lockup tamano={22} invertido />
+              <FeelVerseLockup size={22} inverted />
             </a>
             <p>
               Psicoeducación para leer, explorar y poner en práctica. Libros,

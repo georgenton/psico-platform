@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { ControlApariencia } from "./ControlApariencia";
 import { useLanding } from "./estado";
 import { Icono } from "./Icono";
-import { Lockup } from "./Marca";
+import { FeelVerseLockup } from "@/components/brand/FeelVerse";
 
 const ENLACES: ReadonlyArray<{ href: string; texto: string }> = [
   { href: "#como", texto: "Cómo funciona" },
@@ -55,7 +55,7 @@ export function Cabecera() {
     >
       <div className="fh-wrap fh-head-in">
         <a className="fh-brand" href="#top" aria-label="FeelVerse, inicio">
-          <Lockup tamano={20} />
+          <FeelVerseLockup size={20} />
         </a>
         <nav className="fh-nav" aria-label="Principal">
           {ENLACES.map((e) => (

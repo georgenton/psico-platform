@@ -3343,7 +3343,7 @@ Plan sólido, por etapas, cada una un PR aparte que se valida contra el banco de
 ### Sesión — 2026-10-16 ✅ COMPLETADA — Landing aprobada F2.1 + Open Verse e iconos
 
 **Rama:** `feat/landing-aprobada-f21` · head `00bd5864`, 11 commits sobre `main` `8cb480c0`
-**Publicada en `580a9151`** por decisión de Jorge; los **4 commits más nuevos no están subidos** —publicar antes no es permiso retroactivo de divulgación—.
+**Publicada en `580a9151`** por decisión de Jorge; **lo posterior a ese commit no está subido** —publicar antes no es permiso retroactivo de divulgación—.
 **Tests:** Web 205 archivos / 2386 casos · 50 comprobaciones de navegador · API y crypto sin tocar
 
 **Qué se construyó.** La portada servía `docs/design/redesign-v2/`, la dirección que la

@@ -40,6 +40,41 @@ async function abrir(width, height = 900, extra = {}) {
   return { ctx, page };
 }
 
+// ── 0 · Que la página esté viva antes de preguntarle nada ─────────────────
+//
+// Sin esto, un servidor que sirve un build anterior al que tiene en disco
+// —fácil de provocar: basta reconstruir con `next start` levantado— devuelve
+// HTML correcto cuyo runtime de webpack ya no existe. La página se ve bien,
+// no hidrata, y cada comprobación de interacción revienta con un plantón de
+// treinta segundos que no dice por qué. Aquí se detecta en dos segundos y se
+// nombra.
+// eslint-disable-next-line no-console
+console.log("\n0 · La página carga y responde");
+{
+  const ctx = await navegador.newContext({ viewport: { width: 1280, height: 900 } });
+  const page = await ctx.newPage();
+  const fallidas = [];
+  page.on("response", (r) => {
+    if (r.status() >= 400) fallidas.push(`${r.status()} ${r.url().split("/").pop()}`);
+  });
+  await page.goto(BASE, { waitUntil: "load" });
+  await page.waitForTimeout(1500);
+
+  comprobar(
+    fallidas.length === 0,
+    "ningún recurso de la página falla",
+    fallidas.slice(0, 3).join(" · ") +
+      (fallidas.length ? " — ¿el servidor sirve un build distinto al del disco?" : ""),
+  );
+
+  // Hidratación: un botón que no responde delata que React nunca arrancó.
+  await page.getByRole("button", { name: /Cómo se forma mi mapa/i }).click();
+  await page.waitForTimeout(600);
+  const vivo = await page.locator("#dlg-map").evaluate((d) => d.open);
+  comprobar(vivo, "la página hidrata y responde a un clic");
+  await ctx.close();
+}
+
 // ── 1 · Reflujo: nada se sale a lo ancho, en los dos temas ─────────────────
 // eslint-disable-next-line no-console
 console.log("\n1 · Reflujo y anchos");

@@ -5,6 +5,7 @@ import {
   APARIENCIA_POR_OMISION,
   ProveedorLanding,
 } from "./estado";
+import { Fuentes } from "./Fuentes";
 import { Hero } from "./Hero";
 import { SpriteIconos } from "./Icono";
 import { Cierre, PieCorporativo } from "./PieCorporativo";
@@ -49,6 +50,7 @@ export function Landing() {
       >
         {/* Aplica la apariencia guardada antes de pintar. Va aquí, como primer
             hijo, porque para entonces el envoltorio ya existe. */}
+        <Fuentes />
         <AparienciaSinDestello />
         <SpriteIconos />
 

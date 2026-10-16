@@ -175,10 +175,17 @@ partes.push(`/* ============================================================
    dentro de lo copiado.
    ============================================================ */
 
-/* Tipografías del sistema aprobado: Geist y Geist Mono para texto,
-   Newsreader en Contemporary y Source Serif 4 en Renacimiento. Un
-   @import tiene que ir primero en el archivo, así que se iza aquí. */
-${FUENTES}
+/* Las tipografías NO se piden desde aquí.
+
+   Son las mismas de siempre —Geist, Geist Mono, Newsreader y Source
+   Serif 4—, pero las carga un <link> en el documento, no un @import en
+   esta hoja. Medido: con el @import el navegador descubría la hoja de
+   Google sólo después de analizar ésta, en serie, y la primera pintura
+   pasaba de 100 ms a 504; con 1 s de latencia, a 1400. El <link> con
+   preconexión las pide desde el primer momento.
+
+   El archivo que las declara es «src/components/landing/Fuentes.tsx»».
+   Las familias no cambian, así que la fidelidad tampoco. */
 ${DEVOLVER_DEFECTOS}
 `);
 

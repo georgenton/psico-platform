@@ -5,6 +5,7 @@ import type { InvoiceSummary } from "@psico/types";
 import type { Env } from "../config";
 import type { BillingPlan } from "./dto/checkout-session.dto";
 import type { CreatePortalSessionDto } from "./dto/create-portal-session.dto";
+import { ProviderCapabilityUnsupportedError } from "./provider-errors";
 import type {
   CancelSubscriptionResult,
   CheckoutSessionResult,
@@ -116,16 +117,23 @@ export class PaymentService {
    * and never reaches `/api/billing/return`, so we keep this method
    * provider-bound rather than synthesising a fake status.
    */
-  getCheckoutSessionStatus(sessionId: string): Promise<{
+  getCheckoutSessionStatus(
+    sessionId: string,
+    userId: string,
+  ): Promise<{
     status: "success" | "processing" | "failed";
     subscriptionId: string | null;
   }> {
     const provider = this.selectProvider();
     if (!provider.getCheckoutSessionStatus) {
-      throw new Error(
-        `Provider ${provider.name} does not support checkout session lookup.`,
+      // Señal específica, no un `Error` cuyo texto haya que reconocer después.
+      throw new ProviderCapabilityUnsupportedError(
+        provider.name,
+        "checkout_session_lookup",
       );
     }
-    return provider.getCheckoutSessionStatus(sessionId);
+    // El `userId` viaja hasta el proveedor porque la comprobación de
+    // pertenencia sólo puede hacerla quien tiene la sesión delante.
+    return provider.getCheckoutSessionStatus(sessionId, userId);
   }
 }

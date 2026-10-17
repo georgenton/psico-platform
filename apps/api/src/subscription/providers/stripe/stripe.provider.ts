@@ -15,6 +15,10 @@ import type {
 import type { Env } from "../../../config";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { PrismaService } from "../../../prisma";
+import {
+  aExcepcionSegura,
+  clasificarErrorDeProveedor,
+} from "../../provider-errors";
 import type { BillingPlan } from "../../dto/checkout-session.dto";
 import type { CreatePortalSessionDto } from "../../dto/create-portal-session.dto";
 import type {
@@ -129,7 +133,9 @@ export class StripeProvider implements IPaymentProvider {
     });
 
     if (!session.url) {
-      throw new BadRequestException("Failed to create therapy checkout session");
+      throw new BadRequestException(
+        "Failed to create therapy checkout session",
+      );
     }
 
     return { url: session.url, stripeCheckoutSessionId: session.id };
@@ -234,16 +240,48 @@ export class StripeProvider implements IPaymentProvider {
     return { cancelAtPeriodEnd: false };
   }
 
-  async getCheckoutSessionStatus(sessionId: string): Promise<{
+  async getCheckoutSessionStatus(
+    sessionId: string,
+    userId: string,
+  ): Promise<{
     status: "success" | "processing" | "failed";
     subscriptionId: string | null;
   }> {
     // We expand `subscription` so the consuming service can decide on the
     // human-readable message without an extra round-trip — Stripe charges
     // the same regardless of expand depth.
-    const session = await this.stripe.checkout.sessions.retrieve(sessionId, {
-      expand: ["subscription"],
-    });
+    // El SDK puede fallar de varias formas y ninguna debe llegar cruda al
+    // cliente: su `message` puede traer el identificador consultado o detalles
+    // de la cuenta. Se clasifica por estado y tipo declarados, nunca por texto.
+    let session: Awaited<
+      ReturnType<StripeInstance["checkout"]["sessions"]["retrieve"]>
+    >;
+    try {
+      session = await this.stripe.checkout.sessions.retrieve(sessionId, {
+        expand: ["subscription"],
+      });
+    } catch (err) {
+      throw aExcepcionSegura(clasificarErrorDeProveedor(err));
+    }
+
+    // La sesión se pide por un identificador que viaja en la URL de retorno,
+    // así que llega desde el navegador y no prueba nada por sí mismo. Sin esta
+    // comprobación, cualquiera con una sesión ajena recibía su estado: el
+    // endpoint respondía sobre un objeto que no es suyo, y el mensaje que ve
+    // la persona se compone a partir de ese estado.
+    //
+    // La sesión se crea con `metadata.userId` —tanto la de suscripción como la
+    // de pago único—, de modo que la pertenencia se comprueba contra lo que el
+    // propio proveedor guardó, no contra algo que nosotros reconstruyamos.
+    //
+    // Se responde «no existe» y no «no es tuya»: distinguirlas confirmaría que
+    // el identificador es válido, que es justo lo que no se quiere revelar.
+    // Sesión ajena y sesión sin dueño declarado reciben EXACTAMENTE la misma
+    // respuesta que una inexistente —el mismo molde, no una copia parecida—,
+    // porque cualquier diferencia confirmaría que el identificador es válido.
+    if (session.metadata?.userId !== userId) {
+      throw aExcepcionSegura("not_found");
+    }
 
     // Stripe's payment_status disambiguates the three cases we care about:
     // - "paid" → user got Pro right now.

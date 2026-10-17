@@ -1,3 +1,4 @@
+import type { HttpException } from "@nestjs/common";
 import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { Plan, SubscriptionStatus } from "@prisma/client";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -22,13 +23,19 @@ const mockStripePortalCreate = vi.fn();
 const mockStripeCustomerCreate = vi.fn();
 const mockStripeWebhooksConstructEvent = vi.fn();
 const mockStripeInvoicesList = vi.fn();
+const mockStripeCheckoutRetrieve = vi.fn();
 const mockStripeSubscriptionsRetrieve = vi.fn();
 const mockStripeSubscriptionsUpdate = vi.fn();
 
 vi.mock("stripe", () => {
   const MockStripe = vi.fn().mockImplementation(() => ({
     customers: { create: mockStripeCustomerCreate },
-    checkout: { sessions: { create: mockStripeCheckoutCreate } },
+    checkout: {
+      sessions: {
+        create: mockStripeCheckoutCreate,
+        retrieve: mockStripeCheckoutRetrieve,
+      },
+    },
     billingPortal: { sessions: { create: mockStripePortalCreate } },
     webhooks: { constructEvent: mockStripeWebhooksConstructEvent },
     invoices: { list: mockStripeInvoicesList },
@@ -337,6 +344,179 @@ describe("StripeProvider", () => {
   });
 
   // ─── mapPriceIdToPlan (via webhook) ───────────────────────────────────────
+
+  /**
+   * La sesión de checkout se pide por un identificador que viaja en la URL de
+   * retorno: llega desde el navegador y no prueba nada por sí mismo. Antes de
+   * esta comprobación, `getCheckoutSessionStatus` devolvía el estado de
+   * CUALQUIER sesión a quien lo pidiera, y ese estado alimenta el mensaje que
+   * la persona ve en pantalla.
+   */
+  describe("getCheckoutSessionStatus — pertenencia", () => {
+    const sesion = (userId: string, extra: Record<string, unknown> = {}) => ({
+      id: "cs_test_123",
+      status: "complete",
+      payment_status: "paid",
+      subscription: "sub_1",
+      metadata: { userId },
+      ...extra,
+    });
+
+    it("devuelve el estado cuando la sesión es de quien pregunta", async () => {
+      mockStripeCheckoutRetrieve.mockResolvedValue(sesion("user-1"));
+      const r = await provider.getCheckoutSessionStatus(
+        "cs_test_123",
+        "user-1",
+      );
+      expect(r.status).toBe("success");
+      expect(r.subscriptionId).toBe("sub_1");
+    });
+
+    it("niega la sesión de otra persona (control negativo)", async () => {
+      mockStripeCheckoutRetrieve.mockResolvedValue(sesion("user-2"));
+      await expect(
+        provider.getCheckoutSessionStatus("cs_test_123", "user-1"),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("niega también una sesión sin dueño declarado", async () => {
+      mockStripeCheckoutRetrieve.mockResolvedValue({
+        id: "cs_test_123",
+        status: "complete",
+        payment_status: "paid",
+        subscription: "sub_1",
+        metadata: {},
+      });
+      await expect(
+        provider.getCheckoutSessionStatus("cs_test_123", "user-1"),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    /**
+     * Los siete casos que R3 pide, con errores con la forma que el SDK de
+     * Stripe les da: `type` y `statusCode`, no prosa que haya que reconocer.
+     */
+    describe("normalización de los fallos del proveedor", () => {
+      const errorSdk = (extra: Record<string, unknown>) =>
+        Object.assign(
+          new Error("texto crudo del SDK que no debe salir"),
+          extra,
+        );
+
+      it("sesión inexistente → 404 con el mismo cuerpo que la ajena", async () => {
+        mockStripeCheckoutRetrieve.mockRejectedValue(
+          errorSdk({ type: "StripeInvalidRequestError", statusCode: 404 }),
+        );
+        const inexistente = await provider
+          .getCheckoutSessionStatus("cs_no_existe", "user-1")
+          .catch((e: NotFoundException) => e.getResponse());
+
+        mockStripeCheckoutRetrieve.mockResolvedValue(sesion("user-2"));
+        const ajena = await provider
+          .getCheckoutSessionStatus("cs_test_123", "user-1")
+          .catch((e: NotFoundException) => e.getResponse());
+
+        // Indistinguibles: si difirieran, la diferencia confirmaría que el
+        // identificador existe, que es lo que la pertenencia evita.
+        expect(inexistente).toEqual(ajena);
+      });
+
+      it("sesión sin dueño declarado → el mismo 404", async () => {
+        mockStripeCheckoutRetrieve.mockResolvedValue({
+          id: "cs_test_123",
+          status: "complete",
+          payment_status: "paid",
+          subscription: "sub_1",
+          metadata: {},
+        });
+        await expect(
+          provider.getCheckoutSessionStatus("cs_test_123", "user-1"),
+        ).rejects.toThrow(NotFoundException);
+      });
+
+      it("fallo de red → 503 y nada del texto del SDK", async () => {
+        mockStripeCheckoutRetrieve.mockRejectedValue(
+          errorSdk({ type: "StripeAPIConnectionError" }),
+        );
+        const cuerpo = await provider
+          .getCheckoutSessionStatus("cs_test_123", "user-1")
+          .catch((e: HttpException) => ({
+            estado: e.getStatus(),
+            cuerpo: e.getResponse() as Record<string, string>,
+          }));
+        expect(cuerpo.estado).toBe(503);
+        expect(cuerpo.cuerpo.code).toBe("PAYMENT_PROVIDER_UNAVAILABLE");
+        expect(JSON.stringify(cuerpo)).not.toContain("texto crudo del SDK");
+      });
+
+      it("5xx del proveedor → 503", async () => {
+        mockStripeCheckoutRetrieve.mockRejectedValue(
+          errorSdk({ type: "StripeAPIError", statusCode: 503 }),
+        );
+        await expect(
+          provider.getCheckoutSessionStatus("cs_test_123", "user-1"),
+        ).rejects.toMatchObject({ status: 503 });
+      });
+
+      it("429 → 503, que invita a reintentar", async () => {
+        mockStripeCheckoutRetrieve.mockRejectedValue(
+          errorSdk({ type: "StripeRateLimitError", statusCode: 429 }),
+        );
+        await expect(
+          provider.getCheckoutSessionStatus("cs_test_123", "user-1"),
+        ).rejects.toMatchObject({ status: 503 });
+      });
+
+      it("credencial rechazada → 502, y no se le cuenta a la persona", async () => {
+        mockStripeCheckoutRetrieve.mockRejectedValue(
+          errorSdk({ type: "StripeAuthenticationError", statusCode: 401 }),
+        );
+        const cuerpo = await provider
+          .getCheckoutSessionStatus("cs_test_123", "user-1")
+          .catch(
+            (e: HttpException) => e.getResponse() as Record<string, string>,
+          );
+        expect(cuerpo.code).toBe("PAYMENT_PROVIDER_ERROR");
+        expect(cuerpo.message.toLowerCase()).not.toContain("clave");
+        expect(cuerpo.message.toLowerCase()).not.toContain("api");
+      });
+
+      it("error operativo inesperado → 502 sin volcado", async () => {
+        mockStripeCheckoutRetrieve.mockRejectedValue(
+          errorSdk({ statusCode: 418 }),
+        );
+        const cuerpo = await provider
+          .getCheckoutSessionStatus("cs_test_123", "user-1")
+          .catch((e: HttpException) => ({
+            estado: e.getStatus(),
+            cuerpo: JSON.stringify(e.getResponse()),
+          }));
+        expect(cuerpo.estado).toBe(502);
+        expect(cuerpo.cuerpo).not.toContain("texto crudo del SDK");
+      });
+    });
+
+    it("dice «no existe», no «no es tuya»", async () => {
+      // Distinguir los dos casos confirmaría que el identificador es válido,
+      // que es justo lo que no se quiere revelar.
+      mockStripeCheckoutRetrieve.mockResolvedValue(sesion("user-2"));
+      // `expect.assertions` evita el fallo silencioso de un `.catch()` que no
+      // se ejecuta: sin él, esta prueba pasaría también si NO lanzara nada.
+      expect.assertions(4);
+      await provider
+        .getCheckoutSessionStatus("cs_test_123", "user-1")
+        .catch((err: unknown) => {
+          expect(err).toBeInstanceOf(NotFoundException);
+          const cuerpo = (err as NotFoundException).getResponse() as {
+            code: string;
+            message: string;
+          };
+          expect(cuerpo.code).toBe("CHECKOUT_SESSION_NOT_FOUND");
+          expect(cuerpo.message.toLowerCase()).not.toContain("tuya");
+          expect(cuerpo.message.toLowerCase()).not.toContain("otro");
+        });
+    });
+  });
 
   describe("mapeo de price IDs a planes", () => {
     async function triggerSync(priceId: string) {

@@ -28,9 +28,16 @@ import { EmbeddingService } from "../ai/embedding/embedding.service";
 import { VectorStoreService } from "../ai/vector-store/vector-store.service";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { PrismaService } from "../prisma";
+import { captureException } from "../observability/sentry";
 import { PLAN_QUOTAS } from "../subscription/quotas";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { UsageService } from "../subscription/usage.service";
+import {
+  EcoStageError,
+  describeEcoFailure,
+  runStage,
+  toSafeFailure,
+} from "./eco-failure";
 import {
   CRISIS_HOTLINE,
   CRISIS_LLM_SENTINEL,
@@ -249,12 +256,68 @@ export class EcoService {
     body: EcoSendMessageRequest,
     subject: Subject<{ data: EcoSseEvent }>,
   ): Promise<void> {
+    // La correlación que se registra tiene que haberla acreditado el servidor.
+    //
+    // `body.threadId` lo elige quien llama: que tenga forma de identificador
+    // no demuestra que exista ni que sea suyo. Validar la FORMA no basta —una
+    // cadena alfanumérica cualquiera pasaba el filtro y aterrizaba en el
+    // registro y en Sentry—. Este contenedor sólo se rellena después de que
+    // la consulta de pertenencia haya devuelto un hilo de ESTA persona; si el
+    // fallo ocurre antes, no hay correlación y no se escribe ninguna.
+    const acreditado: { threadId?: string } = {};
     try {
-      await this.runSendMessageInner(userId, body, subject);
+      await this.runSendMessageInner(userId, body, subject, acreditado);
     } catch (err) {
       // Any uncaught error becomes a single `error` SSE event so the client
       // can show a retry banner. We DO NOT leak the user's plaintext here.
-      this.logger.error(`Eco sendMessage failed: ${(err as Error).message}`);
+      //
+      // La línea decía sólo el mensaje del error. Con dos dependencias
+      // externas en el mismo camino —embeddings y modelo—, `Status code: 401`
+      // no dice a cuál escribirle. Ahora se nombra la etapa, la dependencia y
+      // una categoría cerrada; el mensaje original sigue delante porque es lo
+      // que da la pista concreta, y el `stack` del SDK viaja en `cause`.
+      // Lo que sale de aquí es una representación SEGURA, no el error.
+      //
+      // Antes se concatenaba `err.message`, se entregaba `err.stack` al logger
+      // y se pasaba `err` entero a Sentry. Las tres cosas transportan texto
+      // crudo del proveedor: un mensaje puede traer el cuerpo que se le envió,
+      // el stack empieza por ese mismo mensaje, y el objeto arrastra `cause`,
+      // `original` y cualquier `response.body` que el SDK haya colgado. En un
+      // camino donde el texto de la persona viaja in-flight hacia el modelo,
+      // eso es una fuga esperando una excepción con el contenido dentro.
+      //
+      // `toSafeFailure` deja sólo constantes del código, un número de estado,
+      // marcos de pila sin su primera línea y una correlación validada.
+      const seguro = toSafeFailure(err, { threadId: acreditado.threadId });
+      const atribucion = {
+        stage: seguro.stage,
+        dependency: seguro.dependency,
+        category: seguro.category,
+        upstreamStatus: seguro.upstreamStatus,
+      };
+      const linea = `Eco sendMessage failed · ${describeEcoFailure(atribucion, {
+        threadId: seguro.threadId ?? undefined,
+      })}`;
+
+      if (atribucion.category === "deliberate_refusal") {
+        // Una cuota agotada o un hilo ajeno no son una caída: el servicio dijo
+        // que no a propósito. Se registran como aviso y sin traza, igual que
+        // `HttpExceptionFilter` hace con cualquier 4xx — y no se envían a
+        // Sentry, que es para lo que hay que ir a mirar.
+        this.logger.warn(linea);
+      } else {
+        // Ni el stack crudo como segundo argumento: los marcos ya van en la
+        // línea, sin la primera —que es el mensaje del proveedor—.
+        this.logger.error(
+          seguro.frames.length > 0
+            ? `${linea} frames=${seguro.frames.join(" | ")}`
+            : linea,
+        );
+        // Este camino nunca pasaba por el filtro HTTP —el error viaja DENTRO
+        // del stream SSE—, así que ningún fallo de Eco llegaba a Sentry. Va un
+        // error SINTÉTICO con la etiqueta segura, nunca el original.
+        captureException(new Error(`eco.sendMessage ${linea}`), { ...seguro });
+      }
       subject.next({
         data: {
           event: "error",
@@ -284,6 +347,7 @@ export class EcoService {
     userId: string,
     body: EcoSendMessageRequest,
     subject: Subject<{ data: EcoSseEvent }>,
+    acreditado: { threadId?: string } = {},
   ): Promise<void> {
     // ── 1. Quota gate ────────────────────────────────────────────────────
     const remainingBefore = await this.computeQuotaRemaining(userId);
@@ -305,6 +369,10 @@ export class EcoService {
       select: { id: true },
     });
     if (!thread) throw new NotFoundException("ECO_THREAD_NOT_FOUND");
+    // Desde aquí el identificador está acreditado: la consulta de arriba
+    // comprobó que existe Y que es de esta persona. Antes de este punto no
+    // hay correlación que registrar.
+    acreditado.threadId = thread.id;
 
     // ── 3. Persist the user message (ciphertext only) ────────────────────
     const userMessage = await this.prisma.ecoMessage.create({
@@ -370,13 +438,19 @@ export class EcoService {
       };
     }
 
-    const queryEmbedding = await this.embeddingService.embed(
-      body.textPlaintext,
+    // Las dos dependencias externas del envío viven una detrás de la otra, y
+    // hasta ahora un fallo de cualquiera producía la misma línea de registro.
+    // `runStage` sólo les pone etiqueta: no reintenta, no envuelve la
+    // respuesta y no cambia el camino feliz.
+    const queryEmbedding = await runStage("embeddings", "voyage", () =>
+      this.embeddingService.embed(body.textPlaintext),
     );
-    const chunks = await this.vectorStore.searchSimilar(
-      queryEmbedding,
-      this.maxContextChunks,
-      scopeBookId, // undefined = platform-wide (unchanged pre-Fase-H behavior)
+    const chunks = await runStage("retrieval", "database", () =>
+      this.vectorStore.searchSimilar(
+        queryEmbedding,
+        this.maxContextChunks,
+        scopeBookId, // undefined = platform-wide (unchanged pre-Fase-H behavior)
+      ),
     );
     const bookContext =
       chunks.length > 0
@@ -440,7 +514,10 @@ export class EcoService {
       usage = final.usage;
     } catch (err) {
       // If we aborted because of CRISIS_LLM_SENTINEL, this is expected.
-      if (!crisisDetected) throw err;
+      // Si no, es el modelo el que se cayó: se etiqueta aquí porque es el
+      // punto donde el fallo del proveedor se vuelve observable, y sin
+      // etiqueta se confundía con el de embeddings dos llamadas antes.
+      if (!crisisDetected) throw new EcoStageError("model", "anthropic", err);
     }
 
     // ── 6. Persist + finalise ────────────────────────────────────────────

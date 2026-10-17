@@ -3343,7 +3343,8 @@ Plan sólido, por etapas, cada una un PR aparte que se valida contra el banco de
 ### Sesión — 2026-10-16 ✅ COMPLETADA — Landing aprobada F2.1 + Open Verse e iconos
 
 **Rama:** `feat/landing-aprobada-f21` · head `00bd5864`, 11 commits sobre `main` `8cb480c0`
-**Publicada en `580a9151`** por decisión de Jorge; **lo posterior a ese commit no está subido** —publicar antes no es permiso retroactivo de divulgación—.
+**Publicada y en revisión:** [PR #782](https://github.com/georgenton/psico-platform/pull/782), Draft contra `main`, **CI 14/14 verdes** —los seis trabajos en los dos disparadores, más Conventional Commits y Gitleaks—. Sin fusionar.
+**Preview de staging BLOQUEADO** (`PREVIEW_WEB_STAGING = BLOCKED_BY_DEPLOYMENT_TARGETING`): `feelverse-staging-web` está fijado a `main`@`HEAD`, la vía limpia `deploy(pull_request_id)` devuelve error interno del servidor, y no hay dominio ni DNS comodín donde servir un preview. Desbloquearlo exigía crear configuración o DNS, las dos fuera de límites. Nada quedó a medias y el artefacto anterior (`sha256:8a3cd36e…`, commit `8cb480c0`) sigue sano e intacto. Staging muestra todavía la landing anterior.
 **Tests:** Web 205 archivos / 2386 casos · 50 comprobaciones de navegador · API y crypto sin tocar
 
 **Qué se construyó.** La portada servía `docs/design/redesign-v2/`, la dirección que la

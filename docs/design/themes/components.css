@@ -1,0 +1,79 @@
+/* FeelVerse components — ONE set. No BookCardRenaissance, no DashboardContemporary.
+   Every visual difference below resolves through --fv-* tokens. */
+
+.fv{background:var(--fv-background);color:var(--fv-text);font-family:var(--fv-font-body);font-size:var(--fv-text-base);line-height:1.5}
+.fv *{box-sizing:border-box}
+.fv p{margin:0;color:var(--fv-text-body)}
+.fv a{color:var(--fv-brand-ground);text-decoration:none;border-bottom:1px solid currentColor}
+.fv a:hover{color:var(--fv-action-ground)}
+.fv :focus-visible{outline:2px solid var(--fv-focus-ring);outline-offset:2px}
+
+/* primitives */
+.fv-panel{background:var(--fv-surface);border:var(--fv-border-w) solid var(--fv-border);border-radius:var(--fv-radius-panel);box-shadow:var(--fv-shadow-card);padding:var(--fv-space-5)}
+.fv-panel-quiet{background:var(--fv-surface);border:var(--fv-border-w) solid var(--fv-border-quiet);border-radius:var(--fv-radius-panel);box-shadow:var(--fv-shadow-quiet);padding:var(--fv-space-5)}
+.fv-open{outline:var(--fv-fillet);outline-offset:-5px}
+.fv-h{font-family:var(--fv-font-display);font-weight:var(--fv-display-weight);letter-spacing:var(--fv-display-tracking);line-height:var(--fv-display-leading);color:var(--fv-text);margin:0}
+.fv-h-xl{font-size:var(--fv-text-2xl)}
+.fv-h-l{font-size:var(--fv-text-xl)}
+.fv-h-m{font-size:var(--fv-text-lg)}
+.fv-label{font-family:var(--fv-font-label);font-size:var(--fv-text-micro);font-weight:var(--fv-label-weight);letter-spacing:var(--fv-label-tracking);text-transform:var(--fv-label-transform);color:var(--fv-muted)}
+.fv-meta{font-size:var(--fv-text-meta);color:var(--fv-muted)}
+.fv-emoji{display:var(--fv-emoji-display)}
+.fv-ornament{display:var(--fv-ornament-rule-display);width:124px;height:2px;background:var(--fv-text);margin:var(--fv-space-3) 0 0}
+.fv-hr{height:1px;background:var(--fv-rule);border:0;margin:var(--fv-space-4) 0}
+.fv-row{display:flex;gap:var(--fv-space-3);align-items:center}
+.fv-col{display:flex;flex-direction:column;gap:var(--fv-space-3)}
+
+.fv-btn{display:inline-flex;align-items:center;justify-content:center;gap:var(--fv-space-2);min-height:var(--fv-target-min);padding:0 var(--fv-space-5);border:0;border-radius:var(--fv-radius-control);background:var(--fv-action);color:var(--fv-action-text);font-family:var(--fv-font-body);font-size:var(--fv-text-sm);font-weight:600;cursor:pointer;transition:background-color var(--fv-duration) var(--fv-easing)}
+.fv-btn:hover{background:var(--fv-action-hover)}
+.fv-btn-2{background:transparent;color:var(--fv-text);border:var(--fv-border-w-emph) solid var(--fv-border)}
+.fv-btn-2:hover{background:var(--fv-surface-subtle)}
+.fv-btn-3{background:transparent;color:var(--fv-action-ground);border:0;padding:0 var(--fv-space-2);text-decoration:underline}
+.fv-btn-3:hover{background:transparent}
+.fv-chip{display:inline-flex;align-items:center;gap:6px;padding:5px var(--fv-space-3);border:1px solid var(--fv-border-quiet);border-radius:var(--fv-radius-pill);font-size:var(--fv-text-micro);color:var(--fv-text-body);background:var(--fv-surface-subtle)}
+
+/* Header */
+.fv-header{display:flex;align-items:center;justify-content:space-between;gap:var(--fv-space-4);padding:var(--fv-space-3) var(--fv-space-4);background:var(--fv-background);border-bottom:var(--fv-border-w) solid var(--fv-border)}
+.fv-wordmark{display:flex;align-items:center;gap:var(--fv-space-2);font-family:var(--fv-font-display);font-size:var(--fv-text-lg);font-weight:var(--fv-display-weight);letter-spacing:var(--fv-display-tracking);color:var(--fv-text)}
+.fv-glyph{width:20px;height:22px;flex:none;border:1.5px solid var(--fv-brand-ground);border-radius:var(--fv-radius-cover) var(--fv-radius-cover) 2px 2px;background:var(--fv-brand-soft)}
+.fv-nav{display:flex;gap:2px;flex:none}
+.fv-nav-item{white-space:nowrap;padding:8px 10px;border-radius:var(--fv-radius-control);font-size:var(--fv-text-sm);color:var(--fv-muted);border-left:0 solid transparent}
+.fv-nav-item[aria-current="page"]{background:var(--fv-nav-active-bg);color:var(--fv-text);font-weight:600;border-left:var(--fv-nav-active-rule) solid var(--fv-text);border-radius:var(--fv-radius-control)}
+
+/* Book Card */
+.fv-book{display:grid;grid-template-columns:76px 1fr;gap:var(--fv-space-4)}
+.fv-cover{aspect-ratio:2/3;background:var(--fv-cover-fill);border:var(--fv-cover-border);border-radius:var(--fv-radius-cover);box-shadow:var(--fv-shadow-cover);display:flex;align-items:flex-end;padding:6px}
+.fv-cover span{font-family:var(--fv-font-label);font-size:10px;letter-spacing:var(--fv-label-tracking);text-transform:var(--fv-label-transform);color:var(--fv-cover-label-color);line-height:1.2}
+.fv-modes{display:flex;flex-wrap:wrap;gap:6px}
+
+/* Experience Card */
+.fv-exp-row{display:flex;align-items:center;justify-content:space-between;gap:var(--fv-space-3);padding:var(--fv-space-3) 0;border-top:1px solid var(--fv-brand-soft)}
+.fv-exp-row:first-of-type{border-top:0}
+
+/* Next Step — spine */
+.fv-spine{position:relative;padding-left:calc(var(--fv-space-5) + var(--fv-spine-w));background:var(--fv-surface-accent);overflow:hidden}
+.fv-spine::before{content:"";position:absolute;left:0;top:0;bottom:0;width:var(--fv-spine-w);background:var(--fv-action)}
+
+/* Eco Card */
+.fv-eco{border-color:var(--fv-eco-border);padding:0;overflow:hidden}
+.fv-eco-head{display:flex;align-items:center;justify-content:space-between;gap:var(--fv-space-3);padding:var(--fv-space-3) var(--fv-space-5);background:var(--fv-eco-header-bg);border-bottom:1px solid var(--fv-eco-border)}
+/* sobre la tinta del encabezado de Echo, --fv-muted cae a 4.35:1; el cuerpo da 6.6:1 */
+.fv-eco-head .fv-meta{color:var(--fv-text-body)}
+.fv-eco-body{padding:var(--fv-space-5)}
+.fv-eco-sources{margin-top:var(--fv-space-4);padding-top:var(--fv-space-3);border-top:1px solid var(--fv-rule)}
+
+/* Circle Card — privacy channel, never the only signal */
+.fv-circle{border-left:var(--fv-channel-w) solid var(--fv-brand-ground)}
+
+/* Reader */
+.fv-reader-bar{display:flex;align-items:center;justify-content:space-between;gap:var(--fv-space-3);flex-wrap:wrap;padding-bottom:var(--fv-space-3);border-bottom:1px solid var(--fv-rule);opacity:var(--fv-chrome-visible)}
+.fv-reader-body{max-width:var(--fv-reader-measure);margin:var(--fv-space-5) 0 0;font-family:var(--fv-font-reader);font-size:var(--fv-reader-size);line-height:var(--fv-reader-leading);color:var(--fv-text-body)}
+.fv-reader-body p+p{margin-top:.9em}
+
+/* Share Dialog — panel in flow, three fixed blocks */
+.fv-share-block{padding:var(--fv-space-3) 0;border-top:1px solid var(--fv-rule)}
+.fv-share-block:first-of-type{border-top:0;padding-top:0}
+.fv-option{display:flex;gap:var(--fv-space-3);align-items:flex-start;padding:var(--fv-space-3);border:var(--fv-border-w) solid var(--fv-border-quiet);border-radius:var(--fv-radius-control);background:var(--fv-surface)}
+.fv-option[aria-checked="true"]{border-color:var(--fv-selected-border);background:var(--fv-selected-bg);border-width:var(--fv-border-w-emph)}
+.fv-dot{width:16px;height:16px;flex:none;margin-top:2px;border-radius:50%;border:1.5px solid var(--fv-muted)}
+.fv-option[aria-checked="true"] .fv-dot{border-color:var(--fv-selected-border);box-shadow:inset 0 0 0 3px var(--fv-surface),inset 0 0 0 9px var(--fv-selected-border)}

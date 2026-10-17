@@ -1,14 +1,29 @@
 /**
- * Icons — Sprint B6 visual parity.
+ * Iconos de la barra del panel.
  *
- * Lucide-inspired outline set lifted from
- * `docs/design/redesign-v2/dashboard/index.html`. The design uses these as
- * inline SVG (`<svg class="ic">`) so they take their color from
- * `currentColor` and inherit the dashboard's CSS variables.
+ * Trazo abierto de inspiración Lucide: viewBox 24, trazo 1.75, extremos y
+ * uniones redondeados, `currentColor`. Es la construcción del sistema de
+ * diseño aprobado, `docs/design/assets/icons.jsx`, y la comparten todos.
  *
- * Every icon shares the same base props (size, stroke width); only the
- * `<path>`/`<circle>` content differs. Inline SVG keeps the bundle lean —
- * no external icon font, no per-icon network request.
+ * ── Procedencia, corregida ────────────────────────────────────────────────
+ *
+ * Esta cabecera decía que el set venía de
+ * `docs/design/redesign-v2/dashboard/index.html`, la dirección visual que la
+ * auditoría del 27-09 descartó. Comparados trazado a trazado contra el
+ * sistema aprobado, cinco de los siete que existen en ambos eran ya idénticos
+ * —inicio, libro, Eco, campana y patrones—, así que la atribución era
+ * incorrecta. Los dos que de verdad divergían, salir y diario, se alinearon;
+ * cada uno lo explica en su sitio.
+ *
+ * Catorce iconos existen sólo aquí —mapa, evolución, ánimos, lupa, flechas—
+ * porque el set del diseño cubre barras laterales y no esas superficies. Se
+ * construyen con la misma base, que es lo que mantiene la familia coherente.
+ *
+ * `icons.design.test.ts` compara contra el archivo del diseño y falla si uno
+ * vuelve a separarse.
+ *
+ * El tamaño por omisión es 19 y en el diseño es 18: el tamaño es decisión de
+ * cada uso, no geometría, y la barra ya está construida sobre 19.
  */
 
 type IconProps = {
@@ -87,14 +102,24 @@ export function IconPatterns(p: IconProps) {
   );
 }
 
+/**
+ * Diario · reflexiones.
+ *
+ * Geometría del sistema aprobado. Aquí vivía una variante reducida: dos
+ * renglones y dos puntos en vez de tres, con los puntos a otra altura y la
+ * opacidad a .6 en lugar de .65. El cuaderno quedaba con el lomo medio vacío
+ * y más claro que el resto del set.
+ */
 export function IconReflections(p: IconProps) {
   return (
     <Base {...p}>
       <path d="M7 4 H18 a1 1 0 0 1 1 1 V19 a1 1 0 0 1-1 1 H7 Z" />
-      <path d="M11 9 H16" opacity="0.6" />
-      <path d="M11 13 H16" opacity="0.6" />
-      <circle cx="7" cy="9" r="0.9" fill="currentColor" stroke="none" />
-      <circle cx="7" cy="13" r="0.9" fill="currentColor" stroke="none" />
+      <path d="M11 9 H16" opacity="0.65" />
+      <path d="M11 13 H16" opacity="0.65" />
+      <path d="M11 17 H14" opacity="0.65" />
+      <circle cx="7" cy="7" r="0.9" fill="currentColor" stroke="none" />
+      <circle cx="7" cy="12" r="0.9" fill="currentColor" stroke="none" />
+      <circle cx="7" cy="17" r="0.9" fill="currentColor" stroke="none" />
     </Base>
   );
 }
@@ -236,12 +261,21 @@ export function IconArrowRight(p: IconProps) {
   );
 }
 
+/**
+ * Salir.
+ *
+ * Geometría del sistema aprobado (`docs/design/assets/icons.jsx`). La que
+ * había aquí dibujaba otra silueta: la puerta era un rectángulo recto —sin el
+ * radio que tienen las demás formas del set— y la flecha arrancaba dos
+ * unidades más a la izquierda. Pequeño en pantalla, pero es el único icono de
+ * la barra que no seguía la construcción del sistema.
+ */
 export function IconLogout(p: IconProps) {
   return (
     <Base {...p}>
-      <path d="M15 17 L20 12 L15 7" />
-      <path d="M20 12 H8" />
-      <path d="M10 4 H5 V20 H10" />
+      <path d="M14 4 H6 a1 1 0 0 0-1 1 V19 a1 1 0 0 0 1 1 H14" />
+      <path d="M11 12 H20" />
+      <path d="M17 9 L20 12 L17 15" />
     </Base>
   );
 }

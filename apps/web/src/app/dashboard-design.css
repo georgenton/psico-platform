@@ -17,17 +17,40 @@
   /* ════════════════════════════════════════════════════════════════
      WEB SURFACE
      ════════════════════════════════════════════════════════════════ */
-  .app { display: grid; grid-template-columns: 248px 1fr; min-height: 100vh; background: var(--color-warm-50); }
+  .app { display: grid; grid-template-columns: 200px 1fr; min-height: 100vh; background: var(--color-warm-50); }
 
-  /* ── Sidebar ──────────────────────────────────────────────────── */
-  .side { background: #fff; border-right: 1px solid var(--color-warm-200); padding: 22px 16px; display: flex; flex-direction: column; gap: 6px; position: sticky; top: 0; height: 100vh; }
-  .side-mark { display: flex; align-items: center; gap: 10px; font: 700 19px/1 var(--font-sans); letter-spacing: -0.03em; color: var(--color-lavender-700); padding: 4px 8px 18px; }
-  .side-mark .mk { width: 32px; height: 32px; border-radius: 9px; background: var(--gradient-cover-lavender); display: inline-flex; align-items: center; justify-content: center; color: #fff; box-shadow: var(--shadow-soft); }
-  .side-eyebrow { font: 700 10px/1 var(--font-mono); letter-spacing: .14em; text-transform: uppercase; color: var(--color-warm-400); padding: 12px 10px 8px; }
-  .nav-item { display: flex; align-items: center; gap: 12px; padding: 11px 12px; border-radius: 12px; font: 500 14px/1 var(--font-sans); color: var(--color-warm-600); cursor: pointer; border: 0; background: transparent; width: 100%; text-align: left; transition: background .14s, color .14s; }
-  .nav-item svg { color: var(--color-warm-500); flex-shrink: 0; transition: color .14s; }
+  /* ── Sidebar ──────────────────────────────────────────────────────────────
+     Alineado con `FeelVerse Revisión Visual.html` del sistema aprobado, donde
+     el carril es `.fv-sidebar` + `.fv-nav-item`: una columna sin iconos que se
+     sostiene con tipografía, ritmo vertical y estado activo.
+
+     Lo que cambia respecto a lo que había, y por qué:
+
+     · Deja de ser un panel blanco relleno. La referencia sólo separa con un
+       borde derecho tenue, y el fondo lo pone la página. El `#fff` codificado
+       además mentía en Noche: pintaba una columna clara contra una página
+       oscura, el mismo defecto que ya se corrigió en Círculos.
+     · Ritmo apretado: hueco de 2 px entre ítems y relleno 16/8, como la
+       referencia, en vez de 6 px y 22/16. La lista se lee como un índice.
+     · El ítem activo pasa a declararse con los tokens del tema —
+       `--fv-nav-active-bg` y `--fv-nav-active-rule`—, que ya existen en este
+       archivo con valores distintos por tema: Contemporary lo marca sólo con
+       el fondo lavanda (regla a 0) y Renacimiento añade una regla izquierda de
+       2 px. Antes el activo era el mismo lavanda en los dos temas, así que
+       Renacimiento perdía su carácter de página impresa.
+     · El radio sale de `--fv-radius-control`, que también depende del tema
+       (12 px en Contemporary, 5 px en Renacimiento), en lugar de 12 px fijos.
+
+     El ancho baja de 248 a los 200 px de la referencia. Primero puse 216
+     suponiendo que las etiquetas de Pulso no cabrían; al medirlas, la más
+     ancha —«Pulso · Experiencias»— ocupa 130 px, así que entra de sobra
+     incluso en 192. No había razón para apartarse de la referencia. */
+  .side { border-right: var(--fv-border-w, 1px) solid var(--fv-border-quiet, var(--color-warm-200)); padding: 16px 8px; display: flex; flex-direction: column; gap: 2px; position: sticky; top: 0; height: 100vh; }
+  .side-mark { display: flex; align-items: center; margin: 0 8px 16px; }
+  .side-eyebrow { font: 700 10px/1 var(--font-mono); letter-spacing: .14em; text-transform: uppercase; color: var(--color-warm-400); padding: 14px 10px 6px; }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--fv-radius-control, 12px); font: 500 14px/1.35 var(--font-sans); color: var(--fv-muted, var(--color-warm-600)); cursor: pointer; border: 0; border-left: 0 solid transparent; background: transparent; width: 100%; text-align: left; transition: background .14s, color .14s; }
   .nav-item:hover { background: var(--color-warm-100); color: var(--color-warm-900); }
-  .nav-item.on { background: var(--color-lavender-100); color: var(--color-lavender-700); font-weight: 600; }
+  .nav-item.on { background: var(--fv-nav-active-bg, var(--color-lavender-100)); color: var(--fv-text, var(--color-lavender-700)); font-weight: 600; border-left: var(--fv-nav-active-rule, 0px) solid var(--fv-text, var(--color-lavender-700)); }
   .nav-item.on svg { color: var(--color-lavender-600); }
   .nav-badge { margin-left: auto; font: 700 10px/1 var(--font-sans); background: var(--color-sage-100); color: var(--color-sage-700); border-radius: 9999px; padding: 4px 8px; }
   .side-spacer { flex: 1; }
@@ -101,7 +124,14 @@
       z-index: 60;
       transform: translateX(-100%);
       transition: transform .22s var(--easing-default);
-      border-right: 1px solid var(--color-warm-200);
+      border-right: var(--fv-border-w, 1px) solid var(--fv-border-quiet, var(--color-warm-200));
+      /* Aquí SÍ lleva superficie, y no es una incoherencia con el escritorio:
+         en escritorio el carril es una columna de la rejilla y el fondo de la
+         página basta; en móvil se desliza ENCIMA del contenido, así que sin
+         fondo propio se leería el texto de debajo a través de la navegación.
+         Sale del token para que Noche y Renacimiento la pinten como les toca,
+         en vez del `#fff` que había. */
+      background: var(--fv-surface, #fff);
     }
     .app[data-nav-open="true"] .side {
       transform: none;

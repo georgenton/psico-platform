@@ -83,6 +83,49 @@ describe("la losa de error sale del sistema, no de la mano", () => {
     expect(culpables).toEqual([]);
   });
 
+  it("los textos auxiliares del modal salen de un token legible en Noche", () => {
+    // El párrafo de 11 px —«Si no estás en Ecuador…», con el enlace a
+    // findahelpline.com heredando su color— iba con `--color-warm-500`. En los
+    // ambientes claros ese nombre resuelve al mismo hexadecimal que
+    // `--fv-muted`, pero en Noche la rampa de la app da `#8a8190`: medido en el
+    // navegador sobre la superficie de la tarjeta, 3,96:1, por debajo del piso
+    // de texto normal. Con el token del sistema son 7,10:1.
+    //
+    // El contraste lo mide `color-contracts` («AUXILIAR SOBRE TARJETA») en los
+    // ocho estados. Aquí sólo se vigila que el componente no vuelva al nombre
+    // que no acompaña al ambiente.
+    const modal = readFileSync(
+      join(RAIZ, "components", "dashboard", "eco", "CrisisModal.tsx"),
+      "utf8",
+    );
+    const aux = modal.match(
+      /className="mt-4 text-center text-\[11px\]"[\s\S]{0,420}?style=\{\{\s*color:\s*"([^"]+)"/,
+    );
+    expect(aux).not.toBeNull();
+    expect(aux![1]).toBe("var(--fv-muted)");
+
+    // Y el texto, la URL y la semántica del enlace siguen intactos: esto es un
+    // recurso de ayuda, no un adorno.
+    expect(modal).toContain("Si no estás en Ecuador");
+    expect(modal).toContain('href="https://findahelpline.com"');
+    expect(modal).toContain('rel="noopener noreferrer"');
+  });
+
+  it("«Entendido» llega al objetivo táctil del proyecto", () => {
+    // Con `py-2.5` el control medía 40 px en el navegador y el objetivo son 44.
+    // `py-3` da 44 justos, que es el mismo relleno del botón de llamada.
+    const modal = readFileSync(
+      join(RAIZ, "components", "dashboard", "eco", "CrisisModal.tsx"),
+      "utf8",
+    );
+    const cerrar = modal.match(
+      /className="mt-3 block w-full rounded-2xl ([^"]+)"/,
+    );
+    expect(cerrar).not.toBeNull();
+    expect(cerrar![1]).toContain("py-3");
+    expect(cerrar![1]).not.toContain("py-2.5");
+  });
+
   it("y el modal de crisis no se queda blanco cuando la pantalla es oscura", () => {
     // La tarjeta y el círculo del emoji llevaban `bg-white`, que es un literal
     // y no sigue al ambiente: en Noche era una tarjeta blanca sobre #141119.

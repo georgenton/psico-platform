@@ -79,7 +79,10 @@ export function CrisisModal({
           <button
             type="button"
             onClick={onClose}
-            className="mt-3 block w-full rounded-2xl px-5 py-2.5 text-center text-sm font-semibold"
+            // `py-3` y no `py-2.5`: con el relleno anterior el control medía
+            // 40 px y el objetivo táctil del proyecto son 44. Es el mismo
+            // relleno que ya tiene el botón de llamada, que mide 44 justos.
+            className="mt-3 block w-full rounded-2xl px-5 py-3 text-center text-sm font-semibold"
             style={{
               background: "var(--color-warm-100)",
               color: "var(--color-warm-700)",
@@ -90,7 +93,12 @@ export function CrisisModal({
 
           <p
             className="mt-4 text-center text-[11px]"
-            style={{ color: "var(--color-warm-500)" }}
+            // `--fv-muted` y no `--color-warm-500`: en los ambientes claros
+            // los dos resuelven al mismo hexadecimal, pero en Noche la rampa
+            // de la app da `#8a8190`, que sobre la superficie de la tarjeta
+            // mide 3,96:1 — por debajo de los 4,5 que exige este texto de
+            // 11 px. El token del sistema da `#b8b3aa` y mide 7,10:1.
+            style={{ color: "var(--fv-muted)" }}
           >
             Si no estás en Ecuador, busca tu línea local — los números
             internacionales están en{" "}

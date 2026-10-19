@@ -141,6 +141,21 @@ export const CONTRATOS: readonly ContratoDePar[] = [
     alcance: "ambos",
   },
   {
+    nombre: "AUXILIAR SOBRE TARJETA",
+    fg: "var(--fv-muted)",
+    bg: "var(--fv-surface)",
+    tamano: "normal",
+    usadoEn:
+      "el texto auxiliar de 11 px del modal de crisis —«Si no estás en " +
+      "Ecuador…» y el enlace a findahelpline.com, que hereda su color— sobre " +
+      "la superficie de la tarjeta. Iba con `--color-warm-500`, que en los " +
+      "ambientes claros resuelve al mismo hexadecimal que este token pero en " +
+      "Noche da `#8a8190`: medido en el navegador, 3,96:1 sobre la tarjeta, " +
+      "por debajo del piso de texto normal. El token del sistema mide 7,10:1 " +
+      "en Noche y no cambia nada en los demás ambientes",
+    alcance: "ambos",
+  },
+  {
     nombre: "ERROR · losa",
     fg: "var(--color-error-text)",
     bg: "var(--color-error-bg)",

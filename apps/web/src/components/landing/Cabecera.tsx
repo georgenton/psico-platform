@@ -21,8 +21,31 @@ const ENLACES: ReadonlyArray<{ href: string; texto: string }> = [
  *
  * Una diferencia deliberada con la referencia: allí «Entrar» abría un aviso que
  * decía que el prototipo no incluye autenticación. Aquí el producto sí la
- * tiene, así que es un enlace al acceso real. Mantener el aviso habría sido
- * publicar una señal de trabajo interno como si fuera copy.
+ * tiene, así que lleva al acceso real. Mantener el aviso habría sido publicar
+ * una señal de trabajo interno como si fuera copy.
+ *
+ * ── Quién llega aquí, y qué se le ofrece ──────────────────────────────────
+ *
+ * Esta es una superficie pública: quien la lee todavía no tiene cuenta. La
+ * revisión de la landing midió que, de los 77 controles de la página, NINGUNO
+ * llevaba a `/register`; la única puerta decía «Entrar», que se lee como «ya
+ * tengo cuenta». El registro existía y respondía, pero sólo se alcanzaba
+ * pasando por el acceso.
+ *
+ * Así que la llamada principal es **crear cuenta**, y vive en `fh-enter`
+ * a propósito: es el único contenedor de la cabecera que sobrevive a todos los
+ * anchos. Por debajo de 1140 px el CSS esconde la navegación y el CTA de
+ * escritorio, de modo que poner la adquisición en cualquier otro sitio la
+ * habría hecho desaparecer justo en móvil.
+ *
+ * El acceso de quien ya tiene cuenta queda como enlace de texto al lado, no
+ * como botón: sigue estando a un clic, sin competir con la adquisición. En el
+ * cajón aparece como botón secundario, porque ahí no hay jerarquía de ancho
+ * que lo distinga.
+ *
+ * «Ver una experiencia» se conserva —es parte del diseño aprobado y es lo que
+ * hace la página explorable— pero pasa a secundaria: en una cabecera sólo
+ * puede haber una llamada principal, y ahora es otra.
  */
 export function Cabecera() {
   const { abrirEscenario } = useLanding();
@@ -64,13 +87,8 @@ export function Cabecera() {
             </a>
           ))}
         </nav>
-        <div className="fh-enter">
-          <Link className="fh-btn fh-btn-2 fh-btn-sm" href="/login">
-            Entrar
-          </Link>
-        </div>
         <a
-          className="fh-btn fh-btn-1 fh-btn-sm fh-cta-desk"
+          className="fh-btn fh-btn-2 fh-btn-sm fh-cta-desk"
           href="#guiado"
           onClick={(e) => {
             e.preventDefault();
@@ -79,6 +97,14 @@ export function Cabecera() {
         >
           Ver una experiencia
         </a>
+        <div className="fh-enter">
+          <Link className="fh-enter-link" href="/login">
+            Entrar
+          </Link>
+          <Link className="fh-btn fh-btn-1 fh-btn-sm" href="/register">
+            Crear cuenta
+          </Link>
+        </div>
         <button
           className="fh-menu-btn"
           type="button"
@@ -105,14 +131,14 @@ export function Cabecera() {
           Preguntas frecuentes
         </a>
         <Link
-          className="fh-btn fh-btn-2"
-          href="/login"
+          className="fh-btn fh-btn-1"
+          href="/register"
           onClick={() => setMenuAbierto(false)}
         >
-          Entrar
+          Crear cuenta
         </Link>
         <a
-          className="fh-btn fh-btn-1"
+          className="fh-btn fh-btn-2"
           href="#guiado"
           onClick={(e) => {
             e.preventDefault();
@@ -122,6 +148,13 @@ export function Cabecera() {
         >
           Ver una experiencia
         </a>
+        <Link
+          className="fh-btn fh-btn-2"
+          href="/login"
+          onClick={() => setMenuAbierto(false)}
+        >
+          Entrar
+        </Link>
         <ControlApariencia id="ap-m" />
       </nav>
     </header>

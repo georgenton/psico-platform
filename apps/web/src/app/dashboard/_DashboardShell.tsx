@@ -16,17 +16,7 @@ import { ThemePicker } from "@/components/dashboard/shell/ThemePicker";
 import { AmbientThemeApplier } from "@/components/dashboard/shell/AmbientThemeApplier";
 import {
   IconBell,
-  IconBook,
   IconChevronDown,
-  IconEco,
-  IconEvolution,
-  IconExplore,
-  IconHome,
-  IconLogo,
-  IconLogout,
-  IconMap,
-  IconPatterns,
-  IconReflections,
   IconSearch,
 } from "@/components/dashboard/shell/icons";
 import { NavToggleIcon } from "@/components/dashboard/shell/NavToggleIcon";
@@ -35,81 +25,60 @@ import { FeelVerseLockup } from "@/components/brand/FeelVerse";
 
 // ── Nav config ─────────────────────────────────────────────────────────────
 //
-// Sprint B6 visual parity: structure + class names lifted verbatim from
-// `docs/design/redesign-v2/dashboard/index.html`. SVG icons replace the B2
-// emojis so the rail renders with the design's exact stroke weight, hover
-// states and active highlight.
-
-type IconKind =
-  | "home"
-  | "evolucion"
-  | "mapa"
-  | "patrones"
-  | "reflexiones"
-  | "exploraciones"
-  | "biblioteca"
-  | "eco";
+// La navegación lateral NO lleva iconos, y eso es una decisión, no un olvido.
+//
+// Los que había venían de `docs/design/redesign-v2/dashboard/index.html`: la
+// dirección visual que la auditoría del 27-09 descartó. Quitarlos retira el
+// último resto de esa rama en el panel y acerca el carril a
+// `FeelVerse Revisión Visual.html`, donde la navegación se apoya en
+// tipografía, ritmo vertical y estado activo —`.fv-sidebar` y `.fv-nav-item`
+// del sistema aprobado—, sin un solo glifo.
+//
+// Los ítems de Pulso ya venían sin icono, así que el carril mezclaba dos
+// lenguajes en la misma columna. Ahora es uno.
 
 type NavItem = {
   href: string;
   label: string;
-  iconKind: IconKind | null;
   exact: boolean;
   tourTarget: string | null;
   badge?: number;
-};
-
-const NAV_ICONS: Record<IconKind, React.ComponentType<{ size?: number }>> = {
-  home: IconHome,
-  evolucion: IconEvolution,
-  mapa: IconMap,
-  patrones: IconPatterns,
-  reflexiones: IconReflections,
-  exploraciones: IconExplore,
-  biblioteca: IconBook,
-  eco: IconEco,
 };
 
 const NAV_ITEMS: readonly NavItem[] = [
   {
     href: "/dashboard",
     label: "Inicio",
-    iconKind: "home",
     exact: true,
     tourTarget: "inicio",
   },
   {
     href: "/dashboard/evolucion",
     label: "Mi Evolución",
-    iconKind: "evolucion",
     exact: false,
     tourTarget: null,
   },
   {
     href: "/dashboard/mapa",
     label: "Mapa Emocional",
-    iconKind: "mapa",
     exact: false,
     tourTarget: null,
   },
   {
     href: "/dashboard/patrones",
     label: "Patrones IA",
-    iconKind: "patrones",
     exact: false,
     tourTarget: "patrones",
   },
   {
     href: "/dashboard/reflexiones",
     label: "Reflexiones",
-    iconKind: "reflexiones",
     exact: false,
     tourTarget: "diario",
   },
   {
     href: "/dashboard/exploraciones",
     label: "Exploraciones",
-    iconKind: "exploraciones",
     exact: false,
     tourTarget: null,
   },
@@ -119,14 +88,12 @@ const RESOURCE_NAV_ITEMS: readonly NavItem[] = [
   {
     href: "/dashboard/biblioteca",
     label: "Biblioteca",
-    iconKind: "biblioteca",
     exact: false,
     tourTarget: "biblioteca",
   },
   {
     href: "/dashboard/eco",
     label: "Eco",
-    iconKind: "eco",
     exact: false,
     tourTarget: "eco",
   },
@@ -136,56 +103,48 @@ const ADMIN_NAV_ITEMS: readonly NavItem[] = [
   {
     href: "/dashboard/admin/overview",
     label: "Pulso · Overview",
-    iconKind: null,
     exact: false,
     tourTarget: null,
   },
   {
     href: "/dashboard/admin/circulos",
     label: "Pulso · Círculos",
-    iconKind: null,
     exact: false,
     tourTarget: null,
   },
   {
     href: "/dashboard/admin/contenido",
     label: "Pulso · Contenido",
-    iconKind: null,
     exact: false,
     tourTarget: null,
   },
   {
     href: "/dashboard/admin/experiencias",
     label: "Pulso · Experiencias",
-    iconKind: null,
     exact: false,
     tourTarget: null,
   },
   {
     href: "/dashboard/admin/reports",
     label: "Pulso · Reports",
-    iconKind: null,
     exact: false,
     tourTarget: null,
   },
   {
     href: "/dashboard/admin/cohorts",
     label: "Pulso · Cohorts",
-    iconKind: null,
     exact: false,
     tourTarget: null,
   },
   {
     href: "/dashboard/admin/author-requests",
     label: "Pulso · Autores",
-    iconKind: null,
     exact: false,
     tourTarget: null,
   },
   {
     href: "/dashboard/admin/users",
     label: "Pulso · Usuarios",
-    iconKind: null,
     exact: false,
     tourTarget: null,
   },
@@ -195,35 +154,30 @@ const USER_MENU_ITEMS: readonly NavItem[] = [
   {
     href: "/dashboard/perfil",
     label: "Perfil",
-    iconKind: null,
     exact: false,
     tourTarget: null,
   },
   {
     href: "/dashboard/plan",
     label: "Mi plan",
-    iconKind: null,
     exact: false,
     tourTarget: null,
   },
   {
     href: "/dashboard/notifications",
     label: "Notificaciones",
-    iconKind: null,
     exact: false,
     tourTarget: null,
   },
   {
     href: "/dashboard/security",
     label: "Seguridad",
-    iconKind: null,
     exact: false,
     tourTarget: null,
   },
   {
     href: "/dashboard/terapia",
     label: "Terapia",
-    iconKind: null,
     exact: false,
     tourTarget: null,
   },
@@ -249,15 +203,19 @@ function NavLink({
   onNav: () => void;
 }) {
   const active = matchesRoute(item.href, pathname, item.exact);
-  const Icon = item.iconKind ? NAV_ICONS[item.iconKind] : null;
   return (
     <Link
       href={item.href}
       onClick={onNav}
       data-tour-target={item.tourTarget ?? undefined}
       className={`nav-item${active ? " on" : ""}`}
+      // El sistema aprobado marca el ítem activo con
+      // `.fv-nav-item[aria-current="page"]`. Aquí el color lo pone `.on`
+      // —la clase que ya usaba el panel—, pero el atributo se declara igual:
+      // sin él, el estado activo era sólo un color, y eso no lo oye nadie que
+      // navegue con lector de pantalla.
+      aria-current={active ? "page" : undefined}
     >
-      {Icon ? <Icon size={19} /> : null}
       {item.label}
       {item.badge != null ? (
         <span className="nav-badge">{item.badge}</span>
@@ -430,9 +388,12 @@ function Sidebar({
           ))}
         </div>
       ) : null}
+      {/* Sin glifo: la etiqueta ya dice qué hace, y el carril quedó sin
+          iconos. El chevron de arriba sí se conserva, porque no decora —
+          comunica si el bloque está plegado, que es justo lo que su etiqueta
+          no puede decir, y acompaña a `aria-expanded`. */}
       <form action={logoutAction}>
         <button type="submit" className="nav-item" style={{ width: "100%" }}>
-          <IconLogout size={19} />
           Cerrar sesión
         </button>
       </form>

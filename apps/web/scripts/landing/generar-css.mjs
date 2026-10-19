@@ -324,6 +324,48 @@ partes.push(`
   font-size:14px;
   color:var(--fv-muted);
 }
+
+/* 6 · El acceso de quien ya tiene cuenta, al lado de la adquisición.
+
+   La llamada principal de la cabecera pasa a «Crear cuenta», porque esta es
+   una superficie pública y la revisión midió que ninguno de sus 77 controles
+   llevaba a «/register». «Entrar» deja de ser un botón y queda como enlace de
+   texto: a un clic, sin competir.
+
+   «fh-enter» pasa a fila flexible para que quepan los dos. El enlace toma
+   prestado el aspecto de «.fh-nav a» —misma tinta, mismo tamaño, mismo
+   objetivo táctil de 44 px— en vez de inventar un estilo nuevo, así que la
+   cabecera no gana vocabulario visual.
+
+   El ancho importa, y por eso se mide en lugar de suponerlo. El ajuste 1
+   calculó el reflujo a 320 px con «Entrar» ocupando 77 px; «Crear cuenta» es
+   un botón más ancho, de modo que la fila ya no cabría con las dos cosas. Por
+   debajo de 760 px el enlace se esconde: el cajón ya ofrece «Entrar» como
+   botón, así que no se pierde el acceso, y la adquisición —que es lo que no
+   puede desaparecer en móvil— se queda sola en el sitio visible. */
+.fh .fh-enter{
+  display:flex;
+  align-items:center;
+  gap:4px;
+}
+.fh .fh-enter-link{
+  display:inline-flex;
+  align-items:center;
+  min-height:44px;
+  padding:0 12px;
+  border-radius:999px;
+  color:var(--fv-text-body);
+  text-decoration:none;
+  font-size:15px;
+  font-weight:500;
+}
+.fh .fh-enter-link:hover{
+  color:var(--fv-text);
+  background:var(--fv-surface-subtle);
+}
+@media (max-width:760px){
+  .fh .fh-enter-link{display:none}
+}
 `);
 
 await writeFile(DESTINO, partes.join(""), "utf8");

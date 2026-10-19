@@ -44,8 +44,24 @@
      El ancho baja de 248 a los 200 px de la referencia. Primero puse 216
      suponiendo que las etiquetas de Pulso no cabrían; al medirlas, la más
      ancha —«Pulso · Experiencias»— ocupa 130 px, así que entra de sobra
-     incluso en 192. No había razón para apartarse de la referencia. */
-  .side { border-right: var(--fv-border-w, 1px) solid var(--fv-border-quiet, var(--color-warm-200)); padding: 16px 8px; display: flex; flex-direction: column; gap: 2px; position: sticky; top: 0; height: 100vh; }
+     incluso en 192. No había razón para apartarse de la referencia.
+
+     `overflow-y: auto` NO es cosmética: sin ella, el carril se recorta y lo
+     recortado no se puede alcanzar. Es `sticky` con `height: 100vh`, así que
+     lo que sobra ni baja al hacer scroll en la página —el carril se queda
+     anclado— ni se puede enfocar con el teclado, porque el navegador no
+     desplaza un contenedor que no declara desbordamiento: `scrollTop` se
+     queda en 0.
+
+     Medido con rol ADMIN a 1440×768 y 1024×768: 954 px de contenido en una
+     caja de 768, y «Cerrar sesión» fuera de alcance. Con rol USER entra justo
+     y no se nota, que es por lo que había pasado desapercibido. El cajón
+     móvil ya la declaraba, y por eso a 200 % de zoom —donde el diseño pasa a
+     cajón— el defecto no aparecía.
+
+     Es lo mínimo que lo arregla: una sola propiedad, el mismo recurso que ya
+     usa el cajón. */
+  .side { border-right: var(--fv-border-w, 1px) solid var(--fv-border-quiet, var(--color-warm-200)); padding: 16px 8px; display: flex; flex-direction: column; gap: 2px; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
   .side-mark { display: flex; align-items: center; margin: 0 8px 16px; }
   .side-eyebrow { font: 700 10px/1 var(--font-mono); letter-spacing: .14em; text-transform: uppercase; color: var(--color-warm-400); padding: 14px 10px 6px; }
   .nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--fv-radius-control, 12px); font: 500 14px/1.35 var(--font-sans); color: var(--fv-muted, var(--color-warm-600)); cursor: pointer; border: 0; border-left: 0 solid transparent; background: transparent; width: 100%; text-align: left; transition: background .14s, color .14s; }

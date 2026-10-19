@@ -100,7 +100,10 @@ export function NotificationsForm({
         <p
           className="rounded-xl px-3 py-2 text-[12px]"
           role="alert"
-          style={{ background: "#FEE2E2", color: "#B91C1C" }}
+          style={{
+            background: "var(--color-error-bg)",
+            color: "var(--color-error-text)",
+          }}
         >
           {error}
         </p>

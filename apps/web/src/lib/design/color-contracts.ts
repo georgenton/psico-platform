@@ -140,6 +140,21 @@ export const CONTRATOS: readonly ContratoDePar[] = [
     usadoEn: "los avisos de error (#741 — no dejar que se rompa otra vez)",
     alcance: "ambos",
   },
+  {
+    nombre: "ERROR · losa",
+    fg: "var(--color-error-text)",
+    bg: "var(--color-error-bg)",
+    tamano: "normal",
+    usadoEn:
+      "la tinta sobre el BLOQUE de error, no sobre el panel: el modal de " +
+      "crisis, la burbuja de crisis de Eco y los avisos de notificaciones. " +
+      "Antes el bloque iba escrito a mano en `#FEE2E2` con borde `#FCA5A5`, " +
+      "y eso no es sólo cuestión de contraste interno —ahí medía 5,30— sino " +
+      "una losa de luminancia 0,810 sobre la página de Noche, que mide 0,006. " +
+      "Con el par del sistema el bloque acompaña a la pantalla y la tinta sube " +
+      "a 8,50 en Noche y a 5,91 en Calma",
+    alcance: "ambos",
+  },
 ];
 
 /**

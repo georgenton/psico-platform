@@ -165,8 +165,10 @@ const STATUS_STYLES: Record<
   },
   uncollectible: {
     label: "Incobrable",
-    bg: "#FEE2E2",
-    fg: "#B91C1C",
+    // Semántica de error: del par del sistema, para que el distintivo
+    // acompañe a la pantalla en vez de ser una losa clara en Noche.
+    bg: "var(--color-error-bg)",
+    fg: "var(--color-error-text)",
   },
   draft: {
     label: "Borrador",

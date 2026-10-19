@@ -746,8 +746,10 @@ function EcoAvatar({ crisis }: { crisis?: boolean }) {
       aria-hidden
       className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[13px]"
       style={{
-        background: crisis ? "#FEE2E2" : "var(--color-sage-50, #F0F6EE)",
-        border: `1px solid ${crisis ? "#FCA5A5" : "var(--color-sage-100, #DDEAD8)"}`,
+        background: crisis
+          ? "var(--color-error-bg)"
+          : "var(--color-sage-50, #F0F6EE)",
+        border: `1px solid ${crisis ? "var(--color-error-border)" : "var(--color-sage-100, #DDEAD8)"}`,
       }}
     >
       🌿
@@ -832,9 +834,9 @@ function MessageBubble({
           style={
             isCrisis
               ? {
-                  background: "#FEE2E2",
-                  color: "#7F1D1D",
-                  border: "1px solid #FCA5A5",
+                  background: "var(--color-error-bg)",
+                  color: "var(--color-error-text)",
+                  border: "1px solid var(--color-error-border)",
                 }
               : isUser
                 ? {

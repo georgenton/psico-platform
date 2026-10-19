@@ -35,12 +35,19 @@ export function CrisisModal({
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
     >
       <div
-        className="w-full max-w-md overflow-hidden rounded-3xl bg-white"
-        style={{ border: "1.5px solid #FCA5A5" }}
+        className="w-full max-w-md overflow-hidden rounded-3xl"
+        style={{
+          background: "var(--fv-surface)",
+          border: "1.5px solid var(--color-error-border)",
+        }}
       >
-        <div className="px-6 pt-6 pb-3" style={{ background: "#FEE2E2" }}>
+        <div
+          className="px-6 pt-6 pb-3"
+          style={{ background: "var(--color-error-bg)" }}
+        >
           <div
-            className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-white"
+            className="mx-auto flex h-12 w-12 items-center justify-center rounded-full"
+            style={{ background: "var(--fv-surface)" }}
             aria-hidden
           >
             <span className="text-2xl">💛</span>
@@ -48,7 +55,7 @@ export function CrisisModal({
           <h2
             id="crisis-title"
             className="mt-3 text-center text-[18px] font-bold"
-            style={{ color: "#7F1D1D" }}
+            style={{ color: "var(--color-error-text)" }}
           >
             Estamos contigo
           </h2>

@@ -382,9 +382,25 @@ body.amb-energia {
    `body`, ambiente incluido.
 
    Una regla en lugar de veinticinco ediciones, y sin tocar ninguna rampa
-   (#728 sigue siendo suyo). */
+   (#728 sigue siendo suyo).
+
+   EL FONDO Y EL BORDE, POR LA MISMA PUERTA. La tinta ya seguía al ambiente,
+   pero la LOSA sobre la que se apoya seguía escrita a mano: `#FEE2E2` con
+   borde `#FCA5A5` en el modal de crisis, la burbuja de crisis de Eco y los
+   avisos de notificaciones. Medido: esa losa tiene luminancia 0,810 y la
+   página de Noche 0,006 — un bloque claro sobre pantalla oscura, el mismo
+   defecto que ya se corrigió en Círculos. El sistema aprobado trae el par
+   hecho, y `moods.css` lo dice en su propio comentario: en Noche el bloque
+   pasa a `#3a2422` con tinta `#ffb4ab`, que mide 8,50:1 — mejor que los
+   5,30:1 del par codificado. En Calma el token da 5,91:1 donde lo escrito a
+   mano daba 5,30, así que no se pierde nada en ningún estado.
+
+   Van aquí, en `body`, por la razón de arriba: declarados en `:root`
+   capturarían el valor del tema y no verían el que pone `body.amb-noche`. */
 body {
   --color-error-text: var(--fv-error-text);
+  --color-error-bg: var(--fv-error-bg);
+  --color-error-border: var(--fv-error-border);
 }
 
 body.amb-noche {

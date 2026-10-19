@@ -40,15 +40,17 @@ export function DeltaBadge({
   // Positive/negative coloring respects the `inverted` semantic.
   const isPositiveSentiment = inverted ? value < 0 : value > 0;
   const isNegativeSentiment = inverted ? value > 0 : value < 0;
+  // El lado negativo es semántica de error, así que sale del par del sistema:
+  // su fondo escrito a mano era una losa clara que no seguía al ambiente.
   const color = isPositiveSentiment
     ? "var(--color-sage-700, #2F5A2A)"
     : isNegativeSentiment
-      ? "var(--color-rose-700, #BE123C)"
+      ? "var(--color-error-text)"
       : "var(--color-warm-500)";
   const bg = isPositiveSentiment
     ? "var(--color-sage-100, #DDEBD8)"
     : isNegativeSentiment
-      ? "#FEE2E2"
+      ? "var(--color-error-bg)"
       : "var(--color-warm-100)";
 
   return (

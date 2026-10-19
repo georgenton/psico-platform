@@ -93,11 +93,18 @@ export function CrisisModal({
 
           <p
             className="mt-4 text-center text-[11px]"
-            // `--fv-muted` y no `--color-warm-500`: en los ambientes claros
-            // los dos resuelven al mismo hexadecimal, pero en Noche la rampa
-            // de la app da `#8a8190`, que sobre la superficie de la tarjeta
-            // mide 3,96:1 — por debajo de los 4,5 que exige este texto de
-            // 11 px. El token del sistema da `#b8b3aa` y mide 7,10:1.
+            // `--fv-muted` en vez de `--color-warm-500`. Los dos nombres NO
+            // son equivalentes: coinciden sólo en Calma —Contemporary corrige
+            // `--color-warm-500` a `var(--fv-muted)` en `globals.css`, y
+            // Renacimiento ya lo apuntaba a `--ren-muted`—, mientras Enfoque y
+            // Energía le dan su propio valor en `dashboard-design.css`.
+            //
+            // Medido en el panel, que es donde vive este modal, sobre la
+            // superficie de la tarjeta: Noche 5,99 → 7,10 · Calma 5,29 y 6,05
+            // sin cambio · Enfoque 6,93 → 5,29 (Contemporary) y 6,05
+            // (Renacimiento) · Energía 5,85 → 5,29 y 6,05. Los ocho estados
+            // quedan por encima de 4,5, pero en Enfoque y Energía el valor
+            // anterior era mejor: ver la nota del PR #784.
             style={{ color: "var(--fv-muted)" }}
           >
             Si no estás en Ecuador, busca tu línea local — los números

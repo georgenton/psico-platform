@@ -85,11 +85,15 @@ describe("la losa de error sale del sistema, no de la mano", () => {
 
   it("los textos auxiliares del modal salen de un token legible en Noche", () => {
     // El párrafo de 11 px —«Si no estás en Ecuador…», con el enlace a
-    // findahelpline.com heredando su color— iba con `--color-warm-500`. En los
-    // ambientes claros ese nombre resuelve al mismo hexadecimal que
-    // `--fv-muted`, pero en Noche la rampa de la app da `#8a8190`: medido en el
-    // navegador sobre la superficie de la tarjeta, 3,96:1, por debajo del piso
-    // de texto normal. Con el token del sistema son 7,10:1.
+    // findahelpline.com heredando su color: comprobado que el color computado
+    // de los dos es el mismo— sale de `--fv-muted` y no de `--color-warm-500`.
+    //
+    // Los dos nombres NO son equivalentes. Coinciden sólo en Calma, porque
+    // `globals.css` corrige `--color-warm-500` a `var(--fv-muted)` en
+    // Contemporary y Renacimiento ya lo apuntaba a `--ren-muted`; Enfoque y
+    // Energía le dan su propio valor en `dashboard-design.css`, que sólo se
+    // carga en el panel. Medido ahí: Noche 5,99 → 7,10 · Calma sin cambio ·
+    // Enfoque 6,93 → 5,29/6,05 · Energía 5,85 → 5,29/6,05.
     //
     // El contraste lo mide `color-contracts` («AUXILIAR SOBRE TARJETA») en los
     // ocho estados. Aquí sólo se vigila que el componente no vuelva al nombre
@@ -98,9 +102,14 @@ describe("la losa de error sale del sistema, no de la mano", () => {
       join(RAIZ, "components", "dashboard", "eco", "CrisisModal.tsx"),
       "utf8",
     );
-    const aux = modal.match(
-      /className="mt-4 text-center text-\[11px\]"[\s\S]{0,420}?style=\{\{\s*color:\s*"([^"]+)"/,
-    );
+    // Anclado a la ESTRUCTURA y no a una distancia en caracteres: una ventana
+    // fija se rompe en cuanto el comentario de al lado crece, que es lo que
+    // pasó al corregir esta misma nota.
+    const desde = modal.indexOf('className="mt-4 text-center text-[11px]"');
+    expect(desde).toBeGreaterThan(-1);
+    const aux = modal
+      .slice(desde)
+      .match(/style=\{\{\s*color:\s*"([^"]+)"\s*\}\}/);
     expect(aux).not.toBeNull();
     expect(aux![1]).toBe("var(--fv-muted)");
 

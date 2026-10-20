@@ -5,6 +5,11 @@ import {
 } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { unitKeyFromLegacyChapterId } from "../lib/block-key";
+// The SAME constant the read adapter and the manifest derive legacy edition
+// keys with. Imported rather than repeated so the gate cannot drift from the
+// surface it gates; `read/content-read` imports nothing from here, so this
+// introduces no cycle.
+import { EDITION_KEY_SUFFIX } from "../read/content-read";
 
 /**
  * CC-6E — content access policy (pure, server-owned, single source of truth).
@@ -153,7 +158,9 @@ export async function resolveBookTarget(
  * Resolve the entitlement target for a Content Core `(editionKey, unitKey)`.
  * Mirrors the legacy read resolution EXACTLY (edition slug → book, unitKey →
  * chapter via uuidv5) so the same keys map to the same book/chapter regardless
- * of `source`. Fail-closed: an unknown edition/unit throws rather than allowing.
+ * of `source` — including the case the read adapter calls legacy, where there
+ * is no Edition row to read a slug from. Fail-closed: an unknown edition/unit
+ * throws rather than allowing.
  */
 export async function resolveUnitTarget(
   db: AccessDb,
@@ -166,7 +173,18 @@ export async function resolveUnitTarget(
     where: { editionKey },
     select: { id: true, slug: true, accessPlan: true },
   });
-  if (!edition) throw new NotFoundException("EDITION_NOT_FOUND");
+  // No Edition row at all means Content Core never took this book over. The
+  // READ adapter still serves it: `buildLegacyRead` derives the slug from the
+  // key suffix and projects the book's ChapterBlocks. This gate claimed just
+  // above to mirror that resolution exactly, and did not — so every chapter of
+  // a never-backfilled book died here, and the web turned the 404 into
+  // "contenido temporalmente no disponible" on chapters the reader was willing
+  // to serve. Measured on `familias-ensambladas`: its free first chapter was
+  // unreachable while the lector envelope returned it with six blocks.
+  //
+  // The suffix is consulted ONLY when no row exists, so an edition can still
+  // be called anything: a key with no row and no derivable slug stays a 404.
+  if (!edition) return resolveUnitTargetFromKeySuffix(db, editionKey, unitKey);
 
   if (edition.accessPlan !== null) {
     // Native path: Content Core answers entirely from its own rows. No Book, no
@@ -192,15 +210,45 @@ export async function resolveUnitTarget(
 }
 
 /**
+ * The target for a book Content Core holds NO edition row for.
+ *
+ * Mirrors `buildLegacyRead` exactly: same suffix, same slug, same uuidv5
+ * chapter mapping, same `order === 1` preview rule — so the gate and the read
+ * agree on which book and chapter a key names, which is the whole point of
+ * this file's promise. Fail-closed at every step: a key that is not derivable,
+ * a slug with no book, or a unit key that maps to no chapter of that book all
+ * refuse rather than widening the check to serve something.
+ *
+ * DELETABLE together with `resolveUnitTargetFromLegacy`, once every book has
+ * an Edition row (not merely every Edition row a non-null `accessPlan`).
+ */
+async function resolveUnitTargetFromKeySuffix(
+  db: AccessDb,
+  editionKey: string,
+  unitKey: string,
+): Promise<ContentEntitlementTarget> {
+  if (!editionKey.endsWith(EDITION_KEY_SUFFIX)) {
+    throw new NotFoundException("EDITION_NOT_FOUND");
+  }
+  return resolveUnitTargetFromLegacy(
+    db,
+    editionKey.slice(0, -EDITION_KEY_SUFFIX.length),
+    unitKey,
+  );
+}
+
+/**
  * The transitional path, for editions the backfill has not derived yet.
  *
  * Deliberately identical to the pre-#580 behaviour, including the legacy
  * `order === 1` rule, so an un-derived edition decides exactly what it decided
- * before this change. It reads the edition's own `slug` rather than re-deriving
- * one from the key — the suffix assumption is gone even here.
+ * before this change. It takes the slug as an argument rather than deriving
+ * one: its first caller reads the edition's own `slug`, so the suffix
+ * assumption is gone on that path; `resolveUnitTargetFromKeySuffix` is the
+ * only place that derives, and only when there is no row to read it from.
  *
- * DELETABLE once every Edition row has a non-null `accessPlan`. See the
- * deprecation note in the PR body.
+ * DELETABLE once every book has an Edition row with a non-null `accessPlan`.
+ * See the deprecation note in the PR body.
  */
 async function resolveUnitTargetFromLegacy(
   db: AccessDb,

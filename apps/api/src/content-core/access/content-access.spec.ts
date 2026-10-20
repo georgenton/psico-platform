@@ -150,13 +150,97 @@ describe("resolveUnitTarget — same keys → same decision (dual-source parity)
     await expect(
       resolveUnitTarget(db(base), "unknown-book-1e", "x"),
     ).rejects.toThrow(/EDITION_NOT_FOUND/);
-    // A key with no `-1e` is no longer rejected for its SHAPE — it is rejected
-    // because no edition has that key. That distinction is the issue.
+    // An edition that EXISTS is never judged by the shape of its key. The
+    // shape is consulted only when no row exists at all, which is the
+    // never-backfilled case pinned in the describe below — so a key with no
+    // row and no derivable slug has nothing left to resolve by.
     await expect(resolveUnitTarget(db(base), "no-suffix", "x")).rejects.toThrow(
       /EDITION_NOT_FOUND/,
     );
     await expect(
       resolveUnitTarget(db(base), "familias-ensambladas-1e", "bogus-unit"),
+    ).rejects.toThrow(/UNIT_NOT_FOUND/);
+  });
+});
+
+describe("resolveUnitTarget — a book Content Core never took over", () => {
+  /**
+   * No Edition row at all. The READ adapter still serves such a book: it
+   * derives the slug from the key suffix and projects its ChapterBlocks. This
+   * gate used to refuse first, so the reader never got to answer and the web
+   * showed "contenido temporalmente no disponible" on a chapter the API was
+   * willing to serve. Measured on `familias-ensambladas`, whose free first
+   * chapter was unreachable while the envelope returned it with six blocks.
+   */
+  const sinEdicion = {
+    contentUnit: { findFirst: async () => null },
+    edition: { findFirst: async () => null, findUnique: async () => null },
+    book: {
+      findUnique: async ({ where: { slug } }: { where: { slug: string } }) =>
+        slug === "familias-ensambladas"
+          ? { id: "book-pro", plan: "PRO" }
+          : null,
+    },
+    chapter: {
+      findMany: async () => [
+        { id: PRO_CH1, order: 1 },
+        { id: PRO_CH2, order: 2 },
+      ],
+    },
+  };
+
+  it("its first chapter resolves as the preview, so a FREE reader is let in", async () => {
+    const target = await resolveUnitTarget(
+      db(sinEdicion),
+      "familias-ensambladas-1e",
+      unitKeyFromLegacyChapterId(PRO_CH1),
+    );
+    expect(target).toEqual({
+      bookId: "book-pro",
+      bookPlan: "PRO",
+      isFreePreview: true,
+    });
+    expect(() =>
+      assertContentAccess({
+        userPlan: "FREE",
+        bookPlan: target.bookPlan,
+        isFreePreview: target.isFreePreview,
+      }),
+    ).not.toThrow();
+  });
+
+  it("and its paid chapters are still denied — the fallback resolves, it does not open", async () => {
+    const target = await resolveUnitTarget(
+      db(sinEdicion),
+      "familias-ensambladas-1e",
+      unitKeyFromLegacyChapterId(PRO_CH2),
+    );
+    expect(target.isFreePreview).toBe(false);
+    expect(() =>
+      assertContentAccess({
+        userPlan: "FREE",
+        bookPlan: target.bookPlan,
+        isFreePreview: target.isFreePreview,
+      }),
+    ).toThrow(ForbiddenException);
+  });
+
+  it("fails closed when there is nothing to resolve by", async () => {
+    // No row and no derivable slug.
+    await expect(
+      resolveUnitTarget(db(sinEdicion), "no-suffix", "x"),
+    ).rejects.toThrow(/EDITION_NOT_FOUND/);
+    // A derivable slug that names no book.
+    await expect(
+      resolveUnitTarget(db(sinEdicion), "libro-fantasma-1e", "x"),
+    ).rejects.toThrow(/EDITION_NOT_FOUND/);
+    // A real book, and a unit key that is not one of ITS chapters.
+    await expect(
+      resolveUnitTarget(
+        db(sinEdicion),
+        "familias-ensambladas-1e",
+        unitKeyFromLegacyChapterId("chapter-of-another-book"),
+      ),
     ).rejects.toThrow(/UNIT_NOT_FOUND/);
   });
 });

@@ -90,9 +90,26 @@ async function main(): Promise<void> {
   }
   await seedPracticeHeadings(prisma, chapter.id, BOOK);
 
-  // The concept catalog names chapters 2 and 3, and the activation is
+  // The concept catalog names chapters beyond the first, and the activation is
   // book-wide: without them it refuses the whole run.
+  //
+  // `seedPracticeHeadings` above already creates every chapter the catalog
+  // teaches in — C02…C10 since the C03–C10 guides shipped — so this loop now
+  // meets rows it did not make. It used to be the only creator; leaving the
+  // bare `create` turned a clean database into a unique-constraint failure on
+  // `(bookId, order)`, which is exactly the walkthrough this file exists to
+  // make possible. Skipping what already exists keeps the guarantee —
+  // "chapters 2 and 3 are present" — without claiming to be their author.
+  const yaCreados = new Set(
+    (
+      await prisma.chapter.findMany({
+        where: { bookId: book.id },
+        select: { order: true },
+      })
+    ).map((c) => c.order),
+  );
   for (const other of [2, 3]) {
+    if (yaCreados.has(other)) continue;
     const ch = await prisma.chapter.create({
       data: {
         bookId: book.id,

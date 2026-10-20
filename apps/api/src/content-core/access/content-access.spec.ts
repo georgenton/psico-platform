@@ -245,6 +245,84 @@ describe("resolveUnitTarget — a book Content Core never took over", () => {
   });
 });
 
+describe("resolveUnitTarget — the derivation cannot be used to escape a native policy", () => {
+  /**
+   * `emociones-en-construccion` adopted by Content Core under an edition key
+   * that is NOT its slug plus the suffix — which the code allows on purpose
+   * ("an edition can be called anything at all"). Its native policy is
+   * stricter than the legacy one: the book is FREE to browse but chapter 1 is
+   * NOT a free preview, while the legacy derivation would say it is.
+   */
+  const adoptadaConOtraClave = {
+    contentUnit: { findFirst: async () => ({ isFreePreview: false }) },
+    edition: {
+      findFirst: async ({ where }: { where: { slug?: string } }) =>
+        where.slug === "emociones-en-construccion" ? { id: "ed-nativa" } : null,
+      findUnique: async ({
+        where: { editionKey },
+      }: {
+        where: { editionKey: string };
+      }) =>
+        editionKey === "eec-2026"
+          ? {
+              id: "ed-nativa",
+              slug: "emociones-en-construccion",
+              accessPlan: "PRO",
+            }
+          : null,
+    },
+    book: {
+      findUnique: async () => ({ id: "book-eec", plan: "FREE" }),
+    },
+    chapter: {
+      findMany: async () => [
+        { id: PRO_CH1, order: 1 },
+        { id: PRO_CH2, order: 2 },
+      ],
+    },
+  };
+
+  it("by its own key, the native policy decides", async () => {
+    const target = await resolveUnitTarget(
+      db(adoptadaConOtraClave),
+      "eec-2026",
+      unitKeyFromLegacyChapterId(PRO_CH1),
+    );
+    expect(target).toEqual({
+      bookId: null,
+      bookPlan: "PRO",
+      isFreePreview: false,
+    });
+  });
+
+  it("by an invented `<slug>-1e`, it does NOT fall back to the looser legacy policy", async () => {
+    // Without the guard this answered `{bookPlan: "FREE", isFreePreview: true}`
+    // from `Book.plan` and `order === 1`, and the read adapter derives the same
+    // way — so the content would have followed the laxer verdict.
+    await expect(
+      resolveUnitTarget(
+        db(adoptadaConOtraClave),
+        "emociones-en-construccion-1e",
+        unitKeyFromLegacyChapterId(PRO_CH1),
+      ),
+    ).rejects.toThrow(/EDITION_NOT_FOUND/);
+  });
+
+  it("a native edition that does not hold the unit refuses instead of reaching legacy", async () => {
+    const sinEsaUnidad = {
+      ...adoptadaConOtraClave,
+      contentUnit: { findFirst: async () => null },
+    };
+    await expect(
+      resolveUnitTarget(
+        db(sinEsaUnidad),
+        "eec-2026",
+        unitKeyFromLegacyChapterId(PRO_CH2),
+      ),
+    ).rejects.toThrow(/UNIT_NOT_FOUND/);
+  });
+});
+
 describe("resolveWriteTarget — legacy blockId and content-core blockKey agree", () => {
   const chapterRow = {
     chapter: {

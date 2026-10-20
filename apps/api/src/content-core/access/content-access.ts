@@ -184,6 +184,8 @@ export async function resolveUnitTarget(
   //
   // The suffix is consulted ONLY when no row exists, so an edition can still
   // be called anything: a key with no row and no derivable slug stays a 404.
+  // And the derivation refuses when the BOOK already has an edition under some
+  // other key — see `resolveUnitTargetFromKeySuffix`.
   if (!edition) return resolveUnitTargetFromKeySuffix(db, editionKey, unitKey);
 
   if (edition.accessPlan !== null) {
@@ -230,11 +232,25 @@ async function resolveUnitTargetFromKeySuffix(
   if (!editionKey.endsWith(EDITION_KEY_SUFFIX)) {
     throw new NotFoundException("EDITION_NOT_FOUND");
   }
-  return resolveUnitTargetFromLegacy(
-    db,
-    editionKey.slice(0, -EDITION_KEY_SUFFIX.length),
-    unitKey,
-  );
+  const slug = editionKey.slice(0, -EDITION_KEY_SUFFIX.length);
+
+  // The escape this closes: a book Content Core HAS adopted, under an edition
+  // key that is not its slug plus the suffix. `findUnique` by the invented key
+  // misses, and without this check the derivation below would answer for that
+  // same book from the legacy tables — `Book.plan` and `order === 1` instead
+  // of `Edition.accessPlan` and `ContentUnit.isFreePreview`. A caller could
+  // then ask for `<slug>-1e` and be judged by the looser of the two policies.
+  // Since the read adapter derives the same way, the content would follow.
+  //
+  // So the derivation is for books Content Core never took over AT ALL. If any
+  // edition exists for the slug, its own key is the only way in.
+  const adoptada = await db.edition.findFirst({
+    where: { slug },
+    select: { id: true },
+  });
+  if (adoptada) throw new NotFoundException("EDITION_NOT_FOUND");
+
+  return resolveUnitTargetFromLegacy(db, slug, unitKey);
 }
 
 /**

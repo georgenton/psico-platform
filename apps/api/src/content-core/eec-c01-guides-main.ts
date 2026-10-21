@@ -295,6 +295,27 @@ async function main(): Promise<number> {
     return issues.length === 0 ? 0 : 1;
   }
 
+  /**
+   * `approval-request` — B4. No escribe nada, ni en disco ni en la base, así
+   * que va ANTES de `assertWriteAllowed` y antes de abrir Prisma. Pedir una
+   * confirmación de producción para imprimir lo que hay que firmar sería
+   * cobrar un peaje por una lectura.
+   */
+  if (args.command === "approval-request") {
+    const { approvalRequests } = await import("./eec-c01-guides-apply");
+    console.log(
+      JSON.stringify(
+        {
+          command: "approval-request",
+          requests: approvalRequests(manifests),
+        },
+        null,
+        2,
+      ),
+    );
+    return 0;
+  }
+
   assertWriteAllowed(args);
   const { prisma, pool } = openPrisma();
   try {
@@ -401,29 +422,6 @@ async function main(): Promise<number> {
         if (args.out) writeFileSync(args.out, body + "\n");
         console.log(body);
         return r.ok ? 0 : 1;
-      }
-      /**
-       * `approval-request` — B4. Lo que hay que firmar, y nada más.
-       *
-       * No firma: imprime los bytes exactos que la autora tiene que firmar
-       * con SU clave, fuera de aquí, y el esqueleto del acta donde pegar la
-       * firma. Esa separación es el punto — una herramienta que firmara
-       * tendría que tener la clave privada, y entonces quien controle la
-       * herramienta aprobaría.
-       *
-       * No escribe en la base, así que no necesita `--apply`.
-       */
-      case "approval-request": {
-        const { approvalRequests } = await import("./eec-c01-guides-apply");
-        const peticiones = approvalRequests(manifests);
-        console.log(
-          JSON.stringify(
-            { command: "approval-request", requests: peticiones },
-            null,
-            2,
-          ),
-        );
-        return 0;
       }
       /**
        * `reseal` — B4. Lleva un borrador que YA existe de «sin aprobar» a

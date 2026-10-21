@@ -179,6 +179,29 @@ Ninguna de las tres se aplica en este cambio.
 - La identidad no vuelve a derivarse de la posición del capítulo.
 - No se borra ni se edita en silencio ninguna escena ni ningún progreso.
 
+### La tercera invariante es sobre la IDENTIDAD, no sobre los datos (B5)
+
+Dicho de otro modo, porque la primera versión del procedimiento previo lo leyó
+mal: **una base sin sesiones no es una base donde esa identidad esté libre.**
+
+`preArchiveCheck` respondía «nada que proteger» en cuanto la instalación no
+tenía sesiones del piloto, y eso daba por decidido en silencio que su clave
+quedaba disponible para otro linaje. No lo está. La clave la envía el build:
+existe en cada despliegue, y puede tener sesiones en bases que esta
+instalación no ve. Que ésta no las tenga dice algo de esta base, no de la
+clave.
+
+Así que la regla queda escrita:
+
+- **Identidad que envía el build** —una definición del catálogo— se reserva
+  antes de archivar, **haya o no sesiones aquí**. Crear la reserva es barato y
+  reversible; descubrir que otro linaje tomó la clave, no.
+- **Identidad sólo local** —una fila de base que nadie usó— sí puede leerse
+  como «nada que proteger»: no sale de esta instalación.
+
+Reutilizar una identidad histórica sigue necesitando una decisión expresa, y
+este ADR no la concede.
+
 ## Cómo se comprueba
 
 `experience-code-owned-lifecycle.spec.ts` fija hoy tres cosas sin cambiar

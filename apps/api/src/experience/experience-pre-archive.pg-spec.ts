@@ -135,12 +135,15 @@ suite("B4 · comprobación previa al archivado (PostgreSQL real)", () => {
       },
     });
 
-  it("sin sesiones y sin reserva: no hay nada que proteger", async () => {
-    // Un entorno donde esa experiencia nunca existió. Pedir aquí una reserva
-    // sería alarmar por una ausencia que es correcta.
+  it("sin sesiones, una identidad del BUILD sigue necesitando su reserva", async () => {
+    // B5 — la primera versión decía «nada que proteger» en cuanto esta base
+    // no tenía sesiones, y eso daba por decidido en silencio que la clave
+    // quedaba libre. El ADR 0026 fija la invariante sobre la IDENTIDAD, no
+    // sobre los datos de una instalación: la misma clave viaja en cada
+    // despliegue del build, y puede tener sesiones en bases que ésta no ve.
     const r = await preArchiveCheck(prisma, PIN);
 
-    expect(r.verdict).toBe("NOTHING_TO_PROTECT");
+    expect(r.verdict).toBe("NEEDS_RESERVATION");
     expect(r.sessions).toBe(0);
     expect(r.reservationExists).toBe(false);
   });
@@ -374,5 +377,176 @@ suite("B4 · la reserva histórica impide capturar la identidad", () => {
         },
       }),
     ).resolves.toBeTruthy();
+  });
+});
+
+/**
+ * B5 — la carrera que producía un READY falso.
+ *
+ * `createMany({skipDuplicates})` salta ante CUALQUIER violación de unicidad,
+ * y hay dos índices en juego. Un cero significaba, indistinguiblemente, «ya
+ * estaba» y «otro se llevó la guía para otro linaje». La primera versión
+ * respondía READY a las dos — un falso READY justo en el caso que este
+ * procedimiento existe para evitar.
+ *
+ * Las dos carreras, por separado, contra PostgreSQL real.
+ */
+suite("B5 · dos escritores compitiendo", () => {
+  let prisma: PrismaClient;
+  let pool: Pool;
+  let unitId: string;
+  let userId: string;
+  const DB3 = "b5_pre_archive_race_db";
+
+  beforeAll(async () => {
+    const admin = new Pool({ connectionString: base });
+    await admin.query(`DROP DATABASE IF EXISTS "${DB3}" WITH (FORCE)`);
+    await admin.query(`CREATE DATABASE "${DB3}"`);
+    await admin.end();
+
+    const url = withDatabase(base as string, DB3);
+    execSync("pnpm exec prisma migrate deploy", {
+      cwd: API_DIR,
+      env: { ...process.env, DATABASE_URL: url, PRISMA_SKIP_SEED: "1" },
+      stdio: "inherit",
+    });
+    pool = new Pool({ connectionString: url });
+    prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
+
+    const book = await prisma.book.create({
+      data: { slug: BOOK, title: "EEC", plan: "FREE" },
+    });
+    const ch = await prisma.chapter.create({
+      data: { bookId: book.id, order: 1, title: "C1", isPublished: true },
+    });
+    await prisma.chapterBlock.create({
+      data: { chapterId: ch.id, order: 0, kind: "PARAGRAPH", content: "x" },
+    });
+    await prisma.chapterBlock.create({
+      data: { chapterId: ch.id, order: 1, kind: "HEADING", content: HEADING },
+    });
+    await seedPracticeHeadings(prisma, ch.id, BOOK);
+    await seedRetiredPairHeadings(prisma, BOOK);
+    await backfillContentCore(prisma);
+    await seedRetiredPairExercises(prisma, BOOK);
+
+    const u = await prisma.user.create({
+      data: { email: "b5-race@example.test", name: "QA", plan: "FREE" },
+    });
+    userId = u.id;
+    const unidad = await prisma.contentUnit.findFirst({
+      select: { id: true },
+      orderBy: { createdAt: "asc" },
+    });
+    unitId = unidad!.id;
+  }, 240_000);
+
+  afterAll(async () => {
+    await prisma?.$disconnect().catch(() => undefined);
+    await pool?.end().catch(() => undefined);
+    const admin = new Pool({ connectionString: base });
+    await admin.query(`DROP DATABASE IF EXISTS "${DB3}" WITH (FORCE)`);
+    await admin.end();
+  }, 60_000);
+
+  beforeEach(async () => {
+    await prisma.guideSession.deleteMany({});
+    await prisma.experienceGuideReservation.deleteMany({});
+    await prisma.guideSession.create({
+      data: {
+        userId,
+        guideKey: PIN.experienceKey,
+        guideVersion: 1,
+        status: "ACTIVE",
+        stepsCompleted: 1,
+        totalSteps: 3,
+        currentStepKey: "paso-1",
+      },
+    });
+  });
+
+  it("la MISMA reserva, dos veces a la vez: idempotente y las dos READY", async () => {
+    const [a, b] = await Promise.all([
+      preArchiveCheck(prisma, PIN, true),
+      preArchiveCheck(prisma, PIN, true),
+    ]);
+
+    expect(a.verdict).toBe("READY");
+    expect(b.verdict).toBe("READY");
+    expect(await prisma.experienceGuideReservation.count()).toBe(1);
+  });
+
+  it("OTRO linaje ya tenía la guía: conflicto, no READY", async () => {
+    // Esta la atrapa la lectura previa, y ya pasaba antes del arreglo de B5:
+    // se comprobó quitando la relectura posterior y este caso siguió en
+    // verde. Se queda porque describe el escenario de cabecera, pero **no es
+    // el control negativo del fallo** — ése es el siguiente.
+    await prisma.experienceGuideReservation.create({
+      data: {
+        contentUnitId: unitId,
+        experienceKey: "otro-linaje-se-adelanto",
+        guideKey: PIN.experienceKey,
+      },
+    });
+
+    const r = await preArchiveCheck(prisma, PIN, true);
+
+    expect(r.verdict).toBe("CONFLICT");
+    expect(r.verdict).not.toBe("READY");
+    expect(r.conflictingReservation).toMatchObject({
+      experienceKey: "otro-linaje-se-adelanto",
+    });
+    // Y la reserva que hacía falta sigue sin existir: decirlo es el punto.
+    expect(
+      await prisma.experienceGuideReservation.findFirst({
+        where: { experienceKey: PIN.experienceKey },
+      }),
+    ).toBeNull();
+  });
+
+  it("el conflicto que aparece ENTRE la lectura y la escritura", async () => {
+    // El control negativo del fallo de B5, y el único de este archivo que
+    // cae sin el arreglo: comprobado quitando la relectura posterior, este
+    // caso —y sólo éste— pasó a fallar.
+    //
+    // La lectura previa no ve nada, así que el veredicto provisional sería
+    // NEEDS_RESERVATION; el intruso entra justo después, `createMany` salta
+    // por el índice `(unidad, guideKey)` y devuelve cero — indistinguible de
+    // «ya estaba». Con el contador como fuente, eso era un READY falso.
+    const original = prisma.experienceGuideReservation.createMany.bind(
+      prisma.experienceGuideReservation,
+    );
+    let interceptado = false;
+    (
+      prisma.experienceGuideReservation as unknown as {
+        createMany: typeof original;
+      }
+    ).createMany = (async (args: Parameters<typeof original>[0]) => {
+      if (!interceptado) {
+        interceptado = true;
+        await prisma.experienceGuideReservation.create({
+          data: {
+            contentUnitId: unitId,
+            experienceKey: "intruso-en-la-ventana",
+            guideKey: PIN.experienceKey,
+          },
+        });
+      }
+      return original(args);
+    }) as typeof original;
+
+    try {
+      const r = await preArchiveCheck(prisma, PIN, true);
+      expect(r.verdict).toBe("CONFLICT");
+      expect(r.conflictingReservation).toMatchObject({
+        experienceKey: "intruso-en-la-ventana",
+      });
+    } finally {
+      (
+        prisma.experienceGuideReservation as unknown as {
+          createMany: typeof original;
+        }
+      ).createMany = original;
+    }
   });
 });

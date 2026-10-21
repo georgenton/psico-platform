@@ -33,11 +33,17 @@ vi.mock("next/link", () => ({
  * B4 — el propio avance, que ahora se consulta incluso con el rollout
  * cerrado. Por defecto: esta persona no tiene nada aquí, que es el caso que
  * las pruebas de CC-7.R1 describían.
+ *
+ * B5 — `status` se declara con su unión entera, no con `as const`. Escrito
+ * `"ready" as const`, el tipo del campo quedaba fijado en `"ready"` y el caso
+ * «el servidor todavía no contesta» no compilaba. Vitest no se enteró —SWC
+ * borra los tipos sin comprobarlos— y el CI de este PR tampoco, por lo que
+ * dice el informe de B5 sobre `--affected`.
  */
 const { propio } = vi.hoisted(() => ({
   propio: {
     current: {
-      status: "ready" as const,
+      status: "ready" as "loading" | "ready" | "error",
       state: "NOT_STARTED" as "NOT_STARTED" | "ACTIVE" | "COMPLETED" | null,
       session: null as { stepsCompleted: number; totalSteps: number } | null,
     },

@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ChapterExperienceDefinition } from "@psico/types";
+import type {
+  ChapterExperienceDefinition,
+  ExperiencePublicationVerdict,
+} from "@psico/types";
 
 /**
  * CMS V1 (#637) — the editor's two jobs.
@@ -79,7 +82,9 @@ function definition(): ChapterExperienceDefinition {
   } as ChapterExperienceDefinition;
 }
 
-function renderEditor() {
+function renderEditor(
+  publication: ExperiencePublicationVerdict | null = { approved: true },
+) {
   return render(
     <DraftEditor
       id="row_1"
@@ -87,6 +92,7 @@ function renderEditor() {
       bookSlug="emociones-en-construccion"
       chapterOrder={1}
       contentUnitId="unit_eec_c1"
+      publication={publication}
     />,
   );
 }
@@ -287,5 +293,45 @@ describe("DraftEditor — preview", () => {
       await screen.findByText(/Sigue sin publicarse/i),
     ).toBeInTheDocument();
     expect(publishDraft).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * B3 · Prioridad A — la interfaz dice lo mismo que el servidor.
+ *
+ * Apagar el botón NO es la protección: ésa vive en
+ * `POST /drafts/:id/publish`, que recalcula el veredicto dentro del candado y
+ * responde 409. Lo que esto evita es que el editor aprenda la regla por
+ * castigo — pulsar y recibir un error que nadie le anunció.
+ */
+describe("DraftEditor — el control de publicación", () => {
+  it("no ofrece publicar cuando el servidor dice que no, y da el motivo", () => {
+    renderEditor({
+      approved: false,
+      code: "EXPERIENCE_NOT_APPROVED",
+      message:
+        "El manifiesto EEC-C01-MG03 declara que esta experiencia no puede publicarse todavía.",
+    });
+
+    const boton = screen.getByTestId("publish-draft");
+    expect(boton).toBeDisabled();
+    const motivo = screen.getByText(/EEC-C01-MG03/);
+    expect(boton).toHaveAttribute("aria-describedby", motivo.id);
+  });
+
+  it("un veredicto ausente se lee como no, no como sí", () => {
+    // Una API anterior a este control no manda el campo. Tratarlo como
+    // permiso sería dejar que el silencio autorizara.
+    renderEditor(null);
+
+    expect(screen.getByTestId("publish-draft")).toBeDisabled();
+    expect(screen.getByText(/no se pudo comprobar/i)).toBeInTheDocument();
+  });
+
+  it("control negativo — con aprobación, el botón sigue siendo un botón", () => {
+    renderEditor({ approved: true });
+
+    expect(screen.getByTestId("publish-draft")).toBeEnabled();
+    expect(screen.queryByText(/no se pudo comprobar/i)).not.toBeInTheDocument();
   });
 });

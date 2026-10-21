@@ -79,6 +79,7 @@ export default async function AdminDraftEditorPage({
             bookSlug={params.bookSlug}
             chapterOrder={chapterOrder}
             contentUnitId={draft.contentUnitId}
+            publication={draft.publication ?? null}
           />
           <GuideBindingCard
             id={draft.id}

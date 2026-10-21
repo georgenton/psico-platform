@@ -949,7 +949,15 @@ describe("ratchet · the cutover migrations say what they do", () => {
     // which is why it has no entry in `circles-scope.spec.ts`. Named here for
     // the same reason as the others.
     expect(dirs).toContain("20260917000000_circles_flexible_onboarding");
-    expect(dirs).toHaveLength(69);
+    // …y la que debe el control de publicación editorial (B3): una columna
+    // JSONB anulable en `ChapterExperienceVersion` con la procedencia del
+    // manifiesto. Aditiva —crea, no altera nada existente— y con un relleno
+    // explícito que marca como HISTÓRICAS las filas que ya existían, para que
+    // «anterior al control» y «creada después sin declarar procedencia» no se
+    // lean igual. Ninguna de las dos publica. Nombrada aquí por la misma razón
+    // que las demás: subir el número sin añadir un nombre falla.
+    expect(dirs).toContain("20261021000000_editorial_origin_seal");
+    expect(dirs).toHaveLength(70);
     expect(dirs.filter((d) => d.includes("c3r"))).toEqual([]);
   });
 

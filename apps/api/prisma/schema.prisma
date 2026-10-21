@@ -2785,6 +2785,26 @@ model ChapterExperienceVersion {
   /// archived one that released.
   guideKey      String?
 
+  /// B3 — de dónde viene esta fila, editorialmente, y qué se aprobó.
+  ///
+  /// Tres formas posibles, y las tres significan cosas distintas al publicar
+  /// (`experience-editorial-seal.ts` las decide):
+  ///
+  ///   - `{kind:"manifest", …}`        — la herramienta la creó desde un
+  ///     manifiesto y guardó su identidad, su revisión canónica y el resumen
+  ///     del contenido aprobado. Publicar vuelve a comprobar las tres.
+  ///   - `{kind:"unsealed", reason}`   — nació por un camino sin manifiesto:
+  ///     el editor, o un clon hacia adelante. No hay aprobación que la cubra.
+  ///   - `{kind:"legacy_unsealed"}`    — existía antes de este control. La
+  ///     migración la marca así; no es una irregularidad, es historia.
+  ///
+  /// Anulable para que la migración sea aditiva, pero `null` **no pasa**: el
+  /// gate falla cerrado y lo reporta como procedencia ilegible. Las filas que
+  /// ya existían se rellenan con el marcador histórico en la propia migración,
+  /// así que un `null` sólo puede venir de un camino de escritura nuevo que se
+  /// olvidó de declarar su procedencia — y eso debe detenerse, no pasar.
+  editorialOrigin Json?
+
   createdBy User @relation(fields: [createdByUserId], references: [id], onDelete: Cascade)
 
   /// C.3A — the chapter this row names, as a fact of its own.

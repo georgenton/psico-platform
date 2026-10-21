@@ -62,6 +62,15 @@ export interface GuideManifest {
   chapterOrder: number;
   unitKey: string;
   canonicalSha256: string;
+  /**
+   * La revisión del manuscrito de la que sale este texto, y quién la aprobó.
+   *
+   * Estaban en los 83 manifiestos desde siempre y este tipo no los declaraba
+   * porque nadie los leía. B3 los lee: forman parte del sello editorial que
+   * viaja con el borrador y que `publish` vuelve a comprobar.
+   */
+  canonicalVersion: string;
+  approvalReferences: unknown[];
   experienceKey: string;
   experienceVersion: number;
   guideKey: string;

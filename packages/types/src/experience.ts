@@ -462,4 +462,32 @@ export interface AdminExperienceDraft {
    * answer with a conflict.
    */
   rebindable: boolean;
+  /**
+   * B3 — si este borrador puede publicarse, y por qué no cuando no.
+   *
+   * Lo calcula el servidor con la MISMA función que aplica `publish`, sobre la
+   * misma fila. Viaja hasta aquí para que el editor lea el motivo antes de
+   * pulsar, no para que el navegador decida: apagar el botón no protege nada,
+   * y una interfaz que escondiera el control sin que el endpoint negara sería
+   * una puerta cerrada con un cartel.
+   *
+   * Opcional por compatibilidad: una API anterior a este control no lo manda,
+   * y su ausencia se lee como «no se pudo preguntar» — que no es un sí.
+   */
+  publication?: ExperiencePublicationVerdict;
 }
+
+/** El veredicto editorial de un borrador. Ver `experience-editorial-seal`. */
+export type ExperiencePublicationVerdict =
+  | { approved: true }
+  | {
+      approved: false;
+      code:
+        | "EXPERIENCE_APPROVAL_UNREADABLE"
+        | "EXPERIENCE_APPROVAL_ABSENT_LEGACY"
+        | "EXPERIENCE_APPROVAL_ABSENT"
+        | "EXPERIENCE_NOT_APPROVED"
+        | "EXPERIENCE_APPROVAL_STALE"
+        | "EXPERIENCE_APPROVAL_IDENTITY_MISMATCH";
+      message: string;
+    };

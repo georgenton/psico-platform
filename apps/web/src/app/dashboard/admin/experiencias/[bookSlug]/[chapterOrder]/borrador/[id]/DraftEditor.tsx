@@ -6,6 +6,7 @@ import {
   EXPERIENCE_SCENE_KINDS,
   type ChapterExperienceDefinition,
   type ChapterExperiencePublicView,
+  type ExperiencePublicationVerdict,
   type ExperienceSceneDefinition,
   type ExperienceSceneKind,
 } from "@psico/types";
@@ -96,6 +97,7 @@ export function DraftEditor({
   bookSlug,
   chapterOrder,
   contentUnitId,
+  publication,
 }: {
   id: string;
   initial: ChapterExperienceDefinition;
@@ -110,6 +112,15 @@ export function DraftEditor({
    * than a write against whatever chapter now answers to this number.
    */
   contentUnitId: string | null;
+  /**
+   * B3 — el veredicto editorial que aplicará el servidor, tal cual.
+   *
+   * `null` cuando la API no lo manda (una anterior a este control). Se lee
+   * como «no se pudo preguntar», que no es un sí: el control queda apagado y
+   * se dice por qué. La protección sigue estando en el endpoint — esto sólo
+   * evita que el editor aprenda la regla por castigo.
+   */
+  publication: ExperiencePublicationVerdict | null;
 }) {
   const router = useRouter();
   const [definition, setDefinition] =
@@ -128,6 +139,17 @@ export function DraftEditor({
     ),
   );
   const [busy, setBusy] = useState<null | "save" | "publish" | "preview">(null);
+  /**
+   * B3 — ¿puede publicarse? La respuesta es del servidor; aquí sólo se lee.
+   *
+   * Ausente se trata como no, por la misma razón que `startable` en el
+   * reproductor: un campo que no llegó significa «no se pudo preguntar», y
+   * ofrecer un botón sobre esa base es prometer algo que el endpoint va a
+   * negar. Si el veredicto se queda obsoleto —porque alguien guardó un cambio
+   * en otra pestaña— quien decide sigue siendo `publish`, que lo recalcula
+   * dentro del candado y vuelve a negar.
+   */
+  const puedePublicar = publication?.approved === true;
   /** The saved draft as a reader would receive it, mapped by the server. */
   const [preview, setPreview] = useState<ChapterExperiencePublicView | null>(
     null,
@@ -410,10 +432,13 @@ export function DraftEditor({
         <button
           type="button"
           onClick={() => void publish()}
-          disabled={busy !== null}
+          disabled={busy !== null || !puedePublicar}
           className="rounded-full px-5 text-[13.5px] font-semibold text-white disabled:opacity-60"
           style={{ minHeight: 44, background: "var(--color-sage-500)" }}
           data-testid="publish-draft"
+          {...(puedePublicar
+            ? {}
+            : { "aria-describedby": "motivo-publicacion" })}
         >
           {busy === "publish" ? "Publicando…" : "Publicar"}
         </button>
@@ -425,6 +450,18 @@ export function DraftEditor({
             {message}
           </span>
         ) : null}
+        {puedePublicar ? null : (
+          <span
+            id="motivo-publicacion"
+            role="status"
+            className="text-[13px]"
+            style={{ color: "var(--color-warm-600)" }}
+          >
+            {publication && !publication.approved
+              ? publication.message
+              : "No se pudo comprobar si este borrador está aprobado, así que no se ofrece publicarlo."}
+          </span>
+        )}
         {error ? (
           <span
             className="text-[13px]"

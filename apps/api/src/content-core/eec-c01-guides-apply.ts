@@ -9,6 +9,10 @@ import {
 } from "./learning-activation";
 import type { FlagName } from "../shared/flags";
 import type { GuideManifest } from "./eec-c01-guides-cli";
+import {
+  sealForManifest,
+  type EditorialSeal,
+} from "../experience/experience-editorial-seal";
 
 /**
  * EEC-C01 — the writing half of the guided-suite CLI.
@@ -234,6 +238,12 @@ export interface DraftCreator {
     userId: string,
     input: ChapterExperienceDefinition,
     expectedContentUnitId?: string | null,
+    /**
+     * B3 — la procedencia editorial del borrador. Esta herramienta es la
+     * ÚNICA que tiene un manifiesto en la mano, así que es la única que puede
+     * sellar. Lo que cree el panel nace sin sello, y eso queda escrito.
+     */
+    seal?: EditorialSeal,
   ): Promise<{ id: string }>;
 }
 
@@ -521,10 +531,15 @@ export async function createDrafts(
       // The unit the plan resolved travels with the write: the service takes
       // the chapter lock and refuses if the chapter has moved to another unit
       // between planning and applying, instead of binding to whatever it finds.
+      const definition = toDefinition(m);
       const created = await service.createDraft(
         userId,
-        toDefinition(m),
+        definition,
         expectedContentUnitId ?? null,
+        // El sello se calcula sobre la definición que de verdad se escribe,
+        // no sobre el manifiesto: el resumen tiene que cubrir el contenido
+        // que `publish` va a releer, y entre uno y otro hay una conversión.
+        sealForManifest(m, definition),
       );
       row.action = "CREATED";
       row.id = created.id;

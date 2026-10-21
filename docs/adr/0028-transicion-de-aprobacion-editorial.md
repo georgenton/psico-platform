@@ -107,24 +107,115 @@ openssl pkeyutl -sign -rawin -inkey clave-privada.pem -in /tmp/acta.txt \
   | openssl base64 -A
 ```
 
-## Lo que falta decidir, y es del propietario
+## Gobernanza: lo que falta decidir, y es del propietario
 
-1. **De quién es la clave.** La propuesta es: de la autora del contenido, no
-   de la plataforma ni del equipo técnico. Una clave del equipo reintroduce el
-   problema con un rodeo más largo.
-2. **Dónde se guarda.** Fuera del repositorio y fuera de la plataforma. Un
-   gestor de contraseñas personal o una llave de hardware; no un secreto de
-   despliegue, porque quien administra los secretos volvería a ser aprobador.
-3. **Qué `keyId` se usa y cómo se rota.** El llavero admite varias claves a la
-   vez justamente para poder rotar sin invalidar lo ya aprobado.
-4. **Dónde vive la clave pública.** Hoy en `EDITORIAL_APPROVAL_KEYS`, en el
-   entorno. **No en el repositorio:** una clave pública guardada junto al
-   artefacto que autoriza no es una autoridad, es una decoración — quien pueda
-   cambiar uno puede cambiar la otra.
+Lo implementado es criptografía, y la criptografía demuestra **posesión de una
+clave**. Nada más. Que esa clave sea de quien tiene autoridad editorial sobre
+esa obra es un hecho del mundo, y hace falta un procedimiento para
+establecerlo. Sin él, el sistema comprueba firmas impecablemente y no sabe de
+quién son.
 
-Mientras eso no se decida, el llavero está vacío y **ninguna instalación puede
-aprobar nada**. Es el estado de hoy y es seguro: «no se pudo comprobar» nunca
-significa «adelante».
+Y no hay **una** autora. FeelVerse tiene obras con autorías distintas
+—_Emociones en Construcción_ y _Parejas que Perduran_ no son de la misma
+persona—, así que «la clave de la autora» no es una respuesta: hay que decir
+de qué obra, y quién decide por ella.
+
+### 1 · Autoridad para aprobar una obra
+
+Quién puede decir «esto se publica» **para cada obra**, no para la
+plataforma. La propuesta: la persona autora, o quien ella designe por escrito.
+Lo que no funciona es atar la autoridad a un rol del sistema: ADMIN es un
+permiso de operación, y cualquiera que lo administre heredaría la decisión
+editorial.
+
+Casos que la política tiene que contestar: coautoría (¿una firma basta o hacen
+falta dos?), obra encargada (¿aprueba quien la escribió o quien la encargó?) y
+contenido derivado de un libro de un tercero con licencia.
+
+### 2 · Custodia de la clave
+
+Fuera del repositorio y fuera de la plataforma. Un gestor de contraseñas
+personal o una llave de hardware; **no** un secreto de despliegue, porque
+quien administra los secretos volvería a ser aprobador por la puerta de atrás.
+
+Si la autora no puede custodiar una clave —cosa razonable—, la alternativa
+honesta no es dársela al equipo técnico, sino un **tercero de confianza**
+nombrado por ella, con un registro de cada uso. Lo que no cabe es fingir que
+la custodia es un detalle de implementación.
+
+### 3 · Registro confiable de claves públicas
+
+El llavero (`EDITORIAL_APPROVAL_KEYS`) dice qué claves reconoce una
+instalación. No dice de quién son. Hace falta un registro aparte —fuera del
+código— que ate `keyId` ↔ persona ↔ obra ↔ fecha, y un modo de comprobarlo que
+no dependa de la misma gente que administra el entorno.
+
+El mínimo viable: una entrada por clave en el expediente, con la huella
+pública completa, quién la generó, ante quién, y para qué obras vale. Una
+clave que no esté ahí no debería configurarse, aunque técnicamente funcione.
+
+### 4 · Alta y revocación
+
+**Alta:** la autora genera su par, enseña la pública, se registra en el
+expediente y se configura en el entorno. La privada no viaja.
+
+**Revocación:** quitar el `keyId` del llavero. Inmediata y total: a partir de
+ahí ninguna firma suya verifica. Tiene un efecto que hay que decidir
+expresamente — ver el punto 8.
+
+### 5 · Rotación
+
+El llavero admite varias claves a la vez justamente para esto: se añade la
+nueva, conviven, y se retira la vieja cuando ya no haya nada pendiente de
+re-sellar con ella. La rotación no invalida lo ya aprobado mientras la vieja
+siga en el llavero.
+
+Cadencia: no hay motivo técnico para rotar periódicamente una clave que sólo
+firma actas. Rotar tiene sentido ante sospecha, cambio de custodio o cambio de
+autoridad.
+
+### 6 · Pérdida de una clave
+
+Pérdida **sin** compromiso (se borró, se rompió el dispositivo): se da de alta
+una nueva y se vuelven a firmar las actas que hagan falta. Nada publicado se
+cae, porque el sello guardado conserva la firma antigua y el llavero puede
+seguir reconociendo la clave vieja.
+
+Pérdida **con** compromiso (alguien más la tiene): hay que revocar, y entonces
+toda aprobación firmada con ella pasa a no verificar. Eso es lo correcto y es
+caro. Por eso el punto 8 no es una formalidad.
+
+### 7 · Trazabilidad
+
+Hoy el sello guarda `keyId`, `approvedBy`, `approvedAt` y la firma, y el acta
+guarda además la revisión canónica y el resumen del contenido. Con eso se
+puede reconstruir **qué se aprobó y con qué clave**. Lo que no hay es un
+registro de los intentos: quién corrió `reseal` y cuándo. Si eso importa
+—y para una decisión editorial probablemente importe—, es una tabla de
+auditoría que aún no existe.
+
+### 8 · Efecto sobre versiones ya publicadas
+
+La pregunta que hay que contestar antes de necesitarla: **si una clave se
+revoca, ¿qué pasa con lo que ya está publicado y en manos de lectores?**
+
+- **Opción A — la publicación es un hecho consumado.** Lo publicado sigue
+  publicado; la revocación sólo afecta a aprobaciones futuras. Riesgo: una
+  obra aprobada con una clave comprometida sigue sirviéndose.
+- **Opción B — la verificación es continua.** `publish` ya revalida, así que
+  una re-publicación fallaría; habría que decidir además si algo despublica lo
+  servido. Riesgo: una revocación por un motivo administrativo retira
+  contenido legítimo de delante de lectores que lo estaban usando.
+
+Hoy el sistema hace **A** por omisión: la fila publicada ya no vuelve a pasar
+por el gate. No está decidido; está sin decidir y funcionando como A.
+
+### Mientras tanto
+
+El llavero está vacío y **ninguna instalación puede aprobar nada**. Es el
+estado de hoy y es el seguro: «no se pudo comprobar» nunca significa
+«adelante». **El sistema permanece cerrado a publicaciones nuevas hasta que
+esta política se resuelva**, que es exactamente donde debe estar.
 
 ## Qué NO cambia
 

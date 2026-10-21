@@ -24,6 +24,29 @@ vi.mock("../experience/use-chapter-experience", () => ({
   useChapterExperience: () => experiencia.current,
 }));
 
+/**
+ * B4 — el rótulo lo decide el servidor. Las pruebas controlan su respuesta en
+ * vez de escribir en `localStorage` y esperar que el componente se lo crea.
+ */
+const { propio } = vi.hoisted(() => ({
+  propio: {
+    current: {
+      status: "ready" as const,
+      state: "NOT_STARTED" as "NOT_STARTED" | "ACTIVE" | "COMPLETED" | null,
+      session: null as unknown,
+    },
+  },
+}));
+
+vi.mock("./use-guide-own-state", () => ({
+  useGuideOwnState: () => propio.current,
+}));
+
+/** Lo que el ledger dice de esta persona en este pin. */
+function tiene(state: "NOT_STARTED" | "ACTIVE" | "COMPLETED") {
+  propio.current = { status: "ready", state, session: null };
+}
+
 import { GuideEntryCard } from "./GuideEntryCard";
 import { guideStorageKey } from "./guide-recovery";
 import { EEC_EXPERIENCE, EEC_PIN } from "./guide-test-fixtures";
@@ -54,6 +77,7 @@ const SCOPE_B = "B".repeat(43);
 beforeEach(() => {
   window.localStorage.clear();
   resuelve(true);
+  tiene("NOT_STARTED");
 });
 
 describe("GuideEntryCard", () => {
@@ -81,7 +105,11 @@ describe("GuideEntryCard", () => {
     expect(screen.getByRole("link")).toHaveTextContent("Empezar guía");
   });
 
-  it("switches to 'Continuar guía' once a valid record is found", async () => {
+  it("switches to 'Continuar guía' when the SERVER says there is an open run", async () => {
+    // B4 — antes bastaba con un registro en `localStorage`. Eso es una pista
+    // sobre este navegador, no una sesión: no dice que exista, ni de quién
+    // es, ni en qué punto está. Ahora lo decide el ledger.
+    tiene("ACTIVE");
     window.localStorage.setItem(
       GUIDE_STORAGE_KEY,
       JSON.stringify({
@@ -147,7 +175,9 @@ describe("GuideEntryCard — cuando ya no se puede empezar", () => {
 
   it("tampoco promete continuar sólo porque el navegador tenga un registro", () => {
     // Un registro local es una pista, no una sesión. Prometer «Continuar»
-    // sobre un pin retirado sería creerle al navegador antes que al servidor.
+    // sobre él sería creerle al navegador antes que al servidor — y el
+    // servidor, aquí, dice que esta persona no tiene nada abierto.
+    tiene("NOT_STARTED");
     window.localStorage.setItem(
       GUIDE_STORAGE_KEY,
       JSON.stringify({
@@ -164,10 +194,11 @@ describe("GuideEntryCard — cuando ya no se puede empezar", () => {
     expect(screen.getByRole("link")).toHaveTextContent("Abrir guía");
   });
 
-  it("desaparece cuando no hay nada que abrir", () => {
+  it("desaparece cuando no hay nada que abrir NI nada propio", () => {
     // Ni el capítulo la ofrece ni esta persona tiene un recorrido propio en
     // ella. Anunciarla sería ofrecer una puerta a ninguna parte.
     resuelve(null);
+    tiene("NOT_STARTED");
     const { container } = render(<GuideEntryCard actorScope={SCOPE_A} />);
 
     expect(container).toBeEmptyDOMElement();
@@ -178,5 +209,40 @@ describe("GuideEntryCard — cuando ya no se puede empezar", () => {
     render(<GuideEntryCard actorScope={SCOPE_A} />);
 
     expect(screen.getByRole("link")).toHaveTextContent("Empezar guía");
+  });
+});
+
+/**
+ * B4 — un recorrido retirado que YA es de alguien.
+ *
+ * El caso que el rótulo contaba mal: `canResume` mezclaba el registro local
+ * con `startable`, así que quien tenía progreso real sobre una experiencia
+ * retirada recibía «Abrir guía», como si no tuviera nada.
+ */
+describe("GuideEntryCard — con progreso propio sobre algo retirado", () => {
+  it("dice «Continuar», aunque ya no se pueda empezar", () => {
+    resuelve(false);
+    tiene("ACTIVE");
+    render(<GuideEntryCard actorScope={SCOPE_A} />);
+
+    expect(screen.getByRole("link")).toHaveTextContent("Continuar guía");
+  });
+
+  it("y «Ver mi recorrido» cuando lo terminó", () => {
+    // Ni «Empezar» —imposible— ni «Continuar» —no hay nada que continuar—.
+    resuelve(false);
+    tiene("COMPLETED");
+    render(<GuideEntryCard actorScope={SCOPE_A} />);
+
+    expect(screen.getByRole("link")).toHaveTextContent("Ver mi recorrido");
+  });
+
+  it("no desaparece si esta persona tiene algo aquí", () => {
+    // Aunque el capítulo ya no la ofrezca: lo suyo sigue siendo suyo.
+    resuelve(null);
+    tiene("COMPLETED");
+    const { container } = render(<GuideEntryCard actorScope={SCOPE_A} />);
+
+    expect(container).not.toBeEmptyDOMElement();
   });
 });

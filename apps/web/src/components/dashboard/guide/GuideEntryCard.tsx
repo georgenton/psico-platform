@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { guideRecoveryState } from "./guide-recovery";
 import { resolveGuideWebBundle } from "./guide-web-bundle";
 import { useChapterExperience } from "../experience/use-chapter-experience";
+import { useGuideOwnState } from "./use-guide-own-state";
 
 /**
  * GR-4 — the guide this Exploraciones card advertises, stated explicitly.
@@ -97,7 +98,22 @@ export function GuideEntryCard({
   });
   const resuelta = experiencia.definition;
   const sePuedeEmpezar = resuelta?.startable === true;
-  const canResume = storage === "valid" && sePuedeEmpezar;
+  /**
+   * B4 — el rótulo lo decide el SERVIDOR, no este navegador.
+   *
+   * `storage` dice que alguien empezó algo aquí alguna vez. No dice que la
+   * sesión exista, ni de quién es, ni en qué punto está. Combinarlo con
+   * `startable` producía las dos mentiras opuestas: «Abrir guía» a quien sí
+   * tenía progreso en un recorrido retirado, y «Continuar» sobre sesiones que
+   * el ledger ya no tenía. Se pregunta.
+   *
+   * `storage` no desaparece: sigue avisando cuando este navegador no puede
+   * guardar la recuperación, que es un hecho sobre el navegador y no sobre la
+   * sesión.
+   */
+  const propio = useGuideOwnState(CARD_PIN, actorScope !== null);
+  const canResume = propio.state === "ACTIVE";
+  const terminado = propio.state === "COMPLETED";
 
   // No bundle, no card. A guide this build cannot render is a guide the
   // catalog must not advertise.
@@ -106,7 +122,17 @@ export function GuideEntryCard({
   // nada que abrir: ni el capítulo la ofrece ni esta persona tiene un
   // recorrido en ella. Mientras la respuesta no llega la tarjeta se queda,
   // con un rótulo que no promete empezar.
-  if (experiencia.status !== "loading" && resuelta === null) return null;
+  // Nada que ofrecer Y nada propio que consultar: entonces sí desaparece.
+  // Mientras el servidor no haya contestado no se decide: esconder una
+  // tarjeta para devolverla medio segundo después es peor que esperar.
+  if (
+    experiencia.status !== "loading" &&
+    resuelta === null &&
+    propio.status === "ready" &&
+    propio.state === "NOT_STARTED"
+  ) {
+    return null;
+  }
   const { presentation } = bundle;
   const href = presentation.href;
 
@@ -149,13 +175,15 @@ export function GuideEntryCard({
       >
         {canResume
           ? presentation.labels.resume
-          : sePuedeEmpezar
-            ? presentation.labels.start
-            : // Ni «Empezar» ni «Continuar»: lo uno sería mentira y lo otro
-              // una promesa que esta tarjeta no puede comprobar desde aquí.
-              // Abrir es exactamente lo que hace, y la pantalla de destino
-              // dice la verdad sobre lo que hay.
-              "Abrir guía"}
+          : terminado
+            ? "Ver mi recorrido"
+            : sePuedeEmpezar
+              ? presentation.labels.start
+              : // Ni «Empezar» ni «Continuar»: no hay recorrido propio y no
+                // se puede abrir uno nuevo. Abrir es lo único que esta
+                // tarjeta hace de verdad, y la pantalla de destino explica
+                // qué hay al otro lado.
+                "Abrir guía"}
       </Link>
       {storage === "unavailable" ? (
         // Saying "Empezar" without this would promise something this browser

@@ -43,10 +43,20 @@ const GUIDES: GuideRouteItem[] = [
 const verdicts = (m: Record<string, RouteCardVerdict>) =>
   new Map(Object.entries(m));
 
+/**
+ * Las tres del fixture tienen experiencia publicada y arrancable, salvo en
+ * las pruebas que existen para el caso contrario. Por defecto, estas pruebas
+ * siguen hablando del VEREDICTO, que es lo que siempre midieron.
+ */
+const TODAS_EJECUTABLES = new Set(
+  GUIDES.map((g) => `${g.guideKey}@${g.guideVersion}`),
+);
+
 describe("the guided route list", () => {
   it("renders nothing while the route is dark", () => {
     const { container } = render(
       <GuidedRouteList
+        runnablePins={TODAS_EJECUTABLES}
         state={{ status: "unavailable" }}
         verdicts={new Map()}
         onOpen={() => {}}
@@ -59,6 +69,7 @@ describe("the guided route list", () => {
   it("shows a skeleton while it is loading", () => {
     render(
       <GuidedRouteList
+        runnablePins={TODAS_EJECUTABLES}
         state={{ status: "loading" }}
         verdicts={new Map()}
         onOpen={() => {}}
@@ -75,6 +86,7 @@ describe("the guided route list", () => {
     const onRetry = vi.fn();
     render(
       <GuidedRouteList
+        runnablePins={TODAS_EJECUTABLES}
         state={{ status: "error" }}
         verdicts={new Map()}
         onOpen={() => {}}
@@ -92,6 +104,7 @@ describe("the guided route list", () => {
   it("lists one card per reading, in the server's order", () => {
     render(
       <GuidedRouteList
+        runnablePins={TODAS_EJECUTABLES}
         state={{ status: "available", guides: GUIDES }}
         verdicts={new Map()}
         onOpen={() => {}}
@@ -107,6 +120,7 @@ describe("the guided route list", () => {
   it("gives every card its own verdict, independently", () => {
     render(
       <GuidedRouteList
+        runnablePins={TODAS_EJECUTABLES}
         state={{ status: "available", guides: GUIDES }}
         verdicts={verdicts({
           "eec-c1-teorias-como-lentes@1": "completed",
@@ -132,6 +146,7 @@ describe("the guided route list", () => {
   it("refuses to offer a click when there is no verdict", () => {
     render(
       <GuidedRouteList
+        runnablePins={TODAS_EJECUTABLES}
         state={{ status: "available", guides: GUIDES }}
         verdicts={new Map()}
         onOpen={() => {}}
@@ -149,6 +164,7 @@ describe("the guided route list", () => {
     const onOpen = vi.fn();
     render(
       <GuidedRouteList
+        runnablePins={TODAS_EJECUTABLES}
         state={{ status: "available", guides: GUIDES }}
         verdicts={verdicts({ "eec-c1-rostro-como-pista@1": "start" })}
         onOpen={onOpen}
@@ -165,6 +181,7 @@ describe("the guided route list", () => {
     const onOpen = vi.fn();
     render(
       <GuidedRouteList
+        runnablePins={TODAS_EJECUTABLES}
         state={{ status: "available", guides: GUIDES }}
         verdicts={verdicts({ "eec-c1-teorias-como-lentes@1": "start" })}
         onOpen={onOpen}
@@ -181,6 +198,7 @@ describe("the guided route list", () => {
   it("never shows the historical pilot as one more card", () => {
     render(
       <GuidedRouteList
+        runnablePins={TODAS_EJECUTABLES}
         state={{ status: "available", guides: GUIDES }}
         verdicts={new Map()}
         onOpen={() => {}}
@@ -258,5 +276,73 @@ describe("the route hook", () => {
       }),
     );
     await waitFor(() => expect(result.current.status).toBe("error"));
+  });
+});
+
+describe("una guía sin experiencia ejecutable no se ofrece", () => {
+  it("la tarjeta queda deshabilitada aunque su veredicto diga «Empezar»", () => {
+    // El veredicto dice lo que la persona ha hecho: para una guía que nadie
+    // empezó, `start`. Eso no dice nada sobre si hay algo que abrir. El pin
+    // de esta tarjeta no está entre los ejecutables.
+    render(
+      <GuidedRouteList
+        state={{ status: "available", guides: GUIDES }}
+        verdicts={verdicts({
+          "eec-c1-teorias-como-lentes@1": "start",
+          "eec-c1-rostro-como-pista@1": "start",
+          "eec-c1-alarma-antes-del-relato@1": "start",
+        })}
+        runnablePins={new Set(["eec-c1-rostro-como-pista@1"])}
+        onOpen={() => {}}
+      />,
+    );
+
+    const sinEjecutor = screen.getByRole("button", {
+      name: "No disponible ahora: Las teorías son lentes",
+    });
+    expect(sinEjecutor).toBeDisabled();
+
+    // Y la que sí tiene experiencia conserva su oferta.
+    expect(
+      screen.getByRole("button", { name: "Empezar: El rostro como pista" }),
+    ).toBeEnabled();
+  });
+
+  it("no se puede abrir pulsándola", async () => {
+    const onOpen = vi.fn();
+    const usuario = userEvent.setup();
+    render(
+      <GuidedRouteList
+        state={{ status: "available", guides: GUIDES }}
+        verdicts={verdicts({ "eec-c1-teorias-como-lentes@1": "start" })}
+        runnablePins={new Set()}
+        onOpen={onOpen}
+      />,
+    );
+
+    await usuario
+      .click(
+        screen.getByRole("button", {
+          name: "No disponible ahora: Las teorías son lentes",
+        }),
+      )
+      .catch(() => {
+        /* un control deshabilitado rechaza el clic: es el resultado buscado */
+      });
+
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it("tampoco presenta «En curso» para algo que no puede continuar", () => {
+    render(
+      <GuidedRouteList
+        state={{ status: "available", guides: GUIDES }}
+        verdicts={verdicts({ "eec-c1-teorias-como-lentes@1": "continue" })}
+        runnablePins={new Set()}
+        onOpen={() => {}}
+      />,
+    );
+
+    expect(screen.queryByText("En curso")).not.toBeInTheDocument();
   });
 });

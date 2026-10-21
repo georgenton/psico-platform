@@ -20,6 +20,7 @@ import type {
   ExperienceSceneDefinition,
 } from "@psico/types";
 import { EXERCISE_INGESTION_CATALOG } from "../content-core/exercise-ingestion-catalog";
+import { isStartableGuidePin } from "../guide/guide-discovery-catalog";
 
 /** The recall item's public half, or `null` when this build has no such item. */
 function recallView(
@@ -134,6 +135,17 @@ export function toPublicExperienceView(
     },
     scenes: definition.scenes.map((s) =>
       toPublicSceneView(s, definition.bookSlug),
+    ),
+    // Published is not the same question as startable, and only the server can
+    // answer the second: `RETIRED_FOR_NEW_STARTS` keeps a pin resolvable for
+    // the sessions already on it while refusing new ones. Discovery used to
+    // omit it, so the browser offered «Empezar experiencia» for a pin whose
+    // `POST /guide/sessions` answers 410 — measured on
+    // `eec-c1-cuerpo-antes-que-mente@1`. The decision already exists; this
+    // only tells the client, which is the one drawing the button.
+    startable: isStartableGuidePin(
+      definition.guidePin.guideKey,
+      definition.guidePin.guideVersion,
     ),
   };
 }

@@ -365,11 +365,24 @@ export function ExperiencePlayerSurface({
             ? ` · unos ${definition.estimatedMinutes} minutos`
             : ""}
         </p>
+        {/* Published and startable are different questions, and until the
+            server began answering the second this cover offered «Empezar
+            experiencia» for a pin whose `POST /guide/sessions` replies 410 —
+            measured on `eec-c1-cuerpo-antes-que-mente@1`, retired for new
+            starts so the sessions already on it keep working. A press that
+            can only be refused is not an offer. Absent reads as "could not
+            ask", and that is not a licence either. */}
+        {definition.startable !== true ? (
+          <p style={mutedStyle} role="status">
+            Esta experiencia no admite recorridos nuevos. Si ya la empezaste,
+            puedes continuarla desde donde la dejaste.
+          </p>
+        ) : null}
         <SceneActions>
           <SceneAction
             label={run.busy ? "Abriendo…" : "Empezar experiencia"}
             onClick={() => void run.start()}
-            disabled={run.busy}
+            disabled={run.busy || definition.startable !== true}
           />
           {onClose ? (
             <SceneAction label="Ahora no" onClick={onClose} variant="ghost" />

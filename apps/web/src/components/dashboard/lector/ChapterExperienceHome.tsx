@@ -9,6 +9,7 @@ import {
 import { GuidedRouteList } from "../guide/GuidedRouteList";
 import { belongsInLegacyExperienceList } from "../guide/guide-discovery-surface";
 import type { RouteCardVerdict } from "../guide/GuidedRouteList";
+import { routePinKey } from "../guide/guide-route-verdict";
 import type { GuideRouteState } from "../guide/use-guide-route";
 import type { GuideRouteItem } from "@psico/types";
 import type { BookExperienceModeView } from "./book-experience";
@@ -389,6 +390,19 @@ export function ChapterExperienceHome({
         <GuidedRouteList
           state={routeState}
           verdicts={routeVerdicts ?? new Map()}
+          // What this chapter can actually run, from the SAME batched
+          // discovery the cards above are drawn from — no second request and
+          // no second authority. `startable` is the server's own answer about
+          // a pin that stays published for the sessions already on it while
+          // refusing new ones; a client that reads it as absent offers
+          // nothing, which is the honest reading of "I could not ask".
+          runnablePins={
+            new Set(
+              experiences
+                .filter((e) => e.startable === true)
+                .map((e) => routePinKey(e.guidePin)),
+            )
+          }
           onOpen={onOpenRouteGuide}
           onRetry={onRetryRoute}
         />

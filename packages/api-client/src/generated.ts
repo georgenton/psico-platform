@@ -15280,6 +15280,8 @@ export interface operations {
                                     }[];
                                 };
                             }[];
+                            /** @description Si este pin admite empezar una sesión NUEVA. Publicada y arrancable no son la misma pregunta: un pin retirado para inicios nuevos sigue publicado para que las sesiones que ya lo fijaron terminen, y POST /guide/sessions responde 410. Ausente se lee como «no se pudo preguntar», que no autoriza ofrecer. */
+                            startable?: boolean;
                         }[];
                     };
                 };

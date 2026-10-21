@@ -25,6 +25,10 @@ const view = (
   title,
   guidePin: { guideKey, guideVersion: 1 },
   scenes: [],
+  // Publicada Y arrancable: este fixture representa lo que el servidor sirve
+  // cuando hay algo que recorrer. Una vista sin esta respuesta se lee como
+  // «no se pudo preguntar», y entonces la tarjeta no se ofrece.
+  startable: true,
 });
 
 const FIVE = EEC_C01_MICROGUIDES.map((m) => view(`eec-c1-${m.slug}`, m.title));

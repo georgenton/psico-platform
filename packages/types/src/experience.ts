@@ -344,6 +344,20 @@ export interface ChapterExperiencePublicView {
   estimatedMinutes?: number;
   guidePin: { guideKey: string; guideVersion: number };
   scenes: ExperienceScenePublicView[];
+  /**
+   * Whether this experience's pin may begin a NEW session.
+   *
+   * Published and startable are different questions, and the server is the
+   * only one that can answer the second: a pin retired for new starts stays
+   * published so the sessions already pinned to it keep resolving, stepping
+   * and completing. Without this field a client can only learn the answer by
+   * pressing — `POST /guide/sessions` replies 410 — which is an offer it
+   * should never have made.
+   *
+   * Optional on the wire so a client that predates the field keeps parsing;
+   * read it as "unknown", and an unknown answer is not a licence to offer.
+   */
+  startable?: boolean;
 }
 
 export interface ChapterExperienceDiscoveryResponse {

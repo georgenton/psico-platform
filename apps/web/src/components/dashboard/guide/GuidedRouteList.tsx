@@ -42,6 +42,22 @@ export interface GuidedRouteListProps {
   state: GuideRouteState;
   /** The server's verdict per `guideKey@guideVersion`. Absent ⇒ `unknown`. */
   verdicts: ReadonlyMap<string, RouteCardVerdict>;
+  /**
+   * The pins this chapter can actually RUN: one published experience at that
+   * exact version, and a server that will admit a new session for it.
+   *
+   * A verdict and this are different questions. A verdict says what the reader
+   * has done; it is `start` for a pin nobody has begun — including one with no
+   * experience behind it at all. Offering «Empezar» on that is a button whose
+   * only possible outcome is a refusal: measured on
+   * `eec-c1-cuerpo-antes-que-mente@1`, where the press answered 410, and on
+   * the five C01 microguides, where the panel refuses because no experience is
+   * published for them.
+   *
+   * Required on purpose. A caller that cannot answer must pass an empty set
+   * and offer nothing — the honest reading of "I don't know" is not "yes".
+   */
+  runnablePins: ReadonlySet<string>;
   onOpen: (item: GuideRouteItem) => void;
   onRetry?: () => void;
 }
@@ -51,6 +67,7 @@ const pinOf = routeItemPinKey;
 export function GuidedRouteList({
   state,
   verdicts,
+  runnablePins,
   onOpen,
   onRetry,
 }: GuidedRouteListProps) {
@@ -99,7 +116,13 @@ export function GuidedRouteList({
       <ol style={S.list}>
         {state.guides.map((item) => {
           const verdict = verdicts.get(pinOf(item)) ?? "unknown";
-          const disabled = verdict === "unknown";
+          // Two conditions, both server-owned, and the card needs both: the
+          // reader's progress AND something to run. A pin with no runnable
+          // experience is presented exactly as an unanswered one — the copy
+          // for that state already exists and already says the truth here.
+          const ejecutable = runnablePins.has(pinOf(item));
+          const mostrado: RouteCardVerdict = ejecutable ? verdict : "unknown";
+          const disabled = mostrado === "unknown";
           return (
             <li key={pinOf(item)} style={S.card} data-testid="route-card">
               <div style={S.cardHead}>
@@ -111,10 +134,10 @@ export function GuidedRouteList({
               <p style={S.description}>{item.description}</p>
               <p style={S.meta}>
                 <span>{item.estimatedMinutes} min</span>
-                {STATUS[verdict] ? (
+                {STATUS[mostrado] ? (
                   <>
                     {" · "}
-                    <span>{STATUS[verdict]}</span>
+                    <span>{STATUS[mostrado]}</span>
                   </>
                 ) : null}
               </p>
@@ -123,9 +146,9 @@ export function GuidedRouteList({
                 style={disabled ? { ...S.cta, ...S.ctaDisabled } : S.cta}
                 disabled={disabled}
                 onClick={() => onOpen(item)}
-                aria-label={`${CTA[verdict]}: ${item.title}`}
+                aria-label={`${CTA[mostrado]}: ${item.title}`}
               >
-                {CTA[verdict]}
+                {CTA[mostrado]}
               </button>
             </li>
           );

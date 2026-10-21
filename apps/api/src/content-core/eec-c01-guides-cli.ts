@@ -42,6 +42,10 @@ export const CLI_ERRORS = {
   anchorMissing: "EEC_C01_ANCHOR_NOT_REGISTERED",
   pilotReferenced: "EEC_C01_PILOT_REFERENCED",
   publishNotAllowed: "EEC_C01_PUBLISH_NOT_ALLOWED",
+  /** B4 — hay acta pero el manifiesto no declara que pueda publicarse. */
+  approvalUndeclared: "EEC_C01_APPROVAL_UNDECLARED",
+  /** B4 — el acta existe y no autoriza. El motivo viaja en el detalle. */
+  approvalInvalid: "EEC_C01_APPROVAL_INVALID",
 } as const;
 
 export class EecGuidesCliError extends Error {
@@ -155,6 +159,29 @@ export function loadManifests(dir: string): GuideManifest[] {
   );
 }
 
+/**
+ * B4 — las actas de aprobación que acompañan a los manifiestos, si las hay.
+ *
+ * `mg0N.approval.json` junto a `mg0N.manifest.json`. Su ausencia es el caso
+ * normal: hoy no hay ninguna, y por eso no se puede publicar nada. Lo que
+ * este cargador NO hace es decidir si valen — sólo las trae.
+ */
+export function loadApprovals(dir: string): Map<string, unknown> {
+  const actas = new Map<string, unknown>();
+  const nombres = readdirSync(dir).filter((n) =>
+    /^mg0[1-9]\.approval\.json$/.test(n),
+  );
+  for (const n of nombres) {
+    const acta = JSON.parse(readFileSync(join(dir, n), "utf8")) as {
+      manifestId?: unknown;
+    };
+    if (typeof acta.manifestId === "string" && acta.manifestId !== "") {
+      actas.set(acta.manifestId, acta);
+    }
+  }
+  return actas;
+}
+
 export interface ValidationIssue {
   manifestId: string;
   code: string;
@@ -207,8 +234,18 @@ export function validateManifests(
     }
     if (m.status !== "DRAFT")
       add(m, CLI_ERRORS.manifestInvalid, "status must be DRAFT");
-    if (m.publishAllowed !== false) {
-      add(m, CLI_ERRORS.publishNotAllowed, "publishAllowed must be false");
+    // B4 — `publishAllowed` deja de ser «siempre false» y pasa a ser una
+    // declaración que tiene que coincidir con un acta firmada.
+    //
+    // La regla anterior cerraba la puerta del todo: ningún manifiesto podía
+    // declararse publicable, así que una aprobación legítima no tenía por
+    // dónde entrar. Pero aflojarla a secas habría hecho aprobador a cualquiera
+    // que pueda escribir en el repositorio, que es justo lo que no puede
+    // pasar. Quien decide la pareja declaración + acta es `checkApprovals`,
+    // en la capa que sabe construir la definición y por tanto puede comprobar
+    // que el acta cubre ESTE contenido.
+    if (typeof m.publishAllowed !== "boolean") {
+      add(m, CLI_ERRORS.manifestInvalid, "publishAllowed must be a boolean");
     }
     if (m.experienceVersion !== 1 || m.guideVersion !== 1) {
       add(m, CLI_ERRORS.manifestInvalid, "versions must start at 1");

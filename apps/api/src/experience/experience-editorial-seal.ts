@@ -1,5 +1,9 @@
 import { createHash } from "node:crypto";
 import type { ChapterExperienceDefinition } from "@psico/types";
+import {
+  verifyApproval,
+  type ApprovalKeyring,
+} from "./experience-editorial-approval";
 
 /**
  * B3 — qué autoriza publicar una experiencia.
@@ -70,6 +74,25 @@ export interface ManifestSeal {
   /** El resumen del contenido aprobado. Una edición posterior lo invalida. */
   definitionSha256: string;
   sealedAt: string;
+  /**
+   * B4 — el acta que autorizó, cuando la hay.
+   *
+   * Ausente mientras `publishAllowed` sea falso: no hay nada que acreditar.
+   * Presente, es lo que permite que la autorización se vuelva a comprobar en
+   * el momento de publicar en vez de creerle a la fila. Una fila que dijera
+   * «aprobada» sin esto no autoriza nada — y ésa es la diferencia entre un
+   * sello y un `UPDATE`.
+   */
+  approval?: {
+    keyId: string;
+    approvedBy: string;
+    approvedAt: string;
+    /** La firma, para poder verificarla de nuevo sin volver al artefacto. */
+    signature: string;
+    canonicalVersion: string;
+    canonicalSha256: string;
+    manifestSha256: string;
+  };
 }
 
 /** Nació por un camino sin manifiesto: el editor, o un clon hacia adelante. */
@@ -91,6 +114,7 @@ export type EditorialSeal =
   | LegacyUnsealedMarker;
 
 export type PublicationVerdictCode =
+  | "EXPERIENCE_APPROVAL_UNVERIFIABLE"
   | "EXPERIENCE_APPROVAL_UNREADABLE"
   | "EXPERIENCE_APPROVAL_ABSENT_LEGACY"
   | "EXPERIENCE_APPROVAL_ABSENT"
@@ -154,8 +178,14 @@ export function sealForManifest(
   manifest: SealableManifest,
   definition: ChapterExperienceDefinition,
   now: Date = new Date(),
+  /**
+   * B4 — el acta firmada, cuando el manifiesto declara que se puede publicar.
+   * Quien sella no la fabrica: la recibe ya verificada.
+   */
+  approval?: ManifestSeal["approval"],
 ): ManifestSeal {
   return {
+    ...(approval ? { approval } : {}),
     kind: "manifest",
     manifestId: manifest.manifestId,
     canonicalVersion: manifest.canonicalVersion,
@@ -237,6 +267,14 @@ export function parseEditorialSeal(value: unknown): EditorialSeal | null {
 export function evaluatePublicationGate(input: {
   seal: EditorialSeal | null;
   definition: ChapterExperienceDefinition;
+  /**
+   * B4 — comprueba la firma del acta que la fila dice traer.
+   *
+   * Se inyecta en vez de importarse para que esta función siga siendo pura y
+   * para que una instalación sin claves sea un hecho explícito y no un
+   * import que falla. Ausente ⇒ no se aprueba nada.
+   */
+  verifyApproval?: (seal: ManifestSeal) => boolean;
 }): PublicationVerdict {
   const { seal, definition } = input;
 
@@ -300,6 +338,43 @@ export function evaluatePublicationGate(input: {
     };
   }
 
+  // B4 — una fila que dice «aprobada» no se cree por decirlo.
+  //
+  // Sin esto, cualquiera con un UPDATE podría escribir `publishAllowed: true`
+  // y publicar. Con esto, esa fila tendría que traer además una firma que
+  // verifique contra una clave que la plataforma no tiene: la autoridad vive
+  // fuera, y aquí sólo se comprueba.
+  //
+  // Sin verificador configurado no se aprueba nada, que es el estado de hoy
+  // y es el seguro: «no se pudo comprobar» nunca significa «adelante».
+  if (seal.approval === undefined) {
+    return {
+      approved: false,
+      code: "EXPERIENCE_APPROVAL_UNVERIFIABLE",
+      message:
+        "Esta fila dice estar aprobada pero no trae el acta que lo " +
+        "acredite, así que no autoriza a publicar.",
+    };
+  }
+  if (input.verifyApproval === undefined) {
+    return {
+      approved: false,
+      code: "EXPERIENCE_APPROVAL_UNVERIFIABLE",
+      message:
+        "Esta instalación no puede comprobar aprobaciones editoriales, así " +
+        "que no publica ninguna.",
+    };
+  }
+  if (!input.verifyApproval(seal)) {
+    return {
+      approved: false,
+      code: "EXPERIENCE_APPROVAL_UNVERIFIABLE",
+      message:
+        "El acta de aprobación de esta fila no se pudo verificar, así que " +
+        "no autoriza a publicar.",
+    };
+  }
+
   if (seal.definitionSha256 !== definitionDigest(definition)) {
     return {
       approved: false,
@@ -311,4 +386,54 @@ export function evaluatePublicationGate(input: {
   }
 
   return { approved: true };
+}
+
+/**
+ * B4 — ¿la firma que la fila trae corresponde a lo que la fila dice?
+ *
+ * Vive aquí, y no dentro de `evaluatePublicationGate`, porque el gate es puro
+ * y esto necesita criptografía y un llavero. Quien publica las junta; quien
+ * razona sobre el veredicto no tiene por qué saber de claves.
+ *
+ * Lo que se comprueba es que el acta firmada describa EXACTAMENTE lo que el
+ * sello describe. Un acta auténtica de otra cosa no sirve aquí: ésa es la
+ * diferencia entre «hay una firma válida» y «esto está aprobado».
+ */
+export function verifySealApproval(
+  seal: ManifestSeal,
+  keyring: ApprovalKeyring,
+): boolean {
+  const a = seal.approval;
+  if (a === undefined) return false;
+  const veredicto = verifyApproval({
+    approval: {
+      schemaVersion: 1,
+      manifestId: seal.manifestId,
+      experienceKey: seal.experienceKey,
+      experienceVersion: seal.experienceVersion,
+      guideKey: seal.guideKey,
+      guideVersion: seal.guideVersion,
+      canonicalVersion: a.canonicalVersion,
+      canonicalSha256: a.canonicalSha256,
+      manifestSha256: a.manifestSha256,
+      definitionSha256: seal.definitionSha256,
+      approvedBy: a.approvedBy,
+      approvedAt: a.approvedAt,
+      keyId: a.keyId,
+      signature: a.signature,
+    },
+    keyring,
+    expect: {
+      manifestId: seal.manifestId,
+      experienceKey: seal.experienceKey,
+      experienceVersion: seal.experienceVersion,
+      guideKey: seal.guideKey,
+      guideVersion: seal.guideVersion,
+      canonicalVersion: a.canonicalVersion,
+      canonicalSha256: a.canonicalSha256,
+      manifestSha256: a.manifestSha256,
+      definitionSha256: seal.definitionSha256,
+    },
+  });
+  return veredicto.valid;
 }

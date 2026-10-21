@@ -10,9 +10,11 @@ import {
   EecGuidesCliError,
   loadManifests,
   planGuides,
+  loadApprovals,
   validateManifests,
   type GuideManifest,
 } from "./eec-c01-guides-cli";
+import { approvalKeyringFromEnv } from "../experience/experience-editorial-approval";
 
 /**
  * EEC-C01 guided suite — the operator's entry point.
@@ -264,7 +266,19 @@ async function main(): Promise<number> {
       : chapter.canonicalSha256;
 
   if (args.command === "validate") {
-    const issues = validateManifests(manifests, canonical);
+    // B4 — la declaración del manifiesto y el acta firmada tienen que
+    // coincidir, y el acta tiene que cubrir el contenido que se serviría. Lo
+    // segundo necesita construir la definición, así que esa comprobación vive
+    // en la capa de aplicación y sus hallazgos se suman aquí.
+    const { checkApprovals } = await import("./eec-c01-guides-apply");
+    const issues = [
+      ...validateManifests(manifests, canonical),
+      ...checkApprovals({
+        manifests,
+        approvals: loadApprovals(join(ROOT, chapter.manifestDir)),
+        keyring: approvalKeyringFromEnv(),
+      }),
+    ];
     console.log(
       JSON.stringify(
         {
@@ -388,10 +402,55 @@ async function main(): Promise<number> {
         console.log(body);
         return r.ok ? 0 : 1;
       }
+      /**
+       * `approval-request` — B4. Lo que hay que firmar, y nada más.
+       *
+       * No firma: imprime los bytes exactos que la autora tiene que firmar
+       * con SU clave, fuera de aquí, y el esqueleto del acta donde pegar la
+       * firma. Esa separación es el punto — una herramienta que firmara
+       * tendría que tener la clave privada, y entonces quien controle la
+       * herramienta aprobaría.
+       *
+       * No escribe en la base, así que no necesita `--apply`.
+       */
+      case "approval-request": {
+        const { approvalRequests } = await import("./eec-c01-guides-apply");
+        const peticiones = approvalRequests(manifests);
+        console.log(
+          JSON.stringify(
+            { command: "approval-request", requests: peticiones },
+            null,
+            2,
+          ),
+        );
+        return 0;
+      }
+      /**
+       * `reseal` — B4. Lleva un borrador que YA existe de «sin aprobar» a
+       * «aprobado», cuando y sólo cuando hay un acta firmada que lo respalde.
+       *
+       * Comando propio y no un efecto de `create-drafts` porque no crea nada:
+       * cambia la autorización de algo que ya está ahí, y eso merece que
+       * alguien lo escriba a mano. Deja la fila en DRAFT; publicar sigue
+       * siendo otro acto, que vuelve a verificar la firma por su cuenta.
+       */
+      case "reseal": {
+        const { resealApproved } = await import("./eec-c01-guides-apply");
+        const r = await resealApproved(
+          prisma,
+          manifests,
+          loadApprovals(join(ROOT, chapter.manifestDir)),
+          approvalKeyringFromEnv(),
+          args.apply,
+        );
+        console.log(JSON.stringify({ command: "reseal", ...r }, null, 2));
+        return r.ok ? 0 : 1;
+      }
       default:
         console.error(
           "usage: [--chapter=C01|C02] validate | plan | apply-targets | " +
-            "create-drafts | publish-test-suite | verify-drafts | " +
+            "create-drafts | approval-request | reseal | publish-test-suite | " +
+            "verify-drafts | " +
             "preview-report",
         );
         return 1;

@@ -6,7 +6,7 @@ import {
 import type { ChapterExperienceDefinition } from "@psico/types";
 import { ExperienceAdminService } from "./experience-admin.service";
 import { productionExperienceRepository } from "./experience-production-catalog";
-import { sealForManifest } from "./experience-editorial-seal";
+import { approvedSealForTests } from "./experience-seal.testing";
 import type { PrismaService } from "../prisma/prisma.service";
 
 /**
@@ -24,28 +24,13 @@ async function publishableDefinition(): Promise<ChapterExperienceDefinition> {
 }
 
 /**
- * B3 — un sello de manifiesto que SÍ autoriza, para los fixtures que necesitan
- * una fila publicable. Las negativas una por una viven en
- * `experience-editorial-seal.spec.ts`; aquí sólo hace falta poder pasar.
+ * B3/B4 — un sello que SÍ autoriza, con su acta firmada.
+ *
+ * Desde B4 no basta con decir «aprobada»: la fila trae un acta y `publish` la
+ * verifica contra el llavero del proceso. El ayudante genera una clave
+ * sintética, la registra y firma de verdad, así que estas pruebas recorren la
+ * misma verificación que correrá en producción.
  */
-function selloAprobado(def: ChapterExperienceDefinition) {
-  return sealForManifest(
-    {
-      manifestId: "EEC-C01-FIXTURE",
-      canonicalVersion: "FIXTURE_v1",
-      canonicalSha256: "ab".repeat(32),
-      manifestSha256: "cd".repeat(32),
-      publishAllowed: true,
-      approvalReferences: ["acta-de-prueba"],
-      experienceKey: def.experienceKey,
-      experienceVersion: def.experienceVersion,
-      guideKey: def.guidePin.guideKey,
-      guideVersion: def.guidePin.guideVersion,
-    },
-    def,
-  );
-}
-
 /**
  * CMS V1 (#637) — the lifecycle rules.
  *
@@ -103,6 +88,8 @@ function prismaMock() {
       create: vi.fn(),
       update: vi.fn(),
       updateMany: vi.fn(),
+      // B4 — `getDraft` lo usa para decidir `rebindable`.
+      count: vi.fn(),
     },
     experienceGuideReservation: {
       findUnique: vi.fn(),
@@ -510,7 +497,7 @@ describe("ExperienceAdminService — publishing", () => {
       id: "row_1",
       status: "DRAFT",
       definitionJson: definition,
-      editorialOrigin: selloAprobado(definition),
+      editorialOrigin: approvedSealForTests(definition),
     });
     prisma.chapterExperienceVersion.updateMany.mockResolvedValue({ count: 1 });
 
@@ -732,7 +719,7 @@ describe("ExperienceAdminService — publicar exige aprobación editorial", () =
       status: "DRAFT",
       definitionJson: definition,
       editorialOrigin: {
-        ...selloAprobado(definition),
+        ...approvedSealForTests(definition),
         publishAllowed: false,
         manifestId: "EEC-C01-MG03",
       },
@@ -751,7 +738,7 @@ describe("ExperienceAdminService — publicar exige aprobación editorial", () =
       status: "DRAFT",
       definitionJson: editada,
       // El sello es de la versión aprobada; la fila guarda otra cosa.
-      editorialOrigin: selloAprobado(aprobada),
+      editorialOrigin: approvedSealForTests(aprobada),
     });
 
     await expect(service.publish("row_1")).rejects.toMatchObject({
@@ -795,5 +782,76 @@ describe("ExperienceAdminService — publicar exige aprobación editorial", () =
     );
     expect(fuente).toMatch(/@RequiredRole\("ADMIN"\)/);
     expect(fuente).toMatch(/drafts\/:id\/publish/);
+  });
+});
+
+/**
+ * B4 — la interfaz lee EXACTAMENTE lo que el servidor va a aplicar.
+ *
+ * `getDraft` sirve el veredicto para que el editor no aprenda la regla por
+ * castigo. Si lo calculara con otro criterio que `publish`, le enseñaría la
+ * regla equivocada: un borrador legítimamente aprobado leído como «no se pudo
+ * comprobar», o —peor— al revés.
+ */
+describe("ExperienceAdminService — el veredicto servido y el aplicado coinciden", () => {
+  it("una fila aprobada y firmada se sirve como publicable, y publica", async () => {
+    const definition = await publishableDefinition();
+    const fila = {
+      id: "row_1",
+      status: "DRAFT",
+      bookSlug: definition.bookSlug,
+      chapterOrder: definition.chapterOrder,
+      contentUnitId: UNIT_ID,
+      definitionJson: definition,
+      editorialOrigin: approvedSealForTests(definition),
+    };
+    prisma.chapterExperienceVersion.findUnique.mockResolvedValue(fila);
+    prisma.chapterExperienceVersion.count.mockResolvedValue(0);
+    prisma.chapterExperienceVersion.updateMany.mockResolvedValue({ count: 1 });
+
+    const leido = await service.getDraft("row_1");
+    expect(leido.publication).toEqual({ approved: true });
+
+    await expect(service.publish("row_1")).resolves.toMatchObject({
+      id: "row_1",
+    });
+  });
+
+  it("una firma inventada se sirve como no publicable, y no publica", async () => {
+    // El caso del UPDATE a mano: alguien escribe «aprobada» en la base. La
+    // clave privada no está en el sistema, así que la firma no puede serlo.
+    const definition = await publishableDefinition();
+    const forjado = {
+      ...approvedSealForTests(definition),
+      approval: {
+        keyId: "autora-2026",
+        approvedBy: "no-fui-yo@test",
+        approvedAt: "2026-10-21T00:00:00.000Z",
+        signature: Buffer.from("firma-inventada").toString("base64"),
+        canonicalVersion: "TEST_v1",
+        canonicalSha256: "ab".repeat(32),
+        manifestSha256: "cd".repeat(32),
+      },
+    };
+    const fila = {
+      id: "row_1",
+      status: "DRAFT",
+      bookSlug: definition.bookSlug,
+      chapterOrder: definition.chapterOrder,
+      contentUnitId: UNIT_ID,
+      definitionJson: definition,
+      editorialOrigin: forjado,
+    };
+    prisma.chapterExperienceVersion.findUnique.mockResolvedValue(fila);
+    prisma.chapterExperienceVersion.count.mockResolvedValue(0);
+
+    const leido = await service.getDraft("row_1");
+    expect(leido.publication).toMatchObject({
+      code: "EXPERIENCE_APPROVAL_UNVERIFIABLE",
+    });
+
+    await expect(service.publish("row_1")).rejects.toMatchObject({
+      response: { code: "EXPERIENCE_APPROVAL_UNVERIFIABLE" },
+    });
   });
 });

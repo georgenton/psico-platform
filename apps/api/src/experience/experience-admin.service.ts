@@ -62,9 +62,11 @@ import {
   evaluatePublicationGate,
   parseEditorialSeal,
   unsealed,
+  verifySealApproval,
   type EditorialSeal,
   type PublicationVerdict,
 } from "./experience-editorial-seal";
+import { approvalKeyringFromEnv } from "./experience-editorial-approval";
 import {
   ChapterIdentityError,
   resolveChapterIdentity,
@@ -402,6 +404,12 @@ export class ExperienceAdminService {
         // está guardado: `publish` sube el estado a PUBLISHED antes de mirar,
         // y el resumen del contenido excluye ese campo justo por eso.
         definition,
+        // B4 — el MISMO verificador que usa `publish`. Sin esto, un borrador
+        // legítimamente aprobado se habría leído aquí como «no se pudo
+        // comprobar» y habría publicado igual: la interfaz diría una cosa y
+        // el servidor otra, que es exactamente lo que no puede pasar.
+        verifyApproval: (sello) =>
+          verifySealApproval(sello, approvalKeyringFromEnv()),
       }),
     };
   }
@@ -935,6 +943,12 @@ export class ExperienceAdminService {
         const veredicto = evaluatePublicationGate({
           seal: parseEditorialSeal(current.editorialOrigin),
           definition,
+          // B4 — la firma se comprueba aquí, contra el llavero de ESTA
+          // instalación. El llavero se lee en cada publicación a propósito:
+          // memoizarlo haría que rotar una clave exigiera reiniciar, y una
+          // rotación que pide reinicio es una rotación que no se hace.
+          verifyApproval: (sello) =>
+            verifySealApproval(sello, approvalKeyringFromEnv()),
         });
         if (!veredicto.approved) {
           throw new ConflictException({

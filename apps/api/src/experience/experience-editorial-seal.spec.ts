@@ -3,12 +3,40 @@ import type { ChapterExperienceDefinition } from "@psico/types";
 
 import {
   definitionDigest,
-  evaluatePublicationGate,
+  evaluatePublicationGate as evaluarCrudo,
   parseEditorialSeal,
   sealForManifest,
   unsealed,
+  type PublicationVerdict,
   type SealableManifest,
 } from "./experience-editorial-seal";
+
+/**
+ * B4 — este archivo razona sobre el SELLO, no sobre la criptografía.
+ *
+ * La verificación de la firma tiene sus propias pruebas en
+ * `experience-editorial-approval.spec.ts`, con claves de verdad. Aquí se da
+ * por verificada para poder preguntar lo que a este módulo le toca: qué
+ * autoriza y qué no. Los dos casos en que la verificación falla —ausente y
+ * negativa— se comprueban aparte, al final.
+ */
+function evaluatePublicationGate(input: {
+  seal: Parameters<typeof evaluarCrudo>[0]["seal"];
+  definition: Parameters<typeof evaluarCrudo>[0]["definition"];
+}): PublicationVerdict {
+  return evaluarCrudo({ ...input, verifyApproval: () => true });
+}
+
+/** Un acta cualquiera: lo que este archivo necesita es que exista. */
+const ACTA = {
+  keyId: "clave-de-prueba",
+  approvedBy: "prueba@feelverse.test",
+  approvedAt: "2026-10-21T00:00:00.000Z",
+  signature: "firma-que-otro-modulo-verifica",
+  canonicalVersion: "TEST_v1",
+  canonicalSha256: "ab".repeat(32),
+  manifestSha256: "cd".repeat(32),
+};
 
 /**
  * B3 · Prioridad A — las pruebas negativas del control de publicación.
@@ -135,7 +163,7 @@ describe("qué se niega, y por qué", () => {
   it("editar el borrador después deja la aprobación obsoleta", () => {
     // El requisito 7 del encargo, en una línea: una aprobación no puede
     // sobrevivir al texto que aprobó.
-    const sello = sealForManifest(AUTORIZADO, DEFINICION);
+    const sello = sealForManifest(AUTORIZADO, DEFINICION, undefined, ACTA);
     const editada = {
       ...DEFINICION,
       title: "Otro título que nadie aprobó",
@@ -149,6 +177,8 @@ describe("qué se niega, y por qué", () => {
     const ajeno = sealForManifest(
       { ...AUTORIZADO, experienceKey: "eec-c1-rostro-como-pista" },
       DEFINICION,
+      undefined,
+      ACTA,
     );
     const v = evaluatePublicationGate({ seal: ajeno, definition: DEFINICION });
     expect(v).toMatchObject({ code: "EXPERIENCE_APPROVAL_IDENTITY_MISMATCH" });
@@ -158,6 +188,8 @@ describe("qué se niega, y por qué", () => {
     const otraGuia = sealForManifest(
       { ...AUTORIZADO, guideVersion: 2 },
       DEFINICION,
+      undefined,
+      ACTA,
     );
     const v = evaluatePublicationGate({
       seal: otraGuia,
@@ -170,7 +202,7 @@ describe("qué se niega, y por qué", () => {
 describe("control positivo — el gate no es un «no» universal", () => {
   it("aprueba cuando la identidad, la revisión y el contenido coinciden", () => {
     const v = evaluatePublicationGate({
-      seal: sealForManifest(AUTORIZADO, DEFINICION),
+      seal: sealForManifest(AUTORIZADO, DEFINICION, undefined, ACTA),
       definition: DEFINICION,
     });
     expect(v.approved).toBe(true);
@@ -179,7 +211,7 @@ describe("control positivo — el gate no es un «no» universal", () => {
   it("y vuelve a aprobar si el borrador se devuelve a lo aprobado", () => {
     // Obsoleto no es terminal: el sello conserva el resumen, así que deshacer
     // la edición restituye la aprobación sin que nadie tenga que re-sellar.
-    const sello = sealForManifest(AUTORIZADO, DEFINICION);
+    const sello = sealForManifest(AUTORIZADO, DEFINICION, undefined, ACTA);
     const editada = {
       ...DEFINICION,
       title: "temporal",
@@ -237,5 +269,59 @@ describe("leer la columna falla cerrado", () => {
       definition: DEFINICION,
     });
     expect(v).toMatchObject({ code: "EXPERIENCE_APPROVAL_UNREADABLE" });
+  });
+});
+
+/**
+ * B4 — una fila que dice «aprobada» no se cree por decirlo.
+ *
+ * Sin esto, cualquiera con un UPDATE sobre la base podría escribir
+ * `publishAllowed: true` y publicar. Es la diferencia entre un sello y una
+ * nota adhesiva.
+ */
+describe("la autorización se vuelve a comprobar, no se hereda de la fila", () => {
+  const SELLO_APROBADO = sealForManifest(AUTORIZADO, DEFINICION, undefined, {
+    keyId: "clave-de-prueba",
+    approvedBy: "prueba@feelverse.test",
+    approvedAt: "2026-10-21T00:00:00.000Z",
+    signature: "da-igual-aqui",
+    canonicalVersion: "TEST_v1",
+    canonicalSha256: "ab".repeat(32),
+    manifestSha256: "cd".repeat(32),
+  });
+
+  it("sin acta, una fila aprobada no publica", () => {
+    const { approval: _sin, ...sinActa } = SELLO_APROBADO;
+    const v = evaluarCrudo({
+      seal: sinActa,
+      definition: DEFINICION,
+      verifyApproval: () => true,
+    });
+    expect(v).toMatchObject({ code: "EXPERIENCE_APPROVAL_UNVERIFIABLE" });
+  });
+
+  it("sin verificador, esta instalación no aprueba nada", () => {
+    // El estado de hoy: ninguna clave configurada. «No se pudo comprobar»
+    // nunca significa «adelante».
+    const v = evaluarCrudo({ seal: SELLO_APROBADO, definition: DEFINICION });
+    expect(v).toMatchObject({ code: "EXPERIENCE_APPROVAL_UNVERIFIABLE" });
+  });
+
+  it("si la firma no verifica, tampoco", () => {
+    const v = evaluarCrudo({
+      seal: SELLO_APROBADO,
+      definition: DEFINICION,
+      verifyApproval: () => false,
+    });
+    expect(v).toMatchObject({ code: "EXPERIENCE_APPROVAL_UNVERIFIABLE" });
+  });
+
+  it("control positivo — con acta y firma válida, aprueba", () => {
+    const v = evaluarCrudo({
+      seal: SELLO_APROBADO,
+      definition: DEFINICION,
+      verifyApproval: () => true,
+    });
+    expect(v.approved).toBe(true);
   });
 });

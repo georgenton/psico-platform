@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -111,5 +112,89 @@ describe("ReaderCompanionDock — el foco vuelve al pasaje", () => {
         document.querySelector('[data-block-id="bloque-1"]'),
       );
     });
+  });
+});
+
+/**
+ * El caso que la prueba anterior NO cubría.
+ *
+ * Arriba `onClose` es un espía: el panel sigue montado y nada se vuelve a
+ * renderizar. En el lector real, cerrar desmonta el panel, y eso fue
+ * exactamente lo que hizo fallar en el navegador una corrección que pasaba en
+ * jsdom —el foco se restauraba antes del re-render y el desmontaje lo
+ * deshacía—. Este anfitrión sí quita el panel.
+ */
+function Anfitrion({ focusBlockId = "bloque-7" as string | null }) {
+  const [abierto, setAbierto] = useState(true);
+  return (
+    <>
+      {/* Las claves cambian al cerrar, así que React SUSTITUYE estos nodos.
+          Es lo que hace el lector de verdad: al cerrar el panel se vuelve a
+          renderizar y los bloques son otros elementos del DOM. Sin eso, una
+          restauración hecha en el mismo tick pasa en jsdom y falla en el
+          navegador, porque enfoca un nodo que el re-render se lleva por
+          delante — que es exactamente el fallo que se midió. */}
+      <div key={`b1-${abierto}`} data-block-id="bloque-1">
+        El primer bloque del capítulo.
+      </div>
+      <div key={`b7-${abierto}`} data-block-id="bloque-7">
+        El párrafo que estaba leyendo.
+      </div>
+      {abierto ? (
+        <ReaderCompanionDock
+          open
+          tab="eco"
+          onTabChange={() => {}}
+          onClose={() => setAbierto(false)}
+          passage={null}
+          onPassageConsumed={() => {}}
+          annotations={[]}
+          focusBlockId={focusBlockId}
+          pendingBlockId={null}
+          onClearPending={() => {}}
+          onCreateNote={async () => {}}
+          onUpdateNote={async () => {}}
+          onDeleteNote={async () => {}}
+          apiBase="http://api.test"
+          token="t"
+        />
+      ) : null}
+    </>
+  );
+}
+
+describe("ReaderCompanionDock — con desmontaje real", () => {
+  it("el panel desaparece y el foco queda en el pasaje, no en body", async () => {
+    const usuario = userEvent.setup();
+    render(<Anfitrion />);
+
+    await usuario.click(screen.getByLabelText("Cerrar panel"));
+
+    // Desmontado de verdad: no es un espía que deja todo en su sitio.
+    await waitFor(() =>
+      expect(screen.queryByLabelText("Cerrar panel")).not.toBeInTheDocument(),
+    );
+    await waitFor(() => {
+      expect(document.activeElement).not.toBe(document.body);
+      expect(document.activeElement).toBe(
+        document.querySelector('[data-block-id="bloque-7"]'),
+      );
+    });
+  });
+
+  it("Escape hace lo mismo cuando el cierre desmonta", async () => {
+    const usuario = userEvent.setup();
+    render(<Anfitrion />);
+
+    await usuario.keyboard("{Escape}");
+
+    await waitFor(() =>
+      expect(screen.queryByLabelText("Cerrar panel")).not.toBeInTheDocument(),
+    );
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        document.querySelector('[data-block-id="bloque-7"]'),
+      ),
+    );
   });
 });

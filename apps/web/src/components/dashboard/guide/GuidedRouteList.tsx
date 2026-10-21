@@ -116,12 +116,19 @@ export function GuidedRouteList({
       <ol style={S.list}>
         {state.guides.map((item) => {
           const verdict = verdicts.get(pinOf(item)) ?? "unknown";
-          // Two conditions, both server-owned, and the card needs both: the
-          // reader's progress AND something to run. A pin with no runnable
-          // experience is presented exactly as an unanswered one — the copy
-          // for that state already exists and already says the truth here.
+          // `runnablePins` answers ONE question: may a NEW session begin on
+          // this pin. It must gate `start` and nothing else.
+          //
+          // Flattening every verdict to `unknown` also erased `continue` and
+          // `completed`, which are not about starting at all: they belong to
+          // a session that already exists and resolves its own pinned
+          // version, which the server keeps serving precisely so a journey
+          // begun before a retirement can be finished. Hiding it would have
+          // taken someone's progress away to protect them from a start they
+          // were not asking for.
           const ejecutable = runnablePins.has(pinOf(item));
-          const mostrado: RouteCardVerdict = ejecutable ? verdict : "unknown";
+          const mostrado: RouteCardVerdict =
+            verdict === "start" && !ejecutable ? "unknown" : verdict;
           const disabled = mostrado === "unknown";
           return (
             <li key={pinOf(item)} style={S.card} data-testid="route-card">

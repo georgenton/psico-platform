@@ -333,7 +333,10 @@ describe("una guía sin experiencia ejecutable no se ofrece", () => {
     expect(onOpen).not.toHaveBeenCalled();
   });
 
-  it("tampoco presenta «En curso» para algo que no puede continuar", () => {
+  it("pero sí presenta «En curso»: la puerta es para empezar, no para seguir", () => {
+    // Esta prueba afirmaba lo contrario. Era mía, y era un error: aplastar
+    // todo veredicto a «desconocido» borraba también el progreso de quien ya
+    // había empezado. `startable` contesta sobre altas nuevas y nada más.
     render(
       <GuidedRouteList
         state={{ status: "available", guides: GUIDES }}
@@ -343,6 +346,82 @@ describe("una guía sin experiencia ejecutable no se ofrece", () => {
       />,
     );
 
-    expect(screen.queryByText("En curso")).not.toBeInTheDocument();
+    expect(screen.getByText("En curso")).toBeInTheDocument();
+  });
+});
+
+describe("empezar, continuar y revisar son preguntas distintas", () => {
+  it("3 · retirada para inicios nuevos, pero con sesión: se puede continuar", () => {
+    // `startable` contesta sobre altas nuevas. Una sesión existente resuelve
+    // su propia versión fijada y el servidor la sigue sirviendo; esconderla
+    // sería quitarle a alguien un progreso que ya es suyo.
+    render(
+      <GuidedRouteList
+        state={{ status: "available", guides: GUIDES }}
+        verdicts={verdicts({ "eec-c1-teorias-como-lentes@1": "continue" })}
+        runnablePins={new Set()}
+        onOpen={() => {}}
+      />,
+    );
+
+    const boton = screen.getByRole("button", {
+      name: "Continuar: Las teorías son lentes",
+    });
+    expect(boton).toBeEnabled();
+    expect(screen.getByText("En curso")).toBeInTheDocument();
+  });
+
+  it("4 · sesión completada: se puede revisar, aunque no se pueda empezar otra", () => {
+    render(
+      <GuidedRouteList
+        state={{ status: "available", guides: GUIDES }}
+        verdicts={verdicts({ "eec-c1-teorias-como-lentes@1": "completed" })}
+        runnablePins={new Set()}
+        onOpen={() => {}}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Revisar: Las teorías son lentes" }),
+    ).toBeEnabled();
+    expect(screen.getByText("Completada")).toBeInTheDocument();
+  });
+
+  it("y continuar abre de verdad: la puerta no se traga el clic", async () => {
+    const onOpen = vi.fn();
+    const usuario = userEvent.setup();
+    render(
+      <GuidedRouteList
+        state={{ status: "available", guides: GUIDES }}
+        verdicts={verdicts({ "eec-c1-teorias-como-lentes@1": "continue" })}
+        runnablePins={new Set()}
+        onOpen={onOpen}
+      />,
+    );
+
+    await usuario.click(
+      screen.getByRole("button", { name: "Continuar: Las teorías son lentes" }),
+    );
+
+    expect(onOpen).toHaveBeenCalledTimes(1);
+  });
+
+  it("5 · sin respuesta del servidor el estado es desconocido, no «retirada»", () => {
+    // Un veredicto ausente es desconocimiento. No se afirma que esté
+    // retirada, y tampoco se ofrece: no se puede prometer lo que no se sabe.
+    render(
+      <GuidedRouteList
+        state={{ status: "available", guides: GUIDES }}
+        verdicts={verdicts({})}
+        runnablePins={TODAS_EJECUTABLES}
+        onOpen={() => {}}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", {
+        name: "No disponible ahora: Las teorías son lentes",
+      }),
+    ).toBeDisabled();
   });
 });

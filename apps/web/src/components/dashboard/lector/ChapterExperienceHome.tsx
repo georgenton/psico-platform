@@ -9,7 +9,7 @@ import {
 import { GuidedRouteList } from "../guide/GuidedRouteList";
 import { belongsInLegacyExperienceList } from "../guide/guide-discovery-surface";
 import type { RouteCardVerdict } from "../guide/GuidedRouteList";
-import { routePinKey } from "../guide/guide-route-verdict";
+import { runnablePinsFrom } from "../guide/runnable-pins";
 import type { GuideRouteState } from "../guide/use-guide-route";
 import type { GuideRouteItem } from "@psico/types";
 import type { BookExperienceModeView } from "./book-experience";
@@ -222,6 +222,13 @@ export function ChapterExperienceHome({
   // five put them in both lists at once, so a reader saw the same readings
   // twice — once as a route, once as cards that could not open. One surface
   // owns each pin; the rest of this list is unchanged.
+  // Qué pines admiten un inicio NUEVO, de la MISMA lectura en lote que
+  // dibuja las tarjetas: ni una petición más ni una segunda autoridad. Sale
+  // de `experiences` sin filtrar, no de `visibleExperiences`, porque la ruta
+  // guiada y la lista legada son superficies distintas y una guía cuya
+  // experiencia vive en la otra sigue siendo ejecutable.
+  const runnablePins = runnablePinsFrom(experiences);
+
   const visibleExperiences = experiencesEnabled
     ? experiences.filter((e) => belongsInLegacyExperienceList(e.guidePin))
     : [];
@@ -396,13 +403,7 @@ export function ChapterExperienceHome({
           // a pin that stays published for the sessions already on it while
           // refusing new ones; a client that reads it as absent offers
           // nothing, which is the honest reading of "I could not ask".
-          runnablePins={
-            new Set(
-              experiences
-                .filter((e) => e.startable === true)
-                .map((e) => routePinKey(e.guidePin)),
-            )
-          }
+          runnablePins={runnablePins}
           onOpen={onOpenRouteGuide}
           onRetry={onRetryRoute}
         />

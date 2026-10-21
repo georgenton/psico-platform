@@ -98,6 +98,7 @@ export function DraftEditor({
   chapterOrder,
   contentUnitId,
   publication,
+  previewContext,
 }: {
   id: string;
   initial: ChapterExperienceDefinition;
@@ -112,6 +113,12 @@ export function DraftEditor({
    * than a write against whatever chapter now answers to this number.
    */
   contentUnitId: string | null;
+  /**
+   * B3 — con qué puede la vista previa PEDIR lo suyo: la interacción de una
+   * práctica, el medio de un capítulo. Lecturas; la previsualización sigue
+   * sin registrar nada. `null` la deja como estaba.
+   */
+  previewContext: { apiBase: string; token: string } | null;
   /**
    * B3 — el veredicto editorial que aplicará el servidor, tal cual.
    *
@@ -473,7 +480,14 @@ export function DraftEditor({
         ) : null}
       </div>
 
-      {preview ? <PreviewSection preview={preview} /> : null}
+      {preview ? (
+        <PreviewSection
+          preview={preview}
+          bookSlug={bookSlug}
+          chapterOrder={chapterOrder}
+          previewContext={previewContext}
+        />
+      ) : null}
     </div>
   );
 }
@@ -486,7 +500,17 @@ export function DraftEditor({
  * not ship is reported rather than substituted — previewing against the wrong
  * guide would be worse than not previewing at all.
  */
-function PreviewSection({ preview }: { preview: ChapterExperiencePublicView }) {
+function PreviewSection({
+  preview,
+  bookSlug,
+  chapterOrder,
+  previewContext,
+}: {
+  preview: ChapterExperiencePublicView;
+  bookSlug: string;
+  chapterOrder: number;
+  previewContext: { apiBase: string; token: string } | null;
+}) {
   const bundle = resolveGuideWebBundle(preview.guidePin);
 
   return (
@@ -506,7 +530,23 @@ function PreviewSection({ preview }: { preview: ChapterExperiencePublicView }) {
           {preview.guidePin.guideVersion}, así que no podemos previsualizarla.
         </p>
       ) : (
-        <ExperiencePreview definition={preview} bundle={bundle} />
+        <ExperiencePreview
+          definition={preview}
+          bundle={bundle}
+          // B3 — con qué pedir lo que una escena no trae consigo. Sin esto la
+          // práctica de ordenamiento no cargaba sus tarjetas y la vista previa
+          // enseñaba media escena sin avisar.
+          media={
+            previewContext
+              ? {
+                  bookSlug,
+                  chapterOrder,
+                  apiBase: previewContext.apiBase,
+                  token: previewContext.token,
+                }
+              : null
+          }
+        />
       )}
     </section>
   );

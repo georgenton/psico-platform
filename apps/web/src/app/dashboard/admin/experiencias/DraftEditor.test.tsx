@@ -93,6 +93,7 @@ function renderEditor(
       chapterOrder={1}
       contentUnitId="unit_eec_c1"
       publication={publication}
+      previewContext={null}
     />,
   );
 }

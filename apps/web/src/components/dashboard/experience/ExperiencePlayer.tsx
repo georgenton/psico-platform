@@ -118,6 +118,15 @@ export interface ExperiencePlayerSurfaceProps extends ExperiencePlayerProps {
    * otherwise move the place a reader comes back to.
    */
   persistSceneCursor?: boolean;
+  /**
+   * B3 — ¿pulsar «Empezar» abre de verdad una sesión?
+   *
+   * Cierto en el reproductor, que manda un START y puede recibir un 410 de un
+   * pin retirado. Falso en la vista previa, cuya ejecución no habla con el
+   * servidor: allí la pregunta «¿admite recorridos nuevos?» no se aplica, y
+   * heredarla dejaría al editor sin poder recorrer lo que está revisando.
+   */
+  startOpensASession?: boolean;
 }
 
 /**
@@ -141,6 +150,7 @@ export function ExperiencePlayerSurface({
   onCompleted,
   run,
   persistSceneCursor = true,
+  startOpensASession = true,
 }: ExperiencePlayerSurfaceProps) {
   const pin = useMemo(
     () => ({
@@ -176,7 +186,13 @@ export function ExperiencePlayerSurface({
    * the pure function saying "this cover is offering a start" and has no
    * consumer. This one is the server's answer about the pin.
    */
-  const admiteInicioNuevo = definition.startable === true;
+  const admiteInicioNuevo = startOpensASession
+    ? definition.startable === true
+    : // La vista previa no abre nada: su «Empezar» mueve un estado local y no
+      // llega al servidor. Aplicarle la respuesta del servidor sobre sesiones
+      // nuevas dejaría a un editor sin poder recorrer el borrador de una guía
+      // retirada — una puerta cerrada contra algo que nadie está abriendo.
+      true;
 
   // The remembered panel, re-read whenever the server's checkpoint moves. It
   // is advisory: `deriveExperiencePresentationState` clamps it to the window

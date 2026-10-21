@@ -150,6 +150,34 @@ export function ExperiencePlayerSurface({
     [definition.experienceKey, definition.experienceVersion],
   );
 
+  /**
+   * May a NEW run begin? Three screens ask it, so it is answered once.
+   *
+   * Published and startable are different questions. A pin retired for new
+   * starts stays published so the sessions already on it can finish, and
+   * `POST /guide/sessions` answers 410 — measured on
+   * `eec-c1-cuerpo-antes-que-mente@1`. Three buttons used to send that START
+   * anyway: the cover's «Empezar experiencia» (fixed in B1), and these two,
+   * which are worse than the cover because the reader HAS something here. The
+   * refusal comes back as `gone`, and the hook's `gone` branch clears this
+   * pin's recovery slot and blanks `session`, so one press on «Repetir
+   * experiencia» replaced a finished journey's summary with a cover that
+   * refuses to start it. Nothing was lost on the server — the next mount
+   * re-reads COMPLETED from `getExperienceState` — but the reader watched
+   * their own run disappear for pressing a button the app knew would fail.
+   *
+   * Absent reads as "could not ask", which is not a licence: an older API that
+   * never learned the field would otherwise be treated as a yes.
+   *
+   * It gates only BEGINNING. Continuing and reviewing are a session's own
+   * business and stay available.
+   *
+   * Not to be confused with `ExperiencePresentationState.startable`, which is
+   * the pure function saying "this cover is offering a start" and has no
+   * consumer. This one is the server's answer about the pin.
+   */
+  const admiteInicioNuevo = definition.startable === true;
+
   // The remembered panel, re-read whenever the server's checkpoint moves. It
   // is advisory: `deriveExperiencePresentationState` clamps it to the window
   // and ignores it outright when it belongs to another session.
@@ -365,24 +393,17 @@ export function ExperiencePlayerSurface({
             ? ` · unos ${definition.estimatedMinutes} minutos`
             : ""}
         </p>
-        {/* Published and startable are different questions, and until the
-            server began answering the second this cover offered «Empezar
-            experiencia» for a pin whose `POST /guide/sessions` replies 410 —
-            measured on `eec-c1-cuerpo-antes-que-mente@1`, retired for new
-            starts so the sessions already on it keep working. A press that
-            can only be refused is not an offer. Absent reads as "could not
-            ask", and that is not a licence either. */}
-        {definition.startable !== true ? (
+        {admiteInicioNuevo ? null : (
           <p style={mutedStyle} role="status">
             Esta experiencia no admite recorridos nuevos. Si ya la empezaste,
             puedes continuarla desde donde la dejaste.
           </p>
-        ) : null}
+        )}
         <SceneActions>
           <SceneAction
             label={run.busy ? "Abriendo…" : "Empezar experiencia"}
             onClick={() => void run.start()}
-            disabled={run.busy || definition.startable !== true}
+            disabled={run.busy || !admiteInicioNuevo}
           />
           {onClose ? (
             <SceneAction label="Ahora no" onClick={onClose} variant="ghost" />
@@ -401,10 +422,19 @@ export function ExperiencePlayerSurface({
           Lo empezaste antes — quizá en otro dispositivo. Puedes seguir donde lo
           dejaste o empezarlo de nuevo.
         </SceneBody>
+        {admiteInicioNuevo ? null : (
+          <p style={mutedStyle} role="status">
+            Esta experiencia ya no admite empezar de nuevo. Puedes continuar el
+            recorrido que tienes abierto.
+          </p>
+        )}
         <SceneActions>
           {/* Continue ADOPTS the open session. Start fresh sends a real START,
               which the server answers by closing the open run and opening a
-              new one — the existing lifecycle, not a client-side cancel. */}
+              new one — the existing lifecycle, not a client-side cancel.
+              Continuing is NEVER gated on `startable`: that answer is about
+              beginning, and withholding it here would take away a journey that
+              is already somebody's. */}
           <SceneAction label="Continuar experiencia" onClick={run.adopt} />
           <SceneAction
             label={run.busy ? "Abriendo…" : "Empezar de nuevo"}
@@ -412,7 +442,7 @@ export function ExperiencePlayerSurface({
               if (persistSceneCursor) clearExperienceScene(pin);
               void run.start();
             }}
-            disabled={run.busy}
+            disabled={run.busy || !admiteInicioNuevo}
             variant="ghost"
           />
         </SceneActions>
@@ -440,6 +470,13 @@ export function ExperiencePlayerSurface({
             if (persistSceneCursor) clearExperienceScene(pin);
             void run.start();
           }}
+          {...(admiteInicioNuevo
+            ? {}
+            : {
+                repeatRefusal:
+                  "Esta experiencia ya no admite recorridos nuevos. Lo que " +
+                  "completaste queda guardado.",
+              })}
         />
       </Panel>
     );

@@ -97,17 +97,19 @@ reordenación anunciada; alternativa sin arrastrar; respeto a
 `prefers-reduced-motion`; **el color nunca es la única señal de estado**;
 ninguna reproducción automática.
 
-## Los cuatro estados de la tarjeta
+## Los estados de la tarjeta
 
 Con su texto actual, medido en el capítulo 1 de _Emociones en Construcción_:
 
-| Estado               | Cuándo                                                                                                     | Hoy se ve así                                                                                                                                     |
-| -------------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Disponible**       | hay una experiencia publicada para ese pin, el servidor la declara arrancable y es la única que lo reclama | tarjeta activa, «Empezar»                                                                                                                         |
-| **No disponible**    | falta cualquiera de esas tres condiciones                                                                  | **«No disponible ahora», control apagado** — las cinco microguías de C01 están así hoy                                                            |
-| **Retirada y ajena** | el capítulo ya no la ofrece y quien mira no tiene recorrido propio en ella                                 | «Este recorrido ya no está disponible · No forma parte de lo que este capítulo ofrece ahora. Si ya lo habías empezado, tu avance sigue guardado.» |
-| **En curso**         | hay una sesión abierta                                                                                     | «Continuar»; y si se abre el recorrido: «Tienes este recorrido abierto», con «Continuar experiencia» y «Empezar de nuevo»                         |
-| **Completado**       | la sesión terminó                                                                                          | el resumen con sus hechos y «Repetir experiencia»                                                                                                 |
+| Estado                   | Cuándo                                                                                                     | Hoy se ve así                                                                                                                                     |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Disponible**           | hay una experiencia publicada para ese pin, el servidor la declara arrancable y es la única que lo reclama | tarjeta activa, «Empezar»                                                                                                                         |
+| **No disponible**        | falta cualquiera de esas tres condiciones                                                                  | **«No disponible ahora», control apagado** — las cinco microguías de C01 están así hoy                                                            |
+| **Retirada y ajena**     | el capítulo ya no la ofrece y quien mira no tiene recorrido propio en ella                                 | «Este recorrido ya no está disponible · No forma parte de lo que este capítulo ofrece ahora. Si ya lo habías empezado, tu avance sigue guardado.» |
+| **En pausa**             | la cuenta quedó fuera del rollout y tiene un recorrido abierto                                             | «Tu recorrido está en pausa · Lo dejaste en el paso N de M. Ahora mismo esta guía no está disponible para tu cuenta…»                             |
+| **Terminada y en pausa** | lo mismo, con el recorrido ya cerrado                                                                      | «Terminaste este recorrido · Registraste N de M pasos… lo que hiciste queda guardado.»                                                            |
+| **En curso**             | hay una sesión abierta                                                                                     | «Continuar»; y si se abre el recorrido: «Tienes este recorrido abierto», con «Continuar experiencia» y «Empezar de nuevo»                         |
+| **Completado**           | la sesión terminó                                                                                          | el resumen con sus hechos y «Repetir experiencia»                                                                                                 |
 
 Dos matices que el diseño debe poder expresar y hoy comparten forma:
 
@@ -178,6 +180,35 @@ No hace falta publicar nada para diseñar esto, y no debe hacerse. El borrador
 sigue en DRAFT y el servidor ahora **niega** publicarlo: su manifiesto declara
 `publishAllowed: false` y el endpoint lo comprueba.
 
+## El paquete de evidencia
+
+21 capturas del **reproductor auténtico**, cada una con su ruta, superficie,
+escena, título, tema, ambiente, viewport y el SHA del árbol que la produjo
+(`manifiesto.json` junto a ellas):
+
+- las **siete escenas** de MG03 recorridas de principio a fin en
+  **Contemporary · Calma · 1280** y en **Renacimiento · Noche · 390**, más la
+  portada y el cierre de cada recorrido;
+- las tres superficies donde viven los estados de tarjeta: la entrada de
+  Exploraciones, las tarjetas del capítulo en modo Recorrido, y un recorrido
+  retirado visto por su dueña.
+
+Las imágenes **no van al repositorio**: viven en el material de trabajo del
+bloque y se entregan aparte. Lo que se versiona es este brief.
+
+## Lo que B4 ya resolvió, para que no se rediseñe
+
+- **Área táctil.** «Subir» y «Bajar» medían 30 × 30 px; ahora miden 44 y la
+  tarjeta envuelve cuando no caben en una línea. Medido en siete
+  combinaciones: cero controles por debajo de 44, cero desbordamiento a 320 y
+  390 px.
+- **Contraste en Noche.** El botón tenía `white` escrito a mano y su glifo
+  seguía al tema: la flecha quedaba a **1,43:1** contra su propio botón. Con
+  un token, 7,13–11,46:1 en las siete combinaciones. Renacimiento conserva
+  sus tintes propios.
+
+Eso ya no es una pregunta abierta. Lo que sigue, sí.
+
 ## Preguntas que sí son de diseño
 
 1. ¿Merece «ofrecida pero no ejecutable» una forma distinta de «no disponible
@@ -189,7 +220,10 @@ sigue en DRAFT y el servidor ahora **niega** publicarlo: su manifiesto declara
 4. La escena 4 es narrativa y se ve como las demás. ¿Debe respirar distinto?
 5. ¿Qué distingue visualmente una escena que registra de una que acompaña, sin
    convertir el contador en una barra de progreso que presione?
-6. La escena de práctica acumula siete elementos pulsables. ¿Cuál es su
-   jerarquía —ordenar primero, salidas después— y cómo se sostiene a 390 px?
+6. La escena de práctica acumula **siete elementos pulsables** para un
+   trabajo mental de ordenar cuatro frases, y con los controles ya a 44 px
+   cada tarjeta pasa de **66 px de alto a 1280** a **139 px a 320**. ¿Cuál es
+   su jerarquía —ordenar primero, salidas después— y cómo se sostiene
+   estrecha sin volver a encoger lo que se pulsa?
 7. ¿Sigue teniendo sentido «Poner un minuto» en una escena que ya tiene su
    propia interacción, o pertenecía a la forma antigua?

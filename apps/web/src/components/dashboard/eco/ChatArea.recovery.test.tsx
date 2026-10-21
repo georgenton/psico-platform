@@ -3,20 +3,13 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 /**
- * B1 — un fallo de Eco deja el borrador listo para reenviar.
+ * Guardas auxiliares sobre la ESTRUCTURA del envío de Eco.
  *
- * Hay dos caminos de fallo y durante un tiempo sólo uno se recuperaba:
- *
- *   · `catch` — la petición no llegó o reventó antes del flujo.
- *   · evento SSE `error` — el servidor abrió el flujo y lo cerró con un
- *     error dentro. Es el camino que toma un proveedor caído, y es el que se
- *     midió: «Algo salió mal», la burbuja optimista sin respuesta y el texto
- *     escrito, perdido.
- *
- * Montar `ChatArea` aquí costaría cripto, SSE y contexto de clave para
- * comprobar una sola cosa: que los dos caminos hacen el mismo rebobinado. Se
- * comprueba sobre la fuente, que es donde vive el riesgo de que uno vuelva a
- * quedarse atrás.
+ * El comportamiento se prueba ejecutándolo, en `ChatArea.sse-error.test.tsx`.
+ * Esto vigila otra cosa: que no vuelva a haber dos versiones de «este intento
+ * falló», que es de donde salieron los dos defectos. Antes había un
+ * rebobinado en el `catch` y otro, parcial, dentro del `switch`; y el `break`
+ * del evento dejaba seguir al envío hasta revelar una respuesta a medias.
  */
 
 const FUENTE = readFileSync(
@@ -24,48 +17,48 @@ const FUENTE = readFileSync(
   "utf8",
 );
 
-/** El cuerpo del `case "error"` del consumidor SSE. */
-function ramaDelEventoError(): string {
-  const i = FUENTE.indexOf('case "error":');
-  expect(i).toBeGreaterThan(-1);
-  const j = FUENTE.indexOf("break;", i);
-  expect(j).toBeGreaterThan(i);
-  return FUENTE.slice(i, j);
-}
-
-/** El cuerpo del `catch` del envío. */
-function ramaDelCatch(): string {
-  const i = FUENTE.indexOf("Eco sendMessage failed");
-  expect(i).toBeGreaterThan(-1);
-  return FUENTE.slice(i, FUENTE.indexOf("return;", i));
-}
-
-describe("recuperación de Eco: los dos caminos de fallo se comportan igual", () => {
-  const rebobinado = [
-    "setText(plain)",
-    'setPhase("idle")',
-    'setStreamTarget("")',
-    "finalizeRef.current = null",
-  ];
-
-  it("el evento SSE de error devuelve el borrador al compositor", () => {
-    const rama = ramaDelEventoError();
-    for (const paso of rebobinado) expect(rama).toContain(paso);
+describe("estructura del envío de Eco", () => {
+  it("hay UN solo rebobinado, y hace las cuatro cosas", () => {
+    const i = FUENTE.indexOf("const rebobinar = (");
+    expect(i).toBeGreaterThan(-1);
+    const cuerpo = FUENTE.slice(i, FUENTE.indexOf("};", i));
+    for (const paso of [
+      "setSendError(",
+      "msg.id !== optimisticId",
+      "setText(plain)",
+      'setPhase("idle")',
+    ]) {
+      expect(cuerpo).toContain(paso);
+    }
+    // Y sólo uno: dos definiciones serían dos verdades.
+    expect(FUENTE.split("const rebobinar = (")).toHaveLength(2);
   });
 
-  it("y retira la burbuja optimista que se quedó sin respuesta", () => {
-    expect(ramaDelEventoError()).toContain("msg.id !== optimisticId");
+  it("el evento de error sólo anota; no rebobina por su cuenta", () => {
+    const i = FUENTE.indexOf('case "error":');
+    const rama = FUENTE.slice(i, FUENTE.indexOf("break;", i));
+    expect(rama).toContain("fallo = ev.data.message");
+    expect(rama).not.toContain("setText(");
+    expect(rama).not.toContain("setPhase(");
   });
 
-  it("el camino del `catch` sigue haciendo lo mismo", () => {
-    const rama = ramaDelCatch();
-    for (const paso of rebobinado) expect(rama).toContain(paso);
-    expect(rama).toContain("msg.id !== optimisticId");
+  it("y el intento termina ANTES de poder revelar lo que llegó a medias", () => {
+    const cierre = FUENTE.indexOf("if (fallo) {");
+    const revelado = FUENTE.indexOf("if (buffered) {");
+    expect(cierre).toBeGreaterThan(-1);
+    expect(revelado).toBeGreaterThan(-1);
+    expect(cierre).toBeLessThan(revelado);
+    expect(FUENTE.slice(cierre, revelado)).toContain("return;");
   });
 
-  it("no hay reenvío automático: nada reintenta solo", () => {
-    // Un reintento en bucle contra un proveedor caído multiplica mensajes y
-    // coste. La recuperación la decide la persona pulsando Enviar.
+  it("el `catch` usa el mismo rebobinado, no una copia", () => {
+    const i = FUENTE.indexOf("Eco sendMessage failed");
+    const rama = FUENTE.slice(i, FUENTE.indexOf("return;", i));
+    expect(rama).toContain("rebobinar(");
+    expect(rama).not.toContain("setText(plain)");
+  });
+
+  it("nada reintenta solo", () => {
     expect(FUENTE).not.toMatch(/setTimeout\([^)]*send\b/);
     expect(FUENTE).not.toMatch(/\bretryCount\b|\bautoRetry\b/);
   });

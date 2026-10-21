@@ -651,3 +651,73 @@ describe("ExperienceAdminService — one lineage per guide", () => {
     expect(data.status).toBe("DRAFT");
   });
 });
+
+/**
+ * B2 §4 — qué relación hay entre la aprobación editorial de un manifiesto y el
+ * acto de publicar. Medida, no supuesta.
+ *
+ * Los manifiestos de `artifacts/eec/**` declaran `status: "DRAFT"`,
+ * `publishAllowed: false`, el `canonicalSha256` del manuscrito y una lista de
+ * `approvalReferences`. Leído así parece un circuito de aprobación.
+ *
+ * No lo es todavía. Esos campos los lee UNA herramienta —el CLI que CREA los
+ * borradores— como precondición suya: un manifiesto con `publishAllowed`
+ * distinto de `false` se rechaza antes de crear nada
+ * (`eec-c01-guides-cli.ts:201`). Después nadie vuelve a mirarlos. No se
+ * guardan en la fila, no viajan dentro de `definitionJson`, y
+ * `POST /api/experiences/admin/drafts/:id/publish` no los consulta.
+ *
+ * Esto fija ese estado de hecho para que una implementación futura tenga algo
+ * a lo que responder — el mismo papel que `experience-code-owned-lifecycle`
+ * cumple para el ADR 0026. Si alguien añade el control, estas pruebas fallan,
+ * y ese fallo es la señal de que ya existe.
+ */
+describe("ExperienceAdminService — publicar y la aprobación editorial", () => {
+  it("publica un borrador válido sin consultar ninguna aprobación", async () => {
+    prisma.chapterExperienceVersion.findUnique.mockResolvedValue({
+      id: "row_1",
+      status: "DRAFT",
+      definitionJson: await publishableDefinition(),
+    });
+    prisma.chapterExperienceVersion.updateMany.mockResolvedValue({ count: 1 });
+
+    const result = await service.publish("row_1");
+
+    expect(result.publishedAt).toBeTruthy();
+    // Nada en la transacción preguntó por una aprobación: no hay tabla, no hay
+    // columna y no hay lectura. El rol ADMIN fue el único filtro.
+    const leido = JSON.stringify(
+      prisma.chapterExperienceVersion.findUnique.mock.calls,
+    );
+    expect(leido).not.toMatch(/approval|publishAllowed|sha256/i);
+  });
+
+  it("la definición almacenada no lleva la procedencia, así que no hay nada que consultar", async () => {
+    // El punto no es que el control esté apagado: es que el dato no está. La
+    // fila real de MG03 en una base desechable lleva nueve claves —bookSlug,
+    // chapterOrder, experienceKey, experienceVersion, guidePin, scenes,
+    // status, summary, title— y ninguna puede alojar una aprobación. Un
+    // control en el endpoint tendría que empezar por conservar la procedencia
+    // en la escritura del borrador; eso es un cambio de contrato, no un `if`.
+    const serializado = JSON.stringify(await publishableDefinition());
+    expect(serializado).not.toMatch(/approval/i);
+    expect(serializado).not.toMatch(/sha256/i);
+    expect(serializado).not.toMatch(/publishAllowed/i);
+    expect(serializado).not.toMatch(/canonicalVersion/i);
+    expect(serializado).not.toMatch(/manifestId/i);
+  });
+
+  it("el único filtro declarado de la ruta es el rol", async () => {
+    // `@UseGuards(RolesGuard)` + `@RequiredRole("ADMIN")` a nivel de clase:
+    // una respuesta a «quién entra», no a «qué está aprobado». El mismo
+    // permiso que lista borradores publica el que quiera.
+    const fs = await import("node:fs/promises");
+    const fuente = await fs.readFile(
+      new URL("./experience-admin.controller.ts", import.meta.url),
+      "utf8",
+    );
+    expect(fuente).toMatch(/@RequiredRole\("ADMIN"\)/);
+    expect(fuente).toMatch(/drafts\/:id\/publish/);
+    expect(fuente).not.toMatch(/approvalReferences|publishAllowed/);
+  });
+});

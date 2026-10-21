@@ -96,12 +96,76 @@ que resolver el conjunto entero es lo que evita volver a razonar por posición.
 Habría que comprobar que ningún llamante depende del rechazo global como señal
 de «el catálogo está incompleto».
 
+## Comprobación contra PostgreSQL real (2026-10-21)
+
+Dos bases desechables: `psico_guias_qa`, levantada de cero con la semilla
+canónica; y `psico_b1_qa`, clon de una base donde el par del piloto fue
+ingerido antes de su retirada. Todo lo que sigue está medido, no deducido.
+
+**El candado de linaje es real.** `ExperienceGuideReservation` tiene la clave
+primaria `(contentUnitId, experienceKey)` y un índice único
+`(contentUnitId, guideKey)` —la unicidad que el apartado B da por supuesta
+existe como índice, no como constraint, y por eso no aparece en
+`pg_constraint`—. Cuatro sondas, todas revertidas: otra `experienceKey`
+pidiendo una guía ya reservada en la misma unidad → rechazada por el índice;
+la misma `experienceKey` pidiendo otra guía → rechazada por la PK; borrar la
+unidad bajo una reserva viva → rechazado (`RESTRICT`); borrar una reserva que
+una versión referencia → rechazado por `ChapterExperienceVersion_reservation_fkey`,
+que apunta al único de tres columnas con `ON DELETE RESTRICT`. Una unidad
+distinta sí puede reservar la misma guía: el candado es por capítulo, como se
+diseñó.
+
+**El beneficio es real.** En la base de cero, con el piloto PUBLISHED,
+`create-drafts --apply` responde `REFUSED` con
+`EXPERIENCE_CODE_OWNED_UNRESOLVED`. Con el piloto `ARCHIVED` y nada más
+cambiado: `APPLIED`, las cinco microguías de C01 creadas en DRAFT y sus cinco
+reservas escritas. El piloto allí no tiene reserva ni sesiones — no hay nada
+histórico que proteger, como decía el apartado B.
+
+**La precondición del apartado B se cumple, y hacía falta comprobarla.** En el
+entorno con historia el piloto tiene **dos sesiones y ninguna reserva**. La
+protección que B invoca no existe hoy donde sí hay historia: hay que crearla.
+Se puede: el `insert` de su reserva en la unidad que sus propias sesiones ya
+fijan fue aceptado y no tocó ninguna sesión (revertido).
+
+**Y aparece un coste que el apartado A no nombraba.** Archivar no sólo deja de
+_ofrecer_ el recorrido: lo deja **inalcanzable**. `GET
+/api/experiences/discovery/:bookSlug/:chapterOrder` es el único endpoint que
+devuelve una definición, y las dos superficies del lector —la tarjeta del
+capítulo y la ruta dedicada `/dashboard/exploraciones/eec-c1-cuerpo-antes-que-mente`—
+la resuelven por ahí. Medido en el navegador, misma cuenta, misma sesión,
+mismo build, cambiando sólo el estado del catálogo:
+
+|                         | PUBLISHED                                               | ARCHIVED                                                              |
+| ----------------------- | ------------------------------------------------------- | --------------------------------------------------------------------- |
+| descubrimiento          | 1 ítem, `startable:false`                               | **0 ítems**                                                           |
+| `/guide/sessions/state` | COMPLETED 3/3 + resumen                                 | COMPLETED 3/3 + resumen                                               |
+| `POST /guide/sessions`  | 410 `GUIDE_NOT_STARTABLE`                               | 410 `GUIDE_NOT_STARTABLE`                                             |
+| página del piloto       | resumen, hechos y «Repetir» deshabilitado con su motivo | **«No pudimos preparar tu guía · Vuelve a intentarlo en un momento»** |
+
+El registro sobrevive entero: `findExperienceState` resuelve contra
+`productionGuideRegistry`, que no mira el estado de publicación. Lo que se
+pierde es el camino. Y el mensaje que queda es falso en los dos sentidos:
+invita a reintentar algo que no va a cambiar nunca, y mientras tanto
+`/dashboard/exploraciones` sigue ofreciendo «Empezar guía» hacia ese callejón.
+
 ## Recomendación
 
-**B**, y sólo después de comprobar en el entorno real que el piloto tiene su
-reserva o que puede crearse sin tocar sus sesiones. A sin B deja la identidad
-histórica sin candado; C es correcta pero toca una invariante documentada y
-merece su propia decisión, no una colada dentro de un arreglo de preparación.
+**B no se recomienda todavía.** Su protección es correcta y su beneficio está
+medido, pero aplicarla a un entorno con historia deja sin camino a quien ya
+tiene un recorrido ahí. Antes hacen falta dos cosas, en este orden:
+
+1. **Un camino para lo histórico que no dependa del descubrimiento.** Que el
+   descubrimiento siga sirviendo una definición archivada al actor que tiene
+   una sesión en ella, o una ruta propia para «mis recorridos», o cualquier
+   tercera forma — pero alguna, y comprobada, antes de archivar nada.
+2. **Separar «retirado» de «fallo transitorio» en el texto**, y dejar de
+   ofrecer «Empezar guía» hacia una guía que ya no se puede montar.
+
+Con esas dos, B es la opción; sin ellas, A y B tienen el mismo defecto y C
+—estrechar el rechazo a la guía afectada— pasa a ser la única que desbloquea
+la preparación sin tocar lo que un lector ya tiene. C sigue cambiando una
+invariante documentada y merece su propia decisión.
 
 Ninguna de las tres se aplica en este cambio.
 

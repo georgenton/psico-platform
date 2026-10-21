@@ -101,12 +101,13 @@ ninguna reproducción automática.
 
 Con su texto actual, medido en el capítulo 1 de _Emociones en Construcción_:
 
-| Estado            | Cuándo                                                                                                     | Hoy se ve así                                                                                                             |
-| ----------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| **Disponible**    | hay una experiencia publicada para ese pin, el servidor la declara arrancable y es la única que lo reclama | tarjeta activa, «Empezar»                                                                                                 |
-| **No disponible** | falta cualquiera de esas tres condiciones                                                                  | **«No disponible ahora», control apagado** — las cinco microguías de C01 están así hoy                                    |
-| **En curso**      | hay una sesión abierta                                                                                     | «Continuar»; y si se abre el recorrido: «Tienes este recorrido abierto», con «Continuar experiencia» y «Empezar de nuevo» |
-| **Completado**    | la sesión terminó                                                                                          | el resumen con sus hechos y «Repetir experiencia»                                                                         |
+| Estado               | Cuándo                                                                                                     | Hoy se ve así                                                                                                                                     |
+| -------------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Disponible**       | hay una experiencia publicada para ese pin, el servidor la declara arrancable y es la única que lo reclama | tarjeta activa, «Empezar»                                                                                                                         |
+| **No disponible**    | falta cualquiera de esas tres condiciones                                                                  | **«No disponible ahora», control apagado** — las cinco microguías de C01 están así hoy                                                            |
+| **Retirada y ajena** | el capítulo ya no la ofrece y quien mira no tiene recorrido propio en ella                                 | «Este recorrido ya no está disponible · No forma parte de lo que este capítulo ofrece ahora. Si ya lo habías empezado, tu avance sigue guardado.» |
+| **En curso**         | hay una sesión abierta                                                                                     | «Continuar»; y si se abre el recorrido: «Tienes este recorrido abierto», con «Continuar experiencia» y «Empezar de nuevo»                         |
+| **Completado**       | la sesión terminó                                                                                          | el resumen con sus hechos y «Repetir experiencia»                                                                                                 |
 
 Dos matices que el diseño debe poder expresar y hoy comparten forma:
 
@@ -135,23 +136,47 @@ diseño de MG03 en Noche debe especificarse contra los valores **pretendidos**,
 y conviene no apoyar ninguna jerarquía nueva en bordes o sombras hasta que eso
 se cierre.
 
-## Qué se puede mirar hoy, y qué no muestra
+## Qué se puede mirar hoy
 
 Existe una **vista previa interactiva del borrador**, dentro del editor de
 administración: monta el reproductor real con los renderizadores reales y una
 ejecución que no registra nada («Vista previa: no registra avance, respuestas
-ni resonancias»). Recorrida de principio a fin el 2026-10-21 en una pila local:
-las siete escenas se suceden y el contador llega a 3 de 3.
+ni resonancias»).
 
-**Con una limitación que conviene saber antes de revisar por ahí:** la vista
-previa no pasa contexto de red al reproductor, así que la **interacción de la
-práctica no se carga**. En la escena 5 se ven el título, el cuerpo, la nota, un
-temporizador opcional y el botón de confirmar — pero **no las cuatro tarjetas a
-ordenar**. Quien revise MG03 sólo por la vista previa no llegará a ver la
-práctica. Las tarjetas sí están en el catálogo (arriba, textuales) y el
-renderizador existe con sus propias pruebas.
+**Ya muestra la práctica completa.** La versión anterior de este brief avisaba
+de que no: la vista previa no pasaba contexto de red, así que las cuatro
+tarjetas a ordenar no se cargaban nunca y quien revisara MG03 por ahí no
+llegaba a ver la mitad del trabajo. Corregido; el aviso se queda escrito
+porque explica por qué una revisión anterior pudo no verlas.
 
-No hace falta publicar nada para diseñar esto, y no debe hacerse.
+Recorrido el 2026-10-21 sobre el borrador real, las siete escenas, en las dos
+familias visuales por los ambientes y en móvil:
+
+| sistema · ambiente · ancho   | práctica              | recuerdo   |
+| ---------------------------- | --------------------- | ---------- |
+| Contemporary · Calma · 1280  | 4 tarjetas, 4 «Subir» | 3 opciones |
+| Contemporary · Noche · 1280  | 4 tarjetas, 4 «Subir» | 3 opciones |
+| Renacimiento · Calma · 1280  | 4 tarjetas, 4 «Subir» | 3 opciones |
+| Renacimiento · Noche · 1280  | 4 tarjetas, 4 «Subir» | 3 opciones |
+| Contemporary · Enfoque · 390 | 4 tarjetas, 4 «Subir» | 3 opciones |
+| Renacimiento · Energía · 390 | 4 tarjetas, 4 «Subir» | 3 opciones |
+
+Las capturas son del **reproductor**, no del formulario de campos del editor:
+lo que se ve es lo que verá quien lo recorra.
+
+Dos cosas que esas capturas enseñan y conviene mirar con intención:
+
+- **La práctica se ve larga.** Cuatro tarjetas, cada una con sus dos controles,
+  más «Prefiero ver el ejemplo resuelto», más «Poner un minuto», más el botón
+  de confirmar y su nota: siete elementos pulsables en una escena cuyo trabajo
+  mental es ordenar cuatro frases. A 390 px eso ocupa casi toda la pantalla.
+- **El temporizador opcional («Poner un minuto») convive con la práctica** y
+  no está claro para qué sirve cuando la escena ya tiene su propia
+  interacción. Venía de la forma antigua, en la que era sólo copia y botón.
+
+No hace falta publicar nada para diseñar esto, y no debe hacerse. El borrador
+sigue en DRAFT y el servidor ahora **niega** publicarlo: su manifiesto declara
+`publishAllowed: false` y el endpoint lo comprueba.
 
 ## Preguntas que sí son de diseño
 
@@ -164,3 +189,7 @@ No hace falta publicar nada para diseñar esto, y no debe hacerse.
 4. La escena 4 es narrativa y se ve como las demás. ¿Debe respirar distinto?
 5. ¿Qué distingue visualmente una escena que registra de una que acompaña, sin
    convertir el contador en una barra de progreso que presione?
+6. La escena de práctica acumula siete elementos pulsables. ¿Cuál es su
+   jerarquía —ordenar primero, salidas después— y cómo se sostiene a 390 px?
+7. ¿Sigue teniendo sentido «Poner un minuto» en una escena que ya tiene su
+   propia interacción, o pertenecía a la forma antigua?

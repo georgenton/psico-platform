@@ -12,6 +12,7 @@ import type { ChapterExperienceDefinition } from "@psico/types";
 import { backfillContentCore } from "../content-core/backfill";
 import { EXERCISE_INGESTION_CATALOG } from "../content-core/exercise-ingestion-catalog";
 import { productionExperienceRepository } from "./experience-production-catalog";
+import { approveRowForTests } from "./experience-seal.testing";
 import { ExperienceAdminService } from "./experience-admin.service";
 import {
   seedPracticeHeadings,
@@ -324,6 +325,7 @@ suite("C.3C · the previous binary, on the schema this PR ships", () => {
   it("V1 can create, save and publish against the cutover schema", async () => {
     const created = await v1.createDraft(userId, await eecDraft());
     await v1.saveDraft(created.id, await eecDraft());
+    await approveRowForTests(prisma, created.id);
     const published = await v1.publish(created.id);
     expect(published.publishedAt).toBeTruthy();
 

@@ -9,6 +9,7 @@ import type { ChapterExperienceDefinition } from "@psico/types";
 import { backfillContentCore } from "../content-core/backfill";
 import { materializableExercisePairs } from "../content-core/exercise-ingestion-catalog";
 import { productionExperienceRepository } from "./experience-production-catalog";
+import { approveRowForTests } from "./experience-seal.testing";
 import { ExperienceAdminService } from "./experience-admin.service";
 import {
   applyReservations,
@@ -351,6 +352,7 @@ suite("C.3A · the binding bridge", () => {
 
   it("versions of one lineage share the reservation", async () => {
     const first = await service.createDraft(userId, await eecDraft());
+    await approveRowForTests(prisma, first.id);
     await service.publish(first.id);
     await service.createNextDraft(userId, "eec-c1-cuerpo-antes-que-mente", 1);
 
@@ -480,6 +482,7 @@ suite("C.3A · the binding bridge", () => {
 
   it("publish revalidates the reservation under the lock", async () => {
     const created = await service.createDraft(userId, await eecDraft());
+    await approveRowForTests(prisma, created.id);
     const published = await service.publish(created.id);
     expect(published.publishedAt).toBeTruthy();
 
@@ -1145,6 +1148,7 @@ suite("C.3A · the binding bridge", () => {
     try {
       restore = (await republishWithNewUnitAtOrder(BOOK_A, 1))
         .previousRevisionId;
+      await approveRowForTests(prisma, created.id);
       await service.publish(created.id);
       const { rows } = await state();
       expect(rows[0]!.status).toBe("PUBLISHED");
@@ -1217,6 +1221,7 @@ suite("C.3A · the binding bridge", () => {
 
   it("the next version after a reorder keeps the SOURCE's pin", async () => {
     const created = await service.createDraft(userId, await eecDraft());
+    await approveRowForTests(prisma, created.id);
     await service.publish(created.id);
     let restore: string | null = null;
     try {

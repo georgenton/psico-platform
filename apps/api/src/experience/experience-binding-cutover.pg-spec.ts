@@ -11,6 +11,7 @@ import { LearningCatalogResolver } from "../learning/learning-catalog.resolver";
 import { backfillContentCore } from "../content-core/backfill";
 import { materializableExercisePairs } from "../content-core/exercise-ingestion-catalog";
 import { productionExperienceRepository } from "./experience-production-catalog";
+import { approveRowForTests } from "./experience-seal.testing";
 import { ExperienceAdminService } from "./experience-admin.service";
 import {
   bindingLockKeys,
@@ -431,6 +432,7 @@ suite("C.3C+C.4 · cutover, archive and a mixed fleet", () => {
 
   it("archiving one version does not release a guide another still uses", async () => {
     const first = await service.createDraft(userId, await eecDraft());
+    await approveRowForTests(prisma, first.id);
     await service.publish(first.id);
     const next = await service.createNextDraft(
       userId,
@@ -476,6 +478,7 @@ suite("C.3C+C.4 · cutover, archive and a mixed fleet", () => {
 
   it("a PUBLISHED version is never archived", async () => {
     const created = await service.createDraft(userId, await eecDraft());
+    await approveRowForTests(prisma, created.id);
     await service.publish(created.id);
     await expect(service.archiveDraft(created.id)).rejects.toMatchObject({
       response: expect.objectContaining({
@@ -897,6 +900,7 @@ suite("C.3C+C.4 · cutover, archive and a mixed fleet", () => {
 
   it("a lineage with any published version can never rebind", async () => {
     const created = await service.createDraft(userId, await eecDraft());
+    await approveRowForTests(prisma, created.id);
     await service.publish(created.id);
     const next = await service.createNextDraft(
       userId,

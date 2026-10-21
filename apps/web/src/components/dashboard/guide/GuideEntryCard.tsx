@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { guideRecoveryState } from "./guide-recovery";
 import { resolveGuideWebBundle } from "./guide-web-bundle";
+import { useChapterExperience } from "../experience/use-chapter-experience";
 
 /**
  * GR-4 — the guide this Exploraciones card advertises, stated explicitly.
@@ -17,6 +18,17 @@ import { resolveGuideWebBundle } from "./guide-web-bundle";
 const CARD_PIN = {
   guideKey: "eec-c1-cuerpo-antes-que-mente",
   guideVersion: 1,
+} as const;
+
+/**
+ * B3 — el capítulo de ese pin, declarado aquí como lo declara la ruta
+ * independiente que esta tarjeta enlaza. Hace falta para preguntarle al
+ * servidor si todavía se puede empezar, en vez de prometerlo desde
+ * `localStorage`.
+ */
+const CARD_CONTEXT = {
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 1,
 } as const;
 
 /**
@@ -66,11 +78,35 @@ export function GuideEntryCard({
     setStorage(guideRecoveryState(actorScope, bundle.pin, bundle.presentation));
   }, [actorScope, bundle]);
 
-  const canResume = storage === "valid";
+  /**
+   * B3 — qué ofrece de verdad esta tarjeta, preguntado al servidor.
+   *
+   * Hasta aquí el rótulo salía sólo de `localStorage`, así que la tarjeta
+   * decía «Empezar guía» también cuando empezar era imposible: el pin está
+   * retirado para inicios nuevos y `POST /guide/sessions` responde 410. Un
+   * CTA que lleva a una puerta cerrada no es una oferta.
+   *
+   * El hook resuelve por descubrimiento y, si el capítulo ya no la ofrece,
+   * pregunta por identidad exacta — de modo que quien tiene un recorrido
+   * propio sigue viendo su tarjeta aunque la experiencia esté retirada.
+   */
+  const experiencia = useChapterExperience({
+    ...CARD_CONTEXT,
+    pin: CARD_PIN,
+    enabled: actorScope !== null,
+  });
+  const resuelta = experiencia.definition;
+  const sePuedeEmpezar = resuelta?.startable === true;
+  const canResume = storage === "valid" && sePuedeEmpezar;
 
   // No bundle, no card. A guide this build cannot render is a guide the
   // catalog must not advertise.
   if (!bundle) return null;
+  // Lo mismo, por la misma razón, cuando el servidor ya contestó y no hay
+  // nada que abrir: ni el capítulo la ofrece ni esta persona tiene un
+  // recorrido en ella. Mientras la respuesta no llega la tarjeta se queda,
+  // con un rótulo que no promete empezar.
+  if (experiencia.status !== "loading" && resuelta === null) return null;
   const { presentation } = bundle;
   const href = presentation.href;
 
@@ -111,7 +147,15 @@ export function GuideEntryCard({
         className="btn primary"
         style={{ minHeight: 44, textDecoration: "none" }}
       >
-        {canResume ? presentation.labels.resume : presentation.labels.start}
+        {canResume
+          ? presentation.labels.resume
+          : sePuedeEmpezar
+            ? presentation.labels.start
+            : // Ni «Empezar» ni «Continuar»: lo uno sería mentira y lo otro
+              // una promesa que esta tarjeta no puede comprobar desde aquí.
+              // Abrir es exactamente lo que hace, y la pantalla de destino
+              // dice la verdad sobre lo que hay.
+              "Abrir guía"}
       </Link>
       {storage === "unavailable" ? (
         // Saying "Empezar" without this would promise something this browser

@@ -64,6 +64,40 @@ export function selectExperienceForGuidePin(
     : null;
 }
 
+/**
+ * B3 — pregunta por un recorrido propio cuyo pin la oferta no lista.
+ *
+ * Silenciosa a propósito: un 404 aquí es la respuesta normal —no hay sesión de
+ * esta persona en ese pin— y convertirlo en un error de pantalla haría que
+ * «este capítulo no tiene este recorrido» se leyera como una avería.
+ *
+ * El `experienceKey` se deriva del `guideKey` porque hoy el pin de guía y la
+ * identidad de la experiencia coinciden en todo lo que el build publica. Si
+ * algún día dejan de coincidir, esto devolverá 404 y la pantalla dirá lo que
+ * decía antes — se degrada a lo anterior, no a algo peor.
+ */
+async function resolveOwned(
+  guideKey: string,
+  guideVersion: number,
+): Promise<ChapterExperiencePublicView | null> {
+  try {
+    const propia = await experienceApi.getOwnByPin({
+      experienceKey: guideKey,
+      experienceVersion: guideVersion,
+    });
+    const vista = propia?.experience ?? null;
+    // Y aun así se comprueba el pin: pedir por identidad y creerse lo que
+    // vuelva sin mirar sería aceptar el recorrido de otra guía.
+    return vista &&
+      vista.guidePin.guideKey === guideKey &&
+      vista.guidePin.guideVersion === guideVersion
+      ? vista
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 export function useChapterExperience(input: {
   bookSlug: string;
   chapterOrder: number;
@@ -93,18 +127,35 @@ export function useChapterExperience(input: {
           chapterOrder,
         });
         if (cancelled) return;
+        const items = Array.isArray(res.items) ? res.items : [];
+        let definition =
+          guideKey !== null && guideVersion !== null
+            ? selectExperienceForGuidePin(items, { guideKey, guideVersion })
+            : null;
+
+        // B3 — el capítulo no la ofrece, pero quizá ya es de esta persona.
+        //
+        // El descubrimiento lista lo publicado, que es una oferta. Un
+        // recorrido retirado deja de estar en esa lista y, hasta ahora, eso
+        // dejaba al reproductor sin nada que montar: quien tenía una sesión
+        // ahí veía «No pudimos preparar tu guía» con su avance intacto en el
+        // servidor. Si el pin pedido no está en la oferta, se pregunta por él
+        // con su identidad exacta; el servidor contesta sólo si la sesión es
+        // de quien pregunta, y 404 en cualquier otro caso.
+        //
+        // Sólo cuando hay un pin concreto que buscar: la portada del capítulo
+        // pide la LISTA y no tiene a quién preguntarle esto.
+        if (definition === null && guideKey !== null && guideVersion !== null) {
+          definition = await resolveOwned(guideKey, guideVersion);
+          if (cancelled) return;
+        }
+
         setState({
           status: "ready",
-          definition:
-            guideKey !== null && guideVersion !== null
-              ? selectExperienceForGuidePin(res.items, {
-                  guideKey,
-                  guideVersion,
-                })
-              : null,
+          definition,
           // Fail closed on a shape that is not a list: no experiences is a
           // state this product handles, an undefined one is not.
-          items: Array.isArray(res.items) ? res.items : [],
+          items,
         });
       } catch {
         // A failed read is not a definition. The caller renders the same

@@ -128,3 +128,20 @@ export const EXPERIENCE_DISCOVERY_RESPONSE: SchemaObject = {
     items: { type: "array", items: EXPERIENCE_DEFINITION },
   },
 };
+
+/**
+ * B3 — la experiencia que esta persona ya empezó, por identidad exacta.
+ *
+ * Un objeto, no una lista: la pregunta es por un pin concreto y la respuesta
+ * es ese recorrido o un 404. Envuelto en `experience` por la misma razón que
+ * el descubrimiento envuelve en `items` — un cuerpo que es exactamente la
+ * entidad no deja sitio donde añadir nada sin romperlo.
+ */
+export const EXPERIENCE_OWNED_RESPONSE: SchemaObject = {
+  type: "object",
+  additionalProperties: false,
+  required: ["experience"],
+  properties: {
+    experience: EXPERIENCE_DEFINITION,
+  },
+};

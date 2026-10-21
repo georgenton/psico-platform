@@ -127,9 +127,25 @@ describe("GuidePlayerMount", () => {
     render(mount(SCOPE));
 
     expect(screen.queryByTestId("guide-player")).toBeNull();
-    expect(
-      screen.getByText(/no pudimos preparar tu guía/i),
-    ).toBeInTheDocument();
+    // B3 — la frase cambió, y el cambio es el punto. «Vuelve a intentarlo en
+    // un momento» presentaba una retirada editorial como una avería pasajera:
+    // invitaba a reintentar algo que no va a cambiar nunca. Lo que de verdad
+    // ocurre es que el capítulo ya no la ofrece y esta persona no tiene un
+    // recorrido propio en ella — quien lo tiene llega por identidad exacta y
+    // sí ve el reproductor.
+    expect(screen.getByText(/ya no está disponible/i)).toBeInTheDocument();
+    expect(screen.queryByText(/vuelve a intentarlo/i)).toBeNull();
+  });
+
+  it("no afirma nada mientras la respuesta no ha llegado", () => {
+    // Antes, «no disponible» parpadeaba durante la carga porque `definition`
+    // empieza en null. Decir algo falso con seguridad y corregirlo medio
+    // segundo después es peor que esperar.
+    experience.mockReturnValue({ status: "loading", definition: null });
+    render(mount(SCOPE));
+
+    expect(screen.queryByText(/ya no está disponible/i)).toBeNull();
+    expect(screen.getByText(/buscando tu recorrido/i)).toBeInTheDocument();
   });
 
   it("does not even ask discovery when a gate is closed", () => {

@@ -315,7 +315,22 @@ export function ChatArea({
                 }
                 break;
               case "error":
+                // Hay DOS caminos de fallo y sólo uno se recuperaba. Cuando
+                // el turno muere dentro del flujo, el servidor lo cuenta por
+                // aquí y no por el `catch` de abajo: el borrador se perdía y
+                // la burbuja optimista se quedaba sin respuesta. Medido con
+                // un proveedor local que falla más veces que los reintentos
+                // del SDK: «Algo salió mal» y el texto escrito, borrado.
+                //
+                // Se hace lo MISMO que el otro camino —mismo rebobinado, mismo
+                // texto devuelto al compositor— para que recuperarse sea
+                // pulsar Enviar y no volver a escribirlo todo.
                 setSendError(ev.data.message);
+                setMessages((m) => m.filter((msg) => msg.id !== optimisticId));
+                setText(plain);
+                finalizeRef.current = null;
+                setStreamTarget("");
+                setPhase("idle");
                 break;
             }
           },

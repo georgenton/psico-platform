@@ -14,8 +14,11 @@ export class EmbeddingService {
   private static readonly MODEL = "voyage-3";
 
   constructor(configService: ConfigService<Env, true>) {
+    const baseUrl = configService.get("VOYAGE_BASE_URL", { infer: true });
     this.voyage = new VoyageAIClient({
       apiKey: configService.get("VOYAGE_API_KEY", { infer: true }),
+      // Absent in every deployed box: the client keeps its own default.
+      ...(baseUrl ? { environment: baseUrl } : {}),
     });
   }
 

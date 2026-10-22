@@ -26,6 +26,10 @@
 
 import type { CSSProperties } from "react";
 import type { GuideRouteItem } from "@psico/types";
+// The same minimum touch target the practice scenes adopted in B4. Imported
+// rather than written again: one number, one place to lower it, and a test
+// that measures against what the component actually draws.
+import { TOUCH_TARGET } from "../experience/practices/practice-ui";
 import type { GuideRouteState } from "./use-guide-route";
 import {
   ROUTE_CTA as CTA,
@@ -220,6 +224,19 @@ const S: Record<string, CSSProperties> = {
     marginTop: 6,
     alignSelf: "flex-start",
     padding: "8px 14px",
+    // The only control on the card, and the whole point of it. Padding and a
+    // 13px line left it ~31px tall, under the 44 the practice scenes adopted.
+    // Measured at 44 after this, with the card 320 and 288px wide.
+    //
+    // Not the last one in the reader: `GuidedRouteNavigator`, the compact half
+    // of this same route, still declares a ~38px row and a ~26px «Reintentar».
+    // That is its own surface and its own change, not a wider blast radius
+    // for this one.
+    //
+    // `minHeight` and not `height`: the label can wrap on a narrow card, and
+    // what should give then is the button growing taller, never the text
+    // being clipped to hold a fixed box.
+    minHeight: TOUCH_TARGET,
     borderRadius: 10,
     border: "1px solid var(--color-sage-600)",
     background: "var(--color-sage-600)",
@@ -227,6 +244,9 @@ const S: Record<string, CSSProperties> = {
     cursor: "pointer",
     font: "500 13px/1 var(--font-sans)",
   },
+  // Spread OVER `cta`, so it inherits the touch target: this says what the
+  // control looks like when there is nothing to offer, not how big it is. A
+  // disabled control is still the thing a finger lands on.
   ctaDisabled: {
     border: "1px solid var(--color-warm-300)",
     background: "var(--color-warm-100)",
@@ -240,6 +260,10 @@ const S: Record<string, CSSProperties> = {
   },
   ghost: {
     padding: "8px 14px",
+    // «Reintentar» has the same shape as the CTA and the same ~31px, and it is
+    // the only control the error state offers. Someone whose route failed to
+    // load is already having a bad time; a small target is worst there.
+    minHeight: TOUCH_TARGET,
     borderRadius: 10,
     border: "1px solid var(--color-warm-300)",
     background: "transparent",

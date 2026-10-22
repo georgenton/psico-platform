@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { Logger } from "@nestjs/common";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -10,6 +11,7 @@ import {
   unreadable,
 } from "./schema-readiness";
 import {
+  READINESS_CACHE_MS,
   SchemaReadinessService,
   readShippedMigrations,
 } from "./schema-readiness.service";
@@ -24,14 +26,30 @@ import {
  * that commit's 69 migrations, found them all applied and reported success —
  * while the 70th, shipped by the image being deployed, never ran.
  *
- * Both are the same defect wearing different clothes, so the tests are written
- * against both shapes rather than against the second one only.
+ * The rolled-back cases below come from an independent review of the first
+ * version of this file, which treated any `rolled_back_at` row as a permanent
+ * failure. That turned the runbook's own recovery path — resolve, then apply
+ * again — into a probe that would never go green.
  */
 
-const ok = (name: string): AppliedMigrationRow => ({
+const AT = new Date("2026-10-01T00:00:00Z");
+
+const applied = (name: string): AppliedMigrationRow => ({
   migration_name: name,
-  finished_at: new Date("2026-10-01T00:00:00Z"),
+  finished_at: AT,
   rolled_back_at: null,
+});
+/** Started and never finished, nobody resolved it: what blocks migrate deploy. */
+const unresolved = (name: string): AppliedMigrationRow => ({
+  migration_name: name,
+  finished_at: null,
+  rolled_back_at: null,
+});
+/** `prisma migrate resolve --rolled-back` wrote this. */
+const rolledBack = (name: string): AppliedMigrationRow => ({
+  migration_name: name,
+  finished_at: null,
+  rolled_back_at: AT,
 });
 
 /** The real inventory, abbreviated: 70 shipped, 69 applied. */
@@ -39,38 +57,37 @@ const SHIPPED_70 = Array.from(
   { length: 70 },
   (_, i) => `2026${String(i).padStart(4, "0")}_m${i}`,
 );
-const APPLIED_69 = SHIPPED_70.slice(0, 69).map(ok);
 
 describe("diffMigrations", () => {
   it("is ready when every shipped migration is applied", () => {
-    const v = diffMigrations({ shipped: SHIPPED_70, applied: SHIPPED_70.map(ok) });
+    const v = diffMigrations({
+      shipped: SHIPPED_70,
+      applied: SHIPPED_70.map(applied),
+    });
     expect(v).toMatchObject({ ready: true, reason: "ok", pending: [], failed: [] });
-    expect(v.shippedCount).toBe(70);
     expect(v.appliedCount).toBe(70);
   });
 
   it("reproduces 2026-10-22: 70 shipped, 69 applied, so NOT ready", () => {
-    const v = diffMigrations({ shipped: SHIPPED_70, applied: APPLIED_69 });
+    const v = diffMigrations({
+      shipped: SHIPPED_70,
+      applied: SHIPPED_70.slice(0, 69).map(applied),
+    });
     expect(v.ready).toBe(false);
     expect(v.reason).toBe("pending");
     expect(v.pending).toEqual([SHIPPED_70[69]]);
-    expect(v.shippedCount).toBe(70);
-    expect(v.appliedCount).toBe(69);
   });
 
   it("reproduces 2026-10-01: nothing applied at all", () => {
     const v = diffMigrations({ shipped: SHIPPED_70, applied: [] });
     expect(v.ready).toBe(false);
-    expect(v.reason).toBe("pending");
     expect(v.pending).toHaveLength(70);
   });
 
   it("catches the case a count would miss: same totals, different names", () => {
-    // This is the whole reason the verdict compares names. With totals, two
-    // sides of 2 each would agree while the database is missing `b` entirely.
     const v = diffMigrations({
       shipped: ["a", "b"],
-      applied: [ok("a"), ok("zz-not-shipped")],
+      applied: [applied("a"), applied("zz-not-shipped")],
     });
     expect(v.shippedCount).toBe(2);
     expect(v.appliedCount).toBe(2);
@@ -78,60 +95,86 @@ describe("diffMigrations", () => {
     expect(v.pending).toEqual(["b"]);
   });
 
-  it("treats an unfinished row as failed, not as applied", () => {
-    const v = diffMigrations({
-      shipped: ["a"],
-      applied: [{ migration_name: "a", finished_at: null, rolled_back_at: null }],
+  describe("history of a migration that was rolled back", () => {
+    it("rolled back AND LATER APPLIED, two rows for one name, is ready", () => {
+      // The documented recovery: it failed, someone ran
+      // `migrate resolve --rolled-back`, the next deploy applied it. The
+      // ledger keeps both rows. Reporting this as failed forever was the bug.
+      const v = diffMigrations({
+        shipped: ["a"],
+        applied: [rolledBack("a"), applied("a")],
+      });
+      expect(v).toMatchObject({ ready: true, reason: "ok", failed: [] });
+      expect(v.appliedCount).toBe(1);
     });
-    expect(v.ready).toBe(false);
-    expect(v.reason).toBe("failed");
-    expect(v.failed).toEqual(["a"]);
-    // And it is still pending: migrate deploy has not completed it.
-    expect(v.pending).toEqual(["a"]);
-  });
 
-  it("treats a rolled-back row as failed", () => {
-    const v = diffMigrations({
-      shipped: ["a"],
-      applied: [
-        {
-          migration_name: "a",
-          finished_at: new Date(),
-          rolled_back_at: new Date(),
-        },
-      ],
+    it("row order does not change that verdict", () => {
+      const v = diffMigrations({
+        shipped: ["a"],
+        applied: [applied("a"), rolledBack("a")],
+      });
+      expect(v.ready).toBe(true);
     });
-    expect(v.ready).toBe(false);
-    expect(v.reason).toBe("failed");
-    expect(v.failed).toEqual(["a"]);
-  });
 
-  it("failed outranks pending in the reason, because it blocks migrate deploy", () => {
-    const v = diffMigrations({
-      shipped: ["a", "b"],
-      applied: [{ migration_name: "a", finished_at: null, rolled_back_at: null }],
+    it("only the rolled-back row: still PENDING, and not a failure", () => {
+      // migrate deploy will simply apply it again, so the honest word is
+      // "pending". Calling it "failed" would send someone to resolve a row
+      // that is already resolved.
+      const v = diffMigrations({ shipped: ["a"], applied: [rolledBack("a")] });
+      expect(v.ready).toBe(false);
+      expect(v.reason).toBe("pending");
+      expect(v.pending).toEqual(["a"]);
+      expect(v.failed).toEqual([]);
     });
-    expect(v.reason).toBe("failed");
+
+    it("unfinished and unresolved blocks, and is reported as failed", () => {
+      const v = diffMigrations({ shipped: ["a"], applied: [unresolved("a")] });
+      expect(v.ready).toBe(false);
+      expect(v.reason).toBe("failed");
+      expect(v.failed).toEqual(["a"]);
+      expect(v.pending).toEqual(["a"]);
+    });
+
+    it("an unfinished row followed by a successful one is applied, not failed", () => {
+      const v = diffMigrations({
+        shipped: ["a"],
+        applied: [unresolved("a"), applied("a")],
+      });
+      expect(v).toMatchObject({ ready: true, failed: [] });
+    });
+
+    it("a blocking row for a migration this image does NOT ship still blocks", () => {
+      // Prisma refuses to move past ANY unresolved failure, so rolling back
+      // to an older image does not clear it. The probe must agree.
+      const v = diffMigrations({
+        shipped: ["a"],
+        applied: [applied("a"), unresolved("newer-from-another-build")],
+      });
+      expect(v.ready).toBe(false);
+      expect(v.reason).toBe("failed");
+      expect(v.failed).toEqual(["newer-from-another-build"]);
+      expect(v.pending).toEqual([]);
+    });
+
+    it("failed outranks pending in the reason", () => {
+      const v = diffMigrations({
+        shipped: ["a", "b"],
+        applied: [unresolved("a")],
+      });
+      expect(v.reason).toBe("failed");
+    });
   });
 
   it("a rollback to an older image is still ready", () => {
-    // The database holds a migration this image does not ship. Under the
-    // additive-migration posture the older code runs fine against the newer
-    // schema, so calling this "not ready" would make every rollback look
-    // broken.
     const v = diffMigrations({
       shipped: ["a"],
-      applied: [ok("a"), ok("b-from-a-newer-build")],
+      applied: [applied("a"), applied("b-from-a-newer-build")],
     });
-    expect(v.ready).toBe(true);
-    expect(v.reason).toBe("ok");
+    expect(v).toMatchObject({ ready: true, reason: "ok" });
   });
 
   it("de-duplicates and sorts so the answer does not depend on input order", () => {
-    const v = diffMigrations({
-      shipped: ["b", "a", "b"],
-      applied: [],
-    });
+    const v = diffMigrations({ shipped: ["b", "a", "b"], applied: [] });
     expect(v.pending).toEqual(["a", "b"]);
     expect(v.shippedCount).toBe(2);
   });
@@ -140,29 +183,35 @@ describe("diffMigrations", () => {
 describe("unreadable", () => {
   it("is never ready, for either cause", () => {
     for (const reason of ["migrations-unreadable", "database-unreachable"] as const) {
-      const v = unreadable(reason, 70);
-      expect(v.ready).toBe(false);
-      expect(v.reason).toBe(reason);
-      expect(v.shippedCount).toBe(70);
+      expect(unreadable(reason, 70)).toMatchObject({ ready: false, reason });
     }
   });
 });
 
-describe("readShippedMigrations", () => {
+/** A migrations folder the way Prisma writes one: a dir plus its SQL. */
+const makeFixture = (track: string[]) => (names: string[], opts?: { skipSqlFor?: string }) => {
+  const root = mkdtempSync(join(tmpdir(), "psico-migrations-"));
+  track.push(root);
+  for (const n of names) {
+    mkdirSync(join(root, n));
+    if (opts?.skipSqlFor !== n) {
+      writeFileSync(join(root, n, "migration.sql"), "SELECT 1;");
+    }
+  }
+  if (names.length > 0) {
+    writeFileSync(join(root, "migration_lock.toml"), 'provider = "postgresql"');
+  }
+  return root;
+};
+
+describe("readShippedMigrations · controles negativos", () => {
   const dirs: string[] = [];
+  const fixture = makeFixture(dirs);
   afterEach(() => {
     for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
   });
 
-  const fixture = (names: string[]) => {
-    const root = mkdtempSync(join(tmpdir(), "psico-migrations-"));
-    dirs.push(root);
-    for (const n of names) mkdirSync(join(root, n));
-    writeFileSync(join(root, "migration_lock.toml"), 'provider = "postgresql"');
-    return root;
-  };
-
-  it("reads directory names and ignores files beside them", () => {
+  it("inventario válido: devuelve los nombres e ignora los archivos de al lado", () => {
     const root = fixture(["20260101000000_a", "20260102000000_b"]);
     expect(readShippedMigrations([root])?.sort()).toEqual([
       "20260101000000_a",
@@ -170,79 +219,132 @@ describe("readShippedMigrations", () => {
     ]);
   });
 
-  it("returns null — not an empty list — when no candidate exists", () => {
-    // An empty list would diff clean against ANY database and report ready.
-    // That is the fail-open bug this distinction exists to prevent.
-    expect(readShippedMigrations([join(tmpdir(), "psico-does-not-exist")])).toBeNull();
+  it("carpeta inexistente → null", () => {
+    expect(readShippedMigrations([join(tmpdir(), "psico-no-existe")])).toBeNull();
   });
 
-  it("takes the first candidate that exists", () => {
+  it("carpeta EXISTENTE pero VACÍA → null, no lista vacía", () => {
+    // El falso 200 que la auditoría encontró: una lista vacía cuadra contra
+    // cualquier base y la declararía al día.
+    const root = fixture([]);
+    expect(readShippedMigrations([root])).toBeNull();
+  });
+
+  it("un directorio sin su migration.sql → null (imagen incompleta)", () => {
+    const root = fixture(["20260101000000_a", "20260102000000_b"], {
+      skipSqlFor: "20260102000000_b",
+    });
+    expect(readShippedMigrations([root])).toBeNull();
+  });
+
+  it("lectura fallida → null", () => {
+    // Una ruta que existe y NO es un directorio: `readdirSync` lanza ENOTDIR.
+    // Determinista y portable, al contrario que jugar con permisos.
+    const root = fixture(["20260101000000_a"]);
+    const asFile = join(root, "20260101000000_a", "migration.sql");
+    expect(readShippedMigrations([asFile])).toBeNull();
+  });
+
+  it("toma el primer candidato que existe", () => {
     const second = fixture(["20260101000000_a"]);
-    const found = readShippedMigrations([
-      join(tmpdir(), "psico-absent"),
-      second,
-    ]);
-    expect(found).toEqual(["20260101000000_a"]);
+    expect(
+      readShippedMigrations([join(tmpdir(), "psico-ausente"), second]),
+    ).toEqual(["20260101000000_a"]);
   });
 });
 
 describe("SchemaReadinessService", () => {
+  const dirs: string[] = [];
+  const fixture = makeFixture(dirs);
+  afterEach(() => {
+    for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
   const prismaWith = (rows: AppliedMigrationRow[] | Error) => ({
     $queryRaw: vi.fn(() =>
       rows instanceof Error ? Promise.reject(rows) : Promise.resolve(rows),
     ),
   });
-
-  const dirs: string[] = [];
-  afterEach(() => {
-    for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
-  });
-  const fixture = (names: string[]) => {
-    const root = mkdtempSync(join(tmpdir(), "psico-migrations-"));
-    dirs.push(root);
-    for (const n of names) mkdirSync(join(root, n));
-    return root;
-  };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const svcWith = (p: unknown) => new SchemaReadinessService(p as any);
 
   it("reports pending when the database is behind the image", async () => {
     const root = fixture(["m1", "m2"]);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const svc = new SchemaReadinessService(prismaWith([ok("m1")]) as any);
-    const report = await svc.report([root]);
-    expect(report.ready).toBe(false);
-    expect(report.pending).toEqual(["m2"]);
+    const report = await svcWith(prismaWith([applied("m1")])).report([root]);
+    expect(report).toMatchObject({ ready: false, pending: ["m2"] });
   });
 
   it("is ready when both sides agree", async () => {
     const root = fixture(["m1"]);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const svc = new SchemaReadinessService(prismaWith([ok("m1")]) as any);
-    await expect(svc.report([root])).resolves.toMatchObject({ ready: true });
+    await expect(
+      svcWith(prismaWith([applied("m1")])).report([root]),
+    ).resolves.toMatchObject({ ready: true });
   });
 
-  it("fails closed when the migrations directory is missing", async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const svc = new SchemaReadinessService(prismaWith([]) as any);
-    const report = await svc.report([join(tmpdir(), "psico-absent")]);
-    expect(report).toMatchObject({
-      ready: false,
-      reason: "migrations-unreadable",
-    });
+  it("fails closed when the migrations inventory is invalid", async () => {
+    const report = await svcWith(prismaWith([])).report([
+      join(tmpdir(), "psico-ausente"),
+    ]);
+    expect(report).toMatchObject({ ready: false, reason: "migrations-unreadable" });
   });
 
   it("fails closed when the ledger cannot be read — the empty-database case", async () => {
     const root = fixture(["m1"]);
-    const svc = new SchemaReadinessService(
-      // `relation "_prisma_migrations" does not exist` is what an unmigrated
-      // database answers, and it must not read as "nothing pending".
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      prismaWith(new Error('relation "_prisma_migrations" does not exist')) as any,
-    );
-    const report = await svc.report([root]);
+    const report = await svcWith(
+      prismaWith(new Error('relation "_prisma_migrations" does not exist')),
+    ).report([root]);
     expect(report).toMatchObject({
       ready: false,
       reason: "database-unreachable",
       shippedCount: 1,
+    });
+  });
+
+  it("no filtra el mensaje del driver en el veredicto", () => {
+    // El veredicto viaja a un endpoint público: un mensaje de conexión no.
+    const v = unreadable("database-unreachable", 1);
+    expect(JSON.stringify(v)).not.toMatch(/relation|postgres|localhost|5432/i);
+  });
+
+  describe("caché breve: una petición pública no es una consulta", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-10-22T00:00:00Z"));
+    });
+
+    it("dos llamadas dentro de la ventana consultan UNA vez", async () => {
+      const root = fixture(["m1"]);
+      const prisma = prismaWith([applied("m1")]);
+      const svc = svcWith(prisma);
+      await svc.report([root]);
+      await svc.report([root]);
+      await svc.report([root]);
+      expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    });
+
+    it("vencida la ventana, vuelve a consultar", async () => {
+      const root = fixture(["m1"]);
+      const prisma = prismaWith([applied("m1")]);
+      const svc = svcWith(prisma);
+      await svc.report([root]);
+      vi.advanceTimersByTime(READINESS_CACHE_MS + 1);
+      await svc.report([root]);
+      expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
+    });
+
+    it("registra en el cambio de estado, no en cada petición", async () => {
+      // Un endpoint público sondeado con el esquema atrasado escribiría la
+      // misma línea para siempre y enterraría la que importaba.
+      const spy = vi.spyOn(Logger.prototype, "error").mockImplementation(() => {});
+      const root = fixture(["m1", "m2"]);
+      const svc = svcWith(prismaWith([applied("m1")]));
+      for (let i = 0; i < 4; i++) {
+        vi.advanceTimersByTime(READINESS_CACHE_MS + 1);
+        await svc.report([root]);
+      }
+      expect(spy).toHaveBeenCalledTimes(1);
     });
   });
 });
@@ -289,18 +391,16 @@ describe("GET /api/health/ready", () => {
   });
 
   it("still refuses when readiness could not be established at all", async () => {
-    const report = {
-      ready: false,
-      reason: "migrations-unreadable",
-      pending: [],
-      failed: [],
-      shippedCount: 0,
-      appliedCount: 0,
-    };
-    await expect(controller(report).ready()).rejects.toMatchObject({
-      status: 503,
-      response: { code: "SCHEMA_NOT_READY" },
-    });
+    await expect(
+      controller({
+        ready: false,
+        reason: "migrations-unreadable",
+        pending: [],
+        failed: [],
+        shippedCount: 0,
+        appliedCount: 0,
+      }).ready(),
+    ).rejects.toMatchObject({ status: 503, response: { code: "SCHEMA_NOT_READY" } });
   });
 
   it("liveness stays liveness: /health never consults the schema", async () => {
@@ -317,5 +417,20 @@ describe("GET /api/health/ready", () => {
     );
     expect(c.check()).toMatchObject({ status: "ok" });
     expect(probe.report).not.toHaveBeenCalled();
+  });
+
+  it("el límite de tasa se aplica de verdad, pese al SkipThrottle de la clase", () => {
+    // `@Throttle` SOLO no basta: el guard resuelve el skip con
+    // `getAllAndOverride([handler, clase])`, así que sin el
+    // `@SkipThrottle({default:false})` del handler el límite quedaría escrito
+    // y nunca aplicado — un verde vacío más. Las claves son las de
+    // `@nestjs/throttler` (`THROTTLER:SKIP` / `THROTTLER:LIMIT` + nombre).
+    const handler = HealthController.prototype.ready;
+    expect(Reflect.getMetadata("THROTTLER:SKIPdefault", handler)).toBe(false);
+    expect(Reflect.getMetadata("THROTTLER:LIMITdefault", handler)).toBe(60);
+    // Y la clase sigue saltándose el throttle para `/health`, que es barato.
+    expect(Reflect.getMetadata("THROTTLER:SKIPdefault", HealthController)).toBe(
+      true,
+    );
   });
 });

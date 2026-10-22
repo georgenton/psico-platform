@@ -229,13 +229,19 @@ pnpm --filter @psico/api migrate:deploy
 envoltorio del MCP recorta los campos de configuración y por eso parece que no existen.
 
 ```bash
-coolify-api.sh applications/<uuid> | jq '{pre_deployment_command, build_command, start_command}'
+coolify-api.sh applications/<uuid> | jq '{pre_deployment_command, post_deployment_command, build_command, start_command}'
 ```
 
 `is_auto_deploy_enabled` e `is_preview_deployments_enabled`, en cambio, no los proyecta
 **ninguna** de las dos vías: se escriben por `PATCH` y se comprueban por conducta —
 `list_deployments` y mirar si algún despliegue trae `is_webhook: true` después de haberlos
 apagado.
+
+> **HISTÓRICO — describe el hook `pre`, retirado el 2026-10-22.** Se conserva porque
+> explica por qué la migración no va en el `start`, que sigue vigente (propiedades 1, 3
+> y 4). La **propiedad 2 nunca fue cierta** y es la que obligó al cambio: el comando
+> alcanzaba el contenedor saliente. El procedimiento vigente es el de
+> `post_deployment_command`, descrito en la corrección de arriba.
 
 Cuatro propiedades, y ninguna es accidental:
 
@@ -256,6 +262,15 @@ Cuatro propiedades, y ninguna es accidental:
    backfill, sin ingesta: un comando.
 
 #### ⚠️ El primer despliegue NO migra
+
+> **HISTÓRICO respecto a su causa, y probablemente resuelto.** Con el hook en `post`,
+> `getCurrentApplicationContainerStatus()` se consulta cuando el contenedor NUEVO ya
+> está arriba, así que en un primer despliegue sí hay dónde ejecutar el comando y
+> debería migrar. Se deduce del código, **no se ha comprobado en un primer despliegue
+> real**, de modo que el procedimiento de dos pasos de más abajo sigue siendo el
+> conservador hasta que alguien lo mida. Lo que NO cambia es el final de esta sección:
+> un despliegue puede terminar en `finished` sin que nadie avise de nada, y con el hook
+> en `post` eso ahora incluye el caso en que la migración **falla**.
 
 Como el comando corre **dentro del contenedor actual**, cuando no hay contenedor actual
 no hay dónde correrlo: Coolify **lo omite**, y el despliegue termina en `finished` sin
@@ -290,12 +305,22 @@ imagen trae** contra las que la base tiene aplicadas.
 curl -s -w '\n%{http_code}\n' https://api-staging.feelverse.app/api/health/ready
 ```
 
-Es pública y sin throttle, por el mismo motivo que `/health`: lo que necesita
-preguntarlo —un gate de despliegue, un smoke posterior a la promoción— no puede
-autenticarse, y los nombres de migración ya están en un repositorio público. **Falla
-cerrada**: un directorio de migraciones ilegible o una base inalcanzable responden 503,
-nunca 200 — que es exactamente el fallo del 2026-10-01, cuando `/health` respondió 200
-contra una base vacía.
+Es **pública** porque lo que necesita preguntarlo —un gate de despliegue, un smoke
+posterior a la promoción— no puede autenticarse, y los nombres de migración ya están en
+un repositorio público. A diferencia de `/health`, **sí tiene límite**: 60 por minuto y
+un veredicto cacheado 5 s, porque toca Postgres y el disco y una petición pública no
+puede significar una consulta sin cota. Un sondeo autorizado cada 5 s pide 12 por
+minuto, así que el límite no le estorba. **Falla cerrada**: un inventario de migraciones
+inválido —inexistente, vacío, o con un directorio al que le falta su `migration.sql`— y
+un ledger ilegible responden 503, nunca 200. Eso es exactamente el fallo del 2026-10-01,
+cuando `/health` respondió 200 contra una base vacía.
+
+**Qué significa un 200, y qué no.** Compara un INVENTARIO DE NOMBRES contra el ledger de
+Prisma: «cada migración que esta imagen trae está registrada como aplicada aquí». No es
+una comprobación de drift del esquema ni de integridad de los datos — una columna
+borrada a mano, el SQL de una migración editado después de aplicarse o una restricción
+desactivada en psql dejan el ledger de acuerdo con la carpeta y esta sonda en verde.
+Conviene mantener la promesa estrecha.
 
 **Lo que NO es:** el gate del despliegue. Coolify sondea `health_check_path` desde
 `rolling_update()`, y sólo *después* llega a `post_deployment()`, que es donde corre la

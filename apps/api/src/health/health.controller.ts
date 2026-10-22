@@ -11,7 +11,7 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from "@nestjs/swagger";
-import { SkipThrottle } from "@nestjs/throttler";
+import { SkipThrottle, Throttle } from "@nestjs/throttler";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { ErrorEnvelopeDto } from "../shared/dto/error-envelope.dto";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
@@ -93,11 +93,23 @@ export class HealthController {
    * already did. Worth stating because the obvious guess is wrong, and the
    * wrong guess is a 404 handed to whoever is checking a promotion.
    */
+  // Unlike `/health`, this one touches Postgres and the filesystem, so the
+  // controller's blanket `@SkipThrottle()` is the wrong inheritance: public and
+  // un-throttled would let a stranger turn each request into a query plus a
+  // directory walk. Re-enabling needs BOTH decorators — the guard resolves the
+  // skip with `getAllAndOverride([handler, class])`, so `@Throttle` alone
+  // leaves the class-level skip in force and the limit silently unapplied.
+  //
+  // 60/min is the smallest limit that cannot hurt authorized monitoring: a
+  // Coolify healthcheck at its 5s interval asks 12 times a minute. The real
+  // bound on load is the service's short cache; this is the bound on volume.
+  @SkipThrottle({ default: false })
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
   @Get("ready")
   @ApiOperation({
-    summary: "Schema readiness check",
+    summary: "Migration-inventory readiness check",
     description:
-      "Served at /api/health/ready (the prefix exclusion covers only /health itself). 200 when every migration shipped in this image is applied to the database it is talking to; 503 with the pending names otherwise. Public and un-throttled for the same reason as /health: the things that need to ask — a deploy gate, a post-promotion smoke — cannot authenticate, and migration names are already public in the repository. Fails closed: an unreadable migrations folder or an unreachable database answer 503, never 200.",
+      "Served at /api/health/ready (the prefix exclusion covers only /health itself). Compares the migration names shipped in this image against Prisma's `_prisma_migrations` ledger: 200 when every shipped migration is recorded as applied, 503 with the pending names otherwise. NOT a schema-drift or data-integrity check — an edited migration, a hand-dropped column or a disabled constraint all leave this green. Public because a deploy gate or a post-promotion smoke cannot authenticate, and migration names are already public in the repository; rate-limited to 60/min and served from a 5s cache so a public request cannot mean an unbounded query. Fails closed: an invalid migrations inventory or an unreadable ledger answer 503, never 200.",
   })
   @ApiServiceUnavailableResponse({ type: ErrorEnvelopeDto })
   async ready() {

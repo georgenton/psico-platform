@@ -1224,8 +1224,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Schema readiness check
-         * @description Served at /api/health/ready (the prefix exclusion covers only /health itself). 200 when every migration shipped in this image is applied to the database it is talking to; 503 with the pending names otherwise. Public and un-throttled for the same reason as /health: the things that need to ask — a deploy gate, a post-promotion smoke — cannot authenticate, and migration names are already public in the repository. Fails closed: an unreadable migrations folder or an unreachable database answer 503, never 200.
+         * Migration-inventory readiness check
+         * @description Served at /api/health/ready (the prefix exclusion covers only /health itself). Compares the migration names shipped in this image against Prisma's `_prisma_migrations` ledger: 200 when every shipped migration is recorded as applied, 503 with the pending names otherwise. NOT a schema-drift or data-integrity check — an edited migration, a hand-dropped column or a disabled constraint all leave this green. Public because a deploy gate or a post-promotion smoke cannot authenticate, and migration names are already public in the repository; rate-limited to 60/min and served from a 5s cache so a public request cannot mean an unbounded query. Fails closed: an invalid migrations inventory or an unreadable ledger answer 503, never 200.
          */
         get: operations["HealthController_ready"];
         put?: never;

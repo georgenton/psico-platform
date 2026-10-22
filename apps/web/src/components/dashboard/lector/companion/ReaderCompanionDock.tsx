@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type { AnnotationSummary, ChapterConcept, EcoScope } from "@psico/types";
 import { passageToPrompt } from "@/lib/eco/reader-handoff";
 import { EcoTab } from "./EcoTab";
@@ -81,15 +81,89 @@ export function ReaderCompanionDock({
   /** Fase H — reading context passed to the Eco tab (RAG scope + offer). */
   scope?: EcoScope;
 }) {
+  /**
+   * Where the focus came from, so it has somewhere to go back to.
+   *
+   * Closing the panel used to leave the focus on `<body>`: the reader kept its
+   * scroll position, but whoever navigates by keyboard was returned to the top
+   * of the tab order and had to walk the whole chapter again to reach the
+   * passage they were on. Scroll and focus are two different kinds of "your
+   * place", and only one of them was being kept.
+   *
+   * The opener is preferred, but it is often gone: the selection popover
+   * unmounts as soon as the dock takes over, so the very button that was
+   * pressed no longer exists. The passage's own block is then the honest
+   * destination — it is what the person was reading. The reader region is the
+   * last resort.
+   *
+   * `preventScroll` throughout: the position is already correct, and focusing
+   * normally would scroll the element to the top of the viewport — the
+   * accidental jump this is meant to avoid.
+   */
+  const abridor = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    const activo = document.activeElement;
+    // `document.activeElement` is `<body>` when nothing holds the focus, and
+    // `<body>` is always connected — so treating it as an opener would
+    // "restore" the focus to exactly the state this is here to fix, and do it
+    // silently. Only a real control counts.
+    abridor.current =
+      activo instanceof HTMLElement &&
+      activo !== document.body &&
+      activo !== document.documentElement
+        ? activo
+        : null;
+  }, [open]);
+
+  const devolverFoco = useCallback(() => {
+    const previo = abridor.current;
+    if (previo?.isConnected) {
+      previo.focus({ preventScroll: true });
+      return;
+    }
+    // Two names for "the block this panel is about": the reader sets
+    // `focusBlockId` when it sends the person to a passage, and
+    // `pendingBlockId` when a note is being written against one. The note path
+    // clears the first and fills the second, so reading only one of them left
+    // the destination to chance — it happened to be right because the passage
+    // was also the chapter's first block.
+    const anclaje = focusBlockId ?? pendingBlockId;
+    const bloque = anclaje
+      ? document.querySelector<HTMLElement>(
+          `[data-block-id="${CSS.escape(anclaje)}"]`,
+        )
+      : null;
+    // No passage recorded — the chapter's first block is still inside the
+    // text, which is nearer than `<body>` and keeps the tab order forward.
+    const destino =
+      bloque ?? document.querySelector<HTMLElement>("[data-block-id]");
+    if (!destino) return;
+    // A block is not focusable on its own; make it so for this one move.
+    if (!destino.hasAttribute("tabindex")) destino.tabIndex = -1;
+    destino.focus({ preventScroll: true });
+  }, [focusBlockId, pendingBlockId]);
+
+  const cerrar = useCallback(() => {
+    onClose();
+    // AFTER React has flushed the close, not before. `onClose` only schedules
+    // the state change; focusing in the same tick puts the focus on a node the
+    // imminent re-render then tears down, and the browser answers an unmounted
+    // focus by falling back to `<body>` — the exact outcome this avoids.
+    // Measured: focusing inline left the focus on `<body>` in the real reader
+    // while passing in jsdom, where nothing re-renders.
+    requestAnimationFrame(devolverFoco);
+  }, [onClose, devolverFoco]);
+
   // Escape closes the dock.
   useEffect(() => {
     if (!open) return;
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") cerrar();
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  }, [open, cerrar]);
 
   if (!open) return null;
 
@@ -162,7 +236,7 @@ export function ReaderCompanionDock({
         </div>
         <button
           type="button"
-          onClick={onClose}
+          onClick={cerrar}
           aria-label="Cerrar panel"
           className="text-[18px]"
           style={{ color: "var(--color-warm-500)" }}

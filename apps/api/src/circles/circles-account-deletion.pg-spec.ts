@@ -67,6 +67,12 @@ const ANALYTICS_MIGRATION = "20260916000000_circles_analytics";
 const GROUPS_MIGRATION = "20260916100000_circles_adult_groups";
 /** Flexible onboarding. It broke them again, and naming it is the fix. */
 const FLEXIBLE_MIGRATION = "20260917000000_circles_flexible_onboarding";
+/**
+ * El sello editorial (B3). Rompió las mismas dos colas, por el mismo motivo, y
+ * nombrarla es el arreglo: estas listas existen para que una recién llegada
+ * sin nombre FALLE en vez de colarse en una base de la que nunca formó parte.
+ */
+const SEAL_MIGRATION = "20261021000000_editorial_origin_seal";
 
 /**
  * ── The harness owns only what it created ─────────────────────────────────
@@ -2789,6 +2795,7 @@ suite(
           ANALYTICS_MIGRATION,
           GROUPS_MIGRATION,
           FLEXIBLE_MIGRATION,
+          SEAL_MIGRATION,
         ]);
 
         const { readFileSync } = await import("node:fs");
@@ -2912,6 +2919,7 @@ suite(
           ANALYTICS_MIGRATION,
           GROUPS_MIGRATION,
           FLEXIBLE_MIGRATION,
+          SEAL_MIGRATION,
         ]);
 
         const { readFileSync } = await import("node:fs");

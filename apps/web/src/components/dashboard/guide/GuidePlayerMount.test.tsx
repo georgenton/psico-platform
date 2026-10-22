@@ -29,6 +29,31 @@ vi.mock("next/link", () => ({
  * through its own import graph: a plain `const` would be read by the hoisted
  * mock factory before it is initialised.
  */
+/**
+ * B4 — el propio avance, que ahora se consulta incluso con el rollout
+ * cerrado. Por defecto: esta persona no tiene nada aquí, que es el caso que
+ * las pruebas de CC-7.R1 describían.
+ *
+ * B5 — `status` se declara con su unión entera, no con `as const`. Escrito
+ * `"ready" as const`, el tipo del campo quedaba fijado en `"ready"` y el caso
+ * «el servidor todavía no contesta» no compilaba. Vitest no se enteró —SWC
+ * borra los tipos sin comprobarlos— y el CI de este PR tampoco, por lo que
+ * dice el informe de B5 sobre `--affected`.
+ */
+const { propio } = vi.hoisted(() => ({
+  propio: {
+    current: {
+      status: "ready" as "loading" | "ready" | "error",
+      state: "NOT_STARTED" as "NOT_STARTED" | "ACTIVE" | "COMPLETED" | null,
+      session: null as { stepsCompleted: number; totalSteps: number } | null,
+    },
+  },
+}));
+
+vi.mock("./use-guide-own-state", () => ({
+  useGuideOwnState: () => propio.current,
+}));
+
 const { playerScopes, recoveryRead, experience } = vi.hoisted(() => ({
   playerScopes: [] as (string | undefined)[],
   // If the mount ever read recovery for a null scope, this spy would fire.
@@ -61,6 +86,7 @@ import { EEC_EXPERIENCE } from "./guide-test-fixtures";
 const SCOPE = "S".repeat(43);
 
 beforeEach(() => {
+  propio.current = { status: "ready", state: "NOT_STARTED", session: null };
   playerScopes.length = 0;
   recoveryRead.mockClear();
   experience.mockReset();
@@ -127,9 +153,25 @@ describe("GuidePlayerMount", () => {
     render(mount(SCOPE));
 
     expect(screen.queryByTestId("guide-player")).toBeNull();
-    expect(
-      screen.getByText(/no pudimos preparar tu guía/i),
-    ).toBeInTheDocument();
+    // B3 — la frase cambió, y el cambio es el punto. «Vuelve a intentarlo en
+    // un momento» presentaba una retirada editorial como una avería pasajera:
+    // invitaba a reintentar algo que no va a cambiar nunca. Lo que de verdad
+    // ocurre es que el capítulo ya no la ofrece y esta persona no tiene un
+    // recorrido propio en ella — quien lo tiene llega por identidad exacta y
+    // sí ve el reproductor.
+    expect(screen.getByText(/ya no está disponible/i)).toBeInTheDocument();
+    expect(screen.queryByText(/vuelve a intentarlo/i)).toBeNull();
+  });
+
+  it("no afirma nada mientras la respuesta no ha llegado", () => {
+    // Antes, «no disponible» parpadeaba durante la carga porque `definition`
+    // empieza en null. Decir algo falso con seguridad y corregirlo medio
+    // segundo después es peor que esperar.
+    experience.mockReturnValue({ status: "loading", definition: null });
+    render(mount(SCOPE));
+
+    expect(screen.queryByText(/ya no está disponible/i)).toBeNull();
+    expect(screen.getByText(/buscando tu recorrido/i)).toBeInTheDocument();
   });
 
   it("does not even ask discovery when a gate is closed", () => {
@@ -153,5 +195,67 @@ describe("GuidePlayerMount", () => {
     expect(
       screen.getByText(/esta guía no está disponible por ahora/i),
     ).toBeInTheDocument();
+  });
+});
+
+/**
+ * B4 — consultar lo propio no es ejecutar una operación nueva.
+ *
+ * Quedarse fuera del rollout borraba de la vista el recorrido que una persona
+ * ya había hecho. El servidor nunca dijo eso: `GuideRolloutGuard` protege los
+ * cinco COMANDOS y ninguna lectura, así que `/guide/sessions/state` contesta
+ * igual con el rollout cerrado. La política ya distinguía los dos permisos;
+ * el cliente los confundía.
+ *
+ * Y lo que NO se hace: montar el reproductor. Existe para ejecutar un
+ * recorrido, y ejecutar es justo lo que aquí no está permitido — sus botones
+ * acabarían en un 503 que nadie anunció.
+ */
+describe("GuidePlayerMount — con el rollout cerrado y algo propio", () => {
+  it("dice en qué punto quedó un recorrido abierto, sin ofrecer seguirlo", () => {
+    propio.current = {
+      status: "ready",
+      state: "ACTIVE",
+      session: { stepsCompleted: 1, totalSteps: 3 },
+    };
+    render(mount(SCOPE, false));
+
+    expect(screen.getByText(/tu recorrido está en pausa/i)).toBeInTheDocument();
+    expect(screen.getByText(/paso 1 de 3/i)).toBeInTheDocument();
+    // Ni reproductor ni promesa de continuar.
+    expect(screen.queryByTestId("guide-player")).toBeNull();
+    expect(screen.queryByText(/continuar experiencia/i)).toBeNull();
+  });
+
+  it("reconoce un recorrido terminado, sin ofrecer repetirlo", () => {
+    propio.current = {
+      status: "ready",
+      state: "COMPLETED",
+      session: { stepsCompleted: 3, totalSteps: 3 },
+    };
+    render(mount(SCOPE, false));
+
+    expect(screen.getByText(/terminaste este recorrido/i)).toBeInTheDocument();
+    expect(screen.getByText(/3 de 3 pasos/i)).toBeInTheDocument();
+    expect(screen.queryByTestId("guide-player")).toBeNull();
+    expect(screen.queryByText(/repetir/i)).toBeNull();
+  });
+
+  it("control negativo — sin nada propio, sigue diciendo lo de antes", () => {
+    propio.current = { status: "ready", state: "NOT_STARTED", session: null };
+    render(mount(SCOPE, false));
+
+    expect(
+      screen.getByText(/esta guía no está disponible por ahora/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/pausa|terminaste/i)).toBeNull();
+  });
+
+  it("y mientras el servidor no contesta no afirma nada", () => {
+    propio.current = { status: "loading", state: null, session: null };
+    render(mount(SCOPE, false));
+
+    expect(screen.getByText(/buscando tu recorrido/i)).toBeInTheDocument();
+    expect(screen.queryByText(/no está disponible/i)).toBeNull();
   });
 });

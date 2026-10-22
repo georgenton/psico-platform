@@ -97,7 +97,12 @@ describe("PR4 adds no backend", () => {
     // …and the one flexible onboarding owes. Still an API migration: the Web
     // cut adds no backend, which is the only thing this assertion is about.
     expect(migrations).toContain("20260917000000_circles_flexible_onboarding");
-    expect(migrations).toHaveLength(69);
+    // …y la del control de publicación editorial (B3). También de la API: el
+    // corte de Web no añade backend, que es lo único que esta afirmación
+    // vigila. Se nombra porque subir el número sin añadir un nombre es
+    // justamente lo que aquí se rechaza.
+    expect(migrations).toContain("20261021000000_editorial_origin_seal");
+    expect(migrations).toHaveLength(70);
   });
 
   it("touches no Mobile file", () => {

@@ -1,4 +1,7 @@
-import type { ChapterExperienceDiscoveryResponse } from "@psico/types";
+import type {
+  ChapterExperienceDiscoveryResponse,
+  ChapterExperiencePublicView,
+} from "@psico/types";
 import { apiClient } from "./client";
 
 /** The one code a locally-rejected reading context reports. */
@@ -49,6 +52,40 @@ export const experienceApi = {
     }
     return apiClient.get<ChapterExperienceDiscoveryResponse>(
       `/experiences/discovery/${encodeURIComponent(slug)}/${chapterOrder}`,
+    );
+  },
+
+  /**
+   * B3 — la experiencia que ESTA persona ya empezó, por identidad exacta.
+   *
+   * Existe porque el descubrimiento era el único origen de una definición, y
+   * eso dejaba sin camino a quien tenía un recorrido en una experiencia que el
+   * capítulo ya no ofrece. Lo que autoriza es la propiedad, comprobada en el
+   * servidor; sin sesión propia responde 404, igual que si no existiera.
+   *
+   * No empieza nada: `POST /guide/sessions` sigue siendo el único camino para
+   * abrir una sesión, y sigue negando los pines retirados.
+   */
+  getOwnByPin: ({
+    experienceKey,
+    experienceVersion,
+  }: {
+    experienceKey: string;
+    experienceVersion: number;
+  }) => {
+    const key =
+      typeof experienceKey === "string"
+        ? experienceKey.trim().toLowerCase()
+        : "";
+    if (
+      !SLUG_RE.test(key) ||
+      !Number.isInteger(experienceVersion) ||
+      experienceVersion <= 0
+    ) {
+      return Promise.reject(new Error(EXPERIENCE_DISCOVERY_PARAMS_INVALID));
+    }
+    return apiClient.get<{ experience: ChapterExperiencePublicView }>(
+      `/experiences/mine/${encodeURIComponent(key)}/${experienceVersion}`,
     );
   },
 };

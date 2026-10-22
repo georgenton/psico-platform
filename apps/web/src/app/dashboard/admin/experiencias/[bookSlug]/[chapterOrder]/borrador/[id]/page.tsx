@@ -3,7 +3,21 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import type { AdminExperienceDraft } from "@psico/types";
 
-import { getSessionUser, isNextThrow, serverFetch } from "@/lib/api.server";
+import {
+  getAccessToken,
+  getSessionUser,
+  isNextThrow,
+  serverFetch,
+} from "@/lib/api.server";
+
+/**
+ * B3 — a dónde pide la vista previa lo que una escena no trae consigo.
+ *
+ * Mismo literal que el resto de pantallas que entregan un contexto de lectura
+ * al navegador (`/dashboard/voz`, `/dashboard/eco`): el cliente no puede leer
+ * la cookie, así que la página le pasa base y credencial.
+ */
+const API_BASE = `${(process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001").replace(/\/$/, "")}/api`;
 import { DraftEditor } from "./DraftEditor";
 import { GuideBindingCard } from "./GuideBindingCard";
 
@@ -25,6 +39,7 @@ export default async function AdminDraftEditorPage({
   if (!user || user.role !== "ADMIN") redirect("/dashboard");
 
   const chapterOrder = Number(params.chapterOrder);
+  const accessToken = getAccessToken();
   let draft: AdminExperienceDraft | null = null;
   try {
     draft = await serverFetch<AdminExperienceDraft>(
@@ -79,6 +94,10 @@ export default async function AdminDraftEditorPage({
             bookSlug={params.bookSlug}
             chapterOrder={chapterOrder}
             contentUnitId={draft.contentUnitId}
+            publication={draft.publication ?? null}
+            previewContext={
+              accessToken ? { apiBase: API_BASE, token: accessToken } : null
+            }
           />
           <GuideBindingCard
             id={draft.id}

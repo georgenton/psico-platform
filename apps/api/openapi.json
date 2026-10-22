@@ -4523,7 +4523,7 @@
     },
     "/health": {
       "get": {
-        "description": "Returns 200 with a timestamp. Exposed at /health (not /api/health) so external uptime monitors can keep a stable URL. Opted out of rate limiting via @SkipThrottle().",
+        "description": "Returns 200 with a timestamp. Exposed at /health (not /api/health) so external uptime monitors can keep a stable URL. Opted out of rate limiting via @SkipThrottle(). Says nothing about the database schema — ask /api/health/ready for that, and see this handler's comment for why the two cannot be the same route.",
         "operationId": "HealthController_check",
         "parameters": [],
         "responses": {
@@ -4532,6 +4532,39 @@
           }
         },
         "summary": "Liveness check",
+        "tags": [
+          "Health"
+        ]
+      }
+    },
+    "/api/health/ready": {
+      "get": {
+        "description": "Served at /api/health/ready (the prefix exclusion covers only /health itself). 200 when every migration shipped in this image is applied to the database it is talking to; 503 with the pending names otherwise. Public and un-throttled for the same reason as /health: the things that need to ask — a deploy gate, a post-promotion smoke — cannot authenticate, and migration names are already public in the repository. Fails closed: an unreadable migrations folder or an unreachable database answer 503, never 200.",
+        "operationId": "HealthController_ready",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Schema readiness check",
         "tags": [
           "Health"
         ]

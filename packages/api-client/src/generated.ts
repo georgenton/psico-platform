@@ -1205,9 +1205,29 @@ export interface paths {
         };
         /**
          * Liveness check
-         * @description Returns 200 with a timestamp. Exposed at /health (not /api/health) so external uptime monitors can keep a stable URL. Opted out of rate limiting via @SkipThrottle().
+         * @description Returns 200 with a timestamp. Exposed at /health (not /api/health) so external uptime monitors can keep a stable URL. Opted out of rate limiting via @SkipThrottle(). Says nothing about the database schema — ask /api/health/ready for that, and see this handler's comment for why the two cannot be the same route.
          */
         get: operations["HealthController_check"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/health/ready": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Schema readiness check
+         * @description Served at /api/health/ready (the prefix exclusion covers only /health itself). 200 when every migration shipped in this image is applied to the database it is talking to; 503 with the pending names otherwise. Public and un-throttled for the same reason as /health: the things that need to ask — a deploy gate, a post-promotion smoke — cannot authenticate, and migration names are already public in the repository. Fails closed: an unreadable migrations folder or an unreachable database answer 503, never 200.
+         */
+        get: operations["HealthController_ready"];
         put?: never;
         post?: never;
         delete?: never;
@@ -9498,6 +9518,33 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    HealthController_ready: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
             };
         };
     };

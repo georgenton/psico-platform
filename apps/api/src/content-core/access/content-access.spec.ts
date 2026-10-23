@@ -276,7 +276,14 @@ describe("resolveUnitTarget — the derivation cannot be used to escape a native
           : null,
     },
     book: {
-      findUnique: async () => ({ id: "book-eec", plan: "FREE" }),
+      // `isPublished` viaja desde que la rama nativa también la comprueba:
+      // sin ella el doble devolvería `undefined` y la puerta, que falla
+      // cerrada a propósito, negaría por una laguna del doble.
+      findUnique: async () => ({
+        id: "book-eec",
+        plan: "FREE",
+        isPublished: true,
+      }),
     },
     chapter: {
       findMany: async () => [

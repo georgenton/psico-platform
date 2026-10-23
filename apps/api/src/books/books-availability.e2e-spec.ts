@@ -1,6 +1,7 @@
 import { execSync } from "node:child_process";
 
 import { PrismaClient } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { JwtService } from "@nestjs/jwt";
 import { Pool } from "pg";
@@ -8,6 +9,8 @@ import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { unitKeyFromLegacyChapterId } from "../content-core/lib/block-key";
+import { EXERCISE_INGESTION_CATALOG } from "../content-core/exercise-ingestion-catalog";
+import { practiceContentFor } from "../content-core/exercise-ingestion";
 import { createE2EApp, closeE2EApp, type E2EHarness } from "../test/e2e-app";
 
 /**
@@ -53,10 +56,22 @@ suite("disponibilidad · rutas directas a un libro retirado", () => {
   let capRetirado = "";
   let capPublicado = "";
   let capAdoptado = "";
+  let unitKeyNativa = "";
+  let idNativo = "";
+  let practicaRetirada = "";
+  let practicaPublicada = "";
 
   const RETIRADO = "libro-retirado-matriz";
   /** Retirado Y adoptado por Content Core, pero sin revisión publicada. */
   const ADOPTADO = "libro-retirado-adoptado";
+  /**
+   * Retirado y adoptado CON revisión publicada — la forma que la base alojada
+   * tiene de verdad. El backfill escribe `accessPlan` desde `book.plan` y
+   * publica la revisión, así que todo libro legado con backfill entra por la
+   * rama NATIVA: la autorización se resuelve sin tocar `Book` y la lectura
+   * sale de la revisión, no del respaldo legado. Comprobado contra staging.
+   */
+  const NATIVO = "libro-retirado-nativo";
   const PUBLICADO = "libro-publicado-matriz";
   const INEXISTENTE = "libro-que-no-existe-matriz";
 
@@ -143,6 +158,99 @@ suite("disponibilidad · rutas directas a un libro retirado", () => {
         isFreePreview: true,
       },
     });
+
+    // La edición NATIVA completa, con su revisión publicada y su texto.
+    const nativo = await hacerLibro(NATIVO, false);
+    idNativo = nativo.bookId;
+    const obraN = await prisma.work.create({
+      data: { workKey: `w-${NATIVO}`, title: NATIVO, authorName: "A" },
+    });
+    const edicionN = await prisma.edition.create({
+      data: {
+        workId: obraN.id,
+        editionKey: `${NATIVO}-1e`, // gitleaks:allow — un slug de libro
+        slug: NATIVO,
+        label: "Primera",
+        accessPlan: "FREE",
+      },
+    });
+    const revisionN = await prisma.revision.create({
+      data: {
+        editionId: edicionN.id,
+        number: 1,
+        status: "PUBLISHED",
+        publishedAt: new Date(),
+      },
+    });
+    await prisma.edition.update({
+      where: { id: edicionN.id },
+      data: { publishedRevisionId: revisionN.id },
+    });
+    unitKeyNativa = unitKeyFromLegacyChapterId(nativo.chapterId);
+    const unidadN = await prisma.contentUnit.create({
+      data: {
+        editionId: edicionN.id,
+        unitKey: unitKeyNativa,
+        isFreePreview: true,
+      },
+    });
+    const versionN = await prisma.contentUnitVersion.create({
+      data: { unitId: unidadN.id, title: `Cap. 1 de ${NATIVO}` },
+    });
+    const bloqueN = await prisma.contentBlock.create({
+      data: { unitId: unidadN.id, blockKey: `bk-${NATIVO}` },
+    });
+    await prisma.blockVersion.create({
+      data: {
+        contentBlockId: bloqueN.id,
+        unitVersionId: versionN.id,
+        order: 1,
+        kind: "PARAGRAPH",
+        content: `Texto nativo de ${NATIVO}.`,
+        contentHash: `hash-${NATIVO}`,
+      },
+    });
+    await prisma.revisionUnit.create({
+      data: {
+        revisionId: revisionN.id,
+        unitId: unidadN.id,
+        unitVersionId: versionN.id,
+        order: 1,
+      },
+    });
+
+    // Una práctica de catálogo en cada libro. Su `Exercise.id` ES la clave
+    // del catálogo, escrita literalmente en este repositorio público, así que
+    // la ruta entra por «ID» en la matriz: cualquiera con sesión la adivina.
+    const practicas = (
+      EXERCISE_INGESTION_CATALOG["emociones-en-construccion"] ?? []
+    )
+      .map((p) => p.practice)
+      .filter((p) => p.interaction !== undefined);
+    const definicion = practicas[0];
+    if (!definicion) throw new Error("el catálogo no trae prácticas");
+    practicaRetirada = `${definicion.exerciseKey}-retirada`;
+    practicaPublicada = `${definicion.exerciseKey}-publicada`;
+    for (const [id, chapterId] of [
+      [practicaRetirada, retirado.chapterId],
+      [practicaPublicada, publicado.chapterId],
+    ] as const) {
+      await prisma.exercise.create({
+        data: {
+          id,
+          chapterId,
+          order: 1,
+          title: "Práctica de prueba",
+          type: "REFLECTION",
+          // El contrato de Prisma para `Json` no acepta un
+          // `Record<string, unknown>` sin más; el valor es el del catálogo.
+          content: practiceContentFor(
+            definicion,
+            "block-key-1",
+          ) as unknown as Prisma.InputJsonValue,
+        },
+      });
+    }
 
     const mkUser = (email: string, role: "USER" | "ADMIN" = "USER") =>
       prisma.user.create({
@@ -267,6 +375,33 @@ suite("disponibilidad · rutas directas a un libro retirado", () => {
       expect(JSON.stringify(res.body)).not.toContain(`Texto de ${ADOPTADO}`);
     });
 
+    it("ni la lectura de una unidad por la rama NATIVA, con revisión publicada", async () => {
+      // El caso que de verdad corre en la base alojada, y el que quedaba
+      // abierto: la autorización se resolvía por la edición —`accessPlan` no
+      // es nulo, así que no se consultaba `Book`— y la lectura salía de la
+      // revisión publicada, también sin mirar `Book`. El manifiesto cerraba
+      // la puerta y ésta la dejaba abierta para la MISMA edición.
+      //
+      // El `unitKey` no es un secreto: es `uuidv5` del id del capítulo con un
+      // espacio de nombres publicado en este repositorio, y el lector ya lo
+      // entrega a todo cliente. «La clave la tenía quien abrió el libro
+      // mientras estaba publicado» es exactamente el enlace que circuló.
+      const res = await get(
+        `/api/content/editions/${NATIVO}-1e/units/${unitKeyNativa}`,
+        tokenLector,
+      );
+      expect(res.status).toBe(404);
+      expect(JSON.stringify(res.body)).not.toContain("Texto nativo");
+    });
+
+    it("ni sus marcas, que entran por la misma puerta", async () => {
+      const res = await get(
+        `/api/content/editions/${NATIVO}-1e/units/${unitKeyNativa}/marks`,
+        tokenLector,
+      );
+      expect(res.status).toBe(404);
+    });
+
     it("y el libro publicado sigue respondiendo por las dos", async () => {
       await get(`/api/content/books/${PUBLICADO}/manifest`, tokenLector).expect(
         200,
@@ -275,6 +410,43 @@ suite("disponibilidad · rutas directas a un libro retirado", () => {
         `/api/content/editions/${PUBLICADO}-1e/units/${unitKeyFromLegacyChapterId(capPublicado)}`,
         tokenLector,
       ).expect(200);
+    });
+  });
+
+  describe("ni por las rutas que no comprobaban nada", () => {
+    it("ni la práctica de catálogo, cuya clave está en el repositorio público", async () => {
+      // El manejador no tomaba usuario, no resolvía libro y no preguntaba
+      // nada: devolvía título e interacción de cualquier `Exercise.id`.
+      const res = await get(
+        `/api/learning/practices/${practicaRetirada}`,
+        tokenLector,
+      );
+      expect(res.status).toBe(404);
+      // Y la negativa es la misma que la de una práctica inexistente.
+      expect(res.body?.code ?? res.body?.message).toBe("PRACTICE_NOT_FOUND");
+    });
+
+    it("y la del libro publicado sigue respondiendo", async () => {
+      const res = await get(
+        `/api/learning/practices/${practicaPublicada}`,
+        tokenLector,
+      );
+      expect(res.status).toBe(200);
+      expect(res.body.exerciseKey).toBe(practicaPublicada);
+    });
+
+    it("ni el descubrimiento de experiencias del capítulo", async () => {
+      // Consultaba `chapterExperienceVersion` por slug sin tocar `Book` en
+      // ningún punto, y devuelve la copia editorial del recorrido. Hoy es
+      // LATENTE —no hay versiones publicadas— pero el contrato se afirma en
+      // el código, no en el estado de una tabla: la lista vacía es la misma
+      // respuesta honesta que la de un capítulo sin recorrido.
+      const res = await get(
+        `/api/experiences/discovery/${RETIRADO}/1`,
+        tokenLector,
+      );
+      expect(res.status).toBe(200);
+      expect(res.body.items).toEqual([]);
     });
   });
 
@@ -313,6 +485,69 @@ suite("disponibilidad · rutas directas a un libro retirado", () => {
       ).expect(403);
     });
 
+    it("una edición NATIVA PURA, sin fila `Book`, no gana ninguna exigencia", async () => {
+      // La condición tolera la ausencia a propósito: Content Core puede
+      // publicar obras que no existen como `Book`, y su disponibilidad la
+      // decide el estado de su revisión, que vive en otro sitio.
+      const obra = await prisma.work.create({
+        data: { workKey: "w-pura", title: "Pura", authorName: "A" },
+      });
+      const ed = await prisma.edition.create({
+        data: {
+          workId: obra.id,
+          editionKey: "obra-pura-1e", // gitleaks:allow — un slug de edición
+          slug: "obra-sin-libro-legado",
+          label: "Primera",
+          accessPlan: "FREE",
+        },
+      });
+      const rev = await prisma.revision.create({
+        data: {
+          editionId: ed.id,
+          number: 1,
+          status: "PUBLISHED",
+          publishedAt: new Date(),
+        },
+      });
+      await prisma.edition.update({
+        where: { id: ed.id },
+        data: { publishedRevisionId: rev.id },
+      });
+      const u = await prisma.contentUnit.create({
+        data: { editionId: ed.id, unitKey: "u-pura", isFreePreview: true },
+      });
+      const v = await prisma.contentUnitVersion.create({
+        data: { unitId: u.id, title: "Escena única" },
+      });
+      const b = await prisma.contentBlock.create({
+        data: { unitId: u.id, blockKey: "bk-pura" },
+      });
+      await prisma.blockVersion.create({
+        data: {
+          contentBlockId: b.id,
+          unitVersionId: v.id,
+          order: 1,
+          kind: "PARAGRAPH",
+          content: "Texto de una obra sin libro legado.",
+          contentHash: "hash-pura",
+        },
+      });
+      await prisma.revisionUnit.create({
+        data: {
+          revisionId: rev.id,
+          unitId: u.id,
+          unitVersionId: v.id,
+          order: 1,
+        },
+      });
+
+      const res = await get(
+        "/api/content/editions/obra-pura-1e/units/u-pura",
+        tokenLector,
+      );
+      expect(res.status).toBe(200);
+    });
+
     it("el avance de quien ya leyó se conserva, aunque no abra el libro", async () => {
       // Las dos mitades importan. La fila sigue ahí —no se borra historial—
       // y aun así el libro no se abre: un progreso no es una autorización de
@@ -323,6 +558,39 @@ suite("disponibilidad · rutas directas a un libro retirado", () => {
       expect(filas).toBe(1);
       await get(`/api/books/${RETIRADO}`, tokenConAvance).expect(404);
       await get(`/api/lector/${RETIRADO}/1`, tokenConAvance).expect(404);
+    });
+
+    it("el progreso de aprendizaje tampoco se consulta mientras esté retirada, y no se borra", async () => {
+      // Decisión declarada, no accidente. Retirar una obra la retira entera:
+      // desaparece del catálogo, de la pantalla de inicio y de su propia
+      // vista de progreso. Mostrar una barra de avance de un libro que ya no
+      // está en ningún sitio sería incoherente, y abrir aquí una excepción
+      // significaría abrir la MISMA puerta por la que se sirve el texto
+      // —`assertCanReadUnit` responde a las dos preguntas—, que es
+      // exactamente lo que este cambio cierra.
+      //
+      // Nada se pierde: las filas siguen ahí y vuelven enteras el día que la
+      // obra se publique otra vez.
+      const res = await get(
+        `/api/learning/progress?bookSlug=${RETIRADO}`,
+        tokenConAvance,
+      );
+      expect(res.status).toBeGreaterThanOrEqual(400);
+      const filas = await prisma.userProgress.count({
+        where: { chapter: { bookId: idRetirado } },
+      });
+      expect(filas).toBe(1);
+    });
+
+    it("y la pantalla de inicio deja de ofrecer un enlace muerto", async () => {
+      // Consecuencia de cerrar la frontera, y defecto si no se atiende: la
+      // tarjeta de «continuar» no miraba la publicación, así que seguía
+      // mostrando portada, autoría y capítulo de la obra retirada con un
+      // enlace que ahora responde 404. Ofrecer eso en la pantalla de inicio
+      // es peor que no ofrecer nada, porque parece que se puede seguir.
+      const res = await get("/api/home", tokenConAvance);
+      expect(res.status).toBe(200);
+      expect(JSON.stringify(res.body)).not.toContain(RETIRADO);
     });
   });
 });

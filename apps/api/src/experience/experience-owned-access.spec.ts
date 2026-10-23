@@ -49,7 +49,11 @@ function montar(opciones: {
         opciones.sesion === undefined ? { id: "ses_1" } : opciones.sesion,
       ),
   };
-  const prisma = { guideSession } as unknown as PrismaService;
+  const prisma = {
+    guideSession,
+    // Igual que arriba: la oferta del capítulo comprueba la publicación.
+    book: { findUnique: async () => ({ isPublished: true }) },
+  } as unknown as PrismaService;
   return {
     servicio: new ExperienceDiscoveryService(repositorio, prisma),
     guideSession,

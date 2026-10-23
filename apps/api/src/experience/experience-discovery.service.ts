@@ -45,8 +45,35 @@ export class ExperienceDiscoveryService {
   async listPublishedForChapter(
     params: ChapterExperienceDiscoveryParams,
   ): Promise<ChapterExperiencePublicView[]> {
+    // La publicación del libro, que faltaba. El manejador recibía un slug y
+    // consultaba `chapterExperienceVersion` sin tocar `Book` en ningún punto,
+    // así que una obra retirada seguía entregando la copia editorial de su
+    // recorrido —títulos y cuerpo de cada escena, notas, y la pregunta y las
+    // etiquetas de opción de los RECALL— a cualquiera con sesión que supiera
+    // el slug. Entra por «slug» en la matriz de disponibilidad.
+    //
+    // Honestidad sobre el alcance: hoy es LATENTE, porque la UAT del
+    // 2026-10-22 midió `ChapterExperienceVersion` con cero filas. El contrato
+    // se afirma en el código, no en el estado de una tabla.
+    //
+    // «No ofrecer» y «no existe» dan la misma respuesta: la lista vacía, que
+    // ya es la respuesta honesta de un capítulo sin recorrido. No se
+    // distingue una obra retirada de una sin guías.
+    if (!(await this.obraOfrecida(params.bookSlug))) return [];
     const definitions = await this.repository.listPublishedForChapter(params);
     return definitions.map(toPublicExperienceView);
+  }
+
+  /**
+   * Tolera la ausencia de fila: una obra que este catálogo no conoce no gana
+   * aquí una exigencia que no tenía, y el repositorio responderá por ella.
+   */
+  private async obraOfrecida(bookSlug: string): Promise<boolean> {
+    const libro = await this.prisma.book.findUnique({
+      where: { slug: bookSlug },
+      select: { isPublished: true },
+    });
+    return libro ? libro.isPublished : true;
   }
 
   /**

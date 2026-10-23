@@ -122,7 +122,7 @@ suite("C.3R · batch cost by target composition", () => {
       const heading =
         EXERCISE_INGESTION_CATALOG[slug][0].practice.sourceHeading;
       const book = await prisma.book.create({
-        data: { slug, title: slug, plan: "FREE" },
+        data: { slug, title: slug, plan: "FREE", isPublished: true },
       });
       for (const c of [
         { order: first, heading },

@@ -163,6 +163,7 @@ suite("CC-7.4C · Guide V1 lifecycle (real PostgreSQL)", () => {
     const book = await prisma.book.create({
       data: {
         slug: BOOK_SLUG,
+        isPublished: true,
         title: "Emociones en Construcción",
         plan: "FREE",
       },

@@ -415,13 +415,17 @@ export class StripeProvider implements IPaymentProvider {
 
   private async processEvent(event: StripeEvent): Promise<void> {
     switch (event.type) {
+      // Los tres van al mismo sitio: ninguno aporta estado por sí mismo, sólo
+      // dice que algo cambió. Una baja es una relectura que devuelve
+      // `canceled`, así que no necesita su propio camino — y tener dos
+      // caminos era parte del problema, porque el de la baja degradaba por
+      // `userId` sin mirar de qué suscripción venía.
       case "customer.subscription.created":
       case "customer.subscription.updated":
-        await this.syncSubscription(event.data.object as StripeSubscription);
-        break;
-
       case "customer.subscription.deleted":
-        await this.cancelSubscription(event.data.object as StripeSubscription);
+        await this.applySubscriptionEvent(
+          event.data.object as StripeSubscription,
+        );
         break;
 
       case "checkout.session.completed":
@@ -501,14 +505,15 @@ export class StripeProvider implements IPaymentProvider {
   }
 
   /**
-   * D-ORD · Aplica el estado de una suscripción leyéndolo de Stripe, no del
-   * evento.
+   * D-ORD · Aplica el estado de una suscripción leyéndolo de Stripe, dentro
+   * de un candado por persona.
+   *
+   * ── Por qué no se aplica el objeto del evento ─────────────────────────────
    *
    * El contrato anterior aplicaba `event.data.object` tal cual, con un upsert
    * que no comparaba nada. Stripe advierte que sus eventos **no llegan en
    * orden**, así que una reentrega tardía de un `active` después de una baja
-   * devolvía a la persona a PRO. Estaba documentado como hallazgo en
-   * `billing-events.pg-spec.ts`, con una prueba que afirmaba ese resultado.
+   * devolvía a la persona a PRO.
    *
    * La tentación es ordenar por `event.created` y descartar lo viejo. La
    * documentación de Stripe lo desaconseja de forma explícita: «Snapshot
@@ -518,156 +523,134 @@ export class StripeProvider implements IPaymentProvider {
    * el id del evento tampoco — no es monótono y Stripe no lo promete.
    *
    * Lo que la misma página sí recomienda es releer el objeto: «You can also
-   * use the API to retrieve any missing objects.» Eso es lo que se hace aquí.
-   * El evento pasa a ser únicamente la señal de que algo cambió; el estado lo
-   * dice `subscriptions.retrieve`, que devuelve la verdad actual sea cual sea
-   * el evento que nos despertó. Con eso, el orden de llegada deja de importar,
-   * los empates temporales dejan de ser un caso —no se compara ningún
-   * reloj— y una reentrega vieja converge al mismo sitio que una nueva.
+   * use the API to retrieve any missing objects.» El evento pasa a ser
+   * únicamente la señal de que algo cambió; el estado lo dice
+   * `subscriptions.retrieve`.
+   *
+   * ── Por qué además hace falta un candado ──────────────────────────────────
+   *
+   * Releer no basta por sí solo, y conviene decir exactamente por qué: dos
+   * eventos DISTINTOS del mismo cliente pueden entregarse a la vez. Sin
+   * serializar, esta intercalación es posible y pierde la escritura buena:
+   *
+   *   A relee → «activa»
+   *   B relee → «cancelada» · B escribe FREE
+   *   A escribe PRO con su lectura ya vieja
+   *
+   * No lo impide la unicidad del evento —son eventos distintos— ni la
+   * relectura —A leyó bien, sólo que antes—. Lo impide serializar la lectura
+   * y la escritura sobre el recurso en disputa, que es la fila de suscripción
+   * de ESA persona: `pg_advisory_xact_lock` sobre su `userId`, tomado al
+   * principio de la transacción y liberado al terminarla. Con él, B no puede
+   * leer hasta que A haya confirmado, de modo que la segunda lectura ya ve lo
+   * que la primera escribió.
+   *
+   * El candado va por `userId` y no por suscripción porque el recurso en
+   * disputa es el hueco de la persona: un evento tardío de `sub_vieja` y uno
+   * nuevo de `sub_nueva` compiten por la misma fila, y un candado por
+   * suscripción no los serializaría entre sí.
+   *
+   * Se libera solo. `pg_advisory_xact_lock` muere con la transacción, así que
+   * un proceso que se cae no deja a nadie esperando.
    *
    * Si la relectura falla, el método lanza. La fila del evento sigue sin
    * `processedAt`, el webhook responde distinto de 2xx y Stripe reintenta: es
    * preferible repetir a aplicar un estado inventado.
    */
-  private async syncSubscription(delEvento: StripeSubscription): Promise<void> {
-    const sub = await this.stripe.subscriptions.retrieve(delEvento.id);
-    await this.applySubscription(sub, delEvento);
-  }
-
-  /** Escribe el estado YA releído de Stripe. No vuelve a consultar. */
-  private async applySubscription(
-    sub: StripeSubscription,
+  private async applySubscriptionEvent(
     delEvento: StripeSubscription,
   ): Promise<void> {
-    const userId = sub.metadata["userId"] ?? delEvento.metadata["userId"];
+    const userId = delEvento.metadata["userId"];
     if (!userId) {
       this.logger.warn(
-        `Stripe subscription ${sub.id} has no userId in metadata`,
+        `Stripe subscription ${delEvento.id} has no userId in metadata`,
       );
       return;
     }
 
-    // Identidad: un evento de una suscripción ANTERIOR no toca la vigente.
-    // Sin esto, la baja tardía de `sub_A` degradaría a quien ya está pagando
-    // con `sub_B`.
-    //
-    // La excepción es que la guardada esté terminada: una suscripción muerta
-    // no ocupa el sitio, y quien vuelve a contratar tiene que poder sustituirla.
-    // Sin esta salvedad, la primera versión de la guarda dejaba en FREE a
-    // alguien que acababa de pagar — lo detectó la prueba de este mismo caso.
-    const vigente = await this.prisma.subscription.findUnique({
-      where: { userId },
-      select: { stripeSubscriptionId: true, status: true },
-    });
-    const sitioOcupado =
-      vigente !== null && vigente.status !== SubscriptionStatus.CANCELED;
-    if (vigente && vigente.stripeSubscriptionId !== sub.id && sitioOcupado) {
-      this.logger.log(
-        `Ignoring Stripe event for superseded subscription ${sub.id}: user ${userId} now holds ${vigente.stripeSubscriptionId}`,
-      );
-      return;
-    }
+    await this.prisma.$transaction(
+      async (tx) => {
+        // Serializa a todos los manejadores de ESTA persona. Lo primero, para
+        // que la relectura de Stripe ocurra ya dentro del candado.
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`billing:${userId}`}))`;
 
-    const firstItem = sub.items.data[0];
-    const priceId = firstItem?.price.id ?? "";
-    const status = this.mapStripeStatus(sub.status);
-    // El precio dice qué se compró; el estado dice si da derecho hoy. Una
-    // suscripción terminada conserva su `price`, así que derivar el plan sólo
-    // del precio devolvía PRO a quien ya no lo tiene.
-    const terminada =
-      sub.status === "canceled" || sub.status === "incomplete_expired";
-    const plan = terminada ? Plan.FREE : this.mapPriceIdToPlan(priceId);
-    // In Stripe API 2026-04-22+, billing period fields moved to SubscriptionItem
-    const periodStart = new Date(
-      (firstItem?.current_period_start ?? sub.start_date) * 1000,
-    );
-    const periodEnd = new Date(
-      (firstItem?.current_period_end ?? sub.billing_cycle_anchor) * 1000,
-    );
+        const sub = await this.stripe.subscriptions.retrieve(delEvento.id);
 
-    await this.prisma.$transaction([
-      this.prisma.subscription.upsert({
-        where: { userId },
-        create: {
-          userId,
-          stripeSubscriptionId: sub.id,
-          stripePriceId: priceId,
-          stripeCustomerId: sub.customer as string,
-          status,
-          plan,
-          currentPeriodStart: periodStart,
-          currentPeriodEnd: periodEnd,
-          cancelAtPeriodEnd: sub.cancel_at_period_end,
-        },
-        update: {
-          stripeSubscriptionId: sub.id,
-          stripePriceId: priceId,
-          status,
-          plan,
-          currentPeriodStart: periodStart,
-          currentPeriodEnd: periodEnd,
-          cancelAtPeriodEnd: sub.cancel_at_period_end,
-        },
-      }),
-      this.prisma.user.update({
-        where: { id: userId },
-        data: { plan },
-      }),
-    ]);
+        // Identidad: un evento de una suscripción ANTERIOR no toca la vigente.
+        // Sin esto, la baja tardía de `sub_A` degradaría a quien ya paga con
+        // `sub_B`. Se lee DENTRO de la transacción y del candado, así que la
+        // comprobación sigue siendo válida en el momento de escribir.
+        //
+        // La salvedad: si la guardada está CANCELED no ocupa el sitio, y quien
+        // vuelve a contratar tiene que poder sustituirla. Sin ella la guarda
+        // dejaba en FREE a alguien que acababa de pagar.
+        const vigente = await tx.subscription.findUnique({
+          where: { userId },
+          select: { stripeSubscriptionId: true, status: true },
+        });
+        const sitioOcupado =
+          vigente !== null && vigente.status !== SubscriptionStatus.CANCELED;
+        if (
+          vigente &&
+          vigente.stripeSubscriptionId !== sub.id &&
+          sitioOcupado
+        ) {
+          this.logger.log(
+            `Ignoring Stripe event for superseded subscription ${sub.id}: user ${userId} now holds ${vigente.stripeSubscriptionId}`,
+          );
+          return;
+        }
 
-    this.logger.log(
-      `Synced subscription for user ${userId}: plan=${plan}, status=${status}`,
-    );
-  }
+        const firstItem = sub.items.data[0];
+        const priceId = firstItem?.price.id ?? "";
+        const status = this.mapStripeStatus(sub.status);
+        // El precio dice qué se compró; el estado dice si da derecho hoy. Una
+        // suscripción terminada conserva su `price`, así que derivar el plan
+        // sólo del precio devolvía PRO a quien ya no lo tiene.
+        const terminada =
+          sub.status === "canceled" || sub.status === "incomplete_expired";
+        const plan = terminada ? Plan.FREE : this.mapPriceIdToPlan(priceId);
+        // In Stripe API 2026-04-22+, billing period fields moved to SubscriptionItem
+        const periodStart = new Date(
+          (firstItem?.current_period_start ?? sub.start_date) * 1000,
+        );
+        const periodEnd = new Date(
+          (firstItem?.current_period_end ?? sub.billing_cycle_anchor) * 1000,
+        );
 
-  /**
-   * D-ORD · La baja también se comprueba contra Stripe y contra la identidad.
-   *
-   * Antes degradaba a FREE por `userId`, con un `updateMany` que no miraba de
-   * QUÉ suscripción venía el evento. Una baja tardía de una suscripción ya
-   * sustituida quitaba el plan a quien había vuelto a pagar con otra.
-   */
-  private async cancelSubscription(
-    delEvento: StripeSubscription,
-  ): Promise<void> {
-    const sub = await this.stripe.subscriptions.retrieve(delEvento.id);
-    const userId = sub.metadata["userId"] ?? delEvento.metadata["userId"];
-    if (!userId) return;
+        await tx.subscription.upsert({
+          where: { userId },
+          create: {
+            userId,
+            stripeSubscriptionId: sub.id,
+            stripePriceId: priceId,
+            stripeCustomerId: sub.customer as string,
+            status,
+            plan,
+            currentPeriodStart: periodStart,
+            currentPeriodEnd: periodEnd,
+            cancelAtPeriodEnd: sub.cancel_at_period_end,
+          },
+          update: {
+            stripeSubscriptionId: sub.id,
+            stripePriceId: priceId,
+            status,
+            plan,
+            currentPeriodStart: periodStart,
+            currentPeriodEnd: periodEnd,
+            cancelAtPeriodEnd: sub.cancel_at_period_end,
+          },
+        });
+        await tx.user.update({ where: { id: userId }, data: { plan } });
 
-    const vigente = await this.prisma.subscription.findUnique({
-      where: { userId },
-      select: { stripeSubscriptionId: true, status: true },
-    });
-    if (vigente && vigente.stripeSubscriptionId !== sub.id) {
-      this.logger.log(
-        `Ignoring cancellation of superseded subscription ${sub.id}: user ${userId} now holds ${vigente.stripeSubscriptionId}`,
-      );
-      return;
-    }
-
-    // Y se relee el estado: si entre el evento y este momento la suscripción
-    // volvió a estar activa, degradar sería aplicar una foto vieja.
-    if (sub.status !== "canceled" && sub.status !== "incomplete_expired") {
-      this.logger.log(
-        `Not downgrading ${userId}: subscription ${sub.id} is ${sub.status} in Stripe`,
-      );
-      await this.applySubscription(sub, delEvento);
-      return;
-    }
-
-    await this.prisma.$transaction([
-      this.prisma.subscription.updateMany({
-        where: { userId, stripeSubscriptionId: sub.id },
-        data: { status: SubscriptionStatus.CANCELED, plan: Plan.FREE },
-      }),
-      this.prisma.user.update({
-        where: { id: userId },
-        data: { plan: Plan.FREE },
-      }),
-    ]);
-
-    this.logger.log(
-      `Canceled subscription ${sub.id} for user ${userId} — downgraded to FREE`,
+        this.logger.log(
+          `Synced subscription ${sub.id} for user ${userId}: plan=${plan}, status=${status}`,
+        );
+      },
+      // La relectura de Stripe ocurre dentro, así que el plazo contempla una
+      // llamada de red. Si se agota, la transacción revierte, el candado se
+      // suelta y Stripe reintenta.
+      { timeout: 20_000, maxWait: 10_000 },
     );
   }
 

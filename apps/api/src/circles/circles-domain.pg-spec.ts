@@ -373,6 +373,10 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
       // El sello editorial (B3): aditiva, y nombrada aquí para que una recién
       // llegada sin nombre siga fallando, que es lo que esta cola protege.
       "20261021000000_editorial_origin_seal",
+      // El cierre de D-ORD: `StripeEvent.processedAt` pasa a ser anulable para
+      // distinguir «reclamado» de «terminado». Aditiva y compatible con la
+      // instancia saliente; nombrada aquí por la misma razón que la anterior.
+      "20261023120000_dord_stripe_event_claim",
     ]);
     expect(baseline).toHaveLength(63);
 

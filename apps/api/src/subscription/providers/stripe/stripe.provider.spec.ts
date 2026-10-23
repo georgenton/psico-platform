@@ -48,6 +48,8 @@ vi.mock("stripe", () => {
   return { default: MockStripe };
 });
 
+const mockTxExecuteRaw = vi.fn(async () => 0);
+
 const mockPrisma = {
   user: { findUnique: vi.fn(), update: vi.fn() },
   subscription: { findUnique: vi.fn(), upsert: vi.fn(), updateMany: vi.fn() },
@@ -101,8 +103,15 @@ describe("StripeProvider", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockPrisma.$transaction.mockImplementation((ops: unknown[]) =>
-      Promise.all(ops),
+    // D-ORD · `$transaction` tiene dos formas y el proveedor usa las dos: la
+    // de lista para los efectos sueltos y la interactiva para aplicar una
+    // suscripción bajo candado. El doble tiene que distinguirlas, y el `tx`
+    // de la interactiva necesita `$executeRaw` porque ahí se toma el candado.
+    mockPrisma.$transaction.mockImplementation(
+      (arg: unknown[] | ((tx: unknown) => Promise<unknown>)) =>
+        typeof arg === "function"
+          ? arg({ ...mockPrisma, $executeRaw: mockTxExecuteRaw })
+          : Promise.all(arg),
     );
 
     // D-ORD · el webhook cambió de contrato y el arnés tiene que seguirlo.
@@ -587,8 +596,11 @@ describe("StripeProvider", () => {
 
     it("price_pro_yearly → Plan.ANNUAL", async () => {
       vi.clearAllMocks();
-      mockPrisma.$transaction.mockImplementation((ops: unknown[]) =>
-        Promise.all(ops),
+      mockPrisma.$transaction.mockImplementation(
+        (arg: unknown[] | ((tx: unknown) => Promise<unknown>)) =>
+          typeof arg === "function"
+            ? arg({ ...mockPrisma, $executeRaw: mockTxExecuteRaw })
+            : Promise.all(arg),
       );
       await triggerSync("price_pro_yearly");
       expect(mockPrisma.user.update).toHaveBeenCalledWith(
@@ -598,8 +610,11 @@ describe("StripeProvider", () => {
 
     it("price_b2b → Plan.B2B", async () => {
       vi.clearAllMocks();
-      mockPrisma.$transaction.mockImplementation((ops: unknown[]) =>
-        Promise.all(ops),
+      mockPrisma.$transaction.mockImplementation(
+        (arg: unknown[] | ((tx: unknown) => Promise<unknown>)) =>
+          typeof arg === "function"
+            ? arg({ ...mockPrisma, $executeRaw: mockTxExecuteRaw })
+            : Promise.all(arg),
       );
       await triggerSync("price_b2b");
       expect(mockPrisma.user.update).toHaveBeenCalledWith(
@@ -609,8 +624,11 @@ describe("StripeProvider", () => {
 
     it("price desconocido → Plan.FREE", async () => {
       vi.clearAllMocks();
-      mockPrisma.$transaction.mockImplementation((ops: unknown[]) =>
-        Promise.all(ops),
+      mockPrisma.$transaction.mockImplementation(
+        (arg: unknown[] | ((tx: unknown) => Promise<unknown>)) =>
+          typeof arg === "function"
+            ? arg({ ...mockPrisma, $executeRaw: mockTxExecuteRaw })
+            : Promise.all(arg),
       );
       await triggerSync("price_unknown_xyz");
       expect(mockPrisma.user.update).toHaveBeenCalledWith(
@@ -647,8 +665,11 @@ describe("StripeProvider", () => {
       ["unpaid", SubscriptionStatus.INCOMPLETE],
     ])('Stripe status "%s" → %s', async (stripeStatus, expected) => {
       vi.clearAllMocks();
-      mockPrisma.$transaction.mockImplementation((ops: unknown[]) =>
-        Promise.all(ops),
+      mockPrisma.$transaction.mockImplementation(
+        (arg: unknown[] | ((tx: unknown) => Promise<unknown>)) =>
+          typeof arg === "function"
+            ? arg({ ...mockPrisma, $executeRaw: mockTxExecuteRaw })
+            : Promise.all(arg),
       );
       const result = await triggerSyncWithStatus(stripeStatus);
       expect(result).toBe(expected);

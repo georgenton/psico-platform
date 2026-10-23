@@ -46,11 +46,42 @@ const mockConstructEvent = vi.fn();
  * distintas, y aquí se pueden expresar por separado.
  */
 const estadoEnStripe = new Map<string, unknown>();
-const mockRetrieve = vi.fn(async (id: string) => {
+
+/**
+ * Una puerta para detener la relectura de Stripe en un punto exacto.
+ *
+ * Las pruebas de intercalación no pueden depender de que el planificador
+ * ordene dos promesas a su gusto: eso prueba lo que salió ese día. Con esto,
+ * la prueba decide cuándo avanza cada manejador y puede afirmar qué llegó a
+ * ocurrir y qué no.
+ */
+let puertaRetrieve: {
+  abrir: () => void;
+  esperar: Promise<void>;
+  llamadas: number;
+} | null = null;
+
+const abrirPuerta = () => {
+  let abrir: () => void = () => {};
+  const esperar = new Promise<void>((res) => {
+    abrir = res;
+  });
+  puertaRetrieve = { abrir, esperar, llamadas: 0 };
+  return puertaRetrieve;
+};
+
+const leerDeStripe = async (id: string) => {
+  if (puertaRetrieve) {
+    puertaRetrieve.llamadas += 1;
+    // Sólo la PRIMERA relectura se detiene; las siguientes pasan de largo.
+    if (puertaRetrieve.llamadas === 1) await puertaRetrieve.esperar;
+  }
   const actual = estadoEnStripe.get(id);
   if (!actual) throw new Error(`Stripe double: no hay suscripción ${id}`);
   return actual;
-});
+};
+
+const mockRetrieve = vi.fn(leerDeStripe);
 
 vi.mock("stripe", () => {
   const MockStripe = vi.fn().mockImplementation(() => ({
@@ -130,11 +161,8 @@ suite("eventos de suscripción contra PostgreSQL real", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    mockRetrieve.mockImplementation(async (id: string) => {
-      const actual = estadoEnStripe.get(id);
-      if (!actual) throw new Error(`Stripe double: no hay suscripción ${id}`);
-      return actual;
-    });
+    mockRetrieve.mockImplementation(leerDeStripe);
+    puertaRetrieve = null;
     estadoEnStripe.clear();
     await prisma.subscription.deleteMany({});
     await prisma.stripeEvent.deleteMany({});
@@ -498,6 +526,257 @@ suite("eventos de suscripción contra PostgreSQL real", () => {
       where: { stripeEventId: "evt_a_medias" },
     });
     expect(sellado.processedAt).not.toBeNull();
+  });
+
+  /**
+   * Las tres garantías que una revisión pidió acreditar, y que releer por sí
+   * solo NO da. Cada una se monta con la puerta, no con un `Promise.all` que
+   * dependa del planificador.
+   */
+  describe("concurrencia entre eventos distintos", () => {
+    const esperarUnPoco = () => new Promise((r) => setTimeout(r, 400));
+
+    it("una lectura anterior no puede escribir después de una posterior", async () => {
+      // El escenario exacto: A obtiene «activa», B obtiene y persiste
+      // «cancelada», A intenta persistir después. Sin serializar, A pisa a B.
+      await entregar(
+        evento({
+          id: "evt_base",
+          userId: ANA,
+          subId: "sub_ana",
+          status: "active",
+        }),
+      );
+      expect(await planDe(ANA)).toBe("PRO");
+
+      const puerta = abrirPuerta();
+
+      // A: un `updated` que, cuando lea, verá «activa».
+      const eventoA = evento({
+        id: "evt_A",
+        userId: ANA,
+        subId: "sub_ana",
+        status: "active",
+      });
+      estadoEnStripe.set("sub_ana", eventoA.data.object);
+      mockConstructEvent.mockReturnValue(eventoA);
+      const A = provider.handleWebhook(Buffer.from("{}"), "sig");
+
+      // Se deja que A entre en el candado y se detenga en la relectura.
+      await esperarUnPoco();
+      expect(puerta.llamadas).toBe(1);
+
+      // B: la baja. Mientras A está detenido, la verdad en Stripe cambia.
+      const eventoB = evento({
+        id: "evt_B",
+        userId: ANA,
+        subId: "sub_ana",
+        status: "canceled",
+        type: "customer.subscription.deleted",
+      });
+      estadoEnStripe.set("sub_ana", eventoB.data.object);
+      mockConstructEvent.mockReturnValue(eventoB);
+      const B = provider.handleWebhook(Buffer.from("{}"), "sig");
+
+      // ESTA es la afirmación que prueba el mecanismo: B ni siquiera ha
+      // llegado a leer. Está esperando el candado que A tiene tomado, así que
+      // la intercalación «A lee / B lee / B escribe / A escribe» no puede
+      // montarse. Sin candado, aquí habría 2 llamadas.
+      await esperarUnPoco();
+      expect(puerta.llamadas).toBe(1);
+
+      puerta.abrir();
+      await A;
+      await B;
+
+      // B leyó DESPUÉS de que A confirmara, así que vio la cancelación y la
+      // escribió al final. La lectura vieja de A no sobrevive.
+      expect(puerta.llamadas).toBe(2);
+      expect(await planDe(ANA)).toBe("FREE");
+    });
+
+    it("el candado es por persona: dos personas no se bloquean entre sí", async () => {
+      // Guard the guard: si el candado fuera global, la prueba de arriba
+      // pasaría por serializarlo todo y el webhook se volvería un cuello de
+      // botella. Aquí se comprueba que sólo serializa a quien comparte fila.
+      const puerta = abrirPuerta();
+
+      const deAna = evento({
+        id: "evt_ana",
+        userId: ANA,
+        subId: "sub_ana",
+        status: "active",
+      });
+      estadoEnStripe.set("sub_ana", deAna.data.object);
+      mockConstructEvent.mockReturnValue(deAna);
+      const A = provider.handleWebhook(Buffer.from("{}"), "sig");
+      await esperarUnPoco();
+      expect(puerta.llamadas).toBe(1);
+
+      const deBruno = evento({
+        id: "evt_bruno",
+        userId: BRUNO,
+        subId: "sub_bruno",
+        status: "active",
+        priceId: "price_b2b",
+      });
+      estadoEnStripe.set("sub_bruno", deBruno.data.object);
+      mockConstructEvent.mockReturnValue(deBruno);
+      const B = provider.handleWebhook(Buffer.from("{}"), "sig");
+
+      // Bruno sí puede leer mientras Ana está detenida: su fila es otra.
+      await esperarUnPoco();
+      expect(puerta.llamadas).toBe(2);
+
+      puerta.abrir();
+      await Promise.all([A, B]);
+      expect(await planDe(ANA)).toBe("PRO");
+      expect(await planDe(BRUNO)).toBe("B2B");
+    });
+
+    it("un evento tardío de la anterior no desplaza a la nueva, también en concurrencia", async () => {
+      // Ana cancela sub_vieja y contrata sub_nueva. La baja tardía de la
+      // vieja llega A LA VEZ que el alta de la nueva.
+      await entregar(
+        evento({
+          id: "evt_v1",
+          userId: ANA,
+          subId: "sub_vieja",
+          status: "active",
+        }),
+      );
+      await entregar(
+        evento({
+          id: "evt_v2",
+          userId: ANA,
+          subId: "sub_vieja",
+          status: "canceled",
+          type: "customer.subscription.deleted",
+        }),
+      );
+
+      const puerta = abrirPuerta();
+
+      // Primero entra el alta de la nueva y se detiene en la relectura.
+      const alta = evento({
+        id: "evt_n1",
+        userId: ANA,
+        subId: "sub_nueva",
+        status: "active",
+      });
+      estadoEnStripe.set("sub_nueva", alta.data.object);
+      mockConstructEvent.mockReturnValue(alta);
+      const N = provider.handleWebhook(Buffer.from("{}"), "sig");
+      await esperarUnPoco();
+      expect(puerta.llamadas).toBe(1);
+
+      // Y ahora la baja tardía de la vieja, que espera el candado.
+      const tardio = evento({
+        id: "evt_v2_tarde",
+        userId: ANA,
+        subId: "sub_vieja",
+        status: "canceled",
+        type: "customer.subscription.deleted",
+      });
+      mockConstructEvent.mockReturnValue(tardio);
+      const T = provider.handleWebhook(Buffer.from("{}"), "sig");
+      await esperarUnPoco();
+      expect(puerta.llamadas).toBe(1);
+
+      puerta.abrir();
+      await N;
+      await T;
+
+      // La guarda de identidad se evaluó DENTRO del candado, con la fila ya
+      // escrita por el alta: la baja tardía se encontró el sitio ocupado por
+      // sub_nueva y no lo tocó.
+      expect(await planDe(ANA)).toBe("PRO");
+      const fila = await prisma.subscription.findUniqueOrThrow({
+        where: { userId: ANA },
+      });
+      expect(fila.stripeSubscriptionId).toBe("sub_nueva");
+      expect(fila.status).toBe("ACTIVE");
+    });
+  });
+
+  describe("reclamación y recuperación", () => {
+    it("un fallo ENTRE aplicar el efecto y sellarlo se recupera sin duplicar", async () => {
+      const e = evento({
+        id: "evt_sin_sellar",
+        userId: ANA,
+        subId: "sub_ana",
+        status: "active",
+      });
+      estadoEnStripe.set("sub_ana", e.data.object);
+      mockConstructEvent.mockReturnValue(e);
+
+      // El sello falla una vez, justo después de que el efecto ya se aplicó.
+      const sellar = prisma.stripeEvent.update.bind(prisma.stripeEvent);
+      let falladoYa = false;
+      (prisma.stripeEvent as { update: unknown }).update = async (
+        args: Parameters<typeof sellar>[0],
+      ) => {
+        if (!falladoYa) {
+          falladoYa = true;
+          throw new Error("se cayó antes de sellar");
+        }
+        return sellar(args);
+      };
+
+      await expect(
+        provider.handleWebhook(Buffer.from("{}"), "sig"),
+      ).rejects.toThrow();
+
+      // El efecto SÍ se aplicó y el evento quedó sin sellar.
+      expect(await planDe(ANA)).toBe("PRO");
+      const aMedias = await prisma.stripeEvent.findUniqueOrThrow({
+        where: { stripeEventId: "evt_sin_sellar" },
+      });
+      expect(aMedias.processedAt).toBeNull();
+
+      // Reintento de Stripe. No duplica —la relectura converge al mismo
+      // estado y la fila de suscripción es única por persona— y esta vez
+      // sella.
+      await provider.handleWebhook(Buffer.from("{}"), "sig");
+      (prisma.stripeEvent as { update: unknown }).update = sellar;
+
+      expect(await planDe(ANA)).toBe("PRO");
+      expect(await prisma.subscription.count({ where: { userId: ANA } })).toBe(
+        1,
+      );
+      const filas = await prisma.stripeEvent.findMany({
+        where: { stripeEventId: "evt_sin_sellar" },
+      });
+      expect(filas).toHaveLength(1);
+      expect(filas[0]?.processedAt).not.toBeNull();
+    });
+
+    it("una reclamación inconclusa no bloquea el evento para siempre", async () => {
+      // No hay estado «en proceso» con dueño ni plazo: una fila sin sellar es
+      // simplemente reaplicable. Se simula el intento muerto escribiéndola a
+      // mano, que es lo que deja un proceso que se cayó.
+      await prisma.stripeEvent.create({
+        data: {
+          stripeEventId: "evt_huerfano",
+          type: "customer.subscription.updated",
+          processedAt: null,
+        },
+      });
+
+      const e = evento({
+        id: "evt_huerfano",
+        userId: ANA,
+        subId: "sub_ana",
+        status: "active",
+      });
+      await entregar(e);
+
+      expect(await planDe(ANA)).toBe("PRO");
+      const sellado = await prisma.stripeEvent.findUniqueOrThrow({
+        where: { stripeEventId: "evt_huerfano" },
+      });
+      expect(sellado.processedAt).not.toBeNull();
+    });
   });
 
   it("un evento sin dueño declarado no toca a nadie", async () => {

@@ -54,6 +54,16 @@ export interface CompletionSummaryProps {
   onPickAnother?: () => void;
   /** A fresh run of the same experience, via the existing START. */
   onRepeat?: () => void;
+  /**
+   * Why repeating is refused, when it is. Present → the control renders
+   * disabled with this sentence beside it.
+   *
+   * The button is kept rather than removed on purpose. A reader who finished
+   * this journey and comes back looking for «Repetir experiencia» should find
+   * out why it is not available, not find the question missing. The sentence
+   * is the caller's: this component does not know what retired the pin.
+   */
+  repeatRefusal?: string;
 }
 
 const OUTCOME_LABEL: Record<GuideRecallOutcome, string> = {
@@ -116,6 +126,7 @@ export function CompletionSummary({
   onContinueReading,
   onPickAnother,
   onRepeat,
+  repeatRefusal,
 }: CompletionSummaryProps) {
   const headingRef = useRef<HTMLHeadingElement>(null);
 
@@ -269,11 +280,25 @@ export function CompletionSummary({
             // A new run is the reader's decision. Reopening a finished
             // experience shows this screen and starts nothing.
             onClick={onRepeat}
+            disabled={repeatRefusal !== undefined}
+            {...(repeatRefusal !== undefined
+              ? { "aria-describedby": "repetir-negado" }
+              : {})}
           >
             Repetir experiencia
           </button>
         ) : null}
       </div>
+      {onRepeat && repeatRefusal !== undefined ? (
+        <p
+          id="repetir-negado"
+          role="status"
+          className="mt-3 text-[12.5px]"
+          style={{ color: "var(--color-warm-500)" }}
+        >
+          {repeatRefusal}
+        </p>
+      ) : null}
     </section>
   );
 }

@@ -83,15 +83,28 @@ describe("EEC-C01 · the manifests", () => {
     );
   });
 
-  it("PUBLISHED, or publishable, is refused — this phase drafts only", () => {
+  it("PUBLISHED is refused — este validador sigue siendo de borradores", () => {
     const a = clone();
     a[0].status = "PUBLISHED";
     a[0].manifestSha256 = "";
     expect(codes(a)).toContain(CLI_ERRORS.manifestInvalid);
+  });
 
+  it("publishAllowed deja de ser «siempre false», y pasa a exigir acta", () => {
+    // B4 — la regla no desaparece, cambia de sitio y se vuelve más estricta.
+    //
+    // Antes, este validador rechazaba cualquier manifiesto que se declarara
+    // publicable, y eso cerraba la puerta también a una aprobación legítima.
+    // Ahora declararlo es posible, pero sólo lo autoriza un acta firmada que
+    // cubra ESTE contenido — y eso lo decide `checkApprovals`, que es la capa
+    // capaz de construir la definición. Aquí sólo queda la forma del campo.
     const b = clone();
     b[0].publishAllowed = true;
-    expect(codes(b)).toContain(CLI_ERRORS.publishNotAllowed);
+    expect(codes(b)).not.toContain(CLI_ERRORS.publishNotAllowed);
+
+    const c = clone() as unknown as { publishAllowed: unknown }[];
+    c[0]!.publishAllowed = "sí";
+    expect(codes(c as never)).toContain(CLI_ERRORS.manifestInvalid);
   });
 
   it("a manifest that mentions the pilot anywhere is refused", () => {

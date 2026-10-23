@@ -6,6 +6,7 @@ import {
   EXPERIENCE_SCENE_KINDS,
   type ChapterExperienceDefinition,
   type ChapterExperiencePublicView,
+  type ExperiencePublicationVerdict,
   type ExperienceSceneDefinition,
   type ExperienceSceneKind,
 } from "@psico/types";
@@ -96,6 +97,8 @@ export function DraftEditor({
   bookSlug,
   chapterOrder,
   contentUnitId,
+  publication,
+  previewContext,
 }: {
   id: string;
   initial: ChapterExperienceDefinition;
@@ -110,6 +113,21 @@ export function DraftEditor({
    * than a write against whatever chapter now answers to this number.
    */
   contentUnitId: string | null;
+  /**
+   * B3 — con qué puede la vista previa PEDIR lo suyo: la interacción de una
+   * práctica, el medio de un capítulo. Lecturas; la previsualización sigue
+   * sin registrar nada. `null` la deja como estaba.
+   */
+  previewContext: { apiBase: string; token: string } | null;
+  /**
+   * B3 — el veredicto editorial que aplicará el servidor, tal cual.
+   *
+   * `null` cuando la API no lo manda (una anterior a este control). Se lee
+   * como «no se pudo preguntar», que no es un sí: el control queda apagado y
+   * se dice por qué. La protección sigue estando en el endpoint — esto sólo
+   * evita que el editor aprenda la regla por castigo.
+   */
+  publication: ExperiencePublicationVerdict | null;
 }) {
   const router = useRouter();
   const [definition, setDefinition] =
@@ -128,6 +146,17 @@ export function DraftEditor({
     ),
   );
   const [busy, setBusy] = useState<null | "save" | "publish" | "preview">(null);
+  /**
+   * B3 — ¿puede publicarse? La respuesta es del servidor; aquí sólo se lee.
+   *
+   * Ausente se trata como no, por la misma razón que `startable` en el
+   * reproductor: un campo que no llegó significa «no se pudo preguntar», y
+   * ofrecer un botón sobre esa base es prometer algo que el endpoint va a
+   * negar. Si el veredicto se queda obsoleto —porque alguien guardó un cambio
+   * en otra pestaña— quien decide sigue siendo `publish`, que lo recalcula
+   * dentro del candado y vuelve a negar.
+   */
+  const puedePublicar = publication?.approved === true;
   /** The saved draft as a reader would receive it, mapped by the server. */
   const [preview, setPreview] = useState<ChapterExperiencePublicView | null>(
     null,
@@ -410,10 +439,13 @@ export function DraftEditor({
         <button
           type="button"
           onClick={() => void publish()}
-          disabled={busy !== null}
+          disabled={busy !== null || !puedePublicar}
           className="rounded-full px-5 text-[13.5px] font-semibold text-white disabled:opacity-60"
           style={{ minHeight: 44, background: "var(--color-sage-500)" }}
           data-testid="publish-draft"
+          {...(puedePublicar
+            ? {}
+            : { "aria-describedby": "motivo-publicacion" })}
         >
           {busy === "publish" ? "Publicando…" : "Publicar"}
         </button>
@@ -425,6 +457,18 @@ export function DraftEditor({
             {message}
           </span>
         ) : null}
+        {puedePublicar ? null : (
+          <span
+            id="motivo-publicacion"
+            role="status"
+            className="text-[13px]"
+            style={{ color: "var(--color-warm-600)" }}
+          >
+            {publication && !publication.approved
+              ? publication.message
+              : "No se pudo comprobar si este borrador está aprobado, así que no se ofrece publicarlo."}
+          </span>
+        )}
         {error ? (
           <span
             className="text-[13px]"
@@ -436,7 +480,14 @@ export function DraftEditor({
         ) : null}
       </div>
 
-      {preview ? <PreviewSection preview={preview} /> : null}
+      {preview ? (
+        <PreviewSection
+          preview={preview}
+          bookSlug={bookSlug}
+          chapterOrder={chapterOrder}
+          previewContext={previewContext}
+        />
+      ) : null}
     </div>
   );
 }
@@ -449,7 +500,17 @@ export function DraftEditor({
  * not ship is reported rather than substituted — previewing against the wrong
  * guide would be worse than not previewing at all.
  */
-function PreviewSection({ preview }: { preview: ChapterExperiencePublicView }) {
+function PreviewSection({
+  preview,
+  bookSlug,
+  chapterOrder,
+  previewContext,
+}: {
+  preview: ChapterExperiencePublicView;
+  bookSlug: string;
+  chapterOrder: number;
+  previewContext: { apiBase: string; token: string } | null;
+}) {
   const bundle = resolveGuideWebBundle(preview.guidePin);
 
   return (
@@ -469,7 +530,23 @@ function PreviewSection({ preview }: { preview: ChapterExperiencePublicView }) {
           {preview.guidePin.guideVersion}, así que no podemos previsualizarla.
         </p>
       ) : (
-        <ExperiencePreview definition={preview} bundle={bundle} />
+        <ExperiencePreview
+          definition={preview}
+          bundle={bundle}
+          // B3 — con qué pedir lo que una escena no trae consigo. Sin esto la
+          // práctica de ordenamiento no cargaba sus tarjetas y la vista previa
+          // enseñaba media escena sin avisar.
+          media={
+            previewContext
+              ? {
+                  bookSlug,
+                  chapterOrder,
+                  apiBase: previewContext.apiBase,
+                  token: previewContext.token,
+                }
+              : null
+          }
+        />
       )}
     </section>
   );

@@ -8,7 +8,24 @@ import {
   planBookLearningActivation,
 } from "./learning-activation";
 import type { FlagName } from "../shared/flags";
-import type { GuideManifest } from "./eec-c01-guides-cli";
+import {
+  CLI_ERRORS,
+  type GuideManifest,
+  type ValidationIssue,
+} from "./eec-c01-guides-cli";
+import {
+  definitionDigest,
+  sealForManifest,
+  type EditorialSeal,
+  type ManifestSeal,
+} from "../experience/experience-editorial-seal";
+import {
+  approvalPayload,
+  parseEditorialApproval,
+  verifyApproval,
+  type ApprovalKeyring,
+} from "../experience/experience-editorial-approval";
+import { validateExperienceDefinition } from "../experience/experience-catalog";
 
 /**
  * EEC-C01 — the writing half of the guided-suite CLI.
@@ -234,6 +251,12 @@ export interface DraftCreator {
     userId: string,
     input: ChapterExperienceDefinition,
     expectedContentUnitId?: string | null,
+    /**
+     * B3 — la procedencia editorial del borrador. Esta herramienta es la
+     * ÚNICA que tiene un manifiesto en la mano, así que es la única que puede
+     * sellar. Lo que cree el panel nace sin sello, y eso queda escrito.
+     */
+    seal?: EditorialSeal,
   ): Promise<{ id: string }>;
 }
 
@@ -521,10 +544,15 @@ export async function createDrafts(
       // The unit the plan resolved travels with the write: the service takes
       // the chapter lock and refuses if the chapter has moved to another unit
       // between planning and applying, instead of binding to whatever it finds.
+      const definition = toDefinition(m);
       const created = await service.createDraft(
         userId,
-        toDefinition(m),
+        definition,
         expectedContentUnitId ?? null,
+        // El sello se calcula sobre la definición que de verdad se escribe,
+        // no sobre el manifiesto: el resumen tiene que cubrir el contenido
+        // que `publish` va a releer, y entre uno y otro hay una conversión.
+        sealForManifest(m, definition),
       );
       row.action = "CREATED";
       row.id = created.id;
@@ -813,3 +841,290 @@ export async function runPreviewReport(
   return previewReport(prisma, manifests);
 }
 /* c8 ignore stop */
+
+/**
+ * B4 — ¿coinciden la declaración del manifiesto y el acta firmada?
+ *
+ * Vive aquí, y no en el validador, porque la única comprobación que de verdad
+ * cierra el círculo necesita construir la definición: un acta tiene que cubrir
+ * **el contenido que se va a servir**, no sólo el nombre del manifiesto. Esta
+ * capa sabe hacerlo (`toDefinition`), y el validador no.
+ *
+ * Las dos direcciones se comprueban:
+ *
+ *   - declarar `publishAllowed: true` sin acta es declararse aprobado solo;
+ *   - traer un acta sin declararlo es dejar una aprobación suelta que nadie
+ *     reconoce, y eso se parece demasiado a un descuido como para pasarlo.
+ *
+ * Sin claves en el entorno, cualquier acta cae en `APPROVAL_UNKNOWN_KEY`: una
+ * instalación que no reconoce firmas no puede aprobar nada. Es el estado de
+ * hoy y es el seguro.
+ */
+export function checkApprovals(input: {
+  manifests: readonly GuideManifest[];
+  approvals: ReadonlyMap<string, unknown>;
+  keyring: ApprovalKeyring;
+}): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  for (const m of input.manifests) {
+    const acta = input.approvals.get(m.manifestId) ?? null;
+
+    if (m.publishAllowed !== true) {
+      if (acta !== null) {
+        issues.push({
+          manifestId: m.manifestId,
+          code: CLI_ERRORS.approvalUndeclared,
+          detail:
+            "hay un acta de aprobación, pero el manifiesto sigue declarando " +
+            "que no puede publicarse",
+        });
+      }
+      continue;
+    }
+
+    if (acta === null) {
+      issues.push({
+        manifestId: m.manifestId,
+        code: CLI_ERRORS.publishNotAllowed,
+        detail:
+          "declara publishAllowed: true sin un acta firmada que lo respalde",
+      });
+      continue;
+    }
+
+    const veredicto = verifyApproval({
+      approval: acta,
+      keyring: input.keyring,
+      expect: {
+        manifestId: m.manifestId,
+        experienceKey: m.experienceKey,
+        experienceVersion: m.experienceVersion,
+        guideKey: m.guideKey,
+        guideVersion: m.guideVersion,
+        canonicalVersion: m.canonicalVersion,
+        canonicalSha256: m.canonicalSha256,
+        manifestSha256: m.manifestSha256,
+        definitionSha256: definitionDigest(toDefinition(m)),
+      },
+    });
+    if (!veredicto.valid) {
+      issues.push({
+        manifestId: m.manifestId,
+        code: CLI_ERRORS.approvalInvalid,
+        detail: `${veredicto.code}: ${veredicto.detail}`,
+      });
+    }
+  }
+  return issues;
+}
+
+/** El acta ya verificada, en la forma que el sello guarda. */
+function approvalForSeal(acta: unknown): ManifestSeal["approval"] {
+  const a = parseEditorialApproval(acta);
+  if (a === null) return undefined;
+  return {
+    keyId: a.keyId,
+    approvedBy: a.approvedBy,
+    approvedAt: a.approvedAt,
+    signature: a.signature,
+    canonicalVersion: a.canonicalVersion,
+    canonicalSha256: a.canonicalSha256,
+    manifestSha256: a.manifestSha256,
+  };
+}
+
+export interface ResealRow {
+  manifestId: string;
+  experienceKey: string;
+  action: "RESEALED" | "NOOP" | "SKIPPED" | "REFUSED";
+  detail?: string;
+}
+
+export interface ResealResult {
+  ok: boolean;
+  applied: boolean;
+  rows: ResealRow[];
+  outcome: "NOOP" | "APPLIED" | "REFUSED";
+}
+
+/**
+ * `reseal` — vuelve a sellar borradores que YA existen, cuando hay aprobación.
+ *
+ * `create-drafts` es idempotente por inspección: una fila DRAFT que coincide
+ * es un NOOP, y nunca vuelve a escribir su procedencia. Eso está bien para
+ * crear y es insuficiente para aprobar: la transición de «borrador sin
+ * aprobar» a «borrador aprobado» no crea nada, cambia la autorización de algo
+ * que ya está ahí. Por eso es un comando propio y explícito, no un efecto
+ * secundario de otro.
+ *
+ * Tres cosas que no hace, y las tres a propósito:
+ *
+ *   - no aprueba. Si no hay acta válida, se niega y dice por qué;
+ *   - no publica. Deja la fila en DRAFT; quien publica es `publish`, que
+ *     volverá a verificar la firma por su cuenta;
+ *   - no sella contenido que no sea el aprobado. Si la fila guarda algo
+ *     distinto de lo que el acta firmó, se niega — reaprovechar una
+ *     aprobación después de editar es exactamente lo que no puede pasar.
+ *
+ * Idempotente: sellar dos veces escribe el mismo sello.
+ */
+export async function resealApproved(
+  prisma: Pick<PrismaClient, "chapterExperienceVersion">,
+  manifests: readonly GuideManifest[],
+  approvals: ReadonlyMap<string, unknown>,
+  keyring: ApprovalKeyring,
+  apply: boolean,
+): Promise<ResealResult> {
+  const rows: ResealRow[] = [];
+  let refused = false;
+  let escritas = 0;
+
+  for (const m of manifests) {
+    const base = { manifestId: m.manifestId, experienceKey: m.experienceKey };
+    const acta = approvals.get(m.manifestId) ?? null;
+
+    if (m.publishAllowed !== true || acta === null) {
+      rows.push({
+        ...base,
+        action: "SKIPPED",
+        detail: "sin aprobación declarada",
+      });
+      continue;
+    }
+
+    const fila = await prisma.chapterExperienceVersion.findUnique({
+      where: {
+        experienceKey_experienceVersion: {
+          experienceKey: m.experienceKey,
+          experienceVersion: m.experienceVersion,
+        },
+      },
+      select: { id: true, status: true, definitionJson: true },
+    });
+    if (!fila) {
+      rows.push({ ...base, action: "SKIPPED", detail: "no existe la fila" });
+      continue;
+    }
+    if (fila.status !== "DRAFT") {
+      // Una versión publicada es inmutable, y una archivada no vuelve. Sellar
+      // cualquiera de las dos sería reescribir historia.
+      refused = true;
+      rows.push({
+        ...base,
+        action: "REFUSED",
+        detail: `la fila está en ${fila.status}, no en DRAFT`,
+      });
+      continue;
+    }
+
+    // Lo que se aprueba es lo que la fila GUARDA, no lo que el manifiesto
+    // dice hoy. Si han divergido, el acta no cubre lo que se serviría.
+    const guardada = validateExperienceDefinition(fila.definitionJson);
+    const veredicto = verifyApproval({
+      approval: acta,
+      keyring,
+      expect: {
+        manifestId: m.manifestId,
+        experienceKey: m.experienceKey,
+        experienceVersion: m.experienceVersion,
+        guideKey: m.guideKey,
+        guideVersion: m.guideVersion,
+        canonicalVersion: m.canonicalVersion,
+        canonicalSha256: m.canonicalSha256,
+        manifestSha256: m.manifestSha256,
+        definitionSha256: definitionDigest(guardada),
+      },
+    });
+    if (!veredicto.valid) {
+      refused = true;
+      rows.push({
+        ...base,
+        action: "REFUSED",
+        detail: `${veredicto.code}: ${veredicto.detail}`,
+      });
+      continue;
+    }
+
+    const sello = sealForManifest(
+      m,
+      guardada,
+      new Date(),
+      approvalForSeal(acta),
+    );
+    if (!apply) {
+      rows.push({ ...base, action: "NOOP", detail: "dry-run" });
+      continue;
+    }
+    await prisma.chapterExperienceVersion.update({
+      where: { id: fila.id },
+      data: { editorialOrigin: sello as unknown as never },
+    });
+    escritas += 1;
+    rows.push({ ...base, action: "RESEALED" });
+  }
+
+  return {
+    ok: !refused,
+    applied: apply && escritas > 0,
+    rows,
+    outcome: refused ? "REFUSED" : escritas > 0 ? "APPLIED" : "NOOP",
+  };
+}
+
+export interface ApprovalRequest {
+  manifestId: string;
+  /** El acta, completa salvo la firma. */
+  approval: Record<string, unknown>;
+  /** Los bytes EXACTOS que hay que firmar, en base64 por si viajan. */
+  payloadBase64: string;
+  /** Lo mismo, legible, para poder comprobarlo a ojo antes de firmar. */
+  payload: string;
+}
+
+/**
+ * B4 — lo que hay que firmar para aprobar, sin firmarlo.
+ *
+ * Esta herramienta NO tiene la clave privada y no debe tenerla. Lo que emite
+ * es el acta completa salvo la firma, y los bytes exactos sobre los que hay
+ * que firmar; la autora los firma con su clave, donde sea que la guarde, y
+ * pega el resultado en `signature`.
+ *
+ * La separación no es ceremonia: una herramienta capaz de firmar convertiría
+ * en aprobador a quien pudiera ejecutarla, y el encargo pide expresamente lo
+ * contrario. Aquí no hay nada que robar.
+ *
+ * `definitionSha256` se calcula sobre la definición que ese manifiesto
+ * produce HOY. Si el contenido cambia después, la firma deja de cubrirlo y
+ * hay que pedir una nueva — que es la propiedad que se quería.
+ */
+export function approvalRequests(
+  manifests: readonly GuideManifest[],
+  approvedBy = "<quien aprueba>",
+  keyId = "<id de la clave>",
+  now: Date = new Date(),
+): ApprovalRequest[] {
+  return manifests.map((m) => {
+    const acta = {
+      schemaVersion: 1 as const,
+      manifestId: m.manifestId,
+      experienceKey: m.experienceKey,
+      experienceVersion: m.experienceVersion,
+      guideKey: m.guideKey,
+      guideVersion: m.guideVersion,
+      canonicalVersion: m.canonicalVersion,
+      canonicalSha256: m.canonicalSha256,
+      manifestSha256: m.manifestSha256,
+      definitionSha256: definitionDigest(toDefinition(m)),
+      approvedBy,
+      approvedAt: now.toISOString(),
+      keyId,
+    };
+    const payload = approvalPayload(acta);
+    return {
+      manifestId: m.manifestId,
+      approval: { ...acta, signature: "<base64 de la firma Ed25519>" },
+      payload,
+      payloadBase64: Buffer.from(payload, "utf8").toString("base64"),
+    };
+  });
+}

@@ -108,6 +108,15 @@ export const EXPERIENCE_DEFINITION: SchemaObject = {
       },
     },
     scenes: { type: "array", items: EXPERIENCE_SCENE },
+    startable: {
+      type: "boolean",
+      description:
+        "Si este pin admite empezar una sesión NUEVA. Publicada y arrancable " +
+        "no son la misma pregunta: un pin retirado para inicios nuevos sigue " +
+        "publicado para que las sesiones que ya lo fijaron terminen, y " +
+        "POST /guide/sessions responde 410. Ausente se lee como «no se pudo " +
+        "preguntar», que no autoriza ofrecer.",
+    },
   },
 };
 
@@ -117,5 +126,22 @@ export const EXPERIENCE_DISCOVERY_RESPONSE: SchemaObject = {
   required: ["items"],
   properties: {
     items: { type: "array", items: EXPERIENCE_DEFINITION },
+  },
+};
+
+/**
+ * B3 — la experiencia que esta persona ya empezó, por identidad exacta.
+ *
+ * Un objeto, no una lista: la pregunta es por un pin concreto y la respuesta
+ * es ese recorrido o un 404. Envuelto en `experience` por la misma razón que
+ * el descubrimiento envuelve en `items` — un cuerpo que es exactamente la
+ * entidad no deja sitio donde añadir nada sin romperlo.
+ */
+export const EXPERIENCE_OWNED_RESPONSE: SchemaObject = {
+  type: "object",
+  additionalProperties: false,
+  required: ["experience"],
+  properties: {
+    experience: EXPERIENCE_DEFINITION,
   },
 };

@@ -59,6 +59,15 @@ import {
 } from "./experience-code-owned-identity";
 import { toPublicExperienceView } from "./experience-public-view";
 import {
+  evaluatePublicationGate,
+  parseEditorialSeal,
+  unsealed,
+  verifySealApproval,
+  type EditorialSeal,
+  type PublicationVerdict,
+} from "./experience-editorial-seal";
+import { approvalKeyringFromEnv } from "./experience-editorial-approval";
+import {
   ChapterIdentityError,
   resolveChapterIdentity,
   type ResolvedChapterIdentity,
@@ -347,6 +356,16 @@ export class ExperienceAdminService {
     definition: ChapterExperienceDefinition;
     contentUnitId: string | null;
     rebindable: boolean;
+    /**
+     * B3 — el MISMO veredicto que aplicará `publish`, calculado por la misma
+     * función pura sobre la misma fila.
+     *
+     * Se sirve para que el editor lea el motivo antes de pulsar, no para que
+     * el navegador decida: la protección está en el endpoint, y esto es su
+     * reflejo. Una interfaz que escondiera el botón sin que el servidor
+     * negara sería una puerta cerrada con un cartel.
+     */
+    publication: PublicationVerdict;
   }> {
     const row = await this.prisma.chapterExperienceVersion.findUnique({
       where: { id },
@@ -379,6 +398,19 @@ export class ExperienceAdminService {
       definition,
       contentUnitId: row.contentUnitId,
       rebindable: row.status === "DRAFT" && publishedInLineage === 0,
+      publication: evaluatePublicationGate({
+        seal: parseEditorialSeal(row.editorialOrigin),
+        // El veredicto se calcula sobre lo que se publicaría, no sobre lo que
+        // está guardado: `publish` sube el estado a PUBLISHED antes de mirar,
+        // y el resumen del contenido excluye ese campo justo por eso.
+        definition,
+        // B4 — el MISMO verificador que usa `publish`. Sin esto, un borrador
+        // legítimamente aprobado se habría leído aquí como «no se pudo
+        // comprobar» y habría publicado igual: la interfaz diría una cosa y
+        // el servidor otra, que es exactamente lo que no puede pasar.
+        verifyApproval: (sello) =>
+          verifySealApproval(sello, approvalKeyringFromEnv()),
+      }),
     };
   }
 
@@ -418,6 +450,12 @@ export class ExperienceAdminService {
     userId: string,
     input: ChapterExperienceDefinition,
     expectedContentUnitId?: string | null,
+    /**
+     * B3 — el sello del manifiesto, cuando quien crea lo tiene. Opcional
+     * porque el panel de administración no tiene manifiesto que ofrecer; su
+     * ausencia se escribe como `unsealed`, no como silencio.
+     */
+    seal?: EditorialSeal,
   ): Promise<{ id: string }> {
     // C.4 — the editor chooses, and the server decides whether the choice is
     // one it will honour. A pin the client omits falls back to the chapter's
@@ -448,7 +486,16 @@ export class ExperienceAdminService {
         // single row is written.
         await this.assertPinBindable(tx, pin, chapter.contentUnitId);
         await this.reserveFor(tx, chapter, definition, authority);
-        return this.insert(tx, userId, definition, chapter);
+        // B3 — la procedencia viaja con la creación. La herramienta que
+        // conoce el manifiesto pasa su sello; el editor del panel no tiene
+        // ninguno que pasar, y eso se escribe tal cual en vez de omitirse.
+        return this.insert(
+          tx,
+          userId,
+          definition,
+          chapter,
+          seal ?? unsealed("created_without_manifest"),
+        );
       },
     );
   }
@@ -704,7 +751,16 @@ export class ExperienceAdminService {
         // taking a new one — which is why `ensureReservation` treats an exact
         // match as a replay instead of a conflict.
         await this.reserveFor(tx, chapter, definition, authority);
-        return this.insert(tx, userId, definition, chapter);
+        // La aprobación NO se clona. Cubría el contenido de la versión
+        // anterior; esta es otra versión y empieza sin respaldo, que es lo
+        // que de verdad ocurre.
+        return this.insert(
+          tx,
+          userId,
+          definition,
+          chapter,
+          unsealed("cloned_forward"),
+        );
       },
     );
   }
@@ -874,6 +930,31 @@ export class ExperienceAdminService {
           validateExperienceAgainstGuide(definition, guide);
         } catch (err) {
           return editorial(err);
+        }
+
+        // B3 — la autorización editorial, dentro del candado y sobre la fila
+        // releída. Fuera del candado sería una foto: otro editor podría estar
+        // guardando un cambio en el mismo instante y la aprobación que aquí se
+        // comprobó cubriría un texto que ya no es el que se publica.
+        //
+        // Va DESPUÉS de la validación estructural a propósito. Un borrador roto
+        // debe enterarse de que está roto; decirle «no está aprobado» sería una
+        // respuesta cierta sobre un problema que no es el suyo.
+        const veredicto = evaluatePublicationGate({
+          seal: parseEditorialSeal(current.editorialOrigin),
+          definition,
+          // B4 — la firma se comprueba aquí, contra el llavero de ESTA
+          // instalación. El llavero se lee en cada publicación a propósito:
+          // memoizarlo haría que rotar una clave exigiera reiniciar, y una
+          // rotación que pide reinicio es una rotación que no se hace.
+          verifyApproval: (sello) =>
+            verifySealApproval(sello, approvalKeyringFromEnv()),
+        });
+        if (!veredicto.approved) {
+          throw new ConflictException({
+            code: veredicto.code,
+            message: veredicto.message,
+          });
         }
 
         // The reservation is revalidated here, not inherited from create time.
@@ -1150,6 +1231,11 @@ export class ExperienceAdminService {
     userId: string,
     definition: ChapterExperienceDefinition,
     chapter: ResolvedChapterIdentity,
+    // B3 — de dónde viene esta fila, editorialmente. Es un parámetro obligado
+    // y no opcional con un valor por defecto amable: un camino de escritura
+    // nuevo que no se pronuncie debe fallar al compilar, no escribir una fila
+    // muda que después nadie sabrá si estaba aprobada.
+    seal: EditorialSeal,
   ): Promise<{ id: string }> {
     const clash = await tx.chapterExperienceVersion.findUnique({
       where: {
@@ -1179,6 +1265,7 @@ export class ExperienceAdminService {
         guideKey: definition.guidePin.guideKey,
         status: "DRAFT",
         definitionJson: definition as unknown as never,
+        editorialOrigin: seal as unknown as never,
         createdByUserId: userId,
       },
       select: { id: true },

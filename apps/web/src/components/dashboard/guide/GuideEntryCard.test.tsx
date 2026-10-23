@@ -1,8 +1,67 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import type { ChapterExperiencePublicView } from "@psico/types";
+
+/**
+ * B3 — la tarjeta ya no decide su rótulo sólo con `localStorage`: pregunta al
+ * servidor si todavía se puede empezar. Estas pruebas controlan esa respuesta
+ * en vez de dejar que la red decida qué dicen.
+ *
+ * Por defecto, una experiencia arrancable — que es el mundo que las pruebas
+ * de CC-7.5 describían cuando se escribieron.
+ */
+const { experiencia } = vi.hoisted(() => ({
+  experiencia: {
+    current: {
+      status: "ready",
+      definition: null as ChapterExperiencePublicView | null,
+      items: [],
+    },
+  },
+}));
+
+vi.mock("../experience/use-chapter-experience", () => ({
+  useChapterExperience: () => experiencia.current,
+}));
+
+/**
+ * B4 — el rótulo lo decide el servidor. Las pruebas controlan su respuesta en
+ * vez de escribir en `localStorage` y esperar que el componente se lo crea.
+ */
+const { propio } = vi.hoisted(() => ({
+  propio: {
+    current: {
+      status: "ready" as const,
+      state: "NOT_STARTED" as "NOT_STARTED" | "ACTIVE" | "COMPLETED" | null,
+      session: null as unknown,
+    },
+  },
+}));
+
+vi.mock("./use-guide-own-state", () => ({
+  useGuideOwnState: () => propio.current,
+}));
+
+/** Lo que el ledger dice de esta persona en este pin. */
+function tiene(state: "NOT_STARTED" | "ACTIVE" | "COMPLETED") {
+  propio.current = { status: "ready", state, session: null };
+}
+
 import { GuideEntryCard } from "./GuideEntryCard";
 import { guideStorageKey } from "./guide-recovery";
-import { EEC_PIN } from "./guide-test-fixtures";
+import { EEC_EXPERIENCE, EEC_PIN } from "./guide-test-fixtures";
+
+/** Lo que el servidor contesta sobre el pin de esta tarjeta. */
+function resuelve(startable: boolean | null) {
+  experiencia.current = {
+    status: "ready",
+    definition:
+      startable === null
+        ? null
+        : ({ ...EEC_EXPERIENCE, startable } as ChapterExperiencePublicView),
+    items: [],
+  };
+}
 
 const GUIDE_STORAGE_KEY = guideStorageKey(EEC_PIN) as string;
 
@@ -17,6 +76,8 @@ const SCOPE_B = "B".repeat(43);
 
 beforeEach(() => {
   window.localStorage.clear();
+  resuelve(true);
+  tiene("NOT_STARTED");
 });
 
 describe("GuideEntryCard", () => {
@@ -44,7 +105,11 @@ describe("GuideEntryCard", () => {
     expect(screen.getByRole("link")).toHaveTextContent("Empezar guía");
   });
 
-  it("switches to 'Continuar guía' once a valid record is found", async () => {
+  it("switches to 'Continuar guía' when the SERVER says there is an open run", async () => {
+    // B4 — antes bastaba con un registro en `localStorage`. Eso es una pista
+    // sobre este navegador, no una sesión: no dice que exista, ni de quién
+    // es, ni en qué punto está. Ahora lo decide el ledger.
+    tiene("ACTIVE");
     window.localStorage.setItem(
       GUIDE_STORAGE_KEY,
       JSON.stringify({
@@ -88,5 +153,96 @@ describe("GuideEntryCard", () => {
     render(<GuideEntryCard actorScope={SCOPE_A} />);
     expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
     expect(screen.queryByText(/0%/)).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * B3 — la tarjeta deja de ofrecer un inicio imposible.
+ *
+ * El pin del piloto está retirado para inicios nuevos: `POST /guide/sessions`
+ * responde 410. La tarjeta seguía diciendo «Empezar guía» porque su rótulo
+ * salía de `localStorage`, que no sabe nada de eso.
+ */
+describe("GuideEntryCard — cuando ya no se puede empezar", () => {
+  it("no dice «Empezar» en un recorrido que no admite inicios nuevos", () => {
+    resuelve(false);
+    render(<GuideEntryCard actorScope={SCOPE_A} />);
+
+    const enlace = screen.getByRole("link");
+    expect(enlace).not.toHaveTextContent("Empezar guía");
+    expect(enlace).toHaveTextContent("Abrir guía");
+  });
+
+  it("tampoco promete continuar sólo porque el navegador tenga un registro", () => {
+    // Un registro local es una pista, no una sesión. Prometer «Continuar»
+    // sobre él sería creerle al navegador antes que al servidor — y el
+    // servidor, aquí, dice que esta persona no tiene nada abierto.
+    tiene("NOT_STARTED");
+    window.localStorage.setItem(
+      GUIDE_STORAGE_KEY,
+      JSON.stringify({
+        schemaVersion: 1,
+        actorScope: SCOPE_A,
+        guideKey: "eec-c1-cuerpo-antes-que-mente",
+        guideVersion: 1,
+        startIdempotencyKey: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      }),
+    );
+    resuelve(false);
+    render(<GuideEntryCard actorScope={SCOPE_A} />);
+
+    expect(screen.getByRole("link")).toHaveTextContent("Abrir guía");
+  });
+
+  it("desaparece cuando no hay nada que abrir NI nada propio", () => {
+    // Ni el capítulo la ofrece ni esta persona tiene un recorrido propio en
+    // ella. Anunciarla sería ofrecer una puerta a ninguna parte.
+    resuelve(null);
+    tiene("NOT_STARTED");
+    const { container } = render(<GuideEntryCard actorScope={SCOPE_A} />);
+
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("control negativo — con el inicio autorizado sigue diciendo «Empezar»", () => {
+    resuelve(true);
+    render(<GuideEntryCard actorScope={SCOPE_A} />);
+
+    expect(screen.getByRole("link")).toHaveTextContent("Empezar guía");
+  });
+});
+
+/**
+ * B4 — un recorrido retirado que YA es de alguien.
+ *
+ * El caso que el rótulo contaba mal: `canResume` mezclaba el registro local
+ * con `startable`, así que quien tenía progreso real sobre una experiencia
+ * retirada recibía «Abrir guía», como si no tuviera nada.
+ */
+describe("GuideEntryCard — con progreso propio sobre algo retirado", () => {
+  it("dice «Continuar», aunque ya no se pueda empezar", () => {
+    resuelve(false);
+    tiene("ACTIVE");
+    render(<GuideEntryCard actorScope={SCOPE_A} />);
+
+    expect(screen.getByRole("link")).toHaveTextContent("Continuar guía");
+  });
+
+  it("y «Ver mi recorrido» cuando lo terminó", () => {
+    // Ni «Empezar» —imposible— ni «Continuar» —no hay nada que continuar—.
+    resuelve(false);
+    tiene("COMPLETED");
+    render(<GuideEntryCard actorScope={SCOPE_A} />);
+
+    expect(screen.getByRole("link")).toHaveTextContent("Ver mi recorrido");
+  });
+
+  it("no desaparece si esta persona tiene algo aquí", () => {
+    // Aunque el capítulo ya no la ofrezca: lo suyo sigue siendo suyo.
+    resuelve(null);
+    tiene("COMPLETED");
+    const { container } = render(<GuideEntryCard actorScope={SCOPE_A} />);
+
+    expect(container).not.toBeEmptyDOMElement();
   });
 });

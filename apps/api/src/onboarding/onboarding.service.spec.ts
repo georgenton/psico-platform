@@ -6,6 +6,27 @@ import { ONBOARDING_INTRO, TOUR_STEPS } from "./constants";
 
 const userId = "user-1";
 
+/**
+ * El catálogo tal como lo deja el seed: el ancla publicada y
+ * `familias-ensambladas` retenido sin publicar.
+ *
+ * `findRecommendableBook` filtra por `isPublished: true`, así que para el
+ * libro retenido la consulta no devuelve fila.
+ */
+const onlyAnchorIsPublished = async ({
+  where,
+}: {
+  where: { slug: string };
+}) =>
+  where.slug === "emociones-en-construccion"
+    ? {
+        id: "book-ec",
+        slug: "emociones-en-construccion",
+        title: "Emociones en Construcción",
+        description: "",
+      }
+    : null;
+
 const mockPrisma = {
   onboardingState: {
     findUnique: vi.fn(),
@@ -328,6 +349,72 @@ describe("OnboardingService", () => {
       await expect(service.getRecommendation(userId)).rejects.toThrow(
         NotFoundException,
       );
+    });
+
+    it("recomienda el ancla cuando el libro que mapea el motivo no está disponible", async () => {
+      // `relaciones` y `vinculos` apuntan a `familias-ensambladas`, que el
+      // catálogo retiene sin publicar. El mapa de recomendación es una
+      // constante y no puede saberlo, así que este paso respondía 404 y
+      // dejaba sin final a dos de los siete motivos.
+      mockPrisma.onboardingState.findUnique.mockResolvedValue({
+        motivosIds: ["relaciones"],
+      });
+      // Por slug y no por orden de llamada: dice «el retenido no está, el
+      // ancla sí» en vez de «la primera llamada devuelve null», así que
+      // sobrevive a un refactor del orden y no deja cola que se fugue al
+      // test siguiente.
+      mockPrisma.book.findFirst.mockImplementation(onlyAnchorIsPublished);
+      mockPrisma.book.findMany.mockResolvedValue([]);
+
+      const res = await service.getRecommendation(userId);
+
+      expect(res.recommendation.bookId).toBe("book-ec");
+      // Y el porqué deja de prometer vínculos familiares, que es de lo que
+      // hablaba el libro que no se está ofreciendo.
+      expect(res.recommendation.why).toMatch(/comienzo amable/i);
+      expect(mockPrisma.onboardingState.upsert).toHaveBeenCalledWith({
+        where: { userId },
+        create: { userId, recommendedBookId: "book-ec" },
+        update: { recommendedBookId: "book-ec" },
+      });
+    });
+
+    it("las alternativas excluyen el libro que de verdad se recomienda", async () => {
+      // Resueltos en paralelo, el `not:` excluía el slug retenido — así que
+      // el ancla podía volver como su propia alternativa.
+      mockPrisma.onboardingState.findUnique.mockResolvedValue({
+        motivosIds: ["vinculos"],
+      });
+      mockPrisma.book.findFirst.mockImplementation(onlyAnchorIsPublished);
+      mockPrisma.book.findMany.mockResolvedValue([]);
+
+      await service.getRecommendation(userId);
+
+      expect(mockPrisma.book.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            isPublished: true,
+            slug: { not: "emociones-en-construccion" },
+          },
+        }),
+      );
+    });
+
+    it("sigue respondiendo 404 cuando no queda ningún libro recomendable", async () => {
+      // El motivo apunta a un libro retenido Y el ancla tampoco está: eso ya
+      // no es una decisión editorial, es un catálogo a la deriva, que es
+      // para lo que se escribió este 404.
+      mockPrisma.onboardingState.findUnique.mockResolvedValue({
+        motivosIds: ["relaciones"],
+      });
+      mockPrisma.book.findFirst.mockResolvedValue(null);
+      mockPrisma.book.findMany.mockResolvedValue([]);
+
+      await expect(service.getRecommendation(userId)).rejects.toThrow(
+        NotFoundException,
+      );
+      // Intentó los dos antes de rendirse, y el mensaje nombra ambos.
+      expect(mockPrisma.book.findFirst).toHaveBeenCalledTimes(2);
     });
 
     // ── authorship ─────────────────────────────────────────────────────────

@@ -1763,6 +1763,13 @@ export function LectorShell({
               aria-label="Preferencias de lectura"
               className="rounded-full px-3 py-1 text-[14px] font-semibold"
               style={{
+                // Área interactiva, no glifo: el objetivo de 44 px del
+                // proyecto se cumple con tamaño mínimo, sin tocar la
+                // tipografía. Su hermano «Recorrido» ya lo declaraba; estos
+                // dos medían 29 y 28 px en los ocho estados de tema y
+                // ambiente, y a 390 y 320 px.
+                minHeight: 44,
+                minWidth: 44,
                 background: "var(--reader-chip-bg, var(--color-warm-100))",
                 color: "var(--reader-text, var(--color-warm-700))",
               }}
@@ -1794,6 +1801,8 @@ export function LectorShell({
               aria-label="Abrir panel del lector"
               className="rounded-full px-3 py-1 text-[13px] font-semibold"
               style={{
+                minHeight: 44,
+                minWidth: 44,
                 background: "var(--reader-chip-bg, var(--color-warm-100))",
                 color: "var(--reader-text, var(--color-warm-700))",
               }}
@@ -1873,7 +1882,13 @@ export function LectorShell({
                   setGuideOpen(false);
                   changeMode(value);
                 }}
-                className="shrink-0 whitespace-nowrap rounded-full px-4 py-1.5 text-[13px] font-semibold transition-colors"
+                // `min-h-[44px]` y no un padding mayor: el objetivo de 44 px
+                // del proyecto es del ÁREA interactiva, y subir el relleno
+                // movería el ritmo de la cabecera. En la clase, no en el
+                // objeto de estilo, porque hay tres ramas y las tres lo
+                // necesitan. Medido antes: 32 px en los ocho estados de tema
+                // y ambiente, y a 390 y 320 px.
+                className="inline-flex min-h-[44px] shrink-0 items-center whitespace-nowrap rounded-full px-4 py-1.5 text-[13px] font-semibold transition-colors"
                 style={
                   !enabled
                     ? {

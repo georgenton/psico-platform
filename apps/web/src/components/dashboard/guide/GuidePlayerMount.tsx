@@ -6,6 +6,7 @@ import { ExperiencePlayer } from "../experience/ExperiencePlayer";
 import { useChapterExperience } from "../experience/use-chapter-experience";
 import { useGuideActorScope } from "./guide-actor-scope";
 import { useGuideAvailability } from "./guide-availability";
+import { useGuideOwnState } from "./use-guide-own-state";
 import { resolveGuideWebBundle } from "./guide-web-bundle";
 
 /**
@@ -46,6 +47,37 @@ const STANDALONE_CONTEXT = {
   chapterOrder: 1,
 } as const;
 
+/** Un aviso centrado, para que las tres salidas no repitan su maquetación. */
+function Aviso({
+  titulo,
+  children,
+}: {
+  titulo: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section
+      aria-live="polite"
+      style={{
+        maxWidth: 640,
+        margin: "0 auto",
+        padding: "48px 24px",
+        textAlign: "center",
+      }}
+    >
+      <h1 style={{ fontSize: "1.25rem", marginBottom: 12 }}>{titulo}</h1>
+      <p style={{ color: "var(--color-warm-600)", lineHeight: 1.6 }}>
+        {children}
+      </p>
+      <p style={{ marginTop: 20 }}>
+        <Link href="/dashboard/exploraciones" className="btn">
+          Volver a Exploraciones
+        </Link>
+      </p>
+    </section>
+  );
+}
+
 export function GuidePlayerMount() {
   const available = useGuideAvailability();
   const scope = useGuideActorScope();
@@ -56,34 +88,70 @@ export function GuidePlayerMount() {
     pin: STANDALONE_PIN,
     enabled: available && scope !== null,
   });
+  /**
+   * B4 — se pregunta por el propio avance incluso con el rollout cerrado,
+   * porque el servidor lo contesta: las lecturas no pasan por el guard.
+   * Ocultar la respuesta sería una decisión del cliente, no de la política.
+   */
+  const propio = useGuideOwnState(STANDALONE_PIN, scope !== null);
 
   if (!available) {
-    return (
-      <section
-        aria-live="polite"
-        style={{
-          maxWidth: 640,
-          margin: "0 auto",
-          padding: "48px 24px",
-          textAlign: "center",
-        }}
-      >
-        <h1 style={{ fontSize: "1.25rem", marginBottom: 12 }}>
-          Esta guía no está disponible por ahora
-        </h1>
-        <p
+    /**
+     * B4 — consultar lo propio no es ejecutar una operación nueva.
+     *
+     * Hasta aquí, quedarse fuera del rollout borraba de la vista el recorrido
+     * que una persona ya había hecho: la pantalla decía «no está disponible»
+     * y no había forma de ver el propio avance. Pero el servidor nunca dijo
+     * eso. `GuideRolloutGuard` protege los CINCO COMANDOS —abrir sesión,
+     * completar un paso, responder, cancelar, terminar— y ninguna lectura:
+     * `/guide/sessions/state` contesta igual con el rollout cerrado. La
+     * política ya distinguía los dos permisos; el cliente los confundía.
+     *
+     * Así que se pregunta, y se enseña lo que el servidor diga — **sin montar
+     * el reproductor**. El reproductor existe para ejecutar un recorrido, y
+     * ejecutar es justo lo que aquí no está permitido: sus botones acabarían
+     * en un 503 que nadie anunció. Lo que se da es el hecho, en lectura.
+     */
+    if (propio.status === "loading") {
+      return (
+        <section
+          aria-live="polite"
           style={{
+            maxWidth: 640,
+            margin: "0 auto",
+            padding: "48px 24px",
+            textAlign: "center",
             color: "var(--color-warm-600)",
-            lineHeight: 1.6,
-            marginBottom: 20,
           }}
         >
-          Tu avance sigue guardado. Estará disponible más adelante.
-        </p>
-        <Link href="/dashboard/exploraciones" className="btn">
-          Volver a Exploraciones
-        </Link>
-      </section>
+          Buscando tu recorrido…
+        </section>
+      );
+    }
+    if (propio.state === "ACTIVE" && propio.session) {
+      return (
+        <Aviso titulo="Tu recorrido está en pausa">
+          Lo dejaste en el paso {propio.session.stepsCompleted} de{" "}
+          {propio.session.totalSteps}. Ahora mismo esta guía no está disponible
+          para tu cuenta, así que no puedes seguir avanzando — pero nada se ha
+          perdido: cuando vuelva a estarlo, continuarás justo ahí.
+        </Aviso>
+      );
+    }
+    if (propio.state === "COMPLETED" && propio.session) {
+      return (
+        <Aviso titulo="Terminaste este recorrido">
+          Registraste {propio.session.stepsCompleted} de{" "}
+          {propio.session.totalSteps} pasos. Esta guía no está disponible para
+          tu cuenta ahora mismo, así que no se puede volver a recorrer; lo que
+          hiciste queda guardado.
+        </Aviso>
+      );
+    }
+    return (
+      <Aviso titulo="Esta guía no está disponible por ahora">
+        Estará disponible más adelante.
+      </Aviso>
     );
   }
 
@@ -109,11 +177,16 @@ export function GuidePlayerMount() {
   }
 
   // A pin with no registered bundle is not a guide this build can play, and a
-  // pin with no PUBLISHED experience has no journey to present. Both fail
-  // closed rather than rendering the other guide's copy under this URL.
+  // pin with no journey for this reader has nothing to present. Both fail
+  // closed rather than rendering the other guide's copy under this URL — pero
+  // ya no con la misma frase, porque no son el mismo hecho.
   const bundle = resolveGuideWebBundle(STANDALONE_PIN);
   const definition = experience.definition;
-  if (!bundle || definition === null) {
+
+  // B3 — mientras la respuesta no ha llegado no se afirma nada. Antes, la
+  // pantalla de «no disponible» aparecía durante la carga porque `definition`
+  // empieza en null: un parpadeo que decía algo falso con seguridad.
+  if (experience.status === "loading") {
     return (
       <section
         aria-live="polite"
@@ -122,15 +195,37 @@ export function GuidePlayerMount() {
           margin: "0 auto",
           padding: "48px 24px",
           textAlign: "center",
+          color: "var(--color-warm-600)",
         }}
       >
-        <h1 style={{ fontSize: "1.25rem", marginBottom: 12 }}>
-          No pudimos preparar tu guía
-        </h1>
-        <p style={{ color: "var(--color-warm-600)", lineHeight: 1.6 }}>
-          Vuelve a intentarlo en un momento. Tu avance está a salvo.
-        </p>
+        Buscando tu recorrido…
       </section>
+    );
+  }
+
+  if (!bundle) {
+    return (
+      <Aviso titulo="No pudimos preparar tu guía">
+        Esta versión de la aplicación no sabe mostrarla. Tu avance sigue
+        guardado.
+      </Aviso>
+    );
+  }
+
+  if (definition === null) {
+    // B3 — una retirada NO es un fallo pasajero.
+    //
+    // Aquí se llegaba diciendo «Vuelve a intentarlo en un momento», y eso era
+    // falso en los dos sentidos: invitaba a reintentar algo que no va a
+    // cambiar nunca, y presentaba una decisión editorial como una avería. Lo
+    // que de verdad ocurre es que el capítulo ya no la ofrece y esta persona
+    // no tiene un recorrido propio en ella — quien lo tiene llega aquí por
+    // identidad exacta y SÍ ve el reproductor.
+    return (
+      <Aviso titulo="Este recorrido ya no está disponible">
+        No forma parte de lo que este capítulo ofrece ahora. Si ya lo habías
+        empezado, tu avance sigue guardado.
+      </Aviso>
     );
   }
 

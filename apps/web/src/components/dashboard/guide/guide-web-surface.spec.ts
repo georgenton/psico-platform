@@ -203,14 +203,34 @@ describe("ratchet · guide web surface", () => {
     ]);
     expect(runner).not.toMatch(/setInterval|setTimeout\s*\(\s*.*poll/i);
 
-    // Nobody else on the surface talks to the Guide API directly.
+    // Nobody else on the surface SENDS A COMMAND.
+    //
+    // B4 — la regla se estrecha a lo que de verdad protege. Lo que no puede
+    // haber en dos sitios es el envío de comandos: dos ejecutores acabarían
+    // discrepando sobre si uno se aplicó, que es justo lo que la idempotencia
+    // evita. Una LECTURA no tiene ese problema — no muta nada y no puede
+    // quedar a medias —, y hay dos superficies que necesitan saber si esta
+    // persona tiene algo aquí sin montar un recorrido: la tarjeta de
+    // Exploraciones y la pantalla cuando el rollout está cerrado.
+    //
+    // Así que se permite un segundo llamante, nombrado, y se le exige que no
+    // llame a ningún comando. Un tercero vuelve a fallar.
+    const LECTORES: Record<string, readonly string[]> = {
+      "use-guide-own-state.ts": ["getExperienceState"],
+    };
     for (const file of GUIDE_FILES) {
       if (file.endsWith("use-guide-run.ts")) continue;
+      const nombre = relative(GUIDE_DIR, file);
       const source = stripComments(readFileSync(file, "utf8"));
-      expect(
-        /guideApi\.[a-zA-Z]+\(/.test(source),
-        `${relative(GUIDE_DIR, file)} calls guideApi directly`,
-      ).toBe(false);
+      const llamadas = [...source.matchAll(/guideApi\.([a-zA-Z]+)\(/g)].map(
+        (m) => m[1]!,
+      );
+      const permitidas = LECTORES[nombre];
+      if (permitidas === undefined) {
+        expect(llamadas, `${nombre} calls guideApi directly`).toEqual([]);
+        continue;
+      }
+      expect([...new Set(llamadas)].sort(), nombre).toEqual([...permitidas]);
     }
   });
 

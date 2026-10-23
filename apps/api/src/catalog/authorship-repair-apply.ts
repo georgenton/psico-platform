@@ -1,4 +1,9 @@
-import { fieldDigest, WITHDRAWAL } from "./authorship-plan-file";
+import {
+  BOOK_COPY_FIELDS,
+  BOOK_COPY_WITHDRAWAL,
+  fieldDigest,
+  WITHDRAWAL,
+} from "./authorship-plan-file";
 import type { RepairOp } from "./authorship-repair";
 import type { FrozenPlan } from "./authorship-plan-file";
 
@@ -42,6 +47,7 @@ export interface RepairTx {
       name: string;
       title: string | null;
       licenseNumber: string | null;
+      bio: string | null;
       isVerified: boolean;
     } | null>;
     /**
@@ -71,9 +77,15 @@ export interface RepairTx {
         name?: string;
         title?: string | null;
         licenseNumber?: string | null;
+        bio?: string | null;
         isVerified?: boolean;
       };
-      data: { title: null; licenseNumber: null; isVerified: false };
+      data: {
+        title: null;
+        licenseNumber: null;
+        bio: null;
+        isVerified: false;
+      };
     }): Promise<{ count: number }>;
     create(args: { data: { slug: string; name: string } }): Promise<{
       id: string;
@@ -86,10 +98,21 @@ export interface RepairTx {
       id: string;
       slug: string;
       authorId: string | null;
+      summary: string | null;
+      description: string | null;
     } | null>;
     updateMany(args: {
-      where: { id: string; slug?: string; authorId: string | null };
-      data: { authorId: string };
+      where: {
+        id: string;
+        slug?: string;
+        authorId?: string | null;
+        /** Copy columns travel in the WHERE when they are being replaced. */
+        summary?: string | null;
+        description?: string | null;
+      };
+      data:
+        | { authorId: string }
+        | Partial<Record<"summary" | "description", string>>;
     }): Promise<{ count: number }>;
   };
 }
@@ -184,7 +207,23 @@ export async function collectReversal(
         restore: {
           title: row.title,
           licenseNumber: row.licenseNumber,
+          // Every field the withdrawal clears has to be here, or the reversal
+          // restores a row that is not the one it replaced.
+          bio: row.bio,
           isVerified: row.isVerified,
+        },
+      });
+      continue;
+    }
+
+    if (op.kind === "withdraw-book-copy") {
+      const checked = await assertBookCopyMatchesPlan(tx, op);
+      if (checked === "settled") continue;
+      entries.push({
+        subject: `book copy id=${op.bookId}`,
+        restore: {
+          summary: checked.row.summary,
+          description: checked.row.description,
         },
       });
       continue;
@@ -363,7 +402,10 @@ async function assertAuthorMatchesPlan(
   }
 
   const settled =
-    row.title === null && row.licenseNumber === null && !row.isVerified;
+    row.title === null &&
+    row.licenseNumber === null &&
+    row.bio === null &&
+    !row.isVerified;
   if (settled) return "settled" as const;
 
   // Exact comparison by digest — catches a non-null → non-null change that a
@@ -371,6 +413,7 @@ async function assertAuthorMatchesPlan(
   if (
     fieldDigest(row.title) !== op.expect.titleDigest ||
     fieldDigest(row.licenseNumber) !== op.expect.licenseDigest ||
+    fieldDigest(row.bio) !== op.expect.bioDigest ||
     row.isVerified !== op.expect.isVerified
   ) {
     throw new RepairConflictError(
@@ -379,6 +422,68 @@ async function assertAuthorMatchesPlan(
     );
   }
   return row;
+}
+
+/**
+ * Re-read the book and prove its copy is the copy the plan described.
+ *
+ * Mirrors `assertAuthorMatchesPlan`, deliberately: same order of questions —
+ * existence, identity, recognised final state, exact values — so the dry run
+ * and the write cannot disagree, and so a second run is a no-op instead of a
+ * conflict. The final state here is "the affected fields already hold the
+ * withdrawal text", which is what a previous run left behind.
+ *
+ * Both copy digests are compared even when only one field is being replaced.
+ * A row whose other copy column changed since the review is not the row the
+ * plan described, and this tool refuses rather than writing into it.
+ */
+async function assertBookCopyMatchesPlan(
+  tx: RepairTx,
+  op: Extract<RepairOp, { kind: "withdraw-book-copy" }>,
+) {
+  // The selected columns are resolved against the module FIRST, and anything
+  // unrecognised stops the operation. This has to come before every other
+  // question: with an unknown field, "is it already withdrawn?" compares
+  // `undefined` against `undefined`, answers yes, and the operation vanishes
+  // as a silent no-op — a refusal that looks like success is worse than the
+  // write it avoided. An empty selection does the same, for the same reason.
+  const fields = BOOK_COPY_FIELDS.filter((f) => op.fields.includes(f));
+  if (fields.length === 0 || fields.length !== op.fields.length) {
+    throw new RepairPreconditionError(
+      `libro ${op.bookSlug}`,
+      `la operación selecciona columnas que esta reparación no reescribe (${op.fields.join(", ") || "ninguna"}); no se ejecuta`,
+    );
+  }
+
+  const row = await tx.book.findUnique({ where: { id: op.bookId } });
+  if (!row) {
+    throw new RepairPreconditionError(
+      `libro ${op.bookSlug}`,
+      "la fila ya no existe",
+    );
+  }
+  if (row.slug !== op.expect.slug) {
+    throw new RepairPreconditionError(
+      `libro ${op.bookSlug}`,
+      `el id ${op.bookId} corresponde ahora a «${row.slug}»; la identidad del registro cambió`,
+    );
+  }
+
+  const settled = fields.every((f) => row[f] === BOOK_COPY_WITHDRAWAL[f]);
+  if (settled) return "settled" as const;
+
+  if (
+    fieldDigest(row.summary) !== op.expect.summaryDigest ||
+    fieldDigest(row.description) !== op.expect.descriptionDigest
+  ) {
+    throw new RepairConflictError(
+      `libro ${op.bookSlug}`,
+      "el copy actual no es el que el plan revisado observó; alguien cambió la fila — se detiene sin escribir y NO se replanifica con el texto nuevo",
+    );
+  }
+  // The validated selection travels with the row so the writer cannot derive
+  // it again, differently.
+  return { row, fields };
 }
 
 /**
@@ -428,6 +533,7 @@ export async function applyAuthorshipRepair(
         restore: {
           title: row.title,
           licenseNumber: row.licenseNumber,
+          bio: row.bio,
           isVerified: row.isVerified,
         },
       });
@@ -468,12 +574,84 @@ export async function applyAuthorshipRepair(
         beforeSummary: {
           titlePresent: row.title !== null,
           licensePresent: row.licenseNumber !== null,
+          bioPresent: row.bio !== null,
           isVerified: row.isVerified,
         },
         afterSummary: {
           titlePresent: false,
           licensePresent: false,
+          bioPresent: false,
           isVerified: false,
+        },
+      });
+      continue;
+    }
+
+    if (op.kind === "withdraw-book-copy") {
+      const checked = await assertBookCopyMatchesPlan(tx, op);
+      if (checked === "settled") {
+        result.applied.push({
+          op: op.kind,
+          subject: `libro ${op.bookSlug}`,
+          wrote: false,
+        });
+        continue;
+      }
+      const { row, fields } = checked;
+
+      // The literals go to the private preimage and nowhere else: this is the
+      // only copy of the prose that is about to be replaced, and whoever
+      // writes the replacement needs to read what it said.
+      result.reversal.push({
+        subject: `book copy id=${row.id}`,
+        restore: { summary: row.summary, description: row.description },
+      });
+
+      // Both the KEYS and the VALUES come from the module: `fields` was
+      // resolved against `BOOK_COPY_FIELDS` by the check above, and the text
+      // is the frozen constant. Mapping `op.fields` here would have let a
+      // field name out of a JSON file become a column in Prisma's `data` —
+      // the same hole `WITHDRAWAL` exists to close for the author's row.
+      const patch = Object.fromEntries(
+        fields.map((f) => [f, BOOK_COPY_WITHDRAWAL[f]]),
+      );
+
+      if (apply) {
+        // Conditional write, same shape as the author's: identity AND both
+        // copy values just read are in the WHERE, so a change landing between
+        // the read and this statement matches zero rows instead of being
+        // overwritten.
+        const { count } = await tx.book.updateMany({
+          where: {
+            id: row.id,
+            slug: row.slug,
+            summary: row.summary,
+            description: row.description,
+          },
+          data: patch,
+        });
+        if (count !== 1) {
+          throw new RepairConflictError(
+            `libro ${op.bookSlug}`,
+            `la escritura condicionada afectó ${count} filas; otra operación cambió el copy entre la comprobación y la escritura. No se sobrescribe ese cambio`,
+          );
+        }
+        result.rowsWritten += 1;
+      }
+
+      result.applied.push({
+        op: op.kind,
+        subject: `libro ${op.bookSlug}`,
+        wrote: apply,
+        beforeSummary: {
+          fields,
+          namedIdentities: op.namedIdentities,
+          summaryPresent: row.summary !== null,
+          descriptionPresent: row.description !== null,
+        },
+        afterSummary: {
+          withdrawn: fields,
+          pendingEditorialRewrite: true,
         },
       });
       continue;

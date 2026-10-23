@@ -75,8 +75,47 @@ export const OUTCOME_FORMAT =
 export const WITHDRAWAL = Object.freeze({
   title: null,
   licenseNumber: null,
+  bio: null,
   isVerified: false,
-}) as { title: null; licenseNumber: null; isVerified: false };
+}) as { title: null; licenseNumber: null; bio: null; isVerified: false };
+
+/**
+ * The one and only text a book-copy withdrawal may write.
+ *
+ * Same discipline as `WITHDRAWAL`, and the same reason: the file says WHICH
+ * operation to run, never what it writes. A plan that could carry its own
+ * replacement text would be a way to publish arbitrary editorial copy under
+ * the label of a repair.
+ *
+ * It is a declared placeholder rather than an empty value because the copy it
+ * replaces describes a real published work — see `withdraw-book-copy` in
+ * `authorship-repair.ts` for why neither null nor a rewrite is the honest
+ * outcome. It must stay free of any name, so the repaired row cannot trip the
+ * very check that selected it.
+ */
+export const BOOK_COPY_WITHDRAWAL = Object.freeze({
+  summary: "Sinopsis en revisión editorial.",
+  description: "Descripción en revisión editorial.",
+});
+
+/**
+ * The book copy fields this repair may replace, and the only ones.
+ *
+ * Declared here, beside the text that replaces them, so the list and the
+ * replacement cannot drift apart — and so the planner can import both without
+ * this module importing back from it at run time.
+ *
+ * `title` and `subtitle` are deliberately absent. A title is how the
+ * catalogue is navigated and cited; swapping it for a placeholder would break
+ * a real page to fix a sentence, and no measured defect involves one. The
+ * static ratchet still watches them, so a title that named a fixture identity
+ * would fail the build before it ever reached a database.
+ */
+export const BOOK_COPY_FIELDS = Object.keys(
+  BOOK_COPY_WITHDRAWAL,
+) as ReadonlyArray<keyof typeof BOOK_COPY_WITHDRAWAL>;
+
+export type BookCopyField = keyof typeof BOOK_COPY_WITHDRAWAL;
 
 /** Stable digest of a field value. `null` stays null — absence is not a hash. */
 export function fieldDigest(value: string | null): string | null {
@@ -246,6 +285,14 @@ const OP_KEYS: Record<string, readonly string[]> = {
     "expect",
     "next",
   ],
+  "withdraw-book-copy": [
+    "kind",
+    "bookId",
+    "bookSlug",
+    "fields",
+    "namedIdentities",
+    "expect",
+  ],
   "create-author": ["kind", "authorSlug", "authorName", "source"],
   "reattribute-book": [
     "kind",
@@ -264,7 +311,14 @@ const EXPECT_KEYS = [
   "slug",
   "titleDigest",
   "licenseDigest",
+  "bioDigest",
   "isVerified",
+] as const;
+
+const BOOK_COPY_EXPECT_KEYS = [
+  "slug",
+  "summaryDigest",
+  "descriptionDigest",
 ] as const;
 
 const sameSlug = (a: string, b: string) =>
@@ -364,7 +418,11 @@ function validateOp(raw: unknown, index: number): void {
         )} no corresponde a authorSlug ${JSON.stringify(op.authorSlug)}.`,
       );
     }
-    if (!isDigestOrNull(e.titleDigest) || !isDigestOrNull(e.licenseDigest)) {
+    if (
+      !isDigestOrNull(e.titleDigest) ||
+      !isDigestOrNull(e.licenseDigest) ||
+      !isDigestOrNull(e.bioDigest)
+    ) {
       throw new PlanFileError(
         `OPERACIÓN INVÁLIDA (${where}): los digests deben ser sha256:<32 hex> o null. Un literal aquí publicaría el valor que se retira.`,
       );
@@ -382,6 +440,91 @@ function validateOp(raw: unknown, index: number): void {
           WITHDRAWAL,
         )}. No se pasa a la base un objeto recibido del archivo.`,
       );
+    }
+    return;
+  }
+
+  if (kind === "withdraw-book-copy") {
+    if (!isNonEmptyString(op.bookId) || !isNonEmptyString(op.bookSlug)) {
+      throw new PlanFileError(
+        `OPERACIÓN INVÁLIDA (${where}): bookId y bookSlug deben ser cadenas.`,
+      );
+    }
+    // The fields are a closed, non-empty set. An empty list would be an
+    // operation that writes nothing while still counting as reviewed, and an
+    // unknown name would be a column this repair never agreed to touch.
+    if (
+      !Array.isArray(op.fields) ||
+      op.fields.length === 0 ||
+      op.fields.length > BOOK_COPY_FIELDS.length ||
+      new Set(op.fields).size !== op.fields.length ||
+      !op.fields.every((f) =>
+        (BOOK_COPY_FIELDS as readonly unknown[]).includes(f),
+      )
+    ) {
+      throw new PlanFileError(
+        `OPERACIÓN FUERA DE ALCANCE (${where}): fields debe ser una lista no vacía y sin repeticiones de ${BOOK_COPY_FIELDS.join(
+          ", ",
+        )}. Esta reparación no reescribe otras columnas.`,
+      );
+    }
+    // Only identities this repository declares as fixture-made justify
+    // replacing editorial copy. Without this, a well-formed file could blank
+    // any book's synopsis by naming somebody the repository never classified.
+    if (
+      !Array.isArray(op.namedIdentities) ||
+      op.namedIdentities.length === 0 ||
+      !op.namedIdentities.every(
+        (s) =>
+          isNonEmptyString(s) &&
+          FIXTURE_AUTHOR_SLUGS.some((f) => sameSlug(f, s)),
+      )
+    ) {
+      throw new PlanFileError(
+        `CORRESPONDENCIA NO SUSTENTADA (${where}): namedIdentities debe nombrar al menos una identidad de fixture de este repositorio. Retirar copy que no nombra a ninguna sería otra decisión.`,
+      );
+    }
+    const expect = op.expect;
+    if (
+      expect === null ||
+      typeof expect !== "object" ||
+      Array.isArray(expect)
+    ) {
+      throw new PlanFileError(
+        `OPERACIÓN INVÁLIDA (${where}): expect no es un objeto.`,
+      );
+    }
+    const e = expect as Record<string, unknown>;
+    assertExactKeys(e, BOOK_COPY_EXPECT_KEYS, `${where}.expect`);
+    if (!isNonEmptyString(e.slug) || e.slug !== op.bookSlug) {
+      throw new PlanFileError(
+        `REFERENCIA INCOHERENTE (${where}): expect.slug ${JSON.stringify(
+          e.slug,
+        )} no corresponde a bookSlug ${JSON.stringify(op.bookSlug)}.`,
+      );
+    }
+    if (
+      !isDigestOrNull(e.summaryDigest) ||
+      !isDigestOrNull(e.descriptionDigest)
+    ) {
+      throw new PlanFileError(
+        `OPERACIÓN INVÁLIDA (${where}): los digests deben ser sha256:<32 hex> o null.`,
+      );
+    }
+    // A field cannot be withdrawn from a value the plan itself observed as
+    // absent: that pair describes a row the planner could not have produced.
+    const digestFor: Record<string, unknown> = {
+      summary: e.summaryDigest,
+      description: e.descriptionDigest,
+    };
+    for (const f of op.fields as string[]) {
+      if (digestFor[f] === null) {
+        throw new PlanFileError(
+          `REFERENCIA INCOHERENTE (${where}): pide retirar ${JSON.stringify(
+            f,
+          )} y declara que ese campo estaba vacío.`,
+        );
+      }
     }
     return;
   }
@@ -1163,6 +1306,7 @@ export function sanitizedPlanSummary(
             slug: op.expect.slug,
             titlePresent: op.expect.titleDigest !== null,
             licensePresent: op.expect.licenseDigest !== null,
+            bioPresent: op.expect.bioDigest !== null,
             isVerified: op.expect.isVerified,
           },
           // Read from the operation, not asserted: what the plan says is what
@@ -1170,8 +1314,30 @@ export function sanitizedPlanSummary(
           next: {
             title: op.next.title,
             licenseNumber: op.next.licenseNumber,
+            bio: op.next.bio,
             isVerified: op.next.isVerified,
           },
+        };
+      }
+      if (op.kind === "withdraw-book-copy") {
+        return {
+          kind: op.kind,
+          bookId: op.bookId,
+          bookSlug: op.bookSlug,
+          fields: op.fields,
+          namedIdentities: op.namedIdentities,
+          expect: {
+            slug: op.expect.slug,
+            // Presence, never the digest: same rule as the author's row. The
+            // prose itself is not a secret, but a reviewer needs to know
+            // which field had a value, not what it said — and the text that
+            // survives for them is in the private preimage.
+            summaryPresent: op.expect.summaryDigest !== null,
+            descriptionPresent: op.expect.descriptionDigest !== null,
+          },
+          next: Object.fromEntries(
+            op.fields.map((f) => [f, BOOK_COPY_WITHDRAWAL[f]]),
+          ),
         };
       }
       if (op.kind === "create-author") {

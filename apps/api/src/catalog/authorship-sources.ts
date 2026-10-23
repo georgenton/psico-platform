@@ -98,3 +98,75 @@ export const sourceForBook = (slug: string): AuthorshipSource | undefined =>
 export const FIXTURE_AUTHOR_SLUGS: readonly string[] = [
   "marina-quintana",
 ] as const;
+
+/* ── Naming a fixture identity in editorial copy ─────────────────────────── */
+
+/**
+ * Withdrawing the foreign key and the credentials is not the whole repair.
+ *
+ * The UAT of 2026-10-22 measured two leftovers served publicly, without a
+ * session, on a catalogue whose attribution had already been corrected: the
+ * anchor book's synopsis opened with the fixture identity's name, and that
+ * identity's bio asserted a professional specialty. A name in prose credits
+ * exactly as effectively as a foreign key does, and nothing was checking prose.
+ *
+ * So the names are DERIVED from the slugs above rather than written down
+ * anywhere: declare a new fixture identity and its copy is covered with it, in
+ * the planner and in the ratchet alike. This is the same derivation the
+ * onboarding ratchet already does (`onboarding/motivos-alignment.spec.ts`).
+ */
+
+/** Accents off, so `jose-perez` still recognises «José Pérez». */
+const deaccent = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "");
+
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** Is this match written as a proper noun — `Marina`, `MARINA`, not `marina`? */
+function hasCapitalisedMatch(haystack: string, token: string): boolean {
+  const re = new RegExp(`\\b${escapeRe(token)}\\b`, "gi");
+  for (const m of haystack.matchAll(re)) {
+    const first = m[0]!.charAt(0);
+    if (first !== first.toLowerCase()) return true;
+  }
+  return false;
+}
+
+/**
+ * Which fixture identities, if any, this piece of copy names.
+ *
+ * ── Why two different strictnesses ────────────────────────────────────────
+ *
+ * The planner acts on the answer by replacing editorial copy, so a false
+ * positive destroys a legitimate synopsis. The hazard is not hypothetical for
+ * a rule that must also cover identities declared later: a fixture slug like
+ * `luz-blanco` or `paz-moreno` turns ordinary Spanish words into triggers.
+ *
+ *   · Two or more tokens in sequence («Marina Quintana») is not a
+ *     coincidence, so it matches regardless of case.
+ *   · A single token on its own may be a common word, so it only counts when
+ *     written as a proper noun — «Marina» yes, «la vida marina» no.
+ *
+ * Returns the SLUGS it recognised, never the matched text: what a reviewer
+ * needs is which identity was named and where.
+ */
+export function fixtureIdentitiesNamedIn(
+  text: string | null | undefined,
+  slugs: readonly string[] = FIXTURE_AUTHOR_SLUGS,
+): string[] {
+  if (!text) return [];
+  const haystack = deaccent(text);
+  const named: string[] = [];
+  for (const slug of slugs) {
+    const tokens = slug.split("-").map(deaccent).filter(Boolean);
+    if (tokens.length === 0) continue;
+    const fullName =
+      tokens.length > 1 &&
+      new RegExp(`\\b${tokens.map(escapeRe).join("\\s+")}\\b`, "i").test(
+        haystack,
+      );
+    if (fullName || tokens.some((t) => hasCapitalisedMatch(haystack, t))) {
+      named.push(slug);
+    }
+  }
+  return named;
+}

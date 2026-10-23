@@ -17,12 +17,14 @@ import {
   Controller,
   Get,
   Header,
+  NotFoundException,
   Param,
   UseGuards,
 } from "@nestjs/common";
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
+  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
@@ -30,7 +32,10 @@ import {
   ApiUnauthorizedResponse,
 } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
-import type { ChapterExperienceDiscoveryResponse } from "@psico/types";
+import type {
+  ChapterExperienceDiscoveryResponse,
+  ChapterExperiencePublicView,
+} from "@psico/types";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { ErrorEnvelopeDto } from "../shared/dto/error-envelope.dto";
 import {
@@ -38,7 +43,12 @@ import {
   normalizeChapterOrder,
 } from "../guide/guide-discovery-catalog";
 import { ExperienceDiscoveryService } from "./experience-discovery.service";
-import { EXPERIENCE_DISCOVERY_RESPONSE } from "./dto/experience.openapi";
+import { CurrentUser } from "../shared";
+import type { AuthenticatedUser } from "../auth";
+import {
+  EXPERIENCE_DISCOVERY_RESPONSE,
+  EXPERIENCE_OWNED_RESPONSE,
+} from "./dto/experience.openapi";
 
 /** The one code a malformed reading context reports. */
 export const EXPERIENCE_DISCOVERY_PARAMS_INVALID =
@@ -101,5 +111,53 @@ export class ExperienceController {
       chapterOrder,
     });
     return { items };
+  }
+
+  @Get("mine/:experienceKey/:experienceVersion")
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  @Header("Cache-Control", "private, no-store")
+  @ApiOperation({
+    operationId: "getOwnExperienceByPin",
+    summary:
+      "La experiencia que ESTA persona ya empezó, por su identidad exacta, " +
+      "aunque el capítulo ya no la ofrezca. No crea nada y no empieza nada.",
+  })
+  @ApiParam({
+    name: "experienceKey",
+    required: true,
+    schema: { type: "string", pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+  })
+  @ApiParam({
+    name: "experienceVersion",
+    required: true,
+    schema: { type: "integer", minimum: 1 },
+  })
+  @ApiOkResponse({ schema: EXPERIENCE_OWNED_RESPONSE })
+  @ApiNotFoundResponse({ type: ErrorEnvelopeDto })
+  async getOwnExperience(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("experienceKey") rawKey: string,
+    @Param("experienceVersion") rawVersion: string,
+  ): Promise<{ experience: ChapterExperiencePublicView }> {
+    const experienceKey = normalizeBookSlug(rawKey);
+    const experienceVersion = normalizeChapterOrder(rawVersion);
+    if (experienceKey === null || experienceVersion === null) {
+      throw new BadRequestException({
+        code: EXPERIENCE_DISCOVERY_PARAMS_INVALID,
+        message: EXPERIENCE_DISCOVERY_PARAMS_INVALID,
+      });
+    }
+    const experience = await this.discovery.getOwnedExact({
+      userId: user.userId,
+      experienceKey,
+      experienceVersion,
+    });
+    // Sin sesión propia la respuesta es idéntica a «no existe». Es la misma
+    // postura que el resto de la pila de guías: una sesión ajena no se
+    // deniega, es invisible — negarla con un 403 confirmaría que está ahí.
+    if (experience === null) {
+      throw new NotFoundException({ code: "EXPERIENCE_NOT_FOUND" });
+    }
+    return { experience };
   }
 }

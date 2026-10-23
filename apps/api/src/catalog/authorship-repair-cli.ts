@@ -272,12 +272,24 @@ export async function readSnapshot(prisma: {
         name: true,
         title: true,
         licenseNumber: true,
+        // Editorial prose about a person. Read because the repair withdraws
+        // it on a fixture identity: a snapshot that omitted the column would
+        // produce a plan reporting nothing to withdraw.
+        bio: true,
         isVerified: true,
       },
       orderBy: { slug: "asc" },
     }) as Promise<CatalogSnapshot["authors"]>,
     prisma.book.findMany({
-      select: { id: true, slug: true, title: true, authorId: true },
+      select: {
+        id: true,
+        slug: true,
+        title: true,
+        authorId: true,
+        // Public copy, for the same reason as `bio` above.
+        summary: true,
+        description: true,
+      },
       orderBy: { slug: "asc" },
     }) as Promise<CatalogSnapshot["books"]>,
   ]);

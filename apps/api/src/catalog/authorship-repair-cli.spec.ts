@@ -47,6 +47,9 @@ const HOSTED = "postgresql://u:p@db.interno.example:5432/feelverse_staging";
 
 const TITULO_A = "Título sintético A";
 const LICENCIA_A = "AA-0001";
+const BIO_A = "Biografía sintética con especialidad profesional afirmada.";
+const SINOPSIS_CON_NOMBRE =
+  "Marina Quintana acompaña al lector por un recorrido sintético.";
 
 const snapshot = (): CatalogSnapshot => ({
   authors: [
@@ -56,6 +59,7 @@ const snapshot = (): CatalogSnapshot => ({
       name: "Marina Quintana",
       title: TITULO_A,
       licenseNumber: LICENCIA_A,
+      bio: BIO_A,
       isVerified: true,
     },
   ],
@@ -65,6 +69,8 @@ const snapshot = (): CatalogSnapshot => ({
       slug: "emociones-en-construccion",
       title: "Emociones en Construcción",
       authorId: "a-demo",
+      summary: SINOPSIS_CON_NOMBRE,
+      description: null,
     },
   ],
 });

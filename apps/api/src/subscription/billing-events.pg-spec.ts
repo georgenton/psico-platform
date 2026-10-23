@@ -699,6 +699,149 @@ suite("eventos de suscripción contra PostgreSQL real", () => {
     });
   });
 
+  describe("sustitución de suscripción", () => {
+    it("el alta de la nueva no se pierde porque lo guardado esté desactualizado", async () => {
+      // El estado LOCAL puede ir por detrás de Stripe, y decidir con él la
+      // ocupación del sitio pierde un alta legítima de forma definitiva:
+      //
+      //   local  : sub_vieja ACTIVE   (desactualizado)
+      //   Stripe : sub_vieja cancelada, sub_nueva activa
+      //
+      // Llega el alta de sub_nueva → la guarda mira el estado local, lo ve
+      // ACTIVE, decide que el sitio está ocupado y la descarta… y
+      // `handleWebhook` la sella como procesada. La cancelación posterior
+      // deja FREE, y la reentrega del alta ya no la recupera porque el evento
+      // consta hecho.
+      await entregar(
+        evento({
+          id: "evt_vieja_alta",
+          userId: ANA,
+          subId: "sub_vieja",
+          status: "active",
+        }),
+      );
+      expect(await planDe(ANA)).toBe("PRO");
+
+      // En Stripe la vieja ya está cancelada; en nuestra base sigue ACTIVE.
+      const viejaCancelada = evento({
+        id: "x",
+        userId: ANA,
+        subId: "sub_vieja",
+        status: "canceled",
+      });
+      estadoEnStripe.set("sub_vieja", viejaCancelada.data.object);
+
+      // 1 · llega el alta de la nueva
+      await entregar(
+        evento({
+          id: "evt_nueva_alta",
+          userId: ANA,
+          subId: "sub_nueva",
+          status: "active",
+        }),
+      );
+      // Debe tomar el sitio: en Stripe la vieja ya no vive.
+      expect(await planDe(ANA)).toBe("PRO");
+      const tras = await prisma.subscription.findUniqueOrThrow({
+        where: { userId: ANA },
+      });
+      expect(tras.stripeSubscriptionId).toBe("sub_nueva");
+
+      // 2 · llega después la cancelación de la vieja: no toca a la vigente
+      await entregar(
+        evento({
+          id: "evt_vieja_baja",
+          userId: ANA,
+          subId: "sub_vieja",
+          status: "canceled",
+          type: "customer.subscription.deleted",
+        }),
+        { desincronizado: true },
+      );
+      expect(await planDe(ANA)).toBe("PRO");
+
+      // 3 · y la reentrega del alta no cambia nada, porque ya estaba aplicada
+      await entregar(
+        {
+          ...evento({
+            id: "evt_nueva_alta_b",
+            userId: ANA,
+            subId: "sub_nueva",
+            status: "active",
+          }),
+        },
+        { desincronizado: true },
+      );
+      expect(await planDe(ANA)).toBe("PRO");
+      const fin = await prisma.subscription.findUniqueOrThrow({
+        where: { userId: ANA },
+      });
+      expect(fin.stripeSubscriptionId).toBe("sub_nueva");
+    });
+
+    it("una suscripción expirada tampoco ocupa el sitio", async () => {
+      // `incomplete_expired` es terminal, pero no tiene valor propio en
+      // nuestro enum y cae en INCOMPLETE. Si la ocupación se decidiera con
+      // ese enum, una suscripción muerta seguiría bloqueando el sitio.
+      await entregar(
+        evento({
+          id: "evt_exp",
+          userId: ANA,
+          subId: "sub_expirada",
+          status: "incomplete_expired",
+        }),
+      );
+      expect(await planDe(ANA)).toBe("FREE");
+      const fila = await prisma.subscription.findUniqueOrThrow({
+        where: { userId: ANA },
+      });
+      expect(fila.plan).toBe("FREE");
+
+      // Y ahora alguien vuelve a contratar.
+      await entregar(
+        evento({
+          id: "evt_tras_exp",
+          userId: ANA,
+          subId: "sub_despues",
+          status: "active",
+        }),
+      );
+      expect(await planDe(ANA)).toBe("PRO");
+      const nueva = await prisma.subscription.findUniqueOrThrow({
+        where: { userId: ANA },
+      });
+      expect(nueva.stripeSubscriptionId).toBe("sub_despues");
+    });
+
+    it("y la guarda sigue protegiendo: una vigente VIVA no se desplaza", async () => {
+      // Guard the guard. Sin esto, el arreglo de arriba podría ser «quitar la
+      // guarda», que es justo lo que no se puede hacer.
+      await entregar(
+        evento({
+          id: "evt_viva",
+          userId: ANA,
+          subId: "sub_viva",
+          status: "active",
+        }),
+      );
+      // Otra suscripción, también activa en Stripe, intenta tomar el sitio.
+      await entregar(
+        evento({
+          id: "evt_intrusa",
+          userId: ANA,
+          subId: "sub_intrusa",
+          status: "active",
+          priceId: "price_b2b",
+        }),
+      );
+      const fila = await prisma.subscription.findUniqueOrThrow({
+        where: { userId: ANA },
+      });
+      expect(fila.stripeSubscriptionId).toBe("sub_viva");
+      expect(await planDe(ANA)).toBe("PRO");
+    });
+  });
+
   describe("reclamación y recuperación", () => {
     it("un fallo ENTRE aplicar el efecto y sellarlo se recupera sin duplicar", async () => {
       const e = evento({

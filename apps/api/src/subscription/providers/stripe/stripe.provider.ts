@@ -48,6 +48,20 @@ type StripeCheckoutSession = Awaited<
   ReturnType<StripeInstance["checkout"]["sessions"]["retrieve"]>
 >;
 
+/**
+ * Estados de los que una suscripción no vuelve.
+ *
+ * Uno solo sirve a dos preguntas que antes se contestaban por separado y mal:
+ * qué plan corresponde —una suscripción terminada no da derecho aunque
+ * conserve su precio— y si su sitio sigue ocupado. `incomplete_expired` entra
+ * aquí; nuestro enum no tiene valor propio para él y lo recoge en INCOMPLETE,
+ * de modo que decidir con el enum dejaba el sitio bloqueado por una
+ * suscripción muerta.
+ */
+function isTerminalStripeStatus(status: StripeSubscription["status"]): boolean {
+  return status === "canceled" || status === "incomplete_expired";
+}
+
 @Injectable()
 export class StripeProvider implements IPaymentProvider {
   readonly name = "stripe";
@@ -581,24 +595,43 @@ export class StripeProvider implements IPaymentProvider {
         // `sub_B`. Se lee DENTRO de la transacción y del candado, así que la
         // comprobación sigue siendo válida en el momento de escribir.
         //
-        // La salvedad: si la guardada está CANCELED no ocupa el sitio, y quien
-        // vuelve a contratar tiene que poder sustituirla. Sin ella la guarda
-        // dejaba en FREE a alguien que acababa de pagar.
+        // Pero «¿sigue viva la guardada?» NO se contesta con nuestra fila. La
+        // primera versión lo hacía y perdía un alta legítima para siempre:
+        //
+        //   local  : sub_vieja ACTIVE (por detrás de Stripe)
+        //   Stripe : sub_vieja cancelada, sub_nueva activa
+        //
+        // El alta de `sub_nueva` se descartaba por «sitio ocupado», el webhook
+        // la sellaba como procesada, la baja posterior dejaba FREE y la
+        // reentrega ya no la recuperaba. Quien acababa de pagar se quedaba sin
+        // plan, en silencio.
+        //
+        // Y el enum local tampoco sirve de atajo: `incomplete_expired` es
+        // terminal en Stripe y aquí cae en INCOMPLETE, así que una suscripción
+        // muerta seguía bloqueando el sitio.
+        //
+        // Así que cuando la entrante es OTRA, se relee también la guardada.
+        // Una lectura de más, sólo en el caso divergente, a cambio de decidir
+        // con estado autoritativo por los dos lados.
         const vigente = await tx.subscription.findUnique({
           where: { userId },
-          select: { stripeSubscriptionId: true, status: true },
+          select: { stripeSubscriptionId: true },
         });
-        const sitioOcupado =
-          vigente !== null && vigente.status !== SubscriptionStatus.CANCELED;
-        if (
-          vigente &&
-          vigente.stripeSubscriptionId !== sub.id &&
-          sitioOcupado
-        ) {
-          this.logger.log(
-            `Ignoring Stripe event for superseded subscription ${sub.id}: user ${userId} now holds ${vigente.stripeSubscriptionId}`,
+        if (vigente && vigente.stripeSubscriptionId !== sub.id) {
+          // Si esto lanza no se decide a ciegas: la transacción revierte, el
+          // evento no se sella y Stripe reintenta.
+          const guardada = await this.stripe.subscriptions.retrieve(
+            vigente.stripeSubscriptionId,
           );
-          return;
+          if (!isTerminalStripeStatus(guardada.status)) {
+            this.logger.log(
+              `Ignoring Stripe event for superseded subscription ${sub.id}: user ${userId} now holds ${vigente.stripeSubscriptionId} (${guardada.status})`,
+            );
+            return;
+          }
+          this.logger.log(
+            `Replacing ${vigente.stripeSubscriptionId} (${guardada.status}) with ${sub.id} for user ${userId}`,
+          );
         }
 
         const firstItem = sub.items.data[0];
@@ -607,9 +640,9 @@ export class StripeProvider implements IPaymentProvider {
         // El precio dice qué se compró; el estado dice si da derecho hoy. Una
         // suscripción terminada conserva su `price`, así que derivar el plan
         // sólo del precio devolvía PRO a quien ya no lo tiene.
-        const terminada =
-          sub.status === "canceled" || sub.status === "incomplete_expired";
-        const plan = terminada ? Plan.FREE : this.mapPriceIdToPlan(priceId);
+        const plan = isTerminalStripeStatus(sub.status)
+          ? Plan.FREE
+          : this.mapPriceIdToPlan(priceId);
         // In Stripe API 2026-04-22+, billing period fields moved to SubscriptionItem
         const periodStart = new Date(
           (firstItem?.current_period_start ?? sub.start_date) * 1000,

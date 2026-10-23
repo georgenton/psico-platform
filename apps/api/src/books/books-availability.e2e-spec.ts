@@ -52,8 +52,11 @@ suite("disponibilidad · rutas directas a un libro retirado", () => {
   let idPublicado = "";
   let capRetirado = "";
   let capPublicado = "";
+  let capAdoptado = "";
 
   const RETIRADO = "libro-retirado-matriz";
+  /** Retirado Y adoptado por Content Core, pero sin revisión publicada. */
+  const ADOPTADO = "libro-retirado-adoptado";
   const PUBLICADO = "libro-publicado-matriz";
   const INEXISTENTE = "libro-que-no-existe-matriz";
 
@@ -113,6 +116,33 @@ suite("disponibilidad · rutas directas a un libro retirado", () => {
     idPublicado = publicado.bookId;
     capRetirado = retirado.chapterId;
     capPublicado = publicado.chapterId;
+
+    // El caso que la rama nativa deja pasar: la AUTORIZACIÓN se resuelve por
+    // la edición —tiene `accessPlan`, así que no toca `Book`— pero la LECTURA
+    // cae al respaldo legado porque no hay revisión publicada. Dos fronteras
+    // distintas, y la segunda tenía su propia consulta sin filtrar.
+    const adoptado = await hacerLibro(ADOPTADO, false);
+    capAdoptado = adoptado.chapterId;
+    const obra = await prisma.work.create({
+      data: { workKey: `w-${ADOPTADO}`, title: ADOPTADO, authorName: "A" },
+    });
+    const edicion = await prisma.edition.create({
+      data: {
+        workId: obra.id,
+        editionKey: `${ADOPTADO}-1e`, // gitleaks:allow — un slug de libro
+        slug: ADOPTADO,
+        label: "Primera",
+        accessPlan: "FREE",
+        publishedRevisionId: null,
+      },
+    });
+    await prisma.contentUnit.create({
+      data: {
+        editionId: edicion.id,
+        unitKey: unitKeyFromLegacyChapterId(adoptado.chapterId),
+        isFreePreview: true,
+      },
+    });
 
     const mkUser = (email: string, role: "USER" | "ADMIN" = "USER") =>
       prisma.user.create({
@@ -221,6 +251,20 @@ suite("disponibilidad · rutas directas a un libro retirado", () => {
         `/api/content/editions/${RETIRADO}-1e/units/${unitKeyFromLegacyChapterId(capRetirado)}`,
         tokenLector,
       ).expect(404);
+    });
+
+    it("ni cuando la edición está adoptada y la lectura cae al respaldo legado", async () => {
+      // La autorización pasa por la rama NATIVA —la edición tiene
+      // `accessPlan`, así que no mira `Book`— y la lectura, sin revisión
+      // publicada, cae a `buildLegacyRead`, que encontraba el libro por su
+      // slug sin comprobar publicación y devolvía sus bloques. Dos fronteras,
+      // y cerrar sólo la de autorización no cierra la de lectura.
+      const res = await get(
+        `/api/content/editions/${ADOPTADO}-1e/units/${unitKeyFromLegacyChapterId(capAdoptado)}`,
+        tokenLector,
+      );
+      expect(res.status).toBe(404);
+      expect(JSON.stringify(res.body)).not.toContain(`Texto de ${ADOPTADO}`);
     });
 
     it("y el libro publicado sigue respondiendo por las dos", async () => {

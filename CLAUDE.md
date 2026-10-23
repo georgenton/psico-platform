@@ -3482,6 +3482,79 @@ distinto del de API y Web.
 
 ---
 
+### Sesión — 2026-10-23 ✅ COMPLETADA — La reparación de autoría alcanza el copy
+
+**Rama:** `feat/authorship-repair-copy-fields` ([PR #799](https://github.com/georgenton/psico-platform/pull/799), fusionado por squash en `8cc6270c`, CI 15/15)
+**Tests:** API 3911 (+2 archivos) · `authorship-repair.pg-spec.ts` **39/39** contra PostgreSQL real (eran 35) · suite de locks 1344 · typecheck ×2 · eslint · prettier · `generate:check` OK.
+
+**Qué cierra:** la deuda que dejó escrita la UAT del 2026-10-22, justo arriba. Retirar la
+clave ajena y las credenciales corrigió la firma y nada más: la sinopsis del libro ancla
+seguía abriendo con el nombre de la identidad de fixture mientras la cabecera acreditaba
+al autor de fuente, y la bio de esa identidad afirmaba una especialidad profesional. Las
+dos se servían en público sin sesión. Un lector no distingue una firma de una frase.
+
+**Lo que propone ahora el plan:**
+
+- `withdraw-author-credentials` retira también `bio`, en la **misma** escritura
+  condicionada. Es la misma clase de afirmación que el título —algo sobre una persona que
+  nadie acreditó— sobre la misma fila; separarla serían dos UPDATE y dos ocasiones de
+  aplicar a medias. Va a `null`, que es como esta herramienta dice «sin fuente».
+- `withdraw-book-copy`, nueva, sustituye `summary`/`description` por un **marcador
+  declarado** cuando nombran una identidad de `FIXTURE_AUTHOR_SLUGS`. No se vacían: una
+  sinopsis describe una obra real y publicada, y borrarla degradaría una página legítima
+  por un defecto de una cláusula. No se reescriben: el seed enseña cómo fue el arreglo
+  honesto —el nombre fuera, el verbo y el artículo recompuestos— y lo hizo una persona con
+  criterio; una cirugía con regex produce español agramatical o una afirmación editorial
+  que nadie revisó. El literal anterior sobrevive en la preimagen privada para quien
+  escriba el reemplazo. Alcanza también a una obra **PENDING**: retirar un nombre sin
+  fuente no inventa quién la escribió.
+
+**Los nombres se derivan de `FIXTURE_AUTHOR_SLUGS`**, vía `fixtureIdentitiesNamedIn`, que
+comparten el planificador y el trinquete para que no puedan discrepar. Dos estrictezes, y
+la razón es medible: el nombre completo cuenta en cualquier caja (dos tokens en secuencia
+no son coincidencia), pero un token suelto sólo escrito como nombre propio — un slug
+futuro como `luz-blanco` convertiría palabras corrientes en disparadores, y aquí un falso
+positivo destruye copy legítimo.
+
+**Tres defectos que destapó ejercitar el plan de verdad** (contenedor `pgvector:pg18`,
+migraciones, `seed:catalog`, el estado de la UAT recreado, y el recorrido hasta `--apply`):
+
+1. La **preimagen no guardaba `bio`** — la retirada ya lo borraba, así que revertirla
+   habría restaurado una fila distinta de la que reemplazó. Hay trinquete derivado de
+   `WITHDRAWAL`: el día que la retirada alcance otra columna, cae.
+2. `planAuthorshipRepair` **aceptaba un snapshot sin las columnas nuevas** — `readSnapshot`
+   castea el `select` sin comprobar, así que un campo olvidado llega `undefined` y el
+   compilador no lo ve: el plan habría informado un catálogo limpio.
+3. Con una columna desconocida, «¿ya está retirado?» comparaba `undefined` con `undefined`,
+   respondía que sí, y la operación se volvía un **no-op silencioso**. La validación va
+   ahora antes que ninguna otra pregunta: un rechazo con cara de éxito es peor que la
+   escritura que evita.
+
+**Seed:** deja de sembrar biografía para la identidad de fixture. Era prosa sobre alguien
+que nadie acreditó —lo que la reparación retira, así que un catálogo nuevo nacería en el
+estado que ella existe para dejar atrás— y el texto que llevaba era vocabulario interno
+renderizado en una ficha pública.
+
+**Trinquete nuevo** (`catalog-copy-fixture-names.spec.ts`): ningún campo de copy del
+catálogo puede volver a nombrar una identidad de fixture. **Verificado por mutación** —
+nombre completo en la sinopsis y nombre de pila en la bio caen; «la vida marina» en
+minúsculas pasa, que es el control del falso positivo. `seed-authorship.spec.ts` no se
+tocó y sigue pasando.
+
+**Lo que esto NO hace:** no se aplicó nada contra staging ni producción — es el plan y sus
+pruebas. `AUTHORSHIP_SOURCES` sigue sin la autoría declarada el 2026-10-13, que el
+propietario mantiene entre lo que revisa con aprobación explícita. La fila de fixture no se
+renombra (una fila puede cargar varios libros, y renombrarla fusionaría dos identidades).
+
+**Deuda abierta:** la fila alojada sigue con el copy viejo hasta que se autorice aplicar el
+plan · *Familias Ensambladas* sigue publicada y mal acreditada en el despliegue (acto
+editorial con su propia ventana) · `title` y `subtitle` quedan fuera de lo que el plan
+reescribe —un título es cómo se navega y se cita el catálogo— pero el trinquete sí los
+vigila, así que un título que nombrara una identidad de fixture fallaría el build antes de
+llegar a una base.
+
+---
+
 ### Próximo paso — arco de libros cerrado
 
 📖 **El roadmap maestro del Mapa Emocional vive en la tabla de arriba** (Etapas 0-6 ✅, R = paper). **El roadmap de infra vive en [docs/ROADMAP.md](docs/ROADMAP.md)** (Sprints 1-5 cerrados + bug de Sprint 3).

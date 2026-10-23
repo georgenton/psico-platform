@@ -183,4 +183,100 @@ suite("alcance de la exportación de datos", () => {
       expect(iRespuestas).toBeGreaterThan(iOmision);
     });
   });
+
+  /**
+   * Las pruebas de arriba comprueban la nota contra sí misma: que no prometa
+   * sprints, que separe tres grupos, que ordene una frase antes que otra. Eso
+   * no basta, y aquí está la prueba de que no bastaba: la nota declaraba
+   * ausentes los ajustes de notificaciones mientras el payload los traía, y
+   * declaraba ausente «tu registro de ánimo» mientras el bloque `user` traía
+   * el ánimo actual. Ninguna de las dos cosas podía detectarse leyendo sólo
+   * la nota.
+   *
+   * Esto la coteja contra el archivo real. La tabla es la bisagra: añadir una
+   * sección al export sin nombrarla en la nota rompe la primera prueba, y
+   * nombrarla entre lo ausente rompe la segunda.
+   */
+  describe("la nota coincide con el archivo que de verdad se entrega", () => {
+    const nota = () =>
+      ((payload._meta as { note: string }) ?? { note: "" }).note;
+
+    /** Clave del payload → cómo la nota tiene que nombrarla. */
+    const NOMBRADO: Record<string, string> = {
+      user: "tu perfil",
+      profile: "tu perfil",
+      preferences: "tus preferencias",
+      readerPreferences: "ajustes del lector",
+      notificationSettings: "de notificaciones",
+      privacySettings: "de privacidad",
+      progress: "tu progreso de lectura",
+      subscription: "tu suscripción",
+      guideSessions: "tus sesiones de guía",
+    };
+
+    const tramos = () => {
+      const n = nota();
+      const iClave = n.indexOf("Requiere tu clave");
+      const iFalta = n.indexOf("No está incluido");
+      expect(iClave).toBeGreaterThan(0);
+      expect(iFalta).toBeGreaterThan(iClave);
+      return {
+        incluye: n.slice(0, iClave).toLowerCase(),
+        falta: n.slice(iFalta).toLowerCase(),
+      };
+    };
+
+    it("nombra entre lo incluido cada sección que el archivo trae", () => {
+      const { incluye } = tramos();
+      const claves = Object.keys(payload).filter((k) => k !== "_meta");
+      // Guard the guard: si el payload se queda sin secciones, la prueba de
+      // abajo pasaría por vacuidad.
+      expect(claves.length).toBeGreaterThanOrEqual(8);
+      for (const clave of claves) {
+        const frase = NOMBRADO[clave];
+        expect(
+          frase,
+          `el payload trae "${clave}" y la tabla de esta prueba no sabe cómo lo nombra la nota`,
+        ).toBeDefined();
+        expect(incluye, `la nota no nombra "${clave}"`).toContain(frase);
+      }
+    });
+
+    it("no declara ausente ninguna sección que el archivo trae", () => {
+      const { falta } = tramos();
+      for (const clave of Object.keys(payload).filter((k) => k !== "_meta")) {
+        expect(
+          falta,
+          `la nota dice que falta "${clave}" y el archivo lo trae`,
+        ).not.toContain(NOMBRADO[clave]);
+      }
+    });
+
+    it("distingue el ánimo actual, que sí viaja, del historial, que no", () => {
+      const user = payload.user as Record<string, unknown>;
+      // El ánimo actual está en el archivo aunque su valor sea nulo: lo que
+      // importa es que la clave viaja, porque es lo que la nota promete.
+      expect(Object.keys(user)).toContain("mood");
+      expect(Object.keys(user)).toContain("moodUpdatedAt");
+      const { incluye, falta } = tramos();
+      expect(incluye).toContain("tu ánimo actual");
+      expect(falta).toContain("el historial de tu ánimo");
+      // Y no puede volver la fórmula que los confundía.
+      expect(falta).not.toMatch(/tu registro de ánimo/);
+    });
+
+    it("el Diario y los mensajes a Eco no vienen, y la nota no insinúa que sí", () => {
+      // Ni una línea: este export no consulta esas tablas. Si algún día las
+      // consulta, esta prueba falla y hay que reescribir el grupo del medio.
+      const texto = JSON.stringify(payload);
+      expect(texto).not.toContain("textCiphertext");
+      expect(texto).not.toContain("textNonce");
+      expect(Object.keys(payload)).not.toContain("diary");
+      expect(Object.keys(payload)).not.toContain("eco");
+      // «requiere tu clave» a secas se lee como «está, pero cifrado». Tiene
+      // que decir también que hoy no se recoge.
+      const n = nota().toLowerCase();
+      expect(n).toMatch(/tampoco viene cifrado|no lo recoge/);
+    });
+  });
 });

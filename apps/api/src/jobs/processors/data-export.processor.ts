@@ -21,18 +21,23 @@ import { JobName, QueueName, type DataExportJobPayload } from "../queue-names";
  * excusarse con una propiedad que no está ahí.
  *
  * INCLUIDO:
- *   - perfil, preferencias, ajustes de privacidad y notificaciones
+ *   - perfil, preferencias, ajustes del lector, de notificaciones y de
+ *     privacidad
+ *   - el ánimo ACTUAL y las rachas (`mood`, `moodUpdatedAt`, los dos
+ *     `streakDays`), que viajan dentro del bloque `user`
  *   - progreso de lectura (`UserProgress` con metadatos del capítulo)
  *   - suscripción
  *   - sesiones de guía
  *
- * REQUIERE LA CLAVE DE LA PERSONA — el servidor no puede descifrarlo:
+ * REQUIERE LA CLAVE DE LA PERSONA, y además HOY NO SE RECOGE — las dos cosas
+ * a la vez, porque decir sólo la primera sugiere que el ciphertext está en el
+ * archivo y no está: este método no consulta ninguna de las dos tablas.
  *   - entradas del Diario (`textCiphertext` + `textNonce`)
  *   - los mensajes que la persona escribió a Eco (los mismos campos)
  *
  * NO IMPLEMENTADO en esta exportación, aunque el servidor SÍ podría leerlo:
  *   - las respuestas de Eco (`assistantText`, en claro)
- *   - registro de ánimo, check-ins, resonancias
+ *   - el HISTORIAL de ánimo, check-ins, resonancias
  *   - marcas de lectura (highlights, anotaciones)
  *   - eventos de autenticación
  *
@@ -284,17 +289,40 @@ export class DataExportProcessor extends WorkerHost {
         // anterior invitaba a escribir «y te decimos qué podemos entregar»,
         // que es un compromiso que nadie ha definido.
         //
+        // Y tres correcciones más, de la misma familia — la nota describía un
+        // archivo distinto del que se entrega:
+        //
+        //   1. Declaraba AUSENTES los ajustes de notificaciones, que este
+        //      mismo método incluye (`notificationSettings`, arriba). Igual
+        //      con los de privacidad, que no nombraba en ninguno de los tres
+        //      grupos.
+        //   2. Declaraba ausente «tu registro de ánimo» sin más, cuando el
+        //      bloque `user` sí lleva el ánimo ACTUAL (`mood`,
+        //      `moodUpdatedAt`). Lo que falta es el historial, y decirlo al
+        //      revés hace creer que no se exporta nada del ánimo.
+        //   3. El grupo del medio decía «requiere tu clave y por eso no puede
+        //      venir aquí como texto legible», que se lee como «está, pero
+        //      cifrado». No está: este método no consulta `DiaryEntry` ni
+        //      `EcoMessage`, así que no sale ni una línea de cifrado. Las dos
+        //      cosas son ciertas a la vez —no se podría leer Y tampoco se
+        //      incluye— y hay que decir las dos.
+        //
         // Qué incluir sigue siendo una decisión de alcance abierta (D-EXP).
+        // `data-export-scope.pg-spec.ts` coteja esta nota contra el payload
+        // real, no contra sí misma, para que la próxima divergencia falle.
         note:
-          "Este archivo incluye: tu perfil y preferencias, tu progreso de " +
-          "lectura, tu suscripción y tus sesiones de guía. " +
-          "Requiere tu clave y por eso NO puede venir aquí como texto " +
-          "legible: tu Diario y los mensajes que tú escribiste a Eco, " +
+          "Este archivo incluye: tu perfil, tus preferencias, tus ajustes " +
+          "del lector, de notificaciones y de privacidad, tu ánimo actual y " +
+          "tus rachas, tu progreso de lectura, tu suscripción y tus " +
+          "sesiones de guía. " +
+          "Requiere tu clave, así que no podría venir aquí como texto " +
+          "legible — y hoy tampoco viene cifrado, porque esta exportación no " +
+          "lo recoge: tu Diario y los mensajes que tú escribiste a Eco, " +
           "cifrados de extremo a extremo con una clave que sólo tú tienes. " +
           "No está incluido en esta exportación, aunque no dependa de tu " +
-          "clave: las respuestas de Eco, tu registro de ánimo, los " +
-          "check-ins, las resonancias, tus marcas de lectura y los ajustes " +
-          "de notificaciones.",
+          "clave: las respuestas de Eco, el historial de tu ánimo, los " +
+          "check-ins, las resonancias, tus marcas de lectura y los eventos " +
+          "de inicio de sesión.",
       },
       user: {
         id: user.id,

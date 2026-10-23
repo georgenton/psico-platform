@@ -110,10 +110,16 @@ describe("CrisisModal · lo que hace, no cómo se pinta", () => {
     expect(onClose).toHaveBeenCalledTimes(2);
   });
 
-  it("los dos caminos de ayuda van antes que el de cerrar", () => {
-    // El orden del DOM es el orden del lector de pantalla y el del tabulador.
-    // Ofrecer «Entendido» antes que la línea pondría la salida por delante de
-    // la ayuda.
+  it("el teléfono va antes que el cierre; el enlace internacional va después", () => {
+    // El orden del DOM es el del lector de pantalla y el del tabulador, así
+    // que conviene fijarlo. Y conviene nombrarlo por lo que es: NO es «los
+    // dos caminos de ayuda antes que el de cerrar». El orden real es
+    // Llamar → Entendido → findahelpline, con el enlace internacional
+    // DESPUÉS de la salida.
+    //
+    // Se fija tal cual en vez de cambiarlo: mover el enlace es una decisión
+    // de diseño sobre una pantalla de crisis, y no se toma de paso en una
+    // prueba. Queda anotado en el PR como observación.
     montar();
     const dialogo = screen.getByRole("alertdialog");
     const textos = Array.from(dialogo.querySelectorAll("a, button")).map(
@@ -121,7 +127,12 @@ describe("CrisisModal · lo que hace, no cómo se pinta", () => {
     );
     const iLlamar = textos.findIndex((t) => /llamar ahora/i.test(t));
     const iEntendido = textos.findIndex((t) => /entendido/i.test(t));
+    const iInternacional = textos.findIndex((t) => /findahelpline/i.test(t));
+
     expect(iLlamar).toBeGreaterThanOrEqual(0);
+    // Lo que sí se exige: la línea telefónica nunca después de la salida.
     expect(iEntendido).toBeGreaterThan(iLlamar);
+    // Y lo que hoy ocurre, fijado para que un cambio sea deliberado.
+    expect(iInternacional).toBeGreaterThan(iEntendido);
   });
 });

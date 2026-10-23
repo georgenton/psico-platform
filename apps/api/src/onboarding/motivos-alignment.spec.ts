@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { FIXTURE_AUTHOR_SLUGS } from "../catalog/authorship-sources";
 import {
   FALLBACK_BOOK_SLUG,
   FALLBACK_REASON,
   KNOWN_ANCHOR_BOOK_SLUGS,
   MOTIVO_SEED_CATALOG,
+  ONBOARDING_INTRO,
   RECOMMENDATION_BY_MOTIVO,
   RECOMMENDATION_REASON,
 } from "./constants";
@@ -119,6 +121,49 @@ describe("motivos seed ↔ recommendation map alignment", () => {
     for (const m of MOTIVO_SEED_CATALOG) {
       expect(m.icon).toBeTruthy();
       expect(typeof m.icon).toBe("string");
+    }
+  });
+});
+
+/**
+ * El copy del onboarding no acredita a una identidad de fixture.
+ *
+ * Dos razones y el fallback abrían con el nombre de pila del autor de demo
+ * —la misma identidad que el catálogo acreditaba como autora de una obra
+ * real—, así que la atribución equivocada viajaba también en copy editorial.
+ * El trinquete del seed ya prohíbe eso en la sinopsis del libro ancla; este
+ * cubre la otra superficie que lo decía.
+ *
+ * Los nombres se derivan de `FIXTURE_AUTHOR_SLUGS`, no se escriben aquí: si
+ * mañana se declara otra identidad de fixture, queda cubierta sola.
+ */
+describe("copy del onboarding ↔ identidades de fixture", () => {
+  const forbidden = FIXTURE_AUTHOR_SLUGS.flatMap((slug) => slug.split("-"));
+
+  const surfaces: ReadonlyArray<readonly [string, string]> = [
+    ...Object.entries(RECOMMENDATION_REASON),
+    ["FALLBACK_REASON", FALLBACK_REASON],
+    ["ONBOARDING_INTRO.title", ONBOARDING_INTRO.title],
+    ["ONBOARDING_INTRO.subtitle", ONBOARDING_INTRO.subtitle],
+    ["ONBOARDING_INTRO.body", ONBOARDING_INTRO.body],
+    ["ONBOARDING_INTRO.signature", ONBOARDING_INTRO.signature],
+  ];
+
+  it("hay nombres que vigilar y superficies donde vigilarlos", () => {
+    // Guard the guard: si el conjunto quedara vacío, lo de abajo pasaría
+    // sobre nada y el trinquete sería decorativo.
+    expect(forbidden.length).toBeGreaterThan(0);
+    expect(surfaces.length).toBeGreaterThan(5);
+  });
+
+  it("ninguna razón ni el fallback nombra a la identidad de fixture", () => {
+    for (const [where, copy] of surfaces) {
+      for (const name of forbidden) {
+        expect(
+          new RegExp(`\\b${name}\\b`, "i").test(copy),
+          `'${where}' nombra a '${name}', que es una identidad de fixture`,
+        ).toBe(false);
+      }
     }
   });
 });

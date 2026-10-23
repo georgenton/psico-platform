@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Logger } from "@nestjs/common";
 import type { Job } from "bullmq";
@@ -256,5 +259,43 @@ describe("DataExportProcessor", () => {
       (c) => c[0].data.status,
     );
     expect(statusUpdates).toEqual(["PROCESSING", "FAILED"]);
+  });
+});
+
+/**
+ * El alcance se describe en dos sitios: la nota que recibe la persona y el
+ * comentario que lee quien mantiene el archivo. La nota ya tiene su trinquete
+ * en `data-export-scope.pg-spec.ts`; éste cubre el OTRO, que es donde quedó la
+ * afirmación vieja después de corregir la primera.
+ *
+ * Importa porque el comentario es lo que forma el criterio de quien toque esto
+ * mañana: si dice que las conversaciones de Eco son cifrado opaco, la próxima
+ * persona lo repetirá en la nota de buena fe.
+ */
+describe("el comentario de alcance del exportador", () => {
+  const fuente = readFileSync(
+    join(__dirname, "data-export.processor.ts"),
+    "utf8",
+  );
+
+  it("no promete sprints como trabajo futuro", () => {
+    // S6 y S9 cerraron hace meses; decir que «llegarán» deja creer que hay
+    // trabajo en curso.
+    expect(fuente).not.toMatch(
+      /will arrive|NOT yet included|added when their modules land/i,
+    );
+  });
+
+  it("no atribuye a los hilos de Eco la propiedad del Diario", () => {
+    // `assistantText` se guarda en claro: el servidor SÍ puede leer las
+    // respuestas. Llamarlas cifrado opaco es excusar una omisión.
+    expect(fuente).not.toMatch(/Eco threads[^\n]*(E2E|opaque|ciphertext)/i);
+    expect(fuente).not.toMatch(/Eco threads \(S9\) — same/i);
+  });
+
+  it("separa lo que exige la clave de lo que simplemente falta", () => {
+    expect(fuente).toContain("REQUIERE LA CLAVE DE LA PERSONA");
+    expect(fuente).toContain("NO IMPLEMENTADO");
+    expect(fuente).toMatch(/assistantText.*en claro/);
   });
 });

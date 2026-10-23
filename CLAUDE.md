@@ -3433,6 +3433,55 @@ Corregirlo mueve valores que fijan `color-contracts.ts`, el trinquete de
 
 ---
 
+### Sesión — 2026-10-22 ✅ COMPLETADA — Catálogo de Familias + UAT del lector en staging
+
+**Ramas:** `fix/catalogo-familias-ensambladas` ([PR #797](https://github.com/georgenton/psico-platform/pull/797), fusionado en `f22aa84c`) · `chore/uat-lector-staging`
+**Bitácora de la UAT:** [docs/informes/uat-2026-10-22-lector-staging.md](docs/informes/uat-2026-10-22-lector-staging.md)
+**Tests:** API 254 archivos / 3888 pruebas (+12) · typecheck ×2 · eslint · contrato OpenAPI en OK.
+
+**Lo que se corrigió (PR #797, fusionado):** el seed creaba *Familias Ensambladas*
+acreditada a una identidad de fixture y publicada, contra lo que dice la landing
+aprobada. Nace sin autor («Autoría por confirmar») y sin publicar. El nombre declarado
+el 2026-10-13 **no** se escribe: esa nota no autoriza corregir la fila alojada, así que
+la fuente sigue PENDING y la corrección va por el plan de reparación aprobado.
+`isPublished` sale también del `update` del upsert, donde reafirmaba la publicación en
+cada corrida y hacía imposible despublicar el libro sin editar el archivo.
+
+Retirarlo **rompía el onboarding**, y lo rompió ese mismo PR: dos de los siete motivos
+apuntan a ese libro y la búsqueda filtra por publicación, así que el paso final
+respondía 404. Ahora cae al ancla; el 404 sobrevive sólo para un catálogo sin ningún
+libro recomendable. Las alternativas se resuelven después del fallback, porque en
+paralelo el libro recomendado podía volver como su propia alternativa. Y dos razones
+más el copy de respaldo dejan de abrir con el nombre de pila del autor de demo.
+
+**Lo que la UAT encontró (sin escribir nada — todo `GET` más una consulta
+`BEGIN READ ONLY` dentro del contenedor de la API):**
+
+- **La landing anuncia un modo que el despliegue no puede dar.**
+  `ChapterExperienceVersion` tiene **cero filas**: no hay ninguna microguía publicada
+  ni en borrador, para ningún libro. El código del lector guiado sí está (es el PR
+  #794, el commit que staging sirve); lo que falta es contenido publicado, retenido por
+  la puerta editorial de los ADR 0027/0028. No es defecto de código: es una promesa en
+  presente que el despliegue no sostiene.
+- **El nombre de fixture sobrevive en `Book.summary` de *EEC***, que el repositorio ya
+  prohíbe (`seed-authorship.spec.ts:144`). Misma forma que el defecto de publicación:
+  el arreglo vive en el seed y la fila alojada conserva el texto viejo. **La reparación
+  de autoría tiene que alcanzar los campos de copy, no sólo la clave ajena.**
+- La **Lectura** cumple de sobra: 376 bloques reales en el capítulo 1 de *EEC*, los diez
+  capítulos agrupados en sus tres partes. La landing, por su parte, es impecable.
+- Dos falsos positivos quedan escritos para no volver a investigarlos: dos 503 en el
+  primer *prefetch* fueron arranque en frío (veinte peticiones en paralelo después, todas
+  200), y el «Siguiente» del paso 5/5 está **oculto**, no habilitado.
+
+**Deuda abierta:** `Book.summary` de EEC y la bio de la identidad de fixture esperan que
+la reparación de autoría cubra copy · la fila alojada de *Familias* sigue publicada y mal
+acreditada (actos editoriales con su propia ventana) · si las cinco microguías se
+ejecutan en el lector queda **sin verificar**, porque montarlo escribiría progreso en una
+cuenta personal: necesita la cuenta sintética · el worker de staging corre un commit
+distinto del de API y Web.
+
+---
+
 ### Próximo paso — arco de libros cerrado
 
 📖 **El roadmap maestro del Mapa Emocional vive en la tabla de arriba** (Etapas 0-6 ✅, R = paper). **El roadmap de infra vive en [docs/ROADMAP.md](docs/ROADMAP.md)** (Sprints 1-5 cerrados + bug de Sprint 3).

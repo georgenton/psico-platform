@@ -10,6 +10,7 @@ import type {
   SignalContextComparePractice,
 } from "@psico/types";
 import { SequenceOrdering } from "./SequenceOrdering";
+import { TOUCH_TARGET } from "./practice-ui";
 import {
   BeliefLens,
   ContextPlausibility,
@@ -393,5 +394,91 @@ describe("the loader", () => {
       expect(screen.getByTestId("practice-sequence")).toBeInTheDocument(),
     );
     expect(spy).toHaveBeenCalledTimes(2);
+  });
+});
+
+/**
+ * B4 — el área que se pulsa.
+ *
+ * La escena cuyo trabajo ES pulsar flechas tenía los controles más pequeños
+ * de la pantalla: 30 × 30, contra los 44 que FeelVerse adoptó. Un dedo no
+ * mide 30 px, y quien más lo nota es quien peor puntería tiene.
+ *
+ * Las medidas se leen del estilo que el componente aplica, no de una
+ * constante copiada: si alguien baja el número en `practice-ui`, esto falla.
+ */
+describe("B4 · áreas táctiles de la práctica", () => {
+  const medir = (el: HTMLElement) => ({
+    ancho: parseFloat(el.style.width || el.style.minWidth || "0"),
+    alto: parseFloat(el.style.height || el.style.minHeight || "0"),
+  });
+
+  it("Subir y Bajar miden al menos 44 × 44", () => {
+    render(<SequenceOrdering interaction={SEQUENCE} />);
+
+    const controles = [
+      ...screen.getAllByRole("button", { name: /^Subir:/ }),
+      ...screen.getAllByRole("button", { name: /^Bajar:/ }),
+    ];
+    expect(controles).toHaveLength(8);
+    for (const c of controles) {
+      const { ancho, alto } = medir(c);
+      expect(ancho).toBeGreaterThanOrEqual(TOUCH_TARGET);
+      expect(alto).toBeGreaterThanOrEqual(TOUCH_TARGET);
+    }
+  });
+
+  it("control negativo — 30 px ya no pasa", () => {
+    // El tamaño anterior, escrito aquí para que la prueba signifique algo:
+    // si `TOUCH_TARGET` volviera a 30, esta afirmación caería.
+    expect(TOUCH_TARGET).toBeGreaterThan(30);
+  });
+
+  it("la salida declarada también se puede pulsar", () => {
+    // «Prefiero ver el ejemplo resuelto» medía unos 31 px de alto. Es la
+    // puerta de salida de la práctica: tiene que ser tan alcanzable como las
+    // flechas, no más difícil.
+    render(<SequenceOrdering interaction={SEQUENCE} />);
+    const salida = screen.getByRole("button", { name: /ejemplo resuelto/i });
+    expect(parseFloat(salida.style.minHeight)).toBeGreaterThanOrEqual(
+      TOUCH_TARGET,
+    );
+  });
+
+  it("el tamaño no se lleva por delante lo que ya funcionaba", () => {
+    // Agrandar los controles no puede romper lo que la escena hace: las
+    // cuatro tarjetas legibles, los extremos deshabilitados, el anuncio de
+    // cada movimiento y el arrastre opcional.
+    render(<SequenceOrdering interaction={SEQUENCE} />);
+
+    for (const c of SEQUENCE.cards) {
+      expect(screen.getByText(c.label)).toBeInTheDocument();
+    }
+    const subir = screen.getAllByRole("button", { name: /^Subir:/ });
+    const bajar = screen.getAllByRole("button", { name: /^Bajar:/ });
+    expect(subir[0]).toBeDisabled();
+    expect(subir[3]).toBeEnabled();
+    expect(bajar[3]).toBeDisabled();
+    expect(bajar[0]).toBeEnabled();
+  });
+
+  it("y la etiqueta sigue nombrando la acción Y la tarjeta", () => {
+    // Un «↑» a secas no dice nada en un lector de pantalla, y cuatro «↑»
+    // seguidos dicen menos todavía.
+    render(<SequenceOrdering interaction={SEQUENCE} />);
+    const primero = screen.getAllByRole("button", { name: /^Subir:/ })[0]!;
+    expect(primero.getAttribute("aria-label")).toContain("Subir:");
+    expect(primero.getAttribute("aria-label")).toContain(
+      SEQUENCE.cards[1]!.label,
+    );
+  });
+
+  it("la tarjeta puede envolver, para no encoger el área táctil", () => {
+    // Con dos controles de 44 px una tarjeta estrecha no da para todo en una
+    // línea. La respuesta es envolver; lo que NO se hace es volver a
+    // achicarlos para que quepan.
+    render(<SequenceOrdering interaction={SEQUENCE} />);
+    const primera = screen.getByTestId("sequence-list").firstElementChild;
+    expect((primera as HTMLElement).style.flexWrap).toBe("wrap");
   });
 });

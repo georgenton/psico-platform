@@ -152,3 +152,173 @@ describe("preview writes nothing", () => {
     expect(screen.queryByRole("button", { name: /me resonó/i })).toBeNull();
   });
 });
+
+/**
+ * B3 · Prioridad C — la vista previa enseñaba media escena sin decirlo.
+ *
+ * `PracticeInteractionView` pide la interacción a `/learning/practices/:key`,
+ * y la vista previa pasaba `media={null}`, así que no pedía nada: la escena de
+ * práctica mostraba título, cuerpo, nota y el botón de confirmar, y las cuatro
+ * tarjetas a ordenar no aparecían nunca. Quien revisara MG03 por aquí no
+ * llegaba a ver la mitad del trabajo, y la pantalla no daba ninguna señal.
+ *
+ * Las tarjetas de abajo son las reales del catálogo de MG03.
+ */
+const TARJETAS_MG03 = [
+  { key: "senal", label: "Aparece una señal repentina." },
+  {
+    key: "respuesta",
+    label: "El organismo inicia una respuesta protectora o de sobresalto.",
+  },
+  { key: "contexto", label: "Compruebas el contexto y descubres qué ocurrió." },
+  {
+    key: "interpretacion",
+    label: "Interpretas la situación y puedes nombrar la experiencia.",
+  },
+];
+
+const CONTEXTO = {
+  bookSlug: "emociones-en-construccion",
+  chapterOrder: 1,
+  apiBase: "http://api.test/api",
+  token: "t",
+};
+
+/** La experiencia real, con su escena de práctica declarando su ejercicio. */
+const CON_PRACTICA = {
+  ...EEC_EXPERIENCE,
+  scenes: EEC_EXPERIENCE.scenes.map((escena) =>
+    escena.kind === "PRACTICE"
+      ? {
+          ...escena,
+          // En la vista pública el ejercicio viaja dentro del `payload`, que
+          // es lo único que lee un renderizador.
+          payload: {
+            ...escena.payload,
+            exerciseKey: "eec-c1-practice-ordenar-alarma-y-relato",
+          },
+        }
+      : escena,
+  ),
+} as typeof EEC_EXPERIENCE;
+
+/** Avanza por el recorrido hasta que la escena de práctica está en pantalla. */
+async function hastaLaPractica() {
+  await userEvent.click(
+    screen.getByRole("button", { name: /empezar experiencia/i }),
+  );
+  for (let i = 0; i < 10; i++) {
+    if (screen.queryByTestId("scene-practice")) return;
+    const avanzar = screen
+      .getAllByRole("button")
+      .find((b) =>
+        /^(continuar|lo leí|he explorado|siguiente)/i.test(
+          b.textContent?.trim() ?? "",
+        ),
+      );
+    if (!avanzar) break;
+    await userEvent.click(avanzar);
+  }
+}
+
+function respondePractica() {
+  vi.spyOn(globalThis, "fetch").mockImplementation(
+    async (input: RequestInfo | URL, init?: RequestInit) => {
+      const method = (init?.method ?? "GET").toUpperCase();
+      if (method !== "GET") writes.push(`${method} ${String(input)}`);
+      if (String(input).includes("/learning/practices/")) {
+        return new Response(
+          JSON.stringify({
+            exerciseKey: "eec-c1-practice-ordenar-alarma-y-relato",
+            interaction: {
+              kind: "sequence_ordering",
+              scenario: "Lees tranquilamente en casa y una puerta se cierra.",
+              cards: TARJETAS_MG03,
+              solved: TARJETAS_MG03.map((c) => c.key),
+              solvedLabel: "Prefiero ver el ejemplo resuelto",
+              feedback: "La señal y la respuesta rápida pueden preceder.",
+            },
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response("{}", { status: 200 });
+    },
+  );
+}
+
+describe("la vista previa muestra la práctica completa", () => {
+  beforeEach(() => {
+    respondePractica();
+  });
+
+  it("carga las cuatro tarjetas reales cuando tiene con qué pedirlas", async () => {
+    render(
+      <ExperiencePreview
+        definition={CON_PRACTICA}
+        bundle={EEC_BUNDLE}
+        media={CONTEXTO}
+      />,
+    );
+    await hastaLaPractica();
+
+    for (const tarjeta of TARJETAS_MG03) {
+      expect(await screen.findByText(tarjeta.label)).toBeInTheDocument();
+    }
+  });
+
+  it("y con ellas la interacción accesible, que es la primaria", async () => {
+    // Arrastrar está encima y nada depende de ello: Subir y Bajar SON la
+    // interacción, y cada movimiento se anuncia. Una vista previa que no los
+    // muestre no permite revisar lo que de verdad va a usar la gente.
+    render(
+      <ExperiencePreview
+        definition={CON_PRACTICA}
+        bundle={EEC_BUNDLE}
+        media={CONTEXTO}
+      />,
+    );
+    await hastaLaPractica();
+    await screen.findByText(TARJETAS_MG03[0]!.label);
+
+    expect(screen.getAllByRole("button", { name: /subir/i }).length).toBe(4);
+    expect(screen.getAllByRole("button", { name: /bajar/i }).length).toBe(4);
+    expect(
+      screen.getByRole("button", { name: /ejemplo resuelto/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("y sigue sin escribir nada", async () => {
+    // El contexto es de LECTURA. Que la práctica cargue no puede convertir la
+    // previsualización en una sesión.
+    render(
+      <ExperiencePreview
+        definition={CON_PRACTICA}
+        bundle={EEC_BUNDLE}
+        media={CONTEXTO}
+      />,
+    );
+    await hastaLaPractica();
+    await screen.findByText(TARJETAS_MG03[0]!.label);
+    // La confirmación de la escena, cualquiera que sea su rótulo aprobado, y
+    // un movimiento de la práctica: ninguno de los dos puede escribir.
+    await userEvent.click(
+      screen.getAllByRole("button", { name: /bajar/i })[0]!,
+    );
+    const confirmar = screen
+      .getAllByRole("button")
+      .find((b) => /ya hice|confirmar|marcar/i.test(b.textContent ?? ""));
+    if (confirmar) await userEvent.click(confirmar);
+
+    expect(writes).toEqual([]);
+    expect(localStorage.length).toBe(0);
+  });
+
+  it("control negativo — sin contexto no hay tarjetas, que es lo que pasaba", async () => {
+    render(<ExperiencePreview definition={CON_PRACTICA} bundle={EEC_BUNDLE} />);
+    await hastaLaPractica();
+
+    expect(screen.getByTestId("scene-practice")).toBeInTheDocument();
+    expect(screen.queryByText(TARJETAS_MG03[0]!.label)).toBeNull();
+  });
+});

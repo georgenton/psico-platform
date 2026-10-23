@@ -1,8 +1,14 @@
-import { fieldDigest } from "./authorship-plan-file";
+import {
+  BOOK_COPY_FIELDS,
+  BOOK_COPY_WITHDRAWAL,
+  fieldDigest,
+  type BookCopyField,
+} from "./authorship-plan-file";
 import {
   AUTHORSHIP_PENDING,
   AUTHORSHIP_SOURCES,
   FIXTURE_AUTHOR_SLUGS,
+  fixtureIdentitiesNamedIn,
   type AuthorshipSource,
 } from "./authorship-sources";
 
@@ -38,7 +44,15 @@ import {
  * fields on the wrong row is still the wrong write.
  */
 
-/** Everything the planner needs to know about the live catalogue. */
+/**
+ * Everything the planner needs to know about the live catalogue.
+ *
+ * The copy fields are REQUIRED, not optional. An optional `summary` would let
+ * a caller read the catalogue without asking for the column and get a plan
+ * that reports nothing to withdraw — which is this file's one unforgivable
+ * confusion: "we did not look" and "we looked and found nothing" must not
+ * produce the same plan.
+ */
 export interface CatalogSnapshot {
   authors: ReadonlyArray<{
     id: string;
@@ -46,6 +60,8 @@ export interface CatalogSnapshot {
     name: string;
     title: string | null;
     licenseNumber: string | null;
+    /** Editorial prose about the person. Unsourced on a fixture identity. */
+    bio: string | null;
     isVerified: boolean;
   }>;
   books: ReadonlyArray<{
@@ -53,6 +69,10 @@ export interface CatalogSnapshot {
     slug: string;
     title: string;
     authorId: string | null;
+    /** Long-form synopsis, served on the public detail page. */
+    summary: string | null;
+    /** One or two sentences, served on the public cards. */
+    description: string | null;
   }>;
 }
 
@@ -81,9 +101,70 @@ export type RepairOp =
         slug: string;
         titleDigest: string | null;
         licenseDigest: string | null;
+        bioDigest: string | null;
         isVerified: boolean;
       };
-      next: { title: null; licenseNumber: null; isVerified: false };
+      next: {
+        title: null;
+        licenseNumber: null;
+        bio: null;
+        isVerified: false;
+      };
+    }
+  /**
+   * Withdraw public copy that names an identity nobody accredited.
+   *
+   * ── Why the copy needs its own operation ──────────────────────────────
+   *
+   * Correcting the foreign key corrected the byline and nothing else. The
+   * UAT of 2026-10-22 measured the anchor book still opening its synopsis
+   * with the fixture identity's first name while the header credited the
+   * sourced author — one page crediting two people, the wrong one in prose.
+   * A reader does not distinguish a byline from a sentence.
+   *
+   * ── Why a declared placeholder and not null, and not a rewrite ────────
+   *
+   * Three candidate outcomes, and the reasons the other two lose:
+   *
+   *   · REWRITE the sentence. The seed shows what the honest rewrite of the
+   *     anchor book looked like — the name dropped, the verb and the article
+   *     repaired — and a person did that with judgement. Regex surgery on
+   *     arbitrary prose produces either ungrammatical Spanish or an
+   *     editorial claim nobody reviewed, which is the thing this whole
+   *     expediente exists to stop.
+   *   · NULL it. The author's credentials go to null because absence is the
+   *     honest state for a claim with no source. A synopsis is not a claim
+   *     about a person: it describes a real, published work, and most of it
+   *     is legitimate. Emptying it degrades a legitimate public page over a
+   *     defect confined to one clause, and leaves nothing saying why.
+   *
+   * So the copy is WITHDRAWN to a fixed, declared placeholder: the false
+   * credit stops being served, the page keeps a line, the placeholder is
+   * visibly pending, and the literal survives in the private preimage for
+   * whoever writes the replacement.
+   *
+   * This applies to a PENDING book too. `AUTHORSHIP_PENDING` says we may not
+   * invent WHO wrote it; removing a name that no source backs invents
+   * nothing.
+   */
+  | {
+      kind: "withdraw-book-copy";
+      bookId: string;
+      bookSlug: string;
+      /** The affected fields, in a stable order. Never empty. */
+      fields: BookCopyField[];
+      /** Which fixture identities the copy named — for the reviewer. */
+      namedIdentities: string[];
+      /**
+       * EXACT expectation, same reasoning as the author's: digests catch a
+       * value changing from one non-null string to a different one, and
+       * reveal nothing. `slug` is the book's identity, so it travels too.
+       */
+      expect: {
+        slug: string;
+        summaryDigest: string | null;
+        descriptionDigest: string | null;
+      };
     }
   /** Create a source-backed author row. Name only — no credentials, ever. */
   | {
@@ -182,10 +263,41 @@ function findAuthor(snapshot: CatalogSnapshot, slug: string): AuthorResolution {
 const sameSlug = (a: string, b: string) =>
   a.trim().toLowerCase() === b.trim().toLowerCase();
 
+/**
+ * Refuse a snapshot that did not read the columns the plan reasons about.
+ *
+ * TypeScript cannot defend this at the only boundary where it matters:
+ * `readSnapshot` casts the result of a Prisma `select` to `CatalogSnapshot`,
+ * so a forgotten field arrives as `undefined` and the compiler never sees it.
+ * Left alone, the copy passes would find nothing to withdraw and the plan
+ * would report a clean catalogue — the precise failure this file refuses to
+ * make elsewhere: "we did not look" must not read as "we looked and found
+ * nothing".
+ */
+function assertSnapshotComplete(snapshot: CatalogSnapshot): void {
+  const missing = (where: string, row: object, keys: readonly string[]) =>
+    keys.filter((k) => !(k in row)).map((k) => `${where}.${k}`);
+
+  const gaps = [
+    ...snapshot.authors.flatMap((a) =>
+      missing("authors", a, ["title", "licenseNumber", "bio", "isVerified"]),
+    ),
+    ...snapshot.books.flatMap((b) =>
+      missing("books", b, ["authorId", "summary", "description"]),
+    ),
+  ];
+  if (gaps.length > 0) {
+    throw new Error(
+      `SNAPSHOT INCOMPLETO: faltan ${[...new Set(gaps)].sort().join(", ")}. Un plan sobre columnas que nadie leyó diría que no hay nada que retirar.`,
+    );
+  }
+}
+
 export function planAuthorshipRepair(
   snapshot: CatalogSnapshot,
   opts: { sources?: readonly AuthorshipSource[] } = {},
 ): RepairPlan {
+  assertSnapshotComplete(snapshot);
   const sources = opts.sources ?? AUTHORSHIP_SOURCES;
   const plan: RepairPlan = {
     ops: [],
@@ -212,13 +324,22 @@ export function planAuthorshipRepair(
       continue;
     }
     const author = resolved.author;
+    // The bio belongs with the credentials, in the same conditional write.
+    // It is the same kind of thing — an assertion about a person on a row
+    // with no editorial source — and the one the UAT found still claiming a
+    // professional specialty. It goes to null for the reason the title does:
+    // absence is how this tool says «no source on file», and inventing a
+    // biography for an identity nobody accredited would be the original
+    // defect in a new shape. Splitting it into its own operation would mean
+    // two UPDATEs on one row and two chances to half-apply.
     const hasClaims =
       author.title !== null ||
       author.licenseNumber !== null ||
+      author.bio !== null ||
       author.isVerified;
     if (!hasClaims) {
       plan.satisfied.push(
-        `autor ${slug}: sin título, sin colegiatura y no verificado`,
+        `autor ${slug}: sin título, sin colegiatura, sin biografía y no verificado`,
       );
       continue;
     }
@@ -231,9 +352,39 @@ export function planAuthorshipRepair(
         slug: author.slug,
         titleDigest: fieldDigest(author.title),
         licenseDigest: fieldDigest(author.licenseNumber),
+        bioDigest: fieldDigest(author.bio),
         isVerified: author.isVerified,
       },
-      next: { title: null, licenseNumber: null, isVerified: false },
+      next: { title: null, licenseNumber: null, bio: null, isVerified: false },
+    });
+  }
+
+  // ── 1b · withdraw public copy that names an unsourced identity ──────────
+  //
+  // Per ROW, not per slug: a book is identified here by its id, so the slug
+  // ambiguity that blocks an ATTRIBUTION ("which row is the work?") does not
+  // arise. Each row's own copy is a well-defined question.
+  for (const book of snapshot.books) {
+    const affected: BookCopyField[] = [];
+    const named = new Set<string>();
+    for (const field of BOOK_COPY_FIELDS) {
+      const hits = fixtureIdentitiesNamedIn(book[field]);
+      if (hits.length === 0) continue;
+      affected.push(field);
+      for (const slug of hits) named.add(slug);
+    }
+    if (affected.length === 0) continue;
+    plan.ops.push({
+      kind: "withdraw-book-copy",
+      bookId: book.id,
+      bookSlug: book.slug,
+      fields: affected,
+      namedIdentities: [...named].sort(),
+      expect: {
+        slug: book.slug,
+        summaryDigest: fieldDigest(book.summary),
+        descriptionDigest: fieldDigest(book.description),
+      },
     });
   }
 
@@ -364,7 +515,22 @@ export function describePlan(plan: RepairPlan): string {
           op.expect.licenseDigest ? "presente" : "nula"
         } · verificado=${op.expect.isVerified}`,
       );
-      push(`      queda:  título=null · colegiatura=null · verificado=false`);
+      push(
+        `      queda:  título=null · colegiatura=null · biografía=null · verificado=false`,
+      );
+    } else if (op.kind === "withdraw-book-copy") {
+      push(`  · retirar copy sin fuente — libro ${op.bookSlug}`);
+      push(
+        `      nombra a: ${op.namedIdentities.join(", ")} · campos: ${op.fields.join(", ")}`,
+      );
+      // The replacement is read from the module constant, so the report
+      // cannot describe a text the applier will not write.
+      for (const f of op.fields) {
+        push(`      queda:  ${f} = «${BOOK_COPY_WITHDRAWAL[f]}»`);
+      }
+      push(
+        `      el texto anterior sólo queda en la preimagen privada, para reescribirlo`,
+      );
     } else if (op.kind === "create-author") {
       push(`  · alta de autor ${op.authorSlug} («${op.authorName}»)`);
       push(

@@ -249,10 +249,18 @@ export const FALLBACK_BOOK_SLUG = "emociones-en-construccion";
 // The recommendation includes a `why` field — a one-sentence explanation of
 // why we picked this book for this user. Keys are `${motivoId}:${bookSlug}`.
 // Falls back to a generic message if missing.
+//
+// The copy describes the BOOK and credits nobody. Two of these sentences and
+// the fallback used to open with the demo author's first name — the same
+// fixture identity the catalogue was crediting as the author of real work,
+// travelling in editorial copy instead of in a foreign key. The welcome
+// screen above was already de-personalised and signs "— FeelVerse"; this
+// finishes that pass. An attribution belongs in `BookAuthor`, behind a
+// source, and `authorship-sources.ts` records where each one comes from.
 
 export const RECOMMENDATION_REASON: Record<string, string> = {
   "ansiedad:emociones-en-construccion":
-    "Marina dedica un capítulo entero a la ansiedad y cómo nombrarla sin pelearla.",
+    "Un capítulo entero sobre la ansiedad y cómo nombrarla sin pelearla.",
   "tristeza:emociones-en-construccion":
     "Tres capítulos sobre cómo habitar la tristeza sin que tome el volante.",
   "relaciones:familias-ensambladas":
@@ -262,13 +270,15 @@ export const RECOMMENDATION_REASON: Record<string, string> = {
   "trabajo:emociones-en-construccion":
     "Un capítulo sobre cómo el burnout y la rabia productiva se sienten en el cuerpo.",
   "duelo:emociones-en-construccion":
-    "Marina escribe sobre el duelo no solo cuando alguien muere, también cuando algo termina.",
+    "Habla del duelo no solo cuando alguien muere, también cuando algo termina.",
   "explorar:emociones-en-construccion":
     "Un buen punto de partida para reconocer tus emociones sin etiquetas rígidas.",
 };
 
+// Reachable for the two motivos that point at the withheld book: they fall
+// back to the anchor, and no `relaciones:` / `vinculos:` key exists for it.
 export const FALLBACK_REASON =
-  "Un comienzo amable, escrito por Marina para personas que están entrando a este camino.";
+  "Un comienzo amable para quienes están entrando a este camino.";
 
 // ─── Mood catalog (seeded into OnboardingMood) ───────────────────────────────
 //

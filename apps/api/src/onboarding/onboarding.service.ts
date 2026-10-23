@@ -241,23 +241,46 @@ export class OnboardingService {
       }
     }
 
-    // Pull primary book + 2 alternatives (different from primary)
-    const [primary, alts] = await Promise.all([
-      this.findRecommendableBook(primarySlug),
-      this.prisma.book.findMany({
-        where: { isPublished: true, slug: { not: primarySlug } },
-        orderBy: { createdAt: "asc" },
-        take: 2,
-        include: { author: { select: { name: true } } },
-      }),
-    ]);
+    // Resolve the primary book, and fall back when it is not available.
+    //
+    // `RECOMMENDATION_BY_MOTIVO` is a static constant; availability is
+    // editorial state that moves without it. Two of the seven motivos ("Mis
+    // relaciones", "Vínculos familiares") point at `familias-ensambladas`,
+    // which the catalogue withholds — so for those two the lookup comes back
+    // empty and the step used to answer 404 on a book the catalogue is
+    // deliberately not offering. An unpublished book must not be able to end
+    // somebody's onboarding.
+    const tried = [primarySlug];
+    let primary = await this.findRecommendableBook(primarySlug);
+    if (!primary && primarySlug !== FALLBACK_BOOK_SLUG) {
+      primary = await this.findRecommendableBook(FALLBACK_BOOK_SLUG);
+      if (primary) primarySlug = FALLBACK_BOOK_SLUG;
+      tried.push(FALLBACK_BOOK_SLUG);
+    }
 
+    // The 404 survives for what it was written for: a catalogue with no
+    // recommendable book at all, which is drift and not an editorial choice.
     if (!primary) {
       throw new NotFoundException({
         code: "RECOMMENDATION_BOOK_NOT_FOUND",
-        message: `Catalog issue: book "${primarySlug}" is not seeded.`,
+        message: `Catalog issue: no recommendable book (tried ${tried
+          .map((s) => `"${s}"`)
+          .join(", ")}).`,
       });
     }
+
+    // Alternatives come after, where this used to be one `Promise.all`. They
+    // exclude the primary by slug, and until the fallback above has run we do
+    // not know which book that is — resolved in parallel, the withheld slug
+    // was excluded and the book we actually recommend could come back as its
+    // own alternative. One extra round trip, once per onboarding, buys a list
+    // that cannot contradict itself.
+    const alts = await this.prisma.book.findMany({
+      where: { isPublished: true, slug: { not: primarySlug } },
+      orderBy: { createdAt: "asc" },
+      take: 2,
+      include: { author: { select: { name: true } } },
+    });
 
     // Remember what we recommended for analytics + audit.
     await this.prisma.onboardingState.upsert({

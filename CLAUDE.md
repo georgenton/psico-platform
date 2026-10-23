@@ -3340,6 +3340,221 @@ Plan sólido, por etapas, cada una un PR aparte que se valida contra el banco de
 
 ---
 
+### Sesión — 2026-10-16 ✅ COMPLETADA — Landing aprobada F2.1 + Open Verse e iconos
+
+**Rama:** `feat/landing-aprobada-f21` · head `00bd5864`, 11 commits sobre `main` `8cb480c0`
+**Publicada y en revisión:** [PR #782](https://github.com/georgenton/psico-platform/pull/782), Draft contra `main`, **CI 14/14 verdes** —los seis trabajos en los dos disparadores, más Conventional Commits y Gitleaks—. Sin fusionar.
+**Preview de staging BLOQUEADO** (`PREVIEW_WEB_STAGING = BLOCKED_BY_DEPLOYMENT_TARGETING`): `feelverse-staging-web` está fijado a `main`@`HEAD`, la vía limpia `deploy(pull_request_id)` devuelve error interno del servidor, y no hay dominio ni DNS comodín donde servir un preview. Desbloquearlo exigía crear configuración o DNS, las dos fuera de límites. Nada quedó a medias y el artefacto anterior (`sha256:8a3cd36e…`, commit `8cb480c0`) sigue sano e intacto. Staging muestra todavía la landing anterior.
+**Tests:** Web 205 archivos / 2386 casos · 50 comprobaciones de navegador · API y crypto sin tocar
+
+**Qué se construyó.** La portada servía `docs/design/redesign-v2/`, la dirección que la
+auditoría del 27-09 descartó. Se sustituye por la referencia aprobada ese día con su
+ajuste 2.1, recuperada del proyecto de Claude Design `019e08a5-…` y espejada en
+`docs/design/web-publica-f2-1/` y `web-publica-f2/` (sin sus cuatro notas internas, que
+son privadas, y sin los 20 KB de andamiaje que inyecta la herramienta).
+
+La referencia se identificó **por contenido**: el proyecto tenía cinco carpetas con
+nombres parecidos, y la nota de entrega de F2.1 se titula con las tres peticiones
+exactas del encargo 2.1 en Notion.
+
+**Cómo se porta sin perder fidelidad.** `src/app/landing.css` y
+`src/components/landing/sprite-iconos.ts` son **generados** desde la referencia por
+`apps/web/scripts/landing/generar-*.mjs`; el generador falla si una de sus cuatro
+adaptaciones deja de aplicar. Las secciones que el prototipo pintaba con JavaScript se
+renderizan en servidor desde `datos.ts`. Medido sección por sección a 1440, 1280, 768,
+390 y 320 px en los dos temas: **68 de 80 comparaciones coinciden**, con ±1 px CSS de
+tolerancia porque capturar a 2× convierte medio píxel en uno. Las 12 restantes tienen
+dos causas, las dos pedidas por el encargo: `biblioteca` en 10 —tres obras confirmadas
+en lugar de los cuatro títulos de la maqueta, hasta −872 px en móvil, donde desaparece
+una fila— y `libro` a 320 px en 2, porque la leyenda de formatos ya no promete audio ni
+video. Los dos temas se comportan igual, así que no hay divergencia por tema. El
+reflujo a 320 px lo corrige la implementación: la referencia desborda y esta no.
+
+`capturar.mjs` también vive en el repositorio. Sin él, `paquete-revision.mjs`
+documentaba entradas que sólo un script temporal sabía producir: el paquete se podía
+armar una vez y no volver a armar.
+
+**Lo que el reinicio de Tailwind rompía** (medido, no supuesto): márgenes de párrafo,
+el interlineado de `h1/h2/h3` desde un token inexistente, `svg{display:block}` y el
+subrayado de enlaces. Se devuelven dentro de `.fh` con la especificidad justa.
+
+**Open Verse e iconos.** La landing traía un segundo componente de marca; ahora toda la
+aplicación usa `components/brand/FeelVerse.tsx`. De los iconos de la barra, cinco de los
+siete comunes ya eran idénticos al sistema aprobado —la cabecera que los atribuía a
+`redesign-v2` era falsa—; los dos que divergían, salir y diario, se alinearon.
+`icons.design.test.ts` lo fija comparando contra `docs/design/assets/icons.jsx`.
+
+**Lo que NO hace esta landing.** No vende: los importes son los de la maqueta, con su
+aviso «Propuesta de precios · No disponible para compra», sin pasarela, y las seis
+condiciones que bloquean abrir cobros aparecen como «Por definir». **D-ORD sigue
+abierto.**
+
+**Componentes comunes: el sistema llega fiel.** De 46 tokens `--fv-*` resolubles en la
+raíz, **46 coinciden** con la referencia en los dos temas por los cuatro ambientes. Las
+únicas diferencias son cuatro alias de tipografía que pasan por `next/font`, `160ms`
+escrito `.16s`, y una corrección de contraste declarada con números: `--ren-muted` de
+`#706b62` a `#67625a`, porque el valor del diseño se queda en 4,35:1 sobre los paneles
+teñidos de Renacimiento. Esa se conserva; reproducir el diseño no incluye reintroducir
+un fallo de contraste.
+
+Dos cosas que parecían defectos y no lo son: el radio **cambia con el tema por diseño**
+(panel 24 px en Contemporary, 6 px en Renacimiento) y el control principal de envío mide
+384×44. El elemento de 24 px era el enlace auxiliar «¿Cómo?».
+
+**Hallazgo del ambiente Noche (#728), inventariado y no corregido.** Doce alias
+declarados en `<html>` como `var()` de un token que Noche redefine en `body` se quedan
+con el valor claro: bordes y sombras conservan el claro, y un acento de enlace cae a
+2,65:1 / 2,58:1 en vez de subir al claro del ambiente. El resolutor determinista ya
+modelaba el fenómeno y Círculos lo esquivó en su hoja, pero no estaba escrito qué
+alcanza; ahora sí, en `globals.css`. **Hoy es latente** en lo visitable sin sesión
+—acceso y registro sólo llegan a Calma, y la landing lleva tema y ambiente en el mismo
+elemento—. Las pantallas del panel sí llegan a Noche y **no se recorrieron con sesión**.
+Corregirlo mueve valores que fijan `color-contracts.ts`, el trinquete de
+`a11y-token-contract` y el apaño de Círculos: es el sistema de color, no la landing.
+
+**Deuda y decisiones abiertas:**
+
+- **Subir los 4 commits, abrir PR y preview de Web en staging**: una sola decisión de
+  Jorge, propuesta con su reversión en FV-42. Nada de eso se ejecutó.
+- **El espejo de `docs/design/`** no se elimina y **no se da por aprobada su
+  exposición**: repositorio público, exportación privada de Claude Design.
+- Los importes hipotéticos quedan visibles en `datos.ts` y en los dos `data-f2*.js` del
+  espejo.
+- La landing carga Geist, Geist Mono, Newsreader y Source Serif 4 **dos veces** —por
+  `next/font` y por el `<link>` a Google Fonts—. Unificarlas se probó y se revirtió:
+  bajaba la fidelidad de 8/9 secciones a 1–4/9 porque cambian las métricas. Sobre la
+  cadena externa, pasar el `@import` de la hoja a un `<link>` en el documento ganó
+  **36 ms**, no el orden de magnitud esperado; el remedio real —carga no bloqueante,
+  ~90 ms constantes— deja sin resolver el destello de texto.
+- **Las pantallas del panel no se revisaron con sesión** en Contemporary/Renacimiento ×
+  cuatro ambientes. Es el hueco que queda de la revisión por familias.
+- Los CTA de las tarjetas se alinean al pie, que la referencia no hace; con tres obras
+  de contenido desigual, sin eso quedaba un hueco de ~190 px.
+
+---
+
+### Sesión — 2026-10-22 ✅ COMPLETADA — Catálogo de Familias + UAT del lector en staging
+
+**Ramas:** `fix/catalogo-familias-ensambladas` ([PR #797](https://github.com/georgenton/psico-platform/pull/797), fusionado en `f22aa84c`) · `chore/uat-lector-staging`
+**Bitácora de la UAT:** [docs/informes/uat-2026-10-22-lector-staging.md](docs/informes/uat-2026-10-22-lector-staging.md)
+**Tests:** API 254 archivos / 3888 pruebas (+12) · typecheck ×2 · eslint · contrato OpenAPI en OK.
+
+**Lo que se corrigió (PR #797, fusionado):** el seed creaba *Familias Ensambladas*
+acreditada a una identidad de fixture y publicada, contra lo que dice la landing
+aprobada. Nace sin autor («Autoría por confirmar») y sin publicar. El nombre declarado
+el 2026-10-13 **no** se escribe: esa nota no autoriza corregir la fila alojada, así que
+la fuente sigue PENDING y la corrección va por el plan de reparación aprobado.
+`isPublished` sale también del `update` del upsert, donde reafirmaba la publicación en
+cada corrida y hacía imposible despublicar el libro sin editar el archivo.
+
+Retirarlo **rompía el onboarding**, y lo rompió ese mismo PR: dos de los siete motivos
+apuntan a ese libro y la búsqueda filtra por publicación, así que el paso final
+respondía 404. Ahora cae al ancla; el 404 sobrevive sólo para un catálogo sin ningún
+libro recomendable. Las alternativas se resuelven después del fallback, porque en
+paralelo el libro recomendado podía volver como su propia alternativa. Y dos razones
+más el copy de respaldo dejan de abrir con el nombre de pila del autor de demo.
+
+**Lo que la UAT encontró (sin escribir nada — todo `GET` más una consulta
+`BEGIN READ ONLY` dentro del contenedor de la API):**
+
+- **La landing anuncia un modo que el despliegue no puede dar.**
+  `ChapterExperienceVersion` tiene **cero filas**: no hay ninguna microguía publicada
+  ni en borrador, para ningún libro. El código del lector guiado sí está (es el PR
+  #794, el commit que staging sirve); lo que falta es contenido publicado, retenido por
+  la puerta editorial de los ADR 0027/0028. No es defecto de código: es una promesa en
+  presente que el despliegue no sostiene.
+- **El nombre de fixture sobrevive en `Book.summary` de *EEC***, que el repositorio ya
+  prohíbe (`seed-authorship.spec.ts:144`). Misma forma que el defecto de publicación:
+  el arreglo vive en el seed y la fila alojada conserva el texto viejo. **La reparación
+  de autoría tiene que alcanzar los campos de copy, no sólo la clave ajena.**
+- La **Lectura** cumple de sobra: 376 bloques reales en el capítulo 1 de *EEC*, los diez
+  capítulos agrupados en sus tres partes. La landing, por su parte, es impecable.
+- Dos falsos positivos quedan escritos para no volver a investigarlos: dos 503 en el
+  primer *prefetch* fueron arranque en frío (veinte peticiones en paralelo después, todas
+  200), y el «Siguiente» del paso 5/5 está **oculto**, no habilitado.
+
+**Deuda abierta:** `Book.summary` de EEC y la bio de la identidad de fixture esperan que
+la reparación de autoría cubra copy · la fila alojada de *Familias* sigue publicada y mal
+acreditada (actos editoriales con su propia ventana) · si las cinco microguías se
+ejecutan en el lector queda **sin verificar**, porque montarlo escribiría progreso en una
+cuenta personal: necesita la cuenta sintética · el worker de staging corre un commit
+distinto del de API y Web.
+
+---
+
+### Sesión — 2026-10-23 ✅ COMPLETADA — La reparación de autoría alcanza el copy
+
+**Rama:** `feat/authorship-repair-copy-fields` ([PR #799](https://github.com/georgenton/psico-platform/pull/799), fusionado por squash en `8cc6270c`, CI 15/15)
+**Tests:** API 3911 (+2 archivos) · `authorship-repair.pg-spec.ts` **39/39** contra PostgreSQL real (eran 35) · suite de locks 1344 · typecheck ×2 · eslint · prettier · `generate:check` OK.
+
+**Qué cierra:** la deuda que dejó escrita la UAT del 2026-10-22, justo arriba. Retirar la
+clave ajena y las credenciales corrigió la firma y nada más: la sinopsis del libro ancla
+seguía abriendo con el nombre de la identidad de fixture mientras la cabecera acreditaba
+al autor de fuente, y la bio de esa identidad afirmaba una especialidad profesional. Las
+dos se servían en público sin sesión. Un lector no distingue una firma de una frase.
+
+**Lo que propone ahora el plan:**
+
+- `withdraw-author-credentials` retira también `bio`, en la **misma** escritura
+  condicionada. Es la misma clase de afirmación que el título —algo sobre una persona que
+  nadie acreditó— sobre la misma fila; separarla serían dos UPDATE y dos ocasiones de
+  aplicar a medias. Va a `null`, que es como esta herramienta dice «sin fuente».
+- `withdraw-book-copy`, nueva, sustituye `summary`/`description` por un **marcador
+  declarado** cuando nombran una identidad de `FIXTURE_AUTHOR_SLUGS`. No se vacían: una
+  sinopsis describe una obra real y publicada, y borrarla degradaría una página legítima
+  por un defecto de una cláusula. No se reescriben: el seed enseña cómo fue el arreglo
+  honesto —el nombre fuera, el verbo y el artículo recompuestos— y lo hizo una persona con
+  criterio; una cirugía con regex produce español agramatical o una afirmación editorial
+  que nadie revisó. El literal anterior sobrevive en la preimagen privada para quien
+  escriba el reemplazo. Alcanza también a una obra **PENDING**: retirar un nombre sin
+  fuente no inventa quién la escribió.
+
+**Los nombres se derivan de `FIXTURE_AUTHOR_SLUGS`**, vía `fixtureIdentitiesNamedIn`, que
+comparten el planificador y el trinquete para que no puedan discrepar. Dos estrictezes, y
+la razón es medible: el nombre completo cuenta en cualquier caja (dos tokens en secuencia
+no son coincidencia), pero un token suelto sólo escrito como nombre propio — un slug
+futuro como `luz-blanco` convertiría palabras corrientes en disparadores, y aquí un falso
+positivo destruye copy legítimo.
+
+**Tres defectos que destapó ejercitar el plan de verdad** (contenedor `pgvector:pg18`,
+migraciones, `seed:catalog`, el estado de la UAT recreado, y el recorrido hasta `--apply`):
+
+1. La **preimagen no guardaba `bio`** — la retirada ya lo borraba, así que revertirla
+   habría restaurado una fila distinta de la que reemplazó. Hay trinquete derivado de
+   `WITHDRAWAL`: el día que la retirada alcance otra columna, cae.
+2. `planAuthorshipRepair` **aceptaba un snapshot sin las columnas nuevas** — `readSnapshot`
+   castea el `select` sin comprobar, así que un campo olvidado llega `undefined` y el
+   compilador no lo ve: el plan habría informado un catálogo limpio.
+3. Con una columna desconocida, «¿ya está retirado?» comparaba `undefined` con `undefined`,
+   respondía que sí, y la operación se volvía un **no-op silencioso**. La validación va
+   ahora antes que ninguna otra pregunta: un rechazo con cara de éxito es peor que la
+   escritura que evita.
+
+**Seed:** deja de sembrar biografía para la identidad de fixture. Era prosa sobre alguien
+que nadie acreditó —lo que la reparación retira, así que un catálogo nuevo nacería en el
+estado que ella existe para dejar atrás— y el texto que llevaba era vocabulario interno
+renderizado en una ficha pública.
+
+**Trinquete nuevo** (`catalog-copy-fixture-names.spec.ts`): ningún campo de copy del
+catálogo puede volver a nombrar una identidad de fixture. **Verificado por mutación** —
+nombre completo en la sinopsis y nombre de pila en la bio caen; «la vida marina» en
+minúsculas pasa, que es el control del falso positivo. `seed-authorship.spec.ts` no se
+tocó y sigue pasando.
+
+**Lo que esto NO hace:** no se aplicó nada contra staging ni producción — es el plan y sus
+pruebas. `AUTHORSHIP_SOURCES` sigue sin la autoría declarada el 2026-10-13, que el
+propietario mantiene entre lo que revisa con aprobación explícita. La fila de fixture no se
+renombra (una fila puede cargar varios libros, y renombrarla fusionaría dos identidades).
+
+**Deuda abierta:** la fila alojada sigue con el copy viejo hasta que se autorice aplicar el
+plan · *Familias Ensambladas* sigue publicada y mal acreditada en el despliegue (acto
+editorial con su propia ventana) · `title` y `subtitle` quedan fuera de lo que el plan
+reescribe —un título es cómo se navega y se cita el catálogo— pero el trinquete sí los
+vigila, así que un título que nombrara una identidad de fixture fallaría el build antes de
+llegar a una base.
+
+---
+
 ### Próximo paso — arco de libros cerrado
 
 📖 **El roadmap maestro del Mapa Emocional vive en la tabla de arriba** (Etapas 0-6 ✅, R = paper). **El roadmap de infra vive en [docs/ROADMAP.md](docs/ROADMAP.md)** (Sprints 1-5 cerrados + bug de Sprint 3).

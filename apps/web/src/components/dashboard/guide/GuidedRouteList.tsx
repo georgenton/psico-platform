@@ -26,6 +26,10 @@
 
 import type { CSSProperties } from "react";
 import type { GuideRouteItem } from "@psico/types";
+// The same minimum touch target the practice scenes adopted in B4. Imported
+// rather than written again: one number, one place to lower it, and a test
+// that measures against what the component actually draws.
+import { TOUCH_TARGET } from "../experience/practices/practice-ui";
 import type { GuideRouteState } from "./use-guide-route";
 import {
   ROUTE_CTA as CTA,
@@ -42,6 +46,22 @@ export interface GuidedRouteListProps {
   state: GuideRouteState;
   /** The server's verdict per `guideKey@guideVersion`. Absent ⇒ `unknown`. */
   verdicts: ReadonlyMap<string, RouteCardVerdict>;
+  /**
+   * The pins this chapter can actually RUN: one published experience at that
+   * exact version, and a server that will admit a new session for it.
+   *
+   * A verdict and this are different questions. A verdict says what the reader
+   * has done; it is `start` for a pin nobody has begun — including one with no
+   * experience behind it at all. Offering «Empezar» on that is a button whose
+   * only possible outcome is a refusal: measured on
+   * `eec-c1-cuerpo-antes-que-mente@1`, where the press answered 410, and on
+   * the five C01 microguides, where the panel refuses because no experience is
+   * published for them.
+   *
+   * Required on purpose. A caller that cannot answer must pass an empty set
+   * and offer nothing — the honest reading of "I don't know" is not "yes".
+   */
+  runnablePins: ReadonlySet<string>;
   onOpen: (item: GuideRouteItem) => void;
   onRetry?: () => void;
 }
@@ -51,6 +71,7 @@ const pinOf = routeItemPinKey;
 export function GuidedRouteList({
   state,
   verdicts,
+  runnablePins,
   onOpen,
   onRetry,
 }: GuidedRouteListProps) {
@@ -99,7 +120,20 @@ export function GuidedRouteList({
       <ol style={S.list}>
         {state.guides.map((item) => {
           const verdict = verdicts.get(pinOf(item)) ?? "unknown";
-          const disabled = verdict === "unknown";
+          // `runnablePins` answers ONE question: may a NEW session begin on
+          // this pin. It must gate `start` and nothing else.
+          //
+          // Flattening every verdict to `unknown` also erased `continue` and
+          // `completed`, which are not about starting at all: they belong to
+          // a session that already exists and resolves its own pinned
+          // version, which the server keeps serving precisely so a journey
+          // begun before a retirement can be finished. Hiding it would have
+          // taken someone's progress away to protect them from a start they
+          // were not asking for.
+          const ejecutable = runnablePins.has(pinOf(item));
+          const mostrado: RouteCardVerdict =
+            verdict === "start" && !ejecutable ? "unknown" : verdict;
+          const disabled = mostrado === "unknown";
           return (
             <li key={pinOf(item)} style={S.card} data-testid="route-card">
               <div style={S.cardHead}>
@@ -111,10 +145,10 @@ export function GuidedRouteList({
               <p style={S.description}>{item.description}</p>
               <p style={S.meta}>
                 <span>{item.estimatedMinutes} min</span>
-                {STATUS[verdict] ? (
+                {STATUS[mostrado] ? (
                   <>
                     {" · "}
-                    <span>{STATUS[verdict]}</span>
+                    <span>{STATUS[mostrado]}</span>
                   </>
                 ) : null}
               </p>
@@ -123,9 +157,9 @@ export function GuidedRouteList({
                 style={disabled ? { ...S.cta, ...S.ctaDisabled } : S.cta}
                 disabled={disabled}
                 onClick={() => onOpen(item)}
-                aria-label={`${CTA[verdict]}: ${item.title}`}
+                aria-label={`${CTA[mostrado]}: ${item.title}`}
               >
-                {CTA[verdict]}
+                {CTA[mostrado]}
               </button>
             </li>
           );
@@ -190,6 +224,19 @@ const S: Record<string, CSSProperties> = {
     marginTop: 6,
     alignSelf: "flex-start",
     padding: "8px 14px",
+    // The only control on the card, and the whole point of it. Padding and a
+    // 13px line left it ~31px tall, under the 44 the practice scenes adopted.
+    // Measured at 44 after this, with the card 320 and 288px wide.
+    //
+    // Not the last one in the reader: `GuidedRouteNavigator`, the compact half
+    // of this same route, still declares a ~38px row and a ~26px «Reintentar».
+    // That is its own surface and its own change, not a wider blast radius
+    // for this one.
+    //
+    // `minHeight` and not `height`: the label can wrap on a narrow card, and
+    // what should give then is the button growing taller, never the text
+    // being clipped to hold a fixed box.
+    minHeight: TOUCH_TARGET,
     borderRadius: 10,
     border: "1px solid var(--color-sage-600)",
     background: "var(--color-sage-600)",
@@ -197,6 +244,9 @@ const S: Record<string, CSSProperties> = {
     cursor: "pointer",
     font: "500 13px/1 var(--font-sans)",
   },
+  // Spread OVER `cta`, so it inherits the touch target: this says what the
+  // control looks like when there is nothing to offer, not how big it is. A
+  // disabled control is still the thing a finger lands on.
   ctaDisabled: {
     border: "1px solid var(--color-warm-300)",
     background: "var(--color-warm-100)",
@@ -210,6 +260,10 @@ const S: Record<string, CSSProperties> = {
   },
   ghost: {
     padding: "8px 14px",
+    // «Reintentar» has the same shape as the CTA and the same ~31px, and it is
+    // the only control the error state offers. Someone whose route failed to
+    // load is already having a bad time; a small target is worst there.
+    minHeight: TOUCH_TARGET,
     borderRadius: 10,
     border: "1px solid var(--color-warm-300)",
     background: "transparent",

@@ -275,9 +275,30 @@ export function ChatArea({
     setMessages((m) => [...m, optimisticUser]);
 
     let buffered = "";
+    // Un `error` dentro del flujo NO lanza: el `break` sale del switch y la
+    // ejecución continúa hasta el final del envío. Sin esta bandera, los
+    // deltas ya recibidos entraban en `if (buffered)` y una respuesta
+    // parcial FALLIDA se revelaba y se guardaba como burbuja del asistente,
+    // con un id inventado y sin `done`. El intento se marca aquí y se cierra
+    // abajo, en un solo sitio.
+    let fallo: string | null = null;
     let crisis: { text: string; hotline: string; crisisPath: string } | null =
       null;
     let doneMessageId: string | null = null;
+
+    /**
+     * Deshacer este intento: ni burbuja huérfana, ni texto perdido, ni fase
+     * ocupada. Lo usan los dos caminos de fallo —el `catch` y el evento del
+     * flujo— para que no puedan discrepar.
+     */
+    const rebobinar = (mensaje: string) => {
+      setSendError(mensaje);
+      setMessages((m) => m.filter((msg) => msg.id !== optimisticId));
+      setText(plain);
+      finalizeRef.current = null;
+      setStreamTarget("");
+      setPhase("idle");
+    };
 
     try {
       await ecoApi.sendMessage(
@@ -315,7 +336,10 @@ export function ChatArea({
                 }
                 break;
               case "error":
-                setSendError(ev.data.message);
+                // Sólo se anota. El rebobinado vive en un único sitio, tras
+                // cerrarse el flujo, para que no haya dos versiones de qué
+                // significa que este intento falló.
+                fallo = ev.data.message;
                 break;
             }
           },
@@ -327,15 +351,9 @@ export function ChatArea({
       // el cliente metía ahí el cuerpo de la respuesta, la burbuja llegó a
       // enseñar el sobre JSON del API con su código dentro (#741).
       console.error("Eco sendMessage failed", err);
-      setSendError(
+      rebobinar(
         ecoErrorCopy(err instanceof ApiError ? err.statusCode : null).message,
       );
-      // Roll back the optimistic user msg so the user can edit + resend.
-      setMessages((m) => m.filter((msg) => msg.id !== optimisticId));
-      setText(plain);
-      finalizeRef.current = null;
-      setStreamTarget("");
-      setPhase("idle");
       return;
     }
 
@@ -358,6 +376,15 @@ export function ChatArea({
       setStreamTarget("");
       setPhase("idle");
       onMessageSent();
+      return;
+    }
+
+    // El flujo se cerró con un error. Lo que haya llegado antes es una
+    // respuesta a medias, no una respuesta: revelarla la presentaría como
+    // completa y la guardaría con un id que nadie emitió. El intento termina
+    // aquí, con el borrador de vuelta.
+    if (fallo) {
+      rebobinar(fallo);
       return;
     }
 

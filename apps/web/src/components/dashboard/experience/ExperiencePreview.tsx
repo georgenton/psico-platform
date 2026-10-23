@@ -12,6 +12,7 @@
  */
 
 import type { ChapterConcept, ChapterExperiencePublicView } from "@psico/types";
+import type { ExperienceMediaHooks } from "./scene-contract";
 import { ExperiencePlayerSurface } from "./ExperiencePlayer";
 import { useExperiencePreviewRun } from "./use-experience-preview-run";
 import type { GuideWebBundle } from "../guide/guide-web-bundle";
@@ -23,10 +24,28 @@ export function ExperiencePreview({
   definition,
   bundle,
   concept = null,
+  media = null,
 }: {
   definition: ChapterExperiencePublicView;
   bundle: GuideWebBundle;
   concept?: ChapterConcept | null;
+  /**
+   * B3 — lo que una escena necesita para PEDIR lo suyo: la interacción de una
+   * práctica, el medio de un capítulo.
+   *
+   * Iba en `null`, y eso dejaba la vista previa a medias sin decirlo. La
+   * escena de práctica mostraba su título, su cuerpo y su nota, y las cuatro
+   * tarjetas a ordenar no aparecían nunca — `PracticeInteractionView` las pide
+   * a `/learning/practices/:key` y sin contexto no pide nada. Quien revisara
+   * MG03 por aquí no llegaba a ver la mitad del trabajo, y la pantalla no
+   * daba ninguna señal de que faltara algo.
+   *
+   * Es un contexto de LECTURA. Lo que esta vista no hace sigue sin hacerlo:
+   * la ejecución es la de previsualización, que no registra avance, ni
+   * respuestas, ni resonancias, y no abre ninguna sesión. `null` sigue siendo
+   * válido y se degrada a lo de antes.
+   */
+  media?: ExperienceMediaHooks | null;
 }) {
   const run = useExperiencePreviewRun(bundle.presentation);
 
@@ -50,7 +69,10 @@ export function ExperiencePreview({
         // inside the CMS would be a second reader to keep in step.
         anchor={null}
         concept={concept}
-        media={null}
+        media={media}
+        // Nada de lo que se pulse aquí abre una sesión, así que la respuesta
+        // del servidor sobre inicios nuevos no gobierna este botón.
+        startOpensASession={false}
         run={run}
         // The reader's place in this experience is not the editor's to move.
         persistSceneCursor={false}

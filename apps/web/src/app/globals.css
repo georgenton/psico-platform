@@ -790,6 +790,43 @@ body.amb-energia {
   --fv-reader-leading: 1.6;
 }
 
+/* INVENTARIO DEL #728 EN NOCHE — doce alias que este bloque NO alcanza.
+   Medido el 16-10-2026 en el navegador, los dos temas. No se corrige aquí:
+   queda escrito para que quien lo arregle sepa qué toca y qué se mueve.
+
+   El ambiente vive en `body` y los temas en `<html>`. Un `--a: var(--b)`
+   declarado arriba congela allí el valor claro y no acompaña al ambiente, por
+   mucho que este bloque redefina `--b` después. Es el mismo #728 que obligó a
+   bajar `--color-error-text` a `body` unas líneas más arriba.
+
+   Los que se quedan atrás, con lo que heredan de más:
+
+     contemporary  --fv-border, --fv-eco-border            = var(--fv-rule)
+     renaissance   --fv-border                             = var(--fv-text)
+                   --fv-border-quiet                       = var(--fv-rule)
+                   --fv-cover-fill                         = var(--fv-background)
+                   --fv-cover-label-color                  = var(--fv-muted)
+                   --fg-link, --fg-link-strong             = var(--fv-brand-ground)
+                   --bg-action-soft                        = var(--fv-action-soft)
+                   --shadow-soft, --shadow-card-sm         = var(--fv-shadow-quiet)
+                   --shadow-card                           = var(--fv-shadow-card)
+
+   Consecuencia si una pantalla los pinta en Noche: los bordes conservan el
+   valor claro, las sombras siguen dibujándose donde Noche las puso en `none`,
+   y un acento de enlace cae a 2,65:1 en Contemporary y 2,58:1 en Renacimiento
+   en lugar de subir a `#c3baff` / `#c0aedc`.
+
+   Hoy es LATENTE en lo que se puede visitar sin sesión: `/login` y `/register`
+   sólo alcanzan Calma —el selector de ambiente vive en el panel— y la landing
+   lleva tema y ambiente en el MISMO elemento, así que ahí no hay retraso
+   posible. Círculos ya lo esquivó en su propia hoja por esta razón. Las
+   pantallas del panel, que sí llegan a Noche, no se han recorrido con sesión.
+
+   La corrección es redeclarar esos alias sobre `body` por tema, como se hizo
+   con `--color-error-text`. Mueve valores que hoy fijan
+   `color-contracts.ts`, el trinquete de `a11y-token-contract` y el apaño local
+   de Círculos: es un cambio del sistema de color, no de la landing, y pide su
+   propia entrega. */
 body.amb-noche {
   --fv-background: #221f1c;
   --fv-surface: #2b2724;

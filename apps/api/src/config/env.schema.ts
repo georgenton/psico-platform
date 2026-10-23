@@ -61,6 +61,17 @@ export const envSchema = z
     // AI companion
     ANTHROPIC_API_KEY: z.string().min(1, "ANTHROPIC_API_KEY is required"),
     VOYAGE_API_KEY: z.string().min(1, "VOYAGE_API_KEY is required"),
+    /**
+     * Where the embeddings client points. Absent means the vendor's own
+     * endpoint, which is what every deployed box uses.
+     *
+     * It exists so the external boundary can be driven by a local, declared
+     * stand-in while exercising Eco's success, failure and recovery, the way
+     * the Anthropic SDK already allows through `ANTHROPIC_BASE_URL`. Without
+     * a seam on this side, a QA run cannot reach the model at all: retrieval
+     * runs first, and its 401 ends the turn before the model is asked.
+     */
+    VOYAGE_BASE_URL: z.string().url().optional(),
     AI_MAX_CONTEXT_CHUNKS: z.coerce.number().int().positive().default(5),
 
     // Stripe billing

@@ -5,6 +5,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import type { GuideRouteItem } from "@psico/types";
 import { GuidedRouteList, type RouteCardVerdict } from "./GuidedRouteList";
 import { useGuideRoute } from "./use-guide-route";
+import { TOUCH_TARGET } from "../experience/practices/practice-ui";
 
 vi.mock("@psico/api-client", () => ({
   guideApi: { getGuideRoute: vi.fn() },
@@ -43,10 +44,20 @@ const GUIDES: GuideRouteItem[] = [
 const verdicts = (m: Record<string, RouteCardVerdict>) =>
   new Map(Object.entries(m));
 
+/**
+ * Las tres del fixture tienen experiencia publicada y arrancable, salvo en
+ * las pruebas que existen para el caso contrario. Por defecto, estas pruebas
+ * siguen hablando del VEREDICTO, que es lo que siempre midieron.
+ */
+const TODAS_EJECUTABLES = new Set(
+  GUIDES.map((g) => `${g.guideKey}@${g.guideVersion}`),
+);
+
 describe("the guided route list", () => {
   it("renders nothing while the route is dark", () => {
     const { container } = render(
       <GuidedRouteList
+        runnablePins={TODAS_EJECUTABLES}
         state={{ status: "unavailable" }}
         verdicts={new Map()}
         onOpen={() => {}}
@@ -59,6 +70,7 @@ describe("the guided route list", () => {
   it("shows a skeleton while it is loading", () => {
     render(
       <GuidedRouteList
+        runnablePins={TODAS_EJECUTABLES}
         state={{ status: "loading" }}
         verdicts={new Map()}
         onOpen={() => {}}
@@ -75,6 +87,7 @@ describe("the guided route list", () => {
     const onRetry = vi.fn();
     render(
       <GuidedRouteList
+        runnablePins={TODAS_EJECUTABLES}
         state={{ status: "error" }}
         verdicts={new Map()}
         onOpen={() => {}}
@@ -92,6 +105,7 @@ describe("the guided route list", () => {
   it("lists one card per reading, in the server's order", () => {
     render(
       <GuidedRouteList
+        runnablePins={TODAS_EJECUTABLES}
         state={{ status: "available", guides: GUIDES }}
         verdicts={new Map()}
         onOpen={() => {}}
@@ -107,6 +121,7 @@ describe("the guided route list", () => {
   it("gives every card its own verdict, independently", () => {
     render(
       <GuidedRouteList
+        runnablePins={TODAS_EJECUTABLES}
         state={{ status: "available", guides: GUIDES }}
         verdicts={verdicts({
           "eec-c1-teorias-como-lentes@1": "completed",
@@ -132,6 +147,7 @@ describe("the guided route list", () => {
   it("refuses to offer a click when there is no verdict", () => {
     render(
       <GuidedRouteList
+        runnablePins={TODAS_EJECUTABLES}
         state={{ status: "available", guides: GUIDES }}
         verdicts={new Map()}
         onOpen={() => {}}
@@ -149,6 +165,7 @@ describe("the guided route list", () => {
     const onOpen = vi.fn();
     render(
       <GuidedRouteList
+        runnablePins={TODAS_EJECUTABLES}
         state={{ status: "available", guides: GUIDES }}
         verdicts={verdicts({ "eec-c1-rostro-como-pista@1": "start" })}
         onOpen={onOpen}
@@ -165,6 +182,7 @@ describe("the guided route list", () => {
     const onOpen = vi.fn();
     render(
       <GuidedRouteList
+        runnablePins={TODAS_EJECUTABLES}
         state={{ status: "available", guides: GUIDES }}
         verdicts={verdicts({ "eec-c1-teorias-como-lentes@1": "start" })}
         onOpen={onOpen}
@@ -181,6 +199,7 @@ describe("the guided route list", () => {
   it("never shows the historical pilot as one more card", () => {
     render(
       <GuidedRouteList
+        runnablePins={TODAS_EJECUTABLES}
         state={{ status: "available", guides: GUIDES }}
         verdicts={new Map()}
         onOpen={() => {}}
@@ -258,5 +277,256 @@ describe("the route hook", () => {
       }),
     );
     await waitFor(() => expect(result.current.status).toBe("error"));
+  });
+});
+
+describe("una guía sin experiencia ejecutable no se ofrece", () => {
+  it("la tarjeta queda deshabilitada aunque su veredicto diga «Empezar»", () => {
+    // El veredicto dice lo que la persona ha hecho: para una guía que nadie
+    // empezó, `start`. Eso no dice nada sobre si hay algo que abrir. El pin
+    // de esta tarjeta no está entre los ejecutables.
+    render(
+      <GuidedRouteList
+        state={{ status: "available", guides: GUIDES }}
+        verdicts={verdicts({
+          "eec-c1-teorias-como-lentes@1": "start",
+          "eec-c1-rostro-como-pista@1": "start",
+          "eec-c1-alarma-antes-del-relato@1": "start",
+        })}
+        runnablePins={new Set(["eec-c1-rostro-como-pista@1"])}
+        onOpen={() => {}}
+      />,
+    );
+
+    const sinEjecutor = screen.getByRole("button", {
+      name: "No disponible ahora: Las teorías son lentes",
+    });
+    expect(sinEjecutor).toBeDisabled();
+
+    // Y la que sí tiene experiencia conserva su oferta.
+    expect(
+      screen.getByRole("button", { name: "Empezar: El rostro como pista" }),
+    ).toBeEnabled();
+  });
+
+  it("no se puede abrir pulsándola", async () => {
+    const onOpen = vi.fn();
+    const usuario = userEvent.setup();
+    render(
+      <GuidedRouteList
+        state={{ status: "available", guides: GUIDES }}
+        verdicts={verdicts({ "eec-c1-teorias-como-lentes@1": "start" })}
+        runnablePins={new Set()}
+        onOpen={onOpen}
+      />,
+    );
+
+    await usuario
+      .click(
+        screen.getByRole("button", {
+          name: "No disponible ahora: Las teorías son lentes",
+        }),
+      )
+      .catch(() => {
+        /* un control deshabilitado rechaza el clic: es el resultado buscado */
+      });
+
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it("pero sí presenta «En curso»: la puerta es para empezar, no para seguir", () => {
+    // Esta prueba afirmaba lo contrario. Era mía, y era un error: aplastar
+    // todo veredicto a «desconocido» borraba también el progreso de quien ya
+    // había empezado. `startable` contesta sobre altas nuevas y nada más.
+    render(
+      <GuidedRouteList
+        state={{ status: "available", guides: GUIDES }}
+        verdicts={verdicts({ "eec-c1-teorias-como-lentes@1": "continue" })}
+        runnablePins={new Set()}
+        onOpen={() => {}}
+      />,
+    );
+
+    expect(screen.getByText("En curso")).toBeInTheDocument();
+  });
+});
+
+describe("empezar, continuar y revisar son preguntas distintas", () => {
+  it("3 · retirada para inicios nuevos, pero con sesión: se puede continuar", () => {
+    // `startable` contesta sobre altas nuevas. Una sesión existente resuelve
+    // su propia versión fijada y el servidor la sigue sirviendo; esconderla
+    // sería quitarle a alguien un progreso que ya es suyo.
+    render(
+      <GuidedRouteList
+        state={{ status: "available", guides: GUIDES }}
+        verdicts={verdicts({ "eec-c1-teorias-como-lentes@1": "continue" })}
+        runnablePins={new Set()}
+        onOpen={() => {}}
+      />,
+    );
+
+    const boton = screen.getByRole("button", {
+      name: "Continuar: Las teorías son lentes",
+    });
+    expect(boton).toBeEnabled();
+    expect(screen.getByText("En curso")).toBeInTheDocument();
+  });
+
+  it("4 · sesión completada: se puede revisar, aunque no se pueda empezar otra", () => {
+    render(
+      <GuidedRouteList
+        state={{ status: "available", guides: GUIDES }}
+        verdicts={verdicts({ "eec-c1-teorias-como-lentes@1": "completed" })}
+        runnablePins={new Set()}
+        onOpen={() => {}}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Revisar: Las teorías son lentes" }),
+    ).toBeEnabled();
+    expect(screen.getByText("Completada")).toBeInTheDocument();
+  });
+
+  it("y continuar abre de verdad: la puerta no se traga el clic", async () => {
+    const onOpen = vi.fn();
+    const usuario = userEvent.setup();
+    render(
+      <GuidedRouteList
+        state={{ status: "available", guides: GUIDES }}
+        verdicts={verdicts({ "eec-c1-teorias-como-lentes@1": "continue" })}
+        runnablePins={new Set()}
+        onOpen={onOpen}
+      />,
+    );
+
+    await usuario.click(
+      screen.getByRole("button", { name: "Continuar: Las teorías son lentes" }),
+    );
+
+    expect(onOpen).toHaveBeenCalledTimes(1);
+  });
+
+  it("5 · sin respuesta del servidor el estado es desconocido, no «retirada»", () => {
+    // Un veredicto ausente es desconocimiento. No se afirma que esté
+    // retirada, y tampoco se ofrece: no se puede prometer lo que no se sabe.
+    render(
+      <GuidedRouteList
+        state={{ status: "available", guides: GUIDES }}
+        verdicts={verdicts({})}
+        runnablePins={TODAS_EJECUTABLES}
+        onOpen={() => {}}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", {
+        name: "No disponible ahora: Las teorías son lentes",
+      }),
+    ).toBeDisabled();
+  });
+});
+
+/**
+ * El área que se pulsa en la tarjeta de microguía.
+ *
+ * Su botón es el único control que la tarjeta tiene y la razón de que exista,
+ * y medía unos 31 px de alto: por debajo de los 44 que el resto del lector
+ * mantiene. Hoy no se nota porque las cinco microguías de C01 siguen en
+ * borrador y las tarjetas salen deshabilitadas, pero en cuanto una se publique
+ * eso pasa a ser una zona táctil de verdad.
+ *
+ * Las medidas se leen del estilo que el componente aplica, contra la misma
+ * constante que dibuja: si alguien la baja, o quita el `minHeight`, esto falla.
+ */
+describe("áreas táctiles del recorrido guiado", () => {
+  const alto = (el: HTMLElement) => parseFloat(el.style.minHeight || "0");
+
+  it("el botón de la tarjeta mide al menos 44 de alto", () => {
+    render(
+      <GuidedRouteList
+        state={{ status: "available", guides: GUIDES }}
+        verdicts={verdicts({
+          "eec-c1-teorias-como-lentes@1": "start",
+          "eec-c1-rostro-como-pista@1": "continue",
+          "eec-c1-alarma-antes-del-relato@1": "completed",
+        })}
+        runnablePins={TODAS_EJECUTABLES}
+        onOpen={() => {}}
+      />,
+    );
+
+    const botones = screen.getAllByRole("button");
+    expect(botones).toHaveLength(3);
+    for (const b of botones) {
+      expect(alto(b)).toBeGreaterThanOrEqual(TOUCH_TARGET);
+    }
+  });
+
+  it("y también cuando está deshabilitado", () => {
+    // `ctaDisabled` se aplica ENCIMA de `cta` y sólo cambia colores y cursor.
+    // Si algún día dejara de heredar el tamaño, o se invirtiera el orden de la
+    // mezcla, el control que más se mira sería el más pequeño.
+    render(
+      <GuidedRouteList
+        state={{ status: "available", guides: GUIDES }}
+        verdicts={new Map()}
+        runnablePins={new Set()}
+        onOpen={() => {}}
+      />,
+    );
+
+    const botones = screen.getAllByRole("button");
+    expect(botones).toHaveLength(3);
+    for (const b of botones) {
+      expect(b).toBeDisabled();
+      expect(alto(b)).toBeGreaterThanOrEqual(TOUCH_TARGET);
+    }
+  });
+
+  it("«Reintentar» tampoco es más difícil de pulsar", () => {
+    // El único control del estado de error. Quien llega ahí ya tuvo un fallo;
+    // es el peor sitio para una zona táctil pequeña.
+    render(
+      <GuidedRouteList
+        state={{ status: "error" }}
+        verdicts={new Map()}
+        runnablePins={new Set()}
+        onOpen={() => {}}
+        onRetry={() => {}}
+      />,
+    );
+
+    const reintentar = screen.getByRole("button", {
+      name: "Reintentar cargar el recorrido guiado",
+    });
+    expect(alto(reintentar)).toBeGreaterThanOrEqual(TOUCH_TARGET);
+  });
+
+  it("control negativo — los 31 px de antes ya no pasarían", () => {
+    // El tamaño anterior, escrito aquí para que la prueba signifique algo: si
+    // `TOUCH_TARGET` volviera a un número que el padding y una línea de 13px
+    // alcanzan por sí solos, esta afirmación caería.
+    expect(TOUCH_TARGET).toBeGreaterThan(31);
+  });
+
+  it("el alto no se cobra en ancho: la tarjeta sigue pudiendo ser estrecha", () => {
+    // La tarjeta es una columna, así que el botón crece hacia abajo. Lo que
+    // produciría desbordamiento horizontal a 320 px es fijarle un ancho, y
+    // eso es justo lo que no se hizo.
+    render(
+      <GuidedRouteList
+        state={{ status: "available", guides: GUIDES }}
+        verdicts={verdicts({ "eec-c1-teorias-como-lentes@1": "start" })}
+        runnablePins={TODAS_EJECUTABLES}
+        onOpen={() => {}}
+      />,
+    );
+
+    const boton = screen.getByRole("button", {
+      name: "Empezar: Las teorías son lentes",
+    });
+    expect(boton.style.width).toBe("");
+    expect(boton.style.minWidth).toBe("");
   });
 });

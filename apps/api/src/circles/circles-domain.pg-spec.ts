@@ -370,6 +370,9 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
       "20260916000000_circles_analytics",
       "20260916100000_circles_adult_groups",
       "20260917000000_circles_flexible_onboarding",
+      // El sello editorial (B3): aditiva, y nombrada aquí para que una recién
+      // llegada sin nombre siga fallando, que es lo que esta cola protege.
+      "20261021000000_editorial_origin_seal",
     ]);
     expect(baseline).toHaveLength(63);
 

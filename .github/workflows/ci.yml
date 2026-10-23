@@ -51,8 +51,26 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter @psico/api exec prisma generate
 
-      - name: Lint (affected)
-        run: pnpm turbo run lint --affected
+      # B6 — sin `--affected`, y conviene dejar escrito por qué para que nadie
+      # lo reponga buscando segundos.
+      #
+      # `--affected` resuelve su rango de forma distinta en cada ejecución, y
+      # cuando se equivoca no falla: comprueba menos y sale en verde. Medido
+      # en este repositorio, los tres trabajos daban SUCCESS con
+      # `Tasks: 0 successful, 0 total` cuando el commit de cabeza sólo tocaba
+      # documentación (#793@5bd0f29b), y en otra ejecución del MISMO PR
+      # ampliaban a los 12 paquetes porque Turbo no pudo determinar el rango.
+      # Entre medias, en #791 el alcance se redujo a `@psico/api`, y por eso un
+      # error de tipos de `apps/web` introducido en esa pila sobrevivió hasta
+      # que alguien corrió `tsc` a mano.
+      #
+      # Correrlo entero cuesta poco y el caché de turbo se encarga del resto:
+      # en el workflow Release, que ya lo hace así, Lint tarda 22 s, Typecheck
+      # 55 s y Build 70 s sobre el árbol completo. Es el mismo razonamiento que
+      # el trabajo `test` tomó en el sprint S41 — la red de seguridad vale más
+      # que el ahorro —, ahora aplicado a los otros tres.
+      - name: Lint
+        run: pnpm turbo run lint
         env:
           TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
           TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
@@ -86,8 +104,9 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter @psico/api exec prisma generate
 
-      - name: Typecheck (affected)
-        run: pnpm turbo run typecheck --affected
+      # B6 — entero, no `--affected`. El razonamiento está en el trabajo `lint`.
+      - name: Typecheck
+        run: pnpm turbo run typecheck
         env:
           TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
           TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
@@ -337,8 +356,11 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter @psico/api exec prisma generate
 
-      - name: Build (affected, excludes mobile — built via EAS)
-        run: pnpm turbo run build --affected --filter=!@psico/mobile
+      # B6 — entero, no `--affected`. El razonamiento está en el trabajo `lint`.
+      # El `--filter` se queda: excluir mobile no es una optimización, es que
+      # se construye por EAS.
+      - name: Build (excludes mobile — built via EAS)
+        run: pnpm turbo run build --filter=!@psico/mobile
         env:
           TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
           TURBO_TEAM: ${{ secrets.TURBO_TEAM }}

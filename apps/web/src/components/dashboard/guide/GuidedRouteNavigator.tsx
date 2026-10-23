@@ -28,6 +28,10 @@
 
 import type { CSSProperties } from "react";
 import type { GuideRouteItem } from "@psico/types";
+// Same minimum touch target as the practice scenes and the full route cards.
+// One number, imported in all three places, so lowering it breaks a test
+// instead of quietly shrinking a control.
+import { TOUCH_TARGET } from "../experience/practices/practice-ui";
 import type { GuideRouteState } from "./use-guide-route";
 import type { GuidePin } from "./guide-pin";
 import {
@@ -158,6 +162,11 @@ const S: Record<string, CSSProperties> = {
     alignItems: "center",
     justifyContent: "space-between",
     gap: 8,
+    // The control that folds the route down to one line on a phone — which
+    // this component exists to allow — and the smallest of the three here:
+    // two 12px/1.3 spans and no padding left it 15.6px tall, measured. Being a
+    // `summary` rather than a `button` changes nothing about the finger.
+    minHeight: TOUCH_TARGET,
     cursor: "pointer",
     listStyle: "none",
   },
@@ -185,6 +194,19 @@ const S: Record<string, CSSProperties> = {
     alignItems: "center",
     gap: 8,
     padding: "7px 8px",
+    // The 22px mark set the row's height, so 7px of padding and a border left
+    // it 38px, measured. Compact is the point of this half of the route, but
+    // density stops being a virtue at the size of the thing you have to hit.
+    // The cost, measured on a five-reading chapter: the whole disclosure goes
+    // from 258 to 310px in the 380px drawer, and the summary above can fold it
+    // away. The panel's own buttons (`.rgp-btn`) already keep 44; these rows
+    // were the one surface inside it that did not.
+    //
+    // `minHeight`, not `height`: a long title wraps here (`rowTitle` has no
+    // `nowrap`), and a row that already needs two lines must keep growing.
+    // Measured: a wrapped row stays 51px in the drawer and 69px at 320,
+    // identical before and after, so this floor never clips one.
+    minHeight: TOUCH_TARGET,
     borderRadius: 8,
     border: "1px solid transparent",
     background: "transparent",
@@ -193,6 +215,10 @@ const S: Record<string, CSSProperties> = {
     font: "400 13px/1.35 var(--font-sans)",
     color: "var(--color-warm-800)",
   },
+  // Both are spread OVER `row`, so both inherit its touch target: they say
+  // what a row looks like when it is on screen or has nothing to offer, not
+  // how big it is. Asserted in the tests, because the order of a spread is
+  // easy to change and the consequence is invisible until someone taps.
   rowActive: {
     border: "1px solid var(--color-lavender-400, #a78bfa)",
     background: "var(--color-lavender-50, #f5f3ff)",
@@ -218,6 +244,9 @@ const S: Record<string, CSSProperties> = {
   ghost: {
     marginTop: 6,
     padding: "6px 10px",
+    // 26px measured: the smallest «Reintentar» of the two halves of the route,
+    // and the only control this state offers at all.
+    minHeight: TOUCH_TARGET,
     borderRadius: 8,
     border: "1px solid var(--color-warm-300)",
     background: "transparent",

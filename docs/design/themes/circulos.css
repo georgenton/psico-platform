@@ -1,0 +1,114 @@
+/* FeelVerse · Círculos — componentes compartidos. UN set para Dúo y grupo,
+   para miembro e invitado, para los dos themes. Todo resuelve por --fv-*.
+   Depende de: core.css → components.css → brand.css. */
+
+/* ── shell ─────────────────────────────────────────────────────── */
+.fv-screen{display:flex;flex-direction:column;min-height:100%;background:var(--fv-background)}
+.fv-main{flex:1;padding:var(--fv-space-6) var(--fv-space-5);max-width:var(--fv-content-max);margin:0 auto;width:100%}
+.fv-main-narrow{max-width:620px}
+.fv-stack{display:flex;flex-direction:column;gap:var(--fv-space-5)}
+.fv-stack-tight{display:flex;flex-direction:column;gap:var(--fv-space-3)}
+.fv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:var(--fv-space-4)}
+[data-vp="mobile"] .fv-main{padding:var(--fv-space-4) var(--fv-space-4) calc(var(--fv-space-4) + 76px)}
+[data-vp="mobile"] .fv-grid{grid-template-columns:minmax(0,1fr)}
+
+/* ── superficie de invitado: la marca acompaña, no compite ─────── */
+.fv-guest-top{display:flex;align-items:center;justify-content:center;gap:var(--fv-space-2);padding:var(--fv-space-4);border-bottom:var(--fv-border-w) solid var(--fv-border-quiet);background:var(--fv-background)}
+.fv-guest-top .fv-lockup{font-size:var(--fv-text-sm)}
+.fv-guest-note{font-size:var(--fv-text-micro);color:var(--fv-muted);text-align:center;margin-top:var(--fv-space-2)}
+
+/* ── conteos: cuatro números distintos, nunca el mismo campo ──── */
+.fv-counts{display:flex;flex-wrap:wrap;gap:var(--fv-space-2)}
+.fv-count{display:flex;flex-direction:column;gap:2px;padding:var(--fv-space-3);min-width:104px;border:var(--fv-border-w) solid var(--fv-border-quiet);border-radius:var(--fv-radius-control);background:var(--fv-surface)}
+.fv-count b{font-family:var(--fv-font-display);font-weight:var(--fv-display-weight);font-size:var(--fv-text-xl);line-height:1;color:var(--fv-text)}
+.fv-count span{font-family:var(--fv-font-label);font-size:var(--fv-text-micro);font-weight:var(--fv-label-weight);letter-spacing:var(--fv-label-tracking);text-transform:var(--fv-label-transform);color:var(--fv-muted)}
+
+/* ── asientos y personas ──────────────────────────────────────── */
+.fv-seats{display:flex;flex-direction:column;gap:var(--fv-space-2);margin:0;padding:0;list-style:none}
+.fv-seat{display:flex;align-items:center;gap:var(--fv-space-3);padding:var(--fv-space-3);border:var(--fv-border-w) solid var(--fv-border-quiet);border-radius:var(--fv-radius-control);background:var(--fv-surface)}
+.fv-seat-empty{border-style:dashed;background:transparent}
+.fv-seat b{font-size:var(--fv-text-sm);font-weight:600;color:var(--fv-text)}
+.fv-seat .fv-meta{margin-left:auto;text-align:right;flex:none}
+.fv-who{width:30px;height:30px;flex:none;border-radius:50%;display:grid;place-items:center;background:var(--fv-brand-soft);color:var(--fv-brand-ground);font-size:var(--fv-text-micro);font-weight:700;border:1px solid var(--fv-brand-ground)}
+.fv-who-empty{background:transparent;color:var(--fv-muted);border:1px dashed var(--fv-rule);font-weight:500}
+
+/* ── avisos: el cuerpo lleva la explicación, no solo un icono ─── */
+.fv-notice{padding:var(--fv-space-4);border:var(--fv-border-w) solid var(--fv-border-quiet);border-left:var(--fv-channel-w) solid var(--fv-muted);border-radius:var(--fv-radius-control);background:var(--fv-surface)}
+.fv-notice-ok{border-left-color:var(--fv-action-ground);background:var(--fv-action-soft)}
+.fv-notice-wait{border-left-color:var(--fv-brand-ground);background:var(--fv-brand-soft)}
+.fv-notice-err{border-left-color:var(--fv-error-text);background:var(--fv-error-bg);border-color:var(--fv-error-border)}
+.fv-notice-err .fv-notice-t{color:var(--fv-error-text)}
+.fv-notice-t{font-family:var(--fv-font-display);font-weight:var(--fv-display-weight);font-size:var(--fv-text-base);letter-spacing:var(--fv-display-tracking);color:var(--fv-text);margin:0 0 4px}
+.fv-notice p{font-size:var(--fv-text-sm)}
+.fv-notice p+p{margin-top:var(--fv-space-2)}
+
+/* ── privacidad: canal + palabra. El canal nunca va solo. ─────── */
+.fv-private{display:flex;align-items:flex-start;gap:var(--fv-space-2);padding:var(--fv-space-3);border-left:var(--fv-channel-w) solid var(--fv-brand-ground);background:var(--fv-surface-subtle);border-radius:0 var(--fv-radius-control) var(--fv-radius-control) 0}
+.fv-private p{font-size:var(--fv-text-meta)}
+
+/* ── una pregunta por pantalla ─────────────────────────────────── */
+.fv-progress{display:flex;align-items:center;gap:var(--fv-space-2);font-family:var(--fv-font-label);font-size:var(--fv-text-micro);font-weight:var(--fv-label-weight);letter-spacing:var(--fv-label-tracking);text-transform:var(--fv-label-transform);color:var(--fv-muted)}
+.fv-progress i{flex:1;height:2px;background:var(--fv-rule);position:relative;overflow:hidden}
+.fv-progress i::before{content:"";position:absolute;inset:0 auto 0 0;width:var(--fv-pct,0%);background:var(--fv-action)}
+.fv-q{font-family:var(--fv-font-display);font-weight:var(--fv-display-weight);font-size:var(--fv-text-2xl);line-height:var(--fv-display-leading);letter-spacing:var(--fv-display-tracking);color:var(--fv-text);margin:0}
+.fv-field{width:100%;min-height:132px;padding:var(--fv-space-4);border:var(--fv-border-w) solid var(--fv-border-quiet);border-radius:var(--fv-radius-control);background:var(--fv-surface);color:var(--fv-text);font-family:var(--fv-font-body);font-size:var(--fv-text-base);line-height:1.6;resize:vertical}
+.fv-field:focus-visible{outline:2px solid var(--fv-focus-ring);outline-offset:1px;border-color:var(--fv-focus-ring)}
+.fv-input{width:100%;min-height:var(--fv-target-min);padding:0 var(--fv-space-4);border:var(--fv-border-w) solid var(--fv-border-quiet);border-radius:var(--fv-radius-control);background:var(--fv-surface);color:var(--fv-text);font-family:var(--fv-font-body);font-size:var(--fv-text-base)}
+.fv-input[aria-invalid="true"]{border-color:var(--fv-error-text);border-width:var(--fv-border-w-emph)}
+.fv-hint{font-size:var(--fv-text-meta);color:var(--fv-muted)}
+.fv-err{font-size:var(--fv-text-meta);color:var(--fv-error-text)}
+
+/* ── lo que se enviará ─────────────────────────────────────────── */
+.fv-sheet-preview{border:var(--fv-border-w-emph) solid var(--fv-border);border-radius:var(--fv-radius-panel);background:var(--fv-surface);overflow:hidden}
+.fv-sheet-preview>header{padding:var(--fv-space-3) var(--fv-space-4);border-bottom:var(--fv-border-w) solid var(--fv-border-quiet);background:var(--fv-surface-subtle)}
+.fv-sheet-preview>div{padding:var(--fv-space-4);display:flex;flex-direction:column;gap:var(--fv-space-4)}
+.fv-qa{display:flex;flex-direction:column;gap:4px}
+.fv-qa dt{font-family:var(--fv-font-label);font-size:var(--fv-text-micro);font-weight:var(--fv-label-weight);letter-spacing:var(--fv-label-tracking);text-transform:var(--fv-label-transform);color:var(--fv-muted)}
+.fv-qa dd{margin:0;font-family:var(--fv-font-reader);font-size:var(--fv-text-base);line-height:1.6;color:var(--fv-text-body)}
+.fv-qa-off dd{color:var(--fv-muted);font-style:italic;font-family:var(--fv-font-body);font-size:var(--fv-text-sm)}
+
+/* ── revelación ───────────────────────────────────────────────── */
+.fv-reveal{display:grid;gap:var(--fv-space-4);grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+.fv-reveal-card{padding:var(--fv-space-4);border:var(--fv-border-w) solid var(--fv-border-quiet);border-radius:var(--fv-radius-panel);background:var(--fv-surface);box-shadow:var(--fv-shadow-quiet);display:flex;flex-direction:column;gap:var(--fv-space-3)}
+.fv-reveal-card>header{display:flex;align-items:center;gap:var(--fv-space-2)}
+.fv-reveal-card p{font-family:var(--fv-font-reader);font-size:var(--fv-text-sm);line-height:1.65}
+
+/* ── acuerdo (nunca «artefacto») ───────────────────────────────── */
+.fv-accord{border:var(--fv-border-w-emph) solid var(--fv-border);border-radius:var(--fv-radius-panel);background:var(--fv-surface);padding:var(--fv-space-5);display:flex;flex-direction:column;gap:var(--fv-space-4)}
+.fv-accord-text{font-family:var(--fv-font-reader);font-size:var(--fv-text-lg);line-height:1.6;color:var(--fv-text);margin:0}
+.fv-version{display:inline-flex;align-items:center;gap:6px;font-family:var(--fv-font-mono);font-size:var(--fv-text-micro);color:var(--fv-muted);border:1px solid var(--fv-border-quiet);border-radius:var(--fv-radius-pill);padding:2px 8px}
+
+/* ── enlaces de invitación: uno por persona ───────────────────── */
+.fv-invite{display:flex;flex-direction:column;gap:var(--fv-space-3);padding:var(--fv-space-4);border:var(--fv-border-w) solid var(--fv-border-quiet);border-radius:var(--fv-radius-control);background:var(--fv-surface)}
+.fv-invite-head{display:flex;align-items:center;justify-content:space-between;gap:var(--fv-space-3)}
+.fv-channels{display:flex;flex-wrap:wrap;gap:var(--fv-space-2)}
+.fv-channels .fv-btn-2{padding:0 var(--fv-space-3);font-size:var(--fv-text-meta);min-height:38px}
+/* el secreto NUNCA se muestra: sale del fragmento y se borra de la barra */
+.fv-secret{font-family:var(--fv-font-mono);font-size:var(--fv-text-meta);color:var(--fv-muted);background:var(--fv-surface-subtle);border:1px dashed var(--fv-rule);border-radius:var(--fv-radius-control);padding:var(--fv-space-2) var(--fv-space-3)}
+
+/* ── barra de acción móvil: UNA acción principal por momento ──── */
+.fv-actionbar{display:flex;gap:var(--fv-space-3);align-items:center}
+[data-vp="mobile"] .fv-actionbar{position:sticky;bottom:0;margin:var(--fv-space-5) calc(-1 * var(--fv-space-4)) 0;padding:var(--fv-space-3) var(--fv-space-4);background:var(--fv-surface);border-top:var(--fv-border-w) solid var(--fv-border);flex-direction:column-reverse;align-items:stretch}
+[data-vp="mobile"] .fv-actionbar .fv-btn,[data-vp="mobile"] .fv-actionbar .fv-btn-2{width:100%}
+.fv-btn[disabled]{opacity:.55;cursor:not-allowed}
+.fv-btn[disabled]:hover{background:var(--fv-action)}
+
+/* ── ayuda de Echo: acompaña la pregunta, no la sustituye ─────── */
+.fv-echo-help{border:var(--fv-border-w) solid var(--fv-eco-border);border-radius:var(--fv-radius-control);overflow:hidden;background:var(--fv-surface)}
+.fv-echo-help summary{display:flex;align-items:center;gap:var(--fv-space-2);padding:var(--fv-space-3) var(--fv-space-4);background:var(--fv-eco-header-bg);cursor:pointer;font-size:var(--fv-text-sm);font-weight:600;color:var(--fv-text);min-height:var(--fv-target-min)}
+.fv-echo-help summary::marker,.fv-echo-help summary::-webkit-details-marker{display:none;content:""}
+.fv-echo-help div{padding:var(--fv-space-4);display:flex;flex-direction:column;gap:var(--fv-space-2)}
+.fv-echo-help p{font-size:var(--fv-text-sm)}
+
+/* ── carga ────────────────────────────────────────────────────── */
+.fv-skel{border-radius:var(--fv-radius-control);background:var(--fv-surface-subtle);position:relative;overflow:hidden}
+.fv-skel::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,var(--fv-surface),transparent);transform:translateX(-100%);animation:fv-shimmer 1.4s infinite}
+@keyframes fv-shimmer{to{transform:translateX(100%)}}
+@media (prefers-reduced-motion:reduce){.fv-skel::after{animation:none;opacity:.5;transform:none}}
+
+/* ── listado / creación ───────────────────────────────────────── */
+.fv-tpl{display:flex;flex-direction:column;gap:var(--fv-space-3);padding:var(--fv-space-5);border:var(--fv-border-w) solid var(--fv-border-quiet);border-radius:var(--fv-radius-panel);background:var(--fv-surface);box-shadow:var(--fv-shadow-quiet);height:100%}
+.fv-tpl footer{margin-top:auto;display:flex;align-items:center;gap:var(--fv-space-3)}
+.fv-sizes{display:flex;gap:var(--fv-space-2);flex-wrap:wrap}
+.fv-size{min-width:var(--fv-target-min);min-height:var(--fv-target-min);padding:0 var(--fv-space-3);display:grid;place-items:center;border:var(--fv-border-w) solid var(--fv-border-quiet);border-radius:var(--fv-radius-control);background:var(--fv-surface);color:var(--fv-text);font-family:var(--fv-font-body);font-size:var(--fv-text-base);font-weight:600;cursor:pointer}
+.fv-size[aria-pressed="true"]{border-color:var(--fv-selected-border);border-width:var(--fv-border-w-emph);background:var(--fv-selected-bg)}

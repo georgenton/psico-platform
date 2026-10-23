@@ -53,6 +53,9 @@ const LOCAL = "postgresql://u:p@localhost:5433/psico_dev";
 const TITULO_A = "Título sintético A";
 const TITULO_B = "Título sintético B";
 const LICENCIA_A = "AA-0001";
+const BIO_A = "Biografía sintética con especialidad profesional afirmada.";
+const SINOPSIS_CON_NOMBRE =
+  "Marina Quintana acompaña al lector por un recorrido sintético.";
 
 const target = () => targetIdentityFromUrl(LOCAL, "development");
 const tmp = () => mkdtempSync(join(tmpdir(), "authorship-plan-"));
@@ -66,6 +69,7 @@ const snapshot = (over: Partial<CatalogSnapshot> = {}): CatalogSnapshot => ({
       name: "Marina Quintana",
       title: TITULO_A,
       licenseNumber: LICENCIA_A,
+      bio: BIO_A,
       isVerified: true,
     },
   ],
@@ -75,6 +79,8 @@ const snapshot = (over: Partial<CatalogSnapshot> = {}): CatalogSnapshot => ({
       slug: "emociones-en-construccion",
       title: "Emociones en Construcción",
       authorId: "a-fixture",
+      summary: SINOPSIS_CON_NOMBRE,
+      description: null,
     },
   ],
   ...over,
@@ -106,7 +112,8 @@ describe("esquema de ejecución del plan", () => {
   it("un plan íntegro y del mismo destino se acepta", () => {
     const path = planFile(tmp());
     const loaded = loadFrozenPlan(path, target());
-    expect(loaded.ops).toHaveLength(3);
+    // Credenciales · copy del libro · alta del autor · atribución.
+    expect(loaded.ops).toHaveLength(4);
   });
 
   it("un kind permitido con campos no permitidos se rechaza por ALCANCE", () => {
@@ -141,6 +148,92 @@ describe("esquema de ejecución del plan", () => {
     );
     expect(() => loadFrozenPlan(path, target())).toThrow(
       /OPERACIÓN FUERA DE ALCANCE.*next/s,
+    );
+  });
+
+  /**
+   * La retirada de copy, como entrada no confiable.
+   *
+   * Es la operación con más margen para hacer daño desde un archivo: elige
+   * una fila del catálogo y sustituye prosa pública. Lo que la acota es que
+   * no puede elegir qué columnas toca, ni qué texto escribe, ni actuar sobre
+   * una obra que no nombra a ninguna identidad de fixture.
+   */
+  const copyIndex = (p: FrozenPlan) =>
+    p.ops.findIndex((o) => o.kind === "withdraw-book-copy");
+
+  const copyOpIn = (p: FrozenPlan) =>
+    p.ops[copyIndex(p)] as Extract<
+      FrozenPlan["ops"][number],
+      { kind: "withdraw-book-copy" }
+    >;
+
+  it("el plan congelado lleva la retirada de copy del libro", () => {
+    // Guard the guard: si dejara de emitirse, las pruebas de abajo mutarían
+    // una operación que no existe.
+    const p = frozen();
+    expect(copyIndex(p)).toBeGreaterThanOrEqual(0);
+    expect(copyOpIn(p).fields).toEqual(["summary"]);
+  });
+
+  it("una columna fuera de la lista cerrada se rechaza", () => {
+    const path = planFile(
+      tmp(),
+      (p) => {
+        (copyOpIn(p) as unknown as Record<string, unknown>).fields = ["title"];
+      },
+      { rehash: true },
+    );
+    expect(() => loadFrozenPlan(path, target())).toThrow(
+      /OPERACIÓN FUERA DE ALCANCE.*fields/s,
+    );
+  });
+
+  it("una retirada de copy sin campos se rechaza", () => {
+    const path = planFile(
+      tmp(),
+      (p) => {
+        (copyOpIn(p) as unknown as Record<string, unknown>).fields = [];
+      },
+      { rehash: true },
+    );
+    expect(() => loadFrozenPlan(path, target())).toThrow(
+      /OPERACIÓN FUERA DE ALCANCE.*fields/s,
+    );
+  });
+
+  it("retirar copy de una obra que no nombra a una identidad de fixture se rechaza", () => {
+    // Sin esta correspondencia, un archivo bien formado podría vaciar la
+    // sinopsis de cualquier libro nombrando a quien se le ocurra.
+    const path = planFile(
+      tmp(),
+      (p) => {
+        (copyOpIn(p) as unknown as Record<string, unknown>).namedIdentities = [
+          "alguien-mas",
+        ];
+      },
+      { rehash: true },
+    );
+    expect(() => loadFrozenPlan(path, target())).toThrow(
+      /CORRESPONDENCIA NO SUSTENTADA.*namedIdentities/s,
+    );
+  });
+
+  it("pedir retirar un campo que el propio plan declara vacío se rechaza", () => {
+    const path = planFile(
+      tmp(),
+      (p) => {
+        (copyOpIn(p) as unknown as Record<string, unknown>).fields = [
+          "summary",
+          "description",
+        ];
+      },
+      { rehash: true },
+    );
+    // `description` venía nulo en el snapshot: esa pareja describe una fila
+    // que el planificador no pudo haber producido.
+    expect(() => loadFrozenPlan(path, target())).toThrow(
+      /REFERENCIA INCOHERENTE.*description/s,
     );
   });
 
@@ -859,6 +952,7 @@ describe("vista compartible", () => {
     (p.ops[0] as unknown as Record<string, unknown>).next = {
       title: "algo",
       licenseNumber: null,
+      bio: null,
       isVerified: true,
     };
     const summary = sanitizedPlanSummary(p) as {
@@ -867,12 +961,14 @@ describe("vista compartible", () => {
     expect(summary.ops[0]!.next).toEqual({
       title: "algo",
       licenseNumber: null,
+      bio: null,
       isVerified: true,
     });
     // And such a file never loads, which is the other half of the guarantee.
     expect(WITHDRAWAL).toEqual({
       title: null,
       licenseNumber: null,
+      bio: null,
       isVerified: false,
     });
   });

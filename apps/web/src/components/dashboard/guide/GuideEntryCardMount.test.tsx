@@ -17,6 +17,34 @@ vi.mock("./guide-recovery", () => ({
   guideRecoveryState: (scope: string) => recoveryState(scope),
 }));
 
+/**
+ * B3 — la tarjeta pregunta al servidor si todavía se puede empezar. Aquí se
+ * fija la respuesta en «sí», que es el mundo que estas pruebas describían
+ * cuando se escribieron; el «no» tiene las suyas en `GuideEntryCard.test`.
+ */
+/**
+ * B4 — el rótulo lo decide el servidor. El doble respeta `enabled` porque el
+ * real lo hace: sin identidad no se pregunta, y entonces no hay respuesta que
+ * pueda prometer «Continuar».
+ */
+vi.mock("./use-guide-own-state", () => ({
+  useGuideOwnState: (_pin: unknown, enabled: boolean) =>
+    enabled
+      ? { status: "ready", state: "ACTIVE", session: null }
+      : { status: "loading", state: null, session: null },
+}));
+
+vi.mock("../experience/use-chapter-experience", async () => {
+  const { EEC_EXPERIENCE } = await import("./guide-test-fixtures");
+  return {
+    useChapterExperience: () => ({
+      status: "ready",
+      definition: { ...EEC_EXPERIENCE, startable: true },
+      items: [],
+    }),
+  };
+});
+
 import { GuideEntryCardMount } from "./GuideEntryCardMount";
 import { GuideActorScopeProvider } from "./guide-actor-scope";
 import { GuideAvailabilityProvider } from "./guide-availability";

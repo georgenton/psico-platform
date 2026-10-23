@@ -6,6 +6,8 @@ import {
   type CatalogSnapshot,
 } from "./authorship-repair";
 import {
+  BOOK_COPY_WITHDRAWAL,
+  WITHDRAWAL,
   computePlanHash,
   fieldDigest,
   freezePlan,
@@ -25,6 +27,7 @@ import {
   AUTHORSHIP_PENDING,
   AUTHORSHIP_SOURCES,
   FIXTURE_AUTHOR_SLUGS,
+  fixtureIdentitiesNamedIn,
 } from "./authorship-sources";
 
 /**
@@ -47,12 +50,18 @@ const TITULO_B = "Título sintético B";
 const LICENCIA_A = "AA-0001";
 const LICENCIA_B = "BB-0002";
 
+const BIO_A = "Biografía sintética con especialidad profesional afirmada.";
+/** Copy shaped like the leftovers the UAT measured: a name in prose. */
+const SINOPSIS_CON_NOMBRE =
+  "Marina Quintana acompaña al lector por un recorrido sintético.";
+
 const DEMO_AUTHOR = {
   id: "a-demo",
   slug: "marina-quintana",
   name: "Marina Quintana",
   title: TITULO_A,
   licenseNumber: LICENCIA_A,
+  bio: BIO_A,
   isVerified: true,
 };
 
@@ -63,6 +72,7 @@ const OTHER_AUTHOR = {
   name: "Alguien Más",
   title: "Su título",
   licenseNumber: "YY-1111",
+  bio: "Su biografía",
   isVerified: true,
 };
 
@@ -74,12 +84,16 @@ const snapshot = (over: Partial<CatalogSnapshot> = {}): CatalogSnapshot => ({
       slug: "emociones-en-construccion",
       title: "Emociones en Construcción",
       authorId: "a-demo",
+      summary: SINOPSIS_CON_NOMBRE,
+      description: null,
     },
     {
       id: "b-fe",
       slug: "familias-ensambladas",
       title: "Familias Ensambladas",
       authorId: "a-demo",
+      summary: null,
+      description: null,
     },
   ],
   ...over,
@@ -184,6 +198,7 @@ describe("planAuthorshipRepair", () => {
             name: "Jorge Quizamanchuro",
             title: null,
             licenseNumber: null,
+            bio: null,
             isVerified: false,
           },
         ],
@@ -235,12 +250,16 @@ describe("planAuthorshipRepair", () => {
             slug: "emociones-en-construccion",
             title: "A",
             authorId: null,
+            summary: null,
+            description: null,
           },
           {
             id: "b2",
             slug: "emociones-en-construccion",
             title: "B",
             authorId: null,
+            summary: null,
+            description: null,
           },
         ],
       }),
@@ -277,6 +296,7 @@ describe("planAuthorshipRepair", () => {
             name: "Otra Persona",
             title: null,
             licenseNumber: null,
+            bio: null,
             isVerified: false,
           },
         ],
@@ -295,6 +315,7 @@ describe("planAuthorshipRepair", () => {
             ...DEMO_AUTHOR,
             title: null,
             licenseNumber: null,
+            bio: null,
             isVerified: false,
           },
           {
@@ -303,6 +324,7 @@ describe("planAuthorshipRepair", () => {
             name: "Jorge Quizamanchuro",
             title: null,
             licenseNumber: null,
+            bio: null,
             isVerified: false,
           },
         ],
@@ -312,6 +334,10 @@ describe("planAuthorshipRepair", () => {
             slug: "emociones-en-construccion",
             title: "Emociones en Construcción",
             authorId: "a-jorge",
+            // Ya retirado por una corrida anterior: el marcador no nombra a
+            // nadie, así que el planificador no vuelve a proponer la retirada.
+            summary: BOOK_COPY_WITHDRAWAL.summary,
+            description: null,
           },
         ],
       }),
@@ -324,7 +350,133 @@ describe("planAuthorshipRepair", () => {
     const text = describePlan(freeze());
     expect(text).not.toContain(TITULO_A);
     expect(text).not.toContain(LICENCIA_A);
+    expect(text).not.toContain(BIO_A);
+    expect(text).not.toContain(SINOPSIS_CON_NOMBRE);
     expect(text).toMatch(/título=presente/);
+  });
+});
+
+/**
+ * El copy, que es la otra mitad de la acreditación.
+ *
+ * Corregir la clave ajena corrigió la firma y nada más. Estas pruebas fijan
+ * QUÉ propone el plan para la prosa, y —tan importante como eso— qué NO
+ * propone: una sinopsis que no nombra a nadie es copy editorial legítimo y no
+ * se toca.
+ */
+describe("planAuthorshipRepair · copy que nombra a una identidad de fixture", () => {
+  const copyOp = (plan: ReturnType<typeof planAuthorshipRepair>) =>
+    plan.ops.find((o) => o.kind === "withdraw-book-copy");
+
+  const withBookCopy = (over: { summary?: string; description?: string }) =>
+    planAuthorshipRepair(
+      snapshot({
+        books: [
+          {
+            id: "b-eec",
+            slug: "emociones-en-construccion",
+            title: "Emociones en Construcción",
+            authorId: "a-demo",
+            summary: over.summary ?? null,
+            description: over.description ?? null,
+          },
+        ],
+      }),
+    );
+
+  it("propone retirar sólo los campos que la nombran", () => {
+    const op = copyOp(
+      withBookCopy({
+        summary: SINOPSIS_CON_NOMBRE,
+        description: "Una descripción que no nombra a nadie.",
+      }),
+    );
+    if (op?.kind !== "withdraw-book-copy") throw new Error("shape");
+    expect(op.fields).toEqual(["summary"]);
+    expect(op.namedIdentities).toEqual(["marina-quintana"]);
+  });
+
+  it("el reemplazo es el marcador declarado, no un vacío ni una reescritura", () => {
+    // Vaciar una sinopsis degrada una página legítima por un defecto de una
+    // cláusula; reescribirla sería redactar copy que nadie revisó.
+    expect(BOOK_COPY_WITHDRAWAL.summary).toMatch(/revisión editorial/);
+    expect(BOOK_COPY_WITHDRAWAL.summary.length).toBeGreaterThan(0);
+    // Y el marcador no puede nombrar a nadie, o la fila reparada volvería a
+    // disparar la misma comprobación que la seleccionó.
+    for (const text of Object.values(BOOK_COPY_WITHDRAWAL)) {
+      expect(fixtureIdentitiesNamedIn(text)).toEqual([]);
+    }
+  });
+
+  it("una obra con autoría PENDING también deja de nombrarla", () => {
+    // `AUTHORSHIP_PENDING` prohíbe inventar QUIÉN la escribió. Retirar un
+    // nombre que ninguna fuente sustenta no inventa nada.
+    const plan = planAuthorshipRepair(
+      snapshot({
+        books: [
+          {
+            id: "b-fe",
+            slug: "familias-ensambladas",
+            title: "Familias Ensambladas",
+            authorId: "a-demo",
+            summary: null,
+            description: "Una guía sintética escrita por Marina.",
+          },
+        ],
+      }),
+    );
+    const op = copyOp(plan);
+    if (op?.kind !== "withdraw-book-copy") throw new Error("shape");
+    expect(op.bookSlug).toBe("familias-ensambladas");
+    expect(op.fields).toEqual(["description"]);
+    // Y sigue sin atribuirse a nadie.
+    expect(plan.ops.some((o) => o.kind === "reattribute-book")).toBe(false);
+  });
+
+  it("no toca el copy que no nombra a nadie", () => {
+    expect(
+      copyOp(withBookCopy({ summary: "Un recorrido por las seis emociones." })),
+    ).toBeUndefined();
+  });
+
+  it("una palabra común que coincide en minúsculas no cuenta como nombre", () => {
+    // El riesgo real de derivar los nombres del slug: una identidad futura
+    // como `luz-blanco` convertiría palabras corrientes en disparadores, y un
+    // falso positivo aquí destruye una sinopsis legítima.
+    expect(
+      copyOp(withBookCopy({ summary: "Un capítulo sobre la vida marina." })),
+    ).toBeUndefined();
+    // En mayúscula inicial sí: ahí está escrito como nombre propio.
+    expect(
+      copyOp(withBookCopy({ summary: "Marina lo cuenta en el prólogo." })),
+    ).toBeTruthy();
+  });
+
+  it("el nombre completo cuenta aunque vaya en minúsculas", () => {
+    // Dos tokens en secuencia no son una coincidencia.
+    expect(
+      copyOp(withBookCopy({ summary: "escrito por marina quintana, 2026." })),
+    ).toBeTruthy();
+  });
+
+  it("no vuelve a proponerlo sobre una fila ya retirada", () => {
+    expect(
+      copyOp(withBookCopy({ summary: BOOK_COPY_WITHDRAWAL.summary })),
+    ).toBeUndefined();
+  });
+
+  it("un snapshot sin la columna se rechaza en vez de dar un catálogo limpio", () => {
+    // `readSnapshot` castea el resultado de un `select`, así que un campo
+    // olvidado llega como undefined y el compilador no lo ve. Sin esto, el
+    // plan diría que no hay copy que retirar.
+    const sinColumna = snapshot();
+    const books = sinColumna.books.map(({ summary: _omit, ...rest }) => rest);
+    expect(() =>
+      planAuthorshipRepair({
+        ...sinColumna,
+        books: books as unknown as CatalogSnapshot["books"],
+      }),
+    ).toThrow(/SNAPSHOT INCOMPLETO.*books\.summary/s);
   });
 });
 
@@ -336,6 +488,17 @@ function fakeTx(over: Partial<CatalogSnapshot> = {}) {
   const books = snap.books.map((b) => ({ ...b }));
   const writes: string[] = [];
 
+  /**
+   * Prisma's `updateMany` semantics, as far as this tool uses them: every key
+   * present in the WHERE is an equality condition. Written generically rather
+   * than per-field so a new column in the condition is honoured by the mock
+   * instead of being silently ignored — a mock that drops a condition turns a
+   * compare-and-set into an unconditional write and the test would pass on a
+   * guarantee the tool does not have.
+   */
+  const matches = (row: Record<string, unknown>, where: object) =>
+    Object.entries(where).every(([k, v]) => v === undefined || row[k] === v);
+
   const tx: RepairTx = {
     bookAuthor: {
       // Exact id lookup — the semantics the real `findUnique` has.
@@ -346,15 +509,7 @@ function fakeTx(over: Partial<CatalogSnapshot> = {}) {
       // Plain list; normalisation is the caller's job, as in production.
       findMany: vi.fn(async () => authors.map((a) => ({ ...a }))),
       updateMany: vi.fn(async ({ where, data }) => {
-        const match = authors.filter(
-          (a) =>
-            a.id === where.id &&
-            (where.title === undefined || a.title === where.title) &&
-            (where.licenseNumber === undefined ||
-              a.licenseNumber === where.licenseNumber) &&
-            (where.isVerified === undefined ||
-              a.isVerified === where.isVerified),
-        );
+        const match = authors.filter((a) => matches(a, where));
         for (const a of match) {
           Object.assign(a, data);
           writes.push(`author:${a.id}`);
@@ -367,6 +522,7 @@ function fakeTx(over: Partial<CatalogSnapshot> = {}) {
           ...data,
           title: null,
           licenseNumber: null,
+          bio: null,
           isVerified: false,
         };
         authors.push(row);
@@ -380,11 +536,9 @@ function fakeTx(over: Partial<CatalogSnapshot> = {}) {
         return b ? { ...b } : null;
       }),
       updateMany: vi.fn(async ({ where, data }) => {
-        const match = books.filter(
-          (b) => b.id === where.id && b.authorId === where.authorId,
-        );
+        const match = books.filter((b) => matches(b, where));
         for (const b of match) {
-          b.authorId = data.authorId;
+          Object.assign(b, data);
           writes.push(`book:${b.id}`);
         }
         return { count: match.length };
@@ -434,7 +588,7 @@ describe("applyAuthorshipRepair", () => {
     );
   });
 
-  it("aplicar retira credenciales, crea el autor y reatribuye el libro", async () => {
+  it("aplicar retira credenciales y copy, crea el autor y reatribuye el libro", async () => {
     const { tx, authors, books, writes } = fakeTx();
     const res = await applyAuthorshipRepair(tx, freeze(), { apply: true });
 
@@ -442,6 +596,7 @@ describe("applyAuthorshipRepair", () => {
     expect(demo).toMatchObject({
       title: null,
       licenseNumber: null,
+      bio: null,
       isVerified: false,
     });
     const jorge = authors.find((a) => a.slug === "jorge-quizamanchuro")!;
@@ -455,8 +610,79 @@ describe("applyAuthorshipRepair", () => {
     expect(books.find((b) => b.slug === "familias-ensambladas")!.authorId).toBe(
       "a-demo",
     );
+    // La sinopsis que nombraba a la identidad de fixture deja de servirse, y
+    // sólo ese campo cambia.
+    const eec = books.find((b) => b.slug === "emociones-en-construccion")!;
+    expect(eec.summary).toBe(BOOK_COPY_WITHDRAWAL.summary);
+    expect(eec.description).toBeNull();
+
     expect(res.rowsWritten).toBe(writes.length);
-    expect(res.rowsWritten).toBe(3);
+    // Credenciales · copy de EEC · alta · atribución.
+    expect(res.rowsWritten).toBe(4);
+  });
+
+  it("la reversión guarda TODO campo que la retirada borra", async () => {
+    // Encontrado aplicando el plan contra una base real: la retirada ya
+    // borraba `bio` y la preimagen no lo guardaba, así que revertirla habría
+    // restaurado una fila distinta de la que reemplazó. Derivado de
+    // `WITHDRAWAL` en vez de escrito a mano: el día que la retirada alcance
+    // otra columna, esto cae en vez de perderla en silencio.
+    const { tx } = fakeTx();
+    const res = await applyAuthorshipRepair(tx, freeze(), { apply: true });
+    const entry = res.reversal.find((r) =>
+      r.subject.startsWith("bookAuthor id="),
+    );
+    expect(Object.keys(entry!.restore).sort()).toEqual(
+      Object.keys(WITHDRAWAL).sort(),
+    );
+    expect(entry!.restore).toMatchObject({ bio: BIO_A, title: TITULO_A });
+  });
+
+  it("la reversión del copy guarda el texto que se reemplaza", async () => {
+    const { tx } = fakeTx();
+    const res = await applyAuthorshipRepair(tx, freeze(), { apply: true });
+    const entry = res.reversal.find((r) =>
+      r.subject.startsWith("book copy id="),
+    );
+    expect(entry!.restore).toEqual({
+      summary: SINOPSIS_CON_NOMBRE,
+      description: null,
+    });
+  });
+
+  it("una columna desconocida en el plan no llega a la base", async () => {
+    // `loadFrozenPlan` ya rechaza un archivo así, pero el aplicador es el
+    // único sitio que escribe y no puede depender de que alguien lo haya
+    // validado antes: las claves de la escritura salen del módulo, y el plan
+    // sólo elige entre ellas. Sin eso, un nombre de campo salido de un JSON
+    // sería una columna en el `data` de Prisma.
+    const plan = freeze();
+    const op = plan.ops.find((o) => o.kind === "withdraw-book-copy")!;
+    (op as unknown as Record<string, unknown>).fields = ["coverArtUrl"];
+
+    const { tx, books, writes } = fakeTx();
+    await expect(
+      applyAuthorshipRepair(tx, plan, { apply: true }),
+    ).rejects.toBeInstanceOf(RepairPreconditionError);
+    // Ninguna escritura de libro, y la columna inventada no existe. (El
+    // `fakeTx` no revierte: en producción la transacción se encarga de la
+    // retirada de credenciales que ya había corrido — eso lo mide el pg-spec.)
+    expect(writes.filter((w) => w.startsWith("book:"))).toHaveLength(0);
+    const eec = books.find((b) => b.slug === "emociones-en-construccion")!;
+    expect(eec).not.toHaveProperty("coverArtUrl");
+    expect(eec.summary).toBe(SINOPSIS_CON_NOMBRE);
+  });
+
+  it("y tampoco pasa el ensayo: el dry-run rechaza la misma operación", async () => {
+    // La simetría que el archivo exige: un ensayo que no comprueba lo que la
+    // escritura comprueba no es un ensayo de nada.
+    const plan = freeze();
+    const op = plan.ops.find((o) => o.kind === "withdraw-book-copy")!;
+    (op as unknown as Record<string, unknown>).fields = [];
+    const { tx } = fakeTx();
+    await expect(collectReversal(tx, plan)).rejects.toBeInstanceOf(
+      RepairPreconditionError,
+    );
   });
 
   it("la salida aplicada no incluye los valores retirados", async () => {
@@ -570,6 +796,7 @@ describe("applyAuthorshipRepair", () => {
             name: "Otra Persona",
             title: null,
             licenseNumber: null,
+            bio: null,
             isVerified: false,
           },
         ],

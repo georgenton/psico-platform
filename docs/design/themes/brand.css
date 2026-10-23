@@ -1,0 +1,22 @@
+/* FeelVerse · marca — presentación. La geometría vive en brand.js, no aquí.
+   Un solo logo base: el theme solo cambia la tinta (--fv-brand-ground) y el contexto. */
+
+.fv-mark{display:inline-block;flex:none;color:currentColor;line-height:0}
+.fv-mark svg{display:block;width:100%;height:100%;fill:currentColor}
+.fv-lockup{display:inline-flex;align-items:center;gap:.5em;line-height:1;color:inherit;white-space:nowrap}
+.fv-lockup .fv-mark{color:var(--fv-brand-ground)}
+/* wordmark: la marca NO cambia de tipografía con el theme — eso serían dos wordmarks.
+   Familia y peso quedan fijados aquí; del theme solo hereda la tinta (--fv-text).
+   Serif editorial, un solo peso, tracking cerrado. La V es la charnela del nombre. */
+.fv-wm{font-family:"Source Serif 4",Georgia,serif;font-weight:600;font-size:1em;letter-spacing:-.025em;color:var(--fv-text)}
+.fv-wm span{letter-spacing:-.045em}
+/* marca sobre tinta llena (app icon, splash, ground de invitado) */
+.fv-lockup-inv .fv-mark,.fv-lockup-inv .fv-wm{color:inherit}
+/* app icon / splash / avatar: usa --fv-brand-solid, NO --fv-brand-ground.
+   brand-ground es tinta de primer plano y night la invierte a claro; como fondo lleno
+   dejaría la marca blanca sobre un tile claro. brand-solid es invariable al mood,
+   que además es lo correcto: el icono de aplicación es un recurso exportado fijo. */
+.fv-appicon{display:grid;place-items:center;background:var(--fv-brand-solid);color:#fff;border-radius:22%}
+.fv-appicon .fv-mark{color:inherit}
+/* marca de agua: nunca compite con la pregunta ni con el consentimiento */
+.fv-watermark{position:absolute;pointer-events:none;color:var(--fv-text);opacity:.05}

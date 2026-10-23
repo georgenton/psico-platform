@@ -77,7 +77,27 @@ vi.mock("../experience/use-chapter-experience", () => {
       experienceVersion: 1,
       scenes: [],
     }),
-    items: Object.freeze([]),
+    // Las cinco, publicadas y arrancables. Iba vacío, y la lista de ruta las
+    // ofrecía igual: ese era el fallo —oferta sin ejecutor— que la lista ya
+    // no permite. Este escenario presupone que hay algo que abrir.
+    // Las claves van literales: la factoría de `vi.mock` se eleva por encima
+    // de `KEYS`, así que referenciarla desde aquí la lee antes de existir.
+    items: Object.freeze(
+      [
+        "eec-c3-predecir-no-es-adivinar",
+        "eec-c3-senal-corporal-sin-etiqueta",
+        "eec-c3-contexto-para-categorizar",
+        "eec-c3-no-hay-boton-de-miedo",
+        "eec-c3-modelo-puede-actualizarse",
+      ].map((guideKey, i) => ({
+        experienceKey: `exp-${i + 1}`,
+        experienceVersion: 1,
+        title: `Lectura ${i + 1} · ${guideKey}`,
+        guidePin: { guideKey, guideVersion: 1 },
+        scenes: [],
+        startable: true,
+      })),
+    ),
   });
   return { useChapterExperience: () => RESULT };
 });
@@ -231,7 +251,20 @@ beforeEach(() => {
 
   getGuideDiscovery.mockResolvedValue({ available: true, ...PINS[0] });
   getGuideRoute.mockResolvedValue(routeResponse);
-  listPublishedForChapter.mockResolvedValue({ items: [] });
+  // Las cinco, PUBLICADAS y arrancables: es lo que este escenario presupone
+  // al pedir cinco tarjetas que se abren. Antes iba vacío y las tarjetas se
+  // ofrecían igual — justo la incoherencia entre oferta y ejecutor que ahora
+  // la lista impide.
+  listPublishedForChapter.mockResolvedValue({
+    items: PINS.map((pin, i) => ({
+      experienceKey: `exp-${i + 1}`,
+      experienceVersion: 1,
+      title: TITLES[i],
+      guidePin: pin,
+      scenes: [],
+      startable: true,
+    })),
+  });
   getExperienceCardStates.mockResolvedValue(
     cards(["START", "START", "START", "START", "START"]),
   );

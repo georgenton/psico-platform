@@ -2354,6 +2354,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/experiences/mine/{experienceKey}/{experienceVersion}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** La experiencia que ESTA persona ya empezó, por su identidad exacta, aunque el capítulo ya no la ofrezca. No crea nada y no empieza nada. */
+        get: operations["getOwnExperienceByPin"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/pulso/experiences": {
         parameters: {
             query?: never;
@@ -15312,6 +15329,8 @@ export interface operations {
                                     }[];
                                 };
                             }[];
+                            /** @description Si este pin admite empezar una sesión NUEVA. Publicada y arrancable no son la misma pregunta: un pin retirado para inicios nuevos sigue publicado para que las sesiones que ya lo fijaron terminen, y POST /guide/sessions responde 410. Ausente se lee como «no se pudo preguntar», que no autoriza ofrecer. */
+                            startable?: boolean;
                         }[];
                     };
                 };
@@ -15325,6 +15344,89 @@ export interface operations {
                 };
             };
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+        };
+    };
+    getOwnExperienceByPin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                experienceKey: string;
+                experienceVersion: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        experience: {
+                            experienceKey: string;
+                            experienceVersion: number;
+                            title: string;
+                            summary?: string;
+                            estimatedMinutes?: number;
+                            guidePin: {
+                                guideKey: string;
+                                guideVersion: number;
+                            };
+                            scenes: {
+                                sceneKey: string;
+                                order: number;
+                                /** @enum {string} */
+                                kind: PathsApiExperiencesMineExperienceKeyExperienceVersionGetResponses200ContentApplicationJsonExperienceScenesKind;
+                                completesGuideStepKey?: string;
+                                payload: {
+                                    title: string;
+                                    body: string[];
+                                    note?: string;
+                                    actionLabel?: string;
+                                    placeholder?: string;
+                                    anchorKey?: string;
+                                    conceptKey?: string;
+                                    /** @enum {string} */
+                                    mediaKind?: PathsApiExperiencesMineExperienceKeyExperienceVersionGetResponses200ContentApplicationJsonExperienceScenesPayloadMediaKind;
+                                    question?: string;
+                                    options?: {
+                                        optionKey: string;
+                                        label: string;
+                                    }[];
+                                };
+                            }[];
+                            /** @description Si este pin admite empezar una sesión NUEVA. Publicada y arrancable no son la misma pregunta: un pin retirado para inicios nuevos sigue publicado para que las sesiones que ya lo fijaron terminen, y POST /guide/sessions responde 410. Ausente se lee como «no se pudo preguntar», que no autoriza ofrecer. */
+                            startable?: boolean;
+                        };
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -20794,6 +20896,25 @@ export enum PathsApiExperiencesDiscoveryBookSlugChapterOrderGetResponses200Conte
     RESONANCE = "RESONANCE"
 }
 export enum PathsApiExperiencesDiscoveryBookSlugChapterOrderGetResponses200ContentApplicationJsonItemsScenesPayloadMediaKind {
+    AUDIOBOOK = "AUDIOBOOK",
+    PODCAST = "PODCAST",
+    VIDEO = "VIDEO"
+}
+export enum PathsApiExperiencesMineExperienceKeyExperienceVersionGetResponses200ContentApplicationJsonExperienceScenesKind {
+    INTRO = "INTRO",
+    PASSAGE = "PASSAGE",
+    CONCEPT = "CONCEPT",
+    EXAMPLE = "EXAMPLE",
+    AUDIO = "AUDIO",
+    VIDEO = "VIDEO",
+    PRACTICE = "PRACTICE",
+    REFLECTION = "REFLECTION",
+    QUESTION = "QUESTION",
+    RECALL = "RECALL",
+    SUMMARY = "SUMMARY",
+    RESONANCE = "RESONANCE"
+}
+export enum PathsApiExperiencesMineExperienceKeyExperienceVersionGetResponses200ContentApplicationJsonExperienceScenesPayloadMediaKind {
     AUDIOBOOK = "AUDIOBOOK",
     PODCAST = "PODCAST",
     VIDEO = "VIDEO"

@@ -403,6 +403,10 @@ describe("BooksService.list", () => {
 // ─── BooksService — detail ───────────────────────────────────────────────────
 
 describe("BooksService.getDetail", () => {
+  // `findByIdOrSlug` pasó de `findUnique` a `findFirst` al añadirle el filtro
+  // de publicación: la ficha ya no sirve un libro retirado por id ni por slug.
+  // Estos dobles apuntan a la consulta que el resolutor hace ahora; lo que
+  // afirman no cambia, y el libro de la fixture está publicado.
   let service: BooksService;
   let prisma: ReturnType<typeof buildPrismaMock>;
 
@@ -412,7 +416,7 @@ describe("BooksService.getDetail", () => {
   });
 
   it("returns 404 when book not found by id or slug", async () => {
-    prisma.book.findUnique.mockResolvedValue(null);
+    prisma.book.findFirst.mockResolvedValue(null);
 
     await expect(service.getDetail("user-1", "ghost-book")).rejects.toThrow(
       NotFoundException,
@@ -420,7 +424,7 @@ describe("BooksService.getDetail", () => {
   });
 
   it("returns full detail with chaptersList, rating and author", async () => {
-    prisma.book.findUnique
+    prisma.book.findFirst
       .mockResolvedValueOnce(null) // first try (by id)
       .mockResolvedValueOnce(baseFreeBook); // second try (by slug)
     prisma.bookReview.groupBy.mockResolvedValue([
@@ -460,7 +464,7 @@ describe("BooksService.getDetail", () => {
         ...baseProBook,
         chapters: baseFreeBook.chapters,
       };
-      prisma.book.findUnique
+      prisma.book.findFirst
         .mockResolvedValueOnce(null) // primer intento, por id
         .mockResolvedValueOnce(conCapitulos); // segundo, por slug
       prisma.bookReview.groupBy.mockResolvedValue([]);
@@ -490,7 +494,7 @@ describe("BooksService.getDetail", () => {
     });
 
     it("libro FREE · cuenta FREE: nada está bloqueado", async () => {
-      prisma.book.findUnique
+      prisma.book.findFirst
         .mockResolvedValueOnce(null)
         .mockResolvedValueOnce(baseFreeBook);
       prisma.bookReview.groupBy.mockResolvedValue([]);
@@ -526,7 +530,7 @@ describe("BooksService.getDetail", () => {
         isVerified: false,
       },
     };
-    prisma.book.findUnique
+    prisma.book.findFirst
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(repairedBook);
     prisma.bookReview.groupBy.mockResolvedValue([]);
@@ -551,7 +555,7 @@ describe("BooksService.getDetail", () => {
 
   it("un libro sin autor no se representa como un error", async () => {
     const authorlessBook = { ...baseFreeBook, author: null };
-    prisma.book.findUnique
+    prisma.book.findFirst
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(authorlessBook);
     prisma.bookReview.groupBy.mockResolvedValue([]);
@@ -569,7 +573,7 @@ describe("BooksService.getDetail", () => {
       ...baseFreeBook,
       author: { ...freeAuthor, isVerified: false },
     };
-    prisma.book.findUnique
+    prisma.book.findFirst
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(unverifiedBook);
     prisma.bookReview.groupBy.mockResolvedValue([]);
@@ -611,7 +615,7 @@ describe("BooksService.getDetail", () => {
     };
 
     it("lists native chapters and counts them", async () => {
-      prisma.book.findUnique.mockResolvedValue({
+      prisma.book.findFirst.mockResolvedValue({
         ...baseFreeBook,
         chapters: [],
       });
@@ -633,7 +637,7 @@ describe("BooksService.getDetail", () => {
     });
 
     it("counts what the book effectively offers, not the stored column", async () => {
-      prisma.book.findUnique.mockResolvedValue({
+      prisma.book.findFirst.mockResolvedValue({
         ...baseFreeBook,
         chapters: [],
       });
@@ -648,7 +652,7 @@ describe("BooksService.getDetail", () => {
     });
 
     it("never writes the stored chapter count while reading detail", async () => {
-      prisma.book.findUnique.mockResolvedValue({
+      prisma.book.findFirst.mockResolvedValue({
         ...baseFreeBook,
         chapters: [],
       });
@@ -663,7 +667,7 @@ describe("BooksService.getDetail", () => {
     });
 
     it("aggregates progress across both identities", async () => {
-      prisma.book.findUnique.mockResolvedValue({
+      prisma.book.findFirst.mockResolvedValue({
         ...baseFreeBook,
         chapters: [
           {
@@ -694,7 +698,7 @@ describe("BooksService.getDetail", () => {
       // Under Model A the published placement is the occupant, and Book Detail
       // must say the same thing the reader does. The legacy row here has no
       // unit, so its order is a fallback — and a fallback yields.
-      prisma.book.findUnique.mockResolvedValue({
+      prisma.book.findFirst.mockResolvedValue({
         ...baseFreeBook,
         chapters: [
           {
@@ -889,15 +893,18 @@ describe("BooksService.startBook", () => {
   });
 
   it("opens a ReadingSession for the first chapter — not a completion", async () => {
-    prisma.book.findFirst.mockResolvedValue({ id: "book-1", slug: "test" });
+    // Dos resoluciones seguidas, y ahora las dos por `findFirst`: la de
+    // `resolveBookIdOrThrow` y, al final, la de la ficha que `startBook`
+    // devuelve. Antes la segunda iba por `findUnique`; el filtro de
+    // publicación las unificó.
+    prisma.book.findFirst
+      .mockResolvedValueOnce({ id: "book-1", slug: "test" })
+      .mockResolvedValueOnce(baseFreeBook);
     prisma.chapter.findMany.mockResolvedValue([
       { id: "ch-1", order: 1, title: "Uno", durationMinutes: null },
     ]);
     prisma.readingSession.findMany.mockResolvedValue([{ chapterId: "ch-1" }]);
     prisma.userProgress.findMany.mockResolvedValue([]);
-    prisma.book.findUnique
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce(baseFreeBook);
     prisma.bookReview.groupBy.mockResolvedValue([]);
     prisma.bookReview.findMany.mockResolvedValue([]);
 

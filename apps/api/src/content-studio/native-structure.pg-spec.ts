@@ -91,6 +91,7 @@ suite("Content Core structure · position is not identity", () => {
       data: {
         slug,
         title: slug,
+        isPublished: true,
         plan: "PRO",
         totalChapters: chapterTitles.length,
       },
@@ -606,7 +607,12 @@ suite("Content Core structure · position is not identity", () => {
 
     it("falls back to legacy rows for a book Content Core does not serve", async () => {
       const orphanBook = await prisma.book.create({
-        data: { slug: "libro-sin-core", title: "Sin core", plan: "FREE" },
+        data: {
+          slug: "libro-sin-core",
+          title: "Sin core",
+          isPublished: true,
+          plan: "FREE",
+        },
       });
       for (const order of [1, 2, 3, 4, 5]) {
         await prisma.chapter.create({

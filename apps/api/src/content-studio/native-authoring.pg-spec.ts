@@ -86,7 +86,13 @@ suite("Content Studio · creating a chapter with no legacy row", () => {
 
     // An ordinary existing book: two legacy chapters, backfilled and published.
     const book = await prisma.book.create({
-      data: { slug: SLUG, title: "Libro", plan: "PRO", totalChapters: 2 },
+      data: {
+        slug: SLUG,
+        title: "Libro",
+        isPublished: true,
+        plan: "PRO",
+        totalChapters: 2,
+      },
     });
     bookId = book.id;
     for (const [order, title] of [

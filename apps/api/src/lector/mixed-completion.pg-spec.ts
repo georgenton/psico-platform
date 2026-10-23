@@ -74,6 +74,7 @@ suite("completion across a mixed book", () => {
       data: {
         slug: SLUG,
         title: "Libro mixto",
+        isPublished: true,
         plan: "FREE",
         totalChapters: 3,
       },

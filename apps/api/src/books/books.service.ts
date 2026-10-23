@@ -1084,24 +1084,46 @@ export class BooksService {
     }));
   }
 
+  /**
+   * El libro, si está publicado.
+   *
+   * La lista ya filtraba por publicación, pero la ficha no: `findUnique` por
+   * id o por slug encontraba igual un libro retirado y devolvía su portada,
+   * su sinopsis, su autoría y su índice de capítulos a cualquiera que supiera
+   * la dirección. Un enlace que circuló, una recomendación vieja o un id
+   * copiado bastaban. Medido por HTTP en `books-availability.e2e-spec.ts`.
+   *
+   * El filtro va aquí y no en cada llamante para que no haya dos respuestas
+   * distintas a la misma pregunta.
+   */
   private async findByIdOrSlug(idOrSlug: string, userId: string | null) {
     const include = this.bookCardInclude(userId);
-    const byId = await this.prisma.book.findUnique({
-      where: { id: idOrSlug },
+    const byId = await this.prisma.book.findFirst({
+      where: { id: idOrSlug, isPublished: true },
       include,
     });
     if (byId) return byId;
-    return this.prisma.book.findUnique({
-      where: { slug: idOrSlug },
+    return this.prisma.book.findFirst({
+      where: { slug: idOrSlug, isPublished: true },
       include,
     });
   }
 
+  /**
+   * Para las acciones —favorito, marcador, reseña, empezar—, por la misma
+   * razón: no se actúa sobre un libro que no se puede abrir.
+   */
   private async resolveBookIdOrThrow(idOrSlug: string) {
     const book = await this.prisma.book.findFirst({
-      where: { OR: [{ id: idOrSlug }, { slug: idOrSlug }] },
+      where: {
+        OR: [{ id: idOrSlug }, { slug: idOrSlug }],
+        isPublished: true,
+      },
       select: { id: true, slug: true },
     });
+    // El mismo mensaje que un libro inexistente, a propósito: una negativa
+    // distinta confirmaría que el libro existe, que es la mitad de lo que se
+    // averigua sondeando slugs.
     if (!book) throw new NotFoundException(`Book '${idOrSlug}' not found`);
     return book;
   }

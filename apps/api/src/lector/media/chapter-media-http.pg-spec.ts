@@ -76,6 +76,7 @@ suite("GR-2 · chapter media HTTP contract (real app + real PostgreSQL)", () => 
       data: {
         slug: BOOK_SLUG,
         title: "Emociones en Construcción",
+        isPublished: true,
         plan: "PRO",
       },
     });

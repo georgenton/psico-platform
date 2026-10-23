@@ -36,6 +36,10 @@ export default defineConfig({
       "src/**/*.pg-spec.ts",
       "src/guide/guide-*.e2e-spec.ts",
       "src/books/books-optional-auth.e2e-spec.ts",
+      // …y la matriz de disponibilidad por rutas directas, que necesita la app
+      // real por el mismo motivo: el defecto vive en la resolución del libro,
+      // no en la capa de servicio.
+      "src/books/books-availability.e2e-spec.ts",
     ],
     setupFiles: ["./src/test/setup-env.ts"],
     // Every test runs two genuinely concurrent transactions, each waiting on the

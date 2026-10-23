@@ -37,6 +37,21 @@ import {
 
 const mockConstructEvent = vi.fn();
 
+/**
+ * El estado que Stripe devolvería hoy por cada suscripción.
+ *
+ * Es la pieza del arnés que el arreglo de D-ORD vuelve imprescindible: el
+ * proveedor ya no aplica el objeto del evento, sino el que `retrieve`
+ * devuelve. Un evento viejo y la verdad actual pasan a ser dos cosas
+ * distintas, y aquí se pueden expresar por separado.
+ */
+const estadoEnStripe = new Map<string, unknown>();
+const mockRetrieve = vi.fn(async (id: string) => {
+  const actual = estadoEnStripe.get(id);
+  if (!actual) throw new Error(`Stripe double: no hay suscripción ${id}`);
+  return actual;
+});
+
 vi.mock("stripe", () => {
   const MockStripe = vi.fn().mockImplementation(() => ({
     customers: { create: vi.fn() },
@@ -44,7 +59,7 @@ vi.mock("stripe", () => {
     billingPortal: { sessions: { create: vi.fn() } },
     webhooks: { constructEvent: mockConstructEvent },
     invoices: { list: vi.fn() },
-    subscriptions: { retrieve: vi.fn(), update: vi.fn() },
+    subscriptions: { retrieve: mockRetrieve, update: vi.fn() },
   }));
   (MockStripe as unknown as { Stripe: unknown }).Stripe = MockStripe;
   return { default: MockStripe, Stripe: MockStripe };
@@ -115,6 +130,12 @@ suite("eventos de suscripción contra PostgreSQL real", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    mockRetrieve.mockImplementation(async (id: string) => {
+      const actual = estadoEnStripe.get(id);
+      if (!actual) throw new Error(`Stripe double: no hay suscripción ${id}`);
+      return actual;
+    });
+    estadoEnStripe.clear();
     await prisma.subscription.deleteMany({});
     await prisma.stripeEvent.deleteMany({});
     await prisma.user.deleteMany({});
@@ -166,7 +187,21 @@ suite("eventos de suscripción contra PostgreSQL real", () => {
     };
   }
 
-  const entregar = async (e: ReturnType<typeof evento>) => {
+  /**
+   * Entrega un evento. Por defecto publica también su objeto como el estado
+   * actual en Stripe, que es el caso normal: el evento acaba de ocurrir.
+   *
+   * `desincronizado: true` entrega el evento SIN tocar ese estado, que es lo
+   * que produce una reentrega tardía — el evento dice una cosa y Stripe ya
+   * dice otra.
+   */
+  const entregar = async (
+    e: ReturnType<typeof evento>,
+    opts: { desincronizado?: boolean } = {},
+  ) => {
+    if (!opts.desincronizado) {
+      estadoEnStripe.set(e.data.object.id, e.data.object);
+    }
     mockConstructEvent.mockReturnValue(e);
     await provider.handleWebhook(Buffer.from("{}"), "sig");
   };
@@ -251,23 +286,28 @@ suite("eventos de suscripción contra PostgreSQL real", () => {
   });
 
   /**
-   * El caso que motiva esta suite.
+   * El caso que motiva esta suite, ahora como REGRESIÓN y no como retrato.
    *
-   * Stripe advierte que sus eventos pueden llegar desordenados. El contrato
-   * actual aplica cada uno tal cual: `syncSubscription` hace un upsert sin
-   * comparar nada contra lo ya guardado. Esta prueba NO afirma que eso esté
-   * bien; documenta qué ocurre, que es lo que hacía falta para decidir.
+   * La versión anterior entregaba el par al revés y afirmaba `PRO`: dejaba
+   * escrito que un evento viejo revivía el plan después de una baja. Eso
+   * documentaba el defecto; no lo impedía. Aquí se exige el resultado
+   * correcto.
+   *
+   * Lo que lo arregla no es ordenar por `created` —Stripe desaconseja
+   * explícitamente usar ese campo para ordenar, porque va en segundos y dos
+   * eventos distintos pueden compartirlo— sino releer la suscripción. El
+   * evento pasa a ser la señal de que algo cambió; el estado lo dice Stripe.
    */
-  it("fuera de orden: un evento viejo aplicado después REVIVE el plan", async () => {
-    const viejo = evento({
-      id: "evt_viejo",
+  it("fuera de orden: un evento viejo NO revive el plan", async () => {
+    const alta = evento({
+      id: "evt_alta",
       userId: ANA,
       subId: "sub_ana",
       status: "active",
       created: 1_000,
     });
-    const nuevo = evento({
-      id: "evt_nuevo",
+    const baja = evento({
+      id: "evt_baja",
       userId: ANA,
       subId: "sub_ana",
       status: "canceled",
@@ -276,19 +316,200 @@ suite("eventos de suscripción contra PostgreSQL real", () => {
     });
 
     // Orden correcto: alta y luego baja → FREE.
-    await entregar(viejo);
-    await entregar(nuevo);
+    await entregar(alta);
+    await entregar(baja);
     expect(await planDe(ANA)).toBe("FREE");
 
-    // Mismo par, al revés — que es exactamente lo que una reentrega tardía
-    // produce. El id es distinto porque la idempotencia va por evento, no por
-    // suscripción: no protege de esto.
-    await prisma.stripeEvent.deleteMany({});
-    await entregar({ ...nuevo, id: "evt_nuevo_b" });
-    await entregar({ ...viejo, id: "evt_viejo_b" });
+    // Y ahora la reentrega tardía del alta. En Stripe la suscripción sigue
+    // cancelada; sólo llega otra vez el sobre viejo.
+    await entregar(
+      { ...alta, id: "evt_alta_reentregada" },
+      {
+        desincronizado: true,
+      },
+    );
+    expect(await planDe(ANA)).toBe("FREE");
+  });
 
-    // El resultado final depende del orden de llegada, no del orden real de
-    // los hechos. Queda registrado como hallazgo, con su decisión pendiente.
+  it("al revés también: la baja llega primero y el alta después", async () => {
+    // El mismo par, invertido en la red. La verdad en Stripe es la baja.
+    const alta = evento({
+      id: "evt_alta",
+      userId: ANA,
+      subId: "sub_ana",
+      status: "active",
+      created: 1_000,
+    });
+    const baja = evento({
+      id: "evt_baja",
+      userId: ANA,
+      subId: "sub_ana",
+      status: "canceled",
+      type: "customer.subscription.deleted",
+      created: 2_000,
+    });
+
+    await entregar(baja);
+    await entregar({ ...alta, id: "evt_alta_b" }, { desincronizado: true });
+    expect(await planDe(ANA)).toBe("FREE");
+  });
+
+  it("empate temporal: el mismo segundo no decide, decide Stripe", async () => {
+    // Stripe avisa de que dos eventos distintos pueden compartir `created`.
+    // Con el mismo segundo en los dos, cualquier orden de llegada tiene que
+    // dar el mismo resultado, porque ninguno de los dos ordena nada.
+    const t = 1_700_000_000;
+    const alta = evento({
+      id: "evt_empate_alta",
+      userId: ANA,
+      subId: "sub_ana",
+      status: "active",
+      created: t,
+    });
+    const baja = evento({
+      id: "evt_empate_baja",
+      userId: ANA,
+      subId: "sub_ana",
+      status: "canceled",
+      type: "customer.subscription.deleted",
+      created: t,
+    });
+
+    await entregar(alta);
+    await entregar(baja); // la verdad en Stripe queda: cancelada
+    expect(await planDe(ANA)).toBe("FREE");
+
+    // Reentrega del alta con el MISMO segundo. Un desempate por reloj no
+    // podría decidir; la relectura sí.
+    await entregar(
+      { ...alta, id: "evt_empate_alta_b" },
+      {
+        desincronizado: true,
+      },
+    );
+    expect(await planDe(ANA)).toBe("FREE");
+  });
+
+  it("una suscripción anterior no toca a la vigente", async () => {
+    // Ana se da de baja de sub_vieja y contrata sub_nueva. Después llega,
+    // tarde, la baja de la vieja: no puede quitarle el plan que ya paga.
+    await entregar(
+      evento({
+        id: "evt_v1",
+        userId: ANA,
+        subId: "sub_vieja",
+        status: "active",
+      }),
+    );
+    await entregar(
+      evento({
+        id: "evt_v2",
+        userId: ANA,
+        subId: "sub_vieja",
+        status: "canceled",
+        type: "customer.subscription.deleted",
+      }),
+    );
+    expect(await planDe(ANA)).toBe("FREE");
+
+    await entregar(
+      evento({
+        id: "evt_n1",
+        userId: ANA,
+        subId: "sub_nueva",
+        status: "active",
+      }),
+    );
     expect(await planDe(ANA)).toBe("PRO");
+
+    // La baja tardía de la suscripción ya sustituida.
+    await entregar(
+      evento({
+        id: "evt_v2_tarde",
+        userId: ANA,
+        subId: "sub_vieja",
+        status: "canceled",
+        type: "customer.subscription.deleted",
+      }),
+    );
+    expect(await planDe(ANA)).toBe("PRO");
+    const fila = await prisma.subscription.findUniqueOrThrow({
+      where: { userId: ANA },
+    });
+    expect(fila.stripeSubscriptionId).toBe("sub_nueva");
+  });
+
+  it("dos entregas simultáneas del mismo evento dejan una sola fila", async () => {
+    const e = evento({
+      id: "evt_concurrente",
+      userId: ANA,
+      subId: "sub_ana",
+      status: "active",
+    });
+    estadoEnStripe.set(e.data.object.id, e.data.object);
+    mockConstructEvent.mockReturnValue(e);
+
+    // A la vez, no una después de otra: es la carrera que `findUnique` +
+    // `create` no cerraba.
+    const resultados = await Promise.allSettled([
+      provider.handleWebhook(Buffer.from("{}"), "sig"),
+      provider.handleWebhook(Buffer.from("{}"), "sig"),
+    ]);
+    // Ninguna de las dos puede dejar la base a medias; si una falla, falla
+    // hacia fuera para que Stripe reintente.
+    expect(resultados.some((r) => r.status === "fulfilled")).toBe(true);
+
+    const filas = await prisma.stripeEvent.findMany({
+      where: { stripeEventId: "evt_concurrente" },
+    });
+    expect(filas).toHaveLength(1);
+    expect(await planDe(ANA)).toBe("PRO");
+  });
+
+  it("un fallo parcial se reintenta y acaba aplicándose", async () => {
+    const e = evento({
+      id: "evt_a_medias",
+      userId: ANA,
+      subId: "sub_ana",
+      status: "active",
+    });
+    estadoEnStripe.set(e.data.object.id, e.data.object);
+
+    // Primer intento: la relectura se cae a mitad del proceso.
+    mockRetrieve.mockRejectedValueOnce(new Error("Stripe caído"));
+    mockConstructEvent.mockReturnValue(e);
+    await expect(
+      provider.handleWebhook(Buffer.from("{}"), "sig"),
+    ).rejects.toThrow();
+
+    // El efecto no se aplicó Y el evento NO quedó sellado como hecho: ésa es
+    // la diferencia con el contrato anterior, que lo marcaba procesado y
+    // perdía el efecto para siempre.
+    expect(await planDe(ANA)).toBe("FREE");
+    const reclamado = await prisma.stripeEvent.findUniqueOrThrow({
+      where: { stripeEventId: "evt_a_medias" },
+    });
+    expect(reclamado.processedAt).toBeNull();
+
+    // Reintento de Stripe: el mismo evento, ahora sí.
+    await entregar(e);
+    expect(await planDe(ANA)).toBe("PRO");
+    const sellado = await prisma.stripeEvent.findUniqueOrThrow({
+      where: { stripeEventId: "evt_a_medias" },
+    });
+    expect(sellado.processedAt).not.toBeNull();
+  });
+
+  it("un evento sin dueño declarado no toca a nadie", async () => {
+    const huerfano = evento({
+      id: "evt_sin_dueno",
+      userId: ANA,
+      subId: "sub_huerfana",
+      status: "active",
+    });
+    huerfano.data.object.metadata = {} as { userId: string };
+    await entregar(huerfano);
+    expect(await planDe(ANA)).toBe("FREE");
+    expect(await prisma.subscription.count()).toBe(0);
   });
 });

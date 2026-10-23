@@ -957,7 +957,14 @@ describe("ratchet · the cutover migrations say what they do", () => {
     // lean igual. Ninguna de las dos publica. Nombrada aquí por la misma razón
     // que las demás: subir el número sin añadir un nombre falla.
     expect(dirs).toContain("20261021000000_editorial_origin_seal");
-    expect(dirs).toHaveLength(70);
+    // …y la que debe el cierre de D-ORD: `StripeEvent.processedAt` pasa a ser
+    // anulable, para distinguir «reclamado» de «terminado» y que un intento
+    // que muere a mitad no quede marcado como hecho. Compatible con la
+    // instancia que sale —el código anterior siempre escribe un valor— y sin
+    // alterar ninguna fila existente. Nombrada aquí por la misma razón que las
+    // demás: subir el número sin añadir un nombre falla.
+    expect(dirs).toContain("20261023120000_dord_stripe_event_claim");
+    expect(dirs).toHaveLength(71);
     expect(dirs.filter((d) => d.includes("c3r"))).toEqual([]);
   });
 

@@ -51,7 +51,7 @@ vi.mock("stripe", () => {
 const mockPrisma = {
   user: { findUnique: vi.fn(), update: vi.fn() },
   subscription: { findUnique: vi.fn(), upsert: vi.fn(), updateMany: vi.fn() },
-  stripeEvent: { findUnique: vi.fn(), create: vi.fn() },
+  stripeEvent: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
   $transaction: vi.fn(),
 };
 
@@ -104,6 +104,30 @@ describe("StripeProvider", () => {
     mockPrisma.$transaction.mockImplementation((ops: unknown[]) =>
       Promise.all(ops),
     );
+
+    // D-ORD · el webhook cambió de contrato y el arnés tiene que seguirlo.
+    //
+    // Antes comprobaba con `findUnique` y escribía con `create` al final;
+    // ahora reclama con `create` al principio y sella con `update`. Y, sobre
+    // todo, ya no aplica el objeto del evento: relee la suscripción. Estos
+    // valores por defecto describen el caso normal —reclamación limpia, sin
+    // suscripción previa, y Stripe devolviendo lo mismo que el evento acaba
+    // de contar—, y cada prueba que necesite otra cosa lo dice encima.
+    mockPrisma.stripeEvent.create.mockResolvedValue({});
+    mockPrisma.stripeEvent.update.mockResolvedValue({});
+    mockPrisma.stripeEvent.findUnique.mockResolvedValue(null);
+    mockPrisma.subscription.findUnique.mockResolvedValue(null);
+    mockStripeSubscriptionsRetrieve.mockImplementation(async (id: string) => {
+      // El objeto del último evento construido, que es lo que una relectura
+      // devolvería cuando el evento acaba de ocurrir. Una prueba de llegada
+      // tardía sobrescribe este doble para que digan cosas distintas.
+      const ultimo = mockStripeWebhooksConstructEvent.mock.results.at(-1);
+      const objeto = (
+        ultimo?.value as { data?: { object?: { id?: string } } } | undefined
+      )?.data?.object;
+      return objeto?.id === id ? objeto : makeStripeSub();
+    });
+
     provider = new StripeProvider(mockPrisma as never, mockConfig as never);
   });
 
@@ -253,7 +277,16 @@ describe("StripeProvider", () => {
         data: { object: makeStripeSub() },
       };
       mockStripeWebhooksConstructEvent.mockReturnValue(event);
-      mockPrisma.stripeEvent.findUnique.mockResolvedValue({ id: "existing" });
+      // Un duplicado ya no se detecta leyendo antes de escribir: lo rechaza
+      // la unicidad al reclamar, y lo que decide es si la fila existente está
+      // SELLADA. Con `processedAt`, está hecho y no se repite.
+      mockPrisma.stripeEvent.create.mockRejectedValue(
+        new Error("unique constraint"),
+      );
+      mockPrisma.stripeEvent.findUnique.mockResolvedValue({
+        id: "existing",
+        processedAt: new Date(),
+      });
 
       await provider.handleWebhook(Buffer.from("{}"), "sig");
 

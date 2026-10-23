@@ -1,5 +1,7 @@
 "use client";
 
+import { dialableHotline } from "@psico/types";
+
 /**
  * CrisisModal — Sprint front-eco.
  *
@@ -27,6 +29,13 @@ export function CrisisModal({
   crisisPath: string;
   onClose: () => void;
 }) {
+  // Derivado, no escrito a mano en el JSX. El saneador anterior
+  // —`hotline.replace(/\s|\(.+?\)/g, "")`— descartaba justo la forma
+  // numérica de la línea real: «1800-4-SALUD (1800-472583)» salía como
+  // `tel:1800-4-SALUD`, letras en el único botón donde una pulsación tiene
+  // que funcionar a la primera.
+  const marcable = dialableHotline(hotline);
+
   return (
     <div
       role="alertdialog"
@@ -68,13 +77,25 @@ export function CrisisModal({
             {text}
           </p>
 
-          <a
-            href={`tel:${hotline.replace(/\s|\(.+?\)/g, "")}`}
-            className="mt-5 block w-full rounded-2xl px-5 py-3 text-center text-sm font-bold text-white"
-            style={{ background: "#B91C1C" }}
-          >
-            📞 Llamar ahora · {hotline}
-          </a>
+          {marcable ? (
+            <a
+              href={`tel:${marcable}`}
+              className="mt-5 block w-full rounded-2xl px-5 py-3 text-center text-sm font-bold text-white"
+              style={{ background: "#B91C1C" }}
+            >
+              📞 Llamar ahora · {hotline}
+            </a>
+          ) : (
+            // Sin forma marcable no se finge un enlace: un `tel:` muerto en
+            // esta pantalla parece ayuda y no hace nada. Se muestra la línea
+            // tal cual, que es lo que alguien puede teclear.
+            <p
+              className="mt-5 block w-full rounded-2xl px-5 py-3 text-center text-sm font-bold text-white"
+              style={{ background: "#B91C1C" }}
+            >
+              📞 Llama al {hotline}
+            </p>
+          )}
 
           <button
             type="button"

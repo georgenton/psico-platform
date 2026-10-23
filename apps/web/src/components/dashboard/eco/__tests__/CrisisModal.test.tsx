@@ -22,13 +22,24 @@ import { CrisisModal } from "../CrisisModal";
 
 const TEXTO =
   "Lo que estás sintiendo importa.\nHay gente preparada para acompañarte.";
-const LINEA = "171 (opción 6)";
+/**
+ * La línea REAL que el servidor emite (`apps/api/src/eco/crisis.ts`), no una
+ * inventada.
+ *
+ * La primera versión de estas pruebas fijaba `"171 (opción 6)"`, y con esa
+ * cadena el saneador del modal daba `tel:171` y todo parecía correcto. Con la
+ * línea real daba `tel:1800-4-SALUD`: el paréntesis que descartaba era la
+ * ÚNICA forma íntegramente numérica de la cadena. La prueba se llamaba
+ * «número marcable» y certificaba lo contrario, porque el dato que usaba
+ * nunca ejercitaba el caso real.
+ */
+const LINEA = "1800-4-SALUD (1800-472583)";
 
-function montar(onClose = vi.fn()) {
+function montar(onClose = vi.fn(), hotline: string = LINEA) {
   render(
     <CrisisModal
       text={TEXTO}
-      hotline={LINEA}
+      hotline={hotline}
       crisisPath="/dashboard/terapia/crisis"
       onClose={onClose}
     />,
@@ -37,6 +48,16 @@ function montar(onClose = vi.fn()) {
 }
 
 describe("CrisisModal · lo que hace, no cómo se pinta", () => {
+  it("sin forma marcable no finge un enlace que no lleva a ninguna parte", () => {
+    // Un `tel:` muerto en esta pantalla parece ayuda y no hace nada, así que
+    // se enseña la línea como texto y se deja de prometer una llamada.
+    montar(vi.fn(), "Busca tu línea local");
+    expect(
+      screen.queryByRole("link", { name: /llamar ahora/i }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText(/Busca tu línea local/)).toBeInTheDocument();
+  });
+
   it("se anuncia como diálogo de alerta modal y con su título", () => {
     montar();
     const dialogo = screen.getByRole("alertdialog");
@@ -58,10 +79,14 @@ describe("CrisisModal · lo que hace, no cómo se pinta", () => {
   it("el recurso de crisis no cambia: número marcable y línea internacional", () => {
     montar();
     const llamar = screen.getByRole("link", { name: /llamar ahora/i });
-    // El `tel:` se limpia de espacios y paréntesis para que el marcador lo
-    // entienda, pero el número que se ENSEÑA es el que escribió el servidor.
-    expect(llamar).toHaveAttribute("href", "tel:171");
+    // El `tel:` lleva la forma que un marcador entiende; el número que se
+    // ENSEÑA es el que escribió el servidor, con su mnemotecnia incluida.
+    expect(llamar).toHaveAttribute("href", "tel:1800-472583");
     expect(llamar).toHaveTextContent(LINEA);
+    // Y nunca letras: un `tel:` con mnemotecnia no se marca de forma fiable.
+    expect(llamar.getAttribute("href")?.slice("tel:".length)).not.toMatch(
+      /[a-zA-Z]/,
+    );
 
     const internacional = screen.getByRole("link", {
       name: /findahelpline\.com/i,

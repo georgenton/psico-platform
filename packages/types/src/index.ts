@@ -3940,3 +3940,4 @@ export * from "./experience";
 // and the ingest test run the same code.
 export * from "./guide-anchor";
 export * from "./practice";
+export * from "./crisis-hotline";

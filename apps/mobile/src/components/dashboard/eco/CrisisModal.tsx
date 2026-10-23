@@ -6,6 +6,8 @@ import {
   Text,
   View,
 } from "react-native";
+import { dialableHotline } from "@psico/types";
+
 import { Colors, Radius, Spacing } from "@/theme";
 
 /**
@@ -26,6 +28,12 @@ export function CrisisModal({
   crisisPath: string;
   onClose: () => void;
 }) {
+  // El saneador anterior vivía en el `onPress` y descartaba justo la forma
+  // numérica de la línea real: «1800-4-SALUD (1800-472583)» abría
+  // `tel:1800-4-SALUD`. Mismo helper que el web, para que las dos pantallas
+  // no puedan divergir en esto.
+  const marcable = dialableHotline(hotline);
+
   return (
     <Modal
       visible
@@ -44,15 +52,20 @@ export function CrisisModal({
           </View>
           <View style={styles.body}>
             <Text style={styles.bodyText}>{text}</Text>
-            <Pressable
-              style={styles.callBtn}
-              onPress={() => {
-                const digits = hotline.replace(/\s|\(.+?\)/g, "");
-                void Linking.openURL(`tel:${digits}`);
-              }}
-            >
-              <Text style={styles.callBtnText}>📞 Llamar · {hotline}</Text>
-            </Pressable>
+            {marcable ? (
+              <Pressable
+                style={styles.callBtn}
+                onPress={() => void Linking.openURL(`tel:${marcable}`)}
+              >
+                <Text style={styles.callBtnText}>📞 Llamar · {hotline}</Text>
+              </Pressable>
+            ) : (
+              // Sin forma marcable no se finge un botón que marca: abrir un
+              // `tel:` muerto en esta pantalla parece ayuda y no hace nada.
+              <View style={styles.callBtn}>
+                <Text style={styles.callBtnText}>📞 Llama al {hotline}</Text>
+              </View>
+            )}
             <Pressable style={styles.ackBtn} onPress={onClose}>
               <Text style={styles.ackBtnText}>Entendido</Text>
             </Pressable>

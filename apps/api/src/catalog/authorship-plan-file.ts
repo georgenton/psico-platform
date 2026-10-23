@@ -13,7 +13,11 @@ import {
 } from "node:fs";
 import { basename, dirname, isAbsolute, resolve, sep } from "node:path";
 
-import { AUTHORSHIP_SOURCES, FIXTURE_AUTHOR_SLUGS } from "./authorship-sources";
+import {
+  AUTHORSHIP_SOURCES,
+  FIXTURE_AUTHOR_SLUGS,
+  RETAINED_BOOKS,
+} from "./authorship-sources";
 import type { RepairOp, RepairPlan } from "./authorship-repair";
 
 /**
@@ -304,6 +308,15 @@ const OP_KEYS: Record<string, readonly string[]> = {
     "targetAuthorId",
     "source",
   ],
+  "retire-book-publication": [
+    "kind",
+    "bookId",
+    "bookSlug",
+    "bookTitle",
+    "expect",
+    "next",
+    "source",
+  ],
 };
 
 const EXPECT_KEYS = [
@@ -320,6 +333,9 @@ const BOOK_COPY_EXPECT_KEYS = [
   "summaryDigest",
   "descriptionDigest",
 ] as const;
+
+const RETIRE_EXPECT_KEYS = ["slug", "isPublished"] as const;
+const RETIRE_NEXT_KEYS = ["isPublished"] as const;
 
 const sameSlug = (a: string, b: string) =>
   a.trim().toLowerCase() === b.trim().toLowerCase();
@@ -525,6 +541,71 @@ function validateOp(raw: unknown, index: number): void {
           )} y declara que ese campo estaba vacío.`,
         );
       }
+    }
+    return;
+  }
+
+  if (kind === "retire-book-publication") {
+    if (
+      !isNonEmptyString(op.bookId) ||
+      !isNonEmptyString(op.bookSlug) ||
+      !isNonEmptyString(op.bookTitle) ||
+      !isNonEmptyString(op.source)
+    ) {
+      throw new PlanFileError(
+        `OPERACIÓN INVÁLIDA (${where}): bookId, bookSlug, bookTitle y source deben ser cadenas.`,
+      );
+    }
+    // Same role the `create-author` correspondence check plays: without it a
+    // well-formed file could withdraw ANY work from the catalogue by naming
+    // it, and withdrawing a work nobody decided to retain is not a repair.
+    if (!RETAINED_BOOKS.some((r) => sameSlug(r.bookSlug, op.bookSlug as string))) {
+      throw new PlanFileError(
+        `CORRESPONDENCIA NO SUSTENTADA (${where}): ninguna decisión editorial de este repositorio retiene ${JSON.stringify(
+          op.bookSlug,
+        )}. Retirar una obra que nadie decidió retener sería otra decisión.`,
+      );
+    }
+    const expect = op.expect;
+    if (
+      expect === null ||
+      typeof expect !== "object" ||
+      Array.isArray(expect)
+    ) {
+      throw new PlanFileError(
+        `OPERACIÓN INVÁLIDA (${where}): expect no es un objeto.`,
+      );
+    }
+    const e = expect as Record<string, unknown>;
+    assertExactKeys(e, RETIRE_EXPECT_KEYS, `${where}.expect`);
+    if (!isNonEmptyString(e.slug) || e.slug !== op.bookSlug) {
+      throw new PlanFileError(
+        `REFERENCIA INCOHERENTE (${where}): expect.slug ${JSON.stringify(
+          e.slug,
+        )} no corresponde a bookSlug ${JSON.stringify(op.bookSlug)}.`,
+      );
+    }
+    // The only expectation this operation can hold, and the only outcome it
+    // can write. `expect.isPublished: false` would be an operation with
+    // nothing to do; `next.isPublished: true` would be publishing a work
+    // through a repair plan, which this tool must never be able to express.
+    if (e.isPublished !== true) {
+      throw new PlanFileError(
+        `OPERACIÓN INVÁLIDA (${where}): expect.isPublished debe ser true — retirar algo ya retirado no es una operación.`,
+      );
+    }
+    const next = op.next;
+    if (next === null || typeof next !== "object" || Array.isArray(next)) {
+      throw new PlanFileError(
+        `OPERACIÓN INVÁLIDA (${where}): next no es un objeto.`,
+      );
+    }
+    const n = next as Record<string, unknown>;
+    assertExactKeys(n, RETIRE_NEXT_KEYS, `${where}.next`);
+    if (n.isPublished !== false) {
+      throw new PlanFileError(
+        `OPERACIÓN FUERA DE ALCANCE (${where}): next.isPublished sólo puede ser false. Publicar una obra no se hace por un plan de reparación.`,
+      );
     }
     return;
   }
@@ -1345,6 +1426,20 @@ export function sanitizedPlanSummary(
           kind: op.kind,
           authorSlug: op.authorSlug,
           authorName: op.authorName,
+          source: op.source,
+        };
+      }
+      if (op.kind === "retire-book-publication") {
+        return {
+          kind: op.kind,
+          bookId: op.bookId,
+          bookSlug: op.bookSlug,
+          bookTitle: op.bookTitle,
+          // Read from the operation, like every other `next` here. Printing
+          // a fixed `false` would summarise a divergent file as the expected
+          // one, which is the defect this function's docblock describes.
+          expect: { slug: op.expect.slug, isPublished: op.expect.isPublished },
+          next: { isPublished: op.next.isPublished },
           source: op.source,
         };
       }

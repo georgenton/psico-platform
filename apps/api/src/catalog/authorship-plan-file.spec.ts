@@ -81,6 +81,18 @@ const snapshot = (over: Partial<CatalogSnapshot> = {}): CatalogSnapshot => ({
       authorId: "a-fixture",
       summary: SINOPSIS_CON_NOMBRE,
       description: null,
+      isPublished: true,
+    },
+    // Publicada, para que el plan base incluya también una retirada: las
+    // comprobaciones de alcance de esa operación necesitan una que alterar.
+    {
+      id: "b-fe",
+      slug: "familias-ensambladas",
+      title: "Familias Ensambladas",
+      authorId: "a-fixture",
+      summary: null,
+      description: null,
+      isPublished: true,
     },
   ],
   ...over,
@@ -112,8 +124,9 @@ describe("esquema de ejecución del plan", () => {
   it("un plan íntegro y del mismo destino se acepta", () => {
     const path = planFile(tmp());
     const loaded = loadFrozenPlan(path, target());
-    // Credenciales · copy del libro · alta del autor · atribución.
-    expect(loaded.ops).toHaveLength(4);
+    // Credenciales · copy del libro · retirada · alta del autor · dos
+    // atribuciones.
+    expect(loaded.ops).toHaveLength(6);
   });
 
   it("un kind permitido con campos no permitidos se rechaza por ALCANCE", () => {
@@ -338,6 +351,70 @@ describe("esquema de ejecución del plan", () => {
     );
     expect(() => loadFrozenPlan(path, target())).toThrow(
       /CORRESPONDENCIA NO SUSTENTADA/,
+    );
+  });
+
+  it("una retirada de una obra que nadie decidió retener se rechaza", () => {
+    // Bien formado, bien hasheado, y una decisión que ninguna fuente de este
+    // repositorio tomó. Sin esta correspondencia, un archivo válido podría
+    // sacar del catálogo CUALQUIER obra nombrándola.
+    const path = planFile(
+      tmp(),
+      (p) => {
+        const op = p.ops.find(
+          (o) => o.kind === "retire-book-publication",
+        ) as Extract<
+          FrozenPlan["ops"][number],
+          { kind: "retire-book-publication" }
+        >;
+        op.bookSlug = "emociones-en-construccion";
+        op.expect.slug = "emociones-en-construccion";
+      },
+      { rehash: true },
+    );
+    expect(() => loadFrozenPlan(path, target())).toThrow(
+      /CORRESPONDENCIA NO SUSTENTADA/,
+    );
+  });
+
+  it("publicar una obra desde un plan de reparación se rechaza", () => {
+    // La dirección contraria no es expresable: nadie buscaría el acto de
+    // publicar una obra dentro de un plan de reparación, así que la
+    // herramienta no puede ejecutarlo aunque el archivo lo pida.
+    const path = planFile(
+      tmp(),
+      (p) => {
+        const op = p.ops.find(
+          (o) => o.kind === "retire-book-publication",
+        ) as Extract<
+          FrozenPlan["ops"][number],
+          { kind: "retire-book-publication" }
+        >;
+        (op.next as unknown as Record<string, unknown>).isPublished = true;
+      },
+      { rehash: true },
+    );
+    expect(() => loadFrozenPlan(path, target())).toThrow(
+      /OPERACIÓN FUERA DE ALCANCE.*next\.isPublished/s,
+    );
+  });
+
+  it("una retirada que dice esperar algo ya retirado se rechaza", () => {
+    const path = planFile(
+      tmp(),
+      (p) => {
+        const op = p.ops.find(
+          (o) => o.kind === "retire-book-publication",
+        ) as Extract<
+          FrozenPlan["ops"][number],
+          { kind: "retire-book-publication" }
+        >;
+        (op.expect as unknown as Record<string, unknown>).isPublished = false;
+      },
+      { rehash: true },
+    );
+    expect(() => loadFrozenPlan(path, target())).toThrow(
+      /OPERACIÓN INVÁLIDA.*expect\.isPublished/s,
     );
   });
 

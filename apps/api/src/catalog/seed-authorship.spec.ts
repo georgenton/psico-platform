@@ -6,6 +6,7 @@ import {
   AUTHORSHIP_PENDING,
   AUTHORSHIP_SOURCES,
   FIXTURE_AUTHOR_SLUGS,
+  RETAINED_BOOKS,
 } from "./authorship-sources";
 
 /**
@@ -117,19 +118,19 @@ describe("prisma/seed.ts · autoría y credenciales", () => {
     // a stranger because a string matched. The seed must resolve the row and
     // compare the name before adopting it — and must NOT reach that row
     // through an upsert, which would also rename it on the way in.
-    const slug = /EEC_AUTHOR_SLUG = "([^"]+)"/.exec(SEED_CODE)?.[1];
+    const slug = /SOURCED_AUTHOR_SLUG = "([^"]+)"/.exec(SEED_CODE)?.[1];
     expect(slug).toBeTruthy();
 
     // Resolution, not creation-by-coincidence.
     expect(SEED_CODE).toMatch(
-      /findUnique\(\{\s*where: \{ slug: EEC_AUTHOR_SLUG \}/,
+      /findUnique\(\{\s*where: \{ slug: SOURCED_AUTHOR_SLUG \}/,
     );
     // The adopted row's name has to be checked against the canonical one.
-    expect(SEED_CODE).toMatch(/\.name\.trim\(\) === EEC_AUTHOR_NAME/);
+    expect(SEED_CODE).toMatch(/\.name\.trim\(\) === SOURCED_AUTHOR_NAME/);
     // And no upsert may be keyed on that slug, by constant or by literal.
     const upserts = /bookAuthor\.upsert\(\{[\s\S]{0,200}/g;
     for (const [block] of SEED_CODE.matchAll(upserts)) {
-      expect(block).not.toMatch(/EEC_AUTHOR_SLUG/);
+      expect(block).not.toMatch(/SOURCED_AUTHOR_SLUG/);
       expect(block).not.toContain(`"${slug}"`);
     }
   });
@@ -170,27 +171,32 @@ describe("prisma/seed.ts · Familias Ensambladas", () => {
     return updateBlocks(region)[0] ?? "";
   })();
 
-  it("no acredita a la identidad de fixture: queda sin autor", () => {
-    // El defecto era que el catálogo público acreditaba a una identidad de
-    // fixture —con nombre de persona— como autora de una obra real. Con
-    // `AUTHORSHIP_SOURCE` todavía PENDING, el valor honesto es ninguno: el
-    // libro se renderiza «Autoría por confirmar».
+  it("no acredita a la identidad de fixture", () => {
+    // El defecto original: el catálogo público acreditaba a una identidad de
+    // fixture —con nombre de persona— como autora de una obra real. Eso sigue
+    // prohibido aquí, con fuente o sin ella. Lo que cambió es cuál es el
+    // valor honesto cuando SÍ hay fuente.
     const idx = SEED_CODE.indexOf('slug: "familias-ensambladas"');
     expect(idx).toBeGreaterThan(0);
-    const region = SEED_CODE.slice(idx, idx + 900);
-    expect(region).toMatch(/authorId: null/);
+    const region = SEED_CODE.slice(idx, idx + 1800);
     expect(region).not.toMatch(/authorId: fixtureAuthor\.id/);
+    expect(region).not.toMatch(/marina-quintana/);
   });
 
-  it("tampoco escribe el nombre declarado, que el propietario aplazó", () => {
-    // La autoría se declaró el 2026-10-13, pero la misma nota dice que no
-    // autoriza corregir la fila ahora y mantiene la autoría entre lo que se
-    // revisa con aprobación explícita. Escribirla aquí haría que el seed
-    // afirmara lo aplazado — y cambiaría lo que propone el plan de
-    // reparación, que es la vía sancionada y tiene su propia aprobación.
+  it("acredita al autor con fuente, resuelto y no escrito a mano", () => {
+    // El 2026-10-13 el valor honesto era ninguno: la nota declaraba la
+    // autoría y en la misma frase decía que no autorizaba corregir la fila.
+    // La autorización del 2026-10-23 retira ese aplazamiento y la tabla de
+    // fuentes ya lleva la obra; seguir sin acreditarla sería el seed
+    // contradiciendo a la tabla.
+    //
+    // Se exige la VARIABLE resuelta, no el nombre literal: escribirlo a mano
+    // se saltaría la comprobación de homonimia que la resolución hace — el
+    // mismo defecto que esta suite vigila para el libro ancla.
     const idx = SEED_CODE.indexOf('slug: "familias-ensambladas"');
-    const region = SEED_CODE.slice(idx, idx + 900);
-    expect(region).not.toMatch(/Quizamanchuro|eecAuthorId/);
+    const region = SEED_CODE.slice(idx, idx + 1800);
+    expect(region).toMatch(/authorId: sourcedAuthorId/);
+    expect(region).not.toMatch(/authorId: "/);
   });
 
   it("nace sin publicar, como dice la landing aprobada", () => {
@@ -212,17 +218,45 @@ describe("prisma/seed.ts · Familias Ensambladas", () => {
   });
 });
 
-describe("authorship-sources · Familias sigue sin fuente en el repositorio", () => {
-  it("permanece PENDING, y por eso el seed no la acredita", () => {
-    // El seed y esta tabla tienen que decir lo mismo. Si alguien añade la
-    // fuente —cuando el propietario lo autorice— esta prueba cae y obliga a
-    // revisar el seed y el plan de reparación a la vez, que es el orden
-    // correcto: la corrección de la fila alojada va por el plan aprobado, no
-    // por el seed.
-    expect(AUTHORSHIP_PENDING).toContain("familias-ensambladas");
-    expect(
-      AUTHORSHIP_SOURCES.some((s) => s.bookSlug === "familias-ensambladas"),
-    ).toBe(false);
+describe("authorship-sources · Familias ya tiene fuente en el repositorio", () => {
+  it("sale de PENDING cuando la autorización la nombra, y el seed la sigue", () => {
+    // La versión anterior fijaba lo contrario y CAYÓ al añadirse la fuente,
+    // que es exactamente para lo que se escribió: «si alguien añade la
+    // fuente, esta prueba cae y obliga a revisar el seed y el plan de
+    // reparación a la vez». Las dos revisiones se hicieron, así que ahora
+    // fija el estado nuevo en lugar del viejo.
+    const fuente = AUTHORSHIP_SOURCES.find(
+      (x) => x.bookSlug === "familias-ensambladas",
+    );
+    expect(fuente?.authorName).toBe("Jorge Quizamanchuro");
+    // La fuente tiene que ser citable, no una afirmación suelta.
+    expect(fuente?.source).toMatch(/2026-10-23/);
+    expect(AUTHORSHIP_PENDING).not.toContain("familias-ensambladas");
+  });
+
+  it("la fuente acredita autoría y nada más", () => {
+    // La autorización dice, con todas sus letras, que «no acredita títulos
+    // profesionales, licencias, especialidades ni biografías». La forma de la
+    // tabla es lo que lo hace cierto: no hay dónde escribirlo.
+    const fuente = AUTHORSHIP_SOURCES.find(
+      (x) => x.bookSlug === "familias-ensambladas",
+    )!;
+    expect(Object.keys(fuente).sort()).toEqual(
+      ["authorName", "authorSlug", "bookSlug", "bookTitle", "source"].sort(),
+    );
+  });
+
+  it("la decisión de retenerla es una tabla aparte de la de autoría", () => {
+    // Quién escribió una obra y si se ofrece a los lectores son dos
+    // afirmaciones con fuentes distintas. Mezclarlas dejaría que una
+    // atribución arrastrase una publicación.
+    const retenida = RETAINED_BOOKS.find(
+      (r) => r.bookSlug === "familias-ensambladas",
+    );
+    expect(retenida?.source).toMatch(/2026-10-23/);
+    expect(Object.keys(retenida!).sort()).toEqual(
+      ["bookSlug", "bookTitle", "source"].sort(),
+    );
   });
 
   it("la identidad de fixture sigue declarada como tal", () => {

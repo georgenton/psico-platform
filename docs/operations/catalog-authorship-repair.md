@@ -38,10 +38,14 @@ qué autoridad — y hasta este cambio nada en el repositorio lo registraba.
 Documento canónico de coordinación editorial: **«07 — Libros prioritarios:
 Parejas y Emociones»**.
 
-| Obra                        | Autor                   | Estado del registro   |
-| --------------------------- | ----------------------- | --------------------- |
-| _Emociones en construcción_ | **Jorge Quizamanchuro** | atribución sustentada |
-| _Parejas que perduran_      | **David Jaramillo**     | atribución sustentada |
+Segunda fuente, posterior: **«Autorización operativa de Jorge Quizamanchuro ·
+2026-10-23»**, §3.B «Autoría del catálogo» y §3.C «Disponibilidad».
+
+| Obra                        | Autor                   | Estado del registro   | Fuente    |
+| --------------------------- | ----------------------- | --------------------- | --------- |
+| _Emociones en construcción_ | **Jorge Quizamanchuro** | atribución sustentada | 07 Notion |
+| _Familias ensambladas_      | **Jorge Quizamanchuro** | atribución sustentada | 2026-10-23 |
+| _Parejas que perduran_      | **David Jaramillo**     | atribución sustentada | 07 Notion |
 
 Esa fuente acredita **autoría editorial** y nada más. No acredita doctorado ni
 otro título, licencia o colegiatura, verificación profesional, titularidad de
@@ -49,9 +53,39 @@ una cuenta, permisos sobre `AuthorBook` ni derechos económicos. **Ser autor de
 un libro no es ser profesional verificado**, y este expediente no convierte lo
 uno en lo otro: las altas de autor que propone llevan sólo `slug` y `name`.
 
-Para cualquier otra obra —incluida **Familias Ensambladas**— no hay fuente en
-este repositorio: `AUTHORSHIP_SOURCE = PENDING`. Extrapolar uno de los dos
-nombres de arriba sería inventar la atribución.
+**Familias ensambladas estuvo en `PENDING` hasta el 2026-10-23**, y la razón
+de que ya no lo esté importa: no es que el razonamiento anterior fuera
+erróneo. La nota del 2026-10-13 declaraba la autoría y en la misma frase decía
+que no autorizaba corregir la fila, así que acreditarla habría sido afirmar lo
+aplazado. La autorización del 2026-10-23 retira ese aplazamiento con todas sus
+letras —«levanta el aplazamiento operativo anterior de esas atribuciones de
+catálogo»— y nombra al autor de esa obra. Una obra que no figure en ninguna de
+las dos tablas sigue sin fuente, y el plan lo dice de esa obra en concreto.
+
+### Disponibilidad: una tabla aparte
+
+Quién escribió una obra y si se ofrece a los lectores son dos afirmaciones con
+fuentes distintas, así que viven en tablas distintas (`RETAINED_BOOKS`).
+Mezclarlas dejaría que una atribución arrastrase una publicación, que es como
+una obra retenida acaba servida sin que nadie lo decidiera.
+
+**La retirada sólo va en una dirección.** La operación se llama
+`retire-book-publication`, su `next` sólo admite `isPublished: false`, y el
+tipo del aplicador no sabe expresar la contraria. No es una precaución
+decorativa: nadie buscaría el acto de **publicar** una obra dentro de un plan
+de reparación, así que la herramienta no debe poder ejecutarlo aunque el
+archivo lo pida. Publicar sigue siendo un acto editorial por las superficies
+normales.
+
+| Obra                   | Estado         | Fuente     |
+| ---------------------- | -------------- | ---------- |
+| _Familias ensambladas_ | **no ofrecer** | 2026-10-23 |
+
+El seed dejó de publicarla en #797, pero sólo en `create`: `isPublished` salió
+a propósito del `update` del upsert para que una fila alojada pudiera
+retirarse sin editar el archivo. Nada ha retirado la fila alojada todavía, así
+que una base sembrada antes de aquel cambio **sigue sirviendo la obra** por
+muchas veces que corra el seed. Ese es el hueco que cierra esta operación.
 
 ## 3 · Alcance de `Book.authorId`, comprobado antes de proponer nada
 
@@ -450,8 +484,20 @@ valor.
   Eso demuestra que el comando funciona; no demuestra nada sobre una base
   alojada, que no se ha tocado.
 - Las correspondencias permitidas son las de `authorship-sources.ts`. Añadir
-  una atribución es editar ese archivo con su cita, no pasar un plan distinto:
-  un archivo no puede ampliar el alcance de la herramienta.
+  una atribución —o una obra retenida— es editar ese archivo con su cita, no
+  pasar un plan distinto: un archivo no puede ampliar el alcance de la
+  herramienta. Un plan bien formado y bien hasheado que retire una obra que
+  nadie decidió retener se rechaza por `CORRESPONDENCIA NO SUSTENTADA`.
+- **Retirar una obra del catálogo no es borrarla.** La operación escribe una
+  columna. Capítulos, revisiones, unidades, bloques, medios, anclas y el
+  historial de lectura de cada persona quedan exactamente como estaban: una
+  obra que ya no se ofrece no es una obra que nunca existió.
+- **La retirada sola no basta para que deje de servirse.** Lo que impide
+  servir una obra no publicada son las comprobaciones de las rutas, no esta
+  columna. Aplicar la retirada sobre una imagen que todavía no las tenga
+  cambia el dato y no el comportamiento, que es peor que no haberla aplicado
+  porque parece hecho. Por eso el orden es: primero el código servido,
+  después la reparación.
 - `describeError` imprime la clase y el código de un fallo ajeno, no su
   mensaje. Eso evita volcar valores, cadenas de conexión o argumentos de
   consulta, y significa que el detalle de un fallo del driver hay que buscarlo

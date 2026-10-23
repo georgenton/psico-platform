@@ -1,9 +1,30 @@
 -- D-ORD · `processedAt` pasa a ser opcional.
 --
--- Compatible con la instancia que sale: el código anterior siempre escribe un
--- valor, así que sigue funcionando contra esta columna sin tocar nada. Lo que
--- habilita es la reclamación en dos tiempos — fila primero con NULL, sello
--- después— para que un intento que muere a mitad no quede marcado como hecho.
+-- Nulo significa «reclamado y sin terminar». La fila se escribe ANTES de
+-- aplicar el efecto y se sella después, para que un intento que muere a mitad
+-- no quede marcado como hecho y Stripe pueda reintentarlo.
 --
--- Aditiva y reversible sin pérdida mientras no exista ninguna fila con NULL.
+-- ── Convivencia: qué es compatible y qué no ──────────────────────────────────
+--
+-- Hacia las ESCRITURAS de la imagen anterior, sí: siempre escribe un valor, de
+-- modo que sigue funcionando contra esta columna sin tocar nada.
+--
+-- Hacia la RECUPERACIÓN, no, y conviene no llamarlo «aditiva y reversible» a
+-- secas. La imagen anterior da por procesado cualquier evento cuya fila
+-- exista: su comprobación es `findUnique(...) != null`. Una reclamación
+-- pendiente escrita por la imagen nueva —`processedAt IS NULL`, efecto sin
+-- aplicar— sería saltada por la vieja y su efecto se perdería en silencio.
+--
+-- Por eso el rollback tiene una PRECONDICIÓN, no una garantía:
+--
+--     SELECT count(*) FROM "StripeEvent" WHERE "processedAt" IS NULL;  -- 0
+--
+-- Mientras ese recuento no sea cero, no se vuelve a la imagen anterior. Se
+-- vacía reentregando los eventos desde Stripe, que la imagen nueva reaplica
+-- —una reclamación sin sellar es reaplicable— y después sella. No se borran
+-- las filas pendientes ni se les pone fecha a mano: eso convertiría un efecto
+-- no aplicado en uno dado por hecho, que es exactamente el fallo que esta
+-- columna existe para evitar.
+--
+-- El ensayo y el procedimiento están en `docs/deploy/coolify-runbook.md`.
 ALTER TABLE "StripeEvent" ALTER COLUMN "processedAt" DROP NOT NULL;

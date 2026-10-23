@@ -623,6 +623,50 @@ Un rollback de **datos** es otra cosa y no se improvisa: exige el restore drill
 documentado desde el backup de R2. Una migración `expand → deploy → contract` se
 revierte deshaciendo el paso _contract_ primero, y sólo si ese paso aún no corrió.
 
+### 3.1 Precondición del nivel 1 cuando hay reclamaciones pendientes
+
+Un redeploy de la versión anterior no siempre es gratis, y hay un caso concreto
+en el que no lo es. Conviene tenerlo escrito antes de necesitarlo.
+
+La migración `20261023120000_dord_stripe_event_claim` hizo opcional
+`StripeEvent.processedAt`. Nulo significa «reclamado y sin terminar»: la fila se
+escribe antes de aplicar el efecto y se sella después, para que un intento que
+muere a mitad no quede marcado como hecho.
+
+Las **escrituras** de la imagen anterior siguen siendo compatibles —siempre
+ponen un valor—. La **recuperación** no: esa imagen da por procesado cualquier
+evento cuya fila exista, porque su comprobación es `findUnique(...) != null`.
+Una reclamación pendiente la saltaría, y su efecto se perdería sin que nada lo
+dijera.
+
+Así que el nivel 1 sobre la API tiene una precondición, no una garantía:
+
+```sql
+SELECT count(*) FROM "StripeEvent" WHERE "processedAt" IS NULL;  -- debe ser 0
+```
+
+**Mientras ese recuento no sea cero, no se vuelve a la imagen anterior.** Para
+vaciarlo:
+
+1. Listar las pendientes con su `stripeEventId` y su `type`.
+2. Reentregar cada una desde Stripe —`stripe events resend <id>
+--webhook-endpoint=<endpoint>`, o «Resend» en el panel—. La imagen **nueva**
+   reaplica una reclamación sin sellar: el estado se relee de Stripe, así que
+   repetirlo converge al mismo sitio.
+3. Volver a contar. Cuando dé 0, el rollback es seguro.
+
+**No se borran las filas pendientes ni se les pone fecha a mano.** Las dos
+cosas convierten un efecto no aplicado en uno dado por hecho, que es
+exactamente lo que esta columna existe para evitar. Si una reentrega no es
+posible —el evento ya no está en la ventana de reenvío de Stripe—, la
+pendiente se conserva y se resuelve a mano con el estado real de esa
+suscripción antes de rodar atrás; no se tapa.
+
+El comportamiento de la imagen anterior está medido, no supuesto:
+`billing-events.pg-spec.ts` reproduce su regla sobre una reclamación pendiente
+y comprueba que la saltaría, y a continuación que la imagen nueva sí la
+recupera.
+
 ---
 
 ## 4 · DEPLOY PRODUCTION

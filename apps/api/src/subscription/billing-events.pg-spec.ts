@@ -894,6 +894,49 @@ suite("eventos de suscripción contra PostgreSQL real", () => {
       expect(filas[0]?.processedAt).not.toBeNull();
     });
 
+    it("la imagen ANTERIOR saltaría una pendiente; la nueva la recupera", async () => {
+      // El ensayo de la precondición de rollback, medido en vez de razonado.
+      //
+      // La imagen anterior comprobaba `findUnique(...) != null` y, si la fila
+      // existía, se iba. Una reclamación pendiente —escrita por la imagen
+      // nueva, con el efecto sin aplicar— la habría saltado y su efecto se
+      // habría perdido en silencio. Por eso volver atrás exige que no queden
+      // pendientes, y por eso están documentadas en el runbook.
+      await prisma.stripeEvent.create({
+        data: {
+          stripeEventId: "evt_pendiente_rollback",
+          type: "customer.subscription.updated",
+          processedAt: null,
+        },
+      });
+
+      // La regla de la imagen anterior, tal cual era.
+      const comoLaVieja = await prisma.stripeEvent.findUnique({
+        where: { stripeEventId: "evt_pendiente_rollback" },
+      });
+      expect(comoLaVieja).not.toBeNull(); // → «ya procesado», y se iba
+      expect(comoLaVieja?.processedAt).toBeNull(); // …pero no lo estaba
+
+      // Y el recuento que el runbook exige que sea cero antes de rodar atrás.
+      expect(
+        await prisma.stripeEvent.count({ where: { processedAt: null } }),
+      ).toBe(1);
+
+      // La imagen nueva sí la recupera, sin borrarla ni sellarla a mano.
+      await entregar(
+        evento({
+          id: "evt_pendiente_rollback",
+          userId: ANA,
+          subId: "sub_ana",
+          status: "active",
+        }),
+      );
+      expect(await planDe(ANA)).toBe("PRO");
+      expect(
+        await prisma.stripeEvent.count({ where: { processedAt: null } }),
+      ).toBe(0);
+    });
+
     it("una reclamación inconclusa no bloquea el evento para siempre", async () => {
       // No hay estado «en proceso» con dueño ni plazo: una fila sin sellar es
       // simplemente reaplicable. Se simula el intento muerto escribiéndola a

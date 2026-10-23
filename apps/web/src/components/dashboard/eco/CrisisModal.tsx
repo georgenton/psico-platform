@@ -93,18 +93,26 @@ export function CrisisModal({
 
           <p
             className="mt-4 text-center text-[11px]"
-            // `--fv-muted` en vez de `--color-warm-500`. Los dos nombres NO
-            // son equivalentes: coinciden sólo en Calma —Contemporary corrige
-            // `--color-warm-500` a `var(--fv-muted)` en `globals.css`, y
-            // Renacimiento ya lo apuntaba a `--ren-muted`—, mientras Enfoque y
-            // Energía le dan su propio valor en `dashboard-design.css`.
+            // `--fv-muted` en vez de `--color-warm-500`, y la razón NO es
+            // el contraste: es que una rampa no promete nada.
             //
-            // Medido en el panel, que es donde vive este modal, sobre la
-            // superficie de la tarjeta: Noche 5,99 → 7,10 · Calma 5,29 y 6,05
-            // sin cambio · Enfoque 6,93 → 5,29 (Contemporary) y 6,05
-            // (Renacimiento) · Energía 5,85 → 5,29 y 6,05. Los ocho estados
-            // quedan por encima de 4,5, pero en Enfoque y Energía el valor
-            // anterior era mejor: ver la nota del PR #784.
+            // Conviene decirlo así porque la medida, sola, no sostiene el
+            // cambio. En el panel, sobre la superficie de la tarjeta:
+            // Noche 5,99 → 7,10 · Calma sin cambio · Enfoque 6,93 → 5,29 y
+            // 6,05 · Energía 5,85 → 5,29 y 6,05. Mejora uno y empeora dos, y
+            // los ocho estados estaban ya por encima de 4,5 antes y después.
+            // Como reparación de contraste, no lo es.
+            //
+            // Lo que sí cambia es la garantía. `--color-warm-500` es un valor
+            // de rampa: `color-contracts.ts` prohíbe expresamente que un
+            // contrato apunte a una —«las rampas no prometen nada, y por eso
+            // no se prueban»—, así que este texto no tenía ningún suelo
+            // vigilado y su valor puede moverse por tema y por ambiente sin
+            // que nada lo note. `--fv-muted` es el token auxiliar del sistema
+            // aprobado, está bajo contrato y se mide en los ocho estados.
+            //
+            // Se cambia por eso, y se declara como alineación con el sistema,
+            // no como arreglo de un incumplimiento que no existía.
             style={{ color: "var(--fv-muted)" }}
           >
             Si no estás en Ecuador, busca tu línea local — los números

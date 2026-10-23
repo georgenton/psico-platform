@@ -148,12 +148,12 @@ export const CONTRATOS: readonly ContratoDePar[] = [
     usadoEn:
       "el texto auxiliar de 11 px del modal de crisis —«Si no estás en " +
       "Ecuador…» y el enlace a findahelpline.com, que hereda su color— sobre " +
-      "la superficie de la tarjeta. Iba con `--color-warm-500`, que NO es " +
-      "equivalente a este token: coinciden sólo en Calma, porque Contemporary " +
-      "corrige esa rampa a `var(--fv-muted)` y Renacimiento ya la apuntaba a " +
-      "`--ren-muted`, mientras Enfoque y Energía le dan su propio valor en " +
-      "`dashboard-design.css`. Medido en el panel: Noche 5,99 → 7,10 · Calma " +
-      "sin cambio · Enfoque 6,93 → 5,29 y 6,05 · Energía 5,85 → 5,29 y 6,05",
+      "la superficie de la tarjeta. Venía de `--color-warm-500`, que es una " +
+      "RAMPA: este mismo archivo prohíbe que un contrato apunte a una, así " +
+      "que ese texto no tenía suelo vigilado. El cambio es de garantía, no " +
+      "de contraste — medido: Noche 5,99 → 7,10, Calma igual, Enfoque " +
+      "6,93 → 5,29 y Energía 5,85 → 5,29, con los ocho estados por encima " +
+      "de 4,5 antes y después",
     alcance: "ambos",
   },
   {

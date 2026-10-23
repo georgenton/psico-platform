@@ -9,10 +9,12 @@ import {
   type CatalogSnapshot,
 } from "./authorship-repair";
 import {
+  BOOK_COPY_WITHDRAWAL,
   freezePlan,
   targetIdentityFromUrl,
   type FrozenPlan,
 } from "./authorship-plan-file";
+import { fixtureIdentitiesNamedIn } from "./authorship-sources";
 import {
   applyAuthorshipRepair,
   collectReversal,
@@ -86,6 +88,21 @@ const TITULO_B = "Título sintético B";
 const LICENCIA_A = "AA-0001";
 const LICENCIA_B = "BB-0002";
 
+/**
+ * Copy shaped like the leftovers the UAT of 2026-10-22 measured in staging:
+ * a synopsis opening with the fixture identity's name, a card line naming it
+ * on the book whose authorship is still PENDING, and a bio asserting a
+ * professional specialty. Written here as synthetic text — the point is the
+ * shape of the defect, not the production prose.
+ */
+const BIO_A = "Biografía sintética con especialidad profesional afirmada.";
+const BIO_B = "Biografía sintética distinta.";
+const SINOPSIS_CON_NOMBRE =
+  "Marina Quintana acompaña al lector por un recorrido sintético de prueba.";
+const DESCRIPCION_CON_NOMBRE = "Una guía sintética escrita por Marina.";
+/** Copy that mentions nobody: it must come out of the repair untouched. */
+const SINOPSIS_LIMPIA = "Una sinopsis sintética que no nombra a nadie.";
+
 suite("Catálogo · reparación de autoría (PostgreSQL real)", () => {
   let prisma: PrismaClient;
   let pool: Pool;
@@ -104,11 +121,23 @@ suite("Catálogo · reparación de autoría (PostgreSQL real)", () => {
         name: true,
         title: true,
         licenseNumber: true,
+        bio: true,
         isVerified: true,
       },
+      orderBy: { slug: "asc" },
     }),
     books: await prisma.book.findMany({
-      select: { id: true, slug: true, title: true, authorId: true },
+      select: {
+        id: true,
+        slug: true,
+        title: true,
+        authorId: true,
+        summary: true,
+        description: true,
+      },
+      // Ordered like `readSnapshot`: op order decides the plan hash, and two
+      // freezes of an unchanged catalogue have to agree.
+      orderBy: { slug: "asc" },
     }),
   });
 
@@ -173,6 +202,7 @@ suite("Catálogo · reparación de autoría (PostgreSQL real)", () => {
         name: "Marina Quintana",
         title: TITULO_A,
         licenseNumber: LICENCIA_A,
+        bio: BIO_A,
         isVerified: true,
       },
     });
@@ -182,6 +212,7 @@ suite("Catálogo · reparación de autoría (PostgreSQL real)", () => {
         name: "Alguien Más",
         title: "Su título",
         licenseNumber: "YY-1111",
+        bio: "Su biografía",
         isVerified: true,
       },
     });
@@ -190,6 +221,7 @@ suite("Catálogo · reparación de autoría (PostgreSQL real)", () => {
         slug: "emociones-en-construccion",
         title: "Emociones en Construcción",
         authorId: demo.id,
+        summary: SINOPSIS_CON_NOMBRE,
       },
     });
     await prisma.book.create({
@@ -197,6 +229,16 @@ suite("Catálogo · reparación de autoría (PostgreSQL real)", () => {
         slug: "familias-ensambladas",
         title: "Familias Ensambladas",
         authorId: demo.id,
+        description: DESCRIPCION_CON_NOMBRE,
+      },
+    });
+    // A third work, so "the repair does not touch copy that names nobody" is
+    // measured rather than assumed.
+    await prisma.book.create({
+      data: {
+        slug: "otro-libro",
+        title: "Otro libro",
+        summary: SINOPSIS_LIMPIA,
       },
     });
   });
@@ -218,18 +260,24 @@ suite("Catálogo · reparación de autoría (PostgreSQL real)", () => {
     expect(link?.restore).toEqual({ authorId: demo!.id });
   });
 
-  it("aplicar retira credenciales, crea el autor y reatribuye EEC", async () => {
+  it("aplicar retira credenciales y copy, crea el autor y reatribuye EEC", async () => {
     const plan = await freeze();
     const res = await prisma.$transaction((tx) =>
       applyAuthorshipRepair(tx as never, plan, { apply: true }),
     );
-    expect(res.rowsWritten).toBe(3);
+    // Credentials · copy de EEC · copy de Familias · alta · atribución.
+    expect(res.rowsWritten).toBe(5);
 
     expect(
       await prisma.bookAuthor.findUnique({
         where: { slug: "marina-quintana" },
       }),
-    ).toMatchObject({ title: null, licenseNumber: null, isVerified: false });
+    ).toMatchObject({
+      title: null,
+      licenseNumber: null,
+      bio: null,
+      isVerified: false,
+    });
 
     const jorge = await prisma.bookAuthor.findUnique({
       where: { slug: "jorge-quizamanchuro" },
@@ -245,6 +293,58 @@ suite("Catálogo · reparación de autoría (PostgreSQL real)", () => {
         where: { slug: "emociones-en-construccion" },
       }))!.authorId,
     ).toBe(jorge!.id);
+  });
+
+  it("el copy que nombraba a la identidad de fixture deja de servirse", async () => {
+    // El defecto medido en la UAT: la cabecera acreditaba al autor de fuente
+    // y la sinopsis seguía abriendo con el nombre de la identidad de fixture.
+    const plan = await freeze();
+    await prisma.$transaction((tx) =>
+      applyAuthorshipRepair(tx as never, plan, { apply: true }),
+    );
+
+    const eec = await prisma.book.findUnique({
+      where: { slug: "emociones-en-construccion" },
+    });
+    expect(eec!.summary).toBe(BOOK_COPY_WITHDRAWAL.summary);
+    expect(fixtureIdentitiesNamedIn(eec!.summary)).toEqual([]);
+    // Sólo el campo afectado: `description` estaba limpio y sigue nulo.
+    expect(eec!.description).toBeNull();
+
+    // La obra con autoría PENDING también deja de nombrarla. No inventa quién
+    // la escribió —sigue sin fuente— pero retira un nombre que nadie sustenta.
+    const familias = await prisma.book.findUnique({
+      where: { slug: "familias-ensambladas" },
+    });
+    expect(familias!.description).toBe(BOOK_COPY_WITHDRAWAL.description);
+    expect(familias!.summary).toBeNull();
+  });
+
+  it("el copy que no nombra a nadie se queda como está", async () => {
+    const plan = await freeze();
+    expect(
+      plan.ops.some(
+        (o) => o.kind === "withdraw-book-copy" && o.bookSlug === "otro-libro",
+      ),
+    ).toBe(false);
+    await prisma.$transaction((tx) =>
+      applyAuthorshipRepair(tx as never, plan, { apply: true }),
+    );
+    expect(
+      (await prisma.book.findUnique({ where: { slug: "otro-libro" } }))!
+        .summary,
+    ).toBe(SINOPSIS_LIMPIA);
+  });
+
+  it("el texto retirado sobrevive en la preimagen, para reescribirlo", async () => {
+    // Retirar no es perder: la única copia del texto anterior queda en el
+    // archivo privado, que es de donde saldrá la reescritura editorial.
+    const entries = await collectReversal(prisma as never, await freeze());
+    const copy = entries.find((e) => e.subject.startsWith("book copy id="));
+    expect(copy?.restore).toEqual({
+      summary: SINOPSIS_CON_NOMBRE,
+      description: null,
+    });
   });
 
   it("el otro libro no se reasigna y el autor ajeno queda intacto", async () => {
@@ -265,6 +365,7 @@ suite("Catálogo · reparación de autoría (PostgreSQL real)", () => {
     ).toMatchObject({
       title: "Su título",
       licenseNumber: "YY-1111",
+      bio: "Su biografía",
       isVerified: true,
     });
   });
@@ -295,6 +396,39 @@ suite("Catálogo · reparación de autoría (PostgreSQL real)", () => {
     await other.bookAuthor.update({
       where: { slug: "marina-quintana" },
       data: { licenseNumber: LICENCIA_B },
+    });
+    await expect(
+      prisma.$transaction((tx) =>
+        applyAuthorshipRepair(tx as never, plan, { apply: true }),
+      ),
+    ).rejects.toBeInstanceOf(RepairConflictError);
+  });
+
+  it("biografía A → biografía B antes de aplicar: se detecta y no escribe", async () => {
+    // La biografía viaja en el mismo digest exacto que el título: un cambio
+    // de un texto a otro texto se detecta, y no se retira lo que nadie revisó.
+    const plan = await freeze();
+    await other.bookAuthor.update({
+      where: { slug: "marina-quintana" },
+      data: { bio: BIO_B },
+    });
+    await expect(
+      prisma.$transaction((tx) =>
+        applyAuthorshipRepair(tx as never, plan, { apply: true }),
+      ),
+    ).rejects.toBeInstanceOf(RepairConflictError);
+    expect(
+      (await prisma.bookAuthor.findUnique({
+        where: { slug: "marina-quintana" },
+      }))!.bio,
+    ).toBe(BIO_B);
+  });
+
+  it("sinopsis A → sinopsis B antes de aplicar: se detecta y no escribe", async () => {
+    const plan = await freeze();
+    await other.book.update({
+      where: { slug: "emociones-en-construccion" },
+      data: { summary: "Otra sinopsis, también con Marina Quintana dentro." },
     });
     await expect(
       prisma.$transaction((tx) =>
@@ -379,8 +513,54 @@ suite("Catálogo · reparación de autoría (PostgreSQL real)", () => {
     expect(after!.isVerified).toBe(true);
   });
 
-  it("otra conexión cambia el libro en el intervalo: ni se pisa ni queda media reparación", async () => {
+  it("otra conexión cambia el copy en el intervalo: no se sobrescribe", async () => {
+    // La ventana propia de la retirada de copy. El hook dispara tras la
+    // PRIMERA lectura de libro, que es la de esta operación.
     const plan = await freeze();
+    const intruso = "Texto que escribió otra conexión.";
+    await expect(
+      prisma.$transaction(async (tx) => {
+        const wrapped = interleave(tx as never, "book", async () => {
+          await other.book.update({
+            where: { slug: "emociones-en-construccion" },
+            data: { summary: intruso },
+          });
+        });
+        return applyAuthorshipRepair(wrapped, plan, { apply: true });
+      }),
+    ).rejects.toBeInstanceOf(RepairConflictError);
+
+    // Lo que escribió la otra conexión sigue ahí, y la retirada previa de
+    // credenciales se revirtió con la transacción.
+    expect(
+      (await prisma.book.findUnique({
+        where: { slug: "emociones-en-construccion" },
+      }))!.summary,
+    ).toBe(intruso);
+    expect(
+      await prisma.bookAuthor.findUnique({
+        where: { slug: "marina-quintana" },
+      }),
+    ).toMatchObject({ title: TITULO_A, bio: BIO_A, isVerified: true });
+  });
+
+  it("otra conexión cambia el libro en el intervalo: ni se pisa ni queda media reparación", async () => {
+    // El copy se limpia ANTES de planificar a propósito: así el plan no lleva
+    // ninguna operación de copy y la única lectura de libro es la de la
+    // reatribución, que es la ventana que esta prueba mide. Con una operación
+    // de copy por delante, el hook dispararía en su lectura y el conflicto
+    // saldría de la comparación previa de la reatribución, no de su escritura
+    // condicionada — la prueba pasaría midiendo algo más débil.
+    await prisma.book.update({
+      where: { slug: "emociones-en-construccion" },
+      data: { summary: SINOPSIS_LIMPIA },
+    });
+    await prisma.book.update({
+      where: { slug: "familias-ensambladas" },
+      data: { description: null },
+    });
+    const plan = await freeze();
+    expect(plan.ops.some((o) => o.kind === "withdraw-book-copy")).toBe(false);
     const otherAuthor = await prisma.bookAuthor.findUnique({
       where: { slug: "alguien-mas" },
     });
@@ -412,6 +592,7 @@ suite("Catálogo · reparación de autoría (PostgreSQL real)", () => {
     ).toMatchObject({
       title: TITULO_A,
       licenseNumber: LICENCIA_A,
+      bio: BIO_A,
       isVerified: true,
     });
     // Ni el autor nuevo quedó creado.
@@ -429,7 +610,7 @@ suite("Catálogo · reparación de autoría (PostgreSQL real)", () => {
         const res = await applyAuthorshipRepair(tx as never, plan, {
           apply: true,
         });
-        expect(res.rowsWritten).toBe(3);
+        expect(res.rowsWritten).toBe(5);
         throw new Error("fallo posterior simulado");
       }),
     ).rejects.toThrow(/fallo posterior simulado/);
@@ -438,12 +619,19 @@ suite("Catálogo · reparación de autoría (PostgreSQL real)", () => {
       await prisma.bookAuthor.findUnique({
         where: { slug: "marina-quintana" },
       }),
-    ).toMatchObject({ isVerified: true, title: TITULO_A });
+    ).toMatchObject({ isVerified: true, title: TITULO_A, bio: BIO_A });
     expect(
       await prisma.bookAuthor.findUnique({
         where: { slug: "jorge-quizamanchuro" },
       }),
     ).toBeNull();
+    // El copy retirado vuelve con todo lo demás: una reparación a medias
+    // dejaría la sinopsis en el marcador sin que el autor se hubiera creado.
+    expect(
+      (await prisma.book.findUnique({
+        where: { slug: "emociones-en-construccion" },
+      }))!.summary,
+    ).toBe(SINOPSIS_CON_NOMBRE);
   });
 
   it("repetir no escribe nada ni duplica el autor", async () => {
@@ -640,7 +828,14 @@ suite("Catálogo · reparación de autoría (PostgreSQL real)", () => {
         planId: dry.plan.planId,
         planHash: dry.plan.planHash,
       });
-      expect(reviewed.ops).toHaveLength(3);
+      expect(reviewed.ops).toHaveLength(5);
+      expect(reviewed.ops.map((o) => o.kind)).toEqual([
+        "withdraw-author-credentials",
+        "withdraw-book-copy",
+        "withdraw-book-copy",
+        "create-author",
+        "reattribute-book",
+      ]);
 
       // 3 · apply, consuming THAT plan.
       const run = await runRepair(
@@ -655,7 +850,7 @@ suite("Catálogo · reparación de autoría (PostgreSQL real)", () => {
         ]),
       );
       expect(run.mode).toBe("apply");
-      expect(run.rowsWritten).toBe(3);
+      expect(run.rowsWritten).toBe(5);
       expect(run.outcomeState).toBe("applied");
 
       // 4 · the rows, and the files beside them.
@@ -665,11 +860,13 @@ suite("Catálogo · reparación de autoría (PostgreSQL real)", () => {
       expect(fixture).toMatchObject({
         title: null,
         licenseNumber: null,
+        bio: null,
         isVerified: false,
       });
       const eec = await prisma.book.findUnique({
         where: { slug: "emociones-en-construccion" },
       });
+      expect(eec?.summary).toBe(BOOK_COPY_WITHDRAWAL.summary);
       const sourced = await prisma.bookAuthor.findUnique({
         where: { slug: "jorge-quizamanchuro" },
       });
@@ -680,10 +877,15 @@ suite("Catálogo · reparación de autoría (PostgreSQL real)", () => {
       const pre = JSON.parse(readFileSync(preimage, "utf8"));
       expect(pre.state).toBe("intended");
       expect(JSON.stringify(pre)).toContain(TITULO_A);
+      // El copy retirado también: es la única copia del texto a reescribir.
+      expect(JSON.stringify(pre)).toContain(BIO_A);
+      expect(JSON.stringify(pre)).toContain(SINOPSIS_CON_NOMBRE);
       expect(readOutcome(preimage)?.state).toBe("applied");
       // And nothing shareable carries the literals.
       expect(JSON.stringify(run.report)).not.toContain(TITULO_A);
       expect(JSON.stringify(run.report)).not.toContain(LICENCIA_A);
+      expect(JSON.stringify(run.report)).not.toContain(BIO_A);
+      expect(JSON.stringify(run.report)).not.toContain(SINOPSIS_CON_NOMBRE);
     }, 60_000);
 
     it("repetir el mismo plan con otra ruta de resultado: cero cambios, sin duplicados", async () => {
@@ -704,7 +906,7 @@ suite("Catálogo · reparación de autoría (PostgreSQL real)", () => {
       ];
 
       const one = await runRepair(deps(applyArgv(first)));
-      expect(one.rowsWritten).toBe(3);
+      expect(one.rowsWritten).toBe(5);
 
       // The second run is the documented idempotence. It used to fail here:
       // `collectReversal` read the already-repaired book, compared it against
@@ -851,7 +1053,8 @@ suite("Catálogo · reparación de autoría (PostgreSQL real)", () => {
       const pending = await runRepair(
         deps([`--plan-out=${join(dir, "a.json")}`]),
       );
-      expect(pending.reversalEntries).toBe(3);
+      // Credenciales · copy de dos libros · alta pendiente · atribución.
+      expect(pending.reversalEntries).toBe(5);
 
       // Existing: create it, re-plan, and the dry run still validates it.
       await prisma.bookAuthor.create({
@@ -860,8 +1063,8 @@ suite("Catálogo · reparación de autoría (PostgreSQL real)", () => {
       const existing = await runRepair(
         deps([`--plan-out=${join(dir, "b.json")}`]),
       );
-      // The create-author op is satisfied, so only two entries remain.
-      expect(existing.reversalEntries).toBe(2);
+      // The create-author op is satisfied, so one entry drops.
+      expect(existing.reversalEntries).toBe(4);
       expect(existing.rowsWritten).toBe(0);
     }, 60_000);
 
@@ -997,7 +1200,7 @@ suite("Catálogo · reparación de autoría (PostgreSQL real)", () => {
 
       // The transaction committed, and the rows prove it.
       expect(run.transactionOutcome).toBe("committed");
-      expect(run.rowsWritten).toBe(3);
+      expect(run.rowsWritten).toBe(5);
       const eec = await prisma.book.findUnique({
         where: { slug: "emociones-en-construccion" },
       });
@@ -1018,7 +1221,7 @@ suite("Catálogo · reparación de autoría (PostgreSQL real)", () => {
       expect(said).toMatch(
         /la transacción se CONFIRMÓ y el registro del resultado falló/,
       );
-      expect(said).toMatch(/La base cambió: 3 fila\(s\)/);
+      expect(said).toMatch(/La base cambió: 5 fila\(s\)/);
       expect(said).toMatch(/no se afirma que exista/);
       expect(run.exitCode).toBe(6);
     }, 60_000);

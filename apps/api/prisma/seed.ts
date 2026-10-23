@@ -116,12 +116,18 @@ async function main() {
   // identities. What this identity is, and what happens to the books that
   // still point at it, is a data decision — see
   // `src/catalog/authorship-sources.ts` and the repair plan.
+  // No `bio` either, for two reasons that point the same way. It is prose
+  // about a person nobody accredited, which is what the repair now withdraws
+  // — seeding one would mean a fresh catalogue arrives in the state the
+  // repair exists to leave behind. And the text it used to carry («identidad
+  // de fixture del catálogo sembrado…») was internal vocabulary rendered on a
+  // public author card. Absence is the honest value; what this identity is
+  // belongs in `src/catalog/authorship-sources.ts`, not on the page.
   const fixtureAuthor = await prisma.bookAuthor.upsert({
     where: { slug: "marina-quintana" },
     create: {
       slug: "marina-quintana",
       name: "Marina Quintana",
-      bio: "Identidad de fixture del catálogo sembrado. Sin fuente editorial en este repositorio.",
       cover: "warm",
     },
     update: {},

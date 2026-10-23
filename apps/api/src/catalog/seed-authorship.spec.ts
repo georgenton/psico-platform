@@ -2,6 +2,12 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
+import {
+  AUTHORSHIP_PENDING,
+  AUTHORSHIP_SOURCES,
+  FIXTURE_AUTHOR_SLUGS,
+} from "./authorship-sources";
+
 /**
  * A ratchet over the catalogue seed's authorship payloads.
  *
@@ -144,5 +150,82 @@ describe("prisma/seed.ts · autoría y credenciales", () => {
     const idx = SEED.indexOf('where: { slug: "marina-quintana" }');
     const region = SEED.slice(idx, idx + 700);
     expect(region).not.toMatch(/Quizamanchuro|Jaramillo/);
+  });
+});
+
+/**
+ * Familias Ensambladas — las dos divergencias que la UAT del 2026-10-22
+ * encontró entre la landing aprobada y el catálogo servido.
+ *
+ * La landing la presenta de Jorge Quizamanchuro y «Aún no disponible»; el
+ * catálogo la devolvía de «Marina Quintana» —una identidad de fixture— y
+ * publicada. Las dos salían del seed, y la segunda se reafirmaba en CADA
+ * corrida, de modo que despublicarla era imposible sin tocar este archivo.
+ */
+describe("prisma/seed.ts · Familias Ensambladas", () => {
+  /** El bloque `update: { … }` que pertenece a este libro. */
+  const familiasUpdate = (() => {
+    const idx = SEED_CODE.indexOf('slug: "familias-ensambladas"');
+    const region = SEED_CODE.slice(idx);
+    return updateBlocks(region)[0] ?? "";
+  })();
+
+  it("no acredita a la identidad de fixture: queda sin autor", () => {
+    // El defecto era que el catálogo público acreditaba a una identidad de
+    // fixture —con nombre de persona— como autora de una obra real. Con
+    // `AUTHORSHIP_SOURCE` todavía PENDING, el valor honesto es ninguno: el
+    // libro se renderiza «Autoría por confirmar».
+    const idx = SEED_CODE.indexOf('slug: "familias-ensambladas"');
+    expect(idx).toBeGreaterThan(0);
+    const region = SEED_CODE.slice(idx, idx + 900);
+    expect(region).toMatch(/authorId: null/);
+    expect(region).not.toMatch(/authorId: fixtureAuthor\.id/);
+  });
+
+  it("tampoco escribe el nombre declarado, que el propietario aplazó", () => {
+    // La autoría se declaró el 2026-10-13, pero la misma nota dice que no
+    // autoriza corregir la fila ahora y mantiene la autoría entre lo que se
+    // revisa con aprobación explícita. Escribirla aquí haría que el seed
+    // afirmara lo aplazado — y cambiaría lo que propone el plan de
+    // reparación, que es la vía sancionada y tiene su propia aprobación.
+    const idx = SEED_CODE.indexOf('slug: "familias-ensambladas"');
+    const region = SEED_CODE.slice(idx, idx + 900);
+    expect(region).not.toMatch(/Quizamanchuro|eecAuthorId/);
+  });
+
+  it("nace sin publicar, como dice la landing aprobada", () => {
+    const idx = SEED_CODE.indexOf('slug: "familias-ensambladas"');
+    const region = SEED_CODE.slice(idx, idx + 900);
+    expect(region).toMatch(/isPublished: false/);
+    expect(region).not.toMatch(/isPublished: true/);
+  });
+
+  it("no reafirma su publicación en `update`", () => {
+    // Guard the guard: si el parser dejara de encontrar el bloque, la
+    // afirmación siguiente pasaría sobre una cadena vacía.
+    expect(familiasUpdate).toMatch(/title: "Familias Ensambladas"/);
+    expect(familiasUpdate).not.toMatch(/\bisPublished\b/);
+  });
+
+  it("tampoco reafirma su autoría en `update`", () => {
+    expect(familiasUpdate).not.toMatch(/\bauthorId\b/);
+  });
+});
+
+describe("authorship-sources · Familias sigue sin fuente en el repositorio", () => {
+  it("permanece PENDING, y por eso el seed no la acredita", () => {
+    // El seed y esta tabla tienen que decir lo mismo. Si alguien añade la
+    // fuente —cuando el propietario lo autorice— esta prueba cae y obliga a
+    // revisar el seed y el plan de reparación a la vez, que es el orden
+    // correcto: la corrección de la fila alojada va por el plan aprobado, no
+    // por el seed.
+    expect(AUTHORSHIP_PENDING).toContain("familias-ensambladas");
+    expect(
+      AUTHORSHIP_SOURCES.some((s) => s.bookSlug === "familias-ensambladas"),
+    ).toBe(false);
+  });
+
+  it("la identidad de fixture sigue declarada como tal", () => {
+    expect(FIXTURE_AUTHOR_SLUGS).toContain("marina-quintana");
   });
 });

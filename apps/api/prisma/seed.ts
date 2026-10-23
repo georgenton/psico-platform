@@ -116,12 +116,18 @@ async function main() {
   // identities. What this identity is, and what happens to the books that
   // still point at it, is a data decision — see
   // `src/catalog/authorship-sources.ts` and the repair plan.
+  // No `bio` either, for two reasons that point the same way. It is prose
+  // about a person nobody accredited, which is what the repair now withdraws
+  // — seeding one would mean a fresh catalogue arrives in the state the
+  // repair exists to leave behind. And the text it used to carry («identidad
+  // de fixture del catálogo sembrado…») was internal vocabulary rendered on a
+  // public author card. Absence is the honest value; what this identity is
+  // belongs in `src/catalog/authorship-sources.ts`, not on the page.
   const fixtureAuthor = await prisma.bookAuthor.upsert({
     where: { slug: "marina-quintana" },
     create: {
       slug: "marina-quintana",
       name: "Marina Quintana",
-      bio: "Identidad de fixture del catálogo sembrado. Sin fuente editorial en este repositorio.",
       cover: "warm",
     },
     update: {},
@@ -274,26 +280,55 @@ async function main() {
       durationMinutes: 43,
       language: "es",
       plan: "PRO",
-      isPublished: true,
+      // Created UNPUBLISHED, because that is what the approved landing says:
+      // «Aún no disponible». A fresh database used to contradict it — the book
+      // was seeded published, so the catalogue offered a fixture work as if it
+      // were a real one while the public page promised it was not there yet.
+      // Publishing it is an editorial act, not a side effect of seeding.
+      isPublished: false,
       totalChapters: 3,
-      // AUTHORSHIP_SOURCE = PENDING. No document in this repository attributes
-      // this work to anyone, so a fresh database gets the fixture identity and
-      // says so in `authorship-sources.ts` rather than borrowing a name from
-      // one of the two sourced books — that would be inventing an attribution.
-      authorId: fixtureAuthor.id,
+      // NO author, which renders as «Autoría por confirmar».
+      //
+      // This used to read `fixtureAuthor.id`, and that was the defect: the
+      // public catalogue credited a fixture identity — a real-sounding person
+      // — as the author of a real work. `AUTHORSHIP_SOURCE` is still PENDING
+      // for this book, so the honest value is no author at all.
+      //
+      // Deliberately NOT the declared author either. The owner declared this
+      // work's authorship on 2026-10-13, but the same note says the
+      // declaration «no acredita que el repositorio/catálogo ya estén
+      // corregidos ni es autorización para modificar ahora la fila de la
+      // base», and keeps authorship among the things reviewed with explicit
+      // approval before launch. Writing that name here would make the seed
+      // assert what the owner deferred — and it would change what the
+      // authorship repair plan proposes, which is the sanctioned path for
+      // that correction and is gated on its own approval.
+      //
+      // So: stop crediting the wrong person, without crediting anyone.
+      authorId: null,
       categoryId: "cat-familia",
       publishedAt: new Date("2026-02-01"),
     },
     // `authorId` out of `update` for the same reason as book 1: whatever this
     // work's editorial source turns out to be, a correction must survive the
     // next deploy.
+    //
+    // And `isPublished` out of it too, by the same argument — which is the
+    // other half of the defect. The seed re-asserted `true` on every run, so
+    // an editorial decision to withdraw the book from the catalogue was undone
+    // by the next deploy and nobody could unpublish it without editing this
+    // file. Availability is an editorial state; the seed may propose one on a
+    // fresh database and must not keep overruling it afterwards.
+    //
+    // Deliberately NOT mirrored on book 1: the anchor book is the one work
+    // this catalogue is meant to serve, and nothing today contests that it
+    // should be published. Changing its mechanism is a separate decision.
     update: {
       title: "Familias Ensambladas",
       subtitle: "Herramientas para construir vínculos",
       cover: "cool",
       pages: 140,
       durationMinutes: 43,
-      isPublished: true,
       totalChapters: 3,
       categoryId: "cat-familia",
     },

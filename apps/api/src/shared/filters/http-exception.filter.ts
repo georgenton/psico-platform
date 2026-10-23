@@ -2,6 +2,7 @@ import type { ArgumentsHost, ExceptionFilter } from "@nestjs/common";
 import { Catch, HttpException, HttpStatus, Logger } from "@nestjs/common";
 import type { Request, Response } from "express";
 import { captureException } from "../../observability/sentry";
+import { ExpectedUnavailableException } from "./expected-unavailable.exception";
 import { safeRequestPath } from "./safe-request-path";
 
 /**
@@ -58,8 +59,16 @@ export class HttpExceptionFilter implements ExceptionFilter {
       typeof request.route?.path === "string" && request.route.path.length > 0;
     const message = routeMatched ? normalized.message : code;
 
+    // Un 503 DECLARADO es una respuesta, no un fallo: lo emite un sondeo cuya
+    // razón de existir es decir «todavía no», y su dueño ya lo ha registrado
+    // —una vez, en la transición— con el detalle que importa. Tratarlo como
+    // un error inesperado llenaría el registro y Sentry con la misma traza
+    // durante justo el incidente que el sondeo señala, y esa ruta es pública:
+    // un tercero podría provocar el ruido a propósito.
+    const esperado = exception instanceof ExpectedUnavailableException;
+
     // 5xx always logs full stack; 4xx is a user-error signal, log at warn level.
-    if (statusCode >= 500) {
+    if (statusCode >= 500 && !esperado) {
       this.logger.error(
         `${request.method} ${path} → ${statusCode} ${code}: ${message}`,
         exception instanceof Error ? exception.stack : String(exception),
@@ -73,6 +82,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
         code,
       });
     } else if (statusCode >= 400) {
+      // Incluye el 503 declarado: queda una línea, sin traza y sin alerta.
       this.logger.warn(
         `${request.method} ${path} → ${statusCode} ${code}: ${message}`,
       );

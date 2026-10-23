@@ -11,6 +11,12 @@ import {
 } from "@nestjs/common";
 import type { ArgumentsHost } from "@nestjs/common";
 import { HttpExceptionFilter } from "./http-exception.filter";
+import { ExpectedUnavailableException } from "./expected-unavailable.exception";
+import { captureException } from "../../observability/sentry";
+
+vi.mock("../../observability/sentry", () => ({
+  captureException: vi.fn(),
+}));
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -51,7 +57,42 @@ describe("HttpExceptionFilter", () => {
   beforeEach(() => {
     vi.spyOn(Logger.prototype, "error").mockImplementation(() => undefined);
     vi.spyOn(Logger.prototype, "warn").mockImplementation(() => undefined);
+    vi.mocked(captureException).mockClear();
     filter = new HttpExceptionFilter();
+  });
+
+  describe("un 503 declarado es una respuesta, no un fallo", () => {
+    it("no escribe traza ni avisa a Sentry, pero deja una línea", () => {
+      const { host, status, json } = makeHost("/api/health/ready");
+      filter.catch(
+        new ExpectedUnavailableException({
+          code: "SCHEMA_NOT_READY",
+          message: "Faltan migraciones por aplicar.",
+          details: { pending: ["m1"] },
+        }),
+        host,
+      );
+      // El cuerpo es el mismo 503 de siempre: lo que cambia es el lado del
+      // operador, no el del cliente.
+      expect(status).toHaveBeenCalledWith(503);
+      expect(json.mock.calls[0]![0]).toMatchObject({
+        statusCode: 503,
+        code: "SCHEMA_NOT_READY",
+      });
+      expect(Logger.prototype.error).not.toHaveBeenCalled();
+      expect(captureException).not.toHaveBeenCalled();
+      // Pero no desaparece: un 503 silencioso del todo sería otro defecto.
+      expect(Logger.prototype.warn).toHaveBeenCalledTimes(1);
+    });
+
+    it("un 5xx corriente sigue con su traza y su alerta", () => {
+      // Guard the guard: la excepción declarada no puede convertirse en una
+      // forma de callar fallos de verdad.
+      const { host } = makeHost("/api/algo");
+      filter.catch(new Error("se rompió"), host);
+      expect(Logger.prototype.error).toHaveBeenCalledTimes(1);
+      expect(captureException).toHaveBeenCalledTimes(1);
+    });
   });
 
   // ── 4xx envelope ──────────────────────────────────────────────────────────

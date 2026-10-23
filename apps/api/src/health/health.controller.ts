@@ -1,7 +1,6 @@
 import {
   Controller,
   Get,
-  ServiceUnavailableException,
   UseGuards,
 } from "@nestjs/common";
 import {
@@ -15,7 +14,11 @@ import { SkipThrottle, Throttle } from "@nestjs/throttler";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { ErrorEnvelopeDto } from "../shared/dto/error-envelope.dto";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
-import { RequiredRole, RolesGuard } from "../shared";
+import {
+  ExpectedUnavailableException,
+  RequiredRole,
+  RolesGuard,
+} from "../shared";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { IntegrationsService } from "./integrations.service";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
@@ -115,7 +118,12 @@ export class HealthController {
   async ready() {
     const report = await this.schema.report();
     if (report.ready) return report;
-    throw new ServiceUnavailableException({
+    // Declarado, no inesperado: este 503 es la respuesta del sondeo, y el
+    // servicio ya lo registró en la transición. Con el `ServiceUnavailable`
+    // corriente el filtro escribía una traza y un evento de Sentry POR
+    // PETICIÓN, en una ruta pública, durante el incidente mismo que esto
+    // señala — exactamente el ruido que el servicio se cuida de no producir.
+    throw new ExpectedUnavailableException({
       code: "SCHEMA_NOT_READY",
       message: READINESS_MESSAGE[report.reason],
       details: report,

@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { HealthController } from "./health.controller";
+import { ExpectedUnavailableException } from "../shared/filters/expected-unavailable.exception";
 import {
   type AppliedMigrationRow,
   diffMigrations,
@@ -302,10 +303,62 @@ describe("SchemaReadinessService", () => {
     });
   });
 
-  it("no filtra el mensaje del driver en el veredicto", () => {
+  it("no filtra el mensaje del driver en el veredicto", async () => {
+    // Por el SERVICIO, no por el constructor del veredicto. La versión
+    // anterior llamaba a `unreadable(...)` directamente, y esa función no
+    // tiene campo donde quepa un mensaje: la prueba no podía fallar. Si
+    // alguien añadiera el error del driver al veredicto en el `catch`, el
+    // único sitio donde eso puede pasar, aquella prueba habría seguido
+    // verde. Y el `toMatchObject` de la de al lado ignora claves de más.
+    const root = fixture(["m1"]);
+    const fuga = new Error(
+      'could not connect to server: postgres://usuario@localhost:5432 relation "_prisma_migrations"',
+    );
+    const v = await svcWith(prismaWith(fuga)).report([root]);
+    expect(v).toMatchObject({ ready: false, reason: "database-unreachable" });
     // El veredicto viaja a un endpoint público: un mensaje de conexión no.
-    const v = unreadable("database-unreachable", 1);
     expect(JSON.stringify(v)).not.toMatch(/relation|postgres|localhost|5432/i);
+    // Y ninguna clave de más: lo que se serializa es exactamente el contrato.
+    expect(Object.keys(v).sort()).toEqual(
+      [
+        "appliedCount",
+        "failed",
+        "pending",
+        "ready",
+        "reason",
+        "shippedCount",
+      ].sort(),
+    );
+  });
+
+  it("peticiones simultáneas comparten UNA computación", async () => {
+    // La caché sola sólo colapsaba ráfagas SECUENCIALES: `cached` se asigna
+    // después del await, así que N peticiones a la vez hacían N consultas al
+    // ledger y N recorridos síncronos del directorio. El comentario de la
+    // caché afirmaba lo contrario, y esta ruta es pública.
+    const root = fixture(["m1"]);
+    const prisma = prismaWith([applied("m1")]);
+    const svc = svcWith(prisma);
+    const todas = await Promise.all(
+      Array.from({ length: 8 }, () => svc.report([root])),
+    );
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(todas.every((r) => r.ready)).toBe(true);
+  });
+
+  it("una computación fallida no deja clavados a los siguientes", async () => {
+    // La promesa compartida se limpia pase lo que pase: si no, un fallo
+    // dejaría a cada llamada posterior atada a la misma promesa rechazada.
+    const root = fixture(["m1"]);
+    const prisma = prismaWith(new Error("caída transitoria"));
+    const svc = svcWith(prisma);
+    await expect(svc.report([root])).resolves.toMatchObject({ ready: false });
+    // Fuera de la ventana de caché, se vuelve a intentar de verdad.
+    vi.useFakeTimers();
+    vi.setSystemTime(Date.now() + 10_000);
+    await svc.report([root]);
+    vi.useRealTimers();
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
   });
 
   describe("caché breve: una petición pública no es una consulta", () => {
@@ -388,6 +441,26 @@ describe("GET /api/health/ready", () => {
         details: { pending: ["20261021000000_editorial_origin_seal"] },
       },
     });
+  });
+
+  it("el 503 se lanza DECLARADO, para que no escriba traza ni avise", async () => {
+    // El servicio registra en la transición, con cuidado explícito de no
+    // escribir «la misma línea de error para siempre» mientras un sondeo
+    // público lo consulta. Con un `ServiceUnavailableException` corriente el
+    // filtro global lo hacía igual, por petición, durante el incidente que
+    // esto señala — y esa ruta es pública, así que un tercero podía
+    // provocarlo. El tipo del throw ES la declaración.
+    const report = {
+      ready: false,
+      reason: "pending",
+      pending: ["m1"],
+      failed: [],
+      shippedCount: 1,
+      appliedCount: 0,
+    };
+    await expect(controller(report).ready()).rejects.toBeInstanceOf(
+      ExpectedUnavailableException,
+    );
   });
 
   it("still refuses when readiness could not be established at all", async () => {

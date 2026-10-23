@@ -102,6 +102,18 @@ export const READINESS_CACHE_MS = 5_000;
 export class SchemaReadinessService {
   private readonly logger = new Logger(SchemaReadinessService.name);
   private cached: { at: number; value: SchemaReadiness } | null = null;
+  /**
+   * The computation currently in flight, so concurrent callers share it.
+   *
+   * The cache alone only collapsed SEQUENTIAL bursts: `this.cached` is
+   * assigned after the await, so N simultaneous requests each ran the ledger
+   * query and each walked the migrations directory synchronously — one
+   * `readdir` plus a `stat` per migration, on the event loop. The claim above
+   * («five seconds collapses any burst into one read») was true of the shape
+   * a gate polls with and false of the shape a public endpoint can be hit
+   * with. Sharing the promise makes it true of both.
+   */
+  private inFlight: Promise<SchemaReadiness> | null = null;
   /** The last reason written to the log, so repeats stay quiet. */
   private lastLogged: string | null = null;
 
@@ -114,7 +126,22 @@ export class SchemaReadinessService {
     if (this.cached !== null && now - this.cached.at < READINESS_CACHE_MS) {
       return this.cached.value;
     }
+    if (this.inFlight !== null) return this.inFlight;
 
+    this.inFlight = this.computeAndRemember(dirs, now);
+    try {
+      return await this.inFlight;
+    } finally {
+      // Cleared whatever happened: a failed computation must not pin every
+      // later caller to the same rejected promise.
+      this.inFlight = null;
+    }
+  }
+
+  private async computeAndRemember(
+    dirs: readonly string[],
+    now: number,
+  ): Promise<SchemaReadiness> {
     const value = await this.compute(dirs);
     this.cached = { at: now, value };
 

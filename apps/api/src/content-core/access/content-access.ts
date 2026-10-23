@@ -141,13 +141,26 @@ export type AccessDb = Pick<
   | "edition"
 >;
 
-/** Resolve `bookId + plan` from a book slug (manifest gate + book-level checks). */
+/**
+ * Resolve `bookId + plan` from a book slug (manifest gate + book-level checks).
+ *
+ * Y la publicación, que faltaba. Esta función es la puerta del manifiesto de
+ * Content Core y del manifiesto de medios, y comprobaba existencia y plan
+ * pero no si el libro estaba publicado: un libro retirado devolvía su
+ * manifiesto por la dirección a cualquiera que la supiera. Medido por HTTP en
+ * `books-availability.e2e-spec.ts`.
+ *
+ * El filtro es seguro aquí porque esta función YA exige una fila `Book`: es
+ * el camino legado, no el nativo. Una edición nativa independiente no pasa por
+ * aquí y no se ve afectada — su publicación la decide el estado de su
+ * revisión, que es otra cosa y vive en otro sitio.
+ */
 export async function resolveBookTarget(
   db: AccessDb,
   bookSlug: string,
 ): Promise<{ bookId: string; bookPlan: string }> {
-  const book = await db.book.findUnique({
-    where: { slug: bookSlug },
+  const book = await db.book.findFirst({
+    where: { slug: bookSlug, isPublished: true },
     select: { id: true, plan: true },
   });
   if (!book) throw new NotFoundException("BOOK_NOT_FOUND");
@@ -271,8 +284,12 @@ async function resolveUnitTargetFromLegacy(
   editionSlug: string,
   unitKey: string,
 ): Promise<ContentEntitlementTarget> {
-  const book = await db.book.findUnique({
-    where: { slug: editionSlug },
+  // La publicación cuenta también por este camino. Es el respaldo legado —ya
+  // exige una fila `Book`— y sin el filtro servía el texto de un libro
+  // retirado a quien pidiera su unidad por la clave derivada. La negativa es
+  // la misma que para una edición inexistente, a propósito.
+  const book = await db.book.findFirst({
+    where: { slug: editionSlug, isPublished: true },
     select: { id: true, plan: true },
   });
   if (!book) throw new NotFoundException("EDITION_NOT_FOUND");

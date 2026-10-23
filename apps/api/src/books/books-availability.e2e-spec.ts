@@ -7,6 +7,7 @@ import { Pool } from "pg";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { unitKeyFromLegacyChapterId } from "../content-core/lib/block-key";
 import { createE2EApp, closeE2EApp, type E2EHarness } from "../test/e2e-app";
 
 /**
@@ -49,6 +50,8 @@ suite("disponibilidad · rutas directas a un libro retirado", () => {
   let tokenAdmin = "";
   let idRetirado = "";
   let idPublicado = "";
+  let capRetirado = "";
+  let capPublicado = "";
 
   const RETIRADO = "libro-retirado-matriz";
   const PUBLICADO = "libro-publicado-matriz";
@@ -108,6 +111,8 @@ suite("disponibilidad · rutas directas a un libro retirado", () => {
     const publicado = await hacerLibro(PUBLICADO, true);
     idRetirado = retirado.bookId;
     idPublicado = publicado.bookId;
+    capRetirado = retirado.chapterId;
+    capPublicado = publicado.chapterId;
 
     const mkUser = (email: string, role: "USER" | "ADMIN" = "USER") =>
       prisma.user.create({
@@ -196,6 +201,36 @@ suite("disponibilidad · rutas directas a un libro retirado", () => {
       ).expect(404);
       expect(retirado.body.code).toBe(inexistente.body.code);
       expect(retirado.body.statusCode).toBe(inexistente.body.statusCode);
+    });
+  });
+
+  /**
+   * Content Core tiene sus propias rutas y su propio resolutor. Cerrar el
+   * lector no las cierra: una pasa por `assertCanSeeBook` y la otra por el
+   * respaldo legado, y ninguno de los dos miraba la publicación del libro.
+   */
+  describe("tampoco por las rutas de Content Core", () => {
+    it("ni el manifiesto del libro", async () => {
+      await get(`/api/content/books/${RETIRADO}/manifest`, tokenLector).expect(
+        404,
+      );
+    });
+
+    it("ni la lectura directa de una unidad por el respaldo legado", async () => {
+      await get(
+        `/api/content/editions/${RETIRADO}-1e/units/${unitKeyFromLegacyChapterId(capRetirado)}`,
+        tokenLector,
+      ).expect(404);
+    });
+
+    it("y el libro publicado sigue respondiendo por las dos", async () => {
+      await get(`/api/content/books/${PUBLICADO}/manifest`, tokenLector).expect(
+        200,
+      );
+      await get(
+        `/api/content/editions/${PUBLICADO}-1e/units/${unitKeyFromLegacyChapterId(capPublicado)}`,
+        tokenLector,
+      ).expect(200);
     });
   });
 

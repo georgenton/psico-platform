@@ -128,6 +128,9 @@ function makePrismaMock() {
     // the single-writer repository).
     book: {
       findUnique: fn(),
+      // El respaldo legado de Content Core resuelve el libro con `findFirst`
+      // desde que la publicación entra en el filtro.
+      findFirst: fn(),
     },
     chapter: {
       findMany: fn(),

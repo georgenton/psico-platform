@@ -292,6 +292,51 @@ suite("GR-2 · chapter media HTTP contract (real app + real PostgreSQL)", () => 
     }
   });
 
+  /**
+   * Un libro retirado no genera acceso a sus medios.
+   *
+   * El servicio de medios resuelve el libro por su cuenta —dos veces: en el
+   * manifiesto y en la concesión— y no pasaba por la guarda del lector. La
+   * segunda es la que FIRMA una URL, así que el que importa es que ni siquiera
+   * llegue a pedirla.
+   *
+   * Se retira el libro de la fixture y se devuelve al terminar, para no
+   * duplicar todo el andamiaje del catálogo por un caso.
+   */
+  describe("con el libro retirado", () => {
+    beforeAll(async () => {
+      await prisma.book.update({
+        where: { slug: BOOK_SLUG },
+        data: { isPublished: false },
+      });
+    });
+
+    afterAll(async () => {
+      await prisma.book.update({
+        where: { slug: BOOK_SLUG },
+        data: { isPublished: true },
+      });
+    });
+
+    it("el manifiesto no responde", async () => {
+      await http()
+        .get(`/api/lector/${BOOK_SLUG}/1/media`)
+        .set(auth())
+        .expect(404);
+    });
+
+    it("y no se genera ninguna URL de acceso", async () => {
+      const res = await http()
+        .get(`/api/lector/media/${AUDIOBOOK}/access`)
+        .set(auth())
+        .expect(404);
+      // Lo que no puede haber ocurrido: que algo se firmara igualmente.
+      expect(res.body).not.toHaveProperty("url");
+      expect(res.body).not.toHaveProperty("embedUrl");
+      expect(JSON.stringify(res.body)).not.toContain("http");
+    });
+  });
+
   it("every media route requires a JWT", async () => {
     await http().get(`/api/lector/${BOOK_SLUG}/1/media`).expect(401);
     await http().get(`/api/lector/media/${AUDIOBOOK}/access`).expect(401);

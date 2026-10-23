@@ -142,10 +142,20 @@ suite("CC-7.3 · learning domain commands (real PostgreSQL)", () => {
     // (Work/Edition/Revision/units + PUBLISH) — the same pipeline production
     // content went through.
     const freeBook = await prisma.book.create({
-      data: { slug: "cc73-libro-free", title: "CC73 Free", plan: "FREE" },
+      data: {
+        slug: "cc73-libro-free",
+        title: "CC73 Free",
+        isPublished: true,
+        plan: "FREE",
+      },
     });
     const proBook = await prisma.book.create({
-      data: { slug: "cc73-libro-pro", title: "CC73 Pro", plan: "PRO" },
+      data: {
+        slug: "cc73-libro-pro",
+        title: "CC73 Pro",
+        isPublished: true,
+        plan: "PRO",
+      },
     });
     const mkChapter = async (bookId: string, order: number) => {
       const ch = await prisma.chapter.create({
@@ -327,7 +337,12 @@ suite("CC-7.3 · learning domain commands (real PostgreSQL)", () => {
     });
     // The SAME unitKey duplicated across editions → ambiguous.
     const dupBook = await prisma.book.create({
-      data: { slug: "cc73-libro-dup", title: "Dup", plan: "FREE" },
+      data: {
+        slug: "cc73-libro-dup",
+        title: "Dup",
+        isPublished: true,
+        plan: "FREE",
+      },
     });
     const dupCh1 = await mkChapter(dupBook.id, 1);
     await backfillContentCore(prisma);

@@ -101,7 +101,9 @@ describe("resolveUnitTarget — same keys → same decision (dual-source parity)
             : null,
     },
     book: {
-      findUnique: async ({ where: { slug } }: { where: { slug: string } }) =>
+      // `resolveBookTarget` y el respaldo legado pasaron a `findFirst` con el
+      // filtro de publicación; el doble sigue a la consulta que hacen ahora.
+      findFirst: async ({ where: { slug } }: { where: { slug: string } }) =>
         slug === "familias-ensambladas"
           ? { id: "book-pro", plan: "PRO" }
           : null,
@@ -176,7 +178,9 @@ describe("resolveUnitTarget — a book Content Core never took over", () => {
     contentUnit: { findFirst: async () => null },
     edition: { findFirst: async () => null, findUnique: async () => null },
     book: {
-      findUnique: async ({ where: { slug } }: { where: { slug: string } }) =>
+      // `resolveBookTarget` y el respaldo legado pasaron a `findFirst` con el
+      // filtro de publicación; el doble sigue a la consulta que hacen ahora.
+      findFirst: async ({ where: { slug } }: { where: { slug: string } }) =>
         slug === "familias-ensambladas"
           ? { id: "book-pro", plan: "PRO" }
           : null,

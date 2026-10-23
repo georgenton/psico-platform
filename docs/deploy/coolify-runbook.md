@@ -623,15 +623,15 @@ Un rollback de **datos** es otra cosa y no se improvisa: exige el restore drill
 documentado desde el backup de R2. Una migración `expand → deploy → contract` se
 revierte deshaciendo el paso _contract_ primero, y sólo si ese paso aún no corrió.
 
-### 3.1 Precondición del nivel 1 cuando hay reclamaciones pendientes
+### 3.1 Volver atrás cuando hay reclamaciones pendientes
 
-Un redeploy de la versión anterior no siempre es gratis, y hay un caso concreto
-en el que no lo es. Conviene tenerlo escrito antes de necesitarlo.
+Un redeploy de la versión anterior no siempre es gratis, y hay un caso
+concreto en el que no lo es. Conviene tenerlo escrito antes de necesitarlo.
 
 La migración `20261023120000_dord_stripe_event_claim` hizo opcional
-`StripeEvent.processedAt`. Nulo significa «reclamado y sin terminar»: la fila se
-escribe antes de aplicar el efecto y se sella después, para que un intento que
-muere a mitad no quede marcado como hecho.
+`StripeEvent.processedAt`. Nulo significa «reclamado y sin terminar»: la fila
+se escribe antes de aplicar el efecto y se sella después, para que un intento
+que muere a mitad no quede marcado como hecho.
 
 Las **escrituras** de la imagen anterior siguen siendo compatibles —siempre
 ponen un valor—. La **recuperación** no: esa imagen da por procesado cualquier
@@ -639,33 +639,69 @@ evento cuya fila exista, porque su comprobación es `findUnique(...) != null`.
 Una reclamación pendiente la saltaría, y su efecto se perdería sin que nada lo
 dijera.
 
-Así que el nivel 1 sobre la API tiene una precondición, no una garantía:
+#### Por qué contar cero no basta
 
-```sql
-SELECT count(*) FROM "StripeEvent" WHERE "processedAt" IS NULL;  -- debe ser 0
-```
+La primera versión de esta sección decía: comprueba que no haya pendientes y
+rueda atrás. No alcanza. Entre el recuento y el cambio de imagen sigue
+entrando tráfico: un webhook que llegue en esa ventana crea una reclamación
+nueva, y la imagen vieja arranca con una pendiente que no sabe recuperar. El
+recuento no es una precondición que se comprueba una vez; es una condición que
+hay que **mantener** hasta que la versión nueva ya no esté sirviendo.
 
-**Mientras ese recuento no sea cero, no se vuelve a la imagen anterior.** Para
-vaciarlo:
+#### El procedimiento
 
-1. Listar las pendientes con su `stripeEventId` y su `type`.
-2. Reentregar cada una desde Stripe —`stripe events resend <id>
---webhook-endpoint=<endpoint>`, o «Resend» en el panel—. La imagen **nueva**
-   reaplica una reclamación sin sellar: el estado se relee de Stripe, así que
-   repetirlo converge al mismo sitio.
-3. Volver a contar. Cuando dé 0, el rollback es seguro.
+1. **Cortar la entrada, sin perder entregas.** Deshabilitar el endpoint de
+   webhooks en Stripe (Workbench → Webhooks → el endpoint → deshabilitar). Las
+   entregas no se pierden: Stripe reintenta durante **tres días** con
+   retroceso exponencial, así que lo que llegue mientras tanto se vuelve a
+   entregar después. Es la palanca del proveedor para esto; devolver 5xx a
+   propósito también frenaría, pero ensucia el registro de entregas y no deja
+   claro si fue una avería.
+2. **Esperar a las que están dentro.** Las activas terminan solas: el candado
+   por persona vive en su transacción y la relectura tiene plazo. Dar un
+   margen y comprobarlo mirando que no entren peticiones nuevas al endpoint en
+   los registros de la aplicación.
+3. **Recuperar las pendientes.** Listarlas y reentregar cada una **desde la
+   imagen nueva**, que es la única que sabe reaplicar una reclamación sin
+   sellar: `stripe events resend <id> --webhook-endpoint=<endpoint>`, o
+   «Resend» en el panel. Para esto hace falta reabrir el endpoint
+   temporalmente; se reabre, se reentrega la lista acotada, se vuelve a
+   cerrar.
+4. **Mantener el cero.** Con el endpoint cerrado, nada nuevo puede reclamar.
+   Volver a contar inmediatamente antes de cambiar la imagen:
+
+   ```sql
+   SELECT count(*) FROM "StripeEvent" WHERE "processedAt" IS NULL;  -- 0
+   ```
+
+5. **Cambiar la imagen** y sólo entonces **reabrir el endpoint**. Stripe
+   reentrega lo acumulado contra la imagen antigua, que no tiene ninguna
+   pendiente delante.
+
+**Si el cero no puede mantenerse** —no hay forma de cerrar la entrada, o una
+pendiente no se puede reentregar porque su evento salió de la ventana de
+reenvío de Stripe— **ese rollback queda bloqueado**. Se conserva la versión
+nueva sirviendo, se conservan las pendientes, y se resuelve a mano con el
+estado real de cada suscripción antes de volver a intentarlo.
 
 **No se borran las filas pendientes ni se les pone fecha a mano.** Las dos
 cosas convierten un efecto no aplicado en uno dado por hecho, que es
-exactamente lo que esta columna existe para evitar. Si una reentrega no es
-posible —el evento ya no está en la ventana de reenvío de Stripe—, la
-pendiente se conserva y se resuelve a mano con el estado real de esa
-suscripción antes de rodar atrás; no se tapa.
+exactamente lo que esta columna existe para evitar.
 
-El comportamiento de la imagen anterior está medido, no supuesto:
-`billing-events.pg-spec.ts` reproduce su regla sobre una reclamación pendiente
-y comprueba que la saltaría, y a continuación que la imagen nueva sí la
-recupera.
+#### Qué está comprobado y qué no
+
+Dos cosas distintas, y conviene no confundirlas:
+
+- **La regla del código antiguo está reproducida en una prueba.**
+  `billing-events.pg-spec.ts` escribe una reclamación pendiente, comprueba que
+  la comprobación de la imagen anterior —`findUnique(...) != null`— la daría
+  por procesada, y luego que la imagen nueva sí la recupera dejando el
+  recuento en cero. Eso acredita el MOTIVO de la precondición.
+- **El ensayo operativo con la imagen anterior NO está hecho.** Correr el
+  artefacto antiguo contra una base con una pendiente y observar que la salta
+  es otra cosa, y es la que falta. **Es requisito antes del primer rollback
+  que se haga con pendientes de por medio**, y se ejecuta en una base
+  desechable restaurada del backup, nunca sobre la activa.
 
 ---
 

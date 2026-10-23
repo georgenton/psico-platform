@@ -15,16 +15,22 @@
 -- pendiente escrita por la imagen nueva —`processedAt IS NULL`, efecto sin
 -- aplicar— sería saltada por la vieja y su efecto se perdería en silencio.
 --
--- Por eso el rollback tiene una PRECONDICIÓN, no una garantía:
+-- Por eso el rollback tiene una CONDICIÓN QUE HAY QUE MANTENER, no una
+-- comprobación que se hace una vez:
 --
 --     SELECT count(*) FROM "StripeEvent" WHERE "processedAt" IS NULL;  -- 0
 --
--- Mientras ese recuento no sea cero, no se vuelve a la imagen anterior. Se
--- vacía reentregando los eventos desde Stripe, que la imagen nueva reaplica
--- —una reclamación sin sellar es reaplicable— y después sella. No se borran
--- las filas pendientes ni se les pone fecha a mano: eso convertiría un efecto
--- no aplicado en uno dado por hecho, que es exactamente el fallo que esta
--- columna existe para evitar.
+-- Contar cero no basta: entre el recuento y el cambio de imagen sigue
+-- entrando tráfico, y un webhook de esa ventana crea una reclamación nueva
+-- que la imagen vieja arrancaría sin saber recuperar. Hay que cortar la
+-- entrada —deshabilitando el endpoint en Stripe, que reintenta tres días y
+-- no pierde entregas—, esperar a las activas, reentregar las pendientes con
+-- la imagen NUEVA, y recién entonces cambiar. Si el cero no puede
+-- mantenerse, ese rollback se bloquea y las pendientes se conservan.
+--
+-- No se borran las filas pendientes ni se les pone fecha a mano: eso
+-- convertiría un efecto no aplicado en uno dado por hecho, que es exactamente
+-- el fallo que esta columna existe para evitar.
 --
 -- El ensayo y el procedimiento están en `docs/deploy/coolify-runbook.md`.
 ALTER TABLE "StripeEvent" ALTER COLUMN "processedAt" DROP NOT NULL;

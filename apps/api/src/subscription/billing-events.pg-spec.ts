@@ -232,12 +232,35 @@ suite("eventos de suscripción contra PostgreSQL real", () => {
    * `desincronizado: true` entrega el evento SIN tocar ese estado, que es lo
    * que produce una reentrega tardía — el evento dice una cosa y Stripe ya
    * dice otra.
+   *
+   * ── Lo que esta función conserva, y por qué ───────────────────────────────
+   *
+   * `created` de una suscripción es su fecha de NACIMIENTO y en Stripe no
+   * cambia nunca: ningún evento posterior la rejuvenece. El arnés, en cambio,
+   * sellaba `created = ahora` en cada llamada a `evento()`, así que una
+   * reentrega tardía de una suscripción vieja la publicaba como si acabara de
+   * nacer — y la guarda de sustitución, que compara precisamente esas dos
+   * fechas, veía nacer después a la anterior.
+   *
+   * El resultado dependía de si el caso cruzaba un segundo de reloj: dentro
+   * del mismo segundo había empate y la prueba pasaba; con el borde en medio,
+   * fallaba. Eso es una prueba que mide la máquina, no el código.
+   *
+   * Así que una suscripción ya publicada conserva su fecha de nacimiento.
+   * Quien necesite dos edades distintas las declara con `subCreated`, que es
+   * lo que hace explícito el supuesto del caso.
    */
   const entregar = async (
     e: ReturnType<typeof evento>,
     opts: { desincronizado?: boolean } = {},
   ) => {
     if (!opts.desincronizado) {
+      const previo = estadoEnStripe.get(e.data.object.id) as
+        | { created?: number }
+        | undefined;
+      if (previo?.created !== undefined) {
+        e.data.object.created = previo.created;
+      }
       estadoEnStripe.set(e.data.object.id, e.data.object);
     }
     mockConstructEvent.mockReturnValue(e);
@@ -431,12 +454,17 @@ suite("eventos de suscripción contra PostgreSQL real", () => {
   it("una suscripción anterior no toca a la vigente", async () => {
     // Ana se da de baja de sub_vieja y contrata sub_nueva. Después llega,
     // tarde, la baja de la vieja: no puede quitarle el plan que ya paga.
+    //
+    // Las dos edades se declaran: el supuesto del caso es que la vieja nació
+    // ANTES, y dejarlo al reloj hacía que la prueba midiera la máquina.
+    const ahora = Math.floor(Date.now() / 1000);
     await entregar(
       evento({
         id: "evt_v1",
         userId: ANA,
         subId: "sub_vieja",
         status: "active",
+        subCreated: ahora - 86_400,
       }),
     );
     await entregar(
@@ -446,6 +474,7 @@ suite("eventos de suscripción contra PostgreSQL real", () => {
         subId: "sub_vieja",
         status: "canceled",
         type: "customer.subscription.deleted",
+        subCreated: ahora - 86_400,
       }),
     );
     expect(await planDe(ANA)).toBe("FREE");
@@ -456,6 +485,7 @@ suite("eventos de suscripción contra PostgreSQL real", () => {
         userId: ANA,
         subId: "sub_nueva",
         status: "active",
+        subCreated: ahora,
       }),
     );
     expect(await planDe(ANA)).toBe("PRO");
@@ -468,6 +498,7 @@ suite("eventos de suscripción contra PostgreSQL real", () => {
         subId: "sub_vieja",
         status: "canceled",
         type: "customer.subscription.deleted",
+        subCreated: ahora - 86_400,
       }),
     );
     expect(await planDe(ANA)).toBe("PRO");

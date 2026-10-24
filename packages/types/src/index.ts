@@ -3911,6 +3911,7 @@ export * from "./observability-redaction";
 export * from "./circles-feedback";
 export * from "./inline-marks";
 export * from "./password-policy";
+export * from "./data-export-scope";
 
 // ─── Eco contextual · Sprint B — per-chapter suggested topics ────────────
 export * from "./eco-chapter-prompts";

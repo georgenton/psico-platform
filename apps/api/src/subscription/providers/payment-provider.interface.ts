@@ -97,7 +97,14 @@ export interface IPaymentProvider {
   // Implementations should not require the call to be idempotent — Stripe's
   // own `sessions.retrieve` is read-only and safe to call many times.
 
-  getCheckoutSessionStatus?(sessionId: string): Promise<CheckoutSessionStatus>;
+  // `userId` NO es decorativo: el identificador de sesión viaja en la URL de
+  // retorno, y sin él la implementación respondería sobre la sesión de
+  // cualquiera a quien se le pida. Quien implemente este método tiene que
+  // comprobar que la sesión pertenece a ese usuario y negarse si no.
+  getCheckoutSessionStatus?(
+    sessionId: string,
+    userId: string,
+  ): Promise<CheckoutSessionStatus>;
 
   // ─── Optional extension points ─────────────────────────────────────────────
 

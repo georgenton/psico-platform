@@ -73,6 +73,12 @@ const FLEXIBLE_MIGRATION = "20260917000000_circles_flexible_onboarding";
  * sin nombre FALLE en vez de colarse en una base de la que nunca formó parte.
  */
 const SEAL_MIGRATION = "20261021000000_editorial_origin_seal";
+/**
+ * El cierre de D-ORD: `StripeEvent.processedAt` pasa a ser anulable para
+ * distinguir «reclamado» de «terminado». Rompió las mismas dos colas y, otra
+ * vez, el arreglo es nombrarla.
+ */
+const DORD_MIGRATION = "20261023120000_dord_stripe_event_claim";
 
 /**
  * ── The harness owns only what it created ─────────────────────────────────
@@ -2796,6 +2802,7 @@ suite(
           GROUPS_MIGRATION,
           FLEXIBLE_MIGRATION,
           SEAL_MIGRATION,
+          DORD_MIGRATION,
         ]);
 
         const { readFileSync } = await import("node:fs");
@@ -2920,6 +2927,7 @@ suite(
           GROUPS_MIGRATION,
           FLEXIBLE_MIGRATION,
           SEAL_MIGRATION,
+          DORD_MIGRATION,
         ]);
 
         const { readFileSync } = await import("node:fs");

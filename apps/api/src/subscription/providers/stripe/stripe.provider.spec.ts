@@ -1,3 +1,4 @@
+import type { HttpException } from "@nestjs/common";
 import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { Plan, SubscriptionStatus } from "@prisma/client";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -22,13 +23,19 @@ const mockStripePortalCreate = vi.fn();
 const mockStripeCustomerCreate = vi.fn();
 const mockStripeWebhooksConstructEvent = vi.fn();
 const mockStripeInvoicesList = vi.fn();
+const mockStripeCheckoutRetrieve = vi.fn();
 const mockStripeSubscriptionsRetrieve = vi.fn();
 const mockStripeSubscriptionsUpdate = vi.fn();
 
 vi.mock("stripe", () => {
   const MockStripe = vi.fn().mockImplementation(() => ({
     customers: { create: mockStripeCustomerCreate },
-    checkout: { sessions: { create: mockStripeCheckoutCreate } },
+    checkout: {
+      sessions: {
+        create: mockStripeCheckoutCreate,
+        retrieve: mockStripeCheckoutRetrieve,
+      },
+    },
     billingPortal: { sessions: { create: mockStripePortalCreate } },
     webhooks: { constructEvent: mockStripeWebhooksConstructEvent },
     invoices: { list: mockStripeInvoicesList },
@@ -41,10 +48,12 @@ vi.mock("stripe", () => {
   return { default: MockStripe };
 });
 
+const mockTxExecuteRaw = vi.fn(async () => 0);
+
 const mockPrisma = {
   user: { findUnique: vi.fn(), update: vi.fn() },
   subscription: { findUnique: vi.fn(), upsert: vi.fn(), updateMany: vi.fn() },
-  stripeEvent: { findUnique: vi.fn(), create: vi.fn() },
+  stripeEvent: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
   $transaction: vi.fn(),
 };
 
@@ -94,9 +103,40 @@ describe("StripeProvider", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockPrisma.$transaction.mockImplementation((ops: unknown[]) =>
-      Promise.all(ops),
+    // D-ORD · `$transaction` tiene dos formas y el proveedor usa las dos: la
+    // de lista para los efectos sueltos y la interactiva para aplicar una
+    // suscripción bajo candado. El doble tiene que distinguirlas, y el `tx`
+    // de la interactiva necesita `$executeRaw` porque ahí se toma el candado.
+    mockPrisma.$transaction.mockImplementation(
+      (arg: unknown[] | ((tx: unknown) => Promise<unknown>)) =>
+        typeof arg === "function"
+          ? arg({ ...mockPrisma, $executeRaw: mockTxExecuteRaw })
+          : Promise.all(arg),
     );
+
+    // D-ORD · el webhook cambió de contrato y el arnés tiene que seguirlo.
+    //
+    // Antes comprobaba con `findUnique` y escribía con `create` al final;
+    // ahora reclama con `create` al principio y sella con `update`. Y, sobre
+    // todo, ya no aplica el objeto del evento: relee la suscripción. Estos
+    // valores por defecto describen el caso normal —reclamación limpia, sin
+    // suscripción previa, y Stripe devolviendo lo mismo que el evento acaba
+    // de contar—, y cada prueba que necesite otra cosa lo dice encima.
+    mockPrisma.stripeEvent.create.mockResolvedValue({});
+    mockPrisma.stripeEvent.update.mockResolvedValue({});
+    mockPrisma.stripeEvent.findUnique.mockResolvedValue(null);
+    mockPrisma.subscription.findUnique.mockResolvedValue(null);
+    mockStripeSubscriptionsRetrieve.mockImplementation(async (id: string) => {
+      // El objeto del último evento construido, que es lo que una relectura
+      // devolvería cuando el evento acaba de ocurrir. Una prueba de llegada
+      // tardía sobrescribe este doble para que digan cosas distintas.
+      const ultimo = mockStripeWebhooksConstructEvent.mock.results.at(-1);
+      const objeto = (
+        ultimo?.value as { data?: { object?: { id?: string } } } | undefined
+      )?.data?.object;
+      return objeto?.id === id ? objeto : makeStripeSub();
+    });
+
     provider = new StripeProvider(mockPrisma as never, mockConfig as never);
   });
 
@@ -246,7 +286,21 @@ describe("StripeProvider", () => {
         data: { object: makeStripeSub() },
       };
       mockStripeWebhooksConstructEvent.mockReturnValue(event);
-      mockPrisma.stripeEvent.findUnique.mockResolvedValue({ id: "existing" });
+      // Un duplicado ya no se detecta leyendo antes de escribir: lo rechaza
+      // la unicidad al reclamar, y lo que decide es si la fila existente está
+      // SELLADA. Con `processedAt`, está hecho y no se repite.
+      // Con el código que Prisma pone de verdad. Un `Error` pelado NO es
+      // cómo se señala una violación de unicidad, y tratarlo como tal era
+      // justo el defecto: cualquier otro fallo del `create` —un esquema sin
+      // migrar, por ejemplo— se leía como «ya estaba reclamado», se aplicaba
+      // el efecto y el sello final reventaba.
+      mockPrisma.stripeEvent.create.mockRejectedValue(
+        Object.assign(new Error("unique constraint"), { code: "P2002" }),
+      );
+      mockPrisma.stripeEvent.findUnique.mockResolvedValue({
+        id: "existing",
+        processedAt: new Date(),
+      });
 
       await provider.handleWebhook(Buffer.from("{}"), "sig");
 
@@ -338,6 +392,179 @@ describe("StripeProvider", () => {
 
   // ─── mapPriceIdToPlan (via webhook) ───────────────────────────────────────
 
+  /**
+   * La sesión de checkout se pide por un identificador que viaja en la URL de
+   * retorno: llega desde el navegador y no prueba nada por sí mismo. Antes de
+   * esta comprobación, `getCheckoutSessionStatus` devolvía el estado de
+   * CUALQUIER sesión a quien lo pidiera, y ese estado alimenta el mensaje que
+   * la persona ve en pantalla.
+   */
+  describe("getCheckoutSessionStatus — pertenencia", () => {
+    const sesion = (userId: string, extra: Record<string, unknown> = {}) => ({
+      id: "cs_test_123",
+      status: "complete",
+      payment_status: "paid",
+      subscription: "sub_1",
+      metadata: { userId },
+      ...extra,
+    });
+
+    it("devuelve el estado cuando la sesión es de quien pregunta", async () => {
+      mockStripeCheckoutRetrieve.mockResolvedValue(sesion("user-1"));
+      const r = await provider.getCheckoutSessionStatus(
+        "cs_test_123",
+        "user-1",
+      );
+      expect(r.status).toBe("success");
+      expect(r.subscriptionId).toBe("sub_1");
+    });
+
+    it("niega la sesión de otra persona (control negativo)", async () => {
+      mockStripeCheckoutRetrieve.mockResolvedValue(sesion("user-2"));
+      await expect(
+        provider.getCheckoutSessionStatus("cs_test_123", "user-1"),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("niega también una sesión sin dueño declarado", async () => {
+      mockStripeCheckoutRetrieve.mockResolvedValue({
+        id: "cs_test_123",
+        status: "complete",
+        payment_status: "paid",
+        subscription: "sub_1",
+        metadata: {},
+      });
+      await expect(
+        provider.getCheckoutSessionStatus("cs_test_123", "user-1"),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    /**
+     * Los siete casos que R3 pide, con errores con la forma que el SDK de
+     * Stripe les da: `type` y `statusCode`, no prosa que haya que reconocer.
+     */
+    describe("normalización de los fallos del proveedor", () => {
+      const errorSdk = (extra: Record<string, unknown>) =>
+        Object.assign(
+          new Error("texto crudo del SDK que no debe salir"),
+          extra,
+        );
+
+      it("sesión inexistente → 404 con el mismo cuerpo que la ajena", async () => {
+        mockStripeCheckoutRetrieve.mockRejectedValue(
+          errorSdk({ type: "StripeInvalidRequestError", statusCode: 404 }),
+        );
+        const inexistente = await provider
+          .getCheckoutSessionStatus("cs_no_existe", "user-1")
+          .catch((e: NotFoundException) => e.getResponse());
+
+        mockStripeCheckoutRetrieve.mockResolvedValue(sesion("user-2"));
+        const ajena = await provider
+          .getCheckoutSessionStatus("cs_test_123", "user-1")
+          .catch((e: NotFoundException) => e.getResponse());
+
+        // Indistinguibles: si difirieran, la diferencia confirmaría que el
+        // identificador existe, que es lo que la pertenencia evita.
+        expect(inexistente).toEqual(ajena);
+      });
+
+      it("sesión sin dueño declarado → el mismo 404", async () => {
+        mockStripeCheckoutRetrieve.mockResolvedValue({
+          id: "cs_test_123",
+          status: "complete",
+          payment_status: "paid",
+          subscription: "sub_1",
+          metadata: {},
+        });
+        await expect(
+          provider.getCheckoutSessionStatus("cs_test_123", "user-1"),
+        ).rejects.toThrow(NotFoundException);
+      });
+
+      it("fallo de red → 503 y nada del texto del SDK", async () => {
+        mockStripeCheckoutRetrieve.mockRejectedValue(
+          errorSdk({ type: "StripeAPIConnectionError" }),
+        );
+        const cuerpo = await provider
+          .getCheckoutSessionStatus("cs_test_123", "user-1")
+          .catch((e: HttpException) => ({
+            estado: e.getStatus(),
+            cuerpo: e.getResponse() as Record<string, string>,
+          }));
+        expect(cuerpo.estado).toBe(503);
+        expect(cuerpo.cuerpo.code).toBe("PAYMENT_PROVIDER_UNAVAILABLE");
+        expect(JSON.stringify(cuerpo)).not.toContain("texto crudo del SDK");
+      });
+
+      it("5xx del proveedor → 503", async () => {
+        mockStripeCheckoutRetrieve.mockRejectedValue(
+          errorSdk({ type: "StripeAPIError", statusCode: 503 }),
+        );
+        await expect(
+          provider.getCheckoutSessionStatus("cs_test_123", "user-1"),
+        ).rejects.toMatchObject({ status: 503 });
+      });
+
+      it("429 → 503, que invita a reintentar", async () => {
+        mockStripeCheckoutRetrieve.mockRejectedValue(
+          errorSdk({ type: "StripeRateLimitError", statusCode: 429 }),
+        );
+        await expect(
+          provider.getCheckoutSessionStatus("cs_test_123", "user-1"),
+        ).rejects.toMatchObject({ status: 503 });
+      });
+
+      it("credencial rechazada → 502, y no se le cuenta a la persona", async () => {
+        mockStripeCheckoutRetrieve.mockRejectedValue(
+          errorSdk({ type: "StripeAuthenticationError", statusCode: 401 }),
+        );
+        const cuerpo = await provider
+          .getCheckoutSessionStatus("cs_test_123", "user-1")
+          .catch(
+            (e: HttpException) => e.getResponse() as Record<string, string>,
+          );
+        expect(cuerpo.code).toBe("PAYMENT_PROVIDER_ERROR");
+        expect(cuerpo.message.toLowerCase()).not.toContain("clave");
+        expect(cuerpo.message.toLowerCase()).not.toContain("api");
+      });
+
+      it("error operativo inesperado → 502 sin volcado", async () => {
+        mockStripeCheckoutRetrieve.mockRejectedValue(
+          errorSdk({ statusCode: 418 }),
+        );
+        const cuerpo = await provider
+          .getCheckoutSessionStatus("cs_test_123", "user-1")
+          .catch((e: HttpException) => ({
+            estado: e.getStatus(),
+            cuerpo: JSON.stringify(e.getResponse()),
+          }));
+        expect(cuerpo.estado).toBe(502);
+        expect(cuerpo.cuerpo).not.toContain("texto crudo del SDK");
+      });
+    });
+
+    it("dice «no existe», no «no es tuya»", async () => {
+      // Distinguir los dos casos confirmaría que el identificador es válido,
+      // que es justo lo que no se quiere revelar.
+      mockStripeCheckoutRetrieve.mockResolvedValue(sesion("user-2"));
+      // `expect.assertions` evita el fallo silencioso de un `.catch()` que no
+      // se ejecuta: sin él, esta prueba pasaría también si NO lanzara nada.
+      expect.assertions(4);
+      await provider
+        .getCheckoutSessionStatus("cs_test_123", "user-1")
+        .catch((err: unknown) => {
+          expect(err).toBeInstanceOf(NotFoundException);
+          const cuerpo = (err as NotFoundException).getResponse() as {
+            code: string;
+            message: string;
+          };
+          expect(cuerpo.code).toBe("CHECKOUT_SESSION_NOT_FOUND");
+          expect(cuerpo.message.toLowerCase()).not.toContain("tuya");
+          expect(cuerpo.message.toLowerCase()).not.toContain("otro");
+        });
+    });
+  });
+
   describe("mapeo de price IDs a planes", () => {
     async function triggerSync(priceId: string) {
       const event = {
@@ -374,8 +601,11 @@ describe("StripeProvider", () => {
 
     it("price_pro_yearly → Plan.ANNUAL", async () => {
       vi.clearAllMocks();
-      mockPrisma.$transaction.mockImplementation((ops: unknown[]) =>
-        Promise.all(ops),
+      mockPrisma.$transaction.mockImplementation(
+        (arg: unknown[] | ((tx: unknown) => Promise<unknown>)) =>
+          typeof arg === "function"
+            ? arg({ ...mockPrisma, $executeRaw: mockTxExecuteRaw })
+            : Promise.all(arg),
       );
       await triggerSync("price_pro_yearly");
       expect(mockPrisma.user.update).toHaveBeenCalledWith(
@@ -385,8 +615,11 @@ describe("StripeProvider", () => {
 
     it("price_b2b → Plan.B2B", async () => {
       vi.clearAllMocks();
-      mockPrisma.$transaction.mockImplementation((ops: unknown[]) =>
-        Promise.all(ops),
+      mockPrisma.$transaction.mockImplementation(
+        (arg: unknown[] | ((tx: unknown) => Promise<unknown>)) =>
+          typeof arg === "function"
+            ? arg({ ...mockPrisma, $executeRaw: mockTxExecuteRaw })
+            : Promise.all(arg),
       );
       await triggerSync("price_b2b");
       expect(mockPrisma.user.update).toHaveBeenCalledWith(
@@ -396,8 +629,11 @@ describe("StripeProvider", () => {
 
     it("price desconocido → Plan.FREE", async () => {
       vi.clearAllMocks();
-      mockPrisma.$transaction.mockImplementation((ops: unknown[]) =>
-        Promise.all(ops),
+      mockPrisma.$transaction.mockImplementation(
+        (arg: unknown[] | ((tx: unknown) => Promise<unknown>)) =>
+          typeof arg === "function"
+            ? arg({ ...mockPrisma, $executeRaw: mockTxExecuteRaw })
+            : Promise.all(arg),
       );
       await triggerSync("price_unknown_xyz");
       expect(mockPrisma.user.update).toHaveBeenCalledWith(
@@ -434,8 +670,11 @@ describe("StripeProvider", () => {
       ["unpaid", SubscriptionStatus.INCOMPLETE],
     ])('Stripe status "%s" → %s', async (stripeStatus, expected) => {
       vi.clearAllMocks();
-      mockPrisma.$transaction.mockImplementation((ops: unknown[]) =>
-        Promise.all(ops),
+      mockPrisma.$transaction.mockImplementation(
+        (arg: unknown[] | ((tx: unknown) => Promise<unknown>)) =>
+          typeof arg === "function"
+            ? arg({ ...mockPrisma, $executeRaw: mockTxExecuteRaw })
+            : Promise.all(arg),
       );
       const result = await triggerSyncWithStatus(stripeStatus);
       expect(result).toBe(expected);

@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotImplementedException } from "@nestjs/common";
+import {
+  HttpException,
+  Injectable,
+  Logger,
+  NotImplementedException,
+} from "@nestjs/common";
 import type {
   BillingReturnResponse,
   CancelSubscriptionResponse,
@@ -8,6 +13,11 @@ import type {
 
 import { PrismaService } from "../prisma";
 import { PaymentService } from "../subscription/payment.service";
+import {
+  ProviderCapabilityUnsupportedError,
+  aExcepcionSegura,
+  clasificarErrorDeProveedor,
+} from "../subscription/provider-errors";
 import { SubscriptionService } from "../subscription/subscription.service";
 
 /**
@@ -71,14 +81,36 @@ export class BillingService {
     // surface that as 501 below.
     let result: { status: "success" | "processing" | "failed" };
     try {
-      result = await this.paymentService.getCheckoutSessionStatus(sessionId);
+      result = await this.paymentService.getCheckoutSessionStatus(
+        sessionId,
+        userId,
+      );
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unknown error";
-      this.logger.warn(`Provider lookup failed for ${sessionId}: ${message}`);
-      throw new NotImplementedException({
-        code: "PROVIDER_NO_SESSION_LOOKUP",
-        message,
-      });
+      // Una excepción HTTP ya viene normalizada por el proveedor —con su
+      // código, su estado y un mensaje escrito por nosotros—: se propaga.
+      if (err instanceof HttpException) throw err;
+
+      // El 501 es SÓLO para la capacidad ausente, y se reconoce por una señal
+      // específica. Antes se identificaba por descarte —«no es HttpException»—
+      // y se devolvía el `message` crudo del error: cualquier fallo de red o
+      // del SDK salía afirmando que la integración no soporta la consulta, con
+      // texto del proveedor dentro.
+      if (err instanceof ProviderCapabilityUnsupportedError) {
+        this.logger.warn(
+          `Capacidad no soportada · provider=${err.provider} capability=${err.capability}`,
+        );
+        throw new NotImplementedException({
+          code: "PROVIDER_NO_SESSION_LOOKUP",
+          message:
+            "Esta forma de pago no permite confirmar el estado aquí. Revisa tu plan en unos minutos.",
+        });
+      }
+
+      // Lo que quede es nuestro o inesperado. Se registra por categoría, sin
+      // el texto del error, y la persona recibe algo legible.
+      const reason = clasificarErrorDeProveedor(err);
+      this.logger.error(`Provider lookup failed · reason=${reason}`);
+      throw aExcepcionSegura(reason);
     }
 
     // Read tier separately so we always return the current value even if

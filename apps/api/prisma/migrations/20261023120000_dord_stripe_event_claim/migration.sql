@@ -1,0 +1,60 @@
+-- D-ORD · `processedAt` pasa a ser opcional.
+--
+-- Nulo significa «reclamado y sin terminar». La fila se escribe ANTES de
+-- aplicar el efecto y se sella después, para que un intento que muere a mitad
+-- no quede marcado como hecho y Stripe pueda reintentarlo.
+--
+-- ── Convivencia: qué es compatible y qué no ──────────────────────────────────
+--
+-- Hacia las ESCRITURAS de la imagen anterior, sí: siempre escribe un valor, de
+-- modo que sigue funcionando contra esta columna sin tocar nada.
+--
+-- Hacia la RECUPERACIÓN, no, y conviene no llamarlo «aditiva y reversible» a
+-- secas. La imagen anterior da por procesado cualquier evento cuya fila
+-- exista: su comprobación es `findUnique(...) != null`. Una reclamación
+-- pendiente escrita por la imagen nueva —`processedAt IS NULL`, efecto sin
+-- aplicar— sería saltada por la vieja y su efecto se perdería en silencio.
+--
+-- Por eso el rollback tiene una CONDICIÓN QUE HAY QUE MANTENER, no una
+-- comprobación que se hace una vez:
+--
+--     SELECT count(*) FROM "StripeEvent" WHERE "processedAt" IS NULL;  -- 0
+--
+-- Contar cero no basta: entre el recuento y el cambio de imagen sigue
+-- entrando tráfico, y un webhook de esa ventana crea una reclamación nueva
+-- que la imagen vieja arrancaría sin saber recuperar. Hay que cortar la
+-- entrada —deshabilitando el endpoint en Stripe, que reintenta tres días y
+-- no pierde entregas—, esperar a las activas, reentregar las pendientes con
+-- la imagen NUEVA, y recién entonces cambiar. Si el cero no puede
+-- mantenerse, ese rollback se bloquea y las pendientes se conservan.
+--
+-- No se borran las filas pendientes ni se les pone fecha a mano: eso
+-- convertiría un efecto no aplicado en uno dado por hecho, que es exactamente
+-- el fallo que esta columna existe para evitar.
+--
+-- ── Qué pendiente cuenta, y por qué no todas ────────────────────────────────
+--
+-- Una pendiente bloquea el rollback porque la imagen vieja la saltaría SI
+-- Stripe volviera a entregarla. Si Stripe ya se rindió —reintenta tres días y
+-- para—, nadie la va a entregar, así que la imagen vieja no puede saltarla:
+-- no hay nada que saltar. Contar esas filas haría la precondición
+-- inalcanzable para siempre a la primera que fallara de forma terminal, y una
+-- precondición inalcanzable no protege nada, sólo impide volver atrás.
+--
+-- De ahí el recuento real, con margen sobre la ventana de reintento:
+--
+--     SELECT count(*) FROM "StripeEvent"
+--      WHERE "processedAt" IS NULL
+--        AND "createdAt" > now() - interval '4 days';   -- 0
+--
+-- Las abandonadas se CONSERVAN y se revisan: son el registro de un efecto que
+-- nunca se aplicó, y merecen una mirada, no un borrado.
+--
+-- Deliberadamente SIN índice para ese recuento. Un índice parcial no se puede
+-- declarar en el esquema de Prisma, así que viviría sólo en SQL y la
+-- siguiente `migrate dev` propondría borrarlo. El recuento se ejecuta a mano
+-- durante un rollback, sobre una tabla de miles de filas: no lo necesita, y
+-- la deriva permanente costaría más que el escaneo.
+--
+-- El ensayo y el procedimiento están en `docs/deploy/coolify-runbook.md`.
+ALTER TABLE "StripeEvent" ALTER COLUMN "processedAt" DROP NOT NULL;

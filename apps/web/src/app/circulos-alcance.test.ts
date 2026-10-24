@@ -102,7 +102,11 @@ describe("PR4 adds no backend", () => {
     // vigila. Se nombra porque subir el número sin añadir un nombre es
     // justamente lo que aquí se rechaza.
     expect(migrations).toContain("20261021000000_editorial_origin_seal");
-    expect(migrations).toHaveLength(70);
+    // …y la del cierre de D-ORD: `StripeEvent.processedAt` pasa a ser anulable
+    // para distinguir «reclamado» de «terminado». También de la API, por la
+    // misma razón de siempre, y nombrada por la misma.
+    expect(migrations).toContain("20261023120000_dord_stripe_event_claim");
+    expect(migrations).toHaveLength(71);
   });
 
   it("touches no Mobile file", () => {

@@ -16,19 +16,39 @@ import { JobName, QueueName, type DataExportJobPayload } from "../queue-names";
 /**
  * Generates a user data export and uploads it to R2.
  *
- * Scope for Sprint S3 (per user decision):
- *   - profile + preferences + privacy settings + notifications
- *   - reading progress (UserProgress entries with chapter metadata)
- *   - subscription history
+ * Qué sale, en tres grupos — y la diferencia entre ellos importa, porque
+ * presentar una decisión de alcance como una imposibilidad criptográfica es
+ * excusarse con una propiedad que no está ahí.
  *
- * NOT yet included (added when their modules land):
- *   - Diary entries (S6) — will arrive as opaque ciphertext (E2E encrypted)
- *   - Eco threads (S9) — same
- *   - Highlights / annotations (S6) — plaintext
- *   - Auth events (S25 when we surface them via Pulso)
+ * INCLUIDO:
+ *   - perfil, preferencias, ajustes del lector, de notificaciones y de
+ *     privacidad
+ *   - el ánimo ACTUAL y las rachas (`mood`, `moodUpdatedAt`, los dos
+ *     `streakDays`), que viajan dentro del bloque `user`
+ *   - progreso de lectura (`UserProgress` con metadatos del capítulo)
+ *   - suscripción
+ *   - sesiones de guía
  *
- * Output format: JSON with `_meta.exportSchemaVersion`. When we add Diary,
- * we bump the version so consumers can detect schema changes.
+ * REQUIERE LA CLAVE DE LA PERSONA, y además HOY NO SE RECOGE — las dos cosas
+ * a la vez, porque decir sólo la primera sugiere que el ciphertext está en el
+ * archivo y no está: este método no consulta ninguna de las dos tablas.
+ *   - entradas del Diario (`textCiphertext` + `textNonce`)
+ *   - los mensajes que la persona escribió a Eco (los mismos campos)
+ *
+ * NO IMPLEMENTADO en esta exportación, aunque el servidor SÍ podría leerlo:
+ *   - las respuestas de Eco (`assistantText`, en claro)
+ *   - el HISTORIAL de ánimo, check-ins, resonancias
+ *   - marcas de lectura (highlights, anotaciones)
+ *   - eventos de autenticación
+ *
+ * Este bloque decía antes que el Diario y los hilos de Eco llegarían «en el
+ * Sprint S6/S9» y que ambos eran cifrado opaco. Los dos sprints cerraron hace
+ * meses, y lo segundo nunca fue cierto de las respuestas del asistente. Qué
+ * incluir sigue siendo una decisión de alcance abierta (D-EXP); lo que no
+ * puede volver es afirmar una imposibilidad donde hay una omisión.
+ *
+ * Output format: JSON with `_meta.exportSchemaVersion`. Si algún día entra una
+ * categoría nueva, se sube la versión para que los consumidores lo detecten.
  *
  * On success: writes file URL + status="READY" + emails the user.
  * On final failure (after retries): writes status="FAILED" and logs.
@@ -255,11 +275,67 @@ export class DataExportProcessor extends WorkerHost {
       _meta: {
         exportSchemaVersion: 1,
         generatedAt: new Date().toISOString(),
+        // Tres grupos, y la diferencia entre ellos importa.
+        //
+        // La primera versión de esta nota decía que el Diario y Eco «están
+        // cifrados de extremo a extremo y el servidor no tiene la clave».
+        // Eso es cierto del Diario y de los MENSAJES de la persona
+        // (`textCiphertext` + `textNonce`), y **falso** de las respuestas de
+        // Eco: se guardan en `assistantText`, en claro. Presentar una decisión
+        // de alcance como una imposibilidad criptográfica es excusarse con una
+        // propiedad que ahí no existe.
+        //
+        // Tampoco promete una fecha ni una atención manual: la versión
+        // anterior invitaba a escribir «y te decimos qué podemos entregar»,
+        // que es un compromiso que nadie ha definido.
+        //
+        // Y tres correcciones más, de la misma familia — la nota describía un
+        // archivo distinto del que se entrega:
+        //
+        //   1. Declaraba AUSENTES los ajustes de notificaciones, que este
+        //      mismo método incluye (`notificationSettings`, arriba). Igual
+        //      con los de privacidad, que no nombraba en ninguno de los tres
+        //      grupos.
+        //   2. Declaraba ausente «tu registro de ánimo» sin más, cuando el
+        //      bloque `user` sí lleva el ánimo ACTUAL (`mood`,
+        //      `moodUpdatedAt`). Lo que falta es el historial, y decirlo al
+        //      revés hace creer que no se exporta nada del ánimo.
+        //   3. El grupo del medio decía «requiere tu clave y por eso no puede
+        //      venir aquí como texto legible», que se lee como «está, pero
+        //      cifrado». No está: este método no consulta `DiaryEntry` ni
+        //      `EcoMessage`, así que no sale ni una línea de cifrado. Las dos
+        //      cosas son ciertas a la vez —no se podría leer Y tampoco se
+        //      incluye— y hay que decir las dos.
+        //
+        // Qué incluir sigue siendo una decisión de alcance abierta (D-EXP).
+        //
+        // `data-export-scope.pg-spec.ts` coteja esta nota contra el payload
+        // real en las dos direcciones — que nombre lo que trae y que no
+        // declare ausente lo que trae—, y además contra el ESQUEMA, que es la
+        // dirección que faltaba: una tabla que la base guarda y este método
+        // nunca consulta no aparece en el payload, así que ninguna de las dos
+        // primeras podía verla. Por eso la enumeración de lo ausente se
+        // declara como «las principales, no todas»: era verdad y se leía como
+        // si fuera la lista completa.
         note:
-          "This file contains data Psico Platform stores about your account. " +
-          "Diario and Eco data are end-to-end encrypted and not yet included " +
-          "in this export (Sprint S6/S9 will add them as ciphertext + your " +
-          "key derivation notes).",
+          "Este archivo incluye: tu perfil, tus preferencias, tus ajustes " +
+          "del lector, de notificaciones y de privacidad, tu ánimo actual y " +
+          "tus rachas, tu progreso de lectura, tu suscripción y tus " +
+          "sesiones de guía. " +
+          "Requiere tu clave, así que no podría venir aquí como texto " +
+          "legible — y hoy tampoco viene cifrado, porque esta exportación no " +
+          "lo recoge: tu Diario y los mensajes que tú escribiste a Eco, " +
+          "cifrados de extremo a extremo con una clave que sólo tú tienes. " +
+          "No está incluido en esta exportación, aunque no dependa de tu " +
+          "clave: las respuestas de Eco, el historial de tu ánimo, los " +
+          "check-ins, las resonancias, tus marcas y notas de lectura y los " +
+          "eventos de inicio de sesión. " +
+          "Esa lista son las principales, no todas: el archivo todavía no " +
+          "recoge todo lo que el servicio guarda de ti — quedan fuera, por " +
+          "ejemplo, tus reseñas, tus favoritos, tu actividad de lectura y " +
+          "los resúmenes que el servicio escribe sobre tu semana. Estamos " +
+          "ampliándolo; mientras tanto, preferimos decírtelo a que lo " +
+          "supongas.",
       },
       user: {
         id: user.id,

@@ -12,7 +12,11 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import {
+  ApiBadGatewayResponse,
   ApiBadRequestResponse,
+  ApiNotFoundResponse,
+  ApiNotImplementedResponse,
+  ApiServiceUnavailableResponse,
   ApiTags,
   ApiUnauthorizedResponse,
 } from "@nestjs/swagger";
@@ -132,6 +136,16 @@ export class BillingController {
    * front can show success/processing/failed immediately without polling.
    */
   @UseGuards(JwtAuthGuard)
+  // Los estados que esta ruta puede devolver ahora, declarados para que el
+  // contrato no dependa de leer el servicio. Antes cualquier fallo salía como
+  // 501; ahora se distinguen: 404 cuando la sesión no es suya o no existe
+  // —misma respuesta a propósito—, 503 cuando el proveedor no está disponible,
+  // 502 ante un error suyo inesperado, y 501 sólo si la forma de pago activa
+  // no admite esta consulta.
+  @ApiNotFoundResponse({ type: ErrorEnvelopeDto })
+  @ApiServiceUnavailableResponse({ type: ErrorEnvelopeDto })
+  @ApiBadGatewayResponse({ type: ErrorEnvelopeDto })
+  @ApiNotImplementedResponse({ type: ErrorEnvelopeDto })
   @Get("return")
   getReturn(
     @CurrentUser() user: AuthenticatedUser,

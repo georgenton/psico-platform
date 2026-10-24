@@ -830,7 +830,10 @@ model StripeEvent {
   id            String   @id @default(cuid())
   stripeEventId String   @unique
   type          String
-  processedAt   DateTime
+  // D-ORD · nulo = reclamado pero sin terminar. La fila se escribe ANTES de
+  // aplicar el efecto y se sella después, de modo que un intento que muere a
+  // mitad no quede marcado como hecho y Stripe pueda reintentarlo.
+  processedAt   DateTime?
   createdAt     DateTime @default(now())
 
   @@index([stripeEventId])

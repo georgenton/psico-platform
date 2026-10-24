@@ -2334,12 +2334,39 @@ async function continuarConQuienesAceptaron(page, activityId) {
     );
   }
   await confirm.click();
+  // Waits for the room to LEAVE the state the organiser just acted on, read
+  // from the activity itself.
+  //
+  // The previous wait looked for `/Prepárate|preparar tu parte|Tu parte/i` in
+  // the page text, and that is how a green run could be meaningless:
+  //
+  //   · `Prepárate` is not rendered anywhere in the product.
+  //   · `preparar tu parte` exists ONLY as the message for
+  //     `CIRCLE_ONBOARDING_OPEN` — «Todavía se están incorporando personas» —
+  //     which is shown precisely because the room has NOT opened yet.
+  //   · `Tu parte` also matches that same sentence, and matches
+  //     «Puedes dejar tu parte lista» on the share preview, which likewise
+  //     means the room is still inviting.
+  //
+  // So every string it could match meant «not yet» or «already sent», and
+  // none meant «open for preparation». The wait returned on the screen it was
+  // supposed to wait past, and whether the run went green depended on which
+  // copy happened to be on screen at the first poll. It was caught by one
+  // scenario failing on `continuing with the group opens the preparation
+  // (INVITING)` while the same pattern passed elsewhere.
+  //
+  // The status is what the callers then assert, so this waits for it to stop
+  // being INVITING rather than for it to BE `PREPARING`: a transition to a
+  // wrong state still reaches the caller's check instead of being hidden here
+  // as a timeout.
   await until(
     async () => {
-      const text = await page.evaluate(() => document.body.innerText);
-      return /Prepárate|preparar tu parte|Tu parte/i.test(text) ? true : null;
+      const estado = sqlOne(
+        `SELECT "status"::text FROM "CircleActivity" WHERE "id"='${activityId}'`,
+      ).trim();
+      return estado && estado !== "INVITING" ? estado : null;
     },
-    "the room to open for preparation",
+    "the activity to leave INVITING after the organiser continued",
     60_000,
   );
 }

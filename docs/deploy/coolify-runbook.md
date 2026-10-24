@@ -719,6 +719,109 @@ Un rollback de **datos** es otra cosa y no se improvisa: exige el restore drill
 documentado desde el backup de R2. Una migración `expand → deploy → contract` se
 revierte deshaciendo el paso _contract_ primero, y sólo si ese paso aún no corrió.
 
+### 3.1 Volver atrás cuando hay reclamaciones pendientes
+
+Un redeploy de la versión anterior no siempre es gratis, y hay un caso
+concreto en el que no lo es. Conviene tenerlo escrito antes de necesitarlo.
+
+La migración `20261023120000_dord_stripe_event_claim` hizo opcional
+`StripeEvent.processedAt`. Nulo significa «reclamado y sin terminar»: la fila
+se escribe antes de aplicar el efecto y se sella después, para que un intento
+que muere a mitad no quede marcado como hecho.
+
+Las **escrituras** de la imagen anterior siguen siendo compatibles —siempre
+ponen un valor—. La **recuperación** no: esa imagen da por procesado cualquier
+evento cuya fila exista, porque su comprobación es `findUnique(...) != null`.
+Una reclamación pendiente la saltaría, y su efecto se perdería sin que nada lo
+dijera.
+
+#### Por qué contar cero no basta
+
+La primera versión de esta sección decía: comprueba que no haya pendientes y
+rueda atrás. No alcanza. Entre el recuento y el cambio de imagen sigue
+entrando tráfico: un webhook que llegue en esa ventana crea una reclamación
+nueva, y la imagen vieja arranca con una pendiente que no sabe recuperar. El
+recuento no es una precondición que se comprueba una vez; es una condición que
+hay que **mantener** hasta que la versión nueva ya no esté sirviendo.
+
+#### El procedimiento
+
+1. **Cortar la entrada, sin perder entregas.** Deshabilitar el endpoint de
+   webhooks en Stripe (Workbench → Webhooks → el endpoint → deshabilitar). Las
+   entregas no se pierden: Stripe reintenta durante **tres días** con
+   retroceso exponencial, así que lo que llegue mientras tanto se vuelve a
+   entregar después. Es la palanca del proveedor para esto; devolver 5xx a
+   propósito también frenaría, pero ensucia el registro de entregas y no deja
+   claro si fue una avería.
+2. **Esperar a las que están dentro.** Las activas terminan solas: el candado
+   por persona vive en su transacción y la relectura tiene plazo. Dar un
+   margen y comprobarlo mirando que no entren peticiones nuevas al endpoint en
+   los registros de la aplicación.
+3. **Recuperar las pendientes reentregables.** Listarlas y reentregar cada
+   una **desde la imagen nueva**, que es la única que sabe reaplicar una
+   reclamación sin sellar: `stripe events resend <id>
+   --webhook-endpoint=<endpoint>`, o «Resend» en el panel. Para esto hace
+   falta reabrir el endpoint temporalmente; se reabre, se reentrega la lista
+   acotada, se vuelve a cerrar.
+4. **Mantener el cero.** Con el endpoint cerrado, nada nuevo puede reclamar.
+   Volver a contar inmediatamente antes de cambiar la imagen:
+
+   ```sql
+   SELECT count(*) FROM "StripeEvent"
+    WHERE "processedAt" IS NULL
+      AND "createdAt" > now() - interval '4 days';   -- 0
+   ```
+
+5. **Cambiar la imagen** y sólo entonces **reabrir el endpoint**. Stripe
+   reentrega lo acumulado contra la imagen antigua, que no tiene ninguna
+   pendiente delante.
+
+#### Qué pendiente cuenta, y por qué no todas
+
+Una pendiente bloquea el rollback porque la imagen vieja la saltaría **si
+Stripe volviera a entregarla**. Si Stripe ya se rindió —reintenta tres días y
+para—, nadie la va a entregar: no hay nada que saltar. Contarlas todas haría
+la precondición inalcanzable para siempre a la primera que fallara de forma
+terminal, y una precondición inalcanzable no protege nada; sólo impide volver
+atrás. De ahí el intervalo de cuatro días: la ventana de reintento más
+margen.
+
+Las abandonadas **se conservan y se revisan**. Son el registro de un efecto
+que nunca se aplicó, y merecen una mirada —qué suscripción, en qué estado
+está hoy en Stripe, si la persona quedó con el plan correcto—, no un borrado
+ni una fecha puesta a mano.
+
+Lo que normalmente las produce ya no debería producirlas: un evento de una
+persona cuya cuenta se borró —el processor de baja no cancela nada en
+Stripe— se sella en vez de reventar contra la clave ajena. Si aparecen
+abandonadas, conviene mirar qué las causó antes de dar el rollback por
+seguro.
+
+**Si el cero no puede mantenerse** —no hay forma de cerrar la entrada, o una
+pendiente dentro de la ventana no se puede reentregar— **ese rollback queda
+bloqueado**. Se conserva la versión nueva sirviendo, se conservan las
+pendientes, y se resuelve a mano con el estado real de cada suscripción antes
+de volver a intentarlo.
+
+**No se borran las filas pendientes ni se les pone fecha a mano.** Las dos
+cosas convierten un efecto no aplicado en uno dado por hecho, que es
+exactamente lo que esta columna existe para evitar.
+
+#### Qué está comprobado y qué no
+
+Dos cosas distintas, y conviene no confundirlas:
+
+- **La regla del código antiguo está reproducida en una prueba.**
+  `billing-events.pg-spec.ts` escribe una reclamación pendiente, comprueba que
+  la comprobación de la imagen anterior —`findUnique(...) != null`— la daría
+  por procesada, y luego que la imagen nueva sí la recupera dejando el
+  recuento en cero. Eso acredita el MOTIVO de la precondición.
+- **El ensayo operativo con la imagen anterior NO está hecho.** Correr el
+  artefacto antiguo contra una base con una pendiente y observar que la salta
+  es otra cosa, y es la que falta. **Es requisito antes del primer rollback
+  que se haga con pendientes de por medio**, y se ejecuta en una base
+  desechable restaurada del backup, nunca sobre la activa.
+
 ---
 
 ## 4 · DEPLOY PRODUCTION

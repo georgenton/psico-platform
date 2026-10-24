@@ -3652,6 +3652,16 @@ pendientes se clasifican ahora por evidencia, no por edad. El ensayo
 operativo con la imagen anterior sigue **sin hacer** y ese rollback sigue
 condicionado a él.
 
+**Y una prueba que medía la máquina.** El Test de la CI falló en
+`billing-events.pg-spec.ts` sobre un PR que **sólo tocaba documentación**: el
+arnés sellaba `created` de la suscripción a «ahora» en cada entrega, así que
+la reentrega tardía de una baja publicaba la suscripción vieja como recién
+nacida y la guarda de sustitución le daba el sitio. El veredicto dependía de
+si el caso cruzaba un **borde de segundo** —dentro del mismo segundo había
+empate y pasaba—, y por eso el PR que la introdujo la vio verde. Reproducido
+con un retardo inyectado antes de arreglar; `entregar` conserva ahora la
+fecha de nacimiento, como hace Stripe, y el caso declara las dos edades.
+
 **UAT acotada sobre la imagen servida**, con cuentas sintéticas `@psico.test`
 y **nunca** la cuenta personal. Lo que se recorrió de verdad: lectura de 188
 bloques reales, progreso que **persiste** entre sesiones, exportación de

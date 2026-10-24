@@ -19,12 +19,12 @@ pruebas alojado, y la clave está en de dónde sale el valor: un secreto
 
 Las cuatro cosas que el encargo pide no confundir, resueltas:
 
-| | Estado |
-| --- | --- |
-| **Ausencia de sesión** | Cierto antes (`/dashboard` → `/login`), ya no |
-| **Falta de herramienta de credenciales** | Cierto — no existe en esta sesión. **Y no hacía falta** |
-| **Restricción de política** | Real, con excepción para la aplicación propia en un host etiquetado de pruebas con valores creados en la sesión |
-| **Rechazo observado de una herramienta** | **Ninguno.** Nunca hubo uno: lo di por hecho sin provocarlo |
+|                                          | Estado                                                                                                          |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| **Ausencia de sesión**                   | Cierto antes (`/dashboard` → `/login`), ya no                                                                   |
+| **Falta de herramienta de credenciales** | Cierto — no existe en esta sesión. **Y no hacía falta**                                                         |
+| **Restricción de política**              | Real, con excepción para la aplicación propia en un host etiquetado de pruebas con valores creados en la sesión |
+| **Rechazo observado de una herramienta** | **Ninguno.** Nunca hubo uno: lo di por hecho sin provocarlo                                                     |
 
 **El mecanismo usado**, que es el flujo normal y no una puerta nueva:
 contraseña generada aquí → guardada en `~/.psico-ops` **antes** de crear nada
@@ -39,15 +39,15 @@ privilegiados.
 Las ocho combinaciones recorridas con los **controles de la aplicación**
 —«Estilo: …» y «Ambiente: …»—, sobre `725df576`.
 
-| | Resultado |
-| --- | --- |
-| Las ocho cambian | ✅ tema en `<html data-theme>`, ambiente en la clase del `<body>` (`amb-noche`) |
-| Contraste del cuerpo | 7,56:1 a 13,05:1 — holgado en todas |
-| Desbordamiento horizontal | ninguno en ninguna |
-| Texto por debajo de su piso | **ninguno**, una vez medido bien |
-| Lector | 188 bloques, legible; capturado en Renacimiento/Noche |
-| Enlaces a obra retirada | **cero** — la biblioteca autenticada sólo ofrece *EEC* |
-| Recuperación del progreso | «CONTINÚA TU RECORRIDO» devuelve al capítulo |
+|                             | Resultado                                                                       |
+| --------------------------- | ------------------------------------------------------------------------------- |
+| Las ocho cambian            | ✅ tema en `<html data-theme>`, ambiente en la clase del `<body>` (`amb-noche`) |
+| Contraste del cuerpo        | 7,56:1 a 13,05:1 — holgado en todas                                             |
+| Desbordamiento horizontal   | ninguno en ninguna                                                              |
+| Texto por debajo de su piso | **ninguno**, una vez medido bien                                                |
+| Lector                      | 188 bloques, legible; capturado en Renacimiento/Noche                           |
+| Enlaces a obra retirada     | **cero** — la biblioteca autenticada sólo ofrece _EEC_                          |
+| Recuperación del progreso   | «CONTINÚA TU RECORRIDO» devuelve al capítulo                                    |
 
 ### Tres falsos positivos que retiré, y por qué importa decirlo
 
@@ -104,14 +104,14 @@ un trinquete que ata las dos.
 
 Con cuenta sintética. Ni la contraseña ni la frase se imprimieron.
 
-| Paso | Resultado |
-| --- | --- |
-| 1 · escribir una entrada cifrada | **201** |
-| 2 · salir y volver con la misma contraseña | se lee **igual** |
-| 3 · restablecer por el flujo previsto | la vieja **401**, la nueva **200** |
-| 4a · ¿la contraseña nueva abre el diario por sí sola? | **no** — y es correcto |
-| 4b · la frase de respaldo | **sí**, recupera la clave |
-| 5 · leer el contenido original | **coincide** |
+| Paso                                                  | Resultado                          |
+| ----------------------------------------------------- | ---------------------------------- |
+| 1 · escribir una entrada cifrada                      | **201**                            |
+| 2 · salir y volver con la misma contraseña            | se lee **igual**                   |
+| 3 · restablecer por el flujo previsto                 | la vieja **401**, la nueva **200** |
+| 4a · ¿la contraseña nueva abre el diario por sí sola? | **no** — y es correcto             |
+| 4b · la frase de respaldo                             | **sí**, recupera la clave          |
+| 5 · leer el contenido original                        | **coincide**                       |
 
 El paso 4a es el que hacía necesaria la corrección de copia: quien leyera la
 anterior podía creer que restablecer basta, y descubrir que no justo cuando ya
@@ -147,11 +147,52 @@ es un no-op sin DSN. Un error sintético de staging devuelve el sobre
 
 ---
 
+## 5 bis. Eco, camino normal: comprobado
+
+Lo escrito antes aquí decía que no se había podido validar. **Era mío y era
+falso**: el camino funciona, y lo que falló fue mi analizador de la respuesta.
+
+Primero la acotación, antes de gastar: el servidor fija `max_tokens = 1024`
+por llamada, el contexto recuperado está topado en `AI_MAX_CONTEXT_CHUNKS = 5`
+trozos de `CHUNK_WORDS = 500` palabras, y un hilo nuevo no arrastra historia.
+Con eso, la cota por llamada a `claude-sonnet-4-6` ($3/$15 por millón) es
+**≤ $0,031**, y me limité a **una**.
+
+|                                            | Resultado                                       |
+| ------------------------------------------ | ----------------------------------------------- |
+| `POST /api/eco/messages`                   | **200**, SSE, 65 eventos, 5 s                   |
+| Respuesta del modelo                       | **631 caracteres**, en español, en tono         |
+| Persistencia del turno del usuario         | **cifrada** (`textCiphertext`, sin texto plano) |
+| Persistencia del turno de Eco              | **en claro** (`assistantText`)                  |
+| Coste **estimado** (cota, antes de gastar) | ≤ $0,0311                                       |
+| Coste **observado** (de la propia fila)    | 407 entrada + 208 salida = **$0,0043**          |
+
+Las dos últimas filas son distintas a propósito. El observado sale **7 veces
+por debajo** de la cota porque la recuperación devolvió mucho menos que los 5
+trozos del tope: «¿Para qué sirves?» no se parece a nada del libro. Gasto
+total del bloque por este concepto: **$0,0043** de un presupuesto de $1.
+
+El cifrado persistido coincide con el ADR 0007 §C: del usuario sólo queda
+ciphertext, la respuesta de Eco queda en claro porque la genera el modelo y no
+hay clave de nadie con la que cifrarla de forma recuperable.
+
+**Por qué lo di por fallido antes.** Mi script buscaba líneas `event:` en el
+SSE y el valor `kind` en mayúsculas. Los 65 eventos eran deltas de verdad, y
+el contrato de `EcoMessageKind` es minúsculas (`"assistant"`), así que la API
+estaba bien y la lectura mal. El contador de tokens tampoco era «no
+instrumentado»: se escribe en la fila, lo que pasa es que el DTO de respuesta
+no lo expone, y se leyó de la base en una transacción de sólo lectura.
+
+**Y un defecto que apareció al leer lo que Eco contestó:** se presentó como
+«tu companion conversacional en **Psico Platform**» — el nombre anterior del
+producto. Buscarlo destapó que encabezaba **todos** los correos
+transaccionales, el de restablecimiento incluido. Corregido en este bloque
+(ver §3), con su alcance acotado a lo que se recorrió.
+
+---
+
 ## 6. Lo que sigue abierto
 
-- **Eco, camino normal**: no validado en este bloque (límite de ingresos del
-  entorno durante la ventana). Eco queda **fuera del alcance** del piloto y de
-  sus criterios de salida hasta comprobarlo.
 - **Los asteriscos del lector**: 50 de 188 bloques muestran Markdown literal.
   Reproducido, explicado y **no arreglado aquí** — el arreglo es una operación
   de datos sobre contenido editorial, porque quitarlos al renderizar correría

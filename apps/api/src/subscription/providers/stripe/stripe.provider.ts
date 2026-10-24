@@ -704,9 +704,17 @@ export class StripeProvider implements IPaymentProvider {
             );
             return;
           }
+          // Lo que esto NO hace: cancelar la anterior en Stripe. Nuestro
+          // registro pasa a seguir a la más nueva y la vieja sigue donde
+          // estaba, porque cancelar una suscripción es un acto comercial y
+          // un manejador de webhooks no es quien lo decide. Si queda viva
+          // cobrando, eso se ve en Stripe y se resuelve allí; aquí se deja
+          // dicho para que nadie lo lea como «ya está cerrada».
           this.logger.log(
             `Replacing ${vigente.stripeSubscriptionId} (${guardada.status}) with ${sub.id} for user ${userId}` +
-              (guardadaViva ? " — la entrante es posterior" : ""),
+              (guardadaViva
+                ? " — la entrante es posterior; la anterior NO se cancela desde aquí"
+                : ""),
           );
         }
 

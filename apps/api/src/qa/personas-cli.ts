@@ -9,7 +9,7 @@
  *
  * The password is NOT optional and has no default:
  *
- *   QA_PERSONAS_PASSWORD='…'     at least 10 characters
+ *   QA_PERSONAS_PASSWORD='…'     at least PASSWORD_MIN_LENGTH characters (see @psico/types)
  *
  * On a deployed box the run additionally requires the same explicit opt-in the
  * visual fixture asks for, and refuses outright when the canonical resolver

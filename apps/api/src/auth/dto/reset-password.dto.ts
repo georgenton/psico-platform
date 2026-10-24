@@ -1,4 +1,6 @@
-import { IsString, Matches, MaxLength, MinLength } from "class-validator";
+import { IsString, Matches } from "class-validator";
+
+import { IsNewPassword } from "../../shared/validators/is-new-password.validator";
 
 /**
  * Body for `POST /api/auth/reset-password` — consume a password-reset
@@ -31,7 +33,6 @@ export class ResetPasswordDto {
    * there is no history.
    */
   @IsString()
-  @MinLength(8)
-  @MaxLength(72)
+  @IsNewPassword()
   newPassword!: string;
 }

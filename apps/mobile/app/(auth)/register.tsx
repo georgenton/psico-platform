@@ -14,6 +14,11 @@ import { Link } from "expo-router";
 import { ApiError } from "@psico/api-client";
 import { useAuth } from "@/context/auth";
 import { Colors, Radius, Spacing } from "@/theme";
+import {
+  PASSWORD_HINT,
+  passwordPolicyMessage,
+  passwordPolicyProblem,
+} from "@psico/types";
 
 export default function RegisterScreen() {
   const { register } = useAuth();
@@ -25,8 +30,8 @@ export default function RegisterScreen() {
 
   const handleRegister = async () => {
     if (!name.trim() || !email.trim() || !password) return;
-    if (password.length < 8) {
-      setError("La contraseña debe tener al menos 8 caracteres.");
+    if (passwordPolicyProblem(password)) {
+      setError(passwordPolicyMessage(passwordPolicyProblem(password)!));
       return;
     }
     setError(null);
@@ -101,7 +106,7 @@ export default function RegisterScreen() {
             <Text style={styles.label}>Contraseña</Text>
             <TextInput
               style={styles.input}
-              placeholder="Mínimo 8 caracteres"
+              placeholder={PASSWORD_HINT}
               placeholderTextColor={Colors.warm[400]}
               secureTextEntry
               autoComplete="new-password"

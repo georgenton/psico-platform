@@ -9,6 +9,8 @@ import {
   MinLength,
   ValidateNested,
 } from "class-validator";
+
+import { IsNewPassword } from "../../shared/validators/is-new-password.validator";
 import { Type } from "class-transformer";
 
 /**
@@ -31,8 +33,10 @@ import { Type } from "class-transformer";
  */
 
 const BASE64URL = /^[A-Za-z0-9_-]+={0,2}$/;
-const NEW_PASSWORD_MIN = 10;
-const NEW_PASSWORD_MAX = 256;
+// El mínimo y el tope viven en `@psico/types` (`password-policy`), que es la
+// única fuente para API, web y móvil. Aquí había 10 y 256: el 10 discrepaba
+// del 8 del registro, y el 256 dejaba pasar contraseñas que bcrypt trunca a
+// 72 BYTES sin avisar — justo en el flujo que recifra el diario.
 // Salt size on the wire (base64url, no padding).
 //
 // Auth produces 16-byte salts via Node's `randomBytes(16).toString("base64url")`
@@ -125,13 +129,18 @@ export class PasswordChangeWithRekeyDto {
   currentPassword!: string;
 
   /**
-   * New password (10–256 chars). Tighter min than register (which is 8)
-   * because rekey is a destructive operation — we nudge users toward a
-   * password they actually remember.
+   * La contraseña nueva, contra la política compartida.
+   *
+   * Aquí el tope en bytes importa más que en ningún otro sitio. La misma
+   * contraseña alimenta dos cosas con límites distintos: bcrypt, que ignora
+   * lo que pase de 72 bytes, y Argon2id en el cliente, que no tiene ese
+   * tope. Con una contraseña más larga, la clave del diario se derivaría de
+   * la cadena entera mientras el hash de acceso sólo vería su prefijo — dos
+   * verdades distintas sobre el mismo secreto. Rechazar es la única salida
+   * que no deja a nadie con un diario que su propia contraseña no abre.
    */
   @IsString()
-  @MinLength(NEW_PASSWORD_MIN)
-  @MaxLength(NEW_PASSWORD_MAX)
+  @IsNewPassword()
   newPassword!: string;
 
   /**

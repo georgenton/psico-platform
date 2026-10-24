@@ -1,4 +1,6 @@
-import { IsString, MinLength, MaxLength } from "class-validator";
+import { IsString } from "class-validator";
+
+import { IsNewPassword } from "../../shared/validators/is-new-password.validator";
 
 /**
  * Body for `POST /api/user/password-change` — change the password for
@@ -27,7 +29,6 @@ export class PasswordChangeDto {
    * register — picking weak passwords is the user's choice.
    */
   @IsString()
-  @MinLength(8)
-  @MaxLength(72)
+  @IsNewPassword()
   newPassword!: string;
 }

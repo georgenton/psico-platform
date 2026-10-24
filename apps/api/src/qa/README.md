@@ -127,7 +127,7 @@ real de un `upsert` con el correo equivocado.
 
 No hay valor por defecto, a propósito: un valor por defecto en el repositorio es
 una credencial publicada el día que alguien apunte la herramienta a un sitio que
-importe. Llega por `QA_PERSONAS_PASSWORD`, pide al menos 10 caracteres, y no se
+importe. Llega por `QA_PERSONAS_PASSWORD`, pide el mínimo de la política del producto, y no se
 imprime nunca — ni en el informe, ni en los registros, ni en un error.
 
 Una cuenta que ya existe **no** cambia de contraseña salvo que se pase

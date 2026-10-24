@@ -1,5 +1,7 @@
 import { IsEmail, IsString, MinLength, MaxLength } from "class-validator";
 
+import { IsNewPassword } from "../../shared/validators/is-new-password.validator";
+
 /**
  * Body for `POST /api/auth/register` — new account creation with email
  * and password.
@@ -25,8 +27,7 @@ export class RegisterDto {
    * never reaches storage and never appears in any log.
    */
   @IsString()
-  @MinLength(8)
-  @MaxLength(72)
+  @IsNewPassword()
   password!: string;
 
   /**

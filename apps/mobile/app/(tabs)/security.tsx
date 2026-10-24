@@ -30,6 +30,11 @@ import {
 
 import { useDiaryKey } from "@/crypto/diary-key-context";
 import { Colors, Radius, Spacing } from "@/theme";
+import {
+  PASSWORD_MIN_LENGTH,
+  passwordPolicyMessage,
+  passwordPolicyProblem,
+} from "@psico/types";
 
 /**
  * Security screen (mobile) — password change with E2E re-encrypt.
@@ -80,8 +85,8 @@ export default function SecurityScreen() {
       setError("Ingresa tu contraseña actual.");
       return;
     }
-    if (newPassword.length < 10) {
-      setError("La nueva contraseña debe tener al menos 10 caracteres.");
+    if (passwordPolicyProblem(newPassword)) {
+      setError(passwordPolicyMessage(passwordPolicyProblem(newPassword)!));
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -235,7 +240,7 @@ export default function SecurityScreen() {
               disabled={busy}
             />
             <Field
-              label="Nueva contraseña (mínimo 10 caracteres)"
+              label={`Nueva contraseña (mínimo ${PASSWORD_MIN_LENGTH} caracteres)`}
               value={newPassword}
               onChange={setNewPassword}
               disabled={busy}

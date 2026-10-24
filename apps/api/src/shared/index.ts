@@ -12,6 +12,7 @@ export * from "./decorators/required-role.decorator";
 export * from "./decorators/idempotent.decorator";
 export * from "./guards/plan.guard";
 export * from "./guards/roles.guard";
+export * from "./filters/expected-unavailable.exception";
 export * from "./filters/http-exception.filter";
 export * from "./interceptors/idempotency.interceptor";
 export * from "./throttler/throttler.module";

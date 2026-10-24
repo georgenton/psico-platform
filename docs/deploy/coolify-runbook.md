@@ -178,24 +178,70 @@ desplegar, no después de ver el primer fallo.
 
 #### El gate de migración
 
-`prisma migrate deploy` se ejecuta como **`pre_deployment_command` del recurso api**,
+`prisma migrate deploy` se ejecuta como **`post_deployment_command` del recurso api**,
 y en ningún otro sitio:
 
 ```
 pnpm --filter @psico/api migrate:deploy
 ```
 
+> **Corrección del 2026-10-22 — estaba en `pre_deployment_command` y no migraba.**
+> Lo que sigue más abajo describía cuatro propiedades del hook *pre*. Una de ellas
+> —«antes de que arranque código que dependa del esquema nuevo»— **nunca fue cierta**,
+> y se descubrió promoviendo el lector: el despliegue terminó en verde con la migración
+> 70 sin aplicar.
+>
+> La causa está en el código de Coolify 4.4.7, no en la configuración.
+> `ApplicationDeploymentJob::run_pre_deployment_command()` resuelve
+> `getCurrentApplicationContainerStatus()` —los contenedores **en ejecución**— y hace
+> `docker exec` sobre uno de ellos. El hook *pre* alcanza por tanto **siempre la imagen
+> saliente**, cuyo `prisma/migrations` es el del commit anterior: `migrate deploy`
+> encontró «69 migrations», todas aplicadas, y reportó éxito. `pre_deployment_command_container`
+> no lo arregla: sólo elige *entre los que ya corren*.
+>
+> El comando pasó a `post_deployment_command`, que se invoca desde `post_deployment()`
+> cuando esa misma consulta ya devuelve el contenedor **nuevo**. Comprobado en el
+> despliegue `4upcnk3j9ccb6zchwprfrjoo`: el log dice `docker exec <app>-20261022T202442`
+> y **«70 migrations found»** en vez de 69.
+>
+> Dos propiedades se ganan y una se pierde, y conviene tener las tres presentes:
+>
+> - se gana que el comando lee las migraciones **de la imagen que se está desplegando**;
+> - se gana que el primer despliegue de un recurso nuevo ya no es un caso especial por
+>   falta de contenedor previo —aunque sigue habiendo uno: si no hay ningún contenedor
+>   en ejecución, el post también se omite en silencio;
+> - **se pierde el orden**: el post corre *después* de que el contenedor nuevo empiece a
+>   servir, así que existe una ventana de segundos de código nuevo contra esquema viejo.
+>   Inocua para una migración aditiva; **no** para una destructiva.
+>
+> Y se pierde algo más, dicho aparte porque es lo que más engaña: la llamada a
+> `run_post_deployment_command()` está envuelta en `try/catch` que sólo deja un
+> `Log::warning`, de modo que **una migración fallida deja el despliegue en verde**.
+> Eso invalida el párrafo «Si la migración falla» de más abajo, corregido ahí mismo.
+> Por eso existe `GET /api/health/ready` (§ al final de esta sección): la comprobación que
+> no depende de que el despliegue se ponga rojo.
+>
+> El cambio se hizo por SQL sobre `coolify-db` porque no hay token de la API de Coolify
+> a mano, así que **no generó el evento de auditoría** de la interfaz. Preimagen en
+> `/root/coolify-preimage/api-hooks-20261022T202409Z.csv`.
+
 **Para comprobar que está guardado**, hay que preguntárselo al API crudo, no al MCP: el
 envoltorio del MCP recorta los campos de configuración y por eso parece que no existen.
 
 ```bash
-coolify-api.sh applications/<uuid> | jq '{pre_deployment_command, build_command, start_command}'
+coolify-api.sh applications/<uuid> | jq '{pre_deployment_command, post_deployment_command, build_command, start_command}'
 ```
 
 `is_auto_deploy_enabled` e `is_preview_deployments_enabled`, en cambio, no los proyecta
 **ninguna** de las dos vías: se escriben por `PATCH` y se comprueban por conducta —
 `list_deployments` y mirar si algún despliegue trae `is_webhook: true` después de haberlos
 apagado.
+
+> **HISTÓRICO — describe el hook `pre`, retirado el 2026-10-22.** Se conserva porque
+> explica por qué la migración no va en el `start`, que sigue vigente (propiedades 1, 3
+> y 4). La **propiedad 2 nunca fue cierta** y es la que obligó al cambio: el comando
+> alcanzaba el contenedor saliente. El procedimiento vigente es el de
+> `post_deployment_command`, descrito en la corrección de arriba.
 
 Cuatro propiedades, y ninguna es accidental:
 
@@ -216,6 +262,15 @@ Cuatro propiedades, y ninguna es accidental:
    backfill, sin ingesta: un comando.
 
 #### ⚠️ El primer despliegue NO migra
+
+> **HISTÓRICO respecto a su causa, y probablemente resuelto.** Con el hook en `post`,
+> `getCurrentApplicationContainerStatus()` se consulta cuando el contenedor NUEVO ya
+> está arriba, así que en un primer despliegue sí hay dónde ejecutar el comando y
+> debería migrar. Se deduce del código, **no se ha comprobado en un primer despliegue
+> real**, de modo que el procedimiento de dos pasos de más abajo sigue siendo el
+> conservador hasta que alguien lo mida. Lo que NO cambia es el final de esta sección:
+> un despliegue puede terminar en `finished` sin que nadie avise de nada, y con el hook
+> en `post` eso ahora incluye el caso en que la migración **falla**.
 
 Como el comando corre **dentro del contenedor actual**, cuando no hay contenedor actual
 no hay dónde correrlo: Coolify **lo omite**, y el despliegue termina en `finished` sin
@@ -240,6 +295,43 @@ el esquema existe basta una lectura pública, sin cuenta y sin escribir nada:
 curl -s -o /dev/null -w '%{http_code}\n' https://api-staging.feelverse.app/api/books
 ```
 
+**Desde el 2026-10-22 hay una respuesta directa**, y es la que conviene usar: el catálogo
+sólo dice «alguna tabla existe», mientras que esto compara las migraciones **que la
+imagen trae** contra las que la base tiene aplicadas.
+
+```bash
+# 200 = el esquema está al día para ESTA imagen.
+# 503 = no lo está, y `details.pending` nombra las que faltan.
+curl -s -w '\n%{http_code}\n' https://api-staging.feelverse.app/api/health/ready
+```
+
+Es **pública** porque lo que necesita preguntarlo —un gate de despliegue, un smoke
+posterior a la promoción— no puede autenticarse, y los nombres de migración ya están en
+un repositorio público. A diferencia de `/health`, **sí tiene límite**: 60 por minuto y
+un veredicto cacheado 5 s, porque toca Postgres y el disco y una petición pública no
+puede significar una consulta sin cota. Un sondeo autorizado cada 5 s pide 12 por
+minuto, así que el límite no le estorba. **Falla cerrada**: un inventario de migraciones
+inválido —inexistente, vacío, o con un directorio al que le falta su `migration.sql`— y
+un ledger ilegible responden 503, nunca 200. Eso es exactamente el fallo del 2026-10-01,
+cuando `/health` respondió 200 contra una base vacía.
+
+**Qué significa un 200, y qué no.** Compara un INVENTARIO DE NOMBRES contra el ledger de
+Prisma: «cada migración que esta imagen trae está registrada como aplicada aquí». No es
+una comprobación de drift del esquema ni de integridad de los datos — una columna
+borrada a mano, el SQL de una migración editado después de aplicarse o una restricción
+desactivada en psql dejan el ledger de acuerdo con la carpeta y esta sonda en verde.
+Conviene mantener la promesa estrecha.
+
+**Lo que NO es:** el gate del despliegue. Coolify sondea `health_check_path` desde
+`rolling_update()`, y sólo *después* llega a `post_deployment()`, que es donde corre la
+migración. Apuntar el gate a `/api/health/ready` haría que **todo despliegue con migración
+pendiente se quedara colgado**: la puerta esperaría un esquema que sólo el paso de
+después puede aplicar. Pasa a ser correcto —y es un cambio de una línea en
+`health_check_path`— el día que la migración corra antes del healthcheck: un recurso
+*migration job* aparte, o aplicarla antes de que el servidor escuche. Esa decisión sigue
+abierta; `/health` se mantiene como liveness y no consulta el esquema, con una prueba que
+falla si alguien se lo añade.
+
 **Para un entorno nuevo**, entonces, no se confía en que el primer despliegue migre:
 
 1. desplegar una vez — crea el contenedor, la base queda sin esquema;
@@ -258,8 +350,12 @@ funciona bajo `sh -c` y `bash -c` y **falla** bajo `sh -lc` o `bash -lc`. Coolif
 primera forma. Si una versión futura cambiara a un shell de login, el síntoma sería
 `pnpm: command not found` y el arreglo, fijar el `PATH` en el propio comando.
 
-**Si la migración falla.** Coolify aborta el despliegue y **no arranca el contenedor
-nuevo**; el anterior sigue sirviendo. Entonces:
+**Si la migración falla.** ⚠️ **Corregido el 2026-10-22.** Esto era cierto con el hook
+*pre*. Con el comando en `post_deployment_command` ya **no** lo es: el contenedor nuevo
+está sirviendo antes de que el comando corra, y su fallo sólo deja un `Log::warning`, así
+que **el despliegue queda en verde y el esquema viejo sigue en pie**. No hay señal
+automática: hay que ir a buscarla con `GET /api/health/ready` o mirando el log del
+despliegue. Entonces:
 
 - se lee el error en el log del despliegue, no se reintenta a ciegas: una migración
   que falla dos veces falla por la misma razón;

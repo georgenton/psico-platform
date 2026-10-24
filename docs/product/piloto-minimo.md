@@ -113,7 +113,10 @@ Concretas y revisables una por una. Ninguna se infiere de este cierre.
 - `main` y los artefactos servidos **identificados por separado**, con la
   diferencia explicada (hoy: `439f5d32` vs `725df576`, sin código de runtime
   entre medias).
-- `GET /api/health/ready` conforme: el esquema de la imagen aplicado.
+- `GET /api/health/ready` conforme. Así se ve conforme, medido el 2026-10-24:
+  `{"ready":true,"reason":"ok","pending":[],"failed":[],"shippedCount":71,"appliedCount":71}`
+  — las dos cuentas iguales es lo que importa. (El simple vive en `/health`,
+  fuera del prefijo; `/api/health` responde 404 por diseño desde el Sprint 0.A.)
 - Las decisiones 1 y 2 del §5 **tomadas**, en un sentido o en otro.
 - Una **persona a la vez**, avisada de que es staging y de que el diario se
   cifra sin vía de recuperación si olvida la contraseña.

@@ -105,7 +105,9 @@ sintética, que no tenía ninguna.
 `RESEND_API_KEY` **no está configurada** en staging: el worker lo avisa al
 arrancar y los correos se registran en consola. Para esta prueba es
 conveniente —nadie recibe nada— y queda anotado como pendiente de entorno, no
-como defecto.
+como defecto. Tampoco están `GOOGLE_CLIENT_ID`, `VAPID_*` ni `SENTRY_DSN`; el
+inventario completo, con lo presente y lo ausente, está en el §3 del
+[roadmap](../ROADMAP.md).
 
 ---
 

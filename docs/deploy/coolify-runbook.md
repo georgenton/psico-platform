@@ -846,20 +846,60 @@ comprobación.
 > que es un daño mayor que un comentario desactualizado con su corrección
 > escrita aquí.
 
-#### Qué está comprobado y qué no
+#### Qué está comprobado — ensayo operativo del 2026-10-24
 
-Dos cosas distintas, y conviene no confundirlas:
+Hasta esta fecha había dos cosas distintas y sólo una hecha: la regla del
+código antiguo estaba **reproducida en una prueba**
+(`billing-events.pg-spec.ts`), que acredita el MOTIVO de la precondición,
+pero **el ensayo operativo con el artefacto anterior real faltaba**. Ya no.
 
-- **La regla del código antiguo está reproducida en una prueba.**
-  `billing-events.pg-spec.ts` escribe una reclamación pendiente, comprueba que
-  la comprobación de la imagen anterior —`findUnique(...) != null`— la daría
-  por procesada, y luego que la imagen nueva sí la recupera dejando el
-  recuento en cero. Eso acredita el MOTIVO de la precondición.
-- **El ensayo operativo con la imagen anterior NO está hecho.** Correr el
-  artefacto antiguo contra una base con una pendiente y observar que la salta
-  es otra cosa, y es la que falta. **Es requisito antes del primer rollback
-  que se haga con pendientes de por medio**, y se ejecuta en una base
-  desechable restaurada del backup, nunca sobre la activa.
+**Cómo se ensayó, para que se pueda repetir.** Base desechable
+`dord_rehearsal_test` en un contenedor propio sobre una red de Docker sin
+otros miembros, restaurada del respaldo diario de staging de ese día
+(`pg-dump-feelverse_staging-1792818005-…`, 1 213 966 bytes,
+`sha256:8af937d4e7a9…`). Antes de arrancar nada se registró el destino:
+`current_database() = dord_rehearsal_test` —no la activa—, 101 tablas, 71
+migraciones aplicadas, **la migración `20261023120000_dord_stripe_event_claim`
+presente** y `processedAt` con `is_nullable = YES`. La clave de Stripe del
+entorno es de **modo test**, comprobado por su prefijo dentro del contenedor
+y sin imprimirla.
+
+Se condujo el `handleWebhook` **compilado de cada imagen** —el
+`PrismaService` de la propia imagen, con su adaptador y su esquema— y se
+sustituyó **sólo Stripe** por un doble sin red: si algo hubiera intentado
+salir, el doble lo habría hecho fallar. Las dos imágenes son las que Coolify
+tiene en el servidor: `6cb27281` (anterior, sin la columna reclamable) y
+`725df576` (actual).
+
+**Las reclamaciones pendientes las escribió el código real**, no una mano: la
+imagen nueva reclama y el doble hace fallar la relectura, así que la fila
+queda con `processedAt` nulo y el efecto sin aplicar, que es exactamente cómo
+se produce en la vida real. Una de ellas se **envejeció** a 10 días con un
+`UPDATE` sobre `createdAt`; envejecer una fila no finge un efecto, el efecto
+sigue sin aplicar.
+
+| Escenario | Observado |
+| --- | --- |
+| Pendiente reciente, imagen **anterior** | `Skipping already-processed Stripe event` · **0** llamadas a Stripe · efecto **sin aplicar** · fila sigue pendiente → **el efecto se pierde** |
+| Pendiente de **10 días**, imagen anterior | idéntico — **la edad no cambia nada** |
+| Las dos, imagen **actual** | `Reapplying … a previous attempt did not finish` · 1 relectura · `Synced subscription … plan=PRO` · fila **sellada** · inventario → **0** |
+| Pendiente **ya convergida** (efecto aplicado, sin sellar) | la reentrega converge y **sella por código**, sin duplicar el efecto y **sin escribir `processedAt` a mano** |
+| La **ventana** inventario → cambio de imagen | inventario **0**; llega un webhook; deja una pendiente que **no estaba en el inventario**; la imagen anterior la salta → **el residuo declarado, reproducido** |
+
+Dos cifras que cierran el supuesto retirado nº 2: con las dos pendientes en la
+base, el recuento correcto veía **2** y el recuento antiguo —el del filtro de
+cuatro días— veía **1**. Esa diferencia era exactamente la pendiente que el
+filtro excluía, con su efecto sin aplicar.
+
+**Qué queda acreditado:** el rollback a la imagen anterior **ya no está
+condicionado a este ensayo**. Sigue condicionado a su precondición de
+contenido —cero pendientes irrecuperables y el procedimiento de los pasos
+1–4 ejecutado— y el residuo de la ventana sigue existiendo, porque ninguna
+maniobra sobre el endpoint lo lleva a cero. Lo que ya no hace falta es
+averiguar si la imagen anterior pierde una pendiente: pierde, y está medido.
+
+Los contenedores y la red del ensayo se retiraron al terminar; el respaldo
+original no se tocó.
 
 ---
 

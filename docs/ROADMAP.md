@@ -59,6 +59,19 @@ Ver [docs/design/handoff/INDEX.md](design/handoff/INDEX.md) para el mapeo exacto
 ### 🔴 Bloqueantes para revenue (ops, no código)
 
 > **Update 2026-06-17:** parte código del Sprint 1 cerrada con `sprint-ops-bundle` — script ffmpeg + `GET /api/health/integrations` (ADMIN-only) + boot banner. Las 3 tareas debajo siguen abiertas porque dependen de credenciales en Railway/Stripe. Validación en prod: `curl -H "Authorization: Bearer <admin-jwt>" .../api/health/integrations`.
+>
+> **Update 2026-10-24 — leer las dos tareas de abajo contra Coolify, no contra Railway.** Las filas 1 y 2 están redactadas para Railway, que desde el 2026-10-01 es **respaldo congelado** y no autodespliega. Inventariado el entorno de **staging en Coolify** (sólo nombres, nunca valores):
+>
+> | Fila | Presente en staging | Ausente en staging |
+> | --- | --- | --- |
+> | 1 — Stripe | `STRIPE_PRO_MONTHLY_PRICE_ID` · `STRIPE_PRO_YEARLY_PRICE_ID` · `STRIPE_B2B_PRICE_ID` · `STRIPE_SECRET_KEY` · `STRIPE_WEBHOOK_SECRET` | — |
+> | 2 — API keys | `ANTHROPIC_API_KEY` · `OPENAI_API_KEY` | `RESEND_API_KEY` · `GOOGLE_CLIENT_ID` · `VAPID_*` |
+>
+> También presentes, fuera de esas dos filas: `VOYAGE_API_KEY`, el cuarteto de R2, `REDIS_URL`, `CLIENT_ATTESTATION_SECRET`, `CIRCLES_ROLLOUT_MODE`, `GUIDE_ROLLOUT_MODE` y los nueve flags del Mapa. Ausente también `SENTRY_DSN` (fila 5) y `DEEPGRAM_API_KEY`, que no hace falta porque `VOICE_PROVIDER` resuelve a Whisper.
+>
+> **La consecuencia práctica de `RESEND_API_KEY`:** el worker lo avisa al arrancar y los correos se **registran en consola** en lugar de enviarse. Para la UAT fue conveniente —nadie recibe nada— y para un piloto real no lo sería.
+>
+> Nada de esto dice qué hay en **producción**, que este mandato no tocó.
 
 | #   | Tarea                                                                                                                                                                                                                | Effort     |
 | --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
@@ -1330,5 +1343,5 @@ Decisiones a tomar después del freeze:
 
 ---
 
-**Última edición:** 2026-06-13
+**Última edición:** 2026-10-24 (sólo la nota de entorno en §3; el cuerpo del documento sigue siendo el audit del 2026-06-13 y envejece como tal).
 **Próximo paso sugerido:** sprint **Ops bundle** (orden 1 en §4) — desbloquea revenue y deja los servicios externos vivos en prod.

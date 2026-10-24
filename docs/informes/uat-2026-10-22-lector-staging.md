@@ -49,6 +49,15 @@ concluye de ello.
 > **Estado que queda:** la ejecución guiada permanece `NOT_AVAILABLE` para la
 > cuenta comprobada, y su UAT completa **no está verificada**. El rollout no se
 > abrió y MG03 no se publicó para conseguir un PASS.
+>
+> **Un segundo número a corregir, de paso.** La fila «_EEC_ tiene Lectura» dice
+> «capítulo 1 con 376 bloques». Son **188**, medidos el 2026-10-24 contra la
+> base: 188 filas de `ChapterBlock` y, por separado, 188 de `ContentBlock` en la
+> unidad nativa equivalente. 376 es exactamente la suma de las dos fuentes, así
+> que el recuento original contó la misma lectura dos veces — el mismo error de
+> fuente única/doble que el diagnóstico del modo guiado, en espejo. La
+> conclusión de esa fila («de sobra») no cambia: 188 bloques reales siguen
+> siendo un capítulo completo.
 
 - **Sujeto:** `staging.feelverse.app` (Web) y `api-staging.feelverse.app` (API).
 - **Contrato:** `apps/web/src/components/landing/datos.ts`, la landing F2.1
@@ -88,7 +97,7 @@ la Lectura sin que el latido existiera.
 | _Familias_ sin vía de entrada                                  | ❌ **no se cumple**                        | «🔒 Hazte Pro para leer» + «Hazte Pro → $7/mes» a `/dashboard/plan`; capítulo 1 con enlace que resuelve, por estar marcado `isFreePreview`       |
 | _Parejas_ «Aún no disponible»                                  | ✅                                         | ausente del catálogo                                                                                                                             |
 | _EEC_ es de Jorge Quizamanchuro                                | ⚠️ **a medias**                            | cabecera y `authorName` correctos; `Book.summary` abre con «Marina Quintana acompaña al lector…»                                                 |
-| _EEC_ tiene Lectura                                            | ✅ **de sobra**                            | capítulo 1 con 376 bloques (302 párrafos, 48 encabezados, 20 citas, 2 ejercicios, 2 pausas, 2 videos); 10 capítulos agrupados en sus tres partes |
+| _EEC_ tiene Lectura                                            | ✅ **de sobra**                            | capítulo 1 con 376 bloques (302 párrafos, 48 encabezados, 20 citas, 2 ejercicios, 2 pausas, 2 videos) — ver la corrección fechada arriba: son **188**; 10 capítulos agrupados en sus tres partes |
 | _EEC_ tiene Modo guiado                                        | ❌ **no se cumple**                        | `ChapterExperienceVersion`: **cero filas**; la ficha del libro no menciona el modo                                                               |
 | «El capítulo 1 tiene cinco microguías»                         | ❌ **cinco en la landing, cero en la app** | misma tabla vacía; `GuideSession`: cero, nadie ha corrido una                                                                                    |
 | «Cada libro indica los modos y recursos que tiene disponibles» | ❌ **no se cumple**                        | la tira de datos de _EEC_ dice «LECTURA» y «EJERCICIOS», nunca el modo guiado                                                                    |

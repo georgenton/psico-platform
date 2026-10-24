@@ -3603,6 +3603,98 @@ llegar a una base.
 
 ---
 
+### Sesión — 2026-10-23/24 ✅ COMPLETADA — Saneamiento, nueve bloqueos y cierre en staging
+
+**Bitácora de la UAT:** [docs/informes/uat-2026-10-23-cierre-staging.md](docs/informes/uat-2026-10-23-cierre-staging.md)
+
+**Último código integrado: `b6715b50`; sobre él sólo queda este PR de
+documentación (#804) con el arreglo de una prueba. Artefactos servidos en
+staging: `725df576`, los tres.** Repositorio y artefactos **no coinciden**, y
+está comprobado por qué: lo que vino después del despliegue —el corte de
+versiones, las correcciones y esta bitácora— no toca código de runtime, así
+que no se volvió a desplegar.
+
+**Integrado:** #802 `dd4289e1` · #784 `fd3fcc41` · #796 `2bb96025` ·
+#801 `68895738` · **#780 `725df576` (merge commit)** · #600 `4d927dac` ·
+#803 `b6715b50`. #779 y #781 quedaron **MERGED**, no cerrados: el merge
+commit llevó sus heads exactos a `main`. Ocho PR (#786–#793) se cerraron por
+ser ancestros estrictos sin commits propios. **Catorce PR abiertos → cero.**
+
+**Tests del árbol integrado:** API 4037 · PostgreSQL real 1415 · Web 2490 ·
+Mobile 196.
+
+**El CI podía dar verde sin probar nada.** `turbo run --affected` resolvía un
+conjunto distinto en cada corrida y tres trabajos pasaron con **cero tareas**
+sobre un cambio real. Se retiró `--affected` de lint, typecheck y build: la
+red de seguridad vale los cuarenta segundos.
+
+**Nueve bloqueos que una segunda revisión encontró**, los nueve con escenario
+reproducido y control negativo ejecutado. Los dos de más peso: la frontera de
+disponibilidad seguía abierta **por la rama nativa**, que es por donde pasan
+los libros reales —el backfill escribe `accessPlan` desde `book.plan`—; y el
+botón «Llamar ahora» del modal de crisis abría `tel:1800-4-SALUD`, porque el
+saneador descartaba el paréntesis, que es la única forma numérica de la línea
+real. La prueba nueva se llamaba «número marcable» y lo certificaba con un
+número inventado.
+
+**Catálogo reparado en staging.** Plan congelado
+`3a222cba-2237-4959-8f51-ec4de12f4bc8`, 4 filas escritas, preimagen
+verificada antes de la primera escritura, segunda planificación con **0
+operaciones**. Familias ensambladas queda **no publicada** y atribuida a
+Jorge Quizamanchuro; la sinopsis del ancla deja de nombrar a la identidad de
+fixture; esa identidad conserva su fila sin afirmaciones sin fuente. Siete
+puertas que servían la obra retirada responden 404, incluida la nativa, y sus
+tres capítulos y tres unidades quedan **intactos**. **Parejas que perduran
+sigue sin fila identificada**: se deja ausente, sin inventar nada.
+
+**Dos supuestos falsos retirados del rollback de pagos**, contrastados con la
+documentación de Stripe: deshabilitar el endpoint **no** conserva las
+entregas, y una pendiente antigua **sí** puede reenviarse a mano. Las
+pendientes se clasifican ahora por evidencia, no por edad. El ensayo
+operativo con la imagen anterior sigue **sin hacer** y ese rollback sigue
+condicionado a él.
+
+**Y una prueba que medía la máquina.** El Test de la CI falló en
+`billing-events.pg-spec.ts` sobre un PR que **sólo tocaba documentación**: el
+arnés sellaba `created` de la suscripción a «ahora» en cada entrega, así que
+la reentrega tardía de una baja publicaba la suscripción vieja como recién
+nacida y la guarda de sustitución le daba el sitio. El veredicto dependía de
+si el caso cruzaba un **borde de segundo** —dentro del mismo segundo había
+empate y pasaba—, y por eso el PR que la introdujo la vio verde. Reproducido
+con un retardo inyectado antes de arreglar; `entregar` conserva ahora la
+fecha de nacimiento, como hace Stripe, y el caso declara las dos edades.
+
+**UAT acotada sobre la imagen servida**, con cuentas sintéticas `@psico.test`
+y **nunca** la cuenta personal. Lo que se recorrió de verdad: lectura de 188
+bloques reales, progreso que **persiste** entre sesiones, exportación de
+extremo a extremo —worker incluido: 202 → `READY` en 1,17 s → URL firmada de
+R2 → 2 837 bytes con sus diez secciones, sin cifrado ni credenciales— y la
+exportación ajena en 404. El error de Eco llega por SSE **sin** llamar al
+modelo. Leer **no** fabrica emoción: 0/6 ejes tras abrir el capítulo.
+**`NOT_AVAILABLE`**: modo guiado y Dúo/Círculos, los dos por su rollout.
+**`NOT_VERIFIED`**: la revisión visual con sesión. Los dos crons semanales
+corrieron **sin candidatos**, lo que acredita el planificador y **no** una
+entrega completa.
+
+La UAT del 22-10 queda **corregida con nota fechada**: contar
+`ChapterExperienceVersion` medía una sola de las dos fuentes —el repositorio
+es híbrido y resuelve también en código— y no habla de las cinco microguías
+de C01, que viven en el catálogo de Guide y **sí existen**. La experiencia
+legado no es ninguna de ellas y está retirada para nuevos inicios, así que
+abrir el rollout no la haría ejecutable.
+
+**Producción NO se modificó. Cero cobros reales, cero publicaciones
+editoriales, cero llamadas facturables al modelo.** La aceptación visual de
+la landing F2.1 se conserva; **no hay aceptación visual nueva**.
+
+**Pendientes concretos:** ensayo operativo del rollback · revisión visual con
+sesión (el control de credenciales deniega escribir contraseñas en el
+navegador) · ejecución del modo guiado (`NOT_AVAILABLE`, rollout en `off`) ·
+Dúo/Círculos (`NOT_AVAILABLE`, su propia puerta) · `RESEND_API_KEY` sin
+configurar en staging.
+
+---
+
 ### Próximo paso — arco de libros cerrado
 
 📖 **El roadmap maestro del Mapa Emocional vive en la tabla de arriba** (Etapas 0-6 ✅, R = paper). **El roadmap de infra vive en [docs/ROADMAP.md](docs/ROADMAP.md)** (Sprints 1-5 cerrados + bug de Sprint 3).

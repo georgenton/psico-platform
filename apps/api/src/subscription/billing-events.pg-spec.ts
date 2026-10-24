@@ -1072,13 +1072,12 @@ suite("eventos de suscripción contra PostgreSQL real", () => {
       expect(comoLaVieja).not.toBeNull(); // → «ya procesado», y se iba
       expect(comoLaVieja?.processedAt).toBeNull(); // …pero no lo estaba
 
-      // Y el recuento que el runbook exige que sea cero antes de rodar atrás:
-      // las no selladas DENTRO de la ventana de reintento de Stripe.
-      const ventana = () => ({
-        processedAt: null,
-        createdAt: { gt: new Date(Date.now() - 4 * 24 * 3_600_000) },
-      });
-      expect(await prisma.stripeEvent.count({ where: ventana() })).toBe(1);
+      // Y el inventario que el runbook exige vaciar antes de rodar atrás:
+      // TODAS las no selladas, sin filtro de edad. La versión anterior de
+      // esta prueba contaba sólo las de los últimos cuatro días, y ese
+      // filtro era un supuesto falso — ver la prueba siguiente.
+      const pendientes = { processedAt: null };
+      expect(await prisma.stripeEvent.count({ where: pendientes })).toBe(1);
 
       // La imagen nueva sí la recupera, sin borrarla ni sellarla a mano.
       await entregar(
@@ -1090,34 +1089,57 @@ suite("eventos de suscripción contra PostgreSQL real", () => {
         }),
       );
       expect(await planDe(ANA)).toBe("PRO");
-      expect(await prisma.stripeEvent.count({ where: ventana() })).toBe(0);
+      expect(await prisma.stripeEvent.count({ where: pendientes })).toBe(0);
     });
 
-    it("una pendiente que Stripe ya abandonó no bloquea el rollback, y se conserva", async () => {
-      // Stripe reintenta tres días y para. Pasada esa ventana nadie va a
-      // volver a entregar el evento, así que la imagen vieja no puede
-      // saltarlo: no hay nada que saltar. Contar esas filas haría la
-      // precondición inalcanzable para siempre a la primera que fallara de
-      // forma terminal, y una precondición inalcanzable no protege nada.
+    it("una pendiente ANTIGUA se reentrega y se recupera igual: la edad no la resuelve", async () => {
+      // Esta prueba fijaba lo contrario, y el supuesto era falso. Decía que
+      // pasada la ventana de reintento AUTOMÁTICO nadie volvería a entregar
+      // el evento, así que podía excluirse del recuento por su edad.
+      //
+      // La documentación de Stripe dice que existe el reenvío MANUAL, y que
+      // su ventana es mucho más larga: «Resend» en el panel hasta 15 días
+      // desde la creación del evento, y `stripe events resend` desde la CLI
+      // hasta 30. Una pendiente de diez días sigue siendo reentregable, de
+      // modo que excluirla reabre exactamente el agujero que el inventario
+      // existe para cerrar.
       const hace10Dias = new Date(Date.now() - 10 * 24 * 3_600_000);
       await prisma.stripeEvent.create({
         data: {
-          stripeEventId: "evt_abandonado",
+          stripeEventId: "evt_antiguo",
           type: "customer.subscription.updated",
           processedAt: null,
           createdAt: hace10Dias,
         },
       });
-      const ventana = {
-        processedAt: null,
-        createdAt: { gt: new Date(Date.now() - 4 * 24 * 3_600_000) },
-      };
-      expect(await prisma.stripeEvent.count({ where: ventana })).toBe(0);
-      // Pero la fila SIGUE AHÍ: es el registro de un efecto que nunca se
-      // aplicó y se revisa, no se borra ni se sella a mano.
+      // Cuenta como pendiente: el inventario no filtra por edad.
       expect(
         await prisma.stripeEvent.count({ where: { processedAt: null } }),
       ).toBe(1);
+
+      // Y se reentrega — es lo que un reenvío manual produce— con el efecto
+      // aplicándose y la fila sellándose, diez días después.
+      expect(await planDe(ANA)).toBe("FREE");
+      await entregar(
+        evento({
+          id: "evt_antiguo",
+          userId: ANA,
+          subId: "sub_ana",
+          status: "active",
+        }),
+      );
+      expect(await planDe(ANA)).toBe("PRO");
+      const fila = await prisma.stripeEvent.findUniqueOrThrow({
+        where: { stripeEventId: "evt_antiguo" },
+      });
+      expect(fila.processedAt).not.toBeNull();
+      // La fila conserva su fecha de creación: recuperarla no la rejuvenece.
+      expect(fila.createdAt.getTime()).toBeLessThan(
+        Date.now() - 9 * 24 * 3_600_000,
+      );
+      expect(
+        await prisma.stripeEvent.count({ where: { processedAt: null } }),
+      ).toBe(0);
     });
 
     it("una reclamación inconclusa no bloquea el evento para siempre", async () => {

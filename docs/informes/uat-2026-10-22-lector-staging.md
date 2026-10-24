@@ -5,6 +5,51 @@ landing aprobada. No es un sprint: no se cambió código de producto, no se desp
 nada y no se escribió ni una fila. Lo que sigue es lo que se midió y lo que se
 concluye de ello.
 
+> ## ⚠ Corrección fechada — 2026-10-24
+>
+> **El diagnóstico del modo guiado de esta UAT es incorrecto, y lo es por lo que
+> midió, no por cómo lo midió.** Se conserva el texto original tal cual; esta nota
+> dice qué sustituye.
+>
+> Lo que se contó aquí fue `ChapterExperienceVersion`, y esa tabla es **una sola
+> de las dos fuentes**. El repositorio de experiencias es **híbrido**: resuelve
+> primero en base y, si no hay fila, **en código**
+> (`productionExperienceRepository`). Por eso la tabla está vacía y
+> `GET /api/experiences/discovery/emociones-en-construccion/1` devuelve **un**
+> recorrido, medido el 2026-10-24: `eec-c1-cuerpo-antes-que-mente@1`, 8 escenas.
+>
+> Y hay un segundo error, más consecuente: **el recuento de Experience no dice
+> nada sobre las cinco microguías de la landing.** Son superficies distintas. El
+> catálogo de **Guide** (`guide-discovery-catalog.ts`) declara cinco entradas
+> vigentes para C01, que son exactamente las cinco que la página nombra:
+>
+> `eec-c1-teorias-como-lentes@1` · `eec-c1-rostro-como-pista@1` ·
+> `eec-c1-alarma-antes-del-relato@1` · `eec-c1-emocion-informa-no-manda@1` ·
+> `eec-c1-construida-no-significa-falsa@1`
+>
+> **Existen.** La fila 48 de la tabla de abajo —«cinco en la landing, cero en la
+> app»— es falsa: concluye desde la tabla equivocada.
+>
+> La experiencia legado `eec-c1-cuerpo-antes-que-mente@1` **sí** existe y **no**
+> es una de esas cinco. Está en `RETIRED_FOR_NEW_STARTS`: su paso
+> `CATALOG_PRACTICE` ancla a un encabezado que el manuscrito canónico de EEC C01
+> v1.0 ya no contiene. Sigue resolviendo para una sesión ya fijada —el historial
+> no caduca— y **no puede iniciar una nueva**. De aquí se sigue algo que conviene
+> no deducir al revés: **abrir el rollout no la haría ejecutable**; recuperarla
+> exigiría una versión nueva con sus propios objetivos y su propia aprobación
+> editorial, que es otro frente de trabajo.
+>
+> **Por qué el modo guiado no está disponible hoy**, medido el 2026-10-24 en el
+> contenedor: `GUIDE_ROLLOUT_MODE = off`, sin allowlist de piloto. `available`
+> describe la situación del actor que pregunta, así que el `{"available":false}`
+> que devuelven `/api/guide/availability`, `/guide/discovery/...` y
+> `/guide/route/...` vale para la cuenta consultada; el modo efectivo, además,
+> es `off` para todo el entorno. No es falta de contenido: es una puerta.
+>
+> **Estado que queda:** la ejecución guiada permanece `NOT_AVAILABLE` para la
+> cuenta comprobada, y su UAT completa **no está verificada**. El rollout no se
+> abrió y MG03 no se publicó para conseguir un PASS.
+
 - **Sujeto:** `staging.feelverse.app` (Web) y `api-staging.feelverse.app` (API).
 - **Contrato:** `apps/web/src/components/landing/datos.ts`, la landing F2.1
   aprobada, fusionada en `fe1fa866` el 2026-10-17 y servida por este mismo

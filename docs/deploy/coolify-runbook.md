@@ -735,77 +735,116 @@ evento cuya fila exista, porque su comprobación es `findUnique(...) != null`.
 Una reclamación pendiente la saltaría, y su efecto se perdería sin que nada lo
 dijera.
 
-#### Por qué contar cero no basta
+#### Lo que esta sección decía y era falso — corregido el 2026-10-24
 
-La primera versión de esta sección decía: comprueba que no haya pendientes y
-rueda atrás. No alcanza. Entre el recuento y el cambio de imagen sigue
-entrando tráfico: un webhook que llegue en esa ventana crea una reclamación
-nueva, y la imagen vieja arranca con una pendiente que no sabe recuperar. El
-recuento no es una precondición que se comprueba una vez; es una condición que
-hay que **mantener** hasta que la versión nueva ya no esté sirviendo.
+Las dos versiones anteriores se apoyaban en dos supuestos que la documentación
+de Stripe contradice. Se retiran, y se dice cuáles eran, porque un
+procedimiento de recuperación que reposa sobre una creencia equivocada es peor
+que no tenerlo: da confianza sin darla.
+
+**Supuesto retirado nº 1 — «deshabilitar el endpoint no pierde entregas».**
+Falso. La documentación es explícita: *«If your destination has been disabled
+or deleted when we attempt a retry, we prevent future retries of that
+event»*. Deshabilitar no pone las entregas en una cola que se vacía al
+reabrir: si un reintento cae mientras el endpoint está deshabilitado, Stripe
+**deja de reintentar ese evento**. Sólo si se reabre *antes* de que toque un
+reintento sobreviven los futuros. Es decir, el paso que la versión anterior
+presentaba como «cortar la entrada sin perder nada» era, exactamente, la forma
+de perderlas.
+
+**Supuesto retirado nº 2 — «una pendiente de más de cuatro días ya no se
+reenviará».** Falso también. Existe el reenvío **manual**, y su ventana es
+mucho más larga que la del reintento automático: *«Resend»* en el panel
+funciona **hasta 15 días** desde la creación del evento, y
+`stripe events resend` desde la CLI **hasta 30 días**. Una pendiente antigua
+sigue siendo reentregable, así que excluirla del recuento por su edad vuelve a
+abrir el agujero que el recuento existe para cerrar. La antigüedad **no**
+clasifica nada.
+
+**Y el modo del entorno importa.** La ventana de reintento automático no es la
+misma en todas partes: hasta **tres días** con retroceso exponencial en modo
+live, pero **tres intentos en unas pocas horas** para eventos creados en un
+sandbox. La clave de Stripe de FeelVerse staging es de **modo test**
+(comprobado el 2026-10-24 leyendo el prefijo de la clave dentro del
+contenedor, sin imprimirla), así que ahí la ventana automática es la corta.
+Cualquier número que se escriba aquí tiene que decir de qué modo habla.
+
+#### Por qué contar cero tampoco basta, por una razón distinta
+
+Aunque el recuento fuera correcto, sigue habiendo una ventana entre comprobar
+y cambiar la imagen: un webhook que llegue en ese hueco crea una reclamación
+nueva, y la imagen vieja arranca con una pendiente que no sabe recuperar. Eso
+no se arregla con un recuento más fino. **No existe una maniobra sobre el
+endpoint que lleve ese riesgo a cero**, y esta sección ya no pretende lo
+contrario: lo acota y declara el residuo.
 
 #### El procedimiento
 
-1. **Cortar la entrada, sin perder entregas.** Deshabilitar el endpoint de
-   webhooks en Stripe (Workbench → Webhooks → el endpoint → deshabilitar). Las
-   entregas no se pierden: Stripe reintenta durante **tres días** con
-   retroceso exponencial, así que lo que llegue mientras tanto se vuelve a
-   entregar después. Es la palanca del proveedor para esto; devolver 5xx a
-   propósito también frenaría, pero ensucia el registro de entregas y no deja
-   claro si fue una avería.
-2. **Esperar a las que están dentro.** Las activas terminan solas: el candado
-   por persona vive en su transacción y la relectura tiene plazo. Dar un
-   margen y comprobarlo mirando que no entren peticiones nuevas al endpoint en
-   los registros de la aplicación.
-3. **Recuperar las pendientes reentregables.** Listarlas y reentregar cada
-   una **desde la imagen nueva**, que es la única que sabe reaplicar una
-   reclamación sin sellar: `stripe events resend <id>
-   --webhook-endpoint=<endpoint>`, o «Resend» en el panel. Para esto hace
-   falta reabrir el endpoint temporalmente; se reabre, se reentrega la lista
-   acotada, se vuelve a cerrar.
-4. **Mantener el cero.** Con el endpoint cerrado, nada nuevo puede reclamar.
-   Volver a contar inmediatamente antes de cambiar la imagen:
+La idea que lo ordena: **las pendientes no se descartan por edad, se
+clasifican por evidencia**; y lo que se separa no es «entrada abierta» de
+«entrada cerrada» —que no está en nuestra mano— sino **operaciones en curso**
+de **admisiones nuevas**.
+
+1. **Inventariar TODAS las pendientes**, sin filtro temporal, y sacarlas de la
+   base a un archivo privado antes de tocar nada — porque después del cambio
+   de imagen ese listado es la única forma de saber qué reconciliar:
 
    ```sql
-   SELECT count(*) FROM "StripeEvent"
+   SELECT "stripeEventId", type, "createdAt"
+     FROM "StripeEvent"
     WHERE "processedAt" IS NULL
-      AND "createdAt" > now() - interval '4 days';   -- 0
+    ORDER BY "createdAt";
    ```
 
-5. **Cambiar la imagen** y sólo entonces **reabrir el endpoint**. Stripe
-   reentrega lo acumulado contra la imagen antigua, que no tiene ninguna
-   pendiente delante.
+2. **Clasificar cada una con evidencia**, no con supuestos. Para cada evento
+   se lee el objeto **autoritativo** en Stripe —la propia documentación lo
+   recomienda: *«You can also use the API to retrieve any missing objects»*—
+   y se compara con la fila local:
 
-#### Qué pendiente cuenta, y por qué no todas
+   | Clase | Criterio | Qué se hace |
+   |---|---|---|
+   | **CONVERGIDA** | el estado local YA es el que aplicar el evento produciría | se sella **registrando esa evidencia**. No es sellar a mano: es constatar que el efecto está |
+   | **REENTREGABLE** | el efecto falta y el evento está dentro de la ventana de reenvío manual (15 d panel / 30 d CLI) | se reentrega **con la imagen nueva**, que es la única que sabe reaplicar una reclamación sin sellar |
+   | **IRRECUPERABLE** | el efecto falta y la ventana de reenvío pasó | **bloquea el rollback** hasta que alguien reconcilie esa suscripción a mano contra Stripe. No se sella, no se borra |
 
-Una pendiente bloquea el rollback porque la imagen vieja la saltaría **si
-Stripe volviera a entregarla**. Si Stripe ya se rindió —reintenta tres días y
-para—, nadie la va a entregar: no hay nada que saltar. Contarlas todas haría
-la precondición inalcanzable para siempre a la primera que fallara de forma
-terminal, y una precondición inalcanzable no protege nada; sólo impide volver
-atrás. De ahí el intervalo de cuatro días: la ventana de reintento más
-margen.
+3. **Separar admisiones nuevas de operaciones en curso.** Deshabilitar el
+   endpoint queda descartado por el supuesto nº 1. Lo que sí se puede es
+   elegir una **ventana de tráfico bajo** y dejar que las operaciones activas
+   terminen solas: el candado por persona vive en su transacción y la
+   relectura tiene plazo, así que bastan unos segundos sin peticiones nuevas
+   en el registro de la aplicación. Esto **acota** la ventana; no la elimina.
 
-Las abandonadas **se conservan y se revisan**. Son el registro de un efecto
-que nunca se aplicó, y merecen una mirada —qué suscripción, en qué estado
-está hoy en Stripe, si la persona quedó con el plan correcto—, no un borrado
-ni una fecha puesta a mano.
+4. **Reverificar inmediatamente antes de cambiar la imagen** — el inventario
+   completo del paso 1, sin filtro de edad, tiene que estar vacío de
+   REENTREGABLE e IRRECUPERABLE.
 
-Lo que normalmente las produce ya no debería producirlas: un evento de una
-persona cuya cuenta se borró —el processor de baja no cancela nada en
-Stripe— se sella en vez de reventar contra la clave ajena. Si aparecen
-abandonadas, conviene mirar qué las causó antes de dar el rollback por
-seguro.
+5. **Cambiar la imagen.**
 
-**Si el cero no puede mantenerse** —no hay forma de cerrar la entrada, o una
-pendiente dentro de la ventana no se puede reentregar— **ese rollback queda
-bloqueado**. Se conserva la versión nueva sirviendo, se conservan las
-pendientes, y se resuelve a mano con el estado real de cada suscripción antes
-de volver a intentarlo.
+6. **Reinventariar inmediatamente después.** Toda fila `processedAt IS NULL`
+   creada en la ventana es un ítem conocido, y su vía de recuperación **ya no
+   es el reenvío**: con la imagen vieja sirviendo, reenviar el evento lo
+   saltaría por existir la fila. Se reconcilia **a mano** contra el estado
+   real en Stripe, usando el listado del paso 1 más lo nuevo. Esta obligación
+   es parte del rollback, no una tarea posterior opcional.
+
+**Si una pendiente queda IRRECUPERABLE, o no hay forma de reconciliar lo que
+aparezca después del cambio**, el rollback queda **bloqueado**: se conserva la
+versión nueva sirviendo y se resuelve con el estado real de cada suscripción
+antes de volver a intentarlo.
 
 **No se borran las filas pendientes ni se les pone fecha a mano.** Las dos
 cosas convierten un efecto no aplicado en uno dado por hecho, que es
-exactamente lo que esta columna existe para evitar.
+exactamente lo que esta columna existe para evitar. Sellar tras comprobar la
+convergencia es otra cosa: ahí el efecto **está**, y lo que se registra es esa
+comprobación.
+
+> **La migración no se reescribe.** `20261023120000_dord_stripe_event_claim`
+> ya está aplicada en staging y su archivo SQL es inmutable. Su comentario
+> contiene la regla del intervalo de cuatro días que esta sección acaba de
+> retirar: **manda este runbook**, no aquel comentario. Editar el SQL de una
+> migración aplicada cambiaría su suma de verificación y rompería el ledger,
+> que es un daño mayor que un comentario desactualizado con su corrección
+> escrita aquí.
 
 #### Qué está comprobado y qué no
 

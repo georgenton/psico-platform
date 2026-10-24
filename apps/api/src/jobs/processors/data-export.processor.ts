@@ -308,8 +308,15 @@ export class DataExportProcessor extends WorkerHost {
         //      incluye— y hay que decir las dos.
         //
         // Qué incluir sigue siendo una decisión de alcance abierta (D-EXP).
+        //
         // `data-export-scope.pg-spec.ts` coteja esta nota contra el payload
-        // real, no contra sí misma, para que la próxima divergencia falle.
+        // real en las dos direcciones — que nombre lo que trae y que no
+        // declare ausente lo que trae—, y además contra el ESQUEMA, que es la
+        // dirección que faltaba: una tabla que la base guarda y este método
+        // nunca consulta no aparece en el payload, así que ninguna de las dos
+        // primeras podía verla. Por eso la enumeración de lo ausente se
+        // declara como «las principales, no todas»: era verdad y se leía como
+        // si fuera la lista completa.
         note:
           "Este archivo incluye: tu perfil, tus preferencias, tus ajustes " +
           "del lector, de notificaciones y de privacidad, tu ánimo actual y " +
@@ -321,8 +328,14 @@ export class DataExportProcessor extends WorkerHost {
           "cifrados de extremo a extremo con una clave que sólo tú tienes. " +
           "No está incluido en esta exportación, aunque no dependa de tu " +
           "clave: las respuestas de Eco, el historial de tu ánimo, los " +
-          "check-ins, las resonancias, tus marcas de lectura y los eventos " +
-          "de inicio de sesión.",
+          "check-ins, las resonancias, tus marcas y notas de lectura y los " +
+          "eventos de inicio de sesión. " +
+          "Esa lista son las principales, no todas: el archivo todavía no " +
+          "recoge todo lo que el servicio guarda de ti — quedan fuera, por " +
+          "ejemplo, tus reseñas, tus favoritos, tu actividad de lectura y " +
+          "los resúmenes que el servicio escribe sobre tu semana. Estamos " +
+          "ampliándolo; mientras tanto, preferimos decírtelo a que lo " +
+          "supongas.",
       },
       user: {
         id: user.id,

@@ -16,6 +16,8 @@
  */
 
 import { execSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
@@ -27,6 +29,7 @@ import {
   type ThrowawayDatabase,
 } from "../../test/throwaway-database";
 import { DataExportProcessor } from "./data-export.processor";
+import { EXPORT_INVENTORY } from "./data-export-inventory";
 
 const API_DIR = process.cwd();
 
@@ -250,6 +253,77 @@ suite("alcance de la exportación de datos", () => {
           `la nota dice que falta "${clave}" y el archivo lo trae`,
         ).not.toContain(NOMBRADO[clave]);
       }
+    });
+
+    describe("la dirección que faltaba: del ESQUEMA a la nota", () => {
+      // Las dos pruebas de arriba recorren `Object.keys(payload)`. Las dos
+      // son buenas y ninguna puede ver lo que falta: una tabla que la base
+      // guarda y el exportador nunca consulta no aparece en el payload, así
+      // que no hay clave que iterar y no hay nada que pueda fallar. Esta
+      // parte se abre contra el esquema, que sí la ve.
+      const schema = readFileSync(
+        join(API_DIR, "prisma", "schema.prisma"),
+        "utf8",
+      );
+      const modelosConDuenio = [
+        ...schema.matchAll(/^model (\w+) \{([\s\S]*?)^\}/gm),
+      ]
+        .filter(([, , cuerpo]) => /^\s*userId\s+String/m.test(cuerpo ?? ""))
+        .map(([, nombre]) => nombre as string);
+
+      it("hay modelos que mirar: el barrido no pasa por vacuidad", () => {
+        expect(modelosConDuenio.length).toBeGreaterThanOrEqual(40);
+      });
+
+      it("todo modelo con dueño está clasificado", () => {
+        const sinClasificar = modelosConDuenio.filter(
+          (m) => EXPORT_INVENTORY[m] === undefined,
+        );
+        expect(
+          sinClasificar,
+          `estos modelos guardan datos de una persona y nadie ha decidido si ` +
+            `entran en la exportación, si se nombran como ausentes, o ` +
+            `ninguna de las dos y por qué: ${sinClasificar.join(", ")}`,
+        ).toEqual([]);
+      });
+
+      it("el inventario no clasifica modelos que ya no existen", () => {
+        const fantasmas = Object.keys(EXPORT_INVENTORY).filter(
+          (m) => !modelosConDuenio.includes(m),
+        );
+        expect(fantasmas, `ya no están en el esquema`).toEqual([]);
+      });
+
+      it("lo nombrado como ausente aparece de verdad en la nota", () => {
+        // La nota tiene DOS tramos de «no viene»: el cifrado, que además no
+        // podría leerse, y el resto. Los dos cuentan como ausente, así que
+        // se busca en todo lo que sigue a lo incluido.
+        const n = nota().toLowerCase();
+        const noViene = n.slice(n.indexOf("requiere tu clave"));
+        expect(noViene.length).toBeGreaterThan(50);
+        for (const [modelo, e] of Object.entries(EXPORT_INVENTORY)) {
+          if (e.clase !== "nombrado-como-ausente") continue;
+          expect(
+            e.frase,
+            `"${modelo}" se declara nombrado como ausente y no dice con qué palabras`,
+          ).toBeDefined();
+          expect(
+            noViene,
+            `"${modelo}" se declara nombrado como ausente («${e.frase}») y la nota no lo dice`,
+          ).toContain(e.frase!.toLowerCase());
+        }
+      });
+
+      it("si algo queda fuera y sin nombrar, la nota lo advierte", () => {
+        // El cierre que faltaba. Mientras exista UN solo modelo en
+        // «pendiente-de-alcance», la nota no puede presentar su enumeración
+        // como la lista completa.
+        const pendientes = Object.values(EXPORT_INVENTORY).filter(
+          (e) => e.clase === "pendiente-de-alcance",
+        );
+        if (pendientes.length === 0) return;
+        expect(nota().toLowerCase()).toContain("no todas");
+      });
     });
 
     it("distingue el ánimo actual, que sí viaja, del historial, que no", () => {

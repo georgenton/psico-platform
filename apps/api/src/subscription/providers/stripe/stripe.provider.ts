@@ -49,6 +49,22 @@ type StripeCheckoutSession = Awaited<
 >;
 
 /**
+ * ¿Este fallo del `create` significa «ya existía»?
+ *
+ * Prisma marca la violación de clave única con `P2002`. Se comprueba por
+ * forma y no con `instanceof PrismaClientKnownRequestError`, porque ese
+ * símbolo no sobrevive a los dobles que usan las pruebas y un `instanceof`
+ * que siempre es falso convertiría la guarda en «relanza todo».
+ */
+function esViolacionDeUnicidad(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    (err as { code?: unknown }).code === "P2002"
+  );
+}
+
+/**
  * Estados de los que una suscripción no vuelve.
  *
  * Uno solo sirve a dos preguntas que antes se contestaban por separado y mal:
@@ -355,7 +371,23 @@ export class StripeProvider implements IPaymentProvider {
       await this.prisma.stripeEvent.create({
         data: { stripeEventId: event.id, type: event.type, processedAt: null },
       });
-    } catch {
+    } catch (err) {
+      // SÓLO la violación de unicidad significa «ya estaba reclamado».
+      //
+      // El `catch` ciego trataba cualquier fallo como tal, y entonces la fila
+      // NO existe: `findUnique` devuelve null, `previo?.processedAt` es
+      // undefined, no se corta, se registra «un intento anterior no terminó»
+      // —que es falso, nadie reclamó—, se aplica el efecto y el `update`
+      // final lanza P2025 porque no hay fila que actualizar.
+      //
+      // El disparador no es hipotético: el `create` manda `processedAt: null`
+      // explícito, y contra el esquema anterior (`NOT NULL`, sin default)
+      // Postgres responde 23502. El runbook documenta, con medida, que el
+      // `pre_deployment_command` se omite cuando no hay contenedor previo y
+      // el despliegue acaba en «finished» igual. En ese estado cada webhook
+      // aplicaría el efecto, devolvería 500, Stripe reintentaría, y así
+      // indefinidamente sin dejar una sola fila que lo registre.
+      if (!esViolacionDeUnicidad(err)) throw err;
       reclamado = false;
     }
 
@@ -613,6 +645,30 @@ export class StripeProvider implements IPaymentProvider {
         // Así que cuando la entrante es OTRA, se relee también la guardada.
         // Una lectura de más, sólo en el caso divergente, a cambio de decidir
         // con estado autoritativo por los dos lados.
+        // La persona tiene que seguir existiendo, y esto va ANTES de
+        // cualquier escritura.
+        //
+        // El processor de baja de cuenta borra el `User` a los 30 días y la
+        // fila `Subscription` cae por cascade, pero NO cancela nada en
+        // Stripe: los eventos siguen llegando. Sin esta comprobación, el
+        // `upsert` entra por su rama `create`, viola la clave ajena, la
+        // transacción revierte y la reclamación queda con `processedAt` NULL
+        // PARA SIEMPRE — Stripe reintenta tres días y se rinde.
+        //
+        // Eso inutilizaba la precondición del rollback que esta misma
+        // migración documenta. Y no es un error del sistema: no hay nada que
+        // aplicar, así que es un resultado, se registra y el evento se sella.
+        const persona = await tx.user.findUnique({
+          where: { id: userId },
+          select: { id: true },
+        });
+        if (!persona) {
+          this.logger.warn(
+            `Stripe event for subscription ${sub.id} references user ${userId}, which no longer exists: nothing to apply`,
+          );
+          return;
+        }
+
         const vigente = await tx.subscription.findUnique({
           where: { userId },
           select: { stripeSubscriptionId: true },
@@ -623,14 +679,34 @@ export class StripeProvider implements IPaymentProvider {
           const guardada = await this.stripe.subscriptions.retrieve(
             vigente.stripeSubscriptionId,
           );
-          if (!isTerminalStripeStatus(guardada.status)) {
+          // Las dos vivas: gana la MÁS NUEVA.
+          //
+          // «¿Sigue viva la guardada?» no bastaba como pregunta. Una mejora
+          // de plan deja viva la anterior mientras Stripe no la cancele —y
+          // tanto la app como el servidor permiten contratar estando ya
+          // suscrito—, así que el alta recién pagada se descartaba por
+          // «sitio ocupado» y el webhook la sellaba. Quien acababa de pagar
+          // se quedaba en su plan anterior, y ni el reintento ni la
+          // renovación del año siguiente lo arreglaban.
+          //
+          // `created` es una propiedad del OBJETO, releída con autoridad de
+          // Stripe en esta misma transacción. No es ordenar eventos por su
+          // fecha —eso Stripe lo desaconseja y con razón—: es preguntar cuál
+          // de dos suscripciones nació después.
+          //
+          // Empate exacto: se queda la guardada. Arbitrario pero estable, y
+          // preferible a que el resultado dependa de cuál llegue primero.
+          const guardadaViva = !isTerminalStripeStatus(guardada.status);
+          const entranteEsPosterior = sub.created > guardada.created;
+          if (guardadaViva && !entranteEsPosterior) {
             this.logger.log(
               `Ignoring Stripe event for superseded subscription ${sub.id}: user ${userId} now holds ${vigente.stripeSubscriptionId} (${guardada.status})`,
             );
             return;
           }
           this.logger.log(
-            `Replacing ${vigente.stripeSubscriptionId} (${guardada.status}) with ${sub.id} for user ${userId}`,
+            `Replacing ${vigente.stripeSubscriptionId} (${guardada.status}) with ${sub.id} for user ${userId}` +
+              (guardadaViva ? " — la entrante es posterior" : ""),
           );
         }
 

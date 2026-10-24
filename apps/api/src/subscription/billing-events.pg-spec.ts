@@ -185,6 +185,15 @@ suite("eventos de suscripción contra PostgreSQL real", () => {
     status: string;
     priceId?: string;
     created?: number;
+    /**
+     * Cuándo nació la SUSCRIPCIÓN, que no es cuándo ocurrió el evento.
+     *
+     * Son dos relojes distintos y la diferencia es el fondo del asunto:
+     * ordenar eventos por su fecha está desaconsejado por Stripe, y
+     * preguntar cuál de dos suscripciones nació después es una propiedad del
+     * objeto que se relee con autoridad.
+     */
+    subCreated?: number;
     type?: string;
   }) {
     const ahora = Math.floor(Date.now() / 1000);
@@ -196,6 +205,7 @@ suite("eventos de suscripción contra PostgreSQL real", () => {
         object: {
           id: opts.subId,
           status: opts.status,
+          created: opts.subCreated ?? ahora,
           metadata: { userId: opts.userId },
           customer: `cus_${opts.userId.split("-")[1]}`,
           start_date: ahora,
@@ -813,25 +823,29 @@ suite("eventos de suscripción contra PostgreSQL real", () => {
       expect(nueva.stripeSubscriptionId).toBe("sub_despues");
     });
 
-    it("y la guarda sigue protegiendo: una vigente VIVA no se desplaza", async () => {
+    it("y la guarda sigue protegiendo: una vigente viva no la desplaza una ANTERIOR", async () => {
       // Guard the guard. Sin esto, el arreglo de arriba podría ser «quitar la
       // guarda», que es justo lo que no se puede hacer.
+      const ahora = Math.floor(Date.now() / 1000);
       await entregar(
         evento({
           id: "evt_viva",
           userId: ANA,
           subId: "sub_viva",
           status: "active",
+          subCreated: ahora,
         }),
       );
-      // Otra suscripción, también activa en Stripe, intenta tomar el sitio.
+      // Una suscripción ANTERIOR, también activa en Stripe —su baja aún no
+      // ha llegado—, entrega un evento tardío. No toma el sitio.
       await entregar(
         evento({
-          id: "evt_intrusa",
+          id: "evt_anterior",
           userId: ANA,
-          subId: "sub_intrusa",
+          subId: "sub_anterior",
           status: "active",
           priceId: "price_b2b",
+          subCreated: ahora - 86_400,
         }),
       );
       const fila = await prisma.subscription.findUniqueOrThrow({
@@ -840,9 +854,150 @@ suite("eventos de suscripción contra PostgreSQL real", () => {
       expect(fila.stripeSubscriptionId).toBe("sub_viva");
       expect(await planDe(ANA)).toBe("PRO");
     });
+
+    it("una mejora de plan SÍ desplaza a la anterior aunque siga viva", async () => {
+      // El caso que la guarda perdía. Mejorar de plan deja viva la anterior
+      // mientras Stripe no la cancele, y tanto la aplicación como el
+      // servidor permiten contratar estando ya suscrito. El alta recién
+      // pagada se descartaba por «sitio ocupado», el webhook la sellaba, y
+      // ni el reintento ni la renovación del año siguiente lo arreglaban:
+      // quien acababa de pagar se quedaba en su plan anterior.
+      const ahora = Math.floor(Date.now() / 1000);
+      await entregar(
+        evento({
+          id: "evt_mensual",
+          userId: ANA,
+          subId: "sub_mensual",
+          status: "active",
+          subCreated: ahora - 86_400,
+        }),
+      );
+      expect(await planDe(ANA)).toBe("PRO");
+
+      await entregar(
+        evento({
+          id: "evt_anual",
+          userId: ANA,
+          subId: "sub_anual",
+          status: "active",
+          priceId: "price_pro_yearly",
+          subCreated: ahora,
+          type: "customer.subscription.created",
+        }),
+      );
+      const fila = await prisma.subscription.findUniqueOrThrow({
+        where: { userId: ANA },
+      });
+      expect(fila.stripeSubscriptionId).toBe("sub_anual");
+      // Y el plan es el que acaba de pagarse, no el anterior.
+      expect(await planDe(ANA)).toBe("ANNUAL");
+      expect(fila.stripePriceId).toBe("price_pro_yearly");
+    });
+
+    it("un empate exacto deja la guardada donde está", async () => {
+      // Arbitrario pero estable: preferible a que el resultado dependa de
+      // cuál de los dos eventos llegue primero.
+      const ahora = Math.floor(Date.now() / 1000);
+      for (const [id, subId] of [
+        ["evt_a", "sub_a"],
+        ["evt_b", "sub_b"],
+      ] as const) {
+        await entregar(
+          evento({
+            id,
+            userId: ANA,
+            subId,
+            status: "active",
+            subCreated: ahora,
+          }),
+        );
+      }
+      const fila = await prisma.subscription.findUniqueOrThrow({
+        where: { userId: ANA },
+      });
+      expect(fila.stripeSubscriptionId).toBe("sub_a");
+    });
   });
 
   describe("reclamación y recuperación", () => {
+    it("un evento de una persona que ya no existe se sella en vez de quedar colgado", async () => {
+      // El processor de baja borra el `User` a los 30 días —la fila
+      // `Subscription` cae por cascade— y NO cancela nada en Stripe, así que
+      // los eventos siguen llegando. Sin la comprobación, el `upsert` entraba
+      // por su rama `create`, violaba la clave ajena, la transacción revertía
+      // y la reclamación quedaba con `processedAt` NULL para siempre: Stripe
+      // reintenta tres días y se rinde. Esa fila inutilizaba la precondición
+      // del rollback que la migración documenta.
+      const fantasma = "user-borrado";
+      await prisma.user.create({
+        data: {
+          id: fantasma,
+          email: "borrado@ejemplo.local",
+          name: "Borrado",
+          passwordHash: "x",
+        },
+      });
+      await prisma.user.delete({ where: { id: fantasma } });
+
+      await entregar(
+        evento({
+          id: "evt_fantasma",
+          userId: fantasma,
+          subId: "sub_fantasma",
+          status: "active",
+        }),
+      );
+
+      const fila = await prisma.stripeEvent.findUniqueOrThrow({
+        where: { stripeEventId: "evt_fantasma" },
+      });
+      // Sellado: no hay nada que aplicar, y eso es un resultado.
+      expect(fila.processedAt).not.toBeNull();
+      // Y no se inventó ninguna suscripción.
+      expect(
+        await prisma.subscription.count({ where: { userId: fantasma } }),
+      ).toBe(0);
+    });
+
+    it("un fallo del `create` que NO es unicidad no se confunde con «ya reclamado»", async () => {
+      // El `catch` ciego trataba cualquier fallo como «ya existía». Entonces
+      // la fila NO está, `previo?.processedAt` es undefined, no se corta, se
+      // aplica el efecto y el sello final lanza P2025. El disparador real: el
+      // `create` manda `processedAt: null` explícito y, contra el esquema
+      // anterior (`NOT NULL`), Postgres responde 23502 — el estado en que
+      // queda una caja cuyo `pre_deployment_command` se omitió.
+      const e = evento({
+        id: "evt_roto",
+        userId: ANA,
+        subId: "sub_roto",
+        status: "active",
+      });
+      estadoEnStripe.set("sub_roto", e.data.object);
+      mockConstructEvent.mockReturnValue(e);
+
+      const crearOriginal = prisma.stripeEvent.create.bind(prisma.stripeEvent);
+      (prisma.stripeEvent as { create: unknown }).create = async () => {
+        throw Object.assign(new Error("null value in column"), {
+          code: "P2011",
+        });
+      };
+      try {
+        await expect(
+          provider.handleWebhook(Buffer.from("{}"), "sig"),
+        ).rejects.toThrow(/null value in column/);
+      } finally {
+        (prisma.stripeEvent as { create: unknown }).create = crearOriginal;
+      }
+
+      // Lo que importa: el efecto NO se aplicó. Antes se aplicaba, se
+      // devolvía 500, Stripe reintentaba y se volvía a aplicar, sin dejar una
+      // sola fila que lo registrara.
+      expect(await planDe(ANA)).toBe("FREE");
+      expect(
+        await prisma.stripeEvent.count({ where: { stripeEventId: "evt_roto" } }),
+      ).toBe(0);
+    });
+
     it("un fallo ENTRE aplicar el efecto y sellarlo se recupera sin duplicar", async () => {
       const e = evento({
         id: "evt_sin_sellar",
@@ -917,10 +1072,13 @@ suite("eventos de suscripción contra PostgreSQL real", () => {
       expect(comoLaVieja).not.toBeNull(); // → «ya procesado», y se iba
       expect(comoLaVieja?.processedAt).toBeNull(); // …pero no lo estaba
 
-      // Y el recuento que el runbook exige que sea cero antes de rodar atrás.
-      expect(
-        await prisma.stripeEvent.count({ where: { processedAt: null } }),
-      ).toBe(1);
+      // Y el recuento que el runbook exige que sea cero antes de rodar atrás:
+      // las no selladas DENTRO de la ventana de reintento de Stripe.
+      const ventana = () => ({
+        processedAt: null,
+        createdAt: { gt: new Date(Date.now() - 4 * 24 * 3_600_000) },
+      });
+      expect(await prisma.stripeEvent.count({ where: ventana() })).toBe(1);
 
       // La imagen nueva sí la recupera, sin borrarla ni sellarla a mano.
       await entregar(
@@ -932,9 +1090,34 @@ suite("eventos de suscripción contra PostgreSQL real", () => {
         }),
       );
       expect(await planDe(ANA)).toBe("PRO");
+      expect(await prisma.stripeEvent.count({ where: ventana() })).toBe(0);
+    });
+
+    it("una pendiente que Stripe ya abandonó no bloquea el rollback, y se conserva", async () => {
+      // Stripe reintenta tres días y para. Pasada esa ventana nadie va a
+      // volver a entregar el evento, así que la imagen vieja no puede
+      // saltarlo: no hay nada que saltar. Contar esas filas haría la
+      // precondición inalcanzable para siempre a la primera que fallara de
+      // forma terminal, y una precondición inalcanzable no protege nada.
+      const hace10Dias = new Date(Date.now() - 10 * 24 * 3_600_000);
+      await prisma.stripeEvent.create({
+        data: {
+          stripeEventId: "evt_abandonado",
+          type: "customer.subscription.updated",
+          processedAt: null,
+          createdAt: hace10Dias,
+        },
+      });
+      const ventana = {
+        processedAt: null,
+        createdAt: { gt: new Date(Date.now() - 4 * 24 * 3_600_000) },
+      };
+      expect(await prisma.stripeEvent.count({ where: ventana })).toBe(0);
+      // Pero la fila SIGUE AHÍ: es el registro de un efecto que nunca se
+      // aplicó y se revisa, no se borra ni se sella a mano.
       expect(
         await prisma.stripeEvent.count({ where: { processedAt: null } }),
-      ).toBe(0);
+      ).toBe(1);
     });
 
     it("una reclamación inconclusa no bloquea el evento para siempre", async () => {

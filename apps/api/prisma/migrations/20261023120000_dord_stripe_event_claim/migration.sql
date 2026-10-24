@@ -32,5 +32,29 @@
 -- convertiría un efecto no aplicado en uno dado por hecho, que es exactamente
 -- el fallo que esta columna existe para evitar.
 --
+-- ── Qué pendiente cuenta, y por qué no todas ────────────────────────────────
+--
+-- Una pendiente bloquea el rollback porque la imagen vieja la saltaría SI
+-- Stripe volviera a entregarla. Si Stripe ya se rindió —reintenta tres días y
+-- para—, nadie la va a entregar, así que la imagen vieja no puede saltarla:
+-- no hay nada que saltar. Contar esas filas haría la precondición
+-- inalcanzable para siempre a la primera que fallara de forma terminal, y una
+-- precondición inalcanzable no protege nada, sólo impide volver atrás.
+--
+-- De ahí el recuento real, con margen sobre la ventana de reintento:
+--
+--     SELECT count(*) FROM "StripeEvent"
+--      WHERE "processedAt" IS NULL
+--        AND "createdAt" > now() - interval '4 days';   -- 0
+--
+-- Las abandonadas se CONSERVAN y se revisan: son el registro de un efecto que
+-- nunca se aplicó, y merecen una mirada, no un borrado.
+--
+-- Deliberadamente SIN índice para ese recuento. Un índice parcial no se puede
+-- declarar en el esquema de Prisma, así que viviría sólo en SQL y la
+-- siguiente `migrate dev` propondría borrarlo. El recuento se ejecuta a mano
+-- durante un rollback, sobre una tabla de miles de filas: no lo necesita, y
+-- la deriva permanente costaría más que el escaneo.
+--
 -- El ensayo y el procedimiento están en `docs/deploy/coolify-runbook.md`.
 ALTER TABLE "StripeEvent" ALTER COLUMN "processedAt" DROP NOT NULL;

@@ -289,8 +289,13 @@ describe("StripeProvider", () => {
       // Un duplicado ya no se detecta leyendo antes de escribir: lo rechaza
       // la unicidad al reclamar, y lo que decide es si la fila existente está
       // SELLADA. Con `processedAt`, está hecho y no se repite.
+      // Con el código que Prisma pone de verdad. Un `Error` pelado NO es
+      // cómo se señala una violación de unicidad, y tratarlo como tal era
+      // justo el defecto: cualquier otro fallo del `create` —un esquema sin
+      // migrar, por ejemplo— se leía como «ya estaba reclamado», se aplicaba
+      // el efecto y el sello final reventaba.
       mockPrisma.stripeEvent.create.mockRejectedValue(
-        new Error("unique constraint"),
+        Object.assign(new Error("unique constraint"), { code: "P2002" }),
       );
       mockPrisma.stripeEvent.findUnique.mockResolvedValue({
         id: "existing",

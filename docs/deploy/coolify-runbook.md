@@ -661,28 +661,51 @@ hay que **mantener** hasta que la versión nueva ya no esté sirviendo.
    por persona vive en su transacción y la relectura tiene plazo. Dar un
    margen y comprobarlo mirando que no entren peticiones nuevas al endpoint en
    los registros de la aplicación.
-3. **Recuperar las pendientes.** Listarlas y reentregar cada una **desde la
-   imagen nueva**, que es la única que sabe reaplicar una reclamación sin
-   sellar: `stripe events resend <id> --webhook-endpoint=<endpoint>`, o
-   «Resend» en el panel. Para esto hace falta reabrir el endpoint
-   temporalmente; se reabre, se reentrega la lista acotada, se vuelve a
-   cerrar.
+3. **Recuperar las pendientes reentregables.** Listarlas y reentregar cada
+   una **desde la imagen nueva**, que es la única que sabe reaplicar una
+   reclamación sin sellar: `stripe events resend <id>
+   --webhook-endpoint=<endpoint>`, o «Resend» en el panel. Para esto hace
+   falta reabrir el endpoint temporalmente; se reabre, se reentrega la lista
+   acotada, se vuelve a cerrar.
 4. **Mantener el cero.** Con el endpoint cerrado, nada nuevo puede reclamar.
    Volver a contar inmediatamente antes de cambiar la imagen:
 
    ```sql
-   SELECT count(*) FROM "StripeEvent" WHERE "processedAt" IS NULL;  -- 0
+   SELECT count(*) FROM "StripeEvent"
+    WHERE "processedAt" IS NULL
+      AND "createdAt" > now() - interval '4 days';   -- 0
    ```
 
 5. **Cambiar la imagen** y sólo entonces **reabrir el endpoint**. Stripe
    reentrega lo acumulado contra la imagen antigua, que no tiene ninguna
    pendiente delante.
 
+#### Qué pendiente cuenta, y por qué no todas
+
+Una pendiente bloquea el rollback porque la imagen vieja la saltaría **si
+Stripe volviera a entregarla**. Si Stripe ya se rindió —reintenta tres días y
+para—, nadie la va a entregar: no hay nada que saltar. Contarlas todas haría
+la precondición inalcanzable para siempre a la primera que fallara de forma
+terminal, y una precondición inalcanzable no protege nada; sólo impide volver
+atrás. De ahí el intervalo de cuatro días: la ventana de reintento más
+margen.
+
+Las abandonadas **se conservan y se revisan**. Son el registro de un efecto
+que nunca se aplicó, y merecen una mirada —qué suscripción, en qué estado
+está hoy en Stripe, si la persona quedó con el plan correcto—, no un borrado
+ni una fecha puesta a mano.
+
+Lo que normalmente las produce ya no debería producirlas: un evento de una
+persona cuya cuenta se borró —el processor de baja no cancela nada en
+Stripe— se sella en vez de reventar contra la clave ajena. Si aparecen
+abandonadas, conviene mirar qué las causó antes de dar el rollback por
+seguro.
+
 **Si el cero no puede mantenerse** —no hay forma de cerrar la entrada, o una
-pendiente no se puede reentregar porque su evento salió de la ventana de
-reenvío de Stripe— **ese rollback queda bloqueado**. Se conserva la versión
-nueva sirviendo, se conservan las pendientes, y se resuelve a mano con el
-estado real de cada suscripción antes de volver a intentarlo.
+pendiente dentro de la ventana no se puede reentregar— **ese rollback queda
+bloqueado**. Se conserva la versión nueva sirviendo, se conservan las
+pendientes, y se resuelve a mano con el estado real de cada suscripción antes
+de volver a intentarlo.
 
 **No se borran las filas pendientes ni se les pone fecha a mano.** Las dos
 cosas convierten un efecto no aplicado en uno dado por hecho, que es

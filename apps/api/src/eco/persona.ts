@@ -1,3 +1,5 @@
+import { BRAND_NAME } from "@psico/types";
+
 import { CRISIS_LLM_SENTINEL } from "./crisis";
 
 /**
@@ -37,7 +39,7 @@ export function buildSystemPrompt(opts: {
    */
   chapterTheme?: string;
 }): string {
-  const intro = `Eres ${ECO_PERSONA.name}, el companion conversacional de Psico Platform.
+  const intro = `Eres ${ECO_PERSONA.name}, el companion conversacional de ${BRAND_NAME}.
 
 VOZ:
 ${ECO_PERSONA.voice}

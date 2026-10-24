@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import path from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import {
@@ -100,8 +103,6 @@ describe("los contratos que consumen la política", () => {
     // runtime mide el arnés en vez del contrato. El COMPORTAMIENTO lo
     // ejercitan los E2E de auth (registro y restablecimiento) y el de
     // recifrado; lo que falta aquí es que ninguno se quede fuera.
-    const fs = require("node:fs") as typeof import("node:fs");
-    const path = require("node:path") as typeof import("node:path");
     for (const rel of ARCHIVOS_DTO) {
       const txt = fs.readFileSync(path.join(__dirname, rel), "utf8");
       expect(txt, `${rel} no usa la política compartida`).toContain(
@@ -114,17 +115,16 @@ describe("los contratos que consumen la política", () => {
     // Un `@MinLength` suelto en uno de estos archivos es cómo volvería la
     // divergencia, y pasaría desapercibido porque cada pantalla seguiría
     // siendo coherente consigo misma.
-    const fs = require("node:fs") as typeof import("node:fs");
-    const path = require("node:path") as typeof import("node:path");
     for (const rel of ARCHIVOS_DTO) {
       const txt = fs.readFileSync(path.join(__dirname, rel), "utf8");
       const bloque = txt.slice(
         Math.max(0, txt.indexOf("@IsNewPassword()") - 400),
         txt.indexOf("@IsNewPassword()") + 120,
       );
-      expect(bloque, `${rel} mezcla la política con una longitud propia`).not.toMatch(
-        /@(Min|Max)Length\(/,
-      );
+      expect(
+        bloque,
+        `${rel} mezcla la política con una longitud propia`,
+      ).not.toMatch(/@(Min|Max)Length\(/);
     }
   });
 });

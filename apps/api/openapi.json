@@ -25162,9 +25162,7 @@
           },
           "password": {
             "type": "string",
-            "description": "Password (8–72 characters). Bcrypt silently truncates anything past\n72 bytes, so the upper bound is enforced explicitly to surface that\ntruncation as a validation error instead of a silent confidence\ndowngrade.\n\nThe server hashes with bcrypt before persisting; the raw password\nnever reaches storage and never appears in any log.",
-            "minLength": 8,
-            "maxLength": 72
+            "description": "Password, checked against the shared policy in `@psico/types`\n(`password-policy`): a 15-character minimum and no composition rules,\nso a short phrase qualifies. The number lives there, not here, because\nfour different minimums used to be scattered across four DTOs.\n\nThe ceiling is measured in BYTES, not characters, because that is what\nbcrypt truncates at. Forty \"ñ\" are 40 characters and 80 bytes: counting\ncharacters let them through and the verifier silently kept the first 72.\n\nThe server hashes with bcrypt before persisting; the raw password\nnever reaches storage and never appears in any log."
           },
           "name": {
             "type": "string",
@@ -25294,9 +25292,7 @@
           },
           "newPassword": {
             "type": "string",
-            "description": "New password (8–72 characters). Bcrypt silently truncates anything\npast 72 bytes, so the upper bound is enforced explicitly to surface\nthat as a validation error.\n\nThe server hashes with bcrypt before persisting; raw plaintext never\ntouches storage or logs. The previous password hash is overwritten —\nthere is no history.",
-            "minLength": 8,
-            "maxLength": 72
+            "description": "The new password, against the same shared policy as register — see\n`@psico/types` (`password-policy`). Minimum measured in characters,\nceiling measured in bytes, because bcrypt truncates at 72 bytes.\n\nThe server hashes with bcrypt before persisting; raw plaintext never\ntouches storage or logs. The previous password hash is overwritten —\nthere is no history.\n\nNote what this endpoint recovers and what it does not: it restores\naccess to the account, not the diary. `cryptoSalt` is untouched, so a\nnew password derives a different master key and the entries stay\nunreadable without the recovery phrase. That is the design, and the\nproduct copy now says so."
           }
         },
         "required": [
@@ -26144,9 +26140,7 @@
           },
           "newPassword": {
             "type": "string",
-            "description": "New password (8–72 chars). Bcrypt silently truncates anything past\n72 bytes, so the upper bound is enforced explicitly. Same rules as\nregister — picking weak passwords is the user's choice.",
-            "minLength": 8,
-            "maxLength": 72
+            "description": "The new password, against the shared policy in `@psico/types`\n(`password-policy`) — the same rules as register, which is the point:\nthis endpoint used to demand 8 while rekey demanded 10, for the same\nquestion. Minimum in characters, ceiling in bytes (bcrypt's 72)."
           }
         },
         "required": [
@@ -26206,9 +26200,7 @@
           },
           "newPassword": {
             "type": "string",
-            "description": "New password (10–256 chars). Tighter min than register (which is 8)\nbecause rekey is a destructive operation — we nudge users toward a\npassword they actually remember.",
-            "minLength": 10,
-            "maxLength": 256
+            "description": "The new password, checked against the shared policy in `@psico/types`\n(`password-policy`) — the one source API, web and mobile all read.\n\nThe byte ceiling matters more here than anywhere else. This single\npassword feeds two things with different limits: bcrypt, which ignores\neverything past 72 bytes, and client-side Argon2id, which has no such\ncap. A longer password would derive the diary key from the whole string\nwhile the login hash saw only its prefix — two different truths about\none secret, and a diary its own password cannot open. Rejecting is the\nonly exit that leaves nobody locked out.\n\nThis field used to allow 10–256 characters: the 10 disagreed with\nregister's 8, and the 256 waved through passwords bcrypt truncates."
           },
           "newCryptoSalt": {
             "type": "string",

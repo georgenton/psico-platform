@@ -24,13 +24,19 @@ export class ResetPasswordDto {
   token!: string;
 
   /**
-   * New password (8–72 characters). Bcrypt silently truncates anything
-   * past 72 bytes, so the upper bound is enforced explicitly to surface
-   * that as a validation error.
+   * The new password, against the same shared policy as register — see
+   * `@psico/types` (`password-policy`). Minimum measured in characters,
+   * ceiling measured in bytes, because bcrypt truncates at 72 bytes.
    *
    * The server hashes with bcrypt before persisting; raw plaintext never
    * touches storage or logs. The previous password hash is overwritten —
    * there is no history.
+   *
+   * Note what this endpoint recovers and what it does not: it restores
+   * access to the account, not the diary. `cryptoSalt` is untouched, so a
+   * new password derives a different master key and the entries stay
+   * unreadable without the recovery phrase. That is the design, and the
+   * product copy now says so.
    */
   @IsString()
   @IsNewPassword()

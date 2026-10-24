@@ -33,10 +33,6 @@ import { Type } from "class-transformer";
  */
 
 const BASE64URL = /^[A-Za-z0-9_-]+={0,2}$/;
-// El mínimo y el tope viven en `@psico/types` (`password-policy`), que es la
-// única fuente para API, web y móvil. Aquí había 10 y 256: el 10 discrepaba
-// del 8 del registro, y el 256 dejaba pasar contraseñas que bcrypt trunca a
-// 72 BYTES sin avisar — justo en el flujo que recifra el diario.
 // Salt size on the wire (base64url, no padding).
 //
 // Auth produces 16-byte salts via Node's `randomBytes(16).toString("base64url")`
@@ -129,15 +125,19 @@ export class PasswordChangeWithRekeyDto {
   currentPassword!: string;
 
   /**
-   * La contraseña nueva, contra la política compartida.
+   * The new password, checked against the shared policy in `@psico/types`
+   * (`password-policy`) — the one source API, web and mobile all read.
    *
-   * Aquí el tope en bytes importa más que en ningún otro sitio. La misma
-   * contraseña alimenta dos cosas con límites distintos: bcrypt, que ignora
-   * lo que pase de 72 bytes, y Argon2id en el cliente, que no tiene ese
-   * tope. Con una contraseña más larga, la clave del diario se derivaría de
-   * la cadena entera mientras el hash de acceso sólo vería su prefijo — dos
-   * verdades distintas sobre el mismo secreto. Rechazar es la única salida
-   * que no deja a nadie con un diario que su propia contraseña no abre.
+   * The byte ceiling matters more here than anywhere else. This single
+   * password feeds two things with different limits: bcrypt, which ignores
+   * everything past 72 bytes, and client-side Argon2id, which has no such
+   * cap. A longer password would derive the diary key from the whole string
+   * while the login hash saw only its prefix — two different truths about
+   * one secret, and a diary its own password cannot open. Rejecting is the
+   * only exit that leaves nobody locked out.
+   *
+   * This field used to allow 10–256 characters: the 10 disagreed with
+   * register's 8, and the 256 waved through passwords bcrypt truncates.
    */
   @IsString()
   @IsNewPassword()

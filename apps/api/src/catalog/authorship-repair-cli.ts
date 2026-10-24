@@ -289,6 +289,10 @@ export async function readSnapshot(prisma: {
         // Public copy, for the same reason as `bio` above.
         summary: true,
         description: true,
+        // Whether the catalogue offers the work. Required by the planner's
+        // snapshot check: omitting it would produce a plan that reports
+        // nothing to retire, which is not the same as nothing to retire.
+        isPublished: true,
       },
       orderBy: { slug: "asc" },
     }) as Promise<CatalogSnapshot["books"]>,

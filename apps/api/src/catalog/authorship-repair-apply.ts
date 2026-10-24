@@ -100,6 +100,7 @@ export interface RepairTx {
       authorId: string | null;
       summary: string | null;
       description: string | null;
+      isPublished: boolean;
     } | null>;
     updateMany(args: {
       where: {
@@ -109,10 +110,18 @@ export interface RepairTx {
         /** Copy columns travel in the WHERE when they are being replaced. */
         summary?: string | null;
         description?: string | null;
+        /**
+         * Only `true` is expressible: the retirement is conditional on the
+         * row still being published, and no statement this tool builds asks
+         * for the other value.
+         */
+        isPublished?: true;
       };
       data:
         | { authorId: string }
-        | Partial<Record<"summary" | "description", string>>;
+        | Partial<Record<"summary" | "description", string>>
+        // Literal `false`, so the type itself refuses a publishing write.
+        | { isPublished: false };
     }): Promise<{ count: number }>;
   };
 }
@@ -225,6 +234,16 @@ export async function collectReversal(
           summary: checked.row.summary,
           description: checked.row.description,
         },
+      });
+      continue;
+    }
+
+    if (op.kind === "retire-book-publication") {
+      const checked = await assertBookPublicationMatchesPlan(tx, op);
+      if (checked === "settled") continue;
+      entries.push({
+        subject: `book publication id=${op.bookId}`,
+        restore: { isPublished: checked.row.isPublished },
       });
       continue;
     }
@@ -486,6 +505,35 @@ async function assertBookCopyMatchesPlan(
   return { row, fields };
 }
 
+async function assertBookPublicationMatchesPlan(
+  tx: RepairTx,
+  op: Extract<RepairOp, { kind: "retire-book-publication" }>,
+) {
+  const row = await tx.book.findUnique({ where: { id: op.bookId } });
+  if (!row) {
+    throw new RepairPreconditionError(
+      `libro ${op.bookSlug}`,
+      "la fila ya no existe",
+    );
+  }
+  if (row.slug !== op.expect.slug) {
+    throw new RepairPreconditionError(
+      `libro ${op.bookSlug}`,
+      `el id ${op.bookId} corresponde ahora a «${row.slug}»; la identidad del registro cambió`,
+    );
+  }
+  // Idempotent BEFORE the expectation is compared: a second run meets the
+  // outcome it wrote, and "already retired" is success, not a conflict.
+  if (row.isPublished === op.next.isPublished) return "settled" as const;
+  if (row.isPublished !== op.expect.isPublished) {
+    throw new RepairConflictError(
+      `libro ${op.bookSlug}`,
+      "la publicación actual no es la que el plan revisado observó; alguien cambió la fila — se detiene sin escribir",
+    );
+  }
+  return { row };
+}
+
 /**
  * Execute a frozen plan. `apply` defaults to false.
  *
@@ -653,6 +701,53 @@ export async function applyAuthorshipRepair(
           withdrawn: fields,
           pendingEditorialRewrite: true,
         },
+      });
+      continue;
+    }
+
+    if (op.kind === "retire-book-publication") {
+      const checked = await assertBookPublicationMatchesPlan(tx, op);
+      if (checked === "settled") {
+        result.applied.push({
+          op: op.kind,
+          subject: `libro ${op.bookSlug}`,
+          wrote: false,
+        });
+        continue;
+      }
+      const { row } = checked;
+
+      result.reversal.push({
+        subject: `book publication id=${row.id}`,
+        restore: { isPublished: row.isPublished },
+      });
+
+      if (apply) {
+        // Conditional on identity AND on the value just read, like the other
+        // writes: a change landing between the check and the statement
+        // matches zero rows instead of being overwritten.
+        const { count } = await tx.book.updateMany({
+          where: { id: row.id, slug: row.slug, isPublished: true },
+          // Literal, not `op.next`: the only outcome this operation has is
+          // the one its name states, and reading it from the file would let
+          // a file decide what the column becomes.
+          data: { isPublished: false },
+        });
+        if (count !== 1) {
+          throw new RepairConflictError(
+            `libro ${op.bookSlug}`,
+            `la escritura condicionada afectó ${count} filas; otra operación cambió la publicación entre la comprobación y la escritura. No se sobrescribe ese cambio`,
+          );
+        }
+        result.rowsWritten += 1;
+      }
+
+      result.applied.push({
+        op: op.kind,
+        subject: `libro ${op.bookSlug}`,
+        wrote: apply,
+        beforeSummary: { isPublished: true },
+        afterSummary: { isPublished: false },
       });
       continue;
     }

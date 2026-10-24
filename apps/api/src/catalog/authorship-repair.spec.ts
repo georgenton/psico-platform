@@ -86,6 +86,7 @@ const snapshot = (over: Partial<CatalogSnapshot> = {}): CatalogSnapshot => ({
       authorId: "a-demo",
       summary: SINOPSIS_CON_NOMBRE,
       description: null,
+      isPublished: true,
     },
     {
       id: "b-fe",
@@ -94,6 +95,20 @@ const snapshot = (over: Partial<CatalogSnapshot> = {}): CatalogSnapshot => ({
       authorId: "a-demo",
       summary: null,
       description: null,
+      isPublished: true,
+    },
+    // Carried by the same fixture identity and named by NO source table.
+    // It is what keeps "reattributing one work does not drag the author's
+    // other works with it" a real question now that both named works have a
+    // source of their own.
+    {
+      id: "b-ajeno",
+      slug: "cuaderno-de-la-casa",
+      title: "Cuaderno de la casa",
+      authorId: "a-demo",
+      summary: null,
+      description: null,
+      isPublished: true,
     },
   ],
   ...over,
@@ -218,15 +233,19 @@ describe("planAuthorshipRepair", () => {
   });
 
   it("no reasigna el otro libro del autor antiguo", () => {
+    // El riesgo que vigila esta prueba no cambió al aparecer una fuente para
+    // Familias: reatribuir UNA obra sigue sin poder arrastrar las demás filas
+    // que cuelgan de la misma identidad. Lo que cambió es el vehículo — ahora
+    // la obra sin fuente es otra, y el plan dice por qué no la toca.
     const plan = planAuthorshipRepair(snapshot());
     const slugs = plan.ops
       .filter((o) => o.kind === "reattribute-book")
       .map((o) => (o.kind === "reattribute-book" ? o.bookSlug : ""));
-    expect(slugs).not.toContain("familias-ensambladas");
+    expect(slugs).not.toContain("cuaderno-de-la-casa");
     expect(
-      plan.untouched.find((u) => u.subject.includes("familias-ensambladas"))
+      plan.untouched.find((u) => u.subject.includes("cuaderno-de-la-casa"))
         ?.note,
-    ).toMatch(/AUTHORSHIP_SOURCE = PENDING/);
+    ).toMatch(/no figura en ninguna tabla de fuentes/);
   });
 
   it("un libro ausente no es un bloqueo, y se dice el alcance de la consulta", () => {
@@ -252,6 +271,7 @@ describe("planAuthorshipRepair", () => {
             authorId: null,
             summary: null,
             description: null,
+            isPublished: true,
           },
           {
             id: "b2",
@@ -260,6 +280,7 @@ describe("planAuthorshipRepair", () => {
             authorId: null,
             summary: null,
             description: null,
+            isPublished: true,
           },
         ],
       }),
@@ -338,6 +359,7 @@ describe("planAuthorshipRepair", () => {
             // nadie, así que el planificador no vuelve a proponer la retirada.
             summary: BOOK_COPY_WITHDRAWAL.summary,
             description: null,
+            isPublished: true,
           },
         ],
       }),
@@ -379,6 +401,7 @@ describe("planAuthorshipRepair · copy que nombra a una identidad de fixture", (
             authorId: "a-demo",
             summary: over.summary ?? null,
             description: over.description ?? null,
+            isPublished: true,
           },
         ],
       }),
@@ -408,26 +431,29 @@ describe("planAuthorshipRepair · copy que nombra a una identidad de fixture", (
     }
   });
 
-  it("una obra con autoría PENDING también deja de nombrarla", () => {
-    // `AUTHORSHIP_PENDING` prohíbe inventar QUIÉN la escribió. Retirar un
-    // nombre que ninguna fuente sustenta no inventa nada.
+  it("una obra que este expediente no atribuye también deja de nombrarla", () => {
+    // No hace falta una fuente de autoría para retirar un nombre: inventar
+    // QUIÉN la escribió está prohibido, y retirar un nombre que ninguna
+    // fuente sustenta no inventa nada. La prueba usa una obra fuera de toda
+    // tabla, que es hoy el caso que de verdad separa las dos decisiones.
     const plan = planAuthorshipRepair(
       snapshot({
         books: [
           {
-            id: "b-fe",
-            slug: "familias-ensambladas",
-            title: "Familias Ensambladas",
+            id: "b-ajeno",
+            slug: "cuaderno-de-la-casa",
+            title: "Cuaderno de la casa",
             authorId: "a-demo",
             summary: null,
             description: "Una guía sintética escrita por Marina.",
+            isPublished: true,
           },
         ],
       }),
     );
     const op = copyOp(plan);
     if (op?.kind !== "withdraw-book-copy") throw new Error("shape");
-    expect(op.bookSlug).toBe("familias-ensambladas");
+    expect(op.bookSlug).toBe("cuaderno-de-la-casa");
     expect(op.fields).toEqual(["description"]);
     // Y sigue sin atribuirse a nadie.
     expect(plan.ops.some((o) => o.kind === "reattribute-book")).toBe(false);
@@ -548,6 +574,114 @@ function fakeTx(over: Partial<CatalogSnapshot> = {}) {
   return { tx, authors, books, writes };
 }
 
+describe("planAuthorshipRepair · obras retenidas por decisión editorial", () => {
+  const retireOp = (plan: ReturnType<typeof planAuthorshipRepair>) =>
+    plan.ops.find((o) => o.kind === "retire-book-publication");
+
+  it("propone retirar la obra publicada que la decisión retiene", () => {
+    const op = retireOp(planAuthorshipRepair(snapshot()));
+    if (op?.kind !== "retire-book-publication") throw new Error("shape");
+    expect(op.bookSlug).toBe("familias-ensambladas");
+    expect(op.expect).toEqual({
+      slug: "familias-ensambladas",
+      isPublished: true,
+    });
+    expect(op.next).toEqual({ isPublished: false });
+    expect(op.source).toMatch(/2026-10-23/);
+  });
+
+  it("no toca la publicación de las demás obras", () => {
+    const plan = planAuthorshipRepair(snapshot());
+    const retiradas = plan.ops
+      .filter((o) => o.kind === "retire-book-publication")
+      .map((o) => (o.kind === "retire-book-publication" ? o.bookSlug : ""));
+    expect(retiradas).toEqual(["familias-ensambladas"]);
+  });
+
+  it("si ya está retirada, lo dice como satisfecha y no propone nada", () => {
+    const base = snapshot();
+    const plan = planAuthorshipRepair({
+      ...base,
+      books: base.books.map((b) =>
+        b.slug === "familias-ensambladas" ? { ...b, isPublished: false } : b,
+      ),
+    });
+    expect(retireOp(plan)).toBeUndefined();
+    expect(plan.satisfied.some((x) => /ya retirado/.test(x))).toBe(true);
+  });
+
+  it("sin fila identificada no inventa una retirada", () => {
+    const base = snapshot();
+    const plan = planAuthorshipRepair({
+      ...base,
+      books: base.books.filter((b) => b.slug !== "familias-ensambladas"),
+    });
+    expect(retireOp(plan)).toBeUndefined();
+    expect(
+      plan.untouched.find((u) => u.subject.includes("familias-ensambladas"))
+        ?.note,
+    ).toMatch(/alcance consultado/);
+  });
+
+  it("dos filas con el mismo slug BLOQUEAN la retirada", () => {
+    // Misma razón que en la atribución: retirar «una de las dos» sería elegir
+    // a ciegas cuál de dos obras deja de ofrecerse.
+    const base = snapshot();
+    const fe = base.books.find((b) => b.slug === "familias-ensambladas")!;
+    const plan = planAuthorshipRepair({
+      ...base,
+      books: [...base.books, { ...fe, id: "b-fe-2" }],
+    });
+    expect(retireOp(plan)).toBeUndefined();
+    expect(plan.blockers.some((b) => /comparten el slug/.test(b.reason))).toBe(
+      true,
+    );
+  });
+
+  it("una snapshot sin la columna de publicación se rechaza", () => {
+    // La misma regla que el copy: «no miramos» y «miramos y no hay nada» no
+    // pueden producir el mismo plan.
+    const base = snapshot();
+    const sinColumna = {
+      ...base,
+      books: base.books.map((b) => {
+        const { isPublished: _omitida, ...resto } = b;
+        return resto as (typeof base.books)[number];
+      }),
+    };
+    expect(() => planAuthorshipRepair(sinColumna)).toThrow(
+      /SNAPSHOT INCOMPLETO.*isPublished/s,
+    );
+  });
+
+  it("dos obras del mismo autor nuevo no piden dos altas", () => {
+    // Encontrado al añadir la segunda fuente con el mismo autor: el alta se
+    // empujaba por FUENTE en vez de por AUTOR, y el cargador del plan
+    // rechaza altas duplicadas, así que el plan entero dejaba de cargarse.
+    const base = snapshot();
+    const plan = planAuthorshipRepair({
+      ...base,
+      // Sin la fila del autor con fuente: el alta tiene que proponerse.
+      authors: base.authors.filter((a) => a.slug !== "jorge-quizamanchuro"),
+    });
+    const altas = plan.ops.filter((o) => o.kind === "create-author");
+    expect(altas).toHaveLength(1);
+    // Y las dos obras se siguen atribuyendo.
+    expect(
+      plan.ops.filter((o) => o.kind === "reattribute-book"),
+    ).toHaveLength(2);
+  });
+
+  it("el relato describe la retirada en vez de confundirla con otra cosa", () => {
+    // El `else` final del informe describía cualquier operación nueva como
+    // una atribución. Un revisor aprobaría algo que nunca leyó.
+    const texto = describePlan(planAuthorshipRepair(snapshot()));
+    expect(texto).toMatch(/retirar del catálogo — libro familias-ensambladas/);
+    expect(texto).toMatch(/publicado=true · queda: publicado=false/);
+    expect(texto).not.toMatch(/OPERACIÓN NO DESCRITA/);
+  });
+});
+
 describe("applyAuthorshipRepair", () => {
   it("dry-run no escribe nada", async () => {
     const { tx, writes, authors } = fakeTx();
@@ -607,7 +741,14 @@ describe("applyAuthorshipRepair", () => {
     expect(
       books.find((b) => b.slug === "emociones-en-construccion")!.authorId,
     ).toBe(jorge.id);
-    expect(books.find((b) => b.slug === "familias-ensambladas")!.authorId).toBe(
+    // Familias tiene fuente propia desde la autorización del 2026-10-23, así
+    // que se mueve a la misma fila; la obra que NINGUNA tabla nombra se queda
+    // donde estaba, que es la garantía que importa aquí.
+    const fe = books.find((b) => b.slug === "familias-ensambladas")!;
+    expect(fe.authorId).toBe(jorge.id);
+    // Y deja de ofrecerse, sin que nada más de la fila cambie.
+    expect(fe.isPublished).toBe(false);
+    expect(books.find((b) => b.slug === "cuaderno-de-la-casa")!.authorId).toBe(
       "a-demo",
     );
     // La sinopsis que nombraba a la identidad de fixture deja de servirse, y
@@ -615,10 +756,13 @@ describe("applyAuthorshipRepair", () => {
     const eec = books.find((b) => b.slug === "emociones-en-construccion")!;
     expect(eec.summary).toBe(BOOK_COPY_WITHDRAWAL.summary);
     expect(eec.description).toBeNull();
+    // Retirar del catálogo no toca la publicación del resto.
+    expect(eec.isPublished).toBe(true);
 
     expect(res.rowsWritten).toBe(writes.length);
-    // Credenciales · copy de EEC · alta · atribución.
-    expect(res.rowsWritten).toBe(4);
+    // Credenciales · copy de EEC · retirada de Familias · alta · dos
+    // atribuciones.
+    expect(res.rowsWritten).toBe(6);
   });
 
   it("la reversión guarda TODO campo que la retirada borra", async () => {
@@ -806,6 +950,83 @@ describe("applyAuthorshipRepair", () => {
       applyAuthorshipRepair(tx, blocked, { apply: true }),
     ).rejects.toBeInstanceOf(RepairPreconditionError);
     expect(writes).toHaveLength(0);
+  });
+
+  it("la retirada es idempotente: una segunda corrida no escribe", async () => {
+    const plan = freeze();
+    const { tx, books, writes } = fakeTx();
+    books.find((b) => b.slug === "familias-ensambladas")!.isPublished = false;
+    const res = await applyAuthorshipRepair(tx, plan, { apply: true });
+    expect(
+      res.applied.find((a) => a.op === "retire-book-publication")?.wrote,
+    ).toBe(false);
+    // La obra sigue retirada y la reparación no reclama haberla escrito. El
+    // otro cambio sobre esa fila —la atribución— sí ocurre, así que contar
+    // escrituras por fila no distinguiría una cosa de la otra.
+    expect(
+      books.find((b) => b.slug === "familias-ensambladas")!.isPublished,
+    ).toBe(false);
+    expect(
+      res.reversal.some((r) => r.subject.startsWith("book publication id=")),
+    ).toBe(false);
+    expect(writes).toBeDefined();
+  });
+
+  it("si alguien republicó la obra entre el plan y la escritura, se detiene", async () => {
+    // El plan observó `true`; el aplicador no puede aceptar cualquier otro
+    // estado que no sea el resultado que iba a escribir. Nótese que esto NO
+    // es el caso idempotente: ahí el valor coincide con `next`.
+    const plan = freeze();
+    const { tx, books, writes } = fakeTx();
+    // Identidad cambiada bajo el mismo id: el caso que la condición de
+    // `slug` existe para atrapar.
+    books.find((b) => b.slug === "familias-ensambladas")!.slug = "otra-obra";
+    await expect(
+      applyAuthorshipRepair(tx, plan, { apply: true }),
+    ).rejects.toBeInstanceOf(RepairPreconditionError);
+    // La fila en disputa no se tocó. Las operaciones anteriores del plan sí
+    // habían escrito cuando saltó el error: la atomicidad la da la
+    // transacción del CLI, no el aplicador, y la pg-spec la ejerce de verdad.
+    expect(writes).not.toContain("book:b-fe");
+    expect(books.find((b) => b.id === "b-fe")!.isPublished).toBe(true);
+  });
+
+  it("la escritura condicionada no pisa un cambio simultáneo", async () => {
+    const plan = freeze();
+    const { tx, books, writes } = fakeTx();
+    const original = tx.book.updateMany;
+    tx.book.updateMany = (async (args: Parameters<typeof original>[0]) => {
+      // Sólo en la escritura de la retirada: adelantarse a la del copy
+      // dejaría la obra ya retirada y el caso degeneraría en el idempotente,
+      // que es otro camino y pasaría sin probar nada de esto.
+      if ("isPublished" in args.data) {
+        // Entre la comprobación y la escritura, otro proceso la retira.
+        books.find((b) => b.id === "b-fe")!.isPublished = false;
+      }
+      return original(args);
+    }) as typeof original;
+    await expect(
+      applyAuthorshipRepair(tx, plan, { apply: true }),
+    ).rejects.toBeInstanceOf(RepairConflictError);
+    tx.book.updateMany = original;
+  });
+
+  it("la preimagen guarda la publicación anterior", async () => {
+    const res = await applyAuthorshipRepair(fakeTx().tx, freeze(), {
+      apply: true,
+    });
+    const entry = res.reversal.find((r) =>
+      r.subject.startsWith("book publication id="),
+    );
+    expect(entry?.restore).toEqual({ isPublished: true });
+  });
+
+  it("el ensayo en seco ve la misma retirada que la escritura", async () => {
+    const plan = freeze();
+    const entradas = await collectReversal(fakeTx().tx, plan);
+    expect(
+      entradas.some((e) => e.subject.startsWith("book publication id=")),
+    ).toBe(true);
   });
 
   it("no hay forma de borrar un autor desde el aplicador", () => {

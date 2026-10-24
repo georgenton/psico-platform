@@ -109,8 +109,19 @@ export const OBRAS: readonly Obra[] = [
       { clave: "guia", etiqueta: "Modo guiado", icono: "bulb" },
     ],
     tieneGuia: true,
+    // La versión anterior decía «El capítulo 1 tiene cinco microguías. Puedes
+    // probar una en esta página.» La segunda frase es cierta —la muestra de
+    // abajo funciona— y la primera prometía disponibilidad en la aplicación
+    // que no existe: las cinco microguías del capítulo 1 están en borrador y
+    // el lector las enseña como «No disponible ahora».
+    //
+    // Se corrige la afirmación, no la estética: el botón, el escenario y la
+    // muestra son los mismos. Y se distingue lo que esta página hace de lo
+    // que el producto todavía no sirve, que es justo lo que confundía.
     notaGuia:
-      "El capítulo 1 tiene cinco microguías. Puedes probar una en esta página.",
+      "El modo guiado está en preparación: sus microguías del capítulo 1 " +
+      "aún no están disponibles en la aplicación. La muestra de esta página " +
+      "sí funciona.",
   },
   {
     id: "familias-ensambladas",

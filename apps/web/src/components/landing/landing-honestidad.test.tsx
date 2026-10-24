@@ -60,6 +60,33 @@ describe("el catálogo es el confirmado, no el de la maqueta", () => {
   });
 });
 
+describe("el modo guiado se describe por lo que hoy se puede hacer", () => {
+  const nota = () => OBRAS.find((o) => o.tieneGuia)?.notaGuia ?? "";
+
+  it("no afirma que la aplicación ya sirva las microguías", () => {
+    // Decía «El capítulo 1 tiene cinco microguías. Puedes probar una en esta
+    // página.» La segunda frase era cierta; la primera prometía algo que el
+    // producto no da: las cinco están en borrador y el lector las enseña como
+    // «No disponible ahora». La muestra de la landing y el modo guiado
+    // alojado son dos cosas, y confundirlas era el defecto.
+    const n = nota().toLowerCase();
+    expect(n).not.toMatch(/tiene\s+(cinco|\d+)\s+microgu/);
+    expect(n).not.toMatch(/ya (están|estan) disponibles/);
+  });
+
+  it("dice que está en preparación, y que la muestra de la página sí funciona", () => {
+    const n = nota().toLowerCase();
+    expect(n).toContain("en preparación");
+    expect(n).toMatch(/muestra de esta página/);
+  });
+
+  it("y no promete fecha", () => {
+    expect(nota().toLowerCase()).not.toMatch(
+      /pronto|próximamente|en \w+ de \d{4}|este (mes|año)/,
+    );
+  });
+});
+
 describe("la oferta se presenta como propuesta, sin vender", () => {
   it("lo que falta por decidir se dice, no se rellena", () => {
     // «por definir» en cualquier parte de la fila, porque unas lo dicen solas

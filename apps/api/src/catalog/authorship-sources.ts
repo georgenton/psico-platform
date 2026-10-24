@@ -44,7 +44,7 @@ export interface AuthorshipSource {
 }
 
 /**
- * The two works the coordination document records explicitly.
+ * The works a document in reach records explicitly.
  *
  * Deliberately NOT a rename of the existing demo row. One `BookAuthor` row
  * can carry several books, so renaming it would silently re-attribute the
@@ -61,6 +61,27 @@ export const AUTHORSHIP_SOURCES: readonly AuthorshipSource[] = [
       "Notion · «07 — Libros prioritarios: Parejas y Emociones» (Emociones en construcción → Jorge Quizamanchuro)",
   },
   {
+    bookSlug: "familias-ensambladas",
+    bookTitle: "Familias Ensambladas",
+    authorName: "Jorge Quizamanchuro",
+    authorSlug: "jorge-quizamanchuro",
+    // This entry exists because the deferral it used to describe was lifted,
+    // in writing, by a later decision — not because the earlier reasoning was
+    // wrong. #797 withdrew the book from publication and left the attribution
+    // PENDING on the explicit grounds that the note of 2026-10-13 «no
+    // autoriza corregir la fila ahora». The authorisation of 2026-10-23 says
+    // the opposite in its own words: it names the author of this work and
+    // states that it «levanta el aplazamiento operativo anterior de esas
+    // atribuciones de catálogo».
+    //
+    // It accredits authorship and nothing else — no title, no licence, no
+    // verification, no bio — which is exactly what this table is allowed to
+    // carry. The planner links the book to the sourced row; it does not
+    // rename the fixture identity, which also carries copy of its own.
+    source:
+      "Autorización operativa de Jorge Quizamanchuro · 2026-10-23 · §3.B «Autoría del catálogo» (Familias ensambladas → Jorge Quizamanchuro)",
+  },
+  {
     bookSlug: "parejas-que-perduran",
     bookTitle: "Parejas que perduran",
     authorName: "David Jaramillo",
@@ -75,13 +96,60 @@ export const AUTHORSHIP_SOURCES: readonly AuthorshipSource[] = [
  * source. They are listed so that "we did not check" and "we checked and
  * found nothing" stop looking identical in a plan.
  *
- * `familias-ensambladas` is here on purpose: it currently points at the demo
- * author row, and no document in reach attributes it to anyone. Extrapolating
- * either name from the table above would be inventing an attribution.
+ * Empty is a legitimate state and NOT the same as "there is nothing to say":
+ * every book the planner meets is either sourced above or named here, and a
+ * book in neither list is reported as unrecognised rather than skipped.
  */
-export const AUTHORSHIP_PENDING: readonly string[] = [
-  "familias-ensambladas",
+export const AUTHORSHIP_PENDING: readonly string[] = [] as const;
+
+/* ── Publication state decided editorially ──────────────────────────────── */
+
+/**
+ * Works whose publication state is an editorial decision on record.
+ *
+ * ── Why this is a separate table from authorship ──────────────────────────
+ *
+ * Who wrote a book and whether it is offered to readers are different claims
+ * with different sources. Conflating them would let an attribution carry a
+ * publication change along with it, which is how a retained work gets served
+ * by accident.
+ *
+ * ── Why the only direction is withdrawal ─────────────────────────────────
+ *
+ * The decision on record retains works; it never opens one. Encoding a
+ * two-way `isPublished` here would let a future edit publish a retained work
+ * through a repair plan — a route nobody would look at for that. So the
+ * planner reads this table as "must not be served" and can only move a row
+ * from published to retained. Publishing a work stays where it belongs: an
+ * explicit editorial act, through the normal surfaces.
+ */
+export interface RetentionDecision {
+  /** `Book.slug` the decision is about. */
+  bookSlug: string;
+  /** The work's title, for human-readable plans. */
+  bookTitle: string;
+  /** The document that backs it, so a reviewer can check it. */
+  source: string;
+}
+
+export const RETAINED_BOOKS: readonly RetentionDecision[] = [
+  {
+    bookSlug: "familias-ensambladas",
+    bookTitle: "Familias Ensambladas",
+    // The seed stopped publishing this book in #797, but only on `create`:
+    // `isPublished` was deliberately taken out of the upsert's `update` so a
+    // hosted row could be retired without editing the file. Nothing has
+    // retired the hosted row yet, so a database seeded before that change
+    // still serves the book. That is the gap this entry closes.
+    source:
+      "Autorización operativa de Jorge Quizamanchuro · 2026-10-23 · §3.C «Disponibilidad» (Familias debe respetar «Aún no disponible»)",
+  },
 ] as const;
+
+export const retentionForBook = (
+  slug: string,
+): RetentionDecision | undefined =>
+  RETAINED_BOOKS.find((r) => r.bookSlug === slug);
 
 export const sourceForBook = (slug: string): AuthorshipSource | undefined =>
   AUTHORSHIP_SOURCES.find((s) => s.bookSlug === slug);

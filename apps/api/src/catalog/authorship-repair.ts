@@ -8,8 +8,10 @@ import {
   AUTHORSHIP_PENDING,
   AUTHORSHIP_SOURCES,
   FIXTURE_AUTHOR_SLUGS,
+  RETAINED_BOOKS,
   fixtureIdentitiesNamedIn,
   type AuthorshipSource,
+  type RetentionDecision,
 } from "./authorship-sources";
 
 /**
@@ -73,6 +75,13 @@ export interface CatalogSnapshot {
     summary: string | null;
     /** One or two sentences, served on the public cards. */
     description: string | null;
+    /**
+     * Whether the catalogue currently offers the work. REQUIRED for the same
+     * reason the copy fields are: a caller who did not ask for the column
+     * would otherwise get a plan reporting nothing to retire, and "we did not
+     * look" would be indistinguishable from "it is already retired".
+     */
+    isPublished: boolean;
   }>;
 }
 
@@ -193,6 +202,49 @@ export type RepairOp =
        */
       targetAuthorId: string | null;
       source: string;
+    }
+  /**
+   * Stop offering a work the editorial decision retains.
+   *
+   * ── Why this is an operation and not a line in the seed ───────────────
+   *
+   * #797 stopped the seed from publishing this book, and deliberately took
+   * `isPublished` out of the upsert's `update` so that a hosted row could be
+   * retired without editing the file. The consequence is the one it intended
+   * and the one still outstanding: a database seeded before that change goes
+   * on serving the work no matter how many times the seed runs. Only a write
+   * against the row closes it, and a write against a hosted row belongs in a
+   * reviewed, frozen, reversible plan rather than in an ad-hoc statement.
+   *
+   * ── Why it only ever withdraws ────────────────────────────────────────
+   *
+   * There is no `isPublished: true` outcome here, by construction. A repair
+   * plan is not where anybody would look for the act of publishing a work,
+   * so it must not be able to perform it: the operation names the retained
+   * state and carries no alternative. Publishing stays an explicit editorial
+   * act through the normal surfaces.
+   *
+   * ── What it does not touch ────────────────────────────────────────────
+   *
+   * Nothing but the one column. Chapters, revisions, units, blocks, media,
+   * anchors and every reader's own history stay exactly as they are: a work
+   * that is no longer offered is not a work that never existed, and the
+   * contract that preserves somebody's existing journey is a separate
+   * guarantee this operation must not quietly cancel.
+   */
+  | {
+      kind: "retire-book-publication";
+      bookId: string;
+      bookSlug: string;
+      bookTitle: string;
+      /**
+       * EXACT expectation. `isPublished` is a boolean, so a digest adds
+       * nothing a value does not; `slug` travels because the right column on
+       * the wrong row is still the wrong write.
+       */
+      expect: { slug: string; isPublished: true };
+      next: { isPublished: false };
+      source: string;
     };
 
 export type RepairBlocker = {
@@ -260,8 +312,10 @@ function findAuthor(snapshot: CatalogSnapshot, slug: string): AuthorResolution {
  * Case and surrounding whitespace must not mint a second row for the same
  * person: `jorge-quizamanchuro` and ` Jorge-Quizamanchuro ` are one identity.
  */
+const normaliseSlug = (s: string) => s.trim().toLowerCase();
+
 const sameSlug = (a: string, b: string) =>
-  a.trim().toLowerCase() === b.trim().toLowerCase();
+  normaliseSlug(a) === normaliseSlug(b);
 
 /**
  * Refuse a snapshot that did not read the columns the plan reasons about.
@@ -283,7 +337,12 @@ function assertSnapshotComplete(snapshot: CatalogSnapshot): void {
       missing("authors", a, ["title", "licenseNumber", "bio", "isVerified"]),
     ),
     ...snapshot.books.flatMap((b) =>
-      missing("books", b, ["authorId", "summary", "description"]),
+      missing("books", b, [
+        "authorId",
+        "summary",
+        "description",
+        "isPublished",
+      ]),
     ),
   ];
   if (gaps.length > 0) {
@@ -295,10 +354,14 @@ function assertSnapshotComplete(snapshot: CatalogSnapshot): void {
 
 export function planAuthorshipRepair(
   snapshot: CatalogSnapshot,
-  opts: { sources?: readonly AuthorshipSource[] } = {},
+  opts: {
+    sources?: readonly AuthorshipSource[];
+    retained?: readonly RetentionDecision[];
+  } = {},
 ): RepairPlan {
   assertSnapshotComplete(snapshot);
   const sources = opts.sources ?? AUTHORSHIP_SOURCES;
+  const retained = opts.retained ?? RETAINED_BOOKS;
   const plan: RepairPlan = {
     ops: [],
     satisfied: [],
@@ -388,7 +451,52 @@ export function planAuthorshipRepair(
     });
   }
 
+  // ── 1c · stop offering the works the editorial decision retains ─────────
+  //
+  // Before attribution, deliberately. If both are planned for the same work,
+  // withdrawing it from the catalogue is the operation that must not be lost
+  // to a blocker raised by the other one.
+  for (const decision of retained) {
+    const resolved = findBook(snapshot, decision.bookSlug);
+
+    if (resolved.kind === "ambiguous") {
+      plan.blockers.push({
+        subject: `${decision.bookTitle} (${decision.bookSlug})`,
+        reason: `${resolved.count} filas comparten el slug; no se puede identificar inequívocamente la obra a retirar`,
+      });
+      continue;
+    }
+
+    if (resolved.kind === "absent") {
+      plan.untouched.push({
+        subject: `${decision.bookTitle} (${decision.bookSlug})`,
+        note: "sin fila identificada en el alcance consultado de este entorno; nada que retirar aquí",
+      });
+      continue;
+    }
+
+    const book = resolved.book;
+    if (!book.isPublished) {
+      plan.satisfied.push(
+        `${decision.bookTitle}: ya retirado del catálogo (no publicado)`,
+      );
+      continue;
+    }
+
+    plan.ops.push({
+      kind: "retire-book-publication",
+      bookId: book.id,
+      bookSlug: book.slug,
+      bookTitle: book.title,
+      expect: { slug: book.slug, isPublished: true },
+      next: { isPublished: false },
+      source: decision.source,
+    });
+  }
+
   // ── 2 · attribute the works a source names ──────────────────────────────
+  /** Author slugs this plan already proposes creating. */
+  const planned = new Set<string>();
   for (const source of sources) {
     const resolvedBook = findBook(snapshot, source.bookSlug);
 
@@ -438,7 +546,13 @@ export function planAuthorshipRepair(
       continue;
     }
 
-    if (!existing) {
+    // One row, several works: the create belongs to the AUTHOR, not to each
+    // book that names them. Pushing it per source emitted a duplicate alta
+    // the moment a second work shared a new author — which is the shape the
+    // catalogue has had since Familias gained a source — and the plan file
+    // rejects duplicates, so the whole plan became unloadable.
+    if (!existing && !planned.has(normaliseSlug(source.authorSlug))) {
+      planned.add(normaliseSlug(source.authorSlug));
       plan.ops.push({
         kind: "create-author",
         authorSlug: source.authorSlug,
@@ -476,6 +590,22 @@ export function planAuthorshipRepair(
     plan.untouched.push({
       subject: `${book.title} (${slug})`,
       note: "AUTHORSHIP_SOURCE = PENDING — ninguna fuente de este repositorio lo atribuye; extrapolar un nombre de otra obra sería inventarlo",
+    });
+  }
+
+  // A book in NEITHER table is not the same as a book nobody can source: it
+  // is a book this expedient never considered. Saying so keeps the file's one
+  // rule — "we did not look" and "we looked and found nothing" must not read
+  // alike — true now that the pending list can legitimately be empty.
+  const considered = new Set<string>([
+    ...sources.map((s) => normaliseSlug(s.bookSlug)),
+    ...AUTHORSHIP_PENDING.map(normaliseSlug),
+  ]);
+  for (const book of snapshot.books) {
+    if (considered.has(normaliseSlug(book.slug))) continue;
+    plan.untouched.push({
+      subject: `${book.title} (${book.slug})`,
+      note: "no figura en ninguna tabla de fuentes de este expediente; no se decide nada sobre su autoría",
     });
   }
 
@@ -537,10 +667,23 @@ export function describePlan(plan: RepairPlan): string {
         `      sólo slug y nombre — sin título, colegiatura ni verificación`,
       );
       push(`      fuente: ${op.source}`);
-    } else {
+    } else if (op.kind === "retire-book-publication") {
+      push(`  · retirar del catálogo — libro ${op.bookSlug}`);
+      push(`      espera: publicado=true · queda: publicado=false`);
+      push(
+        `      capítulos, versiones, medios e historial de lectura no se tocan`,
+      );
+      push(`      fuente: ${op.source}`);
+    } else if (op.kind === "reattribute-book") {
       push(`  · atribuir ${op.bookSlug} → ${op.authorName}`);
       push(`      espera authorId actual: ${op.expectAuthorId ?? "null"}`);
       push(`      fuente: ${op.source}`);
+    } else {
+      // Exhaustive on purpose. A new operation reaching the report without a
+      // branch would otherwise be described as whatever the last `else` said,
+      // which is how a reviewer approves something they never read.
+      const unreached: never = op;
+      push(`  · OPERACIÓN NO DESCRITA: ${JSON.stringify(unreached)}`);
     }
   }
 

@@ -71,6 +71,7 @@ const snapshot = (): CatalogSnapshot => ({
       authorId: "a-demo",
       summary: SINOPSIS_CON_NOMBRE,
       description: null,
+      isPublished: true,
     },
   ],
 });

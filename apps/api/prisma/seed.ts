@@ -150,30 +150,36 @@ async function main() {
   // `Book.authorId` is nullable, and a book with no author renders as
   // «Autoría por confirmar» — which is the honest outcome when the identity
   // is in doubt. The curated row is NOT renamed to make the slug fit.
-  const EEC_AUTHOR_NAME = "Jorge Quizamanchuro";
-  const EEC_AUTHOR_SLUG = "jorge-quizamanchuro";
-  const existingEecAuthor = await prisma.bookAuthor.findUnique({
-    where: { slug: EEC_AUTHOR_SLUG },
+  //
+  // One row, two works. The authorisation of 2026-10-23 names this author for
+  // the anchor book AND for Familias Ensambladas, so the name is no longer
+  // specific to one of them. The books are attributed separately all the
+  // same: sharing a row is not the same as sharing a source, and a future
+  // work with a different author must not inherit this one.
+  const SOURCED_AUTHOR_NAME = "Jorge Quizamanchuro";
+  const SOURCED_AUTHOR_SLUG = "jorge-quizamanchuro";
+  const existingSourcedAuthor = await prisma.bookAuthor.findUnique({
+    where: { slug: SOURCED_AUTHOR_SLUG },
   });
-  let eecAuthorId: string | null = null;
-  if (existingEecAuthor) {
-    if (existingEecAuthor.name.trim() === EEC_AUTHOR_NAME) {
-      eecAuthorId = existingEecAuthor.id;
+  let sourcedAuthorId: string | null = null;
+  if (existingSourcedAuthor) {
+    if (existingSourcedAuthor.name.trim() === SOURCED_AUTHOR_NAME) {
+      sourcedAuthorId = existingSourcedAuthor.id;
       console.log(
-        `✅  BookAuthor (fuente editorial): ${existingEecAuthor.name}`,
+        `✅  BookAuthor (fuente editorial): ${existingSourcedAuthor.name}`,
       );
     } else {
       console.warn(
-        `⚠️  BookAuthor «${EEC_AUTHOR_SLUG}» existe con el nombre «${existingEecAuthor.name}», ` +
-          `que no es «${EEC_AUTHOR_NAME}». No se atribuye el libro a esa fila ni se renombra: ` +
+        `⚠️  BookAuthor «${SOURCED_AUTHOR_SLUG}» existe con el nombre «${existingSourcedAuthor.name}», ` +
+          `que no es «${SOURCED_AUTHOR_NAME}». No se atribuye el libro a esa fila ni se renombra: ` +
           `queda sin autor y se resuelve con la reparación de catálogo.`,
       );
     }
   } else {
     const created = await prisma.bookAuthor.create({
-      data: { slug: EEC_AUTHOR_SLUG, name: EEC_AUTHOR_NAME },
+      data: { slug: SOURCED_AUTHOR_SLUG, name: SOURCED_AUTHOR_NAME },
     });
-    eecAuthorId = created.id;
+    sourcedAuthorId = created.id;
     console.log(`✅  BookAuthor (fuente editorial): ${created.name}`);
   }
 
@@ -200,7 +206,7 @@ async function main() {
       plan: "FREE",
       isPublished: true,
       totalChapters: 2,
-      authorId: eecAuthorId,
+      authorId: sourcedAuthorId,
       categoryId: "cat-emociones",
       publishedAt: new Date("2026-01-15"),
     },
@@ -287,25 +293,24 @@ async function main() {
       // Publishing it is an editorial act, not a side effect of seeding.
       isPublished: false,
       totalChapters: 3,
-      // NO author, which renders as «Autoría por confirmar».
+      // The author a source names, resolved above — never `fixtureAuthor.id`.
       //
-      // This used to read `fixtureAuthor.id`, and that was the defect: the
-      // public catalogue credited a fixture identity — a real-sounding person
-      // — as the author of a real work. `AUTHORSHIP_SOURCE` is still PENDING
-      // for this book, so the honest value is no author at all.
+      // That was the original defect: the public catalogue credited a fixture
+      // identity, a real-sounding person, as the author of a real work. The
+      // fix went through two states, and this is the second.
       //
-      // Deliberately NOT the declared author either. The owner declared this
-      // work's authorship on 2026-10-13, but the same note says the
-      // declaration «no acredita que el repositorio/catálogo ya estén
-      // corregidos ni es autorización para modificar ahora la fila de la
-      // base», and keeps authorship among the things reviewed with explicit
-      // approval before launch. Writing that name here would make the seed
-      // assert what the owner deferred — and it would change what the
-      // authorship repair plan proposes, which is the sanctioned path for
-      // that correction and is gated on its own approval.
+      // Until 2026-10-23 the honest value was NO author at all: the note of
+      // 2026-10-13 declared who wrote this book but said in the same breath
+      // that it was not authorisation to change the row, so writing the name
+      // here would have made the seed assert what the owner had deferred. The
+      // authorisation of 2026-10-23 removes that deferral in its own words,
+      // and `AUTHORSHIP_SOURCES` now carries the work. Withholding the name
+      // after that would be the seed contradicting the table.
       //
-      // So: stop crediting the wrong person, without crediting anyone.
-      authorId: null,
+      // `null` remains the outcome when the resolution above declined — a
+      // slug held under another name — because that is still a doubt, and a
+      // doubt renders as «Autoría por confirmar».
+      authorId: sourcedAuthorId,
       categoryId: "cat-familia",
       publishedAt: new Date("2026-02-01"),
     },

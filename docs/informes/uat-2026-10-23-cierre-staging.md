@@ -58,7 +58,7 @@ HTTP correcto. La diferencia se marca cuando existe.
 
 | Familia | Caso | Veredicto | Lo que se midió |
 |---|---|---|---|
-| acceso | ingreso de dos cuentas | **PASS** | PRO y FREE |
+| acceso | ingreso con cuentas sintéticas | **PASS** | tres cuentas distintas a lo largo de la UAT, PRO y FREE |
 | lector | abrir el cap. 1 de EEC | **PASS** | 188 bloques reales |
 | lector | latido con el **id** del libro | **PASS** | `{"ok":true,"progressPct":85}` |
 | lector | **salir y recuperar** | **PASS** | el progreso persiste entre sesiones: `progressPct` 85, `timeSpentSec` 1500 → 1560, `lastBlockId` escrito |
@@ -69,7 +69,7 @@ HTTP correcto. La diferencia se marca cuando existe.
 | exportación | **de extremo a extremo** | **PASS** | ver §4 |
 | exportación | exportación **ajena** | **PASS** | `404 DATA_EXPORT_NOT_FOUND` |
 | mapa | leer no fabrica emoción | **PASS** | tras abrir el capítulo, **0/6** ejes con señal: siguen «reuniendo datos» |
-| evolución | la lectura sí cuenta como recorrido | **PASS** | responde con sus contadores |
+| evolución | responde y trae sus contadores | **sólo respuesta correcta** | 200 con los contadores. **No** se comprobó que alguno subiera por esta lectura: eso es una respuesta correcta, no un recorrido verificado, y así queda anotado |
 | disponibilidad | obra retirada, por **siete** puertas | **PASS** | las siete 404, incluida la nativa |
 | aislamiento | una segunda cuenta | **PASS** | también 404; su mapa es el suyo |
 | círculos | puerta del piloto | **NOT_AVAILABLE** | `503 CIRCLES_UNAVAILABLE` — rollout, no defecto |
@@ -146,7 +146,29 @@ para lo medido** y no afirma ningún número. Se conserva.
 
 ---
 
-## 6. Lo que NO se verificó, y por qué
+## 6. El catálogo que hay, obra por obra
+
+La landing nombra tres obras. La **base** del entorno comprobado tiene dos, y
+conviene no confundir una página con un catálogo:
+
+| Obra | Fila en `Book` | Publicada | Capítulos | Autoría en la fila |
+|---|---|---|---|---|
+| _Emociones en construcción_ | **sí** | **sí** | 10 | Jorge Quizamanchuro |
+| _Familias ensambladas_ | **sí** | **no** | 3 | Jorge Quizamanchuro |
+| _Parejas que perduran_ | **no existe** | — | — | — |
+
+_Parejas_ queda **ausente** en el entorno comprobado. No se ingestó, no se
+publicó y no se reparó nada suyo: no había fila que reparar, y crearla sería
+inventar catálogo. La landing la muestra como «Aún no disponible», que es
+exactamente lo que es.
+
+Las tres capas de _Familias_ coinciden entre sí —fila no publicada, dos
+ediciones con su revisión, siete puertas en 404— y sus tres capítulos y tres
+unidades siguen **intactos**: retirada de la oferta, no borrada.
+
+---
+
+## 7. Lo que NO se verificó, y por qué
 
 - **Revisión visual con sesión** — el lector y el panel en los dos temas × los
   cuatro ambientes. El control de credenciales de esta sesión deniega escribir
@@ -164,7 +186,7 @@ para lo medido** y no afirma ningún número. Se conserva.
 
 ---
 
-## 7. Los 188 bloques, y por qué la otra bitácora dice 376
+## 8. Los 188 bloques, y por qué la otra bitácora dice 376
 
 La UAT del 22-10 anotó «capítulo 1 con 376 bloques». Aquí dice 188, y la
 diferencia no es una discrepancia que haya que dejar en el aire:
@@ -174,16 +196,20 @@ diferencia no es una discrepancia que haya que dejar en el aire:
 | `ChapterBlock` (legado) | **188** |
 | `ContentBlock` de la unidad nativa equivalente | **188** |
 
-376 es **exactamente la suma**. El recuento original contó la misma lectura
-dos veces, una por cada fuente — el mismo error de fuente única/doble que el
-diagnóstico del modo guiado, sólo que en espejo: allí se midió media verdad,
-aquí el doble. **El lector sirve 188 bloques**, y la conclusión de aquella
-fila («de sobra») se sostiene igual. La corrección quedó también en la
-bitácora del 22-10, fechada.
+376 es **exactamente la suma**, y que las dos fuentes sean la misma lectura no
+se deduce de que los números coincidan: los **188** `ContentBlock` de esa
+unidad llevan su `legacyBlockId` apuntando a los 188 `ChapterBlock` del
+capítulo 1. Es la misma lectura, anclada fila a fila.
+
+Así que el recuento original contó dos veces lo mismo, una vez por fuente — el
+mismo error de fuente única/doble que el diagnóstico del modo guiado, sólo que
+en espejo: allí se midió media verdad, aquí el doble. **El lector sirve 188
+bloques**, y la conclusión de aquella fila («de sobra») se sostiene igual. La
+corrección quedó también en la bitácora del 22-10, fechada.
 
 ---
 
-## 8. Dos falsos positivos, escritos para no volver a investigarlos
+## 9. Dos falsos positivos, escritos para no volver a investigarlos
 
 - El latido con el **slug** en lugar del id responde `{"ok":true}` sin
   escribir. Es el *soft-ack* de diseño; mi arnés mandaba la forma equivocada.

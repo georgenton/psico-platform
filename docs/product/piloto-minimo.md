@@ -86,9 +86,12 @@ separadas:
 
 Concretas y revisables una por una. Ninguna se infiere de este cierre.
 
-1. **¿Se configura `RESEND_API_KEY` en staging?** Sin ella no hay recuperación
-   de contraseña. *Alternativa si no:* avisar a cada persona del piloto de que
-   si pierde la contraseña se le crea otra cuenta.
+1. **¿Se configura `RESEND_API_KEY` en staging?** Sin ella no sale el correo
+   de restablecimiento, así que **no hay forma de recuperar el acceso** a una
+   cuenta cuya contraseña se olvidó. *Alternativa si no:* decírselo a cada
+   persona antes de empezar, para que conserve la contraseña. Crear otra
+   cuenta **no es recuperar la anterior**: el diario de la primera sigue
+   donde estaba, cifrado, y la cuenta nueva empieza vacía.
 2. **¿Se configura `SENTRY_DSN`?** Decide si un fallo del piloto se investiga
    con traza o por reproducción.
 3. **¿Se publica alguna microguía de C01?** Es editorial, con la puerta de los
@@ -118,8 +121,10 @@ Concretas y revisables una por una. Ninguna se infiere de este cierre.
   — las dos cuentas iguales es lo que importa. (El simple vive en `/health`,
   fuera del prefijo; `/api/health` responde 404 por diseño desde el Sprint 0.A.)
 - Las decisiones 1 y 2 del §5 **tomadas**, en un sentido o en otro.
-- Una **persona a la vez**, avisada de que es staging y de que el diario se
-  cifra sin vía de recuperación si olvida la contraseña.
+- Una **persona a la vez**, avisada de que es staging y de que recuperar la
+  **cuenta** y recuperar el **diario** son dos cosas distintas: la cuenta
+  vuelve con el correo de restablecimiento, y el diario sólo con su **frase de
+  respaldo de 12 palabras**, que conviene guardar al crearla.
 - Cuenta creada por **registro normal**, nunca sembrada.
 
 ### De salida (el piloto cumplió)

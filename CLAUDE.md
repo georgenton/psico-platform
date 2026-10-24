@@ -3662,6 +3662,15 @@ pendientes se clasifican ahora por evidencia, no por edad. El ensayo
 operativo con la imagen anterior sigue **sin hacer** y ese rollback sigue
 condicionado a él.
 
+> **Hecho el 2026-10-24.** El ensayo que esta entrada daba por pendiente se
+> ejecutó el mismo día, en una base desechable restaurada del respaldo:
+> la imagen anterior **pierde** la pendiente (`Skipping
+> already-processed`, cero llamadas a Stripe) y la actual la **recupera**
+> (`Reapplying …`, fila sellada, inventario a cero), igual con una de diez
+> días. Ese rollback **ya no está condicionado a este ensayo**; sigue
+> condicionado a su precondición de contenido. Detalle y cifras en
+> [el runbook §3.1](docs/deploy/coolify-runbook.md).
+
 **Y una prueba que medía la máquina.** El Test de la CI falló en
 `billing-events.pg-spec.ts` sobre un PR que **sólo tocaba documentación**: el
 arnés sellaba `created` de la suscripción a «ahora» en cada entrega, así que
@@ -3732,7 +3741,7 @@ dice qué está integrado; el servido dice qué se está ejecutando. Igualarlos
 | Saneamiento técnico de PR | ✅ **cerrado** — catorce PR abiertos → cero |
 | Reparación del catálogo en staging | ✅ **aplicada y convergente** — segunda planificación en 0 operaciones |
 | UAT | ⚠️ **parcial**, con sus límites escritos en [la bitácora](docs/informes/uat-2026-10-23-cierre-staging.md) |
-| Rollback a la imagen anterior | ⏸️ **condicionado** — falta el ensayo operativo |
+| Rollback a la imagen anterior | ⚠️ **ensayo operativo HECHO** (2026-10-24) — sigue condicionado a su precondición de contenido y al residuo de la ventana, no al ensayo |
 | Modo guiado | ⏸️ **conserva su disponibilidad actual** (`GUIDE_ROLLOUT_MODE=off`) |
 | Círculos / Dúo | ⏸️ **conserva su disponibilidad actual** (su propia puerta) |
 | Cobros reales | ⏸️ **conservan su situación actual** — cerrados |
@@ -3753,23 +3762,27 @@ distintas:
 
 #### Lo que toca, en orden
 
-1. **Ensayo operativo del rollback** con el artefacto anterior, sobre una base
-   desechable restaurada del respaldo, aislada de los servicios activos y de
-   los envíos externos. Un inventario inicial de cero pendientes **no** exime
-   del ensayo.
+1. ✅ **Ensayo operativo del rollback** — hecho el 2026-10-24 contra los dos
+   artefactos reales sobre una base desechable restaurada del respaldo, con
+   Stripe sustituido por un doble sin red. Las cinco situaciones quedaron
+   observadas, incluido el residuo de la ventana. Cifras en
+   [el runbook §3.1](docs/deploy/coolify-runbook.md).
 2. **Revisión visual con sesión** — lector y panel en los dos temas × cuatro
    ambientes. Hace falta un mecanismo de autenticación que la herramienta
    permita; el control de credenciales deniega escribir una contraseña, y eso
    **no se elude**.
-3. **Recorrido funcional de Evolución** — una acción sintética que, según el
-   contrato, mueva un contador: estado anterior, acción, cambio esperado y
-   observado, persistencia y aislamiento frente a otra cuenta.
+3. ✅ **Recorrido funcional de Evolución** — hecho el 2026-10-24: una anotación
+   mueve `marcasLectura` de 0 a 1, persiste al reconsultar, la otra cuenta no
+   se mueve, y el mapa emocional **no** cambia. Sin defectos.
 4. **Integraciones de staging, por recorrido, no en bloque**:
    `RESEND_API_KEY` (correo del digest y de la exportación) ·
    `GOOGLE_CLIENT_ID` (acceso con Google) · `VAPID_*` (push web) ·
    `SENTRY_DSN` (traza de errores). Ninguna bloquea la lectura.
-5. **Piloto mínimo** — alcance, criterios de entrada/salida/suspensión y las
-   decisiones editoriales o de disponibilidad que de verdad haga falta tomar.
+5. ✅ **Piloto mínimo propuesto** — [docs/product/piloto-minimo.md](docs/product/piloto-minimo.md):
+   un piloto de **lectura acompañada**, una obra, en staging, de una persona a
+   la vez, con sus criterios de entrada, salida y suspensión y **seis
+   decisiones** concretas esperando revisión. Es una propuesta, no una
+   autorización.
 
 #### Deuda de producto que sigue viva (de los arcos anteriores)
 

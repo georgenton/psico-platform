@@ -3726,13 +3726,23 @@ sección, manda esta sección.
 
 | | |
 |---|---|
-| `main` | `439f5d3221748be3f8d366f46053091c940023b5` · pipeline verde |
+| `main` | `68ce3a0e` · Full CI + Changesets verdes |
 | Servido en staging | **`725df576`** en los tres servicios (API, worker, Web) |
 | ¿Coinciden? | **No**, y a propósito: lo que los separa no es código de runtime |
 
 **Son dos commits distintos y conviene no confundirlos.** El del repositorio
 dice qué está integrado; el servido dice qué se está ejecutando. Igualarlos
-«para que cuadre el documento» no es motivo para desplegar.
+«para que cuadre el documento» no es motivo para desplegar — pero un cambio
+funcional sí lo es.
+
+> **Cronología de #805, corregida.** Se fusionó a las 19:17:35Z con **cuatro**
+> comprobaciones todavía en vuelo, y **tres de ellas eran del disparador
+> `pull_request`** (Build, Círculos, Test), no sólo duplicados de `push`
+> —que fue una. Las catorce cerraron verdes después, así que el corte no se
+> revierte, pero la descripción anterior minimizaba lo ocurrido. **Regla para
+> las próximas integraciones:** esperar a que terminen las comprobaciones del
+> HEAD final; si cambia el HEAD o la base, reevaluar la evidencia; y no tocar
+> las puertas de CI para facilitar un merge.
 
 #### Estado de cada frente
 

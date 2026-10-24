@@ -1,111 +1,127 @@
 # Piloto mínimo — propuesta para revisión
 
-**Fecha:** 2026-10-24 · **Estado:** propuesta, **no** una autorización.
-Preparada sobre lo que el entorno de staging hace hoy, medido en
-[la validación del 24-10](../informes/validacion-2026-10-24-experiencia-y-ensayo.md)
-y [la UAT del 23-10](../informes/uat-2026-10-23-cierre-staging.md).
+**Fecha:** 2026-10-24 (segunda versión) · **Estado:** propuesta, **no** una
+autorización. Nada de aquí abre rollout, publica contenido ni activa cobros.
 
-Nada de este documento abre rollout, publica contenido ni activa cobros. Son
-decisiones que hay que tomar **una por una**, y aquí quedan concretas para que
-se puedan revisar.
+Construida sobre lo que el entorno **hace**, comprobado una función a una:
+[validación del 24-10](../informes/validacion-2026-10-24-experiencia-y-ensayo.md)
+· [preparación del piloto](../informes/preparacion-piloto-2026-10-24.md) ·
+[UAT del 23-10](../informes/uat-2026-10-23-cierre-staging.md).
 
----
-
-## 1. Qué incluiría
-
-Un piloto **de lectura acompañada**, con una obra, en staging, con personas
-invitadas de una en una.
-
-| Recorrido | Por qué entra |
-| --- | --- |
-| **Registro y acceso** | Comprobado por API y por formulario. Nada lo bloquea: ningún guard exige el correo verificado, así que el alta funciona aunque el correo de verificación no salga. |
-| **Lectura de *Emociones en construcción*** | Los diez capítulos están ingeridos; el cap. 1 tiene 188 bloques reales agrupados en sus tres partes. |
-| **Progreso: salir y volver** | Verificado de extremo a extremo: el latido guarda y el progreso persiste entre sesiones. |
-| **Marcas y notas** | Resaltar y anotar funcionan, y mueven Evolución exactamente en 1 sin tocar el mapa emocional. |
-| **Diario cifrado** | El cifrado E2E está cerrado desde los sprints S21–S23, con rotación de contraseña y frase de recuperación. |
-| **Mapa Emocional** | Honesto por construcción: sin datos dice «Reuniendo datos» en vez de inventar un 50 %. |
-| **Mi Evolución** | Contadores reales, verificados con aislamiento entre cuentas. |
-| **Exportar mis datos** | El recorrido funciona de principio a fin, con su alcance declarado (ver §4). |
+**La regla que ordena la lista:** una función entra si una persona puede
+recorrerla, si ese recorrido está comprobado, si sus dependencias existen y si
+sus límites están dichos. **Que exista en la API no basta.**
 
 ---
 
-## 2. Qué quedaría fuera, y por qué
+## 1. Qué incluye, y con qué respaldo
 
-| Recorrido | Motivo |
-| --- | --- |
-| **Modo guiado** | Decisión **editorial** más decisión de **rollout**. Ver §5. |
-| **Dúo / Círculos** | Su propia puerta de rollout, que este piloto no necesita abrir. |
-| **Cobros** | Cerrados por decisión. Los importes de la landing siguen marcados como propuesta y no hay pasarela. D-ORD operativo y comercial sigue abierto. |
-| **Voz** | Depende de cuota Pro, y Pro no se vende en el piloto. Técnicamente vivo (`OPENAI_API_KEY` presente); fuera por alcance, no por avería. |
-| **Terapia** | Detrás de su flag, v2. |
-| **Móvil** | El piloto se camina en web. La app existe, pero su propia validación es otro frente. |
-| **Producción** | No desplegada en Coolify. El piloto vive en staging. |
+| Recorrido | Evidencia | Dependencias | Sus límites |
+| --- | --- | --- | --- |
+| **Registro y acceso** | Cuenta creada por el flujo normal y acceso por el formulario, comprobados el 24-10 | ninguna extra | Ningún guard exige el correo verificado, así que el alta funciona aunque el correo no salga |
+| **Lectura de *EEC*** | Capítulo 1 abierto con **188 bloques** reales; diez capítulos en sus tres partes | ninguna extra | **50 de esos 188 bloques muestran asteriscos literales** (ver §4) |
+| **Progreso: salir y volver** | Comprobado por API *y* por pantalla: «CONTINÚA TU RECORRIDO» devuelve al capítulo | ninguna extra | — |
+| **Marcas y notas** | Una anotación sube `marcasLectura` de 0 a 1, persiste y no se filtra a otra cuenta | ninguna extra | El resaltado por carácter no existe en móvil (v1 por bloque) |
+| **Diario cifrado** | Entrada escrita, releída tras reabrir sesión, y **recuperada con la frase de respaldo** tras restablecer la contraseña | ninguna extra | Sin la frase, una contraseña nueva **no** reabre el diario. La pantalla ya lo dice |
+| **Mapa Emocional** | Tras leer un capítulo sigue en **0/6** ejes: leer no fabrica emoción | ninguna extra | Necesita check-ins para encenderse; con poca historia dice «Reuniendo datos» |
+| **Mi Evolución** | Contadores reales, con aislamiento entre cuentas | ninguna extra | — |
+| **Descargar mis datos** | Recorrido completo por API (202 → `READY` en 1,17 s → URL firmada → 2 837 bytes) y **superficie web nueva** en Cuenta y privacidad | R2 | El archivo trae ocho secciones y **nombra** lo que no trae. Sin `RESEND_API_KEY` no llega el aviso de «ya está lista»: hay que consultar el estado en la pantalla |
+| **Los dos estilos y los cuatro ambientes** | Las **ocho** combinaciones recorridas con los controles reales: todas cambian, ninguna desborda, ningún texto por debajo de su piso de contraste | ninguna extra | Recorrido en panel y biblioteca; no se midió pantalla por pantalla en todo el producto |
 
 ---
 
-## 3. Integraciones, por recorrido
+## 2. Qué queda fuera, y por qué
 
-**No todas las credenciales ausentes bloquean lo mismo.** Esto es lo que cada
-una habilita, y qué recorrido se queda corto sin ella:
-
-| Integración | Estado en staging | Qué recorrido necesita |
+| Recorrido | Motivo | Qué faltaría para entrar |
 | --- | --- | --- |
-| `DATABASE_URL`, `REDIS_URL` | ✅ presentes | **Todo.** Imprescindibles. |
-| Cuarteto de **R2** | ✅ presentes | Exportación (el archivo vive ahí) y medios del lector. |
-| `ANTHROPIC_API_KEY` | ✅ presente | Conversación con Eco y la narrativa del Mapa. |
-| `OPENAI_API_KEY` | ✅ presente | Voz. Fuera del alcance del piloto. |
-| `STRIPE_*` (5 claves) | ✅ presentes, **modo test** | Nada en este piloto: los cobros están cerrados. |
-| **`RESEND_API_KEY`** | ❌ ausente | **Recuperar contraseña** (sin esto, quien la olvide queda fuera y hay que crearle otra cuenta), el **digest semanal** y el aviso de **exportación lista**. **No** bloquea registro, lectura, diario ni mapa. |
-| `GOOGLE_CLIENT_ID` | ❌ ausente, **y bien resuelto** | **Sólo** «Acceder con Google». Comprobado en el navegador: sin la clave pública, ni `/login` ni `/register` muestran el botón, ni el separador, ni la palabra «Google». El producto **no ofrece lo que no puede cumplir**, así que esto no es una decisión del piloto. |
-| `VAPID_*` | ❌ ausentes | **Sólo** push web. El conmutador avisa de que falta configurar. |
-| `SENTRY_DSN` | ❌ ausente | Ningún recorrido del usuario. Lo que se pierde es **nuestra** traza de errores: sin esto, un fallo del piloto se investiga reproduciéndolo. |
-
-**Imprescindibles para el alcance propuesto:** base, Redis, R2 y
-`ANTHROPIC_API_KEY` — ya están. **Muy recomendable:** `RESEND_API_KEY`, por la
-recuperación de contraseña, que es la diferencia entre perder a una persona del
-piloto y no perderla. **Recomendable:** `SENTRY_DSN`, para no depender de que
-el fallo se repita delante de nosotros.
+| **Eco** | Ver §4: el camino normal **no está validado** | Una conversación normal comprobada con cuenta sintética |
+| **Modo guiado** | Decisión **editorial** (publicar) más decisión de **rollout** | Las dos, en ese orden |
+| **Dúo / Círculos** | Su propia puerta de rollout | Abrirla, que este piloto no necesita |
+| **Cobros** | Cerrados por decisión; D-ORD operativo y comercial sigue abierto | Los seis criterios del ADR |
+| **Voz** | Depende de cuota Pro, y Pro no se vende aquí | Alcance, no avería: técnicamente vivo |
+| **Terapia** | Detrás de su flag, v2 | — |
+| **Móvil** | El piloto se camina en web | Su propia validación |
+| **Producción** | No desplegada en Coolify | Su propio gate |
 
 ---
 
-## 4. Cuatro cosas que no hay que confundir
+## 3. Integraciones, recorrido por recorrido
 
-El estado real de cada una, con la mitad comprobada y la mitad pendiente
-separadas:
+| Integración | Estado | Qué recorrido necesita |
+| --- | --- | --- |
+| Base, Redis, R2 | ✅ | **Todo.** Imprescindibles |
+| `ANTHROPIC_API_KEY` | ✅ | Eco y la narrativa del Mapa |
+| `OPENAI_API_KEY` | ✅ | Voz. Fuera de alcance |
+| `STRIPE_*` (5) | ✅, **modo test** | Nada aquí: los cobros están cerrados |
+| **`RESEND_API_KEY`** | ❌ | **Restablecer la contraseña por correo**, el digest semanal y el aviso de exportación lista. **No** bloquea registro, lectura, diario, mapa ni la descarga (que se consulta en pantalla) |
+| `GOOGLE_CLIENT_ID` | ❌, **bien resuelto** | Sólo «Acceder con Google». Sin la clave, ni `/login` ni `/register` muestran el botón ni la palabra: el producto no ofrece lo que no puede cumplir. **No es una decisión del piloto** |
+| `VAPID_*` | ❌ | Sólo push web |
+| `SENTRY_DSN` | ❌ | Ningún recorrido de la persona. Lo que se pierde es **nuestra** traza |
+
+### Antes de encender el correo, una precondición que nadie había visto
+
+Staging tiene **7 cuentas**: cinco sintéticas `@psico.test` —que por la
+RFC 2606 **no pueden recibir correo**— y **dos con dirección real**, las dos
+del propietario, **las dos suscritas al digest semanal**.
+
+El cron del digest corre **cada hora** y envía a quien cumpla su lunes 07:00
+local. Así que poner `RESEND_API_KEY` sin más **mandaría correo real a esas
+dos bandejas** el lunes siguiente, sin que nadie lo hubiera pedido.
+
+La preparación exacta, en este orden:
+
+1. Dar de baja del digest a las dos cuentas de dirección real, o dejar escrito
+   que se acepta recibirlo. Es la decisión del dueño de esas cuentas, no mía,
+   así que queda propuesta y no ejecutada.
+2. Sólo entonces, configurar `RESEND_API_KEY` en **API y worker**.
+3. Comprobar el envío contra una cuenta `@psico.test`, que no puede salir.
+
+---
+
+## 4. Lo que no hay que confundir
 
 | Frente | Comprobado | Pendiente |
 | --- | --- | --- |
-| **Eco** | El **error controlado**: llega por SSE, sin `delta`, sin llamar al modelo, y los hilos quedan intactos. | La **conversación normal**. No se ensayó a propósito: habría sido una llamada facturable al modelo para conseguir un PASS. Se ensaya con la primera persona del piloto, o con una llamada autorizada expresamente. |
-| **Retención** | El **planificador**: los dos crons corrieron a su hora y evaluaron el filtro por huso. | La **entrega completa**. Corrieron con `candidates=0`, así que nadie recibió nada. Sin `RESEND_API_KEY` el correo del digest no sale; el push sí podría, con `VAPID_*`. |
-| **Exportación** | El **recorrido completo**, worker incluido: 202 → `READY` en 1,17 s → URL firmada de R2 → 2 837 bytes con sus diez secciones, sin cifrado ni credenciales, y la ajena en 404. | Su **alcance**: el archivo trae ocho secciones de contenido y **nombra** lo que no trae (diario, Eco, ánimo, check-ins, resonancias, marcas, accesos). Hay además material que ni viaja ni se nombra uno a uno, inventariado en `data-export-inventory.ts` bajo **D-EXP**. Y no hay **superficie en la web**: hoy se pide y se descarga por API. |
-| **Modo guiado** | Que el **contenido existe**: cinco microguías de C01 declaradas en el catálogo de Guide. | Tres cosas distintas: la **aprobación editorial** (puerta de los ADR 0027/0028), la **disponibilidad efectiva** (`GUIDE_ROLLOUT_MODE=off`, sin allowlist) y la **UAT de ejecución**, que no se ha hecho porque no hay por dónde ejecutarla. |
+| **Eco** | El **error controlado**: llega por SSE, sin `delta`, sin llamar al modelo — cero coste | El **camino normal**. Queda fuera del piloto hasta comprobarlo; ver §2 |
+| **Retención** | El **planificador**: los crons corren y evalúan el filtro por huso | La **entrega completa**: corrieron con `candidates=0` y sin correo configurado |
+| **Exportación** | El **recorrido completo**, worker incluido, y ahora con pantalla | Su **alcance**: ocho secciones, lo ausente nombrado, y material bajo **D-EXP** que ni viaja ni se nombra una por una |
+| **Modo guiado** | Que el **contenido existe**: cinco microguías de C01 en el catálogo de Guide | La **aprobación editorial**, la **disponibilidad** (`GUIDE_ROLLOUT_MODE=off`) y su **UAT**, que no puede hacerse sin lo anterior |
+| **Lectura** | 188 bloques reales, legibles en los ocho estilos × ambientes | **50 bloques (27 %) muestran Markdown literal** — `**Idea clave:**` en vez de negrita. Ver abajo |
+
+### Los asteriscos, y por qué no se arreglan desde el lector
+
+El formato editorial del lector son **marcas estructuradas** (desplazamientos
+en `meta`), no Markdown dentro del texto. La ingesta de la Parte I guardó el
+Markdown **dentro de `content`** y sin marcas, así que el lector lo imprime
+tal cual.
+
+Quitar los asteriscos al renderizar sería peor que dejarlos: los
+**resaltados** guardan sus desplazamientos contra ese mismo `content`, y
+borrar caracteres correría todos los de después. Las marcas de la gente
+acabarían señalando otro texto.
+
+El arreglo correcto cambia el dato —contenido sin asteriscos, marcas
+equivalentes, y los desplazamientos de los resaltados existentes rebasados—
+conservando los `blockId`. Es una operación de datos sobre contenido
+editorial, con su propia ventana, y **no se hizo aquí**.
+
+**Decisión para el piloto:** o se acepta que la primera persona vea asteriscos
+en poco más de una cuarta parte del capítulo, o esa operación va antes.
 
 ---
 
-## 5. Decisiones que de verdad hacen falta
+## 5. Decisiones que hacen falta
 
-Concretas y revisables una por una. Ninguna se infiere de este cierre.
-
-1. **¿Se configura `RESEND_API_KEY` en staging?** Sin ella no sale el correo
-   de restablecimiento, así que **no hay forma de recuperar el acceso** a una
-   cuenta cuya contraseña se olvidó. *Alternativa si no:* decírselo a cada
-   persona antes de empezar, para que conserve la contraseña. Crear otra
-   cuenta **no es recuperar la anterior**: el diario de la primera sigue
-   donde estaba, cifrado, y la cuenta nueva empieza vacía.
-2. **¿Se configura `SENTRY_DSN`?** Decide si un fallo del piloto se investiga
-   con traza o por reproducción.
-3. **¿Se publica alguna microguía de C01?** Es editorial, con la puerta de los
-   ADR 0027/0028, y **no** la abre este documento. Mientras no se publique, el
-   copy actual de la landing («el modo guiado está en preparación») es exacto y
-   se conserva.
-4. **¿Se abre `GUIDE_ROLLOUT_MODE` a una allowlist?** Sólo tiene sentido
-   **después** de la decisión 3: abrir el rollout sin contenido publicado no
-   hace ejecutable nada.
-5. **¿Se añade superficie web a la exportación?** Decide si una persona del
-   piloto puede ejercer el derecho sin que nosotros intervengamos.
-6. **¿Se sube el mínimo del registro de 8 a 10 caracteres**, o se baja el del
-   re-cifrado de 10 a 8? Hoy el producto cuenta dos reglas y no explica el
-   salto. Las dos salidas son defendibles; la incoherencia no.
+1. **¿Se configura `RESEND_API_KEY`?** Con su precondición del §3. Sin ella no
+   hay restablecimiento por correo, así que **no se recupera el acceso** a una
+   cuenta cuya contraseña se olvidó. Crear otra cuenta **no es recuperarla**:
+   el diario de la primera sigue cifrado donde estaba y la nueva empieza vacía.
+2. **¿Se arreglan los asteriscos antes del piloto?** §4.
+3. **¿Se valida el camino normal de Eco?** Si no, Eco queda fuera del alcance y
+   de los criterios de salida — ya lo está en esta versión.
+4. **¿Se configura `SENTRY_DSN`?** Traza frente a reproducción.
+5. **¿Se publica alguna microguía de C01?** Editorial, ADR 0027/0028.
+6. **¿Se abre `GUIDE_ROLLOUT_MODE`?** Sólo después de la 5.
 
 ---
 
@@ -113,39 +129,39 @@ Concretas y revisables una por una. Ninguna se infiere de este cierre.
 
 ### De entrada
 
-- `main` y los artefactos servidos **identificados por separado**, con la
-  diferencia explicada (hoy: `439f5d32` vs `725df576`, sin código de runtime
-  entre medias).
-- `GET /api/health/ready` conforme. Así se ve conforme, medido el 2026-10-24:
-  `{"ready":true,"reason":"ok","pending":[],"failed":[],"shippedCount":71,"appliedCount":71}`
-  — las dos cuentas iguales es lo que importa. (El simple vive en `/health`,
-  fuera del prefijo; `/api/health` responde 404 por diseño desde el Sprint 0.A.)
-- Las decisiones 1 y 2 del §5 **tomadas**, en un sentido o en otro.
-- Una **persona a la vez**, avisada de que es staging y de que recuperar la
-  **cuenta** y recuperar el **diario** son dos cosas distintas: la cuenta
-  vuelve con el correo de restablecimiento, y el diario sólo con su **frase de
-  respaldo de 12 palabras**, que conviene guardar al crearla.
-- Cuenta creada por **registro normal**, nunca sembrada.
+- [ ] **QA autenticada completada** — hecho el 24-10: panel y lector en los dos
+      estilos × cuatro ambientes, con evidencia.
+- [ ] **Recuperación de cuenta comprobada** — hecha: restablecimiento por el
+      flujo previsto, la contraseña vieja deja de valer. *Con el correo
+      configurado hay que repetirla por su transporte real.*
+- [ ] **Recuperación del diario comprobada** — hecha: la frase de respaldo
+      devuelve el contenido original. El diario entra en el piloto.
+- [ ] **Exportación web validada** — pantalla construida y probada; **falta
+      recorrerla en staging tras desplegar**.
+- [ ] **Eco validado** — **no**. Por eso Eco está fuera del alcance.
+- [ ] **Versiones y readiness identificados** — el SHA del repositorio y el de
+      cada artefacto servido, por separado, y
+      `GET /api/health/ready` con `shippedCount == appliedCount`.
+- [ ] Decisiones 1 y 2 del §5 **tomadas**.
+- [ ] Una **persona a la vez**, avisada de que es staging, de que recuperar la
+      cuenta y recuperar el diario son cosas distintas, y de que conviene
+      guardar la frase de respaldo al crearla.
+- [ ] Cuenta creada por **registro normal**, nunca sembrada.
 
-### De salida (el piloto cumplió)
+### De salida
 
-- La persona **lee un capítulo completo**, sale y vuelve, y el progreso está
-  donde lo dejó.
-- **Marca o anota** algo y lo encuentra después.
-- **Escribe en el diario**, cierra sesión, vuelve y lo descifra.
-- **Conversa con Eco** una vez, y la respuesta es pertinente y no suplanta a
-  nadie — lo que cierra la mitad que hoy queda pendiente.
-- Ve su **Mapa** y su **Evolución** sin que ninguna cifra la sorprenda.
-- Ningún P0 ni P1 abierto de su recorrido.
+La persona **lee un capítulo completo**, sale y vuelve y el progreso está donde
+lo dejó; **marca o anota** algo y lo encuentra después; **escribe en el
+diario**, cierra sesión, vuelve y lo descifra; **pide y descarga su
+exportación** desde la pantalla; ve su **Mapa** y su **Evolución** sin que
+ninguna cifra la sorprenda. Ningún P0 ni P1 abierto de su recorrido.
 
-### De suspensión (se para y se corrige)
+**Eco no está en los criterios de salida** — no está en el alcance.
 
-- Cualquier **pérdida o corrupción** de lo que la persona escribió.
-- Cualquier aparición de **texto del diario** fuera del cliente — registro,
-  respuesta de API o correo.
-- Un **cobro** de cualquier importe.
-- Una **crisis** mal atendida: el modal que no aparece, o el número que no se
-  puede marcar.
-- Una obra retirada que **vuelva a servirse**.
-- Dos personas que **vean datos de la otra**.
-- `GET /api/health/ready` **no conforme** en mitad del piloto.
+### De suspensión
+
+Pérdida o corrupción de lo que escribió · texto del diario fuera del cliente
+(registro, respuesta o correo) · un cobro de cualquier importe · una crisis mal
+atendida (el modal que no aparece o el número que no se marca) · una obra
+retirada que vuelva a servirse · dos personas que vean datos de la otra ·
+`GET /api/health/ready` no conforme a mitad del piloto.

@@ -19,7 +19,25 @@ Psico Platform is a psychoeducation SaaS. The repo is a Turborepo monorepo manag
 
 ### Decisiones de privacidad (no negociables)
 
-- **Diario** y **conversaciones de Eco** se almacenan E2E-encrypted. El backend recibe y devuelve `textCiphertext + textNonce`, nunca texto plano. La clave del usuario se deriva del password con Argon2id en el cliente. **No** existe path de recuperación criptográfica.
+- **Diario**: E2E-encrypted de punta a punta. El backend recibe y devuelve
+  `textCiphertext + textNonce`, **nunca** texto plano. La clave del usuario se
+  deriva del password con Argon2id en el cliente. **No** existe path de
+  recuperación criptográfica.
+- **Eco**: cifrado **híbrido**, que no es lo mismo, y conviene no leerlo como
+  si lo fuera. Esta línea decía «nunca texto plano» también para Eco, y desde
+  la Sesión 26 (S10) eso es falso: el cliente envía plaintext **y**
+  ciphertext, el servidor usa el plaintext **en vuelo** para el LLM y para la
+  detección de crisis, y persiste:
+  - mensajes del **usuario** → sólo `textCiphertext + textNonce`;
+  - respuestas de **Eco** y mensajes de **crisis** → **en claro**
+    (`assistantText`), porque los genera el modelo y no hay clave de nadie
+    con la que cifrarlos de forma recuperable;
+  - títulos de hilo → cifrados, cuando el cliente los manda.
+
+  El invariante que sí se sostiene, y que tiene trinquete
+  (`eco.privacy.spec.ts`): ningún `logger.*` ni `console.*` toca
+  `textPlaintext`, `textCiphertext`, `textNonce` ni los campos del título.
+  Ver [ADR 0007 §C](docs/adr/0007-e2e-encryption-diario-eco.md).
 - **Crisis** (`/api/terapia/crisis`) es endpoint **público** sin auth. Es decisión ética: alguien en crisis no debería tener que loguearse para ver el número de la línea local.
 - **Audio de voz** (`/api/voz/transcribe`) **no se almacena**. Solo se procesa para extraer transcript y se descarta.
 
@@ -49,9 +67,20 @@ Psico Platform is a psychoeducation SaaS. The repo is a Turborepo monorepo manag
 
 **Resumen:** 14/17 áreas completas (82 %). 1 área backend-stub (Dynamic Island). 2 áreas no implementadas y no priorizadas para v1 (Rutas, Wallpapers).
 
-### Boundary v1 (lo que sí va al backend ahora)
+> **Ese 82 % está fechado el 2026-06-13 y mide SUPERFICIE construida, no
+> producto listo.** Es anterior al programa V2 del Mapa Emocional (fases A–H),
+> a la migración a Coolify y a la puerta editorial de los ADR 0027/0028. Que
+> un área figure «completa» quiere decir que sus pantallas y endpoints
+> existen — no que su contenido esté publicado, ni que su promesa pública
+> esté comprobada. Para saber qué sirve hoy, se mira el entorno; para saber
+> qué promete, el copy; y las dos cosas se comprueban por separado.
 
-Orden sugerido para los próximos sprints, alineado con `docs/design/handoff/99-endpoints.md`:
+### Boundary v1 — orden de sprints de 2026-05, ya ejecutado
+
+> **Histórico, no una instrucción vigente.** Los nueve puntos de abajo se
+> completaron entre las sesiones 9 y 35; se conservan porque explican por qué
+> los módulos quedaron en el orden en que están. Para lo que viene ahora, el
+> roadmap vivo está al final de este archivo y en `docs/ROADMAP.md`.
 
 1. **Cerrar UsersModule** — surface de perfil, prefs, notifs, privacy. Pre-requisito de todo.
 2. **HomeModule** — `/api/home` agrega de varios módulos para devolver el dashboard en una sola request.
@@ -141,7 +170,7 @@ Hoy, lo que sirve a los usuarios:
 | Target     | Platform | Notes                                            |
 | ---------- | -------- | ------------------------------------------------ |
 | `apps/api` | Railway  | PostgreSQL and Redis also provisioned on Railway |
-| `apps/web` | Vercel   | Connected to the `main` branch. Cuándo se despliega: [docs/operations/web-deployment-policy.md](docs/operations/web-deployment-policy.md) |
+| `apps/web` | Vercel   | **Ya no despliega solo**: el autodespliegue desde `main` está apagado desde el 2026-10-01 y Vercel queda como respaldo congelado. Cuándo se despliega: [docs/operations/web-deployment-policy.md](docs/operations/web-deployment-policy.md) |
 
 Railway y Vercel **siguen encendidos y son el respaldo** durante todo el cutover. No
 se borra ningún proyecto, base, dominio ni variable suya hasta que se cumplan los seis
@@ -3463,6 +3492,25 @@ más el copy de respaldo dejan de abrir con el nombre de pila del autor de demo.
   #794, el commit que staging sirve); lo que falta es contenido publicado, retenido por
   la puerta editorial de los ADR 0027/0028. No es defecto de código: es una promesa en
   presente que el despliegue no sostiene.
+
+  > **⚠ Corregido el 2026-10-24.** El párrafo de arriba se conserva como se
+  > escribió, y su conclusión es **falsa**. Contar
+  > `ChapterExperienceVersion` mide **una sola** de las dos fuentes: el
+  > repositorio de experiencias es híbrido y también resuelve **en código**, de
+  > modo que con la tabla vacía
+  > `GET /api/experiences/discovery/emociones-en-construccion/1` devuelve **un**
+  > recorrido. Peor: ese recuento **no habla de las cinco microguías** de la
+  > landing, que viven en el catálogo de **Guide** y **sí existen**
+  > (`eec-c1-teorias-como-lentes@1`, `…rostro-como-pista@1`,
+  > `…alarma-antes-del-relato@1`, `…emocion-informa-no-manda@1`,
+  > `…construida-no-significa-falsa@1`). La experiencia legado
+  > `eec-c1-cuerpo-antes-que-mente@1` no es ninguna de esas cinco y está
+  > **retirada para nuevos inicios** —su paso `CATALOG_PRACTICE` ancla a un
+  > encabezado que el manuscrito canónico ya no tiene—, así que **abrir el
+  > rollout no la haría ejecutable**. Lo que cierra el modo guiado hoy es el
+  > rollout: `GUIDE_ROLLOUT_MODE = off`, sin allowlist de piloto. `available`
+  > describe al actor que pregunta; el modo efectivo es del entorno. Detalle
+  > en `docs/informes/uat-2026-10-22-lector-staging.md`.
 - **El nombre de fixture sobrevive en `Book.summary` de *EEC***, que el repositorio ya
   prohíbe (`seed-authorship.spec.ts:144`). Misma forma que el defecto de publicación:
   el arreglo vive en el seed y la fila alojada conserva el texto viejo. **La reparación

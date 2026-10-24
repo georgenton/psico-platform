@@ -87,7 +87,10 @@ export function ResolveRowActions({ row }: { row: PulsoReportRow }) {
         {error ? (
           <span
             className="w-full rounded-lg px-2 py-1 text-[11px]"
-            style={{ background: "#FEE2E2", color: "#B91C1C" }}
+            style={{
+              background: "var(--color-error-bg)",
+              color: "var(--color-error-text)",
+            }}
           >
             {error}
           </span>
@@ -149,7 +152,10 @@ export function ResolveRowActions({ row }: { row: PulsoReportRow }) {
         {error ? (
           <span
             className="ml-auto rounded-lg px-2 py-1 text-[11px]"
-            style={{ background: "#FEE2E2", color: "#B91C1C" }}
+            style={{
+              background: "var(--color-error-bg)",
+              color: "var(--color-error-text)",
+            }}
           >
             {error}
           </span>

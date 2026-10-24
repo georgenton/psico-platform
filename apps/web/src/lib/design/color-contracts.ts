@@ -140,6 +140,37 @@ export const CONTRATOS: readonly ContratoDePar[] = [
     usadoEn: "los avisos de error (#741 — no dejar que se rompa otra vez)",
     alcance: "ambos",
   },
+  {
+    nombre: "AUXILIAR SOBRE TARJETA",
+    fg: "var(--fv-muted)",
+    bg: "var(--fv-surface)",
+    tamano: "normal",
+    usadoEn:
+      "el texto auxiliar de 11 px del modal de crisis —«Si no estás en " +
+      "Ecuador…» y el enlace a findahelpline.com, que hereda su color— sobre " +
+      "la superficie de la tarjeta. Venía de `--color-warm-500`, que es una " +
+      "RAMPA: este mismo archivo prohíbe que un contrato apunte a una, así " +
+      "que ese texto no tenía suelo vigilado. El cambio es de garantía, no " +
+      "de contraste — medido: Noche 5,99 → 7,10, Calma igual, Enfoque " +
+      "6,93 → 5,29 y Energía 5,85 → 5,29, con los ocho estados por encima " +
+      "de 4,5 antes y después",
+    alcance: "ambos",
+  },
+  {
+    nombre: "ERROR · losa",
+    fg: "var(--color-error-text)",
+    bg: "var(--color-error-bg)",
+    tamano: "normal",
+    usadoEn:
+      "la tinta sobre el BLOQUE de error, no sobre el panel: el modal de " +
+      "crisis, la burbuja de crisis de Eco y los avisos de notificaciones. " +
+      "Antes el bloque iba escrito a mano en `#FEE2E2` con borde `#FCA5A5`, " +
+      "y eso no es sólo cuestión de contraste interno —ahí medía 5,30— sino " +
+      "una losa de luminancia 0,810 sobre la página de Noche, que mide 0,006. " +
+      "Con el par del sistema el bloque acompaña a la pantalla y la tinta sube " +
+      "a 8,50 en Noche y a 5,91 en Calma",
+    alcance: "ambos",
+  },
 ];
 
 /**

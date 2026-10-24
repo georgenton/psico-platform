@@ -127,7 +127,10 @@ export function WebPushToggle({
           {phase.kind === "error" ? (
             <p
               className="mt-2 rounded-lg px-2 py-1 text-[11.5px]"
-              style={{ background: "#FEE2E2", color: "#B91C1C" }}
+              style={{
+                background: "var(--color-error-bg)",
+                color: "var(--color-error-text)",
+              }}
             >
               {phase.msg}
             </p>

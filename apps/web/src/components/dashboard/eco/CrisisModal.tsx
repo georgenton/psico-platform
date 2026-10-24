@@ -1,5 +1,7 @@
 "use client";
 
+import { dialableHotline } from "@psico/types";
+
 /**
  * CrisisModal — Sprint front-eco.
  *
@@ -27,6 +29,13 @@ export function CrisisModal({
   crisisPath: string;
   onClose: () => void;
 }) {
+  // Derivado, no escrito a mano en el JSX. El saneador anterior
+  // —`hotline.replace(/\s|\(.+?\)/g, "")`— descartaba justo la forma
+  // numérica de la línea real: «1800-4-SALUD (1800-472583)» salía como
+  // `tel:1800-4-SALUD`, letras en el único botón donde una pulsación tiene
+  // que funcionar a la primera.
+  const marcable = dialableHotline(hotline);
+
   return (
     <div
       role="alertdialog"
@@ -35,12 +44,19 @@ export function CrisisModal({
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
     >
       <div
-        className="w-full max-w-md overflow-hidden rounded-3xl bg-white"
-        style={{ border: "1.5px solid #FCA5A5" }}
+        className="w-full max-w-md overflow-hidden rounded-3xl"
+        style={{
+          background: "var(--fv-surface)",
+          border: "1.5px solid var(--color-error-border)",
+        }}
       >
-        <div className="px-6 pt-6 pb-3" style={{ background: "#FEE2E2" }}>
+        <div
+          className="px-6 pt-6 pb-3"
+          style={{ background: "var(--color-error-bg)" }}
+        >
           <div
-            className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-white"
+            className="mx-auto flex h-12 w-12 items-center justify-center rounded-full"
+            style={{ background: "var(--fv-surface)" }}
             aria-hidden
           >
             <span className="text-2xl">💛</span>
@@ -48,7 +64,7 @@ export function CrisisModal({
           <h2
             id="crisis-title"
             className="mt-3 text-center text-[18px] font-bold"
-            style={{ color: "#7F1D1D" }}
+            style={{ color: "var(--color-error-text)" }}
           >
             Estamos contigo
           </h2>
@@ -61,18 +77,33 @@ export function CrisisModal({
             {text}
           </p>
 
-          <a
-            href={`tel:${hotline.replace(/\s|\(.+?\)/g, "")}`}
-            className="mt-5 block w-full rounded-2xl px-5 py-3 text-center text-sm font-bold text-white"
-            style={{ background: "#B91C1C" }}
-          >
-            📞 Llamar ahora · {hotline}
-          </a>
+          {marcable ? (
+            <a
+              href={`tel:${marcable}`}
+              className="mt-5 block w-full rounded-2xl px-5 py-3 text-center text-sm font-bold text-white"
+              style={{ background: "#B91C1C" }}
+            >
+              📞 Llamar ahora · {hotline}
+            </a>
+          ) : (
+            // Sin forma marcable no se finge un enlace: un `tel:` muerto en
+            // esta pantalla parece ayuda y no hace nada. Se muestra la línea
+            // tal cual, que es lo que alguien puede teclear.
+            <p
+              className="mt-5 block w-full rounded-2xl px-5 py-3 text-center text-sm font-bold text-white"
+              style={{ background: "#B91C1C" }}
+            >
+              📞 Llama al {hotline}
+            </p>
+          )}
 
           <button
             type="button"
             onClick={onClose}
-            className="mt-3 block w-full rounded-2xl px-5 py-2.5 text-center text-sm font-semibold"
+            // `py-3` y no `py-2.5`: con el relleno anterior el control medía
+            // 40 px y el objetivo táctil del proyecto son 44. Es el mismo
+            // relleno que ya tiene el botón de llamada, que mide 44 justos.
+            className="mt-3 block w-full rounded-2xl px-5 py-3 text-center text-sm font-semibold"
             style={{
               background: "var(--color-warm-100)",
               color: "var(--color-warm-700)",
@@ -83,7 +114,27 @@ export function CrisisModal({
 
           <p
             className="mt-4 text-center text-[11px]"
-            style={{ color: "var(--color-warm-500)" }}
+            // `--fv-muted` en vez de `--color-warm-500`, y la razón NO es
+            // el contraste: es que una rampa no promete nada.
+            //
+            // Conviene decirlo así porque la medida, sola, no sostiene el
+            // cambio. En el panel, sobre la superficie de la tarjeta:
+            // Noche 5,99 → 7,10 · Calma sin cambio · Enfoque 6,93 → 5,29 y
+            // 6,05 · Energía 5,85 → 5,29 y 6,05. Mejora uno y empeora dos, y
+            // los ocho estados estaban ya por encima de 4,5 antes y después.
+            // Como reparación de contraste, no lo es.
+            //
+            // Lo que sí cambia es la garantía. `--color-warm-500` es un valor
+            // de rampa: `color-contracts.ts` prohíbe expresamente que un
+            // contrato apunte a una —«las rampas no prometen nada, y por eso
+            // no se prueban»—, así que este texto no tenía ningún suelo
+            // vigilado y su valor puede moverse por tema y por ambiente sin
+            // que nada lo note. `--fv-muted` es el token auxiliar del sistema
+            // aprobado, está bajo contrato y se mide en los ocho estados.
+            //
+            // Se cambia por eso, y se declara como alineación con el sistema,
+            // no como arreglo de un incumplimiento que no existía.
+            style={{ color: "var(--fv-muted)" }}
           >
             Si no estás en Ecuador, busca tu línea local — los números
             internacionales están en{" "}

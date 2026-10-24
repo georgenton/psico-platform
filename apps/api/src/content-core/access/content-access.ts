@@ -141,13 +141,26 @@ export type AccessDb = Pick<
   | "edition"
 >;
 
-/** Resolve `bookId + plan` from a book slug (manifest gate + book-level checks). */
+/**
+ * Resolve `bookId + plan` from a book slug (manifest gate + book-level checks).
+ *
+ * Y la publicación, que faltaba. Esta función es la puerta del manifiesto de
+ * Content Core y del manifiesto de medios, y comprobaba existencia y plan
+ * pero no si el libro estaba publicado: un libro retirado devolvía su
+ * manifiesto por la dirección a cualquiera que la supiera. Medido por HTTP en
+ * `books-availability.e2e-spec.ts`.
+ *
+ * El filtro es seguro aquí porque esta función YA exige una fila `Book`: es
+ * el camino legado, no el nativo. Una edición nativa independiente no pasa por
+ * aquí y no se ve afectada — su publicación la decide el estado de su
+ * revisión, que es otra cosa y vive en otro sitio.
+ */
 export async function resolveBookTarget(
   db: AccessDb,
   bookSlug: string,
 ): Promise<{ bookId: string; bookPlan: string }> {
-  const book = await db.book.findUnique({
-    where: { slug: bookSlug },
+  const book = await db.book.findFirst({
+    where: { slug: bookSlug, isPublished: true },
     select: { id: true, plan: true },
   });
   if (!book) throw new NotFoundException("BOOK_NOT_FOUND");
@@ -189,13 +202,46 @@ export async function resolveUnitTarget(
   if (!edition) return resolveUnitTargetFromKeySuffix(db, editionKey, unitKey);
 
   if (edition.accessPlan !== null) {
-    // Native path: Content Core answers entirely from its own rows. No Book, no
-    // Chapter, no assumption about how the key is spelled.
+    // Native path: entitlement comes from Content Core's own rows. No Chapter,
+    // no assumption about how the key is spelled.
     const unit = await db.contentUnit.findFirst({
       where: { editionId: edition.id, unitKey },
       select: { isFreePreview: true },
     });
     if (!unit) throw new NotFoundException("UNIT_NOT_FOUND");
+
+    // ── Y la publicación del libro, cuando hay libro ────────────────────
+    //
+    // «Nativo» aquí NO quiere decir «sin `Book`». `accessPlan` lo escribe el
+    // backfill a partir de `book.plan` (`backfill.ts`), y la migración
+    // `20260810040000_content_core_native_entitlements` lo hizo para TODAS
+    // las ediciones preexistentes, así que todo libro legado con backfill
+    // entra por esta rama. Comprobado contra staging: las dos ediciones que
+    // existen —incluida la obra que la decisión editorial retiene— tienen
+    // `accessPlan` y revisión publicada.
+    //
+    // El resultado era que el gate del manifiesto cerraba la puerta y ESTA la
+    // dejaba abierta para la misma edición: la lectura por `unitKey` servía
+    // el texto completo de una obra retirada. El `unitKey` no es un secreto
+    // —es `uuidv5` del id del capítulo con un espacio de nombres publicado en
+    // este repositorio, y el propio lector lo entrega a todo cliente—, así
+    // que «la clave la tenía quien abrió el libro mientras estaba publicado»
+    // es precisamente el enlace que circuló.
+    //
+    // La consulta es por slug y TOLERA la ausencia: una edición nativa pura,
+    // sin fila `Book`, no gana aquí ninguna exigencia nueva. Lo que gana la
+    // edición adoptada es la misma respuesta que ya daban las otras puertas
+    // sobre el mismo libro.
+    const libro = await db.book.findUnique({
+      where: { slug: edition.slug },
+      select: { isPublished: true },
+    });
+    if (libro && !libro.isPublished) {
+      // Opaca y del mismo tipo que una unidad inexistente: quien no tiene
+      // derecho no debe poder distinguir «retirada» de «no existe».
+      throw new NotFoundException("UNIT_NOT_FOUND");
+    }
+
     return {
       bookId: null,
       bookPlan: edition.accessPlan,
@@ -271,8 +317,12 @@ async function resolveUnitTargetFromLegacy(
   editionSlug: string,
   unitKey: string,
 ): Promise<ContentEntitlementTarget> {
-  const book = await db.book.findUnique({
-    where: { slug: editionSlug },
+  // La publicación cuenta también por este camino. Es el respaldo legado —ya
+  // exige una fila `Book`— y sin el filtro servía el texto de un libro
+  // retirado a quien pidiera su unidad por la clave derivada. La negativa es
+  // la misma que para una edición inexistente, a propósito.
+  const book = await db.book.findFirst({
+    where: { slug: editionSlug, isPublished: true },
     select: { id: true, plan: true },
   });
   if (!book) throw new NotFoundException("EDITION_NOT_FOUND");

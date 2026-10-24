@@ -71,7 +71,12 @@ suite("#580 · adoption is one-way, and the preview is singular", () => {
 
     // An ordinary production-shaped PRO book: two chapters, backfilled.
     const book = await prisma.book.create({
-      data: { slug: "libro-pro", title: "Libro", plan: "PRO" },
+      data: {
+        slug: "libro-pro",
+        title: "Libro",
+        isPublished: true,
+        plan: "PRO",
+      },
     });
     const ch1 = await prisma.chapter.create({
       data: { bookId: book.id, order: 1, title: "Uno" },

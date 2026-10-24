@@ -73,6 +73,28 @@ import type { LectorSessionHeartbeatDto } from "./dto/heartbeat.dto";
  */
 export const CHAPTER_AUDIO_SIGNED_URL_TTL_SEC = 60 * 60 * 6;
 
+/**
+ * Un libro se abre si está publicado, se llegue por id o por slug.
+ *
+ * El lector resolvía con `OR: [{ id }, { slug }]` y nada más, así que un
+ * enlace directo abría los capítulos de un libro retirado — la lista lo
+ * ocultaba y la dirección lo servía igual. Medido por HTTP en
+ * `books-availability.e2e-spec.ts`.
+ *
+ * La guarda es de PUBLICACIÓN, no de derechos: el plan y la vista previa
+ * siguen decidiéndose después, donde ya se decidían. Y no toca la
+ * continuidad histórica, que no pasa por aquí: un recorrido ya empezado se
+ * recupera por su propia ruta, por identidad exacta.
+ *
+ * Tampoco convierte un avance en autorización. Quien leyó antes conserva sus
+ * filas —no se borra historial— y aun así no abre el libro: tener progreso no
+ * es un derecho de lectura sobre todo el libro.
+ */
+const LIBRO_LEGIBLE = (bookIdOrSlug: string) => ({
+  OR: [{ id: bookIdOrSlug }, { slug: bookIdOrSlug }],
+  isPublished: true,
+});
+
 @Injectable()
 export class LectorService {
   constructor(
@@ -92,7 +114,7 @@ export class LectorService {
   ): Promise<LectorChapterResponse> {
     // Accept either CUID or slug — the front routes by slug, the editor by id.
     const book = await this.prisma.book.findFirst({
-      where: { OR: [{ id: bookIdOrSlug }, { slug: bookIdOrSlug }] },
+      where: LIBRO_LEGIBLE(bookIdOrSlug),
       include: { author: true },
     });
     if (!book) throw new NotFoundException("BOOK_NOT_FOUND");
@@ -801,7 +823,7 @@ export class LectorService {
     assertSingleWriteIdentity({ chapterId, contentUnitId });
 
     const book = await this.prisma.book.findFirst({
-      where: { OR: [{ id: bookIdOrSlug }, { slug: bookIdOrSlug }] },
+      where: LIBRO_LEGIBLE(bookIdOrSlug),
       select: { id: true, slug: true, totalChapters: true },
     });
     if (!book) throw new NotFoundException("BOOK_NOT_FOUND");
@@ -962,7 +984,7 @@ export class LectorService {
     chapterOrder: number,
   ): Promise<{ readerRef: ReaderChapterRef; bookSlug: string }> {
     const book = await this.prisma.book.findFirst({
-      where: { OR: [{ id: bookIdOrSlug }, { slug: bookIdOrSlug }] },
+      where: LIBRO_LEGIBLE(bookIdOrSlug),
       select: { id: true, slug: true },
     });
     if (!book) throw new NotFoundException("BOOK_NOT_FOUND");
@@ -1043,7 +1065,7 @@ export class LectorService {
     ref: ReaderChapterRef,
   ): Promise<LectorChapterResponse> {
     const book = await this.prisma.book.findFirst({
-      where: { OR: [{ id: bookIdOrSlug }, { slug: bookIdOrSlug }] },
+      where: LIBRO_LEGIBLE(bookIdOrSlug),
       include: { author: true },
     });
     if (!book) throw new NotFoundException("BOOK_NOT_FOUND");
@@ -1083,7 +1105,7 @@ export class LectorService {
     if (userPlan === "FREE") throw new ForbiddenException("PRO_REQUIRED");
 
     const book = await this.prisma.book.findFirst({
-      where: { OR: [{ id: bookIdOrSlug }, { slug: bookIdOrSlug }] },
+      where: LIBRO_LEGIBLE(bookIdOrSlug),
       select: {
         id: true,
         title: true,

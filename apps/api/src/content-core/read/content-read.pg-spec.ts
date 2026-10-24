@@ -62,7 +62,7 @@ suite("Content Core · CC-6A read adapter dual-read (real PostgreSQL)", () => {
     prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
 
     const book = await prisma.book.create({
-      data: { slug: "read-book", title: "Read" },
+      data: { slug: "read-book", title: "Read", isPublished: true },
     });
     const ch = await prisma.chapter.create({
       data: { bookId: book.id, order: 1, title: "Capítulo uno" },
@@ -121,7 +121,7 @@ suite("Content Core · CC-6A read adapter dual-read (real PostgreSQL)", () => {
 
   it("falls back to legacy for a book that was never backfilled", async () => {
     const book = await prisma.book.create({
-      data: { slug: "solo-legacy", title: "Solo" },
+      data: { slug: "solo-legacy", title: "Solo", isPublished: true },
     });
     const ch = await prisma.chapter.create({
       data: { bookId: book.id, order: 1, title: "L" },

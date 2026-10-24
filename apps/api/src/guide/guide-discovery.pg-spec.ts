@@ -103,7 +103,7 @@ suite("C.3R · discovery resolves the reader's unit from the manifest", () => {
       const heading =
         EXERCISE_INGESTION_CATALOG[slug][0].practice.sourceHeading;
       const book = await prisma.book.create({
-        data: { slug, title: slug, plan: "FREE" },
+        data: { slug, title: slug, plan: "FREE", isPublished: true },
       });
       for (const c of [
         { order: first, heading },

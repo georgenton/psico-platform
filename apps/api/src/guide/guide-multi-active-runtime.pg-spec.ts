@@ -117,7 +117,7 @@ suite("C.0B2 · the runtime under two ACTIVE lineages", () => {
       [BOOK_B, "Parejas que Perduran", HEADING_B, 2],
     ] as const) {
       const book = await prisma.book.create({
-        data: { slug, title, plan: "FREE" },
+        data: { slug, title, plan: "FREE", isPublished: true },
       });
       const ch = await prisma.chapter.create({
         data: {

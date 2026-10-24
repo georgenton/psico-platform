@@ -191,6 +191,7 @@ suite("CC-7.4D · Guide full-stack emotional firewall", () => {
     const book = await prisma.book.create({
       data: {
         slug: BOOK_SLUG,
+        isPublished: true,
         title: "Emociones en Construcción",
         plan: "FREE",
       },

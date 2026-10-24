@@ -139,6 +139,7 @@ suite("CC-7.4D · Guide HTTP surface (real app + real PostgreSQL)", () => {
     const book = await prisma.book.create({
       data: {
         slug: BOOK_SLUG,
+        isPublished: true,
         title: "Emociones en Construcción",
         plan: "FREE",
       },

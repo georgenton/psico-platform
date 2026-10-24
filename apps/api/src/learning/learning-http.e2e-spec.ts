@@ -62,11 +62,18 @@ describe("CC-7.3 · learning HTTP surface (E2E)", () => {
     h.prisma.revisionUnit.findUnique.mockResolvedValue({
       revision: { id: "rev-1", number: 1 },
     });
-    h.prisma.book.findUnique.mockResolvedValue({
-      id: "b-1",
-      slug: "libro",
-      plan: opts.plan ?? "FREE",
-    });
+    // Dos consultas distintas sobre el mismo libro, y ahora no usan el mismo
+    // método. El resolutor del catálogo de aprendizaje sigue con `findUnique`;
+    // la comprobación de derechos pasa por `resolveUnitTarget`, cuyo respaldo
+    // legado ya filtra por publicación y por eso usa `findFirst`.
+    //
+    // La consecuencia de ese filtro, dicha explícitamente: registrar
+    // aprendizaje nuevo sobre un libro retirado deja de ser posible, igual que
+    // leerlo. Es la misma decisión, no una añadida: un evento de aprendizaje
+    // comprueba derechos de lectura antes de escribirse.
+    const libro = { id: "b-1", slug: "libro", plan: opts.plan ?? "FREE" };
+    h.prisma.book.findUnique.mockResolvedValue(libro);
+    h.prisma.book.findFirst.mockResolvedValue(libro);
     h.prisma.chapter.findMany.mockResolvedValue([
       { id: CH_ID, order: opts.chapterOrder ?? 1 },
     ]);

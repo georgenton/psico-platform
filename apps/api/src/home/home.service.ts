@@ -448,12 +448,19 @@ export class HomeService {
             slug: true,
             title: true,
             cover: true,
+            isPublished: true,
             author: { select: { name: true } },
           },
         },
       },
     });
     if (!chapter) return null;
+    // Una obra retirada ya no se puede abrir: el lector responde 404 desde
+    // que la frontera se cerró. Ofrecer la tarjeta sería ofrecer un enlace
+    // muerto en la pantalla de inicio — peor que no ofrecer nada, porque
+    // parece que se puede seguir leyendo. El registro de lectura queda
+    // intacto; lo que desaparece es la invitación.
+    if (!chapter.book.isPublished) return null;
     return {
       bookId: chapter.book.id,
       bookSlug: chapter.book.slug,
@@ -500,11 +507,20 @@ export class HomeService {
 
     const book = await this.prisma.book.findUnique({
       where: { slug: unit.edition.slug },
-      select: { id: true, title: true, cover: true, author: true },
+      select: {
+        id: true,
+        title: true,
+        cover: true,
+        isPublished: true,
+        author: true,
+      },
     });
     // Pure-core BOOKS are a later block; with no Book row there is nothing
     // truthful to put on the card.
     if (!book) return null;
+    // Y lo mismo que en el camino legado: retirada la obra, la tarjeta
+    // llevaría a un 404.
+    if (!book.isPublished) return null;
 
     return {
       bookId: book.id,

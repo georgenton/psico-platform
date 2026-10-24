@@ -102,8 +102,13 @@ export class ChapterMediaService {
     bookIdOrSlug: string,
     chapterOrder: number,
   ): Promise<ChapterMediaManifestResponse> {
+    // La publicación, por la misma razón que en el lector: este manifiesto
+    // resuelve el libro por su cuenta y no pasaba por la guarda de allí.
     const book = await this.prisma.book.findFirst({
-      where: { OR: [{ id: bookIdOrSlug }, { slug: bookIdOrSlug }] },
+      where: {
+        OR: [{ id: bookIdOrSlug }, { slug: bookIdOrSlug }],
+        isPublished: true,
+      },
       select: { id: true, slug: true },
     });
     if (!book) throw new NotFoundException("BOOK_NOT_FOUND");
@@ -308,8 +313,10 @@ export class ChapterMediaService {
     userPlan: Plan,
     def: ChapterMediaDefinition,
   ): Promise<void> {
-    const book = await this.prisma.book.findUnique({
-      where: { slug: def.bookSlug },
+    // Y en la concesión de acceso, que es la que firma una URL: un libro
+    // retirado no debe llegar a generar ninguna.
+    const book = await this.prisma.book.findFirst({
+      where: { slug: def.bookSlug, isPublished: true },
       select: { id: true },
     });
     if (!book) throw new NotFoundException("BOOK_NOT_FOUND");

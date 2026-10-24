@@ -21,12 +21,53 @@ import { parsePracticeCatalogContent } from "./practice-content";
 export class PracticeViewService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   * ¿La obra dueña de esta práctica se está ofreciendo?
+   *
+   * El manejador no tomaba usuario, no resolvía libro y no preguntaba nada:
+   * devolvía título e interacción de cualquier `Exercise.id`. Y ese id ES la
+   * clave del catálogo, escrita literalmente en este repositorio público
+   * (`exercise-ingestion-catalog.ts`), así que entra por «ID» en la matriz de
+   * disponibilidad: cualquiera con sesión los adivina leyendo GitHub.
+   *
+   * Tolera la ausencia de libro en los dos caminos: una práctica de una
+   * edición nativa pura no gana aquí ninguna exigencia nueva.
+   */
+  private async obraOfrecida(row: {
+    chapter: { book: { isPublished: boolean } } | null;
+    contentUnit: { edition: { slug: string } } | null;
+  }): Promise<boolean> {
+    if (row.chapter) return row.chapter.book.isPublished;
+    if (!row.contentUnit) return true;
+    const libro = await this.prisma.book.findUnique({
+      where: { slug: row.contentUnit.edition.slug },
+      select: { isPublished: true },
+    });
+    return libro ? libro.isPublished : true;
+  }
+
   async getPublicView(exerciseKey: string): Promise<PracticePublicView> {
     const row = await this.prisma.exercise.findUnique({
       where: { id: exerciseKey },
-      select: { id: true, title: true, type: true, content: true },
+      select: {
+        id: true,
+        title: true,
+        type: true,
+        content: true,
+        // La obra a la que pertenece, por cualquiera de sus dos dueños.
+        chapter: { select: { book: { select: { isPublished: true } } } },
+        contentUnit: { select: { edition: { select: { slug: true } } } },
+      },
     });
     if (!row || row.type !== "REFLECTION") {
+      throw new NotFoundException({
+        code: "PRACTICE_NOT_FOUND",
+        message: "Esa práctica no existe.",
+      });
+    }
+    if (!(await this.obraOfrecida(row))) {
+      // Misma respuesta que una práctica inexistente: quien no tiene derecho
+      // no debe poder distinguir «retirada» de «no existe».
       throw new NotFoundException({
         code: "PRACTICE_NOT_FOUND",
         message: "Esa práctica no existe.",

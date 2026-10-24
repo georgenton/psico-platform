@@ -182,7 +182,7 @@ suite("GR-2 · chapter media completion (real PostgreSQL)", () => {
 
     // A PRO book so chapter 1 is the free preview and chapter 2 is gated.
     const book = await prisma.book.create({
-      data: { slug: BOOK_SLUG, title: "GR2 Media", plan: "PRO" },
+      data: { slug: BOOK_SLUG, title: "GR2 Media", plan: "PRO", isPublished: true },
     });
     const mkChapter = async (order: number) => {
       const ch = await prisma.chapter.create({

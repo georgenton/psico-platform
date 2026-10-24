@@ -91,6 +91,7 @@ function continueFromLegacy(
       title: "Libro",
       cover: "warm",
       author: { name: "A" },
+      isPublished: true,
     },
   });
   prisma.chapter.findMany.mockResolvedValue([
@@ -129,6 +130,7 @@ function continueFromNative(
     title: "Libro",
     cover: "warm",
     author: { name: "A" },
+    isPublished: true,
   });
   prisma.edition.findMany.mockResolvedValue([
     { slug: "libro", publishedRevisionId: "rev-pub" },
@@ -276,6 +278,7 @@ describe("HomeService.getHome", () => {
         title: "Emociones",
         cover: "warm",
         author: { name: "Marina Quintana" },
+        isPublished: true,
       },
     });
     prisma.chapter.findMany.mockResolvedValue([
@@ -351,6 +354,7 @@ describe("HomeService.getHome", () => {
         title: "Parejas que perduran",
         cover: "warm",
         author: { name: "David Jaramillo" },
+        isPublished: true,
       },
     });
     prisma.chapter.findMany.mockResolvedValue([
@@ -444,6 +448,7 @@ describe("HomeService.getHome", () => {
         title: "Libro",
         cover: "warm",
         author: { name: "A" },
+        isPublished: true,
       });
     };
 

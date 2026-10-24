@@ -155,6 +155,7 @@ suite("native reader · a chapter with no legacy Chapter row", () => {
       data: {
         slug: "libro-nativo",
         title: "Libro",
+        isPublished: true,
         plan: "PRO",
         totalChapters: 2,
       },

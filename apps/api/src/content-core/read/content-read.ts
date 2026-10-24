@@ -198,7 +198,18 @@ async function buildLegacyRead(
     throw new NotFoundException("EDITION_NOT_FOUND");
   }
   const slug = editionKey.slice(0, -EDITION_KEY_SUFFIX.length);
-  const book = await prisma.book.findUnique({ where: { slug } });
+  // La publicación, también aquí. Cerrar la frontera de AUTORIZACIÓN no cierra
+  // la de LECTURA, y son dos: una edición adoptada —con `accessPlan`, así que
+  // su permiso se resuelve por la rama nativa y no mira `Book`— pero sin
+  // revisión publicada aterriza en este respaldo, que encontraba el libro por
+  // su slug y devolvía sus bloques. Medido por HTTP en
+  // `books-availability.e2e-spec.ts`.
+  //
+  // El filtro vive dentro del respaldo legado, que YA exige una fila `Book`:
+  // no impone ninguna a las ediciones nativas, que no pasan por aquí.
+  const book = await prisma.book.findFirst({
+    where: { slug, isPublished: true },
+  });
   if (!book) throw new NotFoundException("EDITION_NOT_FOUND");
 
   const chapters = await prisma.chapter.findMany({

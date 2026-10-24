@@ -73,7 +73,13 @@ suite("stable write identity is fail-closed", () => {
 
     // Book A: legacy chapter at 1, NATIVE at 2.
     const book = await prisma.book.create({
-      data: { slug: SLUG, title: "Libro", plan: "FREE", totalChapters: 2 },
+      data: {
+        slug: SLUG,
+        title: "Libro",
+        isPublished: true,
+        plan: "FREE",
+        totalChapters: 2,
+      },
     });
     bookId = book.id;
     const ch1 = await prisma.chapter.create({
@@ -148,6 +154,7 @@ suite("stable write identity is fail-closed", () => {
       data: {
         slug: OTHER_SLUG,
         title: "Otro",
+        isPublished: true,
         plan: "FREE",
         totalChapters: 1,
       },

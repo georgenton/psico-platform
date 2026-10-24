@@ -122,7 +122,11 @@ describe("DatabaseExperienceDefinitionRepository", () => {
   it("keeps a draft out of what Chapter Home discovers", async () => {
     // The same claim, through the service the reader's surface actually calls.
     prisma.chapterExperienceVersion.findMany.mockResolvedValue([]);
-    const discovery = new ExperienceDiscoveryService(repo);
+    // El doble de Prisma lleva `book` porque el descubrimiento comprueba
+    // ahora la publicación de la obra antes de ofrecer nada.
+    const discovery = new ExperienceDiscoveryService(repo, {
+      book: { findUnique: async () => ({ isPublished: true }) },
+    } as never);
 
     const offered = await discovery.listPublishedForChapter({
       bookSlug: "emociones-en-construccion",

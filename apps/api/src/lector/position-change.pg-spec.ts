@@ -99,7 +99,13 @@ suite("a NATIVE chapter that moves", () => {
       data: { id: USER, email: "nmove@test.local", name: "N" },
     });
     const book = await prisma.book.create({
-      data: { slug: SLUG, title: "Libro", plan: "FREE", totalChapters: 3 },
+      data: {
+        slug: SLUG,
+        title: "Libro",
+        isPublished: true,
+        plan: "FREE",
+        totalChapters: 3,
+      },
     });
     bookId = book.id;
 
@@ -398,7 +404,13 @@ suite("a LEGACY chapter that moves", () => {
       data: { id: USER, email: "lmove@test.local", name: "L" },
     });
     const book = await prisma.book.create({
-      data: { slug: SLUG, title: "Libro", plan: "FREE", totalChapters: 3 },
+      data: {
+        slug: SLUG,
+        title: "Libro",
+        isPublished: true,
+        plan: "FREE",
+        totalChapters: 3,
+      },
     });
     bookId = book.id;
 

@@ -81,7 +81,13 @@ suite("the read-only locator", () => {
     });
     // A FREE book so entitlement never denies — this suite is about writes.
     const book = await prisma.book.create({
-      data: { slug: SLUG, title: "Libro", plan: "FREE", totalChapters: 2 },
+      data: {
+        slug: SLUG,
+        title: "Libro",
+        isPublished: true,
+        plan: "FREE",
+        totalChapters: 2,
+      },
     });
     bookId = book.id;
     for (const [order, title] of [

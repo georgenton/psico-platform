@@ -88,7 +88,12 @@ suite("Content Core · CC-6E access parity (real PostgreSQL)", () => {
     // A PRO book (2 chapters) + a FREE book (2 chapters), each backfilled to
     // Content Core so unitKeys/blockKeys exist for the read + write paths.
     const proBook = await prisma.book.create({
-      data: { slug: "familias-ensambladas", title: "Familias", plan: "PRO" },
+      data: {
+        slug: "familias-ensambladas",
+        title: "Familias",
+        isPublished: true,
+        plan: "PRO",
+      },
     });
     const proCh1 = await prisma.chapter.create({
       data: { bookId: proBook.id, order: 1, title: "Uno" },
@@ -121,6 +126,7 @@ suite("Content Core · CC-6E access parity (real PostgreSQL)", () => {
       data: {
         slug: "emociones-en-construccion",
         title: "Emociones",
+        isPublished: true,
         plan: "FREE",
       },
     });

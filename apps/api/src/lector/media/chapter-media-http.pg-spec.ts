@@ -4,8 +4,19 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import request from "supertest";
 import { JwtService } from "@nestjs/jwt";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+  type MockInstance,
+} from "vitest";
 
+import { StorageService } from "../../storage";
 import { createE2EApp, closeE2EApp, type E2EHarness } from "../../test/e2e-app";
 import { backfillContentCore } from "../../content-core/backfill";
 import { EXERCISE_INGESTION_CATALOG } from "../../content-core/exercise-ingestion-catalog";
@@ -76,6 +87,7 @@ suite("GR-2 · chapter media HTTP contract (real app + real PostgreSQL)", () => 
       data: {
         slug: BOOK_SLUG,
         title: "Emociones en Construcción",
+        isPublished: true,
         plan: "PRO",
       },
     });
@@ -289,6 +301,97 @@ suite("GR-2 · chapter media HTTP contract (real app + real PostgreSQL)", () => 
       }
       expect(await events()).toBe(0);
     }
+  });
+
+  /**
+   * Un libro retirado no genera acceso a sus medios.
+   *
+   * El servicio de medios resuelve el libro por su cuenta —dos veces: en el
+   * manifiesto y en la concesión— y no pasaba por la guarda del lector. La
+   * segunda es la que FIRMA una URL, así que el que importa es que ni siquiera
+   * llegue a pedirla.
+   *
+   * Se retira el libro de la fixture y se devuelve al terminar, para no
+   * duplicar todo el andamiaje del catálogo por un caso.
+   */
+  /**
+   * Un libro retirado no genera acceso a sus medios.
+   *
+   * La versión anterior de esta prueba usaba el audiolibro, y el audiolibro
+   * no demostraba nada nuevo: su fuente es `CHAPTER_AUDIO`, que ya pasaba por
+   * el lector y por tanto por su guarda. La rama que faltaba es la que firma
+   * contra el proveedor —R2— y que llega por `getAccess` sin tocar el lector.
+   *
+   * Y la afirmación también cambia. «El cuerpo no trae URL» es compatible con
+   * haberla generado y haberla descartado después. Lo que se afirma aquí es
+   * que el FIRMADOR no se llama: se espía `StorageService.getSignedUrl`, que
+   * es quien emite la URL de R2.
+   */
+  describe("con el libro retirado", () => {
+    // Esta versión de Vitest tipa `MockInstance<Args, Return>`; con la forma
+    // de una sola firma el tipo no cuadra.
+    let firmar: MockInstance<[key: string, expiresIn: number], Promise<string>>;
+
+    beforeAll(async () => {
+      await prisma.book.update({
+        where: { slug: BOOK_SLUG },
+        data: { isPublished: false },
+      });
+    });
+
+    afterAll(async () => {
+      await prisma.book.update({
+        where: { slug: BOOK_SLUG },
+        data: { isPublished: true },
+      });
+    });
+
+    beforeEach(() => {
+      firmar = vi.spyOn(h.app.get(StorageService), "getSignedUrl");
+    });
+
+    afterEach(() => {
+      firmar.mockRestore();
+    });
+
+    it("el manifiesto no responde", async () => {
+      await http()
+        .get(`/api/lector/${BOOK_SLUG}/1/media`)
+        .set(auth())
+        .expect(404);
+    });
+
+    it("el podcast (R2) ni siquiera llega a firmarse", async () => {
+      const res = await http()
+        .get(`/api/lector/media/${EEC_C1_PODCAST.mediaKey}/access`)
+        .set(auth())
+        .expect(404);
+
+      // Lo que de verdad prueba que no se generó acceso.
+      expect(firmar).not.toHaveBeenCalled();
+      expect(res.body).not.toHaveProperty("url");
+    });
+
+    it("y con el libro publicado ese mismo medio SÍ se firma", async () => {
+      // Guard the guard: sin esto, la prueba de arriba pasaría igual si la
+      // ruta estuviera rota por cualquier otro motivo.
+      await prisma.book.update({
+        where: { slug: BOOK_SLUG },
+        data: { isPublished: true },
+      });
+      try {
+        await http()
+          .get(`/api/lector/media/${EEC_C1_PODCAST.mediaKey}/access`)
+          .set(auth())
+          .expect(200);
+        expect(firmar).toHaveBeenCalledTimes(1);
+      } finally {
+        await prisma.book.update({
+          where: { slug: BOOK_SLUG },
+          data: { isPublished: false },
+        });
+      }
+    });
   });
 
   it("every media route requires a JWT", async () => {

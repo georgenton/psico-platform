@@ -162,7 +162,26 @@ para lo medido** y no afirma ningún número. Se conserva.
 
 ---
 
-## 7. Dos falsos positivos, escritos para no volver a investigarlos
+## 7. Los 188 bloques, y por qué la otra bitácora dice 376
+
+La UAT del 22-10 anotó «capítulo 1 con 376 bloques». Aquí dice 188, y la
+diferencia no es una discrepancia que haya que dejar en el aire:
+
+| Fuente | Filas del cap. 1 de EEC |
+|---|---|
+| `ChapterBlock` (legado) | **188** |
+| `ContentBlock` de la unidad nativa equivalente | **188** |
+
+376 es **exactamente la suma**. El recuento original contó la misma lectura
+dos veces, una por cada fuente — el mismo error de fuente única/doble que el
+diagnóstico del modo guiado, sólo que en espejo: allí se midió media verdad,
+aquí el doble. **El lector sirve 188 bloques**, y la conclusión de aquella
+fila («de sobra») se sostiene igual. La corrección quedó también en la
+bitácora del 22-10, fechada.
+
+---
+
+## 8. Dos falsos positivos, escritos para no volver a investigarlos
 
 - El latido con el **slug** en lugar del id responde `{"ok":true}` sin
   escribir. Es el *soft-ack* de diseño; mi arnés mandaba la forma equivocada.

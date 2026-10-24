@@ -3607,10 +3607,12 @@ llegar a una base.
 
 **Bitácora de la UAT:** [docs/informes/uat-2026-10-23-cierre-staging.md](docs/informes/uat-2026-10-23-cierre-staging.md)
 
-**SHA final del repositorio: `b6715b50`. Artefactos servidos en staging:
-`725df576`, los tres.** No coinciden, y está comprobado por qué: lo que vino
-después del despliegue —el corte de versiones y las correcciones— no toca
-código de runtime, así que no se volvió a desplegar.
+**Último código integrado: `b6715b50`; sobre él sólo queda este PR de
+documentación (#804) con el arreglo de una prueba. Artefactos servidos en
+staging: `725df576`, los tres.** Repositorio y artefactos **no coinciden**, y
+está comprobado por qué: lo que vino después del despliegue —el corte de
+versiones, las correcciones y esta bitácora— no toca código de runtime, así
+que no se volvió a desplegar.
 
 **Integrado:** #802 `dd4289e1` · #784 `fd3fcc41` · #796 `2bb96025` ·
 #801 `68895738` · **#780 `725df576` (merge commit)** · #600 `4d927dac` ·

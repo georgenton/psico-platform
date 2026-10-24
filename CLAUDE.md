@@ -3607,12 +3607,14 @@ llegar a una base.
 
 **Bitácora de la UAT:** [docs/informes/uat-2026-10-23-cierre-staging.md](docs/informes/uat-2026-10-23-cierre-staging.md)
 
-**Último código integrado: `b6715b50`; sobre él sólo queda este PR de
-documentación (#804) con el arreglo de una prueba. Artefactos servidos en
-staging: `725df576`, los tres.** Repositorio y artefactos **no coinciden**, y
-está comprobado por qué: lo que vino después del despliegue —el corte de
-versiones, las correcciones y esta bitácora— no toca código de runtime, así
-que no se volvió a desplegar.
+**`main` al cerrar: `439f5d3221748be3f8d366f46053091c940023b5`** (pipeline
+verde: Full CI + Changesets). **Artefactos servidos en staging: `725df576`,
+los tres.** Repositorio y artefactos **no coinciden**, y el motivo está
+comprobado por enumeración, no a ojo: los separan **23 archivos** y **cero**
+son código de runtime — 13 changesets consumidos, **cinco documentos**
+(`CLAUDE.md`, `docs/ROADMAP.md`, el runbook y las dos bitácoras de UAT), un
+archivo de pruebas y los metadatos de versión de dos paquetes. Un
+redespliegue produciría la misma aplicación, así que **no se hizo**.
 
 **Integrado:** #802 `dd4289e1` · #784 `fd3fcc41` · #796 `2bb96025` ·
 #801 `68895738` · **#780 `725df576` (merge commit)** · #600 `4d927dac` ·
@@ -3620,8 +3622,14 @@ que no se volvió a desplegar.
 commit llevó sus heads exactos a `main`. Ocho PR (#786–#793) se cerraron por
 ser ancestros estrictos sin commits propios. **Catorce PR abiertos → cero.**
 
-**Tests del árbol integrado:** API 4037 · PostgreSQL real 1415 · Web 2490 ·
-Mobile 196.
+**Tests del árbol integrado, del Full CI de `439f5d32`:** API 4037 (+91
+saltados) · Web **2496** · Mobile 196 · crypto 34 · types 85. La suite de
+**PostgreSQL real** (1415) **no corre en ese workflow** —necesita
+`TEST_DATABASE_URL`— y su número viene de una corrida local; conviene no
+sumarlos como si fueran el mismo registro.
+
+**Integrado también:** #804 `439f5d32`, que trajo esta bitácora y el arreglo
+de la prueba del arnés de Stripe.
 
 **El CI podía dar verde sin probar nada.** `turbo run --affected` resolvía un
 conjunto distinto en cada corrida y tres trabajos pasaron con **cero tareas**
@@ -3690,28 +3698,88 @@ la landing F2.1 se conserva; **no hay aceptación visual nueva**.
 **Pendientes concretos:** ensayo operativo del rollback · revisión visual con
 sesión (el control de credenciales deniega escribir contraseñas en el
 navegador) · ejecución del modo guiado (`NOT_AVAILABLE`, rollout en `off`) ·
-Dúo/Círculos (`NOT_AVAILABLE`, su propia puerta) · `RESEND_API_KEY` sin
-configurar en staging.
+Dúo/Círculos (`NOT_AVAILABLE`, su propia puerta) · en staging faltan
+`RESEND_API_KEY`, `GOOGLE_CLIENT_ID`, `VAPID_*` y `SENTRY_DSN`. **El estado
+vigente de todo esto vive en «Próximo paso» al final de este archivo**, que
+es la sección que se mantiene; esta entrada es su antecedente fechado.
 
 ---
 
-### Próximo paso — arco de libros cerrado
+### 🧭 Trabajo vigente — corte del 2026-10-24
 
-📖 **El roadmap maestro del Mapa Emocional vive en la tabla de arriba** (Etapas 0-6 ✅, R = paper). **El roadmap de infra vive en [docs/ROADMAP.md](docs/ROADMAP.md)** (Sprints 1-5 cerrados + bug de Sprint 3).
+**Esta es la única sección de este archivo que describe el presente.** Todo lo
+de arriba —incluidas las listas de «backlog aprobado» y los «siguientes pasos»
+de cada bitácora de sesión— es **antecedente fechado**: explica cómo se llegó
+aquí, no lo que toca hacer. Si una instrucción antigua contradice esta
+sección, manda esta sección.
 
-**Estado tras el arco de libros (Sprints A → A.2 → B):** un usuario ya puede entrar a un capítulo real de *Emociones en Construcción* (Parte I), leerlo en Modo Libro o Modo Guía, subrayar/anotar, saltar a Eco con el pasaje pre-cargado, y ver cómo el Mapa lo mide.
+#### El corte
 
-**Backlog aprobado por el usuario (para retomar):**
-- **Reproductor de video real** — hoy card mock `🎬` en los capítulos.
-- **Actividades interactivas reales** — hoy card mock `✍️` + prosa.
-- **Sugerencias adaptativas de Eco** según cómo el usuario interactúa con libro/video/actividades + según el Mapa Emocional.
-- **Nudges post-ejercicio.**
+| | |
+|---|---|
+| `main` | `439f5d3221748be3f8d366f46053091c940023b5` · pipeline verde |
+| Servido en staging | **`725df576`** en los tres servicios (API, worker, Web) |
+| ¿Coinciden? | **No**, y a propósito: lo que los separa no es código de runtime |
 
-**Otros candidatos (polish / infra):**
-- **Subir los m4a de los 3 capítulos a R2** para que Modo Guía reproduzca de verdad (hoy "Audio en producción").
-- **`expo-av` → `expo-audio`** — metadata dinámica lock-screen + character-level highlights mobile.
-- **Settings UI: explicit TZ selector** · **Testcontainers para E2E API**.
-- **Freeze v1 + validación** — el código crítico está cerrado; faltan los items ops (Stripe price IDs + API keys + ffmpeg embed real).
+**Son dos commits distintos y conviene no confundirlos.** El del repositorio
+dice qué está integrado; el servido dice qué se está ejecutando. Igualarlos
+«para que cuadre el documento» no es motivo para desplegar.
+
+#### Estado de cada frente
+
+| Frente | Estado |
+|---|---|
+| Saneamiento técnico de PR | ✅ **cerrado** — catorce PR abiertos → cero |
+| Reparación del catálogo en staging | ✅ **aplicada y convergente** — segunda planificación en 0 operaciones |
+| UAT | ⚠️ **parcial**, con sus límites escritos en [la bitácora](docs/informes/uat-2026-10-23-cierre-staging.md) |
+| Rollback a la imagen anterior | ⏸️ **condicionado** — falta el ensayo operativo |
+| Modo guiado | ⏸️ **conserva su disponibilidad actual** (`GUIDE_ROLLOUT_MODE=off`) |
+| Círculos / Dúo | ⏸️ **conserva su disponibilidad actual** (su propia puerta) |
+| Cobros reales | ⏸️ **conservan su situación actual** — cerrados |
+
+#### Webhooks ≠ D-ORD
+
+Conviene separarlos, porque se agrupaban bajo la misma etiqueta y son cosas
+distintas:
+
+- **El arreglo técnico de los webhooks de Stripe está hecho**: reclamación
+  antes de aplicar el efecto y sellado después, con la migración
+  `20261023120000_dord_stripe_event_claim` aplicada, más los cuatro arreglos
+  del proveedor (unicidad por forma del error, existencia de la persona antes
+  de escribir, gana la suscripción más nueva con desempate estable).
+- **Lo que sigue abierto bajo D-ORD es operativo y comercial**: el ensayo del
+  rollback, las condiciones de apertura de cobros y las decisiones de precio.
+  Ninguna se desbloquea por el arreglo técnico.
+
+#### Lo que toca, en orden
+
+1. **Ensayo operativo del rollback** con el artefacto anterior, sobre una base
+   desechable restaurada del respaldo, aislada de los servicios activos y de
+   los envíos externos. Un inventario inicial de cero pendientes **no** exime
+   del ensayo.
+2. **Revisión visual con sesión** — lector y panel en los dos temas × cuatro
+   ambientes. Hace falta un mecanismo de autenticación que la herramienta
+   permita; el control de credenciales deniega escribir una contraseña, y eso
+   **no se elude**.
+3. **Recorrido funcional de Evolución** — una acción sintética que, según el
+   contrato, mueva un contador: estado anterior, acción, cambio esperado y
+   observado, persistencia y aislamiento frente a otra cuenta.
+4. **Integraciones de staging, por recorrido, no en bloque**:
+   `RESEND_API_KEY` (correo del digest y de la exportación) ·
+   `GOOGLE_CLIENT_ID` (acceso con Google) · `VAPID_*` (push web) ·
+   `SENTRY_DSN` (traza de errores). Ninguna bloquea la lectura.
+5. **Piloto mínimo** — alcance, criterios de entrada/salida/suspensión y las
+   decisiones editoriales o de disponibilidad que de verdad haga falta tomar.
+
+#### Deuda de producto que sigue viva (de los arcos anteriores)
+
+Video real y actividades reales en los capítulos (hoy cards mock) · subir los
+m4a a R2 para que Modo Guía reproduzca · `expo-av` → `expo-audio` y
+resaltado por carácter en móvil · Testcontainers para el E2E de la API.
+
+📖 El roadmap del Mapa Emocional está en la tabla de Etapas 0–6 de arriba
+(R = paper). El de infraestructura, en [docs/ROADMAP.md](docs/ROADMAP.md),
+cuyo cuerpo es el audit de junio y lleva su propia advertencia de edad.
 
 ---
 

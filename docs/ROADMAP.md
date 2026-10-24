@@ -1,13 +1,30 @@
 # 🗺️ Roadmap Psico Platform — v1 freeze + validación
 
-**Documento maestro de planificación.** Generado tras audit completo del 2026-06-13. Source of truth para:
+> ## ⚠️ Qué manda hoy, y qué es antecedente
+>
+> **El trabajo vigente NO está en este documento.** Está en la sección
+> **«🧭 Trabajo vigente»** al final de [CLAUDE.md](../CLAUDE.md), con fecha de
+> corte del 2026-10-24.
+>
+> El cuerpo de abajo es el **audit del 2026-06-13** y se conserva como
+> antecedente: explica por qué los módulos quedaron en el orden en que están
+> y qué deuda se abrió en cada sprint. Sus listas de «próximos sprints» y su
+> pie de «próximo paso sugerido» describen un plan de junio que la secuencia
+> posterior —programa V2 del Mapa, migración a Coolify, puerta editorial de
+> los ADR 0027/0028, saneamiento de octubre— ya reordenó.
+>
+> **Si una línea de aquí contradice la sección vigente de CLAUDE.md, manda
+> CLAUDE.md.** Las notas fechadas intercaladas (§3) sí están al día y dicen
+> contra qué entorno leerlas.
+
+**Documento maestro de planificación.** Generado tras audit completo del 2026-06-13. Fue source of truth para:
 
 1. Saber **dónde estamos** sin volver a hacer el audit.
 2. Planificar los **próximos sprints** con scope claro.
 3. **Congelar v1** para una prueba profunda + validación con users reales.
 4. Decidir el **gate hacia v2** (Therapy, Dynamic Island, LATAM expand).
 
-Cuando el estado cambie, edita este documento en lugar de crear uno nuevo. Las bitácoras de sprint individuales viven en [docs/informes/](informes/).
+Las bitácoras de sprint individuales viven en [docs/informes/](informes/).
 
 ---
 
@@ -1275,7 +1292,12 @@ corrida verde posterior no borra el hecho.
 
 ---
 
-## 4. Plan de sprints para cerrar v1
+## 4. Plan de sprints para cerrar v1 — *antecedente de junio*
+
+> Esta tabla es el orden que se propuso el 2026-06-13 y **no es la cola de
+> trabajo actual**; los sprints 1–5 se ejecutaron entre junio y octubre con
+> sus propias bitácoras. La cola vigente está en «🧭 Trabajo vigente» de
+> [CLAUDE.md](../CLAUDE.md).
 
 | Orden | Sprint                                                       | Effort | Bloqueante?         |
 | ----- | ------------------------------------------------------------ | ------ | ------------------- |
@@ -1336,12 +1358,13 @@ Decisiones a tomar después del freeze:
 
 ## 7. Cómo usar este documento
 
-- **Antes de iniciar un sprint:** leer §3 y §4, escoger el bloque que toca.
-- **Cuando una tarea se complete:** mover de §3 a "completado" (o eliminar) y agregar la bitácora en [docs/informes/](informes/).
+- **Para saber qué toca ahora:** leer «🧭 Trabajo vigente» de [CLAUDE.md](../CLAUDE.md), no §3 ni §4 de aquí.
+- **Para entender cómo se llegó hasta aquí:** leer §1–§4 como el audit fechado que son, junto a las bitácoras de [docs/informes/](informes/).
 - **Cuando cambie el estado de un área de diseño:** actualizar §2 + el mapping en [CLAUDE.md](../CLAUDE.md) + [docs/design/handoff/INDEX.md](design/handoff/INDEX.md).
-- **Cuando se entre a la fase de validación:** congelar este documento y trabajar contra él como source of truth.
+- **Cuando una nota de este documento quede desactualizada:** añadir una nota fechada al lado, no reescribir el texto viejo — así se ve qué se creía y qué se midió después.
 
 ---
 
-**Última edición:** 2026-10-24 (sólo la nota de entorno en §3; el cuerpo del documento sigue siendo el audit del 2026-06-13 y envejece como tal).
-**Próximo paso sugerido:** sprint **Ops bundle** (orden 1 en §4) — desbloquea revenue y deja los servicios externos vivos en prod.
+**Última edición:** 2026-10-24 — la advertencia de la cabecera, la nota de entorno en §3 y este pie. El cuerpo sigue siendo el audit del 2026-06-13 y envejece como tal.
+
+**El próximo paso NO se decide aquí.** Está en «🧭 Trabajo vigente» de [CLAUDE.md](../CLAUDE.md): ensayo del rollback · revisión visual con sesión · recorrido de Evolución · integraciones de staging por recorrido · piloto mínimo. El antiguo «próximo paso sugerido: sprint Ops bundle» se conserva en §4 como lo que es, un plan de junio.

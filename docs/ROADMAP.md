@@ -59,6 +59,8 @@ Ver [docs/design/handoff/INDEX.md](design/handoff/INDEX.md) para el mapeo exacto
 ### 🔴 Bloqueantes para revenue (ops, no código)
 
 > **Update 2026-06-17:** parte código del Sprint 1 cerrada con `sprint-ops-bundle` — script ffmpeg + `GET /api/health/integrations` (ADMIN-only) + boot banner. Las 3 tareas debajo siguen abiertas porque dependen de credenciales en Railway/Stripe. Validación en prod: `curl -H "Authorization: Bearer <admin-jwt>" .../api/health/integrations`.
+>
+> **Update 2026-10-24 — leer las dos tareas de abajo contra Coolify, no contra Railway.** Las filas 1 y 2 están redactadas para Railway, que desde el 2026-10-01 es **respaldo congelado** y no autodespliega. Inventariado el entorno de **staging en Coolify** (sólo nombres, nunca valores): están presentes los tres `STRIPE_*_PRICE_ID` + `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `VOYAGE_API_KEY`, el cuarteto de R2 y `REDIS_URL`. **Ausente: `RESEND_API_KEY`** — el worker lo avisa al arrancar y los correos se registran en consola en lugar de enviarse. Nada de esto dice qué hay en **producción**, que este mandato no tocó.
 
 | #   | Tarea                                                                                                                                                                                                                | Effort     |
 | --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
@@ -1330,5 +1332,5 @@ Decisiones a tomar después del freeze:
 
 ---
 
-**Última edición:** 2026-06-13
+**Última edición:** 2026-10-24 (sólo la nota de entorno en §3; el cuerpo del documento sigue siendo el audit del 2026-06-13 y envejece como tal).
 **Próximo paso sugerido:** sprint **Ops bundle** (orden 1 en §4) — desbloquea revenue y deja los servicios externos vivos en prod.

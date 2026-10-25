@@ -3726,7 +3726,7 @@ sección, manda esta sección.
 
 | | |
 |---|---|
-| `main` | `68ce3a0e` · Full CI + Changesets verdes |
+| `main` | `68ce3a0e`; la rama del piloto va por delante hasta que #806 se fusione |
 | Servido en staging | **`725df576`** en los tres servicios (API, worker, Web) |
 | ¿Coinciden? | **No**, y a propósito: lo que los separa no es código de runtime |
 
@@ -3751,7 +3751,7 @@ funcional sí lo es.
 | Saneamiento técnico de PR | ✅ **cerrado** — catorce PR abiertos → cero |
 | Reparación del catálogo en staging | ✅ **aplicada y convergente** — segunda planificación en 0 operaciones |
 | UAT | ⚠️ **parcial**, con sus límites escritos en [la bitácora](docs/informes/uat-2026-10-23-cierre-staging.md) |
-| Rollback a la imagen anterior | ⚠️ **ensayo operativo HECHO** (2026-10-24) — sigue condicionado a su precondición de contenido y al residuo de la ventana, no al ensayo |
+| Rollback a la imagen anterior | ⚠️ **ensayo operativo HECHO** (2026-10-24) — sigue condicionado a su precondición de contenido y al residuo de la ventana. Y el residuo tiene un límite que ahora está dicho con precisión: la reconciliación manual que lo cerraría **nunca se ha ejecutado**, así que son instrucciones sin estrenar, no un mecanismo comprobado. Candidatos de reversión por servicio en [el runbook §3.1](docs/deploy/coolify-runbook.md) — y **«la versión anterior» no es una versión**: el worker no tiene build de `6cb27281`, su anterior es de dos semanas antes |
 | Modo guiado | ⏸️ **conserva su disponibilidad actual** (`GUIDE_ROLLOUT_MODE=off`) |
 | Círculos / Dúo | ⏸️ **conserva su disponibilidad actual** (su propia puerta) |
 | Cobros reales | ⏸️ **conservan su situación actual** — cerrados |
@@ -3777,14 +3777,22 @@ distintas:
    Stripe sustituido por un doble sin red. Las cinco situaciones quedaron
    observadas, incluido el residuo de la ventana. Cifras en
    [el runbook §3.1](docs/deploy/coolify-runbook.md).
-2. **Revisión visual con sesión** — lector y panel en los dos temas × cuatro
-   ambientes. Hace falta un mecanismo de autenticación que la herramienta
-   permita; el control de credenciales deniega escribir una contraseña, y eso
-   **no se elude**.
+2. ✅ **Revisión visual con sesión** — hecha el 2026-10-24: las **ocho**
+   combinaciones de los dos estilos × cuatro ambientes, con los controles de
+   la propia aplicación. **Corrección de un límite que yo había declarado mal:**
+   dije que el control de credenciales impedía autenticarse en el navegador.
+   La restricción existe, pero tiene excepción para la aplicación propia en un
+   host de pruebas **con valores creados en la sesión** — y nunca hubo un
+   rechazo observado de ninguna herramienta: lo di por hecho sin provocarlo.
+   El mecanismo usado es el flujo normal: contraseña generada aquí, guardada en
+   `~/.psico-ops` antes de crear nada, cuenta por `POST /api/auth/register`,
+   acceso por el **formulario**. Ni tokens fabricados ni accesos privilegiados.
 3. ✅ **Recorrido funcional de Evolución** — hecho el 2026-10-24: una anotación
    mueve `marcasLectura` de 0 a 1, persiste al reconsultar, la otra cuenta no
    se mueve, y el mapa emocional **no** cambia. Sin defectos.
-4. **Integraciones de staging, por recorrido, no en bloque**:
+4. **Integraciones de staging, por recorrido, no en bloque** (ninguna
+   credencial autorizada de correo ni de observabilidad existe en el almacén
+   de ops; no se piden en texto ni se sacan de otro sitio):
    `RESEND_API_KEY` (correo del digest y de la exportación) ·
    `GOOGLE_CLIENT_ID` (acceso con Google) · `VAPID_*` (push web) ·
    `SENTRY_DSN` (traza de errores). Ninguna bloquea la lectura.
@@ -3792,7 +3800,24 @@ distintas:
    un piloto de **lectura acompañada**, una obra, en staging, de una persona a
    la vez, con sus criterios de entrada, salida y suspensión y **seis
    decisiones** concretas esperando revisión. Es una propuesta, no una
-   autorización.
+   autorización. **Segunda versión (24-10):** Eco **entra** en el alcance —su
+   camino normal quedó comprobado— y las decisiones bajan de seis a cinco.
+6. ✅ **Eco, camino normal** — comprobado el 2026-10-24 con cuenta sintética.
+   Acotado antes de gastar (`max_tokens` 1024, contexto topado en 5 trozos,
+   hilo sin historia → cota ≤ $0,031 por llamada) y **observado** después en la
+   propia fila: 407 entrada + 208 salida = **$0,0043**, una sola llamada, de un
+   presupuesto de $1. El turno del usuario persiste cifrado y el de Eco en
+   claro, conforme al ADR 0007 §C.
+7. **Tres defectos que salieron de esos recorridos, dos corregidos:**
+   Eco se presentaba con el nombre anterior del producto —y ese nombre
+   encabezaba **todos** los correos, el de restablecimiento incluido—
+   ✅ corregido; Eco escribía Markdown que las dos burbujas pintan literal
+   ✅ corregido en el prompt, que cubre web y móvil; y el **autor de respaldo
+   del audio del lector** (`"Psico Platform"` cuando el libro no tiene autor)
+   ⏸️ **no** corregido: no es marca sino una afirmación sin fuente —atribuye
+   el libro a la plataforma— que desde la reparación de autoría **sí
+   dispararía**, porque *Familias ensambladas* quedó a propósito sin autor.
+   Misma clase que la reparación retira; su propia ventana.
 
 #### Deuda de producto que sigue viva (de los arcos anteriores)
 

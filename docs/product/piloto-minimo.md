@@ -127,12 +127,12 @@ en poco más de una cuarta parte del capítulo, o esa operación va antes.
 
 ### De entrada
 
-- [ ] **QA autenticada completada** — hecho el 24-10: panel y lector en los dos
+- [x] **QA autenticada completada** — hecho el 24-10: panel y lector en los dos
       estilos × cuatro ambientes, con evidencia.
-- [ ] **Recuperación de cuenta comprobada** — hecha: restablecimiento por el
+- [x] **Recuperación de cuenta comprobada** — hecha: restablecimiento por el
       flujo previsto, la contraseña vieja deja de valer. _Con el correo
       configurado hay que repetirla por su transporte real._
-- [ ] **Recuperación del diario comprobada** — hecha: la frase de respaldo
+- [x] **Recuperación del diario comprobada** — hecha: la frase de respaldo
       devuelve el contenido original. El diario entra en el piloto.
 - [ ] **Exportación web validada** — pantalla construida y probada; **falta
       recorrerla en staging tras desplegar**.
@@ -142,6 +142,8 @@ en poco más de una cuarta parte del capítulo, o esa operación va antes.
 - [ ] **Versiones y readiness identificados** — el SHA del repositorio y el de
       cada artefacto servido, por separado, y
       `GET /api/health/ready` con `shippedCount == appliedCount`.
+      Ojo con «el artefacto servido» en singular: son **tres** y no siempre
+      coinciden (ver el runbook §3.1).
 - [ ] Decisiones 1 y 2 del §5 **tomadas**.
 - [ ] Una **persona a la vez**, avisada de que es staging, de que recuperar la
       cuenta y recuperar el diario son cosas distintas, y de que conviene

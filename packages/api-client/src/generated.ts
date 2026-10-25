@@ -4288,10 +4288,14 @@ export interface components {
              */
             email: string;
             /**
-             * @description Password (8–72 characters). Bcrypt silently truncates anything past
-             *     72 bytes, so the upper bound is enforced explicitly to surface that
-             *     truncation as a validation error instead of a silent confidence
-             *     downgrade.
+             * @description Password, checked against the shared policy in `@psico/types`
+             *     (`password-policy`): a 15-character minimum and no composition rules,
+             *     so a short phrase qualifies. The number lives there, not here, because
+             *     four different minimums used to be scattered across four DTOs.
+             *
+             *     The ceiling is measured in BYTES, not characters, because that is what
+             *     bcrypt truncates at. Forty "ñ" are 40 characters and 80 bytes: counting
+             *     characters let them through and the verifier silently kept the first 72.
              *
              *     The server hashes with bcrypt before persisting; the raw password
              *     never reaches storage and never appears in any log.
@@ -4372,13 +4376,19 @@ export interface components {
              */
             token: string;
             /**
-             * @description New password (8–72 characters). Bcrypt silently truncates anything
-             *     past 72 bytes, so the upper bound is enforced explicitly to surface
-             *     that as a validation error.
+             * @description The new password, against the same shared policy as register — see
+             *     `@psico/types` (`password-policy`). Minimum measured in characters,
+             *     ceiling measured in bytes, because bcrypt truncates at 72 bytes.
              *
              *     The server hashes with bcrypt before persisting; raw plaintext never
              *     touches storage or logs. The previous password hash is overwritten —
              *     there is no history.
+             *
+             *     Note what this endpoint recovers and what it does not: it restores
+             *     access to the account, not the diary. `cryptoSalt` is untouched, so a
+             *     new password derives a different master key and the entries stay
+             *     unreadable without the recovery phrase. That is the design, and the
+             *     product copy now says so.
              */
             newPassword: string;
         };
@@ -4991,9 +5001,10 @@ export interface components {
              */
             currentPassword: string;
             /**
-             * @description New password (8–72 chars). Bcrypt silently truncates anything past
-             *     72 bytes, so the upper bound is enforced explicitly. Same rules as
-             *     register — picking weak passwords is the user's choice.
+             * @description The new password, against the shared policy in `@psico/types`
+             *     (`password-policy`) — the same rules as register, which is the point:
+             *     this endpoint used to demand 8 while rekey demanded 10, for the same
+             *     question. Minimum in characters, ceiling in bytes (bcrypt's 72).
              */
             newPassword: string;
         };
@@ -5036,9 +5047,19 @@ export interface components {
              */
             currentPassword: string;
             /**
-             * @description New password (10–256 chars). Tighter min than register (which is 8)
-             *     because rekey is a destructive operation — we nudge users toward a
-             *     password they actually remember.
+             * @description The new password, checked against the shared policy in `@psico/types`
+             *     (`password-policy`) — the one source API, web and mobile all read.
+             *
+             *     The byte ceiling matters more here than anywhere else. This single
+             *     password feeds two things with different limits: bcrypt, which ignores
+             *     everything past 72 bytes, and client-side Argon2id, which has no such
+             *     cap. A longer password would derive the diary key from the whole string
+             *     while the login hash saw only its prefix — two different truths about
+             *     one secret, and a diary its own password cannot open. Rejecting is the
+             *     only exit that leaves nobody locked out.
+             *
+             *     This field used to allow 10–256 characters: the 10 disagreed with
+             *     register's 8, and the 256 waved through passwords bcrypt truncates.
              */
             newPassword: string;
             /**

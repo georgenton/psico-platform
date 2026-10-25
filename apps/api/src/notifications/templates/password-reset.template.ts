@@ -1,5 +1,6 @@
 import { emailShell, escape } from "./base";
 import type { RenderedEmail } from "./verify-email.template";
+import { BRAND_NAME } from "@psico/types";
 
 export interface PasswordResetProps {
   firstName: string;
@@ -27,11 +28,11 @@ export function passwordResetEmail(props: PasswordResetProps): RenderedEmail {
     : "";
 
   const html = emailShell({
-    preheader: `Cambia tu contraseña de Psico Platform — el enlace vence en ${props.expiresHours} horas.`,
+    preheader: `Cambia tu contraseña de ${BRAND_NAME} — el enlace vence en ${props.expiresHours} horas.`,
     bodyHtml: `
       <p style="margin:0 0 16px; font-size:17px; font-weight:600;">¡${escape(greeting)}!</p>
       <p style="margin:0 0 16px;">
-        Pediste restablecer tu contraseña de <strong>Psico Platform</strong>.
+        Pediste restablecer tu contraseña de <strong>${BRAND_NAME}</strong>.
         Haz clic para crear una nueva contraseña.
       </p>
       <p style="margin:24px 0;">
@@ -53,7 +54,7 @@ export function passwordResetEmail(props: PasswordResetProps): RenderedEmail {
 
   const text = `¡${greeting}!
 
-Pediste restablecer tu contraseña de Psico Platform. Haz clic para crear una nueva contraseña:
+Pediste restablecer tu contraseña de ${BRAND_NAME}. Haz clic para crear una nueva contraseña:
 ${props.resetUrl}
 
 Este enlace vence en ${props.expiresHours} horas y solo puede usarse una vez.${
@@ -63,7 +64,7 @@ Este enlace vence en ${props.expiresHours} horas y solo puede usarse una vez.${
 Si no pediste este cambio, ignora este mensaje.`;
 
   return {
-    subject: "Restablecer tu contraseña · Psico Platform",
+    subject: `Restablecer tu contraseña · ${BRAND_NAME}`,
     html,
     text,
     tag: "password-reset",

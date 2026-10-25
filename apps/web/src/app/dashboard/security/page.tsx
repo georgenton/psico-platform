@@ -3,6 +3,7 @@ import type { UserMeResponse } from "@psico/types";
 
 import { getAccessToken, serverFetch } from "@/lib/api.server";
 import { ChangePasswordCard } from "@/components/dashboard/security/ChangePasswordCard";
+import { DataExportCard } from "@/components/dashboard/security/DataExportCard";
 import { DiaryLockCard } from "@/components/dashboard/security/DiaryLockCard";
 import { LocalTextAnalysisCard } from "@/components/dashboard/security/LocalTextAnalysisCard";
 import { ReplayTourCard } from "@/components/dashboard/security/ReplayTourCard";
@@ -35,8 +36,8 @@ export default async function SecurityPage() {
         </h1>
       </div>
       <p className="screen-sub" style={{ margin: "-14px 0 26px" }}>
-        Cambia tu contraseña, gestiona el acceso a tu cuenta y revisa tu frase
-        de recuperación.
+        Cambia tu contraseña, gestiona el acceso a tu cuenta, revisa tu frase de
+        recuperación y descarga tus datos.
       </p>
 
       <div className="space-y-5">
@@ -52,6 +53,15 @@ export default async function SecurityPage() {
           token={token}
         />
         <ShowSeedPhraseCard cryptoSalt={meResult.cryptoSalt} />
+        <DataExportCard
+          apiBase={API_BASE}
+          token={token}
+          solicitadaEl={
+            meResult.privacy.dataExportRequested
+              ? String(meResult.privacy.dataExportRequested)
+              : null
+          }
+        />
         <ReplayTourCard />
       </div>
     </div>

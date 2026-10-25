@@ -186,7 +186,7 @@ pnpm --filter @psico/api migrate:deploy
 ```
 
 > **Corrección del 2026-10-22 — estaba en `pre_deployment_command` y no migraba.**
-> Lo que sigue más abajo describía cuatro propiedades del hook *pre*. Una de ellas
+> Lo que sigue más abajo describía cuatro propiedades del hook _pre_. Una de ellas
 > —«antes de que arranque código que dependa del esquema nuevo»— **nunca fue cierta**,
 > y se descubrió promoviendo el lector: el despliegue terminó en verde con la migración
 > 70 sin aplicar.
@@ -194,10 +194,10 @@ pnpm --filter @psico/api migrate:deploy
 > La causa está en el código de Coolify 4.4.7, no en la configuración.
 > `ApplicationDeploymentJob::run_pre_deployment_command()` resuelve
 > `getCurrentApplicationContainerStatus()` —los contenedores **en ejecución**— y hace
-> `docker exec` sobre uno de ellos. El hook *pre* alcanza por tanto **siempre la imagen
+> `docker exec` sobre uno de ellos. El hook _pre_ alcanza por tanto **siempre la imagen
 > saliente**, cuyo `prisma/migrations` es el del commit anterior: `migrate deploy`
 > encontró «69 migrations», todas aplicadas, y reportó éxito. `pre_deployment_command_container`
-> no lo arregla: sólo elige *entre los que ya corren*.
+> no lo arregla: sólo elige _entre los que ya corren_.
 >
 > El comando pasó a `post_deployment_command`, que se invoca desde `post_deployment()`
 > cuando esa misma consulta ya devuelve el contenedor **nuevo**. Comprobado en el
@@ -210,7 +210,7 @@ pnpm --filter @psico/api migrate:deploy
 > - se gana que el primer despliegue de un recurso nuevo ya no es un caso especial por
 >   falta de contenedor previo —aunque sigue habiendo uno: si no hay ningún contenedor
 >   en ejecución, el post también se omite en silencio;
-> - **se pierde el orden**: el post corre *después* de que el contenedor nuevo empiece a
+> - **se pierde el orden**: el post corre _después_ de que el contenedor nuevo empiece a
 >   servir, así que existe una ventana de segundos de código nuevo contra esquema viejo.
 >   Inocua para una migración aditiva; **no** para una destructiva.
 >
@@ -323,12 +323,12 @@ desactivada en psql dejan el ledger de acuerdo con la carpeta y esta sonda en ve
 Conviene mantener la promesa estrecha.
 
 **Lo que NO es:** el gate del despliegue. Coolify sondea `health_check_path` desde
-`rolling_update()`, y sólo *después* llega a `post_deployment()`, que es donde corre la
+`rolling_update()`, y sólo _después_ llega a `post_deployment()`, que es donde corre la
 migración. Apuntar el gate a `/api/health/ready` haría que **todo despliegue con migración
 pendiente se quedara colgado**: la puerta esperaría un esquema que sólo el paso de
 después puede aplicar. Pasa a ser correcto —y es un cambio de una línea en
 `health_check_path`— el día que la migración corra antes del healthcheck: un recurso
-*migration job* aparte, o aplicarla antes de que el servidor escuche. Esa decisión sigue
+_migration job_ aparte, o aplicarla antes de que el servidor escuche. Esa decisión sigue
 abierta; `/health` se mantiene como liveness y no consulta el esquema, con una prueba que
 falla si alguien se lo añade.
 
@@ -351,7 +351,7 @@ primera forma. Si una versión futura cambiara a un shell de login, el síntoma 
 `pnpm: command not found` y el arreglo, fijar el `PATH` en el propio comando.
 
 **Si la migración falla.** ⚠️ **Corregido el 2026-10-22.** Esto era cierto con el hook
-*pre*. Con el comando en `post_deployment_command` ya **no** lo es: el contenedor nuevo
+_pre_. Con el comando en `post_deployment_command` ya **no** lo es: el contenedor nuevo
 está sirviendo antes de que el comando corra, y su fallo sólo deja un `Log::warning`, así
 que **el despliegue queda en verde y el esquema viejo sigue en pie**. No hay señal
 automática: hay que ir a buscarla con `GET /api/health/ready` o mirando el log del
@@ -743,18 +743,18 @@ procedimiento de recuperación que reposa sobre una creencia equivocada es peor
 que no tenerlo: da confianza sin darla.
 
 **Supuesto retirado nº 1 — «deshabilitar el endpoint no pierde entregas».**
-Falso. La documentación es explícita: *«If your destination has been disabled
+Falso. La documentación es explícita: _«If your destination has been disabled
 or deleted when we attempt a retry, we prevent future retries of that
-event»*. Deshabilitar no pone las entregas en una cola que se vacía al
+event»_. Deshabilitar no pone las entregas en una cola que se vacía al
 reabrir: si un reintento cae mientras el endpoint está deshabilitado, Stripe
-**deja de reintentar ese evento**. Sólo si se reabre *antes* de que toque un
+**deja de reintentar ese evento**. Sólo si se reabre _antes_ de que toque un
 reintento sobreviven los futuros. Es decir, el paso que la versión anterior
 presentaba como «cortar la entrada sin perder nada» era, exactamente, la forma
 de perderlas.
 
 **Supuesto retirado nº 2 — «una pendiente de más de cuatro días ya no se
 reenviará».** Falso también. Existe el reenvío **manual**, y su ventana es
-mucho más larga que la del reintento automático: *«Resend»* en el panel
+mucho más larga que la del reintento automático: _«Resend»_ en el panel
 funciona **hasta 15 días** desde la creación del evento, y
 `stripe events resend` desde la CLI **hasta 30 días**. Una pendiente antigua
 sigue siendo reentregable, así que excluirla del recuento por su edad vuelve a
@@ -798,14 +798,14 @@ de **admisiones nuevas**.
 
 2. **Clasificar cada una con evidencia**, no con supuestos. Para cada evento
    se lee el objeto **autoritativo** en Stripe —la propia documentación lo
-   recomienda: *«You can also use the API to retrieve any missing objects»*—
+   recomienda: _«You can also use the API to retrieve any missing objects»_—
    y se compara con la fila local:
 
-   | Clase | Criterio | Qué se hace |
-   |---|---|---|
-   | **CONVERGIDA** | el estado local YA es el que aplicar el evento produciría | se sella **registrando esa evidencia**. No es sellar a mano: es constatar que el efecto está |
-   | **REENTREGABLE** | el efecto falta y el evento está dentro de la ventana de reenvío manual (15 d panel / 30 d CLI) | se reentrega **con la imagen nueva**, que es la única que sabe reaplicar una reclamación sin sellar |
-   | **IRRECUPERABLE** | el efecto falta y la ventana de reenvío pasó | **bloquea el rollback** hasta que alguien reconcilie esa suscripción a mano contra Stripe. No se sella, no se borra |
+   | Clase             | Criterio                                                                                        | Qué se hace                                                                                                         |
+   | ----------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+   | **CONVERGIDA**    | el estado local YA es el que aplicar el evento produciría                                       | se sella **registrando esa evidencia**. No es sellar a mano: es constatar que el efecto está                        |
+   | **REENTREGABLE**  | el efecto falta y el evento está dentro de la ventana de reenvío manual (15 d panel / 30 d CLI) | se reentrega **con la imagen nueva**, que es la única que sabe reaplicar una reclamación sin sellar                 |
+   | **IRRECUPERABLE** | el efecto falta y la ventana de reenvío pasó                                                    | **bloquea el rollback** hasta que alguien reconcilie esa suscripción a mano contra Stripe. No se sella, no se borra |
 
 3. **Separar admisiones nuevas de operaciones en curso.** Deshabilitar el
    endpoint queda descartado por el supuesto nº 1. Lo que sí se puede es
@@ -878,13 +878,13 @@ se produce en la vida real. Una de ellas se **envejeció** a 10 días con un
 `UPDATE` sobre `createdAt`; envejecer una fila no finge un efecto, el efecto
 sigue sin aplicar.
 
-| Escenario | Observado |
-| --- | --- |
-| Pendiente reciente, imagen **anterior** | `Skipping already-processed Stripe event` · **0** llamadas a Stripe · efecto **sin aplicar** · fila sigue pendiente → **el efecto se pierde** |
-| Pendiente de **10 días**, imagen anterior | idéntico — **la edad no cambia nada** |
-| Las dos, imagen **actual** | `Reapplying … a previous attempt did not finish` · 1 relectura · `Synced subscription … plan=PRO` · fila **sellada** · inventario → **0** |
-| Pendiente **ya convergida** (efecto aplicado, sin sellar) | la reentrega converge y **sella por código**, sin duplicar el efecto y **sin escribir `processedAt` a mano** |
-| La **ventana** inventario → cambio de imagen | inventario **0**; llega un webhook; deja una pendiente que **no estaba en el inventario**; la imagen anterior la salta → **el residuo declarado, reproducido** |
+| Escenario                                                 | Observado                                                                                                                                                      |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Pendiente reciente, imagen **anterior**                   | `Skipping already-processed Stripe event` · **0** llamadas a Stripe · efecto **sin aplicar** · fila sigue pendiente → **el efecto se pierde**                  |
+| Pendiente de **10 días**, imagen anterior                 | idéntico — **la edad no cambia nada**                                                                                                                          |
+| Las dos, imagen **actual**                                | `Reapplying … a previous attempt did not finish` · 1 relectura · `Synced subscription … plan=PRO` · fila **sellada** · inventario → **0**                      |
+| Pendiente **ya convergida** (efecto aplicado, sin sellar) | la reentrega converge y **sella por código**, sin duplicar el efecto y **sin escribir `processedAt` a mano**                                                   |
+| La **ventana** inventario → cambio de imagen              | inventario **0**; llega un webhook; deja una pendiente que **no estaba en el inventario**; la imagen anterior la salta → **el residuo declarado, reproducido** |
 
 Dos cifras que cierran el supuesto retirado nº 2: con las dos pendientes en la
 base, el recuento correcto veía **2** y el recuento antiguo —el del filtro de
@@ -900,6 +900,49 @@ averiguar si la imagen anterior pierde una pendiente: pierde, y está medido.
 
 Los contenedores y la red del ensayo se retiraron al terminar; el respaldo
 original no se tocó.
+
+#### El residuo: qué falta exactamente, dicho sin rodeos
+
+Conviene separar dos cosas que el ensayo dejó en estados distintos.
+
+**Está medido** que la imagen anterior pierde una pendiente, y **está escrito**
+qué hacer con ella: reconciliarla a mano contra el estado real en Stripe
+(pasos 1–4, más el listado del inventario). Eso es un procedimiento.
+
+**No está demostrado** que ese procedimiento funcione. Nadie lo ha ejecutado
+—ni en el ensayo, ni antes—, así que no hay un mecanismo de reconciliación
+_comprobado_ para el residuo: hay instrucciones sin estrenar. La diferencia
+importa porque el residuo aparece precisamente cuando ya se volvió atrás, es
+decir cuando el código que sabe reclamar ya no está sirviendo.
+
+Lo honesto, entonces: **el rollback deja un hueco cuyo cierre depende de un
+procedimiento manual que no se ha probado nunca.** Probarlo pide su propio
+ensayo —una pendiente de la ventana, reconciliada a mano de principio a fin
+contra Stripe en modo test— y ese ensayo **no se hizo aquí**.
+
+#### Candidatos de reversión, por servicio (2026-10-24)
+
+Los tres servicios sirven hoy el mismo commit, `725df576`. Las imágenes
+anteriores **siguen en el servidor y no se borran**: son el candidato de
+reversión.
+
+| Servicio                   | Sirviendo ahora (`725df576`) | Anterior disponible                                     |
+| -------------------------- | ---------------------------- | ------------------------------------------------------- |
+| `feelverse-staging-api`    | `sha256:6a617e7580ed…`       | `6cb27281` · `sha256:03bb9cb5052b…` · 2 días            |
+| `feelverse-staging-web`    | `sha256:fe5533b9e739…`       | `6cb27281` · `sha256:0d549b59ccb5…` · 2 días            |
+| `feelverse-staging-worker` | `sha256:46b80c12b899…`       | **`c0234ba5`** · `sha256:25b3f4f9e757…` · **2 semanas** |
+
+**«La versión anterior» no es una versión.** El worker no tiene build de
+`6cb27281`: su anterior es de dos semanas antes. Una reversión coordinada
+movería API y Web dos días hacia atrás y el worker **dos semanas**, saltándose
+todo lo intermedio —y el worker es quien corre los crons de facturación, el
+digest y el resumen semanal—. Si hace falta volver atrás de verdad, el worker
+se reconstruye desde `6cb27281` antes de conmutar, o se acepta por escrito que
+su salto es mucho mayor.
+
+Aparte: **`6cb27281` es anterior a la migración del reclamo** y por eso queda
+fuera del rollback normal — volver ahí es el escenario cuyo residuo acaba de
+describirse, no una reversión rutinaria.
 
 ---
 

@@ -5,6 +5,7 @@ import {
   assertVisualFixtureAllowed,
 } from "./visual-fixture";
 import type { PsicoEnvironment } from "../shared/psico-environment";
+import { PASSWORD_MIN_LENGTH } from "@psico/types";
 
 /**
  * Personas sintéticas de QA.
@@ -98,7 +99,9 @@ export const QA_PERSONAS_WEAK_PASSWORD = "QA_PERSONAS_WEAK_PASSWORD";
 export const QA_PERSONAS_FOREIGN_ACCOUNT = "QA_PERSONAS_FOREIGN_ACCOUNT";
 
 /** Mínimo que pide el registro del producto. Aquí se exige lo mismo. */
-const MIN_PASSWORD = 10;
+// La misma política que el producto: una cuenta de QA no debería poder
+// nacer con una contraseña que el registro rechazaría.
+const MIN_PASSWORD = PASSWORD_MIN_LENGTH;
 
 /**
  * La contraseña llega por entorno o no hay ejecución.

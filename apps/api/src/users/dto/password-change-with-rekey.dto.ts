@@ -9,6 +9,8 @@ import {
   MinLength,
   ValidateNested,
 } from "class-validator";
+
+import { IsNewPassword } from "../../shared/validators/is-new-password.validator";
 import { Type } from "class-transformer";
 
 /**
@@ -31,8 +33,6 @@ import { Type } from "class-transformer";
  */
 
 const BASE64URL = /^[A-Za-z0-9_-]+={0,2}$/;
-const NEW_PASSWORD_MIN = 10;
-const NEW_PASSWORD_MAX = 256;
 // Salt size on the wire (base64url, no padding).
 //
 // Auth produces 16-byte salts via Node's `randomBytes(16).toString("base64url")`
@@ -125,13 +125,22 @@ export class PasswordChangeWithRekeyDto {
   currentPassword!: string;
 
   /**
-   * New password (10–256 chars). Tighter min than register (which is 8)
-   * because rekey is a destructive operation — we nudge users toward a
-   * password they actually remember.
+   * The new password, checked against the shared policy in `@psico/types`
+   * (`password-policy`) — the one source API, web and mobile all read.
+   *
+   * The byte ceiling matters more here than anywhere else. This single
+   * password feeds two things with different limits: bcrypt, which ignores
+   * everything past 72 bytes, and client-side Argon2id, which has no such
+   * cap. A longer password would derive the diary key from the whole string
+   * while the login hash saw only its prefix — two different truths about
+   * one secret, and a diary its own password cannot open. Rejecting is the
+   * only exit that leaves nobody locked out.
+   *
+   * This field used to allow 10–256 characters: the 10 disagreed with
+   * register's 8, and the 256 waved through passwords bcrypt truncates.
    */
   @IsString()
-  @MinLength(NEW_PASSWORD_MIN)
-  @MaxLength(NEW_PASSWORD_MAX)
+  @IsNewPassword()
   newPassword!: string;
 
   /**

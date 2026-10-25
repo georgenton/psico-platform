@@ -1,5 +1,7 @@
 import { IsEmail, IsString, MinLength, MaxLength } from "class-validator";
 
+import { IsNewPassword } from "../../shared/validators/is-new-password.validator";
+
 /**
  * Body for `POST /api/auth/register` — new account creation with email
  * and password.
@@ -16,17 +18,20 @@ export class RegisterDto {
   email!: string;
 
   /**
-   * Password (8–72 characters). Bcrypt silently truncates anything past
-   * 72 bytes, so the upper bound is enforced explicitly to surface that
-   * truncation as a validation error instead of a silent confidence
-   * downgrade.
+   * Password, checked against the shared policy in `@psico/types`
+   * (`password-policy`): a 15-character minimum and no composition rules,
+   * so a short phrase qualifies. The number lives there, not here, because
+   * four different minimums used to be scattered across four DTOs.
+   *
+   * The ceiling is measured in BYTES, not characters, because that is what
+   * bcrypt truncates at. Forty "ñ" are 40 characters and 80 bytes: counting
+   * characters let them through and the verifier silently kept the first 72.
    *
    * The server hashes with bcrypt before persisting; the raw password
    * never reaches storage and never appears in any log.
    */
   @IsString()
-  @MinLength(8)
-  @MaxLength(72)
+  @IsNewPassword()
   password!: string;
 
   /**

@@ -137,7 +137,7 @@ describe("Auth · E2E", () => {
         .post("/api/auth/register")
         .send({
           email: "new@example.com",
-          password: "Password123!",
+          password: "una frase larga de prueba",
           name: "New User",
         });
 
@@ -242,7 +242,7 @@ describe("Auth · E2E", () => {
     it("reset-password with malformed token → 400", async () => {
       const res = await request(h.app.getHttpServer())
         .post("/api/auth/reset-password")
-        .send({ token: "short", newPassword: "newSecret123" });
+        .send({ token: "short", newPassword: "otra frase larga de prueba" });
 
       expect(res.status).toBe(400);
       expect(res.body.code).toBe("VALIDATION_ERROR");
@@ -255,7 +255,7 @@ describe("Auth · E2E", () => {
         .post("/api/auth/reset-password")
         .send({
           token: "a".repeat(64),
-          newPassword: "newSecret123",
+          newPassword: "otra frase larga de prueba",
         });
 
       expect(res.status).toBe(410);

@@ -177,9 +177,14 @@ function PrivacyModal({
           <li style={rowStyle}>
             <span style={dotStyle}>📝</span>
             <span>
-              Si olvidas tu contraseña, nadie puede recuperar lo que escribiste.
-              Por eso te daremos una <b>frase de respaldo de 12 palabras</b> la
-              primera vez que abras tu diario — guárdala en un lugar seguro.
+              Si olvidas tu contraseña, recuperar la <b>cuenta</b> y recuperar el{" "}
+              <b>diario</b> son dos cosas distintas. La cuenta vuelve con el
+              correo de restablecimiento; el diario, no — su contenido está
+              cifrado con una clave que nace de tu contraseña, y una contraseña
+              nueva no la reconstruye. Para eso está la{" "}
+              <b>frase de respaldo de 12 palabras</b> que te damos la primera
+              vez que abres tu diario: guárdala en un lugar seguro, porque es lo
+              que vuelve a abrirlo.
             </span>
           </li>
         </ul>

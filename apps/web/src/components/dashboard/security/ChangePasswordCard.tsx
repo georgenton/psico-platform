@@ -18,6 +18,11 @@ import {
 } from "@psico/crypto";
 
 import { useDiaryKey } from "@/lib/crypto/diary-key-context";
+import {
+  PASSWORD_MIN_LENGTH,
+  passwordPolicyMessage,
+  passwordPolicyProblem,
+} from "@psico/types";
 
 /**
  * ChangePasswordCard — password rotation with end-to-end re-encrypt.
@@ -96,8 +101,8 @@ export function ChangePasswordCard({
       setError("Ingresa tu contraseña actual.");
       return;
     }
-    if (newPassword.length < 10) {
-      setError("La nueva contraseña debe tener al menos 10 caracteres.");
+    if (passwordPolicyProblem(newPassword)) {
+      setError(passwordPolicyMessage(passwordPolicyProblem(newPassword)!));
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -304,7 +309,7 @@ export function ChangePasswordCard({
           />
           <Field
             id="new-password"
-            label="Nueva contraseña (mínimo 10 caracteres)"
+            label={`Nueva contraseña (mínimo ${PASSWORD_MIN_LENGTH} caracteres)`}
             type="password"
             value={newPassword}
             onChange={setNewPassword}

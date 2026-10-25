@@ -5,8 +5,15 @@ import { useSearchParams } from "next/navigation";
 import { type FormEvent, useState, useTransition } from "react";
 
 import { authApi, ApiError } from "@/lib/api";
+import {
+  PASSWORD_HINT,
+  PASSWORD_MIN_LENGTH,
+} from "@psico/types";
 
-const MIN_PASSWORD = 10;
+// El mínimo lo fija la política compartida, no esta pantalla: aquí decía 10
+// mientras el servidor aceptaba 8, y las dos cifras eran noticias para quien
+// las encontrara.
+const MIN_PASSWORD = PASSWORD_MIN_LENGTH;
 
 export default function ResetPasswordForm() {
   const params = useSearchParams();
@@ -104,7 +111,7 @@ export default function ResetPasswordForm() {
         Nueva contraseña
       </h1>
       <p className="text-sm mb-6" style={{ color: "var(--color-warm-500)" }}>
-        Elegí una contraseña segura. Mínimo {MIN_PASSWORD} caracteres.
+        Elige una contraseña segura. {PASSWORD_HINT}
       </p>
 
       {/* `method="post"` para que el envío nativo —el que ocurre si React aún

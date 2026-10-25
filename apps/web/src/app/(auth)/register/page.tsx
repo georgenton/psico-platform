@@ -6,6 +6,10 @@ import { type FormEvent, useState, useTransition } from "react";
 import { registerAction } from "@/actions/auth";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { PrivacyInfoButton } from "@/components/privacy/PrivacyInfoButton";
+import {
+  PASSWORD_HINT,
+  PASSWORD_MIN_LENGTH,
+} from "@psico/types";
 
 export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null);
@@ -156,9 +160,9 @@ export default function RegisterPage() {
             type="password"
             autoComplete="new-password"
             required
-            minLength={8}
+            minLength={PASSWORD_MIN_LENGTH}
             disabled={isPending}
-            placeholder="Mínimo 8 caracteres"
+            placeholder={PASSWORD_HINT}
             className="rounded-xl px-4 py-2.5 text-sm outline-none transition-all disabled:opacity-60"
             style={{
               background: "var(--color-warm-100)",
@@ -188,7 +192,7 @@ export default function RegisterPage() {
             type="password"
             autoComplete="new-password"
             required
-            minLength={8}
+            minLength={PASSWORD_MIN_LENGTH}
             disabled={isPending}
             placeholder="Repite tu contraseña"
             className="rounded-xl px-4 py-2.5 text-sm outline-none transition-all disabled:opacity-60"

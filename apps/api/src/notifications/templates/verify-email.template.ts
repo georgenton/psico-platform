@@ -1,4 +1,5 @@
 import { emailShell, escape } from "./base";
+import { BRAND_NAME } from "@psico/types";
 
 export interface VerifyEmailProps {
   firstName: string;
@@ -23,11 +24,11 @@ export function verifyEmail(props: VerifyEmailProps): RenderedEmail {
   const greeting = props.firstName.trim() || "hola";
 
   const html = emailShell({
-    preheader: `Confirma tu correo para empezar a usar Psico Platform — el enlace vence en ${props.expiresHours} horas.`,
+    preheader: `Confirma tu correo para empezar a usar ${BRAND_NAME} — el enlace vence en ${props.expiresHours} horas.`,
     bodyHtml: `
       <p style="margin:0 0 16px; font-size:17px; font-weight:600;">¡${escape(greeting)}!</p>
       <p style="margin:0 0 16px;">
-        Gracias por crear tu cuenta en <strong>Psico Platform</strong>. Para
+        Gracias por crear tu cuenta en <strong>${BRAND_NAME}</strong>. Para
         activar tu cuenta y empezar a leer, confirma tu correo.
       </p>
       <p style="margin:24px 0;">
@@ -46,7 +47,7 @@ export function verifyEmail(props: VerifyEmailProps): RenderedEmail {
 
   const text = `¡${greeting}!
 
-Gracias por crear tu cuenta en Psico Platform. Confirma tu correo para empezar:
+Gracias por crear tu cuenta en ${BRAND_NAME}. Confirma tu correo para empezar:
 ${props.verifyUrl}
 
 Este enlace vence en ${props.expiresHours} horas.
@@ -54,7 +55,7 @@ Este enlace vence en ${props.expiresHours} horas.
 Si no fuiste tú quien creó la cuenta, ignora este mensaje.`;
 
   return {
-    subject: "Confirma tu correo · Psico Platform",
+    subject: `Confirma tu correo · ${BRAND_NAME}`,
     html,
     text,
     tag: "verify-email",

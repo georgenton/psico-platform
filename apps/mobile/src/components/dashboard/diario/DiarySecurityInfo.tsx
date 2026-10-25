@@ -64,10 +64,13 @@ export function DiarySecurityInfo() {
                 revuelto que no significa nada.
               </Row>
               <Row emoji="📝">
-                Si olvidas tu contraseña, nadie puede recuperar lo que
-                escribiste. Por eso te damos una{" "}
-                <Text style={styles.b}>frase de respaldo de 12 palabras</Text> —
-                guárdala en un lugar seguro.
+                Si olvidas tu contraseña, recuperar la cuenta y recuperar el
+                diario son dos cosas distintas. La cuenta vuelve con el correo
+                de restablecimiento; el diario, no — está cifrado con una clave
+                que nace de tu contraseña, y una contraseña nueva no la
+                reconstruye. Para eso está la{" "}
+                <Text style={styles.b}>frase de respaldo de 12 palabras</Text>:
+                guárdala bien, porque es lo que vuelve a abrirlo.
               </Row>
 
               <View style={styles.divider} />

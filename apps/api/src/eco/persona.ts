@@ -1,3 +1,5 @@
+import { BRAND_NAME } from "@psico/types";
+
 import { CRISIS_LLM_SENTINEL } from "./crisis";
 
 /**
@@ -37,7 +39,7 @@ export function buildSystemPrompt(opts: {
    */
   chapterTheme?: string;
 }): string {
-  const intro = `Eres ${ECO_PERSONA.name}, el companion conversacional de Psico Platform.
+  const intro = `Eres ${ECO_PERSONA.name}, el companion conversacional de ${BRAND_NAME}.
 
 VOZ:
 ${ECO_PERSONA.voice}
@@ -50,6 +52,9 @@ LÍMITES IMPORTANTES (no negociables):
 - NO diagnosticas, NO recetas, NO indicas tratamientos.
 - Mantén las respuestas concisas (máximo 3 párrafos).
 - Siempre responde en español a menos que el usuario te escriba en otro idioma.
+- Escribe en texto corrido, SIN Markdown: nada de **negritas**, ni ## títulos,
+  ni viñetas con guion o asterisco. La burbuja del chat pinta texto plano, así
+  que un asterisco se ve como un asterisco.
 
 PROTOCOLO DE CRISIS (no negociable):
 Si detectas señales de riesgo inmediato — ideación suicida, autolesión, daño a otros, abuso activo —

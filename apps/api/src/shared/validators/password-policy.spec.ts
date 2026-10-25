@@ -127,4 +127,25 @@ describe("los contratos que consumen la política", () => {
       ).not.toMatch(/@(Min|Max)Length\(/);
     }
   });
+
+  it("el login NO valida la longitud, para que las contraseñas viejas sigan entrando", () => {
+    // El invariante de más consecuencia de todo este cambio, y el único que no
+    // se ve en el código que se tocó.
+    //
+    // Subir el mínimo a 15 es seguro sólo porque la política se consulta al
+    // FIJAR una contraseña y nunca al comprobarla. Toda cuenta creada con 8
+    // caracteres sigue entrando. El día que alguien «unifique» también el
+    // login —parece coherente; lo es en apariencia— deja fuera a todas las
+    // cuentas existentes de golpe, y el síntoma sería un 400 en el acceso,
+    // no un fallo de prueba.
+    //
+    // Por eso se vigila aquí, al lado de la política, y no en el spec de auth:
+    // quien suba el mínimo abre este archivo.
+    const login = fs.readFileSync(
+      path.join(__dirname, "../../auth/dto/login.dto.ts"),
+      "utf8",
+    );
+    expect(login).not.toMatch(/@(Min|Max)Length\(/);
+    expect(login).not.toContain("@IsNewPassword()");
+  });
 });

@@ -185,6 +185,33 @@ y en ningún otro sitio:
 pnpm --filter @psico/api migrate:deploy
 ```
 
+**Cómo comprobar que sigue configurado, y la trampa de hacerlo mal.** El
+`get_application` del MCP devuelve `post_deployment_command_container` pero
+**no** `post_deployment_command`. Son columnas distintas: la primera dice _en
+qué_ contenedor correr el comando —`null` significa «el principal»— y la
+segunda es el comando. Leer la primera y concluir que no hay ninguno es un
+error fácil: lo cometí el 2026-10-25 y abrí una investigación entera sobre un
+mecanismo que llevaba tres días funcionando. El valor real se lee de la base
+de Coolify:
+
+```bash
+ssh syntavera-vps 'sudo -n docker exec -i coolify-db psql -U coolify -d coolify -tAF"|"' <<'SQL'
+SELECT name, COALESCE(pre_deployment_command,'(vacío)'), COALESCE(post_deployment_command,'(vacío)')
+FROM applications WHERE name LIKE 'feelverse-staging-%' ORDER BY name;
+SQL
+```
+
+El 2026-10-25 devolvía el comando sólo en `feelverse-staging-api`, y vacío en
+Web y en el **worker** — que es lo correcto: dos procesos migrando a la vez es
+peor que ninguno, y la propia descripción del worker dice que no migra.
+
+**Y para comprobar que de verdad corrió**, el log del despliegue lo dice. En
+`txapvqx0dksszqb5vps1u0or` (API, 2026-10-25) los eventos van
+`Rolling update completed` → `Executing post-deployment command` →
+`docker exec <contenedor-nuevo>` → `71 migrations found` →
+`No pending migrations to apply`. Ese orden es la ventana descrita abajo,
+observada y no supuesta. Cómo sacar el log, en §1.
+
 > **Corrección del 2026-10-22 — estaba en `pre_deployment_command` y no migraba.**
 > Lo que sigue más abajo describía cuatro propiedades del hook _pre_. Una de ellas
 > —«antes de que arranque código que dependa del esquema nuevo»— **nunca fue cierta**,

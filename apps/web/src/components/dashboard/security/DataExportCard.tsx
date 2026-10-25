@@ -37,6 +37,7 @@ type Fase =
   | { t: "lista"; url: string; expiraEnSec: number }
   | { t: "caducada" }
   | { t: "no-descargable" }
+  | { t: "fallida" }
   | { t: "ninguna" }
   | { t: "enfriamiento"; mensaje: string }
   | { t: "error"; mensaje: string };
@@ -53,18 +54,38 @@ type Fase =
  * Y un 409 que no traiga código, o traiga uno que no conocemos, tampoco se
  * convierte en «la estamos preparando»: eso es una promesa, y no la podemos
  * sostener sin saber qué pasó.
+ *
+ * ── Y un tercer caso, que es el mismo defecto por otra puerta ──────────────
+ *
+ * `NOT_READY` no siempre significa «espera». El servidor lo devuelve para
+ * TODO estado que no sea `READY`, y entre ellos está **`FAILED`**, que es
+ * terminal: esa exportación no va a llegar nunca. Decir «vuelve a consultar
+ * en un rato» ahí es la misma promesa rota que este arreglo existe para
+ * quitar.
+ *
+ * El servidor ya da con qué distinguirlo —manda `details.status`—, así que se
+ * lee. `PENDING` y `PROCESSING` siguen siendo «preparando», que es lo que de
+ * verdad lo está.
  */
-async function leerCodigo(res: Response): Promise<string | null> {
+type Conflicto = { code: string | null; status: string | null };
+
+async function leerConflicto(res: Response): Promise<Conflicto> {
   try {
     const cuerpo = (await res.json()) as unknown;
-    if (cuerpo && typeof cuerpo === "object" && "code" in cuerpo) {
-      const code = (cuerpo as { code: unknown }).code;
-      return typeof code === "string" ? code : null;
-    }
-    return null;
+    if (!cuerpo || typeof cuerpo !== "object")
+      return { code: null, status: null };
+    const { code, details } = cuerpo as { code?: unknown; details?: unknown };
+    const estado =
+      details && typeof details === "object" && "status" in details
+        ? (details as { status?: unknown }).status
+        : null;
+    return {
+      code: typeof code === "string" ? code : null,
+      status: typeof estado === "string" ? estado : null,
+    };
   } catch {
-    // Cuerpo ausente o no-JSON: no hay código que leer.
-    return null;
+    // Cuerpo ausente o no-JSON: no hay nada que leer.
+    return { code: null, status: null };
   }
 }
 
@@ -97,9 +118,12 @@ export function DataExportCard({
         return;
       }
       if (res.status === 409) {
-        const code = await leerCodigo(res);
+        const { code, status } = await leerConflicto(res);
         if (code === "DATA_EXPORT_NOT_READY") {
-          return setFase({ t: "preparando" });
+          // FAILED es terminal: no se prepara nada, hay que pedir otra.
+          return setFase(
+            status === "FAILED" ? { t: "fallida" } : { t: "preparando" },
+          );
         }
         if (code === "DATA_EXPORT_UNAVAILABLE") {
           return setFase({ t: "no-descargable" });
@@ -265,6 +289,8 @@ export function DataExportCard({
           "Aquella exportación ya se borró: guardamos el archivo un tiempo limitado y después lo eliminamos. Pide una nueva cuando quieras."}
         {fase.t === "no-descargable" &&
           "Esa exportación no se puede descargar: se preparó con un formato que ya no sirve para entregártela. No hace falta esperar — pide una nueva y la generamos otra vez."}
+        {fase.t === "fallida" &&
+          "Aquella exportación no llegó a completarse. No hace falta esperar — pide una nueva y lo intentamos otra vez."}
         {fase.t === "ninguna" && "Todavía no has pedido ninguna."}
         {fase.t === "enfriamiento" && fase.mensaje}
         {fase.t === "error" && fase.mensaje}

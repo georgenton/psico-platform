@@ -116,8 +116,11 @@ describe("DataExportCard", () => {
   // que la exportación no podrá descargarse nunca, así que esa lectura invita
   // a esperar algo que no va a llegar.
 
-  function conflicto(code?: string): Response {
-    return new Response(code ? JSON.stringify({ code }) : null, {
+  function conflicto(code?: string, status?: string): Response {
+    const cuerpo = code
+      ? JSON.stringify({ code, details: status ? { status } : undefined })
+      : null;
+    return new Response(cuerpo, {
       status: 409,
       headers: code ? { "content-type": "application/json" } : undefined,
     });
@@ -155,6 +158,40 @@ describe("DataExportCard", () => {
     expect(
       screen.getByRole("button", { name: /Pedir mi exportación/i }),
     ).toBeEnabled();
+  });
+
+  it("NOT_READY con status FAILED no dice «preparando»: eso ya terminó mal", async () => {
+    // El servidor devuelve NOT_READY para TODO estado que no sea READY, y
+    // FAILED es terminal. Mandar a esperar ahí es la misma promesa rota que
+    // este arreglo quita, entrando por otra puerta. `details.status` lo
+    // distingue.
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      conflicto("DATA_EXPORT_NOT_READY", "FAILED"),
+    );
+    render(<DataExportCard {...props} />);
+    await userEvent.click(
+      screen.getByRole("button", { name: /Consultar estado/i }),
+    );
+
+    const estado = await screen.findByRole("status");
+    expect(estado).toHaveTextContent(/no llegó a completarse/i);
+    expect(estado).not.toHaveTextContent(/preparando/i);
+    expect(
+      screen.getByRole("button", { name: /Pedir mi exportación/i }),
+    ).toBeEnabled();
+  });
+
+  it("NOT_READY con un estado que SÍ está en curso sigue diciendo «preparando»", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      conflicto("DATA_EXPORT_NOT_READY", "PROCESSING"),
+    );
+    render(<DataExportCard {...props} />);
+    await userEvent.click(
+      screen.getByRole("button", { name: /Consultar estado/i }),
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent(/preparando/i),
+    );
   });
 
   it("un 409 sin código no se convierte en una promesa de preparación", async () => {

@@ -347,7 +347,10 @@ export function LectorAudioBar({
                       {metadata.title}
                     </Text>
                     <Text style={styles.metaSubtitle} numberOfLines={1}>
-                      {metadata.subtitle} · {metadata.artist}
+                      {/* Sin autoría registrada no hay separador colgando. */}
+                      {metadata.artist
+                        ? `${metadata.subtitle} · ${metadata.artist}`
+                        : metadata.subtitle}
                     </Text>
                   </View>
                 </View>

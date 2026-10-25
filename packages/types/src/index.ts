@@ -2668,8 +2668,20 @@ export interface LectorAudioMetadata {
   title: string;
   /** Track subtitle — typically the book title. */
   subtitle: string;
-  /** Track artist — author name. Falls back to "Psico Platform". */
-  artist: string;
+  /**
+   * Track artist — the book's author.
+   *
+   * `null` when no authorship is registered, which is a legitimate state: the
+   * authorship repair withdraws a name it cannot source rather than inventing
+   * one. It used to fall back to the product's own name, which attributed the
+   * book to the platform.
+   *
+   * Clients render the subtitle alone when this is absent — never a dangling
+   * separator, and never a placeholder sentence in a slot an operating system
+   * reserves for a name. See `AUTHORSHIP_UNCONFIRMED` for the other half of
+   * this decision.
+   */
+  artist: string | null;
   /** Album-art URL (book cover). PNG/JPG, ≥300×300 recommended. */
   artworkUrl: string;
 }
@@ -3913,6 +3925,7 @@ export * from "./inline-marks";
 export * from "./password-policy";
 export * from "./data-export-scope";
 export * from "./brand";
+export * from "./authorship";
 
 // ─── Eco contextual · Sprint B — per-chapter suggested topics ────────────
 export * from "./eco-chapter-prompts";

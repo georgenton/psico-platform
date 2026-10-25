@@ -12,6 +12,7 @@ import type {
   OnboardingRecommendationResponse,
   OnboardingTourStep,
 } from "@psico/types";
+import { AUTHORSHIP_UNCONFIRMED } from "@psico/types";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { PrismaService } from "../prisma";
 import type { OnboardingStep1Dto } from "./dto/step1.dto";
@@ -464,7 +465,7 @@ export class OnboardingService {
       // author appeared, which is exactly what Author B2B is for.
       // Attribution is not a placeholder; when a book has no author on
       // record, say so instead of inventing one.
-      author: book.author?.name ?? "Autoría por confirmar",
+      author: book.author?.name ?? AUTHORSHIP_UNCONFIRMED,
       // What it costs to open, stated BEFORE the CTA promises a read.
       tierRequired: book.plan === "FREE" ? ("free" as const) : ("pro" as const),
       cover: this.pickCoverToken(book.id),

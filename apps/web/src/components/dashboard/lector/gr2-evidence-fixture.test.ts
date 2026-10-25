@@ -26,23 +26,24 @@ import { describe, expect, it } from "vitest";
  *      seeded BookAuthor and, separately, as a seeded therapist; "Dra. Marina
  *      Salazar" in a design prototype) contradict each other. Authorship is not
  *      something to infer, so the fixture carries the audio contract's own
- *      no-author fallback and the evidence shows no personal name.
+ *      no-author fallback — `null` since 2026-10-25 — and the evidence shows
+ *      no name at all, not even the platform's own.
  */
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "../../../../../..");
 
 const fixture = JSON.parse(
-  readFileSync(resolve(repoRoot, "apps/web/e2e/fixtures/gr2-audio.json"), "utf8"),
+  readFileSync(
+    resolve(repoRoot, "apps/web/e2e/fixtures/gr2-audio.json"),
+    "utf8",
+  ),
 ) as {
-  metadata: { title: string; subtitle: string; artist: string };
+  metadata: { title: string; subtitle: string; artist: string | null };
 };
 
 const titles = JSON.parse(
   readFileSync(
-    resolve(
-      repoRoot,
-      "apps/api/content/emociones-en-construccion/titles.json",
-    ),
+    resolve(repoRoot, "apps/api/content/emociones-en-construccion/titles.json"),
     "utf8",
   ),
 ) as Record<string, string>;
@@ -56,10 +57,18 @@ describe("GR-2 evidence fixture", () => {
   });
 
   it("shows no unverified author", () => {
-    // The documented fallback in LectorAudioMetadata when a book has no author.
-    expect(fixture.metadata.artist).toBe("Psico Platform");
+    // The documented fallback in LectorAudioMetadata when a book has no
+    // author. It used to be the product's own name, which attributed the book
+    // to the platform — an unsourced claim of exactly the kind the authorship
+    // repair withdraws. Absence is the honest answer.
+    expect(fixture.metadata.artist).toBeNull();
 
-    const line = `${fixture.metadata.subtitle} · ${fixture.metadata.artist}`;
+    // What the player actually renders: the subtitle alone, with no dangling
+    // separator and no name of any kind.
+    const line = fixture.metadata.artist
+      ? `${fixture.metadata.subtitle} · ${fixture.metadata.artist}`
+      : fixture.metadata.subtitle;
+    expect(line).toBe("Emociones en Construcción");
     expect(line).not.toMatch(/marina/i);
     expect(line).not.toMatch(/quintana|salazar/i);
   });

@@ -1178,7 +1178,10 @@ export class LectorService {
     const metadata: LectorAudioMetadata = {
       title: chapter.title,
       subtitle: book.title,
-      artist: book.author?.name ?? "Psico Platform",
+      // `null`, never a fabricated name: a book without registered authorship
+      // is a legitimate state, and this used to attribute it to the platform.
+      // Matches the other two authorship points in this file.
+      artist: book.author?.name ?? null,
       // The cover is a private-bucket object, so it is resolved like any other
       // stored image. Falling back to the gradient token keeps the existing
       // contract: clients already treat a non-URL value as a palette name.

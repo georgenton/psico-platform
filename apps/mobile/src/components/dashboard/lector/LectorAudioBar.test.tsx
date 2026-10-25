@@ -194,6 +194,23 @@ describe("LectorAudioBar — metadata rendering", () => {
     ).toBeOnTheScreen();
   });
 
+  it("drops the separator when the book has no registered author", async () => {
+    // `artist: null` es el estado honesto desde el 2026-10-25 — el respaldo
+    // atribuía el libro a la plataforma. Lo que no puede verse es un
+    // «Libro · » con nada detrás.
+    lectorApi.getAudio.mockResolvedValue({
+      ...baseResponse,
+      metadata: { ...baseResponse.metadata, artist: null },
+    });
+    renderBar();
+    fireEvent.press(screen.getByLabelText("Abrir audio"));
+
+    expect(
+      await screen.findByText("Emociones en Construcción"),
+    ).toBeOnTheScreen();
+    expect(screen.queryByText(/·\s*$/)).toBeNull();
+  });
+
   it("renders the play button + speed chips once the audio is loaded", async () => {
     lectorApi.getAudio.mockResolvedValue(baseResponse);
     renderBar();

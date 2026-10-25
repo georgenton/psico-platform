@@ -255,10 +255,22 @@ El último cierra el criterio de entrada que quedaba pendiente de desplegar.
   de datos sobre contenido editorial, porque quitarlos al renderizar correría
   los desplazamientos de los resaltados.
 - **Correo y observabilidad**: a la espera de credencial, con su precondición.
-- **El autor de respaldo del audio del lector** atribuye el libro a la
-  plataforma cuando el libro no tiene autor — y desde la reparación de autoría
-  eso sí dispara. No es marca: es una afirmación sin fuente. Tiene su propia
-  ventana y está inventariado.
+- ~~**El autor de respaldo del audio del lector** atribuye el libro a la
+  plataforma.~~ **Cerrado el 2026-10-25** (PR #808). `artist` pasa a `null`,
+  porque el campo se compone como «Libro · Artista» y un marcador dejaría un
+  separador colgando.
+
+  Y buscando ése apareció **otro, peor**: las recomendaciones de Inicio
+  firmaban el _byline_ como «Psicología Educativa», que se lee como el nombre
+  de una persona y que nadie puede distinguir de una atribución real. Ése va
+  solo en su línea, así que lleva marcador declarado —la misma frase que
+  onboarding decía a mano y que ahora los dos leen de un sitio.
+
+  Ninguno de los dos era visible en staging: cero filas de `Audio` y cero
+  libros publicados sin autor. Se desplegó igual, porque los dos se vuelven
+  visibles por una acción de ops —subir los m4a, publicar un libro sin
+  autoría— que podría ocurrir antes del siguiente despliegue.
+
 - ~~**Quién ejecuta las migraciones al desplegar**: no lo encontré.~~
   **Resuelto el 2026-10-25, y no había nada que resolver.** Las ejecuta el
   `post_deployment_command` del recurso api —`pnpm --filter @psico/api

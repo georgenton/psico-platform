@@ -445,7 +445,10 @@ export function AudioBar({
                         color: "var(--reader-muted, var(--color-warm-500))",
                       }}
                     >
-                      {data.metadata.subtitle} · {data.metadata.artist}
+                      {/* Sin autoría registrada no hay separador colgando. */}
+                      {data.metadata.artist
+                        ? `${data.metadata.subtitle} · ${data.metadata.artist}`
+                        : data.metadata.subtitle}
                     </p>
                   </div>
                 </div>

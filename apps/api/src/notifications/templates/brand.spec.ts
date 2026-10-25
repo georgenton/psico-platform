@@ -52,13 +52,6 @@ const EXCEPCIONES: Array<{ ruta: string; motivo: string }> = [
     motivo: "título de Swagger — superficie interna, no la ve nadie de fuera",
   },
   {
-    ruta: "lector/lector.service.ts",
-    motivo:
-      "autor de respaldo del audio. NO es marca: es una afirmación sin fuente " +
-      "—atribuye el libro a la plataforma— y desde la reparación de autoría sí " +
-      "dispararía. Misma clase que la reparación retira; su propia ventana",
-  },
-  {
     ruta: "notifications/templates/author-publication-approved.template.ts",
     motivo:
       "recorrido B2B de publicación, no recorrido; la publicación editorial " +

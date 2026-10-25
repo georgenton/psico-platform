@@ -193,6 +193,25 @@ describe("AudioBar — metadata rendering", () => {
     ).toBeInTheDocument();
   });
 
+  it("drops the separator when the book has no registered author", async () => {
+    // `artist: null` is the honest state since 2026-10-25 — the fallback used
+    // to name the platform, attributing the book to it. What a reader must
+    // never see is a dangling «Libro · » with nothing after it.
+    fetchSpy.mockResolvedValue(
+      fetchOk({
+        ...baseAudioResponse,
+        metadata: { ...baseAudioResponse.metadata, artist: null },
+      }),
+    );
+    renderBar();
+    fireEvent.click(screen.getByRole("button", { name: /abrir audio/i }));
+
+    expect(
+      await screen.findByText("Emociones en Construcción"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/·\s*$/)).not.toBeInTheDocument();
+  });
+
   it("renders the native <audio> element with the signed URL", async () => {
     fetchSpy.mockResolvedValue(fetchOk(baseAudioResponse));
     renderBar();

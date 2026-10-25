@@ -26,7 +26,7 @@ import type {
   InsightToday,
   UpdateUserMoodResponse,
 } from "@psico/types";
-import { AMBIENT_IDS } from "@psico/types";
+import { AMBIENT_IDS, AUTHORSHIP_UNCONFIRMED } from "@psico/types";
 
 // ─── Greeting rules ──────────────────────────────────────────────────────────
 //
@@ -607,7 +607,11 @@ export class HomeService {
       id: b.id,
       kind: "book" as const,
       title: b.title,
-      byline: b.author?.name ?? "Psicología Educativa",
+      // Un byline dice «por X». Este respaldo firmaba los libros sin autoría
+      // como «Psicología Educativa», que se lee como el nombre de una persona
+      // o un sello: una atribución inventada que nadie puede distinguir de una
+      // real. Va solo en su línea, así que lleva marcador declarado.
+      byline: b.author?.name ?? AUTHORSHIP_UNCONFIRMED,
       cover: this.toCoverToken(b.cover),
       reason: "Nuevo en la biblioteca",
       lockedByTier: userTier === "free" && b.plan !== "FREE",

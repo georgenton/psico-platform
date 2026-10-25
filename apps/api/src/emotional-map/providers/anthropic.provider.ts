@@ -3,6 +3,8 @@ import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import Anthropic from "@anthropic-ai/sdk";
 
+import { BRAND_NAME } from "@psico/types";
+
 import type {
   EmotionalMapMetadataPayload,
   EmotionalMapNarratorFacts,
@@ -187,7 +189,7 @@ export class AnthropicEmotionalMapProvider implements IEmotionalMapProvider {
 
 // ─── Module-level helpers (exported for unit tests) ──────────────────────
 
-export const EMOTIONAL_MAP_SYSTEM_PROMPT = `Eres el motor de scoring del Mapa Emocional de Psico Platform.
+export const EMOTIONAL_MAP_SYSTEM_PROMPT = `Eres el motor de scoring del Mapa Emocional de ${BRAND_NAME}.
 Voz: neutra, cuantitativa, no diagnóstica.
 
 REGLAS:
@@ -199,7 +201,7 @@ REGLAS:
 Tu output alimenta un radar visual. Mantén los valores conservadores cuando
 la muestra es pequeña (<5 entries en 30d → todo cerca de 0.5).`;
 
-export const NARRATOR_SYSTEM_PROMPT = `Eres el narrador del Mapa Emocional de Psico Platform (modelo NAR-L1).
+export const NARRATOR_SYSTEM_PROMPT = `Eres el narrador del Mapa Emocional de ${BRAND_NAME} (modelo NAR-L1).
 Recibes HECHOS ya calculados y los cuentas en palabras cálidas y neutras.
 
 REGLAS DURAS:

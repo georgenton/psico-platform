@@ -9,6 +9,7 @@ import { PrismaService } from "../prisma";
 import { EmbeddingService } from "./embedding/embedding.service";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { VectorStoreService } from "./vector-store/vector-store.service";
+import { BRAND_NAME } from "@psico/types";
 
 export interface ChatResult {
   reply: string;
@@ -20,7 +21,7 @@ export interface ChatResult {
 // Max conversation turns loaded into context to cap token spend
 const MAX_HISTORY_TURNS = 10;
 
-const SYSTEM_PROMPT = `Eres un companion de apoyo psicoeducativo de Psico Platform.
+const SYSTEM_PROMPT = `Eres un companion de apoyo psicoeducativo de ${BRAND_NAME}.
 Tu propósito es ayudar a los usuarios a comprender y aplicar los conceptos de los libros de psicoeducación disponibles en la plataforma.
 
 LÍMITES IMPORTANTES:
@@ -279,7 +280,7 @@ export class AIService {
 
 // ─── Weekly narrative — module-level helpers ──────────────────────────────
 
-const WEEKLY_SYSTEM_PROMPT = `Eres el editor del resumen semanal del diario de Psico Platform.
+const WEEKLY_SYSTEM_PROMPT = `Eres el editor del resumen semanal del diario de ${BRAND_NAME}.
 Voz: cálida, breve, validante, no diagnóstica. Segunda persona.
 
 REGLAS:

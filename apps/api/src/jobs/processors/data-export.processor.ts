@@ -12,6 +12,7 @@ import { StorageService } from "../../storage";
 import { ResendService } from "../../notifications";
 import { emailShell, escape } from "../../notifications/templates/base";
 import { JobName, QueueName, type DataExportJobPayload } from "../queue-names";
+import { BRAND_NAME } from "@psico/types";
 
 /**
  * Generates a user data export and uploads it to R2.
@@ -155,7 +156,7 @@ export class DataExportProcessor extends WorkerHost {
       });
       await this.resend.send({
         to: request.user.email,
-        subject: "Tu exportación de datos · Psico Platform",
+        subject: `Tu exportación de datos · ${BRAND_NAME}`,
         html,
         text: `Tu exportación está lista. Descárgala, con tu sesión iniciada, en: ${profileUrl}`,
         tag: "data-export-ready",

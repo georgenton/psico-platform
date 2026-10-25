@@ -486,6 +486,38 @@ observa por logs y por profundidad de colas.
 
 Mismas variables que la API, **sin** `PORT`.
 
+### Los tres se despliegan de uno en uno
+
+**No en paralelo.** Medido el 2026-10-25: lanzados los tres a la vez, **los
+tres** fallaron a los ~3m45s, en el mismo segundo, con
+
+```
+ERROR: failed to build: failed to receive status:
+rpc error: code = Unavailable desc = error reading from server: EOF
+```
+
+Eso es el demonio de buildkit cayéndose, no un fallo del código: aparece justo
+al arrancar `nest build`, después de que tsup compile `@psico/types` (275 KB de
+DTS) y `@psico/crypto`. Son tres compilaciones de TypeScript a la vez sobre un
+VPS de 11 GiB con ~5 GiB ya ocupados por los servicios en marcha. De uno en
+uno —API, esperar, worker, esperar, Web— los tres terminan sin tocar nada más.
+
+Mientras falla, Coolify **conserva la versión anterior sirviendo** («Removing
+the new version of your application»), así que un fallo de build no deja el
+entorno roto: lo deja como estaba.
+
+**Y para leer por qué falló:** `get_deployment` del MCP pide `read:sensitive`,
+que los tokens de este proyecto no tienen, y el contenedor del build se borra
+al acabar. El log está en la base de Coolify:
+
+```
+sudo -n docker exec coolify-db psql -U coolify -d coolify -tAc \
+  "SELECT logs FROM application_deployment_queues WHERE deployment_uuid='<uuid>'"
+```
+
+La misma tabla da el `status` (`in_progress` · `finished` · `failed`), que es
+la forma barata de vigilar un despliegue en curso.
+
 ---
 
 ## 2 · VALIDATE

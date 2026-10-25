@@ -13,6 +13,7 @@ import { completedBookCount } from "../content-core/read/book-completion";
 import { createHash, randomBytes } from "crypto";
 import type { Redis } from "ioredis";
 import * as bcrypt from "bcryptjs";
+import { BRAND_NAME } from "@psico/types";
 import type {
   AvatarUploadResponse,
   DataExportRequestResponse,
@@ -558,7 +559,7 @@ export class UsersService {
     });
     await this.jobs.enqueueEmail({
       to: normalized,
-      subject: "Confirma tu nuevo correo · Psico Platform",
+      subject: `Confirma tu nuevo correo · ${BRAND_NAME}`,
       html,
       text: `Confirma tu nuevo correo abriendo: ${verifyUrl}\n\nEste enlace vence en ${EMAIL_VERIFICATION_TTL_HOURS} horas.`,
       tag: "email-change",

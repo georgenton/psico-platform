@@ -4,31 +4,36 @@
  * ── Por qué existe ─────────────────────────────────────────────────────────
  *
  * El producto se llama FeelVerse. Pero el nombre anterior, «Psico Platform»,
- * seguía escrito a mano en diecisiete archivos, y dos de ellos hablan en voz
- * alta: el prompt de Eco —que se lo dijo literalmente a una cuenta de prueba
- * el 2026-10-24: «tu companion conversacional en Psico Platform»— y la
- * cabecera de todos los correos transaccionales, incluido el de
- * restablecimiento de contraseña, que es el único camino de recuperación de
- * la cuenta.
+ * seguía escrito a mano en diecisiete archivos, y varios hablan en voz alta:
+ * el prompt de Eco —que se lo dijo literalmente a una cuenta de prueba el
+ * 2026-10-24: «tu companion conversacional en Psico Platform»—, los asuntos
+ * de los correos transaccionales y los prompts del narrador del Mapa y del
+ * resumen semanal, cuyo texto se le muestra a la persona.
  *
- * Corregir cuatro copias habría dejado cuatro copias. Ésta es la misma
- * decisión que `password-policy`: el dato vive en un sitio y los consumidores
- * lo leen.
+ * Corregir cuatro copias habría dejado trece. Ésta es la misma decisión que
+ * `password-policy`: el dato vive en un sitio y los consumidores lo leen.
  *
- * ── Lo que NO alcanza ──────────────────────────────────────────────────────
+ * ── Dónde vive la lista de excepciones, y por qué no aquí ──────────────────
  *
- * Quedan menciones a propósito:
+ * La primera versión de este comentario traía el inventario de lo que quedaba
+ * fuera. **Estaba mal dos veces**, y merece la pena decirlo porque explica el
+ * diseño:
  *
- *   - `apps/web/src/app/page.tsx` y `landing.css` nombran el proyecto de
- *     Claude Design, que se llama así de verdad. Renombrarlo sería mentir
- *     sobre la procedencia del diseño.
- *   - `apps/api/src/main.ts` lo usa como título de Swagger: superficie
- *     interna, no la ve nadie de fuera.
- *   - `apps/api/src/lector/lector.service.ts` lo usa como autor de respaldo
- *     del audio. Ése no es un cambio de marca sino una afirmación sin
- *     fuente —atribuir un libro a la plataforma—, de la misma clase que la
- *     reparación de autoría retira. Tiene su propia ventana.
+ *   1. Afirmaba que el resto de menciones estaban justificadas. Había mirado
+ *      seis de diecisiete archivos.
+ *   2. Por eso el correo de exportación salió **desplegado** con el nombre
+ *      viejo en el asunto. Los asuntos no viven en el armazón compartido:
+ *      cada plantilla pone el suyo, y ése se construye en su processor.
  *
- * Esta constante no las toca. Están inventariadas, no olvidadas.
+ * Un inventario a mano en un comentario no se comprueba nunca. La lista real,
+ * con el motivo de cada excepción, vive en
+ * `apps/api/src/notifications/templates/brand.spec.ts`, donde un trinquete
+ * recorre el árbol y **falla** si aparece una mención que nadie justificó —y
+ * también si sobra una justificación que ya no corresponde a nada.
+ *
+ * Ese trinquete rinde los correos en vez de leer el fuente, porque un grep
+ * pasa cuando la interpolación queda mal escrita: los dos primeros asuntos
+ * que corregí eran cadenas con comillas y no literales de plantilla, así que
+ * la sustitución dejó las llaves tal cual.
  */
 export const BRAND_NAME = "FeelVerse";

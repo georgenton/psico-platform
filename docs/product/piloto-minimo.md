@@ -134,8 +134,9 @@ en poco más de una cuarta parte del capítulo, o esa operación va antes.
       configurado hay que repetirla por su transporte real._
 - [x] **Recuperación del diario comprobada** — hecha: la frase de respaldo
       devuelve el contenido original. El diario entra en el piloto.
-- [ ] **Exportación web validada** — pantalla construida y probada; **falta
-      recorrerla en staging tras desplegar**.
+- [x] **Exportación web validada** — recorrida en staging el 25-10 con cuenta
+      sintética: pedir → «preparando» → consultar → «Lista», con el enlace
+      apuntando a R2 y `rel="noopener noreferrer"`.
 - [x] **Eco validado** — hecho el 24-10: conversación normal con cuenta
       sintética, cifrado persistido conforme al ADR 0007 §C, coste acotado
       antes de gastar y observado después. Eco entra en el alcance.

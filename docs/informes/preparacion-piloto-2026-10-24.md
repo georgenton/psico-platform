@@ -191,6 +191,63 @@ transaccionales, el de restablecimiento incluido. Corregido en este bloque
 
 ---
 
+## 5 ter. El despliegue, y las dos cosas que enseñó
+
+Desplegado a staging el 2026-10-25. Los tres servicios, porque el armazón de
+los correos lo usa también el worker: desplegar sólo la API habría dejado la
+mitad de los correos con el nombre viejo. Sin migraciones en la rama, así que
+la compatibilidad de esquema no estaba en cuestión; `ready` da 71/71.
+
+### Lo primero: los tres a la vez no se puede
+
+Lancé los tres en paralelo y **los tres** fallaron a los ~3m45s, en el mismo
+segundo, con `rpc error: code = Unavailable … EOF` — el demonio de buildkit
+cayéndose justo al arrancar `nest build`. Tres compilaciones de TypeScript
+sobre un VPS de 11 GiB con 5 ya ocupados. **Error mío de orquestación**, no
+del código: de uno en uno los tres entraron sin tocar nada más. Coolify
+conservó la versión anterior sirviendo mientras fallaba, así que el entorno
+quedó como estaba. Queda escrito en el runbook §1.
+
+### Lo segundo, que importa más: mi inventario de la marca estaba mal
+
+Pedí una exportación real contra staging para comprobar el recorrido, leí el
+log del worker, y el asunto decía `Tu exportación de datos · Psico Platform`.
+
+**El nombre viejo llegó al entorno desplegado.** Dos fallos míos encadenados:
+
+1. Escribí un inventario afirmando que las menciones restantes estaban
+   justificadas. Había mirado **seis de diecisiete** archivos.
+2. Y el que se escapó era de una clase que no había considerado: los
+   **asuntos** no viven en el armazón compartido — cada plantilla pone el
+   suyo, y ése se construye en su propio processor.
+
+Faltaban además **cuatro prompts** (scoring y narrador del Mapa, companion
+legado, editor del resumen semanal). Son el mismo defecto que Eco: lo que se
+le da al modelo, el modelo lo repite — y el narrador está encendido por
+defecto, así que su texto se le muestra a la persona.
+
+El arreglo de verdad no fue la sustitución sino **cambiar un inventario por un
+trinquete**: ahora recorre el árbol y exige que cada mención restante tenga un
+motivo declarado, y que no sobre ninguna justificación que ya no corresponda a
+nada. Comprobado por mutación con el defecto real.
+
+### Comprobado sobre el artefacto desplegado
+
+|                              | Resultado                                                                                                             |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/health/ready`      | `ready=true` · 71/71 · 0 pendientes                                                                                   |
+| Mínimo de 15, en vivo        | 13 caracteres → **400**                                                                                               |
+| Tope en bytes, en vivo       | 40 «ñ» (40 caracteres / 80 bytes) → **400**, con un mensaje que no habla de bytes                                     |
+| Contraseña existente         | **entra** — el acceso no consulta la política                                                                         |
+| Correo de restablecimiento   | **7** menciones de FeelVerse, **0** del nombre viejo, asunto «Restablecer tu contraseña · FeelVerse»                  |
+| Eco, prompt desplegado       | sin Markdown, sin el nombre viejo, dice FeelVerse                                                                     |
+| Exportación por API          | 202 → lista en ~3 s → URL firmada a **R2** → 2 854 bytes                                                              |
+| Exportación **por pantalla** | recorrida con cuenta sintética: pedir → preparando → consultar → «Lista», enlace a R2 con `rel="noopener noreferrer"` |
+
+El último cierra el criterio de entrada que quedaba pendiente de desplegar.
+
+---
+
 ## 6. Lo que sigue abierto
 
 - **Los asteriscos del lector**: 50 de 188 bloques muestran Markdown literal.
@@ -198,3 +255,11 @@ transaccionales, el de restablecimiento incluido. Corregido en este bloque
   de datos sobre contenido editorial, porque quitarlos al renderizar correría
   los desplazamientos de los resaltados.
 - **Correo y observabilidad**: a la espera de credencial, con su precondición.
+- **El autor de respaldo del audio del lector** atribuye el libro a la
+  plataforma cuando el libro no tiene autor — y desde la reparación de autoría
+  eso sí dispara. No es marca: es una afirmación sin fuente. Tiene su propia
+  ventana y está inventariado.
+- **Quién ejecuta las migraciones al desplegar**: no lo encontré. Los campos de
+  pre/post-despliegue están vacíos, el entrypoint no las llama, y sin embargo
+  las 71 están aplicadas. Esta rama no trae ninguna, así que no bloqueaba; la
+  red que ya existe es `ready`, que compara enviadas con aplicadas.

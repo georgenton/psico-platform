@@ -259,7 +259,23 @@ El último cierra el criterio de entrada que quedaba pendiente de desplegar.
   plataforma cuando el libro no tiene autor — y desde la reparación de autoría
   eso sí dispara. No es marca: es una afirmación sin fuente. Tiene su propia
   ventana y está inventariado.
-- **Quién ejecuta las migraciones al desplegar**: no lo encontré. Los campos de
-  pre/post-despliegue están vacíos, el entrypoint no las llama, y sin embargo
-  las 71 están aplicadas. Esta rama no trae ninguna, así que no bloqueaba; la
-  red que ya existe es `ready`, que compara enviadas con aplicadas.
+- ~~**Quién ejecuta las migraciones al desplegar**: no lo encontré.~~
+  **Resuelto el 2026-10-25, y no había nada que resolver.** Las ejecuta el
+  `post_deployment_command` del recurso api —`pnpm --filter @psico/api
+migrate:deploy`—, y el log del despliegue lo enseña: `Rolling update
+completed` → `Executing post-deployment command` → `docker exec` en el
+  contenedor **nuevo** → `71 migrations found`.
+
+  Me equivoqué en dos cosas a la vez. Leí `post_deployment_command_container`
+  —que dice _en qué_ contenedor, y es `null` porque vale el principal— en vez
+  de `post_deployment_command`, que es el comando y que el MCP no devuelve. Y
+  no miré donde estaba escrito: el runbook lo documenta desde el 22-10 con su
+  corrección entera, y `health.controller.ts` explica por qué `/health` no
+  puede ser el gate estricto. Busqué en `main.ts`, en el compose y en el
+  entrypoint, y de no encontrarlo ahí deduje ausencia.
+
+  Lo que sí queda abierto es la ventana que el runbook ya describía: el post
+  corre **después** de que el contenedor nuevo empiece a servir, así que hay
+  segundos de código nuevo contra esquema viejo —inocua para una migración
+  aditiva, no para una destructiva— y una migración fallida deja el despliegue
+  en verde. Por eso existe `GET /api/health/ready`.

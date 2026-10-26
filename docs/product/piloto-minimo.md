@@ -73,8 +73,27 @@ La preparación exacta, en este orden:
 1. Dar de baja del digest a las dos cuentas de dirección real, o dejar escrito
    que se acepta recibirlo. Es la decisión del dueño de esas cuentas, no mía,
    así que queda propuesta y no ejecutada.
-2. Sólo entonces, configurar `RESEND_API_KEY` en **API y worker**.
-3. Comprobar el envío contra una cuenta `@psico.test`, que no puede salir.
+2. Conseguir una **bandeja de QA controlada y autorizada** — una dirección real
+   que alguien acepta expresamente usar para esto — y acotar los destinatarios
+   de staging a ella.
+3. Sólo entonces, configurar `RESEND_API_KEY` en **API y worker**.
+4. Validar contra esa bandeja: que el correo **llega**, y que el enlace de
+   restablecimiento abre y rota la contraseña de punta a punta.
+
+> **Corrección del 2026-10-26.** El paso que aquí decía «comprobar el envío
+> contra una cuenta `@psico.test`, que no puede salir» no valida nada, y la
+> frase lo admitía sin darse cuenta: si no puede salir, no hay entrega que
+> comprobar. Mandar a una dirección de un dominio reservado por la RFC 2606
+> prueba, como mucho, que el código llamó al proveedor sin lanzar excepción.
+> Deja **sin** comprobar todo lo que de verdad falla en el correo: que el
+> proveedor acepte el envío, que el dominio remitente esté autenticado (SPF,
+> DKIM, DMARC), que el mensaje no caiga en spam, que el enlace del
+> restablecimiento llegue entero y que su token funcione al abrirlo.
+>
+> Por eso el transporte y el restablecimiento **exigen una bandeja real**, y
+> por eso esa bandeja tiene que estar autorizada antes de existir el envío: un
+> correo de prueba a una dirección que nadie ofreció es correo no solicitado,
+> aunque sea nuestro.
 
 ---
 

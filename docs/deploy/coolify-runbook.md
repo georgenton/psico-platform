@@ -247,11 +247,29 @@ observada y no supuesta. Cómo sacar el log, en §1.
 >   condición.
 >
 >   **La condición es que el código nuevo pueda funcionar contra el esquema anterior
->   hasta que la migración termine.** Eso se consigue haciéndolo tolerante —leer el
->   campo nuevo como opcional, no escribirlo todavía—, y normalmente obliga a partir el
->   cambio en dos despliegues: primero el código que soporta los dos esquemas, después
->   el que ya depende del nuevo. Una migración destructiva casi nunca lo cumple, y por
->   eso la regla vieja acertaba por ese lado; lo que erraba era el otro.
+>   hasta que la migración termine.**
+>
+>   Y aquí había un segundo error, más fino, en el remedio que esto proponía. Decía
+>   «hacerlo tolerante: leer el campo nuevo como opcional». Eso suena bien y no
+>   sirve: **durante la ventana la columna no existe**, y una consulta que la
+>   nombra falla entera. No hay lectura opcional de una columna inexistente —
+>   `SELECT "campoNuevo"` es `column … does not exist`, no `NULL`—, y con Prisma
+>   basta con que el modelo la declare para que el cliente la incluya en el
+>   `SELECT` de cualquier consulta sobre esa tabla. Un campo «opcional» en el
+>   esquema de Prisma describe si acepta `NULL`, no si la base ya la tiene.
+>
+>   La condición, dicha en términos de lo que el proceso hace: **el código que
+>   sirve durante la ventana no puede emitir ninguna consulta ni escritura que
+>   dependa de la columna todavía inexistente** — ni leyéndola, ni filtrando por
+>   ella, ni ordenando por ella, ni nombrándola en un `select` explícito. Lo que
+>   se consigue es no referirla en absoluto hasta que la migración termine, y eso
+>   normalmente obliga a partir el cambio en dos despliegues: primero el código que
+>   funciona sin la columna, después el que ya depende de ella. Una migración
+>   destructiva casi nunca lo cumple, y por eso la regla vieja acertaba por ese
+>   lado; lo que erraba era el otro.
+>
+>   Este corte no añade migraciones, así que la ventana no se ejerció. La regla
+>   queda escrita para el siguiente cambio de esquema, que es cuando engaña.
 >
 > Y se pierde algo más, dicho aparte porque es lo que más engaña: la llamada a
 > `run_post_deployment_command()` está envuelta en `try/catch` que sólo deja un
@@ -266,6 +284,23 @@ observada y no supuesta. Cómo sacar el log, en §1.
 > `ready` sin mirar las listas es la misma confianza que se acaba de retirar, un escalón
 > más abajo. Comprobado así el 2026-10-25 sobre `a31ddaa4`: `ready=true`, `reason=ok`,
 > 71/71, las dos listas vacías.
+>
+> **Y el criterio se aplica por servicio, porque no hay un «commit servido».** Son
+> tres cajas y pueden ir a tres alturas a la vez; comprobar una y hablar de «el
+> despliegue» es cómo se da por cerrado lo que no se miró. Lo que cierra a cada una
+> es distinto, y conviene no pedirle a una la prueba de otra:
+>
+> | Servicio            | Qué lo cierra                                                                                                                                              | Observado el 2026-10-26                                                                  |
+> | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+> | API (`aft7nt3p…`)   | `ready=true` con `pending` **y** `failed` vacíos. Es la única que ejecuta migraciones                                                                      | `a31ddaa4` · `ready=true`, `reason=ok`, 71/71, listas vacías                             |
+> | Web (`wwsluxas…`)   | Healthcheck HTTP en verde **más** una comprobación de contenido del artefacto: el verde sólo dice que el proceso responde, no qué sirve                    | `5dacedbd` · healthy, y las cinco cadenas del arreglo presentes en `/app/apps/web/.next` |
+> | worker (`hwxntao…`) | Proceso vivo. **No tiene healthcheck y no debe tenerlo**: no escucha en ningún puerto, así que `running/unknown` es su estado correcto y no una incidencia | `5f209d79` · vivo; `running/sin-healthcheck`                                             |
+>
+> La versión de cada uno se lee de la **etiqueta de su imagen**, no por HTTP:
+> `/api/health` es 404 por diseño y `/health` no trae SHA. Y una diferencia entre
+> repositorio y servicio se justifica comparando archivos, no commits: al worker le
+> faltaban tres services de la API cuya ausencia es inocua porque **ninguno está en
+> su grafo de módulos**, y eso se comprueba leyendo qué importa `jobs/worker.module.ts`.
 >
 > El cambio se hizo por SQL sobre `coolify-db` porque no hay token de la API de Coolify
 > a mano, así que **no generó el evento de auditoría** de la interfaz. Preimagen en

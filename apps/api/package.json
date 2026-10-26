@@ -40,7 +40,10 @@
     "content:eec:c01:e2e-seed": "ts-node src/content-core/eec-c01-e2e-seed.ts",
     "content:eec:guides": "ts-node src/content-core/eec-c01-guides-main.ts",
     "catalog:authorship:plan": "ts-node src/catalog/authorship-repair-cli.ts",
-    "catalog:authorship:apply": "ts-node src/catalog/authorship-repair-cli.ts --apply"
+    "catalog:authorship:apply": "ts-node src/catalog/authorship-repair-cli.ts --apply",
+    "content:eec:emphasis:plan": "ts-node src/content-core/markdown-repair-cli.ts",
+    "content:eec:emphasis:apply": "ts-node src/content-core/markdown-repair-cli.ts --apply",
+    "content:eec:emphasis:revert": "ts-node src/content-core/markdown-repair-cli.ts --revert"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.95.1",

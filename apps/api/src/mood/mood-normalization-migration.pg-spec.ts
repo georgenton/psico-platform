@@ -2,7 +2,7 @@ import { execSync } from "node:child_process";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { assertEmptyTestDatabase } from "../test/pg-precondition";
+import { dropWhenIdle } from "../test/pg-drop";
 
 /**
  * PR-2A · the REAL migration, exercised end-to-end.
@@ -12,10 +12,24 @@ import { assertEmptyTestDatabase } from "../test/pg-precondition";
  * the constraints/columns/enums/indexes the migration file produced. If someone
  * weakens the migration, THIS test — not a mirror of it — fails.
  *
- * Isolation: everything is created inside a fresh `pr2a_migrate` schema so we do
- * not collide with the lock suite's `public."User"`. We seed one parent `User`
- * (for the FK) and drive raw inserts so the ONLY thing that can reject an
- * "eligible" row is the INV-1 CHECK.
+ * Isolation: a dedicated DATABASE, not a schema of the shared one. It used to
+ * be a `pr2a_migrate` schema, and that raced. The AI-RAG migration does
+ * `CREATE EXTENSION IF NOT EXISTS vector`, and an extension is visible across
+ * the whole DATABASE even though it belongs to a schema — so for as long as
+ * this spec was running, the suite's base database really did carry `vector`.
+ * `privacy-barrier.pg-spec.ts` asserts that same base database is clean, and
+ * the two run as concurrent worker threads (`pool: "threads"`), so it failed
+ * or passed depending on whether the windows happened to overlap.
+ *
+ * Transient, not a leak: `DROP SCHEMA ... CASCADE` does take the extension
+ * with it (`NOTICE: drop cascades to extension vector`), which is precisely
+ * why this was a flake and not a permanent breakage.
+ * `content-core-constraints.pg-spec.ts` had already written the hazard down
+ * and taken its own database for it.
+ *
+ * In its own database `public` is ours, so the schema-pinned `search_path` is
+ * gone too. We seed one parent `User` (for the FK) and drive raw inserts so
+ * the ONLY thing that can reject an "eligible" row is the INV-1 CHECK.
  *
  * Runs only when TEST_DATABASE_URL is set (CI `postgres:18` via
  * `pnpm --filter @psico/api test:locks`); skipped otherwise.
@@ -24,15 +38,17 @@ import { assertEmptyTestDatabase } from "../test/pg-precondition";
 const base = process.env.TEST_DATABASE_URL;
 const suite = base ? describe : describe.skip;
 
-const SCHEMA = "pr2a_migrate";
+const DB = "pr2a_migrate_db";
+/** Our own database, so the catalog queries below read `public` — ours. */
+const SCHEMA = "public";
 // `pnpm --filter @psico/api test:locks` runs with cwd = apps/api, so
 // `prisma migrate deploy` (default execSync cwd) resolves the schema + config.
 const API_DIR = process.cwd();
 
-function withSchema(url: string, schema: string): string {
-  return url.includes("?")
-    ? `${url}&schema=${schema}`
-    : `${url}?schema=${schema}`;
+function withDatabase(url: string, dbName: string): string {
+  const u = new URL(url);
+  u.pathname = `/${dbName}`;
+  return u.toString();
 }
 
 const NORM_COLUMNS = [
@@ -50,17 +66,15 @@ suite("PR-2A · real migration (prisma migrate deploy)", () => {
   let pool: Pool;
 
   beforeAll(async () => {
-    // Fresh isolated schema.
+    // Fresh isolated database. No `assertEmptyTestDatabase` any more: that
+    // guard existed because this spec migrated into the SHARED database, where
+    // a `vector` extension installed by a concurrent spec broke it. Now it
+    // brings its own, so the state of the base database is none of its
+    // business — and asserting on it would make this spec fail for somebody
+    // else's in-flight migration, which is the race read from the other side.
     const admin = new Pool({ connectionString: base });
-    // `migrate deploy` below runs into `pr2a_migrate`. If `vector` already
-    // exists in `public`, CREATE EXTENSION IF NOT EXISTS is a no-op and the
-    // `vector(1024)` column cannot resolve under this schema's search_path.
-    await assertEmptyTestDatabase(
-      admin,
-      "mood-normalization-migration.pg-spec",
-    );
-    await admin.query(`DROP SCHEMA IF EXISTS "${SCHEMA}" CASCADE`);
-    await admin.query(`CREATE SCHEMA "${SCHEMA}"`);
+    await dropWhenIdle(admin, DB);
+    await admin.query(`CREATE DATABASE "${DB}"`);
     await admin.end();
 
     // Apply the real migrations. PRISMA_SKIP_SEED short-circuits the seed that
@@ -69,18 +83,15 @@ suite("PR-2A · real migration (prisma migrate deploy)", () => {
       cwd: API_DIR,
       env: {
         ...process.env,
-        DATABASE_URL: withSchema(base as string, SCHEMA),
+        DATABASE_URL: withDatabase(base as string, DB),
         PRISMA_SKIP_SEED: "1",
       },
       stdio: "inherit",
     });
 
-    // Connect with search_path pinned to the isolated schema so unqualified
-    // table + enum names resolve there (and never to public."User").
-    pool = new Pool({
-      connectionString: base,
-      options: `-c search_path=${SCHEMA}`,
-    });
+    // Our own database: `public` is the only schema in it, so unqualified
+    // names cannot resolve to somebody else's `"User"`.
+    pool = new Pool({ connectionString: withDatabase(base as string, DB) });
     // One parent User for the FK, so an eligible-row rejection can only be the
     // CHECK, never a foreign-key violation.
     await pool.query(
@@ -92,7 +103,10 @@ suite("PR-2A · real migration (prisma migrate deploy)", () => {
   afterAll(async () => {
     if (pool) await pool.end();
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP SCHEMA IF EXISTS "${SCHEMA}" CASCADE`);
+    // The whole database goes, so nothing this spec installs is ever visible
+    // to anybody else — not even while it runs, which is what the shared
+    // schema could not promise.
+    await dropWhenIdle(admin, DB);
     await admin.end();
   });
 

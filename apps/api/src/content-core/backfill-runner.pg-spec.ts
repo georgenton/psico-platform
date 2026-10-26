@@ -3,6 +3,8 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+import { dropWhenIdle } from "../test/pg-drop";
 import {
   BOOK_NOT_FOUND,
   applyTargetedBackfill,
@@ -84,7 +86,7 @@ suite("Content Core · CC-6F targeted backfill runner (real PostgreSQL)", () => 
 
   beforeAll(async () => {
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.query(`CREATE DATABASE "${DB}"`);
     await admin.end();
 
@@ -150,7 +152,7 @@ suite("Content Core · CC-6F targeted backfill runner (real PostgreSQL)", () => 
     if (prisma) await prisma.$disconnect();
     if (pool) await pool.end();
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.end();
   });
 

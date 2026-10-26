@@ -8,6 +8,8 @@ import { ForbiddenException, NotFoundException } from "@nestjs/common";
 import { ContentAccessService } from "./content-access.service";
 import { resolveUnitTarget } from "./content-access";
 
+import { dropWhenIdle } from "../../test/pg-drop";
+
 /**
  * #580 — Content Core answers entitlement with no legacy rows at all.
  *
@@ -57,7 +59,7 @@ suite("#580 · entitlement without a single legacy row", () => {
 
   beforeAll(async () => {
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.query(`CREATE DATABASE "${DB}"`);
     await admin.end();
 
@@ -141,7 +143,7 @@ suite("#580 · entitlement without a single legacy row", () => {
     await prisma?.$disconnect();
     await pool?.end();
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.end();
   });
 

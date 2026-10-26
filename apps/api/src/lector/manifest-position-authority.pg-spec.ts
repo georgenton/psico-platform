@@ -10,6 +10,8 @@ import { BooksService } from "../books/books.service";
 import { LectorService } from "./lector.service";
 import { resolveChapterByRef } from "./reader-chapter-ref";
 
+import { dropWhenIdle } from "../test/pg-drop";
+
 /**
  * The published manifest decides where a chapter is. `Chapter.order` does not.
  *
@@ -71,7 +73,7 @@ suite("published manifest is the position authority", () => {
 
   beforeAll(async () => {
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.query(`CREATE DATABASE "${DB}"`);
     await admin.end();
 
@@ -186,7 +188,7 @@ suite("published manifest is the position authority", () => {
     await prisma?.$disconnect();
     await pool?.end();
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.end();
   });
 

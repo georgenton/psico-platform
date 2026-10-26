@@ -15,6 +15,8 @@ import { ChapterMediaCatalogRegistry } from "./chapter-media.catalog";
 import { CodeChapterMediaDefinitionRepository } from "./chapter-media-definition.repository";
 import { chapterMediaCompletionIdempotencyKey } from "./chapter-media-idempotency";
 
+import { dropWhenIdle } from "../../test/pg-drop";
+
 /**
  * GR-2 — the media completion against REAL PostgreSQL.
  *
@@ -159,7 +161,7 @@ suite("GR-2 · chapter media completion (real PostgreSQL)", () => {
 
   beforeAll(async () => {
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.query(`CREATE DATABASE "${DB}"`);
     await admin.end();
 
@@ -182,7 +184,12 @@ suite("GR-2 · chapter media completion (real PostgreSQL)", () => {
 
     // A PRO book so chapter 1 is the free preview and chapter 2 is gated.
     const book = await prisma.book.create({
-      data: { slug: BOOK_SLUG, title: "GR2 Media", plan: "PRO", isPublished: true },
+      data: {
+        slug: BOOK_SLUG,
+        title: "GR2 Media",
+        plan: "PRO",
+        isPublished: true,
+      },
     });
     const mkChapter = async (order: number) => {
       const ch = await prisma.chapter.create({
@@ -225,7 +232,7 @@ suite("GR-2 · chapter media completion (real PostgreSQL)", () => {
     await prisma?.$disconnect();
     if (pool) await pool.end();
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.end();
   });
 

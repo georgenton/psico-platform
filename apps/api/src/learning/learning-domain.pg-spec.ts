@@ -17,6 +17,8 @@ import {
 } from "./learning-event.repository";
 import { LearningProgressService } from "./learning-progress.service";
 
+import { dropWhenIdle } from "../test/pg-drop";
+
 /**
  * CC-7.3 — domain commands against REAL PostgreSQL: catalog resolution
  * (unknown/ambiguous/unpublished/incomplete), the SAME entitlement gate as
@@ -104,7 +106,7 @@ suite("CC-7.3 · learning domain commands (real PostgreSQL)", () => {
 
   beforeAll(async () => {
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.query(`CREATE DATABASE "${DB}"`);
     await admin.end();
 
@@ -361,7 +363,7 @@ suite("CC-7.3 · learning domain commands (real PostgreSQL)", () => {
     if (prisma) await prisma.$disconnect();
     if (pool) await pool.end();
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.end();
   });
 

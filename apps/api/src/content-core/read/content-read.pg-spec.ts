@@ -7,6 +7,8 @@ import { backfillContentCore } from "../backfill";
 import { unitKeyFromLegacyChapterId } from "../lib/block-key";
 import { readContentUnit, type ReadUnit } from "./content-read";
 
+import { dropWhenIdle } from "../../test/pg-drop";
+
 /**
  * Content Core (CC-6A) — read adapter dual-read, on Postgres 18.
  *
@@ -48,7 +50,7 @@ suite("Content Core · CC-6A read adapter dual-read (real PostgreSQL)", () => {
 
   beforeAll(async () => {
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.query(`CREATE DATABASE "${DB}"`);
     await admin.end();
 
@@ -107,7 +109,7 @@ suite("Content Core · CC-6A read adapter dual-read (real PostgreSQL)", () => {
     if (prisma) await prisma.$disconnect();
     if (pool) await pool.end();
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.end();
   });
 

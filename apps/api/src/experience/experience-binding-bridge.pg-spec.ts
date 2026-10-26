@@ -25,6 +25,8 @@ import {
 } from "./experience-binding-schema";
 import { codeOwnedClaimsByUnit } from "./experience-code-owned-identity";
 import { GUIDE_READER_ANCHOR } from "@psico/types";
+
+import { dropWhenIdle } from "../test/pg-drop";
 import {
   seedPracticeHeadings,
   seedRetiredPairExercises,
@@ -97,7 +99,7 @@ suite("C.3A · the binding bridge", () => {
 
   beforeAll(async () => {
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.query(`CREATE DATABASE "${DB}"`);
     await admin.end();
 
@@ -214,7 +216,7 @@ suite("C.3A · the binding bridge", () => {
       /* idem */
     }
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.end();
   }, 240_000);
 

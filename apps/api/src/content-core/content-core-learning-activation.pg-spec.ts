@@ -10,6 +10,8 @@ import {
   practiceSourceHeadings,
 } from "./exercise-ingestion-catalog";
 import { conceptLinkId } from "./concept-ingestion";
+
+import { dropWhenIdle } from "../test/pg-drop";
 import {
   blockKeyFromLegacyId,
   unitKeyFromLegacyChapterId,
@@ -214,7 +216,7 @@ suite("Content Core · learning activation (real PostgreSQL)", () => {
 
   beforeAll(async () => {
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.query(`CREATE DATABASE "${DB}"`);
     await admin.end();
 

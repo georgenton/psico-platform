@@ -14,6 +14,8 @@ import {
 import { preArchiveCheck } from "./experience-pre-archive";
 import { GUIDE_READER_ANCHOR } from "@psico/types";
 
+import { dropWhenIdle } from "../test/pg-drop";
+
 /**
  * B4 / ADR 0026 — el procedimiento previo al archivado, contra PostgreSQL real.
  *
@@ -53,7 +55,7 @@ suite("B4 · comprobación previa al archivado (PostgreSQL real)", () => {
 
   beforeAll(async () => {
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.query(`CREATE DATABASE "${DB}"`);
     await admin.end();
 
@@ -106,7 +108,7 @@ suite("B4 · comprobación previa al archivado (PostgreSQL real)", () => {
     await prisma?.$disconnect().catch(() => undefined);
     await pool?.end().catch(() => undefined);
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.end();
   }, 60_000);
 
@@ -257,7 +259,7 @@ suite("B4 · la reserva histórica impide capturar la identidad", () => {
 
   beforeAll(async () => {
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB2}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB2);
     await admin.query(`CREATE DATABASE "${DB2}"`);
     await admin.end();
 
@@ -302,7 +304,7 @@ suite("B4 · la reserva histórica impide capturar la identidad", () => {
     await prisma?.$disconnect().catch(() => undefined);
     await pool?.end().catch(() => undefined);
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB2}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB2);
     await admin.end();
   }, 60_000);
 
@@ -400,7 +402,7 @@ suite("B5 · dos escritores compitiendo", () => {
 
   beforeAll(async () => {
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB3}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB3);
     await admin.query(`CREATE DATABASE "${DB3}"`);
     await admin.end();
 
@@ -445,7 +447,7 @@ suite("B5 · dos escritores compitiendo", () => {
     await prisma?.$disconnect().catch(() => undefined);
     await pool?.end().catch(() => undefined);
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB3}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB3);
     await admin.end();
   }, 60_000);
 

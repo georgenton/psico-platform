@@ -27,6 +27,8 @@ import {
 } from "./chapter-media.catalog";
 import { seedPracticeHeadings } from "../../content-core/test-support/seed-practice-headings";
 
+import { dropWhenIdle } from "../../test/pg-drop";
+
 /**
  * GR-2 — the chapter-media WIRE, end to end: real Nest app, real JWT, real
  * PostgreSQL, the PRODUCTIVE catalog.
@@ -70,7 +72,7 @@ suite("GR-2 · chapter media HTTP contract (real app + real PostgreSQL)", () => 
 
   beforeAll(async () => {
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.query(`CREATE DATABASE "${DB}"`);
     await admin.end();
 

@@ -24,6 +24,8 @@ import { GuideSessionStepRepository } from "./guide-session-step.repository";
 import { GuideCommandReceiptRepository } from "./guide-command-receipt.repository";
 import { seedPracticeHeadings } from "../content-core/test-support/seed-practice-headings";
 
+import { dropWhenIdle } from "../test/pg-drop";
+
 // `discover` lee ahora el recorrido, que va detrás de su interruptor. Esta
 // suite mide coste de consultas, no el interruptor, así que lo enciende.
 beforeAll(() => {
@@ -99,7 +101,7 @@ suite("C.3R · batch cost by target composition", () => {
 
   beforeAll(async () => {
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.query(`CREATE DATABASE "${DB}"`);
     await admin.end();
 
@@ -188,7 +190,7 @@ suite("C.3R · batch cost by target composition", () => {
     await prisma?.$disconnect().catch(() => undefined);
     await pool?.end().catch(() => undefined);
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.end();
   });
 

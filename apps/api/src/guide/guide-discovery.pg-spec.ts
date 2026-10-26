@@ -17,6 +17,8 @@ import { GuideRolloutService } from "./guide-rollout.service";
 import { GuideTargetContextService } from "./guide-target-context.service";
 import { seedPracticeHeadings } from "../content-core/test-support/seed-practice-headings";
 
+import { dropWhenIdle } from "../test/pg-drop";
+
 // El recorrido de C01 va detrás de `EEC_C01_GUIDED_SUITE_V1`, apagado por
 // defecto. Esta suite prueba cómo el discovery resuelve la unidad del lector,
 // no el interruptor, así que lo enciende.
@@ -79,7 +81,7 @@ suite("C.3R · discovery resolves the reader's unit from the manifest", () => {
 
   beforeAll(async () => {
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.query(`CREATE DATABASE "${DB}"`);
     await admin.end();
 
@@ -144,7 +146,7 @@ suite("C.3R · discovery resolves the reader's unit from the manifest", () => {
     await prisma?.$disconnect().catch(() => undefined);
     await pool?.end().catch(() => undefined);
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.end();
   });
 

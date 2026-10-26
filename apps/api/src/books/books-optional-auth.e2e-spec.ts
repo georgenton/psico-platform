@@ -7,6 +7,8 @@ import { JwtService } from "@nestjs/jwt";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createE2EApp, closeE2EApp, type E2EHarness } from "../test/e2e-app";
 
+import { dropWhenIdle } from "../test/pg-drop";
+
 /**
  * The catalogue must know who is asking.
  *
@@ -51,7 +53,7 @@ suite("books · optional auth at the HTTP boundary", () => {
 
   beforeAll(async () => {
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.query(`CREATE DATABASE "${DB}"`);
     await admin.end();
 
@@ -212,7 +214,7 @@ suite("books · optional auth at the HTTP boundary", () => {
     await prisma?.$disconnect();
     await pool?.end();
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.end();
   });
 

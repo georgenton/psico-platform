@@ -9,6 +9,8 @@ import { HomeService } from "../home/home.service";
 import { LectorService } from "../lector/lector.service";
 import { ContentAccessService } from "../content-core/access/content-access.service";
 
+import { dropWhenIdle } from "../test/pg-drop";
+
 /**
  * A book authored in Content Studio can be started, read, finished, reviewed.
  *
@@ -47,7 +49,7 @@ suite("native book lifecycle", () => {
 
   beforeAll(async () => {
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.query(`CREATE DATABASE "${DB}"`);
     await admin.end();
 
@@ -222,7 +224,7 @@ suite("native book lifecycle", () => {
     await prisma?.$disconnect();
     await pool?.end();
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.end();
   });
 

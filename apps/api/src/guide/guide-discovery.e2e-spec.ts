@@ -16,6 +16,8 @@ import {
 } from "../content-core/exercise-ingestion-catalog";
 import { createE2EApp, closeE2EApp, type E2EHarness } from "../test/e2e-app";
 
+import { dropWhenIdle } from "../test/pg-drop";
+
 /**
  * GR-4 — discovery answers, and answers ONLY.
  *
@@ -185,7 +187,7 @@ suite("GR-4 · guide discovery is read-only", () => {
 
   beforeAll(async () => {
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.query(`CREATE DATABASE "${DB}"`);
     await admin.end();
 

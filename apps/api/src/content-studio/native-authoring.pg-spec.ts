@@ -20,6 +20,8 @@ import {
 import { LectorService } from "../lector/lector.service";
 import { ContentAccessService } from "../content-core/access/content-access.service";
 
+import { dropWhenIdle } from "../test/pg-drop";
+
 /**
  * Content Studio creating a chapter, end to end, on a production-shaped book.
  *
@@ -61,7 +63,7 @@ suite("Content Studio · creating a chapter with no legacy row", () => {
 
   beforeAll(async () => {
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.query(`CREATE DATABASE "${DB}"`);
     await admin.end();
 
@@ -136,7 +138,7 @@ suite("Content Studio · creating a chapter with no legacy row", () => {
     await prisma?.$disconnect();
     await pool?.end();
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.end();
   });
 

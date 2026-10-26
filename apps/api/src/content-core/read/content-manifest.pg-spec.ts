@@ -7,6 +7,8 @@ import { backfillContentCore } from "../backfill";
 import { unitKeyFromLegacyChapterId } from "../lib/block-key";
 import { readBookManifest, type BookManifest } from "./content-manifest";
 
+import { dropWhenIdle } from "../../test/pg-drop";
+
 /**
  * Content Core (CC-6A.1) — book manifest discovery, on Postgres 18.
  *
@@ -45,7 +47,7 @@ suite(
 
     beforeAll(async () => {
       const admin = new Pool({ connectionString: base });
-      await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+      await dropWhenIdle(admin, DB);
       await admin.query(`CREATE DATABASE "${DB}"`);
       await admin.end();
 
@@ -104,7 +106,7 @@ suite(
       if (prisma) await prisma.$disconnect();
       if (pool) await pool.end();
       const admin = new Pool({ connectionString: base });
-      await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+      await dropWhenIdle(admin, DB);
       await admin.end();
     });
 

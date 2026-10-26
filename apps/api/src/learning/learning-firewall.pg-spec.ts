@@ -27,6 +27,8 @@ import type { MapProjection as Projection } from "../test/emotional-firewall-tes
 import { LearningEventRepository } from "./learning-event.repository";
 import type { ValidatedLearningEvent } from "./validated-learning-event";
 
+import { dropWhenIdle } from "../test/pg-drop";
+
 /**
  * CC-7.2 — the DYNAMIC firewall, DB-level, in two independent parts
  * (ADR 0017 §8, ADR 0018 transition plan):
@@ -89,7 +91,7 @@ suite("CC-7.2 · dynamic emotional firewall (real PostgreSQL)", () => {
 
   beforeAll(async () => {
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.query(`CREATE DATABASE "${DB}"`);
     await admin.end();
 
@@ -155,7 +157,7 @@ suite("CC-7.2 · dynamic emotional firewall (real PostgreSQL)", () => {
     if (prisma) await prisma.$disconnect();
     if (pool) await pool.end();
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.end();
   });
 

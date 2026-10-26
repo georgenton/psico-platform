@@ -24,6 +24,8 @@ import { backfillContentCore } from "../content-core/backfill";
 import { EXERCISE_INGESTION_CATALOG } from "../content-core/exercise-ingestion-catalog";
 import { seedPracticeHeadings } from "../content-core/test-support/seed-practice-headings";
 
+import { dropWhenIdle } from "../test/pg-drop";
+
 /**
  * CC-7.4D — the Guide HTTP surface end to end: real Nest app, real JWT, real
  * PostgreSQL, real editorial fixture.
@@ -122,7 +124,7 @@ suite("CC-7.4D · Guide HTTP surface (real app + real PostgreSQL)", () => {
 
   beforeAll(async () => {
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.query(`CREATE DATABASE "${DB}"`);
     await admin.end();
 

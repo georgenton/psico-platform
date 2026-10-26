@@ -8,6 +8,8 @@ import { backfillAnchors } from "../anchors";
 import { saveUnitDraft, publishDraftRevision } from "../content-draft";
 import { unitKeyFromLegacyChapterId } from "../lib/block-key";
 
+import { dropWhenIdle } from "../../test/pg-drop";
+
 /**
  * The invariant Rich Text V1 rests on.
  *
@@ -77,7 +79,7 @@ run("a formatting-only revision keeps block identity", () => {
 
   beforeAll(async () => {
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.query(`CREATE DATABASE "${DB}"`);
     await admin.end();
 
@@ -148,7 +150,7 @@ run("a formatting-only revision keeps block identity", () => {
     await prisma?.$disconnect();
     await pool?.end();
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.end();
   });
 

@@ -24,6 +24,8 @@ import {
 } from "./exercise-ingestion";
 import { seedPracticeHeadings } from "./test-support/seed-practice-headings";
 
+import { dropWhenIdle } from "../test/pg-drop";
+
 /**
  * CC-7.4B.2 — the editorial Exercise ingestion (practice + objective recall)
  * against REAL PostgreSQL, through the SAME `backfillContentCore` pipeline
@@ -58,7 +60,7 @@ interface Db {
 
 async function freshDb(dbName: string): Promise<Db> {
   const admin = new Pool({ connectionString: base });
-  await admin.query(`DROP DATABASE IF EXISTS "${dbName}" WITH (FORCE)`);
+  await dropWhenIdle(admin, dbName);
   await admin.query(`CREATE DATABASE "${dbName}"`);
   await admin.end();
 

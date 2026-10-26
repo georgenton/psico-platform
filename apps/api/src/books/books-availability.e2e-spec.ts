@@ -13,6 +13,8 @@ import { EXERCISE_INGESTION_CATALOG } from "../content-core/exercise-ingestion-c
 import { practiceContentFor } from "../content-core/exercise-ingestion";
 import { createE2EApp, closeE2EApp, type E2EHarness } from "../test/e2e-app";
 
+import { dropWhenIdle } from "../test/pg-drop";
+
 /**
  * Un libro retirado no se abre por la puerta de atrás.
  *
@@ -77,7 +79,7 @@ suite("disponibilidad · rutas directas a un libro retirado", () => {
 
   beforeAll(async () => {
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.query(`CREATE DATABASE "${DB}"`);
     await admin.end();
 
@@ -285,7 +287,7 @@ suite("disponibilidad · rutas directas a un libro retirado", () => {
     await prisma?.$disconnect();
     await pool?.end();
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.end();
   });
 

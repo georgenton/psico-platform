@@ -21,6 +21,8 @@ import { resolveCirclesRolloutConfig } from "./circles-rollout";
 import { CirclesService } from "./circles.service";
 import { hashSecret } from "./circles-secrets";
 
+import { dropWhenIdle } from "../test/pg-drop";
+
 /**
  * Participation against REAL PostgreSQL (PR3 · spec §N).
  *
@@ -213,7 +215,7 @@ suite("circles · participation (real PostgreSQL)", () => {
 
   beforeAll(async () => {
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.query(`CREATE DATABASE "${DB}"`);
     await admin.end();
 
@@ -255,7 +257,7 @@ suite("circles · participation (real PostgreSQL)", () => {
     await prisma?.$disconnect().catch(() => undefined);
     await pool?.end().catch(() => undefined);
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.end();
   }, 60_000);
 

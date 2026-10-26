@@ -7,6 +7,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ContentAccessService } from "../content-core/access/content-access.service";
 import { LectorService } from "./lector.service";
 
+import { dropWhenIdle } from "../test/pg-drop";
+
 /**
  * Naming a chapter is fail-CLOSED.
  *
@@ -43,7 +45,7 @@ suite("stable write identity is fail-closed", () => {
 
   beforeAll(async () => {
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.query(`CREATE DATABASE "${DB}"`);
     await admin.end();
 
@@ -174,7 +176,7 @@ suite("stable write identity is fail-closed", () => {
     await prisma?.$disconnect();
     await pool?.end();
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.end();
   });
 

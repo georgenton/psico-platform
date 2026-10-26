@@ -8,6 +8,8 @@ import { ContentAccessService } from "../content-core/access/content-access.serv
 import { LectorService } from "./lector.service";
 import { unitKeyFromLegacyChapterId } from "../content-core/lib/block-key";
 
+import { dropWhenIdle } from "../test/pg-drop";
+
 /**
  * Finishing a chapter must hand back the NEXT chapter's identity.
  *
@@ -42,7 +44,7 @@ suite("completion across a mixed book", () => {
 
   beforeAll(async () => {
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.query(`CREATE DATABASE "${DB}"`);
     await admin.end();
 
@@ -187,7 +189,7 @@ suite("completion across a mixed book", () => {
     await prisma?.$disconnect();
     await pool?.end();
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.end();
   });
 

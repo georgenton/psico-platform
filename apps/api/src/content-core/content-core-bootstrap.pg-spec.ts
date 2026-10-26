@@ -18,6 +18,8 @@ import type { PrismaService } from "../prisma/prisma.service";
 import type { ListBooksQueryDto } from "../books/dto/list-books-query.dto";
 import { ingestUnitV2 } from "./ingest-v2";
 import { readContentUnit } from "./read/content-read";
+
+import { dropWhenIdle } from "../test/pg-drop";
 import {
   blockKeyFromLegacyId,
   unitKeyFromLegacyChapterId,
@@ -88,7 +90,7 @@ suite("Content Core · new-book bootstrap (real PostgreSQL)", () => {
 
   beforeAll(async () => {
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.query(`CREATE DATABASE "${DB}"`);
     await admin.end();
 

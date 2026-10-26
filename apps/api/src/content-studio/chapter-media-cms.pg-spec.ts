@@ -16,6 +16,8 @@ import { HybridChapterMediaRepository } from "../lector/media/hybrid-chapter-med
 import { chapterMediaCompletionIdempotencyKey } from "../lector/media/chapter-media-idempotency";
 import type { PrismaService } from "../prisma/prisma.service";
 
+import { dropWhenIdle } from "../test/pg-drop";
+
 /**
  * C2A — administering media definitions, on real Postgres.
  *
@@ -64,7 +66,7 @@ suite("Content Studio · chapter media catalog (real PostgreSQL)", () => {
 
   beforeAll(async () => {
     const root = new Pool({ connectionString: base });
-    await root.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(root, DB);
     await root.query(`CREATE DATABASE "${DB}"`);
     await root.end();
 

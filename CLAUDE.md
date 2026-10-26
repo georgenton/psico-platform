@@ -3722,18 +3722,33 @@ de cada bitácora de sesión— es **antecedente fechado**: explica cómo se lle
 aquí, no lo que toca hacer. Si una instrucción antigua contradice esta
 sección, manda esta sección.
 
-#### El corte
+#### El corte — 2026-10-26
 
 | | |
 |---|---|
-| `main` | `68ce3a0e`; la rama del piloto va por delante hasta que #806 se fusione |
-| Servido en staging | **`725df576`** en los tres servicios (API, worker, Web) |
-| ¿Coinciden? | **No**, y a propósito: lo que los separa no es código de runtime |
+| `main` | `bad58dbd` (`chore(release): version packages`, #807) |
+| Servido en staging | **un commit por servicio**: Web `5dacedbd` · API `a31ddaa4` · worker `5f209d79` |
+| ¿Coinciden? | **No**, y cada diferencia está justificada a nivel de archivo, abajo |
 
-**Son dos commits distintos y conviene no confundirlos.** El del repositorio
-dice qué está integrado; el servido dice qué se está ejecutando. Igualarlos
-«para que cuadre el documento» no es motivo para desplegar — pero un cambio
-funcional sí lo es.
+**Son commits distintos y conviene no confundirlos.** El del repositorio dice
+qué está integrado; el servido dice qué se está ejecutando. Y aquí hay una
+precisión que la versión anterior de esta tabla se saltaba: **no existe «el
+commit servido»** —hay uno por servicio, y pueden ir a tres alturas distintas
+a la vez—. Igualarlos «para que cuadre el documento» no es motivo para
+desplegar; un cambio funcional sí lo es, y por eso el 25-10 se desplegó
+**sólo Web**.
+
+| Servicio | Artefacto | Por qué se conserva (o se desplegó) |
+|---|---|---|
+| Web | `wwsluxasxlko4yf3fliwmkek:5dacedbd` | **desplegado** el 25-10: lleva el arreglo de la tarjeta de exportación. Queda 1 commit detrás, y es el de versiones, que nadie lee en ejecución |
+| API | `aft7nt3p6wsormno2cejtavj:a31ddaa4` | 3 commits detrás; el único archivo no documental que difiere es `DataExportCard.tsx`, **que es de Web** |
+| worker | `hwxntaqogysfzgt1ehqq3ufl:5f209d79` | 6 commits detrás; difieren los services `home/`, `lector/` y `onboarding/`, y **ninguno está en su grafo de módulos** (importa Config, Prisma, Redis, Storage, Notifications, Patrones, CirclesAccountDeletion y EmotionalMap) |
+
+**Un despliegue de la API no se cierra con el verde de Coolify**, que puede
+convivir con una migración que falló: lo cierra `ready=true` **con `pending` y
+`failed` vacíos**. Comprobado así el 26-10 sobre el artefacto servido:
+`ready=true`, `reason=ok`, 71/71, las dos listas vacías. Detalle del mecanismo
+en [el runbook §4](docs/deploy/coolify-runbook.md).
 
 > **Cronología de #805, corregida.** Se fusionó a las 19:17:35Z con **cuatro**
 > comprobaciones todavía en vuelo, y **tres de ellas eran del disparador
@@ -3808,16 +3823,37 @@ distintas:
    propia fila: 407 entrada + 208 salida = **$0,0043**, una sola llamada, de un
    presupuesto de $1. El turno del usuario persiste cifrado y el de Eco en
    claro, conforme al ADR 0007 §C.
-7. **Tres defectos que salieron de esos recorridos, dos corregidos:**
+7. ✅ **Tres defectos que salieron de esos recorridos, los tres corregidos.**
    Eco se presentaba con el nombre anterior del producto —y ese nombre
    encabezaba **todos** los correos, el de restablecimiento incluido—
-   ✅ corregido; Eco escribía Markdown que las dos burbujas pintan literal
-   ✅ corregido en el prompt, que cubre web y móvil; y el **autor de respaldo
-   del audio del lector** (`"Psico Platform"` cuando el libro no tiene autor)
-   ⏸️ **no** corregido: no es marca sino una afirmación sin fuente —atribuye
-   el libro a la plataforma— que desde la reparación de autoría **sí
-   dispararía**, porque *Familias ensambladas* quedó a propósito sin autor.
-   Misma clase que la reparación retira; su propia ventana.
+   corregido; Eco escribía Markdown que las dos burbujas pintan literal,
+   corregido en el prompt, que cubre web y móvil; y el **autor de respaldo
+   del audio del lector** (`"Psico Platform"` cuando el libro no tiene autor),
+   corregido el 25-10 en #808 — pasa a `null`, que es como se dice «sin
+   fuente». No era marca: atribuía el libro a la plataforma, y desde la
+   reparación de autoría **sí disparaba**, porque *Familias ensambladas*
+   quedó a propósito sin autor.
+
+   Ese arreglo destapó uno peor que nadie había pedido buscar: la portada
+   ponía ese mismo nombre como **firma** de los libros sin autoría («por X»),
+   que es una afirmación más fuerte que un campo de audio. Los dos van ahora
+   por `AUTHORSHIP_UNCONFIRMED` en `@psico/types`, con trinquete que recorre
+   la API y exige `null`, cadena vacía, ese marcador o una excepción
+   declarada.
+
+8. ✅ **La tarjeta de exportación dejó de prometer lo que no puede cumplir**
+   (26-10, #811). Leía **todo** 409 como «la estamos preparando», y de los
+   dos códigos que manda el servidor uno significa lo contrario:
+   `DATA_EXPORT_UNAVAILABLE` nunca va a descargarse. Peor, `NOT_READY` tampoco
+   es siempre «espera» —el servidor lo devuelve para todo estado que no sea
+   `READY`, y entre ellos está `FAILED`, que es terminal—, así que ahora se lee
+   `details.status`. Un 409 sin código o desconocido tampoco se convierte en
+   una promesa. Verificado contra el servidor real: el 409 llega con
+   `code` **y** `details.status`, que es el campo del que depende la rama
+   nueva. Y el párrafo del alcance ya no atribuye al cifrado una decisión
+   nuestra: el mensaje que escribes a Eco viaja en claro para que el modelo
+   responda (ADR 0007 §C), lo cifrado es su copia; el archivo no los lleva
+   porque su alcance no los incluye.
 
 #### Deuda de producto que sigue viva (de los arcos anteriores)
 

@@ -14,6 +14,8 @@ import { EXERCISE_INGESTION_CATALOG } from "../content-core/exercise-ingestion-c
 import { productionExperienceRepository } from "./experience-production-catalog";
 import { approveRowForTests } from "./experience-seal.testing";
 import { ExperienceAdminService } from "./experience-admin.service";
+
+import { dropWhenIdle } from "../test/pg-drop";
 import {
   seedPracticeHeadings,
   seedRetiredPairExercises,
@@ -214,7 +216,7 @@ suite("C.3C · the previous binary, on the schema this PR ships", () => {
     v1Protocol = v1Lock.EXPERIENCE_BINDING_PROTOCOL;
 
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.query(`CREATE DATABASE "${DB}"`);
     await admin.end();
 
@@ -302,7 +304,7 @@ suite("C.3C · the previous binary, on the schema this PR ships", () => {
       /* idem */
     }
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.end();
     rmSync(V1_DIR, { recursive: true, force: true });
   }, 240_000);

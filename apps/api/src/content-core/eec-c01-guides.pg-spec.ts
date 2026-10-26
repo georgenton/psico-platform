@@ -30,6 +30,8 @@ import {
 } from "./eec-c01-guides-apply";
 import { productionGuideDiscoveryCatalog } from "../guide/guide-discovery-catalog";
 
+import { dropWhenIdle } from "../test/pg-drop";
+
 /**
  * EEC-C01 — the guided suite, end to end, against real PostgreSQL.
  *
@@ -80,7 +82,7 @@ suite("EEC-C01 · manifests → targets → five DRAFTs (real PostgreSQL)", () =
       .digest("hex");
 
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.query(`CREATE DATABASE "${DB}"`);
     await admin.end();
 
@@ -231,7 +233,7 @@ suite("EEC-C01 · manifests → targets → five DRAFTs (real PostgreSQL)", () =
       /* idem */
     }
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.end();
   }, 120_000);
 

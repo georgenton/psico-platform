@@ -11,6 +11,8 @@ import {
 import { EXERCISE_INGESTION_CATALOG } from "./exercise-ingestion-catalog";
 import { seedPracticeHeadings } from "./test-support/seed-practice-headings";
 
+import { dropWhenIdle } from "../test/pg-drop";
+
 // CC-7.4B.2: this scenario uses the productive slug `emociones-en-construccion`,
 // so it must carry the approved editorial source block — the ingestion fails
 // closed for a catalog-listed book that lacks it.
@@ -43,7 +45,7 @@ async function provision(
   dbName: string,
 ): Promise<{ prisma: PrismaClient; pool: Pool }> {
   const admin = new Pool({ connectionString: base });
-  await admin.query(`DROP DATABASE IF EXISTS "${dbName}" WITH (FORCE)`);
+  await dropWhenIdle(admin, dbName);
   await admin.query(`CREATE DATABASE "${dbName}"`);
   await admin.end();
 
@@ -63,7 +65,7 @@ async function teardown(dbName: string, prisma: PrismaClient, pool: Pool) {
   await prisma.$disconnect();
   await pool.end();
   const admin = new Pool({ connectionString: base });
-  await admin.query(`DROP DATABASE IF EXISTS "${dbName}" WITH (FORCE)`);
+  await dropWhenIdle(admin, dbName);
   await admin.end();
 }
 

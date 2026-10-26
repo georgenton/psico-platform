@@ -9,6 +9,8 @@ import { BooksService } from "../books/books.service";
 import { HomeService } from "../home/home.service";
 import { LectorService } from "./lector.service";
 
+import { dropWhenIdle } from "../test/pg-drop";
+
 /**
  * The proof Phase B.A exists for: a chapter survives being moved.
  *
@@ -38,7 +40,7 @@ function connect(db: string) {
 
 async function freshDatabase(db: string) {
   const admin = new Pool({ connectionString: base });
-  await admin.query(`DROP DATABASE IF EXISTS "${db}" WITH (FORCE)`);
+  await dropWhenIdle(admin, db);
   await admin.query(`CREATE DATABASE "${db}"`);
   await admin.end();
   const url = connect(db);
@@ -53,7 +55,7 @@ async function freshDatabase(db: string) {
 
 async function dropDatabase(db: string) {
   const admin = new Pool({ connectionString: base });
-  await admin.query(`DROP DATABASE IF EXISTS "${db}" WITH (FORCE)`);
+  await dropWhenIdle(admin, db);
   await admin.end();
 }
 

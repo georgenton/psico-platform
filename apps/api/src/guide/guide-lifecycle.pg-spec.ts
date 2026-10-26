@@ -33,6 +33,8 @@ import { GuideReaderApplicabilityService } from "./guide-reader-applicability.se
 import { GuideLifecycleService } from "./guide-lifecycle.service";
 import { GuideLifecycleError } from "./guide-errors";
 
+import { dropWhenIdle } from "../test/pg-drop";
+
 /**
  * CC-7.4C — the Guide V1 lifecycle against REAL PostgreSQL.
  *
@@ -145,7 +147,7 @@ suite("CC-7.4C · Guide V1 lifecycle (real PostgreSQL)", () => {
 
   beforeAll(async () => {
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.query(`CREATE DATABASE "${DB}"`);
     await admin.end();
 

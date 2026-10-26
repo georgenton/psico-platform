@@ -15,6 +15,8 @@ import { chapterMediaCompletionIdempotencyKey } from "../lector/media/chapter-me
 import type { PrismaService } from "../prisma/prisma.service";
 import type { StorageService } from "../storage/storage.service";
 
+import { dropWhenIdle } from "../test/pg-drop";
+
 /**
  * C2B — the audiobook replacement invariant, on real Postgres.
  *
@@ -63,7 +65,7 @@ suite("Content Studio · audiobook master replacement (real PostgreSQL)", () => 
 
   beforeAll(async () => {
     const root = new Pool({ connectionString: base });
-    await root.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(root, DB);
     await root.query(`CREATE DATABASE "${DB}"`);
     await root.end();
 
@@ -277,7 +279,7 @@ suite("Content Studio · podcast masters (real PostgreSQL)", () => {
 
   beforeAll(async () => {
     const root = new Pool({ connectionString: base });
-    await root.query(`DROP DATABASE IF EXISTS "${DB2}" WITH (FORCE)`);
+    await dropWhenIdle(root, DB2);
     await root.query(`CREATE DATABASE "${DB2}"`);
     await root.end();
 

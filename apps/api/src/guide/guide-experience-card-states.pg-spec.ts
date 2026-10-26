@@ -27,6 +27,8 @@ import { productionGuideRegistry } from "./guide-catalog";
 import { GuideTargetContextService } from "./guide-target-context.service";
 import { GuideReaderApplicabilityService } from "./guide-reader-applicability.service";
 import { GuideLifecycleService } from "./guide-lifecycle.service";
+
+import { dropWhenIdle } from "../test/pg-drop";
 import {
   seedPracticeHeadings,
   seedRetiredPairExercises,
@@ -122,7 +124,7 @@ suite("C.1 · one card state per experience", () => {
 
   beforeAll(async () => {
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.query(`CREATE DATABASE "${DB}"`);
     await admin.end();
 
@@ -218,7 +220,7 @@ suite("C.1 · one card state per experience", () => {
       /* idem */
     }
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.end();
   }, 240_000);
 

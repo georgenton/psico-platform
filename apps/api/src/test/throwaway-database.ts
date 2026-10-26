@@ -32,6 +32,8 @@
 
 import { Pool } from "pg";
 
+import { dropWhenIdle } from "./pg-drop";
+
 /** Lo único a lo que una base de prueba puede apuntar sin decirlo. */
 const HOSTS_LOCALES = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
 
@@ -107,7 +109,11 @@ export async function createThrowawayDatabase(
       }
       const a = new Pool({ connectionString: baseUrl });
       try {
-        await a.query(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`);
+        // No `FORCE` directo: ver `pg-drop.ts`. Forzar aquí termina las
+        // conexiones que la propia suite acaba de pedir cerrar, y el `FATAL`
+        // resultante puede llegar a un cliente a medio cerrar y tumbar la
+        // corrida entera sin que falle ninguna prueba.
+        await dropWhenIdle(a, name);
         borrada = true;
       } finally {
         await a.end();

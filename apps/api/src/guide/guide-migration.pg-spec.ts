@@ -3,6 +3,8 @@ import { join } from "node:path";
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { dropWhenIdle } from "../test/pg-drop";
+
 /**
  * CC-7.4B — the migration exercised the way production will live it: a
  * PRE-CC-7.4B schema with REAL prior rows (users, a legacy LearningEvent, a
@@ -44,7 +46,7 @@ suite("CC-7.4B · migration over a PRE-CC-7.4B schema with real rows", () => {
 
   beforeAll(async () => {
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.query(`CREATE DATABASE "${DB}"`);
     await admin.end();
     pool = new Pool({ connectionString: withDatabase(base as string, DB) });
@@ -96,7 +98,7 @@ suite("CC-7.4B · migration over a PRE-CC-7.4B schema with real rows", () => {
   afterAll(async () => {
     if (pool) await pool.end();
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.end();
   });
 

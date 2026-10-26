@@ -13,6 +13,8 @@ import {
 import { TYPE_TO_KIND } from "./learning-event-semantics";
 import type { ValidatedLearningEvent } from "./validated-learning-event";
 
+import { dropWhenIdle } from "../test/pg-drop";
+
 /**
  * CC-7.2 — the single writer against REAL PostgreSQL: creation of all eight
  * V1 types, enum mapping, exact payloads, server-owned columns, idempotent
@@ -130,7 +132,7 @@ suite("CC-7.2 · LearningEventRepository (real PostgreSQL)", () => {
 
   beforeAll(async () => {
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.query(`CREATE DATABASE "${DB}"`);
     await admin.end();
 
@@ -157,7 +159,7 @@ suite("CC-7.2 · LearningEventRepository (real PostgreSQL)", () => {
     if (prisma) await prisma.$disconnect();
     if (pool) await pool.end();
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.end();
   });
 

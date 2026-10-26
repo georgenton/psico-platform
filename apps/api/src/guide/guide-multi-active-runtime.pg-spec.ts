@@ -20,6 +20,8 @@ import { GuideLifecycleService } from "./guide-lifecycle.service";
 import { readGuideActiveCapability } from "./guide-active-capability";
 import { seedPracticeHeadings } from "../content-core/test-support/seed-practice-headings";
 
+import { dropWhenIdle } from "../test/pg-drop";
+
 /**
  * C.0B2 — do the READERS survive multi-ACTIVE, or only PostgreSQL?
  *
@@ -95,7 +97,7 @@ suite("C.0B2 · the runtime under two ACTIVE lineages", () => {
 
   beforeAll(async () => {
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.query(`CREATE DATABASE "${DB}"`);
     await admin.end();
 
@@ -186,7 +188,7 @@ suite("C.0B2 · the runtime under two ACTIVE lineages", () => {
       /* idem */
     }
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.end();
   }, 240_000);
 

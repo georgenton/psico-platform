@@ -10,6 +10,8 @@ import {
 } from "../content-core/lib/block-key";
 import { resolveAnchorTarget } from "./anchor-resolver";
 
+import { dropWhenIdle } from "../test/pg-drop";
+
 /**
  * CC-6B anchor bridge (real PostgreSQL 18). Seeds a backfilled book and asserts
  * resolveAnchorTarget maps blockKey/blockId to the storage anchor, fail-closed:
@@ -41,7 +43,7 @@ suite("Content Core · CC-6B anchor bridge (real PostgreSQL)", () => {
 
   beforeAll(async () => {
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.query(`CREATE DATABASE "${DB}"`);
     await admin.end();
 
@@ -86,7 +88,7 @@ suite("Content Core · CC-6B anchor bridge (real PostgreSQL)", () => {
     if (prisma) await prisma.$disconnect();
     if (pool) await pool.end();
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.end();
   });
 

@@ -22,6 +22,8 @@ import { productionCodeOwnedClaims } from "./experience-code-owned-identity";
 import { GUIDE_READER_ANCHOR, PAREJAS_READER_ANCHOR } from "@psico/types";
 import { productionGuideRegistry } from "../guide/guide-catalog";
 import type { ExperienceBindingCatalog } from "./experience-guide-options";
+
+import { dropWhenIdle } from "../test/pg-drop";
 import {
   seedPracticeHeadings,
   seedRetiredPairExercises,
@@ -99,7 +101,7 @@ suite("C.3C+C.4 · cutover, archive and a mixed fleet", () => {
 
   beforeAll(async () => {
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.query(`CREATE DATABASE "${DB}"`);
     await admin.end();
 
@@ -201,7 +203,7 @@ suite("C.3C+C.4 · cutover, archive and a mixed fleet", () => {
       /* idem */
     }
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.end();
   }, 240_000);
 

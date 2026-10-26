@@ -10,6 +10,8 @@ import { ForbiddenException } from "@nestjs/common";
 import { backfillContentCore } from "../backfill";
 import { ContentAccessService } from "./content-access.service";
 import { resolveUnitTarget } from "./content-access";
+
+import { dropWhenIdle } from "../../test/pg-drop";
 import {
   adoptLegacyEntitlements,
   designateFreePreviewUnitTx,
@@ -55,7 +57,7 @@ suite("#580 · adoption is one-way, and the preview is singular", () => {
 
   beforeAll(async () => {
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.query(`CREATE DATABASE "${DB}"`);
     await admin.end();
 
@@ -131,7 +133,7 @@ suite("#580 · adoption is one-way, and the preview is singular", () => {
     await prisma?.$disconnect();
     await pool?.end();
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.end();
   });
 

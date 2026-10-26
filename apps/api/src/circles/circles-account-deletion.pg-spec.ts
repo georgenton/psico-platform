@@ -24,6 +24,7 @@ import { CirclesSweepService } from "./circles-sweep.service";
 import { CircleTemplateRegistry } from "@psico/types";
 import { PUBLISHED_DUO_TEMPLATE } from "./circles.fixtures";
 import { mintInvitationToken } from "./circles-secrets";
+import { dropWhenIdle } from "../test/pg-drop";
 
 /**
  * Account deletion with Círculos, against REAL PostgreSQL.
@@ -151,9 +152,10 @@ async function dropCreatedDatabases(connectionString: string): Promise<void> {
   const admin = new Pool({ connectionString });
   try {
     for (const name of created.splice(0)) {
-      await admin.query(
-        `DROP DATABASE IF EXISTS ${quoteIdent(name)} WITH (FORCE)`,
-      );
+      // `dropWhenIdle` applies the same identifier rule as `quoteIdent`, and
+      // waits for our own backends to be gone before it forces — see
+      // `pg-drop.ts` for the race that forcing straight away loses.
+      await dropWhenIdle(admin, name);
     }
   } finally {
     await admin.end();

@@ -8,6 +8,8 @@ import { ForbiddenException, NotFoundException } from "@nestjs/common";
 import { LectorService } from "./lector.service";
 import { unitKeyFromLegacyChapterId } from "../content-core/lib/block-key";
 import { ContentAccessService } from "../content-core/access/content-access.service";
+
+import { dropWhenIdle } from "../test/pg-drop";
 import {
   bookCompletion,
   currentChapterCount,
@@ -127,7 +129,7 @@ suite("native reader · a chapter with no legacy Chapter row", () => {
 
   beforeAll(async () => {
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.query(`CREATE DATABASE "${DB}"`);
     await admin.end();
 
@@ -234,7 +236,7 @@ suite("native reader · a chapter with no legacy Chapter row", () => {
     await prisma?.$disconnect();
     await pool?.end();
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.end();
   });
 

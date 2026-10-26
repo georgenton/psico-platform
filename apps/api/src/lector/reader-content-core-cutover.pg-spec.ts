@@ -11,6 +11,8 @@ import { readContentUnit } from "../content-core/read/content-read";
 import { readUnitMarks } from "../content-core/read/content-marks";
 import { resolveReaderChapter } from "./reader-chapter-resolver";
 
+import { dropWhenIdle } from "../test/pg-drop";
+
 /**
  * El corte: cuándo deja Content Core de ser una copia y pasa a ser EL texto.
  *
@@ -84,7 +86,7 @@ suite("Lector · el corte a Content Core (PostgreSQL real)", () => {
 
   beforeAll(async () => {
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.query(`CREATE DATABASE "${DB}"`);
     await admin.end();
 
@@ -157,7 +159,7 @@ suite("Lector · el corte a Content Core (PostgreSQL real)", () => {
     if (prisma) await prisma.$disconnect();
     if (pool) await pool.end();
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.end();
   });
 

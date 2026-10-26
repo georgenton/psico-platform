@@ -20,6 +20,8 @@ import {
 } from "./guide-catalog";
 import { materializableExercisePairs } from "../content-core/exercise-ingestion-catalog";
 
+import { dropWhenIdle } from "../test/pg-drop";
+
 /** The live recall this suite asserts on, from the catalog rather than copied. */
 const RECALL_CONTENT = materializableExercisePairs(
   "emociones-en-construccion",
@@ -94,7 +96,7 @@ suite("CC-7.4B.3 · first production GuideDefinition (real PostgreSQL)", () => {
 
   beforeAll(async () => {
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.query(`CREATE DATABASE "${DB}"`);
     await admin.end();
 

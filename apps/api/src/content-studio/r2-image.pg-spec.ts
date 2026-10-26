@@ -13,6 +13,8 @@ import { ContentStudioAssetsService } from "./content-studio-assets.service";
 import { isAllowedAssetKey } from "../shared/content-asset";
 import { StorageService } from "../storage";
 
+import { dropWhenIdle } from "../test/pg-drop";
+
 /**
  * Uploading an illustration for a chapter that has no legacy row, against REAL
  * object storage.
@@ -61,7 +63,7 @@ suite("R2 · illustrating a chapter with no legacy row", () => {
   beforeAll(async () => {
     const base = process.env.TEST_DATABASE_URL as string;
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.query(`CREATE DATABASE "${DB}"`);
     await admin.end();
 
@@ -121,7 +123,7 @@ suite("R2 · illustrating a chapter with no legacy row", () => {
     await prisma?.$disconnect();
     await pool?.end();
     const admin = new Pool({ connectionString: process.env.TEST_DATABASE_URL });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.end();
   });
 

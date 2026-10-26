@@ -18,6 +18,8 @@ import { LearningCatalogResolver } from "../learning/learning-catalog.resolver";
 import type { PrismaService } from "../prisma";
 import { seedPracticeHeadings } from "../content-core/test-support/seed-practice-headings";
 
+import { dropWhenIdle } from "../test/pg-drop";
+
 /**
  * C.3R (#639) blocker zero — is the SERVER's notion of "which chapter is this
  * guide about" free of position, and stable across environments?
@@ -78,7 +80,7 @@ async function makeEnv(
   orders: Record<string, number>,
 ): Promise<Env> {
   const admin = new Pool({ connectionString: base });
-  await admin.query(`DROP DATABASE IF EXISTS "${db}" WITH (FORCE)`);
+  await dropWhenIdle(admin, db);
   await admin.query(`CREATE DATABASE "${db}"`);
   await admin.end();
 
@@ -140,7 +142,7 @@ async function dropEnv(env: Env): Promise<void> {
   await env.prisma.$disconnect().catch(() => undefined);
   await env.pool.end().catch(() => undefined);
   const admin = new Pool({ connectionString: base });
-  await admin.query(`DROP DATABASE IF EXISTS "${env.db}" WITH (FORCE)`);
+  await dropWhenIdle(admin, env.db);
   await admin.end();
 }
 

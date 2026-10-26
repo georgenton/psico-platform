@@ -55,6 +55,8 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { dropWhenIdle } from "../test/pg-drop";
+
 import {
   classifyTransactionFailure,
   describeError,
@@ -184,7 +186,7 @@ suite("Catálogo · reparación de autoría (PostgreSQL real)", () => {
     if (!createdByThisRun) return; // Never drop what we did not create.
     const admin = new Pool({ connectionString: base });
     try {
-      await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+      await dropWhenIdle(admin, DB);
     } finally {
       await admin.end();
     }

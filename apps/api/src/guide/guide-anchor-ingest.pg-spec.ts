@@ -16,6 +16,8 @@ import {
 } from "../content-core/read/content-read";
 import { seedPracticeHeadings } from "../content-core/test-support/seed-practice-headings";
 
+import { dropWhenIdle } from "../test/pg-drop";
+
 /**
  * GR-3 — the anchor, against the REAL chapter.
  *
@@ -56,7 +58,7 @@ suite("GR-3 · the guided-reading anchor over the ingested chapter", () => {
 
   beforeAll(async () => {
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.query(`CREATE DATABASE "${DB}"`);
     await admin.end();
 
@@ -121,7 +123,7 @@ suite("GR-3 · the guided-reading anchor over the ingested chapter", () => {
     if (prisma) await prisma.$disconnect();
     if (pool) await pool.end();
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.end();
   });
 

@@ -15,6 +15,8 @@ import {
 import { readUnitMarks } from "../read/content-marks";
 import { AnnotationsService } from "../../lector/annotations.service";
 
+import { dropWhenIdle } from "../../test/pg-drop";
+
 /**
  * CC-6C stable mark storage (real PostgreSQL 18). Exercises the write resolver
  * (durable anchor + client-supplied source version + offset validation + quote,
@@ -59,7 +61,7 @@ suite("Content Core · CC-6C stable mark storage (real PostgreSQL)", () => {
 
   beforeAll(async () => {
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.query(`CREATE DATABASE "${DB}"`);
     await admin.end();
 
@@ -178,7 +180,7 @@ suite("Content Core · CC-6C stable mark storage (real PostgreSQL)", () => {
     if (prisma) await prisma.$disconnect();
     if (pool) await pool.end();
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.end();
   });
 

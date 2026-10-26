@@ -17,6 +17,8 @@ import { ContentReadService } from "../read/content-read.service";
 import { EXERCISE_INGESTION_CATALOG } from "../exercise-ingestion-catalog";
 import { seedPracticeHeadings } from "../test-support/seed-practice-headings";
 
+import { dropWhenIdle } from "../../test/pg-drop";
+
 // CC-7.4B.2: this suite seeds the productive slug `emociones-en-construccion`,
 // so its chapter 1 must carry the approved editorial source block — the
 // ingestion fails closed for a catalog-listed book that lacks it.
@@ -65,7 +67,7 @@ suite("Content Core · CC-6E access parity (real PostgreSQL)", () => {
 
   beforeAll(async () => {
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.query(`CREATE DATABASE "${DB}"`);
     await admin.end();
 
@@ -180,7 +182,7 @@ suite("Content Core · CC-6E access parity (real PostgreSQL)", () => {
     if (prisma) await prisma.$disconnect();
     if (pool) await pool.end();
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.end();
   });
 

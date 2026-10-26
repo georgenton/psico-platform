@@ -28,6 +28,8 @@ import { CirclesService } from "./circles.service";
 import { CirclesSweepService } from "./circles-sweep.service";
 import { hashSecret } from "./circles-secrets";
 
+import { dropWhenIdle } from "../test/pg-drop";
+
 /**
  * Adult GROUPS, against real PostgreSQL.
  *
@@ -187,7 +189,7 @@ suite("circles · adult groups (real PostgreSQL)", () => {
 
   beforeAll(async () => {
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.query(`CREATE DATABASE "${DB}"`);
     await admin.end();
 
@@ -222,7 +224,7 @@ suite("circles · adult groups (real PostgreSQL)", () => {
     await prisma?.$disconnect().catch(() => undefined);
     await pool?.end().catch(() => undefined);
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.end();
   }, 60_000);
 

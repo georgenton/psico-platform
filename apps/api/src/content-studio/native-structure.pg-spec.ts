@@ -17,6 +17,8 @@ import { listEditorialChapters } from "./native-authoring";
 import { LectorService } from "../lector/lector.service";
 import { ContentAccessService } from "../content-core/access/content-access.service";
 
+import { dropWhenIdle } from "../test/pg-drop";
+
 /**
  * The structural states Phase A must refuse to guess about.
  *
@@ -47,7 +49,7 @@ suite("Content Core structure · position is not identity", () => {
 
   beforeAll(async () => {
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.query(`CREATE DATABASE "${DB}"`);
     await admin.end();
 
@@ -81,7 +83,7 @@ suite("Content Core structure · position is not identity", () => {
     await prisma?.$disconnect();
     await pool?.end();
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.end();
   });
 

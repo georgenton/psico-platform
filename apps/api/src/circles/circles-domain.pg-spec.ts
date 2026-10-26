@@ -20,6 +20,8 @@ import { resolveCirclesRolloutConfig } from "./circles-rollout";
 import { CirclesError } from "./circles-http-errors";
 import { hashSecret, mintInvitationToken } from "./circles-secrets";
 
+import { dropWhenIdle } from "../test/pg-drop";
+
 /**
  * The Círculos invariants against REAL PostgreSQL (PR2 · spec §D/§H).
  *
@@ -267,7 +269,7 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
 
   beforeAll(async () => {
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.query(`CREATE DATABASE "${DB}"`);
     await admin.end();
 
@@ -336,8 +338,8 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
     await prisma?.$disconnect().catch(() => undefined);
     await pool?.end().catch(() => undefined);
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
-    await admin.query(`DROP DATABASE IF EXISTS "${BASELINE_DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
+    await dropWhenIdle(admin, BASELINE_DB);
     await admin.end();
   }, 60_000);
 
@@ -381,7 +383,7 @@ suite("circles · SQL invariants (real PostgreSQL)", () => {
     expect(baseline).toHaveLength(63);
 
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${BASELINE_DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, BASELINE_DB);
     await admin.query(`CREATE DATABASE "${BASELINE_DB}" TEMPLATE template0`);
     await admin.end();
 

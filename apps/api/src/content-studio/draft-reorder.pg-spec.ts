@@ -18,6 +18,8 @@ import { BooksService } from "../books/books.service";
 import { ChaptersService } from "../chapters/chapters.service";
 import { ContentAccessService } from "../content-core/access/content-access.service";
 
+import { dropWhenIdle } from "../test/pg-drop";
+
 /**
  * Phase B.B2 — reordering chapters, against a real database.
  *
@@ -231,7 +233,7 @@ suite("Content Studio · reordering the draft manifest", () => {
 
   beforeAll(async () => {
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.query(`CREATE DATABASE "${DB}"`);
     // Set BEFORE Prisma connects, so every session inherits it. It is what
     // makes the serialisation proof below deterministic: a writer that waits
@@ -349,7 +351,7 @@ suite("Content Studio · reordering the draft manifest", () => {
     await prisma?.$disconnect();
     await pool?.end();
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.end();
   });
 

@@ -6,6 +6,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { backfillContentCore } from "../content-core/backfill";
 import { materializableExercisePairs } from "../content-core/exercise-ingestion-catalog";
+
+import { dropWhenIdle } from "../test/pg-drop";
 import {
   seedPracticeHeadings,
   seedRetiredPairExercises,
@@ -59,7 +61,7 @@ suite("C.3B · the command an operator actually types", () => {
 
   beforeAll(async () => {
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.query(`CREATE DATABASE "${DB}"`);
     await admin.end();
 
@@ -117,7 +119,7 @@ suite("C.3B · the command an operator actually types", () => {
     await prisma?.$disconnect().catch(() => undefined);
     await pool?.end().catch(() => undefined);
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.end();
   });
 

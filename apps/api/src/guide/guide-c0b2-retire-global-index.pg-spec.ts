@@ -8,6 +8,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { readGuideActiveCapability } from "./guide-active-capability";
 
+import { dropWhenIdle } from "../test/pg-drop";
+
 /**
  * C.0B2 — the semantic cutover, and the rollback asymmetry it creates.
  *
@@ -89,7 +91,7 @@ suite("C.0B2 · retiring the global index is the cutover", () => {
 
   beforeAll(async () => {
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.query(`CREATE DATABASE "${DB}"`);
     await admin.end();
 
@@ -123,7 +125,7 @@ suite("C.0B2 · retiring the global index is the cutover", () => {
       /* idem */
     }
     const admin = new Pool({ connectionString: base });
-    await admin.query(`DROP DATABASE IF EXISTS "${DB}" WITH (FORCE)`);
+    await dropWhenIdle(admin, DB);
     await admin.end();
   }, 240_000);
 

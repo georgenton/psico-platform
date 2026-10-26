@@ -3714,7 +3714,7 @@ es la sección que se mantiene; esta entrada es su antecedente fechado.
 
 ---
 
-### 🧭 Trabajo vigente — corte del 2026-10-24
+### 🧭 Trabajo vigente — corte del 2026-10-26
 
 **Esta es la única sección de este archivo que describe el presente.** Todo lo
 de arriba —incluidas las listas de «backlog aprobado» y los «siguientes pasos»
@@ -3726,8 +3726,8 @@ sección, manda esta sección.
 
 | | |
 |---|---|
-| `main` | `bad58dbd` (`chore(release): version packages`, #807) |
-| Servido en staging | **un commit por servicio**: Web `5dacedbd` · API `a31ddaa4` · worker `5f209d79` |
+| `main` | `19fcc261` (#814) · la rama `docs/eec-emphasis-aplicada` (#815) va por delante y es sólo documentación |
+| Servido en staging | **un commit por servicio**: API `19fcc261` · Web `5dacedbd` · worker `5f209d79` |
 | ¿Coinciden? | **No**, y cada diferencia está justificada a nivel de archivo, abajo |
 
 **Son commits distintos y conviene no confundirlos.** El del repositorio dice
@@ -3736,13 +3736,13 @@ precisión que la versión anterior de esta tabla se saltaba: **no existe «el
 commit servido»** —hay uno por servicio, y pueden ir a tres alturas distintas
 a la vez—. Igualarlos «para que cuadre el documento» no es motivo para
 desplegar; un cambio funcional sí lo es, y por eso el 25-10 se desplegó
-**sólo Web**.
+**sólo Web** y el 26-10 **sólo la API**.
 
 | Servicio | Artefacto | Por qué se conserva (o se desplegó) |
 |---|---|---|
-| Web | `wwsluxasxlko4yf3fliwmkek:5dacedbd` | **desplegado** el 25-10: lleva el arreglo de la tarjeta de exportación. Queda 1 commit detrás, y es el de versiones, que nadie lee en ejecución |
-| API | `aft7nt3p6wsormno2cejtavj:a31ddaa4` | 3 commits detrás; el único archivo no documental que difiere es `DataExportCard.tsx`, **que es de Web** |
-| worker | `hwxntaqogysfzgt1ehqq3ufl:5f209d79` | 6 commits detrás; difieren los services `home/`, `lector/` y `onboarding/`, y **ninguno está en su grafo de módulos** (importa Config, Prisma, Redis, Storage, Notifications, Patrones, CirclesAccountDeletion y EmotionalMap) |
+| API | `aft7nt3p6wsormno2cejtavj:19fcc261` | **desplegado** el 26-10: la reparación del énfasis corre dentro del contenedor, así que su código tenía que estar ahí. Al día con `main` |
+| Web | `wwsluxasxlko4yf3fliwmkek:5dacedbd` | **desplegado** el 25-10: lleva el arreglo de la tarjeta de exportación. Queda detrás por el commit de versiones y por #814, que **no toca Web** |
+| worker | `hwxntaqogysfzgt1ehqq3ufl:5f209d79` | difieren los services `home/`, `lector/` y `onboarding/`, y **ninguno está en su grafo de módulos** (importa Config, Prisma, Redis, Storage, Notifications, Patrones, CirclesAccountDeletion y EmotionalMap). #814 añade `content-core/markdown-*`, que **tampoco** entra ahí: es una herramienta de línea de comandos, no un procesador de cola |
 
 **Un despliegue de la API no se cierra con el verde de Coolify**, que puede
 convivir con una migración que falló: lo cierra `ready=true` **con `pending` y
@@ -3765,6 +3765,9 @@ en [el runbook §4](docs/deploy/coolify-runbook.md).
 |---|---|
 | Saneamiento técnico de PR | ✅ **cerrado** — catorce PR abiertos → cero |
 | Reparación del catálogo en staging | ✅ **aplicada y convergente** — segunda planificación en 0 operaciones |
+| Reparación del texto de *EEC* en staging | ✅ **aplicada y convergente** — 732 bloques, 0 pendientes, 0 deriva. Dos bloques **excluidos** esperan decisión editorial |
+| Revisión visual con sesión | ✅ **las ocho combinaciones** (24-10) sobre el Web servido, que no cambió · ⚠️ **no re-recorrida** sobre el texto reparado: eso es un capítulo y una combinación |
+| CI | ✅ el fallo intermitente de la suite de PostgreSQL **está cerrado** (#813): lo causaba un `DROP DATABASE … WITH (FORCE)` sobre un pool que acababa de cerrarse |
 | UAT | ⚠️ **parcial**, con sus límites escritos en [la bitácora](docs/informes/uat-2026-10-23-cierre-staging.md) |
 | Rollback a la imagen anterior | ⚠️ **ensayo operativo HECHO** (2026-10-24) — sigue condicionado a su precondición de contenido y al residuo de la ventana. Y el residuo tiene un límite que ahora está dicho con precisión: la reconciliación manual que lo cerraría **nunca se ha ejecutado**, así que son instrucciones sin estrenar, no un mecanismo comprobado. Candidatos de reversión por servicio en [el runbook §3.1](docs/deploy/coolify-runbook.md) — y **«la versión anterior» no es una versión**: el worker no tiene build de `6cb27281`, su anterior es de dos semanas antes |
 | Modo guiado | ⏸️ **conserva su disponibilidad actual** (`GUIDE_ROLLOUT_MODE=off`) |
@@ -3802,6 +3805,16 @@ distintas:
    El mecanismo usado es el flujo normal: contraseña generada aquí, guardada en
    `~/.psico-ops` antes de crear nada, cuenta por `POST /api/auth/register`,
    acceso por el **formulario**. Ni tokens fabricados ni accesos privilegiados.
+
+   **Lo que esa revisión acredita, y lo que no, tras la reparación del 26-10.**
+   Se hizo sobre `725df576`, que es lo que Web **sigue** sirviendo, así que su
+   veredicto sobre maquetación, contraste y sistema de color **se conserva
+   entero**: ese código no cambió. Pero el **texto** del lector sí cambió
+   después, y con él su apariencia: 732 bloques pasaron de mostrar asteriscos
+   a mostrar negrita y cursiva de verdad. Eso se comprobó el 26-10 en **un
+   capítulo y una combinación** (25 negritas, 24 cursivas). **No** es un
+   recorrido nuevo de las ocho combinaciones sobre el texto reparado, y no
+   conviene leerlo como tal.
 3. ✅ **Recorrido funcional de Evolución** — hecho el 2026-10-24: una anotación
    mueve `marcasLectura` de 0 a 1, persiste al reconsultar, la otra cuenta no
    se mueve, y el mapa emocional **no** cambia. Sin defectos.
@@ -3854,6 +3867,48 @@ distintas:
    nuestra: el mensaje que escribes a Eco viaja en claro para que el modelo
    responda (ADR 0007 §C), lo cifrado es su copia; el archivo no los lleva
    porque su alcance no los incluye.
+
+9. ✅ **El texto de *EEC* dejó de llevar Markdown dentro** (26-10, #814 + #815).
+   El lector pintaba `**negrita**` y `*cursiva*` literales porque el texto
+   ingerido los traía, y el contrato del repositorio es el contrario: el
+   contenido es exactamente lo que se lee y el formato vive al lado, en
+   `meta.inlineMarks`. **Aplicado sobre staging: 732 bloques**, convergido a
+   **0** operaciones pendientes, **cero** deriva entre las dos
+   representaciones (3385 bloques, 3385 versiones nativas), preimagen de
+   353 KB extraída del contenedor con cobertura exacta y sin prosa. En
+   pantalla, 25 negritas y 24 cursivas.
+
+   Lo que costó más que el parser fue **no romper las marcas de nadie**. Un
+   subrayado guarda desplazamientos UTF-16, así que borrar cuatro asteriscos
+   mueve el texto bajo la selección; el plan traslada cada rango y, si no
+   puede conservar sus palabras, **bloquea el bloque entero** en vez de
+   arreglar el formato moviendo el subrayado de alguien. Dos frentes de
+   concurrencia se reprodujeron antes de cerrarlos: una marca creada
+   **después** de planificar era invisible porque la consulta usaba los
+   identificadores del plan (ahora se consulta por ancla), y una edición entre
+   la comprobación y la escritura se sobrescribía (ahora todo va por
+   comparar-y-fijar, y `count !== 1` aborta).
+
+   **La exclusión de lectores se acreditó, no se describió.** La versión
+   anterior del runbook pedía «quince minutos sin actividad», que habla del
+   pasado: una pestaña abierta conserva el texto viejo y puede escribir cuando
+   quiera. Se usó la revocación de sesiones del ADR 0015 —subir
+   `authRevision` rechaza todo token ya emitido en su siguiente petición— y un
+   token capturado antes pasó de **200** a **401**. La bandera de
+   mantenimiento de Coolify **no** servía: dejaría de servir, pero no impide
+   que un cliente escriba al reabrir con el texto anterior ya cargado.
+
+   **Dos bloques quedan fuera, por decisión editorial**: una cita con un
+   backtick (ninguna marca del repositorio representa código en línea) y un
+   `EXERCISE`. Los cuatro asteriscos que se ven en pantalla son los de esa
+   cita. Las 288 viñetas `- ` siguen fuera de alcance. **Sin reingesta**: una
+   reingesta destructiva mata los `blockId` de los que cuelgan las marcas.
+
+   **Residuo honesto, que es un cambio de producto y no de esta herramienta:**
+   `mark-anchor.ts` captura la cita del contenido **actual** en vez de validar
+   la que afirma el cliente, así que un cliente con texto viejo podría crear
+   una marca sobre otras palabras. El daño es la marca de esa persona, visible
+   para ella, no el libro.
 
 #### Deuda de producto que sigue viva (de los arcos anteriores)
 

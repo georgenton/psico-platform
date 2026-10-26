@@ -35,108 +35,89 @@ transacción**. Un candado que sólo tome el reparador coordina con nadie.
 
 ---
 
-## 2. La ventana: mantenimiento con el contenedor vivo
+## 2. La exclusión: revocar las sesiones, no apagar el servicio
 
-**Mecanismo: la bandera de mantenimiento de Coolify** sobre
-`feelverse-staging-api` (`is_maintenance_enabled`). El proxy deja de enrutar
-hacia el contenedor y sirve la página de mantenimiento, **pero el contenedor
-sigue en marcha** — que es justo lo que hace falta, porque el ejecutor corre
-dentro de él.
+**Mecanismo elegido: revocación de sesiones** (`auth/session-revocation.ts`,
+ADR 0015), y no una ventana de mantenimiento. El motivo es que la revocación
+**se puede acreditar** y el mantenimiento no cerraba el caso que importa.
 
-> **Deliberadamente NO se detiene el contenedor.** Pararlo y después ejecutar
-> «dentro de ese contenedor» es una contradicción: un contenedor detenido no
-> ejecuta nada. Si en algún momento se prefiriera pararlo, la ejecución tendría
-> que ser **puntual sobre la misma imagen revisada**
-> (`docker run --rm <imagen> …` con las variables del servicio), y eso es otra
-> opción, no esta.
+`revokeAllUserSessions` hace dos escrituras en una transacción: sube
+`User.authRevision` —con lo que **todo token de acceso ya emitido lleva un
+claim `ar` obsoleto y `JwtStrategy` lo rechaza en su siguiente petición**, sin
+esperar los 15 minutos de expiración— y borra todos los `RefreshToken`.
+
+Por qué eso cierra el problema, caso por caso:
+
+| Caso                                                  | Qué lo cierra                                                                                                                                               |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Una pestaña abierta con el texto **anterior**         | **La revocación.** No puede escribir: 401 inmediato. Para volver a escribir tiene que autenticarse, y eso recarga la aplicación y vuelve a leer el capítulo |
+| Un subrayado creado **antes** de que el reparador lea | **La consulta por ancla.** El ejecutor lo encuentra y **aborta** — no lo pisa                                                                               |
+| Un subrayado creado **después** de nuestro commit     | **La revocación.** Ese cliente tendría que haberse autenticado de nuevo, y entonces su texto ya es el reparado                                              |
+
+> **Por qué no «quince minutos sin actividad».** Una versión anterior de este
+> documento proponía exigir que `ReadingSession.lastSeenAt` no se hubiera
+> movido en 15 minutos. Eso describe el **pasado** y no demuestra nada sobre el
+> presente: una pestaña abierta sin heartbeat reciente conserva el texto
+> anterior en memoria y puede escribir en cualquier momento. La revocación no
+> describe, **impide**.
+
+> **Por qué tampoco la bandera de mantenimiento de Coolify.** Dejaría de servir
+> y permitiría ejecutar dentro del contenedor vivo, pero no impide que un
+> cliente escriba **al reabrir** con el texto anterior ya cargado — que es
+> justo el caso que hay que cerrar. Y detener el contenedor para después
+> «ejecutar dentro de él» es una contradicción; si alguna vez hiciera falta
+> apagarlo, la ejecución tendría que ser **puntual sobre la misma imagen
+> revisada** (`docker run --rm` con las variables del servicio). Esa opción
+> queda nombrada, no elegida.
 
 ### 2.1 Impedir escrituras nuevas
 
-1. Activar mantenimiento en `feelverse-staging-api`.
-2. **Acreditarlo desde fuera**, no por la interfaz:
+Una sola sentencia, dentro de una transacción, sobre la base de staging:
 
-```bash
-curl -s -o /dev/null -w '%{http_code}\n' https://api-staging.feelverse.app/health
-# 503 (o la página de mantenimiento). Un 200 significa que sigue sirviendo.
+```sql
+BEGIN;
+UPDATE "User" SET "authRevision" = "authRevision" + 1;
+DELETE FROM "RefreshToken";
+COMMIT;
 ```
 
-3. Acreditar que el contenedor **sigue vivo**, porque de ahí sale el ejecutor:
+Es exactamente lo que hace `revokeAllUserSessions` para un usuario, aplicado a
+todos. Alcance: **cierra la sesión de todo el mundo en staging**. En un entorno
+de pruebas eso es un inconveniente de un inicio de sesión, no una pérdida.
+
+### 2.2 Acreditar que la exclusión funciona
+
+Con un token capturado **antes** de revocar:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' \
+  https://api-staging.feelverse.app/api/user/me -H "Authorization: Bearer <token previo>"
+# 200 antes de revocar · 401 después. Un 200 después significa que no revocó.
+```
+
+Y que el reparador puede correr: el contenedor sigue arriba.
 
 ```bash
 sudo docker ps --filter name=aft7nt3p6wsormno2cejtavj --format '{{.Status}}'
-# Up …
 ```
 
-Web puede quedarse arriba: sin API no escribe nada.
+### 2.3 Reabrir
 
-### 2.2 Acreditar el drenaje
-
-Dos señales, las dos consultables:
-
-```sql
--- 1. Ninguna consulta activa de la API sobre la base.
-SELECT count(*) FROM pg_stat_activity
- WHERE datname = current_database()
-   AND backend_type = 'client backend'
-   AND state <> 'idle'
-   AND pid <> pg_backend_pid();
--- Se espera 0.
-```
-
-```sql
--- 2. Ningún lector vivo en el libro afectado. El heartbeat del lector escribe
---    `ReadingSession.lastSeenAt` cada 5 s, así que un lector activo aparece en
---    segundos; 15 minutos es un margen amplio.
-SELECT count(*) FROM "ReadingSession" rs
-  JOIN "Chapter" ch ON ch.id = rs."chapterId"
-  JOIN "Book"    b  ON b.id  = ch."bookId"
- WHERE b.slug = 'emociones-en-construccion'
-   AND rs."lastSeenAt" > now() - interval '15 minutes';
--- Se espera 0.
-```
-
-Si la primera no baja a 0, esperar: el límite real es el timeout de las
-peticiones del lector. **Si la segunda no es 0, no se abre la ventana** — hay
-alguien leyendo y su cliente tiene el texto viejo cargado.
-
-### 2.3 Los lectores que conservan el texto anterior
-
-Aquí hay un residuo que conviene decir entero, porque el servidor **no** lo
-rechaza hoy: `content-core/marks/mark-anchor.ts` **captura** la cita del
-`BlockVersion.content` actual en vez de validar la que manda el cliente. Un
-cliente que cargó el capítulo antes de la ventana y escribe después:
-
-- si sus desplazamientos caen dentro del texto nuevo —más corto—, el servidor
-  **acepta** la escritura y guarda una cita de las palabras que ahora estén ahí;
-- si se salen, responde `OFFSET_OUT_OF_RANGE` (400).
-
-Es decir: el daño posible es **la marca de esa persona sobre otras palabras**,
-visible para ella, no una corrupción del libro. El control disponible es la
-precondición de §2.2 —ningún lector vivo en 15 minutos— más la propia ventana,
-y después de reabrir, que cualquier cliente que recargue vuelva a leer el texto
-nuevo.
-
-Lo que **cerraría** el residuo es que el camino de escritura validara la cita
-del cliente en lugar de capturarla. Es un cambio de producto, fuera del alcance
-de esta reparación, y queda nombrado para que no se pierda.
-
-### 2.4 Reabrir
-
-En este orden, y ninguno es opcional:
+No hay nada que reabrir: el servicio nunca dejó de servir. Lo que hay es
+**comprobar**, en este orden:
 
 1. `GET /api/health/ready` → `ready=true` con `pending` **y** `failed` vacíos.
 2. Replanificar: **0 operaciones** propuestas (convergió).
-3. El inspector del backfill no reporta deriva.
+3. Las dos representaciones concuerdan (el comparador del inspector).
 4. Abrir un capítulo en pantalla: negritas donde antes había asteriscos.
-5. Desactivar mantenimiento y comprobar `/health` → 200.
+5. Crear y leer una marca con una cuenta QA, y comprobar que selecciona sus
+   palabras.
 
-### 2.5 Si hay que revertir
+### 2.4 Si hay que revertir
 
-Se usa el comando de recuperación del §4. Se niega si algo cambió después de la
+El comando de recuperación del §4.3. Se niega si algo cambió después de la
 reparación —texto, `meta`, hash nativo o cualquier subrayado— y en ese caso
 **no se insiste**: se mira qué cambió. Esta herramienta no reconcilia.
-
----
 
 ## 3. El artefacto desde el que se ejecuta
 
@@ -278,3 +259,46 @@ reapertura— es de **minutos**, y la parte que escribe, de segundos.
   estructura de bloque y no hay tipo donde ponerla.
 - **No fuerza un contador a cero.** Los dos bloqueos editoriales —un backtick en
   una cita y un `EXERCISE` con asteriscos— quedan **fuera de la aplicación**.
+
+---
+
+## 7. Ejecución del 2026-10-26 · APLICADA en staging
+
+Ejecutada contra `feelverse_staging` con el plan revisado
+`planId 5a9c0dd4-90b4-4c0f-882c-406aec9a52c8`,
+`planHash sha256:d1551eaf2a18d1ee520b17fff8fc006ae28e113e66249b2132675fbc0c5bd2fb`.
+
+### Secuencia y evidencia
+
+| Paso                        | Resultado                                                                                                                                                                                                    |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| #814 integrado              | `main = 19fcc261` · 15/15 comprobaciones verdes sobre el estado fusionado                                                                                                                                    |
+| API desplegada              | `aft7nt3p6wsormno2cejtavj:19fcc261` · healthy · contiene los 9 archivos del reparador, los 3 scripts y `ts-node`                                                                                             |
+| Readiness                   | `ready=true`, `reason=ok`, 71/71, `pending` y `failed` vacíos                                                                                                                                                |
+| Plan contra datos vivos     | hash **idéntico** al revisado · 732 a reescribir · 2651 intactos · 2 bloqueados · base `feelverse_staging`, postura `staging`                                                                                |
+| **Exclusión**               | 10 usuarios con `authRevision` subido, **126** refresh borrados. Un token capturado ANTES pasó de **200** a **401**                                                                                          |
+| Aplicación                  | **732 bloques** · preimagen escrita · comprobación posterior: **0 operaciones pendientes — convergió**                                                                                                       |
+| Preimagen extraída          | `~/.psico-ops/eec-emphasis-plan-20261026b.preimage.json` · 353 KB · 732 = 732 con cobertura exacta · `planId`/`planHash` coincidentes · **sin prosa**                                                        |
+| Concordancia                | 3385 bloques, 3385 con versión nativa · **DERIVA 0** en texto, `meta`, orden y kind                                                                                                                          |
+| Identidades y referencias   | sin cambios: 0 subrayados, 1 anotación, 18 sesiones de lectura. 288 viñetas conservadas                                                                                                                      |
+| Asteriscos restantes        | **2 bloques**, los dos bloqueos editoriales. `inlineMarks` en **732**                                                                                                                                        |
+| Lectura por API (cuenta QA) | capítulo 1: 188 bloques, **49 con `inlineMarks`**, 1 con asterisco (el bloqueado)                                                                                                                            |
+| Marca creada y leída        | `POST /api/highlights` 201 · en la base: `[12,17)` con `quote=mitos` sobre el bloque reparado — en el texto viejo esos offsets eran `" mito"` · leída por el lector seleccionando `'mitos'` · retirada (204) |
+| **En pantalla**             | lector con **25 negritas** y **24 cursivas** renderizadas; los **4** asteriscos que quedan están todos en el bloque `**Nota editorial:**`, que es la cita bloqueada por el backtick                          |
+
+### Lo que quedó fuera, por decisión editorial pendiente
+
+| Dónde                           | Motivo                                                                                |
+| ------------------------------- | ------------------------------------------------------------------------------------- |
+| cap 1 · bloque 166 · `QUOTE`    | `UNREPRESENTABLE_MARKUP` — backtick. Es el bloque cuyos asteriscos se ven en pantalla |
+| cap 5 · bloque 368 · `EXERCISE` | `KIND_NOT_FORMATTABLE`                                                                |
+
+Las 288 viñetas `- ` siguen fuera de alcance y no se tocaron. No hubo reingesta.
+
+### Nota de credenciales
+
+La comprobación en pantalla exige sesión —la vista libre es una puerta de plan,
+no de autenticación (el lector responde 401 sin token)—, así que la contraseña
+de la cuenta QA se materializó una vez para rellenar el formulario y **se rotó
+inmediatamente después**, quedando marcada como quemada en el almacén de ops.
+Es la misma convención que ya aplicaba `feelverse-staging-qa.env`.

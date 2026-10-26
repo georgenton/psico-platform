@@ -3,26 +3,44 @@
  *
  *   pnpm --filter @psico/api content:eec:emphasis:plan  -- --plan-out=<ruta>
  *   pnpm --filter @psico/api content:eec:emphasis:apply -- --plan=<ruta> \
- *     --expect-database=<nombre>
+ *     --expect-database=<nombre> --expect-posture=<p> \
+ *     --expect-plan-id=<uuid> --expect-plan-hash=<sha256:…>
  *
  * The split is the point. Planning never opens a write transaction, so it can
  * be run as often as anybody likes; applying consumes a plan somebody read, and
  * refuses the moment the database stopped matching it.
  *
- * ── Why the plan is frozen to a file ───────────────────────────────────────
+ * ── Why the plan is frozen to a file, and why the file is not the permission ─
  *
- * Because the review happens between the two commands. A plan recomputed at
- * apply time would be a different plan — possibly a correct one, but not the
- * one that was approved, and "it recalculated and went ahead" is how a review
- * becomes decoration. So apply re-reads the database, re-plans, and compares
- * the hash with the frozen file: equal means the approved write is still the
- * right write, different means stop and plan again.
+ * The review happens between the two commands, so apply re-reads the database,
+ * re-plans, and compares the hash with the frozen file: equal means the approved
+ * write is still the right write. But the FILE cannot answer "is this the plan a
+ * person approved" — a substituted file would answer it about itself. So the
+ * plan's identity comes from the invocation (`--expect-plan-id`,
+ * `--expect-plan-hash`), exactly as `catalog/authorship-plan-file.ts` puts it:
+ * the hash binds, it is not the permission.
+ *
+ * ── And the destination is proven, not declared ────────────────────────────
+ *
+ * A previous version of this file compared the frozen plan's database with
+ * `--expect-database` and never contrasted either with the database it was
+ * connected to. Two agreeing labels are not a destination: a plan built against
+ * staging, declared as staging, could be applied to any database whose contents
+ * happened to produce the same hash — which, for a repair whose hash is derived
+ * from the content, is exactly what a restored copy of staging would do. So the
+ * connection is parsed, the posture is resolved from the PROCESS, and
+ * `current_database()` is asked of the server itself.
  */
 
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 
+import {
+  targetIdentityFromUrl,
+  type TargetIdentity,
+} from "../catalog/authorship-plan-file";
+import { resolveEnvironment } from "../shared/psico-environment";
 import {
   computeEmphasisPlanHash,
   describeEmphasisPlan,
@@ -38,6 +56,13 @@ import {
   type SnapshotClient,
 } from "./markdown-repair-db";
 
+/**
+ * This repair's own one-off authorization.
+ *
+ * Deliberately not shared with the catalogue repair: a token that permits two
+ * procedures is a token somebody exports once and forgets. `=1` matches the
+ * house convention so the muscle memory is the same.
+ */
 export const STAGING_TOKEN = "ALLOW_STAGING_EEC_EMPHASIS_REPAIR";
 export const DEFAULT_BOOK = "emociones-en-construccion";
 
@@ -47,6 +72,9 @@ export interface CliArgs {
   planPath?: string;
   planOut?: string;
   expectDatabase?: string;
+  expectPosture?: string;
+  expectPlanId?: string;
+  expectPlanHash?: string;
   /**
    * Plan from a snapshot exported read-only, instead of connecting.
    *
@@ -56,9 +84,8 @@ export interface CliArgs {
    * plan out — so a snapshot read with `BEGIN READ ONLY` gives the identical
    * plan with no credential anywhere near it.
    *
-   * Planning only. `--apply` re-reads the live database itself and compares
-   * hashes, which is the check that makes the plan safe; an apply that trusted
-   * a file for its "current" state would have no check at all.
+   * Planning only. `--apply` re-reads the live database itself, which is the
+   * check that makes the plan safe.
    */
   snapshotPath?: string;
 }
@@ -100,6 +127,15 @@ export function parseArgs(argv: readonly string[]): CliArgs {
       case "--expect-database":
         out.expectDatabase = requireValue(flag, value);
         break;
+      case "--expect-posture":
+        out.expectPosture = requireValue(flag, value);
+        break;
+      case "--expect-plan-id":
+        out.expectPlanId = requireValue(flag, value);
+        break;
+      case "--expect-plan-hash":
+        out.expectPlanHash = requireValue(flag, value);
+        break;
       case "--snapshot":
         out.snapshotPath = requireValue(flag, value);
         break;
@@ -108,15 +144,20 @@ export function parseArgs(argv: readonly string[]): CliArgs {
     }
   }
 
+  const applyOnly: [string, string | undefined][] = [
+    ["--plan", out.planPath],
+    ["--expect-database", out.expectDatabase],
+    ["--expect-posture", out.expectPosture],
+    ["--expect-plan-id", out.expectPlanId],
+    ["--expect-plan-hash", out.expectPlanHash],
+  ];
+
   if (out.apply) {
-    if (!out.planPath) {
+    const missing = applyOnly.filter(([, v]) => !v).map(([f]) => f);
+    if (missing.length > 0) {
       throw new CliUsageError(
-        "PLAN AUSENTE: --apply consume un plan congelado y revisado. Pasa --plan=<ruta>.",
-      );
-    }
-    if (!out.expectDatabase) {
-      throw new CliUsageError(
-        "DESTINO NO DECLARADO: --apply exige --expect-database. Aplicar sin declarar la base es cómo una orden copiada acaba en otra.",
+        `DECLARACIÓN INCOMPLETA: --apply exige ${missing.join(", ")}. ` +
+          "Aplicar sin declarar el destino y el plan aprobado es cómo una orden copiada acaba en otra base o aplica otro plan.",
       );
     }
     if (out.planOut) {
@@ -126,13 +167,16 @@ export function parseArgs(argv: readonly string[]): CliArgs {
     }
     if (out.snapshotPath) {
       throw new CliUsageError(
-        "SNAPSHOT CON --apply: aplicar lee la base en vivo y compara hashes; confiar en un archivo para el estado actual es quedarse sin esa comprobación.",
+        "SNAPSHOT CON --apply: aplicar lee la base en vivo y compara; confiar en un archivo para el estado actual es quedarse sin esa comprobación.",
       );
     }
-  } else if (out.expectDatabase || out.planPath) {
-    throw new CliUsageError(
-      "ARGUMENTOS DE APLICACIÓN SIN --apply: la planificación no escribe nada, así que no declara destino ni consume un plan.",
-    );
+  } else {
+    const stray = applyOnly.filter(([, v]) => v).map(([f]) => f);
+    if (stray.length > 0) {
+      throw new CliUsageError(
+        `ARGUMENTOS DE APLICACIÓN SIN --apply: ${stray.join(", ")}. La planificación no escribe nada, así que no declara destino ni consume un plan.`,
+      );
+    }
   }
 
   return out;
@@ -141,6 +185,79 @@ export function parseArgs(argv: readonly string[]): CliArgs {
 function requireValue(flag: string, value: string): string {
   if (value === "") throw new CliUsageError(`${flag} necesita un valor.`);
   return value;
+}
+
+/**
+ * The destination, resolved from the process and the connection.
+ *
+ * Mirrors `catalog/authorship-repair-cli.ts#resolveTarget`, including the rules
+ * that are easy to get wrong: production is refused outright and no token
+ * enables it; staging needs this procedure's token in THIS invocation, also over
+ * loopback, because a tunnel or a local proxy does not prove there is no other
+ * database behind it; and a local posture never reaches a non-loopback host.
+ */
+export function resolveTarget(
+  args: CliArgs,
+  env: Record<string, string | undefined>,
+  posture: string,
+): TargetIdentity {
+  const connection = env.DATABASE_URL;
+  if (!connection || connection.trim() === "") {
+    throw new CliUsageError(
+      "CONEXIÓN AUSENTE: DATABASE_URL no está definida. No se usa un destino por defecto — elegir una base implícitamente es cómo se repara la equivocada.",
+    );
+  }
+
+  const target = targetIdentityFromUrl(connection, posture);
+  if (!args.apply) return target; // A dry run writes nothing anywhere.
+
+  if (args.expectDatabase !== target.database) {
+    throw new CliUsageError(
+      `DESTINO DISCORDANTE: se declaró ${args.expectDatabase} y la conexión apunta a ${target.database}.`,
+    );
+  }
+  if (args.expectPosture !== posture) {
+    throw new CliUsageError(
+      `POSTURA DISCORDANTE: se declaró ${args.expectPosture} y el proceso resuelve ${posture}.`,
+    );
+  }
+  if (posture === "production") {
+    throw new CliUsageError(
+      "RECHAZADO: postura production. Esta reparación no se aplica en producción y no hay token que lo habilite.",
+    );
+  }
+  if (posture === "staging" && env[STAGING_TOKEN] !== "1") {
+    throw new CliUsageError(
+      `RECHAZADO: aplicar en postura staging exige ${STAGING_TOKEN}=1 en ESTA invocación, también por loopback — un túnel o un proxy local no demuestran que detrás no haya otra base. No debe quedar fijado en las variables del servicio: eso convierte un permiso puntual en un bypass permanente.`,
+    );
+  }
+  if (!target.isLoopback && posture !== "staging") {
+    throw new CliUsageError(
+      `RECHAZADO: la conexión apunta a ${target.host}, que no es loopback, mientras el proceso se declara ${posture}. Una etiqueta local no autoriza escribir en una base alojada.`,
+    );
+  }
+  return target;
+}
+
+/**
+ * And finally: ask the SERVER which database this is.
+ *
+ * The connection string is what we asked for; `current_database()` is what we
+ * got. They can differ — a proxy, a `?options=-c search_path`, a pooler pointed
+ * elsewhere, a copy restored under another name — and the whole point of the
+ * previous checks is lost if nobody closes the gap between the label and the
+ * server.
+ */
+export function assertConnectedDatabase(
+  target: TargetIdentity,
+  currentDatabase: string,
+): void {
+  if (currentDatabase !== target.database) {
+    throw new CliUsageError(
+      `BASE CONECTADA DISTINTA: la conexión declara "${target.database}" y el servidor responde "${currentDatabase}". ` +
+        "Dos etiquetas de acuerdo no son un destino.",
+    );
+  }
 }
 
 export interface FrozenEmphasisPlan {
@@ -174,17 +291,23 @@ export function freezeEmphasisPlan(
   };
 }
 
+export interface ExpectedPlanIdentity {
+  planId: string;
+  planHash: string;
+}
+
 /**
- * The frozen plan and the database must still agree.
+ * Five separate questions, because they fail for five different reasons.
  *
- * Three separate checks, because they fail for three different reasons: a plan
- * for another book, a plan for another database, and a plan for a state that
- * has since moved.
+ * A plan of an unknown format · a plan for another book · a plan for another
+ * database · a plan for a state that has since moved · and a plan that is not
+ * the one approved. Only the last one cannot come from the file.
  */
 export function assertPlanStillValid(
   frozen: FrozenEmphasisPlan,
   fresh: EmphasisPlan,
-  expectDatabase: string,
+  target: TargetIdentity,
+  expected: ExpectedPlanIdentity,
 ): void {
   if (frozen.format !== EMPHASIS_PLAN_FORMAT) {
     throw new Error(`FORMATO DESCONOCIDO: ${frozen.format}`);
@@ -194,9 +317,20 @@ export function assertPlanStillValid(
       `LIBRO DISTINTO: el plan es de "${frozen.bookSlug}" y se está planificando "${fresh.bookSlug}".`,
     );
   }
-  if (frozen.database !== expectDatabase) {
+  if (frozen.database !== target.database) {
     throw new Error(
-      `BASE DISTINTA: el plan se construyó contra "${frozen.database}" y se declara "${expectDatabase}".`,
+      `BASE DISTINTA: el plan se construyó contra "${frozen.database}" y la conexión apunta a "${target.database}".`,
+    );
+  }
+  if (frozen.planId !== expected.planId) {
+    throw new Error(
+      `PLAN NO APROBADO: el archivo dice ${frozen.planId} y se declaró ${expected.planId}. ` +
+        "Un archivo sustituido respondería por sí mismo; por eso la identidad viene de la invocación.",
+    );
+  }
+  if (frozen.planHash !== expected.planHash) {
+    throw new Error(
+      `HASH NO APROBADO: el archivo dice ${frozen.planHash} y se declaró ${expected.planHash}.`,
     );
   }
   const freshHash = computeEmphasisPlanHash(fresh);
@@ -253,25 +387,15 @@ async function main(): Promise<void> {
       writeJson(args.planOut, frozen);
       console.log(`plan congelado: ${resolve(args.planOut)}`);
       console.log(`planId: ${frozen.planId}`);
+      console.log(`planHash: ${frozen.planHash}`);
     } else {
       console.log("\n(sin --plan-out: nada se congeló; nada se escribió)");
     }
     return;
   }
 
-  const connection = process.env.DATABASE_URL;
-  if (!connection) {
-    throw new Error(
-      "CONEXIÓN AUSENTE: DATABASE_URL no está definida. No se usa un destino por defecto.",
-    );
-  }
-  const database = new URL(connection).pathname.replace(/^\//, "");
-
-  if (args.apply && process.env[STAGING_TOKEN] !== "on") {
-    throw new Error(
-      `APLICACIÓN NO AUTORIZADA: exporta ${STAGING_TOKEN}=on para escribir. La planificación no lo necesita.`,
-    );
-  }
+  const posture = resolveEnvironment();
+  const target = resolveTarget(args, process.env, posture);
 
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { PrismaClient } = require("@prisma/client");
@@ -280,11 +404,16 @@ async function main(): Promise<void> {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { Pool } = require("pg");
 
-  const pool = new Pool({ connectionString: connection });
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   pool.on("error", () => undefined);
   const prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
 
   try {
+    const [{ current_database: connected }] = (await prisma.$queryRawUnsafe(
+      "SELECT current_database()",
+    )) as { current_database: string }[];
+    assertConnectedDatabase(target, connected);
+
     const snapshot = await readEmphasisSnapshot(
       prisma as unknown as SnapshotClient,
       args.book,
@@ -293,13 +422,16 @@ async function main(): Promise<void> {
 
     if (!args.apply) {
       console.log(describeEmphasisPlan(plan));
-      console.log(`\nbase: ${database}`);
+      console.log(
+        `\nbase: ${connected} · host ${target.host}:${target.port} · postura ${posture}`,
+      );
       if (args.planOut) {
         assertPrivatePath(args.planOut, resolve(__dirname, "../../../.."));
-        const frozen = freezeEmphasisPlan(plan, database);
+        const frozen = freezeEmphasisPlan(plan, connected);
         writeJson(args.planOut, frozen);
         console.log(`plan congelado: ${resolve(args.planOut)}`);
         console.log(`planId: ${frozen.planId}`);
+        console.log(`planHash: ${frozen.planHash}`);
       } else {
         console.log(
           "\n(sin --plan-out: nada se congeló y nada se escribió en la base)",
@@ -313,7 +445,10 @@ async function main(): Promise<void> {
     }
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const frozen = require(resolve(args.planPath!)) as FrozenEmphasisPlan;
-    assertPlanStillValid(frozen, plan, args.expectDatabase!);
+    assertPlanStillValid(frozen, plan, target, {
+      planId: args.expectPlanId!,
+      planHash: args.expectPlanHash!,
+    });
 
     const preimagePath = preimagePathFor(args.planPath!);
     assertPrivatePath(preimagePath, resolve(__dirname, "../../../.."));
@@ -327,7 +462,7 @@ async function main(): Promise<void> {
           format: "feelverse.content-core-emphasis-preimage/v1",
           planId: frozen.planId,
           planHash: frozen.planHash,
-          database,
+          database: connected,
           recordedAt: new Date().toISOString(),
           preimages,
         });

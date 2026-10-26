@@ -29,9 +29,14 @@ function block(over: Partial<BlockSnapshot> = {}): BlockSnapshot {
       {
         id: "bv-1",
         unitVersionId: "uv-1",
+        order: 7,
+        kind: "PARAGRAPH",
         content,
         contentHash: contentHash(content),
-        meta: null,
+        // Igual que el legado: las dos representaciones se mantienen en
+        // sincronía, y una divergencia previa es justo lo que el planificador
+        // bloquea.
+        meta: over.meta ?? null,
       },
     ],
     highlights: [],
@@ -64,7 +69,8 @@ describe("planEmphasisRepair · the write it proposes", () => {
     // moving one alone would turn a formatting repair into reported drift.
     expect(op.chapterBlockId).toBe("cb-1");
     expect(op.contentBlockId).toBe("ccb-1");
-    expect(op.versionIds).toEqual(["bv-1"]);
+    expect(op.versions.map((v) => v.id)).toEqual(["bv-1"]);
+    expect(op.versions[0]!.contentDigest).toMatch(/^sha256:/);
     expect(op.after.contentHash).toBe(contentHash(REPAIRED));
     expect(op.after.contentLength).toBe(REPAIRED.length);
     expect(op.after.marks).toEqual([
@@ -98,6 +104,8 @@ describe("planEmphasisRepair · the write it proposes", () => {
         {
           id: "bv-1",
           unitVersionId: "uv-1",
+          order: 7,
+          kind: "PARAGRAPH",
           content: REPAIRED,
           contentHash: contentHash(REPAIRED),
           meta: { [INLINE_MARKS_META_KEY]: op.after.marks },
@@ -218,6 +226,8 @@ describe("planEmphasisRepair · references survive or the block is refused", () 
             {
               id: "bv-1",
               unitVersionId: "uv-1",
+              order: 7,
+              kind: "PARAGRAPH",
               content: "otro texto",
               contentHash: contentHash("otro texto"),
               meta: null,
@@ -228,6 +238,47 @@ describe("planEmphasisRepair · references survive or the block is refused", () 
     );
     expect(plan.blockers[0]!.reason).toBe("NATIVE_DRIFT");
     expect(plan.ops).toHaveLength(0);
+  });
+
+  it("refuses identical text when a mark exists ONLY on the native side", () => {
+    // The hole this closes: `NATIVE_DRIFT` used to compare `content` alone, so
+    // this block passed — and then the apply, which writes the LEGACY-derived
+    // marks to both sides, would have deleted an UNDERLINE that only ever
+    // existed natively. The text being identical is precisely what made it
+    // invisible.
+    const start = TEXT.indexOf("generativo");
+    const plan = planEmphasisRepair(
+      snapshot([
+        block({
+          meta: null,
+          versions: [
+            {
+              id: "bv-1",
+              unitVersionId: "uv-1",
+              order: 7,
+              kind: "PARAGRAPH",
+              content: TEXT,
+              contentHash: contentHash(TEXT),
+              meta: {
+                [INLINE_MARKS_META_KEY]: [
+                  {
+                    type: "UNDERLINE",
+                    startOffset: start,
+                    endOffset: start + "generativo".length,
+                  },
+                ],
+              },
+            },
+          ],
+        }),
+      ]),
+    );
+    expect(plan.ops).toHaveLength(0);
+    expect(plan.blockers[0]!.reason).toBe("NATIVE_DRIFT");
+    // And it says WHICH field diverged, because "drifted" alone sends whoever
+    // reads it back to the database to find out.
+    expect(plan.blockers[0]!.detail).toContain("content same");
+    expect(plan.blockers[0]!.detail).toContain("meta DIFFERENT");
   });
 
   it("passes the parser's own refusals through with their reason", () => {

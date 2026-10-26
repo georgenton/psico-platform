@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { contentHash } from "./lib/content-hash";
 import {
+  assertConnectedDatabase,
   assertPlanStillValid,
   assertPrivatePath,
   CliUsageError,
@@ -9,6 +10,9 @@ import {
   freezeEmphasisPlan,
   parseArgs,
   preimagePathFor,
+  resolveTarget,
+  STAGING_TOKEN,
+  type CliArgs,
 } from "./markdown-repair-cli";
 import { planEmphasisRepair, type EmphasisSnapshot } from "./markdown-repair";
 
@@ -28,6 +32,8 @@ const snapshotOf = (content: string): EmphasisSnapshot => ({
         {
           id: "bv-1",
           unitVersionId: "uv-1",
+          order: 1,
+          kind: "PARAGRAPH",
           content,
           contentHash: contentHash(content),
           meta: null,
@@ -40,59 +46,90 @@ const snapshotOf = (content: string): EmphasisSnapshot => ({
   ],
 });
 
+const applyArgs = (over: Partial<CliArgs> = {}): CliArgs => ({
+  apply: true,
+  book: DEFAULT_BOOK,
+  planPath: "/ops/p.json",
+  expectDatabase: "feelverse_staging",
+  expectPosture: "staging",
+  expectPlanId: "plan-1",
+  expectPlanHash: "sha256:abc",
+  ...over,
+});
+
+const STAGING_URL = "postgresql://u:p@db.internal:5432/feelverse_staging";
+
 describe("parseArgs · the two modes stay apart", () => {
   it("plans by default, over the anchor book", () => {
     expect(parseArgs([])).toEqual({ apply: false, book: DEFAULT_BOOK });
   });
 
-  it("refuses --apply without a reviewed plan", () => {
-    expect(() => parseArgs(["--apply"])).toThrow(CliUsageError);
-    expect(() => parseArgs(["--apply", "--plan=/tmp/p.json"])).toThrow(
-      /DESTINO NO DECLARADO/,
-    );
+  it("names every missing declaration, not just the first", () => {
+    let err: Error | null = null;
+    try {
+      parseArgs(["--apply"]);
+    } catch (e) {
+      err = e as Error;
+    }
+    expect(err).toBeInstanceOf(CliUsageError);
+    for (const flag of [
+      "--plan",
+      "--expect-database",
+      "--expect-posture",
+      "--expect-plan-id",
+      "--expect-plan-hash",
+    ]) {
+      expect(err!.message).toContain(flag);
+    }
   });
 
   it("accepts a complete application", () => {
     expect(
       parseArgs([
         "--apply",
-        "--plan=/tmp/p.json",
+        "--plan=/ops/p.json",
         "--expect-database=feelverse_staging",
+        "--expect-posture=staging",
+        "--expect-plan-id=plan-1",
+        "--expect-plan-hash=sha256:abc",
       ]),
-    ).toEqual({
-      apply: true,
-      book: DEFAULT_BOOK,
-      planPath: "/tmp/p.json",
-      expectDatabase: "feelverse_staging",
-    });
+    ).toEqual(applyArgs());
   });
 
   it("refuses a dry run that carries application arguments", () => {
-    // A plan that accepts `--expect-database` reads as if it applied something.
-    expect(() => parseArgs(["--expect-database=x"])).toThrow(/SIN --apply/);
-    expect(() => parseArgs(["--plan=/tmp/p.json"])).toThrow(/SIN --apply/);
+    for (const flag of [
+      "--expect-database=x",
+      "--plan=/ops/p.json",
+      "--expect-plan-hash=sha256:x",
+    ]) {
+      expect(() => parseArgs([flag])).toThrow(/SIN --apply/);
+    }
   });
 
   it("refuses freezing and applying in one command", () => {
     expect(() =>
       parseArgs([
         "--apply",
-        "--plan=/tmp/p.json",
+        "--plan=/ops/p.json",
         "--expect-database=x",
-        "--plan-out=/tmp/q.json",
+        "--expect-posture=staging",
+        "--expect-plan-id=p",
+        "--expect-plan-hash=h",
+        "--plan-out=/ops/q.json",
       ]),
     ).toThrow(/MODOS INCOMPATIBLES/);
   });
 
   it("refuses --snapshot with --apply", () => {
-    // Applying re-reads the live database and compares hashes. An apply that
-    // took its "current" state from a file would have no check at all.
     expect(() =>
       parseArgs([
         "--apply",
-        "--plan=/tmp/p.json",
+        "--plan=/ops/p.json",
         "--expect-database=x",
-        "--snapshot=/tmp/s.json",
+        "--expect-posture=staging",
+        "--expect-plan-id=p",
+        "--expect-plan-hash=h",
+        "--snapshot=/ops/s.json",
       ]),
     ).toThrow(/SNAPSHOT CON --apply/);
   });
@@ -108,13 +145,151 @@ describe("parseArgs · the two modes stay apart", () => {
   });
 });
 
-describe("assertPlanStillValid · the refusal that makes the review real", () => {
+describe("resolveTarget · the destination is resolved, not declared", () => {
+  const env = (over: Record<string, string | undefined> = {}) => ({
+    DATABASE_URL: STAGING_URL,
+    [STAGING_TOKEN]: "1",
+    ...over,
+  });
+
+  it("refuses without a connection string", () => {
+    expect(() =>
+      resolveTarget(applyArgs(), { DATABASE_URL: undefined }, "staging"),
+    ).toThrow(/CONEXIÓN AUSENTE/);
+  });
+
+  it("a dry run resolves the target and demands nothing", () => {
+    const t = resolveTarget(
+      { apply: false, book: DEFAULT_BOOK },
+      env(),
+      "staging",
+    );
+    expect(t.database).toBe("feelverse_staging");
+    expect(t.isLoopback).toBe(false);
+  });
+
+  it("refuses when the declared database is not the connected one", () => {
+    expect(() =>
+      resolveTarget(
+        applyArgs({ expectDatabase: "feelverse_production" }),
+        env(),
+        "staging",
+      ),
+    ).toThrow(/DESTINO DISCORDANTE/);
+  });
+
+  it("refuses when the declared posture is not the resolved one", () => {
+    expect(() =>
+      resolveTarget(
+        applyArgs({ expectPosture: "development" }),
+        env(),
+        "staging",
+      ),
+    ).toThrow(/POSTURA DISCORDANTE/);
+  });
+
+  it("refuses production outright, with no token that enables it", () => {
+    expect(() =>
+      resolveTarget(
+        applyArgs({
+          expectPosture: "production",
+          expectDatabase: "feelverse_production",
+        }),
+        env({ DATABASE_URL: "postgresql://u:p@db/feelverse_production" }),
+        "production",
+      ),
+    ).toThrow(/postura production/);
+  });
+
+  it("refuses staging without this repair's own token, loopback included", () => {
+    expect(() =>
+      resolveTarget(
+        applyArgs(),
+        env({ [STAGING_TOKEN]: undefined }),
+        "staging",
+      ),
+    ).toThrow(new RegExp(STAGING_TOKEN));
+    // Loopback is not proof: a tunnel presents as loopback.
+    expect(() =>
+      resolveTarget(
+        applyArgs(),
+        { DATABASE_URL: "postgresql://u:p@127.0.0.1:5432/feelverse_staging" },
+        "staging",
+      ),
+    ).toThrow(new RegExp(STAGING_TOKEN));
+  });
+
+  it("refuses a local posture pointed at a hosted database", () => {
+    expect(() =>
+      resolveTarget(
+        applyArgs({ expectPosture: "development" }),
+        env(),
+        "development",
+      ),
+    ).toThrow(/no es loopback/);
+  });
+
+  it("accepts a declared staging target with the token", () => {
+    expect(resolveTarget(applyArgs(), env(), "staging").database).toBe(
+      "feelverse_staging",
+    );
+  });
+});
+
+describe("assertConnectedDatabase · two agreeing labels are not a destination", () => {
+  it("refuses another database EVEN WITH the same data and the same hash", () => {
+    // The case the previous version of this CLI could not see. Everything
+    // agrees: the plan was built against `feelverse_staging`, the invocation
+    // declares `feelverse_staging`, the connection string says
+    // `feelverse_staging`, and the contents are identical — so the recomputed
+    // hash matches too, which is exactly what a restored copy would produce.
+    const fresh = planEmphasisRepair(snapshotOf("Un **modelo** explica"));
+    const frozen = freezeEmphasisPlan(fresh, "feelverse_staging");
+    const target = resolveTarget(
+      applyArgs(),
+      { DATABASE_URL: STAGING_URL, [STAGING_TOKEN]: "1" },
+      "staging",
+    );
+
+    // Every label-based check passes…
+    expect(() =>
+      assertPlanStillValid(frozen, fresh, target, {
+        planId: frozen.planId,
+        planHash: frozen.planHash,
+      }),
+    ).not.toThrow();
+
+    // …and the server says it is somebody else.
+    expect(() =>
+      assertConnectedDatabase(target, "feelverse_staging_restaurada"),
+    ).toThrow(/BASE CONECTADA DISTINTA/);
+  });
+
+  it("accepts when the server agrees", () => {
+    const target = resolveTarget(
+      { apply: false, book: DEFAULT_BOOK },
+      { DATABASE_URL: STAGING_URL },
+      "staging",
+    );
+    expect(() =>
+      assertConnectedDatabase(target, "feelverse_staging"),
+    ).not.toThrow();
+  });
+});
+
+describe("assertPlanStillValid · the refusals that make the review real", () => {
   const fresh = planEmphasisRepair(snapshotOf("Un **modelo** explica"));
   const frozen = freezeEmphasisPlan(fresh, "feelverse_staging");
+  const target = resolveTarget(
+    { apply: false, book: DEFAULT_BOOK },
+    { DATABASE_URL: STAGING_URL },
+    "staging",
+  );
+  const identity = { planId: frozen.planId, planHash: frozen.planHash };
 
   it("accepts a plan the database still produces", () => {
     expect(() =>
-      assertPlanStillValid(frozen, fresh, "feelverse_staging"),
+      assertPlanStillValid(frozen, fresh, target, identity),
     ).not.toThrow();
   });
 
@@ -122,22 +297,48 @@ describe("assertPlanStillValid · the refusal that makes the review real", () =>
     const moved = planEmphasisRepair(
       snapshotOf("Un **modelo** explica, y algo más"),
     );
-    expect(() =>
-      assertPlanStillValid(frozen, moved, "feelverse_staging"),
-    ).toThrow(/CAMBIO CONCURRENTE/);
+    expect(() => assertPlanStillValid(frozen, moved, target, identity)).toThrow(
+      /CAMBIO CONCURRENTE/,
+    );
   });
 
   it("refuses a plan built against another database", () => {
     expect(() =>
-      assertPlanStillValid(frozen, fresh, "feelverse_production"),
+      assertPlanStillValid(
+        { ...frozen, database: "otra" },
+        fresh,
+        target,
+        identity,
+      ),
     ).toThrow(/BASE DISTINTA/);
   });
 
   it("refuses a plan built for another book", () => {
-    const other = { ...fresh, bookSlug: "familias-ensambladas" };
     expect(() =>
-      assertPlanStillValid(frozen, other, "feelverse_staging"),
+      assertPlanStillValid(
+        frozen,
+        { ...fresh, bookSlug: "familias-ensambladas" },
+        target,
+        identity,
+      ),
     ).toThrow(/LIBRO DISTINTO/);
+  });
+
+  it("refuses a file that is not the plan that was approved", () => {
+    // The question the file cannot answer about itself, so it comes from the
+    // invocation: a substituted file would carry its own id and hash.
+    expect(() =>
+      assertPlanStillValid(frozen, fresh, target, {
+        planId: "otro-plan",
+        planHash: frozen.planHash,
+      }),
+    ).toThrow(/PLAN NO APROBADO/);
+    expect(() =>
+      assertPlanStillValid(frozen, fresh, target, {
+        planId: frozen.planId,
+        planHash: "sha256:otro",
+      }),
+    ).toThrow(/HASH NO APROBADO/);
   });
 
   it("refuses a format it does not know", () => {
@@ -145,7 +346,8 @@ describe("assertPlanStillValid · the refusal that makes the review real", () =>
       assertPlanStillValid(
         { ...frozen, format: "otra-cosa" as never },
         fresh,
-        "feelverse_staging",
+        target,
+        identity,
       ),
     ).toThrow(/FORMATO DESCONOCIDO/);
   });

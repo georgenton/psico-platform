@@ -11,6 +11,7 @@ import {
   applyOp,
   CONCURRENT_CHANGE,
   MISSING_ROW,
+  WRITE_LOST,
   type Preimage,
 } from "./markdown-repair-db";
 import { planEmphasisRepair, type EmphasisOp } from "./markdown-repair";
@@ -18,28 +19,35 @@ import { planEmphasisRepair, type EmphasisOp } from "./markdown-repair";
 const TEXT = "Un **modelo generativo** explica";
 const REPAIRED = "Un modelo generativo explica";
 
+interface Row {
+  id: string;
+  startOffset: number;
+  endOffset: number;
+  quote: string | null;
+}
+
 /**
- * A client that records what it was asked to write.
+ * A fake that HONOURS its filters.
  *
- * Deliberately a fake and not a real PostgreSQL: what these cases exercise is
- * the REFUSAL logic — rows that moved, rows that vanished — and each of those
- * states is easier to construct here, exactly once, than to provoke in a
- * database. The shape of the writes is then checked against
- * `blockVersionDrifts`, which is the same function the backfill inspector uses,
- * so "no drift afterwards" is asserted with the real comparator rather than a
- * restatement of it.
+ * The previous version of this double ignored `where` and answered every
+ * `findMany` with its whole fixture. That made a test named "never writes a
+ * highlight the plan did not account for" pass against an implementation that
+ * queried `id IN (planned ids)` — a query which, with an empty plan, is
+ * `id IN ()` and therefore finds nothing and reassures about nothing. The test
+ * proved the fixture, not the code.
+ *
+ * So the filters are implemented, narrowly and only in the shapes this module
+ * uses. The concurrency cases that need a real server — a row changing between
+ * the check and the write, a highlight inserted by another session — live in
+ * `markdown-repair.pg-spec.ts`, against PostgreSQL.
  */
 function fakeClient(
   over: {
     content?: string;
     meta?: unknown;
     versionContent?: string;
-    highlights?: {
-      id: string;
-      startOffset: number;
-      endOffset: number;
-      quote: string | null;
-    }[];
+    versionMeta?: unknown;
+    highlights?: Row[];
     dropBlock?: boolean;
     dropVersion?: boolean;
   } = {},
@@ -47,83 +55,128 @@ function fakeClient(
   const content = over.content ?? TEXT;
   const writes: { table: string; id: string; data: Record<string, unknown> }[] =
     [];
-  const highlights = over.highlights ?? [];
+  const highlights: Row[] = [...(over.highlights ?? [])];
+  const state = { content, meta: over.meta ?? null };
 
   const client = {
     chapterBlock: {
-      findMany: async () =>
-        over.dropBlock
+      findMany: async (args: { where: { id: string } }) =>
+        over.dropBlock || args.where.id !== "cb-1"
           ? []
           : [
               {
                 id: "cb-1",
                 order: 7,
                 kind: "PARAGRAPH",
-                content,
-                meta: over.meta ?? null,
+                content: state.content,
+                meta: state.meta,
                 chapter: { order: 1 },
               },
             ],
-      update: async (args: {
-        where: { id: string };
-        data: Record<string, unknown>;
-      }) => {
-        writes.push({
-          table: "ChapterBlock",
-          id: args.where.id,
-          data: args.data,
-        });
-        return {};
-      },
     },
     blockVersion: {
-      findMany: async () =>
-        over.dropVersion
+      findMany: async (args: { where: { id: { in: string[] } } }) =>
+        over.dropVersion || !args.where.id.in.includes("bv-1")
           ? []
           : [
               {
                 id: "bv-1",
                 contentBlockId: "ccb-1",
                 unitVersionId: "uv-1",
+                order: 7,
+                kind: "PARAGRAPH",
                 content: over.versionContent ?? content,
                 contentHash: contentHash(over.versionContent ?? content),
-                meta: over.meta ?? null,
+                meta: over.versionMeta ?? over.meta ?? null,
               },
             ],
-      update: async (args: {
-        where: { id: string };
+    },
+    highlight: {
+      // The real query is by ANCHOR, and the fake answers by anchor.
+      findMany: async (args: {
+        where: { OR: { blockId?: string; contentBlockId?: string }[] };
+      }) => {
+        const wanted = args.where.OR.some(
+          (c) => c.blockId === "cb-1" || c.contentBlockId === "ccb-1",
+        );
+        return wanted
+          ? highlights.map((h) => ({
+              ...h,
+              blockId: "cb-1",
+              contentBlockId: "ccb-1",
+              blockVersionId: "bv-1",
+            }))
+          : [];
+      },
+      updateMany: async (args: {
+        where: { id: string; startOffset: number; endOffset: number };
         data: Record<string, unknown>;
       }) => {
+        const i = highlights.findIndex(
+          (h) =>
+            h.id === args.where.id &&
+            h.startOffset === args.where.startOffset &&
+            h.endOffset === args.where.endOffset,
+        );
+        if (i < 0) return { count: 0 };
         writes.push({
-          table: "BlockVersion",
+          table: "Highlight",
           id: args.where.id,
           data: args.data,
         });
-        return {};
-      },
-    },
-    highlight: {
-      findMany: async () =>
-        highlights.map((h) => ({
-          ...h,
-          blockId: "cb-1",
-          contentBlockId: "ccb-1",
-          blockVersionId: "bv-1",
-        })),
-      update: async (args: {
-        where: { id: string };
-        data: Record<string, unknown>;
-      }) => {
-        writes.push({ table: "Highlight", id: args.where.id, data: args.data });
-        return {};
+        return { count: 1 };
       },
     },
     contentBlock: { findMany: async () => [] },
     annotation: { findMany: async () => [] },
     readingSession: { findMany: async () => [] },
+    // The conditional update, honouring its own conditions.
+    $executeRawUnsafe: async (sql: string, ...params: unknown[]) => {
+      if (sql.includes('"ChapterBlock"')) {
+        const [newContent, newMeta, id, oldContent, oldMeta] = params as [
+          string,
+          string,
+          string,
+          string,
+          string | null,
+        ];
+        const metaNow = state.meta === null ? null : JSON.stringify(state.meta);
+        if (
+          id !== "cb-1" ||
+          state.content !== oldContent ||
+          metaNow !== oldMeta
+        ) {
+          return 0;
+        }
+        state.content = newContent;
+        state.meta = JSON.parse(newMeta);
+        writes.push({
+          table: "ChapterBlock",
+          id,
+          data: { content: newContent, meta: JSON.parse(newMeta) },
+        });
+        return 1;
+      }
+      const [newContent, newHash, newMeta, id] = params as [
+        string,
+        string,
+        string,
+        string,
+      ];
+      writes.push({
+        table: "BlockVersion",
+        id,
+        data: {
+          content: newContent,
+          contentHash: newHash,
+          meta: JSON.parse(newMeta),
+        },
+      });
+      return 1;
+    },
   };
 
-  return { client, writes };
+  return { client, writes, highlights };
 }
 
 function opFor(over: Parameters<typeof fakeClient>[0] = {}): EmphasisOp {
@@ -144,6 +197,8 @@ function opFor(over: Parameters<typeof fakeClient>[0] = {}): EmphasisOp {
           {
             id: "bv-1",
             unitVersionId: "uv-1",
+            order: 7,
+            kind: "PARAGRAPH",
             content,
             contentHash: contentHash(content),
             meta: over.meta ?? null,
@@ -202,8 +257,6 @@ describe("applyOp · what it writes", () => {
         meta: legacy.meta as never,
       }),
     );
-    // This is the condition that makes the repair whole rather than half: the
-    // backfill inspector must not be able to tell the two sides apart.
     expect(drifts).toBe(false);
   });
 
@@ -215,8 +268,6 @@ describe("applyOp · what it writes", () => {
       taken.push(pre);
       seen.push({ preimages: taken.length, writes: writes.length });
     });
-    // One preimage, taken when nothing had been written yet — so a reversal
-    // exists even if the process dies between statements.
     expect(seen).toEqual([{ preimages: 1, writes: 0 }]);
     expect(taken[0]!.contentDigest).toMatch(/^sha256:/);
     expect(taken[0]!.versions.map((v) => v.id)).toEqual(["bv-1"]);
@@ -237,10 +288,20 @@ describe("applyOp · what it writes", () => {
     expect(h.data).toEqual({
       startOffset: 0,
       endOffset: 20,
-      // The quote is the durable re-anchor fallback: one with asterisks in it
-      // would stop matching the repaired text, which is the opposite of durable.
       quote: "Un modelo generativo",
     });
+  });
+
+  it("takes the preimage from the anchors, so a revert can put it back", async () => {
+    const highlights = [
+      { id: "h-1", startOffset: 5, endOffset: 11, quote: "modelo" },
+    ];
+    const { client } = fakeClient({ highlights });
+    const taken: Preimage[] = [];
+    await applyOp(client as never, opFor({ highlights }), (p) => taken.push(p));
+    expect(taken[0]!.highlights).toEqual([
+      { id: "h-1", startOffset: 5, endOffset: 11, quote: "modelo" },
+    ]);
   });
 });
 
@@ -250,7 +311,16 @@ describe("applyOp · what it refuses", () => {
     await expect(
       applyOp(client as never, opFor(), () => undefined),
     ).rejects.toThrow(CONCURRENT_CHANGE);
-    // And nothing was written: the editor's save is not discarded.
+    expect(writes).toHaveLength(0);
+  });
+
+  it("refuses when the legacy METADATA moved since the plan", async () => {
+    // Not the text, and not the marks this repair writes — some other key in
+    // the same JSON. Conditioning on text alone would overwrite it.
+    const { client, writes } = fakeClient({ meta: { audioId: "a-9" } });
+    await expect(
+      applyOp(client as never, opFor(), () => undefined),
+    ).rejects.toThrow(CONCURRENT_CHANGE);
     expect(writes).toHaveLength(0);
   });
 
@@ -269,7 +339,6 @@ describe("applyOp · what it refuses", () => {
       { id: "h-1", startOffset: 5, endOffset: 11, quote: "modelo" },
     ];
     const op = opFor({ highlights: planned });
-    // The same highlight, now selecting something else.
     const { client, writes } = fakeClient({
       highlights: [{ id: "h-1", startOffset: 0, endOffset: 2, quote: null }],
     });
@@ -289,17 +358,13 @@ describe("applyOp · what it refuses", () => {
     }
   });
 
-  it("never writes a highlight the plan did not account for", async () => {
-    // The plan has no highlights; the database has one. Applying would leave an
-    // offset pointing into text that just got shorter.
-    const { client, writes } = fakeClient({
-      highlights: [
-        { id: "h-ghost", startOffset: 0, endOffset: 2, quote: null },
-      ],
-    });
+  it("refuses when the conditional write matches nothing", async () => {
+    // Every read-time check passes and then the row changes. The conditional
+    // update answers 0, exactly as PostgreSQL would.
+    const { client } = fakeClient();
+    const sabotaged = { ...client, $executeRawUnsafe: async () => 0 };
     await expect(
-      applyOp(client as never, opFor(), () => undefined),
-    ).rejects.toThrow(MISSING_ROW);
-    expect(writes).toHaveLength(0);
+      applyOp(sabotaged as never, opFor(), () => undefined),
+    ).rejects.toThrow(WRITE_LOST);
   });
 });

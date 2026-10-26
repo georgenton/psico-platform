@@ -40,6 +40,10 @@ import {
   type InlineTextMark,
 } from "@psico/types";
 
+import {
+  blockVersionDrifts,
+  expectedBlockVersionFields,
+} from "./backfill-inspect";
 import { contentHash } from "./lib/content-hash";
 import {
   parseEmphasis,
@@ -63,6 +67,23 @@ export function textDigest(value: string | null): string | null {
   return `sha256:${createHash("sha256").update(value, "utf8").digest("hex").slice(0, 32)}`;
 }
 
+/**
+ * A digest of stored metadata.
+ *
+ * `JSON.stringify` and not a canonicalising serializer, deliberately: that is
+ * exactly what `blockVersionDrifts` compares, so using anything cleverer here
+ * would make this check and the inspector's disagree about what "the same
+ * metadata" means — and the inspector is the one that decides whether the book
+ * reads as drifted.
+ */
+export function metaDigest(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  return textDigest(JSON.stringify(value));
+}
+
+const sameJson = (a: unknown, b: unknown): boolean =>
+  JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+
 export interface HighlightSnapshot {
   id: string;
   startOffset: number;
@@ -74,6 +95,9 @@ export interface HighlightSnapshot {
 export interface BlockVersionSnapshot {
   id: string;
   unitVersionId: string;
+  /** Compared too: `blockVersionDrifts` looks at all five fields, so we read all five. */
+  order: number;
+  kind: string;
   content: string;
   contentHash: string;
   meta: unknown;
@@ -124,6 +148,15 @@ export interface EmphasisOp {
     contentDigest: string;
     contentLength: number;
     marks: InlineTextMark[] | null;
+    /**
+     * Digest of the whole stored metadata, not just the marks read out of it.
+     *
+     * The repair writes `meta` as "everything that was there, plus the marks",
+     * so the apply has to prove the "everything that was there" part has not
+     * changed either. Comparing only the marks would let a concurrent edit to
+     * some other key in the same JSON be overwritten silently.
+     */
+    metaDigest: string | null;
   };
   after: {
     contentDigest: string;
@@ -132,8 +165,15 @@ export interface EmphasisOp {
     marks: InlineTextMark[];
   };
   removals: Removal[];
-  /** The native rows that must be rewritten with the same text. */
-  versionIds: string[];
+  /**
+   * The native rows to rewrite, each with the state the plan expects to find.
+   *
+   * Identity alone was not enough: a `BlockVersion` whose text matches but
+   * whose `meta` carries a mark the legacy block does not have would have had
+   * that mark replaced by the legacy-derived result — destroying editorial
+   * formatting that only existed on the native side.
+   */
+  versions: { id: string; contentDigest: string; metaDigest: string | null }[];
   highlights: HighlightMove[];
   /** Carried through untouched; listed so the review can see the exposure. */
   annotations: number;
@@ -199,7 +239,14 @@ export function computeEmphasisPlanHash(plan: {
         before: o.before.contentDigest,
         after: o.after.contentDigest,
         marks: o.after.marks,
-        versionIds: [...o.versionIds].sort(),
+        beforeMeta: o.before.metaDigest,
+        versions: [...o.versions]
+          .sort((a, b) => a.id.localeCompare(b.id))
+          .map((v) => ({
+            id: v.id,
+            contentDigest: v.contentDigest,
+            metaDigest: v.metaDigest,
+          })),
         highlights: [...o.highlights]
           .sort((a, b) => a.id.localeCompare(b.id))
           .map((h) => ({ id: h.id, to: h.to })),
@@ -264,14 +311,44 @@ export function planEmphasisRepair(snapshot: EmphasisSnapshot): EmphasisPlan {
 
     const { text: newContent, marks: newMarks, removals } = parsed.parse;
 
-    // The native side must currently agree with the legacy side; otherwise the
-    // book is already drifted and this is not the repair for that.
-    const drifted = block.versions.find((v) => v.content !== block.content);
+    // The native side must currently agree with the legacy side, by the
+    // inspector's OWN comparison and not a subset of it.
+    //
+    // This used to compare `content` alone, and that was a hole with teeth: a
+    // `BlockVersion` whose text matched but whose `meta` carried a mark the
+    // legacy block did not have would pass, and then the apply — which writes
+    // the legacy-derived marks to both sides — would delete that mark. Using
+    // `blockVersionDrifts` means every field the repair writes is also a field
+    // it refuses to write over: `order`, `kind`, `content`, `contentHash` and
+    // `meta`.
+    const drifted = block.versions.find((v) =>
+      blockVersionDrifts(
+        {
+          order: v.order,
+          kind: v.kind as never,
+          content: v.content,
+          contentHash: v.contentHash,
+          meta: (v.meta ?? null) as never,
+        },
+        expectedBlockVersionFields({
+          order: block.order,
+          kind: block.kind,
+          content: block.content,
+          meta: (block.meta ?? null) as never,
+        }),
+      ),
+    );
     if (drifted) {
       blockers.push({
         ...where,
         reason: "NATIVE_DRIFT",
-        detail: `BlockVersion ${drifted.id} text differs from the legacy block`,
+        detail:
+          `BlockVersion ${drifted.id} already differs from the legacy block ` +
+          `(content ${drifted.content === block.content ? "same" : "DIFFERENT"}, ` +
+          `meta ${sameJson(drifted.meta, block.meta) ? "same" : "DIFFERENT"}, ` +
+          `order ${drifted.order === block.order ? "same" : "DIFFERENT"}, ` +
+          `kind ${drifted.kind === block.kind ? "same" : "DIFFERENT"}). ` +
+          "Reconciling an already-drifted block is a different repair.",
       });
       continue;
     }
@@ -382,6 +459,7 @@ export function planEmphasisRepair(snapshot: EmphasisSnapshot): EmphasisPlan {
         contentDigest: textDigest(block.content)!,
         contentLength: block.content.length,
         marks: existing,
+        metaDigest: metaDigest(block.meta),
       },
       after: {
         contentDigest: textDigest(newContent)!,
@@ -390,7 +468,11 @@ export function planEmphasisRepair(snapshot: EmphasisSnapshot): EmphasisPlan {
         marks: finalMarks,
       },
       removals,
-      versionIds: block.versions.map((v) => v.id),
+      versions: block.versions.map((v) => ({
+        id: v.id,
+        contentDigest: textDigest(v.content)!,
+        metaDigest: metaDigest(v.meta),
+      })),
       highlights,
       annotations: block.annotations,
       readingSessions: block.readingSessions,

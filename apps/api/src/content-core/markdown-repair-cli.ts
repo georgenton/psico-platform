@@ -474,12 +474,17 @@ export function assertPreimageMatchesPlan(
  * optimism. The rehearsal drives the real persistence — 732 accumulating
  * rewrites of a 328 KiB preimage file, inside the transaction — and measured:
  *
- *   · apply, 732 bloques, preimage on disk: **2,6 s** local · **3,4 s** in CI
- *   · revert, from the file: **2,1 s** local
+ *   · apply, 732 bloques, preimage on disk: **2,4 s** local · **4,1 s** in CI
+ *   · revert, from the file: **2,0 s** local · **2,2 s** in CI
  *
- * 60 s is about twenty times the measured apply: room for a VPS disk several
- * times slower than CI's, and still nowhere near long enough for a hung
+ * 60 s is about fifteen times the slowest measurement: room for a VPS disk
+ * several times slower than CI's, and still nowhere near long enough for a hung
  * transaction to sit on row locks unnoticed.
+ *
+ * The CI number is the one to look at, and it is the one that moved: an earlier
+ * version of this comment cited 3,4 s, which was measured BEFORE the rehearsal
+ * wrote the preimage file. Quoting a figure from a path nobody runs is how a
+ * budget stops being justified.
  *
  * NOT Prisma's 5 s default. The measured path would fit on a good day and not
  * on a slow one, which is the worst property a limit can have — and an earlier

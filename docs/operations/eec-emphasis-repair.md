@@ -249,13 +249,13 @@ congelado a archivo, aplicación reescribiendo la preimagen en cada operación,
 
 | Fase                                            | Local     | En CI     |
 | ----------------------------------------------- | --------- | --------- |
-| Planificar                                      | 57 ms     | 166 ms    |
-| Aplicar, 732 bloques, con la preimagen en disco | **2,6 s** | **3,4 s** |
-| Revertir desde el archivo                       | **2,1 s** | —         |
-| Tamaño de la preimagen                          | 328 KiB   | —         |
+| Planificar                                      | 57 ms     | 94 ms     |
+| Aplicar, 732 bloques, con la preimagen en disco | **2,4 s** | **4,1 s** |
+| Revertir desde el archivo                       | **2,0 s** | **2,2 s** |
+| Tamaño de la preimagen                          | 328 KiB   | 328 KiB   |
 
 El plazo de la transacción es **explícito: 60 s** (`TRANSACTION_TIMEOUT_MS`),
-unas veinte veces lo medido. **No** es el de Prisma por defecto (5 s): el camino
+unas quince veces la medición más lenta. **No** es el de Prisma por defecto (5 s): el camino
 real cabría en un buen día y no en uno malo, que es la peor propiedad que puede
 tener un límite.
 

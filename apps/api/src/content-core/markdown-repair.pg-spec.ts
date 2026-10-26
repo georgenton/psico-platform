@@ -1,4 +1,13 @@
 import { execSync } from "node:child_process";
+import {
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 
 import { PrismaClient } from "@prisma/client";
@@ -9,6 +18,15 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { INLINE_MARKS_META_KEY } from "@psico/types";
 
 import { dropWhenIdle } from "../test/pg-drop";
+import {
+  assertPreimageMatchesPlan,
+  freezeEmphasisPlan,
+  loadPreimageFile,
+  preimagePathFor,
+  TRANSACTION_MAX_WAIT_MS,
+  TRANSACTION_TIMEOUT_MS,
+  writePreimageFile,
+} from "./markdown-repair-cli";
 import {
   blockVersionDrifts,
   expectedBlockVersionFields,
@@ -464,6 +482,113 @@ suite("emphasis repair · against real PostgreSQL", () => {
     expect(still.content).toBe(`${REPAIRED} y algo más`);
   }, 60_000);
 
+  it("the revert refuses a metadata-only edit, and does not lose it", async () => {
+    // The hole: the old revert checked the postimage TEXT and took the current
+    // metadata as its CAS condition — so an edit to `meta` was not detected, it
+    // was overwritten with the preimage's. The condition cannot come from the
+    // row it is supposed to protect.
+    const ids = await makeBlock({ order: 1, content: TEXT });
+    const p = await plan();
+    const preimages = await apply(p);
+
+    const afterRepair = await prisma.chapterBlock.findUniqueOrThrow({
+      where: { id: ids.chapterBlockId },
+    });
+    const edited = {
+      ...(afterRepair.meta as Record<string, unknown>),
+      audioId: "a-nuevo",
+    };
+    await prisma.chapterBlock.update({
+      where: { id: ids.chapterBlockId },
+      data: { meta: edited as never },
+    });
+
+    await expect(
+      prisma.$transaction(async (tx) => {
+        await revertEmphasisRepair(tx as never, p, preimages);
+      }),
+    ).rejects.toThrow(POSTIMAGE_MISMATCH);
+
+    // The edit survived — text and marks too, because the whole revert aborted.
+    const still = await prisma.chapterBlock.findUniqueOrThrow({
+      where: { id: ids.chapterBlockId },
+    });
+    expect((still.meta as Record<string, unknown>).audioId).toBe("a-nuevo");
+    expect(
+      (still.meta as Record<string, unknown>)[INLINE_MARKS_META_KEY],
+    ).toEqual(p.ops[0]!.after.marks);
+    expect(still.content).toBe(REPAIRED);
+  }, 60_000);
+
+  it("the revert refuses a highlight created after the repair, and does not move it", async () => {
+    // The other hole: the revert walked `op.highlights`, the plan's own list,
+    // so a selection made on the REPAIRED text was invisible. Putting the
+    // asterisks back under it would have shifted its words.
+    const ids = await makeBlock({ order: 1, content: TEXT });
+    const p = await plan();
+    const preimages = await apply(p);
+
+    const start = REPAIRED.indexOf("conducta");
+    const nueva = await prisma.highlight.create({
+      data: {
+        userId: USER,
+        blockId: ids.chapterBlockId,
+        startOffset: start,
+        endOffset: start + "conducta".length,
+        quote: "conducta",
+      },
+    });
+
+    await expect(
+      prisma.$transaction(async (tx) => {
+        await revertEmphasisRepair(tx as never, p, preimages);
+      }),
+    ).rejects.toThrow(UNPLANNED_REFERENCE);
+
+    // The text did not go back, so the new selection still reads its own words.
+    const still = await prisma.chapterBlock.findUniqueOrThrow({
+      where: { id: ids.chapterBlockId },
+    });
+    expect(still.content).toBe(REPAIRED);
+    const h = await prisma.highlight.findUniqueOrThrow({
+      where: { id: nueva.id },
+    });
+    expect(still.content.slice(h.startOffset, h.endOffset)).toBe("conducta");
+    expect(h.quote).toBe("conducta");
+  }, 60_000);
+
+  it("the revert refuses when a planned highlight's quote changed afterwards", async () => {
+    const ids = await makeBlock({ order: 1, content: TEXT });
+    const start = TEXT.indexOf("conducta");
+    const h = await prisma.highlight.create({
+      data: {
+        userId: USER,
+        blockId: ids.chapterBlockId,
+        startOffset: start,
+        endOffset: start + "conducta".length,
+        quote: "conducta",
+      },
+    });
+    const p = await plan();
+    const preimages = await apply(p);
+
+    await prisma.highlight.update({
+      where: { id: h.id },
+      data: { quote: "otra cosa" },
+    });
+
+    await expect(
+      prisma.$transaction(async (tx) => {
+        await revertEmphasisRepair(tx as never, p, preimages);
+      }),
+    ).rejects.toThrow(POSTIMAGE_MISMATCH);
+
+    const still = await prisma.highlight.findUniqueOrThrow({
+      where: { id: h.id },
+    });
+    expect(still.quote).toBe("otra cosa");
+  }, 60_000);
+
   it("a failure partway through leaves no partial repair", async () => {
     const first = await makeBlock({ order: 1, content: TEXT });
     const second = await makeBlock({
@@ -496,18 +621,21 @@ suite("emphasis repair · against real PostgreSQL", () => {
     expect(firstVersion.content).toBe(TEXT);
   }, 60_000);
 
-  // ── The volume rehearsal ────────────────────────────────────────────────
+  // ── The volume rehearsal, through the real commands' own path ────────────
 
-  it("rehearses apply and revert at the volume the plan proposes", async () => {
+  it("rehearses the full operational path at volume, with the real files", async () => {
     const N = 732;
     const legacyIds = Array.from({ length: N }, (_, i) => `cb-vol-${i}`);
+    const textOf = (i: number) =>
+      `Bloque ${i} con **énfasis ${i}** y *cursiva ${i}* al final.`;
+
     await prisma.chapterBlock.createMany({
       data: legacyIds.map((id, i) => ({
         id,
         chapterId,
         order: i + 1,
         kind: "PARAGRAPH" as never,
-        content: `Bloque ${i} con **énfasis ${i}** y *cursiva ${i}* al final.`,
+        content: textOf(i),
       })),
     });
     await prisma.contentBlock.createMany({
@@ -519,60 +647,112 @@ suite("emphasis repair · against real PostgreSQL", () => {
       })),
     });
     await prisma.blockVersion.createMany({
-      data: legacyIds.map((id, i) => {
-        const content = `Bloque ${i} con **énfasis ${i}** y *cursiva ${i}* al final.`;
-        return {
-          id: `bv-vol-${id}`,
-          contentBlockId: `ccb-vol-${id}`,
-          unitVersionId,
-          order: i + 1,
-          kind: "PARAGRAPH" as never,
-          content,
-          contentHash: contentHash(content),
-        };
-      }),
+      data: legacyIds.map((id, i) => ({
+        id: `bv-vol-${id}`,
+        contentBlockId: `ccb-vol-${id}`,
+        unitVersionId,
+        order: i + 1,
+        kind: "PARAGRAPH" as never,
+        content: textOf(i),
+        contentHash: contentHash(textOf(i)),
+      })),
     });
 
+    const dir = mkdtempSync(join(tmpdir(), "emphasis-rehearsal-"));
+    const planPath = join(dir, "plan.json");
+    const preimagePath = preimagePathFor(planPath);
+
+    // ── plan, frozen to a real file ──────────────────────────────────────
     const tPlan = Date.now();
     const p = await plan();
+    const frozen = freezeEmphasisPlan(p, "rehearsal");
+    writeFileSync(planPath, `${JSON.stringify(frozen, null, 2)}\n`, "utf8");
     const planMs = Date.now() - tPlan;
     expect(p.ops).toHaveLength(N);
 
+    // ── apply, writing the preimage file on EVERY op ─────────────────────
+    //
+    // The persistence the operational command actually performs, not a stand-in
+    // for it: 732 accumulating rewrites of a growing JSON document, inside the
+    // transaction. An earlier version of this rehearsal kept the preimages in
+    // memory and measured a path nobody will run.
+    const inMemory: Preimage[] = [];
+    const identity = {
+      planId: frozen.planId,
+      planHash: frozen.planHash,
+      database: "rehearsal",
+    };
     const tApply = Date.now();
-    const preimages = await apply(p);
+    await prisma.$transaction(
+      async (tx) => {
+        await applyEmphasisRepair(tx as never, p, (pre) => {
+          inMemory.push(pre);
+          writePreimageFile(preimagePath, identity, inMemory);
+        });
+      },
+      { timeout: TRANSACTION_TIMEOUT_MS, maxWait: TRANSACTION_MAX_WAIT_MS },
+    );
     const applyMs = Date.now() - tApply;
-    expect(preimages).toHaveLength(N);
+    const preimageBytes = statSync(preimagePath).size;
 
-    // Converged, and with no drift anywhere.
     expect((await plan()).ops).toHaveLength(0);
-    const sample = await prisma.blockVersion.findMany({
-      where: { id: { in: ["bv-vol-cb-vol-0", "bv-vol-cb-vol-731"] } },
-    });
-    for (const v of sample) {
-      expect(v.content).not.toContain("*");
-      expect(v.contentHash).toBe(contentHash(v.content));
-    }
+
+    // ── recover from the FILE, with nothing from memory ──────────────────
+    //
+    // The point of the whole exercise: after the applying process is gone, the
+    // file on disk has to be enough. So the in-memory array is dropped and
+    // never consulted again.
+    inMemory.length = 0;
+    const file = loadPreimageFile(preimagePath);
+    const reloadedPlan = JSON.parse(
+      readFileSync(planPath, "utf8"),
+    ) as typeof frozen;
+    assertPreimageMatchesPlan(reloadedPlan, file);
+    expect(file.preimages).toHaveLength(N);
 
     const tRevert = Date.now();
     await prisma.$transaction(
       async (tx) => {
-        await revertEmphasisRepair(tx as never, p, preimages);
+        await revertEmphasisRepair(
+          tx as never,
+          { ...p, ops: reloadedPlan.ops },
+          file.preimages,
+        );
       },
-      { timeout: 120_000 },
+      { timeout: TRANSACTION_TIMEOUT_MS, maxWait: TRANSACTION_MAX_WAIT_MS },
     );
     const revertMs = Date.now() - tRevert;
 
-    // Back where it started, and the plan proposes the same work again.
+    // ── compare with the initial state ───────────────────────────────────
+    const back = await prisma.chapterBlock.findMany({
+      where: { id: { in: ["cb-vol-0", "cb-vol-731"] } },
+      orderBy: { order: "asc" },
+    });
+    expect(back.map((b) => b.content)).toEqual([textOf(0), textOf(731)]);
+    const backNative = await prisma.blockVersion.findMany({
+      where: { id: { in: ["bv-vol-cb-vol-0", "bv-vol-cb-vol-731"] } },
+      orderBy: { order: "asc" },
+    });
+    expect(backNative.map((v) => v.content)).toEqual([textOf(0), textOf(731)]);
+    expect(backNative.map((v) => v.contentHash)).toEqual([
+      contentHash(textOf(0)),
+      contentHash(textOf(731)),
+    ]);
+    expect(backNative.every((v) => v.meta === null)).toBe(true);
+    // And the plan proposes the same work again, from the start.
     expect((await plan()).ops).toHaveLength(N);
 
-    // Printed rather than asserted on: these are the operational limits the
-    // runbook needs, and pinning a millisecond count to a laptop would be a
-    // test about the laptop.
+    rmSync(dir, { recursive: true, force: true });
+
     console.log(
-      `volumen ${N} bloques · plan ${planMs} ms · apply ${applyMs} ms · revert ${revertMs} ms`,
+      `volumen ${N} bloques · plan ${planMs} ms · apply (con preimagen en disco) ${applyMs} ms · ` +
+        `revert ${revertMs} ms · preimagen ${(preimageBytes / 1024).toFixed(0)} KiB`,
     );
-    // What IS asserted: the whole thing fits inside one transaction without
-    // needing a longer timeout than the default the CLI uses.
-    expect(applyMs).toBeLessThan(120_000);
-  }, 600_000);
+    // The operational limit, asserted rather than hoped: the whole write fits
+    // inside the explicit budget the CLI declares. Printed above is what it
+    // actually took, which is what justifies that budget — and the measurement
+    // is also why the budget is not Prisma's 5 s default.
+    expect(applyMs).toBeLessThan(TRANSACTION_TIMEOUT_MS);
+    expect(revertMs).toBeLessThan(TRANSACTION_TIMEOUT_MS);
+  }, 900_000);
 });

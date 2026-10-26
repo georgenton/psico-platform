@@ -52,6 +52,7 @@ import {
 import {
   applyEmphasisRepair,
   readEmphasisSnapshot,
+  revertEmphasisRepair,
   type Preimage,
   type SnapshotClient,
 } from "./markdown-repair-db";
@@ -68,6 +69,9 @@ export const DEFAULT_BOOK = "emociones-en-construccion";
 
 export interface CliArgs {
   apply: boolean;
+  /** Undo a run, from its own plan and its own preimage file. */
+  revert: boolean;
+  preimagePath?: string;
   book: string;
   planPath?: string;
   planOut?: string;
@@ -100,7 +104,7 @@ export class CliUsageError extends Error {}
  * wrote. Both readings are wrong in the direction that matters.
  */
 export function parseArgs(argv: readonly string[]): CliArgs {
-  const out: CliArgs = { apply: false, book: DEFAULT_BOOK };
+  const out: CliArgs = { apply: false, revert: false, book: DEFAULT_BOOK };
   const seen = new Set<string>();
 
   for (const token of argv) {
@@ -114,6 +118,12 @@ export function parseArgs(argv: readonly string[]): CliArgs {
     switch (flag) {
       case "--apply":
         out.apply = true;
+        break;
+      case "--revert":
+        out.revert = true;
+        break;
+      case "--preimage":
+        out.preimagePath = requireValue(flag, value);
         break;
       case "--book":
         out.book = requireValue(flag, value);
@@ -152,11 +162,29 @@ export function parseArgs(argv: readonly string[]): CliArgs {
     ["--expect-plan-hash", out.expectPlanHash],
   ];
 
-  if (out.apply) {
+  if (out.apply && out.revert) {
+    throw new CliUsageError(
+      "MODOS INCOMPATIBLES: --apply escribe la reparación y --revert la deshace. Son dos invocaciones.",
+    );
+  }
+
+  const writing = out.apply || out.revert;
+  if (out.revert && !out.preimagePath) {
+    throw new CliUsageError(
+      "PREIMAGEN AUSENTE: --revert necesita --preimage=<ruta>. Sin ella no hay nada que restaurar.",
+    );
+  }
+  if (!out.revert && out.preimagePath) {
+    throw new CliUsageError(
+      "PREIMAGEN SIN --revert: ni la planificación ni la aplicación la leen; la aplicación la ESCRIBE.",
+    );
+  }
+
+  if (writing) {
     const missing = applyOnly.filter(([, v]) => !v).map(([f]) => f);
     if (missing.length > 0) {
       throw new CliUsageError(
-        `DECLARACIÓN INCOMPLETA: --apply exige ${missing.join(", ")}. ` +
+        `DECLARACIÓN INCOMPLETA: ${out.apply ? "--apply" : "--revert"} exige ${missing.join(", ")}. ` +
           "Aplicar sin declarar el destino y el plan aprobado es cómo una orden copiada acaba en otra base o aplica otro plan.",
       );
     }
@@ -167,14 +195,14 @@ export function parseArgs(argv: readonly string[]): CliArgs {
     }
     if (out.snapshotPath) {
       throw new CliUsageError(
-        "SNAPSHOT CON --apply: aplicar lee la base en vivo y compara; confiar en un archivo para el estado actual es quedarse sin esa comprobación.",
+        "SNAPSHOT AL ESCRIBIR: aplicar y revertir leen la base en vivo y comparan; confiar en un archivo para el estado actual es quedarse sin esa comprobación.",
       );
     }
   } else {
     const stray = applyOnly.filter(([, v]) => v).map(([f]) => f);
     if (stray.length > 0) {
       throw new CliUsageError(
-        `ARGUMENTOS DE APLICACIÓN SIN --apply: ${stray.join(", ")}. La planificación no escribe nada, así que no declara destino ni consume un plan.`,
+        `ARGUMENTOS DE ESCRITURA SIN --apply NI --revert: ${stray.join(", ")}. La planificación no escribe nada, así que no declara destino ni consume un plan.`,
       );
     }
   }
@@ -209,7 +237,7 @@ export function resolveTarget(
   }
 
   const target = targetIdentityFromUrl(connection, posture);
-  if (!args.apply) return target; // A dry run writes nothing anywhere.
+  if (!args.apply && !args.revert) return target; // A dry run writes nothing anywhere.
 
   if (args.expectDatabase !== target.database) {
     throw new CliUsageError(
@@ -228,7 +256,7 @@ export function resolveTarget(
   }
   if (posture === "staging" && env[STAGING_TOKEN] !== "1") {
     throw new CliUsageError(
-      `RECHAZADO: aplicar en postura staging exige ${STAGING_TOKEN}=1 en ESTA invocación, también por loopback — un túnel o un proxy local no demuestran que detrás no haya otra base. No debe quedar fijado en las variables del servicio: eso convierte un permiso puntual en un bypass permanente.`,
+      `RECHAZADO: escribir en postura staging exige ${STAGING_TOKEN}=1 en ESTA invocación, también por loopback — un túnel o un proxy local no demuestran que detrás no haya otra base. No debe quedar fijado en las variables del servicio: eso convierte un permiso puntual en un bypass permanente.`,
     );
   }
   if (!target.isLoopback && posture !== "staging") {
@@ -342,6 +370,127 @@ export function assertPlanStillValid(
   }
 }
 
+export const PREIMAGE_FORMAT =
+  "feelverse.content-core-emphasis-preimage/v1" as const;
+
+export interface PreimageFile {
+  format: typeof PREIMAGE_FORMAT;
+  planId: string;
+  planHash: string;
+  database: string;
+  recordedAt: string;
+  preimages: Preimage[];
+}
+
+/**
+ * The preimage on disk, rewritten after every op.
+ *
+ * Accumulated-and-rewritten rather than appended, deliberately: the file is
+ * either a complete, parseable reversal or it is the previous complete one.
+ * An append-per-line file truncated mid-write by a killed process is neither,
+ * and a reversal you cannot parse is not a reversal.
+ *
+ * The cost of rewriting is real and measured rather than waved at — see the
+ * volume rehearsal in `markdown-repair.pg-spec.ts`, which drives this exact
+ * function 732 times inside the transaction, because an operational limit
+ * measured without the I/O it will actually do is not a limit.
+ */
+export function writePreimageFile(
+  path: string,
+  identity: { planId: string; planHash: string; database: string },
+  preimages: readonly Preimage[],
+): void {
+  const file: PreimageFile = {
+    format: PREIMAGE_FORMAT,
+    planId: identity.planId,
+    planHash: identity.planHash,
+    database: identity.database,
+    recordedAt: new Date().toISOString(),
+    preimages: [...preimages],
+  };
+  writeJson(path, file);
+}
+
+export function loadPreimageFile(path: string): PreimageFile {
+  if (!existsSync(resolve(path))) {
+    throw new Error(`PREIMAGEN NO ENCONTRADA: ${path}`);
+  }
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const file = require(resolve(path)) as PreimageFile;
+  if (file.format !== PREIMAGE_FORMAT) {
+    throw new Error(`FORMATO DE PREIMAGEN DESCONOCIDO: ${file.format}`);
+  }
+  if (!Array.isArray(file.preimages) || file.preimages.length === 0) {
+    throw new Error(
+      "PREIMAGEN VACÍA: no describe ninguna fila, así que no revierte nada.",
+    );
+  }
+  return file;
+}
+
+/**
+ * The preimage and the plan have to be two halves of the same operation.
+ *
+ * Checked separately from identity: a preimage of ANOTHER run of the same plan
+ * would carry the right `planHash` and the wrong rows, and a preimage of the
+ * right run would carry the right rows under a different `planId`. Both are
+ * refusals, and they are not the same mistake.
+ */
+export function assertPreimageMatchesPlan(
+  frozen: FrozenEmphasisPlan,
+  file: PreimageFile,
+): void {
+  if (file.planId !== frozen.planId) {
+    throw new Error(
+      `PREIMAGEN DE OTRO PLAN: el plan es ${frozen.planId} y la preimagen dice ${file.planId}.`,
+    );
+  }
+  if (file.planHash !== frozen.planHash) {
+    throw new Error(
+      `PREIMAGEN DE OTRO HASH: el plan es ${frozen.planHash} y la preimagen dice ${file.planHash}.`,
+    );
+  }
+  if (file.database !== frozen.database) {
+    throw new Error(
+      `PREIMAGEN DE OTRA BASE: el plan es de ${frozen.database} y la preimagen de ${file.database}.`,
+    );
+  }
+  const planned = new Set(frozen.ops.map((o) => o.chapterBlockId));
+  const recorded = new Set(file.preimages.map((p) => p.chapterBlockId));
+  const missing = [...planned].filter((id) => !recorded.has(id));
+  const extra = [...recorded].filter((id) => !planned.has(id));
+  if (missing.length > 0 || extra.length > 0) {
+    throw new Error(
+      `PREIMAGEN INCOMPLETA: ${missing.length} bloque(s) del plan sin preimagen y ${extra.length} sin plan. ` +
+        "Una reversión parcial no se ejecuta a ciegas.",
+    );
+  }
+}
+
+/**
+ * How long the write transaction may take.
+ *
+ * Explicit, bounded, and taken from the volume rehearsal rather than from
+ * optimism. The rehearsal drives the real persistence — 732 accumulating
+ * rewrites of a 328 KiB preimage file, inside the transaction — and measured:
+ *
+ *   · apply, 732 bloques, preimage on disk: **2,6 s** local · **3,4 s** in CI
+ *   · revert, from the file: **2,1 s** local
+ *
+ * 60 s is about twenty times the measured apply: room for a VPS disk several
+ * times slower than CI's, and still nowhere near long enough for a hung
+ * transaction to sit on row locks unnoticed.
+ *
+ * NOT Prisma's 5 s default. The measured path would fit on a good day and not
+ * on a slow one, which is the worst property a limit can have — and an earlier
+ * version of this work claimed the volume revert had run "under the default"
+ * while the rehearsal was in fact passing `120000`. That claim was false; this
+ * constant, and the measurements above it, are the correction.
+ */
+export const TRANSACTION_TIMEOUT_MS = 60_000;
+/** Time to wait for a connection before giving up. Prisma's default is 2 s. */
+export const TRANSACTION_MAX_WAIT_MS = 10_000;
+
 /** A preimage belongs outside the repository: it names rows of real content. */
 export function assertPrivatePath(path: string, repoRoot: string): void {
   const absolute = resolve(path);
@@ -420,7 +569,7 @@ async function main(): Promise<void> {
     );
     const plan = planEmphasisRepair(snapshot);
 
-    if (!args.apply) {
+    if (!args.apply && !args.revert) {
       console.log(describeEmphasisPlan(plan));
       console.log(
         `\nbase: ${connected} · host ${target.host}:${target.port} · postura ${posture}`,
@@ -445,6 +594,65 @@ async function main(): Promise<void> {
     }
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const frozen = require(resolve(args.planPath!)) as FrozenEmphasisPlan;
+
+    if (args.revert) {
+      /**
+       * Recovery. Three questions before a single row moves: is this the plan
+       * that was approved (identity, from the invocation), is this preimage the
+       * other half of THAT run (correspondence), and is this the database it
+       * ran against.
+       *
+       * Note what is NOT checked: that the live database still produces the
+       * plan. It does not, and should not — the repair has been applied. What
+       * `revertOp` checks instead is the POSTIMAGE, derived from the plan and
+       * the preimage, which is the state the apply left.
+       */
+      if (frozen.format !== EMPHASIS_PLAN_FORMAT) {
+        throw new Error(`FORMATO DESCONOCIDO: ${frozen.format}`);
+      }
+      if (frozen.planId !== args.expectPlanId) {
+        throw new Error(
+          `PLAN NO APROBADO: el archivo dice ${frozen.planId} y se declaró ${args.expectPlanId}.`,
+        );
+      }
+      if (frozen.planHash !== args.expectPlanHash) {
+        throw new Error(
+          `HASH NO APROBADO: el archivo dice ${frozen.planHash} y se declaró ${args.expectPlanHash}.`,
+        );
+      }
+      if (frozen.database !== connected) {
+        throw new Error(
+          `BASE DISTINTA: el plan es de "${frozen.database}" y el servidor responde "${connected}".`,
+        );
+      }
+      const file = loadPreimageFile(args.preimagePath!);
+      assertPreimageMatchesPlan(frozen, file);
+
+      const reverted = await prisma.$transaction(
+        async (tx: unknown) =>
+          revertEmphasisRepair(
+            tx as never,
+            { ...plan, ops: frozen.ops, blockers: frozen.blockers },
+            file.preimages,
+          ),
+        { timeout: TRANSACTION_TIMEOUT_MS, maxWait: TRANSACTION_MAX_WAIT_MS },
+      );
+      console.log(`revertido: ${reverted.opsReverted} bloque(s)`);
+      const again = planEmphasisRepair(
+        await readEmphasisSnapshot(
+          prisma as unknown as SnapshotClient,
+          args.book,
+        ),
+      );
+      console.log(
+        `comprobación posterior: ${again.ops.length} operación(es) propuestas` +
+          (again.ops.length === frozen.ops.length
+            ? " — volvió al estado inicial"
+            : " — NO coincide con el plan original, revísalo"),
+      );
+      return;
+    }
+
     assertPlanStillValid(frozen, plan, target, {
       planId: args.expectPlanId!,
       planHash: args.expectPlanHash!,
@@ -454,20 +662,22 @@ async function main(): Promise<void> {
     assertPrivatePath(preimagePath, resolve(__dirname, "../../../.."));
 
     const preimages: Preimage[] = [];
-    const result = await prisma.$transaction(async (tx: unknown) => {
-      return applyEmphasisRepair(tx as never, plan, (pre) => {
-        preimages.push(pre);
-        // Flushed on every op so a reversal exists even if this dies midway.
-        writeJson(preimagePath, {
-          format: "feelverse.content-core-emphasis-preimage/v1",
-          planId: frozen.planId,
-          planHash: frozen.planHash,
-          database: connected,
-          recordedAt: new Date().toISOString(),
-          preimages,
-        });
-      });
-    });
+    const identity = {
+      planId: frozen.planId,
+      planHash: frozen.planHash,
+      database: connected,
+    };
+    const result = await prisma.$transaction(
+      async (tx: unknown) =>
+        applyEmphasisRepair(tx as never, plan, (pre) => {
+          preimages.push(pre);
+          // Flushed on every op so a reversal exists on DISK even if this
+          // process dies between statements — the recovery command reads that
+          // file and nothing from this process's memory.
+          writePreimageFile(preimagePath, identity, preimages);
+        }),
+      { timeout: TRANSACTION_TIMEOUT_MS, maxWait: TRANSACTION_MAX_WAIT_MS },
+    );
 
     console.log(`aplicado: ${result.opsApplied} bloque(s)`);
     console.log(`preimagen: ${resolve(preimagePath)}`);

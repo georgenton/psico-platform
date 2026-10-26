@@ -591,22 +591,62 @@ const REVERT_BLOCK_VERSION = UPDATE_BLOCK_VERSION;
 export const POSTIMAGE_MISMATCH = "EMPHASIS_REVERT_POSTIMAGE_MISMATCH";
 
 /**
- * Undo one op, and refuse if the row is not in the state the apply left it.
+ * What the apply left behind, derived — never read from the rows it is checking.
  *
- * Symmetric to `applyOp` and for the same reason: a revert that overwrites
- * whatever it finds would discard any editing done after the repair, which is a
- * worse outcome than the asterisks it is putting back.
+ * A revert that asked the row what state it is in and then accepted the answer
+ * would check nothing. The postimage is computable: the text is the plan's
+ * `after`, the metadata is the preimage's metadata with the plan's marks written
+ * over it (which is exactly what `applyOp` wrote), and the native hash is
+ * `after.contentHash`. So it is computed, and the rows have to match it.
+ */
+function expectedPostimage(
+  op: EmphasisOp,
+  pre: Preimage,
+): {
+  contentDigest: string;
+  legacyMetaDigest: string | null;
+  nativeMetaDigestById: Map<string, string | null>;
+  contentHash: string;
+} {
+  return {
+    contentDigest: op.after.contentDigest,
+    legacyMetaDigest: metaDigest(withMarks(pre.meta, op.after.marks)),
+    nativeMetaDigestById: new Map(
+      pre.versions.map((v) => [
+        v.id,
+        metaDigest(withMarks(v.meta, op.after.marks)),
+      ]),
+    ),
+    contentHash: op.after.contentHash,
+  };
+}
+
+/**
+ * Undo one op, and refuse if ANYTHING is not the state the apply left.
  *
- * The old text is reconstructed with `restoreSpans(current, op.removals)` rather
- * than read from the preimage — that is why the preimage can carry a digest
- * instead of the prose — and the reconstruction is then checked against that
- * digest before anything is written.
+ * The first version of this function checked the postimage TEXT and nothing
+ * else, which left two holes with the same shape:
+ *
+ *   · metadata edited after the repair was used as the CAS condition and then
+ *     replaced by the preimage's — so the edit was not detected, it was
+ *     silently discarded. The condition cannot come from the row it is meant to
+ *     protect.
+ *   · references were walked from the plan's own list, so a highlight created
+ *     after the repair was invisible. Putting the asterisks back under it would
+ *     move the text out from under a selection nobody had accounted for.
+ *
+ * Both are now checked against a DERIVED postimage and against the anchors, and
+ * a mismatch aborts — the caller runs every op in one transaction, so aborting
+ * one aborts the whole revert and the data stays exactly as it is. This tool
+ * does not reconcile later changes; it refuses and says what it found.
  */
 export async function revertOp(
   tx: WriteClient,
   op: EmphasisOp,
   pre: Preimage,
 ): Promise<void> {
+  const expected = expectedPostimage(op, pre);
+
   const rows = await tx.chapterBlock.findMany({
     where: { id: op.chapterBlockId },
     select: {
@@ -623,11 +663,14 @@ export async function revertOp(
     throw new Error(`${MISSING_ROW}: ChapterBlock ${op.chapterBlockId}`);
   }
 
-  // Is this the state the apply left? If not, something happened in between and
-  // this tool is not the one to decide what survives.
-  if (textDigest(current.content) !== op.after.contentDigest) {
+  if (textDigest(current.content) !== expected.contentDigest) {
     throw new Error(
       `${POSTIMAGE_MISMATCH}: ChapterBlock ${op.chapterBlockId} is not the text the repair wrote`,
+    );
+  }
+  if (metaDigest(current.meta) !== expected.legacyMetaDigest) {
+    throw new Error(
+      `${POSTIMAGE_MISMATCH}: ChapterBlock ${op.chapterBlockId} metadata changed after the repair`,
     );
   }
 
@@ -655,9 +698,76 @@ export async function revertOp(
     throw new Error(`${MISSING_ROW}: BlockVersion for ${op.chapterBlockId}`);
   }
   for (const v of versions) {
-    if (textDigest(v.content) !== op.after.contentDigest) {
+    if (textDigest(v.content) !== expected.contentDigest) {
       throw new Error(
         `${POSTIMAGE_MISMATCH}: BlockVersion ${v.id} is not the text the repair wrote`,
+      );
+    }
+    if (v.contentHash !== expected.contentHash) {
+      throw new Error(
+        `${POSTIMAGE_MISMATCH}: BlockVersion ${v.id} hash is not the one the repair wrote`,
+      );
+    }
+    if (!expected.nativeMetaDigestById.has(v.id)) {
+      throw new Error(`${MISSING_ROW}: preimage for BlockVersion ${v.id}`);
+    }
+    if (metaDigest(v.meta) !== expected.nativeMetaDigestById.get(v.id)) {
+      throw new Error(
+        `${POSTIMAGE_MISMATCH}: BlockVersion ${v.id} metadata changed after the repair`,
+      );
+    }
+  }
+
+  /**
+   * References BY ANCHOR here too, and compared to the state the repair left.
+   *
+   * The plan's list says what the repair moved; it cannot say what exists now.
+   * A highlight created after the repair is anchored to the repaired text, and
+   * putting the delimiters back under it would shift its words — so it blocks
+   * the revert instead of being quietly stepped over.
+   */
+  const anchored = await tx.highlight.findMany({
+    where: {
+      OR: [
+        { blockId: op.chapterBlockId },
+        ...(op.contentBlockId ? [{ contentBlockId: op.contentBlockId }] : []),
+      ],
+    },
+    select: {
+      id: true,
+      blockId: true,
+      contentBlockId: true,
+      startOffset: true,
+      endOffset: true,
+      quote: true,
+      blockVersionId: true,
+    },
+  });
+  const plannedIds = new Set(op.highlights.map((h) => h.id));
+  const appeared = anchored.filter((h) => !plannedIds.has(h.id));
+  if (appeared.length > 0) {
+    throw new Error(
+      `${UNPLANNED_REFERENCE}: ${appeared.length} highlight(s) on ${op.chapterBlockId} ` +
+        `were created after the repair (${appeared.map((h) => h.id).join(", ")}). ` +
+        "Reverting would move the text under a selection this preimage knows nothing about.",
+    );
+  }
+  for (const planned of op.highlights) {
+    const row = anchored.find((r) => r.id === planned.id);
+    if (!row) throw new Error(`${MISSING_ROW}: Highlight ${planned.id}`);
+    if (
+      row.startOffset !== planned.to.startOffset ||
+      row.endOffset !== planned.to.endOffset
+    ) {
+      throw new Error(
+        `${POSTIMAGE_MISMATCH}: Highlight ${row.id} is not where the repair left it`,
+      );
+    }
+    // The quote too: the repair rewrote it, so a different one means somebody
+    // else did as well, and restoring the old value would discard that.
+    if (row.quote !== planned.quote) {
+      throw new Error(
+        `${POSTIMAGE_MISMATCH}: Highlight ${row.id} quote changed after the repair`,
       );
     }
   }
@@ -678,8 +788,9 @@ export async function revertOp(
 
   for (const v of versions) {
     const was = pre.versions.find((p) => p.id === v.id);
-    if (!was)
+    if (!was) {
       throw new Error(`${MISSING_ROW}: preimage for BlockVersion ${v.id}`);
+    }
     const written = await tx.$executeRawUnsafe(
       REVERT_BLOCK_VERSION,
       restored,

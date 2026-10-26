@@ -4,12 +4,14 @@ import { contentHash } from "./lib/content-hash";
 import {
   assertConnectedDatabase,
   assertPlanStillValid,
+  assertPreimageMatchesPlan,
   assertPrivatePath,
   CliUsageError,
   DEFAULT_BOOK,
   freezeEmphasisPlan,
   parseArgs,
   preimagePathFor,
+  PREIMAGE_FORMAT,
   resolveTarget,
   STAGING_TOKEN,
   type CliArgs,
@@ -48,6 +50,7 @@ const snapshotOf = (content: string): EmphasisSnapshot => ({
 
 const applyArgs = (over: Partial<CliArgs> = {}): CliArgs => ({
   apply: true,
+  revert: false,
   book: DEFAULT_BOOK,
   planPath: "/ops/p.json",
   expectDatabase: "feelverse_staging",
@@ -61,7 +64,11 @@ const STAGING_URL = "postgresql://u:p@db.internal:5432/feelverse_staging";
 
 describe("parseArgs · the two modes stay apart", () => {
   it("plans by default, over the anchor book", () => {
-    expect(parseArgs([])).toEqual({ apply: false, book: DEFAULT_BOOK });
+    expect(parseArgs([])).toEqual({
+      apply: false,
+      revert: false,
+      book: DEFAULT_BOOK,
+    });
   });
 
   it("names every missing declaration, not just the first", () => {
@@ -96,6 +103,65 @@ describe("parseArgs · the two modes stay apart", () => {
     ).toEqual(applyArgs());
   });
 
+  it("accepts a complete recovery", () => {
+    expect(
+      parseArgs([
+        "--revert",
+        "--plan=/ops/p.json",
+        "--preimage=/ops/p.preimage.json",
+        "--expect-database=feelverse_staging",
+        "--expect-posture=staging",
+        "--expect-plan-id=plan-1",
+        "--expect-plan-hash=sha256:abc",
+      ]),
+    ).toEqual(
+      applyArgs({
+        apply: false,
+        revert: true,
+        preimagePath: "/ops/p.preimage.json",
+      }),
+    );
+  });
+
+  it("refuses --revert without a preimage", () => {
+    expect(() =>
+      parseArgs([
+        "--revert",
+        "--plan=/ops/p.json",
+        "--expect-database=x",
+        "--expect-posture=staging",
+        "--expect-plan-id=p",
+        "--expect-plan-hash=h",
+      ]),
+    ).toThrow(/PREIMAGEN AUSENTE/);
+  });
+
+  it("refuses a preimage outside --revert: the apply WRITES it, it does not read it", () => {
+    expect(() =>
+      parseArgs([
+        "--apply",
+        "--plan=/ops/p.json",
+        "--preimage=/ops/p.preimage.json",
+        "--expect-database=x",
+        "--expect-posture=staging",
+        "--expect-plan-id=p",
+        "--expect-plan-hash=h",
+      ]),
+    ).toThrow(/PREIMAGEN SIN --revert/);
+  });
+
+  it("refuses applying and reverting in one command", () => {
+    expect(() => parseArgs(["--apply", "--revert"])).toThrow(
+      /MODOS INCOMPATIBLES/,
+    );
+  });
+
+  it("a recovery declares its destination like an application does", () => {
+    expect(() =>
+      parseArgs(["--revert", "--preimage=/ops/p.preimage.json"]),
+    ).toThrow(/DECLARACIÓN INCOMPLETA/);
+  });
+
   it("refuses a dry run that carries application arguments", () => {
     for (const flag of [
       "--expect-database=x",
@@ -120,7 +186,7 @@ describe("parseArgs · the two modes stay apart", () => {
     ).toThrow(/MODOS INCOMPATIBLES/);
   });
 
-  it("refuses --snapshot with --apply", () => {
+  it("refuses --snapshot when it is going to write", () => {
     expect(() =>
       parseArgs([
         "--apply",
@@ -131,7 +197,7 @@ describe("parseArgs · the two modes stay apart", () => {
         "--expect-plan-hash=h",
         "--snapshot=/ops/s.json",
       ]),
-    ).toThrow(/SNAPSHOT CON --apply/);
+    ).toThrow(/SNAPSHOT AL ESCRIBIR/);
   });
 
   it("refuses a repeated flag instead of silently taking the last", () => {
@@ -350,6 +416,67 @@ describe("assertPlanStillValid · the refusals that make the review real", () =>
         identity,
       ),
     ).toThrow(/FORMATO DESCONOCIDO/);
+  });
+});
+
+describe("assertPreimageMatchesPlan · two halves of the same run", () => {
+  const fresh = planEmphasisRepair(snapshotOf("Un **modelo** explica"));
+  const frozen = freezeEmphasisPlan(fresh, "feelverse_staging");
+  const file = {
+    format: PREIMAGE_FORMAT,
+    planId: frozen.planId,
+    planHash: frozen.planHash,
+    database: "feelverse_staging",
+    recordedAt: new Date().toISOString(),
+    preimages: frozen.ops.map((o) => ({
+      chapterBlockId: o.chapterBlockId,
+      contentDigest: o.before.contentDigest,
+      contentLength: o.before.contentLength,
+      meta: null,
+      versions: o.versions.map((v) => ({
+        id: v.id,
+        contentHash: "h",
+        contentDigest: v.contentDigest,
+        meta: null,
+      })),
+      highlights: [],
+    })),
+  };
+
+  it("accepts the preimage of that run", () => {
+    expect(() => assertPreimageMatchesPlan(frozen, file)).not.toThrow();
+  });
+
+  it("refuses a preimage of another plan, and of another hash", () => {
+    expect(() =>
+      assertPreimageMatchesPlan(frozen, { ...file, planId: "otro" }),
+    ).toThrow(/OTRO PLAN/);
+    expect(() =>
+      assertPreimageMatchesPlan(frozen, { ...file, planHash: "sha256:otro" }),
+    ).toThrow(/OTRO HASH/);
+  });
+
+  it("refuses a preimage of another database", () => {
+    expect(() =>
+      assertPreimageMatchesPlan(frozen, { ...file, database: "otra" }),
+    ).toThrow(/OTRA BASE/);
+  });
+
+  it("refuses a preimage that does not cover the plan", () => {
+    // A partial reversal is not run blind: the rows it would leave half-way are
+    // precisely the ones nobody would go looking for afterwards.
+    expect(() =>
+      assertPreimageMatchesPlan(frozen, { ...file, preimages: [] }),
+    ).toThrow(/INCOMPLETA|VACÍA/);
+    expect(() =>
+      assertPreimageMatchesPlan(frozen, {
+        ...file,
+        preimages: [
+          ...file.preimages,
+          { ...file.preimages[0]!, chapterBlockId: "cb-ajeno" },
+        ],
+      }),
+    ).toThrow(/INCOMPLETA/);
   });
 });
 

@@ -68,17 +68,39 @@ export function textDigest(value: string | null): string | null {
 }
 
 /**
- * A digest of stored metadata.
+ * Object keys in a fixed order, recursively.
  *
- * `JSON.stringify` and not a canonicalising serializer, deliberately: that is
- * exactly what `blockVersionDrifts` compares, so using anything cleverer here
- * would make this check and the inspector's disagree about what "the same
- * metadata" means — and the inspector is the one that decides whether the book
- * reads as drifted.
+ * Needed because these digests get compared ACROSS sources: an object built in
+ * JavaScript against the same object read back from a `jsonb` column.
+ * PostgreSQL stores `jsonb` with its own key order — by length, then bytes — so
+ * `{"type":…,"startOffset":…,"endOffset":…}` comes back as
+ * `{"type":…,"endOffset":…,"startOffset":…}`. Comparing the two serializations
+ * verbatim reports a change that never happened, which is precisely how the
+ * revert first refused every clean row.
+ *
+ * Arrays keep their order: in `inlineMarks` the order is canonical output of
+ * `canonicalizeInlineMarks` and means something.
+ */
+function canonicalJson(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalJson);
+  if (value === null || typeof value !== "object") return value;
+  const entries = Object.entries(value as Record<string, unknown>).sort(
+    ([a], [b]) => (a < b ? -1 : a > b ? 1 : 0),
+  );
+  return Object.fromEntries(entries.map(([k, v]) => [k, canonicalJson(v)]));
+}
+
+/**
+ * A digest of stored metadata, independent of key order.
+ *
+ * `blockVersionDrifts` compares `JSON.stringify` on two values that both came
+ * out of the database, so key order agrees there and the inspector needs
+ * nothing more. Here one side is frequently a value this process just built, so
+ * the ordering has to be imposed rather than assumed.
  */
 export function metaDigest(value: unknown): string | null {
   if (value === null || value === undefined) return null;
-  return textDigest(JSON.stringify(value));
+  return textDigest(JSON.stringify(canonicalJson(value)));
 }
 
 const sameJson = (a: unknown, b: unknown): boolean =>

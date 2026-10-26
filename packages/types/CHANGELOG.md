@@ -1,5 +1,55 @@
 # @psico/types
 
+## 0.12.0
+
+### Minor Changes
+
+- dbcde43: Ningún respaldo de autoría inventa ya a quién atribuir un libro.
+
+  **`LectorAudioMetadata.artist` pasa de `string` a `string | null`.** Es un
+  cambio que obliga al consumidor: el audio del lector atribuía el capítulo a la
+  **plataforma** cuando el libro no tenía autoría registrada, y un libro sin
+  autor es un estado legítimo desde la reparación de autoría —retirar un nombre
+  sin fuente no inventa quién escribió la obra—. Los clientes pintan el subtítulo
+  solo cuando falta, sin separador colgando. Va en `minor` porque en 0.x un
+  `major` saltaría a 1.0.0 y diría algo que no es; el cambio **sí** exige
+  manejarlo.
+
+  **`AUTHORSHIP_UNCONFIRMED` nuevo** — «Autoría por confirmar», para los campos
+  que van solos en su línea (la ficha de un libro, un _byline_), donde una línea
+  vacía no explica nada. Onboarding ya decía esa frase a mano y ahora la lee de
+  aquí; el _byline_ de Inicio, que firmaba los libros sin autor como «Psicología
+  Educativa», también.
+
+  La regla, que el trinquete de `apps/api/src/books/authorship-fallback.spec.ts`
+  sostiene: ausencia cuando el campo se compone con otro, marcador declarado
+  cuando va solo, y nunca un nombre que ninguna fuente sustente.
+
+- 9a087b7: Tres datos que estaban repetidos pasan a tener una sola fuente, y el cliente
+  se regenera contra el contrato que resulta.
+
+  **`password-policy`** — había cuatro mínimos para la misma pregunta (8 en
+  registro, 8 en restablecer, 8 en cambio, 10 en recifrado). Ahora uno, de 15
+  caracteres, sin reglas de composición. El tope se mide en **bytes**, no en
+  caracteres, que es donde bcrypt trunca: cuarenta «ñ» son 40 caracteres y 80
+  bytes, pasaban la validación, y el verificador se quedaba callado con los
+  primeros 72. Donde más importaba era el recifrado, porque la misma contraseña
+  alimenta bcrypt (72 bytes) y Argon2id (sin tope), así que una más larga habría
+  derivado la clave del diario de la cadena entera y el hash de acceso sólo de
+  su prefijo. Las contraseñas existentes siguen entrando: la política no se
+  consulta al verificar.
+
+  **`data-export-scope`** — lo que la exportación trae y lo que no, en palabras
+  que una persona entienda, atado por una prueba al inventario real de modelos.
+
+  **`brand`** — el nombre del producto. Eco se presentaba con el anterior, y el
+  armazón de los correos lo llevaba en cabecera, título y pie, incluido el de
+  restablecimiento de contraseña.
+
+  En `@psico/api-client`, `generated.ts` pierde los `minLength`/`maxLength` de
+  los cuatro campos de contraseña, porque la validación dejó de ser declarativa,
+  y sus descripciones dejan de anunciar límites que ya no rigen.
+
 ## 0.11.0
 
 ### Minor Changes

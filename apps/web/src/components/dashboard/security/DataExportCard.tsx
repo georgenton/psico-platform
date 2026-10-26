@@ -36,9 +36,58 @@ type Fase =
   | { t: "preparando"; desde?: string }
   | { t: "lista"; url: string; expiraEnSec: number }
   | { t: "caducada" }
+  | { t: "no-descargable" }
+  | { t: "fallida" }
   | { t: "ninguna" }
   | { t: "enfriamiento"; mensaje: string }
   | { t: "error"; mensaje: string };
+
+/**
+ * El 409 de la descarga lleva DOS códigos que significan cosas opuestas, y
+ * tratarlos igual es decirle a alguien que espere algo que no va a llegar:
+ *
+ *   - `DATA_EXPORT_NOT_READY` — todavía se está preparando. Esperar sirve.
+ *   - `DATA_EXPORT_UNAVAILABLE` — esa exportación **nunca** podrá descargarse
+ *     (su fila guarda una URL que ningún navegador puede abrir). Esperar no
+ *     sirve: hay que pedir otra.
+ *
+ * Y un 409 que no traiga código, o traiga uno que no conocemos, tampoco se
+ * convierte en «la estamos preparando»: eso es una promesa, y no la podemos
+ * sostener sin saber qué pasó.
+ *
+ * ── Y un tercer caso, que es el mismo defecto por otra puerta ──────────────
+ *
+ * `NOT_READY` no siempre significa «espera». El servidor lo devuelve para
+ * TODO estado que no sea `READY`, y entre ellos está **`FAILED`**, que es
+ * terminal: esa exportación no va a llegar nunca. Decir «vuelve a consultar
+ * en un rato» ahí es la misma promesa rota que este arreglo existe para
+ * quitar.
+ *
+ * El servidor ya da con qué distinguirlo —manda `details.status`—, así que se
+ * lee. `PENDING` y `PROCESSING` siguen siendo «preparando», que es lo que de
+ * verdad lo está.
+ */
+type Conflicto = { code: string | null; status: string | null };
+
+async function leerConflicto(res: Response): Promise<Conflicto> {
+  try {
+    const cuerpo = (await res.json()) as unknown;
+    if (!cuerpo || typeof cuerpo !== "object")
+      return { code: null, status: null };
+    const { code, details } = cuerpo as { code?: unknown; details?: unknown };
+    const estado =
+      details && typeof details === "object" && "status" in details
+        ? (details as { status?: unknown }).status
+        : null;
+    return {
+      code: typeof code === "string" ? code : null,
+      status: typeof estado === "string" ? estado : null,
+    };
+  } catch {
+    // Cuerpo ausente o no-JSON: no hay nada que leer.
+    return { code: null, status: null };
+  }
+}
 
 export function DataExportCard({
   apiBase,
@@ -68,12 +117,35 @@ export function DataExportCard({
         setFase({ t: "lista", url: j.url, expiraEnSec: j.expiresInSec });
         return;
       }
-      if (res.status === 409) return setFase({ t: "preparando" });
+      if (res.status === 409) {
+        const { code, status } = await leerConflicto(res);
+        if (code === "DATA_EXPORT_NOT_READY") {
+          // FAILED es terminal: no se prepara nada, hay que pedir otra.
+          return setFase(
+            status === "FAILED" ? { t: "fallida" } : { t: "preparando" },
+          );
+        }
+        if (code === "DATA_EXPORT_UNAVAILABLE") {
+          return setFase({ t: "no-descargable" });
+        }
+        // Un 409 que no sabemos leer NO se convierte en «se está preparando».
+        return setFase({
+          t: "error",
+          mensaje:
+            "No pudimos consultar el estado de tu exportación. Vuelve a intentarlo; si sigue pasando, pide una nueva.",
+        });
+      }
       if (res.status === 410) return setFase({ t: "caducada" });
       if (res.status === 404) return setFase({ t: "ninguna" });
-      setFase({ t: "error", mensaje: `No pudimos consultarlo (${res.status}).` });
+      setFase({
+        t: "error",
+        mensaje: `No pudimos consultarlo (${res.status}).`,
+      });
     } catch {
-      setFase({ t: "error", mensaje: "No pudimos consultarlo. Revisa tu conexión." });
+      setFase({
+        t: "error",
+        mensaje: "No pudimos consultarlo. Revisa tu conexión.",
+      });
     }
   }
 
@@ -109,7 +181,10 @@ export function DataExportCard({
       }
       setFase({ t: "error", mensaje: `No pudimos pedirla (${res.status}).` });
     } catch {
-      setFase({ t: "error", mensaje: "No pudimos pedirla. Revisa tu conexión." });
+      setFase({
+        t: "error",
+        mensaje: "No pudimos pedirla. Revisa tu conexión.",
+      });
     }
   }
 
@@ -144,10 +219,24 @@ export function DataExportCard({
         <p style={{ color: "var(--fv-muted)" }}>
           {DATA_EXPORT_SCOPE.noIncluye.join(" · ")}
         </p>
+        {/*
+          El texto anterior decía que no podemos leer tus mensajes a Eco y que
+          POR ESO no pueden ir en el archivo. Las dos mitades fallan.
+
+          Primero, mezcla dos cosas: el mensaje que escribes a Eco viaja en
+          claro para que el modelo pueda responderte (ADR 0007 §C — el cifrado
+          de Eco es híbrido, no de punta a punta), y lo que queda cifrado es su
+          copia almacenada. «No podemos leerlo» no describe el mensaje; describe
+          la copia.
+
+          Y segundo, aunque fuera cierto, no sería el motivo: el archivo podría
+          llevar el ciphertext. No lo lleva porque el alcance de la exportación
+          no los incluye — una decisión nuestra, no un límite de la criptografía.
+          Atribuirlo al cifrado convierte una decisión en una imposibilidad.
+        */}
         <p style={{ color: "var(--fv-muted)", marginTop: 10 }}>
-          Tu diario y tus mensajes a Eco están cifrados con tu clave: ni
-          siquiera nosotros podemos leerlos, así que no podemos ponerlos en el
-          archivo. Esta exportación tampoco los descifra.
+          Esta exportación no incluye tu Diario ni las conversaciones con Eco,
+          tampoco sus copias cifradas. Es una limitación de su alcance actual.
         </p>
       </div>
 
@@ -185,7 +274,12 @@ export function DataExportCard({
 
       <p
         role="status"
-        style={{ fontSize: 12.5, lineHeight: 1.6, marginTop: 12, color: "var(--fv-muted)" }}
+        style={{
+          fontSize: 12.5,
+          lineHeight: 1.6,
+          marginTop: 12,
+          color: "var(--fv-muted)",
+        }}
       >
         {fase.t === "preparando" &&
           "La estamos preparando. Suele tardar unos minutos; vuelve a consultar en un rato."}
@@ -193,6 +287,10 @@ export function DataExportCard({
           `Lista. El enlace caduca en ${Math.max(1, Math.round(fase.expiraEnSec / 60))} minutos; si caduca, vuelve a consultar.`}
         {fase.t === "caducada" &&
           "Aquella exportación ya se borró: guardamos el archivo un tiempo limitado y después lo eliminamos. Pide una nueva cuando quieras."}
+        {fase.t === "no-descargable" &&
+          "Esa exportación no se puede descargar: se preparó con un formato que ya no sirve para entregártela. No hace falta esperar — pide una nueva y la generamos otra vez."}
+        {fase.t === "fallida" &&
+          "Aquella exportación no llegó a completarse. No hace falta esperar — pide una nueva y lo intentamos otra vez."}
         {fase.t === "ninguna" && "Todavía no has pedido ninguna."}
         {fase.t === "enfriamiento" && fase.mensaje}
         {fase.t === "error" && fase.mensaje}

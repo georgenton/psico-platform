@@ -239,7 +239,19 @@ observada y no supuesta. Cómo sacar el log, en §1.
 >   en ejecución, el post también se omite en silencio;
 > - **se pierde el orden**: el post corre _después_ de que el contenedor nuevo empiece a
 >   servir, así que existe una ventana de segundos de código nuevo contra esquema viejo.
->   Inocua para una migración aditiva; **no** para una destructiva.
+>
+>   Esto decía «inocua para una migración aditiva; no para una destructiva», y esa
+>   regla es cómoda pero falsa. Que la migración **añada** no dice nada sobre si el
+>   código aguanta: una columna nueva es aditiva, y si el código que ya está sirviendo
+>   la lee o la escribe, falla durante toda la ventana. La forma del DDL no es la
+>   condición.
+>
+>   **La condición es que el código nuevo pueda funcionar contra el esquema anterior
+>   hasta que la migración termine.** Eso se consigue haciéndolo tolerante —leer el
+>   campo nuevo como opcional, no escribirlo todavía—, y normalmente obliga a partir el
+>   cambio en dos despliegues: primero el código que soporta los dos esquemas, después
+>   el que ya depende del nuevo. Una migración destructiva casi nunca lo cumple, y por
+>   eso la regla vieja acertaba por ese lado; lo que erraba era el otro.
 >
 > Y se pierde algo más, dicho aparte porque es lo que más engaña: la llamada a
 > `run_post_deployment_command()` está envuelta en `try/catch` que sólo deja un
@@ -247,6 +259,13 @@ observada y no supuesta. Cómo sacar el log, en §1.
 > Eso invalida el párrafo «Si la migración falla» de más abajo, corregido ahí mismo.
 > Por eso existe `GET /api/health/ready` (§ al final de esta sección): la comprobación que
 > no depende de que el despliegue se ponga rojo.
+>
+> **Regla, entonces: un despliegue de la API no se da por cerrado con el verde de
+> Coolify.** Ese verde puede convivir con una migración que falló. Lo que lo cierra es
+> `ready=true` **con `pending` y `failed` vacíos** — los tres, no sólo el primero: un
+> `ready` sin mirar las listas es la misma confianza que se acaba de retirar, un escalón
+> más abajo. Comprobado así el 2026-10-25 sobre `a31ddaa4`: `ready=true`, `reason=ok`,
+> 71/71, las dos listas vacías.
 >
 > El cambio se hizo por SQL sobre `coolify-db` porque no hay token de la API de Coolify
 > a mano, así que **no generó el evento de auditoría** de la interfaz. Preimagen en

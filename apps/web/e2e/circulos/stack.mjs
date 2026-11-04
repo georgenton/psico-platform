@@ -161,6 +161,42 @@ function sh(cmd, cmdArgs, opts = {}) {
   });
 }
 
+/**
+ * Techo de montón explícito para los dos builds.
+ *
+ * Este arnés compila EN FRÍO, en un árbol temporal sin caché de turbo, así que
+ * `nest build` typechequea la aplicación entera de una vez. Medido: el build de
+ * la API llega a **3 031 MB** residentes. El techo que Node se da por defecto
+ * depende de la memoria que cree tener —en la máquina donde se midió, 4 144 MB—,
+ * de modo que el build viaja al 73 % del límite.
+ *
+ * El 2026-11-04 eso se tradujo en «Ineffective mark-compacts near heap limit»
+ * sobre un PR que sólo tocaba documentación, después de ocho ejecuciones verdes
+ * y sin ningún commit de código entre medias: lo que cambió fue el entorno del
+ * runner, no el repositorio. Un build al 73 % del techo no falla por una causa,
+ * falla por el margen.
+ *
+ * Así que el margen se declara en vez de heredarse. Y se declara AQUÍ, no sólo
+ * en el workflow, porque el job corre «el comando documentado, sin cambios»: si
+ * el techo viviera en el YAML, quien ejecute ese mismo comando en su máquina
+ * seguiría chocando.
+ *
+ * No esconde un build que crezca: si algún día pide más de 6 GB, vuelve a
+ * fallar, y entonces el problema será el build y no el margen.
+ */
+const BUILD_HEAP_MB = 6144;
+
+function withBuildHeap(env) {
+  const base = env ?? process.env;
+  const previous = base.NODE_OPTIONS ?? "";
+  // Se añade: una opción ya puesta por quien invoca gana, porque la última
+  // aparición es la que Node aplica.
+  return {
+    ...base,
+    NODE_OPTIONS: `--max-old-space-size=${BUILD_HEAP_MB} ${previous}`.trim(),
+  };
+}
+
 /** A port nobody is listening on, asked of the OS rather than guessed. */
 function freePort() {
   return new Promise((done, fail) => {
@@ -579,7 +615,10 @@ async function main() {
   // depends on. Building only `@psico/types` was not enough: `nest build`
   // typechecks the whole app, and a spec there imports `@psico/crypto`, whose
   // declarations do not exist until that package is built.
-  sh("pnpm", ["--filter", "@psico/api...", "build"], { cwd: WORK });
+  sh("pnpm", ["--filter", "@psico/api...", "build"], {
+    cwd: WORK,
+    env: withBuildHeap(),
+  });
 
   // ── 4 · isolated stores ──────────────────────────────────────────────────
 
@@ -804,7 +843,10 @@ async function main() {
   // but its runtime needs the URL baked in.
   sh("pnpm", ["--filter", "@psico/web...", "build"], {
     cwd: WORK,
-    env: { ...sharedEnv, NEXT_PUBLIC_API_URL: `http://127.0.0.1:${apiPort}` },
+    env: withBuildHeap({
+      ...sharedEnv,
+      NEXT_PUBLIC_API_URL: `http://127.0.0.1:${apiPort}`,
+    }),
   });
   start(
     "web",

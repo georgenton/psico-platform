@@ -38,6 +38,7 @@ Psico Platform is a psychoeducation SaaS. The repo is a Turborepo monorepo manag
   (`eco.privacy.spec.ts`): ningún `logger.*` ni `console.*` toca
   `textPlaintext`, `textCiphertext`, `textNonce` ni los campos del título.
   Ver [ADR 0007 §C](docs/adr/0007-e2e-encryption-diario-eco.md).
+
 - **Crisis** (`/api/terapia/crisis`) es endpoint **público** sin auth. Es decisión ética: alguien en crisis no debería tener que loguearse para ver el número de la línea local.
 - **Audio de voz** (`/api/voz/transcribe`) **no se almacena**. Solo se procesa para extraer transcript y se descarta.
 
@@ -45,25 +46,25 @@ Psico Platform is a psychoeducation SaaS. The repo is a Turborepo monorepo manag
 
 **Actualizado 2026-06-13 tras audit completo.** Estado real verificado contra schema Prisma, módulos NestJS, web routes, mobile routes.
 
-| Área de diseño | Backend | Web | Mobile | Estado |
-|---|---|---|---|---|
-| 01 — Onboarding (4 pasos + tour) | `OnboardingModule` (11 endpoints) | ✅ `/onboarding/*` (5 pantallas) | ✅ `(onboarding)/*` | ✅ **Completo** |
-| 02 — Inicio (home) | `HomeModule` (3 endpoints) | ✅ `/dashboard` | ✅ `(tabs)/index.tsx` | ✅ **Completo** |
-| 03 — Mi Biblioteca (catálogo) | `BooksModule` (12 endpoints) | ✅ `/dashboard/biblioteca` | ✅ `(tabs)/books/*` | ✅ **Completo** |
-| 04 — Detalle de libro | `BooksModule` + `BookReview`/`BookFavorite`/`BookBookmark` | ✅ `/dashboard/biblioteca/[idOrSlug]` | ✅ `(tabs)/books/[slug]` | ✅ **Completo** |
-| 05 — Lector + audio | `LectorModule` + `HighlightsModule` + `AnnotationsModule` (10 endpoints) | ✅ `/dashboard/biblioteca/[idOrSlug]/lector/[chapterOrder]` (full editor) | ✅ `(tabs)/books/[slug]/lector/[chapterOrder]` (view-only + heartbeat + annotations) | ✅ **Completo** (mobile text-selection diferido v2) |
-| 06 — Diario (E2E) | `DiarioModule` (8 endpoints, cipher+nonce) + `@psico/crypto` | ✅ `/dashboard/diario` + `/dashboard/diario/[id]` (edit + delete) | ✅ `(tabs)/diario` + `(tabs)/diario/[id]` (edit + delete) | ✅ **Completo** |
-| 07 — Voz (dictado) | `VoiceModule` (2 endpoints, Whisper + Deepgram providers) | ✅ `/dashboard/voz` (MediaRecorder) | ✅ `(tabs)/voz` (expo-av) | ✅ **Completo** |
-| 08 — Eco (compañero IA) | `EcoModule` (7 endpoints, SSE streaming, crisis layers, cipher+nonce) | ✅ `/dashboard/eco` (chat + ThreadRail + crisis modal + reports) | ✅ `(tabs)/eco` (paridad + long-press reports) | ✅ **Completo** |
-| 09 — Mi Plan (billing) | `BillingModule` (11 endpoints, doble exposure 90d con `SubscriptionModule` legacy) | ✅ `/dashboard/plan` | ✅ `(tabs)/plan` | ✅ **Completo** |
-| 10 — Perfil | `UsersModule` (15 endpoints — profile, prefs, notifs, privacy, timezone, password rekey, data export, delete) | ✅ `/dashboard/perfil` + `/dashboard/security` + `/dashboard/notifications` | ✅ `(tabs)/profile` + `(tabs)/security` + `(tabs)/notifications` (deep-link only) | ✅ **Completo** |
-| 11 — Terapia (18 sub-pantallas) | `TerapiaModule` (24 endpoints — Therapist, Sessions, Prescriptions, Crisis, Notifications, Reports) + `CrisisLog` público sin auth | ✅ `/dashboard/terapia/*` (10 rutas: hub, terapeutas, perfil, reservar, sesiones, sala, recetas, notificaciones, crisis) | ✅ `(tabs)/terapia/*` (paridad excepto admin) | ✅ **Completo** (gated por flag) |
-| 12 — Patrones (insights) | `PatronesModule` (3 endpoints) + `WeeklySummary` (LLM-backed) + cron domingo | ✅ `/dashboard/patrones` (paywall FREE) | ✅ `(tabs)/patrones` (paywall FREE) | ✅ **Completo** |
-| 13 — Rutas (bundles) | — | — | — | ❌ **No implementado** (no priorizado v1 — bundles de libros temáticos) |
-| 14 — Dynamic Island | `LiveActivitiesModule` (stub backend con `LiveActivityToken` schema + APNs strategy ADR-0012) | — | — | ⚠️ **Backend stub solo** — falta iOS Live Activity surface + sesión activa cliente |
-| 15 — Wallpapers | — | — | — | ❌ **No implementado** (no priorizado v1 — fondos descargables) |
-| 16 — Editor de autor (B2B) | `AuthorModule` (16 endpoints — AuthorBook/Chapter/PublicationRequest/Earning/PayoutSetting) | ✅ `/autor/*` (dashboard, libros, capítulos, cobros) | — | ✅ **Completo** (web-only por diseño) |
-| 17 — Pulso (back-office admin) | `PulsoModule` (12 endpoints — Overview con sparklines+deltas, Reports resolution, Cohort retention) + `PlatformMetricDaily` cron + `CohortRetentionWeek` cron | ✅ `/dashboard/admin/*` (overview, users, author-requests, reports, cohorts) | — | ✅ **Completo** (web-only por diseño) |
+| Área de diseño                   | Backend                                                                                                                                                       | Web                                                                                                                      | Mobile                                                                               | Estado                                                                             |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
+| 01 — Onboarding (4 pasos + tour) | `OnboardingModule` (11 endpoints)                                                                                                                             | ✅ `/onboarding/*` (5 pantallas)                                                                                         | ✅ `(onboarding)/*`                                                                  | ✅ **Completo**                                                                    |
+| 02 — Inicio (home)               | `HomeModule` (3 endpoints)                                                                                                                                    | ✅ `/dashboard`                                                                                                          | ✅ `(tabs)/index.tsx`                                                                | ✅ **Completo**                                                                    |
+| 03 — Mi Biblioteca (catálogo)    | `BooksModule` (12 endpoints)                                                                                                                                  | ✅ `/dashboard/biblioteca`                                                                                               | ✅ `(tabs)/books/*`                                                                  | ✅ **Completo**                                                                    |
+| 04 — Detalle de libro            | `BooksModule` + `BookReview`/`BookFavorite`/`BookBookmark`                                                                                                    | ✅ `/dashboard/biblioteca/[idOrSlug]`                                                                                    | ✅ `(tabs)/books/[slug]`                                                             | ✅ **Completo**                                                                    |
+| 05 — Lector + audio              | `LectorModule` + `HighlightsModule` + `AnnotationsModule` (10 endpoints)                                                                                      | ✅ `/dashboard/biblioteca/[idOrSlug]/lector/[chapterOrder]` (full editor)                                                | ✅ `(tabs)/books/[slug]/lector/[chapterOrder]` (view-only + heartbeat + annotations) | ✅ **Completo** (mobile text-selection diferido v2)                                |
+| 06 — Diario (E2E)                | `DiarioModule` (8 endpoints, cipher+nonce) + `@psico/crypto`                                                                                                  | ✅ `/dashboard/diario` + `/dashboard/diario/[id]` (edit + delete)                                                        | ✅ `(tabs)/diario` + `(tabs)/diario/[id]` (edit + delete)                            | ✅ **Completo**                                                                    |
+| 07 — Voz (dictado)               | `VoiceModule` (2 endpoints, Whisper + Deepgram providers)                                                                                                     | ✅ `/dashboard/voz` (MediaRecorder)                                                                                      | ✅ `(tabs)/voz` (expo-av)                                                            | ✅ **Completo**                                                                    |
+| 08 — Eco (compañero IA)          | `EcoModule` (7 endpoints, SSE streaming, crisis layers, cipher+nonce)                                                                                         | ✅ `/dashboard/eco` (chat + ThreadRail + crisis modal + reports)                                                         | ✅ `(tabs)/eco` (paridad + long-press reports)                                       | ✅ **Completo**                                                                    |
+| 09 — Mi Plan (billing)           | `BillingModule` (11 endpoints, doble exposure 90d con `SubscriptionModule` legacy)                                                                            | ✅ `/dashboard/plan`                                                                                                     | ✅ `(tabs)/plan`                                                                     | ✅ **Completo**                                                                    |
+| 10 — Perfil                      | `UsersModule` (15 endpoints — profile, prefs, notifs, privacy, timezone, password rekey, data export, delete)                                                 | ✅ `/dashboard/perfil` + `/dashboard/security` + `/dashboard/notifications`                                              | ✅ `(tabs)/profile` + `(tabs)/security` + `(tabs)/notifications` (deep-link only)    | ✅ **Completo**                                                                    |
+| 11 — Terapia (18 sub-pantallas)  | `TerapiaModule` (24 endpoints — Therapist, Sessions, Prescriptions, Crisis, Notifications, Reports) + `CrisisLog` público sin auth                            | ✅ `/dashboard/terapia/*` (10 rutas: hub, terapeutas, perfil, reservar, sesiones, sala, recetas, notificaciones, crisis) | ✅ `(tabs)/terapia/*` (paridad excepto admin)                                        | ✅ **Completo** (gated por flag)                                                   |
+| 12 — Patrones (insights)         | `PatronesModule` (3 endpoints) + `WeeklySummary` (LLM-backed) + cron domingo                                                                                  | ✅ `/dashboard/patrones` (paywall FREE)                                                                                  | ✅ `(tabs)/patrones` (paywall FREE)                                                  | ✅ **Completo**                                                                    |
+| 13 — Rutas (bundles)             | —                                                                                                                                                             | —                                                                                                                        | —                                                                                    | ❌ **No implementado** (no priorizado v1 — bundles de libros temáticos)            |
+| 14 — Dynamic Island              | `LiveActivitiesModule` (stub backend con `LiveActivityToken` schema + APNs strategy ADR-0012)                                                                 | —                                                                                                                        | —                                                                                    | ⚠️ **Backend stub solo** — falta iOS Live Activity surface + sesión activa cliente |
+| 15 — Wallpapers                  | —                                                                                                                                                             | —                                                                                                                        | —                                                                                    | ❌ **No implementado** (no priorizado v1 — fondos descargables)                    |
+| 16 — Editor de autor (B2B)       | `AuthorModule` (16 endpoints — AuthorBook/Chapter/PublicationRequest/Earning/PayoutSetting)                                                                   | ✅ `/autor/*` (dashboard, libros, capítulos, cobros)                                                                     | —                                                                                    | ✅ **Completo** (web-only por diseño)                                              |
+| 17 — Pulso (back-office admin)   | `PulsoModule` (12 endpoints — Overview con sparklines+deltas, Reports resolution, Cohort retention) + `PlatformMetricDaily` cron + `CohortRetentionWeek` cron | ✅ `/dashboard/admin/*` (overview, users, author-requests, reports, cohorts)                                             | —                                                                                    | ✅ **Completo** (web-only por diseño)                                              |
 
 **Resumen:** 14/17 áreas completas (82 %). 1 área backend-stub (Dynamic Island). 2 áreas no implementadas y no priorizadas para v1 (Rutas, Wallpapers).
 
@@ -167,9 +168,9 @@ pasos y rollback en [docs/deploy/coolify-runbook.md](docs/deploy/coolify-runbook
 
 Hoy, lo que sirve a los usuarios:
 
-| Target     | Platform | Notes                                            |
-| ---------- | -------- | ------------------------------------------------ |
-| `apps/api` | Railway  | PostgreSQL and Redis also provisioned on Railway |
+| Target     | Platform | Notes                                                                                                                                                                                                                                       |
+| ---------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/api` | Railway  | PostgreSQL and Redis also provisioned on Railway                                                                                                                                                                                            |
 | `apps/web` | Vercel   | **Ya no despliega solo**: el autodespliegue desde `main` está apagado desde el 2026-10-01 y Vercel queda como respaldo congelado. Cuándo se despliega: [docs/operations/web-deployment-policy.md](docs/operations/web-deployment-policy.md) |
 
 Railway y Vercel **siguen encendidos y son el respaldo** durante todo el cutover. No
@@ -427,16 +428,19 @@ tokens, Prisma schema and env validation`
 - Dep faltante corregida: `"@psico/types": "workspace:*"` en `apps/api/package.json` (bug heredado de Sesión 9).
 
 **Smoke test del bootstrap:**
+
 - `GET /health` → 200 OK (exclusión funcionando)
 - `GET /api/health` → 404 (exclusión bidireccional)
 - `POST /api/auth/login {}` → 400 con envelope `{ statusCode, code: "VALIDATION_ERROR", message, details, timestamp, path }`
 - `GET /api/docs-json` → OpenAPI 3.0.0 válido
 
 **Bugs heredados de Sesión 9 corregidos (cf. bitácora §5):**
+
 1. `@psico/types` no estaba en dependencies de `apps/api` (Vitest lo resolvía, tsc no).
 2. Test de `getMe.initials` esperaba "JD" pero el service prioriza firstName → "JA".
 
 **Deuda técnica abierta:**
+
 - Throttler instalado pero sin reglas activas (Sprint 0.B).
 - Pipeline `openapi.json → @psico/api-client` aún manual (Sprint 0.B).
 - 6 features siguen importando desde `content/guards/*` re-exports `@deprecated`. Migran sprint a sprint. Cleanup total en S30.
@@ -461,18 +465,21 @@ tokens, Prisma schema and env validation`
 - Deps agregadas: `@nestjs-modules/ioredis@2.2.1`, `ioredis@5.10.1`, `ioredis-mock@8.13.1` (dev), `openapi-typescript@7.13.0` (dev en api-client).
 
 **Bugs corregidos durante smoke test (cf. bitácora §5):**
+
 1. **Throttler named — footgun de @nestjs/throttler v6:** múltiples throttlers nombrados aplican TODOS a TODOS los handlers por defecto. `patrones-regenerate: 1/día` baneaba todo. Fix: 1 solo throttler global, overrides per-handler.
 2. **`/health` throttleado** — `setGlobalPrefix({ exclude })` afecta solo el prefijo, NO la pipeline de guards. Fix: `@SkipThrottle()` clase-level.
 3. **DI inline mal armado** en RedisThrottlerStorage — refactor a construcción directa en factory (más testeable).
 4. **ConfigService no resoluble** en tests aislados del RedisModule — refactor a función pura `createRedisClient(config)` testeable sin Nest.
 
 **Smoke test del bootstrap:**
+
 - `/health × 5` → 200, 200, 200, 200, 200 (sin throttle)
 - `/api/auth/register × 65` → primer 429 en request #61 (límite 60/min default)
 - Envelope del 429: `{ statusCode: 429, code: "RATE_LIMIT_EXCEEDED", message, timestamp, path }`
 - `generate:check` → "OK — generated.ts is up to date"
 
 **Deuda técnica abierta:**
+
 - Upstash Redis en Railway prod sin provisionar (deploy bloqueado hasta entonces).
 - Throttler IP-based — proxies pueden compartir IP. Sprint S1 agrega parse de `X-Forwarded-For`.
 - `ioredis-mock` no soporta cluster ni comandos exóticos — si los necesitamos en sprint futuro, migrar CI a Redis real.
@@ -498,6 +505,7 @@ tokens, Prisma schema and env validation`
 - README del AuthModule.
 
 **Bugs descubiertos por la nueva infra E2E (5, todos corregidos — cf. bitácora §4):**
+
 1. Vitest esbuild no emite decorator metadata → SWC.
 2. Mocks viejos de `@prisma/client` faltaban `PrismaClient` stub → SWC eagerly evaluates.
 3. ESM directory imports rotos en `voyageai` → `deps.inline`.
@@ -507,6 +515,7 @@ tokens, Prisma schema and env validation`
 **ADR 0007 anticipado:** documenta el modelo criptográfico completo (Argon2id `m=64MB t=3 p=4` + XChaCha20-Poly1305 + ECDH X25519 + HKDF). Escrito 4 sprints antes de su primer uso (S6) → buffer para review externa de seguridad.
 
 **Deuda técnica abierta:**
+
 - Migración Prisma del AuthEvent sigue sin aplicarse en Railway prod.
 - E2E test usa mock de Prisma — no captura bugs de queries reales. Migrar a testcontainers en sprint futuro.
 - Audit log podría requerir particionado mensual cuando crezca >10M rows.
@@ -521,6 +530,7 @@ tokens, Prisma schema and env validation`
 **Bitácora:** [docs/informes/sprint-s2.md](docs/informes/sprint-s2.md) (con 4 diagramas Mermaid)
 
 **Decisiones del usuario aplicadas:**
+
 1. Resend (no SendGrid) — confirmado.
 2. Google "unverified" mientras la verification (4-6 sem) corre en paralelo — confirmado.
 3. Apple Sign-in diferido (sin Apple Developer account) — solo Google en S2.
@@ -537,17 +547,20 @@ tokens, Prisma schema and env validation`
 - **5 nuevos auth event types:** PASSWORD_RESET_REQUESTED, PASSWORD_RESET_COMPLETED, EMAIL_VERIFIED, OAUTH_REGISTER, OAUTH_LOGIN.
 
 **Bugs corregidos durante S2 (4, todos documentados en bitácora §4):**
+
 1. `passwordHash` ahora nullable rompió `bcrypt.compare` en `users.service.ts` (changePassword, requestDelete). Fix: guard explícito con `BadRequestException(OAUTH_USER_NO_PASSWORD)`.
 2. Tests de Auth viejos rompieron por nuevas deps en constructor. Fix: agregar mocks (ResendService, GoogleVerifier) al spec.
 3. Tests E2E nuevos pidieron extender `e2e-app.ts` con `passwordResetToken` + `emailVerificationToken`.
 4. `vi.clearAllMocks` borra `mockResolvedValue` defaults. Fix: re-establecer en `beforeEach`.
 
 **Smoke test del bootstrap:**
+
 - `POST /api/auth/oauth/google` sin `GOOGLE_CLIENT_ID` → 400 OAUTH_NOT_CONFIGURED ✅
 - `POST /api/auth/forgot-password` con email inválido → 400 VALIDATION_ERROR ✅
 - Boot loggea warnings claros cuando RESEND_API_KEY / GOOGLE_CLIENT_ID faltan.
 
 **Deuda técnica abierta:**
+
 - Migraciones Prisma de S1+S2 sin aplicar en Railway (acumuladas desde Sesión 9). Sprint S3 las aplica.
 - `RESEND_API_KEY` y `GOOGLE_CLIENT_ID` no configurados en Railway (S3 + cuando frontend integre Google Sign-in).
 - `/api/auth/resend-verification` no existe — si Resend falla al register, usuario está sin verificar. S2.5 lo agrega (~30 min).
@@ -563,6 +576,7 @@ tokens, Prisma schema and env validation`
 **Bitácora:** [docs/informes/sprint-s3.md](docs/informes/sprint-s3.md) (con 4 diagramas Mermaid)
 
 **Decisiones del usuario aplicadas:**
+
 1. Worker en servicio Railway **separado** del API — confirmado.
 2. Data export en S3 solo perfil + progress + subscription (Diario/Eco se agregan en S6/S9) — confirmado.
 
@@ -586,9 +600,11 @@ tokens, Prisma schema and env validation`
 - **Final-attempt bookkeeping** en `DataExportProcessor`: marca `FAILED` solo en el último retry, deja PROCESSING en retries no-finales.
 
 **Smoke test del worker:**
+
 - `node dist/worker` boota limpio · 3 processors registrados · "Awaiting jobs from Redis…" · `kill -0` confirma proceso vivo.
 
 **Deuda técnica abierta:**
+
 - Migraciones acumuladas Prisma (Sesión 9 + S1 + S2 + S3) sin aplicar en Railway — bloqueante para deploy.
 - Worker no provisionado en Railway aún (crear servicio cuando se haga deploy de S3).
 - `REDIS_URL` (Upstash) sin configurar en Railway.
@@ -618,6 +634,7 @@ tokens, Prisma schema and env validation`
 - **README del módulo** documentando endpoints + audit vs canonical + cómo editar catalogs.
 
 **Conceptos pedagógicos del sprint:**
+
 - **Catálogos en DB vs constants en código** (4 dimensiones de decisión: frecuencia de cambio, necesidad de FK, editor no-técnico, i18n).
 - **Audit vs canonical state**: cuando un dato puede cambiar y querrías analizar el original.
 - **Idempotency-by-overwrite** vs Idempotency-Key strict: para flows guided (step writes, autosave) la idempotencia es semántica.
@@ -625,11 +642,13 @@ tokens, Prisma schema and env validation`
 - **Fallback en cascada** para datos faltantes (cover token determinístico por hash, why text con tres niveles).
 
 **Smoke test:**
+
 - 11 endpoints `/api/onboarding/*` mapeados correctamente.
 - Boot del API limpio.
 - Cliente OpenAPI regenerado.
 
 **Deuda técnica abierta:**
+
 - Migración Prisma de S4 (3 modelos) acumulada — pendiente de aplicar en Railway.
 - Seed no ejecutado en Railway — `/onboarding/motivos` devuelve `[]` hasta `prisma db seed`.
 - `book.author` hardcoded "Marina Quintana" en recommendation (BookAuthor llega en S5).
@@ -647,6 +666,7 @@ tokens, Prisma schema and env validation`
 **Bitácora:** [docs/informes/sprint-s5.md](docs/informes/sprint-s5.md) (con 4 diagramas Mermaid)
 
 **Decisiones del usuario aplicadas:**
+
 1. Rename directo (sin alias deprecated) — no hay consumers en producción.
 2. `BookAuthor` como tabla nueva (preparado para Editor de autor B2B en S19).
 3. `BookCategory` también tabla por mismo razonamiento.
@@ -663,17 +683,20 @@ tokens, Prisma schema and env validation`
 - **READMEs del módulo Books y Home.**
 
 **Bugs corregidos durante S5 (4, cf. bitácora §4):**
+
 1. Conditional Prisma include produce union; helper cast localizado en books.service.ts:175.
 2. Vitest mock `.findUnique().then(...)` undefined porque Promise.all hace 3 llamadas concurrentes; fix: `mockResolvedValue` rico.
 3. Tests viejos llamaban a métodos eliminados (findAllPublished/findBySlug); rewrite total con 16 tests nuevos.
 4. Web landing FALLBACK_BOOKS shape incompat; convertido a `BookListItem[]` envuelto en `BookListResponse`.
 
 **Smoke test:**
+
 - 51 rutas mapeadas bajo `/api/*` (10 Books + 3 Chapters + 2 Progress + 3 Home + el resto existente).
 - `pnpm --filter @psico/api-client generate:check` → OK.
 - Web typecheck + lint, Mobile typecheck + lint, API test + typecheck + lint → todos verdes.
 
 **Deuda técnica abierta:**
+
 - Migraciones S5 (`20260526180000_s5_books_*`) acumuladas — pendiente de aplicar en Railway.
 - Seed S5 no ejecutado en Railway.
 - `stats.diaryEntries`/`minutesTotal` siguen en 0 hasta DiaryModule (S6).
@@ -693,6 +716,7 @@ tokens, Prisma schema and env validation`
 **Bitácora:** [docs/informes/sprint-s6.md](docs/informes/sprint-s6.md) (con 4 diagramas Mermaid)
 
 **Decisión del usuario aplicada:**
+
 - Continuar backend → S6 DiaryModule (recomendación del Plan v2). Frontend companion sprint queda diferido al final de Fase 1.
 
 **Lo que se construyó:**
@@ -713,16 +737,19 @@ tokens, Prisma schema and env validation`
 - **READMEs:** `apps/api/src/diario/README.md`.
 
 **Bugs corregidos durante S6 (3, cf. bitácora §4):**
+
 1. Tests de Home + Users no mockeaban `prisma.diaryEntry.count` → cubrir con `.mockResolvedValue(0)` por defecto.
 2. `apiClient` no tenía `delete<T>()` → añadido.
 3. Prisma warning: `SharedDiaryEntry.entryId` requerido + `onDelete: SetNull` incompatible. Fix: nullable + documentar (audit trail).
 
 **Smoke boot del API:**
+
 - 58 rutas mapeadas bajo `/api/*` (51 previas + 7 Diario).
 - `openapi.json`: 35 KB → 39 KB.
 - `generated.ts`: 53 KB → 58 KB.
 
 **Deuda técnica abierta:**
+
 - Migración S6 sin aplicar en Railway (acumulada con todas las previas).
 - `SharedDiaryEntry` expiry sweeper sin implementar (v2 TherapyModule).
 - Sin rate limit específico en POST entries (60/min global aplica).
@@ -764,6 +791,7 @@ tokens, Prisma schema and env validation`
 - **Composer del Diario disabled** (misma decisión ética que el web, ADR 0007 §G).
 
 **Decisiones del sprint:**
+
 1. Fallback de color sólido en lugar de gradiente — RN sin libs externas.
 2. Pull-to-refresh solo en Home (no en Biblioteca/Diario que ya re-fetchan).
 3. Composer disabled, no fake-crypto.
@@ -772,6 +800,7 @@ tokens, Prisma schema and env validation`
 6. Stats grid 2x1 mobile (3 cards apiladas) por ancho de pantalla.
 
 **Smoke verification:**
+
 - API tests 252/252.
 - Web typecheck + lint + sin cambios.
 - Mobile typecheck + lint OK.
@@ -779,6 +808,7 @@ tokens, Prisma schema and env validation`
 - OpenAPI generate:check in sync.
 
 **Deuda técnica abierta:**
+
 - Avatares reales (`<Image>` con `avatarUrl`).
 - Gradientes en covers (agregar `expo-linear-gradient`).
 - Cliente cripto S6-crypto (Composer Diario funcional).
@@ -827,6 +857,7 @@ tokens, Prisma schema and env validation`
   - `generated.ts` regenerated (57.9 KB → 59.5 KB) con `cryptoSalt` en 4 endpoints
 
 **Decisiones del sprint:**
+
 1. `@noble/hashes` + `@noble/ciphers` over WASM libs (portable web + RN, no bundling fragilidad).
 2. Web: memoria de pestaña; Mobile: SecureStore. Divergencia intencional documentada en ADR.
 3. Excerpt cipher por separado para list views sin descargar body completo.
@@ -835,6 +866,7 @@ tokens, Prisma schema and env validation`
 6. Sin recovery seed phrase (BIP39) — UX significativo, validar con Pulso primero.
 
 **Smoke verification:**
+
 - Crypto tests 24/24 (incluye Argon2id reales, ~16s tiempo total).
 - API tests 252/252.
 - Web/Mobile typecheck + lint clean.
@@ -842,6 +874,7 @@ tokens, Prisma schema and env validation`
 - OpenAPI generate:check in sync.
 
 **Deuda técnica abierta:**
+
 - Recovery seed phrase (BIP39) — ADR 0007 §G compromete opt-in.
 - Migración cuentas legacy con `cryptoSalt = null`.
 - Password change flow → re-encrypt del Diario.
@@ -881,6 +914,7 @@ tokens, Prisma schema and env validation`
   - `_layout.tsx` registra la nueva ruta
 
 **Decisiones del sprint:**
+
 1. Auto-gen salt en login, NO migration script — backfill bajo demanda
 2. Seed phrase = masterKey serializado directo (32B exactos)
 3. Delete confirm in-place web, Alert nativo mobile (UX idiomática)
@@ -888,6 +922,7 @@ tokens, Prisma schema and env validation`
 5. **Diferidos a sprints propios:** seed phrase UI (modal + recovery) + password change re-encrypt
 
 **Smoke verification:**
+
 - Crypto tests 34/34 (incluye Argon2id reales + BIP39)
 - API tests 252/252
 - Web build clean (Diario detail page 4 KB / 120 KB FL)
@@ -896,6 +931,7 @@ tokens, Prisma schema and env validation`
 - Privacy guard verde
 
 **Deuda técnica abierta:**
+
 - Seed phrase UI (modal post-unlock + recovery flow en /login) — usa el toolkit ya escrito
 - Password change re-encrypt — endpoint + flow cliente
 - Edit entry (el detail tiene delete, falta edit)
@@ -913,6 +949,7 @@ tokens, Prisma schema and env validation`
 **Lo que se construyó (cierre del módulo de cripto E2E):**
 
 **Backend — 3 endpoints nuevos:**
+
 - `POST /api/user/crypto-seed-acknowledged` — idempotente, marca `User.cryptoSeedShownAt`.
 - `POST /api/user/password-change-with-rekey` — atómico: bcrypt(newPassword) + update User + UPDATE de cada DiaryEntry con cipher/nonce nuevos + revoca refresh tokens.
 - `GET /api/diario/entries/raw-ciphers` — lean view (sin related-search) usado solo por el rekey flow.
@@ -922,23 +959,27 @@ tokens, Prisma schema and env validation`
 **DTOs:** `PasswordChangeWithRekeyDto` con `ArrayMaxSize(500)`, base64url validation, `NEW_PASSWORD_MIN=10`, `MAX_ENTRIES_PER_REKEY=500`.
 
 **Web:**
+
 - `SeedPhraseModal` (post-unlock first-time, confirm 3 de 24 palabras).
 - `UnlockGate` con modo "seed" (textarea de 24 palabras → `seedPhraseToMasterKey` → `adoptMasterKey`).
 - `/dashboard/security` con `ChangePasswordCard` (phase machine deriving → fetching → reencrypting → submitting → done).
 - `DiaryKeyContext` extendido con `masterKey` + `adoptMasterKey`. Provider hoisted a `/dashboard/layout.tsx` para que la unlock sobreviva navegación.
 
 **Mobile:**
+
 - `SeedPhraseModal` (RN Modal con misma lógica).
 - `UnlockGate` con modo seed paridad web.
 - `(tabs)/security.tsx` accesible desde Perfil → "Cambiar contraseña".
 - `DiaryKeyProvider` hoisted a `(tabs)/_layout.tsx`. masterKey RAM-only en mobile (subkey persistido en SecureStore como antes).
 
 **Shared:**
+
 - `@psico/types`: 6 tipos nuevos (`CryptoSeedAcknowledgedResponse`, `RekeyedDiaryEntry`, `PasswordChangeWithRekey*`, `DiaryRawCipher*`).
 - `@psico/crypto`: re-exporta `randomBytes` para evitar que web/mobile dependan de `@noble/ciphers` directo.
 - `@psico/api-client`: `diarioApi.listRawCiphers()` + `generated.ts` 58 KB → 62.1 KB.
 
 **Bugs corregidos durante el sprint (4, cf. bitácora §5):**
+
 1. Mobile: `crypto.getRandomValues` no tipado en RN → re-export de `randomBytes` desde `@psico/crypto`.
 2. Mobile: `@noble/ciphers/webcrypto` no resoluble como import directo → mismo fix que #1.
 3. `users.controller.spec.ts` esperaba 12 handlers — actualizado a 14.
@@ -947,6 +988,7 @@ tokens, Prisma schema and env validation`
 **Smoke boot del API:** 60 rutas bajo `/api/*`. OpenAPI generate:check OK. Privacy spec OK.
 
 **Deuda técnica abierta:**
+
 - Sin unit tests dedicados para los 3 nuevos endpoints. Cubrir antes de cerrar Phase 1 (idempotencia del ack, mismatch del currentPassword, ownership de entry IDs, rollback de la transacción).
 - Sin E2E full-circle test (encrypt → POST → decrypt con la nueva key).
 - Mobile cold-start: `SeedPhraseModal` no se muestra si el usuario hace cold-start con subkey cached (masterKey null). Aceptable porque vuelve a aparecer en cualquier fresh unlock — pero un user que nunca bloquea su diario podría no verla.
@@ -963,6 +1005,7 @@ tokens, Prisma schema and env validation`
 **Bitácora:** [docs/informes/sprint-s7-subscription-usage.md](docs/informes/sprint-s7-subscription-usage.md)
 
 **Decisiones del usuario lockeadas antes de implementar:**
+
 1. `/usage` agregador único (no per-feature) — consistente con `/home`.
 2. `POST /cancel` + `POST /reactivate` separados (no PATCH con action enum).
 3. Counters live + cache Redis 5 min — BullMQ daily rollup escribe `BillingUsageDay` para Pulso, no para `/usage`.
@@ -970,6 +1013,7 @@ tokens, Prisma schema and env validation`
 **Lo que se construyó:**
 
 **Backend — 4 endpoints nuevos:**
+
 - `GET /api/subscriptions/usage` — agregador único (books/eco/voice/diary + quotas + period).
 - `GET /api/subscriptions/invoices?limit=N` — pasa-thru a `stripe.invoices.list`.
 - `POST /api/subscriptions/cancel` — Stripe `cancel_at_period_end=true` + mirror local + invalida cache.
@@ -978,21 +1022,25 @@ tokens, Prisma schema and env validation`
 **Schema:** `BillingUsageDay { userId, day, booksCompleted, ecoMessages, voiceMinutes, diaryEntries }` con `(userId, day)` único. Migración `20260528000000_s7_billing_usage_day`.
 
 **Servicios nuevos:**
+
 - `UsageService` — agregador + cache Redis 5min con `invalidate(userId)` post cancel/reactivate.
 - `PaymentService` extendido con `listInvoices/cancelAtPeriodEnd/reactivate` (delegating).
 - `IPaymentProvider` interface +3 métodos requeridos; `StripeProvider` los implementa, `PayphoneProvider` los stubs.
 - `quotas.ts` — `PLAN_QUOTAS` record: FREE 20/0/null, PRO 200/120/null, B2B unlimited.
 
 **BullMQ:**
+
 - Nueva queue `DAILY_USAGE` registrada en producer + worker.
 - `JobsService.onModuleInit` registra `upsertJobScheduler` con cron `0 2 * * *` UTC.
 - `DailyUsageProcessor` (worker) — fan-out single-job. Idempotente por unique key. Retry 5min/25min/2h.
 
 **Shared:**
-- `@psico/types` +14 tipos (Usage*, Invoice*, Cancel/Reactivate*).
+
+- `@psico/types` +14 tipos (Usage*, Invoice*, Cancel/Reactivate\*).
 - `@psico/api-client` +5 métodos (`createPortalSession`, `getUsage`, `listInvoices`, `cancel`, `reactivate`). `generated.ts` 62.1 KB → 65.5 KB.
 
 **Bugs corregidos (3, bitácora §8):**
+
 1. `Stripe.Invoice` como namespace no resoluble en Stripe v22 CJS → derivar con `Awaited<ReturnType<...>>`.
 2. `SubscriptionService` + `JobsService` specs rompieron con deps nuevas en constructor.
 3. Test reactivate fallaba: fixture `sub_stripe_123` vs prisma mock `sub_1` → unificados.
@@ -1000,6 +1048,7 @@ tokens, Prisma schema and env validation`
 **Smoke boot:** 60+ rutas mapeadas bajo `/api/*`, log "Daily usage rollup scheduled · id=daily-usage-02-utc". OpenAPI generate:check OK.
 
 **Deuda técnica abierta:**
+
 - Eco/Voice counters siempre 0 hasta S8/S10. Quotas YA expuestas para que el front diseñe la UI desde día 1.
 - `booksCompletedThisPeriod` aproximado (no usa un `book.completedAt` real).
 - Sin enforcement de quotas — los feature modules tienen que respetarlas en S8/S10.
@@ -1018,6 +1067,7 @@ tokens, Prisma schema and env validation`
 **Bitácora:** [docs/informes/sprint-s8-voice.md](docs/informes/sprint-s8-voice.md)
 
 **Decisiones del usuario lockeadas:**
+
 1. **Ambos providers via strategy pattern** (Whisper + Deepgram) — VOICE_PROVIDER env selecciona. Whisper default.
 2. **Pre-flight reject 402 + post-flight track** — protege contra abuso financiero ($$$/min).
 3. **Cap 25 MB (Whisper-native)** — sin chunking server-side, deuda para v2 si UX lo pide.
@@ -1025,12 +1075,14 @@ tokens, Prisma schema and env validation`
 **Lo que se construyó:**
 
 **Backend — 2 endpoints nuevos:**
+
 - `POST /api/voz/transcribe` — multipart audio → transcript. Throttle 10/min/user. Quota gates: 403 FREE, 402 over-quota.
 - `POST /api/voz/usage` — reconciliación opcional cliente/server.
 
 **Schema:** `VoiceTranscription { userId, durationSec, language, provider, createdAt }` — SOLO metadata, audio nunca se almacena (07-voz.md privacy contract). Migración `20260529000000_s8_voice_transcription`.
 
 **Provider strategy:**
+
 - `IVoiceProvider` interface (analog a `IPaymentProvider`).
 - `WhisperProvider` — POST multipart a OpenAI `/audio/transcriptions`.
 - `DeepgramProvider` — POST binario a `/v1/listen?model=nova-3`.
@@ -1038,15 +1090,18 @@ tokens, Prisma schema and env validation`
 - Env `superRefine` exige la API key del provider activo.
 
 **Wire-up con S7:**
+
 - `UsageService.voice.minutesThisPeriod` ahora SUMa `VoiceTranscription.durationSec` real (antes hardcoded 0).
 - `DailyUsageProcessor` (BullMQ nightly) popula `BillingUsageDay.voiceMinutes`.
 - Post-transcripción: `usageService.invalidate(userId)` busta el cache 5-min.
 
 **Shared:**
+
 - `@psico/types` +3 tipos (`VoiceProvider`, `VoiceTranscribeResponse`, `VoiceUsageReport*`).
 - `@psico/api-client` +1 `voiceApi.transcribe(blob, { language })` + nuevo `apiClient.postFormData<T>` para multipart. `generated.ts` 65.5 KB → 67.0 KB.
 
 **Bugs corregidos (3, bitácora §7):**
+
 1. `Stripe.Invoice` namespace pattern reusado para `StripeInvoice` — feedback de S7.
 2. Test del Whisper provider con `makeConfig(undefined)` no rechazaba — JS default-parameter sustituye `undefined`. Fix: sentinel `Symbol("unset")`.
 3. `@psico/api-client` no soportaba multipart — añadido `postFormData` que skip JSON-stringify + Content-Type.
@@ -1054,6 +1109,7 @@ tokens, Prisma schema and env validation`
 **Smoke boot:** 2 rutas nuevas mapeadas, OpenAPI generate:check OK, todos los typecheck/lint verdes.
 
 **Deuda técnica abierta:**
+
 - Sin chunking >25 MB (v2 con ffmpeg).
 - Sin streaming Deepgram WS (v2).
 - Sin idempotencia (retry duplica costo — mitiga el throttle 10/min). Idempotency-Key header en S11.
@@ -1072,6 +1128,7 @@ tokens, Prisma schema and env validation`
 **Bitácora:** [docs/informes/sprint-s10-eco-chat.md](docs/informes/sprint-s10-eco-chat.md)
 
 **Decisiones del usuario lockeadas:**
+
 1. **Hybrid encryption** — cliente envía plaintext+ciphertext, server usa plaintext in-flight para LLM/crisis y persiste solo ciphertext. Assistant en plaintext.
 2. **SSE** (Server-Sent Events) como protocolo de streaming.
 3. **Ambos layers de crisis detection** — regex pre-LLM + [CRISIS] sentinel del LLM.
@@ -1079,38 +1136,45 @@ tokens, Prisma schema and env validation`
 **Lo que se construyó:**
 
 **Backend — 6 endpoints nuevos bajo `/api/eco/*`:**
+
 - `GET /caps` — persona (name, voice, caps).
 - `GET /threads`, `POST /threads`, `GET /threads/:id`, `DELETE /threads/:id`.
 - `POST /messages` — SSE stream (delta/crisis/suggestion/done/error events). Throttle 30/min/user.
 - `POST /messages/:id/report` — flag bad replies (HALLUCINATION/OFF_TONE/SENSITIVE_CONTENT/CRISIS_MISHANDLED/OTHER).
 
 **Schema:**
+
 - `EcoThread { id, userId, titleCiphertext?, titleNonce?, lastMessageAt }`.
 - `EcoMessage { id, threadId, kind (USER/ASSISTANT/CRISIS/SUGGESTION), textCiphertext?, textNonce?, assistantText?, suggestedBookId?, input/outputTokens }`.
 - `EcoMessageReport { id, messageId, userId, reason enum, comment? }`.
 - Backward-compat: `Conversation` y `ConversationMessage` siguen vivos para `/ai/chat`.
 
 **Crisis detection (dos layers):**
+
 - **Layer 1** — `isCrisisText(plaintext)` regex con patrones unambiguos (`suicid`, `quitarme la vida`, `no quiero vivir`, inglés). Si match → emit `crisis` event, persiste `EcoMessage` con `kind=CRISIS`, NO llama al LLM.
 - **Layer 2** — system prompt instruye al LLM a responder EXCLUSIVAMENTE con `[CRISIS]` como primer token si detecta señales. Streaming pipeline aborta + reemplaza con canned message.
 
 **Quotas (`PLAN_QUOTAS.eco`):**
+
 - FREE: 10 user-messages por UTC-day.
 - PRO/ANNUAL: 200 user-messages por billing period.
 - B2B: unlimited.
 
 **Wire-up con S7:** 🎉 cierra el último counter de `/usage`:
+
 - `UsageService.eco.messagesThisPeriod` ahora cuenta `EcoMessage` con `kind=USER`.
 - `DailyUsageProcessor` popula `BillingUsageDay.ecoMessages` nightly.
 - Post-mensaje: `usageService.invalidate(userId)` busta cache 5-min.
 
 **Shared:**
+
 - `@psico/types` +9 tipos (`EcoMessageKind`, `EcoPersona`, `EcoSseEvent` union, etc.).
 - `@psico/api-client`: nuevo `ecoApi` con SSE consumer (`sendMessage` usa fetch + reader, parser de event/data frames). `generated.ts` 67.0 KB → 72.2 KB.
 
 **Privacy invariant:** `eco.privacy.spec.ts` enforce no `logger.*`/`console.*` referencia `textPlaintext`, `textCiphertext`, `textNonce`, `titleCiphertext`, ni `titleNonce`.
 
 **Bugs corregidos (3, bitácora §7):**
+
 1. `Subject.complete()` en `finally` antes del error event → quota gate test veía 0 eventos. Fix: try/catch INSIDE el runner, emit error inline, complete una vez al final.
 2. `UsageService` spec mock faltaba `ecoMessage.count`. Añadido al helper.
 3. Anthropic SDK mock con `stream.on("text", ...)` necesitó drenar chunks vía `Promise.resolve().then` para que el listener se registre antes.
@@ -1118,6 +1182,7 @@ tokens, Prisma schema and env validation`
 **Smoke boot:** 7 rutas nuevas mapeadas, OpenAPI generate:check OK, todos los typecheck/lint/privacy verdes.
 
 **Deuda técnica abierta:**
+
 - History parcial del user en LLM (solo current turn + assistant past turns; user past turns son ciphertext, server no puede decrypt). v2 con client-side summary.
 - Sin frontend UI (chat screen web + mobile pendiente).
 - `intent: "suggest"` no diferencia el system prompt todavía.
@@ -1139,6 +1204,7 @@ tokens, Prisma schema and env validation`
 **Lo que se construyó:**
 
 **Web (`apps/web`):**
+
 - Server actions `cancelSubscriptionAction(formData)` + `reactivateSubscriptionAction()` con `revalidatePath("/dashboard/plan")`.
 - Componentes nuevos en `src/components/dashboard/plan/`:
   - `UsageCards.tsx` — Server Component puro, 4 mini-cards (libros/eco/voz/diario) con progress bars y formato i18n.
@@ -1147,6 +1213,7 @@ tokens, Prisma schema and env validation`
 - `/dashboard/plan/page.tsx` paraleliza 4 fetches (`/me`, `/plans`, `/usage`, `/invoices`). `dynamic = "force-dynamic"`.
 
 **Mobile (`apps/mobile`):**
+
 - Componentes paridad en `src/components/dashboard/plan/`:
   - `UsageCards.tsx` — grid 2x2.
   - `InvoicesList.tsx` — lista stack con `Linking.openURL` para PDF.
@@ -1154,26 +1221,31 @@ tokens, Prisma schema and env validation`
 - `(tabs)/plan.tsx` ahora orquesta `loadAll()` con `RefreshControl` pull-to-refresh + `onChanged` callback para invalidación manual.
 
 **Shared (`@psico/api-client`):**
+
 - `subscriptionApi.getMySubscription()` añadido (faltaba — el endpoint existe desde S4 pero el cliente nunca lo había wrapped).
 
 **Bugs corregidos (3, bitácora §5):**
+
 1. `Colors.sage[700]` no existe en theme mobile (solo `50/100/400/500/600`). Fix: usar 600.
 2. `getMySubscription` faltaba en api-client. Añadido sin breaking changes.
 3. TS strict null check en `inv.pdfUrl` — guards correctos en web (ternario) y mobile (`!` post-guard).
 
 **UX trade-offs:**
+
 - UsageCards visible para FREE como preview educativo ("vas a desbloquear esto").
 - Cancel reason capture como free-text (no taxonomy todavía — esperar 50-100 cancels para data-driven design).
 - Color rojo + progress bar rojo cuando `current >= quota` (sutil, sin gritar).
 - Pull-to-refresh solo en mobile; web confía en `revalidatePath`.
 
 **Smoke verification:**
+
 - API tests 323/323 (sin cambios).
 - Web/mobile typecheck + lint clean.
 - Web `pnpm build` compila sin errores.
 - OpenAPI generate:check OK.
 
 **Deuda técnica abierta:**
+
 - Sin tests UI dedicados (Vitest + React Testing Library). Esperar a tener más componentes para amortizar setup.
 - Mobile `Linking.openURL` Stripe Portal no usa deep-link return → user vuelve manualmente. v2 requiere Universal Links setup.
 - Web `<table>` no es responsive narrow (aceptable — desktop-first).
@@ -1190,6 +1262,7 @@ tokens, Prisma schema and env validation`
 **Lo que se construyó:**
 
 **Web:**
+
 - `src/lib/voice/use-recorder.ts` — Hook MediaRecorder con state machine. Hard cap 10 min. Sin pausa/resume v1.
 - `src/lib/voice/handoff.ts` — sessionStorage read-and-delete para pasar transcript a Diario.
 - `src/components/dashboard/voz/VozRecorder.tsx` — Client Component orquestador con sub-components inline (Idle/Recording/Stopped/Transcribing/Ready/Errors).
@@ -1197,12 +1270,14 @@ tokens, Prisma schema and env validation`
 - ActiveComposer extendido con botón "🎙️ Dictar" + `useEffect` para `consumeVoiceHandoff` al mount.
 
 **Mobile:**
+
 - `expo-av@~15.0.0` instalado.
 - `src/lib/voice/handoff.ts` — singleton in-memory (no AsyncStorage por privacidad).
 - `(tabs)/voz.tsx` — paridad de state machine con web. `Audio.Recording.HIGH_QUALITY` preset. Registrado con `href: null`.
 - Diario composer extendido con botón "🎙️ Dictar" + `useFocusEffect` para consumir handoff al regainar foco.
 
 **Decisiones de diseño (bitácora §3):**
+
 1. Handoff por storage (sessionStorage web, singleton mobile) — privacy default, no en URL/disk.
 2. Single-take v1 — no pausa/resume.
 3. Sin waveform — dot rojo + timer.
@@ -1216,6 +1291,7 @@ tokens, Prisma schema and env validation`
 **Verificación:** API tests 323/323 (sin cambios), web/mobile typecheck + lint clean, web build clean, OpenAPI in sync.
 
 **Deuda técnica abierta:**
+
 - Sin tests UI dedicados.
 - No waveform / no pausa-resume / no streaming partial transcript.
 - Web fetch bypassa apiClient (no retry-on-401-refresh para flow voice).
@@ -1232,11 +1308,13 @@ tokens, Prisma schema and env validation`
 **Lo que se construyó (último UI sprint de Fase 1):**
 
 **Shared:**
+
 - `DiaryKeyContext` extendido con `ecoKey` (derivado de masterKey vía HKDF/ECO_KEY_INFO en unlock + adoptMasterKey; zerificado en lock). Web + mobile paridad.
 - Mobile `diaryKeyStore.saveEco/loadEco` para persistir en SecureStore. `clear()` borra ambas keys.
 - `@psico/api-client`: nuevo `apiClient.getAccessToken()` público (necesario para el SSE bypass).
 
 **Web (`apps/web`):**
+
 - `/dashboard/eco/page.tsx` — Server shell paraleliza `/eco/caps` + `/eco/threads`.
 - `EcoShell.tsx` — Client orchestrator, gates por ecoKey, auto-create thread vacío al landing.
 - `ThreadRail.tsx` — sidebar con title decryption inline.
@@ -1246,6 +1324,7 @@ tokens, Prisma schema and env validation`
 - `@psico/api-client` añadido como dep de web.
 
 **Mobile (`apps/mobile`):**
+
 - `(tabs)/eco/index.tsx` — chat completo, single screen.
 - `KeyboardAvoidingView` iOS; `ScrollView.scrollToEnd` auto-scroll.
 - `ThreadRailModal` (bottom-sheet idiomático mobile, no sidebar permanente).
@@ -1253,6 +1332,7 @@ tokens, Prisma schema and env validation`
 - Eco registrado como tab visible con ícono `leaf` entre Diario y Mi plan.
 
 **Decisiones (bitácora §4):**
+
 1. Single context para diary + eco — masterKey deriva ambos.
 2. Rail como sidebar permanente en web, modal bottom-sheet en mobile.
 3. Hotline `tel:` deep link en ambas plataformas (one tap to dial en crisis).
@@ -1262,6 +1342,7 @@ tokens, Prisma schema and env validation`
 **Bugs corregidos (3):** `@psico/api-client` no era dep de web (añadido). `react-hooks/exhaustive-deps` rule no instalada en web (refactor a `useRef`). `apiClient.getAccessToken()` no existía (añadido).
 
 **Privacy invariants:**
+
 - `textPlaintext` SOLO va in-flight; nunca persiste cliente OR server.
 - USER messages persisten cifrados; ASSISTANT/CRISIS persisten plaintext (LLM-generados).
 - Title cipher rotation-tolerant (fallback graceful).
@@ -1269,6 +1350,7 @@ tokens, Prisma schema and env validation`
 **Smoke verification:** API tests 323/323 (sin cambios), web/mobile typecheck + lint clean, web build clean, OpenAPI in sync.
 
 **Deuda técnica abierta:**
+
 - Sin tests UI dedicados (mismo argumento sprints anteriores).
 - Reports UI no implementado (backend listo desde S10).
 - No thread title generation (cliente cifrando primer msg → enviar como title).
@@ -1289,6 +1371,7 @@ tokens, Prisma schema and env validation`
 **Causa raíz:** archivos `migration.sql` corruptos con `Loaded Prisma config from prisma.config.ts.` como primera línea literal (Prisma 7 imprime esa línea informativa a stdout al cargar `prisma.config.ts`; se filtró por pipe/redirect mal hecho al generar las migraciones). En Railway, `prisma migrate deploy` lo ejecutó como SQL → `ERROR: syntax error at or near "Loaded"`.
 
 **Lo que se hizo:**
+
 - `sed -i` para limpiar los archivos afectados (`20260526180000_s5_books_*` y `20260526210000_s6_diary_*`).
 - `prisma migrate resolve --rolled-back` para reset del estado en Postgres.
 - Re-deploy con migraciones limpias.
@@ -1296,17 +1379,20 @@ tokens, Prisma schema and env validation`
 - `apps/web/vercel.json` con `installCommand: "cd ../.. && corepack enable && pnpm install --frozen-lockfile"`.
 
 **3 bugfixes a posteriori:**
+
 1. **Redirect propagation en Next.js layouts** — `serverFetch` lanza `redirect('/login')` pero los `catch {}` lo swallowaban. Fix: helper `isNextThrow(err)` en `apps/web/src/lib/api.server.ts` y re-throw en `dashboard/layout.tsx` + `biblioteca/[idOrSlug]/page.tsx`.
 2. **Stripe price IDs reales** — pendiente, tarea del usuario.
 3. **Pre-commit hook contra "Loaded Prisma config"** — `scripts/check-migration-sql.sh` que rechaza cualquier `migration.sql` cuya primera línea no sea SQL válida. Hooked vía `husky/.husky/pre-commit`.
 
 **Smoke verification post-fix:**
+
 - `GET /api/health` → 200 OK.
 - Prisma migraciones aplicadas (8 acumuladas).
 - Worker provisionado como segundo Railway service.
 - Smoke walk con el usuario: register → unlock Diario → Eco chat ✅.
 
 **Deuda técnica abierta:**
+
 - Stripe price IDs reales (bugfix #2 sigue pending).
 - `pnpm-lock.yaml` quedó duplicado (767 líneas) por `-X ours` merge — corregido con `pnpm install --no-frozen-lockfile`.
 
@@ -1323,6 +1409,7 @@ tokens, Prisma schema and env validation`
 **Lo que se construyó:**
 
 **Backend:**
+
 - `apps/api/src/billing/` nuevo con controller que delega a `SubscriptionService` + `UsageService` + `PaymentService`.
 - `GET /api/billing/checkout-session` · `POST /api/billing/customer-portal` · `GET /api/billing/usage` · `GET /api/billing/invoices` · `POST /api/billing/cancel` · `POST /api/billing/reactivate` · `GET /api/billing/return`.
 - **`GET /api/plan` envolvente** — agrega `/me + /plans + /usage + /invoices` en una sola request (consistente con `/api/home`).
@@ -1330,6 +1417,7 @@ tokens, Prisma schema and env validation`
 - **Webhook doble exposure:** `/api/billing/webhook` + `/api/subscriptions/webhook` (legacy) ambos válidos por 90d.
 
 **Cliente:**
+
 - `packages/api-client/src/billing.ts` nuevo. `subscriptionApi` queda `@deprecated`.
 - `generated.ts` 65.5 KB → 67.0 KB.
 
@@ -1337,12 +1425,14 @@ tokens, Prisma schema and env validation`
 **Mobile:** `(tabs)/plan` migrado igual.
 
 **Smoke verification:**
+
 - API tests 323/323.
 - OpenAPI in sync.
 - Web typecheck + lint OK, build OK.
 - Mobile typecheck + lint OK.
 
 **Deuda técnica abierta:**
+
 - Sunset 2026-08-31 del path `/api/subscriptions/*`.
 - Stripe price IDs reales (bugfix #2 sigue pending).
 
@@ -1359,6 +1449,7 @@ tokens, Prisma schema and env validation`
 Cierra el core product que faltaba: la pantalla del **Lector** real. Hasta hoy `/dashboard/biblioteca/[slug]` mostraba metadata + lista de capítulos pero los capítulos no se podían leer porque su contenido no existía en DB. Este sprint introduce `ChapterBlock` (bloques tipados que reemplazan `Chapter.body String`), highlights, annotations, reading session heartbeat y audio signed URL — los 9 endpoints del diseño `docs/design/handoff/05-lector.md`.
 
 **Schema (`apps/api/prisma/schema.prisma`):**
+
 - `ChapterBlock { id, chapterId, order, kind, content, meta?, createdAt, updatedAt }`.
 - `Highlight { id, userId, blockId, startOffset, endOffset, color, note? }`.
 - `Annotation { id, userId, blockId, text }`.
@@ -1367,11 +1458,13 @@ Cierra el core product que faltaba: la pantalla del **Lector** real. Hasta hoy `
 - Migración `20260602100000_s6_lector_*` aditiva.
 
 **Por qué `ChapterBlock` en lugar de `Chapter.body String`:**
+
 1. Highlights/annotations anclan a un block ID estable, no a rangos en un string que cambia con cada edición editorial.
 2. Audio playback puede mapearse por block ID (timestamps).
 3. Renderizado tipado por bloque (un PAUSE no es un PARAGRAPH).
 
 **Endpoints (9 nuevos):**
+
 - `GET /api/lector/:bookId/:order` — fetcha capítulo + bloques + highlights/annotations del user + reading session.
 - `PATCH /api/lector/session` — heartbeat cada 5s.
 - `POST /api/lector/session/complete` — marca completedAt + dispara cascade en bookProgress.
@@ -1384,11 +1477,13 @@ Cierra el core product que faltaba: la pantalla del **Lector** real. Hasta hoy `
 **Cliente:** `lectorApi`, `highlightsApi`, `annotationsApi`. `generated.ts` 67.0 KB → 72.0 KB.
 
 **Smoke verification:**
+
 - API tests 348/349 (323 → 348, +25 nuevos).
 - OpenAPI in sync.
 - Migración aplicada en producción Railway.
 
 **Deuda técnica abierta:**
+
 - Audio playback URLs: signed por R2, TTL 1h. No streaming, expone direct URL.
 - `ChapterBlock.content` plaintext (no E2E) — books son contenido público licenciado.
 - Sin búsqueda full-text en blocks (postgres `tsvector` candidate).
@@ -1404,6 +1499,7 @@ Cierra el core product que faltaba: la pantalla del **Lector** real. Hasta hoy `
 **Lo que se construyó (último UI de Fase 1):**
 
 **Web — `/dashboard/biblioteca/[idOrSlug]/lector/[chapterOrder]`:**
+
 - `page.tsx` Server Component — pre-fetcha el chapter con `serverFetch('/lector/:bookId/:order')` para first-paint con contenido real.
 - `LectorShell.tsx` — Client orchestrator. Owns todos los state slices: highlights, annotations, prefs, selection, session. Optimistic UI on todas las mutaciones.
 - `BlockRenderer.tsx` — Renderiza cada `ChapterBlockKind` con estilos del prototype `Lector.html`. Cada block expone `data-block-id` para hit-testing.
@@ -1417,11 +1513,13 @@ Cierra el core product que faltaba: la pantalla del **Lector** real. Hasta hoy `
 **Wire del "Leer →":** `ChaptersList.tsx` (detalle del libro) ahora envuelve cada row en `<Link href={\`/dashboard/biblioteca/${bookSlug}/lector/${ch.n}\`}>`.
 
 **Smoke verification:**
+
 - API tests 348/349 (sin cambios).
 - Web typecheck + lint OK.
 - Mobile typecheck + lint OK.
 
 **Deuda técnica abierta:**
+
 - Mobile text selection + highlight creation.
 - Reader audio playback (audio URL ya viene del backend).
 - Sin tests UI dedicados.
@@ -1439,24 +1537,29 @@ Cierra el core product que faltaba: la pantalla del **Lector** real. Hasta hoy `
 Backend del onboarding estaba vivo desde Sesión 16 (Sprint S4) con 11 endpoints + 3 modelos Prisma + catálogos seeded. Hasta hoy ningún usuario nuevo lo veía — entraban al `/dashboard` directamente sin contexto, sin firstName, sin reco de libro inicial. Este sprint cierra el gap UI.
 
 **Backend (cambio mínimo):**
+
 - `UserMeResponse.onboardingState: { completedAt, skippedAt, tourCompletedAt } | null` — single source of truth.
 - Sin migración Prisma (modelo `OnboardingState` ya existía desde S4).
 
 **Web (`apps/web/src/app/(onboarding)/`):**
+
 - 5-step route group con layout gating: Welcome → Motivos → Mood → Perfil → Recomendación.
 - Server actions en cada step: `saveStep1Action(motivosIds)`, `saveStep2Action(moodId)`, `saveStep3Action(firstName, voicePreference)`, `closeOnboarding()`.
 - Middleware en `apps/web/middleware.ts` redirige users sin onboarding a `/onboarding`.
 
 **Mobile (`apps/mobile/app/(onboarding)/`):**
+
 - 5 pantallas paridad con state machine.
 - Tabs layout gating en `(tabs)/_layout.tsx` redirige a `/onboarding` si no `completedAt && !skippedAt`.
 
 **Smoke verification:**
+
 - API tests 348/349 (sin cambios).
 - Web typecheck + lint OK, build OK.
 - Mobile typecheck + lint OK.
 
 **Deuda técnica abierta:**
+
 - Tour overlay (paso 5 del design dice "tour" — quedó como `tourCompletedAt: null`).
 - Reco copy puede mejorar con A/B test cuando hay datos.
 
@@ -1469,6 +1572,7 @@ Backend del onboarding estaba vivo desde Sesión 16 (Sprint S4) con 11 endpoints
 **Bitácora:** [docs/informes/sprint-s10-patrones.md](docs/informes/sprint-s10-patrones.md)
 
 **Decisiones lockeadas:**
+
 1. Pro-only **soft-lock** (200 + `locked: true`), no 403. Mismo patrón que `home.ecoMoment`.
 2. Aggregation **in-process** sobre plaintext metadata (`mood`, `tags`, `createdAt`). Cripto E2E del Diario solo protege `body`/`excerpt`.
 3. `WeeklySummary` **persiste** con `@@unique([userId, weekStart])`. v1 narrative rule-based; LLM-backed cuando AIModule lo permita.
@@ -1478,6 +1582,7 @@ Backend del onboarding estaba vivo desde Sesión 16 (Sprint S4) con 11 endpoints
 **Lo que se construyó:**
 
 **Backend — 3 endpoints `/api/patrones/*`:**
+
 - `GET /` → soft-lock FREE o full aggregate (moodMap + hourMood + weeklySummary + period descriptor).
 - `POST /weekly-summary/regenerate` → 200 con summary · 403 FREE · 422 NOT_ENOUGH_ENTRIES (<7 weekly entries).
 - `POST /share-with-therapist` → stub.
@@ -1489,6 +1594,7 @@ Backend del onboarding estaba vivo desde Sesión 16 (Sprint S4) con 11 endpoints
 **8 unit tests:** FREE soft-lock · PRO aggregation · hourMood buckets · fallback swatch · regenerate 403/422/upsert · share stub.
 
 **Web (`apps/web/src/app/dashboard/patrones/page.tsx` + 3 components):**
+
 - `MoodHeatmap.tsx` — calendar strip first-to-last ISO con `warm-100` para gap days.
 - `HourMoodChart.tsx` — 24-bar horizontal chart, dominant mood per hour.
 - `WeeklySummaryCard.tsx` — Client Component lavender gradient, regenerate handler con 422 inline.
@@ -1497,6 +1603,7 @@ Backend del onboarding estaba vivo desde Sesión 16 (Sprint S4) con 11 endpoints
 - Sidebar `_DashboardShell` extendido con `📊 Patrones`.
 
 **Mobile (`apps/mobile/app/(tabs)/patrones.tsx` single-screen):**
+
 - Tabbar item nuevo con `stats-chart` icon (6 ítems totales).
 - Mismo state machine: loading | error | locked (paywall) | empty (<7) | full Pro.
 - Pull-to-refresh, period tabs como Pressable chips, regenerate handler.
@@ -1504,12 +1611,14 @@ Backend del onboarding estaba vivo desde Sesión 16 (Sprint S4) con 11 endpoints
 **Cliente:** `patronesApi` con 3 métodos. `generated.ts` regenerated, `generate:check` OK.
 
 **Smoke verification:**
+
 - API tests 356/356.
 - @psico/crypto tests 34/34.
 - Web typecheck + lint OK · Mobile typecheck + lint OK.
 - OpenAPI in sync.
 
 **Deuda técnica abierta:**
+
 - `composeNarrative` rule-based v1 (placeholder LLM).
 - Sin cache 5-min de getPatrones (justificable cuando period=1y).
 - `shareWithTherapist` stub hasta TherapyModule v2.
@@ -1531,6 +1640,7 @@ Backend del onboarding estaba vivo desde Sesión 16 (Sprint S4) con 11 endpoints
 3. **Reports UI Eco (mobile)** — long-press 400ms en assistant bubble → Modal RN con misma lista de razones. Flash toast 4s al tope post-submit.
 
 **Decisiones:**
+
 - Botón visible vs context-menu (web): no-discoverable en touch.
 - Long-press en mobile: gesture idiomático.
 - Modal con radio-select sobre `Alert.alert`: 5 opciones + comentario opcional no caben en Alert.
@@ -1538,17 +1648,20 @@ Backend del onboarding estaba vivo desde Sesión 16 (Sprint S4) con 11 endpoints
 - Flash 4s no bloqueante.
 
 **Sin cambios:**
+
 - Backend (endpoint `POST /eco/messages/:id/report` listo desde S10).
 - `@psico/types` (EcoMessageReportReason ya existía).
 - `@psico/api-client` (`reportMessage()` y `cursor` param ya existían).
 
 **Smoke verification:**
+
 - API tests 356/356.
 - @psico/crypto 34/34.
 - Web typecheck + lint OK · Mobile typecheck + lint OK.
 - OpenAPI in sync.
 
 **Deuda técnica abierta:**
+
 - Mobile pagination si threads crecen.
 - Edit/withdraw de un report.
 - UI tests con Vitest + RTL (sprint propio).
@@ -1566,6 +1679,7 @@ Backend del onboarding estaba vivo desde Sesión 16 (Sprint S4) con 11 endpoints
 **Decisión clave:** Backend ya tenía los 2 endpoints (`GET /api/onboarding/tour`, `POST /api/onboarding/tour/complete`) y el catálogo de steps desde Sesión 16. Sprint S37 monta los clientes web + mobile, cerrando `tourCompletedAt` que vivía en `null` en producción. Patrones añadido como 5° step (post-S35).
 
 **Decisiones:**
+
 1. Tour solo dispara con `completedAt && !tourCompletedAt`. Skip explícito del onboarding ⇒ no tour.
 2. `showTour` se decide server-side (en layout), no por componente — single source of truth.
 3. Persistencia vía `tourCompletedAt` en server, no localStorage — multi-device + analytics gratis.
@@ -1576,24 +1690,29 @@ Backend del onboarding estaba vivo desde Sesión 16 (Sprint S4) con 11 endpoints
 **Lo que se construyó:**
 
 **Backend:**
+
 - `apps/api/src/onboarding/constants.ts` — agregado step 5 `target: "patrones"`.
 
 **Web:**
+
 - `apps/web/src/app/dashboard/_TourOverlay.tsx` — Client Component (nuevo). Fetch del catálogo + DOM query + spotlight + coachmark + state machine de steps.
 - `apps/web/src/app/dashboard/_DashboardShell.tsx` — extendido con `tourTarget` por nav item + `data-tour-target` attribute + nueva prop `showTour`.
 - `apps/web/src/app/dashboard/layout.tsx` — computa `showTour` y lo pasa al shell.
 
 **Mobile:**
+
 - `apps/mobile/src/components/TourOverlay.tsx` — RN Modal con paridad de state machine.
 - `apps/mobile/app/(tabs)/_layout.tsx` — extrae `tourCompletedAt` de `/user/me` + monta `<TourOverlay>` post-Tabs.
 
 **Smoke verification:**
+
 - API tests 356/356.
 - @psico/crypto 34/34.
 - Web typecheck + lint OK · Mobile typecheck + lint OK.
 - OpenAPI in sync.
 
 **Deuda técnica abierta:**
+
 - Mobile no highlightea tabs (decisión de scope — agregar con Reanimated/expo-blur si UX lo pide).
 - Sin animación entre steps.
 - No vuelve a aparecer si user lo cierra (intencional, pero podría añadirse botón "Volver a ver el tour" en Seguridad).
@@ -1613,12 +1732,14 @@ Backend del onboarding estaba vivo desde Sesión 16 (Sprint S4) con 11 endpoints
 Reemplaza el `composeNarrative` rule-based del `PatronesService.regenerateWeeklySummary` con una llamada al LLM (Claude Sonnet 4.6 via `AIService`). El endpoint, request shape y response shape quedan idénticos — todo cambia bajo el capó.
 
 **Backend:**
+
 - `apps/api/src/ai/ai.service.ts` — nuevo `generateWeeklyNarrative(stats)` + `WEEKLY_SYSTEM_PROMPT` cacheable + parser `parseWeeklyOutput`.
 - `apps/api/src/patrones/patrones.module.ts` — importa `AIModule`.
 - `apps/api/src/patrones/patrones.service.ts` — inyecta AIService; nuevo `buildNarrative()` try LLM → catch fallback rule-based; helper `computeWeeklyStats()` module-level que centraliza el payload.
 - `findMany` extendido con `tags: true` (plaintext metadata).
 
 **Decisiones:**
+
 1. Sonnet 4.6 (no Haiku) — 1×/semana/user, costo despreciable, tono pesa más.
 2. Max tokens 512 + cache_control ephemeral en system prompt.
 3. Format estricto `HEADLINE:`/`NARRATIVE:` parseado deterministic.
@@ -1630,16 +1751,19 @@ Reemplaza el `composeNarrative` rule-based del `PatronesService.regenerateWeekly
 **Privacy hard:** el LLM **nunca** ve `textCiphertext`, body, o texto del diario. Solo metadata categórica (entryCount, dominantMood, moodCounts, topTags, weekStartIso). Test explícito enforces que las keys del payload son exactamente esas — sin `textCiphertext`, sin `body`.
 
 **Tests nuevos:**
+
 - "calls the LLM with aggregated stats and persists its output" + verificación de privacy keys.
 - "falls back to the rule-based composer when the LLM call throws" verifica que el headline contiene el mood dominante.
 
 **Smoke verification:**
+
 - API tests 358/358 (+1 skipped sentinel).
 - @psico/crypto 34/34.
 - API typecheck + lint OK (4 warnings preexistentes, sin errores nuevos).
 - OpenAPI in sync (no shape changes).
 
 **Deuda técnica abierta:**
+
 - Sin cap Redis-backed por user/día (justificable cuando costos lo pidan).
 - Sin telemetría en BillingUsageDay del LLM cost.
 - Sin A/B entre LLM vs rule-based (pinned para Pulso v2).
@@ -1659,11 +1783,13 @@ Reemplaza el `composeNarrative` rule-based del `PatronesService.regenerateWeekly
 Primera capa de tests UI para `apps/web`. Setup completo Vitest + RTL + jsdom + jest-dom + user-event en el workspace, más cobertura de 5 componentes críticos del producto Phase 1.
 
 **Setup:**
+
 - Dev deps: `vitest@^2`, `@vitejs/plugin-react@^4`, `@testing-library/react@^16`, `@testing-library/jest-dom@^6`, `@testing-library/user-event@^14`, `jsdom@^25`.
 - `vitest.config.ts` + `vitest.setup.ts` (jest-dom matchers + cleanup global).
 - Scripts: `test` (run once) + `test:watch`.
 
 **Tests creados:**
+
 - `UsageCards` — 6 tests: null state, 4 cards renderizadas, progress bar aria-label, over-quota highlight, `ilimitado`, `no incluido`.
 - `WeeklySummaryCard` — 4 tests: null state CTA, render con summary, 422 inline error, regenerate success.
 - `ReportMessageModal` — 5 tests: render, radio + counter, POST con shape correcto, error inline, Cancelar.
@@ -1671,6 +1797,7 @@ Primera capa de tests UI para `apps/web`. Setup completo Vitest + RTL + jsdom + 
 - `TourOverlay` — 5 tests: first step, advance, Terminar (stepsCompleted=N), Saltar (stepsCompleted=actual), empty catalog dismiss silencioso.
 
 **Decisiones:**
+
 1. Vitest sobre Jest — mismo runner que API/crypto, sin context switch.
 2. jsdom v25 sobre happy-dom — fricción default del ecosistema.
 3. `globals: true` para `describe/it/expect` sin imports.
@@ -1681,6 +1808,7 @@ Primera capa de tests UI para `apps/web`. Setup completo Vitest + RTL + jsdom + 
 8. Sin coverage thresholds — sprint para sembrar, no enforce.
 
 **Smoke verification:**
+
 - Web tests 24/24 en 1.35s.
 - Web typecheck + lint OK.
 - API tests 358/358 (sin cambios).
@@ -1688,6 +1816,7 @@ Primera capa de tests UI para `apps/web`. Setup completo Vitest + RTL + jsdom + 
 - OpenAPI in sync.
 
 **Deuda técnica abierta:**
+
 - Sin tests para Client Components grandes (LectorShell, ChatArea Eco, EcoShell).
 - Sin tests para hooks custom (use-heartbeat, useDiaryKey).
 - Sin coverage thresholds.
@@ -1708,6 +1837,7 @@ Primera capa de tests UI para `apps/web`. Setup completo Vitest + RTL + jsdom + 
 Cierra la simetría que faltaba después de S39 (web): setup completo Jest + jest-expo + RN Testing Library en `apps/mobile` + cobertura de 3 componentes presentacionales críticos paralelos a los del web.
 
 **Setup:**
+
 - Dev deps: `jest@^29.7.0`, `jest-expo@~52.0.6`, `@testing-library/react-native@^12.9.0`, `react-test-renderer@18.3.1`, `@types/jest`, `@types/react-test-renderer`.
 - `babel.config.js` con `babel-preset-expo` para Jest.
 - `jest.config.js` con preset `jest-expo`, `setupFilesAfterEnv`, testMatch, transformIgnorePatterns **pnpm-safe** (regex con `(.*/)?<pkg>` que matchea cualquier profundidad), moduleNameMapper `@/*`.
@@ -1715,11 +1845,13 @@ Cierra la simetría que faltaba después de S39 (web): setup completo Jest + jes
 - Scripts: `test` (`jest --passWithNoTests`) + `test:watch`.
 
 **Tests creados:**
+
 - `UsageCards mobile` — 6 tests: null state, 4 cards, ilimitado, no incluido, "de N", date range.
 - `InvoicesList mobile` — 5 tests: null return, empty state, render con invoices, `Linking.openURL` con spy, omite botón cuando pdfUrl es null.
 - `TourOverlay mobile` — 5 tests: first step, advance, Terminar con stepsCompleted=N, Saltar con index actual, empty catalog dismiss silencioso.
 
 **Decisiones:**
+
 1. Jest + jest-expo, no Vitest — RN babel preset no portable a Vitest.
 2. transformIgnorePatterns pnpm-safe — sin esto, Flow types de `@react-native/js-polyfills` rompen el parser.
 3. `babel.config.js` explícito — Jest no comparte el resolver de Metro.
@@ -1729,6 +1861,7 @@ Cierra la simetría que faltaba después de S39 (web): setup completo Jest + jes
 7. Sin tests de screens completos con `expo-router` — diferido a S41.
 
 **Smoke verification:**
+
 - Mobile tests 16/16 en 1.7s.
 - Mobile typecheck + lint OK.
 - Web tests 24/24 (sin cambios).
@@ -1736,6 +1869,7 @@ Cierra la simetría que faltaba después de S39 (web): setup completo Jest + jes
 - @psico/crypto 34/34.
 
 **Deuda técnica abierta:**
+
 - Sin tests para screens completos con `expo-router` (requieren harness con Stack/Tabs mocked).
 - Sin tests para `_layout.tsx` (useAuth + useDiaryKey context providers).
 - Sin coverage thresholds (sembramos infra; floor 60% en sprint propio).
@@ -1756,6 +1890,7 @@ Cierra la simetría que faltaba después de S39 (web): setup completo Jest + jes
 Hace visible en el GitHub Actions UI que cada workspace tiene su propia suite y status independientes. Añade coverage opt-in en web y mobile como infraestructura para floors futuros.
 
 **CI workflow:**
+
 - `.github/workflows/ci.yml` Test job reescrito — reemplaza el step monolítico `Test (affected)` con **4 steps named**:
   - `Test · API (Vitest + Nest unit)`
   - `Test · Crypto (Argon2id + AEAD roundtrip)`
@@ -1765,11 +1900,13 @@ Hace visible en el GitHub Actions UI que cada workspace tiene su propia suite y 
 - `--affected` removido del flow CI: la safety net (TODOS los workspaces SIEMPRE) vale más que ahorrar ~40s.
 
 **Coverage opt-in:**
+
 - Web: `apps/web/vitest.config.ts` con `test.coverage` provider `v8` + reporter `text`/`json-summary`. Script `test:cov`. Dev dep `@vitest/coverage-v8@^2`.
 - Mobile: `apps/mobile/jest.config.js` con `collectCoverageFrom: src/**/*.{ts,tsx}` + reporter `text`/`json-summary`. Script `test:cov`.
 - Ambos warn-only (sin thresholds). Smoke local OK: MoodHeatmap 100% · UsageCards 100% · WeeklySummaryCard 97.8% (web); UsageCards 100% · InvoicesList 100% · TourOverlay 100% (mobile).
 
 **Decisiones:**
+
 1. Split named en lugar de un step monolítico — un fallo no esconde el status de los demás.
 2. `turbo run test --filter` por workspace (no `pnpm --filter`) — preserva cache.
 3. Sin `--affected` en CI — la safety net vale los segundos.
@@ -1778,12 +1915,14 @@ Hace visible en el GitHub Actions UI que cada workspace tiene su propia suite y 
 6. No coverage en API ni crypto (tests sólidos ya, ROI bajo).
 
 **Smoke verification:**
+
 - API tests 358/358 + 1 skipped sentinel · @psico/crypto 34/34 · Web 24/24 · Mobile 16/16.
 - Web `test:cov` emite tabla con percentages por archivo.
 - Mobile `test:cov` emite tabla equivalente.
 - YAML válido (`python3 -c "import yaml; yaml.safe_load(...)"`).
 
 **Deuda técnica abierta:**
+
 - Coverage floors quedan en warn-only — activar `thresholds.lines: 60` cuando cobertura sea >60% en archivos cubiertos.
 - Coverage en API + crypto sin wireado — agregar si queremos dashboard global.
 - Coverage dashboard (Codecov / Artifact upload) no integrado — pendiente justificación.
@@ -1803,6 +1942,7 @@ Hace visible en el GitHub Actions UI que cada workspace tiene su propia suite y 
 Primera surface de **Pulso v2** — back-office para revisar reportes de mensajes de Eco. Design completo lista 6 vistas + 15 endpoints; este sprint shipea SOLO Reports inbox porque (a) la data ya se acumula sin surface, (b) tiene la privacy story más simple.
 
 **Backend:**
+
 - Nuevo `PulsoModule` con 2 endpoints ADMIN-only:
   - `GET /api/pulso/reports/eco/summary` — counts por reason (zero-fill).
   - `GET /api/pulso/reports/eco?reason=...&limit=...&cursor=...` — paginado, includes assistant snippet + threadId.
@@ -1811,11 +1951,13 @@ Primera surface de **Pulso v2** — back-office para revisar reportes de mensaje
 - 5 unit tests: summary zero-fill, summary aggregation, list shape sin ciphertext, pagination, reason filter.
 
 **Tipos + cliente:**
+
 - `@psico/types` +4 shapes (`PulsoReportReason`, `PulsoReportRow`, `PulsoReportListResponse`, `PulsoReportSummary`).
 - `@psico/api-client` `pulsoApi` con `getEcoSummary` + `listEcoReports`.
 - `generated.ts` 92.5 KB → 94.2 KB.
 
 **Web (`apps/web/src/app/dashboard/admin/reports/page.tsx`):**
+
 - Server Component con gate `if user.role !== ADMIN → redirect("/dashboard")`.
 - Pre-fetch summary + first page con `Promise.all`.
 - `ReasonChips` con counts + active state via querystring.
@@ -1823,12 +1965,14 @@ Primera surface de **Pulso v2** — back-office para revisar reportes de mensaje
 - Sidebar nav: `ADMIN_NAV_ITEMS` separado, renderizado solo cuando `user?.role === "ADMIN"` con eyebrow "Pulso · Admin".
 
 **Privacy hard:**
+
 - El response **no contiene** ningún ciphertext (USER messages siguen cifrados).
 - Solo expone assistant text (plaintext LLM output) trimmed a 240 chars.
 - Test explícito verifica `JSON.stringify(row)` NO contiene "textCiphertext"/"textNonce".
 - Admin ve userId + threadId truncados, sin email/PII.
 
 **Decisiones:**
+
 1. ADMIN-only (no PSYCHOLOGIST) — Pulso es operacional, no clínico.
 2. Cursor pagination (más robusto que offset cuando rows crecen rápido).
 3. Default limit 50, cap 100 — admin tooling.
@@ -1836,6 +1980,7 @@ Primera surface de **Pulso v2** — back-office para revisar reportes de mensaje
 5. Mobile out-of-scope — Pulso es desktop-only en v1.
 
 **Smoke verification:**
+
 - API tests 363/363 + 1 skipped sentinel.
 - @psico/crypto 34/34.
 - Typecheck + lint OK en API + Web.
@@ -1843,6 +1988,7 @@ Primera surface de **Pulso v2** — back-office para revisar reportes de mensaje
 - Boot del API muestra `/api/pulso/reports/eco/summary` y `/api/pulso/reports/eco` mapped.
 
 **Deuda técnica abierta:**
+
 - Resto de Pulso v2 (5 vistas adicionales) — diferido, requieren agregación nocturna.
 - Sin filtros por rango de fecha en list.
 - Sin "marcar como revisado" — añadir `status` field cuando volumen lo justifique.
@@ -1861,27 +2007,32 @@ Primera surface de **Pulso v2** — back-office para revisar reportes de mensaje
 **Scope re-evaluado:** sprint planificado con (a) push infra + (b) WeeklyDigest + (c) InactiveNudge. Scope final: solo (a) — los processors requieren cron orchestration en worker.ts + BullMQ delayed jobs + email templates, eso se merece sprint propio (S44). S43 cierra **todo el plumbing**; los processors aterrizan en S44 con la infra ya cocinada.
 
 **Schema:**
+
 - Enum `DevicePlatform { EXPO, WEB }`.
 - Model `DeviceToken { id, userId, platform, token @unique, deviceLabel?, createdAt, lastSeenAt }`.
 - `User.deviceTokens DeviceToken[]` + `User.lastNudgedAt DateTime?` (para S44).
 - Migración aditiva `20260605200000_s43_device_tokens`.
 
 **Backend:**
+
 - `push.service.ts` — plain fetch sobre Expo Push API (sin `expo-server-sdk`). Retorna `PushReceipt[]` con `invalidToken` flag para self-cleaning de DeviceNotRegistered.
 - `devices.controller.ts` — `POST /api/notifications/devices` (upsert idempotente) + `DELETE /api/notifications/devices/:id`.
 - NotificationsModule extendido. 7 unit tests.
 
 **Mobile:**
+
 - Deps: `expo-notifications` + `expo-device`.
 - `push-registration.ts` con permission flow + token + POST.
 - `pushIdStore` en SecureStore.
 - `AuthContext`: `useEffect([user])` registra; logout revoca.
 
 **Tipos + cliente:**
+
 - 3 shapes nuevos, `notificationsApi` cliente.
 - `generated.ts` 94.2 → 96.1 KB.
 
 **Decisiones:**
+
 1. Plain fetch sobre expo-server-sdk — ~400KB ahorrados.
 2. `invalidToken` en receipt para self-cleaning.
 3. Upsert por `@unique(token)` — idempotent + account-switch safe.
@@ -1891,9 +2042,11 @@ Primera surface de **Pulso v2** — back-office para revisar reportes de mensaje
 7. `lastNudgedAt` declarado pre-S44 (evita 2 migrations).
 
 **Smoke verification:**
+
 - API tests 370/371. API + Web + Mobile typecheck + lint OK. OpenAPI in sync.
 
 **Deuda técnica abierta:**
+
 - **S44** — WeeklyDigestProcessor + InactiveNudgeProcessor.
 - Sin UI de opt-in/out.
 - Sin Expo receipts poller.
@@ -1918,6 +2071,7 @@ Cierra la deuda de S43 — entrega los dos processors prometidos sobre la infra 
 - **2 crons** en `JobsService.onModuleInit` con retry policy.
 
 **Decisiones:**
+
 1. UTC en todos los crons — timezone-aware diferido hasta tener base que lo justifique.
 2. Digest = email + push; Nudge = push solo.
 3. `weeklyReport` controla email; `dailyReminder` gates push (flags independientes).
@@ -1929,11 +2083,13 @@ Cierra la deuda de S43 — entrega los dos processors prometidos sobre la infra 
 9. `patronesUrl` hardcoded a Vercel URL (refactor cuando lleguen custom domains).
 
 **Smoke verification:**
+
 - API tests 383/384.
 - API typecheck + lint OK (4 warnings preexistentes).
 - OpenAPI in sync (sin cambios al wire).
 
 **Deuda técnica abierta:**
+
 - Timezone-aware schedules (multi-fanout per-tz).
 - Sin UI de opt-in/out en Settings.
 - Sin Resend opens tracking ni Expo receipt poller.
@@ -1953,14 +2109,17 @@ Cierra la deuda de S43 — entrega los dos processors prometidos sobre la infra 
 Cierra la **UX gap** que S43+S44 abrieron — el user ya tiene controles para opt-in/out de cada tipo de notification + wire del WeeklySummary (S38) dentro del digest email (cierra deuda S44).
 
 **Cliente:**
+
 - Nuevo `@psico/api-client/users.ts` con `usersApi.getMe()` + `usersApi.updateNotifications()`.
 
 **Backend (sin tocar endpoints):**
+
 - `weekly-digest.template.ts` extendido con `narrative?: { headline, body }` block lavender ABOVE stats.
 - `WeeklyDigestProcessor` ahora `findUnique` sobre `weeklySummary(userId, weekStart)` y pasa al template si existe.
 - +1 test verifica wire + privacy.
 
 **Web (`/dashboard/notifications`):**
+
 - Server Component pre-fetcha `/user/me`.
 - `NotificationsForm` Client Component con 5 toggles + reminderTime input.
 - Server action `updateNotificationsAction` con `revalidatePath`.
@@ -1968,11 +2127,13 @@ Cierra la **UX gap** que S43+S44 abrieron — el user ya tiene controles para op
 - Sidebar item "🔔 Notificaciones".
 
 **Mobile (`/(tabs)/notifications`):**
+
 - Switch nativos + TextInput para reminderTime + optimistic save.
 - Shortcut card "Notificaciones" en profile screen antes de Seguridad.
 - Registered con `href: null` (deep-link only desde Perfil).
 
 **Decisiones:**
+
 1. Optimistic UI sin botón Save — toggle = save inmediato.
 2. Flash "Guardado" 2.5-3s.
 3. Errores inline globales (no per-row).
@@ -1981,11 +2142,13 @@ Cierra la **UX gap** que S43+S44 abrieron — el user ya tiene controles para op
 6. No tocar backend — endpoint `PATCH /api/user/notifications` existía desde S9.
 
 **Smoke verification:**
+
 - API tests 384/385.
 - Typecheck + lint OK en API + Web + Mobile.
 - OpenAPI in sync.
 
 **Deuda técnica abierta:**
+
 - Sin tests UI para los componentes settings.
 - `reminderTime` no aplica timezone (conecta cuando S44 deuda TZ aterrice).
 - Sin "Enviar email de prueba".
@@ -2005,6 +2168,7 @@ Cierra la **UX gap** que S43+S44 abrieron — el user ya tiene controles para op
 Hasta S45, el flujo era: S38 genera narrative LLM al click, S44 manda digest lunes 07:00 UTC, S45 lee `WeeklySummary` SI existe. La fila casi nunca existía → digest casi nunca incluía editorial. S46 lo cierra con un cron que pre-genera la fila los domingos 23:00 UTC para que cuando el digest del lunes la busque, la encuentre.
 
 **Backend:**
+
 - `QueueName.WEEKLY_SUMMARY_GENERATION` + payload + `RUN_WEEKLY_SUMMARY_GENERATION` job name en `queue-names.ts`.
 - `JobsService.onModuleInit` registra cron `0 23 * * 0 UTC` (Sunday 23:00 UTC). Retry 3/exp 5min/25min/2h.
 - `JobsModule.registerQueue` + `WorkerAppModule.registerQueue` extendidos.
@@ -2016,6 +2180,7 @@ Hasta S45, el flujo era: S38 genera narrative LLM al click, S44 manda digest lun
 - `dryRun=true` short-circuita los LLM calls (útil ops cuando Anthropic spend está near-cap).
 
 **Decisiones:**
+
 1. Domingo 23:00 UTC (no viernes) — cubre semana completa Mon→Sun ISO + 8h buffer antes del digest lunes 07:00.
 2. Reusar `PatronesService.regenerateWeeklySummary` en lugar de duplicar — processor solo es fan-out + error isolation.
 3. Candidate set: Pro+ con `weeklyReport=true` — FREE devuelve 403, weeklyReport=false el digest skipea de todas formas.
@@ -2024,19 +2189,23 @@ Hasta S45, el flujo era: S38 genera narrative LLM al click, S44 manda digest lun
 6. Worker importa PatronesModule — Anthropic SDK boota en worker; si key falta, fallback rule-based per user.
 
 **Tests (+8):**
+
 - `weekly-summary.processor.spec.ts` — 7 tests: unknown job, where-clause shape + per-user calls, NOT_ENOUGH_ENTRIES swallowed, ForbiddenException swallowed, arbitrary error swallowed, dryRun, empty candidates.
 - `jobs.service.spec.ts` — +1 test asserts cron `weekly-summary-sunday-23-utc` + pattern `0 23 * * 0` + job name + retry policy. Constructor del spec actualizado a 7 args.
 
 **Sin cambios:**
+
 - Schema, migración, tipos compartidos, OpenAPI surface (cron interno).
 - UI (botón manual "Regenerar" sigue ahí para casos antes del cron).
 
 **Privacy invariant preservado:**
+
 - ADR 0007 intacto. `computeWeeklyStats` opera solo sobre `mood` + `tags` + `createdAt`.
 - LLM recibe `{ entryCount, dominantMood, moodCounts, topTags, weekStartIso }` — nunca body, nunca cipher.
 - Processor S46 delega 100% al `PatronesService` que ya tiene el invariant cubierto.
 
 **Deuda técnica abierta:**
+
 - Timezone-aware scheduling (S44 deuda sigue abierta).
 - Sin telemetría LLM cost en `BillingUsageDay`.
 - Sin alerting si el worker está caído un domingo.
@@ -2056,6 +2225,7 @@ Hasta S45, el flujo era: S38 genera narrative LLM al click, S44 manda digest lun
 Cierra la simetría mobile/web del push. Mobile tenía push real desde S43; web se quedaba sin notifications fuera del email. Después de este sprint, ambos transports están en producción detrás de la misma interfaz.
 
 **Backend:**
+
 - `web-push@^3.6.7` + `@types/web-push` deps.
 - Script `pnpm --filter @psico/api gen:vapid` — one-shot para generar el VAPID keypair y los 3 envs a stdout.
 - `envSchema` extendido con `VAPID_PUBLIC_KEY` + `VAPID_PRIVATE_KEY` + `VAPID_SUBJECT` (todos opcionales — half-set state rejected por `superRefine`).
@@ -2069,12 +2239,14 @@ Cierra la simetría mobile/web del push. Mobile tenía push real desde S43; web 
   - `parseWebToken()` exportado para tests.
 
 **Web:**
+
 - `apps/web/public/sw.js` — service worker mínimo (push + notificationclick). Sin caching de assets — feature dedicado.
 - `apps/web/src/lib/web-push.ts` — `detectWebPushSupport`, `urlBase64ToUint8Array`, `subscribeWebPush(apiBase, accessToken)`, `unsubscribeWebPush(...)`.
 - `apps/web/src/components/dashboard/notifications/WebPushToggle.tsx` — Client Component con state machine de 7 phases (loading/unsupported/blocked/off/on/submitting/error). Auth via `apiBase + accessToken` props (patrón EcoShell).
 - `/dashboard/notifications` ahora renderiza `<WebPushToggle>` ARRIBA del form.
 
 **Decisiones clave:**
+
 1. `web-push` lib oficial sobre custom JWT/AES-GCM — implementar a mano son ~500 líneas cripto delicado.
 2. Token shape `web:<JSON>` para reusar la columna `DeviceToken.token` existente.
 3. VAPID env trio: tolerate "todos vacíos" (web push disabled), reject half-set.
@@ -2085,16 +2257,19 @@ Cierra la simetría mobile/web del push. Mobile tenía push real desde S43; web 
 8. `BufferSource` cast manual para satisfacer TS lib.dom — documentado en línea.
 
 **Tests (+8 API):**
+
 - `push.service.spec.ts` extendido: constructor a 1 arg (ConfigService mock), `vi.mock("web-push")` con hoisted spies.
 - 5 tests nuevos: web sin VAPID, web envía + receipt ok, web 410 → invalidToken, web malformado → invalidToken, orden preservado en mixed batch.
 - 4 tests para `parseWebToken`.
 
 **Privacy / security:**
+
 - VAPID private key vive solo en Railway env (API + worker). Nunca en git, nunca en Vercel.
 - Web Push payloads se cifran in-transit (ECDH + AES-GCM) — push services intermedios no ven title/body. Solo el browser con la subscription key descifra.
 - DiaryEntry ciphertext sigue sin entrar en notifications (ADR 0007 intacto).
 
 **Deuda técnica abierta:**
+
 - Generar VAPID en prod (`pnpm gen:vapid`) y configurar Railway (API + worker) + Vercel (`NEXT_PUBLIC_VAPID_PUBLIC_KEY`). Sin esto el toggle muestra "Falta configurar VAPID".
 - Sin tests del SW — requiere Playwright E2E con push test endpoint.
 - No re-prompt programático tras `denied` (limitación del spec del browser).
@@ -2115,6 +2290,7 @@ Cierra la simetría mobile/web del push. Mobile tenía push real desde S43; web 
 Segunda surface de Pulso v2 después del reports inbox (S42). Admin tiene ahora un dashboard de "cómo va la plataforma" en una sola pantalla con KPIs agrupados en 4 secciones: Users · Engagement · Content · Business.
 
 **Backend:**
+
 - `@psico/types`: 6 nuevos shapes (`PulsoOverviewResponse` + 4 blocks + `PulsoOverviewPeriod`).
 - `PulsoService.getOverview()` agregado al servicio existente. Cache Redis 5min (key global `pulso:overview`).
 - 4 bloques en el response:
@@ -2129,11 +2305,13 @@ Segunda surface de Pulso v2 después del reports inbox (S42). Admin tiene ahora 
 **Cliente:** `pulsoApi.getOverview()`. OpenAPI regenerado.
 
 **Web:**
+
 - `KpiCard.tsx` componente compacto (label/value/helper/accent — danger/warning/success).
 - `/dashboard/admin/overview/page.tsx` Server Component con grid de KPIs. ADMIN gate doble (backend + frontend redirect). `accent="danger"` para crisis count cuando > 0.
 - Sidebar nav: "📊 Pulso · Overview" ARRIBA de "📋 Pulso · Reports".
 
 **Decisiones clave:**
+
 1. Rolling windows (24h/7d/30d) — no calendar boundaries.
 2. Sin sparklines v1 — `recharts` no justificable para 2-3 curvas.
 3. Cache Redis 5min single global key.
@@ -2145,10 +2323,12 @@ Segunda surface de Pulso v2 después del reports inbox (S42). Admin tiene ahora 
 **Tests (+4):** zero state · aggregation · cache hit · privacy invariant.
 
 **Privacy preservada:**
+
 - Response NUNCA contiene `userId`/`email`/IP/snippet.
 - ADMIN-only doble gate: backend `RolesGuard + @RequiredRole("ADMIN")` + frontend redirect.
 
 **Deuda técnica abierta:**
+
 - Sin time series / sparklines — sprint propio cuando exista tabla `PlatformMetricDaily`.
 - DAU/WAU/MAU via Set en aplicación — escalable hasta ~100k MAU.
 - Sin "vs período anterior" delta.
@@ -2169,11 +2349,13 @@ Segunda surface de Pulso v2 después del reports inbox (S42). Admin tiene ahora 
 Cierra el loop de admin operations sobre Pulso v2. Después de S42 (inbox) y S48 (overview), el admin podía VER reports pero no MARCAR nada. S49 entrega resolución idempotente + tabs de filtro + UI inline + cache invalidation.
 
 **Schema (`EcoMessageReport`):**
+
 - 3 columnas nuevas: `resolvedAt DateTime?`, `resolvedBy String?`, `resolutionNote String?`.
 - Índice compuesto `@@index([resolvedAt, createdAt])` para que el count del backlog (S48) se mantenga barato.
 - Migración aditiva `20260606000000_s49_report_resolution`. Rows existentes son implícitamente "open".
 
 **Backend:**
+
 - `markResolved(reportId, adminUserId, note?)` — idempotente (re-resolving sobreescribe). Throws `NotFoundException("REPORT_NOT_FOUND")` si no existe. Busta cache `pulso:overview`.
 - `markUnresolved(reportId)` — symmetric inverse, limpia los 3 campos.
 - `listEcoReports({ ..., status })` con default `open`. `statusWhereClause` helper module-level.
@@ -2182,12 +2364,14 @@ Cierra el loop de admin operations sobre Pulso v2. Después de S42 (inbox) y S48
 - Bug-fix de paso: `readingSession` usaba `updatedAt` (no existe) — corregido a `lastSeenAt`.
 
 **2 endpoints nuevos** bajo `/api/pulso/reports/eco/:id/`:
+
 - `POST /resolve` (idempotente)
 - `POST /unresolve`
 
 ADMIN-only doble gate (heredado del controller).
 
 **Tipos compartidos:**
+
 - `PulsoReportRow` extendido con resolución.
 - `PulsoReportStatus = "open" | "resolved" | "all"`.
 - `PulsoMarkResolvedRequest { note?: string }`.
@@ -2195,6 +2379,7 @@ ADMIN-only doble gate (heredado del controller).
 **Cliente:** `pulsoApi.markResolved(id, body)` y `markUnresolved(id)`. `listEcoReports` con propagación de status.
 
 **Web:**
+
 - Server actions `markReportResolvedAction` y `markReportUnresolvedAction` con `revalidatePath` de reports + overview.
 - `StatusTabs.tsx` zero-JS tab strip (`<Link>` × 3).
 - `ResolveRowActions.tsx` Client Component con state machine: composer de nota opcional + botón "Marcar resuelto" / "Reabrir" + optimistic `useTransition` + inline error.
@@ -2202,6 +2387,7 @@ ADMIN-only doble gate (heredado del controller).
 - `/dashboard/admin/reports/page.tsx` parsea `?status=…`, fetcha con filtro, renderiza `<StatusTabs>`.
 
 **Decisiones clave:**
+
 1. Resolución idempotente, no transición de estado — re-marking sobreescribe.
 2. Default `status=open` en list + summary. Admin landea en inbox accionable.
 3. `statusWhereClause` helper module-level → spread-able sin nullish checks.
@@ -2213,11 +2399,13 @@ ADMIN-only doble gate (heredado del controller).
 **Tests (+7):** backlog narrow · markResolved happy · markResolved 404 · markUnresolved · status filter open/resolved/all.
 
 **Privacy preservada:**
+
 - Doble gate ADMIN backend + frontend.
 - `resolutionNote` es texto admin-side; no toca cripto del Diario.
 - Privacy invariant del Overview NO afectado.
 
 **Deuda técnica abierta:**
+
 - Sin tests UI dedicados para ResolveRowActions / StatusTabs.
 - `resolvedBy` no se renderiza en UI (falta join al User).
 - Sin auditoría de cambios (admin A → B → A perdemos el historial).
@@ -2238,10 +2426,12 @@ ADMIN-only doble gate (heredado del controller).
 Cierra la deuda más visible de S48 ("sin time series / sparklines" + "sin vs período anterior delta"). Entrega tabla materializada de snapshots diarios + cron nightly + extensión del Overview.
 
 **Schema (`PlatformMetricDaily`):**
+
 - Row per UTC day. PK `day`. 11 columns: users (total/new/paid), engagement (dau), content (diary/eco/ecoCrisis/voice/reading), pulso ops (reportsOpened/reportsResolved).
 - Migración aditiva — tabla empieza vacía; el cron la llena desde mañana.
 
 **Backend:**
+
 - `QueueName.PLATFORM_SNAPSHOT` + `RUN_PLATFORM_SNAPSHOT` + payload.
 - `JobsService.onModuleInit` registra cron `30 2 * * *` UTC.
 - `PlatformSnapshotProcessor` — resuelve "yesterday in UTC" (override via `targetDay`), computa 4 bloques en paralelo, upserts en `day` PK. `dryRun: true` no escribe.
@@ -2249,17 +2439,20 @@ Cierra la deuda más visible de S48 ("sin time series / sparklines" + "sin vs pe
 - `getOverview` response extiende con `series` + `deltas`. Cache 5min hereda.
 
 **Tipos compartidos:**
+
 - `PulsoOverviewSeries` (7 metrics × number[]).
 - `PulsoOverviewDeltas` (5 metrics × number | null).
 - `PulsoOverviewResponse` extendido (backward-compat).
 
 **Web:**
+
 - `Sparkline.tsx` — inline SVG polyline + opcional fill, sin libs externas.
 - `DeltaBadge.tsx` — chip ↑/↓% con color sage/rose. `inverted` flag para métricas tipo "más = peor".
 - `KpiCard.tsx` extendido con props opcionales `series?`, `delta?`, `deltaInverted?`. Backward-compat.
 - `/dashboard/admin/overview` — 6 sparklines + 5 deltas wired.
 
 **Decisiones clave:**
+
 1. Tabla separada de `BillingUsageDay` (platform-wide vs per-user, DAU no es suma).
 2. Snapshot de "ayer" no "hoy" — closed window, idempotente.
 3. Cron 02:30 UTC — justo después del billing rollup.
@@ -2274,11 +2467,13 @@ Cierra la deuda más visible de S48 ("sin time series / sparklines" + "sin vs pe
 **Tests (+11):** processor (6) + series/deltas (4) + cron registration (1).
 
 **Privacy preservada:**
+
 - `PlatformMetricDaily` columns son integer+float counts only.
 - DAU dedupe vía `Set<userId>` en RAM, IDs nunca llegan a la columna.
 - ADMIN-only doble gate intacto.
 
 **Deuda técnica abierta:**
+
 - Backfill histórico (script ops). Cron natural cierra el gap en 1 semana.
 - Sin window selector. 30 es default duro.
 - `paidUsers` sin delta (acumulativo).
@@ -2298,11 +2493,13 @@ Cierra la deuda más visible de S48 ("sin time series / sparklines" + "sin vs pe
 Cierra el loop analítico de Pulso v2 con la métrica clásica SaaS: retention curves por cohort de signup. Después de Overview, Reports y time series, el admin tiene respondida la pregunta "¿se queda la gente que entra?" en un heatmap clásico SaaS.
 
 **Schema (`CohortRetentionWeek`):**
+
 - PK compuesta `(cohortWeek, weekOffset)`. Columns: cohortSize, activeUsers, generatedAt, updatedAt.
 - Índice descendente sobre `cohortWeek`.
 - Migración aditiva — tabla empieza vacía; el cron la llena el primer lunes post-deploy.
 
 **Backend:**
+
 - `QueueName.COHORT_RETENTION` + payload + `RUN_COHORT_RETENTION` job name.
 - `JobsService.onModuleInit` registra cron `0 3 * * 1 UTC` (Lunes 03:00 — justo después del platform snapshot 02:30).
 - `CohortRetentionProcessor`:
@@ -2319,11 +2516,13 @@ Cierra el loop analítico de Pulso v2 con la métrica clásica SaaS: retention c
 **Cliente:** `pulsoApi.getCohorts()`. OpenAPI regenerado.
 
 **Web:**
+
 - `CohortHeatmap.tsx` — tabla HTML triangular con HSL gradient lavender. Sticky left column. Empty-state copy claro.
 - `/dashboard/admin/cohorts/page.tsx` Server Component con ADMIN doble gate.
 - Sidebar: `📐 Pulso · Cohorts` como 3a entrada admin.
 
 **Decisiones clave:**
+
 1. Tabla materializada con PK compuesta — triangle O(N²) precomputed.
 2. Weekly cron — cohorts son week-anchored.
 3. Activity definition reusada de S50 (consistency).
@@ -2335,16 +2534,19 @@ Cierra el loop analítico de Pulso v2 con la métrica clásica SaaS: retention c
 9. **Privacy invariant FUERTE**: tabla solo integer counts; userId-sets en RAM se descartan antes del upsert.
 
 **Tests (+11):**
+
 - `cohort-retention.processor.spec.ts` (6): unknown job, no users, single cohort, dryRun, intersection guard, triangle math.
 - `pulso.service.spec.ts` (4): empty, group + precompute pct, divide-by-zero, cache hit.
 - `jobs.service.spec.ts` (1): cron registration.
 
 **Privacy preservada:**
+
 - `CohortRetentionWeek` columns son integer counts only.
 - Processor maneja `Set<userId>` en RAM; IDs nunca llegan a Postgres.
 - ADMIN-only doble gate.
 
 **Deuda técnica abierta:**
+
 - Cron primer-run vacío hasta el lunes post-deploy.
 - Sin cell hover drill-down.
 - Sin filtros (date range, cohort size threshold).
@@ -2364,6 +2566,7 @@ Cierra el loop analítico de Pulso v2 con la métrica clásica SaaS: retention c
 **Lo que se construyó (deuda acumulada que la auditoría destapó):**
 
 Una auditoría sistemática del estado del proyecto reveló:
+
 - **18 changesets pendientes sin consumir** desde S34 (último publish 2026-06-03).
 - **2 ADRs faltantes** del Plan v2: 0011 (multi-rol) y 0013 (OpenAPI as source of truth).
 - **`@psico/crypto` sin CHANGELOG.md.**
@@ -2371,13 +2574,16 @@ Una auditoría sistemática del estado del proyecto reveló:
 S52 cierra todo esto:
 
 **ADRs nuevos:**
+
 - `docs/adr/0011-multi-rol-sin-multi-tenant.md` — documenta el `User.role` enum (USER/AUTHOR/PSYCHOLOGIST/ADMIN) y justifica multi-rol sobre single tenant para evitar overhead de query scoping.
 - `docs/adr/0013-openapi-as-source-of-truth.md` — formaliza el pipeline `apps/api → openapi.json → generated.ts` que vive en código desde S12 + el CI `openapi-diff.yml` que enforce.
 
 **CHANGELOGs:**
+
 - `@psico/crypto` ahora tiene CHANGELOG.md con entrada inicial 0.1.0 documentando los primitives + sprints S21/S22/S23.
 
 **Changesets consolidados (5 nuevos):**
+
 - `sprint-s10-patrones.md` — S35 PatronesModule tipos.
 - `sprint-s42-pulso-reports.md` — S42 Pulso reports tipos.
 - `sprint-s43-notifications.md` — S43 push notifications tipos.
@@ -2385,6 +2591,7 @@ S52 cierra todo esto:
 - `sprint-s48-s51-pulso-v2.md` — bundle de S48+S49+S50+S51 Pulso v2 tipos.
 
 **Limpieza de changesets viejos:**
+
 - Removidas referencias a `@psico/web` y `@psico/mobile` (config ignora apps).
 - Eliminados 3 changesets que quedaron vacíos tras el strip.
 
@@ -2396,18 +2603,21 @@ S52 cierra todo esto:
 | `@psico/crypto` | 0.1.0 | **0.2.0** |
 
 **Decisiones de housekeeping:**
+
 1. Single version bump consolidado en lugar de 17 versiones intermedias — releases granulares se pueden hacer a partir de aquí.
 2. Changesets retroactivos descritos por sprint (no por commit individual) para mantener el CHANGELOG legible.
 3. Sin git tags por ahora — el repo no tiene historial de tags y agregarlos retroactivamente sería confuso. Cuando hagamos el próximo release significativo, etiquetar desde ahí.
 4. `@psico/web` y `@psico/mobile` siguen en el ignore — son apps internas, no se publican.
 
 **Smoke verification:**
+
 - API tests 433/434, web tests 24/24, crypto tests 34/34. Sin regresiones.
 - Typecheck verde en API + Web + Mobile + types + crypto + api-client.
 - Build de los 3 paquetes publishables OK.
 - OpenAPI `generate:check` in sync.
 
 **Cobertura post-S52 del proyecto:**
+
 - **12 de 13 áreas v1** del diseño implementadas (92 %).
 - **8 ADRs activos + 5 históricos = 13 total.** Solo 0012 (Video provider) queda pendiente para Terapia v2.
 - **39 bitácoras** docs/informes + 41 sesiones en CLAUDE.md (S1-S10 inline por convención).
@@ -2427,6 +2637,7 @@ S52 cierra todo esto:
 Desde Sprint S44 los crons (WeeklyDigest, InactiveNudge) aterrizaban a horas duras UTC. Los users en Ecuador recibían el digest semanal a las **2 am** local. S53 lo cierra.
 
 **Backend:**
+
 - Nuevo helper `apps/api/src/jobs/utils/timezone.ts` puro sobre `Intl.DateTimeFormat` (cero deps): `userLocalHour`, `userLocalWeekday`, `isUserLocalHour`, `isValidTimezone`.
 - Endpoint `PATCH /api/user/timezone` con `UpdateTimezoneDto`; valida IANA via constructor probe; 400 `INVALID_TIMEZONE` en garbage; idempotente (`Profile.upsert`).
 - `getMe` ahora expone `UserMeResponse.user.timezone` (desde `Profile.timezone`).
@@ -2444,6 +2655,7 @@ Desde Sprint S44 los crons (WeeklyDigest, InactiveNudge) aterrizaban a horas dur
 **Mobile:** `AuthContext.probeTimezone()` fire-and-forget. Disparado desde `login`, `register`, y el cold-start refresh path. RN Hermes soporta `Intl.DateTimeFormat` desde SDK 50.
 
 **Decisiones:**
+
 1. Hourly cron + per-user filter (no per-user cron jobs).
 2. `Intl.DateTimeFormat` puro — cero deps; Node 20 trae ICU completo.
 3. Fallback graceful a UTC para legacy.
@@ -2451,6 +2663,7 @@ Desde Sprint S44 los crons (WeeklyDigest, InactiveNudge) aterrizaban a horas dur
 5. `nowIso` en payload solo para tests deterministas.
 
 **Tests (+18):**
+
 - `timezone.spec.ts` (8): fallback UTC, IANA válidos, day-rollover Tokyo/Guayaquil, garbage handling.
 - `weekly-digest.processor.spec.ts` (4): Guayaquil-12UTC=07local, Guayaquil-07UTC skip, Tokyo Sun22UTC=Mon07JST, legacy null→UTC.
 - `inactive-nudge.processor.spec.ts` (3): Guayaquil-23UTC=18local, 18UTC=13local skip, legacy null→UTC.
@@ -2458,11 +2671,13 @@ Desde Sprint S44 los crons (WeeklyDigest, InactiveNudge) aterrizaban a horas dur
 - Helpers `jobOf` updated en ambos specs legacy con `nowIso` injection por default.
 
 **Bugs corregidos (4):**
+
 1. Test handler list desactualizada.
-2-3. Tests legacy fallaban porque `now = new Date()` no caía en Mon 07:00 / 18:00 UTC.
-4. `@ts-expect-error` sin descripción → eslint error.
+   2-3. Tests legacy fallaban porque `now = new Date()` no caía en Mon 07:00 / 18:00 UTC.
+2. `@ts-expect-error` sin descripción → eslint error.
 
 **Smoke verification:**
+
 - API tests 451/452 + crypto 34/34 + web 24/24 + mobile 16/16 (525/526 total).
 - Typecheck + lint OK en API + web + mobile.
 - OpenAPI generate:check OK.
@@ -2470,6 +2685,7 @@ Desde Sprint S44 los crons (WeeklyDigest, InactiveNudge) aterrizaban a horas dur
 **Privacy preservada:** `Profile.timezone` es plaintext (equivalente a `country` existente desde S15). ADR 0007 intacto.
 
 **Deuda técnica abierta:**
+
 - Settings UI explícito para fijar TZ manual.
 - Tests UI dedicados del `TimezoneSync` web.
 - DST transitions: cron hourly puede saltar/duplicar en spring-forward/fall-back. Mitigación: agregar `lastDigestSentAt` cuando duela.
@@ -2491,12 +2707,14 @@ Desde Sprint S44 los crons (WeeklyDigest, InactiveNudge) aterrizaban a horas dur
 - Wire web: `/dashboard/notifications/page.tsx`. Wire mobile: `(tabs)/notifications.tsx`.
 
 **Tests UI (+18):**
+
 - Web `TimezoneCard.test.tsx` (6) — null state, render, submit success, inline error, mismatch button branches.
 - Web `_TimezoneSync.test.tsx` (3) — fires on needsProbe, no-op false, one-shot useRef.
 - Web `WebPushToggle.test.tsx` (5) — unsupported, blocked, off, subscribe + flip, error VAPID.
 - Mobile `TimezoneCard.test.tsx` (4) — render, modal open, device row.
 
 **Decisiones:**
+
 1. Dos server actions (silent vs strict) — el strict throws para UI.
 2. Auto-submit en select change (sin botón Save).
 3. Fallback hardcoded de 22 TZs cuando `Intl.supportedValuesOf` no está.
@@ -2505,12 +2723,14 @@ Desde Sprint S44 los crons (WeeklyDigest, InactiveNudge) aterrizaban a horas dur
 6. Mobile test del "pick → commit" full flow saltado (jest-expo + Modal + FlatList frágil); cubierto por web test.
 
 **Bugs corregidos durante S54:**
+
 1. `useTransition` async no flusheaba en jsdom → refactor a useState plain.
 2. `navigator.serviceWorker` no en jsdom → `Object.defineProperty` stub.
 3. `Intl.DateTimeFormat` retorna TZ del host CI → spyOn pattern para pinear.
 4. Modal y FlatList no renderizan children en jest-expo → `jest.mock("react-native")` con stubs.
 
 **Smoke verification:**
+
 - API tests 451/452 (sin cambios).
 - @psico/crypto 34/34.
 - Web tests 38/38 (+14).
@@ -2520,6 +2740,7 @@ Desde Sprint S44 los crons (WeeklyDigest, InactiveNudge) aterrizaban a horas dur
 **Privacy preservada:** `Profile.timezone` plaintext (ADR 0007 intacto). `TimezoneCard` no toca cripto del Diario.
 
 **Deuda técnica abierta:**
+
 - Mobile test del commit completo (pick → press → onChanged) — diferido hasta RN 0.77+.
 - Botón "Reset to auto-detect" en TimezoneCard si UX lo pide.
 - WebPushToggle "unsubscribe" path no testeado.
@@ -2538,6 +2759,7 @@ Desde Sprint S44 los crons (WeeklyDigest, InactiveNudge) aterrizaban a horas dur
 Hasta hoy el lock-screen en iOS y los controles MediaSession en Android mostraban "Sin título" porque `expo-av` 15 no permite setear metadata dinámica desde JavaScript. Este sprint extiende `LectorAudioResponse` con `metadata: { title, subtitle, artist, artworkUrl }` para que (a) el audio bar renderee artwork + título en ambos clientes; (b) cuando ops embeba tags ID3v2/m4a al subir archivos (receta `ffmpeg` documentada en el nuevo `apps/api/src/lector/README.md`), el lock-screen leerá los tags del archivo directamente; (c) cuando llegue el día de migrar a `expo-audio` o `react-native-track-player`, el `LectorAudioMetadata` ya está en el contrato.
 
 **Backend:**
+
 - `LectorService.getAudio()` extiende la query de `book` con `title`, `cover`, `coverArtUrl`, `author: { name }`.
 - Return añade `metadata` con resolución de artwork: `book.coverArtUrl ?? book.cover ?? ""` (URL real PNG → token gradient).
 - `title` se compone server-side como `Cap. N · Título`.
@@ -2548,6 +2770,7 @@ Hasta hoy el lock-screen en iOS y los controles MediaSession en Android mostraba
 **Mobile:** mismo header en `LectorAudioBar.tsx`. `<Image>` con `uri` o `<View>` con `coverColor()` del helper de S5-front-mobile.
 
 **Decisiones:**
+
 1. Embed file-tags + API contract en mismo sprint (vs migrar a expo-audio — ~3-5 días).
 2. `title = "Cap. N · Título"` server-side (centraliza el formato).
 3. `artworkUrl` puede ser URL real o token de gradient (forward-compat con `coverArtUrl` cuando llegue Author B2B).
@@ -2556,11 +2779,13 @@ Hasta hoy el lock-screen en iOS y los controles MediaSession en Android mostraba
 **Cliente:** `generated.ts` regenerado (323 KB → 327 KB). `getAudio()` castea explícitamente a `LectorAudioResponse` así que la tipización fluye.
 
 **Smoke verification:**
+
 - API 654/655 + crypto 34/34 + web 122/122 + mobile 20/20.
 - typecheck + lint OK en los 3 workspaces.
 - OpenAPI `generate:check` in sync.
 
 **Deuda técnica abierta:**
+
 - Migrar a `expo-audio` o `react-native-track-player` para metadata dinámica desde JS.
 - Re-ejecutar embed ffmpeg para archivos m4a ya subidos a R2.
 - Sin validación cover ≤ 500×500 server-side (sprint Author B2B).
@@ -2579,6 +2804,7 @@ Hasta hoy el lock-screen en iOS y los controles MediaSession en Android mostraba
 Hasta hoy el AudioBar — web y mobile — no tenía tests propios, era el componente más complejo del Lector sin coverage. 22 tests nuevos cubriendo:
 
 **Web (`AudioBar.test.tsx`, 13 tests):**
+
 - Pill toggle: cerrada en mount sin fetch; primer fetch con Bearer al abrir.
 - Fetch state branches: 403 upsell Pro + link a `/dashboard/plan`; 404 not-found; network error + retry.
 - Metadata rendering: `<img>` cuando artworkUrl es URL; gradient `<div>` cuando es token; subtitle + artist; `<audio>` con URL signed.
@@ -2586,12 +2812,14 @@ Hasta hoy el AudioBar — web y mobile — no tenía tests propios, era el compo
 - Sleep timer (`vi.useFakeTimers`): Off activo por default; picar 15m arma countdown.
 
 **Mobile (`LectorAudioBar.test.tsx`, 9 tests):**
+
 - Mock de `expo-av` con `mock*` prefix (requisito del Jest hoister).
 - Pill toggle: sin llamadas en mount; `setAudioModeAsync` ANTES de `Sound.createAsync` (verifica orden de background-audio).
 - Fetch state branches: `{ statusCode: 403/404 }` + error genérico.
 - Metadata rendering: título + subtitle/artist; play button + 4 speed chips; Off + 1× como únicos selected.
 
 **Decisiones clave:**
+
 1. Mock `fetch` global (web) vs mock `lectorApi.getAudio` (mobile) — cada cliente consume su propia capa.
 2. `mock*` prefix en mobile (única forma de referenciar vars en factory de `jest.mock`).
 3. `MockInstance<typeof fetch>` (Vitest) en lugar de `ReturnType<typeof vi.spyOn>` (colapsa a `unknown`).
@@ -2599,11 +2827,13 @@ Hasta hoy el AudioBar — web y mobile — no tenía tests propios, era el compo
 5. Sleep chip "Off active" via filter sobre `getAllByRole("button")` con `accessibilityState.selected===true`.
 
 **Smoke verification:**
+
 - Web tests 135/135 (+13). Mobile tests 29/29 (+9).
 - Web typecheck + lint OK. Mobile typecheck + lint OK.
 - API + crypto sin cambios.
 
 **Deuda técnica abierta:**
+
 - Audio playback lifecycle (play/pause/onStatus) no cubierto — requiere mock de audio nativo.
 - Transcript sync no probado — depende de `currentTime` que avanza con audio real.
 - Speed `setRateAsync` mobile sin verificar `shouldCorrectPitch`.
@@ -2629,6 +2859,7 @@ Cierra la parte código de Sprint 1 del roadmap. Las tareas ops puras (Stripe pr
 4. **6 unit tests** del `IntegrationsService` cubriendo empty env, stubs, voice routing, bootIssues shape.
 
 **Decisiones:**
+
 1. Endpoint ADMIN-only (no público) — el shape revela qué integraciones espera el sistema.
 2. `stub` detection heurística por regex `/stub|test/i`.
 3. Sin breaking change al `/health` simple — los monitores externos siguen igual.
@@ -2636,6 +2867,7 @@ Cierra la parte código de Sprint 1 del roadmap. Las tareas ops puras (Stripe pr
 5. Banner silente en prod cuando OK — solo informa si hay issues.
 
 **Smoke verification:**
+
 - API tests 660/661 + crypto 34 + web 135 + mobile 29.
 - typecheck + lint OK.
 - Boot banner detecta 11 issues con env stubs reales.
@@ -2643,6 +2875,7 @@ Cierra la parte código de Sprint 1 del roadmap. Las tareas ops puras (Stripe pr
 - OpenAPI `generate:check` in sync.
 
 **Deuda ops (no código — usuario en Railway/Stripe):**
+
 - Stripe price IDs reales (Pro mensual, Pro anual, B2B).
 - API keys: Anthropic, OpenAI, Resend, Google Client ID, VAPID trio.
 - Embed real con ffmpeg + subir a R2 los 4 archivos m4a.
@@ -2665,6 +2898,7 @@ Wire de Sentry en los 4 surfaces para tener traza de bugs en prod sin recrear el
 4. **Mobile Expo** — `@sentry/react-native@^6`, init en `app/_layout.tsx` al module load. **attachScreenshot/attachViewHierarchy HARD-OFF** por la misma razón.
 
 **Decisiones clave:**
+
 1. `sentryEnabled` flag separado de `initialised` — distingue "init corrió como no-op (sin DSN)" de "init wired al SDK real".
 2. `beforeSend` scrubea `authorization`/`cookie`/`x-api-key`/`stripe-signature` — Sentry default solo cubre `authorization`.
 3. Session replay + screenshots HARD-OFF en cliente — defensive privacy contra plaintext del Diario.
@@ -2675,15 +2909,18 @@ Wire de Sentry en los 4 surfaces para tener traza de bugs en prod sin recrear el
 **7 tests nuevos** en `apps/api/src/observability/sentry.spec.ts`: empty DSN no-op, init con DSN, idempotencia, header scrubbing, `captureException` con/sin context, no-op cuando init nunca corrió.
 
 **Smoke verification:**
+
 - API tests 667/668 (+7) · crypto 34 · web 135 · mobile 29.
 - typecheck + lint OK en los 4 surfaces.
 
 **Qué queda para activar en prod (ops):**
+
 - Crear proyecto Sentry y obtener DSNs.
 - Configurar en Railway (API + worker), Vercel (web), EAS Build (mobile).
 - Validar con throw 500 controlado post-deploy.
 
 **Deuda técnica abierta:**
+
 - Source maps web no se suben (correr wizard cuando importe).
 - Mobile config plugin (`app.json`) no añadido — necesario antes de submit a App Store para dSYM/ProGuard.
 - BullMQ `worker.on("failed")` no wireado explícitamente.
@@ -2704,9 +2941,11 @@ Wire de Sentry en los 4 surfaces para tener traza de bugs en prod sin recrear el
 3. **Harness extendido** — `apps/api/src/test/e2e-app.ts` ahora incluye `diaryEntry` mock.
 
 **Bug descubierto:**
+
 - **Salt length DTO mismatch:** `password-change-with-rekey.dto.ts` valida `Length(24, 28)` para `newCryptoSalt`, pero `auth.service.ts` produce salts de 22 chars (16 bytes b64url). Cualquier rekey real falla con 400. Mitigado en el E2E con 18-byte salts. **Fix queda como sprint propio** porque cambia el comportamiento de cuentas legacy.
 
 **Decisiones:**
+
 1. E2E con Prisma mock — coherente con harness existente. La cripto es real; la cuenta cripto es lo que se garantiza.
 2. `AudioBar` mockeado — tiene su propio test desde el sprint anterior.
 3. IntersectionObserver stub global — jsdom no lo implementa.
@@ -2714,10 +2953,12 @@ Wire de Sentry en los 4 surfaces para tener traza de bugs en prod sin recrear el
 5. Text-selection flow NO cubierto — diferido a Sprint 4.
 
 **Smoke verification:**
+
 - API tests 668/669 + web 142/142 + crypto 34/34 + mobile 29/29.
 - typecheck + lint OK en API + Web.
 
 **Deuda técnica abierta:**
+
 - Salt length DTO mismatch — sprint propio para reconciliar.
 - Testcontainers para E2E API.
 - Text-selection en LectorShell test — Sprint 4.
@@ -2741,6 +2982,7 @@ Mobile lector tenía paridad funcional pendiente con web: read + annotations OK,
 3. **8 tests nuevos** del sheet: render, gating del destructive row, callbacks (3 colores + nota + quitar + cancel), `highlightStyleFor` retorna paleta correcta.
 
 **Decisiones:**
+
 1. Block-level v1 vs character-level — RN no tiene selection API first-party; libraries unmaintained para SDK 52.
 2. Tint del primer highlight (no merged) — design no define multi-color overlap.
 3. Optimistic UI con temp ID — feedback visual instantáneo + rollback al error.
@@ -2748,10 +2990,12 @@ Mobile lector tenía paridad funcional pendiente con web: read + annotations OK,
 5. Long-press substituye al prompt directo de annotation — gestures unificados.
 
 **Smoke verification:**
+
 - Mobile tests 37/37 + typecheck + lint OK.
 - API + web + crypto sin cambios.
 
 **Deuda técnica abierta:**
+
 - Character-level highlights — esperar RN 0.78+ con selection API.
 - Multi-color en mismo block — char-level lo resuelve naturalmente.
 - Sin test integrado del flow completo (long-press → sheet → POST).
@@ -2784,10 +3028,12 @@ Cierra deuda explícita del Sprint 3 (`sprint-e2e-rekey-lectorshell`): el DTO va
 3. `apps/api/src/users/dto/password-change-with-rekey.dto.spec.ts` (nuevo) — 6 tests del DTO cubriendo: acepta 22/24/28, rechaza 21/29, rechaza chars no-b64url.
 
 **Decisiones:**
+
 1. Fix solo el DTO, no cambiar auth.service. Razones: cuentas legacy ya tienen salts de 22 chars; no hay security benefit subir a 18 bytes (encima del floor de 128 bits); single-point fix.
 2. Mantener rango 22-28 — forward-compat con clientes futuros que generen salts ligeramente más grandes.
 
 **Smoke verification:**
+
 - API tests 674/675 + typecheck + lint OK.
 - E2E rekey corre con salts de 22 chars idénticos a auth real.
 
@@ -2801,6 +3047,7 @@ Cierra deuda explícita del Sprint 3 (`sprint-e2e-rekey-lectorshell`): el DTO va
 **Contexto:** el usuario probó el Mapa Emocional con 1 reflexión + 3 chats con Eco y obtuvo un radar casi todo al 50 % (dato fabricado). Pidió: cómo se mide, que el usuario vea cómo se llena + botón ⓘ, más completo (reflexiones + Eco + contenido), y respetando el cifrado E2E. Eligió la dirección **"Híbrido: on-device + checkins"**. Esta es la **Fase A** (honestidad + señales ricas + transparencia), sin tocar el cifrado.
 
 **Lo que se construyó:**
+
 - **Confianza por dimensión** — `EmotionalMapResult` extendido con `confidence`, `dimensions[]` y `coverage`. Ejes por debajo de `CONFIDENCE_FLOOR=0.15` muestran "Reuniendo datos" en vez de 50 % falso. `pct` promedia solo ejes cubiertos.
 - **Señales ricas** — `compute()` ahora lee Eco USER (+ días distintos), voz, highlights, annotations y sesiones completadas, además del diario. Conexión y Consciencia se encienden desde Eco aunque solo haya 1 reflexión.
 - **Transparencia** — web `MapInfoButton` (modal ⓘ con explicación por dimensión + garantía de privacidad), `MapStage` con banner "tu mapa se está formando" (`coverage<0.4`), `MapDims` con estado "Reuniendo datos" + `sources`. Mobile paridad completa (`app/(tabs)/mapa.tsx` con Modal RN).
@@ -2823,6 +3070,7 @@ Cierra deuda explícita del Sprint 3 (`sprint-e2e-rekey-lectorshell`): el DTO va
 **Contexto:** el usuario pidió, antes de seguir con mejoras del modelo, (a) un **roadmap por etapas** sólido y (b) un **banco de usuarios sintéticos** para simular "un usuario entra N días e interactúa así → esto le sale". Eligió **Etapa 0 (banco) primero, sabor offline**.
 
 **Lo que se construyó:**
+
 - **Refactor:** la matemática del scoring se extrajo de `EmotionalMapService.compute()` a una función pura `scoreEmotionalMap(input, provider)` en `apps/api/src/emotional-map/emotional-map.scoring.ts`. El servicio ahora solo hace fetch a Prisma (9 queries) y delega. **Comportamiento preservado** (service spec 11/11).
 - `benchmark/personas.ts` — 10 arquetipos (nuevo-3d … trimestre-disciplinado, volátil, recuperándose, declive, esporádico, casi-plano) + `buildPersonaInput()` determinista (seeded mulberry32, anclado a `NOW_REF`).
 - `benchmark/benchmark.spec.ts` — corre cada persona por el scoring REAL, imprime la tabla, y asserta comportamiento por persona (gathering vs active, confianza ↑ con historia, plano > volátil en estabilidad, cobertura ~ engagement). 5 tests.
@@ -2845,6 +3093,7 @@ Cierra deuda explícita del Sprint 3 (`sprint-e2e-rekey-lectorshell`): el DTO va
 **Contexto:** cierra el hallazgo de la Etapa 0 — el modelo v0 leía los saltos ordinales normales (±1 nivel) como volatilidad real, así que las personas estables leían 0% de Estabilidad.
 
 **Dos cambios (validados contra el banco):**
+
 1. **Estabilidad desde la dispersión estacionaria + piso de ruido de medición** (`ou.ts` `ouToAxes`). Ahora la estabilidad se calcula sobre `σ_stat = √(σ²/2θ)` (cuánto se aleja el ánimo de su base a largo plazo) menos un piso de ruido ordinal (`STABILITY_MEASUREMENT_SD=0.35`, `STABILITY_REF_SD=0.6`). Antes→después: dos-semanas 0%→**54%**, mes-constante 28%→**62%**, trimestre 0%→**64%**; volátil 0%→0% ✓ y casi-plano 100%→100% ✓ se preservan.
 2. **Gating por eje** (`scoring.ts` `computeAffectDynamics`). Tono base + Estabilidad desde ~8 registros (`MIN_OBS_FOR_FIT`); Recuperación + Inercia (derivadas de θ, sesgo severo en series cortas) gated a `RECOVERY_MIN_OBS=20`. Nuevo campo `EmotionalMapAffectDynamics.recoveryNeeded`. La UI (web `MapAffectDynamics` + mobile `mapa.tsx`) muestra "Reuniendo datos · ~N más" en vez de un número poco fiable.
 
@@ -2955,30 +3204,31 @@ Cierra deuda explícita del Sprint 3 (`sprint-e2e-rekey-lectorshell`): el DTO va
 
 Plan sólido, por etapas, cada una un PR aparte que se valida contra el banco de la Etapa 0.
 
-| Etapa | Qué | Estado |
-|---|---|---|
-| **0** | Banco de personas offline (cimiento de validación) | ✅ **HECHO** |
-| **1** | Ejes confiables primero — Tono base + Estabilidad desde ~8 registros; gate Recuperación/Inercia a 20. Estabilidad desde σ estacionaria + piso de ruido ordinal | ✅ **HECHO** |
-| **2** | Micro-checkins (Fase C) — 6 ítems adaptados de instrumentos validados (TMMS-24/SCS-SF/MAAS); Claridad/Compasión/Consciencia pasan a MEDIDOS; persona "checkin diario" en el banco | ✅ **HECHO** |
-| **3** | Intervalos ± (bootstrap) visibles en la UI — `bootstrapAxesCI` en espacio de ejes; chips "72% ±8" + nota en el footer; márgenes se encogen con la historia | ✅ **HECHO** |
+| Etapa | Qué                                                                                                                                                                                            | Estado       |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
+| **0** | Banco de personas offline (cimiento de validación)                                                                                                                                             | ✅ **HECHO** |
+| **1** | Ejes confiables primero — Tono base + Estabilidad desde ~8 registros; gate Recuperación/Inercia a 20. Estabilidad desde σ estacionaria + piso de ruido ordinal                                 | ✅ **HECHO** |
+| **2** | Micro-checkins (Fase C) — 6 ítems adaptados de instrumentos validados (TMMS-24/SCS-SF/MAAS); Claridad/Compasión/Consciencia pasan a MEDIDOS; persona "checkin diario" en el banco              | ✅ **HECHO** |
+| **3** | Intervalos ± (bootstrap) visibles en la UI — `bootstrapAxesCI` en espacio de ejes; chips "72% ±8" + nota en el footer; márgenes se encogen con la historia                                     | ✅ **HECHO** |
 | **4** | **Modelo v1 ordinal-latente con tendencia** — `x(t) = a + b·t + OU`; estabilidad sobre residuos detrendados, tono = nivel actual, `trend` up/down en el wire. Cierra el hallazgo de la Etapa 0 | ✅ **HECHO** |
-| **5** | EWS / resiliencia (critical slowing down) — detector calibrado (FP 6%, gate ≥60 obs) + nudge no-diagnóstico + E5/E6 del paper | ✅ **HECHO** |
-| **6** | Análisis on-device del texto (Fase B / Capa 8) — analizador ES compartido en @psico/types, 10 features numéricos, precedencia checkin > texto > LLM. Respeta E2E | ✅ **HECHO** |
-| **R** | Research: Bayesiano/partículas, DSEM/mlVAR networks, NSGA-II multiobjetivo, validación clínica | ⬜ paper |
+| **5** | EWS / resiliencia (critical slowing down) — detector calibrado (FP 6%, gate ≥60 obs) + nudge no-diagnóstico + E5/E6 del paper                                                                  | ✅ **HECHO** |
+| **6** | Análisis on-device del texto (Fase B / Capa 8) — analizador ES compartido en @psico/types, 10 features numéricos, precedencia checkin > texto > LLM. Respeta E2E                               | ✅ **HECHO** |
+| **R** | Research: Bayesiano/partículas, DSEM/mlVAR networks, NSGA-II multiobjetivo, validación clínica                                                                                                 | ⬜ paper     |
 
 **Banco end-to-end real** (inyectar personas en DB de prueba + llamar la API real) queda como siguiente sabor del banco cuando se justifique probar la fontanería completa.
 
 ---
 
-### Sesión — 2026-07-09 ✅ COMPLETADA — Sprint A · Ingesta de capítulos reales (Parte I de *Emociones en Construcción*)
+### Sesión — 2026-07-09 ✅ COMPLETADA — Sprint A · Ingesta de capítulos reales (Parte I de _Emociones en Construcción_)
 
 **Rama:** `feature/chapter-ingestion` · **PR #480** (develop) + sync a main
 **Bitácora:** [docs/informes/sprint-a-chapter-ingestion.md](docs/informes/sprint-a-chapter-ingestion.md)
 **Tests:** API 783/784 · Web 274 · Mobile 48 · typecheck ×3 + lints + privacy + OpenAPI verdes (sin tests nuevos — contenido + tooling).
 
-**Contexto:** para probar la app con un usuario real (entrar, leer, subrayar, anotar, conversar con Eco, ver cómo lo mide el Mapa) hacía falta texto de verdad. El usuario aportó los 3 primeros capítulos de *Emociones en Construcción* (Parte I) en prosa. Actividades y videos aún no existen como features → se colocan **mocks** para que esos bloques rendericen y el flujo se vea completo.
+**Contexto:** para probar la app con un usuario real (entrar, leer, subrayar, anotar, conversar con Eco, ver cómo lo mide el Mapa) hacía falta texto de verdad. El usuario aportó los 3 primeros capítulos de _Emociones en Construcción_ (Parte I) en prosa. Actividades y videos aún no existen como features → se colocan **mocks** para que esos bloques rendericen y el flujo se vea completo.
 
 **Lo que se construyó:**
+
 - **`apps/api/scripts/ingest-chapter-md.mjs`** — parser heurístico Markdown **o** prosa plana → `ChapterBlock`s. Primera línea = título; líneas cortas sin punto = headings; el resto = párrafos. Secciones "Actividades" → sus párrafos como `EXERCISE` + una card `✍️` mock. Inyecta una `PAUSE` de respiración ~45 % y una card `🎬 Video (próximamente)` antes de referencias. Repetible a nivel del contenido, pero **no** idempotente respecto a `blockId` y sus referencias: ejecuta `deleteMany` + `createMany`. Lee sidecars `titles.json` / `parts.json`.
 
   > **Corrección posterior (2026-08-05).** Esta entrada decía «⚠️ cascade sobre highlights/annotations». Era cierto cuando se escribió, y dejó de serlo con la migración `20260717000000_cc6c_stable_mark_storage`, que soltó ambas FK y las recreó:
@@ -2987,6 +3237,7 @@ Plan sólido, por etapas, cada una un PR aparte que se valida contra el banco de
   > - `ReadingSession.lastBlockId` no tiene FK, así que borrar un `ChapterBlock` lo deja **colgante**, apuntando a una fila que ya no existe.
   >
   > La conclusión operativa no cambia, pero el motivo sí: la reingesta destructiva `deleteMany`/`createMany` **sigue prohibida** en capítulos con actividad. Usar actualizaciones que preserven `blockId` y auditar las referencias antes de eliminar cualquier bloque. Verificado contra producción (`pg_constraint`), no solo contra el schema.
+
 - **`apps/api/content/emociones-en-construccion/`** — `capitulo-01/02/03.md` + `titles.json` (títulos canónicos) + `parts.json` (los 3 son Parte 1 "Deconstruyendo lo que sabíamos").
 
 **Bugs corregidos:** (1) título del Cap. 3 parseado como párrafo de 600 chars → `titles.json` + guard `takeTitle` (≤120 chars, sin punto final); (2) sección "Actividades" del Cap. 3 = 31 párrafos → parser mantiene prosa + una card mock, no fuerza todo a EXERCISE.
@@ -3001,9 +3252,10 @@ Plan sólido, por etapas, cada una un PR aparte que se valida contra el banco de
 **Bitácora:** [docs/informes/sprint-a2-book-parts.md](docs/informes/sprint-a2-book-parts.md)
 **Tests:** API 783/784 · Web 277 (+3 ChaptersList) · Mobile 48 · typecheck ×3 + lints + OpenAPI verdes.
 
-**Contexto:** *Emociones en Construcción* tiene 3 partes; los capítulos ingestados son la **Parte I**. El usuario pidió que la Parte I quede clara en la UI y que los 3 capítulos funcionen en **Modo Libro y Modo Guía**.
+**Contexto:** _Emociones en Construcción_ tiene 3 partes; los capítulos ingestados son la **Parte I**. El usuario pidió que la Parte I quede clara en la UI y que los 3 capítulos funcionen en **Modo Libro y Modo Guía**.
 
 **Lo que se construyó:**
+
 - **Schema:** `Chapter.partNumber Int?` + `Chapter.partTitle String?` (nullable → fallback a lista plana). Migración aditiva `20260710000000_chapter_part_grouping`. El script de ingesta ya los escribía desde `parts.json`.
 - **Backend:** `books.service.buildChaptersList` + `lector.service` devuelven part number/title; `@psico/types` extendido (cache-tolerant).
 - **Web:** `ChaptersList` reescrito con `groupByPart` (headings "PARTE I · …" o lista plana); `LectorShell` header con "· Parte I". +3 tests.
@@ -3025,6 +3277,7 @@ Plan sólido, por etapas, cada una un PR aparte que se valida contra el banco de
 **Contexto:** con los capítulos ya legibles, cerrar el bucle de acompañamiento — que Eco aparezca al abrir un capítulo sugiriendo un tema, y que al subrayar se pueda saltar a profundizar con el pasaje pre-cargado. El resto (sugerencias adaptativas, nudges post-ejercicio) a backlog. Para los prompts de capítulo el usuario eligió **"Yo las genero"** (las redactó el asistente).
 
 **Lo que se construyó:**
+
 - **`EcoTopicCard`** (web + mobile) — tarjeta descartable al inicio del capítulo con un abre-conversación curado. Prompts en `ECO_CHAPTER_PROMPTS` (`@psico/types/eco-chapter-prompts.ts`) por `(bookSlug, chapterOrder)` + fallback por título. Los 3 capítulos de la Parte I tienen tema propio (el título de la tarjeta es el tema de conversación, distinto del título del capítulo).
 - **Subrayar → profundizar:** web `HighlightPopover` gana botón "🌿 Eco"; mobile `BlockActionsSheet` gana fila "🌿 Conversar con Eco". Ambos arman el prompt del pasaje y navegan a Eco.
 - **Handoff lector → Eco:** web `sessionStorage` (per-tab, consumido una vez al montar → siembra el composer vía `seededRef`); mobile singleton en RAM consumido en `useFocusEffect` (el seed sobrevive el unlock gate). Cargan `source: { bookSlug, chapterOrder, kind }`.
@@ -3046,6 +3299,7 @@ Plan sólido, por etapas, cada una un PR aparte que se valida contra el banco de
 **Contexto:** el subrayar→Eco del Sprint B **navegaba** a `/dashboard/eco` y el lector perdía su lugar. El usuario pidió (a) un texto claro «Pregúntale a Eco» en vez de solo un ícono, (b) una ventana lateral tipo Copilot de GitHub que se abra sin salir del lector, (c) distinguir **notas** (apunte sobre el texto) de **reflexiones** (escritura sobre ti). Eligió **Dock completo (3 pestañas: Eco/Notas/Reflexión)** + **Modo Guía como está**.
 
 **Lo que se construyó:**
+
 - **Panel compañero** — web = drawer derecho (`ReaderCompanionDock`), mobile = bottom sheet (`ReaderCompanionSheet`), ambos con 3 pestañas 🌿 Eco · ✎ Notas · 🪷 Reflexión. El lector queda montado detrás (nunca se pierde el lugar). Solo la pestaña activa se monta.
 - **Distinción Notas vs Reflexión:** Notas = plaintext (annotation, ancla a `blockId`); Reflexión = **cifrada E2E** (DiaryEntry) que alimenta el Mapa. Dos superficies de escritura con contratos de privacidad opuestos en un solo panel.
 - **Seed override pattern:** `passage` (crudo, envuelto por-tab) · `ecoSeed` (prompt Eco listo) · `reflexionSeedOverride` (consigna Reflexión lista), en precedencia.
@@ -3057,7 +3311,7 @@ Plan sólido, por etapas, cada una un PR aparte que se valida contra el banco de
 
 **Bug clave (#488):** `git merge -X theirs` dejó el árbol sucio y committeó código viejo de `LectorShell.tsx` → CI `TS17001`. Causa: `git checkout origin/develop -- . && git add -A` sin committear antes del push. Fix `--amend` + `--force-with-lease`. **Workflow endurecido:** verificar blob MATCH contra `origin/develop` antes de cada push de sync (#490, #492 limpios).
 
-**Deuda (backlog aprobado):** nudges post-ejercicio *(siguiente)* · sugerencias adaptativas de Eco · reproductor de video real · character-level highlights mobile.
+**Deuda (backlog aprobado):** nudges post-ejercicio _(siguiente)_ · sugerencias adaptativas de Eco · reproductor de video real · character-level highlights mobile.
 
 ---
 
@@ -3070,6 +3324,7 @@ Plan sólido, por etapas, cada una un PR aparte que se valida contra el banco de
 **Qué cierra:** segundo ítem del backlog. Al **terminar** una actividad, invita a seguir en vez de dejar un callejón: la **respiración** (fase "Listo") muestra dos CTAs suaves («🪷 Escribir cómo me siento» → Reflexión sembrada · «🌿 Conversar con Eco» → Eco sembrado); la **reflexión guardada** añade «🌿 Conversarlo con Eco» que salta a la pestaña Eco. Cero backend, cero migración, todo cliente reusando el dock/sheet.
 
 **Cómo:**
+
 - Seeds compartidos en `@psico/types/chapter-exercises.ts`: `breatheReflectSeed`, `breatheEcoSeed`, `reflexionEcoSeed` (web + mobile dicen lo mismo).
 - Web: `BreathingExercise` gana `onReflect?`/`onAskEco?`; `ReflexionTab` gana `onAskEco?`; `ReaderCompanionDock` los propaga; `LectorShell` centraliza el patrón de apertura en `openEcoInDock`/`openReflexionInDock` y los reusa en los 4 sitios (reduce duplicación).
 - Mobile: paridad — `BreathingExercise` + `ReflexionSheetTab` + `ReaderCompanionSheet` + la pantalla reusa el `openCompanion(tab, opts)` existente.
@@ -3078,7 +3333,7 @@ Plan sólido, por etapas, cada una un PR aparte que se valida contra el banco de
 
 **Tests:** `BreathingExercise.test.tsx` web (+5, `vi.useFakeTimers`) y mobile (+5, `jest.useFakeTimers` + `clearAllTimers` en afterEach para callar el loop de Animated tras el unmount).
 
-**Deuda (backlog aprobado):** sugerencias adaptativas de Eco *(siguiente)* · reproductor de video real · character-level highlights mobile · subir los m4a a R2.
+**Deuda (backlog aprobado):** sugerencias adaptativas de Eco _(siguiente)_ · reproductor de video real · character-level highlights mobile · subir los m4a a R2.
 
 ---
 
@@ -3093,6 +3348,7 @@ Plan sólido, por etapas, cada una un PR aparte que se valida contra el banco de
 **Decisión clave:** el video es **inline por bloque** (una cápsula dentro del flujo de lectura), no por capítulo como el audio → encaja como un `ChapterBlock` kind `VIDEO` con la URL en `meta.videoUrl`.
 
 **Cómo:**
+
 - **Schema:** valor `VIDEO` en `ChapterBlockKind` + migración aditiva `20260710120000_chapter_block_video_kind`.
 - **Helper compartido `videoBlockInfo(block)`** en `@psico/types` — única fuente de verdad web + mobile. Detecta kind `VIDEO` **o** (backward-compat) `EXERCISE` con prefijo `🎬` → la data ya sembrada sube al reproductor **sin re-ingestar** (no pierde highlights). Devuelve `{url, poster, caption, durationSec}`.
 - **Ingest script:** `VIDEO_MOCK` → bloque kind `VIDEO` (caption limpio).
@@ -3105,7 +3361,7 @@ Plan sólido, por etapas, cada una un PR aparte que se valida contra el banco de
 
 **Deuda / ops:** subir los videos reales a R2 + setear `meta.videoUrl` (como los m4a del audio) · migración sin aplicar en Railway.
 
-**Backlog restante:** refinar Eco con contenido *(siguiente, pedido del usuario)* · sugerencias adaptativas de Eco · character-level highlights mobile.
+**Backlog restante:** refinar Eco con contenido _(siguiente, pedido del usuario)_ · sugerencias adaptativas de Eco · character-level highlights mobile.
 
 ---
 
@@ -3120,6 +3376,7 @@ Plan sólido, por etapas, cada una un PR aparte que se valida contra el banco de
 **Decisión de producto del usuario:** el Mapa Emocional **se transforma, no se elimina**.
 
 **Fase B construida (cero cambio de comportamiento público):**
+
 - `shared/flags.ts` (6 flags env-based, defaults = comportamiento actual; `EMOTIONAL_MAP_OU` absorbido).
 - `emotional-map/model-registry.ts` + spec — IDs canónicos H1/OU-G0/OU-GT/OU-O1/EWS-R1/TXT-L1/CHK-S1; gates anclados a constantes reales (RECOVERY_MIN_OBS=20 pineado como violación conocida).
 - Palancas en el scoring puro: `ewsPublic` (false → `ews: null` en el wire) y `llmScoringEnabled` (false → provider jamás llamado, sin números fabricados).
@@ -3332,6 +3589,7 @@ Plan sólido, por etapas, cada una un PR aparte que se valida contra el banco de
 **Contexto:** prod servía un build del 07-10 (`/api/eco/suggestions` → 404). El usuario pidió auditar las variables de entorno de Railway/Vercel, disparar el deploy y corregir lo que persistiera; adjuntó el log del deploy fallido.
 
 **Auditoría de env (solo nombres + set/missing, valores redactados):**
+
 - Railway API (46 vars): 13/13 requeridas ✅ + opcionales (REDIS/RESEND/GOOGLE/OPENAI/VOICE_PROVIDER/VAPID/JWT/NODE_ENV). Faltan solo `DEEPGRAM_API_KEY` (irrelevante, Voice usa Whisper) y `SENTRY_DSN`.
 - Railway Worker (40 vars): 13 requeridas + REDIS_URL ✅.
 - Vercel web: `NEXT_PUBLIC_API_URL` + `NEXT_PUBLIC_GOOGLE_CLIENT_ID` + `NEXT_PUBLIC_VAPID_PUBLIC_KEY` ✅.
@@ -3468,7 +3726,7 @@ Corregirlo mueve valores que fijan `color-contracts.ts`, el trinquete de
 **Bitácora de la UAT:** [docs/informes/uat-2026-10-22-lector-staging.md](docs/informes/uat-2026-10-22-lector-staging.md)
 **Tests:** API 254 archivos / 3888 pruebas (+12) · typecheck ×2 · eslint · contrato OpenAPI en OK.
 
-**Lo que se corrigió (PR #797, fusionado):** el seed creaba *Familias Ensambladas*
+**Lo que se corrigió (PR #797, fusionado):** el seed creaba _Familias Ensambladas_
 acreditada a una identidad de fixture y publicada, contra lo que dice la landing
 aprobada. Nace sin autor («Autoría por confirmar») y sin publicar. El nombre declarado
 el 2026-10-13 **no** se escribe: esa nota no autoriza corregir la fila alojada, así que
@@ -3511,18 +3769,19 @@ más el copy de respaldo dejan de abrir con el nombre de pila del autor de demo.
   > rollout: `GUIDE_ROLLOUT_MODE = off`, sin allowlist de piloto. `available`
   > describe al actor que pregunta; el modo efectivo es del entorno. Detalle
   > en `docs/informes/uat-2026-10-22-lector-staging.md`.
-- **El nombre de fixture sobrevive en `Book.summary` de *EEC***, que el repositorio ya
+
+- **El nombre de fixture sobrevive en `Book.summary` de _EEC_**, que el repositorio ya
   prohíbe (`seed-authorship.spec.ts:144`). Misma forma que el defecto de publicación:
   el arreglo vive en el seed y la fila alojada conserva el texto viejo. **La reparación
   de autoría tiene que alcanzar los campos de copy, no sólo la clave ajena.**
-- La **Lectura** cumple de sobra: 376 bloques reales en el capítulo 1 de *EEC*, los diez
+- La **Lectura** cumple de sobra: 376 bloques reales en el capítulo 1 de _EEC_, los diez
   capítulos agrupados en sus tres partes. La landing, por su parte, es impecable.
 - Dos falsos positivos quedan escritos para no volver a investigarlos: dos 503 en el
-  primer *prefetch* fueron arranque en frío (veinte peticiones en paralelo después, todas
+  primer _prefetch_ fueron arranque en frío (veinte peticiones en paralelo después, todas
   200), y el «Siguiente» del paso 5/5 está **oculto**, no habilitado.
 
 **Deuda abierta:** `Book.summary` de EEC y la bio de la identidad de fixture esperan que
-la reparación de autoría cubra copy · la fila alojada de *Familias* sigue publicada y mal
+la reparación de autoría cubra copy · la fila alojada de _Familias_ sigue publicada y mal
 acreditada (actos editoriales con su propia ventana) · si las cinco microguías se
 ejecutan en el lector queda **sin verificar**, porque montarlo escribiría progreso en una
 cuenta personal: necesita la cuenta sintética · el worker de staging corre un commit
@@ -3595,7 +3854,7 @@ propietario mantiene entre lo que revisa con aprobación explícita. La fila de 
 renombra (una fila puede cargar varios libros, y renombrarla fusionaría dos identidades).
 
 **Deuda abierta:** la fila alojada sigue con el copy viejo hasta que se autorice aplicar el
-plan · *Familias Ensambladas* sigue publicada y mal acreditada en el despliegue (acto
+plan · _Familias Ensambladas_ sigue publicada y mal acreditada en el despliegue (acto
 editorial con su propia ventana) · `title` y `subtitle` quedan fuera de lo que el plan
 reescribe —un título es cómo se navega y se cita el catálogo— pero el trinquete sí los
 vigila, así que un título que nombrara una identidad de fixture fallaría el build antes de
@@ -3665,7 +3924,7 @@ condicionado a él.
 > **Hecho el 2026-10-24.** El ensayo que esta entrada daba por pendiente se
 > ejecutó el mismo día, en una base desechable restaurada del respaldo:
 > la imagen anterior **pierde** la pendiente (`Skipping
-> already-processed`, cero llamadas a Stripe) y la actual la **recupera**
+already-processed`, cero llamadas a Stripe) y la actual la **recupera**
 > (`Reapplying …`, fila sellada, inventario a cero), igual con una de diez
 > días. Ese rollback **ya no está condicionado a este ensayo**; sigue
 > condicionado a su precondición de contenido. Detalle y cifras en
@@ -3714,7 +3973,7 @@ es la sección que se mantiene; esta entrada es su antecedente fechado.
 
 ---
 
-### 🧭 Trabajo vigente — corte del 2026-10-26
+### 🧭 Trabajo vigente — corte del 2026-11-04
 
 **Esta es la única sección de este archivo que describe el presente.** Todo lo
 de arriba —incluidas las listas de «backlog aprobado» y los «siguientes pasos»
@@ -3724,11 +3983,25 @@ sección, manda esta sección.
 
 #### El corte — 2026-10-26
 
-| | |
-|---|---|
-| `main` | `19fcc261` (#814) · la rama `docs/eec-emphasis-aplicada` (#815) va por delante y es sólo documentación |
-| Servido en staging | **un commit por servicio**: API `19fcc261` · Web `5dacedbd` · worker `5f209d79` |
-| ¿Coinciden? | **No**, y cada diferencia está justificada a nivel de archivo, abajo |
+|                    |                                                                                                           |
+| ------------------ | --------------------------------------------------------------------------------------------------------- |
+| `main`             | `3e54355a` (#816) · **cero PR abiertos**                                                                  |
+| Servido en staging | **un commit por servicio**: API `19fcc261` · Web `5dacedbd` · worker `5f209d79`                           |
+| ¿Coinciden?        | **No.** Y por primera vez la diferencia **sí** importa: a Web le falta #816, y desplegarla está bloqueado |
+
+> **El bloqueo, diagnosticado hasta su causa (04-11).** La tabla
+> `personal_access_tokens` de Coolify tiene **cero filas**: los tokens no
+> caducaron, **se borraron**. Los dos ficheros de credencial siguen con 51 bytes,
+> el script que los lee funciona y entrega una cabecera bien formada, la API
+> devuelve **401** a los dos y el host está vivo (302 en la raíz). Coolify **no
+> trae comando** para emitirlos —comprobado en su propio contenedor: su CLI sólo
+> _poda_ los caducados—, así que se emiten desde su interfaz.
+>
+> Cierra **a la vez** API, MCP y webhooks, porque en 4.x los tres comparten el
+> token. **No se puede** desplegar, poner claves en staging, abrir rollouts ni
+> ejecutar producción; **sí se puede** leer el entorno por `ssh` e integrar
+> código. Desbloqueo: un token con permiso de despliegue en
+> `~/.config/syntavera/coolify-read.token` y `coolify-deploy.token`.
 
 **Son commits distintos y conviene no confundirlos.** El del repositorio dice
 qué está integrado; el servido dice qué se está ejecutando. Y aquí hay una
@@ -3738,11 +4011,11 @@ a la vez—. Igualarlos «para que cuadre el documento» no es motivo para
 desplegar; un cambio funcional sí lo es, y por eso el 25-10 se desplegó
 **sólo Web** y el 26-10 **sólo la API**.
 
-| Servicio | Artefacto | Por qué se conserva (o se desplegó) |
-|---|---|---|
-| API | `aft7nt3p6wsormno2cejtavj:19fcc261` | **desplegado** el 26-10: la reparación del énfasis corre dentro del contenedor, así que su código tenía que estar ahí. Al día con `main` |
-| Web | `wwsluxasxlko4yf3fliwmkek:5dacedbd` | **desplegado** el 25-10: lleva el arreglo de la tarjeta de exportación. Queda detrás por el commit de versiones y por #814, que **no toca Web** |
-| worker | `hwxntaqogysfzgt1ehqq3ufl:5f209d79` | difieren los services `home/`, `lector/` y `onboarding/`, y **ninguno está en su grafo de módulos** (importa Config, Prisma, Redis, Storage, Notifications, Patrones, CirclesAccountDeletion y EmotionalMap). #814 añade `content-core/markdown-*`, que **tampoco** entra ahí: es una herramienta de línea de comandos, no un procesador de cola |
+| Servicio | Artefacto                           | Por qué se conserva (o se desplegó)                                                                                                                                                                                                                                                                                                              |
+| -------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| API      | `aft7nt3p6wsormno2cejtavj:19fcc261` | **desplegado** el 26-10: la reparación del énfasis corre dentro del contenedor, así que su código tenía que estar ahí. Al día con `main`                                                                                                                                                                                                         |
+| Web      | `wwsluxasxlko4yf3fliwmkek:5dacedbd` | **desplegado** el 25-10: lleva el arreglo de la tarjeta de exportación. Queda detrás por el commit de versiones y por #814, que **no toca Web**                                                                                                                                                                                                  |
+| worker   | `hwxntaqogysfzgt1ehqq3ufl:5f209d79` | difieren los services `home/`, `lector/` y `onboarding/`, y **ninguno está en su grafo de módulos** (importa Config, Prisma, Redis, Storage, Notifications, Patrones, CirclesAccountDeletion y EmotionalMap). #814 añade `content-core/markdown-*`, que **tampoco** entra ahí: es una herramienta de línea de comandos, no un procesador de cola |
 
 **Un despliegue de la API no se cierra con el verde de Coolify**, que puede
 convivir con una migración que falló: lo cierra `ready=true` **con `pending` y
@@ -3761,18 +4034,21 @@ en [el runbook §4](docs/deploy/coolify-runbook.md).
 
 #### Estado de cada frente
 
-| Frente | Estado |
-|---|---|
-| Saneamiento técnico de PR | ✅ **cerrado** — catorce PR abiertos → cero |
-| Reparación del catálogo en staging | ✅ **aplicada y convergente** — segunda planificación en 0 operaciones |
-| Reparación del texto de *EEC* en staging | ✅ **aplicada y convergente** — 732 bloques, 0 pendientes, 0 deriva. Dos bloques **excluidos** esperan decisión editorial |
-| Revisión visual con sesión | ✅ **las ocho combinaciones** (24-10) sobre el Web servido, que no cambió · ⚠️ **no re-recorrida** sobre el texto reparado: eso es un capítulo y una combinación |
-| CI | ✅ el fallo intermitente de la suite de PostgreSQL **está cerrado** (#813): lo causaba un `DROP DATABASE … WITH (FORCE)` sobre un pool que acababa de cerrarse |
-| UAT | ⚠️ **parcial**, con sus límites escritos en [la bitácora](docs/informes/uat-2026-10-23-cierre-staging.md) |
-| Rollback a la imagen anterior | ⚠️ **ensayo operativo HECHO** (2026-10-24) — sigue condicionado a su precondición de contenido y al residuo de la ventana. Y el residuo tiene un límite que ahora está dicho con precisión: la reconciliación manual que lo cerraría **nunca se ha ejecutado**, así que son instrucciones sin estrenar, no un mecanismo comprobado. Candidatos de reversión por servicio en [el runbook §3.1](docs/deploy/coolify-runbook.md) — y **«la versión anterior» no es una versión**: el worker no tiene build de `6cb27281`, su anterior es de dos semanas antes |
-| Modo guiado | ⏸️ **conserva su disponibilidad actual** (`GUIDE_ROLLOUT_MODE=off`) |
-| Círculos / Dúo | ⏸️ **conserva su disponibilidad actual** (su propia puerta) |
-| Cobros reales | ⏸️ **conservan su situación actual** — cerrados |
+| Frente                                   | Estado                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Saneamiento técnico de PR                | ✅ **cerrado** — catorce PR abiertos → cero                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Reparación del catálogo en staging       | ✅ **aplicada y convergente** — segunda planificación en 0 operaciones                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Reparación del texto de _EEC_ en staging | ✅ **aplicada y convergente** — 732 bloques, 0 pendientes, 0 deriva. Dos bloques **excluidos** esperan decisión editorial                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Revisión visual con sesión               | ✅ **las ocho combinaciones** (24-10) sobre el Web servido, que no cambió · ⚠️ **no re-recorrida** sobre el texto reparado: eso es un capítulo y una combinación                                                                                                                                                                                                                                                                                                                                                                                           |
+| Despliegue por Coolify                   | ❌ **bloqueado**: su tabla de tokens quedó en cero filas. Cierra API, MCP y webhooks a la vez. Sólo se reabre con un token nuevo emitido desde su interfaz                                                                                                                                                                                                                                                                                                                                                                                                 |
+| La letra del cuerpo del lector           | ✅ **arreglada e integrada** (#816, trinquete por mutación) · ❌ **sin servir**: Web sigue en `5dacedbd`                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Medios del lector                        | ❌ **sin material**: video 0 de 10 bloques con archivo, audio 0 filas. Los reproductores están construidos y con marcador honesto                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| CI                                       | ✅ el fallo intermitente de la suite de PostgreSQL **está cerrado** (#813): lo causaba un `DROP DATABASE … WITH (FORCE)` sobre un pool que acababa de cerrarse                                                                                                                                                                                                                                                                                                                                                                                             |
+| UAT                                      | ⚠️ **parcial**, con sus límites escritos en [la bitácora](docs/informes/uat-2026-10-23-cierre-staging.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Rollback a la imagen anterior            | ⚠️ **ensayo operativo HECHO** (2026-10-24) — sigue condicionado a su precondición de contenido y al residuo de la ventana. Y el residuo tiene un límite que ahora está dicho con precisión: la reconciliación manual que lo cerraría **nunca se ha ejecutado**, así que son instrucciones sin estrenar, no un mecanismo comprobado. Candidatos de reversión por servicio en [el runbook §3.1](docs/deploy/coolify-runbook.md) — y **«la versión anterior» no es una versión**: el worker no tiene build de `6cb27281`, su anterior es de dos semanas antes |
+| Modo guiado                              | ⏸️ **conserva su disponibilidad actual** (`GUIDE_ROLLOUT_MODE=off`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Círculos / Dúo                           | ⏸️ **conserva su disponibilidad actual** (su propia puerta)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Cobros reales                            | ⏸️ **conservan su situación actual** — cerrados                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 
 #### Webhooks ≠ D-ORD
 
@@ -3815,6 +4091,7 @@ distintas:
    capítulo y una combinación** (25 negritas, 24 cursivas). **No** es un
    recorrido nuevo de las ocho combinaciones sobre el texto reparado, y no
    conviene leerlo como tal.
+
 3. ✅ **Recorrido funcional de Evolución** — hecho el 2026-10-24: una anotación
    mueve `marcasLectura` de 0 a 1, persiste al reconsultar, la otra cuenta no
    se mueve, y el mapa emocional **no** cambia. Sin defectos.
@@ -3844,7 +4121,7 @@ distintas:
    del audio del lector** (`"Psico Platform"` cuando el libro no tiene autor),
    corregido el 25-10 en #808 — pasa a `null`, que es como se dice «sin
    fuente». No era marca: atribuía el libro a la plataforma, y desde la
-   reparación de autoría **sí disparaba**, porque *Familias ensambladas*
+   reparación de autoría **sí disparaba**, porque _Familias ensambladas_
    quedó a propósito sin autor.
 
    Ese arreglo destapó uno peor que nadie había pedido buscar: la portada
@@ -3868,7 +4145,7 @@ distintas:
    responda (ADR 0007 §C), lo cifrado es su copia; el archivo no los lleva
    porque su alcance no los incluye.
 
-9. ✅ **El texto de *EEC* dejó de llevar Markdown dentro** (26-10, #814 + #815).
+9. ✅ **El texto de _EEC_ dejó de llevar Markdown dentro** (26-10, #814 + #815).
    El lector pintaba `**negrita**` y `*cursiva*` literales porque el texto
    ingerido los traía, y el contrato del repositorio es el contrario: el
    contenido es exactamente lo que se lee y el formato vive al lado, en
@@ -3910,6 +4187,63 @@ distintas:
    una marca sobre otras palabras. El daño es la marca de esa persona, visible
    para ella, no el libro.
 
+10. ✅ **El cuerpo del libro dejó de pintarse con Times** (04-11, #816). Lo
+    encontró el recorrido de las ocho combinaciones sobre el texto reparado:
+    **164 de 188 bloques** —párrafos, citas, pausas, ejercicios— usaban la serif
+    por defecto del navegador, mientras los **24 encabezados** sí usaban
+    Newsreader. El libro se leía con una letra distinta de la de sus propios
+    títulos, y cambiar de estilo **no cambiaba la letra del texto**.
+
+    No faltaba el token: `--fv-font-reader` existe en los dos estilos y resuelve
+    distinto —Newsreader en Contemporary, Source Serif 4 en Renacimiento, medido
+    con una sonda dentro del subárbol del lector—, y la hoja ya traía
+    `.reader-prose` para aplicarlo. La regla estaba **muerta por los dos lados**:
+    ningún elemento llevaba la clase, y el lector la habría pisado igual con un
+    estilo **en línea** genérico, que gana siempre. La muestra del selector de
+    tipografía mentía por lo mismo: previsualizaba Times y entregaba Newsreader.
+
+    Trinquete de cuatro mitades **verificado por mutación**: volver a la genérica
+    en el lector mata 1, retirar la clase mata 1, volver a la genérica en la
+    muestra mata 2, y hacer que el token valga lo mismo en los dos estilos mata 1.
+    **Pendiente de que Web se despliegue.**
+
+11. ✅ **Claves VAPID generadas** (04-11), con permisos 600 en el almacén de ops.
+    De las cuatro integraciones ausentes era la única que **no depende de una
+    cuenta ajena**: es un par propio, no lo emite un tercero. Ya no falta el dato
+    — falta poder pegarlo, que es el punto del bloqueo.
+
+12. ✅ **La recuperación del Diario, recorrida de extremo a extremo** (04-11).
+    Era la fila de más riesgo de toda la matriz: la frase de palabras es la
+    **única** vía de recuperación de un diario cifrado —el ADR 0007 no contempla
+    otra y el servidor no puede ayudar porque nunca tiene la clave—, y hasta hoy
+    sólo estaba cubierta por pruebas unitarias del paquete, que responden «la
+    matemática cierra», no «una persona recupera su diario contra el servidor
+    real».
+
+    Ocho pasos contra `api-staging`: cifrar, guardar, **borrar de memoria la
+    clave derivada de la contraseña**, recuperar la maestra sólo desde la frase,
+    leer del servidor y descifrar el texto **exacto**. Con control negativo —otra
+    frase no abre la entrada—, sin el cual el recorrido no probaría nada. La
+    entrada de prueba se retiró. Detalle en
+    [la bitácora](docs/informes/uat-2026-11-04-recuperacion-diario.md).
+
+    **Y dos cosas que este propio archivo dice mal**, que conviene corregir aquí
+    para que el próximo no tropiece: la frase es de **12** palabras, no de 24,
+    porque la clave maestra mide **16 bytes** por diseño (`MASTER_KEY_LEN = 16`,
+    `MASTER_KEY_VERSION = 2`); el log de las sesiones 22 y 23 describe el diseño
+    anterior de 32 bytes y 24 palabras. **Manda el código.**
+
+#### Lo que pide una decisión tuya
+
+Siete, con su recomendación y su efecto en
+**[la matriz de F3](https://claude.ai/artifact/UtBZxMUDiqSuSwY3mGh5ah)**: el token
+de Coolify (desbloquea casi todo) · Resend más una bandeja de QA (hoy nadie puede
+recuperar su contraseña) · `SENTRY_DSN` · `GOOGLE_CLIENT_ID` (puede quedar fuera
+del piloto: sin clave el producto no ofrece el botón) · material de audio y video
+(recomendación: **un** capítulo narrado de _EEC_ primero) · tres asuntos
+editoriales (publicar las cinco microguías de C01, los dos bloques excluidos de
+_EEC_, y las dos obras restantes) · precios y apertura de cobros.
+
 #### Deuda de producto que sigue viva (de los arcos anteriores)
 
 Video real y actividades reales en los capítulos (hoy cards mock) · subir los
@@ -3927,6 +4261,7 @@ cuyo cuerpo es el audit de junio y lleva su propia advertencia de edad.
 **🎉 Pulso v2 completo + audit cleanup ✅.** Tres caminos:
 
 **Opción A — Deploy a Railway (recomendado):**
+
 ```bash
 # Prerequisito para probar con users reales:
 # - Aplicar 10 migraciones Prisma acumuladas desde S9
@@ -3936,6 +4271,7 @@ cuyo cuerpo es el audit de junio y lleva su propia advertencia de edad.
 ```
 
 **Opción B — Sprint deuda técnica UI (Reports + tests + paginación):**
+
 ```bash
 git checkout -b feature/sprint-front-polish
 # UI tests (Vitest + RTL setup + happy paths web)
@@ -3945,6 +4281,7 @@ git checkout -b feature/sprint-front-polish
 ```
 
 **Opción C — Sprint S11 PatternsModule (Pro feature):**
+
 ```bash
 git checkout -b feature/sprint-s11-patterns
 # Análisis de patrones del Diario: heatmap mood, tag clusters

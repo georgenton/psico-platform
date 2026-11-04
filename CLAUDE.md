@@ -4212,6 +4212,27 @@ distintas:
     cuenta ajena**: es un par propio, no lo emite un tercero. Ya no falta el dato
     — falta poder pegarlo, que es el punto del bloqueo.
 
+12. ✅ **La recuperación del Diario, recorrida de extremo a extremo** (04-11).
+    Era la fila de más riesgo de toda la matriz: la frase de palabras es la
+    **única** vía de recuperación de un diario cifrado —el ADR 0007 no contempla
+    otra y el servidor no puede ayudar porque nunca tiene la clave—, y hasta hoy
+    sólo estaba cubierta por pruebas unitarias del paquete, que responden «la
+    matemática cierra», no «una persona recupera su diario contra el servidor
+    real».
+
+    Ocho pasos contra `api-staging`: cifrar, guardar, **borrar de memoria la
+    clave derivada de la contraseña**, recuperar la maestra sólo desde la frase,
+    leer del servidor y descifrar el texto **exacto**. Con control negativo —otra
+    frase no abre la entrada—, sin el cual el recorrido no probaría nada. La
+    entrada de prueba se retiró. Detalle en
+    [la bitácora](docs/informes/uat-2026-11-04-recuperacion-diario.md).
+
+    **Y dos cosas que este propio archivo dice mal**, que conviene corregir aquí
+    para que el próximo no tropiece: la frase es de **12** palabras, no de 24,
+    porque la clave maestra mide **16 bytes** por diseño (`MASTER_KEY_LEN = 16`,
+    `MASTER_KEY_VERSION = 2`); el log de las sesiones 22 y 23 describe el diseño
+    anterior de 32 bytes y 24 palabras. **Manda el código.**
+
 #### Lo que pide una decisión tuya
 
 Siete, con su recomendación y su efecto en

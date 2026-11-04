@@ -109,7 +109,10 @@ export function ReaderExperienceView({
         // A stable hook for the responsive gate: «the panel does not cover the
         // text» has to name WHICH element is the text.
         data-testid="reader-chapter-column"
-        className="mx-auto max-w-3xl px-4 pb-8"
+        // `reader-prose` lleva la fuente de lectura del estilo activo. Existía
+        // en la hoja desde el acabado editorial y no la usaba nadie, así que la
+        // regla estaba muerta y el texto se quedaba sin ella.
+        className="reader-prose mx-auto max-w-3xl px-4 pb-8"
         style={proseStyle}
       >
         {/* CC-6D — a content-core marks read failed. Visible + fail-closed: the

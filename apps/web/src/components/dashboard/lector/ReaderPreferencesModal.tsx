@@ -219,6 +219,13 @@ export function ReaderPreferencesModal({
           <div className="flex gap-2">
             {FONTS.map((f) => {
               const active = prefs.font === f.value;
+              // La muestra tiene que estar escrita con la letra que vas a
+              // recibir. Con las familias genéricas previsualizaba Times y
+              // entregaba Newsreader, que es una muestra que no muestra.
+              const sample =
+                f.value === "serif"
+                  ? "var(--fv-font-reader)"
+                  : "var(--fv-font-body)";
               return (
                 <button
                   key={f.value}
@@ -231,15 +238,13 @@ export function ReaderPreferencesModal({
                           background: "var(--color-warm-100)",
                           color: "var(--color-warm-900)",
                           borderColor: "var(--color-warm-400)",
-                          fontFamily:
-                            f.value === "serif" ? "serif" : "sans-serif",
+                          fontFamily: sample,
                         }
                       : {
                           background: "white",
                           color: "var(--color-warm-500)",
                           borderColor: "var(--color-warm-200)",
-                          fontFamily:
-                            f.value === "serif" ? "serif" : "sans-serif",
+                          fontFamily: sample,
                         }
                   }
                 >

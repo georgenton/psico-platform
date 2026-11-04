@@ -1629,7 +1629,14 @@ export function LectorShell({
 
   const containerStyle = themeStyle(prefs.theme);
   const proseStyle: React.CSSProperties = {
-    fontFamily: prefs.font === "serif" ? "serif" : "system-ui, sans-serif",
+    // Las familias del sistema, no las genéricas. `serif` a secas es la serif
+    // por defecto del navegador —Times—, así que el cuerpo del libro se pintaba
+    // con otra letra que sus propios encabezados, y el estilo elegido no
+    // llegaba al texto: `--fv-font-reader` es Newsreader en Contemporary y
+    // Source Serif 4 en Renacimiento. La preferencia sigue mandando sobre el
+    // valor por defecto de `.reader-prose`, que es justo lo que debe hacer.
+    fontFamily:
+      prefs.font === "serif" ? "var(--fv-font-reader)" : "var(--fv-font-body)",
     fontSize: `${prefs.fontSize}px`,
     lineHeight: prefs.lineHeight,
   };

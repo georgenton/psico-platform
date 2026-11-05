@@ -124,10 +124,17 @@ function ficheros(dir: string, salida: string[] = []): string[] {
   return salida;
 }
 
+/**
+ * Dónde vive el copy. `apps/api/src` entra aunque sea backend: las plantillas
+ * de correo —verificación, restablecimiento, resumen semanal— las lee una
+ * persona igual que una pantalla, y hoy están limpias, así que incluirlas es un
+ * trinquete de verdad y no una lista de deberes.
+ */
 const AMBITOS = [
   "apps/web/src",
   "apps/mobile/src",
   "apps/mobile/app",
+  "apps/api/src",
   "packages/types/src",
 ];
 

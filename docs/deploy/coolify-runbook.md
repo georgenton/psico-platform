@@ -848,8 +848,17 @@ honesto. Mientras ese ensayo no se haga, el nivel 4 son instrucciones sin estren
 conviene llamarlas así.
 
 Lo que ese ensayo exige, y no se improvisa el día malo: una copia del respaldo fuera
-del propio servidor (R2 ya lo está), el inventario de variables al día, y las claves
-de los proveedores accesibles — porque un host nuevo no hereda ninguna.
+del propio servidor, el inventario de variables al día, y las claves de los
+proveedores accesibles — porque un host nuevo no hereda ninguna.
+
+De esos tres, **el primero está comprobado** (2026-11-05): la programación de
+`feelverse-staging-postgres` es diaria y activa, sus dos últimas ejecuciones están en
+`success`, y en el bucket R2 `syntavera-feelverse-db-backups` hay **14 objetos**, los
+cuatro más recientes de 1,17 MB. Conviene no confundir las dos afirmaciones: que un
+respaldo esté _configurado_ para subir y que el fichero _esté_ arriba son cosas
+distintas, y sólo la segunda sirve el día que el servidor no arranca. Se consulta con
+las credenciales que Coolify ya guarda, desde dentro de su propio contenedor, sin
+materializarlas en ningún sitio.
 
 Un rollback de **datos** es otra cosa y no se improvisa: exige el restore drill
 documentado desde el backup de R2. Una migración `expand → deploy → contract` se

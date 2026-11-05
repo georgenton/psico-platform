@@ -372,7 +372,7 @@ export default function SesionDetalleScreen() {
                 })}
               </View>
 
-              <Text style={styles.fieldLabel}>¿Qué querés tratar?</Text>
+              <Text style={styles.fieldLabel}>¿Qué quieres tratar?</Text>
               <TextInput
                 value={intention}
                 onChangeText={setIntention}
@@ -380,7 +380,7 @@ export default function SesionDetalleScreen() {
                 editable={canEditPrep && !acting}
                 multiline
                 numberOfLines={6}
-                placeholder="Escribí lo que tengas en mente. Es para vos. Cifrado punta-a-punta."
+                placeholder="Escribe lo que tengas en mente. Es para ti. Cifrado punta-a-punta."
                 placeholderTextColor={Colors.warm[400]}
                 style={styles.intentionInput}
               />

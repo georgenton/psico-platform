@@ -12,10 +12,7 @@ import {
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { terapiaApi } from "@psico/api-client";
-import type {
-  TherapistListItem,
-  TherapistListResponse,
-} from "@psico/types";
+import type { TherapistListItem, TherapistListResponse } from "@psico/types";
 import { Colors, Radius, Spacing } from "@/theme";
 
 export default function DirectorioScreen() {
@@ -26,24 +23,21 @@ export default function DirectorioScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(
-    async (q: string) => {
-      try {
-        const res = await terapiaApi.listTherapists({
-          search: q || undefined,
-          limit: 20,
-        });
-        setData(res);
-        setError(null);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Error desconocido");
-      } finally {
-        setLoading(false);
-        setRefreshing(false);
-      }
-    },
-    [],
-  );
+  const load = useCallback(async (q: string) => {
+    try {
+      const res = await terapiaApi.listTherapists({
+        search: q || undefined,
+        limit: 20,
+      });
+      setData(res);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error desconocido");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
 
   useEffect(() => {
     void load("");
@@ -75,7 +69,7 @@ export default function DirectorioScreen() {
         <TextInput
           value={search}
           onChangeText={setSearch}
-          placeholder="Buscá por nombre, enfoque o tema"
+          placeholder="Busca por nombre, enfoque o tema"
           placeholderTextColor={Colors.warm[400]}
           style={styles.searchInput}
           autoCorrect={false}
@@ -110,8 +104,8 @@ export default function DirectorioScreen() {
 
       {data && data.total > data.items.length ? (
         <Text style={styles.moreText}>
-          Mostrando {data.items.length} de {data.total}. Refiná la búsqueda
-          para ver más.
+          Mostrando {data.items.length} de {data.total}. Refiná la búsqueda para
+          ver más.
         </Text>
       ) : null}
     </ScrollView>
@@ -145,9 +139,7 @@ function TherapistCard({
               {l}
             </Text>
           ))}
-          <Text style={styles.metaPrice}>
-            ${therapist.priceUsd.toFixed(0)}
-          </Text>
+          <Text style={styles.metaPrice}>${therapist.priceUsd.toFixed(0)}</Text>
         </View>
       </View>
       <Ionicons name="chevron-forward" size={18} color={Colors.warm[400]} />

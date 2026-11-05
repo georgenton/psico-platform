@@ -372,7 +372,7 @@ export function SessionDetailShell({
                 className="mt-5 text-[11px] font-semibold uppercase tracking-wide"
                 style={{ color: "var(--color-warm-500)" }}
               >
-                ¿Qué querés tratar?
+                ¿Qué quieres tratar?
               </p>
               <textarea
                 value={intention}
@@ -380,7 +380,7 @@ export function SessionDetailShell({
                 onBlur={handleSaveIntention}
                 disabled={!canEditPrep || pending}
                 rows={6}
-                placeholder="Escribí lo que tengas en mente. Es para vos. Cifrado punta-a-punta."
+                placeholder="Escribe lo que tengas en mente. Es para ti. Cifrado punta-a-punta."
                 className="mt-2 w-full rounded-xl border-[1.5px] bg-white p-3 text-[13px] focus:outline-none disabled:bg-[var(--color-warm-50)]"
                 style={{
                   borderColor: "var(--color-warm-200)",

@@ -38,7 +38,7 @@ export function FeedbackModal({
 
   function handleSubmit() {
     if (rating === 0) {
-      setError("Elegí un rating (1 a 5).");
+      setError("Elige una valoración (1 a 5).");
       return;
     }
     setError(null);
@@ -90,7 +90,7 @@ export function FeedbackModal({
           className="mt-1 text-[12px]"
           style={{ color: "var(--color-warm-500)" }}
         >
-          Tu nota se cifra antes de salir del navegador. Solo vos podés leerla.
+          Tu nota se cifra antes de salir del navegador. Solo tú puedes leerla.
         </p>
 
         <div className="mt-4 flex justify-between">
@@ -150,7 +150,7 @@ export function FeedbackModal({
           value={note}
           onChange={(e) => setNote(e.target.value)}
           rows={3}
-          placeholder="Algo que querés recordar de esta sesión…"
+          placeholder="Algo que quieras recordar de esta sesión…"
           className="mt-1 w-full rounded-xl border-[1.5px] bg-white p-2 text-[12px] focus:outline-none"
           style={{
             borderColor: "var(--color-warm-200)",

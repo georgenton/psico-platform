@@ -80,7 +80,7 @@ function ExportRow({
           Exportar mis datos
         </p>
         <p className="text-[11px]" style={{ color: "var(--color-warm-500)" }}>
-          Recibís un ZIP con tu perfil + actividad. Solo 1 vez cada 30 días.
+          Recibes un ZIP con tu perfil y tu actividad. Solo 1 vez cada 30 días.
         </p>
         {done ? (
           <p

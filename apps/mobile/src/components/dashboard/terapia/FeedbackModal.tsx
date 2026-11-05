@@ -29,12 +29,7 @@ interface Props {
   onDone: () => void;
 }
 
-export function FeedbackModal({
-  sessionId,
-  visible,
-  onClose,
-  onDone,
-}: Props) {
+export function FeedbackModal({ sessionId, visible, onClose, onDone }: Props) {
   const { key } = useDiaryKey();
   const [rating, setRating] = useState(0);
   const [tags, setTags] = useState<string[]>([]);
@@ -50,7 +45,7 @@ export function FeedbackModal({
 
   async function handleSubmit() {
     if (rating === 0) {
-      setError("Elegí un rating (1 a 5).");
+      setError("Elige una valoración (1 a 5).");
       return;
     }
     setError(null);
@@ -90,25 +85,19 @@ export function FeedbackModal({
         >
           <Text style={styles.title}>¿Cómo te fue?</Text>
           <Text style={styles.subtitle}>
-            Tu nota se cifra antes de salir del dispositivo. Solo vos podés
+            Tu nota se cifra antes de salir del dispositivo. Solo tú puedes
             leerla.
           </Text>
 
           <View style={styles.starsRow}>
             {[1, 2, 3, 4, 5].map((n) => (
-              <Pressable
-                key={n}
-                onPress={() => setRating(n)}
-                hitSlop={6}
-              >
+              <Pressable key={n} onPress={() => setRating(n)} hitSlop={6}>
                 <Text
                   style={[
                     styles.star,
                     {
                       color:
-                        rating >= n
-                          ? Colors.lavender[600]
-                          : Colors.warm[300],
+                        rating >= n ? Colors.lavender[600] : Colors.warm[300],
                     },
                   ]}
                 >
@@ -139,9 +128,7 @@ export function FeedbackModal({
                     style={[
                       styles.tagChipText,
                       {
-                        color: active
-                          ? Colors.lavender[700]
-                          : Colors.warm[700],
+                        color: active ? Colors.lavender[700] : Colors.warm[700],
                       },
                     ]}
                   >
@@ -158,7 +145,7 @@ export function FeedbackModal({
             onChangeText={setNote}
             multiline
             numberOfLines={3}
-            placeholder="Algo que querés recordar de esta sesión…"
+            placeholder="Algo que quieras recordar de esta sesión…"
             placeholderTextColor={Colors.warm[400]}
             style={styles.noteInput}
           />

@@ -122,7 +122,7 @@ export function WebPushToggle({
                 ? "Negaste el permiso. Actívalo desde la configuración del navegador."
                 : phase.kind === "on"
                   ? "Activadas — recibirás alertas aún cuando la pestaña esté cerrada."
-                  : "Recibí alertas del recordatorio diario, racha y Eco aún sin abrir FeelVerse."}
+                  : "Recibe alertas del recordatorio diario, de tu racha y de Eco aunque no abras FeelVerse."}
           </p>
           {phase.kind === "error" ? (
             <p

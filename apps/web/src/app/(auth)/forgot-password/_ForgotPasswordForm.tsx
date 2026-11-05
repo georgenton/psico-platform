@@ -53,7 +53,7 @@ export default function ForgotPasswordForm() {
             border: "1.5px solid var(--color-sage-200)",
           }}
         >
-          ¿No te llegó? Revisá la carpeta de spam o reintenta en unos minutos.
+          ¿No te llegó? Revisa la carpeta de spam o reinténtalo en unos minutos.
         </div>
         <Link
           href="/login"

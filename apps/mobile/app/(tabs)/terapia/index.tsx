@@ -103,7 +103,7 @@ export default function TerapiaHubScreen() {
         </Pressable>
       ) : null}
 
-      <Text style={styles.sectionLabel}>Empezá por acá</Text>
+      <Text style={styles.sectionLabel}>Empieza por aquí</Text>
 
       <Pressable
         onPress={() => router.push("/(tabs)/terapia/terapeutas")}
@@ -174,9 +174,7 @@ export default function TerapiaHubScreen() {
             }
             style={styles.therapistCard}
           >
-            <Text style={styles.therapistName}>
-              {hub.activeTherapist.name}
-            </Text>
+            <Text style={styles.therapistName}>{hub.activeTherapist.name}</Text>
             <Text style={styles.therapistTitle}>
               {hub.activeTherapist.title}
             </Text>

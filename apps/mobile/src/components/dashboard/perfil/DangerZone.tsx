@@ -28,7 +28,7 @@ export function DangerZone({
     if (alreadyExported) {
       Alert.alert(
         "Ya solicitaste un export",
-        "Solo podés pedir un export cada 30 días.",
+        "Solo puedes pedir una exportación cada 30 días.",
       );
       return;
     }

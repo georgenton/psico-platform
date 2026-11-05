@@ -92,7 +92,7 @@ export default function VerifyEmailFlow() {
           ¡Listo! ✨
         </h1>
         <p className="text-sm mb-6" style={{ color: "var(--color-warm-500)" }}>
-          Confirmamos tu correo {phase.email}. Ya podés iniciar sesión.
+          Confirmamos tu correo {phase.email}. Ya puedes iniciar sesión.
         </p>
         <Link
           href="/login"

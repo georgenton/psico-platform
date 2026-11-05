@@ -83,7 +83,7 @@ export function RescheduleModal({
           className="mt-1 text-[12px]"
           style={{ color: "var(--color-warm-500)" }}
         >
-          Elegí un nuevo slot libre del mismo terapeuta. Tu pago se mantiene.
+          Elige un nuevo horario libre del mismo terapeuta. Tu pago se mantiene.
         </p>
 
         {error ? (
@@ -110,7 +110,7 @@ export function RescheduleModal({
             className="mt-4 text-[13px]"
             style={{ color: "var(--color-warm-500)" }}
           >
-            Sin horarios libres en los próximos 14 días. Intentá cancelar y
+            Sin horarios libres en los próximos 14 días. Intenta cancelar y
             reservar más adelante.
           </p>
         ) : (

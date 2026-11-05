@@ -12,7 +12,7 @@ export function AchievementsList({
       <Text style={styles.title}>Logros</Text>
       {achievements.length === 0 ? (
         <Text style={styles.empty}>
-          Empezá a usar Psico y mostraremos acá tus logros.
+          Empieza a usar FeelVerse y aquí aparecerán tus logros.
         </Text>
       ) : (
         achievements.map((a) => {

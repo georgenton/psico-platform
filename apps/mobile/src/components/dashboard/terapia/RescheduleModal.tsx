@@ -46,9 +46,7 @@ export function RescheduleModal({
       })
       .catch((err) => {
         if (!cancelled)
-          setError(
-            err instanceof Error ? err.message : "Error desconocido",
-          );
+          setError(err instanceof Error ? err.message : "Error desconocido");
       });
     return () => {
       cancelled = true;
@@ -85,7 +83,7 @@ export function RescheduleModal({
         <View style={styles.sheet}>
           <Text style={styles.title}>Cambiar de horario</Text>
           <Text style={styles.subtitle}>
-            Elegí un slot libre del mismo terapeuta. Tu pago se mantiene.
+            Elige un horario libre del mismo terapeuta. Tu pago se mantiene.
           </Text>
 
           {error ? (

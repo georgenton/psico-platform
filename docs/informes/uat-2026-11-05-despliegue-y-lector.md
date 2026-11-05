@@ -154,12 +154,26 @@ dice cuál está ensayado.
 | 3     | falla el servicio de producción | no — producción no existe  |
 | 4     | **se pierde el servidor**       | **no — nunca**             |
 
-Los ingredientes del nivel 4 existen y se comprobaron hoy: el respaldo de
-`feelverse-staging-postgres` corre **a diario**, va a R2, y sus dos últimas
-ejecuciones (04-11 y 05-11, 1,23 MB) están en **success**. Lo que no se ha hecho
-nunca es el camino completo —provisionar un host, instalar Coolify, recrear los
-recursos desde el inventario y restaurar el volcado—, así que son **instrucciones
-sin estrenar** y no un mecanismo comprobado.
+Los ingredientes del nivel 4 existen, y hoy se comprobó el que de verdad decide
+si se puede recuperar tras perder la caja: **que la copia salga del servidor**.
+
+| Qué                      | Comprobado                                               |
+| ------------------------ | -------------------------------------------------------- |
+| Programación             | diaria, activa, con `save_s3`                            |
+| Últimas ejecuciones      | 04-11 y 05-11, 1,23 MB, **success**                      |
+| Destino                  | bucket R2 `syntavera-feelverse-db-backups`               |
+| **¿El objeto está ahí?** | **sí — 14 objetos**, los cuatro más recientes de 1,17 MB |
+
+Esa última fila es la que importaba. Que un respaldo esté _configurado_ para
+subir a R2 y que el fichero _esté_ en R2 son dos afirmaciones distintas, y sólo
+la segunda sirve el día que el servidor no arranca. Se consultó con las
+credenciales que Coolify ya guarda, desde dentro de su propio contenedor, sin
+materializarlas en ningún sitio.
+
+Lo que **no** se ha hecho nunca es el camino completo —provisionar un host,
+instalar Coolify, recrear los recursos desde el inventario y restaurar ese
+volcado—, así que el nivel 4 sigue siendo **instrucciones sin estrenar** y no un
+mecanismo comprobado. Pero ya no hay duda sobre su cimiento.
 
 ---
 

@@ -215,10 +215,18 @@ export function BlockRenderer({
   }
 
   // Default: PARAGRAPH.
+  //
+  // Sin `leading-*`: el interlineado lo decide la preferencia del lector, que
+  // viaja como `line-height` en la columna del capítulo y se HEREDA. Este
+  // párrafo llevaba `leading-[1.7]` propio, y una declaración en el elemento
+  // gana siempre a la herencia: mover el control movía el contenedor y las
+  // citas —de 21,6 a 39,6 px— mientras los párrafos se quedaban clavados en
+  // 30,6. Dentro de la misma página unos bloques obedecían y otros no, y el
+  // control decía 1,8 mientras entregaba 1,7.
   return (
     <p
       {...baseProps}
-      className="reader-block reader-block-paragraph my-4 leading-[1.7]"
+      className="reader-block reader-block-paragraph my-4"
       style={{ color: "var(--color-warm-800)" }}
     >
       <span className="reader-text">{rendered}</span>

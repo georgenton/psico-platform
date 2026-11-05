@@ -4020,6 +4020,13 @@ sección, manda esta sección.
 | ¿Coinciden?        | Web sí. API y worker no, y **no importa**: #818, #820 y #821 no tocan su código   |
 | Producción         | **no existe como recurso.** Tres aplicaciones en el proyecto, las tres de staging |
 
+> **Una trampa de verificación, para la próxima.** Tras desplegar, la tarjeta de
+> notificaciones seguía mostrando el texto viejo aunque el contenedor ya servía el
+> commit nuevo. No era el despliegue: era la **caché del enrutador de Next en el
+> cliente**, que conserva el árbol de una ruta ya visitada. Con una navegación nueva
+> aparece el texto correcto. Conviene no leer eso como «el despliegue no llegó» ni,
+> peor, como «el arreglo no funciona».
+
 > **El bloqueo del 04-11 está resuelto.** La tabla `personal_access_tokens` de
 > Coolify estaba en cero filas: los tokens no caducaron, **se borraron**. Se
 > emitieron dos nuevos el 2026-11-05 **sin tocar ninguna contraseña**, invocando

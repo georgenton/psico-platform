@@ -161,33 +161,55 @@ Cross-workspace code (shared types, ESLint/TypeScript configs, UI primitives, et
 
 ## Deployment
 
-**En migración a Coolify sobre infraestructura propia (SyntaVera).** Autoridad:
-[ADR 0024](docs/adr/0024-migracion-a-coolify-syntavera.md) · inventario AS-IS/TO-BE en
-[docs/deploy/coolify-migration-as-is-to-be.md](docs/deploy/coolify-migration-as-is-to-be.md) ·
-pasos y rollback en [docs/deploy/coolify-runbook.md](docs/deploy/coolify-runbook.md).
+**FeelVerse se aloja, ejecuta y despliega EXCLUSIVAMENTE en OVH con Coolify**, en
+staging y en producción. Decisión del propietario del **2026-11-05**. Autoridad:
+[ADR 0024](docs/adr/0024-migracion-a-coolify-syntavera.md) · pasos, recuperación y
+retorno a una versión estable en
+[docs/deploy/coolify-runbook.md](docs/deploy/coolify-runbook.md) ·
+cuándo se despliega Web: [docs/operations/web-deployment-policy.md](docs/operations/web-deployment-policy.md).
 
-Hoy, lo que sirve a los usuarios:
+| Servicio                         | Dónde vive    | Dominio                     |
+| -------------------------------- | ------------- | --------------------------- |
+| `apps/api`                       | OVH · Coolify | `api-staging.feelverse.app` |
+| `apps/web`                       | OVH · Coolify | `staging.feelverse.app`     |
+| worker                           | OVH · Coolify | sin dominio                 |
+| PostgreSQL 18 + pgvector · Redis | OVH · Coolify | sólo red interna            |
 
-| Target     | Platform | Notes                                                                                                                                                                                                                                       |
-| ---------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps/api` | Railway  | PostgreSQL and Redis also provisioned on Railway                                                                                                                                                                                            |
-| `apps/web` | Vercel   | **Ya no despliega solo**: el autodespliegue desde `main` está apagado desde el 2026-10-01 y Vercel queda como respaldo congelado. Cuándo se despliega: [docs/operations/web-deployment-policy.md](docs/operations/web-deployment-policy.md) |
+Producción **todavía no existe como recurso**: el proyecto de Coolify tiene tres
+aplicaciones y las tres son de staging. Que `feelverse.app` resuelva al servidor no
+significa que haya producción — el DNS está pre-apuntado y **ningún recurso reclama
+ese dominio** (comprobado: HTTP 000, sin certificado, y ante el proxy sólo figuran los
+dos hosts de staging).
 
-Railway y Vercel **siguen encendidos y son el respaldo** durante todo el cutover. No
-se borra ningún proyecto, base, dominio ni variable suya hasta que se cumplan los seis
-criterios de apagado del ADR 0024. Las bitácoras que describen el despliegue anterior
-se conservan como historia, no se reescriben.
+**Vercel y Railway están RETIRADAS del plan operativo.** No son destino de
+despliegue, ni de staging, ni de pruebas alojadas, ni de contingencia, ni de retorno a
+una versión anterior. No se vuelve a plantear la elección, y el avance no se condiciona
+a mantenerlas disponibles. Lo que la documentación anterior llamaba «respaldo
+congelado» queda **sustituido** por esta decisión.
 
-Dos cosas del código que la migración obligó a cambiar, y que conviene conocer antes
-de tocarlas:
+Dos cosas que conviene conocer antes de tocarlas:
+
+- **El único control de esa retirada que vive en el repositorio** es
+  `scripts/vercel-ignore-web.sh`, que Vercel ejecuta como Ignored Build Step y que
+  responde «no construyas» a todo. **Borrarlo, o borrar `apps/web/vercel.json`,
+  consigue lo contrario de lo que parece**: sin `ignoreCommand` Vercel construiría en
+  cada commit de la rama conectada. Hay trinquete en
+  `apps/web/src/deploy-policy.test.ts`, verificado por mutación: un `exit 1` por
+  cualquier camino, o cualquier condicional nuevo, rompe el build.
+- **Retirarlas del plan NO implica borrar nada.** No se elimina ningún proyecto, base,
+  dominio, variable ni cuenta de esas plataformas, y menos como efecto secundario de
+  una limpieza documental. Las bitácoras que describen el despliegue anterior se
+  conservan como historia, no se reescriben.
+
+Y dos del código, que la migración obligó a cambiar:
 
 - **`PSICO_ENV` es obligatoria en cualquier caja desplegada**, y `PSICO_DEPLOYED=1` es
   el marcador neutral que la acompaña. Sin la primera, la API se niega a arrancar; eso
-  es deliberado (`apps/api/src/emotional-map/cache-identity.ts`). El detector reconoce
-  Railway y Coolify a la vez, porque durante el cutover las dos son reales.
-- **Nada de runtime debe depender de `VERCEL_ENV` ni de `RAILWAY_*`.** Esas variables
-  desaparecen con el proveedor, y una condición que desaparece abre el gate que
-  protegía. En Web se pregunta a `@/lib/deploy-env`; en la API, a
+  es deliberado (`apps/api/src/emotional-map/cache-identity.ts`).
+- **Nada de runtime depende de `VERCEL_ENV` ni de `RAILWAY_*`** como condición. Donde
+  esos nombres aparecen todavía es en **detectores con varias alternativas** y en el
+  texto de un mensaje de error; ninguno abre un gate al desaparecer, que es la razón
+  por la que la regla existe. En Web se pregunta a `@/lib/deploy-env`; en la API, a
   `shared/release-sha` y al resolutor de entorno.
 
 ## Quality stack
@@ -3981,27 +4003,38 @@ de cada bitácora de sesión— es **antecedente fechado**: explica cómo se lle
 aquí, no lo que toca hacer. Si una instrucción antigua contradice esta
 sección, manda esta sección.
 
-#### El corte — 2026-10-26
+#### El corte — 2026-11-05
 
-|                    |                                                                                                           |
-| ------------------ | --------------------------------------------------------------------------------------------------------- |
-| `main`             | `3e54355a` (#816) · **cero PR abiertos**                                                                  |
-| Servido en staging | **un commit por servicio**: API `19fcc261` · Web `5dacedbd` · worker `5f209d79`                           |
-| ¿Coinciden?        | **No.** Y por primera vez la diferencia **sí** importa: a Web le falta #816, y desplegarla está bloqueado |
+|                    |                                                                                    |
+| ------------------ | ---------------------------------------------------------------------------------- |
+| Dónde vive         | **OVH con Coolify, y sólo ahí.** Vercel y Railway retiradas del plan operativo     |
+| `main`             | `9a03edd0` (#817) · tres PR abiertos: #818 interlineado · #819 destino · #820 copy |
+| Servido en staging | **los tres en `9a03edd0`** — Web, API y worker, desplegados hoy de uno en uno      |
+| ¿Coinciden?        | **Sí**, por primera vez en semanas                                                 |
+| Producción         | **no existe como recurso.** Tres aplicaciones en el proyecto, las tres de staging  |
 
-> **El bloqueo, diagnosticado hasta su causa (04-11).** La tabla
-> `personal_access_tokens` de Coolify tiene **cero filas**: los tokens no
-> caducaron, **se borraron**. Los dos ficheros de credencial siguen con 51 bytes,
-> el script que los lee funciona y entrega una cabecera bien formada, la API
-> devuelve **401** a los dos y el host está vivo (302 en la raíz). Coolify **no
-> trae comando** para emitirlos —comprobado en su propio contenedor: su CLI sólo
-> _poda_ los caducados—, así que se emiten desde su interfaz.
+> **El bloqueo del 04-11 está resuelto.** La tabla `personal_access_tokens` de
+> Coolify estaba en cero filas: los tokens no caducaron, **se borraron**. Se
+> emitieron dos nuevos el 2026-11-05 **sin tocar ninguna contraseña**, invocando
+> el `User::createToken` de la propia aplicación desde un script que arranca
+> Laravel dentro del contenedor.
 >
-> Cierra **a la vez** API, MCP y webhooks, porque en 4.x los tres comparten el
-> token. **No se puede** desplegar, poner claves en staging, abrir rollouts ni
-> ejecutar producción; **sí se puede** leer el entorno por `ssh` e integrar
-> código. Desbloqueo: un token con permiso de despliegue en
-> `~/.config/syntavera/coolify-read.token` y `coolify-deploy.token`.
+> Dos cosas que cuestan una hora si no están escritas. La primera: el
+> `createToken` de Coolify **sobrescribe** el de Sanctum y pide un cuarto
+> argumento, `$teamId`; sin él muere en `session('currentTeam')->id`, que en CLI
+> es nulo. La segunda: **`write` no implica `read`** — un token sólo de escritura
+> responde 403 a cualquier GET, así que el de despliegue se acuñó
+> `['read','write','deploy']`.
+>
+> **Comprobado por separado, que es lo que pedía el encargo:** consultar recursos
+> ✅ · escribir variables de entorno ✅ (ocho escrituras, 201) · desplegar ✅ (el
+> despliegue de Web de hoy). Los valores viven en
+> `~/.config/syntavera/coolify-read.token` y `coolify-deploy.token`, con permisos
+> 600, y no se imprimen en ningún sitio.
+>
+> **Lo que sigue cerrado:** los dos servidores MCP de Coolify de esta sesión se
+> conectaron antes de acuñarlos y conservan el token muerto (401). Se arreglan
+> reconectándolos desde `/mcp`; mientras tanto el camino por `curl` funciona.
 
 **Son commits distintos y conviene no confundirlos.** El del repositorio dice
 qué está integrado; el servido dice qué se está ejecutando. Y aquí hay una
@@ -4011,11 +4044,11 @@ a la vez—. Igualarlos «para que cuadre el documento» no es motivo para
 desplegar; un cambio funcional sí lo es, y por eso el 25-10 se desplegó
 **sólo Web** y el 26-10 **sólo la API**.
 
-| Servicio | Artefacto                           | Por qué se conserva (o se desplegó)                                                                                                                                                                                                                                                                                                              |
-| -------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| API      | `aft7nt3p6wsormno2cejtavj:19fcc261` | **desplegado** el 26-10: la reparación del énfasis corre dentro del contenedor, así que su código tenía que estar ahí. Al día con `main`                                                                                                                                                                                                         |
-| Web      | `wwsluxasxlko4yf3fliwmkek:5dacedbd` | **desplegado** el 25-10: lleva el arreglo de la tarjeta de exportación. Queda detrás por el commit de versiones y por #814, que **no toca Web**                                                                                                                                                                                                  |
-| worker   | `hwxntaqogysfzgt1ehqq3ufl:5f209d79` | difieren los services `home/`, `lector/` y `onboarding/`, y **ninguno está en su grafo de módulos** (importa Config, Prisma, Redis, Storage, Notifications, Patrones, CirclesAccountDeletion y EmotionalMap). #814 añade `content-core/markdown-*`, que **tampoco** entra ahí: es una herramienta de línea de comandos, no un procesador de cola |
+| Servicio | Artefacto                           | Por qué se conserva (o se desplegó)                                                                                             |
+| -------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| API      | `aft7nt3p6wsormno2cejtavj:9a03edd0` | **desplegado** el 05-11 para activar las claves de push web. Gate de migraciones cerrado: 71/71, `pending` y `failed` vacíos    |
+| Web      | `wwsluxasxlko4yf3fliwmkek:9a03edd0` | **desplegado** el 05-11, en cuanto se recuperó el acceso: lleva la corrección de la letra del cuerpo (#816). Al día con `main`  |
+| worker   | `hwxntaqogysfzgt1ehqq3ufl:9a03edd0` | **desplegado** el 05-11: es quien manda el aviso del digest semanal, así que las claves de push web también tenían que llegarle |
 
 **Un despliegue de la API no se cierra con el verde de Coolify**, que puede
 convivir con una migración que falló: lo cierra `ready=true` **con `pending` y
@@ -4039,15 +4072,19 @@ en [el runbook §4](docs/deploy/coolify-runbook.md).
 | Saneamiento técnico de PR                | ✅ **cerrado** — catorce PR abiertos → cero                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | Reparación del catálogo en staging       | ✅ **aplicada y convergente** — segunda planificación en 0 operaciones                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | Reparación del texto de _EEC_ en staging | ✅ **aplicada y convergente** — 732 bloques, 0 pendientes, 0 deriva. Dos bloques **excluidos** esperan decisión editorial                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| Revisión visual con sesión               | ✅ **las ocho combinaciones** (24-10) sobre el Web servido, que no cambió · ⚠️ **no re-recorrida** sobre el texto reparado: eso es un capítulo y una combinación                                                                                                                                                                                                                                                                                                                                                                                           |
-| Despliegue por Coolify                   | ❌ **bloqueado**: su tabla de tokens quedó en cero filas. Cierra API, MCP y webhooks a la vez. Sólo se reabre con un token nuevo emitido desde su interfaz                                                                                                                                                                                                                                                                                                                                                                                                 |
-| La letra del cuerpo del lector           | ✅ **arreglada e integrada** (#816, trinquete por mutación) · ❌ **sin servir**: Web sigue en `5dacedbd`                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Revisión visual con sesión               | ✅ **las ocho combinaciones** (24-10) sobre el Web de entonces · ✅ **re-recorridas el 05-11** sobre el Web nuevo con el texto reparado, midiendo fuente y contraste en cada una · ⚠️ lo medido es tipografía y contraste, no una aceptación estética                                                                                                                                                                                                                                                                                                      |
+| Plataforma                               | ✅ **decidida y única**: OVH con Coolify, en staging y en producción. Vercel y Railway **retiradas del plan operativo** el 05-11 — no son destino de despliegue, de pruebas, de contingencia ni de retorno. Retirarlas **no borra nada**                                                                                                                                                                                                                                                                                                                   |
+| Acceso operativo a Coolify               | ✅ **recuperado** el 05-11 sin tocar ninguna contraseña · consultar, configurar y desplegar comprobados **por separado** · ⚠️ los dos MCP de esta sesión siguen con el token muerto hasta reconectarlos desde `/mcp`                                                                                                                                                                                                                                                                                                                                       |
+| Despliegue por Coolify                   | ✅ **operativo** — los tres servicios desplegados hoy, de uno en uno: tres construcciones en paralelo tumban el demonio                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| La letra del cuerpo del lector           | ✅ **arreglada, integrada y SERVIDA** (#816) · comprobada sobre la versión servida en las **ocho** combinaciones: Contemporary → Newsreader, Renacimiento → Source Serif 4, cuerpo y títulos con la misma letra en las ocho, contraste 11,06–15,87                                                                                                                                                                                                                                                                                                         |
+| El copy del producto                     | ⚠️ **dieciocho frases hablaban de vos**, dos en pantallas de registro. Corregidas en [#820](https://github.com/georgenton/psico-platform/pull/820), trinquete por mutación · **sin servir** todavía                                                                                                                                                                                                                                                                                                                                                        |
+| El interlineado del lector               | ⚠️ **defecto nuevo, encontrado al verificar lo anterior**: el control movía el contenedor y las citas (21,6→39,6 px) y los párrafos no. Arreglado en [#818](https://github.com/georgenton/psico-platform/pull/818), trinquete por mutación · **sin servir** todavía                                                                                                                                                                                                                                                                                        |
 | Medios del lector                        | ❌ **sin material**: video 0 de 10 bloques con archivo, audio 0 filas. Los reproductores están construidos y con marcador honesto                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | CI                                       | ✅ el fallo intermitente de la suite de PostgreSQL **está cerrado** (#813): lo causaba un `DROP DATABASE … WITH (FORCE)` sobre un pool que acababa de cerrarse                                                                                                                                                                                                                                                                                                                                                                                             |
 | UAT                                      | ⚠️ **parcial**, con sus límites escritos en [la bitácora](docs/informes/uat-2026-10-23-cierre-staging.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | Rollback a la imagen anterior            | ⚠️ **ensayo operativo HECHO** (2026-10-24) — sigue condicionado a su precondición de contenido y al residuo de la ventana. Y el residuo tiene un límite que ahora está dicho con precisión: la reconciliación manual que lo cerraría **nunca se ha ejecutado**, así que son instrucciones sin estrenar, no un mecanismo comprobado. Candidatos de reversión por servicio en [el runbook §3.1](docs/deploy/coolify-runbook.md) — y **«la versión anterior» no es una versión**: el worker no tiene build de `6cb27281`, su anterior es de dos semanas antes |
 | Modo guiado                              | ⏸️ **conserva su disponibilidad actual** (`GUIDE_ROLLOUT_MODE=off`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| Círculos / Dúo                           | ⏸️ **conserva su disponibilidad actual** (su propia puerta)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Círculos / Dúo                           | ⏸️ **conserva su disponibilidad actual** (su propia puerta) · ⚠️ su entorno alojado sigue en pie en la plataforma retirada (`psico-circulos-test`, cuatro servicios, comprobado el 05-11). **No se borra ni se migra**: dónde vive Círculos a partir de ahora es decisión tuya                                                                                                                                                                                                                                                                             |
 | Cobros reales                            | ⏸️ **conservan su situación actual** — cerrados                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 
 #### Webhooks ≠ D-ORD
@@ -4095,12 +4132,13 @@ distintas:
 3. ✅ **Recorrido funcional de Evolución** — hecho el 2026-10-24: una anotación
    mueve `marcasLectura` de 0 a 1, persiste al reconsultar, la otra cuenta no
    se mueve, y el mapa emocional **no** cambia. Sin defectos.
-4. **Integraciones de staging, por recorrido, no en bloque** (ninguna
-   credencial autorizada de correo ni de observabilidad existe en el almacén
-   de ops; no se piden en texto ni se sacan de otro sitio):
-   `RESEND_API_KEY` (correo del digest y de la exportación) ·
-   `GOOGLE_CLIENT_ID` (acceso con Google) · `VAPID_*` (push web) ·
-   `SENTRY_DSN` (traza de errores). Ninguna bloquea la lectura.
+4. **Integraciones de staging, por recorrido, no en bloque.** `VAPID_*` (push
+   web) ✅ **puesta el 05-11** en los tres recursos y activa — era la única que
+   no dependía de una cuenta ajena. Siguen ausentes, y ninguna credencial
+   autorizada suya existe en el almacén de ops (no se piden en texto ni se
+   sacan de otro sitio): `RESEND_API_KEY` (correo del digest, de la exportación
+   y **del restablecimiento de contraseña**) · `GOOGLE_CLIENT_ID` (acceso con
+   Google) · `SENTRY_DSN` (traza de errores). Ninguna bloquea la lectura.
 5. ✅ **Piloto mínimo propuesto** — [docs/product/piloto-minimo.md](docs/product/piloto-minimo.md):
    un piloto de **lectura acompañada**, una obra, en staging, de una persona a
    la vez, con sus criterios de entrada, salida y suspensión y **seis
@@ -4207,10 +4245,13 @@ distintas:
     muestra mata 2, y hacer que el token valga lo mismo en los dos estilos mata 1.
     **Pendiente de que Web se despliegue.**
 
-11. ✅ **Claves VAPID generadas** (04-11), con permisos 600 en el almacén de ops.
-    De las cuatro integraciones ausentes era la única que **no depende de una
-    cuenta ajena**: es un par propio, no lo emite un tercero. Ya no falta el dato
-    — falta poder pegarlo, que es el punto del bloqueo.
+11. ✅ **Push web, de la clave al servicio** (04-11 → 05-11). Las claves VAPID se
+    generaron el 04-11 con permisos 600 en el almacén de ops; de las cuatro
+    integraciones ausentes era la única que **no depende de una cuenta ajena**.
+    El 05-11, recuperado el acceso, se escribieron en los tres recursos y se
+    desplegó para activarlas. Los valores no aparecen en ningún mensaje, documento
+    ni registro: lo que se comprueba es que la clave **está puesta**, nunca qué
+    dice.
 
 12. ✅ **La recuperación del Diario, recorrida de extremo a extremo** (04-11).
     Era la fila de más riesgo de toda la matriz: la frase de palabras es la
@@ -4233,16 +4274,57 @@ distintas:
     `MASTER_KEY_VERSION = 2`); el log de las sesiones 22 y 23 describe el diseño
     anterior de 32 bytes y 24 palabras. **Manda el código.**
 
+13. ✅ **Acceso operativo a Coolify, recuperado sin tocar ninguna contraseña**
+    (05-11). Se descartó el `root:reset-password` que trae Coolify precisamente
+    porque cambiaría tu credencial; en su lugar se acuñaron dos tokens desde el
+    `createToken` de la propia aplicación. **Comprobado por separado**, que es lo
+    que distingue un acceso real de uno que sólo parece bastar: consultar recursos,
+    escribir variables y desplegar son tres permisos distintos, y un token que sólo
+    despliega no sirve para configurar. Detalle y trampas, en el corte de arriba.
+
+14. ✅ **La letra del lector, comprobada sobre la versión servida** (05-11), en las
+    ocho combinaciones de estilo × ambiente y sobre el texto reparado: Contemporary
+    entrega Newsreader y Renacimiento Source Serif 4, **cuerpo y títulos con la
+    misma letra en las ocho**, 157 párrafos, 25 negritas y 24 cursivas estables, y
+    los cuatro asteriscos de la cita excluida —los esperados—. Contraste 11,06 a
+    15,87 sobre fondo. La muestra del selector ya entrega lo que previsualiza.
+
+15. ⚠️ **Y verificando eso apareció un defecto hermano**: el control de
+    **interlineado** movía el contenedor y las citas (21,6 → 39,6 px entre los
+    extremos) mientras los párrafos se quedaban clavados en 30,6, porque el párrafo
+    llevaba un `leading-[1.7]` propio que gana a la herencia. Misma familia que el
+    de la letra. Arreglado en
+    [#818](https://github.com/georgenton/psico-platform/pull/818) con trinquete
+    verificado por mutación; **pendiente de desplegar**.
+
 #### Lo que pide una decisión tuya
 
-Siete, con su recomendación y su efecto en
-**[la matriz de F3](https://claude.ai/artifact/UtBZxMUDiqSuSwY3mGh5ah)**: el token
-de Coolify (desbloquea casi todo) · Resend más una bandeja de QA (hoy nadie puede
-recuperar su contraseña) · `SENTRY_DSN` · `GOOGLE_CLIENT_ID` (puede quedar fuera
-del piloto: sin clave el producto no ofrece el botón) · material de audio y video
-(recomendación: **un** capítulo narrado de _EEC_ primero) · tres asuntos
-editoriales (publicar las cinco microguías de C01, los dos bloques excluidos de
-_EEC_, y las dos obras restantes) · precios y apertura de cobros.
+El token de Coolify **ya no está en esta lista**: se recuperó el 05-11 y con él se
+desplegó Web y se activó el push web. Quedan seis, con su recomendación y su efecto
+en **[la matriz de F3](https://claude.ai/artifact/UtBZxMUDiqSuSwY3mGh5ah)**:
+
+1. **Resend más una bandeja de QA.** Es el que más pesa: hoy **nadie puede recuperar
+   su contraseña**, y ninguna credencial autorizada de correo existe en el almacén de
+   ops. No se pide en texto ni se saca de otro sitio.
+2. **`SENTRY_DSN`** — sin él, un fallo en el piloto se investiga a ciegas.
+3. **`GOOGLE_CLIENT_ID`** — puede quedar fuera del piloto: sin clave el producto
+   sencillamente no ofrece el botón, que es un estado honesto.
+4. **Material de audio y video.** Recomendación: **un** capítulo narrado de _EEC_
+   primero, no los diez.
+5. **Tres asuntos editoriales:** publicar las cinco microguías de C01, los dos
+   bloques excluidos de _EEC_, y las dos obras restantes.
+6. **Precios y apertura de cobros**, con sus seis condiciones.
+
+Y dos que nacieron de esta sesión:
+
+7. **Dónde vive Círculos.** Su entorno alojado sigue en pie en la plataforma
+   retirada. No se borra ni se migra por iniciativa mía; o se mueve a OVH, o se
+   declara una excepción con fecha, o se cierra el piloto. Las tres son decisiones
+   tuyas, y las tres son reversibles salvo la última.
+8. **El nivel 4 del rollback** —reconstruir en OVH tras perder el servidor— nunca se
+   ha ensayado. O se ensaya antes de producción, o se asume como riesgo abierto por
+   escrito. Retirar las plataformas anteriores quitó el atajo que lo tapaba, así que
+   ahora es una pregunta de verdad.
 
 #### Deuda de producto que sigue viva (de los arcos anteriores)
 

@@ -1,5 +1,16 @@
 # 🗺️ Roadmap Psico Platform — v1 freeze + validación
 
+> **Destino, fijado el 2026-11-05.** FeelVerse se aloja, ejecuta y despliega
+> **exclusivamente en OVH con Coolify**, en staging y en producción. Vercel y Railway
+> quedan **retiradas del plan operativo**: no son destino de despliegue, ni de pruebas
+> alojadas, ni de contingencia, **ni de retorno a una versión anterior**. Donde este
+> documento las nombre como destino, es antecedente — manda
+> [ADR 0024](adr/0024-migracion-a-coolify-syntavera.md), el
+> [runbook de Coolify](deploy/coolify-runbook.md) y `CLAUDE.md § Deployment`.
+>
+> Retirarlas **no borra nada**: ningún proyecto, base, dominio, variable ni cuenta
+> suya se elimina, y menos como efecto secundario de una limpieza documental.
+
 > ## ⚠️ Qué manda hoy, y qué es antecedente
 >
 > **El trabajo vigente NO está en este documento.** Está en la sección
@@ -79,10 +90,10 @@ Ver [docs/design/handoff/INDEX.md](design/handoff/INDEX.md) para el mapeo exacto
 >
 > **Update 2026-10-24 — leer las dos tareas de abajo contra Coolify, no contra Railway.** Las filas 1 y 2 están redactadas para Railway, que desde el 2026-10-01 es **respaldo congelado** y no autodespliega. Inventariado el entorno de **staging en Coolify** (sólo nombres, nunca valores):
 >
-> | Fila | Presente en staging | Ausente en staging |
-> | --- | --- | --- |
-> | 1 — Stripe | `STRIPE_PRO_MONTHLY_PRICE_ID` · `STRIPE_PRO_YEARLY_PRICE_ID` · `STRIPE_B2B_PRICE_ID` · `STRIPE_SECRET_KEY` · `STRIPE_WEBHOOK_SECRET` | — |
-> | 2 — API keys | `ANTHROPIC_API_KEY` · `OPENAI_API_KEY` | `RESEND_API_KEY` · `GOOGLE_CLIENT_ID` · `VAPID_*` |
+> | Fila         | Presente en staging                                                                                                                  | Ausente en staging                                |
+> | ------------ | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------- |
+> | 1 — Stripe   | `STRIPE_PRO_MONTHLY_PRICE_ID` · `STRIPE_PRO_YEARLY_PRICE_ID` · `STRIPE_B2B_PRICE_ID` · `STRIPE_SECRET_KEY` · `STRIPE_WEBHOOK_SECRET` | —                                                 |
+> | 2 — API keys | `ANTHROPIC_API_KEY` · `OPENAI_API_KEY`                                                                                               | `RESEND_API_KEY` · `GOOGLE_CLIENT_ID` · `VAPID_*` |
 >
 > También presentes, fuera de esas dos filas: `VOYAGE_API_KEY`, el cuarteto de R2, `REDIS_URL`, `CLIENT_ATTESTATION_SECRET`, `CIRCLES_ROLLOUT_MODE`, `GUIDE_ROLLOUT_MODE` y los nueve flags del Mapa. Ausente también `SENTRY_DSN` (fila 5) y `DEEPGRAM_API_KEY`, que no hace falta porque `VOICE_PROVIDER` resuelve a Whisper.
 >
@@ -1292,7 +1303,7 @@ corrida verde posterior no borra el hecho.
 
 ---
 
-## 4. Plan de sprints para cerrar v1 — *antecedente de junio*
+## 4. Plan de sprints para cerrar v1 — _antecedente de junio_
 
 > Esta tabla es el orden que se propuso el 2026-06-13 y **no es la cola de
 > trabajo actual**; los sprints 1–5 se ejecutaron entre junio y octubre con

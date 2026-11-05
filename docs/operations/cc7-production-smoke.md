@@ -19,15 +19,15 @@ private URLs, connection strings, block text, titles or quotes.
 
 ## 0. Prechecks (before any request)
 
-| Check                               | Expected                        |
-| ----------------------------------- | ------------------------------- |
-| `origin/main` HEAD                  | equals the approved sync commit |
-| Railway API deploy                  | SUCCESS                         |
-| Railway worker deploy               | SUCCESS                         |
-| Vercel web deploy                   | SUCCESS                         |
-| Migrations applied this release     | 2, once each                    |
-| `GUIDE_ROLLOUT_MODE` (API + worker) | `off`                           |
-| `GUIDE_PILOT_USER_IDS`              | unset                           |
+| Check                               | Expected                         |
+| ----------------------------------- | -------------------------------- |
+| `origin/main` HEAD                  | equals the approved sync commit  |
+| Coolify · API deploy                | SUCCESS + migration gate `ready` |
+| Coolify · worker deploy             | SUCCESS                          |
+| Coolify · web deploy                | SUCCESS                          |
+| Migrations applied this release     | 2, once each                     |
+| `GUIDE_ROLLOUT_MODE` (API + worker) | `off`                            |
+| `GUIDE_PILOT_USER_IDS`              | unset                            |
 
 These gates must already be **true before the release starts** — they are the
 open items from CC-7.R2, not smoke steps to discover on the way:

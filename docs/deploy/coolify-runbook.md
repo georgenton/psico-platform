@@ -9,8 +9,14 @@ describe el **proceso**; el inventario describe la **configuración**. Las tabla
 variables no se repiten aquí a propósito: contadas en dos sitios, divergen — y la que
 se queda vieja es siempre la que alguien lee.
 
-Mientras Vercel y Railway sigan encendidos, **son el respaldo**. Nada de lo que hay
-aquí borra, apaga ni reconfigura nada suyo.
+**Vercel y Railway están retiradas del plan operativo** desde el 2026-11-05. No son
+destino de despliegue, ni de pruebas alojadas, ni de contingencia, **ni de retorno a
+una versión anterior**. Donde este runbook decía que eran «el respaldo», ya no lo
+dice: toda recuperación ocurre dentro de OVH/Coolify, y está descrita en el §3.
+
+Retirarlas **no borra nada**. No se elimina ningún proyecto, base, dominio, variable
+ni cuenta suya, y menos como efecto secundario de una limpieza documental. Nada de lo
+que hay aquí apaga ni reconfigura nada de esas plataformas.
 
 **Reglas que atraviesan todos los pasos.** No se publica al host PostgreSQL 5432,
 Redis 6379, el worker ni ningún puerto de administración: los servicios privados se
@@ -156,7 +162,8 @@ buenos. Detalle completo en
 ### 1.3 `feelverse-staging-api`
 
 Application desde `georgenton/psico-platform`, rama `main`, `build_pack: railpack`
-(el mismo constructor que Railway ya usa, con comandos explícitos). Puerto interno
+(el mismo constructor que ya se usaba antes de la migración, con comandos
+explícitos). Puerto interno
 **3001** declarado. Healthcheck `GET /health` con start period generoso: arranca Nest,
 valida el entorno y conecta Prisma antes de contestar.
 
@@ -336,8 +343,8 @@ Cuatro propiedades, y ninguna es accidental:
    «pre-deployment» significa; por eso no va en el `start`.
 3. **Sólo en api, nunca en worker.** Los dos comparten build y base. Si los dos lo
    ejecutaran, dos despliegues simultáneos competirían por el mismo lock sin que nadie
-   lo necesite. El worker declara `pre_deployment_command` vacío, igual que hoy en
-   `railway.worker.json`.
+   lo necesite. El worker declara `pre_deployment_command` vacío, como ya hacía
+   antes de la migración.
 4. **Nunca encadenado.** Ese `&&` es exactamente cómo una migración de esquema y una
    reescritura de contenido curado llegaron juntas a producción una vez. Sin seed, sin
    backfill, sin ingesta: un comando.
@@ -669,8 +676,8 @@ curl -so /dev/null -w '%{http_code}\n' https://staging.feelverse.app/prototipos/
 curl -so /dev/null -w '%{http_code}\n' https://staging.feelverse.app/prototipos/book-experience
 ```
 
-En staging deben responder 200 —es la superficie de revisión de diseño, igual que un
-preview de Vercel—. En **producción** las dos deben dar 404, y eso se comprueba en
+En staging deben responder 200 —es la superficie de revisión de diseño—. En
+**producción** las dos deben dar 404, y eso se comprueba en
 el paso 5, no aquí.
 
 ### 2.5 Que las integraciones estén donde se cree
@@ -816,17 +823,33 @@ antes y después del drill es además la prueba de que no se tocó.
 
 ## 3 · ROLLBACK
 
-Tres niveles, del más barato al más caro. **Ensayar el nivel 3 una vez es requisito
-de apagado** de Vercel y Railway, no una idea bonita.
+Cuatro niveles, del más barato al más caro. **Toda la escalera ocurre dentro de
+OVH/Coolify.** Volver a Vercel o a Railway no es un nivel de esta tabla, ni una
+salida de emergencia: están retiradas del plan operativo, y una recuperación que
+dependiera de ellas sería una recuperación que no existe.
 
-| nivel | cuándo                                      | qué se hace                                                                                     | cuánto tarda   |
-| ----- | ------------------------------------------- | ----------------------------------------------------------------------------------------------- | -------------- |
-| 1     | el deploy nuevo está peor que el anterior   | redeploy de la versión anterior en Coolify                                                      | minutos        |
-| 2     | staging está roto y no se sabe por qué      | parar los recursos de staging. **Producción no se ha tocado**, así que no hay nada que revertir | minutos        |
-| 3     | producción en Coolify falla tras el cutover | DNS de vuelta a Vercel/Railway, que siguen encendidos y sirviendo                               | objetivo < 1 h |
+| nivel | cuándo                                    | qué se hace                                                                                     | cuánto tarda | ¿ensayado?                                |
+| ----- | ----------------------------------------- | ----------------------------------------------------------------------------------------------- | ------------ | ----------------------------------------- |
+| 1     | el deploy nuevo está peor que el anterior | redeploy del artefacto anterior en Coolify (§3.1 para el caso con reclamaciones pendientes)     | minutos      | **sí** — 2026-10-24, con sus cifras       |
+| 2     | staging está roto y no se sabe por qué    | parar los recursos de staging. **Producción no se ha tocado**, así que no hay nada que revertir | minutos      | trivial                                   |
+| 3     | el servicio de producción falla           | redeploy del artefacto de producción anterior, por su digest, en el mismo servidor              | minutos      | **no** — producción no existe todavía     |
+| 4     | **el servidor entero** se pierde          | reconstruir en OVH desde el respaldo de R2 sobre un Coolify nuevo (abajo)                       | horas        | **no** — es el hueco honesto de este plan |
 
-Lo que hace posible el nivel 3 es precisamente no haber borrado nada. Por eso no se
-borra nada hasta que se cumplan los criterios de apagado del ADR.
+Lo que hace posible el nivel 1 es tener el artefacto anterior por digest, no por
+`latest`; por eso el §4 lo exige. Y lo que hace posible el nivel 4 es el respaldo,
+que es la única pieza que sobrevive a perder la caja.
+
+**El nivel 4, dicho sin adornos.** Los ingredientes existen: los volcados van a R2,
+el drill de restauración del §2.9 está ejecutado, y la configuración de los recursos
+está descrita en el inventario de variables. Lo que **no** se ha hecho nunca es el
+camino completo —provisionar un host, instalar Coolify, recrear los recursos desde el
+inventario y restaurar el volcado— así que no se puede anunciar un tiempo objetivo
+honesto. Mientras ese ensayo no se haga, el nivel 4 son instrucciones sin estrenar, y
+conviene llamarlas así.
+
+Lo que ese ensayo exige, y no se improvisa el día malo: una copia del respaldo fuera
+del propio servidor (R2 ya lo está), el inventario de variables al día, y las claves
+de los proveedores accesibles — porque un host nuevo no hereda ninguna.
 
 Un rollback de **datos** es otra cosa y no se improvisa: exige el restore drill
 documentado desde el backup de R2. Una migración `expand → deploy → contract` se
@@ -1067,8 +1090,13 @@ describirse, no una reversión rutinaria.
 2. Números de límites tomados de staging, no inventados.
 3. Versión de PostgreSQL de producción consultada y decidida (§4 del inventario).
 4. Backup con restore drill **ejecutado**, no sólo configurado.
-5. Artefacto versionado por commit SHA o tag, nunca `latest`.
-6. Rollback de nivel 3 ensayado.
+5. Artefacto versionado por commit SHA o tag, nunca `latest` — sin esto no hay
+   rollback de nivel 3, porque no hay a qué volver.
+6. Rollback de nivel 1 ensayado. **Hecho** el 2026-10-24 (§3.1).
+7. Nivel 4 ensayado al menos una vez, o asumido explícitamente como riesgo abierto
+   por el propietario. Es la única recuperación frente a perder el servidor, y
+   retirar las plataformas anteriores no la sustituye: lo que la sustituía antes era
+   un DNS de vuelta, y ese camino ya no existe.
 
 Forma idéntica a staging con recursos **separados**. Ningún recurso con estado se
 comparte entre entornos, y `PSICO_ENV=production`.
@@ -1085,19 +1113,25 @@ por defecto de Traefik, o sea ninguna ruta. Así que este paso **no es tocar
 Cloudflare**: es reclamar el hostname en Coolify, y ocurre en el instante en que se
 escribe en el campo de dominio de un recurso.
 
-Consecuencia: el rollback de nivel 3 **no** se hace por DNS —el DNS ya está aquí—, se
-hace quitando el dominio del recurso de Coolify y devolviéndolo a Vercel, que exige
-tener el registro anterior anotado ANTES de reclamarlo.
+Consecuencia: la recuperación **no** se hace por DNS —el DNS ya está aquí— ni
+devolviendo el dominio a ninguna plataforma retirada. Se hace **dentro de Coolify**,
+volviendo el recurso al artefacto anterior por su digest (§3, nivel 3). El dominio no
+se mueve.
 
-1. Anotar a dónde apuntaba `feelverse.app` en Vercel, para poder deshacerlo.
-2. Reclamar `feelverse.app` en el recurso **web de producción** de Coolify. Nunca en
+Y una advertencia sobre la frase anterior de esta sección, que decía «el DNS ya
+apunta aquí» como si eso significara algo más de lo que significa: **que un dominio
+resuelva al servidor no es que exista producción**. Comprobado el 2026-11-05 — ningún
+recurso reclama `feelverse.app`: HTTP 000, sin certificado, y ante el proxy sólo
+figuran los dos hosts de staging. El proyecto de Coolify tiene tres aplicaciones y
+las tres son de staging.
+
+1. Reclamar `feelverse.app` en el recurso **web de producción** de Coolify. Nunca en
    uno de staging.
-3. Confirmar el certificado por Traefik: `issuer` ya no puede decir
+2. Confirmar el certificado por Traefik: `issuer` ya no puede decir
    `TRAEFIK DEFAULT CERT`.
-4. `www` redirige al canónico.
-5. Comprobar que los prototipos dan **404** en producción.
-6. Reapuntar y verificar con un evento real los webhooks de Stripe y Daily.
-7. Vercel y Railway **siguen encendidos**.
+3. `www` redirige al canónico.
+4. Comprobar que los prototipos dan **404** en producción.
+5. Reapuntar y verificar con un evento real los webhooks de Stripe y Daily.
 
 ---
 
@@ -1113,13 +1147,27 @@ documenta.
 
 ---
 
-## 7 · DECOMMISSION LEGACY
+## 7 · LAS PLATAFORMAS ANTERIORES
 
-Los seis criterios del ADR 0024, **todos**. Mientras falte uno, los dos proveedores
-se quedan encendidos: la factura de un mes es más barata que un cutover sin vuelta
-atrás.
+**Retiradas del plan operativo el 2026-11-05.** Esta sección decía antes cómo
+desmantelarlas; ya no dice eso, porque retirar del plan y desmantelar son cosas
+distintas y confundirlas sale caro.
 
-Cuando se cumplan, y sólo entonces, en este orden: quitar el marcador de Railway del
-detector de despliegue, retirar `railway.api.json` y `railway.worker.json`, retirar
-`apps/web/vercel.json` y la política de despliegue de Web, y archivar —no borrar— la
-documentación de despliegue anterior.
+**Lo que SÍ es cierto hoy:** no son destino de despliegue, ni de staging, ni de
+pruebas alojadas, ni de contingencia, ni de retorno a una versión anterior. La
+elección no se vuelve a plantear y el avance no se condiciona a mantenerlas
+disponibles.
+
+**Lo que NO se hace:** eliminar proyectos, bases, dominios, variables o cuentas. La
+eliminación irreversible de recursos antiguos no debe ocurrir como efecto secundario
+de una limpieza documental, y menos de ésta.
+
+**Y dos cosas del repositorio que parecen limpieza y son lo contrario.** Borrar
+`apps/web/vercel.json` o `scripts/vercel-ignore-web.sh` consigue justo lo que no se
+quiere: sin `ignoreCommand`, Vercel construye en **cada** commit de la rama
+conectada. La integración vive en la cuenta del proveedor y no se apaga desde aquí;
+lo que sí se puede desde aquí es responder «no construyas» a todo, que es lo que ese
+guión hace. Hay trinquete en `apps/web/src/deploy-policy.test.ts`. Igual con el
+marcador de Railway en el detector de entorno: no abre ningún gate al desaparecer, y
+los nombres que sobreviven lo hacen en detectores con varias alternativas y en el
+texto de un mensaje de error. Ver `CLAUDE.md § Deployment`.

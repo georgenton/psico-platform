@@ -1,5 +1,16 @@
 # v1 freeze — ops checklist
 
+> **Destino, fijado el 2026-11-05.** FeelVerse se aloja, ejecuta y despliega
+> **exclusivamente en OVH con Coolify**, en staging y en producción. Vercel y Railway
+> quedan **retiradas del plan operativo**: no son destino de despliegue, ni de pruebas
+> alojadas, ni de contingencia, **ni de retorno a una versión anterior**. Donde este
+> documento las nombre como destino, es antecedente — manda
+> [ADR 0024](adr/0024-migracion-a-coolify-syntavera.md), el
+> [runbook de Coolify](deploy/coolify-runbook.md) y `CLAUDE.md § Deployment`.
+>
+> Retirarlas **no borra nada**: ningún proyecto, base, dominio, variable ni cuenta
+> suya se elimina, y menos como efecto secundario de una limpieza documental.
+
 **Estado:** código v1 freezeado en `develop` (commit `316a508`). Esto cubre los 3 items ops que faltan para que la plataforma esté **funcionalmente completa en producción** — sin esto, varios endpoints devuelven 4xx con stub o "missing key" aunque el deploy responda 200 a `/health`.
 
 **Cuándo ejecutar cada bloque:** los 3 son independientes. Puedes hacer las API keys primero (más impacto, menos fricción), Stripe después (necesita decisiones de pricing), y ffmpeg al final (requiere los archivos master del audio).

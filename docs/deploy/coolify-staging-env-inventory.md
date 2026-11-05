@@ -693,9 +693,16 @@ LEGACY_PROVIDER_FALLBACK · DO_NOT_SET_ON_COOLIFY =
   RAILWAY_REPLICA_ID · RAILWAY_GIT_COMMIT_SHA
 ```
 
-Siguen **leídas en el código a propósito**: Railway y Vercel son el rollback mientras
-no se cumplan los seis criterios de apagado del ADR 0024. Retirarlas del código es un
-paso del decomisado, no de la llegada.
+Siguen **leídas en el código a propósito**, pero ya no por la razón que decía aquí.
+Esta línea afirmaba que esas plataformas «son el rollback»; desde el **2026-11-05**
+están retiradas del plan operativo y **no** son destino de retorno (ver
+[ADR 0024](../adr/0024-migracion-a-coolify-syntavera.md) y `CLAUDE.md § Deployment`).
+
+La razón real, y la que importa al tocar ese código: donde esos nombres sobreviven es
+en **detectores con varias alternativas** y en el texto de un mensaje de error.
+Ninguno abre un gate al desaparecer — ésa es justamente la propiedad que se quiere, y
+la que haría peligroso convertirlos en una condición. No se ponen en Coolify, y
+quitarlos del código no es urgente ni aporta nada: es higiene, no seguridad.
 
 ---
 

@@ -1,5 +1,16 @@
 # Activar el aprendizaje de un libro ya existente
 
+> **Destino, fijado el 2026-11-05.** FeelVerse se aloja, ejecuta y despliega
+> **exclusivamente en OVH con Coolify**, en staging y en producción. Vercel y Railway
+> quedan **retiradas del plan operativo**: no son destino de despliegue, ni de pruebas
+> alojadas, ni de contingencia, **ni de retorno a una versión anterior**. Donde este
+> documento las nombre como destino, es antecedente — manda
+> [ADR 0024](../adr/0024-migracion-a-coolify-syntavera.md), el
+> [runbook de Coolify](../deploy/coolify-runbook.md) y `CLAUDE.md § Deployment`.
+>
+> Retirarlas **no borra nada**: ningún proyecto, base, dominio, variable ni cuenta
+> suya se elimina, y menos como efecto secundario de una limpieza documental.
+
 ```
 COMMAND=content:book:activate-learning
 DEFAULT_MODE=dry-run
@@ -58,11 +69,14 @@ prefacio y fallaría cerrada — o, peor, resolvería contra el capítulo
 equivocado. Verifica el orden real antes de escribir una entrada nueva:
 
 ```bash
-railway ssh --service api "node -e 'require(\"/app/apps/api/dist/main\")'"
+# En el contenedor de la API en Coolify (OVH). El nombre del contenedor se
+# resuelve por la etiqueta del recurso, nunca por un UUID recordado:
+ssh syntavera-vps 'sudo -n docker ps --format "{{.Names}}" | grep aft7nt3p6wsormno2cejtavj'
+ssh syntavera-vps 'sudo -n docker exec -i <contenedor> node -e "…"'
 ```
 
-o, más simple, mira `chapter_order` y `source_heading_match_count` en el
-dry-run.
+o, más simple —y es lo que conviene hacer—, mira `chapter_order` y
+`source_heading_match_count` en el dry-run.
 
 ## Dry-run
 
@@ -135,7 +149,7 @@ invocación. En local no hace falta; en producción o staging el apply sin ella
 falla con `ACTIVATION_FORBIDDEN`.
 
 La postura de entorno sale del **resolver canónico**, no de una copia local. Una
-caja de Railway que no declara `PSICO_ENV`, o que declara `development` o
+caja desplegada que no declara `PSICO_ENV`, o que declara `development` o
 `test`, se rechaza en vez de tratarse como local — precisamente la falla que ese
 resolver existe para prevenir. Y el guard corre **antes** de leer
 `DATABASE_URL` y antes de abrir cualquier conexión: a un apply no autorizado lo

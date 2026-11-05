@@ -1,5 +1,22 @@
 # FeelVerse Círculos — runbook operativo del piloto
 
+> **Destino, fijado el 2026-11-05.** FeelVerse se aloja, ejecuta y despliega
+> **exclusivamente en OVH con Coolify**, en staging y en producción. Vercel y Railway
+> quedan **retiradas del plan operativo**: no son destino de despliegue, ni de pruebas
+> alojadas, ni de contingencia, **ni de retorno a una versión anterior**. Donde este
+> documento las nombre como destino, es antecedente — manda
+> [ADR 0024](../adr/0024-migracion-a-coolify-syntavera.md), el
+> [runbook de Coolify](../deploy/coolify-runbook.md) y `CLAUDE.md § Deployment`.
+>
+> Retirarlas **no borra nada**: ningún proyecto, base, dominio, variable ni cuenta
+> suya se elimina, y menos como efecto secundario de una limpieza documental.
+
+> **Y una excepción que conviene no leer como permiso.** El entorno alojado de
+> Círculos sigue en pie en la plataforma retirada (`psico-circulos-test`, cuatro
+> servicios, comprobado el 2026-11-05). **No se borra, no se migra y no se despliega
+> ahí.** Dónde vive Círculos a partir de ahora es una decisión del propietario, no un
+> efecto colateral de esta alineación documental.
+
 > **Estado honesto de este documento.** Describe lo que existe y está
 > verificado hoy, y nombra explícitamente lo que falta. Las secciones marcadas
 > `PENDIENTE` no están implementadas: no las ejecutes esperando que funcionen.

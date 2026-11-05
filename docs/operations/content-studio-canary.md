@@ -1,5 +1,17 @@
 # Content Studio — production canary
 
+> **Destination, settled 2026-11-05.** FeelVerse is hosted, run and deployed
+> **exclusively on OVH with Coolify**, in staging and in production. Vercel and
+> Railway are **retired from the operational plan**: not a deploy target, not a
+> hosted test environment, not a contingency, and **not a rollback destination**.
+> Where this document names them as a destination, that is antecedent — the
+> authority is [ADR 0024](../adr/0024-migracion-a-coolify-syntavera.md),
+> the [Coolify runbook](../deploy/coolify-runbook.md) and `CLAUDE.md § Deployment`.
+>
+> Retiring them **deletes nothing**: no project, database, domain, variable or
+> account of theirs is removed, least of all as a side effect of a documentation
+> tidy-up.
+
 How to put Content Studio in front of real people, starting with the smallest
 action that could teach us anything.
 

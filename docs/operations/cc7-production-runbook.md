@@ -37,15 +37,15 @@ Set **before** the sync PR, so the very first production boot of CC-7 has Guide
 closed for everyone.
 
 ```
-API (Railway):
+API (Coolify · recurso de producción):
 GUIDE_ROLLOUT_MODE=off
 GUIDE_PILOT_USER_IDS=<unset>
 
-Worker (Railway):
+Worker (Coolify · recurso de producción):
 GUIDE_ROLLOUT_MODE=off
 GUIDE_PILOT_USER_IDS=<unset>
 
-Vercel (web): no Guide variable. Never the allowlist.
+Web (Coolify): no Guide variable. Never the allowlist.
 ```
 
 **API is the functional authority for the Guide rollout.** The API resolves and
@@ -54,11 +54,19 @@ decide Guide command availability; mirroring the variable there is **deployment
 posture**, so the two services never read a different answer. Nothing here claims
 an absent value on the worker necessarily fails its boot.
 
-**Vercel receives neither Guide rollout variable.**
+**The web surface receives neither Guide rollout variable.**
 
 This posture is **planned, not applied** (`ENV_OFF_FIRST_APPLIED=false`). Setting
-and verifying it in Railway is step 1 below and is itself the open production
-blocker recorded in the readiness document.
+and verifying it on the production resources in Coolify is step 1 below and is
+itself the open production blocker recorded in the readiness document.
+
+> **Destino, fijado el 2026-11-05.** Este documento nombraba Railway y Vercel porque
+> se escribió cuando eran el destino. Ya no lo son: FeelVerse se aloja, ejecuta y
+> despliega **exclusivamente en OVH con Coolify**, en staging y en producción. Y una
+> precondición que este runbook daba por hecha: **producción todavía no existe como
+> recurso** — el proyecto de Coolify tiene tres aplicaciones y las tres son de
+> staging. Que `feelverse.app` resuelva al servidor no significa que haya
+> producción.
 
 **A mode change is not instantaneous.** `GUIDE_ROLLOUT_MODE` is resolved **once at
 boot** by `resolveGuideRolloutConfig`. Changing the variable needs no commit, no
@@ -182,7 +190,10 @@ Activation of the pilot is **not** part of the first deploy.
  3. Create the exact-tree sync PR to main.
  4. Wait for CI.
  5. Merge (authorised).
- 6. Wait for Railway API + worker + Vercel to report success.
+ 6. Wait for the API, worker and web resources in Coolify to report success —
+    **one at a time**: three parallel builds exhaust the build daemon and all three
+    fail. A green deploy in Coolify is not the end of the API's step: the migration
+    gate (`ready=true`, `pending` and `failed` empty) is.
  7. Confirm migrations applied (expect the 2 net migrations, once each).
  8. Run the approved production ingestion.
  9. Run the smoke suite with Guide still off, using the dedicated smoke actor

@@ -1,5 +1,16 @@
 # Guide V1 — rollout piloto server-owned (CC-7.R1)
 
+> **Destino, fijado el 2026-11-05.** FeelVerse se aloja, ejecuta y despliega
+> **exclusivamente en OVH con Coolify**, en staging y en producción. Vercel y Railway
+> quedan **retiradas del plan operativo**: no son destino de despliegue, ni de pruebas
+> alojadas, ni de contingencia, **ni de retorno a una versión anterior**. Donde este
+> documento las nombre como destino, es antecedente — manda
+> [ADR 0024](../adr/0024-migracion-a-coolify-syntavera.md), el
+> [runbook de Coolify](../deploy/coolify-runbook.md) y `CLAUDE.md § Deployment`.
+>
+> Retirarlas **no borra nada**: ningún proyecto, base, dominio, variable ni cuenta
+> suya se elimina, y menos como efecto secundario de una limpieza documental.
+
 ```
 PILOT_ROLLOUT_STATUS=ACTIVE_IN_PRODUCTION
 

@@ -1,5 +1,16 @@
 # Psico Platform — Design System
 
+> **Destino, fijado el 2026-11-05.** FeelVerse se aloja, ejecuta y despliega
+> **exclusivamente en OVH con Coolify**, en staging y en producción. Vercel y Railway
+> quedan **retiradas del plan operativo**: no son destino de despliegue, ni de pruebas
+> alojadas, ni de contingencia, **ni de retorno a una versión anterior**. Donde este
+> documento las nombre como destino, es antecedente — manda
+> [ADR 0024](../adr/0024-migracion-a-coolify-syntavera.md), el
+> [runbook de Coolify](../deploy/coolify-runbook.md) y `CLAUDE.md § Deployment`.
+>
+> Retirarlas **no borra nada**: ningún proyecto, base, dominio, variable ni cuenta
+> suya se elimina, y menos como efecto secundario de una limpieza documental.
+
 A psychoeducation SaaS for Ecuador and LATAM. Books, audios, ejercicios prácticos and a future AI companion grounded in evidence-based psychology — written by psychologists, for Spanish-speaking users learning to understand themselves.
 
 The platform is freemium → Pro $7/mo → Annual $59 → B2B $120+/mo. Two anchor books today: _Emociones en Construcción_ and _Familias Ensambladas_.

@@ -1,12 +1,56 @@
 # Cuándo se despliega Web
 
-Regla única: **`@psico/web` se construye si el commit la afecta, directa o
-transitivamente. Si no, se omite.**
+**FeelVerse se despliega exclusivamente en OVH con Coolify.** Decisión del
+propietario del **2026-11-05**: Vercel y Railway quedan retiradas del plan
+operativo — no son destino de despliegue, ni de staging, ni de pruebas alojadas,
+ni de contingencia, ni de retorno a una versión anterior.
 
-La decide `scripts/vercel-ignore-web.sh`, declarado como `ignoreCommand` en
-`apps/web/vercel.json`. Vive en el repositorio a propósito: quien revisa un PR
-tiene que poder ver qué regla decide si Web se despliega, sin entrar al dashboard
-de Vercel.
+## La respuesta de hoy
+
+Web se despliega **a mano, en Coolify**, cuando un cambio funcional lo justifica.
+Las tres aplicaciones están fijadas a `main`@`HEAD`, así que un despliegue sirve
+la punta de `main` en ese momento.
+
+|               |                                                                                         |
+| ------------- | --------------------------------------------------------------------------------------- |
+| Aplicación    | `feelverse-staging-web` · uuid `wwsluxasxlko4yf3fliwmkek`                               |
+| Cómo          | `POST /api/v1/deploy?uuid=<uuid>` con el token de despliegue, o el botón de su interfaz |
+| Qué lo cierra | el contenedor pasa a servir el commit esperado **y** la página responde                 |
+| De uno en uno | tres builds en paralelo tumban el demonio de buildkit y fallan los tres                 |
+
+**Igualar el SHA del repositorio con el servido no es motivo para desplegar.** No
+existe «el commit servido»: hay uno por servicio, y pueden ir a tres alturas
+distintas a la vez. Lo que justifica un despliegue es un cambio funcional que
+afecte a ESE servicio.
+
+## Y Vercel, ¿qué construye? Nada, nunca
+
+`scripts/vercel-ignore-web.sh` responde **«no construyas»** a todo lo que Vercel
+pregunte. Es el único control de la retirada que vive en el repositorio.
+
+**Borrarlo, o borrar `apps/web/vercel.json`, consigue lo contrario de lo que
+parece:** sin `ignoreCommand`, Vercel construiría en **cada** commit de la rama
+conectada. La integración Git vive en la cuenta de Vercel y no se desactiva desde
+el repositorio; responder «no» a todo sí.
+
+Hay trinquete en `apps/web/src/deploy-policy.test.ts`, verificado por mutación:
+un `exit 1` por cualquier camino, o cualquier condicional nuevo, rompe el build.
+Y ya no levanta clones de git, así que corre en cualquier entorno, con o sin red.
+
+**Retirar la plataforma del plan no implica borrar nada suyo** — ni proyecto, ni
+dominio, ni variable, ni cuenta.
+
+---
+
+## Antecedente — la política de afectación en Vercel (#725)
+
+> Lo que sigue describe la regla que gobernó los despliegues de Web hasta el
+> **2026-11-05**, cuando Vercel dejó de ser un destino. Se conserva porque
+> explica por qué los ficheros están donde están y qué costó aprenderlo; **no es
+> una instrucción vigente**. La regla de hoy es la de arriba.
+
+Regla única de entonces: **`@psico/web` se construye si el commit la afecta,
+directa o transitivamente. Si no, se omite.**
 
 ## La polaridad, que es lo único que no se puede equivocar
 
@@ -93,7 +137,14 @@ comportamiento con cambios fuera de los workspaces (`docs/`, `CLAUDE.md`,
 ciegas. Si algún día se prefiere ese camino, el trabajo pendiente es medir esos
 casos y decidir a conciencia; la tabla de arriba sirve de contrato de aceptación.
 
-## Qué pasa con esto en Coolify
+## Qué pasaba con esto en Coolify — resuelto el 2026-11-05
+
+> Esta sección preguntaba qué haría falta «cuando Web se sirva desde Coolify».
+> Ya se sirve desde Coolify, y la respuesta resultó más simple que la prevista:
+> **no hace falta ningún equivalente.** La regla de afectación existía para no
+> gastar builds de Vercel en commits que no tocaban Web; en Coolify el
+> despliegue es manual, así que no hay nada que decidir automáticamente. Lo
+> que sigue es el razonamiento de entonces.
 
 Nada, por ahora, y a propósito. [ADR 0024](../adr/0024-migracion-a-coolify-syntavera.md)
 mueve el runtime a Coolify, pero Vercel sigue encendido como respaldo, así que esta

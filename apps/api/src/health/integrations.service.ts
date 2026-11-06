@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/consistent-type-imports */
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { DEFAULT_EMAIL_FROM } from "../config/env.schema";
 import type { Env } from "../config";
 
 /**
@@ -33,6 +34,21 @@ export interface IntegrationsReport {
   anthropic: IntegrationStatus;
   voice: { provider: "whisper" | "deepgram"; key: IntegrationStatus };
   resend: IntegrationStatus;
+  /**
+   * Whether the SENDER was chosen, as opposed to defaulted.
+   *
+   * Separate from `resend` because they fail independently and only one of
+   * them is visible. A key with no chosen sender reads as a working mail
+   * configuration — boot says nothing, the report said nothing — while every
+   * message leaves claiming whatever the default names. Resend refuses an
+   * unverified domain, so the symptom arrives as "mail does not work" long
+   * after the cause.
+   *
+   * `configured: false` means EMAIL_FROM still equals `DEFAULT_EMAIL_FROM`.
+   * The box cannot know which domains are verified in Resend; it can know
+   * that nobody picked one, which is the actionable half.
+   */
+  resendFrom: IntegrationStatus;
   google: IntegrationStatus;
   redis: IntegrationStatus;
   webPush: IntegrationStatus;
@@ -48,6 +64,26 @@ function status(v: string | undefined): IntegrationStatus {
   if (!v) return { configured: false };
   if (isStubValue(v)) return { configured: true, stub: true };
   return { configured: true };
+}
+
+/**
+ * Was the sender CHOSEN?
+ *
+ * Three inputs, two answers. `undefined` is grouped with the default on
+ * purpose: Zod applies the default before anything reads the value, so in a
+ * running process unset and defaulted are the same state — but a test stub
+ * hands back `undefined`, and a bare `!== DEFAULT_EMAIL_FROM` would have
+ * reported "chosen" there. The assertion would then pass while describing the
+ * opposite of production, which is worse than no assertion.
+ *
+ * An operator who explicitly types the default value reads as "not chosen".
+ * That is indistinguishable by construction, and the advice is identical
+ * either way — verify that domain, then pick a sender on it — so the
+ * ambiguity costs nothing.
+ */
+function isChosenSender(config: ConfigService<Env, true>): boolean {
+  const v = config.get("EMAIL_FROM", { infer: true });
+  return v !== undefined && v !== DEFAULT_EMAIL_FROM;
 }
 
 @Injectable()
@@ -88,6 +124,7 @@ export class IntegrationsService {
       anthropic: status(this.config.get("ANTHROPIC_API_KEY", { infer: true })),
       voice: { provider, key: status(voiceKey) },
       resend: status(this.config.get("RESEND_API_KEY", { infer: true })),
+      resendFrom: { configured: isChosenSender(this.config) },
       google: status(this.config.get("GOOGLE_CLIENT_ID", { infer: true })),
       redis: status(this.config.get("REDIS_URL", { infer: true })),
       webPush: status(this.config.get("VAPID_PRIVATE_KEY", { infer: true })),
@@ -115,6 +152,13 @@ export class IntegrationsService {
     check("ANTHROPIC_API_KEY", r.anthropic);
     check(`VOICE (${r.voice.provider}) KEY`, r.voice.key);
     check("RESEND_API_KEY", r.resend);
+    // Only when there IS a key. With no key nothing is sent, so an unchosen
+    // sender is not yet a problem and listing it would be noise in a punch
+    // list whose value is that every line matters. With a key it is the
+    // difference between mail arriving and mail being refused.
+    if (r.resend.configured && !r.resendFrom.configured) {
+      out.push({ key: "EMAIL_FROM (defaulted, not chosen)", reason: "stub" });
+    }
     check("GOOGLE_CLIENT_ID", r.google);
     check("REDIS_URL", r.redis);
     check("VAPID keys", r.webPush);

@@ -4010,15 +4010,21 @@ de cada bitácora de sesión— es **antecedente fechado**: explica cómo se lle
 aquí, no lo que toca hacer. Si una instrucción antigua contradice esta
 sección, manda esta sección.
 
-#### El corte — 2026-11-05
+#### El corte — 2026-11-06
 
 |                    |                                                                                   |
 | ------------------ | --------------------------------------------------------------------------------- |
 | Dónde vive         | **OVH con Coolify, y sólo ahí.** Vercel y Railway retiradas del plan operativo    |
-| `main`             | `166f261a` (#821) · **cero PR abiertos**                                          |
-| Servido en staging | Web `166f261a` · API y worker `9a03edd0`                                          |
-| ¿Coinciden?        | Web sí. API y worker no, y **no importa**: #818, #820 y #821 no tocan su código   |
+| `main`             | `44090745` (#824) · **cero PR abiertos**                                          |
+| Servido en staging | Web `166f261a` · worker y API, el despliegue del 06-11                            |
+| ¿Coinciden?        | No del todo, y conviene saber por qué: la Web no cambió hoy, así que sigue en su artefacto; el worker y la API se desplegaron por **variables**, no por código |
 | Producción         | **no existe como recurso.** Tres aplicaciones en el proyecto, las tres de staging |
+
+> **Un despliegue puede no venir de un commit.** Los tres de hoy se dispararon
+> por cambios de **entorno** —abrir Círculos, abrir el modo guiado a QA—, no por
+> código nuevo. Un artefacto cuyo SHA coincide con el de ayer puede estar
+> ejecutando una configuración distinta, y el SHA no lo dice. Lo que lo dice es
+> el entorno del contenedor, que es donde se comprobó.
 
 > **Una trampa de verificación, para la próxima.** Tras desplegar, la tarjeta de
 > notificaciones seguía mostrando el texto viejo aunque el contenedor ya servía el
@@ -4096,11 +4102,11 @@ en [el runbook §4](docs/deploy/coolify-runbook.md).
 | Medios del lector                        | ❌ **sin material**: video 0 de 10 bloques con archivo, audio 0 filas. Los reproductores están construidos y con marcador honesto                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | CI                                       | ✅ el fallo intermitente de la suite de PostgreSQL **está cerrado** (#813): lo causaba un `DROP DATABASE … WITH (FORCE)` sobre un pool que acababa de cerrarse                                                                                                                                                                                                                                                                                                                                                                                             |
 | UAT                                      | ⚠️ **parcial**, con sus límites escritos en [la bitácora](docs/informes/uat-2026-10-23-cierre-staging.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| Respaldo fuera del servidor              | ✅ **comprobado el 05-11** — diario, activo, y **14 objetos en el bucket R2**, los cuatro últimos de 1,17 MB. Configurado y subido son dos afirmaciones distintas, y la que sirve el día malo es la segunda                                                                                                                                                                                                                                                                                                                                                |
-| Recuperar tras perder el servidor        | ❌ **nunca ensayado.** Retirar las plataformas anteriores no creó este hueco: quitó el atajo que lo tapaba. Decisión tuya: ensayarlo antes de producción o asumirlo por escrito                                                                                                                                                                                                                                                                                                                                                                            |
+| Respaldo fuera del servidor              | ✅ **alcanzable Y restaurable** (06-11). El 05-11 sólo constaba que los objetos estaban subidos; faltaba lo que de verdad decide: **las credenciales del bucket vivían sólo dentro de Coolify, en la caja**, y cifradas con su `APP_KEY`, que vive ahí también — dos dependencias circulares, en el único escenario para el que existe el respaldo. Corregido: copia fuera del repositorio, y desde el Mac **sin pasar por el VPS** se listó el bucket (13 objetos), se bajó el último y `pg_restore` cerró en **rc=0, cero errores**, con el contenido contrastado contra 6 hechos conocidos. Falta el **29-10** en la serie: «diario y activo» es cierto, «todos los días» no |
+| Recuperar tras perder el servidor        | ⚠️ **su cimiento, comprobado; el ensayo completo, no.** Hecho el 06-11 todo lo que no necesita una caja nueva: alcanzar la copia sin el servidor, restaurarla, verificar su contenido, y poner a salvo fuera de la caja las **tres** claves cuya pérdida destruye datos (`CIRCLES_SHARED_DATA_KEY_V1` y el par VAPID), verificando por hash que son las que corren. Falta provisionar un host, instalar Coolify, recrear los tres recursos y restaurar: propuesta con coste en [la bitácora del 06-11](docs/informes/uat-2026-11-06-circulos-y-recuperacion.md) |
 | Rollback a la imagen anterior            | ⚠️ **ensayo operativo HECHO** (2026-10-24) — sigue condicionado a su precondición de contenido y al residuo de la ventana. Y el residuo tiene un límite que ahora está dicho con precisión: la reconciliación manual que lo cerraría **nunca se ha ejecutado**, así que son instrucciones sin estrenar, no un mecanismo comprobado. Candidatos de reversión por servicio en [el runbook §3.1](docs/deploy/coolify-runbook.md) — y **«la versión anterior» no es una versión**: el worker no tiene build de `6cb27281`, su anterior es de dos semanas antes |
-| Modo guiado                              | ⏸️ **conserva su disponibilidad actual** (`GUIDE_ROLLOUT_MODE=off`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| Círculos / Dúo                           | ⏸️ **conserva su disponibilidad actual** (su propia puerta) · ⚠️ su entorno alojado sigue en pie en la plataforma retirada (`psico-circulos-test`, cuatro servicios, comprobado el 05-11). **No se borra ni se migra**: dónde vive Círculos a partir de ahora es decisión tuya                                                                                                                                                                                                                                                                             |
+| Modo guiado                              | ✅ **abierto a QA** (06-11): `pilot` con sólo la cuenta sintética en la allowlist, para cerrar el `NOT_VERIFIED` de si las cinco microguías de C01 se ejecutan — lo que faltaba era la cuenta, para no escribir progreso en una personal. Para cualquier otra persona sigue cerrado                                                                                                                                                                                                                                                                       |
+| Círculos / Dúo                           | ✅ **funcionando en OVH/Coolify** desde el 06-11, en `pilot` con **sólo** la cuenta QA en la allowlist: para cualquier otra persona sigue cerrado. 18 comprobaciones del propio `production-ready.mjs` en verde, más el recorrido del organizador (crear → leer → retirar). ⚠️ Pendiente **editorial**, no de configuración: la única entrada del Dúo cuelga de un pin de guía retirado para inicios nuevos. El entorno alojado anterior sigue en pie en la plataforma retirada y **no se borró ni se migró**                                                                                                                                                                                                                                                                             |
 | Cobros reales                            | ⏸️ **conservan su situación actual** — cerrados                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 
 #### Webhooks ≠ D-ORD
@@ -4259,7 +4265,8 @@ distintas:
     Trinquete de cuatro mitades **verificado por mutación**: volver a la genérica
     en el lector mata 1, retirar la clase mata 1, volver a la genérica en la
     muestra mata 2, y hacer que el token valga lo mismo en los dos estilos mata 1.
-    **Pendiente de que Web se despliegue.**
+    **Desplegado y comprobado sobre lo servido** el 05-11, en las ocho
+    combinaciones.
 
 11. ✅ **Push web, de la clave al servicio** (04-11 → 05-11). Las claves VAPID se
     generaron el 04-11 con permisos 600 en el almacén de ops; de las cuatro
@@ -4311,7 +4318,33 @@ distintas:
     llevaba un `leading-[1.7]` propio que gana a la herencia. Misma familia que el
     de la letra. Arreglado en
     [#818](https://github.com/georgenton/psico-platform/pull/818) con trinquete
-    verificado por mutación; **pendiente de desplegar**.
+    verificado por mutación. **Desplegado y comprobado sobre lo servido** el
+    05-11: los tres se mueven juntos, 21,6 → 39,6 → 32,4 px.
+
+16. ✅ **La excepción móvil a las plataformas retiradas, cerrada** (06-11, #823).
+    Cubría staging y producción y dejaba fuera **desarrollo**, con una prueba que
+    conservaba la excepción a propósito. Esa razón caducó al retirarlas del plan:
+    un host que ya no recibe código **parece sano** mientras ejercita un producto
+    tres semanas por detrás.
+
+17. ✅ **Círculos funciona en OVH/Coolify** (06-11). El entorno alojado anterior
+    existía para una sola pregunta —qué hace el producto cuando navegador, Web y
+    API están de verdad separados por una red— y **eso ya lo satisface la
+    instalación actual**: no había que reconstruir nada, sino configurar lo que
+    hay. Detalle, incluida la incoherencia editorial que queda, en
+    [la bitácora](docs/informes/uat-2026-11-06-circulos-y-recuperacion.md).
+
+18. ✅ **El cimiento de la recuperación, comprobado — y un defecto grave
+    corregido** (06-11). Las credenciales del respaldo vivían **sólo dentro de
+    Coolify, en la caja**, cifradas con su `APP_KEY`, que vive ahí también: en el
+    único escenario para el que existe un respaldo fuera del servidor no había
+    forma de alcanzarlo. Hay copia fuera, y desde el Mac se listó el bucket, se
+    bajó la última copia y `pg_restore` cerró en **rc=0**.
+
+19. ✅ **El correo, preparado para cuando llegue la clave** (06-11, #824). El
+    remitente por defecto reclamaba un dominio que no es del producto, y Resend
+    lo habría rechazado: la primera prueba de una clave nueva habría fallado por
+    eso y habría parecido una clave mala.
 
 #### Lo que pide una decisión tuya
 
@@ -4322,25 +4355,61 @@ en **[la matriz de F3](https://claude.ai/artifact/UtBZxMUDiqSuSwY3mGh5ah)**:
 1. **Resend más una bandeja de QA.** Es el que más pesa: hoy **nadie puede recuperar
    su contraseña**, y ninguna credencial autorizada de correo existe en el almacén de
    ops. No se pide en texto ni se saca de otro sitio.
+
+   Lo demás ya está preparado (06-11, #824): el remitente por defecto reclamaba
+   `psico.app`, un dominio que no es del producto y que Resend habría rechazado
+   —así que la primera prueba de una clave nueva habría fallado por eso y habría
+   parecido una clave mala—. Hace falta: **dominio** `feelverse.app` verificado
+   en Resend con sus registros DNS, **remitente** `no-reply@feelverse.app`
+   (`EMAIL_FROM`, que el informe de salud ya delata cuando nadie lo elige), y un
+   **buzón real autorizado** para QA, porque las cuentas de prueba usan
+   `@psico.test` y por diseño no pueden recibir nada. El recorrido a comprobar
+   es completo: recepción → enlace → restablecimiento → **acceso con la
+   contraseña nueva**.
 2. **`SENTRY_DSN`** — sin él, un fallo en el piloto se investiga a ciegas.
 3. **`GOOGLE_CLIENT_ID`** — puede quedar fuera del piloto: sin clave el producto
    sencillamente no ofrece el botón, que es un estado honesto.
 4. **Material de audio y video.** Recomendación: **un** capítulo narrado de _EEC_
    primero, no los diez.
-5. **Tres asuntos editoriales:** publicar las cinco microguías de C01, los dos
-   bloques excluidos de _EEC_, y las dos obras restantes.
+5. **Tres asuntos editoriales**, y uno de los tres estaba mal descrito:
+
+   - **Las cinco microguías de C01 no están «sin publicar», y lo que las
+     retiene no es editorial**: están las cinco en
+     `PRODUCTION_GUIDE_DISCOVERY_ENTRIES`, con título, descripción y duración, y
+     lo que las oculta es un **interruptor de seguridad con nombre**,
+     `EEC_C01_GUIDED_SUITE_V1`, cuyo valor por defecto es `false` y que no
+     estaba puesto. Medido: con el rollout del guía abierto, el capítulo 1
+     respondía «no disponible» mientras los capítulos **2 y 4 servían sus guías
+     con el mismo rollout y el mismo usuario** — así que no era el rollout, ni
+     el plan, ni la cuenta. Lo que sí es editorial es **a cuál de ellas se mueve
+     la elegibilidad del Dúo**, hoy colgada de un pin retirado.
+   - **Los dos bloques excluidos de _EEC_**, que resultaron ser más que un borde
+     de formato: uno es una **nota editorial interna** —nombra Zotero y
+     `TEXT_LOCKED`— que se está sirviendo a los lectores como cita del capítulo 1,
+     y la recomendación es **borrar el bloque**, no arreglarle el acento
+     invertido; el otro es la tarjeta de actividad del capítulo 5, donde basta
+     retirar dos asteriscos porque las comillas angulares ya marcan el énfasis.
+     Es el único bloque con vocabulario interno de toda la plataforma: un escape
+     aislado, no sistémico.
+   - **Las dos obras restantes**, con su estado en
+     [el inventario editorial](docs/product/inventario-editorial.md).
 6. **Precios y apertura de cobros**, con sus seis condiciones.
 
 Y dos que nacieron de esta sesión:
 
-7. **Dónde vive Círculos.** Su entorno alojado sigue en pie en la plataforma
-   retirada. No se borra ni se migra por iniciativa mía; o se mueve a OVH, o se
-   declara una excepción con fecha, o se cierra el piloto. Las tres son decisiones
-   tuyas, y las tres son reversibles salvo la última.
-8. **El nivel 4 del rollback** —reconstruir en OVH tras perder el servidor— nunca se
-   ha ensayado. O se ensaya antes de producción, o se asume como riesgo abierto por
-   escrito. Retirar las plataformas anteriores quitó el atajo que lo tapaba, así que
-   ahora es una pregunta de verdad.
+7. **Lo que queda de Círculos es editorial, no de proveedor.** El destino se
+   decidió y se ejecutó el 06-11: funciona en OVH/Coolify. Lo que sigue abierto
+   es que su única entrada productiva cuelga de `eec-c1-cuerpo-antes-que-mente@1`,
+   un pin **retirado para inicios nuevos**, así que el CTA aparece sobre una
+   página cuya acción principal no está disponible. Se cierra moviendo la
+   elegibilidad a una de las cinco microguías vivas de C01 — un acto editorial
+   con su propia aprobación, no una tarea de despliegue.
+8. **El nivel 4 del rollback** —reconstruir en OVH tras perder el servidor— tiene
+   ya su cimiento comprobado (06-11) y le falta sólo la caja. Lo que pide una
+   decisión es **un VPS de OVH temporal**, unas horas, que se destruye al
+   terminar: con él queda demostrado el camino entero, de «se perdió el
+   servidor» a «la aplicación responde con los datos de ayer». La propuesta, con
+   su finalidad y su alcance, está en la bitácora del 06-11.
 
 #### Deuda de producto que sigue viva (de los arcos anteriores)
 

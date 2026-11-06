@@ -10,8 +10,8 @@ Turborepo + pnpm v10 monorepo fully scaffolded as of 2026-04-24 (Sesión 1).
 
 **Structure:**
 
-- `apps/api` — NestJS 10, CommonJS, Prisma + Redis (not yet wired), deploys to Railway
-- `apps/web` — Next.js 14 App Router, deploys to Vercel
+- `apps/api` — NestJS 10, CommonJS, Prisma + Redis; deploys to OVH/Coolify
+- `apps/web` — Next.js 14 App Router; deploys to OVH/Coolify
 - `apps/mobile` — Expo SDK ~52 with expo-router
 - `packages/types` — shared TypeScript interfaces (User and future domain types)
 - `packages/ui` — React web components (empty scaffold, M4+)

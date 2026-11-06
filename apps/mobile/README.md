@@ -2,11 +2,15 @@
 
 ## El problema que esto resuelve
 
-`apps/mobile/.env` existe en la máquina de cada quien, no está versionado, y hoy
-apunta a la **API de Railway**, que es infraestructura congelada de producción
-([ADR 0024](../../docs/adr/0024-migracion-a-coolify-syntavera.md)). Eso quiere
-decir que la forma por defecto de arrancar la app —`pnpm start`— era también la
-forma de hacer QA contra producción, y nada en pantalla lo decía.
+`apps/mobile/.env` existe en la máquina de cada quien y no está versionado, así
+que la forma por defecto de arrancar la app —`pnpm start`— apuntaba a donde
+alguien hubiera escrito la última vez, y nada en pantalla lo decía. Cuando se
+escribió esto, ese «donde sea» solía ser la API de la plataforma anterior.
+
+Desde el **2026-11-05** esas plataformas están retiradas del plan operativo
+([ADR 0024](../../docs/adr/0024-migracion-a-coolify-syntavera.md)), y los
+perfiles de abajo las rechazan por código — lo que ya hacían, ahora también por
+decisión declarada y no sólo por prudencia.
 
 La respuesta natural, editar `.env` entre sesiones, convierte la pregunta «¿a qué
 API estoy hablando?» en «a lo que escribí la última vez y olvidé».
@@ -90,10 +94,13 @@ falta.
 
 ## Producción: falla cerrada, a propósito
 
-No hay perfil de producción todavía. Coolify production no tiene dominio, y la
-única API de producción que existe hoy es el host congelado de Railway; apuntar
-un perfil móvil ahí convertiría un respaldo deliberado en un destino. El perfil
-existe y se niega con esa explicación, que es más honesto que no tenerlo.
+No hay perfil de producción todavía, y la razón es más simple de lo que decía
+esta sección: **producción no existe como recurso**. El proyecto de Coolify
+tiene tres aplicaciones y las tres son de staging; ningún recurso reclama
+`feelverse.app` (comprobado el 2026-11-05: HTTP 000, sin certificado). Apuntar
+un perfil móvil a la plataforma retirada tampoco es una salida — no es destino
+de nada. El perfil existe y se niega con esa explicación, que es más honesto
+que no tenerlo.
 
 Cuando Coolify production tenga dominio: rellenar `PROFILES.production` en
 [`scripts/start-profile.mjs`](scripts/start-profile.mjs) y fijar el host en

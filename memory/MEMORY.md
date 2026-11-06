@@ -1,4 +1,4 @@
-- [Project overview](project_overview.md) — Psico Platform: psychoeducation SaaS, Turborepo monorepo, NestJS/Next.js 14/Expo, pnpm workspaces, Railway + Vercel deploy
+- [Project overview](project_overview.md) — Psico Platform: psychoeducation SaaS, Turborepo monorepo, NestJS/Next.js 14/Expo, pnpm workspaces, despliegue en OVH/Coolify (único destino desde 2026-11-05)
   <<<<<<< HEAD
   <<<<<<< HEAD
   <<<<<<< HEAD

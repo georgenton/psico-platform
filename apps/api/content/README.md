@@ -52,7 +52,8 @@ cd apps/api
 # preview parsing without touching the DB:
 node scripts/ingest-chapter-md.mjs --dir content/emociones-en-construccion --dry-run
 
-# ingest all chapters (Railway shell, DATABASE_URL set):
+# ingest all chapters (dentro del contenedor de la API en Coolify, con
+# DATABASE_URL puesta):
 node scripts/ingest-chapter-md.mjs --dir content/emociones-en-construccion
 
 # a single chapter:

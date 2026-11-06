@@ -87,8 +87,10 @@ chapter). Env: `DATABASE_URL`, `R2_*`, `OPENAI_API_KEY`.
 node scripts/generate-chapter-audio.mjs --dry-run
 node scripts/generate-chapter-audio.mjs --voice nova --model tts-1   # all chapters
 node scripts/generate-chapter-audio.mjs --only 1                     # a single chapter
-# against prod: inject env with `railway run --service psico-platform -- \
-#   env DATABASE_URL="<public-proxy>" node scripts/generate-chapter-audio.mjs`
+# contra un entorno desplegado: se ejecuta DENTRO del contenedor de la API en
+# Coolify, que ya tiene DATABASE_URL en su entorno. El contenedor se resuelve
+# por la etiqueta del recurso, nunca por un UUID recordado:
+#   ssh <host> 'sudo -n docker exec -i <contenedor> node apps/api/scripts/generate-chapter-audio.mjs'
 ```
 
 **B) Professional recordings (drop-in replacement, no code change).** Upload the

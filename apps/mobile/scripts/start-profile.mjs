@@ -4,12 +4,15 @@
  *
  * ── The problem ───────────────────────────────────────────────────────────
  *
- * `expo start` reads `apps/mobile/.env`, and that file currently points at the
- * Railway API — frozen legacy production. So the default way to run this app is
- * also the way to run QA against production, and nothing on screen says so. The
- * fix people reach for is editing `.env` between sessions, which means the
- * question "which API am I talking to?" is answered by whatever you last typed
- * and forgot.
+ * `expo start` reads `apps/mobile/.env`, and the question "which API am I
+ * talking to?" was answered by whatever was last typed into that file and
+ * forgotten. The fix people reach for is editing it between sessions, which is
+ * how a QA session ends up somewhere nobody chose.
+ *
+ * Since 2026-11-05 a retired platform in `.env` is refused outright by
+ * `src/config/environment.ts`, in every profile. This wrapper is the other half
+ * of that: the refusal says where NOT to go, and `start:staging` makes where to
+ * go a single command instead of an edit.
  *
  * ── The mechanism, and why it is this one ─────────────────────────────────
  *
@@ -61,11 +64,10 @@ const STAGING_WEB_ORIGIN = "https://staging.feelverse.app";
 /**
  * The profiles.
  *
- * `production` exists and is deliberately WITHOUT urls: Coolify production has
- * no domain yet, and the only production API that exists today is the frozen
- * Railway host. Writing that host here would institutionalize a fallback as a
- * destination — so the profile fails closed and says why, which is more honest
- * than quietly having no production profile at all.
+ * `production` exists and is deliberately WITHOUT urls: production does not
+ * exist as a Coolify resource yet, so there is no origin to write. The profile
+ * fails closed and says why, which is more honest than quietly having no
+ * production profile at all.
  */
 const PROFILES = {
   staging: {
@@ -78,13 +80,14 @@ const PROFILES = {
   },
   production: {
     env: null,
-    describe: "not available yet — Coolify production has no domain",
+    describe: "not available yet — production is not a Coolify resource",
     blocked:
       "There is no production profile yet, on purpose.\n" +
-      "Coolify production does not have a domain, and the only production API " +
-      "that exists today is the frozen Railway host. Pointing a mobile profile " +
-      "at it would turn a deliberate fallback into a destination.\n" +
-      "This profile will be filled in when Coolify production has its domain.",
+      "FeelVerse production does not exist as a resource: the Coolify project " +
+      "holds three applications and all three are staging, so there is no " +
+      "origin to point this at. That `feelverse.app` resolves to the server " +
+      "does not make it a destination.\n" +
+      "This profile will be filled in when production exists and has its domain.",
   },
 };
 

@@ -27,10 +27,14 @@ import {
  * request as an opaque network error. "Where is my API" is answerable from one
  * place now, and a wrong answer stops the app while somebody is watching.
  *
- * The accident this specifically prevents: `apps/mobile/.env` points at the
- * Railway API — frozen legacy production — so the DEFAULT way to run the app is
- * also the way to run QA against production. A staging build that silently went
- * there would be indistinguishable from one that worked.
+ * The accident this specifically prevents: `apps/mobile/.env` pointed at the
+ * Railway API, so the DEFAULT way to run the app was also the way to run QA
+ * against a host nobody had chosen. A build that silently went there would be
+ * indistinguishable from one that worked.
+ *
+ * Since 2026-11-05 that refusal covers DEVELOPMENT as well. See
+ * `· a retired platform is refused in every profile` below for why the earlier
+ * exception was removed rather than kept.
  */
 
 const STAGING = {
@@ -68,10 +72,10 @@ describe("mobile environment · the staging profile", () => {
     "https://psico-platform-production.up.railway.app",
     "https://psico-platform-web.vercel.app",
     "https://anything.up.railway.app",
-  ])("REFUSES the frozen legacy host %s", (url) => {
-    // The exact accident: the developer's .env holds a Railway URL, so without
-    // this a staging profile that failed to override it would run against
-    // legacy production and look perfectly healthy.
+  ])("REFUSES the retired platform host %s", (url) => {
+    // The exact accident: the developer's .env held a Railway URL, so without
+    // this a staging profile that failed to override it would run against that
+    // host and look perfectly healthy.
     let caught: unknown;
     try {
       resolveMobileEnvironment({ ...STAGING, EXPO_PUBLIC_API_URL: url });
@@ -79,7 +83,7 @@ describe("mobile environment · the staging profile", () => {
       caught = err;
     }
     expect(caught).toBeInstanceOf(MobileEnvironmentError);
-    expect(String((caught as Error).message)).toMatch(/frozen legacy/);
+    expect(String((caught as Error).message)).toMatch(/retired platform/);
   });
 
   it("refuses plain http outside development", () => {
@@ -108,7 +112,7 @@ describe("mobile environment · the staging profile", () => {
         ...STAGING,
         EXPO_PUBLIC_WEB_ORIGIN: "https://psico-platform-web.vercel.app",
       }),
-    ).toThrow(/frozen legacy/);
+    ).toThrow(/retired platform/);
     expect(() =>
       resolveMobileEnvironment({
         EXPO_PUBLIC_APP_ENV: "staging",
@@ -211,25 +215,107 @@ describe("mobile environment · development", () => {
     ).toThrow(/EXPO_PUBLIC_API_URL is not set/);
   });
 
-  it("does NOT block a legacy host in development", () => {
-    // Deliberate: the developer's own .env points there, and refusing it would
-    // break the only workflow they currently have. The staging profile is what
-    // makes the safe path available; this check is not the place to take the
-    // existing one away.
-    const env = resolveMobileEnvironment({
-      EXPO_PUBLIC_APP_ENV: "development",
-      EXPO_PUBLIC_API_URL: "https://psico-platform-production.up.railway.app",
-    });
-    expect(env.apiOrigin).toBe(
-      "https://psico-platform-production.up.railway.app",
-    );
-  });
-
   it("leaves the web origin null when nothing declares one", () => {
     const env = resolveMobileEnvironment({
       EXPO_PUBLIC_API_URL: "http://localhost:3001",
     });
     expect(env.webOrigin).toBeNull();
+  });
+});
+
+describe("mobile environment · a retired platform is refused in every profile", () => {
+  /**
+   * This replaces a test called "does NOT block a legacy host in development",
+   * which asserted the opposite and explained itself like this: the developer's
+   * own `.env` points there, and refusing it would break the only workflow they
+   * have.
+   *
+   * That reasoning held while Railway and Vercel were a frozen fallback — a
+   * live environment nobody had decided against. It expired on 2026-11-05, when
+   * they were retired from the operational plan: those hosts no longer receive
+   * code, so a development session against one looks healthy while exercising a
+   * product three weeks behind the repository. Conclusions drawn there are
+   * quietly about something else, which is a worse outcome than a refusal on
+   * `pnpm start` and a much harder one to notice.
+   *
+   * The local workflow is redirected, not removed — see the two cases at the
+   * bottom, which are the reason this is a matrix and not a one-liner.
+   */
+  const PROFILES = ["development", "staging", "production"] as const;
+  const RETIRED = [
+    "https://psico-platform-production.up.railway.app",
+    "https://psico-platform-web.vercel.app",
+    "http://anything.up.railway.app",
+    "https://a.b.c.vercel.app",
+  ];
+
+  for (const profile of PROFILES) {
+    it.each(RETIRED)(`${profile} refuses %s`, (url) => {
+      let caught: unknown;
+      try {
+        resolveMobileEnvironment({
+          EXPO_PUBLIC_APP_ENV: profile,
+          EXPO_PUBLIC_API_URL: url,
+          EXPO_PUBLIC_WEB_ORIGIN: STAGING_WEB_ORIGIN,
+        });
+      } catch (err) {
+        caught = err;
+      }
+      expect(caught).toBeInstanceOf(MobileEnvironmentError);
+      // The refusal names the HOST, not the scheme. `http://…up.railway.app`
+      // in a deployed profile breaks two rules at once, and reporting "must use
+      // https" would invite somebody to fix the scheme and keep the host — so
+      // the retired-platform check runs first, on purpose.
+      expect(String((caught as Error).message)).toMatch(/retired platform/);
+    });
+  }
+
+  it("refuses a retired host as the WEB origin too, in development", () => {
+    // The web origin is where Stripe returns land. It had the same exception.
+    expect(() =>
+      resolveMobileEnvironment({
+        EXPO_PUBLIC_APP_ENV: "development",
+        EXPO_PUBLIC_API_URL: "http://localhost:3001",
+        EXPO_PUBLIC_WEB_ORIGIN: "https://psico-platform-web.vercel.app",
+      }),
+    ).toThrow(/retired platform/);
+  });
+
+  it("tells the developer where to go instead", () => {
+    // A refusal that does not name the two valid destinations just moves the
+    // problem: the person edits `.env` again, guessing.
+    let message = "";
+    try {
+      resolveMobileEnvironment({
+        EXPO_PUBLIC_APP_ENV: "development",
+        EXPO_PUBLIC_API_URL: "https://psico-platform-production.up.railway.app",
+      });
+    } catch (err) {
+      message = String((err as Error).message);
+    }
+    expect(message).toContain(STAGING_API_ORIGIN);
+    expect(message).toContain("localhost");
+  });
+
+  it.each([
+    "http://localhost:3001",
+    "http://127.0.0.1:3001",
+    "http://192.168.1.5:3001",
+    "http://10.0.0.7:8081",
+  ])("but the local address %s still resolves in development", (url) => {
+    // The point of the change is WHERE, not HOW. Plain http on a LAN address is
+    // still what a phone on the same Wi-Fi needs, and taking that away would
+    // have been a different decision wearing this one's clothes.
+    const env = resolveMobileEnvironment({
+      EXPO_PUBLIC_APP_ENV: "development",
+      EXPO_PUBLIC_API_URL: url,
+    });
+    expect(env.apiOrigin).toBe(url);
+  });
+
+  it("and so does the staging profile it points people at", () => {
+    const env = resolveMobileEnvironment({ ...STAGING });
+    expect(env.apiOrigin).toBe(STAGING_API_ORIGIN);
   });
 });
 
@@ -240,14 +326,14 @@ describe("mobile environment · production fails closed", () => {
     ).toThrow(/A production build must declare it explicitly/);
   });
 
-  it("refuses the frozen Railway host", () => {
+  it("refuses the retired Railway host", () => {
     // Railway must not be institutionalized as the mobile production target.
     expect(() =>
       resolveMobileEnvironment({
         EXPO_PUBLIC_APP_ENV: "production",
         EXPO_PUBLIC_API_URL: "https://psico-platform-production.up.railway.app",
       }),
-    ).toThrow(/frozen legacy/);
+    ).toThrow(/retired platform/);
   });
 
   it("refuses http", () => {
@@ -363,11 +449,13 @@ describe("mobile config · source ratchets", () => {
     // §7: production fails closed until Coolify production has a domain.
     const wrapper = code("scripts/start-profile.mjs");
     expect(wrapper).toMatch(/env: null/);
-    // No legacy HOST, as a destination. The word "Railway" does appear — in the
-    // message explaining why there is no production profile yet, which is the
-    // sentence that stops somebody from inventing one. A ratchet on the word
-    // would have cost that explanation and bought nothing: what must never
-    // appear is a URL.
+    // No retired host as a destination. The ratchet is on URLs, not on the
+    // words: the explanation of why there is no production profile is what
+    // stops somebody from inventing one, and banning the vocabulary would cost
+    // that explanation to buy nothing. (As of 2026-11-05 the wrapper happens to
+    // name neither platform — the reason it gives is now that production is not
+    // a Coolify resource at all — but that is the prose being accurate, not
+    // this assertion forcing it.)
     expect(wrapper).not.toMatch(/https?:\/\/[^"'`\s]*up\.railway\.app/);
     expect(wrapper).not.toMatch(/https?:\/\/[^"'`\s]*vercel\.app/);
   });

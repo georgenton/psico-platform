@@ -288,6 +288,27 @@ cuenta, ni la elegibilidad. La causa está en
 puesto en staging. Gatea **sólo la oferta**: las definiciones siguen
 registradas y una sesión ya fijada resuelve sin preguntar.
 
+### Y un despliegue roto que no tumbó nada
+
+Poner el interruptor pidió un despliegue más, y ese **falló**: el contenedor
+nuevo entró en bucle de reinicio con `Cannot find module
+'.prisma/client/default'`.
+
+Dos cosas que conviene separar. **No era el interruptor** —un interruptor se lee
+del entorno en ejecución y no puede borrar un módulo— y **no era el commit**: el
+mismo `main` había construido bien dos veces ese mismo día, nueve minutos antes.
+El registro de construcción dice `✔ Generated Prisma Client (v7.8.0)`, así que
+el cliente existía al construir y no llegó a la imagen de ejecución. Una copia
+entre etapas que a veces se lleva `node_modules/.prisma`. Intermitente.
+
+**Y el despliegue continuo hizo exactamente lo que debía:** no promocionó el
+artefacto roto. El contenedor anterior siguió sano y sirviendo —`/health` en 200,
+el gate en 71/71— y Coolify retiró el que no arrancaba. Un `failed` aquí no es
+una caída, y conviene saberlo antes de entrar en pánico. El reintento del mismo
+commit bastó.
+
+### Lo que esto corrige
+
 Esto corrige dos veces la misma línea del inventario y de este propio archivo.
 «Las cinco microguías están sin publicar» es falso —están las cinco en
 `PRODUCTION_GUIDE_DISCOVERY_ENTRIES`, con título, descripción y duración—, y

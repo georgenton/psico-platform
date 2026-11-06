@@ -33,8 +33,9 @@ export function initSentry(): void {
     dsn,
     // The app's OWN posture. This read `EXPO_PUBLIC_VERCEL_ENV` until now — a
     // deployment detail of a platform this client does not run on, and which is
-    // a frozen fallback as of ADR 0024. Naming a mobile client's identity after
-    // someone else's infrastructure means the identity disappears when that
+    // retired from the operational plan (ADR 0024, decision of 2026-11-05).
+    // Naming a mobile client's identity after someone else's infrastructure
+    // means the identity disappears when that
     // infrastructure does, and until then every mobile event was tagged
     // `development` because the variable was never set on a phone.
     environment: appEnvironment(),

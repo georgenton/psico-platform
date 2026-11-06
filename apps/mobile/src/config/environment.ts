@@ -21,9 +21,10 @@
  *
  * `EXPO_PUBLIC_APP_ENV` is the app's own identity. Sentry previously took its
  * `environment` from `EXPO_PUBLIC_VERCEL_ENV`, which is a deployment detail of a
- * platform this app does not run on and which is now a frozen fallback. A mobile
- * client's identity should not be named after somebody else's infrastructure,
- * and it must not disappear when that infrastructure does.
+ * platform this app does not run on and which is now retired from the
+ * operational plan. A mobile client's identity should not be named after
+ * somebody else's infrastructure, and it must not disappear when that
+ * infrastructure does.
  */
 
 /** The app's own posture. Not a hosting platform's. */
@@ -49,16 +50,31 @@ export const STAGING_API_ORIGIN = "https://api-staging.feelverse.app";
 export const STAGING_WEB_ORIGIN = "https://staging.feelverse.app";
 
 /**
- * Hosts a staging or production build must never talk to.
+ * Hosts NO profile may talk to — development included.
  *
- * Railway and Vercel are deliberately frozen fallbacks (ADR 0024 and the
- * legacy-freeze decision), not destinations. The developer's own
- * `apps/mobile/.env` currently points at the Railway API, which is exactly how
- * a QA session ends up against legacy production without anybody deciding to:
- * you run `start`, it works, and nothing says where it went. Naming the hosts
- * here turns that into a refusal with a reason.
+ * FeelVerse runs on OVH with Coolify and nowhere else (decision of 2026-11-05,
+ * ADR 0024). Railway and Vercel are retired from the operational plan: not a
+ * destination, not staging, not a hosted test, not contingency, and not somewhere
+ * to return to for an older version.
+ *
+ * ── Why this is not restricted to the deployed profiles ───────────────────
+ *
+ * It was, and the exception was argued at the time: the developer's own
+ * `apps/mobile/.env` points at the Railway API, so refusing it in development
+ * would break the only workflow they had. That argument has expired. While the
+ * platforms were a frozen fallback, a developer pointing at them was using a
+ * live environment nobody had decided against; now it is pointing a client at
+ * infrastructure that no longer receives code. A session that looks healthy
+ * against a host three weeks behind the repository produces conclusions about
+ * the product that are quietly about something else — which is a worse accident
+ * than a refusal on `pnpm start`, and a harder one to notice.
+ *
+ * The local workflow is not taken away, it is redirected: `http://localhost`,
+ * `127.0.0.1` and a LAN address all still resolve in development, and the
+ * refusal below names them. What is gone is the ability to reach a retired
+ * platform by not having decided anything.
  */
-const FROZEN_LEGACY_HOSTS = [/\.up\.railway\.app$/i, /\.vercel\.app$/i];
+const RETIRED_PLATFORM_HOSTS = [/\.up\.railway\.app$/i, /\.vercel\.app$/i];
 
 export interface MobileEnvironment {
   readonly appEnv: AppEnvironment;
@@ -112,24 +128,32 @@ function normalizeOrigin(
     );
   }
 
+  // Checked BEFORE the https rule, and deliberately OUTSIDE the `strict`
+  // branch. Outside, because `strict` governs how the app talks (https, a
+  // pinned host) and that may legitimately relax on a laptop, whereas WHERE the
+  // product lives is not a property of the profile. Before, because it is the
+  // more decisive refusal: `http://x.up.railway.app` in a production profile
+  // would otherwise be reported as "use https", which invites someone to fix
+  // the scheme and keep the host.
+  for (const retired of RETIRED_PLATFORM_HOSTS) {
+    if (retired.test(parsed.hostname)) {
+      throw new MobileEnvironmentError(
+        `${label} points at ${parsed.hostname}, which is a retired platform.\n` +
+          "FeelVerse runs on OVH with Coolify and nowhere else, so that host no " +
+          "longer receives code: a session against it looks healthy while " +
+          "testing something other than the product.\n" +
+          `Use ${STAGING_API_ORIGIN} — \`pnpm --filter @psico/mobile start:staging\` ` +
+          "declares it for the one run — or http://localhost:3001 (or your " +
+          "machine's LAN address) for your own API.",
+      );
+    }
+  }
+
   if (strict && parsed.protocol !== "https:") {
     throw new MobileEnvironmentError(
       `${label} must use https outside development (got ${JSON.stringify(raw)}).\n` +
         "Access and refresh tokens travel on this origin.",
     );
-  }
-
-  if (strict) {
-    for (const frozen of FROZEN_LEGACY_HOSTS) {
-      if (frozen.test(parsed.hostname)) {
-        throw new MobileEnvironmentError(
-          `${label} points at ${parsed.hostname}, which is frozen legacy infrastructure.\n` +
-            "Railway and Vercel are kept as a fallback, not as a target — and a " +
-            "QA session against legacy production is the accident this check " +
-            `exists to prevent. Staging is ${STAGING_API_ORIGIN}.`,
-        );
-      }
-    }
   }
 
   // A path on an API origin is almost always a duplicated `/api`: the shared
@@ -258,8 +282,8 @@ export const apiOrigin = (): string => current().apiOrigin;
  * Absolute web origin, for Stripe returns and shared links.
  *
  * Throws rather than returning a guess: the previous default was a hardcoded
- * `https://psico-platform-web.vercel.app`, which is both frozen legacy and, by
- * now, not even the product's domain.
+ * `https://psico-platform-web.vercel.app`, which is both a retired platform
+ * and, by now, not even the product's domain.
  */
 export function webOrigin(): string {
   const { webOrigin: value } = current();

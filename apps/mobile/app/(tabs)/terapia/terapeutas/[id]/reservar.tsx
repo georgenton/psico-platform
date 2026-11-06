@@ -27,7 +27,7 @@ const MODALITY_LABEL: Record<TherapyModality, string> = {
 
 // Web origin where Stripe success/cancel URLs live. Resolved centrally; the
 // default here used to be a hardcoded `psico-platform-web.vercel.app`, which is
-// frozen legacy infrastructure and no longer even the product's domain.
+// a retired platform and no longer even the product's domain.
 
 export default function ReservarScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();

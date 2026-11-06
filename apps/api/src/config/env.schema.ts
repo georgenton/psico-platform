@@ -1,5 +1,15 @@
 import { z } from "zod";
 
+/**
+ * The sender used when nobody chose one.
+ *
+ * Exported so the health report can tell "chosen" from "defaulted" by
+ * comparing against this exact value instead of keeping its own copy — two
+ * copies of a default is how a report ends up disagreeing with the thing it
+ * reports on.
+ */
+export const DEFAULT_EMAIL_FROM = "no-reply@feelverse.app";
+
 export const envSchema = z
   .object({
     DATABASE_URL: z.string().url("DATABASE_URL must be a valid URL"),
@@ -29,7 +39,24 @@ export const envSchema = z
     // Resend (transactional email) — required in production.
     // In dev/test, ResendService logs to console instead of sending real mail.
     RESEND_API_KEY: z.string().optional(),
-    EMAIL_FROM: z.string().email().default("no-reply@psico.app"),
+    // The sender. Defaulted to the PRODUCT's domain, which it was not: this
+    // read `no-reply@psico.app` until 2026-11-06, a stale identity the rest of
+    // the codebase had already been corrected away from (see the comments in
+    // `apps/mobile/.../plan.tsx` and `SubscriptionActions.tsx`, which say in
+    // so many words that it is "not the product's domain").
+    //
+    // Why that mattered more than a cosmetic name: a default sender is only
+    // ever exercised when somebody forgot to choose one, and the forgetting is
+    // invisible — `RESEND_API_KEY` reads as configured, boot says nothing, and
+    // every message leaves claiming a domain nobody verified. Resend rejects
+    // sends from an unverified domain, so the first test of a newly arrived key
+    // would have failed for this reason and looked like a bad key.
+    //
+    // A default cannot know what is verified in Resend. What it CAN do is name
+    // our own domain, so that the remaining step is a DNS record on something
+    // we own rather than a sender nobody recognises. `health/integrations` says
+    // when the sender was defaulted rather than chosen.
+    EMAIL_FROM: z.string().email().default(DEFAULT_EMAIL_FROM),
 
     // Google OAuth — required if the frontend exposes "Sign in with Google".
     // Optional otherwise so existing deployments without OAuth keep working.

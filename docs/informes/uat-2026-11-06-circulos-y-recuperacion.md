@@ -294,18 +294,93 @@ Poner el interruptor pidió un despliegue más, y ese **falló**: el contenedor
 nuevo entró en bucle de reinicio con `Cannot find module
 '.prisma/client/default'`.
 
-Dos cosas que conviene separar. **No era el interruptor** —un interruptor se lee
-del entorno en ejecución y no puede borrar un módulo— y **no era el commit**: el
-mismo `main` había construido bien dos veces ese mismo día, nueve minutos antes.
-El registro de construcción dice `✔ Generated Prisma Client (v7.8.0)`, así que
-el cliente existía al construir y no llegó a la imagen de ejecución. Una copia
-entre etapas que a veces se lleva `node_modules/.prisma`. Intermitente.
+Dos cosas que conviene separar de entrada. **No era el interruptor** —se lee del
+entorno en ejecución y no puede borrar un módulo— y **no era el commit**: el
+mismo `main` había construido bien veinte minutos antes. El primer instinto fue
+culpar a lo último que se tocó, y era el instinto equivocado.
 
-**Y el despliegue continuo hizo exactamente lo que debía:** no promocionó el
-artefacto roto. El contenedor anterior siguió sano y sirviendo —`/health` en 200,
-el gate en 71/71— y Coolify retiró el que no arrancaba. Un `failed` aquí no es
-una caída, y conviene saberlo antes de entrar en pánico. El reintento del mismo
-commit bastó.
+El reintento **falló igual**, lo que lo saca de la categoría de casualidad. Y la
+comparación de las dos imágenes lo dejó en un solo bit de diferencia:
+
+|                     | sana `234a5ff9` | rota `f2bc4457` |
+| ------------------- | --------------- | --------------- |
+| paquetes en `.pnpm` | 2 074           | **2 074**       |
+| CLI de `prisma`     | sí              | **sí**          |
+| `dist/main.js`      | sí              | **sí**          |
+| `.prisma/client`    | **sí**          | **no**          |
+
+Mismo `node_modules`, mismo artefacto compilado. No es una poda de dependencias
+de desarrollo, que es la sospecha habitual. Y el registro de la construcción
+fallida lo confirma: **`prisma generate` no corrió** —cero apariciones de
+`Generated Prisma Client`— mientras la que funcionó lo dice explícitamente. La
+fallida llegó con **doce capas en caché** frente a cinco: el paso de
+construcción se sirvió de una capa cacheada que se creó sin el cliente generado.
+Una capa envenenada, no un commit roto.
+
+**El despliegue continuo hizo exactamente lo que debía:** no promocionó el
+artefacto. El contenedor anterior siguió sano y sirviendo —`/health` en 200, el
+gate en 71/71— y Coolify retiró el que no arrancaba. Un `failed` aquí **no es una
+caída**, y conviene saberlo antes de entrar en pánico.
+
+**Pero había un riesgo latente que sí hubo que arreglar**, y lo introdujeron mis
+propios reintentos: las imágenes se etiquetan **por SHA del commit**, así que la
+construcción rota **sobrescribió la etiqueta** de la que funcionaba. El
+contenedor en marcha no se entera —referencia su imagen por id—, pero cualquier
+recreación desde la etiqueta habría arrancado la rota. Se devolvió la etiqueta a
+la imagen sana, que además es lo más correcto: las dos vienen del mismo commit,
+así que la etiqueta ahora señala la buena construcción de ese commit.
+
+**Dos remedios probados, y ninguno funcionó.** Conviene escribirlo así y no
+dejarlo en «se reintentó»:
+
+| Intento                                    | Resultado                                    |
+| ------------------------------------------ | -------------------------------------------- |
+| Reintento del mismo commit                 | falla · misma ausencia                       |
+| `force=true` en el endpoint                | falla · **21 capas en caché**, más que antes |
+| `disable_build_cache: true` por aplicación | falla · **21 capas en caché** igual          |
+
+De paso, un aprendizaje que vale por sí solo: **`force=true` no significa «sin
+caché»**. Y `disable_build_cache` tampoco cambió el recuento de capas
+reutilizadas, así que o no se aplica a esta ruta de construcción o la caché no
+es la causa. Se revirtió a su valor original, porque dejar un ajuste cambiado
+que demostradamente no arregló nada es peor que no haberlo tocado.
+
+**Lo que sí quedó acotado, con números.** Las marcas de tiempo dentro de las dos
+imágenes son la mejor pista:
+
+- sana: `@prisma` a las 21:11, **`.prisma` a las 21:12** — la instalación y
+  después la generación.
+- rota: todo a las 21:21, y **nada se añadió después** — la instalación corrió y
+  la generación no.
+
+Y se comprobó que no era un error de medición: `.prisma` es un directorio real
+en la sana y está **genuinamente ausente** en la rota, no escondido detrás de un
+enlace simbólico —que es la trampa evidente en un árbol de pnpm, y la primera
+medición la habría pasado por alto.
+
+### Lo que esto deja pendiente, dicho sin adornos
+
+**La API no se puede volver a desplegar ahora mismo.** El servicio está sano
+—`/health` 200, el gate 71/71, Círculos abierto— y la etiqueta quedó devuelta a
+la imagen que funciona, así que **nada está roto hoy**. Pero el próximo
+despliegue, venga de donde venga, produce un artefacto que no arranca.
+
+Eso importa más allá de hoy: es el despliegue que haría falta el día que llegue
+la clave de Resend.
+
+El arreglo probable es del repositorio, no de la configuración:
+`generator client` no declara `output`, así que el cliente generado aterriza en
+`node_modules` —que no es la salida declarada de ninguna tarea— y cualquier paso
+que reutilice ese árbol se lo salta. Declarar un `output` dentro del árbol de
+fuentes, como recomienda Prisma 7, lo convertiría en un artefacto de
+construcción normal. **No se empezó aquí**: toca cada importación de Prisma del
+proyecto, y abrir una refactorización transversal al final de una sesión larga,
+con la construcción en rojo, es exactamente cuando no se hace.
+
+**Un detalle operativo que conviene saber:** `EEC_C01_GUIDED_SUITE_V1=on` queda
+**escrita y pendiente**. Se aplicará en el primer despliegue que salga bien, que
+es lo que se quería — pero quien arregle la construcción debe saber que ese
+despliegue encenderá además las cinco microguías de C01.
 
 ### Lo que esto corrige
 

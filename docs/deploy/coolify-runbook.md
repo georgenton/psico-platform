@@ -1194,17 +1194,20 @@ describirse, no una reversión rutinaria.
 
 **No se ejecuta en esta tarea.** Requiere su propio gate y, antes:
 
-1. Staging validado y estable.
-2. Números de límites tomados de staging, no inventados.
-3. Versión de PostgreSQL de producción consultada y decidida (§4 del inventario).
-4. Backup con restore drill **ejecutado**, no sólo configurado.
-5. Artefacto versionado por commit SHA o tag, nunca `latest` — sin esto no hay
-   rollback de nivel 3, porque no hay a qué volver.
-6. Rollback de nivel 1 ensayado. **Hecho** el 2026-10-24 (§3.1).
-7. Nivel 4 ensayado al menos una vez, o asumido explícitamente como riesgo abierto
-   por el propietario. Es la única recuperación frente a perder el servidor, y
-   retirar las plataformas anteriores no la sustituye: lo que la sustituía antes era
-   un DNS de vuelta, y ese camino ya no existe.
+Estado al 2026-11-07, para que la lista sirva de puerta y no de recordatorio:
+
+|     | Precondición                                              | Estado                                                                                                                                                                                                                                                                                                                                                                           |
+| --- | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Staging validado y estable                                | ⚠️ **en su mayor parte.** Recorridos funcionales comprobados: lectura, Diario con su recuperación, exportación, Eco, Mapa, Evolución, Círculos con dos partes y las cinco microguías de C01. Faltan la **aceptación estética** y el recorrido de **correo**, que no tiene credencial                                                                                             |
+| 2   | Números de límites tomados de staging, no inventados      | ❌ **abierto.** No hay medición de carga: staging tiene 11 cuentas sintéticas, así que cualquier límite sacado de ahí sería una invención con cara de dato                                                                                                                                                                                                                       |
+| 3   | Versión de PostgreSQL de producción consultada y decidida | ⚠️ **consultada, no decidida.** Staging corre **PostgreSQL 18.6** con pgvector; producción debería igualarla, pero eso es una decisión y no consta escrita                                                                                                                                                                                                                       |
+| 4   | Backup con restore drill **ejecutado**                    | ✅ **hecho.** Restauración comprobada, y el 06-11 además desde fuera del servidor                                                                                                                                                                                                                                                                                                |
+| 5   | Artefacto versionado por commit SHA, nunca `latest`       | ✅ **hecho**, y reforzado: las imágenes se etiquetan por SHA, y las buenas tienen además una etiqueta **estable** (`feelverse-api-known-good:<fecha>-<sha>`), porque la del commit ya demostró que otra construcción la sobrescribe                                                                                                                                              |
+| 6   | Rollback de nivel 1 ensayado                              | ✅ **hecho** el 2026-10-24 (§3.1)                                                                                                                                                                                                                                                                                                                                                |
+| 7   | Nivel 4 ensayado, o asumido como riesgo abierto           | ❌ **no ensayado**, y ahora **preparado**: lo que no necesita la caja está hecho y comprobado, y lo que falta es el recurso, con su coste abierto en dos preguntas concretas (ver arriba). Es la única recuperación frente a perder el servidor, y retirar las plataformas anteriores no la sustituye: lo que la sustituía antes era un DNS de vuelta, y ese camino ya no existe |
+
+Así que **tres puertas siguen cerradas** —2, 3 y 7— y una está a medias. Las tres
+son decisiones o mediciones, no trabajo de código pendiente.
 
 Forma idéntica a staging con recursos **separados**. Ningún recurso con estado se
 comparte entre entornos, y `PSICO_ENV=production`.

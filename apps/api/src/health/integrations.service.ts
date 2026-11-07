@@ -71,50 +71,39 @@ function status(v: string | undefined): IntegrationStatus {
 }
 
 /**
- * Was the sender CHOSEN? Read from PRESENCE, never from the value.
+ * Was the sender CHOSEN? Answered from PROVENANCE, captured before defaults.
  *
- * ── The defect this replaces ──────────────────────────────────────────────
+ * ── Two wrong versions, and why ───────────────────────────────────────────
  *
- * The first version compared the resolved value against `DEFAULT_EMAIL_FROM`
- * and called a match "nobody chose". That is wrong, and in the one case most
- * likely to happen: an operator who verifies `feelverse.app` and deliberately
- * sets `EMAIL_FROM=no-reply@feelverse.app` — the obvious sender, and the one
- * this repository recommends — would be told nobody had chosen it. A report
- * that calls a correct configuration a mistake gets ignored, which costs more
- * than the check was worth.
+ * The first compared the resolved value against `DEFAULT_EMAIL_FROM` and
+ * called a match "nobody chose". Wrong in the likeliest case: an operator who
+ * verifies `feelverse.app` and deliberately sets
+ * `EMAIL_FROM=no-reply@feelverse.app` — the sender this repository recommends —
+ * would be told they had chosen nothing.
  *
- * Presence answers it exactly. `ConfigService` hands back the value AFTER Zod
- * applied the default, so it cannot distinguish unset from defaulted; the raw
- * environment can. If `EMAIL_FROM` is in it, somebody wrote it.
+ * The second read `process.env` directly, on the theory that presence settles
+ * it. It does, but not THERE: `@nestjs/config@4.x` calls
+ * `assignVariablesToProcess(validatedConfig)` right after `validate`, so Zod's
+ * defaults are copied INTO `process.env`. After boot the key always exists, and
+ * that version answered "chosen" on every box.
+ *
+ * So the question is not about the value or about the current environment: it
+ * is about PROVENANCE, and the only place that sees the environment before
+ * defaults is `validate()`. It records the flag; this reads it.
  *
  * ── What this still cannot know, said out loud ────────────────────────────
  *
  * Three different questions, and this box can only answer the first:
  *
- *   1. Is a sender configured?     ← this function
+ *   1. Is a sender configured?     ← this flag
  *   2. Is its domain verified?     ← lives in the Resend account
  *   3. Does a message arrive?      ← only a delivery proves it
  *
- * So the report says "a sender was chosen" and nothing more. Claiming more
- * from here would be inventing it.
+ * So the report says "a sender was chosen" and nothing more.
  */
-function isChosenSender(raw: Record<string, string | undefined>): boolean {
-  const v = raw.EMAIL_FROM;
-  return typeof v === "string" && v.trim().length > 0;
-}
 
 @Injectable()
 export class IntegrationsService {
-  /**
-   * The RAW environment, for the presence of `EMAIL_FROM`.
-   *
-   * A field rather than a constructor parameter so Nest's DI is untouched —
-   * it resolves declared parameters by type, and a second one would have to be
-   * given a token for something that is just `process.env`. A spec assigns it
-   * directly.
-   */
-  rawEnv: Record<string, string | undefined> = process.env;
-
   constructor(private readonly config: ConfigService<Env, true>) {}
 
   /**
@@ -151,7 +140,9 @@ export class IntegrationsService {
       anthropic: status(this.config.get("ANTHROPIC_API_KEY", { infer: true })),
       voice: { provider, key: status(voiceKey) },
       resend: status(this.config.get("RESEND_API_KEY", { infer: true })),
-      resendFrom: { configured: isChosenSender(this.rawEnv) },
+      resendFrom: {
+        configured: this.config.get("EMAIL_FROM_EXPLICIT", { infer: true }),
+      },
       google: status(this.config.get("GOOGLE_CLIENT_ID", { infer: true })),
       redis: status(this.config.get("REDIS_URL", { infer: true })),
       webPush: status(this.config.get("VAPID_PRIVATE_KEY", { infer: true })),

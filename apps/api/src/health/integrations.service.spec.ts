@@ -78,9 +78,6 @@ describe("IntegrationsService.report", () => {
 
 describe("IntegrationsService.bootIssues", () => {
   it("returns an empty list when everything is configured with real values", () => {
-    // `EMAIL_FROM` va en el entorno CRUDO, no en el doble de ConfigService: el
-    // servicio lee su PRESENCIA, porque el valor resuelto no distingue
-    // «ausente» de «por defecto».
     const svc = new IntegrationsService(
       makeConfig({
         STRIPE_SECRET_KEY: "sk-prod-redacted",
@@ -96,9 +93,11 @@ describe("IntegrationsService.bootIssues", () => {
         REDIS_URL: "redis://real",
         VAPID_PRIVATE_KEY: "real",
         R2_ACCOUNT_ID: "real",
-      }),
+        EMAIL_FROM_EXPLICIT: true,
+      } as never),
     );
-    svc.rawEnv = { EMAIL_FROM: "hola@feelverse.app" };
+    // La procedencia entra por el doble, como cualquier otra clave validada:
+    // «todo configurado» incluye que alguien eligiera el remitente.
     expect(svc.bootIssues()).toEqual([]);
   });
 
@@ -118,58 +117,35 @@ describe("IntegrationsService.bootIssues", () => {
   });
 });
 
-describe("IntegrationsService — el remitente, por presencia y no por valor", () => {
+describe("IntegrationsService — el remitente, en la capa rápida", () => {
   /**
-   * La clave y el remitente fallan por separado y sólo uno de los dos se ve:
-   * una clave presente sin remitente elegido se lee como correo configurado, y
-   * cada mensaje sale reclamando el dominio por defecto, que Resend rechaza si
-   * nadie lo verificó.
+   * Aquí sólo se comprueba que el informe LEE la procedencia y la refleja.
    *
-   * ── Y el defecto que esto corrige ───────────────────────────────────────
-   *
-   * La primera versión comparaba el valor resuelto con el predeterminado y
-   * llamaba «nadie lo eligió» a una coincidencia. Eso es falso justo en el caso
-   * más probable: quien verifica el dominio y pone a propósito
-   * `no-reply@feelverse.app` —el remitente obvio, el que este repositorio
-   * recomienda— recibiría un aviso diciéndole que no eligió nada. Un informe
-   * que llama error a una configuración correcta se deja de leer, y entonces no
-   * sirve para el caso en que sí acierta.
-   *
-   * La presencia lo contesta exacto, y por eso el servicio mira el entorno
-   * crudo: `ConfigService` devuelve el valor DESPUÉS de que Zod aplique el
-   * default, así que no puede distinguir «ausente» de «por defecto».
+   * Que esa procedencia se capture bien es otra cosa, y no se puede comprobar
+   * con un doble: depende de que Nest copie los defaults validados a
+   * `process.env` después de `validate`. Eso vive en
+   * `integrations.provenance.spec.ts`, que monta el ConfigModule real — y es
+   * donde se descubrió que las dos versiones anteriores de este indicador
+   * describían lo contrario de producción mientras sus pruebas pasaban.
    */
-  const withEnv = (
+  const withFlag = (
     values: Record<string, string | undefined>,
-    raw: Record<string, string | undefined> = {},
-  ) => {
-    const svc = new IntegrationsService(makeConfig(values));
-    svc.rawEnv = raw;
-    return svc;
-  };
-
-  it("el remitente recomendado, puesto A PROPÓSITO, cuenta como elegido", () => {
-    // El caso exacto que la versión anterior reportaba al revés.
-    const svc = withEnv(
-      { RESEND_API_KEY: "re_real" },
-      { EMAIL_FROM: "no-reply@feelverse.app" },
+    explicit: boolean,
+  ) =>
+    new IntegrationsService(
+      makeConfig({ ...values, EMAIL_FROM_EXPLICIT: explicit } as never),
     );
+
+  it("refleja «elegido» cuando la procedencia lo dice", () => {
+    const svc = withFlag({ RESEND_API_KEY: "re_real" }, true);
     expect(svc.report().resendFrom.configured).toBe(true);
     expect(svc.bootIssues().some((i) => i.key.startsWith("EMAIL_FROM"))).toBe(
       false,
     );
   });
 
-  it("cualquier otro remitente explícito también", () => {
-    const svc = withEnv(
-      { RESEND_API_KEY: "re_real" },
-      { EMAIL_FROM: "hola@feelverse.app" },
-    );
-    expect(svc.report().resendFrom.configured).toBe(true);
-  });
-
-  it("AUSENTE del entorno es lo único que cuenta como no elegido", () => {
-    const svc = withEnv({ RESEND_API_KEY: "re_real" }, {});
+  it("y «no elegido» cuando dice lo contrario", () => {
+    const svc = withFlag({ RESEND_API_KEY: "re_real" }, false);
     expect(svc.report().resendFrom.configured).toBe(false);
     const map = Object.fromEntries(
       svc.bootIssues().map((i) => [i.key, i.reason]),
@@ -177,37 +153,20 @@ describe("IntegrationsService — el remitente, por presencia y no por valor", (
     expect(map["EMAIL_FROM (defaulted, not chosen)"]).toBe("stub");
   });
 
-  it("y una cadena vacía o en blanco no es una elección", () => {
-    for (const value of ["", "   "]) {
-      expect(
-        withEnv({ RESEND_API_KEY: "re_real" }, { EMAIL_FROM: value }).report()
-          .resendFrom.configured,
-      ).toBe(false);
-    }
-  });
-
   it("SIN clave no se menciona el remitente", () => {
     // Sin clave no sale ningún correo, así que un remitente sin elegir todavía
     // no es un problema. El valor de una lista de arranque es que cada línea
     // importe; añadir una que no se puede accionar la degrada.
     expect(
-      withEnv({}, {})
+      withFlag({}, false)
         .bootIssues()
         .some((i) => i.key.startsWith("EMAIL_FROM")),
     ).toBe(false);
   });
 
-  it("el informe no afirma nada que esta caja no pueda saber", () => {
-    // Tres preguntas distintas: si hay remitente configurado, si su dominio
-    // está verificado en Resend, y si un mensaje llega. Contesta la primera y
-    // no inventa las otras dos.
-    const svc = withEnv(
-      { RESEND_API_KEY: "re_real" },
-      { EMAIL_FROM: "alguien-muy-concreto@feelverse.app" },
-    );
-    const r = svc.report();
+  it("el informe contesta UNA pregunta, no tres", () => {
+    const r = withFlag({ RESEND_API_KEY: "re_real" }, true).report();
     expect(Object.keys(r.resendFrom)).toEqual(["configured"]);
-    expect(JSON.stringify(r)).not.toContain("alguien-muy-concreto");
-    expect(JSON.stringify(r)).not.toMatch(/verified|delivered/i);
+    expect(JSON.stringify(r)).not.toMatch(/verified|delivered|domain/i);
   });
 });

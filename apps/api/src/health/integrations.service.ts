@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/consistent-type-imports */
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { DEFAULT_EMAIL_FROM } from "../config/env.schema";
 import type { Env } from "../config";
 
 /**
@@ -44,9 +43,14 @@ export interface IntegrationsReport {
    * unverified domain, so the symptom arrives as "mail does not work" long
    * after the cause.
    *
-   * `configured: false` means EMAIL_FROM still equals `DEFAULT_EMAIL_FROM`.
-   * The box cannot know which domains are verified in Resend; it can know
-   * that nobody picked one, which is the actionable half.
+   * `configured: false` means `EMAIL_FROM` is ABSENT from the environment —
+   * presence, not value. An operator who deliberately sets the recommended
+   * sender reads as chosen, which is what they did.
+   *
+   * Three different questions, and this one answers only the first: whether a
+   * sender is configured, whether its domain is verified in Resend, and
+   * whether a message actually arrives. The last two are not knowable from
+   * here and are not claimed.
    */
   resendFrom: IntegrationStatus;
   google: IntegrationStatus;
@@ -67,27 +71,50 @@ function status(v: string | undefined): IntegrationStatus {
 }
 
 /**
- * Was the sender CHOSEN?
+ * Was the sender CHOSEN? Read from PRESENCE, never from the value.
  *
- * Three inputs, two answers. `undefined` is grouped with the default on
- * purpose: Zod applies the default before anything reads the value, so in a
- * running process unset and defaulted are the same state — but a test stub
- * hands back `undefined`, and a bare `!== DEFAULT_EMAIL_FROM` would have
- * reported "chosen" there. The assertion would then pass while describing the
- * opposite of production, which is worse than no assertion.
+ * ── The defect this replaces ──────────────────────────────────────────────
  *
- * An operator who explicitly types the default value reads as "not chosen".
- * That is indistinguishable by construction, and the advice is identical
- * either way — verify that domain, then pick a sender on it — so the
- * ambiguity costs nothing.
+ * The first version compared the resolved value against `DEFAULT_EMAIL_FROM`
+ * and called a match "nobody chose". That is wrong, and in the one case most
+ * likely to happen: an operator who verifies `feelverse.app` and deliberately
+ * sets `EMAIL_FROM=no-reply@feelverse.app` — the obvious sender, and the one
+ * this repository recommends — would be told nobody had chosen it. A report
+ * that calls a correct configuration a mistake gets ignored, which costs more
+ * than the check was worth.
+ *
+ * Presence answers it exactly. `ConfigService` hands back the value AFTER Zod
+ * applied the default, so it cannot distinguish unset from defaulted; the raw
+ * environment can. If `EMAIL_FROM` is in it, somebody wrote it.
+ *
+ * ── What this still cannot know, said out loud ────────────────────────────
+ *
+ * Three different questions, and this box can only answer the first:
+ *
+ *   1. Is a sender configured?     ← this function
+ *   2. Is its domain verified?     ← lives in the Resend account
+ *   3. Does a message arrive?      ← only a delivery proves it
+ *
+ * So the report says "a sender was chosen" and nothing more. Claiming more
+ * from here would be inventing it.
  */
-function isChosenSender(config: ConfigService<Env, true>): boolean {
-  const v = config.get("EMAIL_FROM", { infer: true });
-  return v !== undefined && v !== DEFAULT_EMAIL_FROM;
+function isChosenSender(raw: Record<string, string | undefined>): boolean {
+  const v = raw.EMAIL_FROM;
+  return typeof v === "string" && v.trim().length > 0;
 }
 
 @Injectable()
 export class IntegrationsService {
+  /**
+   * The RAW environment, for the presence of `EMAIL_FROM`.
+   *
+   * A field rather than a constructor parameter so Nest's DI is untouched —
+   * it resolves declared parameters by type, and a second one would have to be
+   * given a token for something that is just `process.env`. A spec assigns it
+   * directly.
+   */
+  rawEnv: Record<string, string | undefined> = process.env;
+
   constructor(private readonly config: ConfigService<Env, true>) {}
 
   /**
@@ -124,7 +151,7 @@ export class IntegrationsService {
       anthropic: status(this.config.get("ANTHROPIC_API_KEY", { infer: true })),
       voice: { provider, key: status(voiceKey) },
       resend: status(this.config.get("RESEND_API_KEY", { infer: true })),
-      resendFrom: { configured: isChosenSender(this.config) },
+      resendFrom: { configured: isChosenSender(this.rawEnv) },
       google: status(this.config.get("GOOGLE_CLIENT_ID", { infer: true })),
       redis: status(this.config.get("REDIS_URL", { infer: true })),
       webPush: status(this.config.get("VAPID_PRIVATE_KEY", { infer: true })),

@@ -290,4 +290,14 @@ export const envSchema = z
     }
   });
 
-export type Env = z.infer<typeof envSchema>;
+/**
+ * The validated environment, plus the provenance flags that `validate()` adds.
+ *
+ * They are not part of the schema on purpose: a schema describes what may be
+ * SUPPLIED, and nobody supplies `EMAIL_FROM_EXPLICIT` — it is derived from
+ * whether `EMAIL_FROM` was there before defaults. Declaring it here keeps
+ * `ConfigService.get` typed without inviting anyone to set it.
+ */
+export type Env = z.infer<typeof envSchema> & {
+  EMAIL_FROM_EXPLICIT: boolean;
+};

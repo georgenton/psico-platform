@@ -19,7 +19,7 @@
  * Uso:
  *   node apps/web/e2e/guide/c01-cinco-microguias.mjs --api https://…
  *   (CIRCULOS_QA_EMAIL/PASSWORD = la admitida;
- *    QA_FUERA_EMAIL/PASSWORD = la que no debe ver nada)
+ *    QA_FUERA_EMAIL/PASSWORD, o --token-fuera-archivo = la que no debe ver nada)
  */
 
 import { randomUUID } from "node:crypto";
@@ -33,11 +33,25 @@ const API = (arg("--api") ?? "").replace(/\/+$/, "");
 const BOOK = arg("--libro", "emociones-en-construccion");
 const CHAPTER = arg("--capitulo", "1");
 
-let failures = 0;
 let passed = 0;
+/**
+ * Comprobaciones que NO se pudieron ejecutar.
+ *
+ * Distintas de un fallo y distintas de un acierto, y por eso cuentan aparte: un
+ * control negativo que no corrió —por credencial, por cupo de accesos o por
+ * transporte— deja el recorrido **incompleto**, y presentarlo como PASS sería
+ * afirmar lo único que ese control existe para afirmar. Con una sola
+ * incompleta, la última línea no dice ✔.
+ */
+const skipped = [];
+let failures = 0;
 const check = (ok, what, detail = "") => {
   ok ? passed++ : failures++;
   console.log(`   ${ok ? "✓" : "✗"} ${what}${detail ? `  (${detail})` : ""}`);
+};
+const skip = (what, why) => {
+  skipped.push({ what, why });
+  console.log(`   ⊘ ${what}  — NO EJECUTADA: ${why}`);
 };
 const body = async (r) => {
   const t = await r.text();
@@ -72,7 +86,6 @@ async function login(email, password) {
   return data?.accessToken ?? null;
 }
 
-
 /**
  * La respuesta que se envía en el paso de recuerdo de cada microguía.
  *
@@ -105,7 +118,10 @@ try {
   const TOKEN_FILE = arg("--token-archivo");
   const token = TOKEN_FILE
     ? readFileSync(TOKEN_FILE, "utf8").trim()
-    : await login(process.env.CIRCULOS_QA_EMAIL, process.env.CIRCULOS_QA_PASSWORD);
+    : await login(
+        process.env.CIRCULOS_QA_EMAIL,
+        process.env.CIRCULOS_QA_PASSWORD,
+      );
   check(!!token, "la cuenta admitida entra");
   if (!token) throw new Error("sin credencial");
 
@@ -126,9 +142,14 @@ try {
   // ruta respondiendo 200 y cinco guías dentro — un cero que no significaba
   // «no hay», sino «miré donde no estaba».
   const items = route.data?.guides ?? route.data?.items ?? [];
-  check(route.res.status === 200, "la ruta guiada responde", `${route.res.status}`);
+  check(
+    route.res.status === 200,
+    "la ruta guiada responde",
+    `${route.res.status}`,
+  );
   check(items.length === 5, "y ofrece las CINCO microguías", `${items.length}`);
-  const pinOf = (it) => it.pin ?? { guideKey: it.guideKey, guideVersion: it.guideVersion };
+  const pinOf = (it) =>
+    it.pin ?? { guideKey: it.guideKey, guideVersion: it.guideVersion };
   for (const it of items) {
     const p = pinOf(it);
     console.log(
@@ -152,7 +173,8 @@ try {
     // avanza paso a paso, que es como avanza una persona.
     let sesion = started.data?.session ?? null;
     check(
-      (started.res.status === 200 || started.res.status === 201) && !!sesion?.sessionId,
+      (started.res.status === 200 || started.res.status === 201) &&
+        !!sesion?.sessionId,
       "empieza",
       `${started.res.status} ${started.data?.code ?? ""}`,
     );
@@ -168,7 +190,14 @@ try {
     // vueltas no es decoración — si el servidor dejara de avanzar
     // `currentStepKey`, un `while` honesto se quedaría girando para siempre.
     let completados = 0;
-    for (let vuelta = 0; vuelta < total + 2 && sesion?.currentStepKey; vuelta += 1) {
+    /** No vacío ⇒ el recorrido de esta microguía quedó impedido, no fallido. */
+    let bloqueo = "";
+    let estadoFinal = "?";
+    for (
+      let vuelta = 0;
+      vuelta < total + 2 && sesion?.currentStepKey;
+      vuelta += 1
+    ) {
       const paso = sesion.currentStepKey;
       // Un paso de recuerdo va por su propia ruta y con su respuesta.
       const esRecuerdo = paso.startsWith("recordar-");
@@ -189,7 +218,16 @@ try {
             { idempotencyKey: randomUUID() },
           );
       if (c.res.status !== 200 && c.res.status !== 201) {
-        console.log(`     · el paso ${paso} respondió ${c.res.status} ${c.data?.code ?? ""}`);
+        console.log(
+          `     · el paso ${paso} respondió ${c.res.status} ${c.data?.code ?? ""}`,
+        );
+        // 429 es el cupo de órdenes del guía, no el producto. Varias pasadas
+        // seguidas lo agotan, y la versión anterior lo contaba como ✗ en «se
+        // interactúa con todos sus pasos» — es decir, atribuía al producto un
+        // límite del arnés, que es el mismo error que este archivo corrige en
+        // el control negativo. Se declara impedida y se sale.
+        if (c.res.status === 429)
+          bloqueo = `${c.res.status} ${c.data?.code ?? ""}`;
         break;
       }
       const siguiente = c.data?.session ?? null;
@@ -197,25 +235,33 @@ try {
       sesion = siguiente;
       completados += 1;
     }
-    check(
-      completados === total,
-      "se interactúa con todos sus pasos",
-      `${completados}/${total}`,
-    );
+    if (bloqueo) {
+      skip(
+        "se interactúa con todos sus pasos",
+        `cupo de órdenes del guía · ${bloqueo}`,
+      );
+      skip("y termina COMPLETED", `no se llegó a intentar · ${bloqueo}`);
+    } else {
+      check(
+        completados === total,
+        "se interactúa con todos sus pasos",
+        `${completados}/${total}`,
+      );
 
-    const finished = await call(
-      "POST",
-      `/api/guide/sessions/${sessionId}/complete`,
-      token,
-      { idempotencyKey: randomUUID() },
-    );
-    const estadoFinal = finished.data?.session?.status ?? "?";
-    check(
-      (finished.res.status === 200 || finished.res.status === 201) &&
-        estadoFinal === "COMPLETED",
-      "y termina COMPLETED",
-      `${finished.res.status} ${estadoFinal} ${finished.data?.code ?? ""}`,
-    );
+      const finished = await call(
+        "POST",
+        `/api/guide/sessions/${sessionId}/complete`,
+        token,
+        { idempotencyKey: randomUUID() },
+      );
+      estadoFinal = finished.data?.session?.status ?? "?";
+      check(
+        (finished.res.status === 200 || finished.res.status === 201) &&
+          estadoFinal === "COMPLETED",
+        "y termina COMPLETED",
+        `${finished.res.status} ${estadoFinal} ${finished.data?.code ?? ""}`,
+      );
+    }
 
     // Continuidad: lo terminado se puede volver a consultar, que es lo que
     // permite a alguien volver al capítulo y ver qué ya hizo.
@@ -231,50 +277,102 @@ try {
     );
     resultados.push({
       key,
-      estado: estadoFinal === "COMPLETED" ? "recorrida" : "incompleta",
+      // Tres desenlaces, no dos: recorrida, impedida (el arnés) y incompleta
+      // (el producto). Juntar las dos últimas era lo que hacía que un cupo
+      // agotado se leyera como un defecto.
+      estado: bloqueo
+        ? "impedida"
+        : estadoFinal === "COMPLETED"
+          ? "recorrida"
+          : "incompleta",
       pasos: `${completados}/${total}`,
+      bloqueo,
     });
   }
 
   // ── el control negativo ───────────────────────────────────────────────────
   console.log("\n▸ una cuenta FUERA de la lista");
+  // El control negativo también acepta un token ya emitido: la causa más
+  // frecuente de que no se pudiera ejecutar era el cupo de accesos, y un
+  // instrumento cuya comprobación más importante se cae por el cupo mide la
+  // máquina, no el producto. Con `--token-fuera-archivo` el cupo deja de
+  // intervenir, y el ⊘ queda reservado para un impedimento de verdad.
+  const FUERA_FILE = arg("--token-fuera-archivo");
   let fuera = null;
   try {
-    fuera = await login(process.env.QA_FUERA_EMAIL, process.env.QA_FUERA_PASSWORD);
-    check(!!fuera, "entra en el producto (su cuenta es válida)");
+    fuera = FUERA_FILE
+      ? readFileSync(FUERA_FILE, "utf8").trim()
+      : await login(process.env.QA_FUERA_EMAIL, process.env.QA_FUERA_PASSWORD);
+    if (!fuera) throw new Error("el archivo de token estaba vacío");
   } catch (e) {
-    // El cupo de accesos es de cinco por cuarto de hora y este recorrido ya
-    // gastó varios. Se declara en vez de contarlo como fallo del producto.
-    console.log(`   · omitido: ${e.message}`);
+    fuera = null;
+    skip("el control negativo completo", e.message);
   }
-  if (fuera) {
-    const r = await call("GET", `/api/guide/route/${BOOK}/${CHAPTER}`, fuera);
-    const n = (r.data?.guides ?? r.data?.items ?? []).length;
-    check(
-      n === 0 || r.data?.available === false,
-      "pero NO ve ninguna microguía",
-      `items=${n} available=${r.data?.available}`,
+  if (!fuera) {
+    skip(
+      "una cuenta fuera de la lista no ve ni puede empezar ninguna",
+      "no se obtuvo credencial para esa cuenta",
     );
+  } else {
+    check(true, "entra en el producto (su cuenta es válida)");
+    const r = await call("GET", `/api/guide/route/${BOOK}/${CHAPTER}`, fuera);
+    // Primero que la RESPUESTA sea válida. Un 401 o un 500 también traen cero
+    // guías, y contar eso como «no ve ninguna» sería dar por demostrado lo que
+    // no se midió.
+    if (r.res.status !== 200) {
+      skip(
+        "una cuenta fuera de la lista no ve ninguna microguía",
+        `la ruta respondió ${r.res.status} ${r.data?.code ?? ""}, no 200`,
+      );
+    } else {
+      const n = (r.data?.guides ?? r.data?.items ?? []).length;
+      check(
+        n === 0 && r.data?.available === false,
+        "pero NO ve ninguna microguía",
+        `guides=${n} available=${r.data?.available}`,
+      );
+    }
     const s = await call("POST", "/api/guide/sessions", fuera, {
       idempotencyKey: randomUUID(),
       guideKey: pinOf(items[0] ?? {}).guideKey,
       guideVersion: pinOf(items[0] ?? {}).guideVersion,
     });
+    // Y el rechazo ESPERADO con su código, no «cualquier cosa que no sea 201».
     check(
-      s.res.status === 503 || s.res.status === 403 || s.res.status === 404,
-      "y no puede empezar ninguna",
+      s.res.status === 503 && s.data?.code === "GUIDE_UNAVAILABLE",
+      "y el rechazo es el esperado, con su código",
       `${s.res.status} ${s.data?.code ?? ""}`,
     );
   }
 
   console.log("\n▸ resumen por microguía");
   for (const r of resultados) {
-    console.log(`   ${r.estado === "recorrida" ? "✓" : "✗"} ${r.key} — ${r.estado}${r.pasos ? ` · pasos ${r.pasos}` : ""}`);
+    const marca =
+      r.estado === "recorrida" ? "✓" : r.estado === "impedida" ? "⊘" : "✗";
+    console.log(
+      `   ${marca} ${r.key} — ${r.estado}${r.pasos ? ` · pasos ${r.pasos}` : ""}` +
+        (r.bloqueo ? `  (${r.bloqueo})` : ""),
+    );
   }
 } catch (err) {
   console.log(`\n✗ se detuvo: ${err.message}`);
   failures += 1;
 }
 
-console.log(`\n${failures === 0 ? "✔" : "✗"} ${passed}/${passed + failures} comprobaciones`);
-process.exit(failures === 0 ? 0 : 1);
+const total = passed + failures;
+if (skipped.length === 0 && failures === 0) {
+  console.log(`\n✔ ${passed}/${total} comprobaciones`);
+} else if (failures > 0) {
+  console.log(
+    `\n✗ ${passed}/${total} comprobaciones · ${failures} fallo(s)` +
+      (skipped.length ? ` · ${skipped.length} sin ejecutar` : ""),
+  );
+} else {
+  // Ni ✔ ni ✗: INCOMPLETO. Lo que no se ejecutó no se sabe, y un recorrido con
+  // su control negativo sin correr no acredita que la lista cierre a nadie.
+  console.log(
+    `\n⊘ INCOMPLETO — ${passed}/${total} comprobaciones pasaron, y ${skipped.length} no se ejecutaron:`,
+  );
+  for (const sk of skipped) console.log(`   · ${sk.what} — ${sk.why}`);
+}
+process.exit(failures === 0 && skipped.length === 0 ? 0 : 1);

@@ -69,10 +69,23 @@ if (!API || !WEB || !EMAIL || !PASSWORD) {
 
 let failures = 0;
 const steps = [];
+/**
+ * Comprobaciones que no se pudieron ejecutar: ni acierto ni fallo.
+ *
+ * Con una sola, el parte final NO dice ✔, porque lo que no se midió no se
+ * sabe. Importa sobre todo aquí: la comprobación central de este recorrido es
+ * un límite de privacidad, y una ausencia sin lectura válida detrás se
+ * aprobaría sola.
+ */
+const skipped = [];
 function check(ok, what, detail = "") {
   steps.push({ ok: !!ok, what });
   if (!ok) failures += 1;
   console.log(`   ${ok ? "✓" : "✗"} ${what}${detail ? `  (${detail})` : ""}`);
+}
+function skip(what, why) {
+  skipped.push({ what, why });
+  console.log(`   ⊘ ${what}  — NO EJECUTADA: ${why}`);
 }
 function section(title) {
   console.log(`\n▸ ${title}`);
@@ -149,7 +162,48 @@ async function webCall(method, path, payload) {
 }
 
 function mentions(value, needle) {
-  return JSON.stringify(value ?? {}).toLowerCase().includes(needle.toLowerCase());
+  return JSON.stringify(value ?? {})
+    .toLowerCase()
+    .includes(needle.toLowerCase());
+}
+
+/**
+ * Una ausencia sólo demuestra algo si la lectura fue real y el estado es el
+ * esperado.
+ *
+ * ── Por qué hace falta esto ────────────────────────────────────────────────
+ *
+ * `!mentions(respuesta, LO_DEL_OTRO)` pasa sola en los peores casos: un 401
+ * por cookie caducada, un 404 por id mal armado y un 500 traen cuerpos que
+ * tampoco contienen lo del otro. Es decir, la comprobación más importante de
+ * este recorrido —el límite de privacidad— era la que más fácil se aprobaba
+ * sin medir nada.
+ *
+ * Así que la ausencia se afirma sólo cuando:
+ *   1. la respuesta fue 200 (hubo lectura, no error),
+ *   2. el estado es el esperado (la vista es la de esta etapa), y
+ *   3. **lo del otro ya existe** en ese instante.
+ *
+ * El tercero es el que convierte la prueba en prueba: sin él, «no lo veo»
+ * podría ser «todavía nadie lo había escrito», que es una carrera, no una
+ * barrera.
+ */
+function absenceIsMeaningful(label, read, expectations) {
+  if (read.res.status !== 200) {
+    return {
+      ok: false,
+      why: `la lectura respondió ${read.res.status} ${read.data?.code ?? ""}, no 200`,
+    };
+  }
+  for (const [what, actual, expected] of expectations) {
+    if (actual !== expected) {
+      return {
+        ok: false,
+        why: `${what} es ${JSON.stringify(actual)}, se esperaba ${JSON.stringify(expected)}`,
+      };
+    }
+  }
+  return { ok: true, why: label };
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -195,7 +249,11 @@ try {
     "POST",
     "/api/circles/duo",
     token,
-    { templateKey: TEMPLATE, templateVersion: VERSION, invitationTokens: [secret] },
+    {
+      templateKey: TEMPLATE,
+      templateVersion: VERSION,
+      invitationTokens: [secret],
+    },
     { "idempotency-key": idem() },
   );
   activityId = created.data?.activityId ?? null;
@@ -207,14 +265,26 @@ try {
   );
   if (!activityId) throw new Error("sin actividad no hay recorrido");
 
-  const first = await apiCall("GET", `/api/circles/activities/${activityId}`, token);
-  check(first.data?.status === "INVITING", "la actividad nace invitando", first.data?.status);
+  const first = await apiCall(
+    "GET",
+    `/api/circles/activities/${activityId}`,
+    token,
+  );
+  check(
+    first.data?.status === "INVITING",
+    "la actividad nace invitando",
+    first.data?.status,
+  );
   check(
     first.data?.counterpart?.status === "INVITED",
     "y la contraparte figura invitada",
     first.data?.counterpart?.status,
   );
-  check(first.data?.readyCount === 0, "nadie ha confirmado todavía", `${first.data?.readyCount}`);
+  check(
+    first.data?.readyCount === 0,
+    "nadie ha confirmado todavía",
+    `${first.data?.readyCount}`,
+  );
 
   // ── 2 · la contraparte abre la invitación y acepta por sí misma ──────────
   section("la contraparte, por su propia puerta");
@@ -242,9 +312,15 @@ try {
     "ACEPTA ella misma, y recibe su sesión de invitada",
     `${accept.res.status} ${accept.data?.code ?? ""}`,
   );
-  check(!!guestCookie, "con su propia cookie, distinta de la credencial del organizador");
+  check(
+    !!guestCookie,
+    "con su propia cookie, distinta de la credencial del organizador",
+  );
 
-  const guestFirst = await webCall("GET", `/api/circulos/actividad/${activityId}`);
+  const guestFirst = await webCall(
+    "GET",
+    `/api/circulos/actividad/${activityId}`,
+  );
   check(
     guestFirst.res.status === 200,
     "y puede leer la actividad como invitada",
@@ -277,20 +353,66 @@ try {
     `${orgShare.res.status}`,
   );
 
-  const guestMid = await webCall("GET", `/api/circulos/actividad/${activityId}`);
-  check(
-    !mentions(guestMid.data, ORG_SUMMARY),
-    "la invitada NO ve lo del organizador antes de confirmar lo suyo",
+  // Primero, que lo del organizador EXISTE ya: su propia confirmación se lee de
+  // vuelta antes del revelado, así que esto no es un detalle de implementación,
+  // es la prueba de que hay algo que la barrera está conteniendo.
+  const orgMid = await apiCall(
+    "GET",
+    `/api/circles/activities/${activityId}`,
+    token,
   );
-  const orgMid = await apiCall("GET", `/api/circles/activities/${activityId}`, token);
+  const orgReadable = absenceIsMeaningful("vista del organizador", orgMid, [
+    ["you.status", orgMid.data?.you?.status, "READY"],
+    ["revealed", orgMid.data?.revealed, null],
+  ]);
   check(
-    !mentions(orgMid.data, GUEST_SUMMARY),
-    "y el organizador tampoco ve lo de ella, que aún no existe",
+    orgReadable.ok && mentions(orgMid.data?.you?.confirmed, ORG_SUMMARY),
+    "el organizador se lee a SÍ MISMO ya confirmado — hay algo que contener",
+    orgReadable.ok ? "" : orgReadable.why,
+  );
+
+  // Y ahora sí: la invitada lee de verdad, su vista es la de esta etapa, y en
+  // ella no está lo del otro.
+  const guestMid = await webCall(
+    "GET",
+    `/api/circulos/actividad/${activityId}`,
+  );
+  const guestReadable = absenceIsMeaningful("vista de la invitada", guestMid, [
+    ["you.status", guestMid.data?.you?.status, "ACCEPTED"],
+    ["revealed", guestMid.data?.revealed, null],
+    ["readyCount", guestMid.data?.readyCount, 1],
+  ]);
+  check(
+    guestReadable.ok,
+    "la invitada LEE su actividad, y su vista es la de esta etapa (1 de 2 confirmados)",
+    guestReadable.ok ? "" : guestReadable.why,
+  );
+  if (guestReadable.ok) {
+    check(
+      !mentions(guestMid.data, ORG_SUMMARY),
+      "y NO ve lo del organizador, que en ese instante YA existe",
+    );
+  } else {
+    // Sin lectura válida la ausencia no dice nada, y presentarla como ✓ sería
+    // afirmar justo lo que no se midió.
+    skip(
+      "la invitada no ve lo del organizador antes de confirmar lo suyo",
+      `no hubo lectura válida sobre la que medirlo — ${guestReadable.why}`,
+    );
+  }
+
+  // La simétrica NO se puede medir, y conviene decirlo en vez de contarla.
+  // En un Dúo la segunda confirmación revela en el mismo acto, así que no
+  // existe ninguna ventana en la que ella haya confirmado y él no: lo de ella
+  // todavía no se ha escrito, y «no veo lo que no existe» no es privacidad.
+  check(
+    guestMid.data?.you?.confirmed == null,
+    "lo de la invitada aún no existe — la simétrica no es medible en un Dúo, y no se cuenta como tal",
   );
   check(
-    orgMid.data?.revealed !== true,
+    orgMid.data?.revealed === null && orgMid.data?.revealedAt === null,
     "nada está revelado con una sola confirmación",
-    `revealed=${orgMid.data?.revealed}`,
+    `revealed=${JSON.stringify(orgMid.data?.revealed)} revealedAt=${orgMid.data?.revealedAt}`,
   );
 
   // ── 4 · la segunda confirmación abre el intercambio ──────────────────────
@@ -314,16 +436,20 @@ try {
     `${guestShare.res.status} ${guestShare.data?.code ?? ""}`,
   );
 
-  const orgAfter = await apiCall("GET", `/api/circles/activities/${activityId}`, token);
-  const guestAfter = await webCall("GET", `/api/circulos/actividad/${activityId}`);
+  const orgAfter = await apiCall(
+    "GET",
+    `/api/circles/activities/${activityId}`,
+    token,
+  );
+  const guestAfter = await webCall(
+    "GET",
+    `/api/circulos/actividad/${activityId}`,
+  );
   check(
     mentions(orgAfter.data, GUEST_SUMMARY),
     "ahora el organizador SÍ ve lo de ella",
   );
-  check(
-    mentions(guestAfter.data, ORG_SUMMARY),
-    "y ella ve lo del organizador",
-  );
+  check(mentions(guestAfter.data, ORG_SUMMARY), "y ella ve lo del organizador");
   check(
     orgAfter.data?.readyCount === 2,
     "los dos cuentan como confirmados",
@@ -355,7 +481,11 @@ try {
     token,
   );
   const art = withArtifact.data?.artifact ?? null;
-  check(!!art?.artifactId, "y queda visible con su id y su versión", JSON.stringify(art ?? {}).slice(0, 90));
+  check(
+    !!art?.artifactId,
+    "y queda visible con su id y su versión",
+    JSON.stringify(art ?? {}).slice(0, 90),
+  );
 
   const guestSeesArtifact = await webCall(
     "GET",
@@ -420,7 +550,11 @@ try {
     "el seguimiento aún no se puede decidir — se abre por reloj, no a petición",
     `${followUp.res.status} ${followUp.data?.code ?? ""}`,
   );
-  const closed = await apiCall("GET", `/api/circles/activities/${activityId}`, token);
+  const closed = await apiCall(
+    "GET",
+    `/api/circles/activities/${activityId}`,
+    token,
+  );
   console.log(
     `     (estado: ${closed.data?.status} · seguimiento PROGRAMADO para ${closed.data?.followUpDueAt ?? "ninguno"} — programado, no ejecutado)`,
   );
@@ -433,62 +567,78 @@ try {
   if (process.argv.includes("--sin-retirada")) {
     section("la retirada");
     console.log("   · omitida a petición: la actividad queda REVELADA");
-    console.log(`   · para abrir su seguimiento: barrido con nowIso > ${closed.data?.followUpDueAt}`);
+    console.log(
+      `   · para abrir su seguimiento: barrido con nowIso > ${closed.data?.followUpDueAt}`,
+    );
   } else {
-  section("la retirada");
-  const withdraw = await apiCall(
-    "POST",
-    `/api/circles/activities/${activityId}/withdraw`,
-    token,
-    {},
-    { "idempotency-key": idem() },
-  );
-  check(
-    withdraw.res.status === 200,
-    "el organizador se retira",
-    `${withdraw.res.status} ${JSON.stringify(withdraw.data)}`,
-  );
-  // CANCELLED o CLOSED, según dónde estuviera: el propio tipo de retorno dice
-  // `"CANCELLED" | "CLOSED"`. Retirarse de un intercambio que ya ocurrió lo
-  // CIERRA; retirarse de uno que nadie abrió lo CANCELA. Ayer, retirándome de
-  // una actividad en `INVITING`, salió CANCELLED; hoy, de una revelada y
-  // confirmada, sale CLOSED — y es la respuesta más cuidadosa de las dos.
-  const final = await apiCall("GET", `/api/circles/activities/${activityId}`, token);
-  check(
-    final.data?.status === "CLOSED" || final.data?.status === "CANCELLED",
-    "y la actividad termina cerrada o cancelada, según dónde estuviera",
-    final.data?.status,
-  );
-  check(
-    withdraw.data?.outcome === final.data?.status,
-    "con el desenlace que la propia retirada anunció",
-    `${withdraw.data?.outcome} = ${final.data?.status}`,
-  );
+    section("la retirada");
+    const withdraw = await apiCall(
+      "POST",
+      `/api/circles/activities/${activityId}/withdraw`,
+      token,
+      {},
+      { "idempotency-key": idem() },
+    );
+    check(
+      withdraw.res.status === 200,
+      "el organizador se retira",
+      `${withdraw.res.status} ${JSON.stringify(withdraw.data)}`,
+    );
+    // CANCELLED o CLOSED, según dónde estuviera: el propio tipo de retorno dice
+    // `"CANCELLED" | "CLOSED"`. Retirarse de un intercambio que ya ocurrió lo
+    // CIERRA; retirarse de uno que nadie abrió lo CANCELA. Ayer, retirándome de
+    // una actividad en `INVITING`, salió CANCELLED; hoy, de una revelada y
+    // confirmada, sale CLOSED — y es la respuesta más cuidadosa de las dos.
+    const final = await apiCall(
+      "GET",
+      `/api/circles/activities/${activityId}`,
+      token,
+    );
+    check(
+      final.data?.status === "CLOSED" || final.data?.status === "CANCELLED",
+      "y la actividad termina cerrada o cancelada, según dónde estuviera",
+      final.data?.status,
+    );
+    check(
+      withdraw.data?.outcome === final.data?.status,
+      "con el desenlace que la propia retirada anunció",
+      `${withdraw.data?.outcome} = ${final.data?.status}`,
+    );
 
-  // La invitada sigue pudiendo leerla, y conviene decir por qué NO es una
-  // fuga: el contenido ya le había sido revelado con su propia confirmación.
-  // Quitarle el acceso ahora borraría algo que vio legítimamente.
-  const guestAfterWithdraw = await webCall(
-    "GET",
-    `/api/circulos/actividad/${activityId}`,
-  );
-  check(
-    guestAfterWithdraw.res.status === 200,
-    "y la invitada conserva lo que ya se le había revelado",
-    `${guestAfterWithdraw.res.status}`,
-  );
-  await webCall("DELETE", "/api/circulos/sesion");
+    // La invitada sigue pudiendo leerla, y conviene decir por qué NO es una
+    // fuga: el contenido ya le había sido revelado con su propia confirmación.
+    // Quitarle el acceso ahora borraría algo que vio legítimamente.
+    const guestAfterWithdraw = await webCall(
+      "GET",
+      `/api/circulos/actividad/${activityId}`,
+    );
+    check(
+      guestAfterWithdraw.res.status === 200,
+      "y la invitada conserva lo que ya se le había revelado",
+      `${guestAfterWithdraw.res.status}`,
+    );
+    await webCall("DELETE", "/api/circulos/sesion");
   }
 } catch (err) {
   console.log(`\n✗ el recorrido se detuvo: ${err.message}`);
   failures += 1;
 }
 
-console.log(
-  `\n${failures === 0 ? "✔" : "✗"} ${steps.filter((s) => s.ok).length}/${steps.length} comprobaciones` +
-    (failures ? ` · ${failures} fallo(s)` : ""),
-);
+const ok = steps.filter((s) => s.ok).length;
+if (failures === 0 && skipped.length === 0) {
+  console.log(`\n✔ ${ok}/${steps.length} comprobaciones`);
+} else if (failures > 0) {
+  console.log(
+    `\n✗ ${ok}/${steps.length} comprobaciones · ${failures} fallo(s)` +
+      (skipped.length ? ` · ${skipped.length} sin ejecutar` : ""),
+  );
+} else {
+  console.log(
+    `\n⊘ INCOMPLETO — ${ok}/${steps.length} pasaron, y ${skipped.length} no se ejecutaron:`,
+  );
+  for (const sk of skipped) console.log(`   · ${sk.what} — ${sk.why}`);
+}
 console.log(`\ndatos creados por esta ejecución (quedan como cancelados):`);
 console.log(`  circleId   ${circleId ?? "—"}`);
 console.log(`  activityId ${activityId ?? "—"}`);
-process.exit(failures === 0 ? 0 : 1);
+process.exit(failures === 0 && skipped.length === 0 ? 0 : 1);

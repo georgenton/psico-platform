@@ -252,11 +252,33 @@
 
   .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; font: 600 13.5px/1 var(--font-sans); cursor: pointer; text-decoration: none; border-radius: 12px; padding: 11px 18px; border: 0; white-space: nowrap; transition: all .15s var(--easing-default); }
   .btn.primary { background: var(--color-sage-600); color: #fff; }
-  .btn.primary:hover { background: var(--color-sage-700); }
   .btn.soft { background: var(--color-lavender-100); color: var(--color-lavender-700); }
-  .btn.soft:hover { background: var(--color-lavender-200); }
   .btn.ghost { background: #fff; border: 1px solid var(--color-warm-200); color: var(--color-warm-700); }
-  .btn.ghost:hover { background: var(--color-warm-100); }
+
+  /* Un control inactivo tiene que PARECER inactivo.
+     ────────────────────────────────────────────────────────────────────────
+     No había ninguna regla `:disabled` para `.btn` en toda la hoja, así que un
+     botón deshabilitado se pintaba idéntico a uno activo: color pleno,
+     `opacity: 1` y `cursor: pointer`. Medido en la portada de «El cuerpo,
+     antes que la mente», cuya propia copia dice que la experiencia «no admite
+     recorridos nuevos» mientras su botón verde invitaba a empezarla.
+
+     El atributo `disabled` SÍ llegaba —el clic no hacía nada y las ayudas
+     técnicas lo anuncian—, de modo que esto no era un fallo de función: era
+     una promesa visual que el control no podía cumplir. Afecta a cinco sitios,
+     el botón de exportar tus datos entre ellos.
+
+     Y el `:hover` iba con ello: en CSS, `:hover` SÍ casa con un elemento
+     deshabilitado, así que el botón hasta cambiaba de color al pasar por
+     encima. Por eso los tres `:hover` llevan ahora `:not(:disabled)` — es más
+     preciso que apagar los eventos de puntero, que se llevaría por delante el
+     `cursor` que aquí queremos cambiar, no suprimir. */
+  .btn:disabled,
+  .btn[aria-disabled="true"] { opacity: .45; cursor: not-allowed; }
+
+  .btn.primary:hover:not(:disabled) { background: var(--color-sage-700); }
+  .btn.soft:hover:not(:disabled) { background: var(--color-lavender-200); }
+  .btn.ghost:hover:not(:disabled) { background: var(--color-warm-100); }
 
   .card { background: #fff; border: 1px solid var(--color-warm-200); border-radius: 22px; box-shadow: var(--shadow-card); }
   .card-tag { display: inline-flex; align-items: center; gap: 8px; font: 600 10.5px/1 var(--font-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--color-lavender-700); }

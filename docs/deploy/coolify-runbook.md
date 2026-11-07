@@ -743,6 +743,41 @@ Para abrirlo hacen falta las tres cosas, en este orden y verificadas:
 El punto 3 no es ceremonia. Un backup cuya restauración nunca se ejecutó es una copia de
 la que no se sabe nada, y el día que se necesite no es el día de descubrirlo.
 
+#### El hueco del 29 de octubre, y por qué nadie lo vio
+
+En la serie de respaldos de FeelVerse falta el **29-10-2026**: del 28 se salta al 30.
+Comprobado el 07-11, y lo que importa es la forma de la ausencia:
+
+|                                                                 |                                        |
+| --------------------------------------------------------------- | -------------------------------------- |
+| Ejecuciones a las 05:00 entre el 26-10 y el 07-11               | **12**, una por día, **sin el 29**     |
+| Ejecuciones con estado distinto de `success` en toda la ventana | **0**                                  |
+| ¿Se reinició el servidor?                                       | **no** — 43 días de actividad continua |
+
+Así que **no falló: no corrió.** No hay fila, y no hay mensaje de error, porque un
+fallo deja fila y una ausencia no. La causa no se puede determinar con lo que
+sobrevive: el contenedor de Coolify se recreó el 04-11, así que sus registros de
+aquel día ya no están.
+
+**Y aquí está lo que de verdad hay que arreglar.** Cualquier comprobación escrita
+sobre las ejecuciones —«¿hay alguna con estado distinto de `success`?»— es **ciega a
+esto**, porque no hay nada que mirar. Un detector útil tiene que afirmar **presencia**,
+no estado:
+
+```sql
+-- ¿Hay un respaldo correcto de AYER? Lo que falta es una fila, no un error.
+SELECT count(*) = 0 AS falta_el_de_ayer
+FROM scheduled_database_backup_executions
+WHERE status = 'success'
+  AND created_at::date = (now() - interval '1 day')::date
+  AND created_at::time BETWEEN '04:55' AND '05:05';
+```
+
+Eso es una consulta, no una campaña de monitorización: dónde se engancha —un cron, un
+aviso, una tarjeta de Pulso— es una decisión aparte, y conviene no confundir el
+detector con el sistema que lo hospeda. Lo que no debe repetirse es creer que
+«ninguna ejecución fallida» significa «se respaldó todos los días».
+
 Cómo se comprueba que sigue cerrado, sin cuentas ni escrituras:
 
 ```bash
@@ -850,6 +885,70 @@ conviene llamarlas así.
 Lo que ese ensayo exige, y no se improvisa el día malo: una copia del respaldo fuera
 del propio servidor, el inventario de variables al día, y las claves de los
 proveedores accesibles — porque un host nuevo no hereda ninguna.
+
+#### El ensayo, preparado para ejecutarse (07-11-2026)
+
+Lo que ya **no** hace falta conseguir el día del ensayo, porque está hecho:
+
+| Pieza                                   | Estado                                                              |
+| --------------------------------------- | ------------------------------------------------------------------- |
+| Acceso al respaldo **sin el servidor**  | ✅ credenciales de R2 fuera de la caja, en el almacén de ops        |
+| Que la copia se pueda bajar y restaurar | ✅ comprobado desde el equipo del operador: `pg_restore` en `rc=0`  |
+| Las claves que un host nuevo no hereda  | ✅ las **tres** destructivas fuera de la caja, verificadas por hash |
+| El inventario de variables              | ✅ `coolify-staging-env-inventory.md`                               |
+
+Los siete pasos, en orden, y lo que cada uno demuestra:
+
+1. Provisionar el host. → que existe una caja donde reconstruir.
+2. Instalar Coolify y acuñar un token (ver §«emitir tokens»). → acceso operativo.
+3. Crear PostgreSQL y Redis. → los dos recursos de datos.
+4. **Restaurar el volcado de R2** en el PostgreSQL nuevo, bajándolo desde el host
+   nuevo con las credenciales del almacén de ops. → los datos de ayer.
+5. Recrear las tres aplicaciones desde el inventario, con las variables del
+   almacén — **y con las tres claves destructivas, no con unas nuevas**: una clave
+   de Círculos distinta deja cada sobre ilegible aunque la base esté intacta.
+6. Desplegar y esperar el gate de migraciones (`ready=true`, `pending` y `failed`
+   vacíos). → que la aplicación arranca contra los datos recuperados.
+7. Recorrer: acceso, un capítulo, una reflexión. → que **responde**, que es lo que
+   «recuperado» tiene que significar. Restaurar una base no es recuperar la
+   plataforma: una base sin servicios no atiende a nadie.
+
+**Aislamiento, que en este ensayo no es un detalle.** La base restaurada lleva
+cuentas reales de staging, y el worker reconstruido encolaría sus crons contra
+ellas: el digest semanal manda correo y push. Antes de desplegar el worker hay que
+dejar **vacías** `RESEND_API_KEY` y las `VAPID_*` en el host del ensayo — vacío es
+el mecanismo real de apagado de cada una, no una clave falsa— y poner
+`CIRCLES_ROLLOUT_MODE=off` y `GUIDE_ROLLOUT_MODE=off`. Reconstruir el worker no
+debe producir una sola comunicación a una persona.
+
+#### Lo que falta es el recurso, y su coste no está cerrado
+
+El ensayo necesita una caja **independiente** —usar la actual anularía el
+escenario— de unos 4 vCPU y 8 GB, que es lo que piden Coolify, PostgreSQL, Redis y
+tres aplicaciones a la vez.
+
+Lo que se pudo verificar en las páginas públicas de OVH, y lo que no:
+
+|                                          |                                                                                                                                                                                  |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Candidato con precio verificado          | **VPS-2**: 4 vCores, 8 GB, 75 GB NVMe, **desde $8,50/mes**, IPv4 dedicada y respaldo diario incluidos                                                                            |
+| Modalidad de facturación del VPS         | la página muestra **precios mensuales** y **no dice** si factura por horas ni si exige compromiso                                                                                |
+| La alternativa por horas                 | las instancias de Public Cloud se facturan «por hora o mediante un Savings Plan» según su página, pero **no se pudo leer su tabla de precios**, así que no se cita ninguna cifra |
+| Cargos que podrían sobrevivir al borrado | IP flotante, volúmenes de Block Storage y snapshots **no tienen precio en las páginas leídas**, y **no se dice** si una IP sin asociar sigue facturando                          |
+
+De modo que **el importe máximo no se puede afirmar desde las páginas públicas**, y
+conviene no inventarlo: ni «un VPS se factura por horas» ni «borrar la instancia
+cancela cualquier cargo» están establecidos. Las dos preguntas que lo cierran, y que
+se contestan en el panel de OVH o preguntando a su soporte:
+
+1. ¿Cuál es el precio por hora de una instancia de ~4 vCPU / 8 GB, y hay tope
+   mensual?
+2. ¿Qué se sigue facturando después de borrar la instancia — IP, volumen,
+   snapshot — y cómo se retira cada cosa?
+
+Con esas dos respuestas, el procedimiento de retirada es: borrar la instancia,
+liberar la IP, borrar el volumen y el snapshot si existen, y confirmar en la
+facturación del mes siguiente que no queda ninguna línea abierta.
 
 De esos tres, **el primero está comprobado** (2026-11-05): la programación de
 `feelverse-staging-postgres` es diaria y activa, sus dos últimas ejecuciones están en

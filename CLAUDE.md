@@ -4016,7 +4016,7 @@ sección, manda esta sección.
 | ------------------ | ------------------------------------------------------------------------------------------------------------- |
 | Dónde vive         | **OVH con Coolify, y sólo ahí.** Vercel y Railway retiradas del plan operativo                                |
 | `main`             | `f15c5c96` (#826) · **#827 abierto**                                                                          |
-| Servido en staging | Web `166f261a` · API y worker, los despliegues del 07-11                                                      |
+| Servido en staging | API y worker `f15c5c96` (07-11) · Web `166f261a` (05-11) — leído del contenedor, no de esta tabla             |
 | ¿Coinciden?        | API y worker sí. La Web no cambió, así que sigue en su artefacto — y no se redespliega para igualar una tabla |
 | Producción         | **no existe como recurso.** Tres aplicaciones en el proyecto, las tres de staging                             |
 
@@ -4064,11 +4064,12 @@ a la vez—. Igualarlos «para que cuadre el documento» no es motivo para
 desplegar; un cambio funcional sí lo es, y por eso el 25-10 se desplegó
 **sólo Web** y el 26-10 **sólo la API**.
 
-| Servicio | Artefacto                           | Por qué se conserva (o se desplegó)                                                                                             |
-| -------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| API      | `aft7nt3p6wsormno2cejtavj:9a03edd0` | **desplegado** el 05-11 para activar las claves de push web. Gate de migraciones cerrado: 71/71, `pending` y `failed` vacíos    |
-| Web      | `wwsluxasxlko4yf3fliwmkek:9a03edd0` | **desplegado** el 05-11, en cuanto se recuperó el acceso: lleva la corrección de la letra del cuerpo (#816). Al día con `main`  |
-| worker   | `hwxntaqogysfzgt1ehqq3ufl:9a03edd0` | **desplegado** el 05-11: es quien manda el aviso del digest semanal, así que las claves de push web también tenían que llegarle |
+| Servicio   | Artefacto                           | Por qué se conserva (o se desplegó)                                                                                                                                                                                      |
+| ---------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| API        | `aft7nt3p6wsormno2cejtavj:f15c5c96` | **desplegado** el 07-11 con el arreglo de la construcción (#826). Gate de migraciones cerrado y comprobado sobre la imagen servida: 71/71, `pending` y `failed` vacíos                                                   |
+| Web        | `wwsluxasxlko4yf3fliwmkek:166f261a` | del 05-11. Lleva la corrección de la letra del cuerpo (#816) y el interlineado (#818). **No se redespliega para igualar la tabla**: lo que viene después es documentación y pruebas                                      |
+| worker     | `hwxntaqogysfzgt1ehqq3ufl:f15c5c96` | **desplegado** el 07-11: construye con la misma receta que la API, así que el arreglo tenía que alcanzarlo                                                                                                               |
+| PostgreSQL | `pgvector/pgvector:pg18@2ba9ca5f…`  | **fijada por digest**, y el pin hace trabajo real: la etiqueta flotante `pg18` ya apunta a otro digest. PG **18.6** · `vector 0.8.6` · 37 días sin reiniciar. Ver [capacidad](docs/operations/capacidad-y-postgresql.md) |
 
 **Un despliegue de la API no se cierra con el verde de Coolify**, que puede
 convivir con una migración que falló: lo cierra `ready=true` **con `pending` y
@@ -4103,8 +4104,11 @@ en [el runbook §4](docs/deploy/coolify-runbook.md).
 | **Construcción de la API**               | ✅ **arreglada y verificada sobre la imagen terminada** (07-11, #826). La causa no era la caché de capas de Docker que dije el 06-11: era la de **Turbo**. `build` declara sus salidas como `dist/**`, pero `prisma generate` escribe fuera del paquete, así que Turbo no lo rastrea y ante un acierto de caché restaura `dist` sin volver a generar. **Reproducido en 64 ms** en local. Arreglo: `prisma:generate` como tarea propia con `cache: false`. Verificado en la configuración exacta que fallaba —construcción forzada con 21 capas en caché—: ayer daba 0 generaciones y una imagen que no arranca, hoy da 1 y una que sí                                                                                                                                                                                                                                                      |
 | CI                                       | ✅ el fallo intermitente de la suite de PostgreSQL **está cerrado** (#813): lo causaba un `DROP DATABASE … WITH (FORCE)` sobre un pool que acababa de cerrarse                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | UAT                                      | ⚠️ **parcial**, con sus límites escritos en [la bitácora](docs/informes/uat-2026-10-23-cierre-staging.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| PostgreSQL y capacidad                   | ✅ **resueltos como trabajo técnico, no consultados** (07-11). La variante se conserva —`pgvector/pgvector:pg18` **fijada por digest**— y el pin resultó estar haciendo trabajo real: la etiqueta flotante ya divergió, así que sin él una caja nueva traería otra imagen. Medido en reposo, durante un recorrido (+40 KB, 65 filas, CPU de la API al **50,3 % de su única cuota**) y en concurrencia acotada (8 lectores → p50 194 ms). **El techo que se toca primero no es ningún recurso: es el límite de 60 peticiones por minuto** — el primer intento informó «65,8 lec/s» midiendo 429. Único frente tenso: **disco al 80 %**, y los 26 GB reclamables son los candidatos de reversión, así que no se podó nada. [Detalle](docs/operations/capacidad-y-postgresql.md)                                                                                                              |
+| Aviso de respaldo ausente                | ✅ **detector instalado y verificado** (07-11) — guion + cron 06:10 UTC + registro, sólo lectura, con control positivo y negativo y **la cadena de cron ejecutada**. Antes no había aviso posible: `missing_backup_notification_days` está puesto, pero los **cinco canales** están desactivados y sin destino, y un aviso sin canal es un ajuste. ⚠️ Falta el **canal**, que necesita una dirección autorizada                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | Respaldo fuera del servidor              | ✅ **alcanzable Y restaurable** (06-11). El 05-11 sólo constaba que los objetos estaban subidos; faltaba lo que de verdad decide: **las credenciales del bucket vivían sólo dentro de Coolify, en la caja**, y cifradas con su `APP_KEY`, que vive ahí también — dos dependencias circulares, en el único escenario para el que existe el respaldo. Corregido: copia fuera del repositorio, y desde el Mac **sin pasar por el VPS** se listó el bucket (13 objetos), se bajó el último y `pg_restore` cerró en **rc=0, cero errores**, con el contenido contrastado contra 6 hechos conocidos. Falta el **29-10** en la serie: «diario y activo» es cierto, «todos los días» no                                                                                                                                                                                                            |
 | Recuperar tras perder el servidor        | ⚠️ **restaurar la base está comprobado; recuperar la plataforma, NO** — y conviene no confundirlos, porque el 06-11 se comprobó lo primero y es fácil leerlo como lo segundo. Comprobado: alcanzar la copia sin el servidor, restaurarla (`rc=0`) y contrastar su contenido; más las **tres** claves destructivas a salvo fuera de la caja, verificadas por hash. **Sin comprobar:** que la aplicación responda en una caja nueva — provisionar host, instalar Coolify, recrear los tres recursos, restaurar y recorrer. Una base restaurada sin servicios no atiende a nadie                                                                                                                                                                                                                                                                                                              |
+| Aislamiento del ensayo de nivel 4        | ✅ **puerta que falla cerrado** (07-11). La lista anterior era necesaria y no suficiente: de los trece procesadores, **siete** salen de la caja y dos **borran objetos de R2** desde filas restauradas. `scripts/rehearsal-isolation-check.mjs` comprueba 9 condiciones y se ejecuta **antes** de arrancar nada; trinquete de 16 pruebas que sigue un salto a los servicios inyectados, verificado por mutación                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | Rollback a la imagen anterior            | ⚠️ **ensayo operativo HECHO** (2026-10-24) — sigue condicionado a su precondición de contenido y al residuo de la ventana. Y el residuo tiene un límite que ahora está dicho con precisión: la reconciliación manual que lo cerraría **nunca se ha ejecutado**, así que son instrucciones sin estrenar, no un mecanismo comprobado. Candidatos de reversión por servicio en [el runbook §3.1](docs/deploy/coolify-runbook.md) — y **«la versión anterior» no es una versión**: el worker no tiene build de `6cb27281`, su anterior es de dos semanas antes                                                                                                                                                                                                                                                                                                                                 |
 | Modo guiado · las cinco de C01           | **Definición Guide** registrada en código ✅ · **Experience en OVH: AUSENTE** — `ChapterExperienceVersion` tiene **0 filas**, comprobado en sólo lectura por clave y versión · **disponible** sólo QA ✅ · **ejecución HTTP probada** ✅ (**31/31**, con control negativo) · **pantalla** pendiente · **aprobación editorial: NO acreditada** — lo que hay es una _recomendación_ («publicar APPROVE, flag HOLD») y un «**NO se autoriza todavía publicar las cinco Experiences**» explícito del 04-09; el 03-09 autoriza **implementar**, no publicar · **abierta a personas reales** ❌                                                                                                                                                                                                                                                                                                  |
 | Círculos / Dúo                           | ✅ **habilitado** (06-11) **y recorrido con DOS partes** (07-11) — y son dos cosas distintas: lo primero es que la superficie responda, lo segundo que dos personas completen el intercambio. **33/33**: la contraparte inspecciona y **acepta ella misma** por la Web, los dos confirman, el acuerdo se propone y se confirma por ambos, el seguimiento se abre por reloj y **las dos decisiones lo cierran**, y la retirada da el desenlace que anuncia. El invariante medido está en la ventana intermedia: con uno confirmado y el otro no, **ninguno ve lo del otro** — y eso dejó de ser una ausencia que se aprobaba sola: exige lectura 200, el estado de la etapa y que lo del otro **ya exista** en ese instante (dos mutaciones ejecutadas). ⚠️ Pendiente **editorial**: el vínculo del Dúo cuelga de un pin retirado — propuesta de sucesión completa en la bitácora del 07-11 |
@@ -4425,7 +4429,87 @@ distintas:
     re-ejecutados contra staging con los instrumentos estrictos: **31/31** y
     **33/33**, los dos con código 0. Detalle en §2.4 y §3.4 de la bitácora.
 
-24. ✅ **Dos correcciones de contenido** (07-11): la tarjeta de C05 ya no
+24. ✅ **PostgreSQL y capacidad, resueltos midiendo** (07-11). La revisión pedía
+    que no te pasara ni la elección de versión ni las cifras, y no hacía falta:
+    la variante que ya corre resultó ser la correcta **y estar bien fijada** —
+    `pgvector/pgvector:pg18` por digest—. Lo que no se sabía hasta comprobarlo
+    es que ese pin **hace trabajo real**: la etiqueta flotante `pg18` apunta hoy
+    a otro digest, así que con la etiqueta a secas una caja nueva del nivel 4
+    traería una imagen distinta de la que lleva 37 días sirviendo estos datos.
+    El digest fijado sigue siendo pullable (200), lo cual cierra esa pieza del
+    nivel 4 — con un supuesto fechado: Docker Hub no promete retención
+    indefinida, y copiar la imagen a un registro propio queda pendiente.
+
+    **Lo medido**, en reposo y en movimiento: 23 MB de base y 12 192 filas para
+    once cuentas, de las que el 27 % es el libro; 846 MiB de los 4 GiB
+    declarados; un recorrido guiado completo cuesta **+40 KB, 65 filas y 5,46 s**
+    y pone la CPU de la API al **50,3 % de su única cuota**, que es el único
+    margen estrecho de toda la medición; ocho lectores concurrentes del capítulo
+    real dan p50 **194 ms** con la carga del host en 0,89 de 6 núcleos.
+
+    **Y un error de medición que conviene no repetir.** El primer escenario
+    informó «65,8 lecturas por segundo» a concurrencia 16. Era falso: 57 de 64
+    respuestas no eran 200. Repetido con los códigos a la vista, resultó que
+    **el techo que se alcanza primero no es ningún recurso de la caja, es el
+    límite de 60 peticiones por minuto** — a concurrencia 16, las 64 en 429. Un
+    escenario lanzado desde una sola cuenta mide el limitador, no la capacidad.
+
+    **El único frente tenso es el disco**: 80 %, 20 GB libres, y 25,9 GB
+    reclamables que son **los candidatos de reversión del runbook**. Podarlos
+    liberaría espacio y destruiría la capacidad de volver atrás, así que no se
+    podó nada: es un hallazgo para decidir con el runbook delante.
+
+25. ✅ **El aviso del respaldo, y el ensayo que podía dañar lo vivo** (07-11).
+    Dos piezas del nivel 4, las dos encontradas por la revisión y las dos peores
+    de lo que parecían.
+
+    **Nadie recibió aviso del hueco del 29-10 porque no había por dónde.**
+    `missing_backup_notification_days` está puesto a 2 —Coolify sí calcula que
+    falta—, pero los **cinco** canales están desactivados y sin destino. Un
+    aviso sin canal no es un aviso: es un ajuste. Abrir uno necesita una
+    dirección autorizada, así que **no se configuró ninguno**; inventar un
+    destino sería peor que no tenerlo.
+
+    **Y el detector tenía tres defectos**, el gordo: no filtraba por la base de
+    FeelVerse, y hay **nueve** programaciones de respaldo en esta caja. Conviene
+    no agravarlo: medido, ninguna ejecución ajena cae en la ventana de las
+    05:00, así que daba la respuesta correcta **por accidente** — su ventana
+    aislaba a FeelVerse sin pretenderlo, y el primer proyecto que programara un
+    respaldo a esa hora la habría satisfecho en silencio. De paso quedó
+    corregida una conversión que el runbook tenía **al revés**: Coolify evalúa
+    el cron en `America/Guayaquil`, así que `0 0 * * *` es medianoche de Ecuador
+    = **05:00 UTC**, no «00:00 UTC».
+
+    **Ahora está instalado, no sólo escrito**, que era la distinción que pedía
+    la revisión: `/usr/local/bin/feelverse-backup-check.sh` + cron diario a las
+    06:10 UTC + registro, con copia en el repositorio y el mismo sha256. Sólo
+    lectura comprobada (un `CREATE TABLE` por esa vía responde «cannot execute
+    … in a read-only transaction»), con control positivo (ayer → OK) y negativo
+    (29-10 → FALTA), y **la cadena entera ejecutada**: se añadió una línea
+    temporal, cron la disparó a las 19:15:01 y dejó su línea. Registra
+    **siempre**, también cuando todo va bien, porque un detector que sólo habla
+    al fallar no se distingue de uno que dejó de correr — que es exactamente
+    cómo pasó inadvertido el hueco. La prueba en seco atrapó un fallo que
+    habría gritado FALTA **todos los días**: `psql -tAc` devolvía
+    `BEGIN1ROLLBACK` como recuento.
+
+    **El ensayo, aislado de verdad.** La lista anterior —vaciar Resend y VAPID,
+    rollouts en `off`— era necesaria y **no suficiente**. Enumerados los trece
+    procesadores, **siete** salen de la caja, y los dos peores no estaban:
+    `account-deletion` y `data-export-retention` **borran objetos de R2**, y
+    leído en el código, la retención calcula la clave desde **las filas
+    restauradas** y borra en **el bucket que diga el entorno**. El borrado de
+    filas queda contenido —opera sobre la copia—; R2, el correo, el push y el
+    modelo no, porque no son copias de nada.
+
+    Hay puerta que **falla cerrado** (`scripts/rehearsal-isolation-check.mjs`,
+    9 comprobaciones) y trinquete de 16 pruebas que **sigue un salto** a los
+    servicios inyectados — hacía falta: `weekly-summary` no menciona el modelo,
+    llama a `PatronesService`, y mirar sólo `processors/` daba tres familias de
+    cuatro, perdiendo justo **la que se factura**. Verificado por mutación: un
+    procesador que llame a Stripe rompe la prueba, y quitar una guarda también.
+
+26. ✅ **Dos correcciones de contenido** (07-11): la tarjeta de C05 ya no
     muestra los asteriscos del manuscrito —arreglado en el guion de ingesta y en
     la fila servida, sobre las dos representaciones, con preimagen y
     comparar-y-fijar—; y la nota interna de C01 quedó **contrastada contra el

@@ -4563,11 +4563,14 @@ en **[la matriz de F3](https://claude.ai/artifact/UtBZxMUDiqSuSwY3mGh5ah)**:
       la entrada de elegibilidad, conservando las actividades históricas, que
       siguen resolviendo por pin.
    3. **Las cinco microguías de C01**: registradas, probadas (31/31) y
-      disponibles sólo para QA. La implementación está aprobada (2026-09-03) y
-      publicar las Experiences es **APPROVE**; lo que falta es **DECISIÓN B**,
-      encender el flag para una audiencia que no sea QA, hoy en **HOLD**
-      declarado. Y **DECISIÓN A está aprobada y sin ejecutar**: las cinco
-      Experiences siguen en `DRAFT`.
+      disponibles sólo para QA. La **implementación** está aprobada
+      (2026-09-03); **publicar NO**: la fuente primaria registra «Aprobación
+      autoral: BLOCKED — Pendiente de decisión de Jorge», «Readiness para
+      PUBLISHED: BLOCKED» y «Microguías aprobadas: 0», y su cierre es una
+      **recomendación** —«publicar APPROVE, flag HOLD»— con «ninguna de las dos
+      ejecutada». Así que **A y B son las dos decisiones tuyas**, no deudas de
+      ejecución. Y en OVH las cinco no están en `DRAFT`: están **ausentes**
+      (0 filas).
    4. **Los dos bloques de _EEC_**: el de C05 ya está corregido. El de C01 es
       una **nota editorial interna** que vive en el canónico, bajo «Referencias
       **de trabajo**», con su SHA intacto y **cero** referencias hoy. Retirarla

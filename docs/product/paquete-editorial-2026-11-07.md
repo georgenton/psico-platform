@@ -13,16 +13,16 @@
 
 ## Resumen
 
-| #   | Decisión                         | Propuesta                                          | Bloquea                     |
-| --- | -------------------------------- | -------------------------------------------------- | --------------------------- |
-| 1   | Sinopsis de _EEC_                | publicar el texto propuesto                        | la ficha pública de la obra |
-| 2   | Nota interna de C01              | retirarla, **con** su encabezado                   | la lectura limpia de C01    |
-| 3   | Publicar las cinco Experiences   | ejecutar la decisión A, **ya aprobada**            | nada: es deuda, no gate     |
-| 4   | Abrir las cinco a alguien (flag) | mantener **HOLD** hasta 1 y 2                      | el piloto de lectura        |
-| 5   | Sucesor del Dúo                  | `eec-c1-emocion-informa-no-manda@1`                | la entrada del Dúo          |
-| 6   | Las otras dos obras              | _Familias_ sigue sin publicar; _Parejas_ no existe | el catálogo                 |
-| 7   | Primer recurso de audio          | capítulo 1 de _EEC_                                | la promesa de «Modo Guía»   |
-| 8   | Precios y apertura de cobros     | no abrir; seis condiciones sin cerrar              | el cobro                    |
+| #   | Decisión                         | Propuesta                                           | Bloquea                     |
+| --- | -------------------------------- | --------------------------------------------------- | --------------------------- |
+| 1   | Sinopsis de _EEC_                | publicar el texto propuesto                         | la ficha pública de la obra |
+| 2   | Nota interna de C01              | retirarla, **con** su encabezado                    | la lectura limpia de C01    |
+| 3   | Publicar las cinco Experiences   | **decisión tuya** — la fuente la registra pendiente | el registro, no el producto |
+| 4   | Abrir las cinco a alguien (flag) | mantener **HOLD** hasta 1 y 2                       | el piloto de lectura        |
+| 5   | Sucesor del Dúo                  | `eec-c1-emocion-informa-no-manda@1`                 | la entrada del Dúo          |
+| 6   | Las otras dos obras              | _Familias_ sigue sin publicar; _Parejas_ no existe  | el catálogo                 |
+| 7   | Primer recurso de audio          | capítulo 1 de _EEC_                                 | la promesa de «Modo Guía»   |
+| 8   | Precios y apertura de cobros     | no abrir; seis condiciones sin cerrar               | el cobro                    |
 
 ---
 
@@ -92,24 +92,43 @@ bibliografía.
 
 ## 3 · Publicar las cinco Experiences de C01
 
-**En juego, dicho con precisión**, porque aquí yo me equivoqué antes y la
-revisión lo corrigió:
+> **Corrección.** Una versión anterior de esta sección decía que «la decisión A
+> está APROBADA». **Es falso**, y lo es contra la fuente primaria, que fui a
+> leer precisamente porque el roadmap y la revisión decían lo contrario que yo.
+> Lo dejo escrito porque el error es el que importa evitar: **atribuir al
+> propietario una aprobación que no dio.**
 
-- **La decisión A —publicar las cinco Experiences— está APROBADA.** Lo que la
-  fuente editorial presenta como recomendación es el **par** «publicar A,
-  mantener B en HOLD»; A en sí viene aprobada.
-- **Está aprobada y sin ejecutar.** En OVH, `ChapterExperienceVersion` tiene
-  **cero filas**: las cinco Experiences no están en `DRAFT`, están **ausentes**.
-- **Y aun así las cinco se recorren.** El modo guiado resuelve del catálogo **en
-  código**, no de una fila de Experience. Por eso 31/31 por HTTP convive con una
-  tabla vacía: son dos registros distintos, y contar uno no dice nada del otro.
+**Lo que la fuente dice, citado.** El inventario de experiencias de EEC-C01
+cierra así:
 
-**Propuesta.** Ejecutar A. No desbloquea nada por sí sola —el gate real es el
-punto 4— pero cierra una deuda entre lo decidido y lo registrado, y deja el
-registro coherente antes de que alguien lo lea al revés, como hice yo.
+> **Recomendación:** publicar `APPROVE`, encender el flag `HOLD` hasta después
+> del smoke posterior a publicar. **Ninguna de las dos ejecutada.**
+
+Y su tabla de gates es explícita:
+
+| Gate                       | Estado      | Observación                       |
+| -------------------------- | ----------- | --------------------------------- |
+| Aprobación autoral         | **BLOCKED** | Pendiente de decisión de Jorge    |
+| Readiness para `PUBLISHED` | **BLOCKED** | No publicar desde este inventario |
+| Microguías **aprobadas**   | **0**       | —                                 |
+
+**Qué sí está aprobado**, para no barrerlo con lo anterior: la **arquitectura**
+de cinco microguías («APROBADA POR EL AUTOR»), el diseño `v0.1` de MG03
+(2026-09-02), y la **implementación** (referencia del 2026-09-03). Implementar
+no es publicar, y la propia página lo remata: «La publicación sigue bloqueada».
+
+**Dónde están hoy.** En OVH, `ChapterExperienceVersion` tiene **cero filas**: no
+están en `DRAFT`, están **ausentes**. Y aun así las cinco se recorren, porque el
+modo guiado resuelve del catálogo **en código**, no de una fila de Experience.
+Por eso 31/31 por HTTP convive con una tabla vacía: son dos registros distintos,
+y contar uno no dice nada del otro.
+
+**Propuesta: esta es una decisión tuya, no una deuda de ejecución.** Publicar
+las cinco Experiences requiere tu aprobación explícita, que la fuente registra
+como pendiente. Si la das, se ejecuta; si no, no hay nada que «ponerse al día».
 
 **NO hace**: publicar las Experiences **no** las pone delante de nadie. Eso es el
-flag, y el flag es la decisión 4.
+flag, y el flag es la decisión 4 — que sigue en HOLD por separado.
 
 ---
 

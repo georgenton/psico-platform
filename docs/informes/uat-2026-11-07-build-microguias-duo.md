@@ -155,12 +155,22 @@ Y la aprobación **existe**, fechada y referenciada desde cada manifiesto:
 > `approvalReferences`: «Decisión autoral 2026-09-03: implementar las cinco
 > microguías de EEC-C01.»
 
-Más dos decisiones **ya registradas** en el paquete de revisión autoral:
+Más dos **propuestas** registradas en el paquete de revisión autoral:
 
-- **DECISIÓN A — publicar las cinco Experiences: APPROVE.**
-- **DECISIÓN B — encender `EEC_C01_GUIDED_SUITE_V1`: HOLD**, con su razón
+- **DECISIÓN A — publicar las cinco Experiences: `APPROVE`.**
+- **DECISIÓN B — encender `EEC_C01_GUIDED_SUITE_V1`: `HOLD`**, con su razón
   escrita: «encender el flag es lo que pone las cinco tarjetas delante de una
   persona real… B no debe seguir a A automáticamente.»
+
+> **`APPROVE` ahí es una recomendación, no una aprobación**, y conviene no
+> leerlo como yo lo leí primero. La fuente editorial cierra con
+> «**Recomendación:** publicar `APPROVE`, encender el flag `HOLD` … **Ninguna
+> de las dos ejecutada**», y su tabla de gates dice «Aprobación autoral:
+> **BLOCKED** — Pendiente de decisión de Jorge», «Readiness para `PUBLISHED`:
+> **BLOCKED** — No publicar desde este inventario» y «Microguías aprobadas:
+> **0**». Lo aprobado es la **arquitectura** de las cinco y la
+> **implementación**; publicar no. **A y B son las dos decisiones del
+> propietario.**
 
 ### 2.2 La tensión, dicha sin adornos
 

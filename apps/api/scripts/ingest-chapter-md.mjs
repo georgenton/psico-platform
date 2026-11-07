@@ -33,6 +33,7 @@
 
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { plainHeading } from "./plain-heading.mjs";
 
 // ─── args ────────────────────────────────────────────────────────────────────
 
@@ -80,9 +81,9 @@ const PAUSE_MOCK =
 // Caption for the VIDEO block. No 🎬 prefix / "próximamente" prose — the
 // VideoBlock component renders the play frame + "en producción" state itself.
 const VIDEO_MOCK = (title) =>
-  `Cápsula del capítulo: el autor conversa sobre «${title}».`;
+  `Cápsula del capítulo: el autor conversa sobre «${plainHeading(title)}».`;
 const EXERCISE_MOCK = (heading) =>
-  `✍️ Actividad interactiva — próximamente. «${heading}» se convertirá en un ejercicio guiado dentro de la app (con espacio para responder y guardar). Por ahora, léela como una invitación y, si quieres, llévala a tu Diario o conversa con Eco.`;
+  `✍️ Actividad interactiva — próximamente. «${plainHeading(heading)}» se convertirá en un ejercicio guiado dentro de la app (con espacio para responder y guardar). Por ahora, léela como una invitación y, si quieres, llévala a tu Diario o conversa con Eco.`;
 
 /**
  * Parse a manuscript file into { title, blocks: [{kind, content}] }.

@@ -4010,14 +4010,14 @@ de cada bitácora de sesión— es **antecedente fechado**: explica cómo se lle
 aquí, no lo que toca hacer. Si una instrucción antigua contradice esta
 sección, manda esta sección.
 
-#### El corte — 2026-11-06
+#### El corte — 2026-11-07
 
 |                    |                                                                                   |
 | ------------------ | --------------------------------------------------------------------------------- |
 | Dónde vive         | **OVH con Coolify, y sólo ahí.** Vercel y Railway retiradas del plan operativo    |
-| `main`             | `44090745` (#824) · **cero PR abiertos**                                          |
-| Servido en staging | Web `166f261a` · worker y API, el despliegue del 06-11                            |
-| ¿Coinciden?        | No del todo, y conviene saber por qué: la Web no cambió hoy, así que sigue en su artefacto; el worker y la API se desplegaron por **variables**, no por código |
+| `main`             | `f15c5c96` (#826) · **#827 abierto**                                              |
+| Servido en staging | Web `166f261a` · API y worker, los despliegues del 07-11                          |
+| ¿Coinciden?        | API y worker sí. La Web no cambió, así que sigue en su artefacto — y no se redespliega para igualar una tabla |
 | Producción         | **no existe como recurso.** Tres aplicaciones en el proyecto, las tres de staging |
 
 > **Un despliegue puede no venir de un commit.** Los tres de hoy se dispararon
@@ -4100,14 +4100,14 @@ en [el runbook §4](docs/deploy/coolify-runbook.md).
 | El copy del producto                     | ✅ **dieciocho frases corregidas y SERVIDAS** (#820), dos de ellas en pantallas de registro. Trinquete por mutación que cubre web, móvil, tipos compartidos y **las plantillas de correo de la API**                                                                                                                                                                                                                                                                                                                                                       |
 | El interlineado del lector               | ✅ **arreglado, integrado y SERVIDO** (#818). Lo destapó verificar la letra: el control movía la columna y las citas y los párrafos no. Comprobado sobre lo servido: ahora los tres se mueven juntos, 21,6 → 39,6 → 32,4 px                                                                                                                                                                                                                                                                                                                                |
 | Medios del lector                        | ❌ **sin material**: video 0 de 10 bloques con archivo, audio 0 filas. Los reproductores están construidos y con marcador honesto                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| **Construcción de la API**               | ❌ **el próximo despliegue produce un artefacto que no arranca** (descubierto el 06-11). Falta el cliente de Prisma generado: `prisma generate` no corre en la construcción, y las dos imágenes se diferencian **sólo** en eso. Probados y descartados el reintento, `force=true` y `disable_build_cache`. Hoy **nada está roto** —el servicio sirve la imagen buena y la etiqueta se devolvió a ella—, pero el arreglo es del repositorio: `generator client` no declara `output`, así que el cliente aterriza en `node_modules`, que no es salida de nada |
+| **Construcción de la API**               | ✅ **arreglada y verificada sobre la imagen terminada** (07-11, #826). La causa no era la caché de capas de Docker que dije el 06-11: era la de **Turbo**. `build` declara sus salidas como `dist/**`, pero `prisma generate` escribe fuera del paquete, así que Turbo no lo rastrea y ante un acierto de caché restaura `dist` sin volver a generar. **Reproducido en 64 ms** en local. Arreglo: `prisma:generate` como tarea propia con `cache: false`. Verificado en la configuración exacta que fallaba —construcción forzada con 21 capas en caché—: ayer daba 0 generaciones y una imagen que no arranca, hoy da 1 y una que sí |
 | CI                                       | ✅ el fallo intermitente de la suite de PostgreSQL **está cerrado** (#813): lo causaba un `DROP DATABASE … WITH (FORCE)` sobre un pool que acababa de cerrarse                                                                                                                                                                                                                                                                                                                                                                                             |
 | UAT                                      | ⚠️ **parcial**, con sus límites escritos en [la bitácora](docs/informes/uat-2026-10-23-cierre-staging.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | Respaldo fuera del servidor              | ✅ **alcanzable Y restaurable** (06-11). El 05-11 sólo constaba que los objetos estaban subidos; faltaba lo que de verdad decide: **las credenciales del bucket vivían sólo dentro de Coolify, en la caja**, y cifradas con su `APP_KEY`, que vive ahí también — dos dependencias circulares, en el único escenario para el que existe el respaldo. Corregido: copia fuera del repositorio, y desde el Mac **sin pasar por el VPS** se listó el bucket (13 objetos), se bajó el último y `pg_restore` cerró en **rc=0, cero errores**, con el contenido contrastado contra 6 hechos conocidos. Falta el **29-10** en la serie: «diario y activo» es cierto, «todos los días» no |
-| Recuperar tras perder el servidor        | ⚠️ **su cimiento, comprobado; el ensayo completo, no.** Hecho el 06-11 todo lo que no necesita una caja nueva: alcanzar la copia sin el servidor, restaurarla, verificar su contenido, y poner a salvo fuera de la caja las **tres** claves cuya pérdida destruye datos (`CIRCLES_SHARED_DATA_KEY_V1` y el par VAPID), verificando por hash que son las que corren. Falta provisionar un host, instalar Coolify, recrear los tres recursos y restaurar: propuesta con coste en [la bitácora del 06-11](docs/informes/uat-2026-11-06-circulos-y-recuperacion.md) |
+| Recuperar tras perder el servidor        | ⚠️ **restaurar la base está comprobado; recuperar la plataforma, NO** — y conviene no confundirlos, porque el 06-11 se comprobó lo primero y es fácil leerlo como lo segundo. Comprobado: alcanzar la copia sin el servidor, restaurarla (`rc=0`) y contrastar su contenido; más las **tres** claves destructivas a salvo fuera de la caja, verificadas por hash. **Sin comprobar:** que la aplicación responda en una caja nueva — provisionar host, instalar Coolify, recrear los tres recursos, restaurar y recorrer. Una base restaurada sin servicios no atiende a nadie |
 | Rollback a la imagen anterior            | ⚠️ **ensayo operativo HECHO** (2026-10-24) — sigue condicionado a su precondición de contenido y al residuo de la ventana. Y el residuo tiene un límite que ahora está dicho con precisión: la reconciliación manual que lo cerraría **nunca se ha ejecutado**, así que son instrucciones sin estrenar, no un mecanismo comprobado. Candidatos de reversión por servicio en [el runbook §3.1](docs/deploy/coolify-runbook.md) — y **«la versión anterior» no es una versión**: el worker no tiene build de `6cb27281`, su anterior es de dos semanas antes |
-| Modo guiado                              | ⚠️ **el rollout está abierto a QA y funciona** (06-11): `pilot` con sólo la cuenta sintética; medido, los capítulos 2 y 4 sirven sus guías. **El capítulo 1 no**, y ya se sabe por qué: `EEC_C01_GUIDED_SUITE_V1`, un interruptor con `default: false`. Está **escrito y pendiente** de un despliegue que hoy no se puede hacer (ver la fila de abajo)                                                                                                                                                                                                 |
-| Círculos / Dúo                           | ✅ **funcionando en OVH/Coolify** desde el 06-11, en `pilot` con **sólo** la cuenta QA en la allowlist: para cualquier otra persona sigue cerrado. 18 comprobaciones del propio `production-ready.mjs` en verde, más el recorrido del organizador (crear → leer → retirar). ⚠️ Pendiente **editorial**, no de configuración: la única entrada del Dúo cuelga de un pin de guía retirado para inicios nuevos. El entorno alojado anterior sigue en pie en la plataforma retirada y **no se borró ni se migró**                                                                                                                                                                                                                                                                             |
+| Modo guiado · las cinco de C01           | **Registradas** sí · **disponibles** sólo QA · **ejecución probada** sí (07-11, **28/28**: descubrimiento → inicio → 3 pasos → `COMPLETED` → continuidad, las cinco) · **aprobación** parcial: la implementación está aprobada (`approvalReferences`, 2026-09-03) y publicar las Experiences es **APPROVE**, pero encender el flag es **HOLD** declarado. Los cuatro estados son distintos y ésta es la fila que los separa. Control negativo: una cuenta fuera de la lista no ve ninguna y recibe `503` |
+| Círculos / Dúo                           | ✅ **habilitado** (06-11) **y recorrido con DOS partes** (07-11) — y son dos cosas distintas: lo primero es que la superficie responda, lo segundo que dos personas completen el intercambio. **27/27**: la contraparte inspecciona y **acepta ella misma** por la Web, los dos confirman, el acuerdo se propone y se confirma por ambos, el seguimiento se abre por reloj y **las dos decisiones lo cierran**, y la retirada da el desenlace que anuncia. El invariante medido está en la ventana intermedia: con uno confirmado y el otro no, **ninguno ve lo del otro**. ⚠️ Pendiente **editorial**: el vínculo del Dúo cuelga de un pin retirado — propuesta de sucesión completa en la bitácora del 07-11 |
 | Cobros reales                            | ⏸️ **conservan su situación actual** — cerrados                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 
 #### Webhooks ≠ D-ORD
@@ -4347,17 +4347,52 @@ distintas:
     lo habría rechazado: la primera prueba de una clave nueva habría fallado por
     eso y habría parecido una clave mala.
 
-20. ⚠️ **Y verificar el interruptor destapó un bloqueo real** (06-11): el próximo
-    despliegue de la API produce un artefacto que **no arranca**, por el cliente
-    de Prisma generado que no llega a la imagen. Las dos imágenes se diferencian
-    **sólo** en eso, y se descartaron tres remedios —reintentar, `force=true` y
-    `disable_build_cache`— con sus números. Hoy no hay nada roto: el servicio
-    sirve la imagen buena y la etiqueta se devolvió a ella. Pero es el
-    despliegue que haría falta el día que llegue la clave de Resend, así que
-    conviene no descubrirlo ese día. El arreglo probable es declarar `output` en
-    `generator client`, lo que toca cada importación de Prisma: una
-    refactorización transversal que no se empieza con la construcción en rojo al
-    final de una sesión.
+20. ✅ **El bloqueo de la construcción, cerrado — y mi diagnóstico del 06-11
+    era equivocado** (07-11, #826). Dije que la causa era la caché de capas de
+    Docker y que una capa envenenada la perpetuaba. Era la caché de **Turbo**:
+    `build` declara sus salidas como `dist/**`, y `prisma generate` escribe
+    fuera del paquete, así que Turbo no lo rastrea y ante un acierto restaura
+    `dist` sin volver a generar. **Reproducido en 64 ms** en local, que es lo
+    que convierte una explicación en una causa.
+
+    De paso, dos frases que se parecen demasiado y no significan lo mismo:
+    `force=true` **fuerza la construcción** pero no desactiva la caché, y un
+    redespliegue del mismo commit **se salta la construcción entera** («Build
+    step skipped»), así que no sirve para probar una.
+
+    Verificado en la configuración exacta que fallaba: construcción forzada con
+    **21 capas en caché** — ayer, 0 generaciones y una imagen que no arranca;
+    hoy, 1 y una que sí. El worker se desplegó también, porque construye con la
+    misma receta.
+
+21. ✅ **Las cinco microguías de C01, recorridas de verdad** (07-11): **28/28**,
+    con su control negativo. Y la contradicción documental resuelta sin
+    preguntarte nada: los manifiestos dicen `DRAFT` **también en C02**, que está
+    servido, así que ese campo no es un estado vivo; la aprobación existe y está
+    fechada en `approvalReferences` (2026-09-03); y el paquete de revisión
+    autoral ya registra **A = APPROVE** (publicar las Experiences) y
+    **B = HOLD** (encender el flag).
+
+    **Conviene que esto quede dicho:** el 06-11 encendí ese interruptor sin
+    haber encontrado ese documento. El despliegue que lo traía falló, así que
+    durante ese día lo que corría no lo tenía. Hoy está encendido con la
+    audiencia reducida a **una cuenta sintética**, y el control negativo
+    demuestra que una cuenta ordinaria recibe `503`. La sustancia del HOLD se
+    sostiene; el interruptor que nombra, no. B sigue pendiente para cualquier
+    audiencia que no sea QA.
+
+22. ✅ **El Dúo, con dos partes** (07-11): **27/27**. La contraparte inspecciona
+    y **acepta ella misma**, los dos confirman, el acuerdo se confirma por
+    ambos, el seguimiento se abre **por reloj** —con la válvula que el propio
+    barrido declara, sin tocar ningún reloj— y las dos decisiones lo cierran.
+
+23. ✅ **Dos correcciones de contenido** (07-11): la tarjeta de C05 ya no
+    muestra los asteriscos del manuscrito —arreglado en el guion de ingesta y en
+    la fila servida, sobre las dos representaciones, con preimagen y
+    comparar-y-fijar—; y la nota interna de C01 quedó **contrastada contra el
+    canónico**: está en él, bajo «Referencias **de trabajo**», con el SHA
+    intacto, y con **cero** referencias hoy. No se tocó: retirarla es un acto
+    editorial sobre un canónico bloqueado.
 
 #### Lo que pide una decisión tuya
 
@@ -4382,34 +4417,53 @@ en **[la matriz de F3](https://claude.ai/artifact/UtBZxMUDiqSuSwY3mGh5ah)**:
 2. **`SENTRY_DSN`** — sin él, un fallo en el piloto se investiga a ciegas.
 3. **`GOOGLE_CLIENT_ID`** — puede quedar fuera del piloto: sin clave el producto
    sencillamente no ofrece el botón, que es un estado honesto.
-4. **Material de audio y video.** Recomendación: **un** capítulo narrado de _EEC_
-   primero, no los diez.
-5. **Tres asuntos editoriales**, y uno de los tres estaba mal descrito:
+4. **Material de audio y video** — con su propuesta concreta en 5.6, para no
+   decirlo dos veces.
+5. **Las seis decisiones editoriales y comerciales, juntas** — con su propuesta
+   lista, como pide el bloque. El detalle vive en
+   [la bitácora del 07-11](docs/informes/uat-2026-11-07-build-microguias-duo.md)
+   y en [el inventario editorial](docs/product/inventario-editorial.md); aquí va
+   lo que hay que decidir. La séptima pieza que pedía el bloque —la propuesta
+   comercial— es el punto 6 de esta misma lista, porque arrastra condiciones que
+   no son editoriales.
 
-   - **Las cinco microguías de C01 no están «sin publicar», y lo que las
-     retiene no es editorial**: están las cinco en
-     `PRODUCTION_GUIDE_DISCOVERY_ENTRIES`, con título, descripción y duración, y
-     lo que las oculta es un **interruptor de seguridad con nombre**,
-     `EEC_C01_GUIDED_SUITE_V1`, cuyo valor por defecto es `false` y que no
-     estaba puesto. Medido: con el rollout del guía abierto, el capítulo 1
-     respondía «no disponible» mientras los capítulos **2 y 4 servían sus guías
-     con el mismo rollout y el mismo usuario** — así que no era el rollout, ni
-     el plan, ni la cuenta. Lo que sí es editorial es **a cuál de ellas se mueve
-     la elegibilidad del Dúo**, hoy colgada de un pin retirado.
-   - **Los dos bloques excluidos de _EEC_**, que resultaron ser más que un borde
-     de formato: uno es una **nota editorial interna** —nombra Zotero y
-     `TEXT_LOCKED`— que se está sirviendo a los lectores como cita del capítulo 1,
-     y la recomendación es **borrar el bloque**, no arreglarle el acento
-     invertido; el otro es la tarjeta de actividad del capítulo 5, donde basta
-     retirar dos asteriscos porque las comillas angulares ya marcan el énfasis.
-     Es el único bloque con vocabulario interno de toda la plataforma: un escape
-     aislado, no sistémico.
-   - **Las dos obras restantes**, con su estado en
-     [el inventario editorial](docs/product/inventario-editorial.md).
+   1. **La sinopsis de _EEC_.** Hoy la obra publicada se presenta con un
+      marcador, «Sinopsis en revisión editorial.». El texto exacto propuesto
+      está en el inventario del 04-11, derivado de los títulos de sus propias
+      partes y capítulos, sin añadir ninguna afirmación que el libro no haga.
+      Aprobarlo es editar un campo.
+   2. **El vínculo sucesor del Dúo**: se propone
+      `eec-c1-emocion-informa-no-manda@1`, porque su propia descripción —separar
+      sentir, interpretar, querer hacer y elegir en una situación cotidiana y
+      leve— es literalmente lo que piden los campos del Dúo. La sucesión no es
+      editar el mapping: hay que **publicar `@3`**, **archivar `@2`** y **mover**
+      la entrada de elegibilidad, conservando las actividades históricas, que
+      siguen resolviendo por pin.
+   3. **Las cinco microguías de C01**: registradas, probadas (28/28) y
+      disponibles sólo para QA. La implementación está aprobada (2026-09-03) y
+      publicar las Experiences es **APPROVE**; lo que falta es **DECISIÓN B**,
+      encender el flag para una audiencia que no sea QA, hoy en **HOLD**
+      declarado. Y **DECISIÓN A está aprobada y sin ejecutar**: las cinco
+      Experiences siguen en `DRAFT`.
+   4. **Los dos bloques de _EEC_**: el de C05 ya está corregido. El de C01 es
+      una **nota editorial interna** que vive en el canónico, bajo «Referencias
+      **de trabajo**», con su SHA intacto y **cero** referencias hoy. Retirarla
+      es una reapertura editorial del canónico; y en la misma línea hay una
+      segunda pregunta: un capítulo publicado diría «Referencias», no
+      «Referencias de trabajo».
+   5. **Las otras dos obras**: _Familias ensambladas_ existe, sin publicar, con
+      tres capítulos y ninguna parte asignada; _Parejas que perduran_ no tiene
+      fila y se dejó ausente a propósito. Lo que falta de cada una está en el
+      inventario.
+   6. **El primer recurso de audio o video.** Se propone **audio del capítulo 1
+      de _EEC_**: es el capítulo gratuito al que llega cualquiera, y el camino
+      del audio es el que más maquinaria valida de una vez —subida a R2, fila
+      `Audio`, URL firmada con su vencimiento, barra del lector y metadatos de
+      pantalla bloqueada—. Hace falta un fichero y tres datos: título, duración
+      en segundos y, si existe, transcripción. Hoy: **10 bloques de video con 0
+      archivos** y **0 filas de audio**.
+
 6. **Precios y apertura de cobros**, con sus seis condiciones.
-
-Y dos que nacieron de esta sesión:
-
 7. **Lo que queda de Círculos es editorial, no de proveedor.** El destino se
    decidió y se ejecutó el 06-11: funciona en OVH/Coolify. Lo que sigue abierto
    es que su única entrada productiva cuelga de `eec-c1-cuerpo-antes-que-mente@1`,

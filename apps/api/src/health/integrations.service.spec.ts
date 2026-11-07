@@ -78,6 +78,9 @@ describe("IntegrationsService.report", () => {
 
 describe("IntegrationsService.bootIssues", () => {
   it("returns an empty list when everything is configured with real values", () => {
+    // `EMAIL_FROM` va en el entorno CRUDO, no en el doble de ConfigService: el
+    // servicio lee su PRESENCIA, porque el valor resuelto no distingue
+    // «ausente» de «por defecto».
     const svc = new IntegrationsService(
       makeConfig({
         STRIPE_SECRET_KEY: "sk-prod-redacted",
@@ -89,17 +92,13 @@ describe("IntegrationsService.bootIssues", () => {
         VOICE_PROVIDER: "whisper",
         OPENAI_API_KEY: "sk-real",
         RESEND_API_KEY: "re_real",
-        // A key is only half of a working mail configuration. Added here when
-        // the report learned to tell a chosen sender from a defaulted one:
-        // "everything configured" has to include somebody having picked the
-        // domain the messages will claim.
-        EMAIL_FROM: "hola@feelverse.app",
         GOOGLE_CLIENT_ID: "real.apps.googleusercontent.com",
         REDIS_URL: "redis://real",
         VAPID_PRIVATE_KEY: "real",
         R2_ACCOUNT_ID: "real",
       }),
     );
+    svc.rawEnv = { EMAIL_FROM: "hola@feelverse.app" };
     expect(svc.bootIssues()).toEqual([]);
   });
 
@@ -119,44 +118,41 @@ describe("IntegrationsService.bootIssues", () => {
   });
 });
 
-describe("IntegrationsService — el remitente, aparte de la clave", () => {
+describe("IntegrationsService — el remitente, por presencia y no por valor", () => {
   /**
-   * Fallan por separado y sólo uno de los dos se ve. Una clave presente con un
-   * remitente sin elegir se lee como correo configurado, y cada mensaje sale
-   * reclamando el dominio por defecto, que Resend rechaza si nadie lo verificó.
-   * El síntoma llega como «el correo no funciona», muy después de la causa.
+   * La clave y el remitente fallan por separado y sólo uno de los dos se ve:
+   * una clave presente sin remitente elegido se lee como correo configurado, y
+   * cada mensaje sale reclamando el dominio por defecto, que Resend rechaza si
+   * nadie lo verificó.
+   *
+   * ── Y el defecto que esto corrige ───────────────────────────────────────
+   *
+   * La primera versión comparaba el valor resuelto con el predeterminado y
+   * llamaba «nadie lo eligió» a una coincidencia. Eso es falso justo en el caso
+   * más probable: quien verifica el dominio y pone a propósito
+   * `no-reply@feelverse.app` —el remitente obvio, el que este repositorio
+   * recomienda— recibiría un aviso diciéndole que no eligió nada. Un informe
+   * que llama error a una configuración correcta se deja de leer, y entonces no
+   * sirve para el caso en que sí acierta.
+   *
+   * La presencia lo contesta exacto, y por eso el servicio mira el entorno
+   * crudo: `ConfigService` devuelve el valor DESPUÉS de que Zod aplique el
+   * default, así que no puede distinguir «ausente» de «por defecto».
    */
-  const DEFAULT = "no-reply@feelverse.app";
+  const withEnv = (
+    values: Record<string, string | undefined>,
+    raw: Record<string, string | undefined> = {},
+  ) => {
+    const svc = new IntegrationsService(makeConfig(values));
+    svc.rawEnv = raw;
+    return svc;
+  };
 
-  it("una clave SIN remitente elegido aparece en la lista de arranque", () => {
-    const svc = new IntegrationsService(
-      makeConfig({ RESEND_API_KEY: "re_real", EMAIL_FROM: DEFAULT }),
-    );
-    const map = Object.fromEntries(
-      svc.bootIssues().map((i) => [i.key, i.reason]),
-    );
-    expect(map["EMAIL_FROM (defaulted, not chosen)"]).toBe("stub");
-    expect(svc.report().resendFrom.configured).toBe(false);
-  });
-
-  it("y también cuando la variable está directamente ausente", () => {
-    // En un proceso real Zod aplica el default antes de que nadie lea, así que
-    // «ausente» y «por defecto» son el mismo estado. El doble devuelve
-    // `undefined`, y agruparlos es lo que impide que esta prueba describa lo
-    // contrario de producción.
-    const svc = new IntegrationsService(makeConfig({ RESEND_API_KEY: "re_x" }));
-    expect(svc.report().resendFrom.configured).toBe(false);
-    expect(svc.bootIssues().some((i) => i.key.startsWith("EMAIL_FROM"))).toBe(
-      true,
-    );
-  });
-
-  it("un remitente elegido no aparece", () => {
-    const svc = new IntegrationsService(
-      makeConfig({
-        RESEND_API_KEY: "re_real",
-        EMAIL_FROM: "hola@feelverse.app",
-      }),
+  it("el remitente recomendado, puesto A PROPÓSITO, cuenta como elegido", () => {
+    // El caso exacto que la versión anterior reportaba al revés.
+    const svc = withEnv(
+      { RESEND_API_KEY: "re_real" },
+      { EMAIL_FROM: "no-reply@feelverse.app" },
     );
     expect(svc.report().resendFrom.configured).toBe(true);
     expect(svc.bootIssues().some((i) => i.key.startsWith("EMAIL_FROM"))).toBe(
@@ -164,23 +160,54 @@ describe("IntegrationsService — el remitente, aparte de la clave", () => {
     );
   });
 
+  it("cualquier otro remitente explícito también", () => {
+    const svc = withEnv(
+      { RESEND_API_KEY: "re_real" },
+      { EMAIL_FROM: "hola@feelverse.app" },
+    );
+    expect(svc.report().resendFrom.configured).toBe(true);
+  });
+
+  it("AUSENTE del entorno es lo único que cuenta como no elegido", () => {
+    const svc = withEnv({ RESEND_API_KEY: "re_real" }, {});
+    expect(svc.report().resendFrom.configured).toBe(false);
+    const map = Object.fromEntries(
+      svc.bootIssues().map((i) => [i.key, i.reason]),
+    );
+    expect(map["EMAIL_FROM (defaulted, not chosen)"]).toBe("stub");
+  });
+
+  it("y una cadena vacía o en blanco no es una elección", () => {
+    for (const value of ["", "   "]) {
+      expect(
+        withEnv({ RESEND_API_KEY: "re_real" }, { EMAIL_FROM: value }).report()
+          .resendFrom.configured,
+      ).toBe(false);
+    }
+  });
+
   it("SIN clave no se menciona el remitente", () => {
     // Sin clave no sale ningún correo, así que un remitente sin elegir todavía
     // no es un problema. El valor de una lista de arranque es que cada línea
     // importe; añadir una que no se puede accionar la degrada.
-    const svc = new IntegrationsService(makeConfig({}));
-    expect(svc.bootIssues().some((i) => i.key.startsWith("EMAIL_FROM"))).toBe(
-      false,
-    );
+    expect(
+      withEnv({}, {})
+        .bootIssues()
+        .some((i) => i.key.startsWith("EMAIL_FROM")),
+    ).toBe(false);
   });
 
-  it("el informe sigue sin llevar el valor del remitente", () => {
-    const svc = new IntegrationsService(
-      makeConfig({
-        RESEND_API_KEY: "re_real",
-        EMAIL_FROM: "alguien-muy-concreto@feelverse.app",
-      }),
+  it("el informe no afirma nada que esta caja no pueda saber", () => {
+    // Tres preguntas distintas: si hay remitente configurado, si su dominio
+    // está verificado en Resend, y si un mensaje llega. Contesta la primera y
+    // no inventa las otras dos.
+    const svc = withEnv(
+      { RESEND_API_KEY: "re_real" },
+      { EMAIL_FROM: "alguien-muy-concreto@feelverse.app" },
     );
-    expect(JSON.stringify(svc.report())).not.toContain("alguien-muy-concreto");
+    const r = svc.report();
+    expect(Object.keys(r.resendFrom)).toEqual(["configured"]);
+    expect(JSON.stringify(r)).not.toContain("alguien-muy-concreto");
+    expect(JSON.stringify(r)).not.toMatch(/verified|delivered/i);
   });
 });

@@ -4578,13 +4578,22 @@ en **[la matriz de F3](https://claude.ai/artifact/UtBZxMUDiqSuSwY3mGh5ah)**:
       tres capítulos y ninguna parte asignada; _Parejas que perduran_ no tiene
       fila y se dejó ausente a propósito. Lo que falta de cada una está en el
       inventario.
-   6. **El primer recurso de audio o video.** Se propone **audio del capítulo 1
-      de _EEC_**: es el capítulo gratuito al que llega cualquiera, y el camino
-      del audio es el que más maquinaria valida de una vez —subida a R2, fila
-      `Audio`, URL firmada con su vencimiento, barra del lector y metadatos de
-      pantalla bloqueada—. Hace falta un fichero y tres datos: título, duración
-      en segundos y, si existe, transcripción. Hoy: **10 bloques de video con 0
-      archivos** y **0 filas de audio**.
+
+   **Las ocho, juntas y con su propuesta**, en
+   [docs/product/paquete-editorial-2026-11-07.md](docs/product/paquete-editorial-2026-11-07.md):
+   cada una con qué está en juego, qué se propone, qué implica ejecutarla y
+   **qué NO hace**. Dos correcciones que salieron de escribirlo: la decisión A
+   (publicar las cinco Experiences) **sí está aprobada** —lo que es
+   recomendación es el par «publicar A, mantener B en HOLD»—, y mi afirmación de
+   que dos versiones publicadas del Dúo darían 404 era **falsa**: el resolutor
+   devuelve `null`, silencio y no error, y el acuerdo entre la entrada de
+   elegibilidad y la plantilla es **bidireccional**. 6. **El primer recurso de audio o video.** Se propone **audio del capítulo 1
+   de _EEC_**: es el capítulo gratuito al que llega cualquiera, y el camino
+   del audio es el que más maquinaria valida de una vez —subida a R2, fila
+   `Audio`, URL firmada con su vencimiento, barra del lector y metadatos de
+   pantalla bloqueada—. Hace falta un fichero y tres datos: título, duración
+   en segundos y, si existe, transcripción. Hoy: **10 bloques de video con 0
+   archivos** y **0 filas de audio**.
 
 6. **Precios y apertura de cobros**, con sus seis condiciones.
 7. **Lo que queda de Círculos es editorial, no de proveedor.** El destino se

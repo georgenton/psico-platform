@@ -378,10 +378,19 @@ reescribe: su origen es parte de lo publicado. Hacen falta tres actos, en orden:
 1. **Publicar `duo-lo-que-me-ayuda@3`** con el mismo copy, los mismos campos y
    las mismas condiciones, y `source.experiencePin` apuntando a la microguía
    nueva.
-2. **Archivar `@2`.** Sólo puede haber una versión `PUBLISHED` por clave: con
-   dos, la ruta del organizador responde 404 y el CTA desaparece. `ARCHIVED` la
-   retira de todo lo que **ofrece** mientras `getExact` la sigue resolviendo por
-   pin.
+2. **Archivar `@2`.** `ARCHIVED` la retira de todo lo que **ofrece**, mientras
+   `getExact` la sigue resolviendo por pin para las actividades ya en marcha.
+
+   > **Corrección (misma sesión).** Esta línea decía que con dos versiones
+   > publicadas «la ruta del organizador responde 404». Leído `resolveDuoTemplate`,
+   > es **falso**, y la verdad es mejor: devuelve `null` —**silencio, no error**—
+   > ante un pin desconocido, una versión que no es la mapeada, un `DRAFT`, un
+   > `ARCHIVED`, dos entradas de elegibilidad para la misma superficie, o una
+   > plantilla cuya `source.experiencePin` no nombre de vuelta a esa experiencia.
+   > El acuerdo es **bidireccional**, y todos los modos de fallo caen hacia el
+   > mismo lado: la oferta desaparece. Detalle en
+   > [el paquete editorial §5](../product/paquete-editorial-2026-11-07.md).
+
 3. **Mover** —no añadir— la entrada de `PRODUCTION_DUO_ELIGIBILITY`. Dos
    entradas para una superficie no desempatan: deshabilitan la oferta.
 

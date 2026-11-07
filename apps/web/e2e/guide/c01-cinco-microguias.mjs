@@ -112,6 +112,16 @@ try {
   // ── descubrimiento ────────────────────────────────────────────────────────
   console.log("\n▸ descubrimiento");
   const route = await call("GET", `/api/guide/route/${BOOK}/${CHAPTER}`, token);
+  // Un token caducado devuelve un sobre de error, y leer `guides` de ahí da
+  // cero — un cero que significa «mire un error», no «no hay ninguna». Se
+  // detiene en vez de informar un vacío que no existe. Es la misma clase de
+  // defecto que leer `items` donde el campo es `guides`.
+  if (route.res.status === 401) {
+    throw new Error(
+      "401 — la credencial caducó (los tokens viven 15 minutos). " +
+        "Vuelve a entrar o pasa un --token-archivo recién escrito.",
+    );
+  }
   // El campo es `guides`. Mi primera versión leyó `items` y contó cero con la
   // ruta respondiendo 200 y cinco guías dentro — un cero que no significaba
   // «no hay», sino «miré donde no estaba».

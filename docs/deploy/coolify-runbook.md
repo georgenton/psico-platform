@@ -762,21 +762,123 @@ aquel día ya no están.
 **Y aquí está lo que de verdad hay que arreglar.** Cualquier comprobación escrita
 sobre las ejecuciones —«¿hay alguna con estado distinto de `success`?»— es **ciega a
 esto**, porque no hay nada que mirar. Un detector útil tiene que afirmar **presencia**,
-no estado:
+no estado.
+
+##### Por qué nadie recibió un aviso: no había por dónde
+
+Antes del detector, una cosa más grave, y es la que explica el silencio.
+`missing_backup_notification_days` **está puesto a 2** en la programación de
+FeelVerse — es decir, Coolify sí calcula que falta un respaldo—. Lo que no hay es
+**canal**: comprobados los cinco, los cinco están desactivados y sin destino.
+
+| Canal    | Activo | ¿Tiene destino? |
+| -------- | ------ | --------------- |
+| email    | no     | no              |
+| discord  | no     | no              |
+| telegram | no     | no              |
+| slack    | no     | no              |
+| webhook  | no     | no              |
+
+Un aviso configurado sin canal no es un aviso: es un ajuste. **Esa es la diferencia
+entre tener puesto `missing_backup_notification_days` y estar avisado**, y el hueco
+del 29-10 la ilustra entera. Abrir un canal necesita un destino autorizado —correo
+con `RESEND_API_KEY`, o un webhook— y ninguno existe todavía, así que **no se ha
+configurado ninguno**: inventar un destino sería peor que no tenerlo.
+
+##### El detector, corregido en tres cosas
+
+La primera versión de esta sección traía una consulta con tres defectos. El más
+importante:
+
+> **no filtraba por la base de FeelVerse.** Hay **nueve** programaciones de respaldo
+> en esta caja —`drillops` ×3, `eia_studio_staging`, `syntavera` ×2,
+> `voces_esperanza`, una sin base declarada y la nuestra—, y
+> `scheduled_database_backup_executions` las guarda todas juntas.
+
+Conviene decir lo que de verdad pasaba, sin agravarlo: medido, **ninguna ejecución
+ajena cae en la ventana de las 05:00**, así que la consulta anterior daba la
+respuesta correcta — **por accidente**. Su ventana aislaba a FeelVerse sin
+pretenderlo, y el primer proyecto que programara un respaldo a esa hora la habría
+satisfecho en silencio.
+
+Los otros dos: la ventana decía `04:55`–`05:05`, demasiado justa para un dump lento;
+y la tabla de §2.9 justificaba la hora al revés —ver el recuadro de abajo—.
 
 ```sql
--- ¿Hay un respaldo correcto de AYER? Lo que falta es una fila, no un error.
-SELECT count(*) = 0 AS falta_el_de_ayer
-FROM scheduled_database_backup_executions
-WHERE status = 'success'
-  AND created_at::date = (now() - interval '1 day')::date
-  AND created_at::time BETWEEN '04:55' AND '05:05';
+-- Detector de AUSENCIA del respaldo de FeelVerse.
+--   · se ata a SU programación por el nombre de la base, no por un id que puede cambiar;
+--   · ventana 04:50–05:10 UTC, que es lo que realmente ocurre;
+--   · exige una fila correcta PRESENTE: lo que falla deja fila, lo que no corrió no deja nada.
+WITH feelverse AS (
+  SELECT e.created_at, e.status
+    FROM scheduled_database_backup_executions e
+    JOIN scheduled_database_backups s
+      ON s.id = e.scheduled_database_backup_id
+   WHERE s.databases_to_backup = 'feelverse_staging'
+)
+SELECT count(*) FILTER (WHERE status = 'success') = 0 AS falta_el_de_ayer
+  FROM feelverse
+ WHERE created_at::date = (now() AT TIME ZONE 'UTC')::date - 1
+   AND created_at::time BETWEEN '04:50' AND '05:10';
 ```
 
-Eso es una consulta, no una campaña de monitorización: dónde se engancha —un cron, un
-aviso, una tarjeta de Pulso— es una decisión aparte, y conviene no confundir el
-detector con el sistema que lo hospeda. Lo que no debe repetirse es creer que
-«ninguna ejecución fallida» significa «se respaldó todos los días».
+Comprobado en los dos sentidos, que es lo que lo distingue de una consulta plausible:
+
+| Día consultado                     | Respuesta           |
+| ---------------------------------- | ------------------- |
+| **2026-11-06** (ayer)              | `falta` = **false** |
+| **2026-10-29** (el hueco conocido) | `falta` = **true**  |
+
+> **La hora, dicha bien.** La tabla de §2.9 afirma «`0 0 * * *` (UTC) · 00:00 UTC =
+> 19:00 del día anterior en America/Guayaquil». **Está al revés.** Coolify evalúa el
+> cron en `instance_timezone`, que es **`America/Guayaquil`**, así que `0 0 * * *` es
+> **medianoche de Ecuador = 05:00 UTC** — y las 14 ejecuciones de FeelVerse caen todas
+> exactamente a las 05:00 UTC, igual que las de `0 3 * * *` caen a las 08:00 y las de
+> `30 8 * * *` a las 13:30. La elección de hora sigue siendo buena (05:00 UTC no choca
+> con ningún cron de la aplicación, que van a 02:00, 02:30, 03:00 del lunes y 23:00 del
+> domingo), pero el razonamiento escrito habría llevado a elegir mal la siguiente.
+
+##### Y ahora sí está instalado, no sólo escrito
+
+Lo anterior era una consulta. Esto es un mecanismo que corre:
+
+| Qué          | Dónde                                                                                                                                                              |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Guion        | `/usr/local/bin/feelverse-backup-check.sh` (copia en el repositorio: [`scripts/feelverse-backup-check.sh`](../../scripts/feelverse-backup-check.sh), mismo sha256) |
+| Programación | `/etc/cron.d/feelverse-backup-check` — **06:10 UTC** diario                                                                                                        |
+| Registro     | `/var/log/feelverse-backup-check.log`                                                                                                                              |
+| Retirarlo    | `sudo rm -f /etc/cron.d/feelverse-backup-check /usr/local/bin/feelverse-backup-check.sh`                                                                           |
+
+Cuatro decisiones de diseño que son el aprendizaje del 29-10, no adorno:
+
+1. **Registra SIEMPRE, también cuando todo está bien.** Un detector que sólo habla
+   cuando algo falla no se distingue de uno que dejó de correr — que es exactamente
+   cómo pasó inadvertido el hueco.
+2. **Sólo lectura por `default_transaction_read_only` de sesión.** Comprobado: un
+   `CREATE TABLE` por esa misma vía responde «cannot execute CREATE TABLE in a
+   read-only transaction».
+3. **Tres desenlaces, no dos**: `OK` (0), `FALTA` (1) e `INDETERM` (2) cuando no se
+   pudo consultar. «No pude preguntar» no es «no hay respaldo».
+4. **06:10 UTC**, hora y diez después del respaldo, con margen para que un dump lento
+   haya terminado de registrarse.
+
+**Y la cadena completa está comprobada, no supuesta.** Se añadió una línea temporal
+para dos minutos después, y cron la ejecutó:
+`Nov 07 19:15:01 CRON[3839253]: (root) CMD (/usr/local/bin/feelverse-backup-check.sh)`,
+con su línea en el registro — `19:15:01Z OK respaldo de 2026-11-06 presente y
+correcto` —. La línea temporal se retiró.
+
+> **Un error que la prueba en seco atrapó antes de enganchar el cron, y que conviene
+> no repetir.** La primera versión del guion metía `BEGIN READ ONLY; … ROLLBACK;` en
+> un `psql -tAc`, y psql devuelve también la salida de `BEGIN` y de `ROLLBACK`: el
+> recuento llegaba como `BEGIN1ROLLBACK`, nunca igual a `1`, así que **habría gritado
+> FALTA todos los días**. Un detector que se equivoca a diario es peor que ninguno,
+> porque enseña a no mirarlo.
+
+**Lo que sigue pendiente** es el canal: el detector sale con código 1 y deja su línea,
+pero nadie se enterará si no lo lee. Engancharlo a un destino —el correo de Coolify
+cuando exista `RESEND_API_KEY`, o un webhook— es la pieza que falta, y necesita una
+dirección autorizada.
 
 Cómo se comprueba que sigue cerrado, sin cuentas ni escrituras:
 
@@ -790,14 +892,14 @@ psql -d feelverse_staging -tAc 'SELECT count(*) FROM "User"'
 Política vigente en staging, registrada el 2026-10-01 sobre
 `feelverse-staging-postgres`:
 
-| campo                              | valor               | por qué                                                                                                                                         |
-| ---------------------------------- | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `frequency`                        | `0 0 * * *` (UTC)   | 00:00 UTC = 19:00 del día anterior en America/Guayaquil. Es la única hora libre: los crons de la app ocupan 02:00, 02:30, 03:00 lun y 23:00 dom |
-| `dump_all` / `databases_to_backup` | `false` / una base  | `pg_dump` custom se restaura selectivamente con `pg_restore`; `pg_dumpall` gzip es todo-o-nada                                                  |
-| retención local                    | 3 · 3 días · 1 GB   | local es área de paso para reintentar la subida, no archivo                                                                                     |
-| retención S3                       | 14 · 14 días · 1 GB | 14 diarios de ~330 KB son unos pocos MB. El tope en GB es guardia anti-desbordamiento, no estimación                                            |
-| `timeout`                          | 3600                | el dump tarda ~1 s; un techo ajustado convierte una noche lenta en un backup fallido                                                            |
-| `missing_backup_notification_days` | 2                   | lo único que detecta un cron que dejó de correr, que es el modo de fallo recurrente de este proyecto                                            |
+| campo                              | valor                                                  | por qué                                                                                                                                                                                                                                                                                                                    |
+| ---------------------------------- | ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `frequency`                        | `0 0 * * *` **en `America/Guayaquil`** → **05:00 UTC** | Coolify evalúa el cron en `instance_timezone`, no en UTC: es medianoche de Ecuador. Las 14 ejecuciones caen todas a las 05:00 UTC, así que no choca con los crons de la app (02:00, 02:30, 03:00 lun, 23:00 dom UTC). **Esta fila decía «00:00 UTC = 19:00 del día anterior en Guayaquil», que es la conversión al revés** |
+| `dump_all` / `databases_to_backup` | `false` / una base                                     | `pg_dump` custom se restaura selectivamente con `pg_restore`; `pg_dumpall` gzip es todo-o-nada                                                                                                                                                                                                                             |
+| retención local                    | 3 · 3 días · 1 GB                                      | local es área de paso para reintentar la subida, no archivo                                                                                                                                                                                                                                                                |
+| retención S3                       | 14 · 14 días · 1 GB                                    | 14 diarios de ~330 KB son unos pocos MB. El tope en GB es guardia anti-desbordamiento, no estimación                                                                                                                                                                                                                       |
+| `timeout`                          | 3600                                                   | el dump tarda ~1 s; un techo ajustado convierte una noche lenta en un backup fallido                                                                                                                                                                                                                                       |
+| `missing_backup_notification_days` | 2                                                      | lo único que detecta un cron que dejó de correr, que es el modo de fallo recurrente de este proyecto                                                                                                                                                                                                                       |
 
 La cadencia diaria no es por valor del dato — staging todavía no guarda nada
 irremplazable. Es para que la ruta de recuperación siga **ejercitada y observable**.
@@ -913,13 +1015,77 @@ Los siete pasos, en orden, y lo que cada uno demuestra:
    «recuperado» tiene que significar. Restaurar una base no es recuperar la
    plataforma: una base sin servicios no atiende a nadie.
 
-**Aislamiento, que en este ensayo no es un detalle.** La base restaurada lleva
-cuentas reales de staging, y el worker reconstruido encolaría sus crons contra
-ellas: el digest semanal manda correo y push. Antes de desplegar el worker hay que
-dejar **vacías** `RESEND_API_KEY` y las `VAPID_*` en el host del ensayo — vacío es
-el mecanismo real de apagado de cada una, no una clave falsa— y poner
-`CIRCLES_ROLLOUT_MODE=off` y `GUIDE_ROLLOUT_MODE=off`. Reconstruir el worker no
-debe producir una sola comunicación a una persona.
+#### Aislamiento: no es un detalle, y la lista anterior se quedaba corta
+
+La versión anterior de este párrafo pedía vaciar `RESEND_API_KEY` y las `VAPID_*` y
+poner los dos rollouts en `off`. Eso era necesario y **no suficiente**. Enumerados
+los trece procesadores del worker, **siete tienen efecto fuera de la caja**, y los
+dos más peligrosos no estaban en la lista:
+
+| Procesador              | Qué hace fuera de la caja                   |
+| ----------------------- | ------------------------------------------- |
+| `account-deletion`      | **borra objetos de R2** y filas de personas |
+| `data-export-retention` | **borra objetos de R2**                     |
+| `data-export`           | sube a R2 y manda correo                    |
+| `email`                 | manda correo                                |
+| `weekly-digest`         | correo + push, a destinatarios restaurados  |
+| `inactive-nudge`        | push, a fichas de dispositivo restauradas   |
+| `weekly-summary`        | llamadas al modelo, que **se facturan**     |
+
+La distinción que importa: **el borrado de filas queda contenido**, porque opera
+sobre la copia restaurada. R2, el correo, el push y el modelo **no**, porque no son
+copias de nada. Y el caso concreto, leído en el código y no supuesto:
+`data-export-retention` calcula la clave del objeto con
+`dataExportObjectKey(row.userId, row.id)` a partir de **las filas restauradas** y
+llama a `storage.deleteObject(key)` contra **el bucket que diga el entorno**. Con
+las credenciales vivas dentro, el ensayo borraría exportaciones reales — y lo haría
+con toda corrección, porque esas filas son reales.
+
+**Un ensayo con las credenciales vivas dentro no es un ensayo: es una operación
+sobre el sistema real, disfrazada de prueba.**
+
+##### La puerta, que se ejecuta antes de arrancar nada
+
+[`scripts/rehearsal-isolation-check.mjs`](../../scripts/rehearsal-isolation-check.mjs)
+comprueba las nueve condiciones y **falla cerrado**: si no puede afirmar que algo
+está aislado, dice que no lo está.
+
+```bash
+node scripts/rehearsal-isolation-check.mjs \
+  --ensayo ./env-del-ensayo \
+  --bucket-vivo <nombre del bucket real> \
+  --db-viva <host de la base real>
+```
+
+Los dos identificadores «vivos» no son secretos —un nombre de bucket y un nombre de
+host—, y se piden explícitamente para que la puerta pueda comparar **sin necesitar
+ninguna credencial real**.
+
+Comprobada en los dos extremos: un entorno correctamente apagado da `✔ aislado — 9
+comprobaciones`, código 0; el entorno vivo copiado tal cual —que es el error que
+esta puerta existe para atrapar— da `✗ NO aislado — 9 de 9 fallan`, código 1, y
+nombra la consecuencia de cada una.
+
+Dos detalles de diseño que no son adorno:
+
+- **«No sé» cuenta como «no aislado».** Credenciales de R2 presentes con
+  `R2_BUCKET_NAME` vacío no pasan: no se puede afirmar a dónde escriben. Igual una
+  `DATABASE_URL` ausente o ilegible.
+- **Los rollouts se exigen por valor, no por ausencia de otro.** `off` ausente no
+  es `off`.
+
+Y hay **trinquete** (`apps/api/src/jobs/rehearsal-isolation.spec.ts`, 16 pruebas):
+recorre los procesadores de verdad, **sigue un salto** a los servicios que inyectan
+y exige que la puerta cubra cada familia de efecto encontrada. Verificado por
+mutación: un procesador nuevo que llame a Stripe rompe la prueba con el nombre del
+archivo, y quitar una guarda de la puerta también.
+
+> **Por qué el salto.** `weekly-summary` **no menciona el modelo**: llama a
+> `PatronesService.regenerateWeeklySummary`, y es ese servicio el que llama. Mirar
+> sólo los archivos de `processors/` daba tres familias de cuatro, y la que se
+> perdía era justo **la que se factura**. Un salto basta para lo que hay hoy; dos
+> servicios en cadena seguirían siendo invisibles, y si eso aparece lo honesto es
+> ampliar el trinquete, no confiar en que no aparezca.
 
 #### Lo que falta es el recurso, y su coste no está cerrado
 

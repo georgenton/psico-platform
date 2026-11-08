@@ -90,9 +90,24 @@ demostró que otra construcción la sobrescribe.
 
 ## 2 · Las cinco microguías de C01, recorridas
 
-**28/28 comprobaciones.** No «el catálogo devuelve cinco títulos»: las cinco se
+**31/31 comprobaciones.** No «el catálogo devuelve cinco títulos»: las cinco se
 descubren, empiezan, admiten sus tres pasos, terminan `COMPLETED` y siguen
 consultables después.
+
+> **De dónde salía el 28/28 que esta bitácora traía escrito.** La primera
+> versión de este parte decía 28/28, y no era un desliz de transcripción: era
+> el número que imprimía el instrumento cuando **el control negativo no podía
+> ejecutarse**. El cupo de accesos es de cinco por cuarto de hora y por IP, la
+> cuenta de fuera necesitaba el sexto, el guion lo declaraba con un
+> `· omitido:` en mitad del registro… y la última línea seguía diciendo ✔ con
+> las 28 que sí había corrido. Es decir, **la comprobación más importante del
+> recorrido era la que más fácil se aprobaba sin medirse**: que la lista cierra
+> el paso a quien no está en ella.
+>
+> Reproducido a propósito antes de arreglarlo: con el archivo de token de esa
+> cuenta vacío, el instrumento de hoy imprime `⊘ INCOMPLETO — 28/28` y sale
+> con código 1. Veintiocho. El mismo número, ahora con su etiqueta correcta.
+> Las tres que faltaban son el control negativo entero, y están en §2.4.
 
 | Microguía                                | Pasos | Resultado |
 | ---------------------------------------- | ----- | --------- |
@@ -140,12 +155,22 @@ Y la aprobación **existe**, fechada y referenciada desde cada manifiesto:
 > `approvalReferences`: «Decisión autoral 2026-09-03: implementar las cinco
 > microguías de EEC-C01.»
 
-Más dos decisiones **ya registradas** en el paquete de revisión autoral:
+Más dos **propuestas** registradas en el paquete de revisión autoral:
 
-- **DECISIÓN A — publicar las cinco Experiences: APPROVE.**
-- **DECISIÓN B — encender `EEC_C01_GUIDED_SUITE_V1`: HOLD**, con su razón
+- **DECISIÓN A — publicar las cinco Experiences: `APPROVE`.**
+- **DECISIÓN B — encender `EEC_C01_GUIDED_SUITE_V1`: `HOLD`**, con su razón
   escrita: «encender el flag es lo que pone las cinco tarjetas delante de una
   persona real… B no debe seguir a A automáticamente.»
+
+> **`APPROVE` ahí es una recomendación, no una aprobación**, y conviene no
+> leerlo como yo lo leí primero. La fuente editorial cierra con
+> «**Recomendación:** publicar `APPROVE`, encender el flag `HOLD` … **Ninguna
+> de las dos ejecutada**», y su tabla de gates dice «Aprobación autoral:
+> **BLOCKED** — Pendiente de decisión de Jorge», «Readiness para `PUBLISHED`:
+> **BLOCKED** — No publicar desde este inventario» y «Microguías aprobadas:
+> **0**». Lo aprobado es la **arquitectura** de las cinco y la
+> **implementación**; publicar no. **A y B son las dos decisiones del
+> propietario.**
 
 ### 2.2 La tensión, dicha sin adornos
 
@@ -165,18 +190,75 @@ final.
 
 ### 2.3 La descripción única, que es lo que faltaba
 
-|                          |                                                                                                                     |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------- |
-| **Registradas**          | sí — las cinco, en el catálogo de código, con título, descripción y duración                                        |
-| **Disponibles**          | sólo QA: `pilot` + un id sintético                                                                                  |
-| **Ejecución comprobada** | sí — 28/28, descubrimiento → inicio → 3 pasos → `COMPLETED` → continuidad                                           |
-| **Estado editorial**     | implementación aprobada (2026-09-03) · publicación de las Experiences **APPROVE** y sin ejecutar · flag en **HOLD** |
+Comprobado en OVH, en sólo lectura y por clave y versión:
+
+|                                    | Las cinco de C01                                                                                                                        |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| **Definición Guide registrada**    | ✅ en el catálogo **de código**, con título, descripción y duración                                                                     |
+| **Experience en OVH**              | ❌ **AUSENTE** — `ChapterExperienceVersion` tiene **0 filas** en total, no «cinco en DRAFT»                                             |
+| **Disponible para QA**             | ✅ `pilot` + un único id sintético                                                                                                      |
+| **Recorrido comprobado**           | ✅ **31/31 por HTTP**; pantalla pendiente                                                                                               |
+| **Aprobación editorial aplicable** | ⚠️ **no acreditada**: recomendación de publicar + «no se autoriza todavía», con tres condiciones nombradas. Implementar sí (2026-09-03) |
+| **Abierta a personas reales**      | ❌ no, y `publishAllowed: false` lo respalda con un 409                                                                                 |
+
+**El dato que más aclara el resto:** el recorrido funciona **sin que exista
+ninguna Experience**, porque el modo guiado resuelve del catálogo en código. Las
+dos cosas viven en sitios distintos, y eso explica que las cinco se puedan
+recorrer mientras su publicación sigue sin aprobarse.
+
+---
+
+### 2.4 El control negativo, y el instrumento que lo aprobaba solo
+
+Que las cinco se recorran dice que el camino funciona. Lo que acredita el
+**HOLD** es la otra mitad: que una cuenta ordinaria no llega a ellas. Con el
+rollout en `pilot` y un solo id sintético en la lista:
+
+| Comprobación                                 | Resultado                          |
+| -------------------------------------------- | ---------------------------------- |
+| La cuenta de fuera **existe y entra**        | sesión válida                      |
+| Pide la ruta guiada del mismo capítulo       | `guides=0` **y** `available=false` |
+| Intenta empezar una de las cinco, por su pin | **503 `GUIDE_UNAVAILABLE`**        |
+
+Las tres importan juntas. La primera descarta que el «no ve nada» sea una
+credencial mala. La segunda, que el catálogo esté vacío para todos. La tercera,
+que el rechazo sea el previsto y no un 500 con suerte.
+
+**Y aquí estaba el defecto del instrumento**, que es peor que cualquiera de los
+que buscaba. Tres cosas a la vez:
+
+1. Si la cuenta de fuera no podía entrar —cupo de accesos—, el guion imprimía
+   `· omitido:` y **la última línea seguía diciendo ✔**. Una ejecución sin su
+   control negativo se leía igual que una con él.
+2. La segunda comprobación aceptaba `guides === 0` **o** `available === false`.
+   Un sobre de error trae cero guías, así que la mitad barata la aprobaba.
+3. La tercera aceptaba 503 **o** 403 **o** 404 sin mirar el código. Tres causas
+   distintas contadas como la misma.
+
+Las tres corregidas, y las tres con su mutación ejecutada:
+
+| Mutación                                         | Antes                | Ahora                                |
+| ------------------------------------------------ | -------------------- | ------------------------------------ |
+| Archivo de token de la cuenta de fuera vacío     | ✔ 28/28              | **⊘ INCOMPLETO 28/28**, código 1     |
+| Cupo de órdenes agotado a mitad de una microguía | ✗ contra el producto | **⊘ impedida**, declarada como arnés |
+
+La segunda merece su frase. Tres pasadas seguidas agotan el cupo de órdenes del
+guía, y la versión anterior lo contaba como `✗ se interactúa con todos sus
+pasos` — es decir, **atribuía al producto un límite del arnés**, que es
+exactamente el error que yo estaba corrigiendo en el control negativo, cometido
+dos columnas más allá. Ahora hay tres desenlaces por microguía, no dos:
+recorrida, **impedida** (el arnés) e incompleta (el producto).
+
+El instrumento también acepta `--token-fuera-archivo`, para que el cupo deje de
+intervenir en la comprobación que más depende de él.
 
 ---
 
 ## 3 · El Dúo, con dos partes
 
-**27/27 en la pasada completa**, y la segunda mitad del seguimiento aparte.
+**33/33 en la pasada completa**, y la segunda mitad del seguimiento aparte.
+(Eran 27/27 cuando se escribió este parte; la ventana intermedia pasó a medirse
+en serio y eso añadió comprobaciones — ver §3.4.)
 
 | Paso                                      | Resultado                                                                |
 | ----------------------------------------- | ------------------------------------------------------------------------ |
@@ -237,6 +319,50 @@ mano**: terminar una actividad por su propio camino es la limpieza, y un
 
 ---
 
+### 3.4 La ventana de privacidad, medida de verdad
+
+El invariante de esta pantalla es uno: **con uno confirmado y el otro no,
+ninguno ve lo del otro**. Es lo que más cuesta de un Dúo y lo único que no se
+puede comprobar mirando.
+
+Y era, de lejos, la comprobación peor hecha del recorrido. Decía
+`!contiene(respuesta_de_ella, lo_del_organizador)` — una **ausencia**. Un 401
+por cookie caducada, un 404 por id mal armado y un 500 traen cuerpos que
+tampoco contienen lo del organizador. Es decir: la afirmación más fuerte de
+todo el parte se aprobaba sola en los tres casos en que no se había medido
+nada.
+
+Ahora una ausencia sólo se afirma cuando se cumplen tres cosas:
+
+1. **Hubo lectura**: la respuesta fue 200, no un error.
+2. **El estado es el de esta etapa**: `you.status = ACCEPTED` (ella no ha
+   confirmado), `revealed = null`, y `readyCount = 1`.
+3. **Lo del otro ya existe** en ese instante: el organizador se lee a sí mismo
+   confirmado, con su propio texto de vuelta.
+
+La tercera es la que convierte la prueba en prueba. Sin ella, «no lo veo»
+podría ser «todavía nadie lo había escrito» — una carrera, no una barrera.
+
+Las tres, con su mutación:
+
+| Mutación inyectada                                     | Resultado                                  |
+| ------------------------------------------------------ | ------------------------------------------ |
+| La lectura de ella devuelve **401** vacío              | ✗ la lectura · **⊘** la privacidad         |
+| Lectura **200** y estado correcto, pero `readyCount=0` | ✗ `readyCount es 0, se esperaba 1` · **⊘** |
+| Sin mutación, contra staging                           | ✓ las cuatro · **33/33**, código 0         |
+
+En las dos primeras, la versión anterior habría impreso ✓ en la privacidad.
+
+**Y una simétrica que NO se puede medir, dicha en vez de contada.** «El
+organizador tampoco ve lo de ella» era un ✓ en el parte anterior, y no vale:
+en un Dúo la segunda confirmación revela en el mismo acto, así que **no existe
+ninguna ventana** en la que ella haya confirmado y él no. Lo de ella todavía no
+se ha escrito, y no ver lo que no existe no es privacidad. El instrumento lo
+afirma ahora como lo que es —`you.confirmed` nulo— y dice en su propio texto
+que la simétrica no es medible aquí.
+
+---
+
 ## 4 · El vínculo sucesor del Dúo — propuesta
 
 **El problema:** la única entrada productiva del Dúo mapea
@@ -262,10 +388,19 @@ reescribe: su origen es parte de lo publicado. Hacen falta tres actos, en orden:
 1. **Publicar `duo-lo-que-me-ayuda@3`** con el mismo copy, los mismos campos y
    las mismas condiciones, y `source.experiencePin` apuntando a la microguía
    nueva.
-2. **Archivar `@2`.** Sólo puede haber una versión `PUBLISHED` por clave: con
-   dos, la ruta del organizador responde 404 y el CTA desaparece. `ARCHIVED` la
-   retira de todo lo que **ofrece** mientras `getExact` la sigue resolviendo por
-   pin.
+2. **Archivar `@2`.** `ARCHIVED` la retira de todo lo que **ofrece**, mientras
+   `getExact` la sigue resolviendo por pin para las actividades ya en marcha.
+
+   > **Corrección (misma sesión).** Esta línea decía que con dos versiones
+   > publicadas «la ruta del organizador responde 404». Leído `resolveDuoTemplate`,
+   > es **falso**, y la verdad es mejor: devuelve `null` —**silencio, no error**—
+   > ante un pin desconocido, una versión que no es la mapeada, un `DRAFT`, un
+   > `ARCHIVED`, dos entradas de elegibilidad para la misma superficie, o una
+   > plantilla cuya `source.experiencePin` no nombre de vuelta a esa experiencia.
+   > El acuerdo es **bidireccional**, y todos los modos de fallo caen hacia el
+   > mismo lado: la oferta desaparece. Detalle en
+   > [el paquete editorial §5](../product/paquete-editorial-2026-11-07.md).
+
 3. **Mover** —no añadir— la entrada de `PRODUCTION_DUO_ELIGIBILITY`. Dos
    entradas para una superficie no desempatan: deshabilitan la oferta.
 

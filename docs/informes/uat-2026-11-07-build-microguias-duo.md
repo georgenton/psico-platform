@@ -197,7 +197,7 @@ Comprobado en OVH, en sólo lectura y por clave y versión:
 | **Definición Guide registrada**    | ✅ en el catálogo **de código**, con título, descripción y duración                                                                     |
 | **Experience en OVH**              | ❌ **AUSENTE** — `ChapterExperienceVersion` tiene **0 filas** en total, no «cinco en DRAFT»                                             |
 | **Disponible para QA**             | ✅ `pilot` + un único id sintético                                                                                                      |
-| **Recorrido comprobado**           | ✅ **31/31 por HTTP**; pantalla pendiente                                                                                               |
+| **Recorrido comprobado**           | ✅ **31/31 por HTTP** y ✅ **en pantalla** (08-11): las cinco aparecen numeradas, con duración y estado «Completada»                    |
 | **Aprobación editorial aplicable** | ⚠️ **no acreditada**: recomendación de publicar + «no se autoriza todavía», con tres condiciones nombradas. Implementar sí (2026-09-03) |
 | **Abierta a personas reales**      | ❌ no, y `publishAllowed: false` lo respalda con un 409                                                                                 |
 

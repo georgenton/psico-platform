@@ -109,8 +109,25 @@ todas.
 
 Corregido en el [PR #832](https://github.com/georgenton/psico-platform/pull/832),
 acotado: la participación deja de consultar el padrón, **crear lo conserva**.
-Verificado por mutación. **Falta comprobarlo sobre staging**, que necesita
-desplegar la API.
+Verificado por mutación.
+
+**Y comprobado sobre staging el mismo día**, tras desplegar la API a `87a1192b`
+(`ready=true`, 71/71, `pending` y `failed` vacías). Se repitió el flujo entero
+con un tercer Dúo y la **misma cuenta** de antes: la invitada **con sesión y
+fuera del padrón** abre ahora la sala **entera** — consentimiento, las seis
+salvaguardas y «0 de 2 listas»—.
+
+Que estaba con sesión se acreditó, no se supuso: `/dashboard/perfil` la
+redirige a `/onboarding`, que es donde va una persona identificada sin
+onboarding terminado. Sin sesión iría a `/login`.
+
+> **Un residuo que conviene dejar escrito.** Volver a esa sala **después de
+> cerrar y reabrir sesión** da «esta sala no sea para ti» — no el rechazo del
+> despliegue, que es lo que cambió, sino la comprobación de asiento. El asiento
+> que crea aceptar una invitación es de **invitada**, atado a la credencial del
+> navegador, no a la cuenta; cerrar sesión la pierde. El recorrido normal
+> —aceptar y seguir ahí— funciona, y esto no lo toca el arreglo: sería otro
+> cambio, sobre a qué identidad se ata el asiento.
 
 **Lo que depende de la sucesión editorial, y no se abrió por otra vía.** El enlace
 «Ir a la experiencia» del Dúo lleva a `eec-c1-cuerpo-antes-que-mente`, cuya acción

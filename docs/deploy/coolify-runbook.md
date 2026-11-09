@@ -1044,41 +1044,102 @@ con toda corrección, porque esas filas son reales.
 **Un ensayo con las credenciales vivas dentro no es un ensayo: es una operación
 sobre el sistema real, disfrazada de prueba.**
 
+##### La configuración que la primera puerta pedía era imposible — corregido el 2026-11-09
+
+La puerta anterior exigía **las claves vacías**, y eso sólo se podía cumplir en
+algunas de ellas. El schema de entorno declara `ANTHROPIC_API_KEY`,
+`VOYAGE_API_KEY` y las cuatro `R2_*` **requeridas** (`.min(1)`), y
+`OPENAI_API_KEY` requerida por `superRefine` porque `VOICE_PROVIDER=whisper` es el
+valor por omisión. Vaciar cualquiera de ellas **no arranca**. La puerta pedía a la
+vez una aplicación aislada y una aplicación que no existe.
+
+Había una segunda mitad del mismo error, menos visible: para R2 comprobaba el
+**nombre del bucket**, y el destino de la petición sale de `R2_ACCOUNT_ID`. Copiar
+la cuenta de staging renombrando el bucket **pasaba la puerta** y enviaba el
+`DeleteObjectCommand` a la cuenta viva; lo que lo salvaba era que ese bucket no
+existiera allí — protección por accidente, no por diseño.
+
+**La pregunta correcta no es «¿está apagada?» sino «¿puede esto alcanzar al
+proveedor?»**, y se responde distinto según cómo declare el schema cada frontera:
+
+| Frontera                   | Cómo la declara el schema | Qué exige la puerta hoy                                     |
+| -------------------------- | ------------------------- | ----------------------------------------------------------- |
+| Resend                     | opcional                  | **vacía** — la app arranca sin ella                         |
+| VAPID ×3                   | opcionales                | **vacías**                                                  |
+| Modelo (`ANTHROPIC_*`)     | **requerida**             | centinela **y** `ANTHROPIC_BASE_URL` fuera del proveedor    |
+| Embeddings (`VOYAGE_*`)    | **requerida**             | centinela **y** `VOYAGE_BASE_URL` fuera del proveedor       |
+| Transcripción (`OPENAI_*`) | **requerida** por refine  | centinela **y** `OPENAI_BASE_URL` fuera del proveedor       |
+| Almacenamiento (`R2_*`)    | **requeridas**            | bucket ≠ vivo, **cuenta ≠ viva** y `R2_ENDPOINT` redirigido |
+| Stripe                     | **requerida**             | que no sea `sk_live_` (ningún procesador la llama)          |
+| Base de datos              | requerida                 | host ≠ vivo                                                 |
+| Redis                      | opcional                  | host ≠ vivo                                                 |
+| `CIRCLES_`/`GUIDE_ROLLOUT` | —                         | `off`, por valor                                            |
+
+Son **dos condiciones independientes** en las fronteras requeridas, y las dos hacen
+falta: la del centinela sola deja un destino vivo con una llave mala; la de la
+costura sola deja una llave viva apuntando a un destino que alguien podría
+destipear.
+
+**Redis es nuevo, y no estaba por descuido.** Las colas de BullMQ no se separan por
+entorno: un worker de ensayo en el Redis vivo **consumiría trabajos reales de
+staging** y registraría sus planificadores encima de los vivos. Medido en el ensayo
+de abajo: el worker dejó **81 claves y 12 colas**. En el Redis vivo, eso no es una
+prueba.
+
+##### Las cuatro costuras de destino
+
+Tres existían o eran gratis; la cuarta y la quinta se añadieron aquí.
+
+| Variable             | Dónde                                    | Ausente significa              |
+| -------------------- | ---------------------------------------- | ------------------------------ |
+| `ANTHROPIC_BASE_URL` | nativa del SDK, ningún código nuestro    | el destino del proveedor       |
+| `VOYAGE_BASE_URL`    | `EmbeddingService` (ya existía)          | el destino del proveedor       |
+| `OPENAI_BASE_URL`    | `WhisperProvider.endpoint()` (**nueva**) | `https://api.openai.com`       |
+| `R2_ENDPOINT`        | `StorageService` (**nueva**)             | el derivado de `R2_ACCOUNT_ID` |
+
+Las dos nuevas son opcionales y **su ausencia no cambia nada**: es la mitad que
+importa, porque ninguna caja desplegada las declara y por esta costura se BORRAN
+objetos. Hay trinquete para las dos
+(`storage.endpoint.spec.ts`, `embedding.base-url.spec.ts`), y en el caso de R2 fija
+también que `forcePathStyle` **no** se filtre al camino sin override: con override
+el bucket viaja en la ruta para que el sustituto reciba la llamada en vez de morir
+resolviendo `bucket.127.0.0.1`.
+
 ##### La puerta, que se ejecuta antes de arrancar nada
 
 [`scripts/rehearsal-isolation-check.mjs`](../../scripts/rehearsal-isolation-check.mjs)
-comprueba las nueve condiciones y **falla cerrado**: si no puede afirmar que algo
-está aislado, dice que no lo está.
+comprueba **18 condiciones** y **falla cerrado**: si no puede afirmar que algo está
+aislado, dice que no lo está.
 
 ```bash
 node scripts/rehearsal-isolation-check.mjs \
   --ensayo ./env-del-ensayo \
   --bucket-vivo <nombre del bucket real> \
-  --db-viva <host de la base real>
+  --cuenta-viva <id de cuenta R2 real> \
+  --db-viva <host de la base real> \
+  --redis-vivo <host de Redis real>
 ```
 
-Los dos identificadores «vivos» no son secretos —un nombre de bucket y un nombre de
+Los identificadores «vivos» no son secretos —nombres de bucket, de cuenta y de
 host—, y se piden explícitamente para que la puerta pueda comparar **sin necesitar
 ninguna credencial real**.
 
-Comprobada en los dos extremos: un entorno correctamente apagado da `✔ aislado — 9
-comprobaciones`, código 0; el entorno vivo copiado tal cual —que es el error que
-esta puerta existe para atrapar— da `✗ NO aislado — 9 de 9 fallan`, código 1, y
-nombra la consecuencia de cada una.
-
 Dos detalles de diseño que no son adorno:
 
-- **«No sé» cuenta como «no aislado».** Credenciales de R2 presentes con
-  `R2_BUCKET_NAME` vacío no pasan: no se puede afirmar a dónde escriben. Igual una
+- **«No sé» cuenta como «no aislado».** Una costura ausente, vacía o ilegible no
+  pasa: esa es exactamente la configuración de producción. Igual una
   `DATABASE_URL` ausente o ilegible.
 - **Los rollouts se exigen por valor, no por ausencia de otro.** `off` ausente no
   es `off`.
 
-Y hay **trinquete** (`apps/api/src/jobs/rehearsal-isolation.spec.ts`, 16 pruebas):
+Y hay **trinquete** (`apps/api/src/jobs/rehearsal-isolation.spec.ts`, 29 pruebas):
 recorre los procesadores de verdad, **sigue un salto** a los servicios que inyectan
-y exige que la puerta cubra cada familia de efecto encontrada. Verificado por
-mutación: un procesador nuevo que llame a Stripe rompe la prueba con el nombre del
-archivo, y quitar una guarda de la puerta también.
+y exige que la puerta cubra cada familia de efecto encontrada. Para las fronteras
+requeridas la guarda que se exige es **la costura de destino**, no la clave: la
+clave no se puede vaciar sin impedir el arranque, así que lo que de verdad protege
+es a dónde apunta el cliente. Verificado por mutación: un procesador nuevo que
+llame a Stripe rompe la prueba con el nombre del archivo, y quitar una guarda de la
+puerta también.
 
 > **Por qué el salto.** `weekly-summary` **no menciona el modelo**: llama a
 > `PatronesService.regenerateWeeklySummary`, y es ese servicio el que llama. Mirar
@@ -1086,6 +1147,55 @@ archivo, y quitar una guarda de la puerta también.
 > perdía era justo **la que se factura**. Un salto basta para lo que hay hoy; dos
 > servicios en cadena seguirían siendo invisibles, y si eso aparece lo honesto es
 > ampliar el trinquete, no confiar en que no aparezca.
+
+##### Lo que quedó demostrado, ejecutándolo (2026-11-09)
+
+No es una revisión de la configuración: se montó una base desechable
+(`pgvector/pgvector:pg17`), un Redis desechable y un **sustituto local** que
+registra lo que le llega, y se arrancaron los **binarios compilados** de API y
+worker con el fichero de entorno de arriba.
+
+| Paso                              | Resultado                                                                                                                          |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Puerta de aislamiento             | `✔ aislado — 18 comprobaciones`, código 0                                                                                          |
+| Migraciones sobre la copia        | 71 aplicadas                                                                                                                       |
+| **Arranque real de la API**       | `Nest application successfully started` · `/health` → 200 · `/api/health/ready` → `ready=true`, `71/71`, `pending`/`failed` vacíos |
+| **Arranque real del worker**      | `Awaiting jobs from Redis…`, **12 colas** y sus planificadores registrados, proceso vivo                                           |
+| Aviso de arranque                 | `[STUB] STRIPE_SECRET_KEY`, `[MISSING] RESEND_API_KEY`, `GOOGLE_CLIENT_ID`, `VAPID keys` — informa sin impedir                     |
+| **Borrado de R2 → sustituto**     | `DELETE /feelverse-ensayo/data-exports/usr_…/exp_….json?x-id=DeleteObject host=127.0.0.1:4566`                                     |
+| Y el procesador lo gestionó       | `expired=0 failed=1 due=1`, fila dejada en `READY` para la pasada siguiente — el comportamiento diseñado                           |
+| **Modelo → sustituto**            | `POST /v1/messages host=127.0.0.1:4555 bytes=1372`                                                                                 |
+| Y el servicio lo gestionó         | `LLM weekly-narrative failed (401 …); using rule-based fallback`                                                                   |
+| Llamadas con destino al proveedor | **0** — ninguna línea hacia `anthropic.com`, `openai.com`, `voyageai.com` ni `cloudflarestorage.com`                               |
+| **Control negativo**              | con la cuenta viva copiada y las costuras quitadas: `✗ NO aislado — 3 de 18 fallan`, código 1                                      |
+
+Las dos filas que importan son las de los sustitutos: **un fallo de DNS también
+mantendría la petición dentro de la caja, pero no distingue «no salió» de «nunca se
+hizo»**. Aquí el sustituto la recibió, con la clave del objeto y el cuerpo del
+mensaje, así que consta a dónde fue.
+
+Las filas que ejercitaron esos dos procesadores son **sintéticas y se insertaron en
+la base desechable**: una solicitud de exportación vencida y una persona Pro con
+siete reflexiones en la semana ISO en curso. Nada vivo se tocó, y los contenedores
+se destruyeron al terminar.
+
+> **Dos defectos de la aplicación que sólo aparecen arrancándola**, los dos
+> corregidos aquí y los dos ajenos al ensayo:
+>
+> 1. **Una variable opcional vaciada impedía arrancar.**
+>    `z.string().url().optional()` acepta `undefined` y rechaza `""`, y la cadena
+>    vacía es **cómo se escribe una variable borrada** — Coolify la guarda vacía en
+>    vez de eliminarla. Con `SENTRY_DSN=` el proceso moría con «Invalid URL», que no
+>    se parece a la causa. Afectaba a los cinco campos de esa forma, que son
+>    justamente los que uno apaga: `REDIS_URL`, `SENTRY_DSN`, `R2_PUBLIC_URL` y las
+>    dos costuras. Arreglado con `urlOpcional()`, que trata la vacía como ausente y
+>    **no afloja nada**: un valor presente sigue teniendo que ser una URL
+>    (`env.url-opcional.spec.ts`, 27 pruebas, con el caso de `REDIS_URL` en
+>    producción, donde sigue siendo un fallo con su propio mensaje).
+> 2. **`OPENAI_API_KEY` es requerida y no está en el bloque `.min(1)`.** La exige
+>    `superRefine` cuando `VOICE_PROVIDER=whisper`, que es el valor por omisión, así
+>    que es fácil de olvidar: se olvidó en el primer fichero del ensayo y la API no
+>    arrancó. Ahora figura en la tabla de fronteras y en la puerta.
 
 #### Lo que falta es el recurso, y su coste no está cerrado
 
@@ -1362,15 +1472,15 @@ describirse, no una reversión rutinaria.
 
 Estado al 2026-11-07, para que la lista sirva de puerta y no de recordatorio:
 
-|     | Precondición                                              | Estado                                                                                                                                                                                                                                                                                                                                                                           |
-| --- | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Staging validado y estable                                | ⚠️ **en su mayor parte.** Recorridos funcionales comprobados: lectura, Diario con su recuperación, exportación, Eco, Mapa, Evolución, Círculos con dos partes y las cinco microguías de C01. Faltan la **aceptación estética** y el recorrido de **correo**, que no tiene credencial                                                                                             |
-| 2   | Números de límites tomados de staging, no inventados      | ❌ **abierto.** No hay medición de carga: staging tiene 11 cuentas sintéticas, así que cualquier límite sacado de ahí sería una invención con cara de dato                                                                                                                                                                                                                       |
-| 3   | Versión de PostgreSQL de producción consultada y decidida | ⚠️ **consultada, no decidida.** Staging corre **PostgreSQL 18.6** con pgvector; producción debería igualarla, pero eso es una decisión y no consta escrita                                                                                                                                                                                                                       |
-| 4   | Backup con restore drill **ejecutado**                    | ✅ **hecho.** Restauración comprobada, y el 06-11 además desde fuera del servidor                                                                                                                                                                                                                                                                                                |
-| 5   | Artefacto versionado por commit SHA, nunca `latest`       | ✅ **hecho**, y reforzado: las imágenes se etiquetan por SHA, y las buenas tienen además una etiqueta **estable** (`feelverse-api-known-good:<fecha>-<sha>`), porque la del commit ya demostró que otra construcción la sobrescribe                                                                                                                                              |
-| 6   | Rollback de nivel 1 ensayado                              | ✅ **hecho** el 2026-10-24 (§3.1)                                                                                                                                                                                                                                                                                                                                                |
-| 7   | Nivel 4 ensayado, o asumido como riesgo abierto           | ❌ **no ensayado**, y ahora **preparado**: lo que no necesita la caja está hecho y comprobado, y lo que falta es el recurso, con su coste abierto en dos preguntas concretas (ver arriba). Es la única recuperación frente a perder el servidor, y retirar las plataformas anteriores no la sustituye: lo que la sustituía antes era un DNS de vuelta, y ese camino ya no existe |
+|     | Precondición                                              | Estado                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| --- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Staging validado y estable                                | ⚠️ **en su mayor parte.** Recorridos funcionales comprobados: lectura, Diario con su recuperación, exportación, Eco, Mapa, Evolución, Círculos con dos partes y las cinco microguías de C01. Faltan la **aceptación estética** y el recorrido de **correo**, que no tiene credencial                                                                                                                                                                                                                          |
+| 2   | Números de límites tomados de staging, no inventados      | ✅ **resuelto (07-11).** Medido en reposo, durante un recorrido representativo y en concurrencia acotada: 846 MiB de los 4 GiB declarados (20,7 %), el recorrido de las **cinco** microguías de C01 cuesta +40 KB y 65 filas (~8 KB por recorrido suelto), y ocho lectores concurrentes dan p50 194 ms. **Margen elegido: no cambiar ningún límite**, con la CPU de la API como único número tenso (50,3 % de su cuota para una persona). [Detalle y cómo repetirlo](../operations/capacidad-y-postgresql.md) |
+| 3   | Versión de PostgreSQL de producción consultada y decidida | ✅ **decidida (07-11): `pgvector/pgvector:pg18` fijada por digest**, que es lo que ya corre — PostgreSQL 18.6, `vector 0.8.6`, estable. El pin hace trabajo real: la etiqueta flotante `pg18` apunta hoy a otro digest, así que con la etiqueta a secas una caja nueva traería otra imagen. Producción usa el **mismo digest**. Supuesto fechado: Docker Hub no promete retención indefinida, así que copiar la imagen a un registro propio queda abierto                                                     |
+| 4   | Backup con restore drill **ejecutado**                    | ✅ **hecho.** Restauración comprobada, y el 06-11 además desde fuera del servidor                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| 5   | Artefacto versionado por commit SHA, nunca `latest`       | ✅ **hecho**, y reforzado: las imágenes se etiquetan por SHA, y las buenas tienen además una etiqueta **estable** (`feelverse-api-known-good:<fecha>-<sha>`), porque la del commit ya demostró que otra construcción la sobrescribe                                                                                                                                                                                                                                                                           |
+| 6   | Rollback de nivel 1 ensayado                              | ✅ **hecho** el 2026-10-24 (§3.1)                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| 7   | Nivel 4 ensayado, o asumido como riesgo abierto           | ❌ **no ensayado**, y ahora **preparado**: lo que no necesita la caja está hecho y comprobado, y lo que falta es el recurso, con su coste abierto en dos preguntas concretas (ver arriba). Es la única recuperación frente a perder el servidor, y retirar las plataformas anteriores no la sustituye: lo que la sustituía antes era un DNS de vuelta, y ese camino ya no existe                                                                                                                              |
 
 Así que **tres puertas siguen cerradas** —2, 3 y 7— y una está a medias. Las tres
 son decisiones o mediciones, no trabajo de código pendiente.

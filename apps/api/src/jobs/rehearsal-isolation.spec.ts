@@ -41,24 +41,42 @@ const PUERTA = join(
   "../../../../scripts/rehearsal-isolation-check.mjs",
 );
 
-/** Un entorno de ensayo correctamente aislado: todo apagado, base distinta. */
+/**
+ * Un entorno de ensayo correctamente aislado.
+ *
+ * Nótese lo que NO es: no es «todo vacío». Las claves del modelo, de los
+ * embeddings y de R2 están puestas, porque el schema las declara requeridas y
+ * sin ellas la app no arranca. Lo que las aísla es que son centinelas y que sus
+ * tres costuras apuntan a un sustituto local.
+ */
 const AISLADO: Record<string, string> = {
   DATABASE_URL: "postgresql://u:p@ensayo-db:5432/feelverse_ensayo",
+  REDIS_URL: "redis://ensayo-redis:6379",
+  R2_ACCOUNT_ID: "cuenta-del-ensayo",
   R2_ACCESS_KEY_ID: "clave-del-ensayo",
   R2_SECRET_ACCESS_KEY: "secreto-del-ensayo",
   R2_BUCKET_NAME: "feelverse-ensayo",
+  R2_ENDPOINT: "http://127.0.0.1:4566",
   RESEND_API_KEY: "",
   VAPID_PUBLIC_KEY: "",
   VAPID_PRIVATE_KEY: "",
   VAPID_SUBJECT: "",
-  ANTHROPIC_API_KEY: "",
+  ANTHROPIC_API_KEY: "centinela-del-ensayo",
+  ANTHROPIC_BASE_URL: "http://127.0.0.1:4555",
+  VOYAGE_API_KEY: "centinela-del-ensayo",
+  VOYAGE_BASE_URL: "http://127.0.0.1:4555/v1",
+  OPENAI_API_KEY: "centinela-del-ensayo",
+  OPENAI_BASE_URL: "http://127.0.0.1:4555",
+  STRIPE_SECRET_KEY: "sk_test_del_ensayo",
   CIRCLES_ROLLOUT_MODE: "off",
   GUIDE_ROLLOUT_MODE: "off",
 };
 
 const VIVO = {
   bucketVivo: "feelverse-staging",
+  cuentaViva: "cuenta-viva-de-staging",
   dbViva: "rmucrqybnsllxshfznc7vy6l",
+  redisVivo: "pwo0g8s4wgwo8s8gkwc4sskg",
 };
 
 const con = (cambios: Record<string, string>) => ({ ...AISLADO, ...cambios });
@@ -67,7 +85,7 @@ const fallosDe = (env: Record<string, string>) =>
     .fallos;
 
 describe("la puerta de aislamiento del ensayo", () => {
-  it("un entorno correctamente apagado pasa, y pasa entero", () => {
+  it("un entorno correctamente aislado pasa, y pasa entero", () => {
     const { fallos, pasa } = checkIsolation(AISLADO, VIVO) as {
       fallos: unknown[];
       pasa: string[];
@@ -75,31 +93,97 @@ describe("la puerta de aislamiento del ensayo", () => {
     expect(fallos).toEqual([]);
     // Si alguien quitara comprobaciones, lo de arriba seguiría pasando con la
     // lista vacía. Esto fija que de verdad se comprueba algo.
-    expect(pasa.length).toBeGreaterThanOrEqual(8);
+    expect(pasa.length).toBeGreaterThanOrEqual(15);
   });
 
-  it("R2 apuntando al bucket VIVO no pasa — ahí es donde se borra de verdad", () => {
-    const f = fallosDe(con({ R2_BUCKET_NAME: VIVO.bucketVivo }));
-    expect(f).toHaveLength(1);
-    expect(f[0].porqué).toMatch(/account-deletion y data-export-retention/);
-  });
-
-  it("credenciales de R2 sin bucket declarado tampoco pasa: no se puede afirmar a dónde escribe", () => {
-    // Falla CERRADO. «No sé» no es «está bien».
-    const f = fallosDe(con({ R2_BUCKET_NAME: "" }));
-    expect(f).toHaveLength(1);
-    expect(f[0].porqué).toMatch(/no se puede afirmar a dónde escriben/);
-  });
-
-  it("sin credenciales de R2, el bucket deja de importar", () => {
+  /**
+   * El defecto que cerró este bloque: la primera versión exigía estas claves
+   * VACÍAS, y el schema las declara requeridas. Era una puerta imposible de
+   * satisfacer arrancando la app.
+   */
+  it("un entorno con las claves requeridas VACÍAS ya no pasa — no arrancaría", () => {
     const f = fallosDe(
       con({
+        ANTHROPIC_API_KEY: "",
+        VOYAGE_API_KEY: "",
+        R2_ACCOUNT_ID: "",
         R2_ACCESS_KEY_ID: "",
         R2_SECRET_ACCESS_KEY: "",
         R2_BUCKET_NAME: "",
       }),
     );
-    expect(f).toEqual([]);
+    // Las claves vacías NO son el fallo —la puerta no las mira— pero el bucket
+    // y la cuenta sí, y su mensaje dice justamente que así no arranca.
+    expect(f.map((x) => x.qué)).toContain("R2_ACCOUNT_ID no es la cuenta viva");
+    expect(f.find((x) => x.qué.includes("R2_ACCOUNT_ID"))!.porqué).toMatch(
+      /la app no arranca/,
+    );
+  });
+
+  it.each([
+    ["ANTHROPIC_BASE_URL", "https://api.anthropic.com"],
+    ["VOYAGE_BASE_URL", "https://api.voyageai.com/v1"],
+    ["OPENAI_BASE_URL", "https://api.openai.com"],
+    ["R2_ENDPOINT", "https://cuenta.r2.cloudflarestorage.com"],
+  ])("%s apuntando al PROVEEDOR no pasa", (costura, destinoVivo) => {
+    const f = fallosDe(con({ [costura]: destinoVivo }));
+    expect(f).toHaveLength(1);
+    expect(f[0].porqué).toMatch(/es del proveedor/);
+  });
+
+  it.each([
+    "ANTHROPIC_BASE_URL",
+    "VOYAGE_BASE_URL",
+    "OPENAI_BASE_URL",
+    "R2_ENDPOINT",
+  ])(
+    "%s ausente tampoco pasa: el cliente usaría el destino del proveedor",
+    (costura) => {
+      // Falla CERRADO. La ausencia de una costura NO es aislamiento: es
+      // exactamente la configuración de producción.
+      const sin = { ...AISLADO };
+      delete sin[costura];
+      const f = fallosDe(sin);
+      expect(f).toHaveLength(1);
+      expect(f[0].porqué).toMatch(/ausente o no analizable/);
+
+      // Y vacía o ilegible, lo mismo.
+      expect(fallosDe(con({ [costura]: "" }))).toHaveLength(1);
+      expect(fallosDe(con({ [costura]: "no-es-una-url" }))).toHaveLength(1);
+    },
+  );
+
+  it.each([
+    ["ANTHROPIC_API_KEY", "sk-ant-api03-loquesea"],
+    ["VOYAGE_API_KEY", "pa-loquesea"],
+    ["OPENAI_API_KEY", "sk-proj-loquesea"],
+  ])(
+    "%s con forma de credencial VIVA no pasa, aunque la costura esté bien",
+    (clave, viva) => {
+      // La segunda condición, independiente de la primera: con la costura
+      // correcta esto no llega a ninguna parte hoy, pero un destipeo en la
+      // costura lo convertiría en una llamada facturada.
+      const f = fallosDe(con({ [clave]: viva }));
+      expect(f).toHaveLength(1);
+      expect(f[0].qué).toBe(`${clave} no es una credencial viva`);
+    },
+  );
+
+  it("R2 apuntando al bucket VIVO no pasa — ahí es donde se borra de verdad", () => {
+    const f = fallosDe(con({ R2_BUCKET_NAME: VIVO.bucketVivo }));
+    expect(f).toHaveLength(1);
+    expect(f[0].qué).toBe("R2_BUCKET_NAME no es el bucket vivo");
+  });
+
+  /**
+   * La mitad que faltaba. El destino de la petición sale de la CUENTA; el
+   * bucket sólo nombra el objeto. Copiar la cuenta de staging renombrando el
+   * bucket pasaba la puerta anterior.
+   */
+  it("R2 con la CUENTA viva no pasa, aunque el bucket sea otro", () => {
+    const f = fallosDe(con({ R2_ACCOUNT_ID: VIVO.cuentaViva }));
+    expect(f).toHaveLength(1);
+    expect(f[0].porqué).toMatch(/iría al almacenamiento real/);
   });
 
   it("una clave de Resend no pasa — escribiría a las direcciones restauradas", () => {
@@ -117,10 +201,10 @@ describe("la puerta de aislamiento del ensayo", () => {
     },
   );
 
-  it("una clave del modelo no pasa — weekly-summary se factura por persona", () => {
-    const f = fallosDe(con({ ANTHROPIC_API_KEY: "sk-ant-lo-que-sea" }));
+  it("una clave VIVA de Stripe no pasa; una de prueba sí", () => {
+    const f = fallosDe(con({ STRIPE_SECRET_KEY: "sk_live_loquesea" }));
     expect(f).toHaveLength(1);
-    expect(f[0].porqué).toMatch(/se factura/);
+    expect(f[0].porqué).toMatch(/cobros reales/);
   });
 
   it.each(["CIRCLES_ROLLOUT_MODE", "GUIDE_ROLLOUT_MODE"])(
@@ -149,6 +233,20 @@ describe("la puerta de aislamiento del ensayo", () => {
     expect(fallosDe(con({ DATABASE_URL: "no-es-una-url" }))).toHaveLength(1);
   });
 
+  /**
+   * Redis, que tampoco estaba. Las colas de BullMQ no están separadas por
+   * entorno: un worker de ensayo en el Redis vivo consume trabajos reales.
+   */
+  it("Redis del ensayo apuntando al VIVO no pasa", () => {
+    const f = fallosDe(con({ REDIS_URL: `redis://${VIVO.redisVivo}:6379` }));
+    expect(f).toHaveLength(1);
+    expect(f[0].porqué).toMatch(/consumiría trabajos reales/);
+  });
+
+  it("sin REDIS_URL pasa: la app cae a su sustituto en memoria", () => {
+    expect(fallosDe(con({ REDIS_URL: "" }))).toEqual([]);
+  });
+
   it("parseEnv ignora comentarios y quita comillas", () => {
     const env = parseEnv(
       ["# un comentario", "", "A=uno", 'B="dos"', "C='tres'", "sinIgual"].join(
@@ -168,12 +266,18 @@ describe("la puerta de aislamiento del ensayo", () => {
  * decidir qué hace el ensayo con eso, en vez de descubrirlo durante el ensayo.
  */
 describe("el trinquete entre los procesadores y la puerta", () => {
-  /** Familia de efecto → marcas en el código → variable que la apaga. */
+  /**
+   * Familia de efecto → marcas en el código → variable que la apaga.
+   *
+   * Para las fronteras que el schema declara requeridas, la guarda es la
+   * COSTURA DE DESTINO, no la clave: la clave no se puede vaciar sin impedir el
+   * arranque, así que lo que de verdad protege es a dónde apunta el cliente.
+   */
   const FAMILIAS = [
     {
       familia: "R2",
       marcas: /\bstorage\.|deleteObject|uploadObject|putObject/,
-      guarda: "R2_ACCESS_KEY_ID",
+      guarda: "R2_ENDPOINT",
     },
     {
       familia: "correo",
@@ -188,7 +292,17 @@ describe("el trinquete entre los procesadores y la puerta", () => {
     {
       familia: "modelo",
       marcas: /[Aa]iService|generateWeeklyNarrative|anthropic/,
-      guarda: "ANTHROPIC_API_KEY",
+      guarda: "ANTHROPIC_BASE_URL",
+    },
+    {
+      familia: "embeddings",
+      marcas: /[Ee]mbeddingService|voyage/,
+      guarda: "VOYAGE_BASE_URL",
+    },
+    {
+      familia: "voz",
+      marcas: /[Ww]hisperProvider|[Dd]eepgramProvider|VoiceService/,
+      guarda: "OPENAI_BASE_URL",
     },
     { familia: "stripe", marcas: /[Ss]tripe/, guarda: "__SIN_GUARDA__" },
     { familia: "sms", marcas: /[Tt]wilio|sendSms/, guarda: "__SIN_GUARDA__" },

@@ -99,16 +99,21 @@ prueba cabe en el resto.
 Las cinco microguías de C01 (15 pasos) más el control negativo, de principio a
 fin, 24 muestras de recursos cada 2 s:
 
-| Qué                        | Valor                               |
-| -------------------------- | ----------------------------------- |
-| Duración                   | **5,46 s** de reloj                 |
-| Crecimiento de la base     | **+40 960 bytes** (40 KB)           |
-| Filas nuevas               | **+65**                             |
-| Transacciones              | **+102**                            |
-| CPU pico de la API         | **50,3 %** de su única CPU          |
-| Memoria pico de la API     | 318,9 MiB — **igual que en reposo** |
-| CPU pico de PostgreSQL     | 10,3 %                              |
-| Memoria pico de PostgreSQL | 94,8 MiB                            |
+> **La unidad, que conviene no confundir.** Todas las cifras de esta tabla son
+> del **conjunto de las cinco microguías**, no de una. Por recorrido suelto
+> salen ~8 KB y ~13 filas. La primera versión de §3 proyectaba los 40 KB como
+> si fuesen el coste de un recorrido, y multiplicaba por cinco de más.
+
+| Qué                        | Valor (las **cinco** juntas)                    |
+| -------------------------- | ----------------------------------------------- |
+| Duración                   | **5,46 s** de reloj                             |
+| Crecimiento de la base     | **+40 960 bytes** (40 KB) · ~8 KB por recorrido |
+| Filas nuevas               | **+65** · ~13 por recorrido                     |
+| Transacciones              | **+102**                                        |
+| CPU pico de la API         | **50,3 %** de su única CPU                      |
+| Memoria pico de la API     | 318,9 MiB — **igual que en reposo**             |
+| CPU pico de PostgreSQL     | 10,3 %                                          |
+| Memoria pico de PostgreSQL | 94,8 MiB                                        |
 
 El pico de CPU de la API es el dato más tenso de toda la medición: **la mitad
 de su cuota** para un recorrido de una sola persona. La memoria, en cambio, no
@@ -185,11 +190,19 @@ números para poder dimensionar:
 | Recorridos guiados por sesión            | ≤ 2                                |
 | Reflexiones cifradas por sesión          | ≤ 1                                |
 
-Con el crecimiento medido de 40 KB por recorrido guiado completo, cinco
-personas a tres sesiones semanales con dos recorridos cada una dan del orden de
-**1,2 MB al mes** de crecimiento de base. Sobre 23 MB actuales y 20 GB libres
-de disco, el dato no es que quepa: es que **no es la magnitud que hay que
-vigilar**.
+Con el crecimiento medido —**~8 KB por recorrido**, que son los 40 KB de las
+cinco dividido entre cinco—, cinco personas a tres sesiones semanales con dos
+recorridos cada una dan 30 recorridos por semana, unos **240 KB semanales** y
+del orden de **1 MB al mes** de crecimiento de base.
+
+> La versión anterior de este párrafo decía «40 KB por recorrido guiado
+> completo» y llegaba a 1,2 MB al mes. El resultado se parecía por casualidad:
+> tenía **dos** errores que se compensaban en parte —el coste por recorrido
+> inflado cinco veces, y una aritmética que daba 1,2 MB por **semana**, no por
+> mes—. La cifra de arriba sale de una sola cuenta, y está escrita.
+
+Sobre 23 MB actuales y 20 GB libres de disco, el dato no es que quepa: es que
+**no es la magnitud que hay que vigilar**.
 
 ---
 

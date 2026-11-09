@@ -31,11 +31,27 @@ import type {
 export class WhisperProvider implements IVoiceProvider {
   readonly name = "whisper" as const;
   private readonly logger = new Logger(WhisperProvider.name);
-  private static readonly ENDPOINT =
-    "https://api.openai.com/v1/audio/transcriptions";
+  private static readonly BASE = "https://api.openai.com";
+  private static readonly PATH = "/v1/audio/transcriptions";
   private static readonly MODEL = "whisper-1";
 
   constructor(private readonly config: ConfigService<Env, true>) {}
+
+  /**
+   * A dónde va la transcripción. `OPENAI_BASE_URL` absent —every deployed
+   * box— means the vendor's own base, exactly as before.
+   *
+   * The fourth seam of the same kind as `VOYAGE_BASE_URL`: it lets the
+   * recovery rehearsal drive this boundary with a declared local stand-in
+   * instead of being forced to choose between an app that starts and an app
+   * that cannot reach a billable third party. `OPENAI_API_KEY` is required by
+   * the schema whenever `VOICE_PROVIDER=whisper`, which is the default, so
+   * emptying it is not an option.
+   */
+  private endpoint(): string {
+    const base = this.config.get("OPENAI_BASE_URL", { infer: true });
+    return `${(base || WhisperProvider.BASE).replace(/\/+$/, "")}${WhisperProvider.PATH}`;
+  }
 
   async transcribe(
     input: VoiceTranscribeInput,
@@ -61,7 +77,7 @@ export class WhisperProvider implements IVoiceProvider {
     form.append("response_format", "verbose_json");
     if (input.language) form.append("language", input.language);
 
-    const res = await fetch(WhisperProvider.ENDPOINT, {
+    const res = await fetch(this.endpoint(), {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}` },
       body: form,

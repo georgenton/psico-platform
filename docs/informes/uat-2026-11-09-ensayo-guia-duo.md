@@ -129,6 +129,35 @@ onboarding terminado. Sin sesión iría a `/login`.
 > —aceptar y seguir ahí— funciona, y esto no lo toca el arreglo: sería otro
 > cambio, sobre a qué identidad se ata el asiento.
 
+### Las esperas y la privacidad antes de la revelación, en pantalla
+
+Cerrado después de desplegar el arreglo. La segunda parte recorrió su
+preparación entera —cuatro pasos—, eligió compartir **dos de tres** respuestas y
+confirmó. Lo que vio entonces:
+
+> «Tu parte está confirmada. **Esperando a la otra persona.** […] Lo compartido
+> se abrirá cuando la otra persona haya enviado la suya — las dos a la vez, ni
+> antes ni sólo una.»
+
+Y acto seguido, la organizadora —que **no** había confirmado— abrió la misma
+sala:
+
+| Qué se exigió                         | Resultado                                        |
+| ------------------------------------- | ------------------------------------------------ |
+| Que la lectura funcione               | 200, la página real, en `/compartir/…`           |
+| Que la etapa diga lo que se espera    | **«1 de 2 listas»**                              |
+| Que lo de la otra parte **ya exista** | sí: confirmado y renderizado en la pantalla de B |
+| Que no se vea nada de ello            | **0 de 3** frases presentes                      |
+
+Las tres primeras filas son las que convierten esto en una comprobación. Una
+ausencia sola se aprueba a sí misma: un 404, un 500 o una página vacía también
+«no contienen lo del otro». Aquí lo que no aparece es contenido que **existía en
+ese instante**, en una lectura que **funcionó**, en la etapa en que la barrera
+debe estar puesta.
+
+La revelación en sí no se repitió en pantalla: la cubre el recorrido por HTTP
+(33/33), y repetir una suite cerrada no añade nada.
+
 **Lo que depende de la sucesión editorial, y no se abrió por otra vía.** El enlace
 «Ir a la experiencia» del Dúo lleva a `eec-c1-cuerpo-antes-que-mente`, cuya acción
 principal está **retirada para inicios nuevos**: «Esta experiencia no admite

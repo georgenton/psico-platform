@@ -110,31 +110,75 @@ export function parseEnv(text) {
 /** Vacío = apagado. Una clave en blanco y una ausente son lo mismo. */
 const vacia = (v) => v === undefined || v === null || v.trim() === "";
 
-/** El anfitrión de una URL, o "" si no hay URL analizable. Falla cerrado. */
+/**
+ * El anfitrión de una URL, o "" si no hay URL analizable. Falla cerrado.
+ *
+ * **Se retira el punto final**, que es la trampa que destapó la revisión:
+ * `https://api.anthropic.com./v1` es una URL perfectamente válida y resuelve
+ * al mismo sitio que sin el punto, pero `new URL(...).hostname` devuelve
+ * `api.anthropic.com.` — y eso no casa con ningún dominio escrito sin él.
+ * Normalizar aquí cierra esa clase entera de evasión, no sólo su primer caso.
+ */
 const anfitrion = (v) => {
   if (vacia(v)) return "";
   try {
-    return new URL(v.trim()).hostname.toLowerCase();
+    return new URL(v.trim()).hostname.toLowerCase().replace(/\.$/, "");
   } catch {
     return "";
   }
 };
 
 /**
- * Las fronteras REQUERIDAS por el schema: no se pueden vaciar, así que se
- * redirigen. Cada una lleva su costura, el dominio del proveedor y la forma de
- * su credencial viva.
+ * Los destinos que se aceptan como sustituto del ensayo.
  *
- * Los prefijos son los que publican los proveedores para sus claves de
- * producción. No sirven para autenticar nada: sólo para reconocer que alguien
- * pegó una credencial de verdad donde iba un centinela.
+ * ── Por qué una lista de AUTORIZADOS y no una de prohibidos ────────────────
+ *
+ * La versión anterior preguntaba «¿este destino NO es del proveedor?», y eso
+ * aprueba cualquier otra cosa: un bucket de otro proveedor, el servidor de
+ * alguien, una IP pública. Que un destino no sea de Anthropic no lo convierte
+ * en el sustituto previsto; sólo dice que no es ESE error concreto.
+ *
+ * La pregunta correcta es «¿es uno de los destinos que yo autoricé?», y para
+ * que signifique algo, **la autorización tiene que venir de fuera del fichero
+ * que se está comprobando**: si el propio `.env` del ensayo pudiera declarar
+ * qué destinos valen, no habría comprobación. Por eso la lista llega por la
+ * línea de órdenes, y por omisión es el bucle local — una propiedad positiva
+ * («esto no sale de la máquina») y no la ausencia de otra.
+ */
+export const SUSTITUTOS_POR_OMISION = ["127.0.0.1", "::1", "localhost"];
+
+/**
+ * La marca que distingue un centinela del ensayo de una credencial de verdad.
+ *
+ * Mismo razonamiento: la versión anterior rechazaba tres prefijos conocidos
+ * —`sk-ant-`, `pa-`, `sk-`— y aprobaba todo lo demás. Pero «no empieza por
+ * `sk-ant-`» no certifica que el valor sea un centinela: una credencial de
+ * cualquier otro proveedor, o una clave rotada a un formato nuevo, pasaba.
+ *
+ * Exigir una marca declarada invierte la carga: el valor tiene que DECIR que
+ * es de mentira. Ninguna credencial emitida por un proveedor empieza así, y la
+ * marca se declara por la línea de órdenes, no en el fichero comprobado.
+ */
+export const MARCA_CENTINELA_POR_OMISION = "ensayo-";
+
+/** Un anfitrión autorizado, normalizando el punto final también en la lista. */
+const autorizado = (host, sustitutos) =>
+  host !== "" && sustitutos.includes(host);
+
+/**
+ * Las fronteras REQUERIDAS por el schema: no se pueden vaciar, así que se
+ * redirigen. Cada una lleva su costura y el dominio del proveedor.
+ *
+ * `dominio` **ya no decide** si la costura pasa —eso lo decide la lista de
+ * autorizados— pero sigue aquí para dar el mensaje preciso cuando el destino
+ * resulta ser justamente el del proveedor, que es el error que más veces se
+ * comete y el que peor se lee si sólo se dice «no autorizado».
  */
 export const FRONTERAS_REQUERIDAS = [
   {
     clave: "ANTHROPIC_API_KEY",
     costura: "ANTHROPIC_BASE_URL",
     dominio: "anthropic.com",
-    prefijoVivo: /^sk-ant-/i,
     porqué:
       "weekly-summary llama al modelo una vez por persona restaurada, y eso se factura",
   },
@@ -142,7 +186,6 @@ export const FRONTERAS_REQUERIDAS = [
     clave: "VOYAGE_API_KEY",
     costura: "VOYAGE_BASE_URL",
     dominio: "voyageai.com",
-    prefijoVivo: /^pa-/i,
     porqué:
       "la recuperación de Eco pide embeddings antes de preguntar al modelo, y también se factura",
   },
@@ -150,9 +193,6 @@ export const FRONTERAS_REQUERIDAS = [
     clave: "OPENAI_API_KEY",
     costura: "OPENAI_BASE_URL",
     dominio: "openai.com",
-    // `sk-` cubre las claves de producción de OpenAI y, de paso, una de
-    // Anthropic pegada aquí por error: las dos son credenciales vivas.
-    prefijoVivo: /^sk-/i,
     porqué:
       "la transcripción de voz se factura por minuto, y `VOICE_PROVIDER=whisper` es el valor por omisión, así que la clave es requerida y no se puede vaciar",
   },
@@ -160,9 +200,6 @@ export const FRONTERAS_REQUERIDAS = [
     clave: "R2_SECRET_ACCESS_KEY",
     costura: "R2_ENDPOINT",
     dominio: "cloudflarestorage.com",
-    // R2 no publica un prefijo reconocible para sus secretos, así que aquí la
-    // forma no dice nada y la cuenta se comprueba aparte, más abajo.
-    prefijoVivo: null,
     porqué:
       "account-deletion y data-export-retention BORRAN objetos por esta costura, con las claves que digan las filas restauradas",
   },
@@ -180,8 +217,21 @@ const esDelProveedor = (host, dominio) =>
  */
 export function checkIsolation(
   env,
-  { bucketVivo, cuentaViva, dbViva, redisVivo },
+  {
+    bucketVivo,
+    cuentaViva,
+    dbViva,
+    redisVivo,
+    sustitutos = SUSTITUTOS_POR_OMISION,
+    marcaCentinela = MARCA_CENTINELA_POR_OMISION,
+  },
 ) {
+  // Los autorizados se normalizan igual que los anfitriones que se comparan
+  // con ellos: si alguien declara `--sustituto http://127.0.0.1.:4555`, que
+  // case. La normalización vive en un sitio, no en dos que pueden divergir.
+  const permitidos = sustitutos.map((s) =>
+    String(s).trim().toLowerCase().replace(/^\[|\]$/g, "").replace(/\.$/, ""),
+  );
   const fallos = [];
   const pasa = [];
   const anota = (ok, qué, porqué) =>
@@ -192,21 +242,24 @@ export function checkIsolation(
   for (const f of FRONTERAS_REQUERIDAS) {
     const host = anfitrion(env[f.costura]);
     anota(
-      host !== "" && !esDelProveedor(host, f.dominio),
-      `${f.costura} apunta fuera del proveedor`,
+      autorizado(host, permitidos),
+      `${f.costura} apunta a un sustituto autorizado`,
       host === ""
         ? `${f.costura} ausente o no analizable: el cliente usaría el destino del proveedor, y ${f.porqué}`
-        : `${f.costura} apunta a ${host}, que es del proveedor; ${f.porqué}`,
+        : esDelProveedor(host, f.dominio)
+          ? `${f.costura} apunta a ${host}, que es del proveedor; ${f.porqué}`
+          : `${f.costura} apunta a ${host}, que no está entre los sustitutos autorizados (${permitidos.join(", ")}). No basta con que no sea del proveedor: ${f.porqué}`,
     );
 
-    if (f.prefijoVivo) {
-      const valor = env[f.clave] ?? "";
-      anota(
-        !f.prefijoVivo.test(valor.trim()),
-        `${f.clave} no es una credencial viva`,
-        `${f.clave} tiene la forma de una clave de producción; si la costura se destipeara, ${f.porqué}`,
-      );
-    }
+    // Y el centinela, por marca declarada y no por descarte de prefijos.
+    const valor = (env[f.clave] ?? "").trim();
+    anota(
+      valor.startsWith(marcaCentinela),
+      `${f.clave} lleva la marca de centinela`,
+      vacia(valor)
+        ? `${f.clave} vacía: el schema la declara requerida, así que la app no arrancaría`
+        : `${f.clave} no empieza por «${marcaCentinela}», así que no se puede afirmar que sea un centinela del ensayo. Si la costura se destipeara, ${f.porqué}`,
+    );
   }
 
   // 2 · R2, la mitad que faltaba: el destino del borrado sale de la CUENTA, no
@@ -251,10 +304,15 @@ export function checkIsolation(
   //     `rehearsal-isolation.spec.ts`—, así que no hace falta redirigirla: basta
   //     con que no sea la clave viva. El recorrido del ensayo puede tocar
   //     facturación, y en modo de prueba eso no cobra a nadie.
+  const stripe = (env.STRIPE_SECRET_KEY ?? "").trim();
   anota(
-    !/^sk_live_/i.test((env.STRIPE_SECRET_KEY ?? "").trim()),
-    "STRIPE_SECRET_KEY no es la clave viva",
-    "STRIPE_SECRET_KEY es una clave de producción: cualquier recorrido que toque facturación operaría sobre cobros reales",
+    /^(sk|rk)_test_/.test(stripe) || stripe.startsWith(marcaCentinela),
+    "STRIPE_SECRET_KEY es de prueba o centinela",
+    // También positiva: `sk_test_`/`rk_test_` es la propia declaración de
+    // Stripe de que la clave es de prueba, no una ausencia de `sk_live_`.
+    vacia(stripe)
+      ? "STRIPE_SECRET_KEY vacía: el schema la declara requerida, así que la app no arrancaría"
+      : `STRIPE_SECRET_KEY no se declara de prueba (sk_test_ / rk_test_) ni lleva la marca «${marcaCentinela}»: cualquier recorrido que toque facturación podría operar sobre cobros reales`,
   );
 
   // 6 · Superficies de producto cerradas, para que el recorrido del ensayo no
@@ -279,12 +337,27 @@ export function checkIsolation(
       : `DATABASE_URL apunta al host VIVO (${dbViva})`,
   );
 
-  if (redisVivo) {
+  // Redis, y la comprobación que se desvanecía. La versión anterior envolvía
+  // esto en `if (redisVivo)`, así que **omitir la referencia aprobaba el
+  // ensayo**: justo el descuido que la comprobación existe para atrapar, y sin
+  // una sola línea que lo dijera. Ahora, si el entorno USA Redis, la referencia
+  // y una URL analizable son obligatorias; sólo un Redis apagado la exime.
+  if (vacia(env.REDIS_URL)) {
+    pasa.push("Redis apagado — no hay colas que compartir");
+  } else if (vacia(redisVivo)) {
+    fallos.push({
+      qué: "falta declarar el Redis vivo",
+      porqué:
+        "el entorno declara REDIS_URL pero no se pasó --redis-vivo, así que no se puede afirmar que no sea el vivo. Las colas de BullMQ no se separan por entorno: un worker en el Redis vivo consumiría trabajos reales de staging",
+    });
+  } else {
     const hostRedis = anfitrion(env.REDIS_URL);
     anota(
-      vacia(env.REDIS_URL) || hostRedis !== redisVivo,
+      hostRedis !== "" && hostRedis !== redisVivo,
       "Redis del ensayo no es el vivo",
-      `REDIS_URL apunta al Redis VIVO (${redisVivo}): el worker del ensayo consumiría trabajos reales de las colas de BullMQ y registraría sus planificadores encima`,
+      hostRedis === ""
+        ? "REDIS_URL no es analizable: no se puede afirmar a qué Redis apunta, y las colas de BullMQ no se separan por entorno"
+        : `REDIS_URL apunta al Redis VIVO (${redisVivo}): el worker del ensayo consumiría trabajos reales de las colas de BullMQ y registraría sus planificadores encima`,
     );
   }
 
@@ -304,6 +377,12 @@ function main() {
     const i = argv.indexOf(f);
     return i >= 0 && argv[i + 1] ? argv[i + 1] : d;
   };
+  /** Repetible: `--sustituto A --sustituto B`. */
+  const args = (f) =>
+    argv.reduce(
+      (acc, v, i) => (v === f && argv[i + 1] ? [...acc, argv[i + 1]] : acc),
+      [],
+    );
   const ensayo = arg("--ensayo");
   const bucketVivo = arg("--bucket-vivo");
   const cuentaViva = arg("--cuenta-viva");
@@ -313,10 +392,35 @@ function main() {
   if (!ensayo || !bucketVivo || !cuentaViva || !dbViva) {
     console.error(
       "uso: rehearsal-isolation-check.mjs --ensayo <archivo> --bucket-vivo <nombre> " +
-        "--cuenta-viva <id> --db-viva <host> [--redis-vivo <host>]",
+        "--cuenta-viva <id> --db-viva <host> [--redis-vivo <host>] " +
+        "[--sustituto <url|host> ...] [--marca-centinela <prefijo>]\n" +
+        "  --sustituto      destino aceptado como sustituto del ensayo; repetible.\n" +
+        "                   Por omisión, sólo el bucle local (" +
+        SUSTITUTOS_POR_OMISION.join(", ") +
+        ").\n" +
+        "  --marca-centinela  prefijo que debe llevar toda credencial del ensayo " +
+        "(por omisión «" +
+        MARCA_CENTINELA_POR_OMISION +
+        "»).\n" +
+        "  --redis-vivo     obligatorio si el entorno declara REDIS_URL.",
     );
     return 1;
   }
+
+  // Los destinos autorizados y la marca llegan POR AQUÍ, nunca del fichero que
+  // se comprueba: si el `.env` del ensayo pudiera declarar qué vale, no habría
+  // comprobación. Sin `--sustituto`, sólo se acepta el bucle local.
+  const declarados = args("--sustituto");
+  const sustitutos = declarados.length
+    ? declarados.map((d) => {
+        try {
+          return new URL(d).hostname;
+        } catch {
+          return d; // también se acepta un anfitrión suelto
+        }
+      })
+    : SUSTITUTOS_POR_OMISION;
+  const marcaCentinela = arg("--marca-centinela", MARCA_CENTINELA_POR_OMISION);
 
   const env = parseEnv(readFileSync(ensayo, "utf8"));
   const { fallos, pasa } = checkIsolation(env, {
@@ -324,6 +428,8 @@ function main() {
     cuentaViva,
     dbViva,
     redisVivo,
+    sustitutos,
+    marcaCentinela,
   });
 
   for (const p of pasa) console.log(`   ✓ ${p}`);

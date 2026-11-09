@@ -875,10 +875,48 @@ correcto` —. La línea temporal se retiró.
 > FALTA todos los días**. Un detector que se equivoca a diario es peor que ninguno,
 > porque enseña a no mirarlo.
 
-**Lo que sigue pendiente** es el canal: el detector sale con código 1 y deja su línea,
-pero nadie se enterará si no lo lee. Engancharlo a un destino —el correo de Coolify
-cuando exista `RESEND_API_KEY`, o un webhook— es la pieza que falta, y necesita una
-dirección autorizada.
+##### Qué ventana comprueba de verdad, para que nadie espere un aviso antes
+
+Conviene decirlo con precisión, porque «detector diario» se lee como «me entero
+enseguida» y no es eso:
+
+| Pregunta                            | Respuesta                                                                                                                                                                                                   |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ¿Qué mira?                          | Si existe una ejecución **correcta** del respaldo de `feelverse_staging` en la ventana **04:50–05:10 UTC** del día **anterior**                                                                             |
+| ¿Cuándo lo mira?                    | **06:10 UTC**, una hora y diez después del respaldo                                                                                                                                                         |
+| ¿Cuánto tarda en detectar un fallo? | **25 h 10 min.** Mira el día **anterior**, así que un respaldo que falla a las 05:00 del día D se detecta a las 06:10 del día **D+1** — comprobado en el registro: el 09-11 a las 06:10 revisó el **08**-11 |
+| ¿Y si el servidor está caído?       | **No se entera nadie.** El detector vive en la misma caja; si la caja no arranca, el cron no corre y el registro no crece. Eso lo cubriría un vigía externo, que no existe                                  |
+| ¿Y si cron deja de correr?          | Se nota porque el registro **deja de crecer**, no porque avise. Por eso registra también los OK                                                                                                             |
+
+Esa ventana de hasta 25 horas es deliberada —mirar el día cerrado evita falsos
+positivos por un dump lento— pero significa que **el detector no es una alarma: es
+una comprobación diaria**. Para el respaldo de staging, cuya pérdida cuesta un día
+de datos sintéticos, es proporcionado. Para producción no lo sería.
+
+> **Dos crons en la misma caja con semánticas de hora distintas**, que es una trampa
+> fácil: el respaldo lo programa **Coolify**, que evalúa el cron en
+> `instance_timezone` = `America/Guayaquil`, así que `0 0 * * *` son las **05:00
+> UTC**. El detector lo programa **cron del sistema**, y el host está en `Etc/UTC`
+> (comprobado con `timedatectl`), así que `10 6 * * *` son las **06:10 UTC** de
+> verdad. Cambiar la zona del host movería uno y no el otro.
+
+##### Detectar no es avisar, y hoy sólo hacemos lo primero
+
+El detector sale con código 1 y deja su línea. **Nadie se entera si no la lee.** Los
+cinco canales de notificación de Coolify siguen desactivados y sin destino, y un
+aviso sin canal es un ajuste, no un aviso.
+
+**Propuesta concreta**, para que sea una decisión y no un pendiente abierto:
+
+| Opción                              | Qué hace falta                              | Valoración                                                                                                                       |
+| ----------------------------------- | ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| **Correo por Resend** (recomendada) | `RESEND_API_KEY` + una dirección autorizada | Llega donde ya se mira. Reutiliza la credencial que el producto necesita de todas formas, así que no añade una dependencia nueva |
+| Webhook a un canal de equipo        | Una URL de webhook autorizada               | Inmediato y sin correo, pero añade un destino más que mantener                                                                   |
+| Sólo registro (lo de hoy)           | Nada                                        | Honesto y gratis, y exige que alguien se acuerde de mirar. Es lo que falló el 29-10                                              |
+
+Las tres piden **un destino autorizado**, que es lo único que no puedo poner yo: una
+dirección o una URL inventada sería peor que no tener canal. Con cualquiera de los
+dos primeros, el enganche es una línea en el guion y queda comprobado el mismo día.
 
 Cómo se comprueba que sigue cerrado, sin cuentas ni escrituras:
 

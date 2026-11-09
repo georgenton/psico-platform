@@ -10,6 +10,33 @@ import { z } from "zod";
  */
 export const DEFAULT_EMAIL_FROM = "no-reply@feelverse.app";
 
+/**
+ * Una URL opcional, donde **una cadena vacía cuenta como ausente**.
+ *
+ * ── El defecto que cierra, encontrado arrancando la app de verdad ──────────
+ *
+ * `z.string().url().optional()` acepta `undefined` y rechaza `""`: una cadena
+ * vacía no es ausencia, así que `.optional()` no la alcanza y `.url()` la
+ * rechaza. El arranque muere con «SENTRY_DSN: Invalid URL».
+ *
+ * Y eso no es una rareza del ensayo: **así es como se escribe una variable
+ * borrada**. Coolify guarda una variable que alguien vació como cadena vacía,
+ * no la elimina; un `.env` escrito a mano dice `SENTRY_DSN=` para decir
+ * «ninguna»; y los cinco campos de esta forma son justamente los que se apagan
+ * — Redis, el DSN de Sentry, la base pública de R2 y las dos costuras de
+ * destino. Apagar uno de ellos por la vía natural impedía arrancar, y el
+ * mensaje —«Invalid URL»— no se parece en nada a la causa.
+ *
+ * Lo que esto NO hace: aflojar nada. Un valor presente sigue teniendo que ser
+ * una URL, y ningún campo requerido se vuelve opcional. Sólo hace que la cadena
+ * vacía signifique lo que significa para todo el que la escribe.
+ */
+const urlOpcional = (mensaje?: string) =>
+  z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    mensaje ? z.string().url(mensaje).optional() : z.string().url().optional(),
+  );
+
 export const envSchema = z
   .object({
     DATABASE_URL: z.string().url("DATABASE_URL must be a valid URL"),
@@ -29,7 +56,7 @@ export const envSchema = z
     // falls back to ioredis-mock in those environments (ADR 0008).
     // Format: standard Redis URL ("redis://..." or "rediss://..." for TLS).
     // Upstash on Railway exposes this directly via plugin.
-    REDIS_URL: z.string().url().optional(),
+    REDIS_URL: urlOpcional(),
 
     // Frontend URL — used to build links that go inside emails
     // (password reset, verify email). Must NOT have a trailing slash; the
@@ -77,10 +104,25 @@ export const envSchema = z
     // invent a URL — which could then be stored on an image and 404 forever —
     // or turn on public access for a bucket that is meant to prove PROTECTED
     // media. `StorageService` refuses at the point of use instead.
-    R2_PUBLIC_URL: z
-      .string()
-      .url("R2_PUBLIC_URL must be a valid URL")
-      .optional(),
+    R2_PUBLIC_URL: urlOpcional("R2_PUBLIC_URL must be a valid URL"),
+    /**
+     * Where the object-storage client points. Absent means the endpoint
+     * derived from `R2_ACCOUNT_ID`, which is what every deployed box uses.
+     *
+     * The third seam of the same kind as `VOYAGE_BASE_URL`, and the one that
+     * was missing. Two processors — `account-deletion` and
+     * `data-export-retention` — issue `DeleteObjectCommand` against whatever
+     * this client points at, with the key computed from the rows in front of
+     * them. In the level-4 recovery rehearsal those rows come from a RESTORED
+     * dump, so they name real people's real objects.
+     *
+     * Before this existed, the only way to keep that delete away from live
+     * storage was to omit the credentials — and the four `R2_*` above are
+     * required, so omitting them does not boot. The rehearsal was therefore
+     * asked to choose between an app that starts and an app that cannot reach
+     * production, which is not a choice. With this, it redirects.
+     */
+    R2_ENDPOINT: urlOpcional("R2_ENDPOINT must be a valid URL"),
 
     // Payment gateway selection (Phase 1: stripe | Phase 2: payphone)
     DEFAULT_PAYMENT_PROVIDER: z.enum(["stripe", "payphone"]).default("stripe"),
@@ -98,7 +140,7 @@ export const envSchema = z
      * a seam on this side, a QA run cannot reach the model at all: retrieval
      * runs first, and its 401 ends the turn before the model is asked.
      */
-    VOYAGE_BASE_URL: z.string().url().optional(),
+    VOYAGE_BASE_URL: urlOpcional(),
     AI_MAX_CONTEXT_CHUNKS: z.coerce.number().int().positive().default(5),
 
     // Stripe billing
@@ -120,6 +162,12 @@ export const envSchema = z
     // the selected provider so we don't crash mid-request.
     VOICE_PROVIDER: z.enum(["whisper", "deepgram"]).default("whisper"),
     OPENAI_API_KEY: z.string().optional(),
+    /**
+     * Where the transcription client points. Absent means the vendor's own
+     * base, which is what every deployed box uses. Fourth seam of the same
+     * kind as `VOYAGE_BASE_URL` — see `WhisperProvider.endpoint()`.
+     */
+    OPENAI_BASE_URL: urlOpcional(),
     DEEPGRAM_API_KEY: z.string().optional(),
 
     // Sprint S69 — Video provider (Terapia sala).
@@ -160,7 +208,7 @@ export const envSchema = z
     // init is a no-op and `captureException` swallows the call. Both
     // API and worker share the same DSN — same project from a triage
     // standpoint.
-    SENTRY_DSN: z.string().url().optional(),
+    SENTRY_DSN: urlOpcional(),
     SENTRY_RELEASE: z.string().optional(),
 
     // GR-2 — Cloudflare Stream, the video provider for the chapter explainer.

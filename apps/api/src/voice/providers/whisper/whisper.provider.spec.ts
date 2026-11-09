@@ -7,10 +7,20 @@ import { WhisperProvider } from "./whisper.provider";
 // makeConfig(undefined) would erroneously yield "sk-stub". An explicit sentinel
 // makes the "missing key" case unambiguous.
 const UNSET = Symbol("unset");
-function makeConfig(apiKey: string | typeof UNSET = "sk-stub") {
-  return {
-    get: vi.fn().mockReturnValue(apiKey === UNSET ? undefined : apiKey),
+// The mock answers PER KEY. It used to return the same value for every key,
+// which is not how `ConfigService` behaves — and the day the provider asked for
+// a second variable (`OPENAI_BASE_URL`, the destination seam) the mock handed it
+// the API key and the request went to `sk-stub/v1/audio/transcriptions`. The
+// existing assertion caught it, which is the whole point of pinning the URL.
+function makeConfig(
+  apiKey: string | typeof UNSET = "sk-stub",
+  baseUrl?: string,
+) {
+  const valores: Record<string, string | undefined> = {
+    OPENAI_API_KEY: apiKey === UNSET ? undefined : apiKey,
+    OPENAI_BASE_URL: baseUrl,
   };
+  return { get: vi.fn((clave: string) => valores[clave]) };
 }
 
 describe("WhisperProvider", () => {
@@ -51,6 +61,7 @@ describe("WhisperProvider", () => {
     expect((init.headers as Record<string, string>).Authorization).toBe(
       "Bearer sk-stub",
     );
+
     // FormData body — present and well-formed.
     expect(init.body).toBeInstanceOf(FormData);
 
@@ -116,5 +127,39 @@ describe("WhisperProvider", () => {
         mimeType: "audio/webm",
       }),
     ).rejects.toThrow(/WHISPER_INVALID_RESPONSE/);
+  });
+  it("sends it to a declared stand-in when OPENAI_BASE_URL is set", async () => {
+    // The seam the recovery rehearsal needs: `OPENAI_API_KEY` is required by
+    // the schema whenever VOICE_PROVIDER=whisper (the default), so emptying it
+    // is not an option — redirecting is.
+    fetchSpy.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ text: "x", duration: 1, language: "es" }),
+    });
+    const provider = new WhisperProvider(
+      makeConfig("sk-stub", "http://127.0.0.1:4555") as never,
+    );
+    await provider.transcribe({
+      audio: Buffer.from("x"),
+      mimeType: "audio/webm",
+    });
+    const [url] = fetchSpy.mock.calls[0] as [string];
+    expect(url).toBe("http://127.0.0.1:4555/v1/audio/transcriptions");
+  });
+
+  it("tolerates a trailing slash in OPENAI_BASE_URL", async () => {
+    fetchSpy.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ text: "x", duration: 1, language: "es" }),
+    });
+    const provider = new WhisperProvider(
+      makeConfig("sk-stub", "http://127.0.0.1:4555/") as never,
+    );
+    await provider.transcribe({
+      audio: Buffer.from("x"),
+      mimeType: "audio/webm",
+    });
+    const [url] = fetchSpy.mock.calls[0] as [string];
+    expect(url).toBe("http://127.0.0.1:4555/v1/audio/transcriptions");
   });
 });

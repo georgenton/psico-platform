@@ -27,9 +27,24 @@ export class StorageService {
       | string
       | undefined;
 
+    // Absent in every deployed box: the endpoint derived from the account id,
+    // exactly as before. Present only to drive this boundary with a declared
+    // local stand-in — see `R2_ENDPOINT` in the env schema for why the
+    // recovery rehearsal needs it.
+    const endpointOverride = configService.get("R2_ENDPOINT", { infer: true });
+
     this.client = new S3Client({
       region: "auto",
-      endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
+      endpoint:
+        endpointOverride || `https://${accountId}.r2.cloudflarestorage.com`,
+      // Only with an override, and only because of how the SDK addresses
+      // buckets: by default it puts the bucket in the HOSTNAME
+      // (`bucket.host`), which against a stand-in on an address rather than a
+      // domain does not resolve. The request would then fail in DNS — safe,
+      // but it proves nothing: a call that never leaves is indistinguishable
+      // from a call that was never made. Path style makes the stand-in RECEIVE
+      // it, so the rehearsal can show where the delete actually went.
+      ...(endpointOverride ? { forcePathStyle: true } : {}),
       credentials: {
         accessKeyId: configService.get("R2_ACCESS_KEY_ID", { infer: true }),
         secretAccessKey: configService.get("R2_SECRET_ACCESS_KEY", {

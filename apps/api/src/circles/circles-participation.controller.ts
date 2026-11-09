@@ -28,6 +28,7 @@ import type {
 import { JwtAuthGuard } from "../auth";
 import { CirclesGuestGuard } from "./circles-guest.guard";
 import { CirclesRolloutGuard } from "./circles-rollout.guard";
+import { CirclesParticipationRolloutGuard } from "./circles-participation-rollout.guard";
 import { CurrentCircleActor } from "./current-circle-actor.decorator";
 import { circlesException, mapCirclesErrors } from "./circles-http-errors";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
@@ -133,11 +134,17 @@ const SHARE_CONFIRMATION_BODY = {
 )
 @ApiTags("circles")
 @Controller("circles")
-@UseGuards(JwtAuthGuard, CirclesRolloutGuard)
+// La puerta de PARTICIPACIÓN, que no consulta el padrón: una invitada con
+// cuenta no puede quedar peor que la misma invitada sin cuenta. La creación
+// conserva la suya, por ruta, unas líneas más abajo.
+@UseGuards(JwtAuthGuard, CirclesParticipationRolloutGuard)
 export class CirclesMemberParticipationController {
   constructor(private readonly facade: CirclesParticipationFacade) {}
 
   @Post("duo")
+  // CREAR sí consulta el padrón. Los dos guardianes corren —el de la clase y
+  // éste—, así que esta ruta mantiene exactamente la puerta que tenía.
+  @UseGuards(JwtAuthGuard, CirclesRolloutGuard)
   @HttpCode(201)
   @Throttle(CREATE_THROTTLE)
   @ApiOperation({ summary: "Create a Dúo and its first activity" })

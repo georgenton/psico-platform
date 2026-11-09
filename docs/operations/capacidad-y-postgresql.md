@@ -173,6 +173,37 @@ son 132 MB y sus imágenes dominan su huella en disco.**
 > eso aquí no se ha podado nada: es un hallazgo para decidir con el runbook
 > delante, no una tarea de limpieza.
 
+#### Vuelto a medir el 2026-11-09: el frente se aflojó solo
+
+| Qué             | 07-11                  | **09-11**                  | Lectura       |
+| --------------- | ---------------------- | -------------------------- | ------------- |
+| Disco usado     | 77 GB (**80 %**)       | **54 GB (56 %)**           | 23 GB menos   |
+| Libre           | 20 GB                  | **43 GB**                  | más del doble |
+| Imágenes        | 47,7 GB · 25,9 reclam. | **42,0 GB · 19,8 reclam.** | 5,7 GB menos  |
+| Volúmenes       | 21,9 GB · 2,0 reclam.  | **5,9 GB · 2,0 reclam.**   | 16 GB menos   |
+| Caché de const. | 2,7 GB                 | 2,7 GB                     | igual         |
+
+**No lo podé yo**, y conviene no atribuirlo: la caja aloja otros seis proyectos
+y cualquiera de ellos pudo liberar lo suyo. Lo que sí se comprobó es lo único
+que importaba del hallazgo anterior — **los candidatos de reversión siguen
+ahí**: API 3 imágenes, Web 4, worker 3, incluidas las que el runbook §3.1
+nombra. Nada de lo que sostiene la reversión se perdió.
+
+**Plan de conservación y limpieza, para cuando vuelva a apretar.** En orden, de
+lo que se puede tirar sin pensar a lo que no se toca:
+
+| Orden | Qué                                                                  | ¿Se puede limpiar?                                                                                                       |
+| ----- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| 1     | **Caché de construcción** (`docker builder prune`), 2,7 GB           | **Sí, sin pensar.** Se regenera sola y sólo cuesta una construcción más lenta                                            |
+| 2     | **Imágenes huérfanas** (`docker image prune` sin `-a`), sin etiqueta | **Sí.** Son capas de construcciones abandonadas; no las reclama ningún recurso                                           |
+| 3     | **Volúmenes sin reclamar**, 2,0 GB                                   | **Con cuidado.** Hay que comprobar antes que ninguno sea un volumen de datos de otro proyecto parado, no sólo «dangling» |
+| 4     | Imágenes de FeelVerse **más allá de la 3.ª por servicio**            | **Sólo si se declara por escrito** hasta dónde se puede revertir. Hoy hay 3–4 por servicio y el runbook usa la anterior  |
+| 5     | **Las 3 imágenes servidas y sus anteriores inmediatas**              | **NO.** Son el nivel 1–3 del rollback. Borrarlas deja la única salida en el nivel 4, que todavía no está ensayado        |
+| 6     | **Volúmenes de PostgreSQL y Redis**                                  | **NO, nunca.** Son los datos                                                                                             |
+
+El `docker system prune -a` que la documentación de Docker recomienda alegremente
+haría **5 y 6** de una vez. No se ejecuta en esta caja.
+
 ---
 
 ## 3 · Escenario de piloto supuesto

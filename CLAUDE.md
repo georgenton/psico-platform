@@ -4105,14 +4105,14 @@ en [el runbook §4](docs/deploy/coolify-runbook.md).
 | **Construcción de la API**               | ✅ **arreglada y verificada sobre la imagen terminada** (07-11, #826). La causa no era la caché de capas de Docker que dije el 06-11: era la de **Turbo**. `build` declara sus salidas como `dist/**`, pero `prisma generate` escribe fuera del paquete, así que Turbo no lo rastrea y ante un acierto de caché restaura `dist` sin volver a generar. **Reproducido en 64 ms** en local. Arreglo: `prisma:generate` como tarea propia con `cache: false`. Verificado en la configuración exacta que fallaba —construcción forzada con 21 capas en caché—: ayer daba 0 generaciones y una imagen que no arranca, hoy da 1 y una que sí                                                                                                                                                                                                                                                      |
 | CI                                       | ✅ el fallo intermitente de la suite de PostgreSQL **está cerrado** (#813): lo causaba un `DROP DATABASE … WITH (FORCE)` sobre un pool que acababa de cerrarse                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | UAT                                      | ⚠️ **parcial**, con sus límites escritos en [la bitácora](docs/informes/uat-2026-10-23-cierre-staging.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| PostgreSQL y capacidad                   | ✅ **resueltos como trabajo técnico, no consultados** (07-11). La variante se conserva —`pgvector/pgvector:pg18` **fijada por digest**— y el pin resultó estar haciendo trabajo real: la etiqueta flotante ya divergió, así que sin él una caja nueva traería otra imagen. Medido en reposo, durante un recorrido (+40 KB, 65 filas, CPU de la API al **50,3 % de su única cuota**) y en concurrencia acotada (8 lectores → p50 194 ms). **El techo que se toca primero no es ningún recurso: es el límite de 60 peticiones por minuto** — el primer intento informó «65,8 lec/s» midiendo 429. Único frente tenso: **disco al 80 %**, y los 26 GB reclamables son los candidatos de reversión, así que no se podó nada. [Detalle](docs/operations/capacidad-y-postgresql.md)                                                                                                              |
-| Aviso de respaldo ausente                | ✅ **detector instalado y verificado** (07-11) — guion + cron 06:10 UTC + registro, sólo lectura, con control positivo y negativo y **la cadena de cron ejecutada**. Antes no había aviso posible: `missing_backup_notification_days` está puesto, pero los **cinco canales** están desactivados y sin destino, y un aviso sin canal es un ajuste. ⚠️ Falta el **canal**, que necesita una dirección autorizada                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| PostgreSQL y capacidad                   | ✅ **resueltos como trabajo técnico, no consultados** (07-11). La variante se conserva —`pgvector/pgvector:pg18` **fijada por digest**— y el pin resultó estar haciendo trabajo real: la etiqueta flotante ya divergió, así que sin él una caja nueva traería otra imagen. Medido en reposo, durante un recorrido (+40 KB, 65 filas, CPU de la API al **50,3 % de su única cuota**) y en concurrencia acotada (8 lectores → p50 194 ms). **El techo que se toca primero no es ningún recurso: es el límite de 60 peticiones por minuto** — el primer intento informó «65,8 lec/s» midiendo 429. El frente del **disco se aflojó solo**: vuelto a medir el 09-11 está al **56 %** con 43 GB libres (era 80 % y 20 GB). No lo podé yo —la caja aloja otros seis proyectos—, y lo que importaba sí se comprobó: **los candidatos de reversión siguen ahí**, 3 imágenes para la API, 4 para Web, 3 para el worker. Hay **plan de conservación y limpieza** por orden, de lo que se tira sin pensar a lo que no se toca nunca. [Detalle](docs/operations/capacidad-y-postgresql.md)                                                                                                              |
+| Aviso de respaldo ausente                | ✅ **detector instalado y verificado** (07-11) — guion + cron 06:10 UTC + registro, sólo lectura, con control positivo y negativo y **la cadena de cron ejecutada**. Antes no había aviso posible: `missing_backup_notification_days` está puesto, pero los **cinco canales** están desactivados y sin destino, y un aviso sin canal es un ajuste. **Corre solo desde entonces**: dos ejecuciones desatendidas comprobadas (08 y 09-11, las dos `OK`). La **ventana que comprueba de verdad** está ahora escrita: mira el día **anterior**, así que un respaldo que falla a las 05:00 se detecta a las **06:10 del día siguiente** — hasta **25 h 10 min**, y si la caja no arranca no se entera nadie, porque el detector vive dentro. ⚠️ Falta el **canal**, con tres opciones y una recomendada, y sólo falta el **destino autorizado**                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | Respaldo fuera del servidor              | ✅ **alcanzable Y restaurable** (06-11). El 05-11 sólo constaba que los objetos estaban subidos; faltaba lo que de verdad decide: **las credenciales del bucket vivían sólo dentro de Coolify, en la caja**, y cifradas con su `APP_KEY`, que vive ahí también — dos dependencias circulares, en el único escenario para el que existe el respaldo. Corregido: copia fuera del repositorio, y desde el Mac **sin pasar por el VPS** se listó el bucket (13 objetos), se bajó el último y `pg_restore` cerró en **rc=0, cero errores**, con el contenido contrastado contra 6 hechos conocidos. Falta el **29-10** en la serie: «diario y activo» es cierto, «todos los días» no                                                                                                                                                                                                            |
-| Recuperar tras perder el servidor        | ⚠️ **restaurar la base está comprobado; recuperar la plataforma, NO** — y conviene no confundirlos, porque el 06-11 se comprobó lo primero y es fácil leerlo como lo segundo. Comprobado: alcanzar la copia sin el servidor, restaurarla (`rc=0`) y contrastar su contenido; más las **tres** claves destructivas a salvo fuera de la caja, verificadas por hash. **Sin comprobar:** que la aplicación responda en una caja nueva — provisionar host, instalar Coolify, recrear los tres recursos, restaurar y recorrer. Una base restaurada sin servicios no atiende a nadie                                                                                                                                                                                                                                                                                                              |
-| Aislamiento del ensayo de nivel 4        | ✅ **puerta que falla cerrado** (07-11). La lista anterior era necesaria y no suficiente: de los trece procesadores, **siete** salen de la caja y dos **borran objetos de R2** desde filas restauradas. `scripts/rehearsal-isolation-check.mjs` comprueba 9 condiciones y se ejecuta **antes** de arrancar nada; trinquete de 16 pruebas que sigue un salto a los servicios inyectados, verificado por mutación                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Recuperar tras perder el servidor        | ⚠️ **restaurar la base está comprobado; recuperar la plataforma, NO** — y conviene no confundirlos, porque el 06-11 se comprobó lo primero y es fácil leerlo como lo segundo. Comprobado: alcanzar la copia sin el servidor, restaurarla (`rc=0`) y contrastar su contenido; más las **tres** claves destructivas a salvo fuera de la caja, verificadas por hash. **Sin comprobar:** que la aplicación responda en una caja nueva — provisionar host, instalar Coolify, recrear los tres recursos, restaurar y recorrer. Una base restaurada sin servicios no atiende a nadie. Lo que **sí dejó de ser un obstáculo** el 09-11 es la configuración: antes ningún fichero de entorno satisfacía a la vez a la puerta de aislamiento y a la validación de la app, así que el ensayo no podía ni arrancar. Ahora hay uno que arranca los dos procesos de verdad. **Falta la caja**                                                                                                                                                                                                                                                                                                              |
+| Aislamiento del ensayo de nivel 4        | ✅ **puerta que falla cerrado** (07-11). La lista anterior era necesaria y no suficiente: de los trece procesadores, **siete** salen de la caja y dos **borran objetos de R2** desde filas restauradas. ✅ **y ejecutable desde el 09-11**, que no es lo mismo: la puerta exigía las claves **vacías**, y el modelo, los embeddings, la transcripción y R2 están declarados **requeridos** — vaciarlos no arranca. Pedía a la vez una app aislada y una app que no existe. Hoy pregunta «¿puede esto alcanzar al proveedor?» y comprueba **18** condiciones, Redis incluido (las colas de BullMQ no se separan por entorno). Demostrado **arrancando los binarios**: API `ready=true` 71/71, worker con 12 colas, el borrado de R2 y la llamada al modelo **llegaron al sustituto local**, cero con destino al proveedor, y el control negativo falla 3 de 18                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | Rollback a la imagen anterior            | ⚠️ **ensayo operativo HECHO** (2026-10-24) — sigue condicionado a su precondición de contenido y al residuo de la ventana. Y el residuo tiene un límite que ahora está dicho con precisión: la reconciliación manual que lo cerraría **nunca se ha ejecutado**, así que son instrucciones sin estrenar, no un mecanismo comprobado. Candidatos de reversión por servicio en [el runbook §3.1](docs/deploy/coolify-runbook.md) — y **«la versión anterior» no es una versión**: el worker no tiene build de `6cb27281`, su anterior es de dos semanas antes                                                                                                                                                                                                                                                                                                                                 |
-| Modo guiado · las cinco de C01           | **Definición Guide** registrada en código ✅ · **Experience en OVH: AUSENTE** — `ChapterExperienceVersion` tiene **0 filas**, comprobado en sólo lectura por clave y versión · **disponible** sólo QA ✅ · **ejecución HTTP probada** ✅ (**31/31**, con control negativo) · **pantalla comprobada** ✅ (08-11: las cinco aparecen numeradas, con duración y estado) · **aprobación editorial: NO acreditada** — lo que hay es una _recomendación_ («publicar APPROVE, flag HOLD») y un «**NO se autoriza todavía publicar las cinco Experiences**» explícito del 04-09; el 03-09 autoriza **implementar**, no publicar · **abierta a personas reales** ❌                                                                                                                                                                                                                                 |
-| Círculos / Dúo                           | ✅ **habilitado** (06-11) **y recorrido con DOS partes** (07-11) — y son dos cosas distintas: lo primero es que la superficie responda, lo segundo que dos personas completen el intercambio. **33/33**: la contraparte inspecciona y **acepta ella misma** por la Web, los dos confirman, el acuerdo se propone y se confirma por ambos, el seguimiento se abre por reloj y **las dos decisiones lo cierran**, y la retirada da el desenlace que anuncia. El invariante medido está en la ventana intermedia: con uno confirmado y el otro no, **ninguno ve lo del otro** — y eso dejó de ser una ausencia que se aprobaba sola: exige lectura 200, el estado de la etapa y que lo del otro **ya exista** en ese instante (dos mutaciones ejecutadas). ⚠️ Pendiente **editorial**: el vínculo del Dúo cuelga de un pin retirado — propuesta de sucesión completa en la bitácora del 07-11 |
+| Modo guiado · las cinco de C01           | **Definición Guide** registrada en código ✅ · **Experience en OVH: AUSENTE** — `ChapterExperienceVersion` tiene **0 filas**, comprobado en sólo lectura por clave y versión · **disponible** sólo QA ✅ · **ejecución HTTP probada** ✅ (**31/31**, con control negativo) · **pantalla: la LISTA sí, la INTERACCIÓN no** ⚠️ (09-11) — las cinco aparecen numeradas, con duración y estado, pero pulsar «Revisar» responde «No pudimos preparar el recorrido»: `GET /api/experiences/mine/<clave>/1` da **404** y el descubrimiento del capítulo devuelve **sólo la legada**. No es defecto de código — el panel se niega a propósito a pintar una portada cuyo pasaje no puede mostrar. Es la **decisión A**, con su consecuencia visible · **aprobación editorial: NO acreditada** — lo que hay es una _recomendación_ («publicar APPROVE, flag HOLD») y un «**NO se autoriza todavía publicar las cinco Experiences**» explícito del 04-09; el 03-09 autoriza **implementar**, no publicar · **abierta a personas reales** ❌                                                                                                                                                                                                                                 |
+| Círculos / Dúo                           | ✅ **habilitado** (06-11) **y recorrido con DOS partes** (07-11) — y son dos cosas distintas: lo primero es que la superficie responda, lo segundo que dos personas completen el intercambio. **33/33**: la contraparte inspecciona y **acepta ella misma** por la Web, los dos confirman, el acuerdo se propone y se confirma por ambos, el seguimiento se abre por reloj y **las dos decisiones lo cierran**, y la retirada da el desenlace que anuncia. El invariante medido está en la ventana intermedia: con uno confirmado y el otro no, **ninguno ve lo del otro** — y eso dejó de ser una ausencia que se aprobaba sola: exige lectura 200, el estado de la etapa y que lo del otro **ya exista** en ese instante (dos mutaciones ejecutadas). ⚠️ Pendiente **editorial**: el vínculo del Dúo cuelga de un pin retirado — propuesta de sucesión completa en la bitácora del 07-11. **Y un defecto corregido el 09-11**: con `pilot`, la misma invitada **sin sesión** abría la sala entera y **con sesión**, fuera del padrón, recibía «Círculos no está disponible todavía» — tener cuenta te dejaba peor que no tenerla. Arreglado acotado (la participación deja de consultar el padrón; **crear lo conserva**), pendiente de comprobar sobre staging |
 | Cobros reales                            | ⏸️ **conservan su situación actual** — cerrados                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 
 #### Webhooks ≠ D-ORD
@@ -4518,6 +4518,77 @@ distintas:
     intacto, y con **cero** referencias hoy. No se tocó: retirarla es un acto
     editorial sobre un canónico bloqueado.
 
+27. ✅ **El ensayo de recuperación dejó de pedir una configuración imposible**
+    (09-11, [#831](https://github.com/georgenton/psico-platform/pull/831)). La
+    puerta exigía las claves **vacías**, y el modelo, los embeddings, la
+    transcripción y R2 están declarados **requeridos**: vaciarlos no arranca.
+    Pedía a la vez una app aislada y una app que no existe. Y tenía una segunda
+    mitad peor: comprobaba el **nombre del bucket** cuando el destino sale de
+    `R2_ACCOUNT_ID`, así que copiar la cuenta de staging renombrando el bucket
+    **pasaba** y mandaba el borrado a la cuenta viva.
+
+    La pregunta correcta no es «¿está apagada?» sino **«¿puede esto alcanzar al
+    proveedor?»**. Demostrado **arrancando los binarios** contra base y Redis
+    desechables: el borrado de R2 y la llamada al modelo **llegaron a un
+    sustituto local**, con la clave del objeto y el cuerpo del mensaje — que es
+    lo que distingue «no salió» de «nunca se hizo».
+
+    Y dos defectos de la aplicación que sólo aparecen arrancándola: una variable
+    opcional **vaciada** impedía arrancar (`SENTRY_DSN=` → «Invalid URL», y la
+    cadena vacía es cómo Coolify guarda una variable borrada), y
+    `OPENAI_API_KEY` es requerida por `superRefine` sin estar en el bloque
+    `.min(1)`, así que es fácil de olvidar — se olvidó.
+
+28. ✅ **Tener cuenta te dejaba peor que no tenerla, en Círculos** (09-11,
+    [#832](https://github.com/georgenton/psico-platform/pull/832)). Medido en
+    pantalla con dos navegadores: la misma invitada, al mismo Dúo, **sin sesión**
+    abría la sala entera y **con sesión**, fuera del padrón, recibía «Círculos no
+    está disponible todavía». La superficie de invitadas ya está abierta bajo
+    `pilot` a propósito —«negarla haría que un miembro del padrón no pudiera
+    invitar a nadie»— y ese argumento no se había aplicado a la invitada que
+    además tiene cuenta, que en un piloto real son casi todas. Arreglo acotado:
+    la participación deja de consultar el padrón, **crear lo conserva**.
+
+29. ⚠️ **El guía en pantalla: la lista sí, la interacción no** (09-11). Las cinco
+    microguías aparecen numeradas, con duración y estado; pulsar «Revisar»
+    responde «No pudimos preparar el recorrido». La causa, medida: las cinco no
+    tienen **definición de Experience en ningún sitio**, y el panel se niega a
+    propósito a pintar una portada cuyo pasaje no puede mostrar. **Es la decisión
+    A con su consecuencia visible**, y no se forzó por otra vía. Corrige la
+    matriz: «pantalla comprobada» era cierto de la lista y falso de la
+    interacción.
+
+#### La siguiente ejecución hacia producción
+
+Cinco cajones, y la diferencia entre ellos es quién puede moverlos.
+
+**1 · Integrado en el repositorio** — `main` con #831 y #832. Nada de esto cambia
+el producto servido hasta que se despliegue.
+
+**2 · Desplegado y comprobado** — API y worker `f15c5c96`; Web `2b452f86` con el
+control deshabilitado verificado **sobre el elemento real**. El detector de
+respaldo corre solo (dos ejecuciones desatendidas). La configuración VAPID está
+viva y el conmutador ofrece «Activar».
+
+**3 · Listo para ejecutar, sin esperar a nadie** — desplegar la **API** con #831
+y #832, que trae además el remitente corregido de #828 y la tarjeta de C05 de
+#827. Es la única acción de despliegue que esta sesión deja preparada, y la
+necesita el arreglo de Círculos para poder comprobarse sobre staging.
+
+**4 · Pendiente de un insumo** — el recorrido de **correo** (`RESEND_API_KEY` +
+una bandeja autorizada), **Sentry** (`SENTRY_DSN`), **Google** (`GOOGLE_CLIENT_ID`,
+que puede quedar fuera del piloto), el **canal del aviso de respaldo** (un destino
+autorizado) y el **ensayo de nivel 4** (un VPS temporal).
+
+**5 · Pendiente de una decisión del propietario** — las **ocho** del paquete
+editorial y la **propuesta comercial** de su §8. Dos de ellas, A y B, son las que
+hoy mantienen las cinco microguías visibles y no abribles.
+
+**Producción sigue sin existir como recurso.** El DNS pre-apuntado, una
+aplicación sana en staging y una copia restaurable son **avances parciales**, y
+conviene no leerlos como producción a medias: el proyecto de Coolify tiene tres
+aplicaciones y las tres son de staging.
+
 #### Lo que pide una decisión tuya
 
 El token de Coolify **ya no está en esta lista**: se recuperó el 05-11 y con él se
@@ -4578,26 +4649,37 @@ en **[la matriz de F3](https://claude.ai/artifact/UtBZxMUDiqSuSwY3mGh5ah)**:
       es una reapertura editorial del canónico; y en la misma línea hay una
       segunda pregunta: un capítulo publicado diría «Referencias», no
       «Referencias de trabajo».
-   5. **Las otras dos obras**: _Familias ensambladas_ existe, sin publicar, con
-      tres capítulos y ninguna parte asignada; _Parejas que perduran_ no tiene
-      fila y se dejó ausente a propósito. Lo que falta de cada una está en el
-      inventario.
+   5. **Las otras dos obras.** Lo que falta de cada una es **material y
+      preparación editorial, no la decisión de si pertenecen al producto**: el
+      alcance editorial final incluye las tres obras, y la autoría está
+      resuelta — _EEC_ y _Familias ensambladas_ son de Jorge Quizamanchuro,
+      _Parejas que perduran_ de David Jaramillo. Hoy _Familias_ existe como
+      fila, sin publicar, con tres capítulos y ninguna parte asignada;
+      _Parejas_ todavía no tiene fila. El detalle, en el inventario.
+   6. **El primer recurso de audio o video.** Se propone **audio del capítulo 1
+      de _EEC_**: es el capítulo gratuito al que llega cualquiera, y el camino
+      del audio es el que más maquinaria valida de una vez —subida a R2, fila
+      `Audio`, URL firmada con su vencimiento, barra del lector y metadatos de
+      pantalla bloqueada—. Hace falta un fichero y tres datos: título, duración
+      en segundos y, si existe, transcripción. Hoy: **10 bloques de video con 0
+      archivos** y **0 filas de audio**.
 
    **Las ocho, juntas y con su propuesta**, en
    [docs/product/paquete-editorial-2026-11-07.md](docs/product/paquete-editorial-2026-11-07.md):
    cada una con qué está en juego, qué se propone, qué implica ejecutarla y
-   **qué NO hace**. Dos correcciones que salieron de escribirlo: la decisión A
-   (publicar las cinco Experiences) **sí está aprobada** —lo que es
-   recomendación es el par «publicar A, mantener B en HOLD»—, y mi afirmación de
-   que dos versiones publicadas del Dúo darían 404 era **falsa**: el resolutor
-   devuelve `null`, silencio y no error, y el acuerdo entre la entrada de
-   elegibilidad y la plantilla es **bidireccional**. 6. **El primer recurso de audio o video.** Se propone **audio del capítulo 1
-   de _EEC_**: es el capítulo gratuito al que llega cualquiera, y el camino
-   del audio es el que más maquinaria valida de una vez —subida a R2, fila
-   `Audio`, URL firmada con su vencimiento, barra del lector y metadatos de
-   pantalla bloqueada—. Hace falta un fichero y tres datos: título, duración
-   en segundos y, si existe, transcripción. Hoy: **10 bloques de video con 0
-   archivos** y **0 filas de audio**.
+   **qué NO hace**.
+
+   > **Corrección del 2026-11-09.** Aquí se leía que «la decisión A (publicar
+   > las cinco Experiences) **sí está aprobada**». Es **falso**, y contradecía
+   > al punto 3 de esta misma lista cuatro párrafos más arriba. La fuente
+   > primaria registra «Aprobación autoral: BLOCKED — Pendiente de decisión de
+   > Jorge», «Readiness para PUBLISHED: BLOCKED» y «Microguías aprobadas: 0»;
+   > lo aprobado el 2026-09-03 es **implementar**, que no es publicar. **A y B
+   > siguen siendo las dos decisiones del propietario.** La otra corrección de
+   > ese párrafo sí se sostiene: mi afirmación de que dos versiones publicadas
+   > del Dúo darían 404 era falsa — el resolutor devuelve `null`, silencio y no
+   > error, y el acuerdo entre la entrada de elegibilidad y la plantilla es
+   > **bidireccional**.
 
 6. **Precios y apertura de cobros**, con sus seis condiciones.
 7. **Lo que queda de Círculos es editorial, no de proveedor.** El destino se

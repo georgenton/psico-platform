@@ -4002,7 +4002,7 @@ es la sección que se mantiene; esta entrada es su antecedente fechado.
 
 ---
 
-### 🧭 Trabajo vigente — corte del 2026-11-04
+### 🧭 Trabajo vigente — corte del 2026-11-09
 
 **Esta es la única sección de este archivo que describe el presente.** Todo lo
 de arriba —incluidas las listas de «backlog aprobado» y los «siguientes pasos»
@@ -4010,13 +4010,13 @@ de cada bitácora de sesión— es **antecedente fechado**: explica cómo se lle
 aquí, no lo que toca hacer. Si una instrucción antigua contradice esta
 sección, manda esta sección.
 
-#### El corte — 2026-11-07
+#### El corte — 2026-11-09
 
 |                    |                                                                                                               |
 | ------------------ | ------------------------------------------------------------------------------------------------------------- |
 | Dónde vive         | **OVH con Coolify, y sólo ahí.** Vercel y Railway retiradas del plan operativo                                |
-| `main`             | `2b452f86` (#829) · cero PR abiertos                                                                          |
-| Servido en staging | API y worker `f15c5c96` (07-11) · Web `2b452f86` (08-11) — leído del contenedor, no de esta tabla             |
+| `main`             | `87a1192b` (#832) · cero PR abiertos                                                                          |
+| Servido en staging | **API `87a1192b`** (09-11) · worker `f15c5c96` (07-11) · Web `2b452f86` (08-11) — leído del contenedor, no de esta tabla |
 | ¿Coinciden?        | API y worker sí. La Web no cambió, así que sigue en su artefacto — y no se redespliega para igualar una tabla |
 | Producción         | **no existe como recurso.** Tres aplicaciones en el proyecto, las tres de staging                             |
 
@@ -4066,7 +4066,7 @@ desplegar; un cambio funcional sí lo es, y por eso el 25-10 se desplegó
 
 | Servicio   | Artefacto                           | Por qué se conserva (o se desplegó)                                                                                                                                                                                                                                                                                                   |
 | ---------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| API        | `aft7nt3p6wsormno2cejtavj:f15c5c96` | **desplegado** el 07-11 con el arreglo de la construcción (#826). Gate de migraciones cerrado y comprobado sobre la imagen servida: 71/71, `pending` y `failed` vacíos                                                                                                                                                                |
+| API        | `aft7nt3p6wsormno2cejtavj:87a1192b` | **desplegado** el 09-11 con el arreglo de Círculos (#832) y el del ensayo (#831); arrastra además el remitente corregido (#828) y la tarjeta de C05 (#827). Gate comprobado sobre la imagen servida: `ready=true`, **71/71**, `pending` y `failed` vacíos |
 | Web        | `wwsluxasxlko4yf3fliwmkek:2b452f86` | **desplegado** el 08-11, y no para igualar la tabla: entre lo que servía y esto cambian **exactamente dos archivos** de Web —la regla `:disabled` de `.btn` y su prueba—. Comprobado en la hoja compilada del contenedor: `.btn:disabled{opacity:.45;cursor:not-allowed}` y `.btn.primary:hover:not(:disabled)`. Conserva #816 y #818 |
 | worker     | `hwxntaqogysfzgt1ehqq3ufl:f15c5c96` | **desplegado** el 07-11: construye con la misma receta que la API, así que el arreglo tenía que alcanzarlo                                                                                                                                                                                                                            |
 | PostgreSQL | `pgvector/pgvector:pg18@2ba9ca5f…`  | **fijada por digest**, y el pin hace trabajo real: la etiqueta flotante `pg18` ya apunta a otro digest. PG **18.6** · `vector 0.8.6` · 37 días sin reiniciar. Ver [capacidad](docs/operations/capacidad-y-postgresql.md)                                                                                                              |
@@ -4112,7 +4112,7 @@ en [el runbook §4](docs/deploy/coolify-runbook.md).
 | Aislamiento del ensayo de nivel 4        | ✅ **puerta que falla cerrado** (07-11). La lista anterior era necesaria y no suficiente: de los trece procesadores, **siete** salen de la caja y dos **borran objetos de R2** desde filas restauradas. ✅ **y ejecutable desde el 09-11**, que no es lo mismo: la puerta exigía las claves **vacías**, y el modelo, los embeddings, la transcripción y R2 están declarados **requeridos** — vaciarlos no arranca. Pedía a la vez una app aislada y una app que no existe. Hoy pregunta «¿puede esto alcanzar al proveedor?» y comprueba **18** condiciones, Redis incluido (las colas de BullMQ no se separan por entorno). Demostrado **arrancando los binarios**: API `ready=true` 71/71, worker con 12 colas, el borrado de R2 y la llamada al modelo **llegaron al sustituto local**, cero con destino al proveedor, y el control negativo falla 3 de 18                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | Rollback a la imagen anterior            | ⚠️ **ensayo operativo HECHO** (2026-10-24) — sigue condicionado a su precondición de contenido y al residuo de la ventana. Y el residuo tiene un límite que ahora está dicho con precisión: la reconciliación manual que lo cerraría **nunca se ha ejecutado**, así que son instrucciones sin estrenar, no un mecanismo comprobado. Candidatos de reversión por servicio en [el runbook §3.1](docs/deploy/coolify-runbook.md) — y **«la versión anterior» no es una versión**: el worker no tiene build de `6cb27281`, su anterior es de dos semanas antes                                                                                                                                                                                                                                                                                                                                 |
 | Modo guiado · las cinco de C01           | **Definición Guide** registrada en código ✅ · **Experience en OVH: AUSENTE** — `ChapterExperienceVersion` tiene **0 filas**, comprobado en sólo lectura por clave y versión · **disponible** sólo QA ✅ · **ejecución HTTP probada** ✅ (**31/31**, con control negativo) · **pantalla: la LISTA sí, la INTERACCIÓN no** ⚠️ (09-11) — las cinco aparecen numeradas, con duración y estado, pero pulsar «Revisar» responde «No pudimos preparar el recorrido»: `GET /api/experiences/mine/<clave>/1` da **404** y el descubrimiento del capítulo devuelve **sólo la legada**. No es defecto de código — el panel se niega a propósito a pintar una portada cuyo pasaje no puede mostrar. Es la **decisión A**, con su consecuencia visible · **aprobación editorial: NO acreditada** — lo que hay es una _recomendación_ («publicar APPROVE, flag HOLD») y un «**NO se autoriza todavía publicar las cinco Experiences**» explícito del 04-09; el 03-09 autoriza **implementar**, no publicar · **abierta a personas reales** ❌                                                                                                                                                                                                                                 |
-| Círculos / Dúo                           | ✅ **habilitado** (06-11) **y recorrido con DOS partes** (07-11) — y son dos cosas distintas: lo primero es que la superficie responda, lo segundo que dos personas completen el intercambio. **33/33**: la contraparte inspecciona y **acepta ella misma** por la Web, los dos confirman, el acuerdo se propone y se confirma por ambos, el seguimiento se abre por reloj y **las dos decisiones lo cierran**, y la retirada da el desenlace que anuncia. El invariante medido está en la ventana intermedia: con uno confirmado y el otro no, **ninguno ve lo del otro** — y eso dejó de ser una ausencia que se aprobaba sola: exige lectura 200, el estado de la etapa y que lo del otro **ya exista** en ese instante (dos mutaciones ejecutadas). ⚠️ Pendiente **editorial**: el vínculo del Dúo cuelga de un pin retirado — propuesta de sucesión completa en la bitácora del 07-11. **Y un defecto corregido el 09-11**: con `pilot`, la misma invitada **sin sesión** abría la sala entera y **con sesión**, fuera del padrón, recibía «Círculos no está disponible todavía» — tener cuenta te dejaba peor que no tenerla. Arreglado acotado (la participación deja de consultar el padrón; **crear lo conserva**), pendiente de comprobar sobre staging |
+| Círculos / Dúo                           | ✅ **habilitado** (06-11) **y recorrido con DOS partes** (07-11) — y son dos cosas distintas: lo primero es que la superficie responda, lo segundo que dos personas completen el intercambio. **33/33**: la contraparte inspecciona y **acepta ella misma** por la Web, los dos confirman, el acuerdo se propone y se confirma por ambos, el seguimiento se abre por reloj y **las dos decisiones lo cierran**, y la retirada da el desenlace que anuncia. El invariante medido está en la ventana intermedia: con uno confirmado y el otro no, **ninguno ve lo del otro** — y eso dejó de ser una ausencia que se aprobaba sola: exige lectura 200, el estado de la etapa y que lo del otro **ya exista** en ese instante (dos mutaciones ejecutadas). ⚠️ Pendiente **editorial**: el vínculo del Dúo cuelga de un pin retirado — propuesta de sucesión completa en la bitácora del 07-11. **Y un defecto corregido el 09-11**: con `pilot`, la misma invitada **sin sesión** abría la sala entera y **con sesión**, fuera del padrón, recibía «Círculos no está disponible todavía» — tener cuenta te dejaba peor que no tenerla. Arreglado acotado (la participación deja de consultar el padrón; **crear lo conserva**) **y comprobado sobre staging** con la API en `87a1192b`: la misma cuenta, con sesión y fuera del padrón, abre ahora la sala entera |
 | Cobros reales                            | ⏸️ **conservan su situación actual** — cerrados                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 
 #### Webhooks ≠ D-ORD
@@ -4548,6 +4548,9 @@ distintas:
     invitar a nadie»— y ese argumento no se había aplicado a la invitada que
     además tiene cuenta, que en un piloto real son casi todas. Arreglo acotado:
     la participación deja de consultar el padrón, **crear lo conserva**.
+    Comprobado sobre staging tras desplegar la API a `87a1192b`: la misma
+    cuenta abre ahora la sala entera, y que estaba con sesión se acreditó por
+    la redirección a `/onboarding` en vez de `/login`.
 
 29. ⚠️ **El guía en pantalla: la lista sí, la interacción no** (09-11). Las cinco
     microguías aparecen numeradas, con duración y estado; pulsar «Revisar»
@@ -4570,10 +4573,12 @@ control deshabilitado verificado **sobre el elemento real**. El detector de
 respaldo corre solo (dos ejecuciones desatendidas). La configuración VAPID está
 viva y el conmutador ofrece «Activar».
 
-**3 · Listo para ejecutar, sin esperar a nadie** — desplegar la **API** con #831
-y #832, que trae además el remitente corregido de #828 y la tarjeta de C05 de
-#827. Es la única acción de despliegue que esta sesión deja preparada, y la
-necesita el arreglo de Círculos para poder comprobarse sobre staging.
+**3 · Ejecutado el mismo día** — la API se desplegó a `87a1192b`, que trae #831
+y #832 más el remitente corregido de #828 y la tarjeta de C05 de #827. Gate
+comprobado sobre la imagen servida, y el arreglo de Círculos verificado encima:
+la misma cuenta, con sesión y fuera del padrón, abre ahora la sala entera. **El
+worker y la Web no se desplegaron**: ninguno tiene un cambio funcional que
+necesite salir, y no se redespliega para igualar un SHA.
 
 **4 · Pendiente de un insumo** — el recorrido de **correo** (`RESEND_API_KEY` +
 una bandeja autorizada), **Sentry** (`SENTRY_DSN`), **Google** (`GOOGLE_CLIENT_ID`,

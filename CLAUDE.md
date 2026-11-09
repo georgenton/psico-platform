@@ -4578,26 +4578,37 @@ en **[la matriz de F3](https://claude.ai/artifact/UtBZxMUDiqSuSwY3mGh5ah)**:
       es una reapertura editorial del canónico; y en la misma línea hay una
       segunda pregunta: un capítulo publicado diría «Referencias», no
       «Referencias de trabajo».
-   5. **Las otras dos obras**: _Familias ensambladas_ existe, sin publicar, con
-      tres capítulos y ninguna parte asignada; _Parejas que perduran_ no tiene
-      fila y se dejó ausente a propósito. Lo que falta de cada una está en el
-      inventario.
+   5. **Las otras dos obras.** Lo que falta de cada una es **material y
+      preparación editorial, no la decisión de si pertenecen al producto**: el
+      alcance editorial final incluye las tres obras, y la autoría está
+      resuelta — _EEC_ y _Familias ensambladas_ son de Jorge Quizamanchuro,
+      _Parejas que perduran_ de David Jaramillo. Hoy _Familias_ existe como
+      fila, sin publicar, con tres capítulos y ninguna parte asignada;
+      _Parejas_ todavía no tiene fila. El detalle, en el inventario.
+   6. **El primer recurso de audio o video.** Se propone **audio del capítulo 1
+      de _EEC_**: es el capítulo gratuito al que llega cualquiera, y el camino
+      del audio es el que más maquinaria valida de una vez —subida a R2, fila
+      `Audio`, URL firmada con su vencimiento, barra del lector y metadatos de
+      pantalla bloqueada—. Hace falta un fichero y tres datos: título, duración
+      en segundos y, si existe, transcripción. Hoy: **10 bloques de video con 0
+      archivos** y **0 filas de audio**.
 
    **Las ocho, juntas y con su propuesta**, en
    [docs/product/paquete-editorial-2026-11-07.md](docs/product/paquete-editorial-2026-11-07.md):
    cada una con qué está en juego, qué se propone, qué implica ejecutarla y
-   **qué NO hace**. Dos correcciones que salieron de escribirlo: la decisión A
-   (publicar las cinco Experiences) **sí está aprobada** —lo que es
-   recomendación es el par «publicar A, mantener B en HOLD»—, y mi afirmación de
-   que dos versiones publicadas del Dúo darían 404 era **falsa**: el resolutor
-   devuelve `null`, silencio y no error, y el acuerdo entre la entrada de
-   elegibilidad y la plantilla es **bidireccional**. 6. **El primer recurso de audio o video.** Se propone **audio del capítulo 1
-   de _EEC_**: es el capítulo gratuito al que llega cualquiera, y el camino
-   del audio es el que más maquinaria valida de una vez —subida a R2, fila
-   `Audio`, URL firmada con su vencimiento, barra del lector y metadatos de
-   pantalla bloqueada—. Hace falta un fichero y tres datos: título, duración
-   en segundos y, si existe, transcripción. Hoy: **10 bloques de video con 0
-   archivos** y **0 filas de audio**.
+   **qué NO hace**.
+
+   > **Corrección del 2026-11-09.** Aquí se leía que «la decisión A (publicar
+   > las cinco Experiences) **sí está aprobada**». Es **falso**, y contradecía
+   > al punto 3 de esta misma lista cuatro párrafos más arriba. La fuente
+   > primaria registra «Aprobación autoral: BLOCKED — Pendiente de decisión de
+   > Jorge», «Readiness para PUBLISHED: BLOCKED» y «Microguías aprobadas: 0»;
+   > lo aprobado el 2026-09-03 es **implementar**, que no es publicar. **A y B
+   > siguen siendo las dos decisiones del propietario.** La otra corrección de
+   > ese párrafo sí se sostiene: mi afirmación de que dos versiones publicadas
+   > del Dúo darían 404 era falsa — el resolutor devuelve `null`, silencio y no
+   > error, y el acuerdo entre la entrada de elegibilidad y la plantilla es
+   > **bidireccional**.
 
 6. **Precios y apertura de cobros**, con sus seis condiciones.
 7. **Lo que queda de Círculos es editorial, no de proveedor.** El destino se

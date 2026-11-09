@@ -13,6 +13,7 @@ import { CirclesParticipationFacade } from "./circles-participation.facade";
 import { JwtAuthGuard } from "../auth";
 import { CirclesGuestGuard } from "./circles-guest.guard";
 import { CirclesRolloutGuard } from "./circles-rollout.guard";
+import { CirclesParticipationRolloutGuard } from "./circles-participation-rollout.guard";
 import { HttpExceptionFilter } from "../shared";
 
 /**
@@ -116,6 +117,11 @@ describe("circles · the confirm-share boundary (real Nest pipeline)", () => {
       .overrideGuard(JwtAuthGuard)
       .useValue(ADMIT_MEMBER)
       .overrideGuard(CirclesRolloutGuard)
+      .useValue({ canActivate: () => true })
+      // La puerta de PARTICIPACIÓN, que desde el 2026-11-09 es la de la clase.
+      // Se sustituye igual que la otra: esta prueba mide el borde de
+      // confirm-share, no el despliegue.
+      .overrideGuard(CirclesParticipationRolloutGuard)
       .useValue({ canActivate: () => true })
       .overrideGuard(CirclesGuestGuard)
       .useValue(ADMIT_GUEST)

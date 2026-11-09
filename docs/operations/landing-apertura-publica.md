@@ -37,9 +37,19 @@ pedir ningún dato. Antes de abrir cobros hacen falta las seis condiciones que l
 página lista como «Por definir»: duración del acceso, cuota de Eco, modalidades y
 participantes de Dúo y Círculos, renovación, cancelación e impuestos.
 
-Y antes que todas ellas, **D-ORD**: un evento de suscripción viejo reentregado después
-revive el plan de alguien que canceló. Está reproducido contra PostgreSQL real en
-`apps/api/src/subscription/billing-events.pg-spec.ts` y sigue abierto.
+Y antes que todas ellas, **D-ORD**, que conviene leer en dos mitades desde el
+2026-10-23:
+
+- **La mitad técnica está cerrada.** Un evento de suscripción viejo reentregado
+  revivía el plan de alguien que canceló; hoy el webhook reclama el evento antes de
+  aplicar el efecto y lo sella después, con su migración
+  (`20261023120000_dord_stripe_event_claim`) aplicada, y el caso sigue reproducido
+  contra PostgreSQL real en `apps/api/src/subscription/billing-events.pg-spec.ts`,
+  ahora como regresión.
+- **La mitad operativa y comercial sigue abierta**, y es la que bloquea cobros: las
+  condiciones de apertura y los importes. La propuesta concreta, con sus siete filas
+  y sus seis condiciones de lanzamiento, está en
+  [docs/product/paquete-editorial-2026-11-07.md §8](../product/paquete-editorial-2026-11-07.md).
 
 D-ORD bloquea **cobros reales**, no la revisión visual ni el despliegue de una página
 que no cobra.

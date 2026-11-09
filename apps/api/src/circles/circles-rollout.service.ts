@@ -64,6 +64,40 @@ export class CirclesRolloutService {
   }
 
   /**
+   * Whether an AUTHENTICATED actor may act inside an activity they already
+   * have a seat in.
+   *
+   * ── El defecto que cierra, medido en pantalla el 2026-11-09 ───────────────
+   *
+   * Con `pilot`, la misma persona invitada al mismo Dúo con el mismo enlace:
+   *
+   *   · **sin sesión** → la sala abre entera (consentimiento, salvaguardas,
+   *     «0 de 2 listas», «Entiendo, empezar»);
+   *   · **con sesión**, cuenta fuera del padrón → «No pudimos abrir esta sala.
+   *     Círculos no está disponible todavía.»
+   *
+   * Es decir, **tener cuenta te dejaba peor que no tenerla**. Y no por una
+   * decisión: porque `isAvailable` era la única pregunta que sabía hacer la
+   * puerta autenticada, y esa pregunta es sobre el padrón.
+   *
+   * El razonamiento que `isGuestSurfaceAvailable` ya escribe se aplica aquí
+   * palabra por palabra: la participación **cabalga sobre la habilitación de
+   * quien invita**, que la invitación ya codifica —sólo un miembro habilitado
+   * pudo crearla—, y negarla «haría que un miembro del padrón no pudiera
+   * invitar a nadie», que es lo que pasaba con cualquiera que tuviese cuenta.
+   *
+   * **Esto NO ensancha la audiencia.** Ya era «quien reciba el enlace», por la
+   * vía anónima. Lo que deja de hacer es penalizar tener cuenta.
+   *
+   * **Y no ensancha lo que se puede EMPEZAR**: crear un Dúo o un Círculo sigue
+   * preguntando por `isAvailable`. Esta puerta sólo admite al actor; el asiento
+   * lo resuelve `resolveAuthority`, que rechaza a quien no lo tenga.
+   */
+  isParticipationAvailable(): boolean {
+    return this.mode !== "off";
+  }
+
+  /**
    * Whether this actor may create an adult GROUP.
    *
    * Strictly narrower than `isAvailable`, never wider: the modality switch can

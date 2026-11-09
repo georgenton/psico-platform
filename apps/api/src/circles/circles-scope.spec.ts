@@ -624,9 +624,17 @@ describe("circles · PR3 — participation keeps every earlier promise", () => {
     const controller = code(
       read(`${CIRCLES_DIR}/circles-participation.controller.ts`),
     );
-    // Both surfaces carry a rollout-aware guard at the class level.
+    // Both surfaces carry a rollout-aware guard at the class level. Desde el
+    // 2026-11-09 la autenticada lleva `CirclesParticipationRolloutGuard`, que
+    // cierra igual con `off` y se diferencia sólo en que no consulta el padrón
+    // —una invitada con cuenta no puede quedar peor que la misma invitada sin
+    // cuenta—. Se comprueban las dos por separado para que esta prueba siga
+    // diciendo lo que mira: la del padrón sigue ahí, pero sobre la CREACIÓN.
     expect(controller).toMatch(
-      /@UseGuards\(JwtAuthGuard, CirclesRolloutGuard\)/,
+      /@UseGuards\(JwtAuthGuard, CirclesParticipationRolloutGuard\)\s*\nexport class CirclesMemberParticipationController/,
+    );
+    expect(controller).toMatch(
+      /@Post\("duo"\)[\s\S]{0,400}?@UseGuards\(JwtAuthGuard, CirclesRolloutGuard\)/,
     );
     expect(controller).toMatch(/@UseGuards\(CirclesGuestGuard\)/);
   });

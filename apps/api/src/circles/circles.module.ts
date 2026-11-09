@@ -17,6 +17,7 @@ import {
 import { CirclesGuestGuard } from "./circles-guest.guard";
 import { CirclesGuestSurfaceGuard } from "./circles-guest-surface.guard";
 import { CirclesRolloutGuard } from "./circles-rollout.guard";
+import { CirclesParticipationRolloutGuard } from "./circles-participation-rollout.guard";
 import { CirclesRolloutService } from "./circles-rollout.service";
 import { CirclesService } from "./circles.service";
 import { CIRCLES_CIPHER, resolveCirclesCipher } from "./circles-crypto";
@@ -64,6 +65,7 @@ import {
     },
     CirclesRolloutService,
     CirclesRolloutGuard,
+    CirclesParticipationRolloutGuard,
     CirclesGuestSurfaceGuard,
     CirclesGuestGuard,
     CirclesService,

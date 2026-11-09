@@ -1,4 +1,4 @@
-# Paquete editorial — corte del 2026-11-07
+# Paquete editorial — corte del 2026-11-07, corregido el 2026-11-09
 
 > **Qué es esto.** Las decisiones editoriales y comerciales abiertas, juntas y
 > con su propuesta, para que se puedan resolver de una sentada en vez de una por
@@ -13,16 +13,16 @@
 
 ## Resumen
 
-| #   | Decisión                         | Propuesta                                           | Bloquea                     |
-| --- | -------------------------------- | --------------------------------------------------- | --------------------------- |
-| 1   | Sinopsis de _EEC_                | publicar el texto propuesto                         | la ficha pública de la obra |
-| 2   | Nota interna de C01              | retirarla, **con** su encabezado                    | la lectura limpia de C01    |
-| 3   | Publicar las cinco Experiences   | **decisión tuya** — la fuente la registra pendiente | el registro, no el producto |
-| 4   | Abrir las cinco a alguien (flag) | mantener **HOLD** hasta 1 y 2                       | el piloto de lectura        |
-| 5   | Sucesor del Dúo                  | `eec-c1-emocion-informa-no-manda@1`                 | la entrada del Dúo          |
-| 6   | Las otras dos obras              | _Familias_ sigue sin publicar; _Parejas_ no existe  | el catálogo                 |
-| 7   | Primer recurso de audio          | capítulo 1 de _EEC_                                 | la promesa de «Modo Guía»   |
-| 8   | Precios y apertura de cobros     | no abrir; seis condiciones sin cerrar               | el cobro                    |
+| #   | Decisión                         | Propuesta                                                                                                                          | Bloquea                     |
+| --- | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| 1   | Sinopsis de _EEC_                | publicar el texto propuesto                                                                                                        | la ficha pública de la obra |
+| 2   | Nota interna de C01              | retirar **sólo la nota** y renombrar el encabezado a «Referencias»; las 21 entradas se conservan                                   | la lectura limpia de C01    |
+| 3   | Publicar las cinco Experiences   | **decisión tuya** — la fuente la registra pendiente                                                                                | el registro, no el producto |
+| 4   | Abrir las cinco a alguien (flag) | mantener **HOLD** hasta 1 y 2                                                                                                      | el piloto de lectura        |
+| 5   | Sucesor del Dúo                  | `eec-c1-emocion-informa-no-manda@1`                                                                                                | la entrada del Dúo          |
+| 6   | Las otras dos obras              | autoría y pertenencia **ya resueltas**; falta material: partes y manuscrito de _Familias_, manuscrito de _Parejas_                 | el catálogo                 |
+| 7   | Primer recurso de audio          | capítulo 1 de _EEC_                                                                                                                | la promesa de «Modo Guía»   |
+| 8   | Precios y apertura de cobros     | **propuesta concreta de las 7 filas** + 6 condiciones de lanzamiento; no abrir todavía, resolver ya las 2 que no dependen de nadie | el cobro                    |
 
 ---
 
@@ -64,19 +64,38 @@ subrayados, **0** anotaciones, **0** posiciones de lectura y **0** vínculos de
 concepto, por **las dos** anclas. Y es el **único** bloque con vocabulario
 interno de toda la plataforma: un escape aislado, no sistémico.
 
-**Propuesta: retirarla, y retirar con ella el encabezado.** Son dos cosas y
-conviene verlas juntas antes de decidir una:
+**Propuesta, dicha con precisión** — son dos cambios, y **sólo** dos:
 
-- la **nota** es material interno en una página pública;
-- el **encabezado** dice «Referencias _de trabajo_», y un capítulo publicado
-  diría «Referencias» o «Bibliografía». Puede que lo que haya que corregir sea
-  la sección entera, no sólo su primera línea.
+1. **Retirar la nota interna**, y nada más que la nota: el bloque de cita que
+   empieza por «**Nota editorial:** las entradas de libros en español deberán
+   ajustarse…». Es material interno en una página pública.
+2. **Renombrar el encabezado** de «## Referencias de trabajo para el capítulo 1»
+   a «## Referencias». Un capítulo publicado no dice «de trabajo», y el sufijo
+   «para el capítulo 1» es redundante dentro del propio capítulo.
 
-**Y una distinción que importa:** esto **no es** validar la bibliografía. Lo que
-se propone es retirar material interno y renombrar una sección. Comprobar que
-cada entrada corresponde a la edición exacta —lo que la propia nota dice que
-faltaba— es un trabajo editorial distinto, que puede hacerse después y con otra
-cabeza.
+**Las 21 entradas bibliográficas se conservan íntegras**, en su orden y con su
+formato APA. No se retira la sección: se le quita la nota y se le corrige el
+título.
+
+El antes y el después, exactos:
+
+```diff
+-## Referencias de trabajo para el capítulo 1
+-
+-> **Nota editorial:** las entradas de libros en español deberán ajustarse a la edición exacta utilizada en Zotero antes de `TEXT_LOCKED`.
++## Referencias
+
+ Barrett, L. F. (2017). *How emotions are made: The secret life of the brain*. Houghton Mifflin Harcourt.
+ … (las 21 entradas, sin tocar)
+```
+
+**Y una distinción que importa, porque es fácil darla por hecha:** aprobar esto
+**no acredita** la revisión de las ediciones. Lo que se propone es retirar
+material interno y corregir un título — dos operaciones de superficie.
+Comprobar que cada entrada corresponde a la edición exacta utilizada, que es
+justamente lo que la nota dice que faltaba, es un **trabajo editorial distinto**,
+que sigue pendiente después de ejecutar esto y que necesita el Zotero delante.
+Quien apruebe la retirada no está declarando la bibliografía verificada.
 
 **Ejecutarla es** una reapertura del canónico con su propia versión. El mecanismo
 existe y **es reversible**: Content Core es por revisiones, así que «retirado»
@@ -216,18 +235,45 @@ poner yo.
 
 ## 6 · Las otras dos obras
 
-| Obra                   | Estado real                                                   | Qué falta                                                |
-| ---------------------- | ------------------------------------------------------------- | -------------------------------------------------------- |
-| _Familias ensambladas_ | existe, **sin publicar**, 3 capítulos, ninguna parte asignada | decidir si se publica, y con qué autoría; asignar partes |
-| _Parejas que perduran_ | **no tiene fila**                                             | decidir si entra al catálogo; si entra, su manuscrito    |
+> **Corrección del 2026-11-09.** Esta sección decía que a _Familias_ le faltaba
+> «decidir con qué autoría» y a _Parejas_ «decidir si entra al catálogo». Las
+> dos cosas **ya están decididas** y no se vuelven a preguntar: el alcance
+> editorial final incluye **las tres obras**, _EEC_ y _Familias ensambladas_ son
+> de **Jorge Quizamanchuro** y _Parejas que perduran_ de **David Jaramillo**. Lo
+> que falta es **material y preparación editorial**.
 
-_Familias_ quedó sin publicar y sin autor a propósito, por la reparación del
-24-10. **Que esté sin publicar no es un defecto pendiente: es el estado que esa
-reparación decidió dejar**, y sacarla de ahí es un acto editorial, no una
-corrección.
+**Estado real, leído en OVH en sólo lectura el 2026-11-09:**
 
-_Parejas_ se dejó **ausente** a propósito: no se inventó una fila para una obra
-que no existe.
+| Obra                        | Fila   | Publicada | Autoría en la fila         | Capítulos | Partes      |
+| --------------------------- | ------ | --------- | -------------------------- | --------- | ----------- |
+| _Emociones en construcción_ | sí     | **sí**    | Jorge Quizamanchuro        | 10        | 3 asignadas |
+| _Familias ensambladas_      | sí     | no        | **Jorge Quizamanchuro** ✅ | 3         | **ninguna** |
+| _Parejas que perduran_      | **no** | —         | —                          | —         | —           |
+
+La autoría de _Familias_ **ya está escrita en la fila**: la reparación del 24-10
+la dejó atribuida a Jorge Quizamanchuro. Lo que esa reparación dejó pendiente es
+**la publicación**, que es otra cosa.
+
+**Lo que falta de cada una, en concreto:**
+
+_Familias ensambladas_ — tres trabajos, en este orden:
+
+1. **Asignar partes a sus tres capítulos.** Hoy los tres tienen `partNumber` y
+   `partTitle` en `null`, así que la ficha los lista en plano. _EEC_ sí las
+   tiene, y por eso se lee agrupada. Es el único de los tres que puedo ejecutar
+   yo en cuanto haya una estructura de partes decidida.
+2. **El resto del manuscrito**, si lo hay: tres capítulos ingeridos frente a los
+   diez de _EEC_. Hace falta saber cuántos son en total y cuáles están escritos.
+3. **Publicarla**, que es el acto editorial — y conviene no confundirlo con la
+   autoría, que ya está puesta.
+
+_Parejas que perduran_ — no tiene fila, y **no se inventó una**: crear una obra
+sin manuscrito produciría una ficha que no se puede abrir. El siguiente trabajo
+editorial es el **manuscrito** (o su primer capítulo), más el registro de la
+identidad de **David Jaramillo** como `BookAuthor`, que hoy no existe en la tabla
+—sólo están `jorge-quizamanchuro` y la identidad de fixture `marina-quintana`,
+ya sin afirmaciones sin fuente—. Con un capítulo en Markdown y el nombre
+declarado, la fila, la autoría y la ingesta son ejecutables en una sesión.
 
 ---
 
@@ -255,17 +301,53 @@ escrita en el README del lector.
 ## 8 · Precios y apertura de cobros
 
 **En juego.** La landing muestra importes con su aviso «Propuesta de precios · No
-disponible para compra», sin pasarela. Las seis condiciones que bloquean abrir
-cobros siguen **«Por definir»**.
+disponible para compra», sin pasarela y sin pedir ningún dato. Los importes son
+los de la maqueta: **USD 14,99** pago único por título, **USD 6,99/mes** o
+**USD 59/año** de membresía. Siete filas de la tabla comparativa dicen todavía
+«Por definir», y mientras lo digan no hay oferta que se pueda vender.
 
-**Propuesta: no abrir.** El arreglo técnico de los webhooks de Stripe está hecho
-—reclamación antes de aplicar el efecto y sellado después, con su migración
-aplicada— pero eso no desbloquea nada de lo comercial: lo que falta es decidir
-las seis condiciones, y ninguna se resuelve con código.
+**Conviene separar dos cosas que se agrupaban bajo la misma etiqueta:** el
+arreglo técnico de los webhooks de Stripe **está cerrado** —reclamación antes de
+aplicar el efecto y sellado después, con su migración aplicada y reproducida
+contra PostgreSQL real—. Eso no desbloquea nada de lo comercial. Lo que sigue
+abierto es **operativo y comercial**, y ninguna pieza se resuelve con código.
 
-**Conviene no confundirlas**, porque se agrupaban bajo la misma etiqueta: el
-arreglo de los webhooks es técnico y está cerrado; lo que sigue abierto bajo
-D-ORD es operativo y comercial.
+### La propuesta, fila por fila
+
+Esto es **una propuesta revisable**, no una decisión tomada. Cada valor lleva su
+razón, para que discutir el número sea discutir el motivo:
+
+| Fila que hoy dice «Por definir»            | Valor propuesto                                                                                                                 | Por qué ése                                                                                                                                                                     |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Duración del acceso** (pase de un libro) | **Permanente** mientras exista la cuenta                                                                                        | Un pago único con acceso que caduca se lee como alquiler y genera reembolsos. Y el coste marginal de servir un libro ya comprado es el disco.                                   |
+| **Cuota de Eco** (pase)                    | **100 mensajes**, sin renovación                                                                                                | El pase es de una obra: 100 mensajes cubren leerla entera conversando y acotan el gasto del modelo a ~USD 0,45 por pase sobre los 14,99.                                        |
+| **Cuota de Eco** (membresía)               | **300 mensajes al mes**, no acumulables                                                                                         | Medido: una llamada real costó USD 0,0043, así que 300 son ~USD 1,30 al mes sobre 6,99. No acumulables para que el techo sea el techo.                                          |
+| **Dúo y Círculos** (membresía)             | **Dúo incluido; Círculos de hasta 6, incluidos**                                                                                | Las dos superficies ya existen y están probadas con dos partes. Cobrarlas aparte partiría el producto que la landing describe como uno.                                         |
+| **Renovación** (membresía)                 | **Automática**, aviso por correo 7 días antes de cada cobro anual                                                               | El aviso previo es lo que convierte una renovación automática en algo defendible; en mensual el importe es pequeño y el aviso sobra.                                            |
+| **Cancelación y cambios**                  | Cancelable **en cualquier momento**, efecto al final del período pagado, sin reembolso parcial; cambio mensual↔anual al renovar | Es lo que el código ya hace (`cancel_at_period_end`), así que no hay que construir nada. Un reembolso prorrateado sí habría que construirlo.                                    |
+| **Impuestos y otros cargos**               | **Importes con IVA incluido** para Ecuador; sin cargos adicionales                                                              | Un precio que crece en la pasarela es la primera causa de abandono en el carrito. Si se factura desde Ecuador, el IVA aplica y conviene absorberlo en el número que se muestra. |
+
+### Condiciones de lanzamiento — qué tiene que ser verdad antes del primer cobro
+
+En orden, y las cinco primeras son requisitos, no preferencias:
+
+1. **Las siete filas de arriba, decididas** y escritas en `datos.ts` y
+   `SeccionPlanes.tsx`. Mientras una diga «Por definir», la página no puede
+   dejar de decirlo.
+2. **Identificadores de precio reales en Stripe** para los tres importes, y en
+   el entorno de la caja. Hoy `STRIPE_*_PRICE_ID` son valores de prueba.
+3. **Términos, Privacidad, Contacto, Sobre FeelVerse y Autoría**, publicados —
+   el gate de `landing-apertura-publica.md`, que sigue abierto por sí mismo.
+4. **Algo que comprar.** Hoy una sola obra es legible; el pase de «un libro»
+   sólo tiene un libro que vender y las otras dos dicen «Aún no disponible».
+5. **El recorrido de correo**, porque un cobro genera un recibo y una
+   recuperación de contraseña. Sin `RESEND_API_KEY` no hay ninguno de los dos.
+6. Y recomendable, no requisito: **un piloto con lectura acompañada cerrado**
+   antes de pedir dinero por ella.
+
+**Propuesta global: no abrir todavía**, y resolver 1 y 2 ya —son las dos que no
+dependen de nadie más— para que cuando 3, 4 y 5 cierren no quede trabajo
+comercial pendiente.
 
 ---
 

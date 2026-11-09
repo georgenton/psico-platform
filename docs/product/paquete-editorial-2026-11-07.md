@@ -233,8 +233,10 @@ que no existe.
 
 ## 7 · El primer recurso de audio o video
 
-**En juego.** La landing anuncia modos de lectura con audio. Hoy: **10 bloques de
-video con 0 archivos** y **0 filas de audio**. Los reproductores están
+**En juego.** La landing anuncia modos de lectura con audio. Hoy, **medido en OVH
+en sólo lectura el 08-11** y no heredado de un inventario anterior: **10 bloques
+`VIDEO`, de los que 0 tienen archivo** (`meta.videoUrl` vacío en los diez), **0
+filas en `Audio`**, y 0 bloques legados con el marcador `🎬`. Los reproductores están
 construidos y muestran un marcador honesto («Audio en producción», «En
 producción»), así que no se promete nada falso **dentro** del producto — pero la
 promesa pública no tiene todavía con qué cumplirse.

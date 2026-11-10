@@ -1292,34 +1292,104 @@ se destruyeron al terminar.
 >    que es fácil de olvidar: se olvidó en el primer fichero del ensayo y la API no
 >    arrancó. Ahora figura en la tabla de fronteras y en la puerta.
 
-#### Lo que falta es el recurso, y su coste no está cerrado
+#### El recurso del ensayo, cerrado con precios leídos — 2026-11-09
 
 El ensayo necesita una caja **independiente** —usar la actual anularía el
 escenario— de unos 4 vCPU y 8 GB, que es lo que piden Coolify, PostgreSQL, Redis y
-tres aplicaciones a la vez.
+tres aplicaciones a la vez. Lo que sigue sale de las dos páginas públicas de OVH,
+leídas entera la tabla de precios de Public Cloud. Las cifras se citan; lo que las
+páginas no dicen, se marca como no dicho.
 
-Lo que se pudo verificar en las páginas públicas de OVH, y lo que no:
+**El VPS NO es el instrumento, y ésa es la conclusión principal.** Su página no
+muestra tarifa horaria, ni plazo mínimo, ni cuota de alta, ni si el importe lleva
+IVA; y cada precio va precedido de «From» sin que ninguna nota defina qué cualifica
+esa palabra. `VPS-2` (4 vCores, 8 GB, 75 GB NVMe, respaldo diario incluido) figura
+«**From $8.50 /month**», que es un **suelo, no una tarifa pagadera**. Para un ensayo
+de horas eso es el contrato equivocado: se pagaría un mes para usar una tarde.
 
-|                                          |                                                                                                                                                                                  |
-| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Candidato con precio verificado          | **VPS-2**: 4 vCores, 8 GB, 75 GB NVMe, **desde $8,50/mes**, IPv4 dedicada y respaldo diario incluidos                                                                            |
-| Modalidad de facturación del VPS         | la página muestra **precios mensuales** y **no dice** si factura por horas ni si exige compromiso                                                                                |
-| La alternativa por horas                 | las instancias de Public Cloud se facturan «por hora o mediante un Savings Plan» según su página, pero **no se pudo leer su tabla de precios**, así que no se cita ninguna cifra |
-| Cargos que podrían sobrevivir al borrado | IP flotante, volúmenes de Block Storage y snapshots **no tienen precio en las páginas leídas**, y **no se dice** si una IP sin asociar sigue facturando                          |
+**El instrumento es una instancia de Public Cloud**, cuya tabla sí encabeza sus dos
+columnas `Price(excl. VAT/hour)` y `Price(excl. VAT/month)`.
 
-De modo que **el importe máximo no se puede afirmar desde las páginas públicas**, y
-conviene no inventarlo: ni «un VPS se factura por horas» ni «borrar la instancia
-cancela cualquier cargo» están establecidos. Las dos preguntas que lo cierran, y que
-se contestan en el panel de OVH o preguntando a su soporte:
+| Candidato     | Familia           | RAM  | vCore | Por hora    | Al mes                       |
+| ------------- | ----------------- | ---- | ----- | ----------- | ---------------------------- |
+| **`d2-8`** ✅ | Discovery         | 8 GB | 4     | **$0,0439** | **$24,31** (sin plan)        |
+| `c3-8`        | Compute Optimised | 8 GB | 4     | $0,1078     | `12 months plan` $66,89 (\*) |
+| `b3-8`        | General Purpose   | 8 GB | **2** | $0,0605     | `12 months plan` $37,54 (\*) |
 
-1. ¿Cuál es el precio por hora de una instancia de ~4 vCPU / 8 GB, y hay tope
-   mensual?
-2. ¿Qué se sigue facturando después de borrar la instancia — IP, volumen,
-   snapshot — y cómo se retira cada cosa?
+Se recomienda **`d2-8`**: es la única de las tres que da 4 vCore con 8 GB **y** una
+cifra mensual sin plan. En B3/C3/R3 la columna mensual **no es un precio a demanda**
+—lleva el prefijo literal `12 months plan` y su nota dice «Price for a 12 months
+Savings Plan», estimado sobre 730 h/mes—, así que leerla como «lo que costaría un
+mes suelto» sería un error de lectura. Para uso por horas eso es indiferente, pero
+conviene no citar esas cifras como si fueran mensualidades a demanda. Y no hay
+instancia General Purpose de 4 vCPU/8 GB: B3 empareja 8 GB con 2 vCore.
 
-Con esas dos respuestas, el procedimiento de retirada es: borrar la instancia,
-liberar la IP, borrar el volumen y el snapshot si existen, y confirmar en la
-facturación del mes siguiente que no queda ninguna línea abierta.
+**El coste máximo, con su aritmética a la vista.** Ventana generosa de 12 h —
+provisionar, instalar Coolify, recrear los tres recursos, restaurar y recorrer:
+
+| Concepto                               | Tarifa leída    | 12 h        | 24 h        |
+| -------------------------------------- | --------------- | ----------- | ----------- |
+| Instancia `d2-8`                       | $0,0439 /h      | $0,527      | $1,054      |
+| IPv4 pública (obligatoria, ver abajo)  | $0,00319 /h     | $0,038      | $0,077      |
+| Volumen Block Storage `Classic`, 50 GB | $0,000066 /GB/h | $0,040      | $0,079      |
+| **Techo**                              |                 | **≈ $0,61** | **≈ $1,21** |
+
+Todo **excl. IVA**, que es como la página lo declara. Dos avisos sobre esa tabla:
+la IPv4 no es opcional —«Instances do not include an IPv4 address by default» y «The
+gateway requires a Public IPv4»—, y el volumen se incluye por prudencia aunque
+`d2-8` traiga disco local, porque su tamaño no figura en la página leída y no se
+inventa. Comparar estos importes con el «$8,50» del VPS sería mezclar peras y
+manzanas: aquél es VAT-unqualified y éstos son `excl. VAT`.
+
+**Qué sigue facturando después de borrar la instancia.** Aquí hay que separar lo
+dicho de lo deducido, porque es la pregunta que más invita a inventar: **la página
+no contiene ninguna frase sobre borrar o detener una instancia.** Lo que sí dice,
+literalmente:
+
+- La IPv4 pública se cobra «**including when it is not attached to an instance**».
+  Eso es directo: una IP liberada de la instancia pero no devuelta sigue costando
+  $0,00319 /h ≈ **$2,33/mes**.
+- Los volúmenes se facturan por «duration of use and size provisioned»; los
+  snapshots y los respaldos, por «the space used». Es decir, **por existir ellos**,
+  no por existir una instancia.
+
+De ahí se **deduce** —y se marca como deducción, no como cita— que una IP sin
+asociar, un volumen superviviente, un snapshot y una imagen privada seguirían
+facturando tras eliminar la instancia. La única afirmación global de la página es
+«no hidden costs at the end of the month», que no responde esto. Precios de lo que
+sobrevive: snapshot $0,000066 /GB/h · volume backup $0,000017 /GB/h · instance
+backup $0,0122 /GB/mes · imagen privada $0,0123 /GB/mes.
+
+**Procedimiento para terminar el ensayo, en este orden** — borrar la instancia
+**no** cierra los cargos, que es justo lo que no debe presentarse como si lo
+hiciera:
+
+1. **Sacar la evidencia ANTES de destruir nada**, porque el detector y los registros
+   viven dentro de la caja: salida de la puerta de aislamiento con su recuento, los
+   SHA de las tres imágenes usadas, el recuento de migraciones y el `ready=true` del
+   informe de salud, el `rc` de `pg_restore`, el recorrido final y la hora de cada
+   paso. A `docs/informes/` lo que es narrativo; a `~/.psico-ops` lo que lleve
+   identificadores. **Ningún secreto**, ni un volcado de entorno.
+2. Borrar la instancia.
+3. **Devolver la IPv4** (no sólo desasociarla) y confirmar que no figura en el
+   proyecto.
+4. Borrar el volumen, los snapshots, los respaldos de instancia y cualquier imagen
+   privada creada.
+5. Borrar el **proyecto de Public Cloud** si se creó para esto, que es la forma de
+   no dejar un recurso suelto olvidado.
+6. **Comprobar la facturación del mes siguiente** y confirmar que no queda ninguna
+   línea abierta. Este paso es el que cierra el procedimiento; los anteriores sólo
+   lo preparan.
+
+**Y el ensayo usará la versión de PostgreSQL aprobada**: `pgvector/pgvector:pg18`
+**fijada por digest**, el mismo que sirve staging, no la etiqueta flotante — que ya
+apunta a otro digest. El ensayo de configuración del 09-11 corrió sobre PostgreSQL
+17 desechable y eso fue correcto para lo que medía, pero no vale para el nivel 4.
+
+Lo que queda pendiente es **el importe y el compromiso**, que son tuyos: abrir un
+proyecto de Public Cloud en la cuenta de OVH. El techo verificado es de unos **$0,61
+excl. IVA** por una ventana de 12 h, y el procedimiento de cierre está escrito
+arriba.
 
 De esos tres, **el primero está comprobado** (2026-11-05): la programación de
 `feelverse-staging-postgres` es diaria y activa, sus dos últimas ejecuciones están en

@@ -4552,6 +4552,17 @@ distintas:
     cuenta abre ahora la sala entera, y que estaba con sesión se acreditó por
     la redirección a `/onboarding` en vez de `/login`.
 
+    **Y el residuo que dejé escrito era una explicación equivocada** (10-11).
+    Dije que volver tras cerrar sesión fallaba porque el asiento de invitada
+    «se pierde al salir». El código ya lo desmentía —la salida borra `access`,
+    `refresh` y el envoltorio del diario, no `fv_circulo_guest`, que dura 30
+    días— y la reproducción limpia de los cinco pasos **pasa entera**: tras
+    cerrar sesión la sala sigue abriendo. Lo que vi venía de dos factores que
+    introduje yo entre salir y volver: acepté una **segunda invitación** en el
+    mismo navegador y roté la contraseña. La sustitución está reproducida
+    aparte, con el mismo mensaje. Queda escrita la limitación real: **una
+    credencial de invitada por navegador**, acotada a una actividad.
+
 29. ⚠️ **El guía en pantalla: la lista sí, la interacción no** (09-11). Las cinco
     microguías aparecen numeradas, con duración y estado; pulsar «Revisar»
     responde «No pudimos preparar el recorrido». La causa, medida: las cinco no

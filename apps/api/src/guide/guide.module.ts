@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { PrismaService } from "../prisma";
 import { ContentAccessModule } from "../content-core/access/content-access.module";
+import { ExperienceModule } from "../experience/experience.module";
 import { isDeployedEnvironment } from "../shared/psico-environment";
 import { LearningCatalogResolver } from "../learning/learning-catalog.resolver";
 import { LearningEventRepository } from "../learning/learning-event.repository";
@@ -36,7 +37,7 @@ import { GuideController } from "./guide.controller";
  * lifecycle is reachable only through this module's controller.
  */
 @Module({
-  imports: [ContentAccessModule],
+  imports: [ContentAccessModule, ExperienceModule],
   controllers: [GuideController],
   providers: [
     LearningCatalogResolver,

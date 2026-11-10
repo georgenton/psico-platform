@@ -1,7 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import type { ChapterExperiencePublicView } from "@psico/types";
+import type {
+  ChapterExperiencePublicView,
+  GuideCardPresentation,
+} from "@psico/types";
 import {
   ExperienceList,
   type ExperienceStatesLoad,
@@ -112,6 +115,7 @@ export interface ChapterExperienceHomeProps {
    */
   routeState?: GuideRouteState;
   routeVerdicts?: ReadonlyMap<string, RouteCardVerdict>;
+  routePresentations?: ReadonlyMap<string, GuideCardPresentation>;
   onOpenRouteGuide?: (item: GuideRouteItem) => void;
   onRetryRoute?: () => void;
 }
@@ -172,6 +176,7 @@ export function ChapterExperienceHome({
   onOpenActivities,
   routeState,
   routeVerdicts,
+  routePresentations,
   onOpenRouteGuide,
   onRetryRoute,
 }: ChapterExperienceHomeProps) {
@@ -397,6 +402,7 @@ export function ChapterExperienceHome({
         <GuidedRouteList
           state={routeState}
           verdicts={routeVerdicts ?? new Map()}
+          presentations={routePresentations}
           // What this chapter can actually run, from the SAME batched
           // discovery the cards above are drawn from — no second request and
           // no second authority. `startable` is the server's own answer about

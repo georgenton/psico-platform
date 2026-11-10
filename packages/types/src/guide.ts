@@ -313,6 +313,12 @@ export interface GuideExperienceCardState extends GuideExperienceCardStateLegacy
    * it would act on rather than assuming the rule was applied.
    */
   evaluatedPin: { guideKey: string; guideVersion: number };
+  /**
+   * Si `evaluatedPin` tiene una definición que el lector pueda reproducir.
+   * Ver `GuideCardPresentation`. Opcional: un cliente que no lo lea se
+   * comporta como antes, y su ausencia no es `PREPARING`.
+   */
+  presentation?: GuideCardPresentation;
 }
 
 /**
@@ -320,6 +326,39 @@ export interface GuideExperienceCardState extends GuideExperienceCardStateLegacy
  * about this chapter" — never "the lookup failed", which is an error.
  */
 export type GuideApplicability = "APPLIES" | "UNAVAILABLE";
+
+/**
+ * ¿Hay una definición que el lector pueda REPRODUCIR en el pin que un clic
+ * abriría?
+ *
+ * ── El caso que cierra, medido en pantalla el 2026-11-09 ───────────────────
+ *
+ * Las cinco microguías de C01 mostraban su tarjeta con «Completada» y el
+ * control «Revisar». Pulsarlo abría el panel y respondía «No pudimos preparar
+ * el recorrido de este capítulo»: el panel se niega —correctamente— a pintar
+ * una portada cuyo pasaje no puede mostrar. La tarjeta prometía algo que el
+ * panel no podía cumplir.
+ *
+ * `applicability` no contesta esto: dice si la guía es DE ESTE CAPÍTULO, no si
+ * hay una definición reproducible. Son dos preguntas, y el cliente no puede
+ * responder la segunda sin re-derivarla — que es como «Completada» acaba
+ * significando dos cosas en dos sitios.
+ *
+ * La resuelve el servidor por **versión exacta**, que es lo que distingue los
+ * tres casos sin confundirlos:
+ *
+ *   · definición ausente de verdad            → `PREPARING`
+ *   · sesión histórica cuya versión propia
+ *     sigue en el registro (borrador o
+ *     archivada: viven ahí justamente para
+ *     que un pin fijado resuelva)             → `PLAYABLE`
+ *   · experiencia que ya no admite inicios
+ *     nuevos pero sí repaso                   → `PLAYABLE`
+ *
+ * Opcional en el tipo, y por una razón: un cliente anterior no lo recibe y
+ * sigue comportándose como antes. Ausente **no** significa `PREPARING`.
+ */
+export type GuideCardPresentation = "PLAYABLE" | "PREPARING";
 
 /**
  * Where the reader is, as the client may honestly describe it.

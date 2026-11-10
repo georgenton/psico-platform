@@ -1,7 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef } from "react";
-import type { ChapterConcept, GuideRouteItem } from "@psico/types";
+import type {
+  ChapterConcept,
+  GuideRouteItem,
+  GuideCardPresentation,
+} from "@psico/types";
 import type { GuideWebBundle } from "./guide-web-bundle";
 import type { GuideAnchorResolution } from "./guide-anchor";
 import { GuidedRouteNavigator } from "./GuidedRouteNavigator";
@@ -71,6 +75,7 @@ export interface ReaderGuidePanelProps {
    */
   routeState?: GuideRouteState;
   routeVerdicts?: ReadonlyMap<string, RouteCardVerdict>;
+  routePresentations?: ReadonlyMap<string, GuideCardPresentation>;
   onOpenRouteGuide?: (item: GuideRouteItem) => void;
   onRetryRoute?: () => void;
   /**
@@ -102,6 +107,7 @@ export function ReaderGuidePanel({
   experience,
   routeState,
   routeVerdicts,
+  routePresentations,
   onOpenRouteGuide,
   onRetryRoute,
   onCompleted,
@@ -276,6 +282,7 @@ export function ReaderGuidePanel({
           <GuidedRouteNavigator
             state={routeState}
             verdicts={routeVerdicts}
+            presentations={routePresentations}
             activePin={bundle.pin}
             onOpen={onOpenRouteGuide}
             {...(onRetryRoute ? { onRetry: onRetryRoute } : {})}

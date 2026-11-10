@@ -67,6 +67,9 @@ import { LearningCatalogResolver } from "../learning/learning-catalog.resolver";
       inject: [PrismaService],
     },
   ],
-  exports: [ExperienceDiscoveryService],
+  // El repositorio se exporta para que Guía pueda preguntar «¿hay definición
+  // reproducible para este pin?» con la MISMA resolución que usa el lector, en
+  // vez de re-derivarla. No hay ciclo: este módulo no importa el de Guía.
+  exports: [ExperienceDiscoveryService, EXPERIENCE_DEFINITION_REPOSITORY],
 })
 export class ExperienceModule {}

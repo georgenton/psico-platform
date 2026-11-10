@@ -530,3 +530,62 @@ describe("áreas táctiles del recorrido guiado", () => {
     expect(boton.style.minWidth).toBe("");
   });
 });
+
+/**
+ * ── La tarjeta dejó de prometer lo que el panel no puede cumplir ───────────
+ *
+ * Medido en pantalla el 2026-11-09: las cinco microguías de C01 mostraban
+ * «Completada · Revisar» y al pulsarlo el panel respondía «No pudimos preparar
+ * el recorrido de este capítulo», porque no hay definición publicada para
+ * ellas. `runnablePins` no lo cubría: contesta si se puede EMPEZAR, y
+ * «Revisar» y «Continuar» son de una sesión que ya existe.
+ */
+describe("disponibilidad honesta del control", () => {
+  const item = {
+    guideKey: "g1",
+    guideVersion: 1,
+    order: 1,
+    title: "Una microguía",
+    description: "d",
+    estimatedMinutes: 8,
+  } as never;
+  const estado = { status: "available", guides: [item] } as never;
+  const render1 = (
+    presentations?: ReadonlyMap<string, "PLAYABLE" | "PREPARING">,
+  ) =>
+    render(
+      <GuidedRouteList
+        state={estado}
+        verdicts={new Map([["g1@1", "completed" as const]])}
+        runnablePins={new Set()}
+        presentations={presentations}
+        onOpen={() => {}}
+      />,
+    );
+
+  it("sin definición reproducible, el control no promete abrir", () => {
+    render1(new Map([["g1@1", "PREPARING"]]));
+    const b = screen.getByRole("button", { name: /En preparación/ });
+    expect(b).toBeDisabled();
+    // Y el estado del lector SE CONSERVA: «Completada» sigue siendo cierto.
+    expect(screen.getByText(/Completada/)).toBeInTheDocument();
+  });
+
+  it("con definición, el control es el de siempre", () => {
+    render1(new Map([["g1@1", "PLAYABLE"]]));
+    expect(screen.getByRole("button", { name: /Revisar/ })).toBeEnabled();
+  });
+
+  it("un pin AUSENTE del mapa no es «en preparación»", () => {
+    // «El servidor no lo dijo» no es «no se puede»: un cliente contra una API
+    // anterior se comporta exactamente como antes, y una versión histórica que
+    // sigue resolviendo conserva su repaso.
+    render1(new Map());
+    expect(screen.getByRole("button", { name: /Revisar/ })).toBeEnabled();
+  });
+
+  it("y sin el mapa entero, tampoco", () => {
+    render1(undefined);
+    expect(screen.getByRole("button", { name: /Revisar/ })).toBeEnabled();
+  });
+});

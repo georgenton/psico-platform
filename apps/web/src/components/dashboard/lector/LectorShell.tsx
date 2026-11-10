@@ -81,6 +81,7 @@ import { useGuideAvailability } from "../guide/guide-availability";
 import { useGuideDiscovery } from "../guide/use-guide-discovery";
 import { useGuideRoute } from "../guide/use-guide-route";
 import type { RouteCardVerdict } from "../guide/GuidedRouteList";
+import type { GuideCardPresentation } from "@psico/types";
 import {
   guideAnchorRegistry,
   resolveGuideAnchor,
@@ -759,6 +760,29 @@ export function LectorShell({
   }, [experienceAuthority, route]);
 
   /**
+   * Si el pin que un clic abriría tiene una definición REPRODUCIBLE.
+   *
+   * Distinta pregunta de `routeVerdicts`, que dice qué ha hecho el lector, y
+   * de `runnablePins`, que dice si se puede EMPEZAR. Esta dice si el panel
+   * podrá pintar algo — y es la que faltaba: las cinco microguías de C01
+   * mostraban «Completada · Revisar» y al pulsarlo el panel respondía «No
+   * pudimos preparar el recorrido», porque no hay definición publicada para
+   * ellas. La contesta el servidor por versión exacta; un pin sin respuesta
+   * queda fuera del mapa y la tarjeta se comporta como antes.
+   */
+  const routePresentations = useMemo(() => {
+    const out = new Map<string, GuideCardPresentation>();
+    if (experienceAuthority.status !== "ready") return out;
+    if (route.status !== "available") return out;
+    for (const g of route.guides) {
+      const key = `${g.guideKey}@${g.guideVersion}`;
+      const p = experienceAuthority.states.get(key)?.presentation;
+      if (p) out.set(key, p);
+    }
+    return out;
+  }, [experienceAuthority, route]);
+
+  /**
    * A run the authority has ALREADY vouched for, bounded to the context that
    * vouched for it.
    *
@@ -927,6 +951,10 @@ export function LectorShell({
       // The server's verdict, asked for explicitly rather than inferred from
       // the presence of a row. `null` is «we could not tell», not «yes».
       if (state.applicability !== "APPLIES") return;
+      // Y sin definición reproducible no se abre nada: la tarjeta ya lo dice,
+      // pero el panel se mantiene cerrado también por aquí — la misma defensa
+      // en profundidad que tiene el resto de este bloque.
+      if (state.presentation === "PREPARING") return;
       if (!canRunPin(state.resumePin)) return;
       // The pin that RUNS is the server's resume pin. Re-deriving the
       // published one here is how a reader mid-run gets a fresh session.
@@ -1997,6 +2025,7 @@ export function LectorShell({
           experience={pickedExperience}
           routeState={route}
           routeVerdicts={routeVerdicts}
+          routePresentations={routePresentations}
           onOpenRouteGuide={openRouteGuide}
           onRetryRoute={revalidateExperienceStates}
           // The server said COMPLETED. Re-ask for every pin so the route
@@ -2129,6 +2158,7 @@ export function LectorShell({
           }}
           routeState={route}
           routeVerdicts={routeVerdicts}
+          routePresentations={routePresentations}
           onRetryRoute={revalidateExperienceStates}
           onOpenRouteGuide={openRouteGuide}
           activityCount={activityCount}

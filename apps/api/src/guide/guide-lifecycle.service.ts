@@ -1,12 +1,19 @@
 import {
   ForbiddenException,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
 } from "@nestjs/common";
+import {
+  EXPERIENCE_DEFINITION_REPOSITORY,
+  type ExperienceDefinitionRepository,
+} from "../experience/experience-definition.repository";
 import type {
   GuideApplicability,
   GuideDefinition,
+  GuideCardPresentation,
   GuideExperienceCardState,
   GuideExperienceCardStateLegacy,
   GuideExperienceCardStatus,
@@ -208,6 +215,14 @@ export class GuideLifecycleService {
     private readonly events: LearningEventRepository,
     /** C.3R — the comparator that answers "is this guide about this chapter?". */
     private readonly applicability: GuideReaderApplicabilityService,
+    // Para contestar «¿hay definición reproducible en este pin?» con la MISMA
+    // resolución que usa el lector, en vez de re-derivarla en el cliente.
+    // Opcional: las pruebas de ciclo de vida no describen el catálogo de
+    // experiencias, y sin él `presentation` sencillamente no viaja — que es
+    // exactamente lo que ve un cliente anterior.
+    @Optional()
+    @Inject(EXPERIENCE_DEFINITION_REPOSITORY)
+    private readonly definitions: ExperienceDefinitionRepository | null = null,
   ) {}
 
   /** Operational signal only — never a decision input. */
@@ -601,6 +616,46 @@ export class GuideLifecycleService {
       exactByPin.set(`${row.guideKey}@${row.guideVersion}`, row);
     }
 
+    // ── ¿Hay definición reproducible en el pin que un clic abriría? ─────────
+    //
+    // Se pregunta por VERSIÓN EXACTA, que es lo que distingue los tres casos:
+    // una definición ausente de verdad, una sesión histórica cuya versión
+    // propia sigue en el registro —los borradores y los archivados viven ahí
+    // justamente para eso— y una experiencia que ya no admite inicios nuevos
+    // pero sí repaso.
+    //
+    // La identidad de la experiencia se deriva del `guideKey`, igual que hace
+    // el lector: hoy coinciden en todo lo que el build publica. Si algún día
+    // dejan de coincidir esto devolverá `PREPARING`, que es decir «todavía no»
+    // en vez de ofrecer un control que no abre nada — se degrada a lo
+    // anterior, no a algo peor.
+    const presentacionPorPin = new Map<string, GuideCardPresentation>();
+    if (this.definitions) {
+      const evaluados = new Set<string>();
+      for (const p of applicability.evaluated) {
+        evaluados.add(`${p.guideKey}@${p.guideVersion}`);
+      }
+      for (const clave of evaluados) {
+        const [guideKey, v] = [
+          clave.slice(0, clave.lastIndexOf("@")),
+          Number(clave.slice(clave.lastIndexOf("@") + 1)),
+        ];
+        let hay = false;
+        try {
+          hay =
+            (await this.definitions.getExact({
+              experienceKey: guideKey,
+              experienceVersion: v,
+            })) !== null;
+        } catch {
+          // Un fallo de lectura no es «no hay»: no se afirma nada y el campo
+          // no viaja para ese pin, que deja al cliente como estaba.
+          continue;
+        }
+        presentacionPorPin.set(clave, hay ? "PLAYABLE" : "PREPARING");
+      }
+    }
+
     return pins.map((pin, i) => {
       const published = {
         guideKey: pin.guideKey,
@@ -614,8 +669,15 @@ export class GuideLifecycleService {
       const verdicts = applicability.verdicts;
       // The rolling window: the three fields the pre-C.3R client knows, and
       // nothing invented to fill the two it does not.
+      const presentation = presentacionPorPin.get(
+        `${evaluatedPin.guideKey}@${evaluatedPin.guideVersion}`,
+      );
       const verdict = verdicts
-        ? { applicability: verdicts[i] as GuideApplicability, evaluatedPin }
+        ? {
+            applicability: verdicts[i] as GuideApplicability,
+            evaluatedPin,
+            ...(presentation ? { presentation } : {}),
+          }
         : null;
 
       // 1. An ACTIVE run of this lineage wins, on its OWN pin. The registry is

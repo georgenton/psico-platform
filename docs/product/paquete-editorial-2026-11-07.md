@@ -13,16 +13,16 @@
 
 ## Resumen
 
-| #   | Decisión                         | Propuesta                                                                                                                          | Bloquea                     |
-| --- | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
-| 1   | Sinopsis de _EEC_                | publicar el texto propuesto                                                                                                        | la ficha pública de la obra |
-| 2   | Nota interna de C01              | retirar **sólo la nota** y renombrar el encabezado a «Referencias»; las 21 entradas se conservan                                   | la lectura limpia de C01    |
-| 3   | Publicar las cinco Experiences   | **decisión tuya** — la fuente la registra pendiente                                                                                | el registro, no el producto |
-| 4   | Abrir las cinco a alguien (flag) | mantener **HOLD** hasta 1 y 2                                                                                                      | el piloto de lectura        |
-| 5   | Sucesor del Dúo                  | `eec-c1-emocion-informa-no-manda@1`                                                                                                | la entrada del Dúo          |
-| 6   | Las otras dos obras              | autoría y pertenencia **ya resueltas**; falta material: partes y manuscrito de _Familias_, manuscrito de _Parejas_                 | el catálogo                 |
-| 7   | Primer recurso de audio          | capítulo 1 de _EEC_                                                                                                                | la promesa de «Modo Guía»   |
-| 8   | Precios y apertura de cobros     | **propuesta concreta de las 7 filas** + 6 condiciones de lanzamiento; no abrir todavía, resolver ya las 2 que no dependen de nadie | el cobro                    |
+| #   | Decisión                         | Propuesta                                                                                                                          | Bloquea                                   |
+| --- | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| 1   | Sinopsis de _EEC_                | publicar el texto propuesto                                                                                                        | la ficha pública de la obra               |
+| 2   | Nota interna de C01              | retirar **sólo la nota** y renombrar el encabezado a «Referencias»; las 21 entradas se conservan                                   | la lectura limpia de C01                  |
+| 3   | Publicar las cinco Experiences   | **decisión tuya** — la fuente la registra pendiente                                                                                | **que se puedan reproducir en el lector** |
+| 4   | Abrir las cinco a alguien (flag) | mantener **HOLD** hasta 1 y 2                                                                                                      | el piloto de lectura                      |
+| 5   | Sucesor del Dúo                  | `eec-c1-emocion-informa-no-manda@1`                                                                                                | la entrada del Dúo                        |
+| 6   | Las otras dos obras              | autoría y pertenencia **ya resueltas**; falta material: partes y manuscrito de _Familias_, manuscrito de _Parejas_                 | el catálogo                               |
+| 7   | Primer recurso de audio          | capítulo 1 de _EEC_                                                                                                                | la promesa de «Modo Guía»                 |
+| 8   | Precios y apertura de cobros     | **propuesta concreta de las 7 filas** + 6 condiciones de lanzamiento; no abrir todavía, resolver ya las 2 que no dependen de nadie | el cobro                                  |
 
 ---
 
@@ -142,12 +142,31 @@ modo guiado resuelve del catálogo **en código**, no de una fila de Experience.
 Por eso 31/31 por HTTP convive con una tabla vacía: son dos registros distintos,
 y contar uno no dice nada del otro.
 
+**Qué bloquea A, dicho con precisión — corregido el 2026-11-09.** Esta sección
+decía que A afectaba «al registro, no al producto». **Es falso**, y lo destapó
+mirar la pantalla: las cinco muestran su tarjeta con «Completada» y al pulsar
+«Revisar» el panel responde «No pudimos preparar el recorrido de este capítulo».
+El panel necesita una **definición de Experience** para pintar el recorrido, y no
+existe ninguna. Así que A no es papeleo: **A es lo que hace que una persona pueda
+ver y hacer las cinco en el lector.** Hoy se recorren por HTTP y no se pueden
+abrir.
+
 **Propuesta: esta es una decisión tuya, no una deuda de ejecución.** Publicar
 las cinco Experiences requiere tu aprobación explícita, que la fuente registra
 como pendiente. Si la das, se ejecuta; si no, no hay nada que «ponerse al día».
 
 **NO hace**: publicar las Experiences **no** las pone delante de nadie. Eso es el
-flag, y el flag es la decisión 4 — que sigue en HOLD por separado.
+flag, y el flag es la decisión 4 — que sigue en HOLD por separado. Con A ejecutada
+y B en HOLD, las cinco existen, son reproducibles y las ve **sólo QA**.
+
+**Y hay un bloqueo técnico previo, que no es tuyo y no es sobre las cinco.** Al
+preparar los borradores con las herramientas del repositorio, `create-drafts`
+rechaza en bloque con `EXPERIENCE_CODE_OWNED_UNRESOLVED`: dos definiciones
+**embarcadas** —el piloto legado y una de _Parejas_— nombran cuatro filas de
+objetivos que nunca se ingirieron en esta base, y por diseño una sola definición
+embarcada que no ubica capítulo rechaza las escrituras de **todos** los capítulos.
+El detalle medido, las cinco una por una y las dos salidas posibles están en
+[microguias-c01-candidato.md](microguias-c01-candidato.md).
 
 ---
 

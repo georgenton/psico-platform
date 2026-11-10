@@ -25,7 +25,7 @@
  */
 
 import type { CSSProperties } from "react";
-import type { GuideRouteItem } from "@psico/types";
+import type { GuideCardPresentation, GuideRouteItem } from "@psico/types";
 // The same minimum touch target the practice scenes adopted in B4. Imported
 // rather than written again: one number, one place to lower it, and a test
 // that measures against what the component actually draws.
@@ -62,6 +62,23 @@ export interface GuidedRouteListProps {
    * and offer nothing — the honest reading of "I don't know" is not "yes".
    */
   runnablePins: ReadonlySet<string>;
+  /**
+   * Si el pin que un clic abriría tiene una definición REPRODUCIBLE, según el
+   * servidor y por versión exacta.
+   *
+   * Tercera pregunta, distinta de las dos de arriba. `runnablePins` dice si se
+   * puede EMPEZAR —se deriva de la oferta publicada del capítulo— y por eso
+   * nunca alcanzó a «Continuar» ni a «Revisar», que son de una sesión que ya
+   * existe. Medido el 2026-11-09: las cinco microguías de C01 mostraban
+   * «Completada · Revisar» y al pulsarlo el panel respondía «No pudimos
+   * preparar el recorrido».
+   *
+   * Un pin AUSENTE del mapa no es `PREPARING`: es «el servidor no lo dijo», y
+   * la tarjeta se comporta exactamente como antes. Eso conserva el repaso de
+   * una versión histórica que sigue resolviendo, que es lo que no se puede
+   * quitar para tapar el problema.
+   */
+  presentations?: ReadonlyMap<string, GuideCardPresentation>;
   onOpen: (item: GuideRouteItem) => void;
   onRetry?: () => void;
 }
@@ -72,6 +89,7 @@ export function GuidedRouteList({
   state,
   verdicts,
   runnablePins,
+  presentations,
   onOpen,
   onRetry,
 }: GuidedRouteListProps) {
@@ -133,7 +151,15 @@ export function GuidedRouteList({
           const ejecutable = runnablePins.has(pinOf(item));
           const mostrado: RouteCardVerdict =
             verdict === "start" && !ejecutable ? "unknown" : verdict;
-          const disabled = mostrado === "unknown";
+          // Sin definición reproducible, el control no abre nada. El ESTADO se
+          // conserva —«Completada» sigue siendo cierto— y lo que cambia es la
+          // promesa: «En preparación» dice lo que pasa, y deshabilitado evita
+          // el clic que respondía con un error.
+          const enPreparacion =
+            presentations?.get(pinOf(item)) === "PREPARING" &&
+            mostrado !== "unknown";
+          const disabled = mostrado === "unknown" || enPreparacion;
+          const etiqueta = enPreparacion ? "En preparación" : CTA[mostrado];
           return (
             <li key={pinOf(item)} style={S.card} data-testid="route-card">
               <div style={S.cardHead}>
@@ -157,9 +183,9 @@ export function GuidedRouteList({
                 style={disabled ? { ...S.cta, ...S.ctaDisabled } : S.cta}
                 disabled={disabled}
                 onClick={() => onOpen(item)}
-                aria-label={`${CTA[mostrado]}: ${item.title}`}
+                aria-label={`${etiqueta}: ${item.title}`}
               >
-                {CTA[mostrado]}
+                {etiqueta}
               </button>
             </li>
           );

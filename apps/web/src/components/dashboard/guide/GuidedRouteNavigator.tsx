@@ -31,6 +31,7 @@ import type { GuideRouteItem } from "@psico/types";
 // Same minimum touch target as the practice scenes and the full route cards.
 // One number, imported in all three places, so lowering it breaks a test
 // instead of quietly shrinking a control.
+import type { GuideCardPresentation } from "@psico/types";
 import { TOUCH_TARGET } from "../experience/practices/practice-ui";
 import type { GuideRouteState } from "./use-guide-route";
 import type { GuidePin } from "./guide-pin";
@@ -47,6 +48,12 @@ export interface GuidedRouteNavigatorProps {
   state: GuideRouteState;
   /** The server's verdict per `guideKey@guideVersion`. Absent ⇒ `unknown`. */
   verdicts: ReadonlyMap<string, RouteCardVerdict>;
+  /**
+   * Si el pin tiene definición reproducible. La misma semántica que en la
+   * lista completa: ausente no es `PREPARING`, y el estado del lector se
+   * conserva — lo que cambia es si el control abre algo.
+   */
+  presentations?: ReadonlyMap<string, GuideCardPresentation>;
   /** The reading on screen right now, so it can be marked as such. */
   activePin: GuidePin | null;
   onOpen: (item: GuideRouteItem) => void;
@@ -56,6 +63,7 @@ export interface GuidedRouteNavigatorProps {
 export function GuidedRouteNavigator({
   state,
   verdicts,
+  presentations,
   activePin,
   onOpen,
   onRetry,
@@ -112,7 +120,9 @@ export function GuidedRouteNavigator({
         {state.guides.map((item) => {
           const key = routeItemPinKey(item);
           const verdict = verdicts.get(key) ?? "unknown";
-          const disabled = verdict === "unknown";
+          const enPreparacion =
+            presentations?.get(key) === "PREPARING" && verdict !== "unknown";
+          const disabled = verdict === "unknown" || enPreparacion;
           const isActive = activeKey !== null && key === activeKey;
           return (
             <li key={key} data-testid="rgp-route-item">
@@ -133,7 +143,7 @@ export function GuidedRouteNavigator({
                 aria-label={
                   isActive
                     ? `${item.order}. ${item.title} · ${ROUTE_STATUS[verdict] || "estado no disponible"} · en pantalla`
-                    : `${ROUTE_CTA[verdict]}: ${item.order}. ${item.title} · ${ROUTE_STATUS[verdict] || "estado no disponible"}`
+                    : `${enPreparacion ? "En preparación" : ROUTE_CTA[verdict]}: ${item.order}. ${item.title} · ${ROUTE_STATUS[verdict] || "estado no disponible"}`
                 }
               >
                 <span style={S.mark} aria-hidden="true">

@@ -343,8 +343,74 @@ razón, para que discutir el número sea discutir el motivo:
 | **Cuota de Eco** (membresía)               | **300 mensajes al mes**, no acumulables                                                                                         | Medido: una llamada real costó USD 0,0043, así que 300 son ~USD 1,30 al mes sobre 6,99. No acumulables para que el techo sea el techo.                                          |
 | **Dúo y Círculos** (membresía)             | **Dúo incluido; Círculos de hasta 6, incluidos**                                                                                | Las dos superficies ya existen y están probadas con dos partes. Cobrarlas aparte partiría el producto que la landing describe como uno.                                         |
 | **Renovación** (membresía)                 | **Automática**, aviso por correo 7 días antes de cada cobro anual                                                               | El aviso previo es lo que convierte una renovación automática en algo defendible; en mensual el importe es pequeño y el aviso sobra.                                            |
-| **Cancelación y cambios**                  | Cancelable **en cualquier momento**, efecto al final del período pagado, sin reembolso parcial; cambio mensual↔anual al renovar | Es lo que el código ya hace (`cancel_at_period_end`), así que no hay que construir nada. Un reembolso prorrateado sí habría que construirlo.                                    |
+| **Cancelación y cambios**                  | Cancelable **en cualquier momento**, efecto al final del período pagado, sin reembolso parcial; cambio mensual↔anual al renovar | La cancelación es lo que el código ya hace (`cancel_at_period_end`). **El cambio de plan NO**: hoy responde `SWITCH_PLAN_NOT_AVAILABLE`. Ver la matriz de abajo                 |
 | **Impuestos y otros cargos**               | **Importes con IVA incluido** para Ecuador; sin cargos adicionales                                                              | Un precio que crece en la pasarela es la primera causa de abandono en el carrito. Si se factura desde Ecuador, el IVA aplica y conviene absorberlo en el número que se muestra. |
+
+### La matriz: propuesta → qué hace hoy el producto → qué haría falta
+
+> **Corrección del 2026-11-10.** La tabla de arriba sugería que las condiciones
+> estaban implementadas y sólo faltaba activarlas. **No es así.** Contrastada
+> fila por fila contra el código, **cuatro** piden construir algo y **una** está
+> directamente no implementada. Lo de abajo es el contraste; las propuestas de
+> arriba siguen siendo propuestas.
+
+| Condición propuesta                                                                     | Qué hace hoy                                                                                                                                                                      | Cambio necesario                                                                                                                                                                                                                                                                         | Cómo se comprueba                                                                                     | Decisión pendiente                 |
+| --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| **Acceso permanente** del pase de un libro                                              | **No existe el pase.** El acceso se decide por plan (`accessPlan` de la edición, derivado de `Book.plan`), y el propio módulo lo dice: «Nothing here is an entitlement framework» | Un concepto de **titularidad por obra** (quién posee qué) y una puerta que lo consulte antes que el plan. El **mecanismo de cobro único sí existe** y está probado —`mode: "payment"` en `createTherapyCheckout`—, así que lo que falta no es cobrar: es saber qué compró quien pagó     | Comprar un pase con una clave de prueba y que esa cuenta, en `FREE`, abra **esa** obra y no las demás | **Sí** — ver opciones abajo        |
+| **100 mensajes de Eco** con el pase                                                     | — (no hay pase)                                                                                                                                                                   | La cuota tendría que colgar de la titularidad, no del plan: hoy `PLAN_QUOTAS` sólo conoce `FREE/PRO/ANNUAL/B2B`                                                                                                                                                                          | Agotar la cuota con una cuenta de pase y recibir el rechazo                                           | **Sí**, junto con la fila anterior |
+| **300 mensajes de Eco al mes** (membresía)                                              | **200**, y **por período de suscripción**, no por mes: `UsageService` usa `Subscription.currentPeriodStart/End`                                                                   | Dos cosas distintas: (a) subir 200 → 300 es **un número**; (b) que sea **mensual con facturación anual** exige una ventana propia que no es el período de cobro — contar por mes natural o por mes móvil desde el alta, y una clave de caché por esa ventana en vez de por `periodStart` | Con una suscripción **anual** de prueba, comprobar que el contador se reinicia al mes y no a los doce | **Sí**                             |
+| **Dúo y Círculos incluidos** (hasta 6)                                                  | Existen y están probados con dos partes; hoy los gobierna el **rollout**, no el plan                                                                                              | Si se incluyen en la membresía, nada que construir en cobros. Si se quisieran **excluir** del pase, haría falta la titularidad de la fila 1                                                                                                                                              | Que una cuenta de membresía los abra y una de pase no                                                 | **Sí**, pero depende de la fila 1  |
+| **Renovación automática + aviso 7 días antes** (anual)                                  | La renovación automática la hace Stripe. **El aviso no existe**: no hay plantilla ni cron que lo mande                                                                            | Una plantilla y un trabajo programado que mire las suscripciones anuales que vencen en 7 días. Necesita **Resend**, que hoy falta                                                                                                                                                        | Adelantar el reloj del trabajo con una suscripción anual de prueba y ver llegar el correo             | **Sí**                             |
+| **Cancelable en cualquier momento**, efecto al final del período, sin reembolso parcial | ✅ **Es lo que hace** `cancel_at_period_end`, con su reactivación idempotente                                                                                                     | Ninguno                                                                                                                                                                                                                                                                                  | Ya cubierto por las pruebas de facturación                                                            | **No**                             |
+| **Cambio mensual↔anual al renovar**                                                     | ❌ **No implementado.** `PATCH` con `switch-plan` responde **501 `SWITCH_PLAN_NOT_AVAILABLE`** y propone cancelar y volver a suscribirse                                          | Una llamada de actualización de la suscripción en Stripe con prorrateo elegido, el espejo local del plan y qué pasa con la cuota a mitad de período                                                                                                                                      | Cambiar de mensual a anual con claves de prueba y ver el plan y la cuota correctos                    | **Sí**                             |
+| **Importes con IVA incluido**, sin cargos adicionales                                   | Los importes son los de la maqueta y **no se cobran**. No hay configuración de impuestos                                                                                          | Decidir si se factura con impuesto incluido y, si Stripe Tax entra, configurarlo. Si no, el importe mostrado tiene que ser el cobrado                                                                                                                                                    | Un cobro de prueba cuyo total coincida con el importe mostrado                                        | **Sí**                             |
+
+### Las dos que el encargo señala, con sus tres salidas
+
+**1 · Eco: 300 al mes frente a 200 por período.**
+
+Subir el número es trivial; **mensual con facturación anual no lo es**. Hoy la
+ventana ES el período de cobro, así que una suscripción anual daría 300 mensajes
+**para todo el año**, no 300 cada mes. Lo que exige una cuota mensual
+independiente de la facturación: una ventana propia (mes natural o mes móvil
+desde el alta), su clave de caché, y una decisión sobre qué pasa el mes del alta
+y el de la baja.
+
+| Salida                                                               | Efecto para quien compra                                                                                | Coste de construirlo                              |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| **Conservar la propuesta** y construir la ventana mensual            | 300 cada mes, también en anual — lo que la oferta dice                                                  | Un sprint corto: ventana, caché, pruebas de borde |
+| **Ajustar la oferta a lo que hay**: «200 por período de facturación» | En mensual, 200 al mes. En **anual, 200 al año** — que es peor de lo que parece y conviene no disimular | Cero                                              |
+| **Posponer**: anunciar sólo el plan mensual al principio             | 200 al mes, honesto, y el anual llega cuando la ventana exista                                          | Cero ahora                                        |
+
+> **Recomendación: conservar la propuesta y construirla.** «300 al mes» en un
+> plan anual que da 300 al año no es un matiz, es otra oferta. Y la alternativa
+> de anunciar 200 por período obliga a escribir en la tabla pública que el anual
+> da menos mensajes que doce meses del mensual, lo cual es defendible pero no se
+> vende solo.
+
+**2 · Cambio mensual↔anual al renovar.**
+
+| Salida                                                                        | Efecto para quien compra                                                                                               | Coste                                                    |
+| ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| **Conservar y construir** el cambio de plan                                   | Cambia de plan desde su cuenta, sin perder la suscripción                                                              | Medio: prorrateo, espejo local, cuota a mitad de período |
+| **Ajustar la oferta**: «para cambiar de plan, cancela y vuelve a suscribirte» | Funciona hoy, y es lo que el propio mensaje de error ya dice. Pero deja un hueco sin cobertura entre la baja y el alta | Cero                                                     |
+| **Posponer** y no mencionar el cambio en la tabla                             | No lo ve, no lo espera                                                                                                 | Cero                                                     |
+
+> **Recomendación: ajustar la oferta al lanzamiento y construirlo después.** Es
+> la única fila donde el producto ya tiene una salida que funciona y que el
+> propio error explica. Prometer un cambio de plan que responde 501 sería la
+> peor de las tres.
+
+### Lo que se midió y lo que sigue siendo hipótesis
+
+- **Medido, una vez:** una llamada a Eco costó **USD 0,0043** (407 de entrada +
+  208 de salida), observada en su propia fila el 2026-10-24. **Es una sola
+  llamada de una sola conversación corta**, no una media.
+- **Hipótesis:** que 300 mensajes cuesten ~USD 1,30 al mes sale de multiplicar
+  esa única medición por 300. Una conversación larga arrastra más contexto y
+  cuesta más; el número real sólo se sabe con uso.
+- **Sin medir:** el coste de la transcripción de voz y el de los embeddings, que
+  también entran en el margen y hoy no tienen ninguna observación.
 
 ### Condiciones de lanzamiento — qué tiene que ser verdad antes del primer cobro
 

@@ -121,13 +121,20 @@ Que estaba con sesión se acreditó, no se supuso: `/dashboard/perfil` la
 redirige a `/onboarding`, que es donde va una persona identificada sin
 onboarding terminado. Sin sesión iría a `/login`.
 
-> **Un residuo que conviene dejar escrito.** Volver a esa sala **después de
-> cerrar y reabrir sesión** da «esta sala no sea para ti» — no el rechazo del
-> despliegue, que es lo que cambió, sino la comprobación de asiento. El asiento
-> que crea aceptar una invitación es de **invitada**, atado a la credencial del
-> navegador, no a la cuenta; cerrar sesión la pierde. El recorrido normal
-> —aceptar y seguir ahí— funciona, y esto no lo toca el arreglo: sería otro
-> cambio, sobre a qué identidad se ata el asiento.
+> **Residuo — y mi explicación era equivocada. Corregido el 2026-11-10.**
+>
+> Escribí que volver a la sala tras cerrar y reabrir sesión daba «esta sala no
+> sea para ti» porque «el asiento es de invitada, atado a la credencial del
+> navegador, y cerrar sesión la pierde». **Es falso, y el código ya lo decía**:
+> `logoutAction` borra `access`, `refresh` y el envoltorio del diario — **no**
+> `fv_circulo_guest`, que dura 30 días. Y `resolveActor` cae a la credencial de
+> invitada cuando la lectura como miembro es un no definitivo.
+>
+> El recorrido que escribí estaba **contaminado por dos factores** que introduje
+> yo entre salir y volver: acepté una **segunda invitación** en el mismo
+> navegador y **roté la contraseña**. Atribuí a la salida lo que hizo otra cosa.
+>
+> La reproducción limpia está en §3.1.
 
 ### Las esperas y la privacidad antes de la revelación, en pantalla
 
@@ -165,6 +172,43 @@ recorridos nuevos», con el botón deshabilitado. La decisión 5 del paquete edi
 —mover la elegibilidad a una de las cinco microguías vivas— es lo que cierra eso.
 
 ---
+
+### 3.1 La continuidad, reproducida limpio (2026-11-10)
+
+Mismo navegador, misma identidad, misma sala, y **sin** aceptar otra invitación,
+cambiar de navegador ni retirarse:
+
+| Paso                                  | Resultado                                              |
+| ------------------------------------- | ------------------------------------------------------ |
+| 1 · Aceptar la invitación             | sala abierta en `/compartir/cmwa12ah…`                 |
+| 2 · Entrar, con sesión                | **200**, «Antes de empezar»                            |
+| 3 · **Cerrar la sesión de la cuenta** | **200, la sala sigue abriendo**                        |
+| 4 · Iniciar sesión de nuevo           | identificada (redirige a `/onboarding`, no a `/login`) |
+| 5 · Volver a la misma sala            | **200**, «0 de 2 listas», sin rechazo                  |
+
+**No hay defecto**: el contrato de «volver mientras la sesión siga vigente» se
+cumple. El paso 3 es el que refuta la explicación anterior por sí solo.
+
+**Y la causa real, medida aparte.** Terminada la secuencia, se aceptó a propósito
+una **segunda** invitación en el mismo navegador. La primera sala pasó
+inmediatamente a «no está disponible … que esta sala no sea para ti» — el mensaje
+exacto del informe anterior. De las cuatro candidatas:
+
+| Candidata                           | Veredicto                                                                                                    |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Pérdida de cookie al salir          | ❌ **refutada** — paso 3, y `logoutAction` no la toca                                                        |
+| **Sustitución por otra invitación** | ✅ **reproducida**, con el mismo mensaje                                                                     |
+| Revocación                          | ❌ la rotación revoca la sesión de **cuenta**; la sala resuelve por la credencial de invitada, que sobrevive |
+| Fallo de navegación                 | ❌ los cinco pasos devolvieron 200 con la página real                                                        |
+
+> **Una limitación que sí queda escrita, y no es un defecto de este arreglo.** La
+> credencial de invitada es **una por navegador** y está acotada a **una
+> actividad**. Quien reciba dos invitaciones y acepte las dos en el mismo
+> navegador conserva sólo la última; la anterior responde con el mismo 403 que
+> una sala ajena — deliberado, porque confirmar que existe ya diría demasiado a
+> un extraño. La consecuencia para esa persona es que parece haber perdido el
+> acceso. Atar el asiento a la cuenta lo resolvería y **es otra decisión**, que no
+> se toma aquí.
 
 ## 4 · Tres comprobaciones de paso
 

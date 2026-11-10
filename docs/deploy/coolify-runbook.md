@@ -1146,7 +1146,7 @@ resolviendo `bucket.127.0.0.1`.
 ##### La puerta, que se ejecuta antes de arrancar nada
 
 [`scripts/rehearsal-isolation-check.mjs`](../../scripts/rehearsal-isolation-check.mjs)
-comprueba **18 condiciones** y **falla cerrado**: si no puede afirmar que algo está
+comprueba **19 condiciones** y **falla cerrado**: si no puede afirmar que algo está
 aislado, dice que no lo está.
 
 ```bash
@@ -1155,12 +1155,47 @@ node scripts/rehearsal-isolation-check.mjs \
   --bucket-vivo <nombre del bucket real> \
   --cuenta-viva <id de cuenta R2 real> \
   --db-viva <host de la base real> \
-  --redis-vivo <host de Redis real>
+  --redis-vivo <host de Redis real> \
+  [--sustituto <url|host> ...] [--marca-centinela <prefijo>]
 ```
 
 Los identificadores «vivos» no son secretos —nombres de bucket, de cuenta y de
 host—, y se piden explícitamente para que la puerta pueda comparar **sin necesitar
 ninguna credencial real**.
+
+##### Autorizar, no descartar — corregido el 2026-11-09
+
+La primera versión preguntaba, en los tres sitios que deciden, **si algo NO era lo
+prohibido**. Una lista de prohibidos aprueba todo lo que no se le ocurrió a quien la
+escribió, y una revisión encontró tres puertas abiertas por esa misma forma:
+
+| Lo que pasaba                                                      | Por qué                                                                              |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| `ANTHROPIC_BASE_URL=https://api.anthropic.com./v1` **aprobaba**    | es una URL válida que resuelve al mismo sitio, y su `hostname` lleva **punto final** |
+| `R2_ENDPOINT=https://s3.otro-proveedor.com` **aprobaba**           | no ser de Cloudflare no lo convierte en el sustituto previsto                        |
+| `REDIS_URL` al Redis vivo **aprobaba** si se omitía `--redis-vivo` | la comprobación estaba envuelta en `if (redisVivo)` y **desaparecía en silencio**    |
+| una credencial real de un formato no listado **aprobaba**          | se rechazaban `sk-ant-`, `pa-` y `sk-`; cualquier otro formato pasaba                |
+
+Las tres se cierran con la misma inversión:
+
+- **Los destinos se autorizan, no se descartan.** La costura tiene que apuntar a un
+  **sustituto declarado**; por omisión, sólo el bucle local (`127.0.0.1`, `::1`,
+  `localhost`), que es una propiedad positiva y no la ausencia de otra. Un
+  despliegue con sustituto nombrado —`docker compose`, por ejemplo— lo declara con
+  `--sustituto sink-del-ensayo`, **repetible**.
+- **Y la autorización llega de fuera del fichero que se comprueba.** Si el propio
+  `.env` del ensayo pudiera declarar qué destinos valen, no habría comprobación: por
+  eso `--sustituto` y `--marca-centinela` son argumentos, no variables.
+- **Los centinelas llevan marca.** Toda credencial de frontera requerida tiene que
+  empezar por el prefijo declarado (`ensayo-` por omisión). Ninguna credencial
+  emitida por un proveedor empieza así, y eso **invierte la carga**: el valor tiene
+  que decir que es de mentira, en vez de que nosotros adivinemos que no es de
+  verdad. `STRIPE_SECRET_KEY` admite además `sk_test_`/`rk_test_`, que es la propia
+  declaración de Stripe.
+- **Redis no puede desvanecerse.** Si el entorno declara `REDIS_URL`, `--redis-vivo`
+  es **obligatorio** y la URL tiene que ser analizable. Sólo un Redis apagado exime.
+- **El punto final se normaliza** al leer el anfitrión, en un sitio y no en dos, para
+  que esa clase de evasión no vuelva por otra variable.
 
 Dos detalles de diseño que no son adorno:
 
@@ -1170,7 +1205,29 @@ Dos detalles de diseño que no son adorno:
 - **Los rollouts se exigen por valor, no por ausencia de otro.** `off` ausente no
   es `off`.
 
-Y hay **trinquete** (`apps/api/src/jobs/rehearsal-isolation.spec.ts`, 29 pruebas):
+##### Con qué artefacto se ejecuta
+
+**No con cualquiera.** Las dos costuras que hacen posible redirigir —`R2_ENDPOINT` y
+`OPENAI_BASE_URL`— llegaron en [#831](https://github.com/georgenton/psico-platform/pull/831),
+y con ellas el trato de las URL opcionales vacías. Una imagen anterior **ignora las
+dos variables en silencio**: arrancaría, la puerta pasaría —porque la puerta lee el
+fichero, no el binario— y el borrado de R2 saldría hacia el proveedor.
+
+Así que el ensayo se ejecuta con imágenes construidas desde un commit que **contenga
+`8f66b874`**, y se comprueba antes de arrancar:
+
+```bash
+# Dentro de la imagen candidata, las dos costuras tienen que existir.
+docker run --rm --entrypoint sh <imagen> -c \
+  'grep -c "R2_ENDPOINT\|OPENAI_BASE_URL" dist/config/env.schema.js'
+```
+
+**El worker que sirve staging hoy (`f15c5c96`) es anterior a #831**, así que **no**
+sirve para el ensayo. Esto no obliga a redesplegarlo: su operación actual no usa
+ninguna de las dos variables, y no se reconstruye un servicio sano para igualar un
+SHA. Lo que obliga es a **no tomarlo prestado** para el ensayo por inercia.
+
+Y hay **trinquete** (`apps/api/src/jobs/rehearsal-isolation.spec.ts`, 43 pruebas):
 recorre los procesadores de verdad, **sigue un salto** a los servicios que inyectan
 y exige que la puerta cubra cada familia de efecto encontrada. Para las fronteras
 requeridas la guarda que se exige es **la costura de destino**, no la clave: la
@@ -1195,7 +1252,7 @@ worker con el fichero de entorno de arriba.
 
 | Paso                              | Resultado                                                                                                                          |
 | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| Puerta de aislamiento             | `✔ aislado — 18 comprobaciones`, código 0                                                                                          |
+| Puerta de aislamiento             | `✔ aislado — 19 comprobaciones`, código 0                                                                                          |
 | Migraciones sobre la copia        | 71 aplicadas                                                                                                                       |
 | **Arranque real de la API**       | `Nest application successfully started` · `/health` → 200 · `/api/health/ready` → `ready=true`, `71/71`, `pending`/`failed` vacíos |
 | **Arranque real del worker**      | `Awaiting jobs from Redis…`, **12 colas** y sus planificadores registrados, proceso vivo                                           |
@@ -1520,8 +1577,14 @@ Estado al 2026-11-07, para que la lista sirva de puerta y no de recordatorio:
 | 6   | Rollback de nivel 1 ensayado                              | ✅ **hecho** el 2026-10-24 (§3.1)                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | 7   | Nivel 4 ensayado, o asumido como riesgo abierto           | ❌ **no ensayado**, y ahora **preparado**: lo que no necesita la caja está hecho y comprobado, y lo que falta es el recurso, con su coste abierto en dos preguntas concretas (ver arriba). Es la única recuperación frente a perder el servidor, y retirar las plataformas anteriores no la sustituye: lo que la sustituía antes era un DNS de vuelta, y ese camino ya no existe                                                                                                                              |
 
-Así que **tres puertas siguen cerradas** —2, 3 y 7— y una está a medias. Las tres
-son decisiones o mediciones, no trabajo de código pendiente.
+Así que **queda una puerta cerrada** —la 7, el ensayo de nivel 4— y la 1 está a
+medias. Las puertas 2 y 3 **se cerraron el 07-11** y no vuelven a contarse: la
+capacidad está medida y el margen elegido, y la versión de PostgreSQL está decidida
+y fijada por digest. No hay que repetir esas mediciones para abrir producción;
+volver a abrirlas sería trabajo que ya se hizo.
+
+> Esta frase decía «tres puertas siguen cerradas —2, 3 y 7—» y contradecía a las
+> dos filas que tiene justo encima, que ya decían ✅. Corregido el 2026-11-09.
 
 Forma idéntica a staging con recursos **separados**. Ningún recurso con estado se
 comparte entre entornos, y `PSICO_ENV=production`.

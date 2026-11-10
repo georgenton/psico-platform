@@ -54,18 +54,18 @@ const AISLADO: Record<string, string> = {
   REDIS_URL: "redis://ensayo-redis:6379",
   R2_ACCOUNT_ID: "cuenta-del-ensayo",
   R2_ACCESS_KEY_ID: "clave-del-ensayo",
-  R2_SECRET_ACCESS_KEY: "secreto-del-ensayo",
+  R2_SECRET_ACCESS_KEY: "ensayo-secreto",
   R2_BUCKET_NAME: "feelverse-ensayo",
   R2_ENDPOINT: "http://127.0.0.1:4566",
   RESEND_API_KEY: "",
   VAPID_PUBLIC_KEY: "",
   VAPID_PRIVATE_KEY: "",
   VAPID_SUBJECT: "",
-  ANTHROPIC_API_KEY: "centinela-del-ensayo",
+  ANTHROPIC_API_KEY: "ensayo-centinela",
   ANTHROPIC_BASE_URL: "http://127.0.0.1:4555",
-  VOYAGE_API_KEY: "centinela-del-ensayo",
+  VOYAGE_API_KEY: "ensayo-centinela",
   VOYAGE_BASE_URL: "http://127.0.0.1:4555/v1",
-  OPENAI_API_KEY: "centinela-del-ensayo",
+  OPENAI_API_KEY: "ensayo-centinela",
   OPENAI_BASE_URL: "http://127.0.0.1:4555",
   STRIPE_SECRET_KEY: "sk_test_del_ensayo",
   CIRCLES_ROLLOUT_MODE: "off",
@@ -93,7 +93,7 @@ describe("la puerta de aislamiento del ensayo", () => {
     expect(fallos).toEqual([]);
     // Si alguien quitara comprobaciones, lo de arriba seguiría pasando con la
     // lista vacía. Esto fija que de verdad se comprueba algo.
-    expect(pasa.length).toBeGreaterThanOrEqual(15);
+    expect(pasa.length).toBeGreaterThanOrEqual(18);
   });
 
   /**
@@ -157,15 +157,16 @@ describe("la puerta de aislamiento del ensayo", () => {
     ["ANTHROPIC_API_KEY", "sk-ant-api03-loquesea"],
     ["VOYAGE_API_KEY", "pa-loquesea"],
     ["OPENAI_API_KEY", "sk-proj-loquesea"],
+    ["R2_SECRET_ACCESS_KEY", "una-credencial-de-verdad"],
   ])(
-    "%s con forma de credencial VIVA no pasa, aunque la costura esté bien",
+    "%s sin la marca de centinela no pasa, aunque la costura esté bien",
     (clave, viva) => {
       // La segunda condición, independiente de la primera: con la costura
       // correcta esto no llega a ninguna parte hoy, pero un destipeo en la
       // costura lo convertiría en una llamada facturada.
       const f = fallosDe(con({ [clave]: viva }));
       expect(f).toHaveLength(1);
-      expect(f[0].qué).toBe(`${clave} no es una credencial viva`);
+      expect(f[0].qué).toBe(`${clave} lleva la marca de centinela`);
     },
   );
 
@@ -201,10 +202,17 @@ describe("la puerta de aislamiento del ensayo", () => {
     },
   );
 
-  it("una clave VIVA de Stripe no pasa; una de prueba sí", () => {
-    const f = fallosDe(con({ STRIPE_SECRET_KEY: "sk_live_loquesea" }));
-    expect(f).toHaveLength(1);
-    expect(f[0].porqué).toMatch(/cobros reales/);
+  it.each(["sk_live_loquesea", "loquesea", ""])(
+    "STRIPE_SECRET_KEY=%s no pasa: no se declara de prueba",
+    (valor) => {
+      const f = fallosDe(con({ STRIPE_SECRET_KEY: valor }));
+      expect(f).toHaveLength(1);
+      expect(f[0].qué).toBe("STRIPE_SECRET_KEY es de prueba o centinela");
+    },
+  );
+
+  it("una clave rk_test_ de Stripe sí pasa — es su propia declaración", () => {
+    expect(fallosDe(con({ STRIPE_SECRET_KEY: "rk_test_x" }))).toEqual([]);
   });
 
   it.each(["CIRCLES_ROLLOUT_MODE", "GUIDE_ROLLOUT_MODE"])(
@@ -241,6 +249,98 @@ describe("la puerta de aislamiento del ensayo", () => {
     const f = fallosDe(con({ REDIS_URL: `redis://${VIVO.redisVivo}:6379` }));
     expect(f).toHaveLength(1);
     expect(f[0].porqué).toMatch(/consumiría trabajos reales/);
+  });
+
+  /**
+   * ── Los tres huecos que la revisión del 2026-11-09 encontró ──────────────
+   *
+   * Los tres son la misma forma de error: comprobar que algo NO es lo
+   * prohibido, en vez de que SÍ es lo autorizado. Una lista de prohibidos
+   * aprueba todo lo que no se le ocurrió a quien la escribió.
+   */
+  describe("autorizar, no descartar", () => {
+    it("un dominio del proveedor con PUNTO FINAL ya no se cuela", () => {
+      // `https://api.anthropic.com./v1` es una URL válida que resuelve al
+      // mismo sitio, y su `hostname` termina en punto, así que no casaba con
+      // ningún dominio escrito sin él. Pasaba la puerta entera.
+      const f = fallosDe(
+        con({ ANTHROPIC_BASE_URL: "https://api.anthropic.com./v1" }),
+      );
+      expect(f).toHaveLength(1);
+      expect(f[0].porqué).toMatch(/es del proveedor/);
+    });
+
+    it.each([
+      ["https://s3.otro-proveedor.com", "otro proveedor de objetos"],
+      ["https://192.0.2.10:4566", "una IP pública cualquiera"],
+      ["https://sink.ejemplo.net", "el servidor de alguien"],
+    ])("%s tampoco: no basta con no ser del proveedor (%s)", (destino) => {
+      const f = fallosDe(con({ R2_ENDPOINT: destino }));
+      expect(f).toHaveLength(1);
+      expect(f[0].porqué).toMatch(/no está entre los sustitutos autorizados/);
+    });
+
+    it("pero un sustituto DECLARADO sí se acepta", () => {
+      // La autorización llega por la llamada, no por el fichero comprobado:
+      // si el propio entorno pudiera declarar qué vale, no habría puerta.
+      const { fallos } = checkIsolation(
+        con({ R2_ENDPOINT: "http://sink-del-ensayo:4566" }),
+        { ...VIVO, sustitutos: ["sink-del-ensayo", "127.0.0.1"] },
+      ) as { fallos: unknown[] };
+      expect(fallos).toEqual([]);
+    });
+
+    it("una credencial de un formato NO previsto ya no se aprueba", () => {
+      // La versión anterior rechazaba `sk-ant-`, `pa-` y `sk-`, y aprobaba
+      // cualquier otra cosa — incluida una credencial real de otro proveedor.
+      const f = fallosDe(con({ ANTHROPIC_API_KEY: "AIzaSyB-clave-real" }));
+      expect(f).toHaveLength(1);
+      expect(f[0].qué).toBe("ANTHROPIC_API_KEY lleva la marca de centinela");
+    });
+
+    it("la marca se declara por fuera, y una distinta cambia el veredicto", () => {
+      const env = con({ ANTHROPIC_API_KEY: "qa-centinela" });
+      expect(fallosDe(env)).toHaveLength(1);
+      const { fallos } = checkIsolation(env, {
+        ...VIVO,
+        marcaCentinela: "qa-",
+        // La marca nueva no alcanza a las otras tres, que siguen con «ensayo-».
+      }) as { fallos: unknown[] };
+      expect(fallos).toHaveLength(3);
+    });
+  });
+
+  describe("la comprobación de Redis no puede desvanecerse", () => {
+    const sinReferencia = {
+      bucketVivo: VIVO.bucketVivo,
+      cuentaViva: VIVO.cuentaViva,
+      dbViva: VIVO.dbViva,
+    };
+
+    it("omitir --redis-vivo con REDIS_URL puesta NO aprueba", () => {
+      // Antes esto estaba envuelto en `if (redisVivo)`, así que olvidar la
+      // referencia aprobaba el ensayo contra el Redis vivo, en silencio.
+      const { fallos } = checkIsolation(
+        con({ REDIS_URL: "redis://redis-vivo:6379" }),
+        sinReferencia,
+      ) as { fallos: { qué: string }[] };
+      expect(fallos).toHaveLength(1);
+      expect(fallos[0].qué).toBe("falta declarar el Redis vivo");
+    });
+
+    it("una REDIS_URL no analizable tampoco", () => {
+      const f = fallosDe(con({ REDIS_URL: "no-es-una-url" }));
+      expect(f).toHaveLength(1);
+      expect(f[0].porqué).toMatch(/no es analizable/);
+    });
+
+    it("y un Redis APAGADO sí exime de declararla", () => {
+      const { fallos } = checkIsolation(
+        con({ REDIS_URL: "" }),
+        sinReferencia,
+      ) as { fallos: unknown[] };
+      expect(fallos).toEqual([]);
+    });
   });
 
   it("sin REDIS_URL pasa: la app cae a su sustituto en memoria", () => {

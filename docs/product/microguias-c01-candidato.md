@@ -1,5 +1,18 @@
 # Las cinco microguías de C01 — candidato para revisar
 
+> **EJECUTADO el 2026-11-11.** El propietario aprobó el archivado y la creación de
+> los cinco borradores. #839 se fusionó por squash tras cerrar su CI en **15/15**;
+> `main` quedó en `28208e57`, la API se desplegó a esa misma imagen y los **cinco
+> borradores existen en staging** en `DRAFT` — ninguno publicado. El capítulo 1 de
+> EEC ofrece **0** experiencias.
+>
+> **Las decisiones A y B siguen pendientes** y esta aprobación las excluye
+> expresamente. Lo que sigue abajo es el documento del candidato tal como se
+> presentó para decidir; su §7 es la secuencia, y de sus siete pasos quedan
+> cerrados el 1, el 2, el 3 y el 4.
+>
+> Evidencia con hashes en `~/.psico-ops/eec-c01-drafts-20261111/`.
+
 > **Qué es esto.** Lo que hay preparado de las cinco microguías del capítulo 1
 > de _Emociones en construcción_, con lo que se comprobó, lo que falta y el paso
 > exacto que quedaría por ejecutar si se aprobara publicarlas. **Nada está

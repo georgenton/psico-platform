@@ -4012,18 +4012,23 @@ sección, manda esta sección.
 
 #### El corte — 2026-11-11
 
-|                    |                                                                                                                                                                            |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Dónde vive         | **OVH con Coolify, y sólo ahí.** Vercel y Railway retiradas del plan operativo                                                                                             |
-| `main`             | `4c28053c` (#841) · #835–#838, #840 y #841 fusionados                                                                                                                      |
-| #839               | **Draft, HEAD `4bacc8e6`, CI 15/15 en verde** — técnicamente terminado; sigue en Draft porque espera una **decisión editorial**, no trabajo                                |
-| Servido en staging | **API `4fdde06a`** · **Web `8e6e2053`** (10-11) · worker `f15c5c96` (07-11) — leído del contenedor, no de esta tabla                                                       |
-| ¿Coinciden?        | Web sí. La API va un commit por detrás y da igual: entre `4fdde06a` y `8e6e2053` **no cambia nada de la API**, sólo el cliente que empaqueta la Web y el documento OpenAPI |
-| Producción         | **no existe como recurso.** Tres aplicaciones en el proyecto, las tres de staging                                                                                          |
+|                    |                                                                                                                                                                              |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Dónde vive         | **OVH con Coolify, y sólo ahí.** Vercel y Railway retiradas del plan operativo                                                                                               |
+| `main`             | `28208e57` (#839, squash) · #835–#838, #840 y #841 ya estaban                                                                                                                |
+| #839               | ✅ **fusionado** el 11-11 tras tu aprobación. HEAD probado `395cdcf8`, **CI 15/15 en verde, cero fallos**                                                                    |
+| Servido en staging | **API `28208e57`** (11-11, lleva el archivado) · **Web `8e6e2053`** (10-11) · worker `f15c5c96` (07-11) — leído del contenedor, no de esta tabla                             |
+| ¿Coinciden?        | La API sí, exactamente. Web y worker van por detrás **a propósito**: ninguno tiene cambio funcional que salir, y el grafo de módulos del worker **no alcanza** `experience/` |
+| Capítulo 1 de EEC  | ofrece **0 experiencias** (antes 1, ya no iniciable) · **cinco borradores creados**, ninguno publicado                                                                       |
+| Producción         | **no existe como recurso.** Tres aplicaciones en el proyecto, las tres de staging                                                                                            |
 
-> **Lo integrado hoy (11-11) NO cambia nada de lo servido**, y conviene no leerlo
-> como un despliegue pendiente: son dos commits en una rama **en Draft** (#839) y
-> nada más. Lo servido sigue siendo lo del 10-11.
+> **El archivado se aprobó, se fusionó, se desplegó y se verificó el 11-11.** La
+> API sirve `28208e57` con `ready=true`, `reason=ok`, 71 migraciones y las listas
+> `pending`/`failed` vacías — que es cómo se cierra un despliegue de la API, no con
+> el verde de Coolify. Y los cinco borradores existen en staging.
+>
+> **Lo que sigue pendiente no es trabajo técnico:** las decisiones **A** (publicar
+> las cinco) y **B** (ampliar audiencia), que esta aprobación excluye expresamente.
 
 > **Un despliegue puede no venir de un commit.** Los tres de hoy se dispararon
 > por cambios de **entorno** —abrir Círculos, abrir el modo guiado a QA—, no por
@@ -4734,21 +4739,72 @@ distintas:
     reproducen el fichero del repositorio **byte a byte**. Es la lección de la
     evidencia del 10-11, que se perdió con su entorno.
 
+36. ✅ **El archivado, aprobado y ejecutado de punta a punta** (11-11). Tu
+    aprobación llegó con alcance explícito —archivar y crear los cinco borradores,
+    **no** A ni B— y la ejecución siguió la secuencia del §7 del candidato:
+
+    | Paso                                  | Resultado                                                                                                        |
+    | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+    | CI del HEAD de integración `395cdcf8` | **15/15, cero fallos**                                                                                           |
+    | #839                                  | Ready → **squash**, la convención del repositorio para ramas de feature                                          |
+    | `main`                                | `28208e57`, con `status: "ARCHIVED"` dentro                                                                      |
+    | Despliegue                            | **sólo la API**; imagen `28208e57` servida, `ready=true`, `reason=ok`, 71 migraciones, `pending`/`failed` vacías |
+    | Los cinco borradores                  | `create-drafts --apply` → **APPLIED, 5 CREATED**, `drift: false`, `pending: []`                                  |
+
+    **Las siete comprobaciones del alcance**, distinguiendo lo observado de lo
+    cubierto por pruebas:
+    1. **Oferta legada retirada** — observado sobre la API viva: el capítulo pasó
+       de **1** experiencia (`eec-c1-cuerpo-antes-que-mente@1`, ya con
+       `startable: false`) a **0**.
+    2. **Su definición sigue resolviendo por identidad y versión** — **cubierto por
+       las pruebas**, no observado: la ruta por pin exacto exige un recorrido
+       propio y en ese pin no hay ninguno en staging.
+    3. **Los cinco existen como DRAFT y corresponden** — verificado campo por
+       campo contra los manifiestos: pin correcto y **7/7/7/8/8 escenas con texto
+       idéntico**. Y mi primera pasada del comparador declaró cinco diferencias
+       falsas porque leía el nivel equivocado: la fila anida el texto bajo `copy`
+       y añade `sceneKey`, el manifiesto lo tiene plano.
+    4. **Ninguna pasó a PUBLISHED** — las cinco con `publishedAt` nulo, y la
+       oferta del capítulo **sigue en 0** con los cinco creados, que es la prueba
+       de que crear borradores no publicó nada.
+    5. **La lectura sigue** — `/api/books` 200 y el capítulo 1 sirviendo sus 188
+       bloques.
+    6. **Progreso e historia intactos** — idénticos a la línea base: 66 sesiones de
+       guía, 194 bloques, 1 anotación, 21 sesiones de lectura.
+    7. **Rollout y audiencia sin cambios** — `pilot`, el flag en `on`, y el padrón
+       con la misma única cuenta de QA.
+
+    `verify-drafts` da **ocho de nueve** chequeos en ✓. El único `false` es
+    `flagOff`, y lo es **porque QA conserva el flag encendido** por tu
+    instrucción — de modo que el `ok` agregado engaña y lo que vale son los nueve
+    leídos uno a uno.
+
+    **Identidad operativa:** `qa-visual-20261026@psico.test`, cuenta sintética
+    existente con rol **USER**. No se promovió a nadie a ADMIN.
+
+    **Lo que NO se pudo obtener, y por qué:** la vista previa del CMS exige rol
+    ADMIN y en staging **no hay ninguna cuenta ADMIN**. `preview-report` sí dio las
+    cinco por la vía del CLI, con dos campos que importan: `anchorResolved: true` y
+    **`correctOptionKeyExposed: false`** en las cinco. Las URLs de esas vistas
+    quedan registradas para quien tenga el rol.
+
+    Evidencia con hashes en `~/.psico-ops/eec-c01-drafts-20261111/`, junto al
+    comparador que la produce — se vuelve a correr sobre lo guardado y repite.
+
 #### La siguiente ejecución hacia producción
 
 Cinco cajones, y la diferencia entre ellos es quién puede moverlos.
 
-**1 · Integrado y servido** — `main` `4c28053c`, y lo que sirve staging viene de
-ahí o de antes: API `4fdde06a`, Web `8e6e2053` (los dos del 10-11, con #836 y
-#840 dentro: la tarjeta de Guía dice «En preparación» y el cliente ya no rechaza
-el lote por una clave nueva), worker `f15c5c96`. **No hay despliegue pendiente**:
-nada de lo integrado después cambia lo servido.
+**1 · Integrado y servido** — `main` `28208e57`. API sirviendo **esa misma
+imagen** (desplegada el 11-11, con el archivado dentro); Web `8e6e2053` y worker
+`f15c5c96` por detrás **a propósito**, porque ninguno tiene cambio funcional que
+salir y el grafo del worker no alcanza `experience/`. **No hay despliegue
+pendiente.**
 
-**2 · Técnicamente terminado, en Draft, esperando una decisión** — **#839**,
-HEAD `4bacc8e6`, **CI 15/15 en verde**. Es el cajón que importa hoy, y conviene
-no confundirlo con el 1 ni con el 3: el trabajo está hecho y comprobado, y lo que
-falta **no es ingeniería**. Archivar la oferta legada cambia la oferta de un
-capítulo publicado, así que su integración espera la decisión de archivado.
+**2 · Aprobado, ejecutado y verificado** — el **archivado** (#839) y los **cinco
+borradores**. `main` `28208e57`, API sirviendo esa misma imagen, el capítulo con
+**0** experiencias ofrecidas y cinco `DRAFT` cuyo texto coincide campo por campo
+con los manifiestos. Este cajón se vació hoy.
 
 **3 · Pendiente de un insumo externo** — el recorrido de **correo**
 (`RESEND_API_KEY` + una bandeja autorizada), **Sentry** (`SENTRY_DSN`), **Google**
@@ -4831,7 +4887,10 @@ en **[la matriz de F3](https://claude.ai/artifact/UtBZxMUDiqSuSwY3mGh5ah)**:
       tuyas**, no deudas de ejecución. Y en OVH las cinco no están en `DRAFT`:
       están **ausentes** (0 filas).
 
-      **Desde el 11-11 se puede decidir con el texto delante**: las cinco van
+      **Y desde el 11-11 los cinco borradores EXISTEN en staging**, en `DRAFT`, con
+      su texto verificado campo por campo contra los manifiestos: lo único que
+      falta para que alguien los abra es exactamente A. Se puede decidir con el
+      texto delante — las cinco van
       enteras —37 escenas, las cinco prácticas con sus opciones, cada recuerdo con
       su respuesta y sus devoluciones— en
       [microguias-c01-contenido-para-revision.md](docs/product/microguias-c01-contenido-para-revision.md)
@@ -4846,37 +4905,34 @@ en **[la matriz de F3](https://claude.ai/artifact/UtBZxMUDiqSuSwY3mGh5ah)**:
       —ése es el aviso que importa— y **no** pone las tarjetas abiertas en
       pantalla delante de nadie, porque abrir una portada exige además un
       recorrido propio en ese pin. La oferta del capítulo serán **cinco, no
-      seis**: la legada ya estará archivada.
+      seis**: la legada **ya está** archivada.
 
-   3bis. **El archivado de la oferta legada de EEC**, que es lo que desbloquea el
-   paso 4 de la secuencia. **#839 está técnicamente terminado**, CI 15/15 en
-   verde, y sigue en Draft porque cambia la oferta de un capítulo publicado.
-   Qué conserva: la definición, sus claves, sus versiones, su guía registrada,
-   su respuesta por pin exacto —las sesiones fijadas siguen— y su tarjeta
-   `PLAYABLE` para quien ya la tiene. Qué cambia: el capítulo 1 de EEC deja de
-   ofrecer su única tarjeta, y no ofrece ninguna hasta que se publiquen las
-   cinco. **Lo que desaparece ya respondía 410 a cualquier inicio nuevo**, con
-   `startable: false` en su vista pública, así que es un control que no abre
-   nada para nadie nuevo. Se recupera volviendo el estado a publicado y
-   desplegando — pero eso **no retira** borradores creados o publicados
-   después: ésos se archivan aparte y explícitamente. 4. **Los dos bloques de _EEC_**: el de C05 ya está corregido. El de C01 es
-   una **nota editorial interna** que vive en el canónico, bajo «Referencias
-   **de trabajo**», con su SHA intacto y **cero** referencias hoy. Retirarla
-   es una reapertura editorial del canónico; y en la misma línea hay una
-   segunda pregunta: un capítulo publicado diría «Referencias», no
-   «Referencias de trabajo». 5. **Las otras dos obras.** Lo que falta de cada una es **material y
-   preparación editorial, no la decisión de si pertenecen al producto**: el
-   alcance editorial final incluye las tres obras, y la autoría está
-   resuelta — _EEC_ y _Familias ensambladas_ son de Jorge Quizamanchuro,
-   _Parejas que perduran_ de David Jaramillo. Hoy _Familias_ existe como
-   fila, sin publicar, con tres capítulos y ninguna parte asignada;
-   _Parejas_ todavía no tiene fila. El detalle, en el inventario. 6. **El primer recurso de audio o video.** Se propone **audio del capítulo 1
-   de _EEC_**: es el capítulo gratuito al que llega cualquiera, y el camino
-   del audio es el que más maquinaria valida de una vez —subida a R2, fila
-   `Audio`, URL firmada con su vencimiento, barra del lector y metadatos de
-   pantalla bloqueada—. Hace falta un fichero y tres datos: título, duración
-   en segundos y, si existe, transcripción. Hoy: **10 bloques de video con 0
-   archivos** y **0 filas de audio**.
+      ✅ **El archivado que esto necesitaba quedó RESUELTO el 11-11.** Lo
+      aprobaste con alcance explícito, se fusionó (#839, squash, CI 15/15 en
+      verde), se desplegó sólo la API y se verificaron las siete comprobaciones
+      del alcance — detalle en la entrada 36. El capítulo ofrece **0**
+      experiencias y los **cinco borradores existen** en `DRAFT`, ninguno
+      publicado. La reversión sigue siendo un valor y un despliegue, pero **no
+      retira** esos borradores: ésos se archivarían aparte y explícitamente.
+
+   4. **Los dos bloques de _EEC_**: el de C05 ya está corregido. El de C01 es
+      una **nota editorial interna** que vive en el canónico, bajo «Referencias
+      **de trabajo**», con su SHA intacto y **cero** referencias hoy. Retirarla
+      es una reapertura editorial del canónico; y en la misma línea hay una
+      segunda pregunta: un capítulo publicado diría «Referencias», no
+      «Referencias de trabajo». 5. **Las otras dos obras.** Lo que falta de cada una es **material y
+      preparación editorial, no la decisión de si pertenecen al producto**: el
+      alcance editorial final incluye las tres obras, y la autoría está
+      resuelta — _EEC_ y _Familias ensambladas_ son de Jorge Quizamanchuro,
+      _Parejas que perduran_ de David Jaramillo. Hoy _Familias_ existe como
+      fila, sin publicar, con tres capítulos y ninguna parte asignada;
+      _Parejas_ todavía no tiene fila. El detalle, en el inventario. 6. **El primer recurso de audio o video.** Se propone **audio del capítulo 1
+      de _EEC_**: es el capítulo gratuito al que llega cualquiera, y el camino
+      del audio es el que más maquinaria valida de una vez —subida a R2, fila
+      `Audio`, URL firmada con su vencimiento, barra del lector y metadatos de
+      pantalla bloqueada—. Hace falta un fichero y tres datos: título, duración
+      en segundos y, si existe, transcripción. Hoy: **10 bloques de video con 0
+      archivos** y **0 filas de audio**.
 
    **Las ocho, juntas y con su propuesta**, en
    [docs/product/paquete-editorial-2026-11-07.md](docs/product/paquete-editorial-2026-11-07.md):

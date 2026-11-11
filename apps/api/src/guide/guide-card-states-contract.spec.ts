@@ -90,15 +90,22 @@ describe("ratchet · parser ↔ OpenAPI", () => {
   it("documents the answer the service actually returns — no session", () => {
     const item = responseItem();
     // C.3R adds the verdict and the pin it was passed on; nothing else.
-    const closed = [
+    const obligatorias = [
       "applicability",
       "evaluatedPin",
       "guidePin",
       "resumePin",
       "status",
     ];
-    expect(item.required.slice().sort()).toEqual(closed);
-    expect(Object.keys(item.properties).sort()).toEqual(closed);
+    expect(item.required.slice().sort()).toEqual(obligatorias);
+    // `presentation` se publica pero NO es obligatoria: el servidor la omite
+    // cuando no pudo resolver la definición, y un cliente anterior que no la
+    // reciba se comporta como antes. Las dos listas dejan de coincidir a
+    // propósito, y esa diferencia es exactamente el conjunto opcional.
+    expect(Object.keys(item.properties).sort()).toEqual(
+      [...obligatorias, "presentation"].sort(),
+    );
+    expect(item.required).not.toContain("presentation");
     // The field the review removed must not come back through the document.
     expect(JSON.stringify(GUIDE_CARD_STATES_RESPONSE)).not.toMatch(
       /"session"|sessionId|stepsCompleted/,
@@ -314,7 +321,7 @@ describe("ratchet · parser ↔ client", () => {
       "evaluatedPin",
     ]) {
       expect(body).toMatch(
-        new RegExp(`onlyKeys\\(item, \\[[\\s\\S]*?"${field}"`),
+        new RegExp(`onlyKeys\\(\\s*item,\\s*\\[[\\s\\S]*?"${field}"`),
       );
     }
     expect(body).toMatch(/readPin\(item\.guidePin\)/);
@@ -329,6 +336,45 @@ describe("ratchet · parser ↔ client", () => {
     expect(body).toMatch(
       /resumePin!\.guideVersion !== guidePin!\.guideVersion/,
     );
+  });
+
+  it("acepta TODO lo que el documento publica, no sólo lo que ya conocía", () => {
+    // La mitad que faltaba, y la que habría atrapado el defecto de #836.
+    //
+    // La prueba de arriba comprueba que cada campo esperado ESTÉ en el
+    // `onlyKeys` del cliente. Nunca comprobaba lo contrario: que el cliente
+    // acepte todo lo que el documento declara. Así que el servidor empezó a
+    // enviar `presentation`, el documento no la declaraba, el cliente la
+    // rechazaba — y el CI dio verde.
+    //
+    // El coste no fue el campo nuevo: `onlyKeys` exige coincidencia EXACTA, de
+    // modo que una clave desconocida rechaza el lote completo. En pantalla eso
+    // no se parece a su causa: TODAS las tarjetas de TODOS los capítulos
+    // pasaron a «No disponible ahora», incluido un «Continuar» a mitad de
+    // recorrido. Medido en staging antes de arreglarlo.
+    const src = client();
+    const fn = src.slice(src.indexOf("function validateCardStatesAnswer"));
+    const body = fn.slice(0, fn.indexOf("\n/** A JSON object"));
+    const llamada = body.match(
+      /onlyKeys\(\s*item,\s*\[([\s\S]*?)\](?:,\s*\[([\s\S]*?)\])?\s*,?\s*\)/,
+    );
+    if (!llamada) throw new Error("no se encontró el onlyKeys del item");
+    const extraer = (s: string | undefined) =>
+      [...(s ?? "").matchAll(/"([a-zA-Z]+)"/g)].map((m) => m[1]!);
+    const aceptadas = [...extraer(llamada[1]), ...extraer(llamada[2])].sort();
+
+    const publicadas = Object.keys(responseItem().properties).sort();
+
+    // Igualdad en los DOS sentidos. Un campo publicado que el cliente no
+    // acepte rompe el lote; uno que el cliente acepte y el documento no
+    // declare es un campo que nadie puede integrar contra el documento.
+    expect(aceptadas).toEqual(publicadas);
+
+    // Y lo que `required` no incluye es lo que puede faltar: el cliente tiene
+    // que tolerar su ausencia, porque es como responde un servidor anterior.
+    const obligatorias = (responseItem().required ?? []).slice().sort();
+    const opcionales = publicadas.filter((k) => !obligatorias.includes(k));
+    expect(opcionales).toEqual(extraer(llamada[2]).sort());
   });
 
   it("agrees with OpenAPI on the three words a status may be", () => {

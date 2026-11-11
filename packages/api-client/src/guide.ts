@@ -122,14 +122,19 @@ function validateCardStatesAnswer(
   (items as unknown[]).forEach((raw, i) => {
     if (!isPlainObject(raw)) bad();
     const item = raw as Record<string, unknown>;
+    // `presentation` es OPCIONAL en los dos sentidos, y por eso no basta
+    // añadirla a la lista: `onlyKeys` exige coincidencia exacta de longitud,
+    // así que una API anterior (cinco claves) y la actual (seis) tienen que
+    // pasar las dos. Éste fue el defecto: la API empezó a enviarla y el
+    // cliente rechazaba el lote entero — no sólo las tarjetas sin definición,
+    // sino TODAS las de TODOS los capítulos, incluido un «Continuar» a mitad
+    // de recorrido, que pasaba a leer «No disponible ahora».
     if (
-      !onlyKeys(item, [
-        "guidePin",
-        "status",
-        "resumePin",
-        "applicability",
-        "evaluatedPin",
-      ])
+      !onlyKeys(
+        item,
+        ["guidePin", "status", "resumePin", "applicability", "evaluatedPin"],
+        ["presentation"],
+      )
     ) {
       bad();
     }
@@ -176,12 +181,31 @@ function validateCardStatesAnswer(
       bad();
     }
 
+    // Una presentación que este cliente no entiende NO es una presentación.
+    // Mismo criterio que con `applicability`: no se inventa ni se coacciona.
+    // Ausente es una respuesta válida — significa «el servidor no lo dijo» — y
+    // la tarjeta se comporta como antes.
+    const presentation = item.presentation;
+    if (
+      presentation !== undefined &&
+      presentation !== "PLAYABLE" &&
+      presentation !== "PREPARING"
+    ) {
+      bad();
+    }
+
     validated.push({
       guidePin: guidePin!,
       status: status as GuideExperienceCardState["status"],
       resumePin: resumePin!,
       applicability: applicability as GuideExperienceCardState["applicability"],
       evaluatedPin: evaluatedPin!,
+      ...(presentation !== undefined
+        ? {
+            presentation:
+              presentation as GuideExperienceCardState["presentation"],
+          }
+        : {}),
     });
   });
   return validated;
@@ -192,12 +216,25 @@ function isPlainObject(value: unknown): boolean {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-/** Exactly these own keys — no more, none missing. */
-function onlyKeys(value: Record<string, unknown>, allowed: string[]): boolean {
+/**
+ * Exactly these own keys — no more, none missing.
+ *
+ * `optional` admite claves que PUEDEN faltar, para los campos que un servidor
+ * más nuevo añade y uno más viejo no envía. Sin esto, cada campo añadido al
+ * wire rompe a todos los clientes anteriores en el acto, y la rotura no se
+ * parece a su causa: el lote entero se rechaza y la pantalla dice «no pudimos
+ * saberlo» sobre cosas que sí sabía.
+ */
+function onlyKeys(
+  value: Record<string, unknown>,
+  allowed: string[],
+  optional: string[] = [],
+): boolean {
   const keys = Object.keys(value);
-  return (
-    keys.length === allowed.length && keys.every((k) => allowed.includes(k))
-  );
+  // Las obligatorias, todas presentes.
+  if (!allowed.every((k) => keys.includes(k))) return false;
+  // Y nada fuera de la unión — una clave desconocida sigue siendo un rechazo.
+  return keys.every((k) => allowed.includes(k) || optional.includes(k));
 }
 
 /** A pin, or `null`. Same grammar and range the server enforces on the way in. */

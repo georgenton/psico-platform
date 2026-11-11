@@ -509,6 +509,22 @@ const GUIDE_CARD_STATE_ITEM: SchemaObject = {
         "El pin sobre el que se emitió el veredicto: el reanudable " +
         "cuando hay linaje abierto, el publicado en caso contrario.",
     },
+    // OPCIONAL, y por eso NO está en `required`: el servidor la omite cuando
+    // no pudo resolver la definición o cuando no hay repositorio inyectado, y
+    // un cliente que no la reciba se comporta como antes. Faltaba aquí
+    // mientras el servidor ya la enviaba, así que el documento prohibía un
+    // campo real — y `additionalProperties: false` lo convierte en una
+    // contradicción, no en una omisión inofensiva.
+    presentation: {
+      type: "string",
+      enum: ["PLAYABLE", "PREPARING"],
+      description:
+        "Si el pin que un clic abriría tiene definición REPRODUCIBLE, " +
+        "resuelto por versión exacta con la misma resolución que usa el " +
+        "lector. Distinta pregunta de `status` (qué ha hecho el lector) y " +
+        "de `applicability` (si la guía habla de esta unidad). Ausente " +
+        "significa que el servidor no lo dijo, no que no haya.",
+    },
   },
 };
 

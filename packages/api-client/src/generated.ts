@@ -14281,6 +14281,11 @@ export interface operations {
                                 guideKey: string;
                                 guideVersion: number;
                             };
+                            /**
+                             * @description Si el pin que un clic abriría tiene definición REPRODUCIBLE, resuelto por versión exacta con la misma resolución que usa el lector. Distinta pregunta de `status` (qué ha hecho el lector) y de `applicability` (si la guía habla de esta unidad). Ausente significa que el servidor no lo dijo, no que no haya.
+                             * @enum {string}
+                             */
+                            presentation?: PathsApiGuideExperiencesStatePostResponses200ContentApplicationJsonItemsOneOf0Presentation;
                         } | {
                             guidePin: {
                                 guideKey: string;
@@ -20880,6 +20885,10 @@ export enum PathsApiGuideExperiencesStatePostResponses200ContentApplicationJsonI
 export enum PathsApiGuideExperiencesStatePostResponses200ContentApplicationJsonItemsOneOf0Applicability {
     APPLIES = "APPLIES",
     UNAVAILABLE = "UNAVAILABLE"
+}
+export enum PathsApiGuideExperiencesStatePostResponses200ContentApplicationJsonItemsOneOf0Presentation {
+    PLAYABLE = "PLAYABLE",
+    PREPARING = "PREPARING"
 }
 export enum PathsApiGuideExperiencesStatePostResponses200ContentApplicationJsonItemsOneOf1Status {
     START = "START",

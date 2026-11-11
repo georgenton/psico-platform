@@ -214,7 +214,12 @@ describe("ratchet · the backfill's own guarantees", () => {
     const lockAt = body.indexOf(
       "acquireBindingLock(tx, globalBindingLockKey())",
     );
-    const readAt = body.indexOf("planReservations(tx)");
+    // Anclado en `tx`, no en el paréntesis de cierre: lo que esta prueba
+    // garantiza es que el plan se lee DENTRO de la transacción bloqueada, y eso
+    // lo dice el cliente que recibe, no cuántos argumentos vengan detrás. Con
+    // el literal `planReservations(tx)` un segundo parámetro —el catálogo—
+    // dejaba de coincidir y el orden de bloqueo se quedaba sin vigilar.
+    const readAt = body.search(/planReservations\(tx\b/);
     expect(lockAt).toBeGreaterThan(-1);
     expect(readAt).toBeGreaterThan(lockAt);
   });
@@ -265,7 +270,12 @@ describe("ratchet · the backfill's own guarantees", () => {
     // key on `(bookSlug, chapterOrder)` — and a stored row's number is the
     // position it was CREATED at, so after a reorder the check compared a
     // shipped definition placed today against a row placed months ago.
-    expect(src).toMatch(/codeOwnedClaimsByUnit\(db\)/);
+    // `\(db\b` y no `\(db\)`: lo vigilado es que la colisión se resuelva por
+    // UNIDAD —la función que se llama y el cliente que recibe—, no que la
+    // llamada no acepte un catálogo explícito. El literal cerrado convertía
+    // añadir ese argumento en un fallo, que es justo lo contrario de lo que
+    // esta prueba defiende.
+    expect(src).toMatch(/codeOwnedClaimsByUnit\(db\b/);
     expect(src).toMatch(/byUnit\.get\(g\.contentUnitId\)/);
     expect(src).not.toMatch(/listPublishedForChapter/);
     expect(src).toMatch(/codeOwnedCollision/);
@@ -489,7 +499,8 @@ describe("ratchet · measure and apply are different commands", () => {
     );
     const global = apply.indexOf("globalBindingLockKey()");
     const editions = apply.indexOf('FROM "Edition" ORDER BY "id" FOR UPDATE');
-    const plan = apply.indexOf("planReservations(tx)");
+    // Mismo anclaje que arriba: `tx` es la garantía, la aridad no.
+    const plan = apply.search(/planReservations\(tx\b/);
     expect(global).toBeGreaterThan(-1);
     expect(editions).toBeGreaterThan(global);
     expect(plan).toBeGreaterThan(editions);

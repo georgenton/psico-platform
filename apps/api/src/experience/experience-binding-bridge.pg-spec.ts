@@ -24,6 +24,10 @@ import {
   type BindingSchemaProbe,
 } from "./experience-binding-schema";
 import { codeOwnedClaimsByUnit } from "./experience-code-owned-identity";
+import {
+  CATALOGO_CON_PILOTO_PUBLICADO,
+  reclamacionesConPilotoPublicado,
+} from "./experience-code-owned.testing";
 import { GUIDE_READER_ANCHOR } from "@psico/types";
 
 import { dropWhenIdle } from "../test/pg-drop";
@@ -1278,14 +1282,19 @@ suite("C.3A · the binding bridge", () => {
   // ── The shipped catalog is placed by identity too ────────────────────────
 
   it("a shipped definition is placed by its guide's targets, not its number", async () => {
-    // The stable authority: `guidePin` → the guide's catalog targets →
-    // one editorial context → `ContentUnit.id`. No position anywhere.
-    const claims = await prisma.$transaction((tx) => codeOwnedClaimsByUnit(tx));
+    // El catálogo es EXPLÍCITO, y no el de producción. Este caso mide el
+    // puente —`guidePin` → objetivos de la guía → un contexto editorial →
+    // `ContentUnit.id`, sin posición en ninguna parte— y para medirlo hace
+    // falta una definición publicada que reserve. Tomarla del build ataba el
+    // invariante a una decisión editorial: el día que ese piloto se archive,
+    // esta prueba pasaría comprobando cero. Ver `experience-code-owned.testing`.
+    const claims = await prisma.$transaction((tx) =>
+      codeOwnedClaimsByUnit(tx, CATALOGO_CON_PILOTO_PUBLICADO),
+    );
     expect(claims.get(unitA)?.map((c) => c.guideKey)).toEqual([EEC_GUIDE_KEY]);
-    // Parejas claims nothing from CODE any more: the only definition the build
-    // ships for it is the V1 pilot, now ARCHIVED, and an archived definition
-    // must not reserve a lineage on a unit. Its chapter is served by the
-    // published database rows instead.
+    // Y la otra unidad no reclama nada: este catálogo publica una sola
+    // definición, así que una reclamación en `unitB` sería una ubicación
+    // inventada.
     expect(claims.get(unitB)).toBeUndefined();
 
     // And it FOLLOWS the unit when the number moves.
@@ -1294,7 +1303,7 @@ suite("C.3A · the binding bridge", () => {
       const moved = await republishWithNewUnitAtOrder(BOOK_A, 1);
       restore = moved.previousRevisionId;
       const after = await prisma.$transaction((tx) =>
-        codeOwnedClaimsByUnit(tx),
+        codeOwnedClaimsByUnit(tx, CATALOGO_CON_PILOTO_PUBLICADO),
       );
       expect(after.get(unitA)?.map((c) => c.guideKey)).toEqual([EEC_GUIDE_KEY]);
       // The unit that took the number claims nothing.
@@ -1302,6 +1311,31 @@ suite("C.3A · the binding bridge", () => {
     } finally {
       if (restore) await restorePublishedRevision(BOOK_A, restore);
     }
+  });
+
+  it("el catálogo de PRODUCCIÓN no reserva con sus pilotos archivados", async () => {
+    // El efecto del archivado, comprobado aparte y contra el catálogo real.
+    // Separarlo es el punto: el caso de arriba mide el puente y éste mide la
+    // oferta. Mezclarlos fue lo que hizo que archivar un piloto apagara una
+    // garantía del puente sin que nadie lo notara.
+    //
+    // Los DOS pilotos embarcados están archivados, así que ninguna unidad
+    // recibe una reclamación de código — y «ninguna» es una respuesta, no un
+    // vacío: la resolución sigue corriendo y sigue sin lanzar, que es lo que
+    // distingue «archivado» de «sin ubicar».
+    const reales = await prisma.$transaction((tx) => codeOwnedClaimsByUnit(tx));
+    expect(reales.get(unitA)).toBeUndefined();
+    expect(reales.get(unitB)).toBeUndefined();
+    expect(reales.size).toBe(0);
+
+    // Y la definición histórica sigue resolviendo por versión exacta, que es
+    // la garantía que el archivado promete conservar.
+    await expect(
+      productionExperienceRepository.getExact({
+        experienceKey: "eec-c1-cuerpo-antes-que-mente",
+        experienceVersion: 1,
+      }),
+    ).resolves.toMatchObject({ status: "ARCHIVED" });
   });
 
   // ── One snapshot for the whole list ──────────────────────────────────────
@@ -1358,7 +1392,15 @@ suite("C.3A · the binding bridge", () => {
           }, options);
       },
     });
-    return new ExperienceAdminService(client as unknown as PrismaService);
+    return new ExperienceAdminService(
+      client as unknown as PrismaService,
+      // El mismo catálogo explícito: este caso comprueba que las tres
+      // lecturas describen UN instante, y para eso la lista tiene que
+      // traer una definición de código. Con el catálogo de producción
+      // archivado no traería ninguna y el caso pasaría sin ejercitar la
+      // instantánea.
+      reclamacionesConPilotoPublicado,
+    );
   }
 
   /** Publish a manifest that DROPS a unit from the structure entirely. */
@@ -1512,13 +1554,21 @@ suite("C.3A · the binding bridge", () => {
     // this chapter's guide under a lineage the build does not ship.
     await insertLegacyRow(await eecDraft({ experienceKey: "eec-c1-intrusa" }));
 
-    const measured = await measureReservations(prisma);
+    // Con el catálogo explícito, por la misma razón que los dos casos de
+    // arriba: la colisión sólo existe si ALGO embarcado tiene ya esa guía.
+    // El `catalog` es ahora un argumento de `measureReservations` —antes la
+    // comprobación de colisiones leía el de producción aunque su llamante
+    // hubiera declarado otro, que era un seam a medias.
+    const measured = await measureReservations(
+      prisma,
+      CATALOGO_CON_PILOTO_PUBLICADO,
+    );
     expect(measured.anomalies.map((a) => a.kind)).toContain(
       "CODE_OWNED_GUIDE_COLLISION",
     );
-    await expect(applyReservations(prisma)).rejects.toBeInstanceOf(
-      BackfillAbort,
-    );
+    await expect(
+      applyReservations(prisma, CATALOGO_CON_PILOTO_PUBLICADO),
+    ).rejects.toBeInstanceOf(BackfillAbort);
     // And the code-owned claim is never MATERIALISED. Not because the foreign
     // key would trap it — `RESTRICT` only refuses a delete while something
     // REFERENCES the row — but because a reservation is the record of an

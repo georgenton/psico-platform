@@ -133,6 +133,15 @@ decisión de ciclo de vida editorial.
 
 ## 3 · Las cinco, una por una
 
+> **Esto es el inventario, no el contenido.** Lo que sigue son claves, anclas y
+> orden de escenas — útil para saber qué hay, inútil para decidir si está bien
+> escrito. **El texto íntegro de las cinco** —37 escenas palabra por palabra, las
+> cinco prácticas con sus opciones y cada recuerdo activo con su respuesta y sus
+> dos devoluciones— vive en
+> [microguias-c01-contenido-para-revision.md](microguias-c01-contenido-para-revision.md),
+> y la misma cosa en Notion como hija de FV-47. Eso es lo que hace falta para
+> decidir A; esta sección sólo dice de qué piezas está hecha cada una.
+
 ### EEC-C01-MG01 · eec-c1-teorias-como-lentes@1
 
 **Qué contiene.** Concepto `eec-teorias-como-lentes`, práctica `eec-c1-practice-revisar-un-lente` (`belief_lens`) y recuerdo `eec-c1-recall-teorias-como-lentes`. Ancla en el manuscrito: «Distintas lentes para comprender una emoción» (`eec-c1-distintas-lentes`).

@@ -159,18 +159,25 @@ como pendiente. Si la das, se ejecuta; si no, no hay nada que «ponerse al día�
 publicar «no las pone delante de nadie» y que con A ejecutada y B en HOLD «las ve
 sólo QA». **Es falso, y la diferencia pesa justo sobre esta decisión.**
 
-La puerta del rollout está montada en **cinco rutas, todas `POST`, y todas órdenes
-de un recorrido** (abrir sesión, completar paso, responder el recuerdo, cancelar,
-cerrar). Las **lecturas** no la llevan: el descubrimiento del capítulo y la consulta
-de una experiencia por clave se guardan sólo con la sesión, y ni su controlador ni
-el servicio de descubrimiento mencionan el rollout. De modo que, con A ejecutada y
-B en HOLD, **cualquier cuenta con sesión ve las cinco tarjetas, las abre y lee sus
-escenas**; lo que B retiene es **iniciar y avanzar** el recorrido, y una cuenta
-fuera del padrón recibe `503` en ese momento, no antes.
+La formulación correcta es ésta:
 
-Dicho en los términos de la decisión: A **sí pone el texto de las cinco
-microguías delante de cualquiera que tenga cuenta**. B decide quién puede hacerlas.
-Esto no cambia qué hay que decidir, pero cambia qué se está decidiendo.
+> **Publicar permite obtener las definiciones mediante la API autenticada.**
+> Mantener B en HOLD **no vuelve privadas** esas definiciones. La interfaz normal
+> de Web y la ejecución guiada siguen condicionadas por la disponibilidad del
+> piloto.
+
+El descubrimiento del capítulo (`/experiences/discovery/…`) exige sólo sesión y
+devuelve las definiciones publicadas **con sus escenas** — ahí está la exposición.
+Lo que **no** es cierto, y una versión de este párrafo lo afirmaba, es que esa
+cuenta «abra las tarjetas»: abrir una portada pasa por `/experiences/mine`, que
+exige un **recorrido propio** en ese pin exacto, así que una cuenta recién creada
+no abre nada. Y la disponibilidad se consulta además en los servicios y en el
+lector, no sólo en el decorador de las órdenes `POST`.
+
+Dicho en los términos de la decisión: A **sí permite obtener el texto de las cinco
+por la API autenticada**, y B no lo impide. Lo que B decide es quién puede
+**hacerlas** y qué ofrece la interfaz normal. Esto no cambia qué hay que decidir,
+pero cambia qué se está decidiendo.
 
 **Y hay un bloqueo técnico previo, que no es tuyo** — corregido el 2026-11-11, y
 dos veces, porque la versión anterior de este párrafo era errónea en sus dos

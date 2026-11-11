@@ -696,3 +696,8 @@ que la persona lee, y por tanto donde tu criterio pesa más que el mío.
    firmes tú.
 4. **El cierre.** La última escena es lo que queda cuando la persona termina; es el
    lugar donde una microguía puede sonar a examen en vez de a lectura acompañada.
+
+### Dos observaciones que salen del propio contenido
+
+- **3 de las cinco llevan un párrafo que acota su propia tesis** (MG01, MG03 y MG05): un segundo párrafo en Concepto o Ejemplo que marca hasta dónde llega la idea — que dos teorías miren cosas distintas no las vuelve equivalentes, que la secuencia es pedagógica y no una cadena cerebral rígida, que el construccionismo es el mapa de este libro y no un consenso cerrado. Son las frases que impiden afirmar más que el capítulo; conviene leerlas como una familia y decidir si las cinco deberían tenerla.
+- **3 de las cinco dejan escribir, por dos vías distintas.** MG04 y MG05 añaden una **escena dedicada** y opcional, que puede saltarse. Y dentro de la **práctica**, MG01 y MG04 admiten texto libre además de las opciones; las otras sólo se eligen. Todas prometen que el texto se queda en el dispositivo.

@@ -281,32 +281,44 @@ una persona pueda **ver y hacer** el recorrido en pantalla. No es papeleo.
 **Qué sigue restringido por B (el flag `EEC_C01_GUIDED_SUITE_V1` y el rollout).**
 _Quién puede HACERLAS_ — y conviene no confundir eso con quién puede verlas.
 
-La puerta del rollout (`GuideRolloutGuard`) está montada en **cinco rutas, todas
-`POST`, y todas órdenes de un recorrido**: abrir sesión, completar un paso,
-responder el recuerdo, cancelar y cerrar. Las **lecturas** no la llevan: tanto
-`GET /api/experiences/discovery/:libro/:capitulo` como
-`GET /api/experiences/mine/:clave/:version` se guardan sólo con `JwtAuthGuard`, y
-ni el controlador ni el servicio de descubrimiento mencionan el rollout. Lo
-comprobé en el código, no lo supongo.
+**La formulación correcta, y es la del 2026-11-11:**
 
-De modo que, con A ejecutada y B en HOLD, el comportamiento real es éste:
+> **Publicar permite obtener las definiciones mediante la API autenticada.**
+> Mantener B en HOLD **no vuelve privadas** esas definiciones. La interfaz normal
+> de Web y la ejecución guiada siguen condicionadas por la disponibilidad del
+> piloto.
 
-| Quién                                 | Qué puede                                                                                                               |
-| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| cualquier cuenta **con sesión**       | ve las cinco tarjetas en el capítulo, como `PLAYABLE`, **abre la portada y lee las escenas** — el pasaje, los conceptos |
-| sólo las cuentas **del padrón** (QA)  | inicia y avanza el recorrido                                                                                            |
-| una cuenta con sesión **fuera** de él | recibe `503 GUIDE_UNAVAILABLE` al iniciar, después de haber visto y abierto                                             |
+Lo que sí está comprobado en código, endpoint por endpoint:
 
-**Por eso se retira la promesa de que «las ve sólo QA»**, que una versión anterior
-de este apartado afirmaba y que la propia tabla de abajo ya contradecía. Era falsa:
-publicar **expone el contenido a toda cuenta registrada**, y lo único que B retiene
-es la ejecución. La decisión A no es «registrar algo que nadie verá hasta B»: es
-poner el texto de las cinco microguías delante de cualquiera que tenga cuenta.
+| Superficie                               | Qué exige                                                                                                                |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `GET /experiences/discovery/:libro/:cap` | sólo sesión. Devuelve las definiciones **PUBLICADAS** del capítulo **con sus escenas** — ahí está la exposición real     |
+| `GET /experiences/mine/:clave/:version`  | sesión **y un recorrido propio** en ese pin exacto, `ACTIVE` o `COMPLETED`. Autenticarse **no basta**; y rechaza `DRAFT` |
+| los cinco `POST` de órdenes (`/guide/…`) | además, estar en el padrón del rollout — es lo que B retiene                                                             |
 
-Es una diferencia que pesa sobre A, no sobre B, y por eso va aquí. Lo que **no** se
-hace es cambiar las reglas de acceso para que la frase vuelva a ser cierta: la
-asimetría entre leer y ejecutar es deliberada —una tarjeta que no se puede ni mirar
-no se puede revisar— y cerrarla sería un cambio de producto que nadie ha pedido.
+> **Corrección del 2026-11-11.** Una versión anterior de este apartado decía que
+> «cualquier cuenta con sesión ve las cinco tarjetas, **las abre y lee las
+> escenas**». La primera mitad es cierta por la API; **la segunda era falsa**, y
+> el error fue de método: inferí el comportamiento de la pantalla de **dónde está
+> colocado el decorador** de las órdenes `POST`, en vez de leer qué exige cada
+> superficie. Abrir una portada pasa por `/mine`, que pide un recorrido propio en
+> ese pin — una cuenta recién creada no abre nada. Y la disponibilidad se
+> consulta además en los servicios y en el lector, no sólo en ese decorador.
+
+**Lo que esto cambia para decidir A, y lo que no.** Sigue siendo cierto que
+publicar **expone el texto por la API autenticada**, y que B no lo impide: es el
+aviso que importa y se mantiene. Lo que **no** es cierto es que A ponga las
+tarjetas abiertas en pantalla delante de cualquiera — para eso hace falta además
+la disponibilidad del piloto, que es B.
+
+**Y la oferta del capítulo serán cinco, no seis.** Archivada la legada y
+publicadas las cinco nuevas, `byChapter` indexa sólo lo publicado: la legada sale
+de la oferta y entran las cinco. Una versión anterior decía «pasaría de devolver
+una a devolver seis», que era cierto con la legada aún publicada y deja de serlo
+en cuanto se archiva — y archivar es el paso previo.
+
+Lo que **no** se hace es cambiar las reglas de acceso para que una frase del
+documento vuelva a ser cierta.
 
 **Qué sería legible por los endpoints autenticados que ya existen**, una vez
 publicadas y con una cuenta ADMIN:
@@ -316,8 +328,8 @@ publicadas y con una cuenta ADMIN:
 | `GET /api/pulso/experiences?bookSlug=…&chapterOrder=1`       | las cinco publicadas, más la legada, con su estado                                                                      |
 | `GET /api/pulso/experiences/drafts/:id`                      | la definición guardada, para editarla                                                                                   |
 | `GET /api/pulso/experiences/drafts/:id/preview`              | **la vista que recibiría un lector**, por el mismo mapper que usa discovery — y **no espera a A**: ver la nota de abajo |
-| `GET /api/experiences/discovery/emociones-en-construccion/1` | pasaría de devolver **una** experiencia a devolver **seis**                                                             |
-| `GET /api/experiences/mine/<clave>/1`                        | dejaría de dar 404 para quien tenga sesión                                                                              |
+| `GET /api/experiences/discovery/emociones-en-construccion/1` | **cinco** experiencias, con sus escenas — no seis: la legada ya estará archivada y `byChapter` indexa sólo lo publicado |
+| `GET /api/experiences/mine/<clave>/1`                        | seguiría dando 404 a quien no tenga un **recorrido propio** en ese pin: autenticarse no basta                           |
 
 **La vista previa NO espera a la publicación, y esto importa para decidir A.**
 `getDraftPublicView` comprueba que la fila exista y nada más: **no exige
@@ -342,8 +354,9 @@ falso en dos sentidos distintos, y conviene separarlos:
 **La prueba negativa se conserva para el momento de publicar.** Cuando se ejecute
 una publicación aprobada, el recorrido tiene que volver a comprobar que una cuenta
 **fuera de QA** recibe `503 GUIDE_UNAVAILABLE` **al iniciar** — que es lo que B
-retiene. No puede comprobar que esa cuenta no vea las tarjetas, porque sí las ve:
-eso es lo que la tabla de arriba corrige.
+retiene. Lo que esa prueba **no** puede afirmar es que la cuenta no obtenga las
+definiciones: por `discovery` sí las obtiene, y eso es el aviso de exposición, no
+un defecto que la prueba deba desmentir.
 
 ---
 

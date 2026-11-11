@@ -26,6 +26,21 @@ base de **staging**, en este orden:
 
 **El material está completo.** Lo que no se puede todavía es materializarlo.
 
+### Y repetido en un entorno aislado, donde sí se puede — 2026-11-10
+
+El mismo recorrido contra una base desechable, con el candidato de §2 aplicado:
+**`APPLIED`, cinco `CREATED`, `pending: []`**, `verify-drafts` en 9/9 y
+`preview-report` con cinco entradas. La evidencia de vista previa de cada una está
+en §3.
+
+**Una corrección que importa para el orden de las decisiones:** la vista previa de
+un borrador **no** necesita que se publique nada. `getDraftPublicView` lee la fila y
+la presenta por el mismo mapper que usa el lector, sin exigir `PUBLISHED` — lo que
+exige es rol **ADMIN**, que es otra cosa. Así que revisar el contenido de las cinco
+es posible **antes** de la decisión A, y lo que la decisión A autoriza es que una
+persona real las abra. Donde este documento daba a entender lo contrario, estaba
+equivocado.
+
 ---
 
 ## 2 · Por qué se rechaza, medido y no supuesto
@@ -37,25 +52,82 @@ propio código la declara:
 > refuses binding writes in EVERY chapter**, not only its own. […] an incomplete
 > catalog ingestion presents as a CMS-wide refusal.»
 
-Hay **dos** definiciones embarcadas, y cada una fija una guía cuyos tres pasos
-nombran un concepto, una práctica y un recuerdo. Comprobado en sólo lectura sobre
-staging, fila a fila:
+> **Corrección del 2026-11-10.** Lo que esta sección decía antes era falso en sus
+> dos mitades, y conviene dejarlo escrito porque la explicación equivocada
+> llevaba a una salida equivocada. Decía que faltaban «cuatro filas de contenido
+> que nadie escribió» y que había «dos definiciones embarcadas bloqueantes», y de
+> ahí concluía que sólo quedaban dos caminos: inventar esos textos o borrar las
+> definiciones. Ninguna de las dos afirmaciones se sostiene, y por tanto esa
+> disyuntiva tampoco. Lo que sigue es el diagnóstico verificado.
 
-| Definición embarcada                                 | concepto  | práctica     | recuerdo     | ¿ubica capítulo? |
-| ---------------------------------------------------- | --------- | ------------ | ------------ | ---------------- |
-| `eec-c1-cuerpo-antes-que-mente@1` (el piloto legado) | ✅ existe | ❌ **falta** | ❌ **falta** | **no**           |
-| `pqp-c1-contacto-sostenido@1`                        | ❌ falta  | ❌ **falta** | ❌ **falta** | **no**           |
+**Las cuatro fuentes existen.** Están declaradas en `exercise-ingestion-catalog.ts`,
+y el par histórico al que pertenecen lleva `retired: true`. No es un olvido: es una
+**exclusión deliberada**, porque su encabezado ya no está en el canónico vigente del
+capítulo. `materializablePairs` los filtra a propósito:
 
-`resolveUnitForGuidePin` devuelve `null` para las dos, y `codeOwnedClaimsByUnit`
-lanza en la primera. De ahí que el rechazo lo informe MG01 sin que MG01 tenga
-nada malo: las cinco quedan `SKIPPED · not created: the set was refused`.
+```ts
+return (EXERCISE_INGESTION_CATALOG[bookSlug] ?? []).filter((p) => !p.retired);
+```
 
-**La pieza que falta, nombrada:** cuatro filas de `Exercise` —dos prácticas y dos
-recuerdos— que esas dos guías embarcadas nombran y que nunca se ingirieron en
-esta base. Las de las cinco microguías **sí están** (`VERIFY`, 15 de 15).
+Un par retirado «sigue teniendo que responder por las filas y sesiones que ya
+existen» —lo dice su propio comentario—, y por eso se conserva en el catálogo en vez
+de borrarse. Lo que no puede es volver a materializarse sobre un manuscrito que ya
+no lo contiene.
 
-**No se inventan.** Crear esas cuatro filas sería escribir contenido editorial que
-nadie redactó, para destrabar un contador. Las dos salidas honestas están en §6.
+**Parejas no es el segundo bloqueo.** Ya está `ARCHIVED`, y el conjunto de reservas
+se construye **sólo** con lo publicado:
+
+```ts
+definitions: PRODUCTION_EXPERIENCE_DEFINITIONS.filter(
+  (d) => d.status === "PUBLISHED",
+),
+```
+
+Así que no entra, y su propio comentario explica por qué quedó así: la oferta se
+retiró sin romper las dos sesiones que viven en ese pin, una de ellas todavía
+`ACTIVE`.
+
+**La contradicción activa es UNA.** El piloto legado de EEC sigue `PUBLISHED`, entra
+en el conjunto, su guía no ubica capítulo, y como las reservas se resuelven **como
+conjunto**, eso rechaza las escrituras vinculantes de **todos** los capítulos. De ahí
+que el rechazo lo informe MG01 sin que MG01 tenga nada malo: las cinco quedan
+`SKIPPED · not created: the set was refused`. Las fuentes de las cinco **sí están**
+(`VERIFY`, 15 de 15).
+
+**La protección de identidad está haciendo su trabajo.** No se omite su error, no se
+fabrican objetivos y no se sustituye la identidad estable por una coincidencia de
+posición. Lo que hay que corregir es la contradicción, no la guarda que la detecta.
+
+### El candidato, demostrado en aislamiento
+
+El mecanismo ya existe y ya se usó: **archivar**. `byChapter` sólo indexa
+`PUBLISHED`, mientras `byExactVersion` indexa **todo** estado — así que archivar
+retira la oferta y conserva la resolución. Es literalmente el antecedente de
+Parejas.
+
+Probado sobre PostgreSQL `pgvector/pgvector:pg18` **fijada por digest** (18.6, la
+misma que sirve staging), con migraciones, `eec-c01-e2e-seed` y una identidad
+sintética ADMIN del propio entorno aislado — sin elevar ninguna cuenta real:
+
+|                         | Sin el candidato                                 | Con el candidato                             |
+| ----------------------- | ------------------------------------------------ | -------------------------------------------- |
+| `create-drafts --apply` | **REFUSED** · `EXPERIENCE_CODE_OWNED_UNRESOLVED` | **APPLIED** · 5 `CREATED` · `pending: []`    |
+| filas de Experience     | ninguna                                          | 5 `DRAFT`                                    |
+| `verify-drafts`         | —                                                | ok · `draftCount 5` · **9/9** comprobaciones |
+| `preview-report`        | lista vacía                                      | **5 entradas** · 7/8/8/7/7 escenas           |
+
+Y la continuidad que la transición promete, medida y no supuesta:
+
+```
+estado declarado de la oferta legada : ARCHIVED
+getExact(pin legado)                 : RESUELVE «El cuerpo, antes que la mente»
+oferta del capítulo 1                : (vacía)
+getExact(Parejas, ya ARCHIVED)       : RESUELVE (precedente intacto)
+```
+
+El candidato vive en [PR #839](https://github.com/georgenton/psico-platform/pull/839),
+**en Draft y sin fusionar**: cambia la oferta de un capítulo publicado, y eso es una
+decisión de ciclo de vida editorial.
 
 ---
 
@@ -67,7 +139,7 @@ nadie redactó, para destrabar un contador. Las dos salidas honestas están en �
 
 **Qué recorrido presenta.** 7 escenas — 1·INTRO → 2·PASSAGE → 3·CONCEPT → 4·EXAMPLE → 5·PRACTICE → 6·RECALL → 7·SUMMARY.
 
-**Estado de su preparación.** `status: DRAFT` · `publishAllowed: false` · guía fijada `eec-c1-teorias-como-lentes@1` · manifiesto `e411b39f94c1…`. **Sin fila en la base**: el borrador no se pudo crear.
+**Estado de su preparación.** `status: DRAFT` · `publishAllowed: false` · guía fijada `eec-c1-teorias-como-lentes@1` · manifiesto `e411b39f94c1…`. **En staging, sin fila**: el borrador no se pudo crear. **En el entorno aislado, creado y con vista previa** — ver la tabla al final de esta sección.
 
 **Qué se comprobó.** Esquema y suma de verificación del manifiesto; que su ancla existe en el capítulo canónico; que sus tres objetivos están materializados (`VERIFY`); y que su pin resuelve a la unidad del capítulo 1.
 
@@ -84,7 +156,7 @@ node dist/content-core/eec-c01-guides-main.js publish-guides --apply \
 
 **Qué recorrido presenta.** 7 escenas — 1·INTRO → 2·PASSAGE → 3·CONCEPT → 4·EXAMPLE → 5·PRACTICE → 6·RECALL → 7·SUMMARY.
 
-**Estado de su preparación.** `status: DRAFT` · `publishAllowed: false` · guía fijada `eec-c1-rostro-como-pista@1` · manifiesto `61ba03390225…`. **Sin fila en la base**: el borrador no se pudo crear.
+**Estado de su preparación.** `status: DRAFT` · `publishAllowed: false` · guía fijada `eec-c1-rostro-como-pista@1` · manifiesto `61ba03390225…`. **En staging, sin fila**: el borrador no se pudo crear. **En el entorno aislado, creado y con vista previa** — ver la tabla al final de esta sección.
 
 **Qué se comprobó.** Esquema y suma de verificación del manifiesto; que su ancla existe en el capítulo canónico; que sus tres objetivos están materializados (`VERIFY`); y que su pin resuelve a la unidad del capítulo 1.
 
@@ -101,7 +173,7 @@ node dist/content-core/eec-c01-guides-main.js publish-guides --apply \
 
 **Qué recorrido presenta.** 7 escenas — 1·INTRO → 2·PASSAGE → 3·CONCEPT → 4·EXAMPLE → 5·PRACTICE → 6·RECALL → 7·SUMMARY.
 
-**Estado de su preparación.** `status: DRAFT` · `publishAllowed: false` · guía fijada `eec-c1-alarma-antes-del-relato@1` · manifiesto `f2124adecf3b…`. **Sin fila en la base**: el borrador no se pudo crear.
+**Estado de su preparación.** `status: DRAFT` · `publishAllowed: false` · guía fijada `eec-c1-alarma-antes-del-relato@1` · manifiesto `f2124adecf3b…`. **En staging, sin fila**: el borrador no se pudo crear. **En el entorno aislado, creado y con vista previa** — ver la tabla al final de esta sección.
 
 **Qué se comprobó.** Esquema y suma de verificación del manifiesto; que su ancla existe en el capítulo canónico; que sus tres objetivos están materializados (`VERIFY`); y que su pin resuelve a la unidad del capítulo 1.
 
@@ -118,7 +190,7 @@ node dist/content-core/eec-c01-guides-main.js publish-guides --apply \
 
 **Qué recorrido presenta.** 8 escenas — 1·INTRO → 2·PASSAGE → 3·CONCEPT → 4·EXAMPLE → 5·PRACTICE → 6·REFLECTION → 7·RECALL → 8·SUMMARY.
 
-**Estado de su preparación.** `status: DRAFT` · `publishAllowed: false` · guía fijada `eec-c1-emocion-informa-no-manda@1` · manifiesto `87df0d320258…`. **Sin fila en la base**: el borrador no se pudo crear.
+**Estado de su preparación.** `status: DRAFT` · `publishAllowed: false` · guía fijada `eec-c1-emocion-informa-no-manda@1` · manifiesto `87df0d320258…`. **En staging, sin fila**: el borrador no se pudo crear. **En el entorno aislado, creado y con vista previa** — ver la tabla al final de esta sección.
 
 **Qué se comprobó.** Esquema y suma de verificación del manifiesto; que su ancla existe en el capítulo canónico; que sus tres objetivos están materializados (`VERIFY`); y que su pin resuelve a la unidad del capítulo 1.
 
@@ -135,7 +207,7 @@ node dist/content-core/eec-c01-guides-main.js publish-guides --apply \
 
 **Qué recorrido presenta.** 8 escenas — 1·INTRO → 2·PASSAGE → 3·CONCEPT → 4·EXAMPLE → 5·PRACTICE → 6·QUESTION → 7·RECALL → 8·SUMMARY.
 
-**Estado de su preparación.** `status: DRAFT` · `publishAllowed: false` · guía fijada `eec-c1-construida-no-significa-falsa@1` · manifiesto `b8fb514e617b…`. **Sin fila en la base**: el borrador no se pudo crear.
+**Estado de su preparación.** `status: DRAFT` · `publishAllowed: false` · guía fijada `eec-c1-construida-no-significa-falsa@1` · manifiesto `b8fb514e617b…`. **En staging, sin fila**: el borrador no se pudo crear. **En el entorno aislado, creado y con vista previa** — ver la tabla al final de esta sección.
 
 **Qué se comprobó.** Esquema y suma de verificación del manifiesto; que su ancla existe en el capítulo canónico; que sus tres objetivos están materializados (`VERIFY`); y que su pin resuelve a la unidad del capítulo 1.
 
@@ -145,6 +217,44 @@ node dist/content-core/eec-c01-guides-main.js publish-guides --apply \
 node dist/content-core/eec-c01-guides-main.js publish-guides --apply \
   --environment=staging --confirm-production-draft --confirm-publish
 ```
+
+---
+
+### Las cinco, en una tabla: material · borrador · vista previa
+
+Las tres columnas que el encargo pide separadas. «Aislado» es la base desechable con
+el candidato de §2 aplicado; «staging» es el despliegue real, donde el borrador sigue
+sin poder crearse hasta que se decida.
+
+| Microguía                                         | Material                           | Borrador (aislado) | Vista previa (aislado)                                   | Borrador (staging) |
+| ------------------------------------------------- | ---------------------------------- | ------------------ | -------------------------------------------------------- | ------------------ |
+| **MG01** `eec-c1-teorias-como-lentes@1`           | ✅ 3 objetivos `VERIFY` · ancla OK | ✅ `DRAFT` creado  | ✅ «Lo que una teoría alcanza a mirar» · **7 escenas**   | ❌ bloqueado       |
+| **MG02** `eec-c1-rostro-como-pista@1`             | ✅ 3 objetivos `VERIFY` · ancla OK | ✅ `DRAFT` creado  | ✅ «Una sonrisa, varios contextos» · **7 escenas**       | ❌ bloqueado       |
+| **MG03** `eec-c1-alarma-antes-del-relato@1`       | ✅ 3 objetivos `VERIFY` · ancla OK | ✅ `DRAFT` creado  | ✅ «Cuando reaccionas antes de entender» · **7 escenas** | ❌ bloqueado       |
+| **MG04** `eec-c1-emocion-informa-no-manda@1`      | ✅ 3 objetivos `VERIFY` · ancla OK | ✅ `DRAFT` creado  | ✅ «Sentir, interpretar, querer, elegir» · **8 escenas** | ❌ bloqueado       |
+| **MG05** `eec-c1-construida-no-significa-falsa@1` | ✅ 3 objetivos `VERIFY` · ancla OK | ✅ `DRAFT` creado  | ✅ «Construida no significa falsa» · **8 escenas**       | ❌ bloqueado       |
+
+**Qué muestran de verdad.** No son cáscaras: cada escena llega con su copy completa
+y sus claves ligadas. Una muestra literal, de MG03, por el mismo mapper que usaría
+el lector:
+
+```
+── eec-c1-alarma-antes-del-relato  [DRAFT]
+   «Cuando reaccionas antes de entender» · 7 escenas · startable=true
+    1. INTRO      Cuando reaccionas antes de entender    "A veces el organismo se prepara an…"  {title,body,note,actionLabel}
+    2. PASSAGE    Una alarma antes de la historia        "Lee el pasaje donde el capítulo pr…"  {title,body,actionLabel,anchorKey}
+    3. CONCEPT    Protegerse no es lo mismo que sentir…  "Una señal repentina puede iniciar …"  {title,body,note,actionLabel,conceptKey}
+    4. EXAMPLE    Lo que sabía Darwin y lo que hizo su…  "Ante una serpiente protegida por u…"  {title,body}
+    5. PRACTICE   Ordena la alarma y el relato           "Imagina que lees tranquilamente y …"  {title,body,note,actionLabel,exerciseKey}
+    6. RECALL     ¿Qué demuestra una reacción rápida?    "Recupera la idea central de esta m…"  {title,body,question,options}
+    7. SUMMARY    Una alarma no cuenta toda la historia  "Antes de concluir «esto es miedo»,…"  {title,body,actionLabel}
+```
+
+Las otras cuatro rinden igual, con `QUESTION` (MG05) y `REFLECTION` (MG04) como
+escenas propias. `verify-drafts` confirma además lo que **no** pasó:
+`pilotUntouched: true`, `flagOff: true`, `noDraftClaimsPilotGuide: true` y
+`noCorrectOptionInDefinitions: true` — es decir, ningún borrador reclama la guía del
+piloto y ninguna respuesta correcta viaja en la definición.
 
 ---
 
@@ -199,19 +309,42 @@ por la puerta de atrás, y esa comprobación es la que lo acredita.
 
 ## 6 · Lo que hace falta para destrabar, y quién puede decidirlo
 
-Dos salidas, y conviene no confundirlas con una decisión editorial sobre las cinco:
-el bloqueo es de **integridad del catálogo**, y no es sobre ellas.
+> **Corrección del 2026-11-10.** Esta sección ofrecía «ingerir cuatro filas que no
+> existen» o «retirar las definiciones que no ubican capítulo», y las presentaba como
+> las únicas dos salidas. La primera partía de un hecho falso —las fuentes **sí**
+> existen, retiradas a propósito— y la segunda describía como borrado algo que el
+> repositorio ya sabe hacer sin borrar nada. **Hay una sola salida, y el mecanismo ya
+> está en uso.**
 
-| Salida                                                                         | Qué implica                                                                                                                                                                                                         | Quién                                                             |
-| ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| **A · Ingerir las cuatro filas que faltan** para las dos guías embarcadas      | es contenido editorial que hoy no existe en ninguna fuente de este repositorio: habría que escribirlo                                                                                                               | **propietario** (editorial)                                       |
-| **B · Retirar del catálogo embarcado las definiciones que no ubican capítulo** | es un cambio de código con consecuencia de producto: el piloto legado es **la única** experiencia que hoy sirve discovery para C01, así que retirarlo deja el capítulo sin ninguna hasta que se publiquen las cinco | **propietario** (producto), ejecutable por mí en cuanto se decida |
+**Archivar la oferta legada de EEC.** Ni se inventa contenido, ni se borra ninguna
+definición, ni se reingesta el par retirado. `status: "PUBLISHED"` → `"ARCHIVED"`,
+que es exactamente lo que se hizo con el piloto de Parejas y por la misma razón.
 
-**Recomendación: B, y en el mismo acto que A de §4.** El piloto legado ya está
-retirado para inicios nuevos, su guía no ubica capítulo, y su única función viva es
-ocupar el sitio que las cinco deberían ocupar. Retirarlo _antes_ de publicar dejaría
-el capítulo sin experiencia; retirarlo _a la vez_ lo sustituye. Lo que no conviene es
-dejarlo como está: es lo que hoy impide crear los cinco borradores.
+| Qué conserva                                            | Qué cambia                                                     |
+| ------------------------------------------------------- | -------------------------------------------------------------- |
+| la definición, sus claves y sus versiones               | el capítulo 1 de EEC deja de ofrecer su única tarjeta          |
+| su guía registrada                                      | y no ofrece ninguna hasta que se publiquen los cinco (A de §4) |
+| su respuesta en `PRODUCTION_LEGACY_GUIDE_PINS`          |                                                                |
+| `getExact` por pin exacto → las sesiones fijadas siguen |                                                                |
+| su tarjeta sigue `PLAYABLE` para quien ya la tiene      |                                                                |
+
+**Lo que se retira ya respondía 410.** Su pin es `RETIRED_FOR_NEW_STARTS` y la vista
+pública ya devolvía `startable: false` — medido sobre `eec-c1-cuerpo-antes-que-mente@1`,
+y está escrito en `experience-public-view.ts`. Es decir: la tarjeta que desaparece es
+un control que hoy no abre nada para nadie nuevo. **La lectura no se toca.**
+
+**El intervalo, sin adornos.** Desplegar el código y publicar los borradores son
+**dos actos**, y entre ellos el capítulo no ofrece experiencia alguna. No es una
+operación indivisible y no se presenta como tal. Si el orden importa, publicar los
+cinco **primero** (decisión A) y archivar después deja el capítulo sin ventana vacía;
+al revés la hay. El candidato no impone el orden: lo decide quien aprueba.
+
+**Cómo se recupera:** volver `status` a `"PUBLISHED"` y desplegar. No hay dato que
+migrar ni fila que restaurar, porque el candidato no escribe ninguna.
+
+**Quién decide:** el propietario. Es un cambio de oferta de un capítulo publicado.
+Está preparado y probado en
+[PR #839](https://github.com/georgenton/psico-platform/pull/839), en Draft.
 
 **Y hay una tercera cosa que falta, menor pero real:** staging **no tiene ninguna
 cuenta ADMIN** (12 cuentas, todas `USER`). El CLI resuelve el operador del primer

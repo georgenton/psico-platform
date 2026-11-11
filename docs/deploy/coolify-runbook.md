@@ -1324,45 +1324,65 @@ mes suelto» sería un error de lectura. Para uso por horas eso es indiferente, 
 conviene no citar esas cifras como si fueran mensualidades a demanda. Y no hay
 instancia General Purpose de 4 vCPU/8 GB: B3 empareja 8 GB con 2 vCore.
 
-**El coste máximo, con su aritmética a la vista.** Ventana generosa de 12 h —
-provisionar, instalar Coolify, recrear los tres recursos, restaurar y recorrer:
+**El coste, que es una ESTIMACIÓN CONDICIONADA y no un techo contractual.**
+Ventana generosa de 12 h — provisionar, instalar Coolify, recrear los tres recursos,
+restaurar y recorrer:
 
-| Concepto                               | Tarifa leída    | 12 h        | 24 h        |
-| -------------------------------------- | --------------- | ----------- | ----------- |
-| Instancia `d2-8`                       | $0,0439 /h      | $0,527      | $1,054      |
-| IPv4 pública (obligatoria, ver abajo)  | $0,00319 /h     | $0,038      | $0,077      |
-| Volumen Block Storage `Classic`, 50 GB | $0,000066 /GB/h | $0,040      | $0,079      |
-| **Techo**                              |                 | **≈ $0,61** | **≈ $1,21** |
+| Concepto                              | Tarifa leída | 12 h        | 24 h        |
+| ------------------------------------- | ------------ | ----------- | ----------- |
+| Instancia `d2-8` (50 GB incluidos)    | $0,0439 /h   | $0,527      | $1,054      |
+| IPv4 pública (obligatoria, ver abajo) | $0,00319 /h  | $0,038      | $0,077      |
+| **Estimación**                        |              | **≈ $0,57** | **≈ $1,13** |
 
-Todo **excl. IVA**, que es como la página lo declara. Dos avisos sobre esa tabla:
-la IPv4 no es opcional —«Instances do not include an IPv4 address by default» y «The
-gateway requires a Public IPv4»—, y el volumen se incluye por prudencia aunque
-`d2-8` traiga disco local, porque su tamaño no figura en la página leída y no se
-inventa. Comparar estos importes con el «$8,50» del VPS sería mezclar peras y
-manzanas: aquél es VAT-unqualified y éstos son `excl. VAT`.
+Todo **excl. IVA**, que es como la página lo declara. Tres avisos, y el tercero es
+una corrección:
 
-**Qué sigue facturando después de borrar la instancia.** Aquí hay que separar lo
-dicho de lo deducido, porque es la pregunta que más invita a inventar: **la página
-no contiene ninguna frase sobre borrar o detener una instancia.** Lo que sí dice,
-literalmente:
+1. La IPv4 **no es opcional** — «Instances do not include an IPv4 address by
+   default» y «The gateway requires a Public IPv4».
+2. Comparar estos importes con el «$8,50» del VPS sería mezclar peras y manzanas:
+   aquél es VAT-unqualified y éstos son `excl. VAT`.
+3. **`d2-8` incluye 50 GB de almacenamiento**, así que la versión anterior de esta
+   tabla sumaba un volumen de Block Storage que **no hace falta**. Eso bajaba el
+   importe de ≈$0,61 a ≈$0,57, que es poca cosa; lo que importa es lo otro: lo
+   presentaba como «techo», y una estimación con los componentes elegidos no es un
+   techo. **El importe real depende de la selección efectiva** — región, red y
+   recursos— y esa selección tiene que corresponder al presupuesto presentado antes
+   de contratar nada.
 
-- La IPv4 pública se cobra «**including when it is not attached to an instance**».
-  Eso es directo: una IP liberada de la instancia pero no devuelta sigue costando
-  $0,00319 /h ≈ **$2,33/mes**.
-- Los volúmenes se facturan por «duration of use and size provisioned»; los
-  snapshots y los respaldos, por «the space used». Es decir, **por existir ellos**,
-  no por existir una instancia.
+**¿Hacen falta más de 50 GB?** Medido sobre la caja que sirve staging hoy: los tres
+servicios y sus imágenes ocupan ~26 GB, pero **25,9 GB de eso son los diez
+candidatos de reversión** que una caja nueva no tiene. Una construcción de cada
+servicio más Coolify, PostgreSQL y Redis entra con holgura en 50 GB. Queda como
+estimación, no como medición de una caja nueva: la única forma de medirlo es
+hacerlo.
 
-De ahí se **deduce** —y se marca como deducción, no como cita— que una IP sin
-asociar, un volumen superviviente, un snapshot y una imagen privada seguirían
-facturando tras eliminar la instancia. La única afirmación global de la página es
-«no hidden costs at the end of the month», que no responde esto. Precios de lo que
-sobrevive: snapshot $0,000066 /GB/h · volume backup $0,000017 /GB/h · instance
-backup $0,0122 /GB/mes · imagen privada $0,0123 /GB/mes.
+**Qué sigue facturando después de borrar la instancia.** Aquí la versión anterior de
+este runbook decía que «la página no contiene ninguna frase sobre borrar o detener
+una instancia» y deducía lo demás. Era cierto de la **página de precios** y
+engañoso como respuesta, porque **la documentación de OVH sí lo explica**: borrar la
+instancia **termina su facturación**, y **no borra automáticamente** el
+almacenamiento, los snapshots ni los respaldos asociados. Una **IP flotante
+desasociada sigue asignada** hasta que se libera.
 
-**Procedimiento para terminar el ensayo, en este orden** — borrar la instancia
-**no** cierra los cargos, que es justo lo que no debe presentarse como si lo
-hiciera:
+Así que no es deducción, es lo documentado:
+
+| Recurso                   | Tras borrar la instancia                     | Precio                      |
+| ------------------------- | -------------------------------------------- | --------------------------- |
+| la instancia              | **deja de facturar**                         | —                           |
+| IPv4 flotante sin liberar | **sigue asignada y facturando**              | $0,00319 /h ≈ **$2,33/mes** |
+| volumen de Block Storage  | sobrevive y factura por tamaño aprovisionado | $0,000066 /GB/h (`Classic`) |
+| snapshot                  | sobrevive y factura por espacio usado        | $0,000066 /GB/h             |
+| respaldo de volumen       | ídem                                         | $0,000017 /GB/h             |
+| respaldo de instancia     | ídem                                         | $0,0122 /GB/mes             |
+| imagen privada            | ídem                                         | $0,0123 /GB/mes             |
+
+Por eso el procedimiento de cierre no termina en «borra la instancia»: termina en
+comprobar la factura.
+
+**Procedimiento para terminar el ensayo, en este orden.** Borrar la instancia sí
+cierra **su** facturación —eso está documentado— pero **no la de los demás
+recursos**, que sobreviven y siguen contando. De ahí que el procedimiento tenga seis
+pasos y no uno:
 
 1. **Sacar la evidencia ANTES de destruir nada**, porque el detector y los registros
    viven dentro de la caja: salida de la puerta de aislamiento con su recuento, los

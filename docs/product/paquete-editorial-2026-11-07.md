@@ -155,17 +155,46 @@ abrir.
 las cinco Experiences requiere tu aprobación explícita, que la fuente registra
 como pendiente. Si la das, se ejecuta; si no, no hay nada que «ponerse al día».
 
-**NO hace**: publicar las Experiences **no** las pone delante de nadie. Eso es el
-flag, y el flag es la decisión 4 — que sigue en HOLD por separado. Con A ejecutada
-y B en HOLD, las cinco existen, son reproducibles y las ve **sólo QA**.
+**Qué NO hace, con precisión — corregido el 2026-11-11.** Aquí se leía que
+publicar «no las pone delante de nadie» y que con A ejecutada y B en HOLD «las ve
+sólo QA». **Es falso, y la diferencia pesa justo sobre esta decisión.**
 
-**Y hay un bloqueo técnico previo, que no es tuyo y no es sobre las cinco.** Al
-preparar los borradores con las herramientas del repositorio, `create-drafts`
-rechaza en bloque con `EXPERIENCE_CODE_OWNED_UNRESOLVED`: dos definiciones
-**embarcadas** —el piloto legado y una de _Parejas_— nombran cuatro filas de
-objetivos que nunca se ingirieron en esta base, y por diseño una sola definición
+La puerta del rollout está montada en **cinco rutas, todas `POST`, y todas órdenes
+de un recorrido** (abrir sesión, completar paso, responder el recuerdo, cancelar,
+cerrar). Las **lecturas** no la llevan: el descubrimiento del capítulo y la consulta
+de una experiencia por clave se guardan sólo con la sesión, y ni su controlador ni
+el servicio de descubrimiento mencionan el rollout. De modo que, con A ejecutada y
+B en HOLD, **cualquier cuenta con sesión ve las cinco tarjetas, las abre y lee sus
+escenas**; lo que B retiene es **iniciar y avanzar** el recorrido, y una cuenta
+fuera del padrón recibe `503` en ese momento, no antes.
+
+Dicho en los términos de la decisión: A **sí pone el texto de las cinco
+microguías delante de cualquiera que tenga cuenta**. B decide quién puede hacerlas.
+Esto no cambia qué hay que decidir, pero cambia qué se está decidiendo.
+
+**Y hay un bloqueo técnico previo, que no es tuyo** — corregido el 2026-11-11, y
+dos veces, porque la versión anterior de este párrafo era errónea en sus dos
+mitades.
+
+Al preparar los borradores, `create-drafts` rechaza en bloque con
+`EXPERIENCE_CODE_OWNED_UNRESOLVED`, porque por diseño **una sola** definición
 embarcada que no ubica capítulo rechaza las escrituras de **todos** los capítulos.
-El detalle medido, las cinco una por una y las dos salidas posibles están en
+Eso sigue siendo cierto. Lo que no lo era:
+
+- decía «cuatro filas de objetivos que nunca se ingirieron»; las fuentes **sí
+  existen** en el catálogo de ingesta, y la única entrada retirada de todo el
+  catálogo es el par del **piloto V1**, retirado a propósito el 2026-09-02 cuando
+  el manuscrito canónico dejó sin encabezado a su práctica;
+- decía «dos definiciones embarcadas, el piloto legado y una de _Parejas_»; la de
+  _Parejas_ ya está **archivada**, así que no entra en el conjunto de reservas, que
+  sólo se construye con lo publicado.
+
+**La contradicción activa es UNA**: el piloto legado de EEC sigue publicado y su
+guía no ubica capítulo. Y **ya tiene candidato técnicamente terminado** —archivarlo,
+el mismo mecanismo que se usó con _Parejas_—, en el PR #839, en Draft. Lo que ese
+candidato espera no es más ingeniería: es la decisión de archivado, que cambia la
+oferta de un capítulo publicado. El detalle medido, las cinco una por una y la
+secuencia completa están en
 [microguias-c01-candidato.md](microguias-c01-candidato.md).
 
 ---

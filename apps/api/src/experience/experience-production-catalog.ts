@@ -57,7 +57,35 @@ export const EEC_C1_EXPERIENCE = validateExperienceDefinition({
   summary:
     "Un recorrido corto por lo que tu cuerpo registra antes de que puedas nombrarlo.",
   estimatedMinutes: 12,
-  status: "PUBLISHED",
+  /**
+   * ARCHIVED, por la misma razón y con el mismo mecanismo que Parejas.
+   *
+   * Esta definición es la contradicción activa del capítulo: sigue PUBLISHED,
+   * así que entra en el conjunto de reservas, y su guía fija un objetivo que
+   * `materializablePairs` excluye a propósito (`retired: true`, porque su
+   * encabezado ya no está en el canónico vigente). `resolveUnitForGuidePin`
+   * no puede nombrarle capítulo, y como las reservas se resuelven COMO
+   * CONJUNTO, una sola definición embarcada sin ubicar rechaza las escrituras
+   * vinculantes de TODOS los capítulos — que es cómo se presentaba:
+   * `EXPERIENCE_CODE_OWNED_UNRESOLVED` al crear los cinco borradores de C01.
+   *
+   * Lo que archivar hace, y lo que deliberadamente NO hace:
+   *
+   *   - `byChapter` sólo indexa PUBLISHED, así que el capítulo 1 deja de
+   *     ofrecer esta tarjeta a quien empieza hoy. Ya estaba retirada para
+   *     inicios nuevos por otra vía; esto lo hace cierto en la oferta.
+   *   - `byExactVersion` indexa TODO estado, así que `getExact` sigue
+   *     resolviéndola: las sesiones ya fijadas a este pin —incluida una
+   *     ACTIVE— siguen abriendo, y su tarjeta sigue siendo PLAYABLE.
+   *   - Su guía sigue registrada y sigue siendo la respuesta de
+   *     compatibilidad en `PRODUCTION_LEGACY_GUIDE_PINS`.
+   *   - No sale del conjunto de definiciones embarcadas: nada se borra, y
+   *     revertir es volver a poner `PUBLISHED`.
+   *
+   * Borrarla habría roto esas sesiones. Dejarla PUBLISHED mantiene el
+   * capítulo entero sin poder recibir contenido nuevo.
+   */
+  status: "ARCHIVED",
   guidePin: {
     guideKey: "eec-c1-cuerpo-antes-que-mente",
     guideVersion: 1,

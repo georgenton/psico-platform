@@ -15979,6 +15979,14 @@
                                   }
                                 },
                                 "description": "El pin sobre el que se emitió el veredicto: el reanudable cuando hay linaje abierto, el publicado en caso contrario."
+                              },
+                              "presentation": {
+                                "type": "string",
+                                "enum": [
+                                  "PLAYABLE",
+                                  "PREPARING"
+                                ],
+                                "description": "Si el pin que un clic abriría tiene definición REPRODUCIBLE, resuelto por versión exacta con la misma resolución que usa el lector. Distinta pregunta de `status` (qué ha hecho el lector) y de `applicability` (si la guía habla de esta unidad). Ausente significa que el servidor no lo dijo, no que no haya."
                               }
                             }
                           },

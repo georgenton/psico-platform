@@ -75,8 +75,13 @@ export const EEC_C1_EXPERIENCE = validateExperienceDefinition({
    *     ofrecer esta tarjeta a quien empieza hoy. Ya estaba retirada para
    *     inicios nuevos por otra vía; esto lo hace cierto en la oferta.
    *   - `byExactVersion` indexa TODO estado, así que `getExact` sigue
-   *     resolviéndola: las sesiones ya fijadas a este pin —incluida una
-   *     ACTIVE— siguen abriendo, y su tarjeta sigue siendo PLAYABLE.
+   *     resolviéndola: cualquier sesión ya fijada a este pin sigue abriendo, y
+   *     su tarjeta sigue siendo PLAYABLE. En staging, medido en sólo lectura el
+   *     2026-11-11, esas sesiones son CERO —las 66 que hay cuelgan de las cinco
+   *     microguías nuevas—, así que ahí el archivado no afecta a ningún
+   *     recorrido existente. La garantía importa igual: es la que permite
+   *     archivar en vez de borrar, y la que haría falta en una base que sí las
+   *     tenga.
    *   - Su guía sigue registrada y sigue siendo la respuesta de
    *     compatibilidad en `PRODUCTION_LEGACY_GUIDE_PINS`.
    *   - No sale del conjunto de definiciones embarcadas: nada se borra, y

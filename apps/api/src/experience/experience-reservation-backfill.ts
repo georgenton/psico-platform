@@ -607,7 +607,7 @@ async function planReservations(
   }
 
   const groups = [...byGroup.values()];
-  anomalies.push(...(await codeOwnedCollisions(db, groups)));
+  anomalies.push(...(await codeOwnedCollisions(db, groups, catalog)));
   anomalies.push(...(await reservationDisagreements(db, groups)));
 
   // How many of these lineages already HAVE their reservation. It was reported
@@ -661,13 +661,19 @@ async function planReservations(
 async function codeOwnedCollisions(
   db: BackfillDb,
   groups: readonly Group[],
+  // El catálogo es un ARGUMENTO, y antes no lo era: `planReservations` ya lo
+  // recibía y esta rama leía el de producción de todas formas, así que un
+  // llamante que declaraba su catálogo veía cómo una de las dos comprobaciones
+  // lo ignoraba en silencio. Un seam a medias es peor que no tenerlo: el
+  // llamante cree haber dicho qué catálogo rige y la respuesta mezcla dos.
+  catalog: CodeOwnedCatalog = productionCodeOwnedCatalog,
 ): Promise<BackfillAnomaly[]> {
   const out: BackfillAnomaly[] = [];
   // By stable chapter, not by number. The comparison used to key both sides on
   // `(bookSlug, chapterOrder)` — and for a stored row that number is the
   // position it was CREATED at, so after a reorder the check compared a shipped
   // definition placed today against a row placed months ago.
-  const byUnit = await codeOwnedClaimsByUnit(db);
+  const byUnit = await codeOwnedClaimsByUnit(db, catalog);
   for (const g of groups) {
     const owner = (byUnit.get(g.contentUnitId) ?? []).find(
       (claim) => claim.guideKey === g.guideKey,
@@ -794,13 +800,17 @@ function measuredReport(plan: Plan): BackfillReport {
  */
 export async function measureReservations(
   prisma: PrismaClient,
+  // Las DOS entradas de este comando son la base y el catálogo. `planReservations`
+  // ya aceptaba el segundo y aquí no se podía llegar a él, así que un llamante
+  // que quisiera declarar su catálogo tenía que entrar por una función privada.
+  catalog: CodeOwnedCatalog = productionCodeOwnedCatalog,
 ): Promise<BackfillReport> {
   return measuredReport(
     await prisma.$transaction(async (tx) => {
       await tx.$executeRawUnsafe(
         "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY",
       );
-      return planReservations(tx);
+      return planReservations(tx, catalog);
     }),
   );
 }
@@ -833,6 +843,8 @@ export async function measureReservations(
  */
 export async function applyReservations(
   prisma: PrismaClient,
+  /** Igual que en `measureReservations`: la segunda entrada del comando. */
+  catalog: CodeOwnedCatalog = productionCodeOwnedCatalog,
 ): Promise<BackfillReport> {
   try {
     return await prisma.$transaction(async (tx) => {
@@ -852,7 +864,7 @@ export async function applyReservations(
       // Re-read UNDER the locks. A plan built before them could describe rows a
       // bridge writer has since changed, or a position a reorder has since
       // moved.
-      const plan = await planReservations(tx);
+      const plan = await planReservations(tx, catalog);
       if (plan.anomalies.length > 0) {
         // Abort whole. A partial materialisation would leave the chapter half
         // structural and half scanned, which is the one state the authority

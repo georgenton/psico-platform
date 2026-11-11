@@ -415,16 +415,25 @@ describe("Experience V2 — chapter cardinality is 0..N, never invented", () => 
 });
 
 describe("Experience V2 — the production catalog", () => {
-  it("ships both approved experiences, each coherent with its guide", async () => {
+  it("ships both pilots ARCHIVED: neither chapter offers one any more", async () => {
+    // THIS is the contract the archiving decision changes, and it is the whole
+    // visible effect: chapter 1 of EEC offered one code-owned card, and now
+    // offers none. It is not a gap that appeared — it is a card that was
+    // already RETIRED_FOR_NEW_STARTS being withdrawn from the offer as well,
+    // which is what `startable: false` was already telling every client.
+    //
+    // Until the five DRAFT microguides are published, that chapter has NO
+    // experience card. Reading is untouched; what disappears is a control that
+    // answered 410 to anybody who pressed it.
     await expect(
       productionExperienceRepository.listPublishedForChapter({
         bookSlug: "emociones-en-construccion",
         chapterOrder: 1,
       }),
-    ).resolves.toHaveLength(1);
+    ).resolves.toHaveLength(0);
 
-    // Parejas lists NOTHING from the code-owned catalog now. Its chapter 1 is
-    // served by the four published microguides in the database; the V1 pilot
+    // Parejas lists NOTHING from the code-owned catalog either. Its chapter 1
+    // is served by the four published microguides in the database; the V1 pilot
     // here is ARCHIVED so it stops being offered alongside them.
     await expect(
       productionExperienceRepository.listPublishedForChapter({
@@ -434,19 +443,22 @@ describe("Experience V2 — the production catalog", () => {
     ).resolves.toHaveLength(0);
   });
 
-  it("keeps the archived pilot resolvable for the sessions already on it", async () => {
-    // The point of ARCHIVED rather than deleted: two sessions exist against
-    // this pin, one of them still ACTIVE, and an unresolvable definition would
-    // strand them mid-journey.
-    await expect(
-      productionExperienceRepository.getExact({
-        experienceKey: "pqp-c1-contacto-sostenido",
-        experienceVersion: 1,
-      }),
-    ).resolves.toMatchObject({
-      experienceKey: "pqp-c1-contacto-sostenido",
-      status: "ARCHIVED",
-    });
+  it("keeps BOTH archived pilots resolvable for the sessions already on them", async () => {
+    // The point of ARCHIVED rather than deleted: sessions exist against these
+    // pins — one of Parejas' is still ACTIVE — and an unresolvable definition
+    // would strand them mid-journey. `byExactVersion` indexes every status, so
+    // archiving withdraws the offer without touching resolution.
+    for (const experienceKey of [
+      "pqp-c1-contacto-sostenido",
+      "eec-c1-cuerpo-antes-que-mente",
+    ]) {
+      await expect(
+        productionExperienceRepository.getExact({
+          experienceKey,
+          experienceVersion: 1,
+        }),
+      ).resolves.toMatchObject({ experienceKey, status: "ARCHIVED" });
+    }
   });
 
   it("binds exactly the three existing checkpoints — no new domain steps", () => {

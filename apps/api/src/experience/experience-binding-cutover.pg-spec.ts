@@ -19,6 +19,7 @@ import {
 } from "./experience-binding-lock";
 import { readReservationAuthority } from "./experience-binding-reservation";
 import { productionCodeOwnedClaims } from "./experience-code-owned-identity";
+import { reclamacionesConPilotoPublicado } from "./experience-code-owned.testing";
 import { GUIDE_READER_ANCHOR, PAREJAS_READER_ANCHOR } from "@psico/types";
 import { productionGuideRegistry } from "../guide/guide-catalog";
 import type { ExperienceBindingCatalog } from "./experience-guide-options";
@@ -85,6 +86,14 @@ suite("C.3C+C.4 · cutover, archive and a mixed fleet", () => {
   let service: ExperienceAdminService;
   /** Same service, a menu with two guides in this chapter. See `twoGuideCatalog`. */
   let twoGuides: ExperienceAdminService;
+  /**
+   * El mismo servicio, con un catálogo embarcado que SÍ publica el piloto.
+   *
+   * Separa las dos preguntas que este archivo mezclaba: «¿una guía que una
+   * definición embarcada tiene se lee como reservada?» —un invariante de la
+   * vinculación— y «¿qué publica el build hoy?» —una decisión editorial—.
+   */
+  let conPilotoPublicado: ExperienceAdminService;
   let userId: string;
   let unitA: string;
 
@@ -160,6 +169,10 @@ suite("C.3C+C.4 · cutover, archive and a mixed fleet", () => {
     });
     userId = u.id;
     service = new ExperienceAdminService(prisma as unknown as PrismaService);
+    conPilotoPublicado = new ExperienceAdminService(
+      prisma as unknown as PrismaService,
+      reclamacionesConPilotoPublicado,
+    );
     twoGuides = new ExperienceAdminService(
       prisma as unknown as PrismaService,
       // The real shipped-claim resolver: this fixture ingests the catalog, so
@@ -372,14 +385,27 @@ suite("C.3C+C.4 · cutover, archive and a mixed fleet", () => {
     expect(before.map((o) => o.guideKey)).not.toContain(
       "pqp-c1-contacto-sostenido",
     );
-    // The code-owned experience already holds the pilot's guide.
-    const pilot = before.find(
+  });
+
+  it("una guía que una definición embarcada tiene se lee como reservada", async () => {
+    // EL INVARIANTE, con un catálogo que publica el piloto explícitamente.
+    //
+    // Antes este caso vivía pegado al de arriba y tomaba la reserva del
+    // catálogo de producción, así que archivar el piloto lo apagaba: pasaba a
+    // comprobar que una guía sin dueño se lee «disponible», que es cierto y no
+    // es lo que este caso existe para medir.
+    const opciones = await conPilotoPublicado.listSelectableGuides(
+      BOOK_A,
+      1,
+      null,
+    );
+    const piloto = opciones.find(
       (o) => o.guideKey === "eec-c1-cuerpo-antes-que-mente",
     );
-    expect(pilot!.availability).toBe("RESERVED_BY_ANOTHER_EXPERIENCE");
+    expect(piloto!.availability).toBe("RESERVED_BY_ANOTHER_EXPERIENCE");
 
     // …and from the owner's own point of view it reads as theirs.
-    const mine = await service.listSelectableGuides(
+    const mine = await conPilotoPublicado.listSelectableGuides(
       BOOK_A,
       1,
       "eec-c1-cuerpo-antes-que-mente",
@@ -388,6 +414,36 @@ suite("C.3C+C.4 · cutover, archive and a mixed fleet", () => {
       mine.find((o) => o.guideKey === "eec-c1-cuerpo-antes-que-mente")!
         .availability,
     ).toBe("OWNED_BY_THIS_EXPERIENCE");
+  });
+
+  it("un piloto ARCHIVADO deja de reservar: su guía queda disponible", async () => {
+    // LA OFERTA, comprobada aparte y contra el catálogo de PRODUCCIÓN. Es el
+    // efecto del archivado y es una afirmación distinta de la de arriba.
+    //
+    // Conviene decir con precisión qué cambia y qué no: la guía **sigue en el
+    // menú**, porque el menú lo da el catálogo de vinculación y no el
+    // embarcado. Lo que cambia es que ya no está reservada, así que una
+    // Experience nueva puede tomarla — que es justo lo que hace falta para que
+    // las cinco microguías puedan crearse.
+    const opciones = await service.listSelectableGuides(BOOK_A, 1, null);
+    const piloto = opciones.find(
+      (o) => o.guideKey === "eec-c1-cuerpo-antes-que-mente",
+    );
+    expect(piloto).toBeDefined();
+    expect(piloto!.availability).toBe("AVAILABLE");
+
+    // Y lo que el archivado promete conservar: la definición histórica sigue
+    // resolviendo por versión exacta, así que una sesión fijada a ese pin
+    // sigue abriendo.
+    await expect(
+      productionExperienceRepository.getExact({
+        experienceKey: "eec-c1-cuerpo-antes-que-mente",
+        experienceVersion: 1,
+      }),
+    ).resolves.toMatchObject({
+      experienceKey: "eec-c1-cuerpo-antes-que-mente",
+      status: "ARCHIVED",
+    });
   });
 
   // ── Archive ──────────────────────────────────────────────────────────────

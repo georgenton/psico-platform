@@ -4010,15 +4010,20 @@ de cada bitácora de sesión— es **antecedente fechado**: explica cómo se lle
 aquí, no lo que toca hacer. Si una instrucción antigua contradice esta
 sección, manda esta sección.
 
-#### El corte — 2026-11-09
+#### El corte — 2026-11-11
 
 |                    |                                                                                                                                                                            |
 | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Dónde vive         | **OVH con Coolify, y sólo ahí.** Vercel y Railway retiradas del plan operativo                                                                                             |
-| `main`             | `8e6e2053` (#840) · #835–#838 fusionados · **#839 abierto en Draft a propósito** (decisión editorial)                                                                      |
+| `main`             | `4c28053c` (#841) · #835–#838, #840 y #841 fusionados                                                                                                                      |
+| #839               | **Draft, HEAD `4bacc8e6`, CI 15/15 en verde** — técnicamente terminado; sigue en Draft porque espera una **decisión editorial**, no trabajo                                |
 | Servido en staging | **API `4fdde06a`** · **Web `8e6e2053`** (10-11) · worker `f15c5c96` (07-11) — leído del contenedor, no de esta tabla                                                       |
 | ¿Coinciden?        | Web sí. La API va un commit por detrás y da igual: entre `4fdde06a` y `8e6e2053` **no cambia nada de la API**, sólo el cliente que empaqueta la Web y el documento OpenAPI |
 | Producción         | **no existe como recurso.** Tres aplicaciones en el proyecto, las tres de staging                                                                                          |
+
+> **Lo integrado hoy (11-11) NO cambia nada de lo servido**, y conviene no leerlo
+> como un despliegue pendiente: son dos commits en una rama **en Draft** (#839) y
+> nada más. Lo servido sigue siendo lo del 10-11.
 
 > **Un despliegue puede no venir de un commit.** Los tres de hoy se dispararon
 > por cambios de **entorno** —abrir Círculos, abrir el modo guiado a QA—, no por
@@ -4612,46 +4617,126 @@ distintas:
     CI borra ese fichero, arranca la API para emitir uno fresco y entonces compara.
     El verde local no dice nada sobre el documento que produce el código de hoy.
 
+31. ✅ **#839 cerró su CI, y los cuatro fallos no eran del candidato** (11-11,
+    HEAD `4bacc8e6`, **15/15 en verde**). Eran pruebas que tomaban su ejemplo de
+    «una definición embarcada y **publicada** que reserva una guía» del catálogo de
+    **producción** — así que archivar el piloto, que es lo que el candidato
+    propone, las dejaba comprobando **cero** sin que nada del puente hubiera
+    cambiado. Una prueba que se vuelve vacua con una decisión editorial no estaba
+    midiendo el puente: estaba midiendo el catálogo.
+
+    **Lo que se conserva, que es el punto.** El caso publicado se **declara** en
+    `experience-code-owned.testing.ts` —no es un doble: la definición es la real,
+    su `guidePin` es el real y `guideFor` es el resolutor de producción, así que
+    los objetivos se resuelven con las mismas tablas y los mismos modos de fallo—.
+    Identidad, lectura consistente y colisión siguen ejercitándose contra un caso
+    publicado que de verdad reserva. El **efecto del archivado** se comprueba
+    aparte y contra el catálogo de producción, con dos pruebas nuevas. Y la de
+    disponibilidad se **partió en tres** en vez de cambiarse de valor: el menú
+    conserva su `toEqual` de seis guías, el invariante va con el catálogo
+    declarado, y la oferta del piloto archivado es su propia prueba.
+
+    **Cinco mutaciones, cada una mata lo suyo:** publicar lo archivado → sólo las
+    dos nuevas; colocar por número de capítulo → los cuatro invariantes
+    originales; retirar la colisión → sólo la de colisión; leer el plan antes de
+    la llave global → los dos trinquetes de orden de bloqueo; resolver la colisión
+    por capítulo → el de identidad.
+
+    **Dos defectos de producción que esto destapó.** `codeOwnedCollisions` no
+    aceptaba catálogo mientras su llamante sí, de modo que un llamante que
+    declaraba el suyo veía cómo una de las dos comprobaciones leía el de
+    producción **en silencio**. Y tres trinquetes de
+    `experience-binding-protocol.spec.ts` se rompían por **literalidad**: buscaban
+    `planReservations(tx)` con el paréntesis cerrado, así que añadir un segundo
+    argumento dejaba el orden de bloqueo sin vigilar. Ahora se anclan en el cliente
+    que reciben, que es donde vive la garantía.
+
+    **Y un falso verde propio, que conviene no repetir:** di por bueno un «control
+    final» cuyo exit 0 venía del `grep` del final de la tubería, no de la suite —
+    que en realidad se había negado por falta de `PG_LOCKS_ADMIN_URL`. El control
+    de verdad da **1431 pasadas · 5 saltadas**, y lo da con la variable puesta.
+
+32. ✅ **Las cinco microguías, legibles como experiencias** (11-11). El paquete que
+    había daba **contadores** —«7 escenas», «APPROVE»—, no el texto. Ahora hay uno
+    con las **37 escenas** palabra por palabra, las cinco prácticas con sus
+    opciones y cada recuerdo activo con sus tres opciones, su respuesta y sus dos
+    devoluciones: `docs/product/microguias-c01-contenido-para-revision.md`, y la
+    misma cosa en Notion como hija de FV-47.
+
+    Ensamblado de dos fuentes del repositorio, unidas igual que las une el
+    `preview-report`: los manifiestos aportan las escenas y el catálogo de ingesta
+    la interacción y la pregunta. **Sin base de datos a propósito** — el contenido
+    es idéntico y así no depende de un entorno temporal, que es exactamente lo que
+    le pasó a la evidencia del 10-11.
+
+    Tres defectos del propio ensamblado, corregidos antes de entregarlo: `body` es
+    una **lista** de párrafos y se trataba como cadena; la pregunta del recuerdo
+    vive en `content`, no en `interaction`, así que las cinco salían sin opciones
+    ni respuesta; y el renderizador sólo conocía la forma de **una** de las cinco
+    prácticas, de modo que cuatro acabaron con su contenido plegado en un bloque
+    JSON — que es peor que un contador, porque parece que está y no se lee.
+
+33. ✅ **Tres frases corregidas donde estaban** (11-11), no rectificadas más abajo:
+    - **«las ve sólo QA» era falsa**, y estaba en tres sitios. La puerta del
+      rollout está en **cinco rutas, todas `POST` y todas órdenes de un
+      recorrido**; las lecturas sólo llevan sesión. Con A ejecutada y B en HOLD,
+      **cualquier cuenta con sesión ve las cinco, las abre y lee sus escenas**.
+      Pesa sobre A, no sobre B.
+    - **La vista previa no espera a la publicación**: `getDraftPublicView` no
+      exige `PUBLISHED`, exige ADMIN. Revisar el contenido es **anterior** a A.
+    - **Ejercicio retirado ≠ Experience archivada**: las fuentes de las cinco
+      existen y **no** están retiradas; la única entrada retirada del catálogo es
+      el par del piloto V1; y lo archivado en Parejas es su Experience.
+
+34. ✅ **La secuencia operativa, con sus siete pasos** (11-11, §7 del candidato).
+    Se retira «publicar primero y archivar después» como ejecutable: `create-drafts`
+    está bloqueado —es la razón del candidato— y **publicar revalida la misma
+    reserva**, con su propio comentario diciéndolo. **No basta invertir dos
+    comandos.** Y la trampa escrita: **repetir `create-drafts` NO vuelve a
+    sellar**, porque es idempotente por inspección; pasar de «sin aprobar» a
+    «aprobado» es `reseal`, un comando propio que no aprueba, no publica y no
+    sella contenido distinto del que firmó el acta. Más la distinción que comparte
+    línea de terminal sin parecerse: `--confirm-publish` es un cerrojo; la
+    aprobación es un acta firmada que el código rechaza por seis motivos, entre
+    ellos identidad, revisión y contenido.
+
 #### La siguiente ejecución hacia producción
 
 Cinco cajones, y la diferencia entre ellos es quién puede moverlos.
 
-**1 · Integrado en el repositorio** — `main` `9c08c7d6`, con #835 (la puerta del
-ensayo autoriza en vez de descartar), #836 (la tarjeta de Guía deja de prometer lo
-que no puede abrir) y #837 (la continuidad del Dúo y la corrección de mi
-explicación). **Nada de esto cambia el producto servido hasta que se despliegue**, y
-no se ha desplegado: la tarjeta sigue ofreciendo «Revisar» en pantalla.
+**1 · Integrado y servido** — `main` `4c28053c`, y lo que sirve staging viene de
+ahí o de antes: API `4fdde06a`, Web `8e6e2053` (los dos del 10-11, con #836 y
+#840 dentro: la tarjeta de Guía dice «En preparación» y el cliente ya no rechaza
+el lote por una clave nueva), worker `f15c5c96`. **No hay despliegue pendiente**:
+nada de lo integrado después cambia lo servido.
 
-**2 · Desplegado y comprobado** — API y worker `f15c5c96`; Web `2b452f86` con el
-control deshabilitado verificado **sobre el elemento real**. El detector de
-respaldo corre solo (dos ejecuciones desatendidas). La configuración VAPID está
-viva y el conmutador ofrece «Activar».
+**2 · Técnicamente terminado, en Draft, esperando una decisión** — **#839**,
+HEAD `4bacc8e6`, **CI 15/15 en verde**. Es el cajón que importa hoy, y conviene
+no confundirlo con el 1 ni con el 3: el trabajo está hecho y comprobado, y lo que
+falta **no es ingeniería**. Archivar la oferta legada cambia la oferta de un
+capítulo publicado, así que su integración espera la decisión de archivado.
 
-**3 · Ejecutado el mismo día** — la API se desplegó a `87a1192b`, que trae #831
-y #832 más el remitente corregido de #828 y la tarjeta de C05 de #827. Gate
-comprobado sobre la imagen servida, y el arreglo de Círculos verificado encima:
-la misma cuenta, con sesión y fuera del padrón, abre ahora la sala entera. **El
-worker y la Web no se desplegaron**: ninguno tiene un cambio funcional que
-necesite salir, y no se redespliega para igualar un SHA.
+**3 · Pendiente de un insumo externo** — el recorrido de **correo**
+(`RESEND_API_KEY` + una bandeja autorizada), **Sentry** (`SENTRY_DSN`), **Google**
+(`GOOGLE_CLIENT_ID`, que puede quedar fuera del piloto), el **canal del aviso de
+respaldo** (un destino autorizado) y el **ensayo de nivel 4** (un VPS temporal).
+Comprobado hoy sobre los tres recursos: los tres primeros siguen **ausentes de la
+lista de variables** —ausentes, no vacíos; el token de lectura redacta los
+valores, así que `DATABASE_URL` también se lee vacía y eso no dice nada— y en el
+almacén de ops no hay ninguna credencial suya.
 
-**4 · Pendiente de un insumo** — el recorrido de **correo** (`RESEND_API_KEY` +
-una bandeja autorizada), **Sentry** (`SENTRY_DSN`), **Google** (`GOOGLE_CLIENT_ID`,
-que puede quedar fuera del piloto), el **canal del aviso de respaldo** (un destino
-autorizado) y el **ensayo de nivel 4** (un VPS temporal).
+**4 · Pendiente de una decisión del propietario** — las **ocho** del paquete
+editorial y la **propuesta comercial** de su §8. Dos de ellas, A y B, son las que
+mantienen las cinco microguías visibles y no abribles, y **A no está aprobada**:
+la fuente primaria registra «Aprobación autoral: BLOCKED»; lo aprobado el 03-09 es
+_implementar_, que no es publicar. Se suma la decisión de **archivado** que
+desbloquea los borradores. Y desde hoy esas decisiones se pueden tomar **con el
+texto delante**: las cinco microguías están entregadas enteras.
 
-**5 · Pendiente de una decisión del propietario** — las **ocho** del paquete
-editorial y la **propuesta comercial** de su §8, ahora con una matriz de ocho filas
-que contrasta cada condición contra lo que el código hace hoy. Dos de ellas, A y B,
-son las que mantienen las cinco microguías visibles y no abribles — y **A no está
-aprobada**: la fuente primaria registra «Aprobación autoral: BLOCKED»; lo aprobado
-el 03-09 es _implementar_, que no es publicar. Se suma la salida para destrabar los
-borradores de las microguías, que es editorial y no técnica.
-
-**Y un cajón que conviene no confundir con el 1:** hay trabajo **ejecutado y
-comprobado que no cambia el producto servido ni lo cambiará** — la puerta del
-ensayo, la matriz comercial, el candidato bloqueado, la reproducción del Dúo y el
-precio del recurso del nivel 4. Son hallazgos y documentos, no despliegues
-pendientes.
+**5 · Ejecutado y comprobado, que no cambia nada servido ni lo cambiará** — la
+puerta del ensayo, la matriz comercial, la reproducción del Dúo, el precio del
+recurso del nivel 4 y el paquete de revisión del contenido. Son hallazgos y
+documentos, no despliegues pendientes.
 
 **Producción sigue sin existir como recurso.** El DNS pre-apuntado, una
 aplicación sana en staging y una copia restaurable son **avances parciales**, y
@@ -4703,35 +4788,58 @@ en **[la matriz de F3](https://claude.ai/artifact/UtBZxMUDiqSuSwY3mGh5ah)**:
       editar el mapping: hay que **publicar `@3`**, **archivar `@2`** y **mover**
       la entrada de elegibilidad, conservando las actividades históricas, que
       siguen resolviendo por pin.
-   3. **Las cinco microguías de C01**: registradas, probadas (31/31) y
-      disponibles sólo para QA. La **implementación** está aprobada
-      (2026-09-03); **publicar NO**: la fuente primaria registra «Aprobación
-      autoral: BLOCKED — Pendiente de decisión de Jorge», «Readiness para
-      PUBLISHED: BLOCKED» y «Microguías aprobadas: 0», y su cierre es una
-      **recomendación** —«publicar APPROVE, flag HOLD»— con «ninguna de las dos
-      ejecutada». Así que **A y B son las dos decisiones tuyas**, no deudas de
-      ejecución. Y en OVH las cinco no están en `DRAFT`: están **ausentes**
-      (0 filas).
-   4. **Los dos bloques de _EEC_**: el de C05 ya está corregido. El de C01 es
-      una **nota editorial interna** que vive en el canónico, bajo «Referencias
-      **de trabajo**», con su SHA intacto y **cero** referencias hoy. Retirarla
-      es una reapertura editorial del canónico; y en la misma línea hay una
-      segunda pregunta: un capítulo publicado diría «Referencias», no
-      «Referencias de trabajo».
-   5. **Las otras dos obras.** Lo que falta de cada una es **material y
-      preparación editorial, no la decisión de si pertenecen al producto**: el
-      alcance editorial final incluye las tres obras, y la autoría está
-      resuelta — _EEC_ y _Familias ensambladas_ son de Jorge Quizamanchuro,
-      _Parejas que perduran_ de David Jaramillo. Hoy _Familias_ existe como
-      fila, sin publicar, con tres capítulos y ninguna parte asignada;
-      _Parejas_ todavía no tiene fila. El detalle, en el inventario.
-   6. **El primer recurso de audio o video.** Se propone **audio del capítulo 1
-      de _EEC_**: es el capítulo gratuito al que llega cualquiera, y el camino
-      del audio es el que más maquinaria valida de una vez —subida a R2, fila
-      `Audio`, URL firmada con su vencimiento, barra del lector y metadatos de
-      pantalla bloqueada—. Hace falta un fichero y tres datos: título, duración
-      en segundos y, si existe, transcripción. Hoy: **10 bloques de video con 0
-      archivos** y **0 filas de audio**.
+   3. **Las cinco microguías de C01**: registradas y probadas (31/31). La
+      **implementación** está aprobada (2026-09-03); **publicar NO**: la fuente
+      primaria registra «Aprobación autoral: BLOCKED — Pendiente de decisión de
+      Jorge», «Readiness para PUBLISHED: BLOCKED» y «Microguías aprobadas: 0», y
+      su cierre es una **recomendación** —«publicar APPROVE, flag HOLD»— con
+      «ninguna de las dos ejecutada». Así que **A y B son las dos decisiones
+      tuyas**, no deudas de ejecución. Y en OVH las cinco no están en `DRAFT`:
+      están **ausentes** (0 filas).
+
+      **Desde el 11-11 se puede decidir con el texto delante**: las cinco van
+      enteras —37 escenas, las cinco prácticas con sus opciones, cada recuerdo con
+      su respuesta y sus devoluciones— en
+      [microguias-c01-contenido-para-revision.md](docs/product/microguias-c01-contenido-para-revision.md)
+      y en Notion, como hija de FV-47. Revisar el contenido **no espera a A**: la
+      vista previa exige ADMIN, no publicación.
+
+      **Y el alcance de A, corregido:** publicar **no** las deja «sólo para QA».
+      La puerta del rollout está en cinco rutas, todas `POST` y todas órdenes de un
+      recorrido; las lecturas sólo llevan sesión. Con A ejecutada y B en HOLD,
+      **cualquier cuenta con sesión ve las cinco, las abre y lee sus escenas** — B
+      retiene iniciar y avanzar. A pone este texto delante de cualquiera que tenga
+      cuenta, y eso es parte de lo que se decide.
+
+   3bis. **El archivado de la oferta legada de EEC**, que es lo que desbloquea el
+   paso 4 de la secuencia. **#839 está técnicamente terminado**, CI 15/15 en
+   verde, y sigue en Draft porque cambia la oferta de un capítulo publicado.
+   Qué conserva: la definición, sus claves, sus versiones, su guía registrada,
+   su respuesta por pin exacto —las sesiones fijadas siguen— y su tarjeta
+   `PLAYABLE` para quien ya la tiene. Qué cambia: el capítulo 1 de EEC deja de
+   ofrecer su única tarjeta, y no ofrece ninguna hasta que se publiquen las
+   cinco. **Lo que desaparece ya respondía 410 a cualquier inicio nuevo**, con
+   `startable: false` en su vista pública, así que es un control que no abre
+   nada para nadie nuevo. Se recupera volviendo el estado a publicado y
+   desplegando — pero eso **no retira** borradores creados o publicados
+   después: ésos se archivan aparte y explícitamente. 4. **Los dos bloques de _EEC_**: el de C05 ya está corregido. El de C01 es
+   una **nota editorial interna** que vive en el canónico, bajo «Referencias
+   **de trabajo**», con su SHA intacto y **cero** referencias hoy. Retirarla
+   es una reapertura editorial del canónico; y en la misma línea hay una
+   segunda pregunta: un capítulo publicado diría «Referencias», no
+   «Referencias de trabajo». 5. **Las otras dos obras.** Lo que falta de cada una es **material y
+   preparación editorial, no la decisión de si pertenecen al producto**: el
+   alcance editorial final incluye las tres obras, y la autoría está
+   resuelta — _EEC_ y _Familias ensambladas_ son de Jorge Quizamanchuro,
+   _Parejas que perduran_ de David Jaramillo. Hoy _Familias_ existe como
+   fila, sin publicar, con tres capítulos y ninguna parte asignada;
+   _Parejas_ todavía no tiene fila. El detalle, en el inventario. 6. **El primer recurso de audio o video.** Se propone **audio del capítulo 1
+   de _EEC_**: es el capítulo gratuito al que llega cualquiera, y el camino
+   del audio es el que más maquinaria valida de una vez —subida a R2, fila
+   `Audio`, URL firmada con su vencimiento, barra del lector y metadatos de
+   pantalla bloqueada—. Hace falta un fichero y tres datos: título, duración
+   en segundos y, si existe, transcripción. Hoy: **10 bloques de video con 0
+   archivos** y **0 filas de audio**.
 
    **Las ocho, juntas y con su propuesta**, en
    [docs/product/paquete-editorial-2026-11-07.md](docs/product/paquete-editorial-2026-11-07.md):

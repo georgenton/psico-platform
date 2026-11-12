@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "manifestId": "EEC-C01-MG04",
+  "experienceKey": "eec-c1-emocion-informa-no-manda",
+  "experienceVersion": 1,
+  "guideKey": "eec-c1-emocion-informa-no-manda",
+  "guideVersion": 1,
+  "canonicalVersion": "EEC_C01_v1.0_TEXT_LOCKED_2026-08-20",
+  "canonicalSha256": "e10f42cedf881838578b7337355887c0e8cb2fe37b75dfa4204db509ac023018",
+  "manifestSha256": "e862a2ad1039d7a3120c694c692fe7ef7345ab53e572d08b348d4bdd1af39d2b",
+  "definitionSha256": "ea9aaf1a4ea6a097b004d8e0c2af5793511b6334fbcf2586d073c0ee703cf001",
+  "approvedBy": "Jorge Quizamanchuro",
+  "approvedAt": "2026-11-12T17:26:35.705Z",
+  "keyId": "jq-2026",
+  "signature": "06k3FDXpf+x8IordqlUK4+LmUNsZ+5hayi7wQdXuD1AYyboR0XWYnz2BQxcbRffoXTP6lodD78RCXqFfVeD9Ag=="
+}

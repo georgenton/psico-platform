@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "manifestId": "EEC-C01-MG01",
+  "experienceKey": "eec-c1-teorias-como-lentes",
+  "experienceVersion": 1,
+  "guideKey": "eec-c1-teorias-como-lentes",
+  "guideVersion": 1,
+  "canonicalVersion": "EEC_C01_v1.0_TEXT_LOCKED_2026-08-20",
+  "canonicalSha256": "e10f42cedf881838578b7337355887c0e8cb2fe37b75dfa4204db509ac023018",
+  "manifestSha256": "2d277edc33aa7303a5757294f7182ba8a05c2671923354fde9993aab7e89f8e0",
+  "definitionSha256": "aa558ec2798089c17af46dd2b74e6fe515b1d3e32efd7e4258f69325a8f53247",
+  "approvedBy": "Jorge Quizamanchuro",
+  "approvedAt": "2026-11-12T17:26:35.705Z",
+  "keyId": "jq-2026",
+  "signature": "iDCPX7DqGoFcHRr6vx3F4hThDIL6jpPG+Hs+mCKo+Scn3qBlSfUi2XLjlFvoWq8+OJvoA07LvWWGRmirxnuWDw=="
+}

@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "manifestId": "EEC-C01-MG05",
+  "experienceKey": "eec-c1-construida-no-significa-falsa",
+  "experienceVersion": 1,
+  "guideKey": "eec-c1-construida-no-significa-falsa",
+  "guideVersion": 1,
+  "canonicalVersion": "EEC_C01_v1.0_TEXT_LOCKED_2026-08-20",
+  "canonicalSha256": "e10f42cedf881838578b7337355887c0e8cb2fe37b75dfa4204db509ac023018",
+  "manifestSha256": "c7685dd7309fe8057794e6a2ef2452f8be0b7f56fa068ce6227e4c4e2ae1bc15",
+  "definitionSha256": "0a9bac87638344fcaa1720ccb6212ad67a414a561f3884777093948409da2f4f",
+  "approvedBy": "Jorge Quizamanchuro",
+  "approvedAt": "2026-11-12T17:26:35.705Z",
+  "keyId": "jq-2026",
+  "signature": "SQWiZOIuqYMfx803bROBSbBAAYpbTmhlrSST3WNnoNhZh86FEGCxR3TXCoBU6c+WaP/O64MaH4ixOOVhqBoBBg=="
+}

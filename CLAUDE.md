@@ -4010,16 +4010,19 @@ de cada bitácora de sesión— es **antecedente fechado**: explica cómo se lle
 aquí, no lo que toca hacer. Si una instrucción antigua contradice esta
 sección, manda esta sección.
 
-#### El corte — 2026-11-11
+#### El corte — 2026-11-12
 
 |                    |                                                                                                                                                                              |
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Dónde vive         | **OVH con Coolify, y sólo ahí.** Vercel y Railway retiradas del plan operativo                                                                                               |
-| `main`             | `28208e57` (#839, squash) · #835–#838, #840 y #841 ya estaban                                                                                                                |
-| #839               | ✅ **fusionado** el 11-11 tras tu aprobación. HEAD probado `395cdcf8`, **CI 15/15 en verde, cero fallos**                                                                    |
+| `main`             | `3a822c42` (#842, documentación) sobre `28208e57` (#839, el archivado). Encima, **#843** sin fusionar                                                                        |
+| #839               | ✅ **fusionado** el 11-11. HEAD probado `395cdcf8`, **CI 15/15 en verde, cero fallos**                                                                                       |
+| #843               | **abierto** (12-11) — la declaración de A. **No publica nada**: falta la firma                                                                                               |
+| Decisión **A**     | ✅ **concedida el 12-11**. Estado: «aprobada por el propietario; **pendiente de formalización de firma**»                                                                    |
+| Decisión **B**     | ⬜ **pendiente**, aparte. Audiencia de QA y configuración intactas                                                                                                           |
 | Servido en staging | **API `28208e57`** (11-11, lleva el archivado) · **Web `8e6e2053`** (10-11) · worker `f15c5c96` (07-11) — leído del contenedor, no de esta tabla                             |
 | ¿Coinciden?        | La API sí, exactamente. Web y worker van por detrás **a propósito**: ninguno tiene cambio funcional que salir, y el grafo de módulos del worker **no alcanza** `experience/` |
-| Capítulo 1 de EEC  | ofrece **0 experiencias** (antes 1, ya no iniciable) · **cinco borradores creados**, ninguno publicado                                                                       |
+| Capítulo 1 de EEC  | ofrece **0 experiencias** · cinco en `DRAFT` **declaradas** (`publishAllowed: true`), **ninguna publicada**                                                                  |
 | Producción         | **no existe como recurso.** Tres aplicaciones en el proyecto, las tres de staging                                                                                            |
 
 > **El archivado se aprobó, se fusionó, se desplegó y se verificó el 11-11.** La
@@ -4777,19 +4780,90 @@ distintas:
     `verify-drafts` da **ocho de nueve** chequeos en ✓. El único `false` es
     `flagOff`, y lo es **porque QA conserva el flag encendido** por tu
     instrucción — de modo que el `ok` agregado engaña y lo que vale son los nueve
-    leídos uno a uno.
+    leídos uno a uno. Y un límite más, por si alguien lo cita de más: ese informe
+    **no comprueba por sí solo el padrón del piloto**; `flagOff` mira un flag, no
+    quién está en la lista.
 
     **Identidad operativa:** `qa-visual-20261026@psico.test`, cuenta sintética
     existente con rol **USER**. No se promovió a nadie a ADMIN.
 
     **Lo que NO se pudo obtener, y por qué:** la vista previa del CMS exige rol
     ADMIN y en staging **no hay ninguna cuenta ADMIN**. `preview-report` sí dio las
-    cinco por la vía del CLI, con dos campos que importan: `anchorResolved: true` y
-    **`correctOptionKeyExposed: false`** en las cinco. Las URLs de esas vistas
-    quedan registradas para quien tenga el rol.
+    cinco por la vía del CLI, con sus URLs registradas para quien tenga el rol.
+
+    > **Corrección del 2026-11-12: presenté sus campos con más alcance del que
+    > tienen.** Leído el código, `preview-report` **inspecciona la estructura
+    > guardada** y nada más: `anchorResolved` sólo comprueba que exista una escena
+    > de tipo `PASSAGE` —no que el ancla resuelva contra el manuscrito—;
+    > `publicRecallOptionsPresent`, que exista una de tipo `RECALL` —no que las
+    > opciones viajen en el payload—; y `correctOptionKeyExposed` es una **búsqueda
+    > de subcadena** sobre la definición almacenada, que dice algo de la fila y
+    > nada del payload que recibe un lector. No demuestra resolución del pasaje, ni
+    > opciones públicas, ni funcionamiento de la pantalla.
+    >
+    > Y es una herramienta **distinta** del ensamblador del paquete editorial: ése
+    > une manifiestos con el catálogo de ingesta y no toca la base; `preview-report`
+    > mira las filas. Conviene no citar uno como respaldo del otro.
 
     Evidencia con hashes en `~/.psico-ops/eec-c01-drafts-20261111/`, junto al
     comparador que la produce — se vuelve a correr sobre lo guardado y repite.
+
+37. ✅ **Decisión A concedida, y la firma que de verdad falta** (12-11, #843).
+    Aprobaste A para publicar en staging las cinco de C01 con el contenido exacto
+    del paquete. Lo que se pudo hacer sin la firma está hecho; lo que no, no se
+    fingió.
+
+    **El mecanismo, comprobado sobre la instalación y no sobre el ADR:**
+    `EDITORIAL_APPROVAL_KEYS` está **ausente** de la lista de variables de la API
+    y del worker, y **no definida** dentro del contenedor que sirve. Un llavero
+    vacío no verifica ninguna firma, así que hoy nada puede aprobarse ahí.
+
+    **Y el orden importaba, lo cual no era obvio.** `manifestSha256` va **dentro
+    del payload firmado** y cubre el manifiesto **menos a sí mismo**,
+    `publishAllowed` incluido. Pedir la firma antes de activar la declaración
+    habría producido cinco actas inválidas en cuanto el cambio aterrizara. De ahí
+    que el cambio vaya primero y la firma después — y de ahí que no te pidiera la
+    firma en cuanto llegó tu aprobación.
+
+    **La pareja que sostiene el diseño:** `publishAllowed` es la **declaración**,
+    y la escribe cualquiera que pueda hacer un commit; la **autoridad** la da la
+    firma. `checkApprovals` exige las dos, y con la declaración puesta y sin acta
+    responde cinco veces `EEC_C01_PUBLISH_NOT_ALLOWED`. Medido: **el cambio de
+    hoy no publica nada.**
+
+    **Preparado:** los cinco manifiestos declarados con su resumen regenerado —dos
+    líneas por fichero—, `SHA256SUMS.txt` al día, las cinco solicitudes compuestas
+    sobre el contenido **exacto que guardan los borradores** (los cinco
+    `definitionSha256` coinciden con las filas y **no** se movieron con el cambio),
+    y `firmar-aprobacion-editorial.mjs`, que comprueba las cinco actas **antes de
+    escribir ninguna** y se niega a tocar la clave privada dentro del repositorio.
+
+    **Ensayado con una clave de prueba local** que no tocó staging y cuyas actas se
+    borraron: 5/5 válidas, `validate` en cero incidencias. Tres controles
+    negativos: llavero vacío → 5 rechazos · misma `keyId` con otra clave pública →
+    5 rechazos · una escena tocada tras firmar → `APPROVAL_REVISION_MISMATCH` en
+    exactamente esa microguía.
+
+    **Dos pruebas que documentaban la decisión anterior**, actualizadas
+    conservando los controles: la declaración esperada pasa a `true`; «cero actas»
+    se convierte en «toda acta pertenece a una de las cinco y lleva firma y
+    `keyId`» —que sigue atrapando un acta ajena sin exigir una ausencia que la
+    firma volverá falsa—; y dos pruebas de `checkApprovals` que **heredaban**
+    `publishAllowed` del fichero real ahora lo **declaran**. Es la misma lección
+    de ayer, y la segunda vez en dos días: una prueba cuyo ejemplo sale de un
+    artefacto que las decisiones editoriales mueven deja de medir su invariante en
+    silencio. Verificado por mutación.
+
+    **El control de audiencia, medido ya** con una cuenta sintética fuera del
+    padrón y **sesión acreditada**: `available: false`, **503 `GUIDE_UNAVAILABLE`**
+    al iniciar, 404 en `/experiences/mine`. Su `0` en el descubrimiento **no
+    acredita restricción** — acredita que no hay nada publicado; tras publicar
+    devolverá cinco también a ella, y eso es el alcance de A que aceptaste.
+
+    **Lo que NO se pudo hacer:** publicar, y por tanto recorrer las cinco en
+    pantalla. Falta **una orden** del titular, que el mecanismo del repositorio
+    exige y yo no puedo sustituir: no se fabricó ninguna firma, no se pidió la
+    clave privada y no se editó ningún estado a mano.
 
 #### La siguiente ejecución hacia producción
 
@@ -4801,10 +4875,15 @@ imagen** (desplegada el 11-11, con el archivado dentro); Web `8e6e2053` y worker
 salir y el grafo del worker no alcanza `experience/`. **No hay despliegue
 pendiente.**
 
-**2 · Aprobado, ejecutado y verificado** — el **archivado** (#839) y los **cinco
-borradores**. `main` `28208e57`, API sirviendo esa misma imagen, el capítulo con
-**0** experiencias ofrecidas y cinco `DRAFT` cuyo texto coincide campo por campo
-con los manifiestos. Este cajón se vació hoy.
+**2 · Aprobado y ejecutado** — el **archivado** (#839) y los **cinco borradores**,
+cerrados el 11-11 y **no se recrean**. Y desde el 12-11, la **decisión A
+concedida**: los cinco manifiestos declarados, las solicitudes compuestas y la
+cadena de firma ensayada (#843).
+
+**Lo que falta de A no es una decisión tuya: es una firma.** La exige el mecanismo
+del repositorio y no la puedo sustituir — `publishAllowed` lo escribe quien pueda
+hacer un commit, así que la autoridad tiene que venir de una clave que la
+plataforma no tenga. Una orden, en el §51 de FV-47.
 
 **3 · Pendiente de un insumo externo** — el recorrido de **correo**
 (`RESEND_API_KEY` + una bandeja autorizada), **Sentry** (`SENTRY_DSN`), **Google**

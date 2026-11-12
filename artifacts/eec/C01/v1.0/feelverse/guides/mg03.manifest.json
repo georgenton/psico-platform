@@ -139,11 +139,11 @@
     "Ninguna reproducción automática y ningún audio o vídeo obligatorio."
   ],
   "status": "DRAFT",
-  "publishAllowed": false,
+  "publishAllowed": true,
   "idempotencyKey": "eec-c01-alarma-antes-del-relato-v1-a4d652d16904c497",
   "approvalReferences": [
     "https://app.notion.com/p/3cfcbb1031a0813fb184fe6173d8a826",
     "Decisión autoral 2026-09-03: implementar las cinco microguías de EEC-C01."
   ],
-  "manifestSha256": "f2124adecf3ba817c7aa99f58904bd9c56f6ad99997a2668fc82af7fcc54a513"
+  "manifestSha256": "46024b4062e267fd73a8cc3710b4b95a55d1b7f52563e566bfb356093c68c30c"
 }

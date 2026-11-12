@@ -1,5 +1,5 @@
 import { generateKeyPairSync, sign } from "node:crypto";
-import { readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -91,7 +91,14 @@ describe("declaración y acta tienen que decir lo mismo", () => {
   it("un acta suelta, sin declararlo, también se reporta", () => {
     // No es inofensivo: una aprobación que nadie reconoce se parece demasiado
     // a un descuido —o a un intento— como para dejarla pasar en silencio.
+    //
+    // `publishAllowed` se DECLARA aquí, no se hereda del fichero. Antes salía
+    // de MG03 en disco, que entonces valía `false`; cuando el propietario
+    // aprobó la decisión A y pasó a `true`, esta prueba dejó de medir su
+    // invariante y empezó a comprobar cero. Una prueba que se vuelve vacua con
+    // una decisión editorial no estaba midiendo el código.
     const m = copia();
+    m.publishAllowed = false;
     const issues = checkApprovals({
       manifests: [m],
       approvals: new Map([[m.manifestId, actaPara(m)]]),
@@ -142,14 +149,32 @@ describe("declaración y acta tienen que decir lo mismo", () => {
     ).toEqual([]);
   });
 
-  it("y el estado de hoy —sin declarar y sin acta— no genera ruido", () => {
+  it("sin declarar y sin acta no genera ruido", () => {
+    // Era «el estado de hoy» hasta que A se aprobó. Sigue siendo el invariante
+    // —un capítulo que no declara nada no debe producir incidencias— y por eso
+    // la declaración se fija aquí en vez de leerse del disco.
+    const sinDeclarar = REALES.map((m) => ({ ...m, publishAllowed: false }));
     expect(
       checkApprovals({
-        manifests: REALES,
+        manifests: sinDeclarar,
         approvals: new Map(),
         keyring: LLAVERO,
       }),
     ).toEqual([]);
+  });
+
+  it("el estado de HOY: las cinco declaradas y sin acta todavía", () => {
+    // Lo que los manifiestos reales dicen desde que el propietario aprobó A y
+    // antes de que llegue la firma. No es ruido: es la puerta funcionando.
+    const issues = checkApprovals({
+      manifests: REALES,
+      approvals: new Map(),
+      keyring: LLAVERO,
+    });
+    expect(issues).toHaveLength(REALES.length);
+    expect(new Set(codigos(issues))).toEqual(
+      new Set([CLI_ERRORS.publishNotAllowed]),
+    );
   });
 });
 
@@ -275,20 +300,51 @@ describe("reseal — explícito, idempotente y sólo con aprobación", () => {
   });
 });
 
-describe("MG03 sigue sin aprobar, en el disco", () => {
-  it("su manifiesto real declara publishAllowed: false y status DRAFT", () => {
-    // La garantía que acompaña a todo este bloque: lo de arriba son claves y
-    // manifiestos de mentira. El artefacto de verdad no se tocó.
-    expect(MG03.publishAllowed).toBe(false);
+describe("MG03 en el disco: declarada, y nada más que eso", () => {
+  it("su manifiesto real declara publishAllowed: true y sigue en DRAFT", () => {
+    // **Actualizado el 2026-11-12**, cuando el propietario aprobó la decisión A
+    // para las cinco de C01. Antes esta prueba fijaba `publishAllowed: false`,
+    // que era la decisión editorial vigente; ahora fija la nueva.
+    //
+    // Y conviene ver qué NO cambia: `publishAllowed` es la **declaración**, y
+    // por sí sola no publica nada. `checkApprovals` exige además un acta
+    // firmada, y sin ella responde `EEC_C01_PUBLISH_NOT_ALLOWED` — «declara
+    // publishAllowed: true sin un acta firmada que lo respalde». Esa es la
+    // pareja que sostiene el diseño: el repositorio declara, la clave autoriza.
+    expect(MG03.publishAllowed).toBe(true);
     expect(MG03.status).toBe("DRAFT");
     expect(MG03.scenes).toHaveLength(7);
   });
 
-  it("y no hay ningún acta en el paquete", () => {
-    // Si algún día aparece una, esta prueba falla — y eso es exactamente lo
-    // que debe pasar, porque sería una decisión editorial que alguien tomó.
-    expect(
-      readdirSync(DIR).filter((n) => n.endsWith(".approval.json")),
-    ).toEqual([]);
+  it("y cualquier acta del paquete pertenece a una de las cinco aprobadas", () => {
+    // Antes esta prueba exigía **cero** actas, y su razón era buena: un acta
+    // apareciendo sola habría sido una decisión que alguien tomó por su cuenta.
+    // Con A aprobada, esperar cero la volvería falsa en cuanto llegue la firma;
+    // pero el control que importa se puede conservar sin pedir ausencia.
+    //
+    // Lo que se vigila ahora: que no aparezca un acta **ajena** —de otra
+    // microguía, de otro capítulo, o sin identidad— colada en el paquete. La
+    // validez criptográfica no se comprueba aquí porque depende del llavero del
+    // entorno; eso lo hace `checkApprovals`, con sus propios controles
+    // negativos más arriba en este archivo.
+    const APROBADAS = [
+      "EEC-C01-MG01",
+      "EEC-C01-MG02",
+      "EEC-C01-MG03",
+      "EEC-C01-MG04",
+      "EEC-C01-MG05",
+    ];
+    for (const n of readdirSync(DIR).filter((x) =>
+      x.endsWith(".approval.json"),
+    )) {
+      const acta = JSON.parse(readFileSync(join(DIR, n), "utf8")) as {
+        manifestId?: unknown;
+        signature?: unknown;
+        keyId?: unknown;
+      };
+      expect(APROBADAS).toContain(acta.manifestId);
+      expect(typeof acta.signature).toBe("string");
+      expect(typeof acta.keyId).toBe("string");
+    }
   });
 });

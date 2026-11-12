@@ -151,11 +151,11 @@
     "Ninguna reproducción automática y ningún audio o vídeo obligatorio."
   ],
   "status": "DRAFT",
-  "publishAllowed": false,
+  "publishAllowed": true,
   "idempotencyKey": "eec-c01-emocion-informa-no-manda-v1-8671c5481bddd692",
   "approvalReferences": [
     "https://app.notion.com/p/3cfcbb1031a0813fb184fe6173d8a826",
     "Decisión autoral 2026-09-03: implementar las cinco microguías de EEC-C01."
   ],
-  "manifestSha256": "87df0d3202588868351a6a636cd8fc9a10e86a1fe5d4ab17382a57623db7eca3"
+  "manifestSha256": "e862a2ad1039d7a3120c694c692fe7ef7345ab53e572d08b348d4bdd1af39d2b"
 }

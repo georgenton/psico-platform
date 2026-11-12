@@ -111,11 +111,50 @@ bibliografía.
 
 ## 3 · Publicar las cinco Experiences de C01
 
-> **Corrección.** Una versión anterior de esta sección decía que «la decisión A
-> está APROBADA». **Es falso**, y lo es contra la fuente primaria, que fui a
-> leer precisamente porque el roadmap y la revisión decían lo contrario que yo.
-> Lo dejo escrito porque el error es el que importa evitar: **atribuir al
-> propietario una aprobación que no dio.**
+> ### ✅ A APROBADA por el propietario el 2026-11-12
+>
+> Esta decisión **ya no está pendiente**. El propietario la concedió por escrito,
+> limitada a las cinco versiones `@1` de C01 y al contenido exacto del paquete
+> editorial entregado, y **sólo para staging**. Aceptó expresamente su alcance:
+> las definiciones publicadas pueden obtenerse por la API autenticada, y
+> mantener **B** pendiente no vuelve privado ese contenido.
+>
+> **Tres estados que conviene no mezclar**, porque van en orden y hoy estamos en
+> el segundo:
+>
+> | Estado                                  | Hoy                                                                        |
+> | --------------------------------------- | -------------------------------------------------------------------------- |
+> | **1. Decisión A concedida**             | ✅ **sí**, el 2026-11-12                                                   |
+> | **2. Firma formalizada y validada**     | ⬜ **pendiente** — la exige el mecanismo del repositorio, no una regla mía |
+> | **3. Publicación ejecutada**            | ⬜ no, y no puede ejecutarse antes del 2                                   |
+> | **4. Recorrido verificado en pantalla** | ⬜ no, va después del 3                                                    |
+>
+> **Lo ya hecho bajo esta autorización:** los cinco manifiestos declaran
+> `publishAllowed: true` con su `manifestSha256` regenerado; las cinco
+> solicitudes de aprobación están preparadas sobre el contenido **exacto que
+> guardan los borradores** —comprobado: los cinco `definitionSha256` coinciden
+> con las filas—; y la cadena de firma está ensayada de punta a punta con una
+> clave de prueba local, con sus tres controles negativos.
+>
+> **Por qué falta una firma.** `publishAllowed` es la **declaración**, y la
+> escribe quien pueda hacer un commit. La **autoridad** la da una firma Ed25519
+> cuya clave privada vive fuera de la plataforma. `checkApprovals` exige **las
+> dos**: con la declaración puesta y sin acta responde
+> `EEC_C01_PUBLISH_NOT_ALLOWED` — «declara publishAllowed: true sin un acta
+> firmada que lo respalde». Medido, no deducido.
+>
+> **Y la instalación no reconoce ninguna clave todavía.** Comprobado sobre el
+> recurso real, no sobre el ADR: `EDITORIAL_APPROVAL_KEYS` está **ausente** de la
+> lista de variables de la API y del worker, y no definida dentro del contenedor
+> que sirve. Un llavero vacío no verifica nada y no aprueba nada.
+>
+> **B sigue pendiente**, con la audiencia de QA y su configuración intactas.
+
+> **Corrección, conservada.** Una versión anterior de esta sección decía que «la
+> decisión A está APROBADA» **cuando no lo estaba**, y contra la fuente primaria.
+> Lo dejo escrito porque el error es el que importa evitar —**atribuir al
+> propietario una aprobación que no dio**— y porque la diferencia entre aquello y
+> el bloque de arriba es justamente que hoy existe el mensaje que la concede.
 
 **Lo que la fuente dice, citado.** El inventario de experiencias de EEC-C01
 cierra así:
@@ -136,11 +175,17 @@ de cinco microguías («APROBADA POR EL AUTOR»), el diseño `v0.1` de MG03
 (2026-09-02), y la **implementación** (referencia del 2026-09-03). Implementar
 no es publicar, y la propia página lo remata: «La publicación sigue bloqueada».
 
-**Dónde están hoy.** En OVH, `ChapterExperienceVersion` tiene **cero filas**: no
-están en `DRAFT`, están **ausentes**. Y aun así las cinco se recorren, porque el
-modo guiado resuelve del catálogo **en código**, no de una fila de Experience.
-Por eso 31/31 por HTTP convive con una tabla vacía: son dos registros distintos,
-y contar uno no dice nada del otro.
+**Dónde están hoy — actualizado el 2026-11-12.** Las cinco **existen en staging
+como `DRAFT`**, creadas el 11-11 bajo la aprobación del archivado, con sus
+identidades registradas y su texto verificado campo por campo contra los
+manifiestos. `ChapterExperienceVersion` tiene **cinco filas**, ninguna con
+`publishedAt`.
+
+> La frase anterior decía «cero filas: no están en DRAFT, están ausentes». Era
+> cierta hasta el 11-11 y ya no lo es. Lo que sí se conserva de ella es la
+> distinción que la hacía útil: que las cinco se recorrieran por HTTP (31/31)
+> **nunca dijo nada** sobre la tabla, porque el modo guiado resuelve del catálogo
+> en código. Son dos registros distintos, y contar uno no habla del otro.
 
 **Qué bloquea A, dicho con precisión — corregido el 2026-11-09.** Esta sección
 decía que A afectaba «al registro, no al producto». **Es falso**, y lo destapó

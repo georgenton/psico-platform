@@ -147,11 +147,11 @@
     "Ninguna reproducción automática y ningún audio o vídeo obligatorio."
   ],
   "status": "DRAFT",
-  "publishAllowed": false,
+  "publishAllowed": true,
   "idempotencyKey": "eec-c01-construida-no-significa-falsa-v1-609b02645373ef92",
   "approvalReferences": [
     "https://app.notion.com/p/3cfcbb1031a0813fb184fe6173d8a826",
     "Decisión autoral 2026-09-03: implementar las cinco microguías de EEC-C01."
   ],
-  "manifestSha256": "b8fb514e617be8fade6c3e68eee36124f1cd5d45e190b195440171b133911ce2"
+  "manifestSha256": "c7685dd7309fe8057794e6a2ef2452f8be0b7f56fa068ce6227e4c4e2ae1bc15"
 }

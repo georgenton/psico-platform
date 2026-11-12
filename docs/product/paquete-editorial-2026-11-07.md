@@ -111,7 +111,7 @@ bibliografía.
 
 ## 3 · Publicar las cinco Experiences de C01
 
-> ### ✅ A APROBADA por el propietario el 2026-11-12
+> ### ✅ A APROBADA, FIRMADA, PUBLICADA Y VERIFICADA — 2026-11-12
 >
 > Esta decisión **ya no está pendiente**. El propietario la concedió por escrito,
 > limitada a las cinco versiones `@1` de C01 y al contenido exacto del paquete
@@ -122,14 +122,17 @@ bibliografía.
 > **Tres estados que conviene no mezclar**, porque van en orden y hoy estamos en
 > el segundo:
 >
-> | Estado                                  | Hoy                                                                        |
-> | --------------------------------------- | -------------------------------------------------------------------------- |
-> | **1. Decisión A concedida**             | ✅ **sí**, el 2026-11-12                                                   |
-> | **2. Firma formalizada y validada**     | ⬜ **pendiente** — la exige el mecanismo del repositorio, no una regla mía |
-> | **3. Publicación ejecutada**            | ⬜ no, y no puede ejecutarse antes del 2                                   |
-> | **4. Recorrido verificado en pantalla** | ⬜ no, va después del 3                                                    |
+> | Estado                                  | Hoy                                                                                                      |
+> | --------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+> | **1. Decisión A concedida**             | ✅ el 2026-11-12                                                                                         |
+> | **2. Firma formalizada y validada**     | ✅ **validada** — firmada a las 17:26:35.705Z con `jq-2026`; `VÁLIDA ×5`, `validate` en cero incidencias |
+> | **3. Publicación ejecutada**            | ✅ **5 PUBLISHED**, una por una, cada una con su `publishedAt`                                           |
+> | **4. Recorrido verificado en pantalla** | ✅ las cinco, con dos recorridos completos escena a escena                                               |
 >
-> **Lo ya hecho bajo esta autorización:** los cinco manifiestos declaran
+> **La clave privada nunca salió de la custodia del titular**; la pública vive
+> en el entorno de la API, no en el repositorio. Detalle en FV-47 §52.
+>
+> **Lo hecho bajo esta autorización:**
 > `publishAllowed: true` con su `manifestSha256` regenerado; las cinco
 > solicitudes de aprobación están preparadas sobre el contenido **exacto que
 > guardan los borradores** —comprobado: los cinco `definitionSha256` coinciden

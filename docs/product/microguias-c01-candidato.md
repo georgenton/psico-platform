@@ -6,13 +6,15 @@
 > borradores existen en staging** en `DRAFT` — ninguno publicado. El capítulo 1 de
 > EEC ofrece **0** experiencias.
 >
-> **A APROBADA el 2026-11-12; B sigue pendiente.** De los siete pasos del §7
-> quedan cerrados el 1, el 2, el 3, el 4 y el **5** (la revisión editorial del
-> contenido). El **6** —incorporar el acta al sello— está preparado y **espera
-> una firma**: los cinco manifiestos ya declaran `publishAllowed: true` y las
-> cinco solicitudes están compuestas sobre el contenido exacto que guardan los
-> borradores, pero la instalación **no reconoce ninguna clave pública** todavía
-> y sin ella nada verifica. El **7**, publicar, va después.
+> **A APROBADA, FIRMADA, PUBLICADA Y VERIFICADA el 2026-11-12. B sigue
+> pendiente.** Los **siete pasos** del §7 quedan cerrados: el propietario firmó a
+> las 17:26:35.705Z con la clave `jq-2026`, `reseal` sellló las cinco
+> (`APPLIED · 5 RESEALED`), `publish-guides` las publicó una por una
+> (**5 PUBLISHED**) y las cinco se recorrieron en pantalla con la cuenta de QA del
+> padrón. El capítulo ofrece **cinco** experiencias. Detalle en FV-47 §52.
+>
+> Lo que sigue abajo es el documento del candidato tal como se presentó para
+> decidir, conservado como antecedente.
 >
 > Evidencia con hashes en `~/.psico-ops/eec-c01-drafts-20261111/`.
 

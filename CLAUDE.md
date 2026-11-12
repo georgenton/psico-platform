@@ -4010,19 +4010,19 @@ de cada bitácora de sesión— es **antecedente fechado**: explica cómo se lle
 aquí, no lo que toca hacer. Si una instrucción antigua contradice esta
 sección, manda esta sección.
 
-#### El corte — 2026-11-12
+#### El corte — 2026-11-12 (noche)
 
 |                    |                                                                                                                                                                              |
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Dónde vive         | **OVH con Coolify, y sólo ahí.** Vercel y Railway retiradas del plan operativo                                                                                               |
-| `main`             | `3a822c42` (#842, documentación) sobre `28208e57` (#839, el archivado). Encima, **#843** sin fusionar                                                                        |
+| `main`             | **`2bee9db5`** (#843 la declaración de A + #844 las actas firmadas)                                                                                                          |
 | #839               | ✅ **fusionado** el 11-11. HEAD probado `395cdcf8`, **CI 15/15 en verde, cero fallos**                                                                                       |
-| #843               | **abierto** (12-11) — la declaración de A. **No publica nada**: falta la firma                                                                                               |
-| Decisión **A**     | ✅ **concedida el 12-11**. Estado: «aprobada por el propietario; **pendiente de formalización de firma**»                                                                    |
+| #843 · #844        | ✅ **fusionados**. CI 15/15 y 14/14 en verde                                                                                                                                 |
+| Decisión **A**     | ✅ **concedida, firmada, publicada y verificada** el 12-11. Las cinco en `PUBLISHED`                                                                                         |
 | Decisión **B**     | ⬜ **pendiente**, aparte. Audiencia de QA y configuración intactas                                                                                                           |
-| Servido en staging | **API `28208e57`** (11-11, lleva el archivado) · **Web `8e6e2053`** (10-11) · worker `f15c5c96` (07-11) — leído del contenedor, no de esta tabla                             |
+| Servido en staging | **API `2bee9db5`** (12-11, lleva las actas) · **Web `8e6e2053`** · worker `f15c5c96` — leído del contenedor                                                                  |
 | ¿Coinciden?        | La API sí, exactamente. Web y worker van por detrás **a propósito**: ninguno tiene cambio funcional que salir, y el grafo de módulos del worker **no alcanza** `experience/` |
-| Capítulo 1 de EEC  | ofrece **0 experiencias** · cinco en `DRAFT` **declaradas** (`publishAllowed: true`), **ninguna publicada**                                                                  |
+| Capítulo 1 de EEC  | **5 experiencias ofrecidas**, las cinco `startable`, 7/7/7/8/8 escenas · la legada archivada no reaparece                                                                    |
 | Producción         | **no existe como recurso.** Tres aplicaciones en el proyecto, las tres de staging                                                                                            |
 
 > **El archivado se aprobó, se fusionó, se desplegó y se verificó el 11-11.** La
@@ -4865,6 +4865,60 @@ distintas:
     exige y yo no puedo sustituir: no se fabricó ninguna firma, no se pidió la
     clave privada y no se editó ningún estado a mano.
 
+38. ✅ **Las cinco microguías de C01, PUBLICADAS y recorridas** (12-11). Firmaste
+    a las 17:26:35.705Z con `jq-2026`, en tu máquina; la privada nunca salió de tu
+    custodia. Los cuatro estados quedaron cerrados el mismo día.
+
+    | Paso                                            | Resultado                                                                                                                                                           |
+    | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+    | Actas, verificadas **por mi parte** una por una | `VÁLIDA ×5`; `validate` en cero incidencias. El `manifestSha256` de cada acta coincide con el del manifiesto declarado — el único punto donde esto podía no cuadrar |
+    | Controles negativos sobre las actas reales      | sin llavero → `APPROVAL_UNKNOWN_KEY` · otra clave con la misma `keyId` → `APPROVAL_BAD_SIGNATURE`                                                                   |
+    | `reseal --apply`                                | **APPLIED · 5 RESEALED**. Antes: `publishAllowed=false` sin acta. Después: `true` con acta — y **las cinco aún en `DRAFT`**, porque sellar no publica               |
+    | `publish-guides --apply`                        | **5 PUBLISHED**, una por una, cada una con su `publishedAt`                                                                                                         |
+    | Oferta del capítulo                             | **5**, las cinco `startable`, 7/7/7/8/8 escenas, la legada **sin reaparecer**, y los cinco `anchorKey` coincidiendo con su `anchorRef`                              |
+
+    **Dos hallazgos que me habrían costado el paso.** `publish-test-suite` —el
+    comando que parecía el de publicar— **rechaza staging** antes de leer nada: es
+    para un entorno desechable. La vía es `publish-guides`, que exige
+    `--confirm-publish` **además** del gate de entorno, porque escribir un
+    borrador y poner una ruta delante de un lector son decisiones distintas. Y
+    **no hizo falta ninguna cuenta ADMIN** — el bloqueo que yo daba por seguro el
+    11-11: el CLI resuelve el operador de `EEC_C01_OPERATOR_USER_ID`.
+
+    **En pantalla, con la cuenta de QA del padrón:** «RECORRIDO DEL CAPÍTULO ·
+    5 de 5», las cinco abriéndose con **su propio** título. Dos recorridos
+    completos escena a escena —MG01 y MG04— con el **texto exacto** del paquete:
+    apertura → pasaje con su «Ir al pasaje» → concepto con su nota → ejemplo con
+    el párrafo que acota la tesis → práctica con su creencia y sus zonas →
+    recuerdo con sus tres opciones → cierre. Pasos **0 → 1 → 2 → 3 de 3**.
+    «Volver al capítulo» y la consulta posterior, funcionando.
+
+    **Tres promesas al lector, medidas:** `correctOptionKey` **ausente** del
+    payload real —esta vez sobre la respuesta que recibe el cliente, no sobre la
+    fila, que es lo que yo presenté de más el 11-11—; dos marcas sintéticas de
+    escritura personal con **cero apariciones** en `GuideSession`,
+    `GuideSessionStep`, `GuideCommandReceipt`, `LearningEvent` y `DiaryEntry`, y
+    sin ninguna petición al avanzar desde la reflexión; y la nota de «registra
+    avance educativo, no interpreta cómo te sientes» presente en pantalla. El
+    alcance de la segunda son esas cinco tablas y las peticiones observadas, no
+    todo el sistema.
+
+    **El control de audiencia, repetido con las cinco publicadas**, con sesión
+    acreditada y fuera del padrón: `available: false` · **503
+    `GUIDE_UNAVAILABLE`** al iniciar · **404** en `/experiences/mine`. Y el
+    descubrimiento le da **5**, que **es el alcance de A** y no un defecto.
+
+    **Historia conservada:** 68 sesiones de guía —eran 66, **+2** por mis dos
+    repeticiones y **nada borrado**—, 194 bloques, 1 anotación, 21 sesiones de
+    lectura.
+
+    **Y una corrección de mi propio instrumento, la tercera en tres días:** mi
+    primera pasada por las cinco tarjetas informó que tres mostraban el título de
+    MG02. Era mi extracción —espera corta y un corte a desplazamiento fijo—, no la
+    interfaz. Conviene desconfiar del medidor antes que de lo medido.
+
+    Evidencia con hashes en `~/.psico-ops/eec-c01-publicacion-20261112/`.
+
 #### La siguiente ejecución hacia producción
 
 Cinco cajones, y la diferencia entre ellos es quién puede moverlos.
@@ -4875,15 +4929,14 @@ imagen** (desplegada el 11-11, con el archivado dentro); Web `8e6e2053` y worker
 salir y el grafo del worker no alcanza `experience/`. **No hay despliegue
 pendiente.**
 
-**2 · Aprobado y ejecutado** — el **archivado** (#839) y los **cinco borradores**,
-cerrados el 11-11 y **no se recrean**. Y desde el 12-11, la **decisión A
-concedida**: los cinco manifiestos declarados, las solicitudes compuestas y la
-cadena de firma ensayada (#843).
+**2 · Aprobado, ejecutado y verificado** — el **archivado** (#839), los **cinco
+borradores**, y desde el 12-11 la **decisión A**: firmada por ti, publicada y
+recorrida en pantalla. Las cinco en `PUBLISHED`, el capítulo ofreciendo cinco, y
+los controles de audiencia en pie. Este cajón se vació.
 
-**Lo que falta de A no es una decisión tuya: es una firma.** La exige el mecanismo
-del repositorio y no la puedo sustituir — `publishAllowed` lo escribe quien pueda
-hacer un commit, así que la autoridad tiene que venir de una clave que la
-plataforma no tenga. Una orden, en el §51 de FV-47.
+**Del modo guiado sólo queda B**, que es tu decisión y no tiene trabajo técnico
+por delante: el control está medido —una cuenta fuera del padrón recibe `503` al
+iniciar— y la maquinaria está probada de punta a punta.
 
 **3 · Pendiente de un insumo externo** — el recorrido de **correo**
 (`RESEND_API_KEY` + una bandeja autorizada), **Sentry** (`SENTRY_DSN`), **Google**
@@ -4957,42 +5010,11 @@ en **[la matriz de F3](https://claude.ai/artifact/UtBZxMUDiqSuSwY3mGh5ah)**:
       editar el mapping: hay que **publicar `@3`**, **archivar `@2`** y **mover**
       la entrada de elegibilidad, conservando las actividades históricas, que
       siguen resolviendo por pin.
-   3. **Las cinco microguías de C01**: registradas y probadas (31/31). La
-      **implementación** está aprobada (2026-09-03); **publicar NO**: la fuente
-      primaria registra «Aprobación autoral: BLOCKED — Pendiente de decisión de
-      Jorge», «Readiness para PUBLISHED: BLOCKED» y «Microguías aprobadas: 0», y
-      su cierre es una **recomendación** —«publicar APPROVE, flag HOLD»— con
-      «ninguna de las dos ejecutada». Así que **A y B son las dos decisiones
-      tuyas**, no deudas de ejecución. Y en OVH las cinco no están en `DRAFT`:
-      están **ausentes** (0 filas).
-
-      **Y desde el 11-11 los cinco borradores EXISTEN en staging**, en `DRAFT`, con
-      su texto verificado campo por campo contra los manifiestos: lo único que
-      falta para que alguien los abra es exactamente A. Se puede decidir con el
-      texto delante — las cinco van
-      enteras —37 escenas, las cinco prácticas con sus opciones, cada recuerdo con
-      su respuesta y sus devoluciones— en
-      [microguias-c01-contenido-para-revision.md](docs/product/microguias-c01-contenido-para-revision.md)
-      y en Notion, como hija de FV-47. Revisar el contenido **no espera a A**: la
-      vista previa exige ADMIN, no publicación.
-
-      **Y el alcance de A, en la formulación que vale:** «publicar permite
-      obtener las definiciones mediante la **API autenticada**; mantener B en HOLD
-      **no vuelve privadas** esas definiciones; la interfaz normal de Web y la
-      ejecución guiada siguen condicionadas por la disponibilidad del piloto».
-      Es decir: A **sí** hace el texto obtenible por cualquier cuenta con sesión
-      —ése es el aviso que importa— y **no** pone las tarjetas abiertas en
-      pantalla delante de nadie, porque abrir una portada exige además un
-      recorrido propio en ese pin. La oferta del capítulo serán **cinco, no
-      seis**: la legada **ya está** archivada.
-
-      ✅ **El archivado que esto necesitaba quedó RESUELTO el 11-11.** Lo
-      aprobaste con alcance explícito, se fusionó (#839, squash, CI 15/15 en
-      verde), se desplegó sólo la API y se verificaron las siete comprobaciones
-      del alcance — detalle en la entrada 36. El capítulo ofrece **0**
-      experiencias y los **cinco borradores existen** en `DRAFT`, ninguno
-      publicado. La reversión sigue siendo un valor y un despliegue, pero **no
-      retira** esos borradores: ésos se archivarían aparte y explícitamente.
+   3. ✅ **Las cinco microguías de C01: CERRADAS el 12-11.** Aprobaste A, la
+      firmaste con tu clave, se publicaron y se recorrieron en pantalla. Las cinco
+      en `PUBLISHED`; el capítulo ofrece cinco. **Sólo queda B** —abrir la
+      audiencia más allá de QA—, que es decisión tuya y no tiene trabajo técnico
+      por delante. Detalle en la entrada 38.
 
    4. **Los dos bloques de _EEC_**: el de C05 ya está corregido. El de C01 es
       una **nota editorial interna** que vive en el canónico, bajo «Referencias

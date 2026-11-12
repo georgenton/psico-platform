@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "manifestId": "EEC-C01-MG02",
+  "experienceKey": "eec-c1-rostro-como-pista",
+  "experienceVersion": 1,
+  "guideKey": "eec-c1-rostro-como-pista",
+  "guideVersion": 1,
+  "canonicalVersion": "EEC_C01_v1.0_TEXT_LOCKED_2026-08-20",
+  "canonicalSha256": "e10f42cedf881838578b7337355887c0e8cb2fe37b75dfa4204db509ac023018",
+  "manifestSha256": "ec850a7a8cfb9d0a5681bfd5202f9ff131e57918988706a91df0cffd134890d7",
+  "definitionSha256": "6f484d279b38e8985dfb12695531f41b158a7eb623055688d4e437b298a70c4e",
+  "approvedBy": "Jorge Quizamanchuro",
+  "approvedAt": "2026-11-12T17:26:35.705Z",
+  "keyId": "jq-2026",
+  "signature": "9APCFZ8T2Vgy3Kc1o1NAyTUWTXBEurDPg/rhYaBlfCOLRqbjx+Prpklh0uDIEHPPWtr9X5yH/Hw/5LtijYhOCQ=="
+}

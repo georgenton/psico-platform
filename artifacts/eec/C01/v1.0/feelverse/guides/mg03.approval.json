@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "manifestId": "EEC-C01-MG03",
+  "experienceKey": "eec-c1-alarma-antes-del-relato",
+  "experienceVersion": 1,
+  "guideKey": "eec-c1-alarma-antes-del-relato",
+  "guideVersion": 1,
+  "canonicalVersion": "EEC_C01_v1.0_TEXT_LOCKED_2026-08-20",
+  "canonicalSha256": "e10f42cedf881838578b7337355887c0e8cb2fe37b75dfa4204db509ac023018",
+  "manifestSha256": "46024b4062e267fd73a8cc3710b4b95a55d1b7f52563e566bfb356093c68c30c",
+  "definitionSha256": "4de4501e53396fa2f44782d33f0db454b9b9ed07149fc25fdb44eae215bff012",
+  "approvedBy": "Jorge Quizamanchuro",
+  "approvedAt": "2026-11-12T17:26:35.705Z",
+  "keyId": "jq-2026",
+  "signature": "jSzJvYGZM42nexJzQrEz0eBQDvtXEUsOwGv6oPnVLoxdvkdi8J/vbddhzmkyubwZlVaVw/XEwUh+xyP1jahOCw=="
+}

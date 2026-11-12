@@ -137,11 +137,11 @@
     "Ninguna reproducción automática y ningún audio o vídeo obligatorio."
   ],
   "status": "DRAFT",
-  "publishAllowed": false,
+  "publishAllowed": true,
   "idempotencyKey": "eec-c01-teorias-como-lentes-v1-0e374373b7ed7011",
   "approvalReferences": [
     "https://app.notion.com/p/3cfcbb1031a0813fb184fe6173d8a826",
     "Decisión autoral 2026-09-03: implementar las cinco microguías de EEC-C01."
   ],
-  "manifestSha256": "e411b39f94c14aa37ec808f7a8c93eb46bb6edc8cc785324fe6ef86d05213fbc"
+  "manifestSha256": "2d277edc33aa7303a5757294f7182ba8a05c2671923354fde9993aab7e89f8e0"
 }

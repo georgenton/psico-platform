@@ -137,11 +137,11 @@
     "Ninguna reproducción automática y ningún audio o vídeo obligatorio."
   ],
   "status": "DRAFT",
-  "publishAllowed": false,
+  "publishAllowed": true,
   "idempotencyKey": "eec-c01-rostro-como-pista-v1-521db42de3bbe995",
   "approvalReferences": [
     "https://app.notion.com/p/3cfcbb1031a0813fb184fe6173d8a826",
     "Decisión autoral 2026-09-03: implementar las cinco microguías de EEC-C01."
   ],
-  "manifestSha256": "61ba03390225393d330989b3b656437dfb04e134729b7f3c56c4aa66f6dfb9ef"
+  "manifestSha256": "ec850a7a8cfb9d0a5681bfd5202f9ff131e57918988706a91df0cffd134890d7"
 }

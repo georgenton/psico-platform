@@ -4777,16 +4777,30 @@ distintas:
     `verify-drafts` da **ocho de nueve** chequeos en ✓. El único `false` es
     `flagOff`, y lo es **porque QA conserva el flag encendido** por tu
     instrucción — de modo que el `ok` agregado engaña y lo que vale son los nueve
-    leídos uno a uno.
+    leídos uno a uno. Y un límite más, por si alguien lo cita de más: ese informe
+    **no comprueba por sí solo el padrón del piloto**; `flagOff` mira un flag, no
+    quién está en la lista.
 
     **Identidad operativa:** `qa-visual-20261026@psico.test`, cuenta sintética
     existente con rol **USER**. No se promovió a nadie a ADMIN.
 
     **Lo que NO se pudo obtener, y por qué:** la vista previa del CMS exige rol
     ADMIN y en staging **no hay ninguna cuenta ADMIN**. `preview-report` sí dio las
-    cinco por la vía del CLI, con dos campos que importan: `anchorResolved: true` y
-    **`correctOptionKeyExposed: false`** en las cinco. Las URLs de esas vistas
-    quedan registradas para quien tenga el rol.
+    cinco por la vía del CLI, con sus URLs registradas para quien tenga el rol.
+
+    > **Corrección del 2026-11-12: presenté sus campos con más alcance del que
+    > tienen.** Leído el código, `preview-report` **inspecciona la estructura
+    > guardada** y nada más: `anchorResolved` sólo comprueba que exista una escena
+    > de tipo `PASSAGE` —no que el ancla resuelva contra el manuscrito—;
+    > `publicRecallOptionsPresent`, que exista una de tipo `RECALL` —no que las
+    > opciones viajen en el payload—; y `correctOptionKeyExposed` es una **búsqueda
+    > de subcadena** sobre la definición almacenada, que dice algo de la fila y
+    > nada del payload que recibe un lector. No demuestra resolución del pasaje, ni
+    > opciones públicas, ni funcionamiento de la pantalla.
+    >
+    > Y es una herramienta **distinta** del ensamblador del paquete editorial: ése
+    > une manifiestos con el catálogo de ingesta y no toca la base; `preview-report`
+    > mira las filas. Conviene no citar uno como respaldo del otro.
 
     Evidencia con hashes en `~/.psico-ops/eec-c01-drafts-20261111/`, junto al
     comparador que la produce — se vuelve a correr sobre lo guardado y repite.

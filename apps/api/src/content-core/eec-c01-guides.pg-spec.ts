@@ -72,12 +72,29 @@ suite("EEC-C01 · manifests → targets → five DRAFTs (real PostgreSQL)", () =
   let service: ExperienceAdminService;
   let manifests: GuideManifest[];
   let canonicalSha: string;
+  let canonicalShaVivo: string;
   let userId: string;
   let unitId: string;
 
   beforeAll(async () => {
     manifests = loadManifests(MANIFEST_DIR);
-    canonicalSha = createHash("sha256")
+    // La revisión contra la que estos manifiestos se validan es **la que
+    // declaran**, no el fichero del capítulo de hoy. Hasheaba `chapter.md`, y
+    // al reabrirse C01 como v1.1 —retirar una nota editorial interna, renombrar
+    // un encabezado— esto empezó a reportar cinco `canonicalMismatch` falsos:
+    // los cinco manifiestos siguen congelados en v1.0, firmados contra el texto
+    // que de verdad aprobaron. Los manifiestos no estaban mal; la expectativa
+    // sí. Se exige que los cinco declaren la MISMA revisión, que es lo que da
+    // valor a tomarla de ellos.
+    const declaradas = new Set(manifests.map((m) => m.canonicalSha256));
+    if (declaradas.size !== 1) {
+      throw new Error(
+        `los manifiestos declaran ${declaradas.size} revisiones distintas`,
+      );
+    }
+    canonicalSha = [...declaradas][0] as string;
+    // Y el fichero vivo, para poder decir si ya avanzó por su cuenta.
+    canonicalShaVivo = createHash("sha256")
       .update(readFileSync(CHAPTER_FILE, "utf8"), "utf8")
       .digest("hex");
 
@@ -239,8 +256,16 @@ suite("EEC-C01 · manifests → targets → five DRAFTs (real PostgreSQL)", () =
 
   // ── The manifests, against the chapter that is actually in the database ───
 
-  it("1 · the manifests validate against the canonical chapter", () => {
+  it("1 · the manifests validate against the revision they DECLARE", () => {
     expect(validateManifests(manifests, canonicalSha)).toEqual([]);
+    // Y la divergencia con el fichero vivo es visible, no un defecto: un
+    // capítulo reabierto deja los manifiestos describiendo el texto anterior a
+    // propósito, y eso es lo que `sealedCanonicalSha256` declara.
+    if (canonicalSha !== canonicalShaVivo) {
+      expect(validateManifests(manifests, canonicalShaVivo)).toHaveLength(
+        manifests.length,
+      );
+    }
   });
 
   it("2 · plan is read-only and resolves one unit for all five", async () => {

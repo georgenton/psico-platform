@@ -1749,3 +1749,44 @@ guión hace. Hay trinquete en `apps/web/src/deploy-policy.test.ts`. Igual con el
 marcador de Railway en el detector de entorno: no abre ningún gate al desaparecer, y
 los nombres que sobreviven lo hacen en detectores con varias alternativas y en el
 texto de un mensaje de error. Ver `CLAUDE.md § Deployment`.
+
+### 7.1 · La conexión del cliente, retirada el 2026-11-13
+
+Conservar los **recursos** y mantener una **conexión** son cosas distintas, y hasta
+esta fecha sólo se había decidido la primera. Al abrir una sesión en este
+repositorio, el cliente seguía intentando arrancar el servidor MCP de Railway
+—fallaba en cada arranque— y cargaba el plugin de Vercel completo.
+
+**Un proveedor no entra por una sola puerta.** Eran cuatro, y cada una se cierra con
+un mecanismo distinto. Todo es **por proyecto**: fuera de FeelVerse nada cambia.
+
+| Fuente                                     | Qué aportaba                                                                    | Dónde se cerró                                                  |
+| ------------------------------------------ | ------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| servidor MCP `railway` (ámbito de usuario) | `failed` en cada arranque                                                       | `disabledMcpServers` en las 8 entradas de proyecto de este repo |
+| plugin `vercel@claude-plugins-official`    | **37 skills + 3 agentes + 3 hooks + 1 servidor MCP**, ~2 904 tok en cada sesión | `enabledPlugins: false` en `.claude/settings.json` (versionado) |
+| skill personal `use-railway`               | disparaba con «deployments», «services», «environments», «logging in»           | `skillOverrides: {"use-railway": "off"}` en el mismo fichero    |
+| 33 pre-aprobaciones `mcp__railway__*`      | autorizaban de antemano a un proveedor retirado                                 | retiradas de `.claude/settings.local.json`                      |
+
+**Lo que lo justifica, medido y no supuesto:** `hooks/telemetry.mjs` del plugin
+publica en `https://telemetry.vercel.com/api/vercel-plugin/v1/events`, está en el
+cierre transitivo de sus cinco hooks cableados (SessionStart ×3, PostToolUse,
+SessionEnd) y es **opt-out** — `isDauTelemetryEnabled` devuelve `true` salvo
+`VERCEL_PLUGIN_TELEMETRY=off`, que no estaba definida. Deshabilitar sólo el servidor
+MCP **no** habría parado eso.
+
+**Dos trampas de alcance que cuestan una hora si no están escritas.** Los
+**worktrees son proyectos aparte** en la configuración del cliente: este repo tenía
+siete, y sin tocarlas una sesión abierta ahí vuelve a cargar el servidor. Y la
+advertencia que trae el propio programa, literal: «Never use `claude mcp remove` to
+disable: it permanently deletes the server config (env vars, headers) and wipes its
+OAuth tokens» — la declaración de ámbito de usuario **se conserva**, sólo se
+deshabilita por proyecto.
+
+**Cómo se acredita** sin recargar la sesión: `claude plugin list` desde el
+repositorio dice `disabled` y desde `~` dice `enabled`. Es el lector del propio
+programa, no una lectura del JSON a ojo. Copia privada previa de la configuración en
+`~/.psico-ops/config-backup-20261113/`, con `SHA256SUMS.txt`.
+
+**Nada de esto toca las plataformas.** No se borró ningún recurso, ni el plugin del
+disco, ni la skill, ni la declaración del servidor. Es configuración del cliente, y
+se revierte quitando las tres claves.

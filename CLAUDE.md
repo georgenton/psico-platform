@@ -187,6 +187,25 @@ una versión anterior. No se vuelve a plantear la elección, y el avance no se c
 a mantenerlas disponibles. Lo que la documentación anterior llamaba «respaldo
 congelado» queda **sustituido** por esta decisión.
 
+**La recuperación de la plataforma se prepara dentro de OVH.** Volver a una versión
+anterior es reapuntar a un artefacto previo del mismo servicio en Coolify
+([runbook §3.1](docs/deploy/coolify-runbook.md)); reconstruir tras perder el servidor
+es provisionar un host nuevo, instalar Coolify, recrear los tres recursos y restaurar
+desde la copia de R2 (nivel 4 del mismo runbook). Ninguna de las dos cosas pasa por
+otra plataforma.
+
+**Conservar un recurso y mantener una conexión son cosas distintas.** Los recursos
+históricos se conservan; las conexiones del cliente, no. Desde el **2026-11-13**, al
+trabajar en este repositorio no se cargan sus servidores MCP, ni el plugin de Vercel
+—con sus 37 skills, 3 agentes y 3 hooks—, ni la skill `use-railway`. Es configuración
+del cliente, por proyecto, reversible, y no toca nada en esas plataformas: mecanismo,
+evidencia y la advertencia de no usar `claude mcp remove` para deshabilitar, en
+[runbook §7.1](docs/deploy/coolify-runbook.md).
+
+**Retirar dos plataformas de alojamiento no retira el resto de la casa.** R2, Stripe,
+Resend, Anthropic, Voyage, la transcripción, Daily, Cloudflare Stream, Sentry, la
+identidad de Google y Expo/EAS siguen exactamente donde estaban: no son hosting.
+
 Dos cosas que conviene conocer antes de tocarlas:
 
 - **El único control de esa retirada que vive en el repositorio** es

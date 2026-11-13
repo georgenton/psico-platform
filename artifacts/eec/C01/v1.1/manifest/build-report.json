@@ -1,0 +1,46 @@
+{
+  "chapter": "C01",
+  "canonicalVersion": "EEC_C01_v1.1_TEXT_LOCKED_2026-11-13",
+  "builtAt": "2026-11-13T21:27:47.728Z",
+  "checks": {
+    "canonicalSha256": "6c3be6b390dfc15d9eaba76729de6bd4e2be7dfc1ed8db1934b4c8406f0f86f8",
+    "canonicalShaMatches": true,
+    "parsedTitle": "¿Realmente sabemos qué es una emoción?",
+    "titleMatchesUnit": true,
+    "blocks": 187,
+    "blockKinds": {
+      "HEADING": 24,
+      "PARAGRAPH": 151,
+      "QUOTE": 9,
+      "PAUSE": 1,
+      "EXERCISE": 1,
+      "VIDEO": 1
+    },
+    "citationKeysInBib": 23,
+    "notes": 9,
+    "citationProblems": [],
+    "numberingIsAutomatic": true,
+    "bibliographyEntries": 23,
+    "citationStyle": {
+      "csl": "chicago-shortened-notes-bibliography.csl",
+      "locale": "locales-es-ES.xml",
+      "processor": "citeproc-js 1.4.61"
+    },
+    "pdfEngine": null
+  },
+  "outputs": {
+    "feelverse": [
+      "artifacts/eec/C01/v1.1/feelverse/unit-payload.json",
+      "artifacts/eec/C01/v1.1/feelverse/chapter.json"
+    ],
+    "docx": "artifacts/eec/C01/v1.1/print/EEC_C01_PRINT_v1.1_READY.docx",
+    "epub": "artifacts/eec/C01/v1.1/epub/EEC_C01_v1.1.epub",
+    "pdf": null
+  },
+  "blockers": [
+    {
+      "code": "SKIPPED_NO_RELIABLE_PDF_ENGINE",
+      "detail": "Ni pandoc/LaTeX ni LibreOffice en este entorno. El DOCX es válido y abre en Word; generar el PDF con un conversor improvisado — o llamando a uno real con los argumentos de otro — daría un fichero que parece de imprenta y no lo es."
+    }
+  ]
+}

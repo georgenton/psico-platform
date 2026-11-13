@@ -30,14 +30,35 @@ async function parse(raw: string, fallback: string): Promise<Parsed> {
   return mod.parseChapter(raw, fallback) as Parsed;
 }
 
+/**
+ * La versión del artefacto contra el que se compara, DERIVADA del sello del
+ * capítulo.
+ *
+ * Estaba escrita a mano (`["C01", "v1.0"]`), y eso ataba el contrato a una
+ * revisión concreta: al reabrirse C01 como v1.1, el parser produjo 187 bloques
+ * y la prueba los comparó con los 188 del payload de v1.0 — dos revisiones
+ * distintas, enfrentadas como si fueran la misma. Lo que este contrato dice es
+ * que **el parser de hoy reproduce el payload de hoy**, y «hoy» lo define el
+ * sello del capítulo, igual que para el build.
+ */
+function versionSellada(chapter: string): string {
+  const unit = JSON.parse(
+    readFileSync(join(ROOT, `content/books/eec/${chapter}/unit.json`), "utf8"),
+  ) as { canonical_version?: unknown };
+  const v = unit.canonical_version;
+  const m = typeof v === "string" ? /_v([\d.]+)_/.exec(v) : null;
+  if (m === null) {
+    throw new Error(`${chapter}/unit.json no declara canonical_version`);
+  }
+  return `v${m[1]}`;
+}
+
 describe("EEC · el troceador no mueve lo ya publicado", () => {
   // El contrato real: los bloques que produce el parser HOY son exactamente
-  // los que están servidos en producción para C01 y C02.
-  for (const [chapter, version] of [
-    ["C01", "v1.0"],
-    ["C02", "v1.0"],
-  ] as const) {
-    it(`${chapter} trocea exactamente igual que el payload ingerido`, async () => {
+  // los del payload de la revisión que el capítulo declara.
+  for (const chapter of ["C01", "C02"] as const) {
+    const version = versionSellada(chapter);
+    it(`${chapter} trocea exactamente igual que el payload de ${version}`, async () => {
       const unit = JSON.parse(
         readFileSync(
           join(ROOT, `content/books/eec/${chapter}/unit.json`),

@@ -37,7 +37,33 @@ const CHAPTER = join(ROOT, "content/books/eec/C01/chapter.md");
 const PILOT = "eec-c1-cuerpo-antes-que-mente";
 
 const MANIFESTS = loadManifests(MANIFEST_DIR);
-const CANONICAL = createHash("sha256")
+
+/**
+ * La revisión contra la que se validan estos manifiestos: **la que declaran**.
+ *
+ * Esto hasheaba `chapter.md`, y con eso la prueba afirmaba que los manifiestos
+ * describen el fichero de HOY. Dejó de ser cierto el 2026-11-13, cuando el
+ * capítulo se reabrió como v1.1 para retirar una nota editorial interna: los
+ * cinco manifiestos siguen congelados en v1.0, firmados contra el texto que de
+ * verdad aprobaron, y la prueba empezó a reportar cinco `canonicalMismatch`
+ * falsos. Los manifiestos no estaban mal; la expectativa sí.
+ *
+ * Se toma del propio paquete, con una condición que es la que da el valor:
+ * **los cinco tienen que declarar la MISMA revisión**. Si divergieran, esto
+ * falla antes de validar nada — que es justo lo que querríamos saber.
+ */
+const CANONICAL = (() => {
+  const declaradas = new Set(MANIFESTS.map((m) => m.canonicalSha256));
+  if (declaradas.size !== 1) {
+    throw new Error(
+      `los cinco manifiestos declaran ${declaradas.size} revisiones distintas`,
+    );
+  }
+  return [...declaradas][0] as string;
+})();
+
+/** El fichero vivo, para poder decir si ya avanzó por su cuenta. */
+const CANONICAL_VIVO = createHash("sha256")
   .update(readFileSync(CHAPTER, "utf8"), "utf8")
   .digest("hex");
 
@@ -62,8 +88,23 @@ describe("EEC-C01 · the manifests", () => {
     expect(MANIFESTS.every((m) => m.guideVersion === 1)).toBe(true);
   });
 
-  it("they validate against the canonical chapter", () => {
+  it("they validate against the revision they DECLARE", () => {
     expect(validateManifests(MANIFESTS, CANONICAL)).toEqual([]);
+  });
+
+  it("y si el capítulo avanzó, lo dicen en vez de fingir que no", () => {
+    // No se exige que coincidan: el manuscrito puede reabrirse sin invalidar
+    // lo que alguien firmó contra el texto anterior. Lo que se exige es que la
+    // divergencia sea VISIBLE — un `canonicalMismatch` contra el fichero vivo
+    // es exactamente lo que `sealedCanonicalSha256` existe para no reportar
+    // como defecto.
+    if (CANONICAL !== CANONICAL_VIVO) {
+      expect(codes(MANIFESTS, CANONICAL_VIVO)).toEqual(
+        MANIFESTS.map(() => "EEC_C01_CANONICAL_SHA_MISMATCH"),
+      );
+    } else {
+      expect(codes(MANIFESTS, CANONICAL_VIVO)).toEqual([]);
+    }
   });
 
   it("each declares its own guide, and none is the pilot", () => {

@@ -1,0 +1,18 @@
+chapter: EEC-C01
+canonical_version: EEC_C01_v1.1_TEXT_LOCKED_2026-11-13
+canonical_sha256: 6c3be6b390dfc15d9eaba76729de6bd4e2be7dfc1ed8db1934b4c8406f0f86f8
+title: ¿Realmente sabemos qué es una emoción?
+built_at: 2026-11-13T21:27:47.728Z
+citation_style: Chicago Manual of Style 18 · shortened-notes-and-bibliography
+csl: chicago-shortened-notes-bibliography.csl
+bibliography_entries: 23
+notes: 9
+numbering: generated-at-build-time
+blocks: 187
+outputs:
+  - artifacts/eec/C01/v1.1/feelverse/unit-payload.json
+  - artifacts/eec/C01/v1.1/feelverse/chapter.json
+  - artifacts/eec/C01/v1.1/print/EEC_C01_PRINT_v1.1_READY.docx
+  - artifacts/eec/C01/v1.1/epub/EEC_C01_v1.1.epub
+blockers:
+  - SKIPPED_NO_RELIABLE_PDF_ENGINE

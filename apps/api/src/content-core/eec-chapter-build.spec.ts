@@ -23,7 +23,34 @@ import { afterAll, describe, expect, it } from "vitest";
 
 const ROOT = join(__dirname, "..", "..", "..", "..");
 const OUT = ".tmp-eec-build-spec";
-const dest = (chapter: string) => join(ROOT, OUT, "eec", chapter, "v1.0");
+
+/**
+ * La versión del directorio de salida, DERIVADA del sello del capítulo.
+ *
+ * Estaba escrita a mano como `v1.0`, y eso convertía una decisión editorial en
+ * un fallo de estas pruebas: reabrir el capítulo 1 como v1.1 —retirar una nota
+ * interna y renombrar un encabezado— rompió tres casos que no tenían nada que
+ * ver con lo que vigilan. El build la deriva de `canonical_version`
+ * (`build-chapter.mjs`: `match(/_v([\d.]+)_/)`), así que esto hace lo mismo y
+ * la sigue en vez de fijarla.
+ */
+function versionDe(chapter: string): string {
+  const unit = JSON.parse(
+    readFileSync(join(ROOT, "content/books/eec", chapter, "unit.json"), "utf8"),
+  ) as { canonical_version?: unknown };
+  const v = unit.canonical_version;
+  if (typeof v !== "string") {
+    throw new Error(`${chapter}/unit.json no declara canonical_version`);
+  }
+  const m = /_v([\d.]+)_/.exec(v);
+  if (m === null) {
+    throw new Error(`canonical_version sin versión legible: ${v}`);
+  }
+  return `v${m[1]}`;
+}
+
+const dest = (chapter: string) =>
+  join(ROOT, OUT, "eec", chapter, versionDe(chapter));
 
 type Note = {
   n: number;
@@ -73,7 +100,7 @@ describe("EEC · un texto, tres salidas", () => {
 
     // La lista impresa: «1. …», «2. …» en el mismo orden.
     const docx = unzip(
-      join(d, "print/EEC_C01_PRINT_v1.0_READY.docx"),
+      join(d, `print/EEC_C01_PRINT_${versionDe("C01")}_READY.docx`),
       "word/document.xml",
     );
     // Solo la sección «Notas»: el cuerpo del capítulo también tiene párrafos
@@ -90,7 +117,7 @@ describe("EEC · un texto, tres salidas", () => {
 
     // El EPUB ancla cada nota con el mismo número que la llamada.
     const xhtml = unzip(
-      join(d, "epub/EEC_C01_v1.0.epub"),
+      join(d, `epub/EEC_C01_${versionDe("C01")}.epub`),
       "OEBPS/chapter.xhtml",
     );
     const anchors = [...xhtml.matchAll(/<li id="note-(\d+)"/g)].map((m) =>
@@ -129,13 +156,13 @@ describe("EEC · un texto, tres salidas", () => {
     expect(chapterJson.notes[0].noteId).not.toBe("EEC-C01-N001");
 
     const docx = unzip(
-      join(d, "print/EEC_C01_PRINT_v1.0_READY.docx"),
+      join(d, `print/EEC_C01_PRINT_${versionDe("C01")}_READY.docx`),
       "word/document.xml",
     );
     for (const id of ids) expect(docx).toContain(`w:name="${id}"`);
 
     const xhtml = unzip(
-      join(d, "epub/EEC_C01_v1.0.epub"),
+      join(d, `epub/EEC_C01_${versionDe("C01")}.epub`),
       "OEBPS/chapter.xhtml",
     );
     for (const id of ids) expect(xhtml).toContain(`data-note-id="${id}"`);
@@ -218,8 +245,8 @@ describe("EEC-C02 · el capítulo cerrado del 2026-08-21", () => {
     const d = dest("C02");
     const hash = () =>
       [
-        "print/EEC_C02_PRINT_v1.0_READY.docx",
-        "epub/EEC_C02_v1.0.epub",
+        `print/EEC_C02_PRINT_${versionDe("C02")}_READY.docx`,
+        `epub/EEC_C02_${versionDe("C02")}.epub`,
         "feelverse/unit-payload.json",
         "feelverse/chapter.json",
       ].map((f) =>

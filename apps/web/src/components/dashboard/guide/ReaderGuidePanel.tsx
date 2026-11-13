@@ -70,6 +70,19 @@ export interface ReaderGuidePanelProps {
    */
   experience?: ChapterExperiencePublicView | null;
   /**
+   * B5 — el servidor dice que esta persona tiene un recorrido propio abrible en
+   * este capítulo, aunque no sea el que esta pestaña pide.
+   *
+   * Sólo cambia **qué frase** se lee cuando no hay nada que pintar, y existe
+   * porque desde B5 la pestaña se ofrece también por ese recorrido propio: se
+   * puede llegar aquí sin haber elegido tarjeta, y entonces el pin pedido es el
+   * predeterminado del capítulo. «Todavía no tiene recorrido publicado» sería
+   * cierto del catálogo y falso de ella.
+   *
+   * Opcional: quien no lo pase ve exactamente lo que veía antes.
+   */
+  ownJourneyElsewhere?: boolean;
+  /**
    * The chapter's guided route, kept visible while a journey plays.
    *
    * Optional because a chapter may publish exactly one experience and have no
@@ -109,6 +122,7 @@ export function ReaderGuidePanel({
   apiBase,
   token,
   experience,
+  ownJourneyElsewhere,
   routeState,
   routeVerdicts,
   routePresentations,
@@ -246,6 +260,9 @@ export function ReaderGuidePanel({
     // es true y la rama del catálogo no se alcanza.
     publishedCount: discovered.items.length,
     ownedLookupFailed: experience ? false : discovered.ownedLookupFailed,
+    // Con una tarjeta ya elegida, el recorrido propio es EL que se está
+    // abriendo: no hay nada que mandar a buscar a otra parte.
+    ownElsewhere: experience ? false : ownJourneyElsewhere === true,
     anchorResolved: anchor.status === "RESOLVED",
   });
   if (absence !== null || definition === null) {

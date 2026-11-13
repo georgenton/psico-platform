@@ -122,6 +122,82 @@ describe("guidePanelAbsence", () => {
     ).toBe("not-published");
   });
 
+  it("B5 · con un recorrido propio en otro pin, no dice que el capítulo esté vacío", () => {
+    // Desde B5 la pestaña se ofrece también por ese recorrido propio, así que
+    // se puede llegar a este panel sin haber elegido tarjeta — y entonces el
+    // pin pedido es el predeterminado del capítulo, que no publica nada.
+    // «Todavía no tiene recorrido publicado» sería cierto del catálogo y falso
+    // de esta persona, que tiene uno empezado a un clic de distancia.
+    expect(
+      guidePanelAbsence(
+        con({
+          status: "ready",
+          hasDefinition: false,
+          publishedCount: 0,
+          ownElsewhere: true,
+        }),
+      ),
+    ).toBe("own-elsewhere");
+    // Y dice dónde está la puerta, que es lo que distingue esta frase de la
+    // anterior: un remedio que la propia persona puede ejecutar.
+    expect(GUIDE_PANEL_ABSENCE_COPY["own-elsewhere"].text).toMatch(
+      /portada del capítulo/i,
+    );
+    expect(GUIDE_PANEL_ABSENCE_COPY["own-elsewhere"].text).not.toMatch(
+      /no pudimos|todavía no tiene/i,
+    );
+  });
+
+  it("B5 · «hay otros publicados» gana sobre «tienes uno propio»", () => {
+    // Las dos ciertas, y el orden es la regla: cuando el capítulo publica
+    // algo, su mensaje ya manda a la lista donde ese recorrido propio también
+    // está, así que la salida más directa va primero.
+    expect(
+      guidePanelAbsence(
+        con({
+          status: "ready",
+          hasDefinition: false,
+          publishedCount: 2,
+          ownElsewhere: true,
+        }),
+      ),
+    ).toBe("pin-unavailable");
+  });
+
+  it("B5 · y un fallo sigue ganando sobre las dos", () => {
+    expect(
+      guidePanelAbsence(
+        con({
+          status: "ready",
+          hasDefinition: false,
+          publishedCount: 0,
+          ownElsewhere: true,
+          ownedLookupFailed: true,
+        }),
+      ),
+    ).toBe("lookup-failed");
+  });
+
+  it("B5 · quien no pase el campo ve exactamente lo que veía antes", () => {
+    // La compatibilidad hacia atrás, dicha como caso: `ownElsewhere` ausente no
+    // es `true`, y tampoco cambia ninguna otra rama.
+    expect(
+      guidePanelAbsence(
+        con({ status: "ready", hasDefinition: false, publishedCount: 0 }),
+      ),
+    ).toBe("not-published");
+    expect(
+      guidePanelAbsence(
+        con({
+          status: "ready",
+          hasDefinition: false,
+          publishedCount: 0,
+          ownElsewhere: false,
+        }),
+      ),
+    ).toBe("not-published");
+  });
+
   it("conserva la avería real: hay recorrido y su pasaje no aparece", () => {
     expect(guidePanelAbsence(con({ anchorResolved: false }))).toBe(
       "anchor-unresolved",
@@ -136,6 +212,6 @@ describe("guidePanelAbsence", () => {
     // mire el DOM —las pruebas incluidas— las confundiría otra vez.
     const ids = Object.values(GUIDE_PANEL_ABSENCE_COPY).map((c) => c.testId);
     expect(new Set(ids).size).toBe(ids.length);
-    expect(ids).toHaveLength(5);
+    expect(ids).toHaveLength(6);
   });
 });

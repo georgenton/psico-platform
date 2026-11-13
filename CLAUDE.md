@@ -4015,13 +4015,14 @@ sección, manda esta sección.
 |                    |                                                                                                                                                                              |
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Dónde vive         | **OVH con Coolify, y sólo ahí.** Vercel y Railway retiradas del plan operativo                                                                                               |
-| `main`             | **`7535cab2`** (#845, el corte del 12-11) · **cero PR abiertos al empezar**                                                                                                  |
-| #846               | ⏳ **abierto**, con los tres arreglos de la UAT de C01. CI verde salvo Test/Círculos en vuelo al escribir esto                                                                |
+| `main`             | **`c03c1204`** (#846) · **cero PR abiertos**                                                                                                                                 |
+| #846               | ✅ **fusionado** el 13-11. HEAD probado `3e90c10d`, **CI 14/14 en verde** — y conviene saber por qué hubo un reintento: Círculos falló una vez con un **502 de Docker Hub** |
 | Decisión **A**     | ✅ **concedida, firmada, publicada y verificada** el 12-11. Las cinco en `PUBLISHED`                                                                                         |
 | UAT de las cinco   | ✅ **cerrada el 13-11**: MG02, MG03 y MG05 recorridas escena a escena, con MG01 y MG04 del 12-11. Matriz en [la UAT](docs/informes/uat-2026-11-13-microguias-c01.md)         |
 | Decisión **B**     | ⬜ **pendiente**, y ahora con su **alcance medido**: la pestaña guiada aparece en **8 de 10** capítulos y sólo C01 se puede recorrer                                          |
-| Servido en staging | **API `2bee9db5`** · **Web `8e6e2053`** · worker `f15c5c96` — leído del contenedor el 13-11                                                                                  |
-| ¿Coinciden?        | La API sí, exactamente. Web y worker van por detrás **a propósito**: ninguno tenía cambio funcional que salir. #846 **sí** lo tiene, y es de Web                            |
+| Servido en staging | **Web `c03c1204`** (desplegada el 13-11) · **API `2bee9db5`** · worker `f15c5c96` — leído del contenedor                                                                    |
+| ¿Coinciden?        | **Web sí, exactamente.** API y worker van por detrás **a propósito**: #846 es sólo de Web, y ninguno de los otros dos tenía cambio funcional que salir                      |
+| Los tres arreglos  | ✅ **verificados sobre lo servido**: la nota se ve y el botón dice «Comenzar»; el veredicto aparece con su frase aprobada a los 362 ms y el cierre espera; el capítulo 10 dice «todavía no tiene recorrido guiado publicado» |
 | Capítulo 1 de EEC  | **5 experiencias ofrecidas**, las cinco `startable`, 7/7/7/8/8 escenas · la legada archivada no reaparece                                                                    |
 | Producción         | **no existe como recurso.** Tres aplicaciones en el proyecto, las tres de staging                                                                                            |
 

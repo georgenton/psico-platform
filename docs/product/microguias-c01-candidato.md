@@ -10,8 +10,16 @@
 > pendiente.** Los **siete pasos** del §7 quedan cerrados: el propietario firmó a
 > las 17:26:35.705Z con la clave `jq-2026`, `reseal` sellló las cinco
 > (`APPLIED · 5 RESEALED`), `publish-guides` las publicó una por una
-> (**5 PUBLISHED**) y las cinco se recorrieron en pantalla con la cuenta de QA del
-> padrón. El capítulo ofrece **cinco** experiencias. Detalle en FV-47 §52.
+> (**5 PUBLISHED**). El capítulo ofrece **cinco** experiencias. Detalle en FV-47
+> §52.
+>
+> **La UAT se cerró el 2026-11-13**, y la distinción importa: el 12-11 se
+> acreditó la **apertura** de las cinco y el **recorrido completo** de dos (MG01
+> y MG04) — no cinco recorridos, como decía una versión de este párrafo. MG02,
+> MG03 y MG05 se recorrieron el 13-11 escena a escena, con sus tres
+> interacciones distintas, y de ahí salieron **tres defectos** que van en el
+> [PR #846](https://github.com/georgenton/psico-platform/pull/846). Detalle en
+> [la UAT](../informes/uat-2026-11-13-microguias-c01.md) y en FV-47 §54.
 >
 > Lo que sigue abajo es el documento del candidato tal como se presentó para
 > decidir, conservado como antecedente.

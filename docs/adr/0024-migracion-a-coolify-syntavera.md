@@ -8,6 +8,65 @@
   siendo un segundo proceso del mismo código; cambia la plataforma que lo corre)
 - **No sustituye:** ninguna decisión de producto, privacidad ni criptografía.
   [ADR 0007](0007-e2e-encryption-diario-eco.md) sigue intacto.
+- **Sustituido en parte por su propia enmienda:** la decisión del **2026-11-05**,
+  justo debajo, retira Vercel y Railway del plan operativo. Lo que este ADR decía
+  sobre conservarlas encendidas como respaldo queda como **antecedente**.
+
+---
+
+## Enmienda vigente — 2026-11-05 · plataforma única
+
+> **Esta sección manda.** Donde el cuerpo histórico de abajo la contradiga, gana
+> esta enmienda. El cuerpo se conserva entero porque explica cómo se llegó aquí;
+> no es una lista de pasos ejecutables.
+
+Decisión del propietario, reafirmada el **2026-11-13**:
+
+1. **OVH con Coolify es la única plataforma autorizada para FeelVerse**, en
+   staging y en producción. No hay una segunda plataforma de despliegue.
+2. **Vercel y Railway no son una alternativa de retorno.** Quedan retiradas del
+   plan operativo: no son destino de despliegue, ni de staging, ni de pruebas
+   alojadas, ni de contingencia, ni de retorno a una versión anterior. La
+   elección no se vuelve a plantear, y el avance no se condiciona a mantenerlas
+   disponibles.
+3. **Los recursos históricos se conservan sin mantener conexiones activas**, y
+   son dos cosas distintas que conviene no confundir. No se elimina ningún
+   proyecto, base, dominio, variable ni cuenta de esas plataformas, y menos como
+   efecto secundario de una limpieza documental. Lo que sí se retira es la
+   **conexión del cliente**: desde el 2026-11-13, al trabajar en este
+   repositorio no se cargan sus servidores MCP, ni su plugin, ni sus skills, ni
+   sus hooks — detalle y mecanismo en
+   [el runbook §7.1](../deploy/coolify-runbook.md).
+4. **La recuperación de la plataforma se prepara dentro de OVH.** Reconstruir
+   tras perder el servidor significa provisionar un host nuevo, instalar
+   Coolify, recrear los tres recursos y restaurar desde la copia de R2 —
+   nunca «volver a la plataforma anterior». Ese es el nivel 4 del
+   [runbook §3](../deploy/coolify-runbook.md), y su ensayo sigue pendiente de un
+   recurso autorizado.
+5. **Las instrucciones anteriores de conservar esos proveedores como
+   contingencia son antecedentes sustituidos, no pasos ejecutables.** En
+   concreto: el último párrafo del §Contexto, el punto 3 de §Estrategia y la
+   sección entera de §Criterios de apagado. Los tres quedan marcados en su
+   sitio.
+
+**Lo que esta enmienda NO retira.** Los servicios externos que el producto usa
+para funciones que no son alojamiento siguen exactamente donde estaban:
+almacenamiento (**R2**), pagos (**Stripe**), correo (**Resend**), modelo
+(**Anthropic**), embeddings (**Voyage**), transcripción, vídeo (**Daily**,
+**Cloudflare Stream**), traza de errores (**Sentry**), identidad de Google y
+**Expo/EAS** para la distribución móvil. Retirar dos plataformas de alojamiento
+no es retirar el resto de la casa, y ninguno de esos se migra: no son hosting.
+
+**Dos ficheros del repositorio cuyo borrado consigue lo contrario de lo que
+parece**, y por eso se conservan: `scripts/vercel-ignore-web.sh` y
+`apps/web/vercel.json`. Sin su `ignoreCommand`, Vercel construiría en cada
+commit de la rama conectada. Hay trinquete en
+`apps/web/src/deploy-policy.test.ts`. Igual se conservan
+`apps/api/railway.api.json` y `railway.worker.json`: son el inventario de cómo
+estaban configurados los dos procesos, que es justo lo que hace falta para
+reconstruir en una caja nueva.
+
+---
 
 ## Contexto
 
@@ -25,6 +84,10 @@ gestionados para un producto que ya tiene casa propia dejó de justificarse.
 **Esta decisión no borra la anterior.** Vercel y Railway se quedan encendidos como
 fallback durante todo el cutover, y las bitácoras que describen el despliegue
 anterior se conservan como historia.
+
+> ⚠️ **Antecedente sustituido** por la enmienda del 2026-11-05. La segunda mitad
+> sigue vigente —las bitácoras se conservan como historia— y la primera no: no
+> hay fallback. Lo que se conserva son los **recursos**, no una vía de retorno.
 
 ## Decisión
 
@@ -151,8 +214,13 @@ móvil. Ninguno se migra: no son hosting.
 2. **Producción después** de validar staging, con su propio gate.
 3. **Vercel y Railway siguen encendidos** durante todo el cutover, como fallback y
    rollback. No se borra ningún proyecto, base, dominio ni variable.
+   > ⚠️ **Antecedente sustituido** (2026-11-05). No son fallback ni rollback. La
+   > segunda frase se mantiene: no se borra nada.
 4. **Criterios de apagado** explícitos, más abajo, en vez de «cuando parezca que
    ya está».
+   > ⚠️ **Antecedente sustituido** (2026-11-05). La retirada no espera criterios:
+   > ya está decidida. Y retirar del plan no es apagar — ver el punto 3 de la
+   > enmienda.
 
 ## Mapeo de componentes
 
@@ -204,6 +272,16 @@ Lo que sí sigue privado, sin puerto al host y sin dominio: PostgreSQL, Redis y 
 worker.
 
 ## Criterios de apagado de Vercel y Railway
+
+> ⚠️ **Sección entera: antecedente sustituido** por la enmienda del 2026-11-05.
+> **No son pasos ejecutables.** Se conserva porque documenta qué se consideraba
+> necesario entonces, y porque tres de sus seis puntos siguen siendo buenas
+> condiciones para **producción en OVH** —salud sostenida, restore drill
+> ejecutado, webhooks reapuntados y verificados— leídos contra la plataforma
+> autorizada. El punto 5, «volver a Vercel/Railway», ya no existe como opción:
+> el retorno a una versión anterior se hace **dentro de OVH**, con los
+> candidatos de reversión por servicio del
+> [runbook §3.1](../deploy/coolify-runbook.md).
 
 Ninguno de los dos se apaga hasta que **todos** se cumplan:
 

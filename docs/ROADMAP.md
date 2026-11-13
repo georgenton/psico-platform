@@ -578,6 +578,18 @@ Orden operativo futuro, cada paso con autorización propia:
 
 #### C.0A1 — plan productivo en dos ondas
 
+> ⚠️ **Antecedente sustituido, de aquí al final de C.0A1** (incluidos los dos
+> niveles de rollback de más abajo). Todo este plan está redactado contra
+> Railway y Vercel, que desde el 2026-11-05 **no son destino ni vía de
+> retorno** — ver la enmienda vigente del
+> [ADR 0024](adr/0024-migracion-a-coolify-syntavera.md). **No son pasos
+> ejecutables.** Lo que sí se conserva es su distinción, que sigue siendo
+> correcta y vale en cualquier plataforma: **restaurar un artefacto anterior no
+> revierte el código**, así que el rollback operativo y la reconciliación de
+> fuente se autorizan por separado. Ejecutado hoy, eso se hace con los
+> candidatos de reversión por servicio del
+> [runbook de Coolify §3.1](deploy/coolify-runbook.md).
+
 C.0A1 **no** queda completa con el merge, ni con configurar los config paths.
 Termina cuando **ambos deployments hayan consumido sus ficheros** y la
 configuración resuelta coincida con el commit desplegado.

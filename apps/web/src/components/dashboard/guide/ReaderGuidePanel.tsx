@@ -213,8 +213,27 @@ export function ReaderGuidePanel({
   // working «Empezar» would record progress through a journey whose passage
   // cannot be shown. No session is created, so nothing has to be undone.
   //
-  // A pin with no published experience fails the same way and for the same
+  // A pin with no published experience refuses the same way and for the same
   // reason: there is nothing honest to render.
+  //
+  // What it must NOT do is report the three cases with one sentence. Measured
+  // on staging: 8 of the 10 chapters of the anchor book show the guided tab —
+  // chapter-level discovery names a pin, the bundle ships and the passage
+  // resolves — and 7 of those 8 have no published experience behind that pin.
+  // All seven said «No pudimos preparar», which reads like a failure a reader
+  // might retry, over and over, against a chapter that is simply not published
+  // yet. Nothing is broken there; the route has not been published.
+  //
+  // Whether a tab should be offered at all in that case is a product decision
+  // and not this component's to take. Saying which of the three things is
+  // happening IS.
+  //
+  // «Nada publicado» gana sobre «el pasaje no se localiza», y en ese orden: si
+  // no hay recorrido publicado, eso es la causa, y el ancla de un recorrido
+  // que no existe no es una avería. La frase de fallo queda para el caso que
+  // de verdad lo es — hay recorrido publicado y su pasaje no aparece en el
+  // capítulo —, que es el que ya retiró el piloto legado.
+  const sinRecorridoPublicado = status !== "loading" && definition === null;
   if (
     anchor.status !== "RESOLVED" ||
     status === "loading" ||
@@ -239,11 +258,17 @@ export function ReaderGuidePanel({
           <p
             className="rgp-text"
             role="status"
-            data-testid="rgp-anchor-unresolved"
+            data-testid={
+              sinRecorridoPublicado
+                ? "rgp-sin-recorrido-publicado"
+                : "rgp-anchor-unresolved"
+            }
           >
             {status === "loading"
               ? "Preparando el recorrido…"
-              : "No pudimos preparar el recorrido de este capítulo. Puedes seguir leyendo con normalidad."}
+              : sinRecorridoPublicado
+                ? "Este capítulo todavía no tiene recorrido guiado publicado. Puedes seguir leyendo con normalidad."
+                : "No pudimos preparar el recorrido de este capítulo. Puedes seguir leyendo con normalidad."}
           </p>
         </div>
       </aside>

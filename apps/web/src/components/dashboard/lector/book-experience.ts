@@ -192,6 +192,21 @@ export function audioFamilyMode(
 }
 
 /**
+ * ¿Hay algo que ofrecer detrás de la pestaña guiada?
+ *
+ * Cuatro respuestas, porque las cuatro llevan a una pestaña distinta y
+ * colapsarlas fue el defecto:
+ *
+ *   - `yes` — el capítulo publica algo que esta persona puede abrir, **o** esta
+ *     persona tiene un recorrido propio aquí (incluido un pin ya archivado).
+ *   - `none` — la consulta contestó y no hay ni una cosa ni la otra.
+ *   - `pending` — todavía no contestó.
+ *   - `failed` — no contestó. **No es `none`**: esconder la pestaña por una red
+ *     caída le quitaría la puerta a quien sí tiene un recorrido empezado.
+ */
+export type GuidedOffer = "yes" | "none" | "pending" | "failed";
+
+/**
  * The guided experience.
  *
  * Its readiness is the reader's existing six-condition gate — rollout, actor,
@@ -202,13 +217,31 @@ export function audioFamilyMode(
  * While discovery is still in flight the mode is HIDDEN rather than
  * COMING_SOON. «Próximamente» is a claim about the editorial plan, and we do
  * not have an answer yet.
+ *
+ * **Y la preparación no basta.** Las seis condiciones dicen que el lector
+ * *podría* montar un recorrido; ninguna dice que haya uno publicado. Medido en
+ * staging: 8 de los 10 capítulos del libro ancla ofrecían la pestaña y 7 de
+ * esos 8 no tenían nada detrás, de modo que la pestaña era una invitación a una
+ * sala vacía. Una pestaña es una oferta, así que `offer` es un parámetro
+ * requerido: quien llame tiene que haber hecho la pregunta.
+ *
+ * Lo que `offer` **no** hace es decidir nada en el servidor. La API sigue
+ * admitiendo un inicio sin Experience publicada, deliberadamente (el libro
+ * mayor del guía no depende del CMS). Esto es la interfaz normal, y esconder
+ * una pestaña no es un límite.
  */
 export function guidedMode(input: {
   runtimeReady: boolean;
   discoveryPending: boolean;
+  offer: GuidedOffer;
 }): BookExperienceModeView {
   const label = "🌱 Experiencia guiada";
-  if (input.runtimeReady) return { kind: "GUIDED", state: "PUBLISHED", label };
+  // Un «todavía no sé» nunca abre la pestaña, ni por el camino de la oferta:
+  // si la pregunta está en vuelo, no hay oferta que hacer.
+  if (input.offer === "pending")
+    return { kind: "GUIDED", state: "HIDDEN", label };
+  if (input.runtimeReady && input.offer !== "none")
+    return { kind: "GUIDED", state: "PUBLISHED", label };
   if (input.discoveryPending) return { kind: "GUIDED", state: "HIDDEN", label };
   return { kind: "GUIDED", state: "HIDDEN", label };
 }

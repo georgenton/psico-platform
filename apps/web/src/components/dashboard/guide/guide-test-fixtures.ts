@@ -7,6 +7,7 @@
  * declared place where test fixtures may name a guide.
  */
 
+import { ApiError } from "@psico/api-client";
 import { guidePresentationRegistry } from "./guide-presentation";
 import { guideReaderCopyRegistry } from "./guide-reader-copy";
 import type { GuidePin } from "./guide-pin";
@@ -251,4 +252,48 @@ export function experiencesForChapter(input: {
   return {
     items: byChapter[`${input.bookSlug}#${input.chapterOrder}`] ?? [],
   };
+}
+
+/**
+ * Lo que contesta un `experienceApi.getOwnByPin` fingido cuando esta persona no
+ * tiene ninguna sesión en ese pin: **404**, que es la respuesta del servidor
+ * real y no una avería.
+ *
+ * Existe porque los tres mocks de `experienceApi` de esta carpeta omitían el
+ * método por completo. La llamada moría con un `TypeError`, el `catch` desnudo
+ * del hook lo tragaba y el panel acababa informando «este capítulo no tiene
+ * recorrido publicado» a partir de una consulta que nunca llegó a hacerse — la
+ * misma confusión que la corrección vino a deshacer, esta vez dentro de las
+ * propias pruebas. Un mock que no puede fallar no sirve para probar un fallo.
+ */
+export function ownByPinNotFound(): Promise<never> {
+  return Promise.reject(new ApiError(404, "EXPERIENCE_NOT_FOUND"));
+}
+
+/**
+ * Las dos rutas de Experiences, para un test que finge `fetch` en vez de
+ * sustituir `experienceApi`. Devuelve `null` cuando la URL no es ninguna de
+ * ellas, para que quien llame siga con su propia respuesta.
+ *
+ * Existe porque la pestaña guiada dejó de ser una consecuencia de la
+ * preparación del lector: una pestaña es una oferta, así que el lector
+ * pregunta qué publica el capítulo antes de ofrecerla. Los tests que dejaban
+ * esa pregunta sin contestar describían, sin querer, un capítulo vacío — y
+ * la pestaña aparecía igual, que es justo lo que se corrigió.
+ *
+ * Por defecto contesta un capítulo que SÍ publica su recorrido, que es el
+ * supuesto de casi todos ellos. `/experiences/mine` contesta **404**: la
+ * respuesta del servidor real cuando esta persona no tiene sesión en ese pin.
+ */
+export function experienceRouteStub(
+  url: string,
+  items: readonly ChapterExperiencePublicView[] = [EEC_EXPERIENCE],
+): Response | null {
+  if (url.includes("/experiences/discovery/"))
+    return new Response(JSON.stringify({ items }), { status: 200 });
+  if (url.includes("/experiences/mine/"))
+    return new Response(JSON.stringify({ message: "EXPERIENCE_NOT_FOUND" }), {
+      status: 404,
+    });
+  return null;
 }

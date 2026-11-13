@@ -64,6 +64,9 @@ vi.mock("@psico/api-client", async (importOriginal) => {
         bookSlug: string;
         chapterOrder: number;
       }) => Promise.resolve(experiencesForChapter(input)),
+      // Declarado, y con la respuesta del servidor real: sin esto la llamada
+      // moría con un `TypeError` que el hook tragaba como «no tienes nada».
+      getOwnByPin: () => ownByPinNotFound(),
     },
   };
 });
@@ -72,6 +75,7 @@ import {
   EEC_EXPERIENCE,
   PQP_EXPERIENCE,
   experiencesForChapter,
+  ownByPinNotFound,
 } from "./guide-test-fixtures";
 
 const SCOPE = "r".repeat(43);

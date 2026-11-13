@@ -70,6 +70,9 @@ vi.mock("@psico/api-client", async (importOriginal) => {
         bookSlug: string;
         chapterOrder: number;
       }) => Promise.resolve(experiencesForChapter(input)),
+      // Declarado: un mock sin este método muere con un `TypeError` que el
+      // hook tragaba como «no tienes nada aquí».
+      getOwnByPin: () => ownByPinNotFound(),
     },
   };
 });
@@ -78,6 +81,7 @@ import {
   EEC_EXPERIENCE,
   PQP_EXPERIENCE,
   experiencesForChapter,
+  ownByPinNotFound,
 } from "../guide/guide-test-fixtures";
 
 const EEC_PIN = { guideKey: "eec-c1-cuerpo-antes-que-mente", guideVersion: 1 };

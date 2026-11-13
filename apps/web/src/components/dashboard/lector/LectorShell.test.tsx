@@ -17,6 +17,7 @@ import { LectorShell } from "./LectorShell";
 import { useChapterMediaManifest } from "./media/use-chapter-media";
 import { GuideAvailabilityProvider } from "../guide/guide-availability";
 import { GuideActorScopeProvider } from "../guide/guide-actor-scope";
+import { experienceRouteStub } from "../guide/guide-test-fixtures";
 import type * as ApiClientModule from "@psico/api-client";
 
 /**
@@ -126,14 +127,30 @@ function mediaManifestBody() {
   };
 }
 
-/** Route the media manifest; hand everything else to the test's own answer. */
+/**
+ * Route the media manifest AND the chapter's published journeys; hand
+ * everything else to the test's own answer.
+ *
+ * Las experiencias se contestan aquí porque la pestaña guiada dejó de ser una
+ * consecuencia de la preparación: una pestaña es una oferta, así que el lector
+ * pregunta qué publica el capítulo antes de ofrecerla. Este fichero describe un
+ * capítulo que SÍ publica su recorrido —es su asunto—, y antes lo dejaba sin
+ * contestar: la lista llegaba vacía y la pestaña aparecía igual, que es
+ * exactamente lo que se corrigió.
+ *
+ * `/experiences/mine` contesta 404, que es la respuesta del servidor real
+ * cuando esta persona no tiene ninguna sesión en ese pin.
+ */
 function withMediaManifest(
   rest: (input: RequestInfo | URL) => Response | Promise<Response>,
 ) {
   return async (input: RequestInfo | URL) => {
-    if (String(input).includes("/media")) {
+    const url = String(input);
+    if (url.includes("/media")) {
       return new Response(JSON.stringify(mediaManifestBody()), { status: 200 });
     }
+    const experiences = experienceRouteStub(url);
+    if (experiences) return experiences;
     return rest(input);
   };
 }

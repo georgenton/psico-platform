@@ -68,6 +68,7 @@ import {
   isModeVisible,
   mediaModeFromManifest,
   type BookExperienceModeView,
+  type GuidedOffer,
 } from "./book-experience";
 import { useChapterMediaManifest } from "./media/use-chapter-media";
 import { guideComponentKey, type GuidePin } from "../guide/guide-pin";
@@ -307,6 +308,21 @@ export function LectorShell({
   const [surface, setSurface] = useState<"home" | "reader">("reader");
 
   /**
+   * Cuántas veces se ha entrado en la portada del capítulo.
+   *
+   * No es telemetría: es la señal de «vuelve a preguntar» para el catálogo del
+   * capítulo. Antes esa señal era implícita —la lectura apagaba la consulta y
+   * volver a la portada la encendía—, y ahora la consulta está siempre
+   * encendida porque la pestaña guiada depende de ella. Sin un contador
+   * explícito, la lista se quedaría congelada en la respuesta del primer
+   * render y un recorrido retirado seguiría ofreciéndose.
+   */
+  const [chapterHomeVisits, setChapterHomeVisits] = useState(0);
+  useEffect(() => {
+    if (surface === "home") setChapterHomeVisits((n) => n + 1);
+  }, [surface]);
+
+  /**
    * Set when the reader was opened FROM the «Actividades y ejercicios» row, so
    * the effect below knows to scroll and focus once the section has mounted.
    * A ref, not state: it is a one-shot instruction, not something to render.
@@ -365,19 +381,6 @@ export function LectorShell({
   }, []);
 
   /**
-   * GR-7 — the chapter's published experiences, from the same discovery route
-   * the player uses. `pin: null` because Chapter Home wants the list, not one
-   * journey; the player still resolves its own by pin.
-   */
-  const chapterExperiences = useChapterExperience({
-    bookSlug,
-    chapterOrder: chapter.order,
-    pin: null,
-    // Only ask when the reader is looking at the list.
-    enabled: surface === "home",
-  });
-
-  /**
    * The experience the reader picked, at the exact version discovery served.
    * `null` means "not chosen"; picking never resolves "latest" and never falls
    * back to the first card when the chosen one is gone.
@@ -419,31 +422,6 @@ export function LectorShell({
   useEffect(() => {
     clearPick();
   }, [bookSlug, chapter.order, clearPick]);
-
-  /**
-   * The picked experience stopped being published.
-   *
-   * Only once discovery has actually ANSWERED: an empty list while the request
-   * is in flight is not the catalog saying the journey is gone, and dropping
-   * the pick on it would eject a reader mid-journey over a slow network. And
-   * the match is by exact key AND version — a republished version is a
-   * different thing to run, not the same card with new contents.
-   */
-  useEffect(() => {
-    if (!pickedExperience) return;
-    if (chapterExperiences.status !== "ready") return;
-    const stillPublished = chapterExperiences.items.some(
-      (item) =>
-        item.experienceKey === pickedExperience.experienceKey &&
-        item.experienceVersion === pickedExperience.experienceVersion,
-    );
-    if (!stillPublished) clearPick();
-  }, [
-    pickedExperience,
-    chapterExperiences.status,
-    chapterExperiences.items,
-    clearPick,
-  ]);
 
   // Text selection state for the popover.
   const [selection, setSelection] = useState<{
@@ -511,6 +489,66 @@ export function LectorShell({
   });
 
   const discoveredPin = discovery.status === "available" ? discovery.pin : null;
+
+  /**
+   * GR-7 — the chapter's published experiences, from the same discovery route
+   * the player uses. Chapter Home lists them; the tab decision below needs to
+   * know whether there is anything to offer at all.
+   *
+   * Two things changed here, and both for that decision:
+   *
+   *   - **It is asked on the reader surface too.** It used to be
+   *     `enabled: surface === "home"`, which was right while the only consumer
+   *     was the list. The guided tab lives on the reader surface, so gating the
+   *     answer on Chapter Home meant the tab had to be decided without it — and
+   *     it was: the tab appeared on 7 chapters of the anchor book that publish
+   *     nothing. One cheap metadata GET per chapter buys an honest offer.
+   *   - **It carries the chapter's pin**, so a `404`-or-not from
+   *     `/experiences/mine` comes back in `definition`. That is the only way to
+   *     tell «this chapter publishes nothing» from «this chapter publishes
+   *     nothing AND this person has a journey of their own here», which must
+   *     keep its door — including a pin that has since been archived.
+   *
+   * The CHAPTER's pin, not the picked one: picking a card must not re-ask this
+   * question, and a refetch mid-pick would blink the tab out from under the
+   * reader while the new answer is in flight.
+   */
+  const chapterExperiences = useChapterExperience({
+    bookSlug,
+    chapterOrder: chapter.order,
+    pin: discoveredPin,
+    enabled: true,
+    // Y se vuelve a preguntar al VOLVER a la portada, que es lo que hacía el
+    // `enabled: surface === "home"` de antes sin decirlo: el catálogo puede
+    // haber cambiado mientras la persona leía. Dejar la lectura encendida sin
+    // esto habría convertido la lista en una foto del primer render.
+    reloadKey: chapterHomeVisits,
+  });
+
+  /**
+   * The picked experience stopped being published.
+   *
+   * Only once discovery has actually ANSWERED: an empty list while the request
+   * is in flight is not the catalog saying the journey is gone, and dropping
+   * the pick on it would eject a reader mid-journey over a slow network. And
+   * the match is by exact key AND version — a republished version is a
+   * different thing to run, not the same card with new contents.
+   */
+  useEffect(() => {
+    if (!pickedExperience) return;
+    if (chapterExperiences.status !== "ready") return;
+    const stillPublished = chapterExperiences.items.some(
+      (item) =>
+        item.experienceKey === pickedExperience.experienceKey &&
+        item.experienceVersion === pickedExperience.experienceVersion,
+    );
+    if (!stillPublished) clearPick();
+  }, [
+    pickedExperience,
+    chapterExperiences.status,
+    chapterExperiences.items,
+    clearPick,
+  ]);
 
   /**
    * GR-5 — the chapter's whole guided route, when the server offers one.
@@ -1086,13 +1124,40 @@ export function LectorShell({
     [mediaItems],
   );
 
+  /**
+   * ¿Hay algo detrás de la pestaña guiada? La pregunta ya está hecha arriba;
+   * esto sólo la traduce.
+   *
+   * `definition` cubre los dos «sí» que importan: el pin del capítulo está
+   * publicado, o esta persona tiene un recorrido propio en él — que es el caso
+   * que hay que conservar, porque un pin archivado deja de estar en la lista y
+   * sigue siendo suyo. `items` cubre el resto de la oferta del capítulo.
+   *
+   * Un fallo es `failed` y NO `none`: la pestaña se conserva, porque quitársela
+   * a quien tiene un recorrido empezado por una red caída es peor que ofrecerla
+   * de más. Y el propio panel ya dice, desde dentro, que no se pudo consultar.
+   */
+  const guidedOffer: GuidedOffer = useMemo(() => {
+    if (chapterExperiences.status === "error") return "failed";
+    if (chapterExperiences.ownedLookupFailed) return "failed";
+    if (chapterExperiences.status === "loading") return "pending";
+    if (chapterExperiences.definition !== null) return "yes";
+    return chapterExperiences.items.length > 0 ? "yes" : "none";
+  }, [
+    chapterExperiences.status,
+    chapterExperiences.ownedLookupFailed,
+    chapterExperiences.definition,
+    chapterExperiences.items,
+  ]);
+
   const guidedView = useMemo(
     () =>
       guidedMode({
         runtimeReady: guideRuntimeReady,
         discoveryPending: discovery.status === "loading",
+        offer: guidedOffer,
       }),
-    [guideRuntimeReady, discovery.status],
+    [guideRuntimeReady, discovery.status, guidedOffer],
   );
 
   /**

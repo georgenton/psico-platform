@@ -19,7 +19,11 @@
  */
 
 import { useEffect, useState } from "react";
-import { experienceApi } from "@psico/api-client";
+import {
+  ApiError,
+  EXPERIENCE_DISCOVERY_PARAMS_INVALID,
+  experienceApi,
+} from "@psico/api-client";
 import type { ChapterExperiencePublicView } from "@psico/types";
 import type { GuidePin } from "../guide/guide-pin";
 
@@ -38,6 +42,16 @@ export interface ChapterExperienceResult {
    * change when the route does.
    */
   items: readonly ChapterExperiencePublicView[];
+  /**
+   * Whether the SECOND read — the own-journey lookup by exact pin — failed for
+   * a reason that is not «you have no session there».
+   *
+   * It exists because `definition === null` was being read as a fact about the
+   * catalog, and after a swallowed transport failure it is not one. A 404 from
+   * that lookup IS the normal answer and leaves this false; anything else
+   * leaves it true, and the caller must not turn it into certainty of absence.
+   */
+  ownedLookupFailed: boolean;
 }
 
 /**
@@ -67,9 +81,16 @@ export function selectExperienceForGuidePin(
 /**
  * B3 — pregunta por un recorrido propio cuyo pin la oferta no lista.
  *
- * Silenciosa a propósito: un 404 aquí es la respuesta normal —no hay sesión de
- * esta persona en ese pin— y convertirlo en un error de pantalla haría que
+ * Silenciosa ante un 404 a propósito: ésa es la respuesta normal —no hay sesión
+ * de esta persona en ese pin— y convertirla en un error de pantalla haría que
  * «este capítulo no tiene este recorrido» se leyera como una avería.
+ *
+ * **Y sólo ante un 404.** Antes atrapaba todo con un `catch` desnudo, de modo
+ * que una caída de red, un token caducado o un 500 devolvían exactamente lo
+ * mismo que «no tienes nada aquí» — y el panel acababa afirmando una decisión
+ * editorial a partir de una consulta que no llegó a contestar. Un fallo que no
+ * es 404 se declara, y quien llame decide; lo que no puede es dar una ausencia
+ * por cierta.
  *
  * El `experienceKey` se deriva del `guideKey` porque hoy el pin de guía y la
  * identidad de la experiencia coinciden en todo lo que el build publica. Si
@@ -79,7 +100,7 @@ export function selectExperienceForGuidePin(
 async function resolveOwned(
   guideKey: string,
   guideVersion: number,
-): Promise<ChapterExperiencePublicView | null> {
+): Promise<{ view: ChapterExperiencePublicView | null; failed: boolean }> {
   try {
     const propia = await experienceApi.getOwnByPin({
       experienceKey: guideKey,
@@ -88,13 +109,31 @@ async function resolveOwned(
     const vista = propia?.experience ?? null;
     // Y aun así se comprueba el pin: pedir por identidad y creerse lo que
     // vuelva sin mirar sería aceptar el recorrido de otra guía.
-    return vista &&
+    const propio =
+      vista &&
       vista.guidePin.guideKey === guideKey &&
       vista.guidePin.guideVersion === guideVersion
-      ? vista
-      : null;
-  } catch {
-    return null;
+        ? vista
+        : null;
+    return { view: propio, failed: false };
+  } catch (err) {
+    // 404 = «no hay sesión tuya en ese pin», que es un hecho y no una avería.
+    // 400 = el servidor rechazó la forma del pin, que tampoco deja nada que
+    // abrir. Los dos son respuestas; cualquier otra cosa es una pregunta sin
+    // contestar — red caída, 401 por sesión caducada, 5xx — y se declara.
+    if (err instanceof ApiError)
+      return {
+        view: null,
+        failed: err.statusCode !== 404 && err.statusCode !== 400,
+      };
+    // El cliente rechaza localmente un pin mal formado, sin salir a la red.
+    // Es un hecho sobre el pin, no una avería: se trata como el 400 de arriba.
+    if (
+      err instanceof Error &&
+      err.message === EXPERIENCE_DISCOVERY_PARAMS_INVALID
+    )
+      return { view: null, failed: false };
+    return { view: null, failed: true };
   }
 }
 
@@ -105,8 +144,20 @@ export function useChapterExperience(input: {
   pin: GuidePin | null;
   /** Only ask once the reader is actually looking at a guided surface. */
   enabled?: boolean;
+  /**
+   * Cambiar este valor vuelve a preguntar.
+   *
+   * Hace falta porque la respuesta ya no se pide sólo al entrar en la portada
+   * del capítulo: la pestaña guiada también necesita saber si hay algo que
+   * ofrecer, y eso se pregunta en la superficie de lectura. Antes el
+   * `enabled: surface === "home"` servía de dos cosas a la vez —cuándo
+   * preguntar y cuándo volver a preguntar— y al dejar la lectura encendida se
+   * perdió la segunda: el catálogo podía haber cambiado mientras la persona
+   * leía y la lista seguía mostrando lo de antes.
+   */
+  reloadKey?: string | number;
 }): ChapterExperienceResult {
-  const { bookSlug, chapterOrder, enabled = true } = input;
+  const { bookSlug, chapterOrder, enabled = true, reloadKey = 0 } = input;
   // `pin: null` is Chapter Home asking: it wants the list and has no single
   // journey in mind, so `definition` stays null and only `items` is read.
   const guideKey = input.pin?.guideKey ?? null;
@@ -115,6 +166,7 @@ export function useChapterExperience(input: {
     status: "loading",
     definition: null,
     items: [],
+    ownedLookupFailed: false,
   });
 
   useEffect(() => {
@@ -145,9 +197,12 @@ export function useChapterExperience(input: {
         //
         // Sólo cuando hay un pin concreto que buscar: la portada del capítulo
         // pide la LISTA y no tiene a quién preguntarle esto.
+        let ownedLookupFailed = false;
         if (definition === null && guideKey !== null && guideVersion !== null) {
-          definition = await resolveOwned(guideKey, guideVersion);
+          const propio = await resolveOwned(guideKey, guideVersion);
           if (cancelled) return;
+          definition = propio.view;
+          ownedLookupFailed = propio.failed;
         }
 
         setState({
@@ -156,19 +211,31 @@ export function useChapterExperience(input: {
           // Fail closed on a shape that is not a list: no experiences is a
           // state this product handles, an undefined one is not.
           items,
+          ownedLookupFailed,
         });
       } catch {
-        // A failed read is not a definition. The caller renders the same
-        // fail-closed surface it renders for "no journey here", because from
-        // the reader's side those are the same fact: nothing to open.
+        // A failed read is not a definition — and it is not an absence either.
+        //
+        // This used to say the caller «renders the same fail-closed surface it
+        // renders for "no journey here", because from the reader's side those
+        // are the same fact: nothing to open». That was true while there was
+        // ONE message. It stopped being true the moment the panel learned to
+        // say «este capítulo todavía no tiene recorrido guiado publicado»,
+        // which attributes an editorial decision to a request that never
+        // answered. `status: "error"` is the caller's cue to explain a failure.
         if (!cancelled)
-          setState({ status: "error", definition: null, items: [] });
+          setState({
+            status: "error",
+            definition: null,
+            items: [],
+            ownedLookupFailed: false,
+          });
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [enabled, bookSlug, chapterOrder, guideKey, guideVersion]);
+  }, [enabled, bookSlug, chapterOrder, guideKey, guideVersion, reloadKey]);
 
   return state;
 }

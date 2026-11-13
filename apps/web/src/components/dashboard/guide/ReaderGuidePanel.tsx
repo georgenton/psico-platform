@@ -13,6 +13,10 @@ import type { GuideRouteState } from "./use-guide-route";
 import type { RouteCardVerdict } from "./guide-route-verdict";
 import { ExperiencePlayer } from "../experience/ExperiencePlayer";
 import { useChapterExperience } from "../experience/use-chapter-experience";
+import {
+  GUIDE_PANEL_ABSENCE_COPY,
+  guidePanelAbsence,
+} from "./guide-panel-absence";
 import type { ChapterExperiencePublicView } from "@psico/types";
 
 /**
@@ -216,8 +220,8 @@ export function ReaderGuidePanel({
   // A pin with no published experience refuses the same way and for the same
   // reason: there is nothing honest to render.
   //
-  // What it must NOT do is report the three cases with one sentence. Measured
-  // on staging: 8 of the 10 chapters of the anchor book show the guided tab —
+  // What it must NOT do is report the cases with one sentence. Measured on
+  // staging: 8 of the 10 chapters of the anchor book show the guided tab —
   // chapter-level discovery names a pin, the bundle ships and the passage
   // resolves — and 7 of those 8 have no published experience behind that pin.
   // All seven said «No pudimos preparar», which reads like a failure a reader
@@ -225,20 +229,30 @@ export function ReaderGuidePanel({
   // yet. Nothing is broken there; the route has not been published.
   //
   // Whether a tab should be offered at all in that case is a product decision
-  // and not this component's to take. Saying which of the three things is
-  // happening IS.
+  // and not this component's to take. Saying which thing is happening IS.
   //
-  // «Nada publicado» gana sobre «el pasaje no se localiza», y en ese orden: si
-  // no hay recorrido publicado, eso es la causa, y el ancla de un recorrido
-  // que no existe no es una avería. La frase de fallo queda para el caso que
-  // de verdad lo es — hay recorrido publicado y su pasaje no aparece en el
-  // capítulo —, que es el que ya retiró el piloto legado.
-  const sinRecorridoPublicado = status !== "loading" && definition === null;
-  if (
-    anchor.status !== "RESOLVED" ||
-    status === "loading" ||
-    definition === null
-  ) {
+  // Y por qué la regla vive fuera de este archivo: la primera versión de esta
+  // mejora preguntaba `status !== "loading" && definition === null`, con lo
+  // que **un fallo de consulta pasó a anunciarse como una decisión
+  // editorial** — `status === "error"` caía en la rama de «todavía no tiene
+  // recorrido publicado». Es el mismo error que vino a arreglar, un paso más
+  // allá. Cuatro causas distintas no caben en dos condiciones encadenadas, y
+  // una regla escrita en un `if` de JSX no se puede probar como regla.
+  const absence = guidePanelAbsence({
+    status,
+    hasDefinition: definition !== null,
+    // Con una experiencia ya elegida no se consultó nada (`enabled: false`),
+    // así que la lista está vacía y el contador no se mira: `hasDefinition`
+    // es true y la rama del catálogo no se alcanza.
+    publishedCount: discovered.items.length,
+    ownedLookupFailed: experience ? false : discovered.ownedLookupFailed,
+    anchorResolved: anchor.status === "RESOLVED",
+  });
+  if (absence !== null || definition === null) {
+    // `absence === null` ya implica que hay definición; el segundo término es
+    // la red por si la regla y los datos se separaran alguna vez — entonces
+    // esto rehúsa con la frase de fallo en vez de desreferenciar null.
+    const copy = GUIDE_PANEL_ABSENCE_COPY[absence ?? "anchor-unresolved"];
     return (
       <aside
         id={READER_GUIDE_PANEL_ID}
@@ -255,20 +269,8 @@ export function ReaderGuidePanel({
           </button>
         </div>
         <div className="rgp-body">
-          <p
-            className="rgp-text"
-            role="status"
-            data-testid={
-              sinRecorridoPublicado
-                ? "rgp-sin-recorrido-publicado"
-                : "rgp-anchor-unresolved"
-            }
-          >
-            {status === "loading"
-              ? "Preparando el recorrido…"
-              : sinRecorridoPublicado
-                ? "Este capítulo todavía no tiene recorrido guiado publicado. Puedes seguir leyendo con normalidad."
-                : "No pudimos preparar el recorrido de este capítulo. Puedes seguir leyendo con normalidad."}
+          <p className="rgp-text" role="status" data-testid={copy.testId}>
+            {copy.text}
           </p>
         </div>
       </aside>

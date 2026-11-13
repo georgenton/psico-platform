@@ -81,11 +81,18 @@ vi.mock("@psico/api-client", async (importOriginal) => {
     experienceApi: {
       listPublishedForChapter: (...a: unknown[]) =>
         listPublishedForChapter(...a),
+      // Declarado: un mock sin este método muere con un `TypeError` que el
+      // hook tragaba como «no tienes nada aquí».
+      getOwnByPin: () => ownByPinNotFound(),
     },
   };
 });
 
-import { EEC_EXPERIENCE, EEC_PIN } from "../guide/guide-test-fixtures";
+import {
+  EEC_EXPERIENCE,
+  EEC_PIN,
+  ownByPinNotFound,
+} from "../guide/guide-test-fixtures";
 
 /** A complete card answer. Every field the C.3R contract requires. */
 const card = (
@@ -471,7 +478,11 @@ describe("C.3R · position no longer decides, in either direction", () => {
     // comparison, so a guided run opened from it may go to its passage.
     getGuideDiscovery.mockResolvedValue({ available: true, ...EEC_PIN });
     getExperienceCardStates.mockResolvedValue({ items: [] });
-    listPublishedForChapter.mockResolvedValue({ items: [] });
+    // El capítulo publica su recorrido. Antes esto decía `items: []`, que era
+    // incidental al asunto del caso —no pintar tarjetas— y dejó de ser
+    // inocuo: una pestaña es una oferta, así que sin nada publicado no hay
+    // pestaña, y el caso habría fallado por una razón que no es la suya.
+    listPublishedForChapter.mockResolvedValue({ items: [EEC_EXPERIENCE] });
     renderReader({ order: GUIDE_READER_ANCHOR.chapterOrder + 3 });
     await settle();
 

@@ -1,8 +1,8 @@
 {
   "schema_version": "1.0",
   "unit_id": "EEC-C01",
-  "canonical_version": "EEC_C01_v1.0_TEXT_LOCKED_2026-08-20",
-  "canonical_sha256": "e10f42cedf881838578b7337355887c0e8cb2fe37b75dfa4204db509ac023018",
+  "canonical_version": "EEC_C01_v1.1_TEXT_LOCKED_2026-11-13",
+  "canonical_sha256": "6c3be6b390dfc15d9eaba76729de6bd4e2be7dfc1ed8db1934b4c8406f0f86f8",
   "title": "¿Realmente sabemos qué es una emoción?",
   "_comment_identity": "Identificadores REALES de producción, leídos el 2026-09-02 en una transacción READ ONLY. El paquete GATE-1 traía «candidatos» derivados del slug; el unitKey real no se deriva del slug sino de uuidv5(Chapter.id) — no es portable entre entornos (ver docs/architecture/content-core.md y la nota de #639). Se registran aquí para trazabilidad; el CLI de ingesta los RESUELVE en el entorno destino y nunca confía en estos valores.",
   "production": {

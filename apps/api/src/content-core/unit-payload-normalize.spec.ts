@@ -31,6 +31,26 @@ afterAll(() => {
   rmSync(join(ROOT, OUT), { recursive: true, force: true });
 });
 
+/**
+ * La versión del directorio que el build escribe, DERIVADA del sello.
+ *
+ * El build la saca de `canonical_version` (`match(/_v([\d.]+)_/)`), así que
+ * esto hace lo mismo. Estaba escrita a mano como `v1.0`, y entonces reabrir el
+ * capítulo como v1.1 hacía que esta prueba fallara buscando un fichero en un
+ * directorio que el build ya no usa — un ENOENT por una decisión editorial.
+ */
+function versionDeC01(): string {
+  const unit = JSON.parse(
+    readFileSync(join(ROOT, "content/books/eec/C01/unit.json"), "utf8"),
+  ) as { canonical_version?: unknown };
+  const v = unit.canonical_version;
+  const m = typeof v === "string" ? /_v([\d.]+)_/.exec(v) : null;
+  if (m === null) {
+    throw new Error("C01/unit.json no declara una canonical_version legible");
+  }
+  return `v${m[1]}`;
+}
+
 async function buildC01(): Promise<PayloadBlock[]> {
   const mod = (await import(
     /* @vite-ignore */ join(ROOT, "scripts/eec/build-chapter.mjs")
@@ -38,7 +58,7 @@ async function buildC01(): Promise<PayloadBlock[]> {
   mod.build({ chapter: "C01", out: OUT });
   const payload = JSON.parse(
     readFileSync(
-      join(ROOT, OUT, "eec/C01/v1.0/feelverse/unit-payload.json"),
+      join(ROOT, OUT, "eec/C01", versionDeC01(), "feelverse/unit-payload.json"),
       "utf8",
     ),
   ) as { blocks: PayloadBlock[] };
@@ -145,28 +165,37 @@ describe("normalizeUnitPayloadBlocks", () => {
   });
 
   describe("contra el capítulo 1 real, recién construido", () => {
-    it("normaliza 49 bloques y rehúsa SÓLO la nota editorial del acento invertido", async () => {
+    it("no deja Markdown suelto: los únicos asteriscos visibles son los rehusados", async () => {
       const built = await buildC01();
-      expect(built).toHaveLength(188);
+      // Que haya capítulo de verdad, sin fijar su tamaño: el recuento exacto
+      // es una decisión editorial, y la primera versión de esta prueba lo
+      // tomaba como su asunto. Al retirarse la nota interna del capítulo, su
+      // `toHaveLength(188)` y su «exactamente una negativa» cayeron a la vez
+      // — y lo que medían no se había roto. **Tercera vez** que un ejemplo
+      // heredado de un artefacto que las decisiones editoriales mueven deja
+      // de medir su invariante en silencio.
+      expect(built.length).toBeGreaterThan(150);
 
       const { blocks, normalized, refusals } =
         normalizeUnitPayloadBlocks(built);
 
-      // Las cifras del 2026-11-13, contrastadas contra lo que sirve staging:
-      // 49 bloques con énfasis y exactamente una negativa.
+      // 49 bloques con énfasis, cifra del 2026-11-13 contrastada contra lo que
+      // sirve staging. Se conserva porque es estable bajo la limpieza
+      // editorial —antes y después— y porque un 0 aquí querría decir que el
+      // analizador dejó de reconocer el énfasis del corpus real.
       expect(normalized).toBe(49);
-      expect(refusals).toHaveLength(1);
-      expect(refusals[0]!.blocker).toBe("UNREPRESENTABLE_MARKUP");
-      expect(built[refusals[0]!.index]!.content).toContain("TEXT_LOCKED");
 
-      // Y el invariante que importa: una vez normalizado, el ÚNICO bloque con
-      // un asterisco en el texto es el que se rehusó. Sin esto, la tubería
-      // volvería a publicar Markdown en crudo sin que nada se queje.
+      // **El invariante, y es éste.** Una vez normalizado, los únicos bloques
+      // con un asterisco en el texto son los que se rehusaron. Sin esto, la
+      // tubería volvería a publicar Markdown en crudo sin que nada se queje.
+      // Vale con una negativa, con cinco y con ninguna: el mecanismo de la
+      // negativa tiene su propio caso declarado más arriba, que ninguna
+      // edición del manuscrito puede borrar.
       const conAsterisco = blocks
         .map((b, i) => [i, b] as const)
         .filter(([, b]) => b.content.includes("*"))
         .map(([i]) => i);
-      expect(conAsterisco).toEqual([refusals[0]!.index]);
+      expect(conAsterisco).toEqual(refusals.map((r) => r.index));
 
       // Reversible bloque a bloque sobre el corpus real, no sólo sobre casos
       // escritos a mano.

@@ -23,6 +23,10 @@ import {
   resolveReaderChapter,
   type NativeChapterTarget,
 } from "./reader-chapter-resolver";
+import {
+  legacyProgressSeedFor,
+  nativeLastBlockRef,
+} from "./legacy-progress-seed";
 import type {
   ChapterBlockSummary,
   ReaderChapterRef,
@@ -396,6 +400,73 @@ export class LectorService {
    * database untouched and simply do not render, which is the honest outcome:
    * the sentence they marked is not on this page any more.
    */
+  /**
+   * La sesión de lectura de una unidad nativa — sembrada, la primera vez, con
+   * el avance que la persona ya tenía en el capítulo legado del que esta unidad
+   * es espejo.
+   *
+   * Era un `upsert` cuyo `create` empezaba a cero, y eso estaba bien mientras
+   * todo capítulo adoptado siguiera sirviéndose por el camino legado. Deja de
+   * estarlo el día que una ingesta rompe el espejo: ese día el camino nativo
+   * atiende por primera vez y no encuentra la fila legada, así que la crea a
+   * cero. Medido antes de reabrir el capítulo 1: 7 posiciones de lectura, una
+   * de ellas con el capítulo terminado.
+   *
+   * No es un `upsert` porque la siembra sólo tiene sentido al CREAR, y Prisma
+   * no deja condicionar el `create` a lo que encuentre. Dos lecturas extra en
+   * la primera visita nativa; ninguna después.
+   *
+   * La fila legada no se toca — ver `legacy-progress-seed.ts` para por qué eso
+   * es lo que hace reversible el cambio.
+   */
+  private async openNativeSession(userId: string, contentUnitId: string) {
+    const existente = await this.prisma.readingSession.findUnique({
+      where: { userId_contentUnitId: { userId, contentUnitId } },
+    });
+    // Una fila nativa que NUNCA ha registrado nada no es prueba de que esta
+    // persona no tenga avance: es lo que deja una visita en el hueco entre el
+    // corte y el despliegue de esta siembra. Y la pérdida sería de ida: creada
+    // la fila, la siembra no volvería a mirar.
+    //
+    // Así que la condición es «fila en blanco», no «fila ausente». Es
+    // idempotente —sembrar dos veces escribe lo mismo— y deja de aplicar en
+    // cuanto la persona lee algo, porque entonces la fila ya registra.
+    const enBlanco =
+      existente !== null &&
+      existente.progressPct === 0 &&
+      existente.timeSpentSec === 0 &&
+      existente.completedAt === null &&
+      existente.lastBlockId === null;
+    if (existente !== null && !enBlanco) {
+      // Same truthful-recency refresh as the legacy reader, and the same
+      // restraint: only `lastSeenAt`.
+      return this.prisma.readingSession.update({
+        where: { id: existente.id },
+        data: { lastSeenAt: new Date() },
+      });
+    }
+    const semilla = await legacyProgressSeedFor(this.prisma, {
+      userId,
+      unitId: contentUnitId,
+    });
+    if (existente !== null) {
+      // La fila en blanco se siembra en su sitio. Si no había nada que sembrar,
+      // se queda como estaba: sólo se refresca la última vista.
+      return this.prisma.readingSession.update({
+        where: { id: existente.id },
+        data: { lastSeenAt: new Date(), ...(semilla ?? {}) },
+      });
+    }
+    return this.prisma.readingSession.create({
+      data: {
+        userId,
+        contentUnitId,
+        lastSeenAt: new Date(),
+        ...(semilla ?? {}),
+      },
+    });
+  }
+
   private async getNativeChapter(
     userId: string,
     userPlan: Plan,
@@ -422,19 +493,7 @@ export class LectorService {
     // status, and a native chapter has no lessons yet. Completion still reaches
     // the client through `session.completedAt`.
     const [session, prefs, totalChapters, unit, marks] = await Promise.all([
-      this.prisma.readingSession.upsert({
-        where: {
-          userId_contentUnitId: { userId, contentUnitId: target.contentUnitId },
-        },
-        create: {
-          userId,
-          contentUnitId: target.contentUnitId,
-          lastSeenAt: new Date(),
-        },
-        // Same truthful-recency refresh as the legacy reader above, and the
-        // same restraint: only `lastSeenAt`.
-        update: { lastSeenAt: new Date() },
-      }),
+      this.openNativeSession(userId, target.contentUnitId),
       this.prisma.readerPreferences.upsert({
         where: { userId },
         create: { userId },
@@ -455,6 +514,15 @@ export class LectorService {
     const servedBlockKeys = new Set(unit.blocks.map((b) => b.blockKey));
     const stillPlaced = (m: { blockKey: string }) =>
       servedBlockKeys.has(m.blockKey);
+
+    // El sitio por el que iba, en el vocabulario que esta página direcciona.
+    // Una sesión sembrada del camino legado guarda un `ChapterBlock.id`, y
+    // aquí cada bloque se direcciona por su `blockKey`: sin traducir, el
+    // cliente buscaría un ancla que no está en la página.
+    const lastBlockRef = await nativeLastBlockRef(this.prisma, {
+      lastBlockId: session.lastBlockId,
+      servedBlockKeys,
+    });
 
     return {
       book: {
@@ -523,7 +591,9 @@ export class LectorService {
       })),
       session: {
         progressPct: session.progressPct,
-        lastBlockId: session.lastBlockId,
+        // Traducido arriba: el cliente recibe el ancla que ESTA página
+        // sabe encontrar, no la que el camino legado escribió.
+        lastBlockId: lastBlockRef,
         timeSpentSec: session.timeSpentSec,
         startedAt: session.startedAt,
         lastSeenAt: session.lastSeenAt,

@@ -55,9 +55,32 @@ const ROOT = join(process.cwd(), "../..");
  * structural rather than switchable.
  */
 const CHAPTERS = {
+  /**
+   * C01 · sus manifiestos están **sellados** en una revisión que ya no es la
+   * del fichero vivo, y eso es deliberado.
+   *
+   * Las cinco microguías se aprobaron, firmaron y publicaron contra
+   * `EEC_C01_v1.0_TEXT_LOCKED_2026-08-20`. El 2026-11-13 el manuscrito se
+   * reabrió como v1.1 para retirar una nota editorial interna y renombrar un
+   * encabezado — dos bloques, ninguno de ellos anclado por ninguna de las
+   * cinco. Los manifiestos y sus actas **no se regeneraron**: siguen
+   * congelados en `v1.0/`, describiendo el texto que de verdad aprobaron.
+   *
+   * `sealedCanonicalSha256` es lo que hace que eso se pueda comprobar. Sin él,
+   * `validate` hashearía el fichero de hoy y reportaría cinco
+   * `canonicalMismatch` **falsos**: los manifiestos no están mal, describen
+   * otra revisión. Un artefacto se valida contra la revisión que declara.
+   *
+   * No sustituye la comprobación: `canonicalMismatch` sigue pudiendo disparar
+   * si alguien regenera los manifiestos desde un texto distinto del sellado.
+   * Lo que cambia es contra qué se compara, y que la divergencia con el
+   * fichero vivo se **informa** en vez de confundirse con un defecto.
+   */
   C01: {
     manifestDir: "artifacts/eec/C01/v1.0/feelverse/guides",
     chapterMd: "content/books/eec/C01/chapter.md",
+    sealedCanonicalSha256:
+      "e10f42cedf881838578b7337355887c0e8cb2fe37b75dfa4204db509ac023018",
     flag: "EEC_C01_GUIDED_SUITE_V1" as FlagName | null,
   },
   C02: {
@@ -257,13 +280,42 @@ async function main(): Promise<number> {
   const manifests: GuideManifest[] = loadManifests(
     join(ROOT, chapter.manifestDir),
   );
-  // Two ways to know WHICH text these manifests describe, and both end in the
-  // same string: hash the chapter's markdown when the book has one in the repo,
-  // or take the declared SHA of a canonical source that lives outside it.
-  const canonical =
+  // TRES formas de saber QUÉ texto describen estos manifiestos, en orden de
+  // autoridad:
+  //
+  //   1. un sello explícito (`sealedCanonicalSha256`) — los manifiestos están
+  //      congelados en una revisión concreta y es ÉSA la que hay que
+  //      comprobar, aunque el fichero del capítulo haya seguido avanzando;
+  //   2. el hash del markdown del capítulo, cuando el libro lo tiene en el
+  //      repositorio y nadie ha sellado nada;
+  //   3. el SHA declarado de una fuente canónica que vive fuera (PQP).
+  //
+  // El primero es nuevo y es la corrección: antes, un capítulo con `chapterMd`
+  // se validaba SIEMPRE contra el fichero más reciente, de modo que reabrir el
+  // manuscrito convertía cinco manifiestos correctos en cinco defectos. Un
+  // artefacto se valida contra la revisión que declara.
+  const vivo =
     "chapterMd" in chapter
       ? sha256(readFileSync(join(ROOT, chapter.chapterMd), "utf8"))
-      : chapter.canonicalSha256;
+      : null;
+  const sellado =
+    "sealedCanonicalSha256" in chapter ? chapter.sealedCanonicalSha256 : null;
+  const declarado =
+    "canonicalSha256" in chapter ? chapter.canonicalSha256 : null;
+  const canonical = sellado ?? vivo ?? declarado;
+  if (canonical === null) {
+    // Ninguna de las tres. Un manifiesto no puede describir un texto que nadie
+    // sabe identificar, así que esto se rehúsa en vez de validar contra nada.
+    throw new EecGuidesCliError(
+      "EEC_GUIDES_NO_CANONICAL_SOURCE",
+      `${args.chapter} no declara ni un sello, ni un chapterMd, ni un canonicalSha256`,
+    );
+  }
+  // La divergencia no se esconde: si el fichero vivo ya no es el sellado, se
+  // dice, porque alguien que lea el informe tiene que poder saber que los
+  // manifiestos describen un texto anterior a propósito.
+  const sealedDivergedFromLiveSource =
+    sellado !== null && vivo !== null && sellado !== vivo;
 
   if (args.command === "validate") {
     // B4 — la declaración del manifiesto y el acta firmada tienen que
@@ -285,6 +337,12 @@ async function main(): Promise<number> {
           command: "validate",
           manifests: manifests.length,
           canonicalSha256: canonical,
+          // Dicho, no deducido: contra qué se validó, y si el fichero del
+          // capítulo ya avanzó por su cuenta.
+          canonicalSource: sellado !== null ? "sealed" : "live-chapter-md",
+          ...(sealedDivergedFromLiveSource
+            ? { liveChapterSha256: vivo, sealedCanonicalSha256: sellado }
+            : {}),
           issues,
           ok: issues.length === 0,
         },

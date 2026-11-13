@@ -1,8 +1,8 @@
 {
   "schema_version": "0.1-draft",
   "chapter_id": "EEC-C01",
-  "canonical_version": "EEC_C01_v1.0_TEXT_LOCKED_2026-08-20",
-  "source_sha256_expected": "e10f42cedf881838578b7337355887c0e8cb2fe37b75dfa4204db509ac023018",
+  "canonical_version": "EEC_C01_v1.1_TEXT_LOCKED_2026-11-13",
+  "source_sha256_expected": "6c3be6b390dfc15d9eaba76729de6bd4e2be7dfc1ed8db1934b4c8406f0f86f8",
   "anchors": [
     {
       "anchor_id": "eec-c1-apertura",
@@ -14,7 +14,7 @@
       "status": "CANDIDATE_PENDING_TEXT_OFFSETS",
       "runtime_binding": "PENDING",
       "text_locked_change_required": false,
-      "source_sha256_expected": "e10f42cedf881838578b7337355887c0e8cb2fe37b75dfa4204db509ac023018",
+      "source_sha256_expected": "6c3be6b390dfc15d9eaba76729de6bd4e2be7dfc1ed8db1934b4c8406f0f86f8",
       "start_offset": null,
       "end_offset": null
     },
@@ -28,7 +28,7 @@
       "status": "CANDIDATE_PENDING_TEXT_OFFSETS",
       "runtime_binding": "PENDING",
       "text_locked_change_required": false,
-      "source_sha256_expected": "e10f42cedf881838578b7337355887c0e8cb2fe37b75dfa4204db509ac023018",
+      "source_sha256_expected": "6c3be6b390dfc15d9eaba76729de6bd4e2be7dfc1ed8db1934b4c8406f0f86f8",
       "start_offset": null,
       "end_offset": null
     },
@@ -42,7 +42,7 @@
       "status": "CANDIDATE_PENDING_TEXT_OFFSETS",
       "runtime_binding": "PENDING",
       "text_locked_change_required": false,
-      "source_sha256_expected": "e10f42cedf881838578b7337355887c0e8cb2fe37b75dfa4204db509ac023018",
+      "source_sha256_expected": "6c3be6b390dfc15d9eaba76729de6bd4e2be7dfc1ed8db1934b4c8406f0f86f8",
       "start_offset": null,
       "end_offset": null
     },
@@ -56,7 +56,7 @@
       "status": "EDITORIAL_RESOLVED_RUNTIME_PENDING",
       "runtime_binding": "PENDING",
       "text_locked_change_required": false,
-      "source_sha256_expected": "e10f42cedf881838578b7337355887c0e8cb2fe37b75dfa4204db509ac023018",
+      "source_sha256_expected": "6c3be6b390dfc15d9eaba76729de6bd4e2be7dfc1ed8db1934b4c8406f0f86f8",
       "start_offset": null,
       "end_offset": null,
       "footprint_exact": "Una respuesta rápida de protección no es exactamente lo mismo que sentir miedo.",
@@ -72,7 +72,7 @@
       "status": "CANDIDATE_PENDING_TEXT_OFFSETS",
       "runtime_binding": "PENDING",
       "text_locked_change_required": false,
-      "source_sha256_expected": "e10f42cedf881838578b7337355887c0e8cb2fe37b75dfa4204db509ac023018",
+      "source_sha256_expected": "6c3be6b390dfc15d9eaba76729de6bd4e2be7dfc1ed8db1934b4c8406f0f86f8",
       "start_offset": null,
       "end_offset": null
     },
@@ -86,7 +86,7 @@
       "status": "CANDIDATE_PENDING_TEXT_OFFSETS",
       "runtime_binding": "PENDING",
       "text_locked_change_required": false,
-      "source_sha256_expected": "e10f42cedf881838578b7337355887c0e8cb2fe37b75dfa4204db509ac023018",
+      "source_sha256_expected": "6c3be6b390dfc15d9eaba76729de6bd4e2be7dfc1ed8db1934b4c8406f0f86f8",
       "start_offset": null,
       "end_offset": null
     },
@@ -100,7 +100,7 @@
       "status": "CANDIDATE_PENDING_TEXT_OFFSETS",
       "runtime_binding": "PENDING",
       "text_locked_change_required": false,
-      "source_sha256_expected": "e10f42cedf881838578b7337355887c0e8cb2fe37b75dfa4204db509ac023018",
+      "source_sha256_expected": "6c3be6b390dfc15d9eaba76729de6bd4e2be7dfc1ed8db1934b4c8406f0f86f8",
       "start_offset": null,
       "end_offset": null
     },
@@ -114,7 +114,7 @@
       "status": "CANDIDATE_PENDING_TEXT_OFFSETS",
       "runtime_binding": "PENDING",
       "text_locked_change_required": false,
-      "source_sha256_expected": "e10f42cedf881838578b7337355887c0e8cb2fe37b75dfa4204db509ac023018",
+      "source_sha256_expected": "6c3be6b390dfc15d9eaba76729de6bd4e2be7dfc1ed8db1934b4c8406f0f86f8",
       "start_offset": null,
       "end_offset": null
     },
@@ -128,7 +128,7 @@
       "status": "CANDIDATE_PENDING_TEXT_OFFSETS",
       "runtime_binding": "PENDING",
       "text_locked_change_required": false,
-      "source_sha256_expected": "e10f42cedf881838578b7337355887c0e8cb2fe37b75dfa4204db509ac023018",
+      "source_sha256_expected": "6c3be6b390dfc15d9eaba76729de6bd4e2be7dfc1ed8db1934b4c8406f0f86f8",
       "start_offset": null,
       "end_offset": null
     },
@@ -142,7 +142,7 @@
       "status": "CANDIDATE_PENDING_TEXT_OFFSETS",
       "runtime_binding": "PENDING",
       "text_locked_change_required": false,
-      "source_sha256_expected": "e10f42cedf881838578b7337355887c0e8cb2fe37b75dfa4204db509ac023018",
+      "source_sha256_expected": "6c3be6b390dfc15d9eaba76729de6bd4e2be7dfc1ed8db1934b4c8406f0f86f8",
       "start_offset": null,
       "end_offset": null
     },
@@ -156,7 +156,7 @@
       "status": "CANDIDATE_PENDING_TEXT_OFFSETS",
       "runtime_binding": "PENDING",
       "text_locked_change_required": false,
-      "source_sha256_expected": "e10f42cedf881838578b7337355887c0e8cb2fe37b75dfa4204db509ac023018",
+      "source_sha256_expected": "6c3be6b390dfc15d9eaba76729de6bd4e2be7dfc1ed8db1934b4c8406f0f86f8",
       "start_offset": null,
       "end_offset": null
     }

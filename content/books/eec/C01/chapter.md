@@ -293,9 +293,7 @@ El recorrido apenas comienza. Antes de profundizar en cómo el cerebro construye
 
 Esa será la puerta del próximo capítulo.
 
-## Referencias de trabajo para el capítulo 1
-
-> **Nota editorial:** las entradas de libros en español deberán ajustarse a la edición exacta utilizada en Zotero antes de `TEXT_LOCKED`.
+## Referencias
 
 Barrett, L. F. (2017). *How emotions are made: The secret life of the brain*. Houghton Mifflin Harcourt.
 

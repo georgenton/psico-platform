@@ -14,23 +14,44 @@
 
 ## Resumen
 
-| #   | Decisión                          | Propuesta                                                                                                                          | Bloquea                               |
-| --- | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| 1   | Sinopsis de _EEC_                 | publicar el texto propuesto                                                                                                        | la ficha pública de la obra · **y B** |
-| 2   | Nota interna de C01               | retirar **sólo la nota** y renombrar el encabezado a «Referencias»; las 21 entradas se conservan                                   | la lectura limpia de C01 · **y B**    |
-| 3   | Publicar las cinco Experiences    | ✅ **ejecutada el 2026-11-12** — aprobada, firmada, publicada y recorrida en pantalla                                              | —                                     |
-| 4   | **B** — abrir las cinco a alguien | abrir a **una persona a la vez por invitación**, después de 1 y 2, y decidiendo qué hacer con la pestaña de los otros 7 capítulos  | el piloto de lectura acompañada       |
-| 5   | Sucesor del Dúo                   | `eec-c1-emocion-informa-no-manda@1`                                                                                                | la entrada del Dúo                    |
-| 6   | Las otras dos obras               | autoría y pertenencia **ya resueltas**; falta material: partes y manuscrito de _Familias_, manuscrito de _Parejas_                 | el catálogo                           |
-| 7   | Primer recurso de audio           | capítulo 1 de _EEC_                                                                                                                | la promesa de «Modo Guía»             |
-| 8   | Precios y apertura de cobros      | **propuesta concreta de las 7 filas** + 6 condiciones de lanzamiento; no abrir todavía, resolver ya las 2 que no dependen de nadie | el cobro                              |
+| #   | Decisión                          | Propuesta                                                                                                                          | Bloquea                            |
+| --- | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| 1   | Sinopsis de _EEC_                 | ✅ **ejecutada el 2026-11-13** — aplicada en staging, verificada por SHA                                                           | —                                  |
+| 2   | Nota interna de C01               | ⚠️ **pide una firma nueva** — efecto medido, paquete listo; ver el aviso de §2                                                     | la lectura limpia de C01 · **y B** |
+| 3   | Publicar las cinco Experiences    | ✅ **ejecutada el 2026-11-12** — aprobada, firmada, publicada y recorrida en pantalla                                              | —                                  |
+| 4   | **B** — abrir las cinco a alguien | abrir a **una persona a la vez por invitación**, después de 1 y 2, y decidiendo qué hacer con la pestaña de los otros 7 capítulos  | el piloto de lectura acompañada    |
+| 5   | Sucesor del Dúo                   | `eec-c1-emocion-informa-no-manda@1`                                                                                                | la entrada del Dúo                 |
+| 6   | Las otras dos obras               | autoría y pertenencia **ya resueltas**; falta material: partes y manuscrito de _Familias_, manuscrito de _Parejas_                 | el catálogo                        |
+| 7   | Primer recurso de audio           | capítulo 1 de _EEC_                                                                                                                | la promesa de «Modo Guía»          |
+| 8   | Precios y apertura de cobros      | **propuesta concreta de las 7 filas** + 6 condiciones de lanzamiento; no abrir todavía, resolver ya las 2 que no dependen de nadie | el cobro                           |
 
-**Las dos que de verdad bloquean el piloto ahora mismo son 1 y 2**, y las dos son
-ediciones pequeñas: un campo y dos líneas de un canónico. La 4 va detrás.
+**Las dos que de verdad bloquean el piloto ahora mismo son 1 y 2.** La **1 está
+ejecutada** desde el 2026-11-13: la sinopsis aprobada se aplicó en staging y es
+lo que recibe y ve una persona. La **2 resultó no ser una edición pequeña** — dos
+líneas del canónico, sí, pero el canónico está bloqueado por un SHA que las cinco
+actas firmadas del 12-11 llevan dentro, así que ejecutarla pide una firma nueva.
+Su efecto está medido y su paquete está listo. La 4 va detrás de las dos.
 
 ---
 
 ## 1 · La sinopsis de _Emociones en Construcción_
+
+> ✅ **EJECUTADA el 2026-11-13.** Aplicada en staging con comparar-y-fijar sobre
+> el valor exacto de la preimagen, así que una edición posterior a la lectura
+> habría abortado la escritura en vez de sobrescribirse en silencio.
+>
+> Verificado por SHA-256, que es lo que distingue «parecido» de «el texto
+> aprobado»: el fichero local, la fila de la base y lo que devuelve
+> `GET /api/books/emociones-en-construccion` dan los tres
+> `36ea0a47b002b49a677e0ac534891a06…`. El marcador ya no aparece, la descripción
+> corta no se tocó, y el detalle del libro renderiza `book.summary` literal en
+> «Sobre este libro».
+>
+> El texto aplicado es **byte a byte** el que proponía
+> [el inventario](inventario-editorial.md) — contrastado, no supuesto. Preimagen
+> y salida en `~/.psico-ops/eec-synopsis-20261113/`.
+>
+> Lo de abajo se conserva como el antecedente de la decisión.
 
 **En juego.** La única obra publicada se presenta, en público y sin sesión, con
 un marcador: «Sinopsis en revisión editorial.» No es un defecto — es lo que la
@@ -110,6 +131,28 @@ identidad, ni marca, ni posición, ni historia.**
 **NO hace**: no toca ningún otro bloque, no reingesta nada —una reingesta
 destructiva mataría los `blockId` de los que cuelgan las marcas— y no corrige la
 bibliografía.
+
+> **⚠ Al ir a ejecutarla, el 2026-11-13, aparecieron dos requisitos que esta
+> propuesta no podía prever**, porque ninguno se ve desde el texto. El paquete
+> listo, con el efecto medido en un ensayo que se hizo y se deshizo, está en
+> **[paquete-c01-referencias-2026-11-13.md](paquete-c01-referencias-2026-11-13.md)**.
+> En resumen:
+>
+> 1. **La tubería del manuscrito deshacía la reparación del 26-10** — el build
+>    entrega el énfasis dentro de `content`, así que reingerir habría devuelto
+>    los asteriscos a 49 bloques. **Resuelto** (`unit-payload-normalize`).
+> 2. **Las cinco actas que firmaste el 12-11 llevan dentro del payload firmado
+>    el `canonicalSha256` del manuscrito de hoy.** Editarlo las deja
+>    atestiguando un texto que ya no existe, y cualquier acto futuro sobre esas
+>    cinco sería rechazado con `APPROVAL_REVISION_MISMATCH` hasta volver a
+>    firmar. Las cinco publicadas **no se rompen**; su acta ya se consumió.
+>
+> Así que esto **pide una firma nueva**, y por eso no se aplicó. El efecto, en
+> cambio, ya está medido: 187 bloques, **exactamente dos diferencias** contra lo
+> publicado, las 49 marcas de énfasis conservadas, las 21 entradas intactas y
+> cero asteriscos visibles después. Las cinco microguías siguen abriendo: sus
+> anclas están en cinco secciones anteriores, y los dos bloques editados son los
+> dos últimos del capítulo.
 
 ---
 

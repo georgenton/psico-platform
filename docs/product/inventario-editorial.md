@@ -45,7 +45,12 @@ texto, 2 con asterisco —los dos bloqueos editoriales—.
 
 ### El hallazgo: la obra publicada muestra un marcador por sinopsis
 
-Bajo «Sobre este libro», el primer párrafo que lee una persona es:
+> ✅ **RESUELTO el 2026-11-13.** La sinopsis propuesta más abajo se aprobó y se
+> aplicó en staging. Lo que una persona lee hoy bajo «Sobre este libro» es ese
+> texto, verificado byte a byte por SHA-256 en los tres sitios —fichero, fila y
+> respuesta de la API—. El resto de esta sección queda como el antecedente.
+
+Bajo «Sobre este libro», el primer párrafo que leía una persona era:
 
 > Sinopsis en revisión editorial.
 

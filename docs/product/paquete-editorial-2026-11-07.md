@@ -1,11 +1,12 @@
-# Paquete editorial — corte del 2026-11-07, corregido el 2026-11-09
+# Paquete editorial — corte del 2026-11-07, al día el 2026-11-13
 
 > **Qué es esto.** Las decisiones editoriales y comerciales abiertas, juntas y
 > con su propuesta, para que se puedan resolver de una sentada en vez de una por
 > una según aparecen. Cada una trae: qué está en juego, qué se propone, qué
 > implica ejecutarla y **qué NO hace**.
 >
-> Nada de aquí está ejecutado. El inventario de lo que existe hoy vive en
+> **Una de las ocho ya está ejecutada** —la 3, el 12-11— y se conserva con su
+> antecedente. El inventario de lo que existe hoy vive en
 > [inventario-editorial.md](inventario-editorial.md); esto es lo que hay que
 > decidir sobre él.
 
@@ -13,16 +14,19 @@
 
 ## Resumen
 
-| #   | Decisión                         | Propuesta                                                                                                                          | Bloquea                                   |
-| --- | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
-| 1   | Sinopsis de _EEC_                | publicar el texto propuesto                                                                                                        | la ficha pública de la obra               |
-| 2   | Nota interna de C01              | retirar **sólo la nota** y renombrar el encabezado a «Referencias»; las 21 entradas se conservan                                   | la lectura limpia de C01                  |
-| 3   | Publicar las cinco Experiences   | **decisión tuya** — la fuente la registra pendiente                                                                                | **que se puedan reproducir en el lector** |
-| 4   | Abrir las cinco a alguien (flag) | mantener **HOLD** hasta 1 y 2                                                                                                      | el piloto de lectura                      |
-| 5   | Sucesor del Dúo                  | `eec-c1-emocion-informa-no-manda@1`                                                                                                | la entrada del Dúo                        |
-| 6   | Las otras dos obras              | autoría y pertenencia **ya resueltas**; falta material: partes y manuscrito de _Familias_, manuscrito de _Parejas_                 | el catálogo                               |
-| 7   | Primer recurso de audio          | capítulo 1 de _EEC_                                                                                                                | la promesa de «Modo Guía»                 |
-| 8   | Precios y apertura de cobros     | **propuesta concreta de las 7 filas** + 6 condiciones de lanzamiento; no abrir todavía, resolver ya las 2 que no dependen de nadie | el cobro                                  |
+| #   | Decisión                          | Propuesta                                                                                                                          | Bloquea                               |
+| --- | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| 1   | Sinopsis de _EEC_                 | publicar el texto propuesto                                                                                                        | la ficha pública de la obra · **y B** |
+| 2   | Nota interna de C01               | retirar **sólo la nota** y renombrar el encabezado a «Referencias»; las 21 entradas se conservan                                   | la lectura limpia de C01 · **y B**    |
+| 3   | Publicar las cinco Experiences    | ✅ **ejecutada el 2026-11-12** — aprobada, firmada, publicada y recorrida en pantalla                                              | —                                     |
+| 4   | **B** — abrir las cinco a alguien | abrir a **una persona a la vez por invitación**, después de 1 y 2, y decidiendo qué hacer con la pestaña de los otros 7 capítulos  | el piloto de lectura acompañada       |
+| 5   | Sucesor del Dúo                   | `eec-c1-emocion-informa-no-manda@1`                                                                                                | la entrada del Dúo                    |
+| 6   | Las otras dos obras               | autoría y pertenencia **ya resueltas**; falta material: partes y manuscrito de _Familias_, manuscrito de _Parejas_                 | el catálogo                           |
+| 7   | Primer recurso de audio           | capítulo 1 de _EEC_                                                                                                                | la promesa de «Modo Guía»             |
+| 8   | Precios y apertura de cobros      | **propuesta concreta de las 7 filas** + 6 condiciones de lanzamiento; no abrir todavía, resolver ya las 2 que no dependen de nadie | el cobro                              |
+
+**Las dos que de verdad bloquean el piloto ahora mismo son 1 y 2**, y las dos son
+ediciones pequeñas: un campo y dos líneas de un canónico. La 4 va detrás.
 
 ---
 
@@ -130,151 +134,106 @@ bibliografía.
 > | **4. Recorrido verificado en pantalla** | ✅ las cinco, con dos recorridos completos escena a escena                                               |
 >
 > **La clave privada nunca salió de la custodia del titular**; la pública vive
-> en el entorno de la API, no en el repositorio. Detalle en FV-47 §52.
+> en el entorno de la API (`EDITORIAL_APPROVAL_KEYS`, puesta el 12-11), no en el
+> repositorio. Detalle en FV-47 §52.
 >
-> **Lo hecho bajo esta autorización:**
-> `publishAllowed: true` con su `manifestSha256` regenerado; las cinco
-> solicitudes de aprobación están preparadas sobre el contenido **exacto que
-> guardan los borradores** —comprobado: los cinco `definitionSha256` coinciden
-> con las filas—; y la cadena de firma está ensayada de punta a punta con una
-> clave de prueba local, con sus tres controles negativos.
+> **Y la UAT de las cinco está cerrada.** Las cinco se recorrieron en pantalla,
+> escena a escena, con sus tres interacciones distintas: MG01 y MG04 el 12-11,
+> **MG02, MG03 y MG05 el 13-11**. Matriz completa y evidencia en
+> [la UAT del 13-11](../informes/uat-2026-11-13-microguias-c01.md).
 >
-> **Por qué falta una firma.** `publishAllowed` es la **declaración**, y la
-> escribe quien pueda hacer un commit. La **autoridad** la da una firma Ed25519
-> cuya clave privada vive fuera de la plataforma. `checkApprovals` exige **las
-> dos**: con la declaración puesta y sin acta responde
-> `EEC_C01_PUBLISH_NOT_ALLOWED` — «declara publishAllowed: true sin un acta
-> firmada que lo respalde». Medido, no deducido.
->
-> **Y la instalación no reconoce ninguna clave todavía.** Comprobado sobre el
-> recurso real, no sobre el ADR: `EDITORIAL_APPROVAL_KEYS` está **ausente** de la
-> lista de variables de la API y del worker, y no definida dentro del contenedor
-> que sirve. Un llavero vacío no verifica nada y no aprueba nada.
->
-> **B sigue pendiente**, con la audiencia de QA y su configuración intactas.
+> **B sigue pendiente**, con la audiencia de QA y su configuración intactas, y
+> ahora con su alcance medido — §4.
 
-> **Corrección, conservada.** Una versión anterior de esta sección decía que «la
-> decisión A está APROBADA» **cuando no lo estaba**, y contra la fuente primaria.
-> Lo dejo escrito porque el error es el que importa evitar —**atribuir al
-> propietario una aprobación que no dio**— y porque la diferencia entre aquello y
-> el bloque de arriba es justamente que hoy existe el mensaje que la concede.
+<details><summary><strong>Antecedente — cómo se llegó aquí</strong> (histórico, no vigente)</summary>
 
-**Lo que la fuente dice, citado.** El inventario de experiencias de EEC-C01
-cierra así:
+Nada de este bloque describe el presente. Se conserva porque explica el orden en
+que se ejecutó y porque dos de sus correcciones son lecciones de método.
 
-> **Recomendación:** publicar `APPROVE`, encender el flag `HOLD` hasta después
-> del smoke posterior a publicar. **Ninguna de las dos ejecutada.**
+**El diseño de dos llaves.** `publishAllowed` es la **declaración**, y la escribe
+quien pueda hacer un commit; la **autoridad** la da una firma Ed25519 cuya clave
+privada vive fuera de la plataforma. `checkApprovals` exige **las dos**: con la
+declaración puesta y sin acta responde `EEC_C01_PUBLISH_NOT_ALLOWED`. Y el orden
+importaba: `manifestSha256` va **dentro** del payload firmado y cubre el
+manifiesto menos a sí mismo, `publishAllowed` incluido — así que activar la
+declaración **después** de firmar habría invalidado las cinco actas.
 
-Y su tabla de gates es explícita:
+**Dos correcciones que conviene no perder:**
 
-| Gate                       | Estado      | Observación                       |
-| -------------------------- | ----------- | --------------------------------- |
-| Aprobación autoral         | **BLOCKED** | Pendiente de decisión de Jorge    |
-| Readiness para `PUBLISHED` | **BLOCKED** | No publicar desde este inventario |
-| Microguías **aprobadas**   | **0**       | —                                 |
+- Una versión de esta sección decía que «la decisión A está APROBADA» **cuando no
+  lo estaba**, y contra la fuente primaria. El error que importa evitar es
+  **atribuir al propietario una aprobación que no dio**.
+- Otra decía que con A ejecutada y B en HOLD «las ve sólo QA». **Es falso.** La
+  formulación correcta: **publicar permite obtener las definiciones mediante la
+  API autenticada**; mantener B en HOLD **no vuelve privadas** esas definiciones;
+  la interfaz normal de Web y la ejecución guiada siguen condicionadas por la
+  disponibilidad del piloto. Y una sobrecorrección mía afirmó que cualquier
+  cuenta «abre las tarjetas», que tampoco es cierto: abrir una portada pasa por
+  `/experiences/mine`, que exige un **recorrido propio** en ese pin exacto.
 
-**Qué sí está aprobado**, para no barrerlo con lo anterior: la **arquitectura**
-de cinco microguías («APROBADA POR EL AUTOR»), el diseño `v0.1` de MG03
-(2026-09-02), y la **implementación** (referencia del 2026-09-03). Implementar
-no es publicar, y la propia página lo remata: «La publicación sigue bloqueada».
-
-**Dónde están hoy — actualizado el 2026-11-12.** Las cinco **existen en staging
-como `DRAFT`**, creadas el 11-11 bajo la aprobación del archivado, con sus
-identidades registradas y su texto verificado campo por campo contra los
-manifiestos. `ChapterExperienceVersion` tiene **cinco filas**, ninguna con
-`publishedAt`.
-
-> La frase anterior decía «cero filas: no están en DRAFT, están ausentes». Era
-> cierta hasta el 11-11 y ya no lo es. Lo que sí se conserva de ella es la
-> distinción que la hacía útil: que las cinco se recorrieran por HTTP (31/31)
-> **nunca dijo nada** sobre la tabla, porque el modo guiado resuelve del catálogo
-> en código. Son dos registros distintos, y contar uno no habla del otro.
-
-**Qué bloquea A, dicho con precisión — corregido el 2026-11-09.** Esta sección
-decía que A afectaba «al registro, no al producto». **Es falso**, y lo destapó
-mirar la pantalla: las cinco muestran su tarjeta con «Completada» y al pulsar
-«Revisar» el panel responde «No pudimos preparar el recorrido de este capítulo».
-El panel necesita una **definición de Experience** para pintar el recorrido, y no
-existe ninguna. Así que A no es papeleo: **A es lo que hace que una persona pueda
-ver y hacer las cinco en el lector.** Hoy se recorren por HTTP y no se pueden
-abrir.
-
-**Propuesta: esta es una decisión tuya, no una deuda de ejecución.** Publicar
-las cinco Experiences requiere tu aprobación explícita, que la fuente registra
-como pendiente. Si la das, se ejecuta; si no, no hay nada que «ponerse al día».
-
-**Qué NO hace, con precisión — corregido el 2026-11-11.** Aquí se leía que
-publicar «no las pone delante de nadie» y que con A ejecutada y B en HOLD «las ve
-sólo QA». **Es falso, y la diferencia pesa justo sobre esta decisión.**
-
-La formulación correcta es ésta:
-
-> **Publicar permite obtener las definiciones mediante la API autenticada.**
-> Mantener B en HOLD **no vuelve privadas** esas definiciones. La interfaz normal
-> de Web y la ejecución guiada siguen condicionadas por la disponibilidad del
-> piloto.
-
-El descubrimiento del capítulo (`/experiences/discovery/…`) exige sólo sesión y
-devuelve las definiciones publicadas **con sus escenas** — ahí está la exposición.
-Lo que **no** es cierto, y una versión de este párrafo lo afirmaba, es que esa
-cuenta «abra las tarjetas»: abrir una portada pasa por `/experiences/mine`, que
-exige un **recorrido propio** en ese pin exacto, así que una cuenta recién creada
-no abre nada. Y la disponibilidad se consulta además en los servicios y en el
-lector, no sólo en el decorador de las órdenes `POST`.
-
-Dicho en los términos de la decisión: A **sí permite obtener el texto de las cinco
-por la API autenticada**, y B no lo impide. Lo que B decide es quién puede
-**hacerlas** y qué ofrece la interfaz normal. Esto no cambia qué hay que decidir,
-pero cambia qué se está decidiendo.
-
-**Y hay un bloqueo técnico previo, que no es tuyo** — corregido el 2026-11-11, y
-dos veces, porque la versión anterior de este párrafo era errónea en sus dos
-mitades.
-
-Al preparar los borradores, `create-drafts` rechaza en bloque con
-`EXPERIENCE_CODE_OWNED_UNRESOLVED`, porque por diseño **una sola** definición
-embarcada que no ubica capítulo rechaza las escrituras de **todos** los capítulos.
-Eso sigue siendo cierto. Lo que no lo era:
-
-- decía «cuatro filas de objetivos que nunca se ingirieron»; las fuentes **sí
-  existen** en el catálogo de ingesta, y la única entrada retirada de todo el
-  catálogo es el par del **piloto V1**, retirado a propósito el 2026-09-02 cuando
-  el manuscrito canónico dejó sin encabezado a su práctica;
-- decía «dos definiciones embarcadas, el piloto legado y una de _Parejas_»; la de
-  _Parejas_ ya está **archivada**, así que no entra en el conjunto de reservas, que
-  sólo se construye con lo publicado.
-
-**La contradicción activa es UNA**: el piloto legado de EEC sigue publicado y su
-guía no ubica capítulo. Y **ya tiene candidato técnicamente terminado** —archivarlo,
-el mismo mecanismo que se usó con _Parejas_—, en el PR #839, en Draft. Lo que ese
-candidato espera no es más ingeniería: es la decisión de archivado, que cambia la
-oferta de un capítulo publicado. El detalle medido, las cinco una por una y la
-secuencia completa están en
+**El bloqueo técnico previo**, que no era editorial: `create-drafts` rechazaba en
+bloque con `EXPERIENCE_CODE_OWNED_UNRESOLVED`, porque por diseño una sola
+definición embarcada que no ubica capítulo rechaza las escrituras de todos los
+capítulos. La contradicción activa era **una** —el piloto legado de EEC seguía
+publicado y su guía no ubicaba capítulo— y se cerró archivándolo (PR #839,
+fusionado el 11-11). El detalle vive en
 [microguias-c01-candidato.md](microguias-c01-candidato.md).
+
+</details>
 
 ---
 
-## 4 · Abrir las cinco a alguien que no sea QA
+## 4 · Abrir las cinco a alguien que no sea QA — decisión **B**, pendiente
 
-**En juego.** `EEC_C01_GUIDED_SUITE_V1` es el interruptor que pone las cinco
-tarjetas delante de una persona real. Hoy está **encendido en staging con la
-audiencia reducida a una cuenta sintética**, y una cuenta ordinaria recibe
-**503 `GUIDE_UNAVAILABLE`** — comprobado con control negativo.
+**En juego.** El padrón del guía es lo que pone las cinco tarjetas delante de una
+persona real. Hoy la audiencia es **una cuenta sintética**, y una cuenta
+ordinaria recibe **503 `GUIDE_UNAVAILABLE`** al iniciar, **404** en
+`/experiences/mine` y `available: false` — comprobado el 12-11 y el 13-11 con
+sesión acreditada y fuera del padrón.
 
-**La decisión B está en HOLD, declarado**, con su razón escrita: «encenderlo es
-lo que pone las cinco tarjetas delante de una persona real… B no debe seguir a A
-automáticamente».
+### Lo que B habilita, medido y no supuesto
 
-**Propuesta: mantener el HOLD** hasta que 1 y 2 estén resueltas. El argumento no
-es técnico —el recorrido funciona, 31/31 con control negativo— sino editorial:
-las cinco microguías viven **dentro** del capítulo 1, y ese capítulo todavía
-enseña una nota de trabajo y la obra que lo contiene se presenta con un marcador
-por sinopsis. Abrir la puerta antes de arreglar la habitación es el orden
-equivocado.
+**El control es global por usuario.** `isAvailable(userId)` es una función pura
+de (modo, padrón, usuario): sin libro, sin capítulo, sin plan. Así que **B no se
+puede presentar como «sólo C01»**. Lo que acota el alcance es el catálogo
+publicado:
 
-**Cuando se abra**, la audiencia propuesta es la del
-[piloto mínimo](piloto-minimo.md): una persona a la vez, por invitación, con sus
-criterios de entrada, salida y suspensión ya escritos.
+| Superficie o recorrido                     | Fuera del padrón                           | Al entrar                                  | Límite relevante                              |
+| ------------------------------------------ | ------------------------------------------ | ------------------------------------------ | --------------------------------------------- |
+| Leer _EEC_ (10 capítulos)                  | ✅ ya puede                                | igual                                      | ninguno                                       |
+| Iniciar una guía (5 órdenes `POST`)        | **503 `GUIDE_UNAVAILABLE`**                | permitido                                  | el guard no sustituye al derecho de contenido |
+| Pestaña guiada en el lector                | ausente                                    | **presente en 8 de 10 capítulos**          | 7 de esas 8 no tienen nada que recorrer       |
+| Las cinco microguías de C01                | invisibles en el lector                    | **recorribles**                            | es todo lo ejecutable hoy                     |
+| Microguías de C02–C10                      | invisibles                                 | 45 listadas en el menú, **no ejecutables** | ninguna Experience publicada                  |
+| _Familias ensambladas_ (obra PRO retirada) | nada                                       | **nada**: `available: false`               | el padrón **no** cruza la frontera editorial  |
+| Definiciones por la API autenticada        | **ya las obtiene** (alcance aceptado de A) | igual                                      | B no las hace privadas ni más públicas        |
+
+**El alcance resultante es más amplio que las cinco de C01, y hay que decirlo
+antes de decidir:** la pestaña guiada aparece en ocho capítulos, y en siete no
+hay nada publicado detrás. Lo que decía al abrirla —«No pudimos preparar el
+recorrido»— ya está corregido (PR #846): ahora dice «Este capítulo todavía no
+tiene recorrido guiado publicado».
+
+### Propuesta
+
+**Abrir B a una persona a la vez, por invitación, en staging**, con dos
+condiciones previas y una decisión acompañante:
+
+1. **Resolver 1 y 2** de este paquete. El argumento sigue siendo editorial, no
+   técnico: las cinco microguías viven **dentro** del capítulo 1, y ese capítulo
+   todavía enseña una nota de trabajo mientras la obra que lo contiene se
+   presenta con un marcador por sinopsis. Abrir la puerta antes de arreglar la
+   habitación es el orden equivocado.
+2. **Decidir qué hacer con la pestaña de los otros siete capítulos** — dejarla
+   con su frase honesta, o exigirle que el capítulo publique algo. Las dos
+   opciones, con su coste, en el [piloto mínimo §5.4](piloto-minimo.md).
+
+La audiencia, los criterios de entrada, salida y suspensión, el perfil propuesto
+y la invitación ya redactada están en el [piloto mínimo](piloto-minimo.md).
+
+**NO hace**: no publica nada más, no toca el derecho de contenido, no abre
+Dúo/Círculos —que tienen su propia puerta— y no abre producción, que no existe
+como recurso.
 
 ---
 

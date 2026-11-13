@@ -296,4 +296,51 @@ describe("the twelve scene renderers", () => {
     renderScene(sceneOf("VIDEO", { mediaKind: "VIDEO" }), null);
     expect(screen.getByText(/Video en producción/i)).toBeInTheDocument();
   });
+
+  /**
+   * The three presentational kinds used to draw `title` and `body` and silently
+   * drop the other two fields the public view carries.
+   *
+   * `note` is the one that mattered: on every INTRO of the approved manifests
+   * it is that microguide's care sentence — «No necesitas recordar una
+   * experiencia difícil» — served by the API and never shown. Measured on
+   * staging from the live payload, not inferred.
+   */
+  it.each([
+    ["INTRO", "scene-intro"],
+    ["EXAMPLE", "scene-example"],
+    ["SUMMARY", "scene-summary"],
+  ] as const)(
+    "%s renders the approved note and the approved action label",
+    (kind, testId) => {
+      renderScene(
+        sceneOf(kind, {
+          note: "No necesitas recordar una experiencia difícil.",
+          actionLabel: "Comenzar",
+        }),
+        null,
+      );
+
+      const panel = screen.getByTestId(testId);
+      expect(panel).toHaveTextContent(
+        "No necesitas recordar una experiencia difícil.",
+      );
+      expect(
+        screen.getByRole("button", { name: "Comenzar" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Continuar" }),
+      ).not.toBeInTheDocument();
+    },
+  );
+
+  it("and falls back to «Continuar» when the manifest names no label", () => {
+    // Most EXAMPLE scenes carry neither field. The fallback is what keeps them
+    // pressable without inventing a word nobody approved.
+    renderScene(sceneOf("EXAMPLE"), null);
+
+    expect(
+      screen.getByRole("button", { name: "Continuar" }),
+    ).toBeInTheDocument();
+  });
 });

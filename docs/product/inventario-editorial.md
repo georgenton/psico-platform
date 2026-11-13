@@ -12,32 +12,32 @@ estructura, presentación, recursos asociados, y disponibilidad.
 
 ## Resumen en una pantalla
 
-| | *Emociones en Construcción* | *Familias ensambladas* | *Parejas que perduran* |
-|---|---|---|---|
-| Fila en el catálogo | sí | sí | **no existe** |
-| Publicada | **sí** | no (retirada el 24-10) | — |
-| Autoría acreditada | Jorge Quizamanchuro | Jorge Quizamanchuro | — |
-| Plan | FREE | PRO | — |
-| Capítulos | **10**, en 3 partes | 3, sin partes | — |
-| Bloques de texto | 3 385 | 18 | — |
-| Énfasis reparado | **732** bloques | 0 (no lo necesitaba) | — |
-| Video | 10 bloques, **0 con archivo** | 0 | — |
-| Audio narrado | **0 filas** | 0 | — |
-| Ejercicios | 11 bloques | 1 | — |
-| Pausas de respiración | 10 | 2 | — |
-| Sinopsis pública | ⚠️ **un marcador** | texto real | — |
+|                       | _Emociones en Construcción_   | _Familias ensambladas_ | _Parejas que perduran_ |
+| --------------------- | ----------------------------- | ---------------------- | ---------------------- |
+| Fila en el catálogo   | sí                            | sí                     | **no existe**          |
+| Publicada             | **sí**                        | no (retirada el 24-10) | —                      |
+| Autoría acreditada    | Jorge Quizamanchuro           | Jorge Quizamanchuro    | —                      |
+| Plan                  | FREE                          | PRO                    | —                      |
+| Capítulos             | **10**, en 3 partes           | 3, sin partes          | —                      |
+| Bloques de texto      | 3 385                         | 18                     | —                      |
+| Énfasis reparado      | **732** bloques               | 0 (no lo necesitaba)   | —                      |
+| Video                 | 10 bloques, **0 con archivo** | 0                      | —                      |
+| Audio narrado         | **0 filas**                   | 0                      | —                      |
+| Ejercicios            | 11 bloques                    | 1                      | —                      |
+| Pausas de respiración | 10                            | 2                      | —                      |
+| Sinopsis pública      | ⚠️ **un marcador**            | texto real             | —                      |
 
 ---
 
-## 1 · *Emociones en Construcción* — la única publicada
+## 1 · _Emociones en Construcción_ — la única publicada
 
 ### Estructura real, que es su mejor carta de presentación
 
-| Parte | | Capítulos |
-|---|---|---|
-| **I** | Deconstruyendo lo que sabíamos | 1 ¿Realmente sabemos qué es una emoción? · 2 ¿Existen realmente las emociones universales? · 3 Tu cerebro inventa emociones |
-| **II** | Construyendo tus emociones | 4 Tu cuerpo tiene la primera palabra · 5 Las historias que te cuentas también influyen en lo que sientes · 6 Sentir también se aprende con otros · 7 Cuando las emociones necesitan traducción |
-| **III** | Vivir emocionalmente despierto | 8 Escuchar no es obedecer · 9 Repensar lo que sientes · 10 Lo que enseñamos cuando alguien siente |
+| Parte   |                                | Capítulos                                                                                                                                                                                      |
+| ------- | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **I**   | Deconstruyendo lo que sabíamos | 1 ¿Realmente sabemos qué es una emoción? · 2 ¿Existen realmente las emociones universales? · 3 Tu cerebro inventa emociones                                                                    |
+| **II**  | Construyendo tus emociones     | 4 Tu cuerpo tiene la primera palabra · 5 Las historias que te cuentas también influyen en lo que sientes · 6 Sentir también se aprende con otros · 7 Cuando las emociones necesitan traducción |
+| **III** | Vivir emocionalmente despierto | 8 Escuchar no es obedecer · 9 Repensar lo que sientes · 10 Lo que enseñamos cuando alguien siente                                                                                              |
 
 Los diez capítulos tienen texto real y agrupación por parte. El énfasis quedó
 reparado el 26-10 y sigue convergente: 732 bloques con el formato al lado del
@@ -97,18 +97,18 @@ propuesta; la decisión es tuya, y aprobarla es una edición de un campo.
 
 ### Lo que falta de esta obra, concretamente
 
-| Qué | Estado |
-|---|---|
-| Sinopsis pública | ⚠️ marcador · propuesta arriba |
-| Audio narrado | ❌ **0 filas**. El reproductor existe y dice «Audio en producción» |
-| Video | ❌ 10 bloques preparados, **0 con archivo** |
-| Actividades interactivas | ⚠️ 11 bloques de ejercicio son prosa con tarjeta |
-| Microguías de C01 | ✅ las **cinco** existen en el catálogo · ❌ sin publicar (ADR 0028) y con el rollout en `off` |
-| Los dos bloques excluidos del énfasis | ⏸️ una cita con acento invertido y un ejercicio |
+| Qué                                   | Estado                                                                                                                                                                    |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Sinopsis pública                      | ⚠️ marcador · propuesta arriba                                                                                                                                            |
+| Audio narrado                         | ❌ **0 filas**. El reproductor existe y dice «Audio en producción»                                                                                                        |
+| Video                                 | ❌ 10 bloques preparados, **0 con archivo**                                                                                                                               |
+| Actividades interactivas              | ⚠️ 11 bloques de ejercicio son prosa con tarjeta                                                                                                                          |
+| Microguías de C01                     | ✅ las **cinco** `PUBLISHED` el 2026-11-12, firmadas, y **recorridas en pantalla** una por una (12 y 13-11) · ⬜ fuera del padrón siguen invisibles: es la decisión **B** |
+| Los dos bloques excluidos del énfasis | ⏸️ una cita con acento invertido y un ejercicio                                                                                                                           |
 
 ---
 
-## 2 · *Familias ensambladas* — retirada a propósito
+## 2 · _Familias ensambladas_ — retirada a propósito
 
 Existe, con autoría de Jorge Quizamanchuro y **sin publicar** desde la
 reparación del 24-10. Siete puertas que la servían responden 404, y sus tres
@@ -125,7 +125,7 @@ capítulos son la obra completa o una primera parte.
 
 ---
 
-## 3 · *Parejas que perduran* — ausente
+## 3 · _Parejas que perduran_ — ausente
 
 **No tiene fila en el catálogo.** Se dejó ausente a propósito en la reparación
 del 24-10: crearla sería inventar catálogo. La landing la nombra como «Aún no

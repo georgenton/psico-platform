@@ -237,6 +237,49 @@ export function ExperiencePlayerSurface({
   );
 
   /**
+   * GR-6 — hold the recall panel while its verdict is still unread.
+   *
+   * The server accepts the recall step and clears `currentStepKey` in the SAME
+   * response, so `deriveExperiencePresentationState` opens the window after the
+   * last checkpoint and clamps the remembered cursor forward: the question is
+   * replaced by the closing panel. Measured on staging at 120 ms resolution —
+   * `scene-recall` → `scene-summary` in 365 ms, twice, on two different
+   * microguides — which left `RecallScene`'s verdict branch unreachable in the
+   * live flow. The one graded moment in the product answered nothing back:
+   * neither «Correcto» nor the approved sentence the server had already sent.
+   *
+   * Held HERE on purpose. Not in the pure function, which must not learn what a
+   * verdict is; not in the hook, which knows commands and not scenes. And it
+   * holds a PANEL only: no progress changes, no command leaves. The server has
+   * already advanced, so clearing the hold just reveals where the run is.
+   */
+  const askedFrom = useRef<string | null>(null);
+  const [verdictSceneKey, setVerdictSceneKey] = useState<string | null>(null);
+  const submitRecall = useCallback(
+    (stepKey: string, optionKey: string) => {
+      askedFrom.current = state.activeScene?.sceneKey ?? null;
+      run.submitRecall(stepKey, optionKey);
+    },
+    [run, state.activeScene],
+  );
+  useEffect(() => {
+    if (run.recallOutcome === null) return;
+    const asked = askedFrom.current;
+    if (asked === null) return;
+    askedFrom.current = null;
+    setVerdictSceneKey(asked);
+  }, [run.recallOutcome]);
+  // A different session is a different run: whatever verdict was on screen
+  // belongs to the one that ended. Keyed on the id and NOT on `serverKey`,
+  // which also moves on every checkpoint — including the one that opens this
+  // hold.
+  const sessionId = run.session?.sessionId ?? null;
+  useEffect(() => {
+    askedFrom.current = null;
+    setVerdictSceneKey(null);
+  }, [sessionId]);
+
+  /**
    * Tell the frame, ONCE, that this run finished.
    *
    * Keyed on the transition rather than on the render: `completed` is a
@@ -264,7 +307,9 @@ export function ExperiencePlayerSurface({
     // Focus the panel after a transition so the change is announced instead of
     // leaving the reader on a control that no longer exists.
     headingRef.current?.querySelector<HTMLElement>("h3, h2")?.focus();
-  }, [state.activeIndex, state.status, run.booting, run.busy]);
+    // `verdictSceneKey` counts as a transition: the verdict replaces the
+    // question in place, so without it the change is never announced.
+  }, [state.activeIndex, state.status, run.booting, run.busy, verdictSceneKey]);
 
   /**
    * Move one panel forward. Presentation only — no command leaves, with ONE
@@ -282,6 +327,12 @@ export function ExperiencePlayerSurface({
    * opening anything new.
    */
   const goForward = useCallback(() => {
+    // The verdict's own «Continuar» only dismisses it. The run is already one
+    // panel further on the server, so moving again here would skip the close.
+    if (verdictSceneKey !== null) {
+      setVerdictSceneKey(null);
+      return;
+    }
     if (!run.session) return;
     const next = state.activeIndex + 1;
     if (next > state.windowEndIndex) {
@@ -313,6 +364,7 @@ export function ExperiencePlayerSurface({
     state.activeIndex,
     state.status,
     state.windowEndIndex,
+    verdictSceneKey,
   ]);
 
   const goBack = useCallback(() => {
@@ -499,7 +551,14 @@ export function ExperiencePlayerSurface({
   }
 
   // ── A scene ───────────────────────────────────────────────────────────────
-  const scene = state.activeScene;
+  // The held verdict panel wins while it is on screen. An unknown key falls
+  // back to the active scene rather than blanking the panel: a definition that
+  // changed under a reader is not a reason to lose their place.
+  const heldScene =
+    verdictSceneKey === null
+      ? null
+      : (definition.scenes.find((s) => s.sceneKey === verdictSceneKey) ?? null);
+  const scene = heldScene ?? state.activeScene;
   const Renderer = scene ? rendererForSceneKind(scene.kind) : null;
 
   if (!scene || !Renderer) {
@@ -532,7 +591,7 @@ export function ExperiencePlayerSurface({
     recallOutcome: run.recallOutcome,
     recallMessage: run.recallMessage,
     confirmStep: run.completeStep,
-    submitRecall: run.submitRecall,
+    submitRecall,
     goForward,
     goToPassage: onGoToPassage ?? null,
     confirmResonance: onConfirmResonance ? confirmResonance : null,

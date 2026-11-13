@@ -81,6 +81,7 @@ import { useGuideActorScope } from "../guide/guide-actor-scope";
 import { useGuideAvailability } from "../guide/guide-availability";
 import { useGuideDiscovery } from "../guide/use-guide-discovery";
 import { useGuideRoute } from "../guide/use-guide-route";
+import { hasOwnOpenableJourney } from "../guide/guide-own-journey";
 import type { RouteCardVerdict } from "../guide/GuidedRouteList";
 import type { GuideCardPresentation } from "@psico/types";
 import {
@@ -821,6 +822,43 @@ export function LectorShell({
   }, [experienceAuthority, route]);
 
   /**
+   * B5 — ¿tiene esta persona un recorrido propio y abrible en este capítulo?
+   *
+   * La decisión vive en `hasOwnOpenableJourney`, que sólo mira respuestas del
+   * servidor. Aquí pasan dos cosas más, y las dos hacen falta.
+   *
+   * **Se pregunta por todo el capítulo, no por un pin.** `experiencePins` ya une
+   * los pines publicados con los del recorrido, así que la autoridad contesta
+   * también por el pin donde esta persona tiene su sesión aunque el capítulo no
+   * lo publique. Es una lectura de datos que esta pantalla ya tiene: ni una
+   * petición más.
+   *
+   * **Y se queda pegada al contexto que la concedió**, por la misma razón que
+   * `admittedRun` justo debajo. Un re-preguntar de rutina —volver a la portada,
+   * recuperar el foco— deja la autoridad en `loading` un instante; sin esta
+   * memoria, la oferta caería a `none`, la pestaña se ocultaría y el efecto que
+   * la vigila cerraría el panel **con el recorrido abierto dentro**. Eso es
+   * justo el clic sin consecuencia que B5 viene a arreglar, reintroducido por
+   * el camino de al lado. `experienceRequestKey` lleva libro, capítulo y
+   * unidad, así que un cambio de contexto la invalida por construcción.
+   */
+  const [ownJourneyRecord, setOwnJourneyRecord] = useState<{
+    requestKey: string;
+  } | null>(null);
+
+  useEffect(() => {
+    // Sólo una respuesta COMPLETA decide. Mientras no la haya, lo que valga
+    // ahora sigue valiendo: no es una suposición, es no haber preguntado aún.
+    if (experienceAuthority.status !== "ready") return;
+    const propio = hasOwnOpenableJourney(experienceAuthority.states.values());
+    setOwnJourneyRecord(propio ? { requestKey: experienceRequestKey } : null);
+  }, [experienceAuthority, experienceRequestKey]);
+
+  const ownJourneyInChapter =
+    ownJourneyRecord !== null &&
+    ownJourneyRecord.requestKey === experienceRequestKey;
+
+  /**
    * A run the authority has ALREADY vouched for, bounded to the context that
    * vouched for it.
    *
@@ -1128,10 +1166,11 @@ export function LectorShell({
    * ¿Hay algo detrás de la pestaña guiada? La pregunta ya está hecha arriba;
    * esto sólo la traduce.
    *
-   * `definition` cubre los dos «sí» que importan: el pin del capítulo está
-   * publicado, o esta persona tiene un recorrido propio en él — que es el caso
-   * que hay que conservar, porque un pin archivado deja de estar en la lista y
-   * sigue siendo suyo. `items` cubre el resto de la oferta del capítulo.
+   * `definition` cubre los dos «sí» que importan del pin PREDETERMINADO: está
+   * publicado, o esta persona tiene un recorrido propio en él —un pin archivado
+   * deja de estar en la lista y sigue siendo suyo—. `items` cubre el resto de la
+   * oferta del capítulo. Y `ownJourneyInChapter` cubre el caso que faltaba: un
+   * recorrido propio en OTRO pin del mismo capítulo (B5).
    *
    * Un fallo es `failed` y NO `none`: la pestaña se conserva, porque quitársela
    * a quien tiene un recorrido empezado por una red caída es peor que ofrecerla
@@ -1142,12 +1181,17 @@ export function LectorShell({
     if (chapterExperiences.ownedLookupFailed) return "failed";
     if (chapterExperiences.status === "loading") return "pending";
     if (chapterExperiences.definition !== null) return "yes";
-    return chapterExperiences.items.length > 0 ? "yes" : "none";
+    if (chapterExperiences.items.length > 0) return "yes";
+    // B5 — el capítulo no ofrece nada que esta persona pueda empezar, y aun así
+    // tiene un recorrido suyo aquí. La puerta es suya, no del catálogo.
+    if (ownJourneyInChapter) return "yes";
+    return "none";
   }, [
     chapterExperiences.status,
     chapterExperiences.ownedLookupFailed,
     chapterExperiences.definition,
     chapterExperiences.items,
+    ownJourneyInChapter,
   ]);
 
   const guidedView = useMemo(
@@ -2088,6 +2132,7 @@ export function LectorShell({
           apiBase={apiBase}
           token={token}
           experience={pickedExperience}
+          ownJourneyElsewhere={ownJourneyInChapter}
           routeState={route}
           routeVerdicts={routeVerdicts}
           routePresentations={routePresentations}

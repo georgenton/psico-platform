@@ -221,7 +221,11 @@ describe("the manifest adapter", () => {
 
 describe("13–14 · the guided experience", () => {
   it("13 · a ready runtime publishes the mode, with the new label", () => {
-    const view = guidedMode({ runtimeReady: true, discoveryPending: false });
+    const view = guidedMode({
+      runtimeReady: true,
+      discoveryPending: false,
+      offer: "yes",
+    });
     expect(view.state).toBe("PUBLISHED");
     expect(view.label).toContain("Experiencia guiada");
     expect(view.label).not.toContain("Lectura guiada");
@@ -232,10 +236,68 @@ describe("13–14 · the guided experience", () => {
       const view = guidedMode({
         runtimeReady: false,
         discoveryPending: pending,
+        offer: "yes",
       });
       expect(isModeEnabled(view)).toBe(false);
       expect(view.state).toBe("HIDDEN");
     }
+  });
+
+  /**
+   * Una pestaña es una oferta.
+   *
+   * Las seis condiciones de preparación dicen que el lector *podría* montar un
+   * recorrido; ninguna dice que haya uno. Medido en staging: 8 de los 10
+   * capítulos del libro ancla ofrecían la pestaña y 7 de esos 8 no tenían nada
+   * detrás — con la preparación en verde, porque el descubrimiento del guía
+   * nombra un pin para los diez y el pasaje resuelve. La pestaña invitaba a una
+   * sala vacía.
+   */
+  it("GUIDED_OFFER · preparado y sin nada publicado: no hay pestaña", () => {
+    const view = guidedMode({
+      runtimeReady: true,
+      discoveryPending: false,
+      offer: "none",
+    });
+    expect(view.state).toBe("HIDDEN");
+    expect(isModeVisible(view)).toBe(false);
+  });
+
+  it("GUIDED_OFFER · un recorrido propio conserva su puerta", () => {
+    // Quien ya empezó aquí entra, aunque el capítulo no publique nada y
+    // aunque su pin esté archivado. Es el mismo `offer: "yes"` porque es el
+    // mismo hecho: hay algo que esta persona puede abrir.
+    expect(
+      guidedMode({
+        runtimeReady: true,
+        discoveryPending: false,
+        offer: "yes",
+      }).state,
+    ).toBe("PUBLISHED");
+  });
+
+  it("GUIDED_OFFER · una consulta fallida NO esconde la pestaña", () => {
+    // `failed` no es `none`. Quitarle la puerta por una red caída a quien tiene
+    // un recorrido empezado es peor que ofrecerla de más, y el panel ya explica
+    // desde dentro que no se pudo consultar.
+    const view = guidedMode({
+      runtimeReady: true,
+      discoveryPending: false,
+      offer: "failed",
+    });
+    expect(view.state).toBe("PUBLISHED");
+  });
+
+  it("GUIDED_OFFER · mientras la pregunta está en vuelo, no hay oferta", () => {
+    // Ni siquiera con la preparación en verde: una pestaña que aparece y
+    // desaparece es peor que una que llega un instante más tarde.
+    expect(
+      guidedMode({
+        runtimeReady: true,
+        discoveryPending: false,
+        offer: "pending",
+      }).state,
+    ).toBe("HIDDEN");
   });
 });
 

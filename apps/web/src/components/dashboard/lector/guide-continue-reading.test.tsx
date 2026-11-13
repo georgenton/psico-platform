@@ -18,6 +18,7 @@ import { storedToMode } from "./reader-mode";
 import { GuideAvailabilityProvider } from "../guide/guide-availability";
 import { GuideActorScopeProvider } from "../guide/guide-actor-scope";
 import type * as ApiClientModule from "@psico/api-client";
+import { experienceRouteStub } from "../guide/guide-test-fixtures";
 
 /**
  * Closing a guide and continuing to read are two different sentences.
@@ -137,6 +138,11 @@ function mockNetwork(items: ChapterMediaSummary[]) {
         { status: 200 },
       );
     }
+    // La pestaña guiada es una oferta: el lector pregunta qué publica el
+    // capítulo antes de ofrecerla. Un «200 {}» dejaba esa pregunta sin
+    // contestar y describía un capítulo vacío sin querer.
+    const experiences = experienceRouteStub(url);
+    if (experiences) return experiences;
     return new Response("{}", { status: 200 });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   }) as any);

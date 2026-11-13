@@ -89,11 +89,19 @@ vi.mock("@psico/api-client", async (importOriginal) => {
     experienceApi: {
       listPublishedForChapter: (...a: unknown[]) =>
         listPublishedForChapter(...a),
+      // Declarado: un mock sin este método muere con un `TypeError` que el
+      // hook tragaba como «no tienes nada aquí».
+      getOwnByPin: () => ownByPinNotFound(),
     },
   };
 });
 
-import { EEC_EXPERIENCE, EEC_PIN, PQP_PIN } from "../guide/guide-test-fixtures";
+import {
+  EEC_EXPERIENCE,
+  EEC_PIN,
+  PQP_PIN,
+  ownByPinNotFound,
+} from "../guide/guide-test-fixtures";
 
 /**
  * A second card in the same chapter, pinned to ANOTHER book's guide.

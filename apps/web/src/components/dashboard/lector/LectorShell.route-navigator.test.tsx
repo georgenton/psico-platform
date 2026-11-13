@@ -121,9 +121,14 @@ vi.mock("@psico/api-client", async (importOriginal) => {
     experienceApi: {
       listPublishedForChapter: (...a: unknown[]) =>
         listPublishedForChapter(...a),
+      // Declarado: un mock sin este método muere con un `TypeError` que el
+      // hook tragaba como «no tienes nada aquí».
+      getOwnByPin: () => ownByPinNotFound(),
     },
   };
 });
+
+import { ownByPinNotFound } from "../guide/guide-test-fixtures";
 
 /** EEC-C03's five, as production offers them. */
 const KEYS = [

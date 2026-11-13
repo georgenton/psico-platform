@@ -36,7 +36,7 @@ sus límites están dichos. **Que exista en la API no basta.**
 | **Lectura de _EEC_**                       | Capítulo 1 con **188 bloques** reales; diez capítulos en sus tres partes. Énfasis reparado: negrita y cursiva de verdad                                                                | ninguna extra          | Quedan **2 bloques** con asterisco, excluidos a propósito (una cita con acento invertido y un ejercicio)                                                          |
 | **Progreso: salir y volver**               | Comprobado por API _y_ por pantalla. El 13-11, además, un recorrido guiado a medias **sobrevivió una recarga completa** y volvió a su paso pendiente                                   | ninguna extra          | —                                                                                                                                                                 |
 | **Marcas y notas**                         | Una anotación sube `marcasLectura` de 0 a 1, persiste y no se filtra a otra cuenta                                                                                                     | ninguna extra          | El resaltado por carácter no existe en móvil (v1 por bloque)                                                                                                      |
-| **Las cinco microguías de C01**            | **Las cinco recorridas escena a escena en pantalla** (MG01 y MG04 el 12-11; MG02, MG03 y MG05 el 13-11), con sus tres prácticas distintas, su salto al pasaje y su recuerdo activo     | **decisión B**         | Sólo C01. Y la pestaña guiada aparece en **8 de los 10** capítulos, donde 7 no tienen nada que recorrer — ver §4                                                  |
+| **Las cinco microguías de C01**            | **Las cinco recorridas escena a escena en pantalla** (MG01 y MG04 el 12-11; MG02, MG03 y MG05 el 13-11), con sus tres prácticas distintas, su salto al pasaje y su recuerdo activo     | **decisión B**         | Sólo C01 — y desde #848 la pestaña guiada **sólo aparece donde hay algo publicado**, así que ya no se ofrecen siete salas vacías (ver §4)                         |
 | **Diario cifrado**                         | Entrada escrita, releída tras reabrir sesión, y **recuperada con la frase de respaldo** tras restablecer la contraseña                                                                 | ninguna extra          | Sin la frase, una contraseña nueva **no** reabre el diario. La pantalla ya lo dice                                                                                |
 | **Mapa Emocional**                         | Tras leer un capítulo sigue en **0/6** ejes: leer no fabrica emoción                                                                                                                   | ninguna extra          | Necesita check-ins para encenderse; con poca historia dice «Reuniendo datos»                                                                                      |
 | **Mi Evolución**                           | Contadores reales, con aislamiento entre cuentas                                                                                                                                       | ninguna extra          | —                                                                                                                                                                 |
@@ -127,6 +127,26 @@ La preparación exacta, en este orden:
 
 ### La pestaña guiada aparece en 8 de 10 capítulos, y sólo uno se puede recorrer
 
+> ✅ **RESUELTO el 13-11 por la noche (PR #848).** La pestaña dejó de ofrecerse
+> donde el capítulo no publica nada. **Verificado sobre la Web servida:** el
+> capítulo 1 la conserva y el panel abre con su carril «5 de 5»; los capítulos
+> **3 y 10 ya no la muestran**, con 20 s y 15 s de muestreo condicionado —que es
+> lo que hace falta para acreditar una ausencia, porque la interfaz se hidrata
+> por partes—. Y un fallo de consulta **no** la esconde: quitarle la puerta por
+> una red caída a quien tiene un recorrido empezado sería peor que ofrecerla de
+> más.
+>
+> Así que la decisión 4 de abajo **se encogió**: ya no hay que elegir entre
+> siete salas vacías y ocultarlas. Lo que queda por decidir es si esto basta.
+>
+> **Y una cosa que esto NO hace**, dicha aquí para que no se lea de más:
+> esconder una pestaña no es un límite en la API. Medido el mismo día,
+> `POST /api/guide/sessions` deja empezar un recorrido de C02 sin Experience
+> publicada, con sesión real y paso completado. Es deliberado — el libro mayor
+> educativo no cuelga del CMS.
+>
+> El resto de esta sección queda como el antecedente que lo motivó.
+
 Medido el 13-11 con la cuenta del padrón, capítulo a capítulo, esperando a que
 la interfaz se estabilizara:
 
@@ -159,18 +179,27 @@ ofrecerse donde no hay nada que recorrer.
    cuenta cuya contraseña se olvidó. Crear otra cuenta **no es recuperarla**: el
    diario de la primera sigue cifrado donde estaba y la nueva empieza vacía.
    **Es la única que bloquea el piloto.**
+
+   Vuelto a comprobar el 13-11 por la noche: la variable sigue **ausente** de la
+   lista de los tres recursos —ausente, no vacía— y no hay ninguna credencial de
+   correo autorizada en el almacén de ops. Hacen falta dos insumos: el dominio
+   verificado con su clave, y una dirección real donde recibir.
+
 2. **¿Se configura `SENTRY_DSN`?** Traza frente a reproducción. No bloquea.
 3. **B — ¿se amplía el padrón del guía?** Ahora con su alcance medido (§4 y la
    tabla de abajo). Es la decisión que convierte este piloto en un piloto de
    **lectura acompañada** en vez de lectura a secas.
-4. **¿Se oculta la pestaña guiada donde no hay nada publicado?** §4. Dos
-   opciones, las dos defendibles:
-   - **Dejarla** (ninguna obra nueva, cero riesgo): la persona ve siete
-     pestañas que dicen que no hay recorrido. Honesto y algo deslucido.
-   - **Ocultarla** (recomendada si B se abre): la pestaña pasa a exigir que el
-     capítulo publique una experiencia. Es una condición más en una derivación
-     que ya tiene seis, pero obliga a preguntar por la oferta del capítulo
-     **antes** de ofrecer la pestaña — una petición más por capítulo abierto.
+4. ✅ **¿Se oculta la pestaña guiada donde no hay nada publicado?**
+   **Ejecutada el 13-11** por la opción recomendada: la pestaña exige ahora que
+   haya algo que ofrecer — una experiencia publicada **o** un recorrido propio,
+   incluido uno cuyo pin esté archivado, porque esa puerta se conserva. Cuesta
+   una petición de metadatos más por capítulo abierto, y las cuatro pestañas
+   siguen apareciendo en la misma muestra (4 849 ms desde el inicio del
+   documento), así que la guiada no llega más tarde que las demás.
+
+   Lo que queda, si acaso: decidir si para el piloto basta con que esos
+   capítulos no ofrezcan nada, o si se prefiere alguna señal de que el recorrido
+   llegará.
 
 ### Qué habilita B, exactamente
 

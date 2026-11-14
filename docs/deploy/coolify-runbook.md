@@ -1649,6 +1649,45 @@ Aparte: **`6cb27281` es anterior a la migración del reclamo** y por eso queda
 fuera del rollback normal — volver ahí es el escenario cuyo residuo acaba de
 describirse, no una reversión rutinaria.
 
+### 3.2 Volver atrás en el contenido de un capítulo
+
+Distinto del rollback de imagen, y conviene no confundirlos: aquí no se revierte
+código, se revierte **qué revisión de un capítulo está publicada**. Se usó el
+2026-11-13 al reabrir C01 como `v1.1`.
+
+**El mecanismo.** Content Core versiona por revisiones: cada ingesta mina una
+revisión nueva y la publica en la misma transacción, y **nunca borra un
+`ContentBlock`**. Volver atrás es reapuntar `Edition.publishedRevisionId` a la
+revisión anterior, que sigue entera. Comprobado en C01: tras publicar la revisión
+2, la **revisión 1 se preserva** con sus bloques.
+
+**La precondición, y por qué está en el código y no sólo aquí.** El camino nativo
+del lector abría la sesión **poniendo el progreso a cero**. Con 9 sesiones vivas en
+C01 —2 completadas—, publicar una revisión que rompe la regla del espejo habría
+borrado el avance de nueve personas en el momento de la transición, y la reversión
+habría encontrado filas ya puestas a cero. Por eso `openNativeSession` **siembra en
+vez de mover**: sólo escribe sobre una fila en blanco (0 %, 0 s, sin completar, sin
+último bloque). Así la vuelta atrás encuentra las filas legadas como estaban.
+
+**Orden obligatorio**, porque la API sirve el texto y su normalizador tiene que
+reproducir el payload byte a byte:
+
+1. Desplegar la **API** con el código de la revisión nueva.
+2. Comprobar sobre el **artefacto servido** que su normalizador reproduce el
+   payload idéntico.
+3. Ingerir en seco, leer el plan, y sólo entonces `--apply`.
+
+**Qué comprobar antes y después**, no sólo que las filas sigan existiendo: el
+porcentaje, el tiempo, el completado, la última posición y las anotaciones **tal
+como los sirve el lector** a una persona, más que los anclajes de los pasajes
+resuelvan a los mismos bloques. En C01 se midió por HTTP en una sesión propia antes
+y después (`pct=0.1383` las dos veces).
+
+**Lo que esta reversión no deshace.** Una marca creada contra el texto nuevo
+—subrayado, anotación— sigue apuntando a su ancla; volver a la revisión anterior no
+la borra, pero puede dejarla anclada a un bloque que esa revisión no publica. Es la
+marca de esa persona, visible para ella, no el libro.
+
 ---
 
 ## 4 · DEPLOY PRODUCTION

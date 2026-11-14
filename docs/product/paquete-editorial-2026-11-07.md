@@ -14,16 +14,16 @@
 
 ## Resumen
 
-| #   | Decisión                          | Propuesta                                                                                                                          | Bloquea                            |
-| --- | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
-| 1   | Sinopsis de _EEC_                 | ✅ **ejecutada el 2026-11-13** — aplicada en staging, verificada por SHA                                                           | —                                  |
-| 2   | Nota interna de C01               | ⚠️ **pide una firma nueva** — efecto medido, paquete listo; ver el aviso de §2                                                     | la lectura limpia de C01 · **y B** |
-| 3   | Publicar las cinco Experiences    | ✅ **ejecutada el 2026-11-12** — aprobada, firmada, publicada y recorrida en pantalla                                              | —                                  |
-| 4   | **B** — abrir las cinco a alguien | abrir a **una persona a la vez por invitación**, después de 1 y 2, y decidiendo qué hacer con la pestaña de los otros 7 capítulos  | el piloto de lectura acompañada    |
-| 5   | Sucesor del Dúo                   | `eec-c1-emocion-informa-no-manda@1`                                                                                                | la entrada del Dúo                 |
-| 6   | Las otras dos obras               | autoría y pertenencia **ya resueltas**; falta material: partes y manuscrito de _Familias_, manuscrito de _Parejas_                 | el catálogo                        |
-| 7   | Primer recurso de audio           | capítulo 1 de _EEC_                                                                                                                | la promesa de «Modo Guía»          |
-| 8   | Precios y apertura de cobros      | **propuesta concreta de las 7 filas** + 6 condiciones de lanzamiento; no abrir todavía, resolver ya las 2 que no dependen de nadie | el cobro                           |
+| #   | Decisión                          | Propuesta                                                                                                                          | Bloquea                         |
+| --- | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| 1   | Sinopsis de _EEC_                 | ✅ **ejecutada el 2026-11-13** — aplicada en staging, verificada por SHA                                                           | —                               |
+| 2   | Nota interna de C01               | ✅ **ejecutada el 2026-11-13** como revisión `v1.1`, **sin firmas nuevas** — ver §2                                                | —                               |
+| 3   | Publicar las cinco Experiences    | ✅ **ejecutada el 2026-11-12** — aprobada, firmada, publicada y recorrida en pantalla                                              | —                               |
+| 4   | **B** — abrir las cinco a alguien | abrir a **una persona a la vez por invitación**; 1 y 2 ya están ejecutadas y la pestaña de los otros 7 capítulos ya no se ofrece   | el piloto de lectura acompañada |
+| 5   | Sucesor del Dúo                   | `eec-c1-emocion-informa-no-manda@1`                                                                                                | la entrada del Dúo              |
+| 6   | Las otras dos obras               | autoría y pertenencia **ya resueltas**; falta material: partes y manuscrito de _Familias_, manuscrito de _Parejas_                 | el catálogo                     |
+| 7   | Primer recurso de audio           | capítulo 1 de _EEC_                                                                                                                | la promesa de «Modo Guía»       |
+| 8   | Precios y apertura de cobros      | **propuesta concreta de las 7 filas** + 6 condiciones de lanzamiento; no abrir todavía, resolver ya las 2 que no dependen de nadie | el cobro                        |
 
 **Las dos que de verdad bloquean el piloto ahora mismo son 1 y 2.** La **1 está
 ejecutada** desde el 2026-11-13: la sinopsis aprobada se aplicó en staging y es
@@ -74,10 +74,20 @@ toca la descripción corta, que sí es real y se sigue mostrando debajo.
 
 ## 2 · La nota interna del capítulo 1
 
-**En juego.** `content/books/eec/C01/chapter.md:298` lleva una nota de trabajo
-bajo el encabezado «## Referencias **de trabajo** para el capítulo 1». No es un
-accidente de ingesta: está en el canónico, cuyo SHA-256 sigue siendo el
-declarado (`e10f42ce…`), así que el fichero está intacto y **bloqueado**.
+> ✅ **EJECUTADA el 2026-11-13, y sin firmas nuevas.** El capítulo se reabrió como
+> revisión `EEC_C01_v1.1_TEXT_LOCKED_2026-11-13`: encabezado «Referencias», nota
+> retirada, 21 entradas con su texto y su orden. Comprobado sobre lo servido: 187
+> bloques, cero asteriscos visibles, 49 bloques con énfasis, y el avance de las 9
+> sesiones vivas de C01 conservado. **Mi aviso anterior —que pedía una firma
+> nueva— era equivocado**: cada acta valida contra la revisión que firmó, y `v1.0`
+> sigue congelado con sus cinco manifiestos. Expediente completo, con el error
+> marcado donde estaba, en
+> [paquete-c01-referencias](paquete-c01-referencias-2026-11-13.md).
+
+**En juego.** `content/books/eec/C01/chapter.md:298` llevaba una nota de trabajo
+bajo el encabezado «## Referencias **de trabajo** para el capítulo 1». No era un
+accidente de ingesta: estaba en el canónico, cuyo SHA-256 era el declarado
+entonces (`e10f42ce…`), así que el fichero estaba intacto y **bloqueado**.
 
 Y la nota dice de sí misma lo que hace falta saber: las entradas «deberán
 ajustarse a la edición exacta utilizada en Zotero **antes de `TEXT_LOCKED`**».
@@ -259,17 +269,19 @@ tiene recorrido guiado publicado».
 
 ### Propuesta
 
-**Abrir B a una persona a la vez, por invitación, en staging**, con dos
-condiciones previas y una decisión acompañante:
+**Abrir B a una persona a la vez, por invitación, en staging.** Las dos
+condiciones previas **están cumplidas desde el 2026-11-13**, y la decisión
+acompañante se ha encogido hasta casi desaparecer:
 
-1. **Resolver 1 y 2** de este paquete. El argumento sigue siendo editorial, no
-   técnico: las cinco microguías viven **dentro** del capítulo 1, y ese capítulo
-   todavía enseña una nota de trabajo mientras la obra que lo contiene se
-   presenta con un marcador por sinopsis. Abrir la puerta antes de arreglar la
-   habitación es el orden equivocado.
-2. **Decidir qué hacer con la pestaña de los otros siete capítulos** — dejarla
-   con su frase honesta, o exigirle que el capítulo publique algo. Las dos
-   opciones, con su coste, en el [piloto mínimo §5.4](piloto-minimo.md).
+1. ✅ **1 y 2 ejecutadas.** El argumento era editorial, no técnico: las cinco
+   microguías viven **dentro** del capítulo 1, y ese capítulo enseñaba una nota de
+   trabajo mientras la obra que lo contiene se presentaba con un marcador por
+   sinopsis. Hoy el capítulo dice «Referencias» y la obra lleva su sinopsis.
+2. ⬜ **Qué hacer con la pestaña de los otros siete capítulos** — ya **no la
+   ofrecen** (#848) y quien tenga un recorrido propio en el capítulo **la conserva**
+   (#852), así que la pregunta se reduce a si eso basta o si se prefiere alguna
+   otra señal. Las opciones, con su coste, en el
+   [piloto mínimo §5.4](piloto-minimo.md).
 
 La audiencia, los criterios de entrada, salida y suspensión, el perfil propuesto
 y la invitación ya redactada están en el [piloto mínimo](piloto-minimo.md).

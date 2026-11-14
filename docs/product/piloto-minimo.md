@@ -30,19 +30,19 @@ sus límites están dichos. **Que exista en la API no basta.**
 
 ## 1. Qué incluye, y con qué respaldo
 
-| Recorrido                                  | Evidencia                                                                                                                                                                              | Dependencias           | Sus límites                                                                                                                                                       |
-| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Registro y acceso**                      | Cuenta creada por el flujo normal y acceso por el formulario, comprobados el 24-10                                                                                                     | ninguna extra          | Ningún guard exige el correo verificado, así que el alta funciona aunque el correo no salga                                                                       |
-| **Lectura de _EEC_**                       | Capítulo 1 con **188 bloques** reales; diez capítulos en sus tres partes. Énfasis reparado: negrita y cursiva de verdad                                                                | ninguna extra          | Quedan **2 bloques** con asterisco, excluidos a propósito (una cita con acento invertido y un ejercicio)                                                          |
-| **Progreso: salir y volver**               | Comprobado por API _y_ por pantalla. El 13-11, además, un recorrido guiado a medias **sobrevivió una recarga completa** y volvió a su paso pendiente                                   | ninguna extra          | —                                                                                                                                                                 |
-| **Marcas y notas**                         | Una anotación sube `marcasLectura` de 0 a 1, persiste y no se filtra a otra cuenta                                                                                                     | ninguna extra          | El resaltado por carácter no existe en móvil (v1 por bloque)                                                                                                      |
-| **Las cinco microguías de C01**            | **Las cinco recorridas escena a escena en pantalla** (MG01 y MG04 el 12-11; MG02, MG03 y MG05 el 13-11), con sus tres prácticas distintas, su salto al pasaje y su recuerdo activo     | **decisión B**         | Sólo C01 — y desde #848 la pestaña guiada **sólo aparece donde hay algo publicado**, así que ya no se ofrecen siete salas vacías (ver §4)                         |
-| **Diario cifrado**                         | Entrada escrita, releída tras reabrir sesión, y **recuperada con la frase de respaldo** tras restablecer la contraseña                                                                 | ninguna extra          | Sin la frase, una contraseña nueva **no** reabre el diario. La pantalla ya lo dice                                                                                |
-| **Mapa Emocional**                         | Tras leer un capítulo sigue en **0/6** ejes: leer no fabrica emoción                                                                                                                   | ninguna extra          | Necesita check-ins para encenderse; con poca historia dice «Reuniendo datos»                                                                                      |
-| **Mi Evolución**                           | Contadores reales, con aislamiento entre cuentas                                                                                                                                       | ninguna extra          | —                                                                                                                                                                 |
-| **Descargar mis datos**                    | Recorrido completo **por pantalla** en staging el 25-10: pedir → «preparando» → consultar → «Lista», con enlace a R2. Y por API: 202 → listo en ~3 s                                   | R2                     | El archivo trae ocho secciones y **nombra** lo que no trae. Sin `RESEND_API_KEY` no llega el aviso de «ya está lista»: hay que consultar el estado en la pantalla |
-| **Los dos estilos y los cuatro ambientes** | Las **ocho** combinaciones recorridas con los controles reales el 24-10, y re-recorridas el 05-11 sobre el texto reparado midiendo fuente y contraste                                  | ninguna extra          | Lo medido es tipografía y contraste, no una aceptación estética                                                                                                   |
-| **Eco (conversar)**                        | Camino normal comprobado con cuenta sintética: SSE 200, respuesta en español, turno del usuario persistido **cifrado** y el de Eco en claro (ADR 0007 §C). Coste observado **$0,0043** | `ANTHROPIC_API_KEY` ✅ | Cuota FREE de **10 mensajes/día**. El modelo no puede releer el diario: conversa sobre lo presente. Sin reintento si se corta el SSE a mitad                      |
+| Recorrido                                  | Evidencia                                                                                                                                                                              | Dependencias           | Sus límites                                                                                                                                                                       |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Registro y acceso**                      | Cuenta creada por el flujo normal y acceso por el formulario, comprobados el 24-10                                                                                                     | ninguna extra          | Ningún guard exige el correo verificado, así que el alta funciona aunque el correo no salga                                                                                       |
+| **Lectura de _EEC_**                       | Capítulo 1 con **188 bloques** reales; diez capítulos en sus tres partes. Énfasis reparado: negrita y cursiva de verdad                                                                | ninguna extra          | Queda **1 bloque** con asterisco (un ejercicio). La cita del acento invertido era la nota editorial retirada el 13-11, así que C01 pasa a 187 bloques y 0 asteriscos              |
+| **Progreso: salir y volver**               | Comprobado por API _y_ por pantalla. El 13-11, además, un recorrido guiado a medias **sobrevivió una recarga completa** y volvió a su paso pendiente                                   | ninguna extra          | —                                                                                                                                                                                 |
+| **Marcas y notas**                         | Una anotación sube `marcasLectura` de 0 a 1, persiste y no se filtra a otra cuenta                                                                                                     | ninguna extra          | El resaltado por carácter no existe en móvil (v1 por bloque)                                                                                                                      |
+| **Las cinco microguías de C01**            | **Las cinco recorridas escena a escena en pantalla** (MG01 y MG04 el 12-11; MG02, MG03 y MG05 el 13-11), con sus tres prácticas distintas, su salto al pasaje y su recuerdo activo     | **decisión B**         | La **pantalla** sólo las ofrece donde hay algo publicado (#848), hoy C01. La **API** admite iniciar cualquier pin del catálogo en código — medido, y son cosas distintas (ver §4) |
+| **Diario cifrado**                         | Entrada escrita, releída tras reabrir sesión, y **recuperada con la frase de respaldo** tras restablecer la contraseña                                                                 | ninguna extra          | Sin la frase, una contraseña nueva **no** reabre el diario. La pantalla ya lo dice                                                                                                |
+| **Mapa Emocional**                         | Tras leer un capítulo sigue en **0/6** ejes: leer no fabrica emoción                                                                                                                   | ninguna extra          | Necesita check-ins para encenderse; con poca historia dice «Reuniendo datos»                                                                                                      |
+| **Mi Evolución**                           | Contadores reales, con aislamiento entre cuentas                                                                                                                                       | ninguna extra          | —                                                                                                                                                                                 |
+| **Descargar mis datos**                    | Recorrido completo **por pantalla** en staging el 25-10: pedir → «preparando» → consultar → «Lista», con enlace a R2. Y por API: 202 → listo en ~3 s                                   | R2                     | El archivo trae ocho secciones y **nombra** lo que no trae. Sin `RESEND_API_KEY` no llega el aviso de «ya está lista»: hay que consultar el estado en la pantalla                 |
+| **Los dos estilos y los cuatro ambientes** | Las **ocho** combinaciones recorridas con los controles reales el 24-10, y re-recorridas el 05-11 sobre el texto reparado midiendo fuente y contraste                                  | ninguna extra          | Lo medido es tipografía y contraste, no una aceptación estética                                                                                                                   |
+| **Eco (conversar)**                        | Camino normal comprobado con cuenta sintética: SSE 200, respuesta en español, turno del usuario persistido **cifrado** y el de Eco en claro (ADR 0007 §C). Coste observado **$0,0043** | `ANTHROPIC_API_KEY` ✅ | Cuota FREE de **10 mensajes/día**. El modelo no puede releer el diario: conversa sobre lo presente. Sin reintento si se corta el SSE a mitad                                      |
 
 ---
 
@@ -125,7 +125,7 @@ La preparación exacta, en este orden:
 | **Exportación**    | El **recorrido completo**, worker incluido, y con pantalla                                       | Su **alcance**: ocho secciones, lo ausente nombrado, y material bajo **D-EXP** que ni viaja ni se nombra |
 | **Lectura**        | 188 bloques reales, con énfasis real, legibles en los ocho estilos × ambientes                   | Dos bloques con asterisco, excluidos por decisión editorial                                              |
 
-### La pestaña guiada aparece en 8 de 10 capítulos, y sólo uno se puede recorrer
+### La pestaña guiada ya sólo aparece donde hay algo publicado
 
 > ✅ **RESUELTO el 13-11 por la noche (PR #848).** La pestaña dejó de ofrecerse
 > donde el capítulo no publica nada. **Verificado sobre la Web servida:** el
@@ -208,26 +208,55 @@ de (modo, padrón, usuario) — sin libro, sin capítulo, sin plan. Así que **n
 puede presentar como «sólo C01»**. Lo que sí acota el alcance es el catálogo
 publicado, y eso está medido:
 
-| Superficie o recorrido                     | Hoy, fuera del padrón                      | Al entrar al padrón                                  | Evidencia                               | Límite relevante                              |
-| ------------------------------------------ | ------------------------------------------ | ---------------------------------------------------- | --------------------------------------- | --------------------------------------------- |
-| Leer _EEC_ (10 capítulos)                  | ✅ ya puede                                | igual                                                | libro `FREE` y publicado                | ninguno                                       |
-| `GET /guide/availability`                  | `available: false`                         | `available: true`                                    | medido con las dos identidades          | —                                             |
-| Iniciar una guía (5 órdenes `POST`)        | **503 `GUIDE_UNAVAILABLE`**                | permitido                                            | medido                                  | el guard no sustituye al derecho de contenido |
-| Pestaña guiada en el lector                | ausente                                    | **presente en 8 de 10 capítulos**                    | medido capítulo a capítulo              | 7 de esas 8 no tienen nada que recorrer       |
-| Las cinco microguías de C01                | invisibles en el lector                    | **recorribles**                                      | las cinco, en pantalla                  | es todo lo que se puede recorrer hoy          |
-| Microguías de C02–C10 (45 en el menú)      | invisibles                                 | listadas por `/guide/route`, **no ejecutables**      | `/experiences/discovery` → 0 ítems      | ninguna Experience publicada                  |
-| _Familias ensambladas_ (obra PRO retirada) | nada                                       | **nada**: `/guide/route` responde `available: false` | medido con la cuenta del padrón         | el padrón **no** cruza la frontera editorial  |
-| Definiciones por la API autenticada        | **ya las obtiene** (alcance aceptado de A) | igual                                                | `GET /experiences/discovery` con sesión | B no las hace privadas ni más públicas        |
+**Y hay cuatro cosas distintas que conviene no decir con una frase.** Mezclarlas
+es lo que hizo falsas las dos versiones anteriores de esta tabla: una afirmaba
+que la pestaña aparece en ocho capítulos (dejó de ser cierto con #848) y la otra
+que las 45 microguías de C02–C10 **no son ejecutables** (nunca lo fue: lo que no
+se podía era abrirlas desde la pantalla).
+
+| Dimensión                             | Qué es                                                                     | Fuera del padrón                                                | En el padrón                                                                                                                        |
+| ------------------------------------- | -------------------------------------------------------------------------- | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| **1 · La oferta de la interfaz**      | si el lector muestra la pestaña guiada                                     | ausente                                                         | presente **sólo donde hay una Experience publicada o un recorrido propio** — hoy eso es C01; medido: los capítulos 3 y 10 no la dan |
+| **2 · Iniciar una sesión por la API** | `POST /guide/sessions` sobre un pin del catálogo **en código**             | **503 `GUIDE_UNAVAILABLE`**                                     | **permitido para cualquiera de los 50**, con o sin Experience publicada detrás                                                      |
+| **3 · Continuar una sesión anterior** | retomar o repasar un recorrido que ya existe, incluso con el pin archivado | `GET /guide/sessions/state` **contesta** (no pasa por el guard) | igual; y la pestaña se conserva por ese recorrido propio aunque el capítulo no publique nada                                        |
+| **4 · Derechos de lectura por plan**  | si esta persona puede leer esta obra                                       | lo que diga su plan                                             | **lo mismo**: el guard «never substitutes for entitlement»                                                                          |
+
+La evidencia de la dimensión 2, con su alcance exacto: `POST /api/guide/sessions`
+para `eec-c2-universal-no-significa-uniforme@1` devolvió **201**, con sesión
+`ACTIVE` real, contexto editorial derivado por el servidor y **un paso
+completado**, aunque el capítulo 2 publique **cero** Experiences. La sesión del
+ensayo se cerró por la vía normal (`CANCELLED`, su paso conservado). **Eso refuta
+que nada fuera de C01 pueda iniciarse.** Lo que **no** demuestra es que las 50
+funcionen ni que puedan terminarse: es un pin, un inicio y un paso.
+
+**Y lo demás, medido:**
+
+| Superficie                                 | Fuera del padrón                           | En el padrón                                         | Evidencia                               |
+| ------------------------------------------ | ------------------------------------------ | ---------------------------------------------------- | --------------------------------------- |
+| Leer _EEC_ (10 capítulos)                  | ✅ ya puede                                | igual                                                | libro `FREE` y publicado                |
+| `GET /guide/availability`                  | `available: false`                         | `available: true`                                    | medido con las dos identidades          |
+| Las cinco microguías de C01                | invisibles en el lector                    | **recorribles**, las cinco en pantalla               | UAT del 12 y 13-11                      |
+| _Familias ensambladas_ (obra PRO retirada) | nada                                       | **nada**: `/guide/route` responde `available: false` | medido con la cuenta del padrón         |
+| Definiciones por la API autenticada        | **ya las obtiene** (alcance aceptado de A) | igual                                                | `GET /experiences/discovery` con sesión |
 
 **Tres cosas que esto deja claras:**
 
 - **B no toca el derecho de contenido.** La obra PRO retirada sigue dando nada,
   y el guard lo dice en su propio comentario: «never substitutes for
   entitlement».
-- **B no es «sólo C01»**, pero lo único ejecutable **sí** es C01. La diferencia
-  se nota en la pestaña, no en el contenido.
+- **B abre la pantalla de lo que C01 publica.** La API ya admitía iniciar
+  cualquier pin del catálogo en código; eso no lo cambia B y no lo cambió #848.
 - **El plan no limita nada aquí.** La cuenta con la que se recorrió todo es
   `tier: free`, y el libro ancla es `FREE`.
+
+**Si algún día se quisiera limitar también los INICIOS a lo publicado**, eso es
+una decisión aparte y no está propuesta. Lo que conviene no dar por hecho es que
+rompería las sesiones existentes: iniciar y continuar son caminos distintos y
+pueden tener reglas distintas — `GET /guide/sessions/state` ya no pasa por el
+guard de rollout precisamente porque consultar el propio avance y ejecutar
+operaciones nuevas son permisos separados. Acoplar `start` al CMS sí tendría un
+coste real, y es otro: archivar una Experience dejaría de poder empezarse, que
+es una decisión editorial con efecto sobre el producto.
 
 **Perfil más acotado adecuado para el piloto:** cuenta **FREE**, creada por el
 flujo normal, sin promoción de rol. No hace falta Pro para nada de lo que entra.

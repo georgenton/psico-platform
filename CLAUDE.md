@@ -4031,22 +4031,22 @@ sección, manda esta sección.
 
 #### El corte — 2026-11-13, segunda tanda
 
-|                                  |                                                                                                                                                                                                                                               |
-| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Dónde vive                       | **OVH con Coolify, y sólo ahí.** Vercel y Railway retiradas del plan operativo **y desconectadas del cliente** en este repositorio                                                                                                            |
-| `main`                           | **`954265bb`** (#853) · un PR abierto, [#854](https://github.com/georgenton/psico-platform/pull/854), que trae este corte                                                                                                                     |
-| Conexiones de cliente            | ✅ **retiradas** (#851): ni los MCP de Railway, ni el plugin de Vercel —37 skills, 3 agentes, 3 hooks—, ni la skill `use-railway`. Por proyecto, reversible, **sin tocar nada remoto**                                                        |
-| La pestaña del guía              | ✅ **arreglada** (#852): reconoce un recorrido propio en otro pin del capítulo, así que el historial no desaparece al cambiar la oferta publicada. Falta desplegar Web                                                                        |
-| Decisión **A**                   | ✅ **concedida, firmada, publicada y verificada** el 12-11. Las cinco en `PUBLISHED`                                                                                                                                                          |
-| UAT de las cinco                 | ✅ **cerrada el 13-11**: MG02, MG03 y MG05 recorridas escena a escena, con MG01 y MG04 del 12-11. Matriz en [la UAT](docs/informes/uat-2026-11-13-microguias-c01.md)                                                                          |
-| Decisión **B**                   | ⬜ **pendiente**, con su **alcance medido en cuatro dimensiones separadas** — y conviene leer la nota de abajo: la **API deja empezar** un recorrido de C02 sin Experience publicada                                                          |
-| Decisión **1** (sinopsis de EEC) | ✅ **ejecutada el 13-11**: aplicada en staging con comparar-y-fijar y verificada por SHA en el fichero, la fila y la API                                                                                                                      |
-| Decisión **2** (nota de C01)     | ✅ **ejecutada el 13-11 como revisión `v1.1`, y SIN firmas nuevas** (#853). Las cinco actas de `v1.0` siguen válidas porque cada una valida contra **su** revisión declarada                                                                  |
-| Servido en staging               | **API `954265bb`** (desplegada el 13-11 por la noche, `ready=true`, 71 migraciones, 0 pendientes) · **Web `6fe0beaf`** · worker `f15c5c96` — leído del contenedor                                                                             |
-| ¿Coinciden?                      | **No, y a propósito.** La API necesitaba el despliegue porque sirve el texto de C01. Web lleva #852 sin desplegar: su efecto es visible sólo a quien cambie de pin dentro del capítulo. El worker no toca nada de esto                        |
-| Capítulo 1 de EEC                | **187 bloques servidos**, encabezado «Referencias», nota editorial retirada, cero asteriscos, 22 entradas, 49 bloques con énfasis · **5 experiencias ofrecidas**, las cinco `startable`, 7/7/7/8/8 escenas · la legada archivada no reaparece |
-| Avance del lector en C01         | **conservado en el cambio de revisión**: las 9 sesiones que existían siguen con su porcentaje y su tiempo, las 2 completadas siguen completadas. Comprobado en la sesión propia por HTTP (`pct=0.1383`)                                       |
-| Producción                       | **no existe como recurso.** Tres aplicaciones en el proyecto, las tres de staging                                                                                                                                                             |
+|                                  |                                                                                                                                                                                                                                                                                                                        |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Dónde vive                       | **OVH con Coolify, y sólo ahí.** Vercel y Railway retiradas del plan operativo **y desconectadas del cliente** en este repositorio                                                                                                                                                                                     |
+| `main`                           | **`d3a67e27`** (#854) · **cero PR abiertos** — #851, #852, #853, #855 y #854 integrados esta noche                                                                                                                                                                                                                     |
+| Conexiones de cliente            | ✅ **retiradas** (#851): ni los MCP de Railway, ni el plugin de Vercel —37 skills, 3 agentes, 3 hooks—, ni la skill `use-railway`. Por proyecto, reversible, **sin tocar nada remoto**                                                                                                                                 |
+| La pestaña del guía              | ✅ **arreglada** (#852): reconoce un recorrido propio en otro pin del capítulo, así que el historial no desaparece al cambiar la oferta publicada. Falta desplegar Web                                                                                                                                                 |
+| Decisión **A**                   | ✅ **concedida, firmada, publicada y verificada** el 12-11. Las cinco en `PUBLISHED`                                                                                                                                                                                                                                   |
+| UAT de las cinco                 | ✅ **cerrada el 13-11**: MG02, MG03 y MG05 recorridas escena a escena, con MG01 y MG04 del 12-11. Matriz en [la UAT](docs/informes/uat-2026-11-13-microguias-c01.md)                                                                                                                                                   |
+| Decisión **B**                   | ⬜ **pendiente**, con su **alcance medido en cuatro dimensiones separadas** — y conviene leer la nota de abajo: la **API deja empezar** un recorrido de C02 sin Experience publicada                                                                                                                                   |
+| Decisión **1** (sinopsis de EEC) | ✅ **ejecutada el 13-11**: aplicada en staging con comparar-y-fijar y verificada por SHA en el fichero, la fila y la API                                                                                                                                                                                               |
+| Decisión **2** (nota de C01)     | ✅ **ejecutada el 13-11 como revisión `v1.1`, y SIN firmas nuevas** (#853). Las cinco actas de `v1.0` siguen válidas porque cada una valida contra **su** revisión declarada                                                                                                                                           |
+| Servido en staging               | **API `954265bb`** (13-11 22:18 UTC, `ready=true`, 71 migraciones, 0 pendientes) · **Web `d3a67e27`** (14-11 00:52 UTC, `/` y `/login` en 200) · worker `f15c5c96` — leído del contenedor                                                                                                                              |
+| ¿Coinciden?                      | **Web sí; la API va un commit por detrás y el worker más.** Web se desplegó porque #852 arregla un defecto que #848 dejó **vivo en lo servido**, y un arreglo sin desplegar no arregla nada. Lo que separa a la API de `main` son dos cambios de documentos y el montón del typecheck; al worker, nada de esto le toca |
+| Capítulo 1 de EEC                | **187 bloques servidos**, encabezado «Referencias», nota editorial retirada, cero asteriscos, 22 entradas, 49 bloques con énfasis · **5 experiencias ofrecidas**, las cinco `startable`, 7/7/7/8/8 escenas · la legada archivada no reaparece                                                                          |
+| Avance del lector en C01         | **conservado en el cambio de revisión**: las 9 sesiones que existían siguen con su porcentaje y su tiempo, las 2 completadas siguen completadas. Comprobado en la sesión propia por HTTP (`pct=0.1383`)                                                                                                                |
+| Producción                       | **no existe como recurso.** Tres aplicaciones en el proyecto, las tres de staging                                                                                                                                                                                                                                      |
 
 > **Lo que ya no está pendiente**, y conviene no volver a encargarlo: el
 > archivado del piloto legado (11-11), la creación de los cinco borradores
@@ -5083,15 +5083,34 @@ distintas:
 
 Cinco cajones, y la diferencia entre ellos es quién puede moverlos.
 
-**1 · Integrado y servido** — `main` `954265bb`, con [#854](https://github.com/georgenton/psico-platform/pull/854)
-abierto para este corte. **API `954265bb`** desplegada el 13-11 por la noche,
-porque es la que sirve el texto de C01 y esta tanda lo cambió: comprobada sobre el
-artefacto servido con `ready=true`, 71 migraciones, `pending` y `failed` vacías.
-**Web `6fe0beaf`** y worker `f15c5c96` por detrás **a propósito**: Web lleva #852
-sin desplegar y su efecto sólo lo nota quien cambie de pin dentro de un capítulo
-donde ya tenga un recorrido; el worker no toca nada de esto. **Un despliegue
-pendiente, de Web, sin urgencia** — y redesplegar para igualar un SHA sigue sin
-ser motivo.
+**1 · Integrado y servido** — `main` `d3a67e27`, **cero PR abiertos**. Los cinco de
+esta tanda entraron con su CI en verde: #851 (retirada del cliente), #852 (pestaña
+del guía), #853 (C01 `v1.1`), **#855** (el montón del typecheck) y #854 (este
+corte).
+
+**Dos despliegues, y los dos por una razón, no por igualar un SHA.** La **API
+`954265bb`** (13-11 22:18 UTC) porque sirve el texto de C01 y esta tanda lo cambió:
+comprobada sobre el artefacto servido con `ready=true`, 71 migraciones y `pending`
+y `failed` vacías. **Web `d3a67e27`** (14-11 00:52 UTC) porque #852 arregla un
+defecto que **#848 dejó vivo en lo servido** —a quien ya tenía un recorrido en un
+pin del capítulo se le ocultaba su propio historial— y un arreglo sin desplegar no
+arregla nada; `/` y `/login` responden 200. El **worker `f15c5c96`** se queda
+donde está: nada de esto le toca.
+
+Lo que separa a la API de `main` son dos cambios de documentos y el montón del
+typecheck. **Redesplegar para igualar un SHA sigue sin ser motivo.**
+
+**Y una nota sobre el bloqueo de esa integración**, porque la palabra importa. El
+trabajo `Typecheck` murió con `exit 134` y «heap out of memory», y lo llamé
+intermitente antes de medirlo: **se reproduce**, dos reintentos y dos fallos, sobre
+un árbol cuyo código era **idéntico** al que ya había pasado dos veces (`git diff`
+entre `954265bb` y `2f77bfcd`, vacío). La primera pasada de `tsc` en `apps/api`
+—923 ficheros, y el script corre dos— pica en **795 MB** con `.tsbuildinfo` en
+disco y en **2,86 GiB en frío**, que es lo que ve el runner siempre, porque
+`typecheck` no declara `outputs` y Turbo no le restaura nada. #855 le da 6 GiB **sin
+debilitar la puerta**: mismos ficheros, mismo compilador, un error de tipos sigue
+rompiendo el trabajo. Y queda escrito en el workflow que, si vuelve a morir, el
+arreglo **no es subir el número otra vez**.
 
 **2 · Aprobado, ejecutado y verificado** — el **archivado** (#839), los **cinco
 borradores**, la **decisión A** del 12-11 (firmada por ti, publicada) y su **UAT

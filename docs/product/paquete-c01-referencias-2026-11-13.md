@@ -1,18 +1,26 @@
-# Las dos ediciones del capítulo 1 — paquete exacto, efecto medido y firma mínima
+# Las dos ediciones del capítulo 1 — ✅ EJECUTADAS el 2026-11-13, sin firmas nuevas
 
-> **Qué es esto.** La decisión 2 del
-> [paquete editorial](paquete-editorial-2026-11-07.md) está **aprobada**: retirar
-> la nota interna del capítulo 1 y renombrar su encabezado a «Referencias»,
-> conservando las 21 entradas. Al ir a ejecutarla aparecieron **dos requisitos
-> que la aprobación no podía prever**, porque ninguno se ve desde el texto: la
-> tubería del manuscrito y la **firma del 12-11**.
+> **Estado: aplicado y verificado.** La decisión 2 del
+> [paquete editorial](paquete-editorial-2026-11-07.md) se ejecutó el 2026-11-13:
+> el capítulo 1 se reabrió como revisión **`EEC_C01_v1.1_TEXT_LOCKED_2026-11-13`**
+> con el encabezado «Referencias», la nota interna retirada y las 21 entradas con
+> su texto y su orden. Integrado en #853, desplegado a la API de staging y
+> comprobado sobre lo servido: **187 bloques**, encabezado «Referencias», nota
+> retirada, **cero asteriscos visibles**, 22 líneas bibliográficas y **49 bloques
+> con énfasis**.
 >
-> Este documento es el paquete listo. Todo lo de abajo está **medido el
-> 2026-11-13** contra lo que sirve staging, no deducido — incluido un ensayo
-> completo que se hizo y se deshizo.
+> **Y un aviso de este propio documento que resultó equivocado.** La versión
+> anterior decía que ejecutar esto «pide una firma nueva» porque las cinco actas
+> del 12-11 llevan el `canonicalSha256` dentro del payload firmado. La premisa es
+> cierta y la **conclusión era falsa**: `checkApprovals` construye lo que espera
+> **desde el manifiesto que firmó cada acta**, no desde el fichero más reciente
+> del capítulo, así que las cinco actas de `v1.0` siguen válidas con el canónico
+> en `v1.1`. **No se pidió ninguna firma nueva.** Lo que sí leía el fichero vivo
+> era el código de producción, y ése era el defecto real; está corregido.
 >
-> **Nada se aplicó.** El canónico está intacto: su SHA-256 sigue siendo
-> `e10f42cedf881838…`, el build lo comprueba y pasa.
+> Todo lo que sigue se midió el 2026-11-13 contra lo que sirve staging. Las
+> secciones 1 a 3 se conservan como el expediente de la decisión; la 4 recoge lo
+> que de verdad se hizo.
 
 ---
 
@@ -117,7 +125,14 @@ a `inlineMarks` reusando el mismo analizador de la reparación, con su comando y
 publicados, **content y meta idénticos**. Con él la tubería vuelve a ser
 reproducible, que es la condición para ejecutar esto sin romper nada.
 
-### 3.2 · El canónico está bloqueado, y la firma del 12-11 lo bloquea dos veces
+### 3.2 · El canónico está bloqueado — y la firma del 12-11 **no** lo bloquea
+
+> ⚠️ **Esta sección contiene el error de análisis de este documento**, y se
+> conserva porque la primera mitad es correcta y útil. Lo que sigue siendo cierto:
+> `TEXT_LOCKED` es un SHA declarado 13 veces que el build comprueba, y la versión
+> editorial está fijada en cinco sitios. Lo que era **falso** es el apartado final
+> —que las actas quedarían atestiguando un texto inexistente y que haría falta
+> volver a firmar—; la corrección, medida, está justo debajo en §3.3.
 
 **`TEXT_LOCKED` no es una etiqueta: es un SHA-256 que el build comprueba.** Vive
 declarado 13 veces —1 en `unit.json` (`canonical_sha256`) y 12 en `anchors.json`
@@ -148,75 +163,109 @@ Qué significa eso, con precisión:
 
 - **Las cinco publicadas no se rompen.** Su acta ya se consumió al publicar y
   nada vuelve a validar el SHA en lectura. Las cinco seguirían abriendo y
-  saltando a su pasaje.
-- **Pero las cinco actas dejarían de corresponder al manuscrito.** Quedarían
+  saltando a su pasaje. ✅ **Cierto, y comprobado.**
+- ~~**Pero las cinco actas dejarían de corresponder al manuscrito.** Quedarían
   atestiguando un SHA que ya no es el del capítulo. Cualquier acto futuro sobre
-  ellas —re-sellar, republicar, una `@2`— sería rechazado hasta volver a firmar.
+  ellas —re-sellar, republicar, una `@2`— sería rechazado hasta volver a
+  firmar.~~ ❌ **Falso.** Ver §3.3.
+
+### 3.3 · Por qué no hacía falta ninguna firma nueva
+
+`checkApprovals` **no compara el acta con el fichero del capítulo**. Construye lo
+que espera a partir del **manifiesto que el acta firmó**:
+
+```ts
+const expect = {
+  canonicalVersion: m.canonicalVersion,
+  canonicalSha256: m.canonicalSha256,
+  manifestSha256: m.manifestSha256,
+};
+```
+
+Los cinco manifiestos de `v1.0` viven congelados en `artifacts/eec/C01/v1.0/`, con
+sus cinco actas al lado. Reabrir el canónico como `v1.1` escribe en
+`artifacts/eec/C01/v1.1/` y **no toca** ni un byte de `v1.0/`, así que las cinco
+actas siguen validando contra la revisión que firmaron. Comprobado con las actas
+reales: **5 válidas** después de la reapertura, y los dos controles negativos del
+12-11 siguen fallando como deben.
+
+**Donde sí había un defecto real era en el código de producción**, y conviene no
+confundirlos: `eec-c01-guides-main.ts` resolvía el canónico leyendo **el fichero
+vivo** del capítulo, de modo que una reapertura sí habría movido lo que el
+validador espera. Corregido con `sealedCanonicalSha256`: el canónico se resuelve en
+tres niveles —**sellado** para el capítulo publicado, fichero vivo, declarado— y el
+resolutor reporta cuál usó. Cinco especificaciones dejaron de estar clavadas a
+`v1.0` y ahora lo derivan del sello, con 9 pruebas de coexistencia que fijan el
+invariante: **una revisión nueva no invalida un acta vieja**.
 
 ---
 
-## 4 · El procedimiento mínimo
+## 4 · Lo que se hizo, en orden
 
-Tres decisiones tuyas y seis pasos. Los pasos son mecánicos y están
-verificados; las decisiones no son mías.
+Las tres preguntas del paquete se resolvieron así:
 
-### Lo que hay que decidir
-
-1. **¿Qué versión editorial queda?** El paquete aprobado dice «una reapertura
-   del canónico **con su propia versión**», lo que apunta a
-   `EEC_C01_v1.1_TEXT_LOCKED_2026-11-13`. La alternativa —re-fechar v1.0— diría
-   que v1.0 nombra dos textos distintos, y conviene no hacerlo.
-   Consecuencia de v1.1: el build escribe en `artifacts/.../v1.1`, y el
-   trinquete `eec-chapter-build.spec.ts` fija hoy `v1.0` a mano, así que hay que
-   enseñarle a derivarla.
-2. **¿Se vuelven a firmar las cinco actas?** Con v1.1 los cinco manifiestos
-   declaran otra `canonicalVersion` y otro `canonicalSha256` → otro
-   `manifestSha256` → **cinco actas nuevas**. El procedimiento es el del 12-11 y
-   ya está escrito: `firmar-aprobacion-editorial.mjs` comprueba las cinco antes
-   de escribir ninguna, y el `reseal` no aprueba ni publica nada.
-   La alternativa es dejarlas como están y aceptar, por escrito, que atestiguan
-   un manuscrito anterior.
-3. **¿Se acepta que C01 pase del espejo legado a Content Core?** Hoy los 188
-   bloques publicados conservan `legacyBlockId`, y por eso el lector sirve el
-   capítulo desde las filas legadas. El encabezado renombrado no puede
-   emparejarse (la identidad se lleva por clave o por hash, y «Referencias» no
-   se parece a «Referencias de trabajo para el capítulo 1» ni al 95 %), así que
-   acuña un bloque sin origen legado y **la regla del espejo se rompe**: el
-   lector pasa a Content Core para C01. El propio CLI lo anuncia como resultado
-   esperado, y la exposición medida es la del §2: 0 subrayados, 1 anotación que
+1. **¿Qué versión editorial queda?** `EEC_C01_v1.1_TEXT_LOCKED_2026-11-13`, como
+   apuntaba el paquete aprobado. `v1.0` **no se re-fechó**: nombra un solo texto y
+   sigue nombrándolo. El build escribe en `artifacts/.../v1.1` y el trinquete
+   `eec-chapter-build.spec.ts` ya **deriva** la versión del sello en vez de fijar
+   `v1.0` a mano.
+2. **¿Se vuelven a firmar las cinco actas?** **No, y no por una concesión:** por
+   la razón estructural del §3.3. Las cinco siguen válidas y `v1.0/` queda
+   congelado con sus cinco manifiestos y sus cinco actas.
+3. **¿Se acepta que C01 pase del espejo legado a Content Core?** Sí, y ocurrió: el
+   encabezado renombrado no puede emparejarse, así que acuña un bloque sin origen
+   legado y la regla del espejo se rompe. El lector sirve C01 desde Content Core —
+   comprobado por HTTP: los `id` de los bloques ya son `blockKey`, no identificadores
+   legados. La exposición medida fue la del §2: 0 subrayados, 1 anotación que
    conserva su ancla, 7 posiciones de lectura.
 
-### Los pasos, una vez decidido
+### Los pasos, tal como se ejecutaron
 
 1. Las dos ediciones en `content/books/eec/C01/chapter.md`.
-2. Re-sellar: `canonical_sha256` (1) y `source_sha256_expected` (12) al nuevo
-   SHA; `canonical_version` en los tres ficheros de contenido y en
-   `build-guide-manifests.mjs`; los dos trinquetes del sello.
-3. `node scripts/eec/build-chapter.mjs --chapter=C01 --out=artifacts` → debe dar
-   **187 bloques** y el nuevo SHA.
-4. `node dist/content-core/unit-payload-normalize-cli.js --in=… --out=… --unit-key=<el de la edición destino>`
-   → debe dar **49 normalizados, 0 negativas**. En staging el `unitKey` es
-   `453be5af-9c77-5957-bc83-f5da67c4b5ba`; el del build es otro, y eso es
-   normal: vale `uuidv5(Chapter.id)` sobre un cuid aleatorio (#639).
-5. `node dist/content-core/unit-ingest-cli.js --payload=…` (dry-run) y, con
-   `ALLOW_CONTENT_CORE_UNIT_INGEST=on`, `--apply`. Mina la revisión 2 y la
-   publica en la misma transacción; no borra ningún `ContentBlock`.
-6. Si se vuelven a firmar: `reseal` y, sólo si hiciera falta, `publish-guides`.
-   Las cinco ya están `PUBLISHED`, así que normalmente basta el primero.
+2. Re-sellado: `canonical_sha256` (1) y `source_sha256_expected` (12) al nuevo SHA
+   `6c3be6b390dfc15d…`; `canonical_version` en los tres ficheros de contenido y en
+   `build-guide-manifests.mjs`; los trinquetes del sello, derivando.
+3. `node scripts/eec/build-chapter.mjs --chapter=C01 --out=artifacts` → **187
+   bloques** y el nuevo SHA.
+4. `node dist/content-core/unit-payload-normalize-cli.js …` → **49 normalizados, 0
+   negativas**. El `unitKey` de staging es `453be5af-9c77-5957-bc83-f5da67c4b5ba`;
+   el del build es otro, y eso es normal: vale `uuidv5(Chapter.id)` sobre un cuid
+   aleatorio (#639).
+5. **La API se desplegó antes de ingerir**, porque sirve el texto y porque el
+   normalizador del artefacto servido tenía que reproducir el payload byte a byte
+   — se comprobó que lo hacía.
+6. `node dist/content-core/unit-ingest-cli.js --payload=…` en seco y, con
+   `ALLOW_CONTENT_CORE_UNIT_INGEST=on`, `--apply`. Minó la revisión 2 y la publicó
+   en la misma transacción; **no borró ningún `ContentBlock`**.
+7. **Ni `reseal` ni `publish-guides`.** La versión anterior de este documento
+   proponía `reseal` sobre las cinco, y eso **no podía funcionar**: `resealApproved`
+   rechaza por diseño toda fila que no esté en `DRAFT`, y las cinco están
+   `PUBLISHED`. Esa condición es la que impide re-sellar a espaldas de una
+   publicación, así que no se debilitó — simplemente el paso no hacía falta.
+
+**El avance del lector era el riesgo de verdad, y se cubrió.** El camino nativo
+abría la sesión poniendo el progreso a cero, y C01 tenía **9 sesiones vivas**, 2 de
+ellas completadas. `openNativeSession` ahora **siembra en vez de mover**: sólo
+escribe sobre una fila en blanco (0 %, 0 s, sin completar, sin último bloque). Esa
+es también la precondición del orden de despliegue, y queda **efectiva en el
+código**, no sólo escrita. Comprobado tras aplicar: las nueve conservadas, las dos
+completadas intactas, y la sesión propia leída por HTTP con su `pct=0.1383`.
 
 **Reversible**: Content Core es por revisiones, así que volver atrás es volver a
-apuntar `Edition.publishedRevisionId` a la revisión 1. Nada se pierde.
+apuntar `Edition.publishedRevisionId` a la revisión 1, que se conserva. Y porque la
+siembra no mueve nada, una reversión encuentra las filas legadas como estaban.
 
 ---
 
-## 5 · Qué cuesta no hacerlo
+## 5 · Qué costaba no hacerlo, y qué sigue costando
 
-Que la obra publicada siga mostrando, en el capítulo gratuito al que llega
-cualquiera, un encabezado que dice «de trabajo» y una nota interna que habla de
-Zotero y de `TEXT_LOCKED`. Es el último resto de vocabulario interno en una
-superficie pública, y los cuatro asteriscos visibles del capítulo son los suyos.
+Costaba que la obra publicada siguiera mostrando, en el capítulo gratuito al que
+llega cualquiera, un encabezado que dice «de trabajo» y una nota interna que habla
+de Zotero y de `TEXT_LOCKED`. Era el último resto de vocabulario interno en una
+superficie pública, y los cuatro asteriscos visibles del capítulo eran los suyos.
+**Hoy ya no está**: cero asteriscos visibles, encabezado «Referencias».
 
-Y una cosa que **no** cuesta: aprobar esto nunca acreditó la bibliografía. El
+Y una cosa que **no** costaba: aprobar esto nunca acreditó la bibliografía. El
 gate de citas sigue en `PARTIAL_9_RESOLVED_19_UNRESOLVED` — 19 entradas sin
 resolver contra Zotero — y eso es exactamente lo que la nota decía que faltaba.
 Retirarla quita el recordatorio, no la deuda. El paquete aprobado ya lo dice; se

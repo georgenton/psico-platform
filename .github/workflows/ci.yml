@@ -105,9 +105,28 @@ jobs:
         run: pnpm --filter @psico/api exec prisma generate
 
       # B6 — entero, no `--affected`. El razonamiento está en el trabajo `lint`.
+      #
+      # NODE_OPTIONS no debilita esta puerta: se comprueban los mismos ficheros con
+      # el mismo compilador, y un error de tipos sigue rompiendo el trabajo. Lo que
+      # hace es darle a `tsc` el montón que de verdad necesita.
+      #
+      # El número está medido, no estimado (2026-11-14). `apps/api` son 923 ficheros
+      # .ts y su script corre DOS pasadas (`tsc --noEmit && tsc -p
+      # tsconfig.seed.json`). Con la caché incremental en disco, la primera pica en
+      # ~795 MB y tarda 3 s; **en frío**, que es lo que ve el runner sobre un
+      # checkout limpio, pica en **2,86 GiB** y tarda 18 s. Sin holgura explícita el
+      # trabajo muere con `exit 134` / «Ineffective mark-compacts near heap limit»,
+      # y lo hace de forma reproducible: dos reintentos sobre un árbol cuyo código
+      # era idéntico a uno que ya había pasado dos veces.
+      #
+      # 6 GiB deja holgura cómoda sobre los 2,86 GiB medidos y cabe de sobra en los
+      # 16 GiB del runner estándar. Si esto vuelve a morir, el arreglo no es subir
+      # el número otra vez: es que la segunda pasada deje de recorrer el grafo
+      # entero, o que `.tsbuildinfo` viaje en la caché de CI.
       - name: Typecheck
         run: pnpm turbo run typecheck
         env:
+          NODE_OPTIONS: --max-old-space-size=6144
           TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
           TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
 

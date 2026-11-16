@@ -45,13 +45,22 @@ import { legacyProgressSeedFor } from "./legacy-progress-seed";
  *
  * ── Lo que esto NO promete ─────────────────────────────────────────────────
  *
- * El latido calcula `timeSpentSec = existente + delta` en memoria. Si lee 0 y
- * escribe después de que la siembra haya puesto las cifras legadas, el latido
- * gana y la semilla queda tapada — la **actividad** se conserva, que es el
- * invariante, pero el avance legado deja de verse. La fila legada sigue intacta
- * y ninguna apertura posterior vuelve a sembrar, porque la fila ya registra.
- * Queda dicho en vez de implícito: cerrar también esa ventana pide un
- * incremento atómico en el latido, que es otro cambio y otro riesgo.
+ * El latido **lee y luego escribe**, y lo hace sobre DOS columnas:
+ *
+ *   - `timeSpentSec = existente + delta`, que es una suma sobre lo leído;
+ *   - `progressPct = max(existente, enviado)`, que es un máximo sobre lo leído.
+ *
+ * Si lee la fila en blanco y escribe después de que la siembra haya puesto las
+ * cifras legadas, el latido gana en las dos: el tiempo se recalcula desde 0 y
+ * el máximo se toma contra 0, así que **puede sustituir tanto el tiempo como
+ * el porcentaje sembrados**. La **actividad** se conserva, que es el
+ * invariante; lo que queda tapado es el avance legado.
+ *
+ * La fila legada sigue intacta y ninguna apertura posterior vuelve a sembrar,
+ * porque la fila ya registra. Queda como **deuda separada**, y con su alcance
+ * dicho: un incremento atómico **sólo del tiempo** no la cerraría — el máximo
+ * del porcentaje tiene el mismo problema y necesita su propia escritura
+ * condicionada. No se observó esta pérdida en staging.
  */
 
 type Db = Pick<

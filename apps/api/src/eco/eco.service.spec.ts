@@ -58,11 +58,17 @@ function makePrisma(
     threadOwned?: boolean;
     userMessagesInPeriod?: number;
     hasActiveSub?: boolean;
+    /** La zona de la persona, que el mensaje de agotamiento usa. */
+    timezone?: string | null;
   } = {},
 ) {
   return {
     user: {
-      findUnique: vi.fn().mockResolvedValue({ plan: opts.plan ?? Plan.PRO }),
+      findUnique: vi.fn().mockResolvedValue({
+        plan: opts.plan ?? Plan.PRO,
+        profile:
+          opts.timezone === undefined ? null : { timezone: opts.timezone },
+      }),
     },
     subscription: {
       findUnique: vi.fn().mockResolvedValue(
@@ -252,6 +258,36 @@ describe("EcoService", () => {
     });
   });
 
+  /** Provoca la negativa por cuota y devuelve su único evento. */
+  async function negarPorCuota(service: {
+    sendMessage: (
+      userId: string,
+      body: {
+        threadId: string;
+        textPlaintext: string;
+        textCiphertext: string;
+        textNonce: string;
+      },
+    ) => Parameters<typeof firstValueFrom>[0];
+  }) {
+    const events = (await firstValueFrom(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (service as any)
+        .sendMessage(USER_ID, {
+          threadId: THREAD_ID,
+          textPlaintext: "hola",
+          textCiphertext: "ct",
+          textNonce: "n",
+        })
+        .pipe(toArray()),
+    )) as Array<{
+      data: { event: string; data: { code: string; message: string } };
+    }>;
+    expect(events).toHaveLength(1);
+    // El sobre interno, que es la forma que ya usaban estas pruebas.
+    return events[0]!.data;
+  }
+
   describe("sendMessage — quota gate", () => {
     it("rejects FREE users who already used 10 messages today", async () => {
       const prisma = makePrisma({
@@ -282,27 +318,61 @@ describe("EcoService", () => {
       // `ev.data.message` tal cual. Y el genérico miente dos veces aquí: nada
       // salió mal, y reintentar «en unos segundos» no funciona hasta medianoche
       // UTC.
-      const prisma = makePrisma({ plan: Plan.FREE, userMessagesInPeriod: 10 });
+      const prisma = makePrisma({
+        plan: Plan.FREE,
+        userMessagesInPeriod: 10,
+        timezone: "America/Guayaquil",
+      });
       const { service } = makeService({ prisma });
-      const events = await firstValueFrom(
-        service
-          .sendMessage(USER_ID, {
-            threadId: THREAD_ID,
-            textPlaintext: "hola",
-            textCiphertext: "ct",
-            textNonce: "n",
-          })
-          .pipe(toArray()),
-      );
-      const payload = events[0]?.data as {
-        event: string;
-        data: { code: string; message: string };
-      };
+      const payload = await negarPorCuota(service);
       expect(payload.data.code).toBe("ECO_QUOTA_EXCEEDED");
-      expect(payload.data.message).toBe(
-        "Has usado tus mensajes de Eco para hoy. Vuelve mañana o hazte Pro.",
-      );
       expect(payload.data.message).not.toContain("Algo salió mal");
+      // Cuántos eran, y cuándo vuelven EN SU RELOJ. Las 00:00 UTC son las
+      // 19:00 del mismo día en Quito, así que «vuelve mañana» —lo que decía el
+      // mensaje anterior— era falso.
+      expect(payload.data.message).toContain("10 mensajes de Eco de hoy");
+      expect(payload.data.message).toMatch(/a las 19:00/);
+    });
+
+    it("una cuenta PRO no recibe «hazte Pro» ni la promesa de mañana", async () => {
+      // El defecto más visible del mensaje único: recomendaba contratar el plan
+      // que esa persona ya tiene, y prometía un reinicio al día siguiente
+      // cuando su cuota depende del periodo de su suscripción.
+      const prisma = makePrisma({
+        plan: Plan.PRO,
+        hasActiveSub: true,
+        userMessagesInPeriod: 200,
+        timezone: "America/Guayaquil",
+      });
+      const { service } = makeService({ prisma });
+      const payload = await negarPorCuota(service);
+      expect(payload.data.code).toBe("ECO_QUOTA_EXCEEDED");
+      expect(payload.data.message).toContain("200 mensajes de Eco");
+      expect(payload.data.message).toContain("de este periodo");
+      expect(payload.data.message).not.toMatch(/Pro/i);
+      expect(payload.data.message).not.toMatch(/mañana/i);
+    });
+
+    it("ningún plan recibe una promesa de contratación", async () => {
+      // Los cobros están cerrados en el piloto: mandar a alguien a contratar
+      // es mandarlo a una puerta que no existe.
+      for (const [plan, sub, usados] of [
+        [Plan.FREE, false, 10],
+        [Plan.PRO, true, 200],
+        [Plan.ANNUAL, true, 200],
+      ] as const) {
+        const prisma = makePrisma({
+          plan,
+          hasActiveSub: sub,
+          userMessagesInPeriod: usados,
+          timezone: "America/Guayaquil",
+        });
+        const { service } = makeService({ prisma });
+        const payload = await negarPorCuota(service);
+        expect(payload.data.message).not.toMatch(
+          /hazte|suscríb|contrat|mejora tu plan|upgrade|\$/i,
+        );
+      }
     });
 
     it("pero un hilo ajeno conserva el genérico: su «mensaje» es un código", async () => {

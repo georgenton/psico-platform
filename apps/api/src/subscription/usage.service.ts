@@ -6,6 +6,12 @@ import type { UsageResponse } from "@psico/types";
 import { PrismaService } from "../prisma";
 import { REDIS_CLIENT } from "../redis";
 import { PLAN_QUOTAS } from "./quotas";
+import {
+  ecoQuotaWindow,
+  ecoRemaining,
+  ecoResetsAt,
+  type EcoSubscriptionPeriod,
+} from "../eco/eco-quota";
 
 /**
  * UsageService — Sprint S7 aggregator.
@@ -43,8 +49,13 @@ export class UsageService {
   ) {}
 
   async getUsage(userId: string): Promise<UsageResponse> {
-    const period = await this.resolvePeriod(userId);
-    const cacheKey = `usage:${userId}:${period.start.toISOString()}`;
+    const ecoSub = await this.readSubscription(userId);
+    const period = this.resolvePeriod(ecoSub);
+    // El día UTC entra en la clave porque la ventana de Eco en FREE ES el día
+    // UTC: sin él, una respuesta cacheada a las 23:58 seguiría anunciando el
+    // reinicio de ayer durante los cinco minutos siguientes a medianoche.
+    const utcDay = new Date().toISOString().slice(0, 10);
+    const cacheKey = `usage:${userId}:${period.start.toISOString()}:${utcDay}`;
 
     // ── Cache hit ────────────────────────────────────────────────────────────
     const cached = await this.redis.get(cacheKey).catch(() => null);
@@ -101,6 +112,10 @@ export class UsageService {
       }),
       // Sprint S10: count the user's Eco messages (USER role only — assistant
       // replies don't count against the quota) in the period.
+      //
+      // Se conserva, pero ya NO es lo que se presenta como cupo: es la
+      // estadística del periodo de facturación. El cupo de Eco se resuelve
+      // abajo, en la ventana que la puerta aplica de verdad.
       this.prisma.ecoMessage.count({
         where: {
           kind: "USER",
@@ -143,15 +158,43 @@ export class UsageService {
       books: [...candidates.values()],
     });
 
+    // ── Eco: la MISMA ventana que aplica la puerta ──────────────────────────
+    //
+    // Antes esto publicaba `quota: PLAN_QUOTAS[plan].eco` (20 en FREE) junto al
+    // consumo del mes, y Eco no aplica ninguna de las dos cosas en FREE: aplica
+    // diez por día UTC. Una cuenta FREE veía «10 de 20» justo cuando se le
+    // negaba el mensaje 11. Ahora las dos superficies preguntan a
+    // `ecoQuotaWindow`, así que no pueden discrepar.
+    //
+    // `resolvePeriod` arriba NO se toca: es el periodo de facturación, y sigue
+    // siendo el correcto para voz, Diario y libros.
+    const ecoWindow = ecoQuotaWindow(plan, ecoSub, new Date());
+    const ecoUsedInWindow = await this.prisma.ecoMessage.count({
+      where: {
+        kind: "USER",
+        createdAt: { gte: ecoWindow.start, lt: ecoWindow.end },
+        thread: { userId },
+      },
+    });
+
     const voiceSeconds = voiceAggregate._sum.durationSec ?? 0;
     const response: UsageResponse = {
       plan,
       period,
       books: { completedThisPeriod: completedBooks },
-      // Sprint S10: real count from EcoMessage. FREE-tier daily cap (10/day)
-      // is enforced by EcoService independently; here we report the
-      // billing-period total so Mi Plan shows a meaningful number.
-      eco: { messagesThisPeriod: ecoMessagesCount, quota: quotas.eco },
+      eco: {
+        used: ecoUsedInWindow,
+        quota: ecoWindow.limit,
+        remaining: ecoRemaining(ecoWindow, ecoUsedInWindow),
+        window: {
+          start: ecoWindow.start,
+          end: ecoWindow.end,
+          kind: ecoWindow.kind,
+        },
+        resetsAt: ecoResetsAt(ecoWindow),
+        // La estadística del periodo de facturación, etiquetada como tal.
+        messagesThisPeriod: ecoMessagesCount,
+      },
       voice: {
         // Round to 0.1 min — what the UI displays. We keep the raw seconds
         // server-side (VoiceTranscription rows) for accurate quota math.
@@ -201,10 +244,17 @@ export class UsageService {
 
   // ─── Internal ──────────────────────────────────────────────────────────────
 
-  private async resolvePeriod(
+  /**
+   * La suscripción, leída UNA vez por petición.
+   *
+   * La necesitan dos cosas distintas: el periodo de facturación (voz, Diario,
+   * libros) y la ventana de cuota de Eco. Leerla dos veces invitaría a que una
+   * de las dos se quedara con otra fila.
+   */
+  private readSubscription(
     userId: string,
-  ): Promise<UsageResponse["period"]> {
-    const sub = await this.prisma.subscription.findUnique({
+  ): Promise<EcoSubscriptionPeriod | null> {
+    return this.prisma.subscription.findUnique({
       where: { userId },
       select: {
         currentPeriodStart: true,
@@ -212,7 +262,11 @@ export class UsageService {
         status: true,
       },
     });
+  }
 
+  private resolvePeriod(
+    sub: EcoSubscriptionPeriod | null,
+  ): UsageResponse["period"] {
     if (
       sub &&
       (sub.status === "ACTIVE" ||
@@ -238,8 +292,13 @@ export class UsageService {
   }
 
   /**
-   * JSON.parse turns Date back into strings. Re-hydrate the two date fields
-   * (period.start, period.end) so the response shape stays consistent.
+   * JSON.parse turns Date back into strings. Re-hydrate every date field so the
+   * cached response has the SAME shape as a freshly computed one.
+   *
+   * Son cinco, no dos: al periodo se le añadieron la ventana de Eco y su
+   * `resetsAt`. Olvidar una deja al cliente con una cadena donde espera una
+   * fecha **sólo en el camino cacheado**, que es la clase de defecto que
+   * aparece a los cinco minutos y no en la primera prueba.
    */
   private hydrateDates(payload: UsageResponse): UsageResponse {
     return {
@@ -248,6 +307,16 @@ export class UsageService {
         ...payload.period,
         start: new Date(payload.period.start),
         end: new Date(payload.period.end),
+      },
+      eco: {
+        ...payload.eco,
+        window: {
+          ...payload.eco.window,
+          start: new Date(payload.eco.window.start),
+          end: new Date(payload.eco.window.end),
+        },
+        resetsAt:
+          payload.eco.resetsAt === null ? null : new Date(payload.eco.resetsAt),
       },
     };
   }

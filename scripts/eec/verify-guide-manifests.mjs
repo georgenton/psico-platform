@@ -5,6 +5,7 @@
  *
  *   node scripts/eec/verify-guide-manifests.mjs                 # C01
  *   node scripts/eec/verify-guide-manifests.mjs --chapter=C02
+ *   node scripts/eec/verify-guide-manifests.mjs --chapter=all
  *
  * ── Por qué existe ─────────────────────────────────────────────────────────
  *
@@ -22,37 +23,49 @@
  *      las cinco actas firmaron.
  *
  * Así que lo que hace falta no es regenerar: es **comprobar que el paquete
- * sellado sigue siendo el que se firmó**. Eso se puede hacer con fuentes
- * inmutables —los propios ficheros del paquete— y es lo que hace este guion.
+ * sellado sigue siendo el que se firmó**.
  *
- * ── Lo que comprueba ───────────────────────────────────────────────────────
+ * ── El falso verde que esto cierra (2026-11-16) ────────────────────────────
  *
- *   1. `SHA256SUMS.txt` cubre todos los manifiestos y todas las actas del
- *      directorio, y cada fichero hashea exactamente lo que dice.
- *   2. Cada manifiesto es coherente consigo mismo: `manifestSha256` recalculado
- *      sobre el manifiesto **sin ese campo** da el valor declarado. Es la misma
- *      regla que el generador, de modo que un fichero editado a mano se cae.
- *   3. Cada acta cubre a su manifiesto: `canonicalVersion`, `canonicalSha256` y
- *      `manifestSha256` coinciden exactamente con los del manifiesto. Son los
- *      tres campos que `checkApprovals` compara en producción.
- *   4. Los seis ficheros (cinco más la suite) declaran la MISMA revisión
- *      canónica — un paquete a medio sellar sería peor que uno roto.
+ * La primera versión derivaba todo de los ficheros que encontraba. Ejecutada
+ * contra un directorio que contenía **sólo un `SHA256SUMS.txt` vacío** —cero
+ * manifiestos, cero actas, cero sumas— respondía `exit 0` y «OK — el paquete
+ * sellado coincide con lo que se firmó». Un paquete borrado se leía como un
+ * paquete intacto, que es la peor forma posible de fallar.
  *
- * ── Lo que NO comprueba, y conviene no leerlo de más ───────────────────────
+ * La causa era de método: preguntaba «¿cuadran entre sí los ficheros que hay?»
+ * cuando la pregunta es «¿está lo que tiene que estar, y cuadra?». Hoy el
+ * inventario es **declarado por identidad** —`manifestId` a `manifestId`— y no
+ * se deriva del directorio. Un recuento no basta: cinco ficheros con otros
+ * cinco identificadores suman cinco igual.
  *
- * **No verifica ninguna firma.** La clave pública vive en
- * `EDITORIAL_APPROVAL_KEYS`, en el entorno, nunca en el repositorio: la
- * criptografía la comprueba `checkApprovals` contra el llavero del entorno, y
- * sin llavero no verifica nada y lo dice. Lo que este guion acredita es que el
- * paquete **no se ha movido**; no que una firma sea válida.
+ * ── Qué garantiza el resultado, y qué no ───────────────────────────────────
  *
- * Y no mira el manuscrito vivo a propósito. Si lo mirase, volvería a atar una
- * comprobación histórica al fichero más reciente del capítulo, que es justo el
- * defecto que esto cierra.
+ * El informe separa cuatro cosas, porque confundirlas fue el otro defecto:
  *
- * Sólo lectura. Salida: `0` todo coincide · `1` hay una discrepancia.
+ *   1. **Consistencia interna** — el inventario está completo, cada fichero
+ *      hashea lo que `SHA256SUMS.txt` dice, y cada `manifestSha256` se
+ *      recalcula desde su propio contenido. Siempre se comprueba.
+ *   2. **Correspondencia manifiesto ↔ acta** — los tres campos que
+ *      `checkApprovals` compara. Se comprueba donde hay actas declaradas.
+ *   3. **Verificación criptográfica** — **NUNCA se hace aquí.** La clave
+ *      pública vive en `EDITORIAL_APPROVAL_KEYS`, en el entorno, nunca en el
+ *      repositorio. Una firma válida la acredita `checkApprovals` contra ese
+ *      llavero, no este guion.
+ *   4. **Comparación histórica** — los ficheros sellados contra sus blobs en
+ *      un commit **declarado**, que es una referencia independiente de los
+ *      propios ficheros. Sin ella, 1 y 2 sólo dicen que el paquete es
+ *      coherente consigo mismo — y un paquete reescrito entero también lo
+ *      sería.
+ *
+ * Por eso la salida ya no dice «el paquete no se ha movido» cuando sólo ha
+ * comprobado 1 y 2: lo afirma cuando 4 se ha realizado, y cuando no, dice qué
+ * comprobó y qué no.
+ *
+ * Sólo lectura. Salida: `0` todo lo declarado coincide · `1` hay discrepancia.
  */
 
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -61,31 +74,99 @@ import { fileURLToPath } from "node:url";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "../..");
 const sha = (s) => createHash("sha256").update(s, "utf8").digest("hex");
 
+/** Las cinco microguías de cada capítulo, por identidad y en orden de ruta. */
+const CINCO = ["mg01", "mg02", "mg03", "mg04", "mg05"];
+
 /**
- * Dónde vive el paquete sellado de cada capítulo.
+ * El inventario esperado de cada paquete, **declarado**.
  *
- * Declarado, no derivado del generador: el generador describe dónde ESCRIBIRÍA,
- * y para C01 eso ya no es lo mismo que dónde está lo firmado. Una tabla corta y
- * explícita no se desincroniza en silencio.
+ * `dir` es dónde vive lo firmado — no dónde escribiría el generador, que para
+ * C01 ya no es lo mismo.
+ *
+ * `approvals` es un hecho declarado, no algo que se infiera del directorio:
+ * inferirlo es lo que permitía el falso verde, y además «no inventes
+ * aprobaciones» significa que un capítulo sin actas firmadas espera **cero**,
+ * y que un acta que aparezca donde no se declaró ninguna es una discrepancia.
+ *
+ * `sealedAt` es la referencia histórica independiente: el commit en que ese
+ * material se escribió por última vez de forma legítima. `null` donde no se ha
+ * declarado una, y entonces la comparación histórica se informa como **no
+ * realizada** en vez de darse por hecha.
  */
 const PAQUETES = {
-  C01: "artifacts/eec/C01/v1.0/feelverse/guides",
-  C02: "artifacts/eec/C02/v1.0/feelverse/guides",
-  C03: "artifacts/eec/C03/v1.0/feelverse/guides",
-  C04: "artifacts/eec/C04/v1.0/feelverse/guides",
-  C05: "artifacts/eec/C05/v1.0/feelverse/guides",
-  C06: "artifacts/eec/C06/v1.1/feelverse/guides",
-  C07: "artifacts/eec/C07/v1.0/feelverse/guides",
-  C08: "artifacts/eec/C08/v1.0/feelverse/guides",
-  C09: "artifacts/eec/C09/v1.0/feelverse/guides",
-  C10: "artifacts/eec/C10/v1.0/feelverse/guides",
+  C01: {
+    dir: "artifacts/eec/C01/v1.0/feelverse/guides",
+    // Las cinco actas que Jorge firmó el 2026-11-12 con la clave `jq-2026`,
+    // escritas en #844. Es el único capítulo con actas.
+    approvals: CINCO,
+    sealedAt: "2bee9db5dbd0a9534b3dba5e9977870fa0f9f6f2",
+    sealedAtNote: "#844 · las cinco actas firmadas el 2026-11-12",
+  },
+  C02: { dir: "artifacts/eec/C02/v1.0/feelverse/guides" },
+  C03: { dir: "artifacts/eec/C03/v1.0/feelverse/guides" },
+  C04: { dir: "artifacts/eec/C04/v1.0/feelverse/guides" },
+  C05: { dir: "artifacts/eec/C05/v1.0/feelverse/guides" },
+  C06: { dir: "artifacts/eec/C06/v1.1/feelverse/guides" },
+  C07: { dir: "artifacts/eec/C07/v1.0/feelverse/guides" },
+  C08: { dir: "artifacts/eec/C08/v1.0/feelverse/guides" },
+  C09: { dir: "artifacts/eec/C09/v1.0/feelverse/guides" },
+  C10: { dir: "artifacts/eec/C10/v1.0/feelverse/guides" },
 };
 
-const fallos = [];
-const notas = [];
-const fallo = (m) => fallos.push(m);
+/** Lo que cada manifiesto de microguía debe declarar para ser legible. */
+const CAMPOS_MANIFIESTO = [
+  "schemaVersion",
+  "manifestId",
+  "bookSlug",
+  "editionKey",
+  "chapterCode",
+  "chapterOrder",
+  "unitKey",
+  "canonicalVersion",
+  "canonicalSha256",
+  "status",
+  "publishAllowed",
+  "manifestSha256",
+];
 
-function leerSumas(dir) {
+/** La suite es el índice del recorrido: no lleva `manifestSha256` propio. */
+const CAMPOS_SUITE = CAMPOS_MANIFIESTO.filter((c) => c !== "manifestSha256");
+
+const CAMPOS_ACTA = [
+  "manifestId",
+  "canonicalVersion",
+  "canonicalSha256",
+  "manifestSha256",
+  "definitionSha256",
+  "approvedBy",
+  "approvedAt",
+  "keyId",
+  "signature",
+];
+
+/** El inventario esperado, derivado de la identidad del capítulo. */
+function inventario(code) {
+  const p = PAQUETES[code];
+  return {
+    dir: p.dir,
+    manifiestos: CINCO.map((n, i) => ({
+      file: `${n}.manifest.json`,
+      manifestId: `EEC-${code}-MG0${i + 1}`,
+    })),
+    suite: {
+      file: "chapter-guided-suite.manifest.json",
+      manifestId: `EEC-${code}-SUITE`,
+    },
+    actas: (p.approvals ?? []).map((n, i) => ({
+      file: `${n}.approval.json`,
+      manifestId: `EEC-${code}-MG0${i + 1}`,
+    })),
+    sealedAt: p.sealedAt ?? null,
+    sealedAtNote: p.sealedAtNote ?? null,
+  };
+}
+
+function leerSumas(dir, fallo) {
   const texto = readFileSync(join(dir, "SHA256SUMS.txt"), "utf8");
   const mapa = new Map();
   for (const linea of texto.split("\n")) {
@@ -100,133 +181,221 @@ function leerSumas(dir) {
   return mapa;
 }
 
-function verificar(code) {
-  const rel = PAQUETES[code];
-  if (!rel) {
-    fallo(`capítulo desconocido: ${code}`);
-    return;
+/** `git show <ref>:<path>`, o `null` cuando no se puede (sin git, sin ref). */
+function blobEn(ref, rutaRelativa) {
+  try {
+    return execFileSync("git", ["show", `${ref}:${rutaRelativa}`], {
+      cwd: ROOT,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+      maxBuffer: 8 * 1024 * 1024,
+    });
+  } catch {
+    return null;
   }
-  const dir = join(ROOT, rel);
+}
+
+function verificar(code) {
+  const fallos = [];
+  const fallo = (m) => fallos.push(m);
+  const inv = inventario(code);
+  const dir = join(ROOT, inv.dir);
+  const garantias = {
+    interna: false,
+    correspondencia: null, // null = no aplica (sin actas declaradas)
+    criptografica: false, // nunca aquí, por diseño
+    historica: null, // null = no realizada
+  };
+
+  // ── 0 · el paquete existe ───────────────────────────────────────────────
   if (!existsSync(join(dir, "SHA256SUMS.txt"))) {
-    fallo(`${rel}: no hay SHA256SUMS.txt`);
-    return;
+    fallo(`${inv.dir}: no hay SHA256SUMS.txt`);
+    return { code, inv, fallos, garantias, resumen: null };
   }
 
-  // ── 1 · cobertura y hash de cada fichero sellado ───────────────────────
-  const sumas = leerSumas(dir);
-  const sellables = readdirSync(dir).filter(
-    (f) => f.endsWith(".manifest.json") || f.endsWith(".approval.json"),
+  const sumas = leerSumas(dir, fallo);
+  const presentes = new Set(
+    readdirSync(dir).filter(
+      (f) => f.endsWith(".manifest.json") || f.endsWith(".approval.json"),
+    ),
   );
-  for (const f of sellables) {
-    if (!sumas.has(f)) {
-      fallo(`${rel}/${f}: sellable y NO listado en SHA256SUMS.txt`);
+
+  // ── 1 · el inventario DECLARADO está completo, y nada sellado sobra ─────
+  //
+  // Éste es el paso que cierra el falso verde: no se pregunta «¿cuadra lo que
+  // hay?», se pregunta «¿está lo que tiene que estar?».
+  const esperados = [...inv.manifiestos, inv.suite, ...inv.actas];
+  for (const e of esperados) {
+    if (!presentes.has(e.file)) {
+      fallo(`${inv.dir}/${e.file}: FALTA (esperado por inventario)`);
+    }
+    if (!sumas.has(e.file)) {
+      fallo(`${inv.dir}/${e.file}: no listado en SHA256SUMS.txt`);
     }
   }
-  for (const [f, esperado] of sumas) {
-    if (!existsSync(join(dir, f))) {
-      fallo(`${rel}/${f}: listado y ausente`);
-      continue;
+  const declarados = new Set(esperados.map((e) => e.file));
+  for (const f of presentes) {
+    if (!declarados.has(f)) {
+      // Un acta en un capítulo sin actas declaradas entra por aquí, y debe:
+      // tratarla como válida sería inventar una aprobación.
+      fallo(`${inv.dir}/${f}: sellable y NO declarado en el inventario`);
     }
+  }
+  for (const f of sumas.keys()) {
+    if (!declarados.has(f)) {
+      fallo(`${inv.dir}/${f}: listado en SHA256SUMS.txt y no declarado`);
+    }
+  }
+
+  // ── 2 · cada fichero hashea lo que su suma dice ─────────────────────────
+  for (const [f, esperado] of sumas) {
+    if (!existsSync(join(dir, f))) continue; // ya reportado arriba
     const real = sha(readFileSync(join(dir, f), "utf8"));
     if (real !== esperado) {
       fallo(
-        `${rel}/${f}: hash distinto · esperado ${esperado.slice(0, 12)}… · real ${real.slice(0, 12)}…`,
+        `${inv.dir}/${f}: hash distinto · esperado ${esperado.slice(0, 12)}… · real ${real.slice(0, 12)}…`,
       );
     }
   }
 
-  // ── 2 · cada manifiesto, coherente consigo mismo ───────────────────────
-  const manifiestos = new Map();
-  for (const f of sellables
-    .filter((f) => f.endsWith(".manifest.json"))
-    .sort()) {
-    const texto = readFileSync(join(dir, f), "utf8");
-    let doc;
+  // ── 3 · cada manifiesto, con su identidad y coherente consigo mismo ─────
+  const docs = new Map();
+  const leer = (file) => {
+    if (!existsSync(join(dir, file))) return null;
     try {
-      doc = JSON.parse(texto);
+      return JSON.parse(readFileSync(join(dir, file), "utf8"));
     } catch {
-      fallo(`${rel}/${f}: JSON ilegible`);
-      continue;
+      fallo(`${inv.dir}/${file}: JSON ilegible`);
+      return null;
     }
-    manifiestos.set(doc.manifestId ?? f, doc);
-    // La suite no lleva `manifestSha256`: no es un manifiesto de microguía, es
-    // el índice del recorrido. Su integridad la cubre el paso 1.
-    if (typeof doc.manifestSha256 !== "string") continue;
-    const declarado = doc.manifestSha256;
-    const copia = { ...doc };
-    delete copia.manifestSha256;
-    const recomputado = sha(JSON.stringify(copia, null, 2));
-    if (recomputado !== declarado) {
-      fallo(
-        `${rel}/${f}: manifestSha256 no cuadra con su contenido · declarado ${declarado.slice(0, 12)}… · recalculado ${recomputado.slice(0, 12)}…`,
-      );
-    }
-  }
+  };
 
-  // ── 3 · cada acta cubre a su manifiesto ────────────────────────────────
-  let actas = 0;
-  for (const f of sellables
-    .filter((f) => f.endsWith(".approval.json"))
-    .sort()) {
-    let acta;
-    try {
-      acta = JSON.parse(readFileSync(join(dir, f), "utf8"));
-    } catch {
-      fallo(`${rel}/${f}: JSON ilegible`);
-      continue;
-    }
-    actas += 1;
-    const m = manifiestos.get(acta.manifestId);
-    if (!m) {
+  for (const { file, manifestId } of [...inv.manifiestos, inv.suite]) {
+    const doc = leer(file);
+    if (doc === null) continue;
+    // La identidad, no el recuento. Sustituir cinco manifiestos por otros
+    // cinco deja el recuento igual y entra por aquí.
+    if (doc.manifestId !== manifestId) {
       fallo(
-        `${rel}/${f}: acta de ${acta.manifestId}, que no está en el paquete`,
+        `${inv.dir}/${file}: manifestId ${String(doc.manifestId)} donde se esperaba ${manifestId}`,
       );
       continue;
     }
-    for (const campo of [
-      "canonicalVersion",
-      "canonicalSha256",
-      "manifestSha256",
-    ]) {
-      if (acta[campo] !== m[campo]) {
+    docs.set(manifestId, doc);
+    const requeridos =
+      manifestId === inv.suite.manifestId ? CAMPOS_SUITE : CAMPOS_MANIFIESTO;
+    for (const campo of requeridos) {
+      if (!(campo in doc)) {
+        fallo(`${inv.dir}/${file}: falta el campo obligatorio ${campo}`);
+      }
+    }
+    if (typeof doc.manifestSha256 === "string") {
+      const copia = { ...doc };
+      delete copia.manifestSha256;
+      const recomputado = sha(JSON.stringify(copia, null, 2));
+      if (recomputado !== doc.manifestSha256) {
         fallo(
-          `${rel}/${f}: ${campo} del acta no coincide con el manifiesto · acta ${String(acta[campo]).slice(0, 24)}… · manifiesto ${String(m[campo]).slice(0, 24)}…`,
+          `${inv.dir}/${file}: manifestSha256 no cuadra con su contenido · declarado ${doc.manifestSha256.slice(0, 12)}… · recalculado ${recomputado.slice(0, 12)}…`,
         );
       }
     }
-    if (typeof acta.signature !== "string" || acta.signature.length === 0) {
-      fallo(`${rel}/${f}: acta sin firma`);
+  }
+
+  // ── 4 · cada acta cubre a su manifiesto ────────────────────────────────
+  if (inv.actas.length > 0) garantias.correspondencia = true;
+  for (const { file, manifestId } of inv.actas) {
+    const acta = leer(file);
+    if (acta === null) continue;
+    if (acta.manifestId !== manifestId) {
+      fallo(
+        `${inv.dir}/${file}: acta de ${String(acta.manifestId)} donde se esperaba ${manifestId}`,
+      );
+      continue;
     }
-    if (typeof acta.keyId !== "string" || acta.keyId.length === 0) {
-      fallo(`${rel}/${f}: acta sin keyId`);
+    for (const campo of CAMPOS_ACTA) {
+      const v = acta[campo];
+      if (v === undefined || v === null || v === "") {
+        fallo(`${inv.dir}/${file}: falta el campo obligatorio ${campo}`);
+      }
+    }
+    const m = docs.get(manifestId);
+    if (!m) continue;
+    // Los tres que `checkApprovals` compara en producción.
+    for (const campo of ["canonicalVersion", "canonicalSha256", "manifestSha256"]) {
+      if (acta[campo] !== m[campo]) {
+        fallo(
+          `${inv.dir}/${file}: ${campo} del acta no coincide con el manifiesto · acta ${String(acta[campo]).slice(0, 24)}… · manifiesto ${String(m[campo]).slice(0, 24)}…`,
+        );
+      }
     }
   }
 
-  // ── 4 · una sola revisión canónica en todo el paquete ──────────────────
+  // ── 5 · una sola revisión canónica en todo el paquete ──────────────────
   const revisiones = new Set(
-    [...manifiestos.values()].map(
-      (m) => `${m.canonicalVersion}|${m.canonicalSha256}`,
-    ),
+    [...docs.values()].map((m) => `${m.canonicalVersion}|${m.canonicalSha256}`),
   );
   if (revisiones.size > 1) {
     fallo(
-      `${rel}: el paquete declara ${revisiones.size} revisiones canónicas distintas → ${[...revisiones].join(" / ")}`,
+      `${inv.dir}: el paquete declara ${revisiones.size} revisiones canónicas distintas → ${[...revisiones].join(" / ")}`,
     );
   }
+  if (fallos.length === 0) garantias.interna = true;
+
+  // ── 6 · comparación histórica, cuando hay referencia declarada ─────────
+  if (inv.sealedAt !== null) {
+    let comparados = 0;
+    let alcanzable = true;
+    for (const { file } of esperados) {
+      const rutaRel = `${inv.dir}/${file}`;
+      const historico = blobEn(inv.sealedAt, rutaRel);
+      if (historico === null) {
+        alcanzable = false;
+        break;
+      }
+      comparados += 1;
+      const actual = existsSync(join(dir, file))
+        ? readFileSync(join(dir, file), "utf8")
+        : null;
+      if (actual === null) continue; // ya reportado
+      if (actual !== historico) {
+        fallo(
+          `${rutaRel}: difiere de su versión en ${inv.sealedAt.slice(0, 8)} (referencia histórica declarada)`,
+        );
+      }
+    }
+    // También la lista de sumas, que es lo que ata el inventario.
+    const sumasHist = blobEn(inv.sealedAt, `${inv.dir}/SHA256SUMS.txt`);
+    if (alcanzable && sumasHist !== null) {
+      comparados += 1;
+      if (sumasHist !== readFileSync(join(dir, "SHA256SUMS.txt"), "utf8")) {
+        fallo(
+          `${inv.dir}/SHA256SUMS.txt: difiere de su versión en ${inv.sealedAt.slice(0, 8)}`,
+        );
+      }
+    }
+    garantias.historica = alcanzable
+      ? { ref: inv.sealedAt, nota: inv.sealedAtNote, ficheros: comparados }
+      : null;
+  }
+
   const [una] = [...revisiones];
   const [version, canonicalSha] = (una ?? "|").split("|");
-
-  notas.push(
-    [
-      `${code} · ${rel}`,
-      `  revisión sellada   ${version}`,
-      `  canonicalSha256    ${canonicalSha?.slice(0, 16)}…`,
-      `  manifiestos        ${manifiestos.size} (incluida la suite)`,
-      `  actas              ${actas}`,
-      `  ficheros sellados  ${sumas.size}`,
-    ].join("\n"),
-  );
+  return {
+    code,
+    inv,
+    fallos,
+    garantias,
+    resumen: {
+      version,
+      canonicalSha,
+      manifiestos: docs.size,
+      actas: inv.actas.length,
+      sumas: sumas.size,
+    },
+  };
 }
+
+// ─── Ejecución ───────────────────────────────────────────────────────────────
 
 const codes = (() => {
   const arg = process.argv.find((a) => a.startsWith("--chapter="));
@@ -235,29 +404,80 @@ const codes = (() => {
   return v === "all" ? Object.keys(PAQUETES) : [v];
 })();
 
+let fallosTotales = 0;
+let historicasHechas = 0;
+
 for (const code of codes) {
-  const rel = PAQUETES[code];
-  if (rel && !existsSync(join(ROOT, rel, "SHA256SUMS.txt"))) {
-    // Un capítulo cuyo paquete aún no existe no es un fallo cuando se piden
-    // todos: es un capítulo sin sellar.
-    if (codes.length > 1) {
-      notas.push(`${code} · sin paquete sellado todavía`);
-      continue;
-    }
+  if (!PAQUETES[code]) {
+    console.error(`FALLO CAPITULO_DESCONOCIDO: ${code}`);
+    process.exit(1);
   }
-  verificar(code);
+  const r = verificar(code);
+  fallosTotales += r.fallos.length;
+
+  console.log(`${code} · ${r.inv.dir}`);
+  if (r.resumen) {
+    console.log(`  revisión sellada   ${r.resumen.version}`);
+    console.log(`  canonicalSha256    ${r.resumen.canonicalSha?.slice(0, 16)}…`);
+    console.log(
+      `  inventario         ${r.resumen.manifiestos} manifiestos (con la suite) · ${r.resumen.actas} actas · ${r.resumen.sumas} sumas`,
+    );
+  }
+  console.log(
+    `  consistencia interna      ${r.garantias.interna ? "✔ comprobada" : "✗ con discrepancias"}`,
+  );
+  console.log(
+    `  correspondencia con actas ${
+      r.garantias.correspondencia === null
+        ? "— no aplica (sin actas declaradas en este capítulo)"
+        : r.garantias.correspondencia && r.fallos.length === 0
+          ? "✔ comprobada"
+          : "✗ con discrepancias"
+    }`,
+  );
+  console.log("  verificación criptográfica — NO realizada (ver abajo)");
+  if (r.garantias.historica) {
+    historicasHechas += 1;
+    console.log(
+      `  comparación histórica     ✔ contra ${r.garantias.historica.ref.slice(0, 8)} · ${r.garantias.historica.ficheros} ficheros${
+        r.garantias.historica.nota ? ` · ${r.garantias.historica.nota}` : ""
+      }`,
+    );
+  } else if (r.inv.sealedAt !== null) {
+    console.log(
+      `  comparación histórica     — NO realizada: no se pudo leer ${r.inv.sealedAt.slice(0, 8)} con git`,
+    );
+  } else {
+    console.log(
+      "  comparación histórica     — NO realizada: este capítulo no declara una referencia",
+    );
+  }
+
+  for (const f of r.fallos) console.error(`  ✗ ${f}`);
+  console.log("");
 }
 
-for (const n of notas) console.log(n);
 console.log(
-  "\nLas firmas NO se verifican aquí: la clave pública vive en EDITORIAL_APPROVAL_KEYS,\n" +
-    "en el entorno. Esto acredita que el paquete no se ha movido, no que una firma\n" +
-    "sea válida — eso lo comprueba `checkApprovals` contra el llavero del entorno.",
+  "Las firmas NO se verifican aquí: la clave pública vive en EDITORIAL_APPROVAL_KEYS,\n" +
+    "en el entorno, nunca en el repositorio. Una firma válida la acredita\n" +
+    "`checkApprovals` contra ese llavero, no este guion.",
 );
 
-if (fallos.length > 0) {
-  console.error(`\nFALLO SELLO_MOVIDO · ${fallos.length} discrepancia(s):`);
-  for (const f of fallos) console.error(`  · ${f}`);
+if (fallosTotales > 0) {
+  console.error(`\nFALLO PAQUETE_SELLADO · ${fallosTotales} discrepancia(s).`);
   process.exit(1);
 }
-console.log("\nOK — el paquete sellado coincide con lo que se firmó.");
+
+if (historicasHechas === codes.length) {
+  console.log(
+    "\nOK — inventario completo, coherente consigo mismo e IDÉNTICO a su\n" +
+      "referencia histórica declarada. El material firmado se conserva.",
+  );
+} else {
+  console.log(
+    "\nOK — inventario completo y coherente consigo mismo. Sin comparación\n" +
+      "histórica en todos los capítulos pedidos, eso NO demuestra por sí solo\n" +
+      "que el paquete sea el aprobado: un paquete reescrito entero también\n" +
+      "sería coherente consigo mismo.",
+  );
+}

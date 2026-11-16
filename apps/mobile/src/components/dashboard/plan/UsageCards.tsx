@@ -1,5 +1,5 @@
 import { StyleSheet, Text, View } from "react-native";
-import type { UsageResponse } from "@psico/types";
+import type { UsageEco, UsageResponse } from "@psico/types";
 import { Colors, Radius, Spacing } from "@/theme";
 
 /**
@@ -32,9 +32,12 @@ export function UsageCards({ usage }: { usage: UsageResponse | null }) {
     {
       icon: "💬",
       label: "Eco",
-      current: usage.eco.messagesThisPeriod,
+      // La ventana que de VERDAD limita, igual que en web. Antes mostraba el
+      // consumo del mes junto a un cupo de 20 que Eco no aplica.
+      current: usage.eco.used,
       quota: usage.eco.quota,
       unit: "",
+      windowNote: ecoWindowNote(usage.eco),
     },
     {
       icon: "🎙️",
@@ -66,6 +69,14 @@ export function UsageCards({ usage }: { usage: UsageResponse | null }) {
           <UsageCard key={it.label} {...it} />
         ))}
       </View>
+
+      {/* La estadística del periodo, dicha como tal y no como cupo. */}
+      <Text style={styles.footnote}>
+        Eco · en todo el período:{" "}
+        {usage.eco.messagesThisPeriod.toLocaleString("es-EC")} mensaje
+        {usage.eco.messagesThisPeriod === 1 ? "" : "s"}. Es una estadística, no
+        un cupo.
+      </Text>
     </View>
   );
 }
@@ -78,9 +89,18 @@ interface CardItem {
   current: number;
   quota: number | null;
   unit: string;
+  /** Sólo Eco: su ventana no es la del encabezado. Ver la gemela en web. */
+  windowNote?: string;
 }
 
-function UsageCard({ icon, label, current, quota, unit }: CardItem) {
+function UsageCard({
+  icon,
+  label,
+  current,
+  quota,
+  unit,
+  windowNote,
+}: CardItem) {
   const ratio = quota && quota > 0 ? Math.min(1, current / quota) : 0;
   const atCap = quota !== null && quota > 0 && current >= quota;
   const notIncluded = quota === 0;
@@ -103,6 +123,7 @@ function UsageCard({ icon, label, current, quota, unit }: CardItem) {
             ? "no incluido"
             : `de ${quota.toLocaleString("es-EC")}${unit ? ` ${unit}` : ""}`}
       </Text>
+      {windowNote ? <Text style={styles.sub}>{windowNote}</Text> : null}
       {quota !== null && quota > 0 ? (
         <View style={styles.barTrack}>
           <View
@@ -118,6 +139,25 @@ function UsageCard({ icon, label, current, quota, unit }: CardItem) {
       ) : null}
     </View>
   );
+}
+
+/** Gemela de la de web, palabra por palabra. */
+function ecoWindowNote(eco: UsageEco): string {
+  if (eco.quota === null) return "sin límite";
+  const resets = eco.resetsAt === null ? null : new Date(eco.resetsAt);
+  if (eco.window.kind === "utc-day") {
+    const hora = resets
+      ? resets.toLocaleTimeString("es-EC", {
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : null;
+    return hora ? `hoy · vuelve a las ${hora}` : "hoy";
+  }
+  const hasta = resets
+    ? resets.toLocaleDateString("es-EC", { day: "numeric", month: "short" })
+    : null;
+  return hasta ? `este periodo · hasta el ${hasta}` : "este periodo";
 }
 
 function formatPeriod(start: Date | string, end: Date | string): string {
@@ -178,6 +218,11 @@ const styles = StyleSheet.create({
   },
   sub: {
     marginTop: 2,
+    fontSize: 11,
+    color: Colors.warm[400],
+  },
+  footnote: {
+    marginTop: 8,
     fontSize: 11,
     color: Colors.warm[400],
   },

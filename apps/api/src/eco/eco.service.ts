@@ -29,7 +29,12 @@ import { VectorStoreService } from "../ai/vector-store/vector-store.service";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { PrismaService } from "../prisma";
 import { captureException } from "../observability/sentry";
-import { PLAN_QUOTAS } from "../subscription/quotas";
+import {
+  ecoExhaustedMessage,
+  ecoQuotaWindow,
+  ecoRemaining,
+  type EcoQuotaWindow,
+} from "./eco-quota";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { UsageService } from "../subscription/usage.service";
 import {
@@ -48,12 +53,10 @@ import {
 } from "./crisis";
 import { ECO_PERSONA, buildSystemPrompt } from "./persona";
 
-/**
- * FREE-tier quota: 10 user messages per UTC day. Hardcoded here rather than
- * in `PLAN_QUOTAS` because the period semantics differ — FREE resets daily,
- * PRO/ANNUAL/B2B follow the billing period (consistent with /usage).
- */
-const FREE_DAILY_LIMIT = 10;
+// La cuota de FREE —10 mensajes por día UTC— vivía aquí como constante local,
+// y el comentario decía que era «consistente con /usage». No lo era: /usage
+// publicaba otro número y otra ventana. Hoy la política entera vive en
+// `eco-quota.ts` y las dos superficies la leen de ahí; ver `FREE_ECO_DAILY_LIMIT`.
 
 /** How many turns (user+assistant pairs) we send to the LLM as context. */
 const MAX_HISTORY_TURNS = 8;
@@ -380,14 +383,23 @@ export class EcoService {
     acreditado: { threadId?: string } = {},
   ): Promise<void> {
     // ── 1. Quota gate ────────────────────────────────────────────────────
-    const remainingBefore = await this.computeQuotaRemaining(userId);
+    const cuota = await this.resolveEcoQuota(userId);
+    const remainingBefore = cuota.remaining;
     if (remainingBefore !== null && remainingBefore <= 0) {
       throw new HttpException(
         {
           statusCode: HttpStatus.PAYMENT_REQUIRED,
           code: "ECO_QUOTA_EXCEEDED",
-          message:
-            "Has usado tus mensajes de Eco para hoy. Vuelve mañana o hazte Pro.",
+          // Compuesto de la ventana real y de la zona de la persona. El
+          // mensaje anterior era uno solo para todos: prometía «vuelve mañana»
+          // a quien reinicia hoy a las 19:00, y le recomendaba «hazte Pro» a
+          // una cuenta PRO — y a cualquiera, una contratación que el piloto no
+          // ofrece. Ver `eco-quota.ts`.
+          message: ecoExhaustedMessage({
+            window: cuota.window,
+            timezone: cuota.timezone,
+            now: new Date(),
+          }),
         },
         HttpStatus.PAYMENT_REQUIRED,
       );
@@ -697,66 +709,55 @@ export class EcoService {
 
   // ─── Quota math ────────────────────────────────────────────────────────────
 
-  private async computeQuotaRemaining(userId: string): Promise<number | null> {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { plan: true },
-    });
+  /**
+   * La cuota, resuelta por la MISMA función que informa a Mi Plan.
+   *
+   * Devuelve la ventana entera, no sólo el resto, porque el mensaje de
+   * agotamiento necesita saber cuánto cabía y cuándo vuelve — y la zona de la
+   * persona, para decir la hora en su reloj y no en UTC.
+   */
+  private async resolveEcoQuota(userId: string): Promise<{
+    window: EcoQuotaWindow;
+    used: number;
+    remaining: number | null;
+    timezone: string | null;
+  }> {
+    const [user, sub] = await Promise.all([
+      this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { plan: true, profile: { select: { timezone: true } } },
+      }),
+      this.prisma.subscription.findUnique({
+        where: { userId },
+        select: {
+          currentPeriodStart: true,
+          currentPeriodEnd: true,
+          status: true,
+        },
+      }),
+    ]);
     const plan: Plan = user?.plan ?? "FREE";
-
-    if (plan === "FREE") {
-      const since = this.startOfUtcToday();
-      const used = await this.countUserMessagesInPeriod(
-        userId,
-        since,
-        new Date(since.getTime() + 24 * 60 * 60 * 1000),
-      );
-      return Math.max(0, FREE_DAILY_LIMIT - used);
-    }
-
-    const quota = PLAN_QUOTAS[plan].eco;
-    if (quota === null) return null; // B2B unlimited
-
-    const period = await this.resolveBillingPeriod(userId);
-    const used = await this.countUserMessagesInPeriod(
-      userId,
-      period.start,
-      period.end,
-    );
-    return Math.max(0, quota - used);
-  }
-
-  private async resolveBillingPeriod(
-    userId: string,
-  ): Promise<{ start: Date; end: Date }> {
-    const sub = await this.prisma.subscription.findUnique({
-      where: { userId },
-      select: {
-        currentPeriodStart: true,
-        currentPeriodEnd: true,
-        status: true,
-      },
-    });
-    if (
-      sub &&
-      (sub.status === "ACTIVE" ||
-        sub.status === "TRIALING" ||
-        sub.status === "PAST_DUE")
-    ) {
-      return { start: sub.currentPeriodStart, end: sub.currentPeriodEnd };
-    }
-    const now = new Date();
+    const window = ecoQuotaWindow(plan, sub, new Date());
+    // Sin límite no hay nada que contar, y contar sería una consulta por
+    // mensaje que a B2B no le cambia la respuesta.
+    const used =
+      window.limit === null
+        ? 0
+        : await this.countUserMessagesInPeriod(
+            userId,
+            window.start,
+            window.end,
+          );
     return {
-      start: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)),
-      end: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)),
+      window,
+      used,
+      remaining: ecoRemaining(window, used),
+      timezone: user?.profile?.timezone ?? null,
     };
   }
 
-  private startOfUtcToday(): Date {
-    const now = new Date();
-    return new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
-    );
+  private async computeQuotaRemaining(userId: string): Promise<number | null> {
+    return (await this.resolveEcoQuota(userId)).remaining;
   }
 
   // ─── Helpers ───────────────────────────────────────────────────────────────

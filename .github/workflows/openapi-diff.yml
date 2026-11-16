@@ -23,6 +23,26 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
+      # ── El montón de Node, en el JOB y no en un paso ───────────────────────
+      #
+      # Tercera vez que hace falta el mismo valor por la misma razón medida, así
+      # que aquí va a nivel de job: cubre el build, el arranque de la API y
+      # cualquier paso que se añada después, en vez de esperar a que el cuarto
+      # vuelva a morir.
+      #
+      # El dato, medido el 2026-11-16: `prisma generate && nest build` en
+      # `apps/api` pica en **3,02 GiB en frío** y 2,96 en caliente —`nest build`
+      # no se ahorra la pasada con un `.tsbuildinfo` como sí hace `typecheck`—,
+      # contra el techo por omisión de un runner de 16 GiB. Ese margen es
+      # demasiado fino: el 16-11, el MISMO commit pasó por un disparador y murió
+      # con `exit 134` / «Ineffective mark-compacts near heap limit» por el otro.
+      #
+      # No debilita esta puerta: mismos ficheros, mismo compilador, mismo
+      # generador en modo `--check`. Y si algún día vuelve a morir, el arreglo no
+      # es subir el número otra vez — `ci.yml` todavía lo declara paso a paso, y
+      # eso es lo que habría que unificar.
+      NODE_OPTIONS: --max-old-space-size=6144
+
       # Env stubs for the API to boot. Real values live in Coolify (OVH), which is
       # the only platform FeelVerse deploys to — see CLAUDE.md § Deployment.
       DATABASE_URL: postgresql://x:x@localhost:5432/x

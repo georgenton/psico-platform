@@ -157,4 +157,26 @@ describe("UsageCards (mobile)", () => {
     );
     expect(screen.getByText("sin límite")).toBeOnTheScreen();
   });
+
+  it("la hora del reinicio va en 24 h: ni «a. m.» ni «24:00»", () => {
+    // Gemela de la de web, y por el mismo motivo medido. La hora concreta
+    // depende de la zona de la máquina; lo que se fija es el formato.
+    render(
+      <UsageCards
+        usage={buildUsage({
+          eco: ecoSlice({
+            used: 0,
+            quota: 10,
+            kind: "utc-day",
+            resetsAt: "2026-11-17T00:00:00.000Z",
+          }),
+        })}
+      />,
+    );
+    const nota = screen.getByText(/hoy · vuelve a las \d{2}:\d{2}$/);
+    expect(nota).toBeOnTheScreen();
+    const texto = String(nota.props.children);
+    expect(texto).not.toMatch(/a\.\s?m\.|p\.\s?m\.|AM|PM/);
+    expect(texto).not.toContain("24:00");
+  });
 });

@@ -1,4 +1,4 @@
-import type { UsageResponse } from "@psico/types";
+import type { UsageEco, UsageResponse } from "@psico/types";
 
 /**
  * UsageCards — Sprint front-fase1 (Mi Plan web).
@@ -47,9 +47,14 @@ export function UsageCards({ usage }: { usage: UsageResponse | null }) {
     {
       icon: "💬",
       label: "Mensajes con Eco",
-      current: usage.eco.messagesThisPeriod,
+      // La ventana que de VERDAD limita, no la del periodo de facturación. En
+      // FREE son diez por día UTC, y esta tarjeta mostraba el consumo del mes
+      // junto a un cupo de 20 que Eco no aplica: «10 de 20» justo cuando se
+      // negaba el mensaje 11.
+      current: usage.eco.used,
       quota: usage.eco.quota,
       unit: "",
+      windowNote: ecoWindowNote(usage.eco),
     },
     {
       icon: "🎙️",
@@ -86,6 +91,21 @@ export function UsageCards({ usage }: { usage: UsageResponse | null }) {
           <UsageCard key={it.label} {...it} />
         ))}
       </div>
+
+      {/*
+        El consumo de Eco en el periodo de facturación: información real y
+        útil, pero NO un cupo — Eco no lo aplica. Va aquí abajo, dicho como
+        estadística, en vez de emparejado con un límite en la tarjeta.
+      */}
+      <p
+        className="mt-2 text-[11px]"
+        style={{ color: "var(--color-warm-400)" }}
+      >
+        Eco · en todo el período:{" "}
+        {usage.eco.messagesThisPeriod.toLocaleString("es-EC")} mensaje
+        {usage.eco.messagesThisPeriod === 1 ? "" : "s"}. Es una estadística, no
+        un cupo.
+      </p>
     </div>
   );
 }
@@ -99,9 +119,24 @@ interface CardItem {
   /** null = unlimited; 0 = not included (e.g. FREE voice). */
   quota: number | null;
   unit: string;
+  /**
+   * Para Eco: qué ventana es esa cifra y cuándo vuelve el cupo.
+   *
+   * Las demás tarjetas no la llevan porque su ventana ES la del encabezado —
+   * el periodo de facturación—. La de Eco no, y sin decirlo la cifra no se
+   * puede interpretar.
+   */
+  windowNote?: string;
 }
 
-function UsageCard({ icon, label, current, quota, unit }: CardItem) {
+function UsageCard({
+  icon,
+  label,
+  current,
+  quota,
+  unit,
+  windowNote,
+}: CardItem) {
   const ratio = quota && quota > 0 ? Math.min(1, current / quota) : 0;
   const isAtCap = quota !== null && quota > 0 && current >= quota;
   const isNotIncluded = quota === 0;
@@ -148,6 +183,15 @@ function UsageCard({ icon, label, current, quota, unit }: CardItem) {
             : `de ${quota.toLocaleString("es-EC")}${unit ? ` ${unit}` : ""}`}
       </p>
 
+      {windowNote ? (
+        <p
+          className="mt-0.5 text-[11px]"
+          style={{ color: "var(--color-warm-400)" }}
+        >
+          {windowNote}
+        </p>
+      ) : null}
+
       {/* Progress bar (only when there's a numeric quota > 0). */}
       {quota !== null && quota > 0 ? (
         <div
@@ -168,6 +212,31 @@ function UsageCard({ icon, label, current, quota, unit }: CardItem) {
       ) : null}
     </div>
   );
+}
+
+/**
+ * «hoy · vuelve a las 19:00» · «este periodo · hasta el 3 de dic» · «sin límite».
+ *
+ * La hora sale del reloj de quien mira, porque `resetsAt` es un instante y el
+ * navegador lo pinta en su zona. El reinicio de FREE son las 00:00 UTC, que en
+ * Quito es a las 19:00 del MISMO día — decir «mañana» sería falso.
+ */
+function ecoWindowNote(eco: UsageEco): string {
+  if (eco.quota === null) return "sin límite";
+  const resets = eco.resetsAt === null ? null : new Date(eco.resetsAt);
+  if (eco.window.kind === "utc-day") {
+    const hora = resets
+      ? resets.toLocaleTimeString("es-EC", {
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : null;
+    return hora ? `hoy · vuelve a las ${hora}` : "hoy";
+  }
+  const hasta = resets
+    ? resets.toLocaleDateString("es-EC", { day: "numeric", month: "short" })
+    : null;
+  return hasta ? `este periodo · hasta el ${hasta}` : "este periodo";
 }
 
 function formatPeriod(start: Date | string, end: Date | string): string {

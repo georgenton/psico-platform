@@ -50,17 +50,31 @@ is why reopening the chapter did not invalidate a single act.
 node scripts/eec/verify-guide-manifests.mjs --chapter=C01
 ```
 
-Read-only, and it never looks at the live manuscript. It checks that
-`SHA256SUMS.txt` covers every sealed file and that each one hashes exactly; that
-each manifest's `manifestSha256` recomputes from its own content with that field
-removed (so a file cannot certify itself, and a hand edit is caught); that every
-approval's `canonicalVersion`, `canonicalSha256` and `manifestSha256` match the
-manifest it covers — the three fields `checkApprovals` compares; and that all six
-files declare one single canonical revision.
+Read-only, and it never looks at the live manuscript. It reports **four separate
+guarantees**, because collapsing them was itself a defect:
 
-It does **not** verify a signature: the public key lives in
-`EDITORIAL_APPROVAL_KEYS`, in the environment, never in this repository. It
-proves the package has not moved, not that a signature is valid.
+| Guarantee | When |
+|---|---|
+| **Internal consistency** — the declared inventory is complete (five manifests, the suite, five approvals, *by `manifestId`*), every file hashes what `SHA256SUMS.txt` says, every `manifestSha256` recomputes from its own content with that field removed, required fields are present, and all six files declare one canonical revision | always |
+| **Manifest ↔ approval correspondence** — `canonicalVersion`, `canonicalSha256` and `manifestSha256` agree; the three fields `checkApprovals` compares | where approvals are declared (only C01) |
+| **Cryptographic verification** | **never here.** The public key lives in `EDITORIAL_APPROVAL_KEYS`, in the environment. `checkApprovals` acredits a valid signature against that keyring; this script does not |
+| **Historical comparison** — every sealed file against its blob at a *declared* commit (`2bee9db5`, #844, where the five approvals were written) | when git can read that ref |
+
+The distinction in the last two rows is the point. Internal consistency alone
+says the package agrees **with itself** — and a package rewritten end to end
+would agree with itself too. Only the historical comparison, against a reference
+independent of these files, supports saying the signed material is the one that
+was approved. The script's own output says which of the four it performed.
+
+> **Why the inventory is declared and not discovered.** On 2026-11-16 the first
+> version of this script, run against a directory containing only an **empty**
+> `SHA256SUMS.txt` — zero manifests, zero approvals — answered `exit 0` and "the
+> sealed package matches what was signed". It derived coverage from the files it
+> found, so finding nothing was indistinguishable from finding everything. A
+> count would not have fixed it either: five files carrying five *other*
+> `manifestId`s still count five. The expectation is now written down, identity
+> by identity, and `apps/api/src/content-core/verify-guide-manifests.spec.ts`
+> keeps it that way.
 
 The determinism rules above still describe how these files were built: keys in a
 declared order, two-space indent, `manifestSha256` over the manifest without

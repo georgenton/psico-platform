@@ -207,11 +207,47 @@ export interface UsageBooks {
   completedThisPeriod: number;
 }
 
+/**
+ * Qué ventana limita de verdad el uso de Eco.
+ *
+ * `utc-day` es la de FREE (diez mensajes por día UTC). Las otras dos son el
+ * periodo efectivo de PRO/ANNUAL: el de la suscripción cuando está vigente, y
+ * el mes calendario UTC como respaldo.
+ */
+export type EcoQuotaWindowKind = "utc-day" | "subscription" | "calendar-month";
+
+/**
+ * El uso de Eco, dicho en la ventana que de verdad lo limita.
+ *
+ * Antes este bloque publicaba `messagesThisPeriod` (consumo del **mes**) junto
+ * a `quota` (el valor de `PLAN_QUOTAS`, 20 en FREE), y Eco no aplica ninguna de
+ * las dos cosas en FREE: aplica **diez por día UTC**. Una cuenta FREE veía «10
+ * de 20» en el instante exacto en que se le negaba el mensaje 11 — medido el
+ * 2026-11-16 contra el servicio desplegado.
+ *
+ * Hoy `used`, `quota`, `remaining`, `window` y `resetsAt` describen **la misma
+ * ventana que la puerta**, porque las dos salen de `ecoQuotaWindow`.
+ */
 export interface UsageEco {
-  /** AI companion messages this period. 0 until AIModule conversational (S10). */
-  messagesThisPeriod: number;
-  /** Cap per period. null = unlimited. */
+  /** Mensajes de usuario consumidos **en la ventana que limita**. */
+  used: number;
+  /** El límite de esa ventana. `null` = sin límite (B2B). */
   quota: number | null;
+  /** Lo que queda. `null` = sin límite. */
+  remaining: number | null;
+  /** La ventana, dicha, para que la cifra se pueda interpretar. */
+  window: { start: Date; end: Date; kind: EcoQuotaWindowKind };
+  /** Cuándo vuelve a haber mensajes. `null` cuando no hay límite. */
+  resetsAt: Date | null;
+  /**
+   * Estadística **aparte**: mensajes en el periodo de facturación de
+   * `UsageResponse.period`.
+   *
+   * Se conserva porque es información real y útil, pero **no es un cupo** y
+   * Eco no la aplica. Presentarla junto a `quota` fue el defecto; va etiquetada
+   * como lo que es.
+   */
+  messagesThisPeriod: number;
 }
 
 export interface UsageVoice {

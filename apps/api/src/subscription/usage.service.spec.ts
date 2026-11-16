@@ -1,6 +1,7 @@
 import { Plan, SubscriptionStatus } from "@prisma/client";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { UsageService } from "./usage.service";
+import { ecoQuotaWindow } from "../eco/eco-quota";
 
 vi.mock("@prisma/client", () => ({
   PrismaClient: class {},
@@ -126,16 +127,85 @@ describe("UsageService", () => {
   });
 
   describe("quotas", () => {
-    it("FREE: eco=20, voice=0, diary=null", async () => {
+    it("FREE: eco=10 por DÍA UTC, voice=0, diary=null", async () => {
+      // Esta prueba decía `eco.quota === 20`, y fijaba el defecto: 20 sale de
+      // `PLAN_QUOTAS.FREE.eco` y Eco **no lo aplica nunca** en FREE — aplica
+      // diez por día UTC. Una cuenta FREE veía «de 20» justo cuando se le
+      // negaba el mensaje 11.
       const prisma = makePrismaMock({ plan: Plan.FREE });
       const redis = makeRedisMock();
       const service = new UsageService(prisma as never, redis as never);
 
       const result = await service.getUsage(USER_ID);
 
-      expect(result.eco.quota).toBe(20);
+      expect(result.eco.quota).toBe(10);
+      expect(result.eco.window.kind).toBe("utc-day");
+      expect(result.eco.resetsAt).toEqual(result.eco.window.end);
+      // Y las demás ventanas NO se mueven para hacer encajar Eco: voz, Diario
+      // y libros siguen en el periodo de facturación.
       expect(result.voice.quota).toBe(0);
       expect(result.diary.quota).toBeNull();
+      expect(result.period.source).toBe("calendar-month");
+    });
+
+    it("la ventana que informa es la MISMA que aplicaría la puerta", async () => {
+      // El invariante que cierra el frente: si estas dos cosas pueden
+      // discrepar, vuelven a discrepar. Las dos salen de `ecoQuotaWindow`, y
+      // aquí se comprueba contra la función, no contra un literal.
+      for (const [plan, sub] of [
+        [Plan.FREE, false],
+        [Plan.PRO, true],
+        [Plan.PRO, false],
+        [Plan.B2B, true],
+      ] as const) {
+        const prisma = makePrismaMock({ plan, hasActiveSub: sub });
+        const service = new UsageService(
+          prisma as never,
+          makeRedisMock() as never,
+        );
+        const result = await service.getUsage(USER_ID);
+        const esperada = ecoQuotaWindow(
+          plan,
+          sub
+            ? {
+                currentPeriodStart: SUB_START,
+                currentPeriodEnd: SUB_END,
+                status: SubscriptionStatus.ACTIVE,
+              }
+            : null,
+          new Date(),
+        );
+        expect(result.eco.quota).toBe(esperada.limit);
+        expect(result.eco.window.kind).toBe(esperada.kind);
+        expect(result.eco.window.start.toISOString()).toBe(
+          esperada.start.toISOString(),
+        );
+      }
+    });
+
+    it("B2B: sin cupo de Eco, y entonces sin reinicio", async () => {
+      const prisma = makePrismaMock({ hasActiveSub: true, plan: Plan.B2B });
+      const service = new UsageService(
+        prisma as never,
+        makeRedisMock() as never,
+      );
+      const result = await service.getUsage(USER_ID);
+      expect(result.eco.quota).toBeNull();
+      expect(result.eco.remaining).toBeNull();
+      expect(result.eco.resetsAt).toBeNull();
+    });
+
+    it("el consumo del periodo se conserva, pero como estadística aparte", async () => {
+      const prisma = makePrismaMock({ plan: Plan.FREE });
+      const service = new UsageService(
+        prisma as never,
+        makeRedisMock() as never,
+      );
+      const result = await service.getUsage(USER_ID);
+      // Sigue estando — es información real — y ya no es lo que se empareja
+      // con el cupo.
+      expect(result.eco).toHaveProperty("messagesThisPeriod");
+      expect(typeof result.eco.messagesThisPeriod).toBe("number");
     });
 
     it("PRO: eco=200, voice=120, diary=null", async () => {
@@ -260,7 +330,18 @@ describe("UsageService", () => {
             source: "subscription",
           },
           books: { completedThisPeriod: 42 },
-          eco: { messagesThisPeriod: 0, quota: 200 },
+          eco: {
+            used: 7,
+            quota: 200,
+            remaining: 193,
+            window: {
+              start: SUB_START.toISOString(),
+              end: SUB_END.toISOString(),
+              kind: "subscription",
+            },
+            resetsAt: SUB_END.toISOString(),
+            messagesThisPeriod: 7,
+          },
           voice: { minutesThisPeriod: 0, quota: 120 },
           diary: { entriesThisPeriod: 100, quota: null },
         }),
@@ -271,8 +352,14 @@ describe("UsageService", () => {
 
       expect(result.books.completedThisPeriod).toBe(42);
       expect(result.diary.entriesThisPeriod).toBe(100);
-      // Las fechas vienen hidratadas como Date.
+      // Las fechas vienen hidratadas como Date. Son CINCO, no dos: la ventana
+      // de Eco y su `resetsAt` se añadieron, y olvidar una dejaría al cliente
+      // con una cadena donde espera una fecha sólo en el camino cacheado.
       expect(result.period.start).toBeInstanceOf(Date);
+      expect(result.eco.window.start).toBeInstanceOf(Date);
+      expect(result.eco.window.end).toBeInstanceOf(Date);
+      expect(result.eco.resetsAt).toBeInstanceOf(Date);
+      expect(result.eco.used).toBe(7);
       // Y NO hubo aggregation desde Prisma (diaryEntry.count nunca corrió).
       expect(prisma.diaryEntry.count).not.toHaveBeenCalled();
     });
@@ -286,6 +373,39 @@ describe("UsageService", () => {
       // Si no lanza y nos devuelve un objeto válido, el fallback funciona.
       const result = await service.getUsage(USER_ID);
       expect(result.plan).toBe("PRO");
+      expect(prisma.diaryEntry.count).toHaveBeenCalled();
+    });
+
+    it("un payload cacheado con la forma ANTERIOR también recomputa", async () => {
+      // Esto no es hipotético: al desplegar este cambio hay payloads de la
+      // forma vieja en Redis durante hasta cinco minutos. Sin el fallback,
+      // `hydrateDates` tropezaría con `eco.window` ausente y la pantalla de
+      // Mi Plan devolvería un error por una caché que caduca sola.
+      const prisma = makePrismaMock({ hasActiveSub: true, plan: Plan.PRO });
+      const redis = makeRedisMock();
+      redis.get.mockResolvedValue(
+        JSON.stringify({
+          plan: "PRO",
+          period: {
+            start: SUB_START.toISOString(),
+            end: SUB_END.toISOString(),
+            source: "subscription",
+          },
+          books: { completedThisPeriod: 42 },
+          // La forma vieja: sin `used`, sin `window`, sin `resetsAt`.
+          eco: { messagesThisPeriod: 0, quota: 200 },
+          voice: { minutesThisPeriod: 0, quota: 120 },
+          diary: { entriesThisPeriod: 100, quota: null },
+        }),
+      );
+      const service = new UsageService(prisma as never, redis as never);
+
+      const result = await service.getUsage(USER_ID);
+      // Recomputado: la cifra del payload viejo (42) no sobrevive, y el bloque
+      // de Eco llega completo.
+      expect(result.books.completedThisPeriod).not.toBe(42);
+      expect(result.eco.window.kind).toBe("subscription");
+      expect(result.eco.resetsAt).toBeInstanceOf(Date);
       expect(prisma.diaryEntry.count).toHaveBeenCalled();
     });
 

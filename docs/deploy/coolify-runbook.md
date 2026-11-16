@@ -1696,6 +1696,17 @@ sólo mientras la fila siga en blanco, y si alguien ganó la carrera se conserva
 suyo y se devuelve el estado actual. Seis regresiones con **dos conexiones** a
 PostgreSQL en `native-session-concurrency.pg-spec.ts`.
 
+**Lo que esa apertura NO cierra, para que una recuperación cuente con ello.** El
+latido (`PATCH /api/lector/session`) lee y luego escribe, sobre dos columnas:
+suma el tiempo y toma el máximo del porcentaje, las dos cosas **contra lo que
+leyó**. Si lee la fila en blanco y escribe después de la siembra, puede sustituir
+**tanto el tiempo como el porcentaje** recuperados. La actividad de esa persona se
+conserva —es el invariante— y la fila legada sigue intacta, así que el dato nunca
+se pierde; lo que puede quedar tapado es el avance legado, y entonces una
+reversión al contenido anterior lo vuelve a mostrar. Es **deuda separada**, no
+observada en staging, y cerrarla pide escrituras condicionadas en el latido: un
+incremento atómico sólo del tiempo no bastaría.
+
 **Orden obligatorio**, porque la API sirve el texto y su normalizador tiene que
 reproducir el payload byte a byte:
 

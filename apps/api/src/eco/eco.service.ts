@@ -37,6 +37,7 @@ import {
   describeEcoFailure,
   runStage,
   toSafeFailure,
+  type EcoFailureCategory,
 } from "./eco-failure";
 import {
   CRISIS_HOTLINE,
@@ -326,7 +327,18 @@ export class EcoService {
               err instanceof HttpException
                 ? this.extractCode(err)
                 : "ECO_UNKNOWN",
-            message: "Algo salió mal. Reintenta en unos segundos.",
+            // Una negativa deliberada lleva SU PROPIO mensaje, y ese mensaje es
+            // nuestro: lo escribió este servicio unas líneas más arriba. El
+            // genérico existe para no repetirle a nadie lo que diga un proveedor
+            // cuando algo se cae de verdad, y para eso se queda — pero aplicado
+            // a una cuota agotada miente dos veces: nada salió mal, y reintentar
+            // «en unos segundos» no funciona hasta medianoche UTC.
+            //
+            // Medido contra el servicio desplegado el 2026-11-16: con la cuota
+            // FREE agotada, el código llegaba bien (`ECO_QUOTA_EXCEEDED`) y la
+            // burbuja del chat enseñaba el genérico, porque la pantalla pinta
+            // `ev.data.message` tal cual.
+            message: this.messageForClient(err, atribucion.category),
           },
         },
       });
@@ -341,6 +353,24 @@ export class EcoService {
       return String((res as { code: unknown }).code);
     }
     return err.message;
+  }
+
+  /** El genérico de siempre, salvo cuando dijimos que no a propósito. */
+  private messageForClient(err: unknown, category: EcoFailureCategory): string {
+    const GENERICO = "Algo salió mal. Reintenta en unos segundos.";
+    if (category !== "deliberate_refusal" || !(err instanceof HttpException)) {
+      return GENERICO;
+    }
+    // Y sólo desde NUESTRO sobre: `{ code, message }`. Un `HttpException` con
+    // mensaje suelto puede traer el texto por defecto de Nest o, algún día,
+    // algo que no escribimos aquí. Sin las dos claves, el genérico.
+    const res = err.getResponse();
+    if (typeof res !== "object" || res === null) return GENERICO;
+    const sobre = res as { code?: unknown; message?: unknown };
+    if (typeof sobre.code !== "string" || typeof sobre.message !== "string") {
+      return GENERICO;
+    }
+    return sobre.message.length > 0 ? sobre.message : GENERICO;
   }
 
   private async runSendMessageInner(

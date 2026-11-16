@@ -274,6 +274,67 @@ describe("EcoService", () => {
       // Service didn't reach the LLM — no message persisted.
       expect(prisma.ecoMessage.create).not.toHaveBeenCalled();
     });
+
+    it("y le dice POR QUÉ, no «algo salió mal»", async () => {
+      // Comprobado contra el servicio desplegado el 2026-11-16: con la cuota
+      // FREE agotada el código llegaba bien (`ECO_QUOTA_EXCEEDED`) y la burbuja
+      // del chat enseñaba el genérico, porque la pantalla pinta
+      // `ev.data.message` tal cual. Y el genérico miente dos veces aquí: nada
+      // salió mal, y reintentar «en unos segundos» no funciona hasta medianoche
+      // UTC.
+      const prisma = makePrisma({ plan: Plan.FREE, userMessagesInPeriod: 10 });
+      const { service } = makeService({ prisma });
+      const events = await firstValueFrom(
+        service
+          .sendMessage(USER_ID, {
+            threadId: THREAD_ID,
+            textPlaintext: "hola",
+            textCiphertext: "ct",
+            textNonce: "n",
+          })
+          .pipe(toArray()),
+      );
+      const payload = events[0]?.data as {
+        event: string;
+        data: { code: string; message: string };
+      };
+      expect(payload.data.code).toBe("ECO_QUOTA_EXCEEDED");
+      expect(payload.data.message).toBe(
+        "Has usado tus mensajes de Eco para hoy. Vuelve mañana o hazte Pro.",
+      );
+      expect(payload.data.message).not.toContain("Algo salió mal");
+    });
+
+    it("pero un hilo ajeno conserva el genérico: su «mensaje» es un código", async () => {
+      // El control contrario, y el que hace que esto sea un arreglo acotado en
+      // vez de «reenviar lo que venga». La negativa por hilo ajeno es un
+      // `NotFoundException("ECO_THREAD_NOT_FOUND")`: sin nuestro sobre
+      // `{ code, message }`, su `message` ES el código máquina. Reenviarlo
+      // pondría `ECO_THREAD_NOT_FOUND` en una burbuja de chat — exactamente el
+      // defecto #741, que ya pasó una vez.
+      const prisma = makePrisma({ plan: Plan.PRO, hasActiveSub: true });
+      prisma.ecoThread.findFirst.mockResolvedValue(null);
+      const { service } = makeService({ prisma });
+      const events = await firstValueFrom(
+        service
+          .sendMessage(USER_ID, {
+            threadId: "de-otra-persona",
+            textPlaintext: "hola",
+            textCiphertext: "ct",
+            textNonce: "n",
+          })
+          .pipe(toArray()),
+      );
+      const payload = events[0]?.data as {
+        event: string;
+        data: { code: string; message: string };
+      };
+      expect(payload.event).toBe("error");
+      expect(payload.data.code).toBe("ECO_THREAD_NOT_FOUND");
+      expect(payload.data.message).toBe(
+        "Algo salió mal. Reintenta en unos segundos.",
+      );
+    });
   });
 
   describe("sendMessage — crisis detection (layer 1)", () => {

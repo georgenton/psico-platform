@@ -1,8 +1,17 @@
 # Piloto mínimo — propuesta para revisión
 
-**Fecha:** 2026-11-13 (cuarta versión — con la UAT de las cinco microguías y el
-alcance del padrón medido) · **Estado:** propuesta, **no** una autorización.
-Nada de aquí abre rollout, publica contenido ni activa cobros.
+**Fecha:** 2026-11-16 (quinta versión) · **Estado:** propuesta, **no** una
+autorización. Nada de aquí abre rollout, publica contenido ni activa cobros.
+
+> **Qué cambió el 16-11.** Un defecto del lector que la cuarta versión no podía
+> conocer, y un insumo vuelto a medir:
+>
+> |                              |                                                                                                                                                                                                                                                                                                                                                                                                                           |
+> | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+> | **Progreso: salir y volver** | ✅ **reforzado** (#857). El recorrido de la cuarta versión era secuencial y pasaba; la **inicialización concurrente** no. Dos aperturas simultáneas podían dejar a una persona sin capítulo, y una escritura durante la inicialización quedaba sustituida por las cifras anteriores. Cerrado con 6 regresiones contra PostgreSQL y 4 mutaciones. Importa aquí porque un piloto se camina con pestañas abiertas y recargas |
+> | **`RESEND_API_KEY`**         | ⬜ **sigue ausente**, re-medido hoy en los **tres** recursos (ausente de la lista, no vacía), y **no hay** ninguna credencial de correo autorizada en el almacén de ops. Los dos insumos siguen siendo los mismos                                                                                                                                                                                                         |
+> | **Cuota FREE de Eco**        | ✅ **comprobada contra el artefacto servido** (§3bis): 10 pasan, el 11 recibe `ECO_QUOTA_EXCEEDED` sin llamar al modelo. Destapó un mensaje falso al usuario —**arreglado**— y una cifra que no cuadra entre la puerta y la pantalla de Mi Plan, que queda como **decisión**                                                                                                                                              |
+> | **Decisión B**               | ⬜ **sin cambios.** Esta versión no la amplía ni la condiciona a nada nuevo                                                                                                                                                                                                                                                                                                                                               |
 
 Construida sobre lo que el entorno **hace**, comprobado una función a una:
 [UAT de C01 del 13-11](../informes/uat-2026-11-13-microguias-c01.md) ·
@@ -30,19 +39,19 @@ sus límites están dichos. **Que exista en la API no basta.**
 
 ## 1. Qué incluye, y con qué respaldo
 
-| Recorrido                                  | Evidencia                                                                                                                                                                              | Dependencias           | Sus límites                                                                                                                                                                       |
-| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Registro y acceso**                      | Cuenta creada por el flujo normal y acceso por el formulario, comprobados el 24-10                                                                                                     | ninguna extra          | Ningún guard exige el correo verificado, así que el alta funciona aunque el correo no salga                                                                                       |
-| **Lectura de _EEC_**                       | Capítulo 1 con **188 bloques** reales; diez capítulos en sus tres partes. Énfasis reparado: negrita y cursiva de verdad                                                                | ninguna extra          | Queda **1 bloque** con asterisco (un ejercicio). La cita del acento invertido era la nota editorial retirada el 13-11, así que C01 pasa a 187 bloques y 0 asteriscos              |
-| **Progreso: salir y volver**               | Comprobado por API _y_ por pantalla. El 13-11, además, un recorrido guiado a medias **sobrevivió una recarga completa** y volvió a su paso pendiente                                   | ninguna extra          | —                                                                                                                                                                                 |
-| **Marcas y notas**                         | Una anotación sube `marcasLectura` de 0 a 1, persiste y no se filtra a otra cuenta                                                                                                     | ninguna extra          | El resaltado por carácter no existe en móvil (v1 por bloque)                                                                                                                      |
-| **Las cinco microguías de C01**            | **Las cinco recorridas escena a escena en pantalla** (MG01 y MG04 el 12-11; MG02, MG03 y MG05 el 13-11), con sus tres prácticas distintas, su salto al pasaje y su recuerdo activo     | **decisión B**         | La **pantalla** sólo las ofrece donde hay algo publicado (#848), hoy C01. La **API** admite iniciar cualquier pin del catálogo en código — medido, y son cosas distintas (ver §4) |
-| **Diario cifrado**                         | Entrada escrita, releída tras reabrir sesión, y **recuperada con la frase de respaldo** tras restablecer la contraseña                                                                 | ninguna extra          | Sin la frase, una contraseña nueva **no** reabre el diario. La pantalla ya lo dice                                                                                                |
-| **Mapa Emocional**                         | Tras leer un capítulo sigue en **0/6** ejes: leer no fabrica emoción                                                                                                                   | ninguna extra          | Necesita check-ins para encenderse; con poca historia dice «Reuniendo datos»                                                                                                      |
-| **Mi Evolución**                           | Contadores reales, con aislamiento entre cuentas                                                                                                                                       | ninguna extra          | —                                                                                                                                                                                 |
-| **Descargar mis datos**                    | Recorrido completo **por pantalla** en staging el 25-10: pedir → «preparando» → consultar → «Lista», con enlace a R2. Y por API: 202 → listo en ~3 s                                   | R2                     | El archivo trae ocho secciones y **nombra** lo que no trae. Sin `RESEND_API_KEY` no llega el aviso de «ya está lista»: hay que consultar el estado en la pantalla                 |
-| **Los dos estilos y los cuatro ambientes** | Las **ocho** combinaciones recorridas con los controles reales el 24-10, y re-recorridas el 05-11 sobre el texto reparado midiendo fuente y contraste                                  | ninguna extra          | Lo medido es tipografía y contraste, no una aceptación estética                                                                                                                   |
-| **Eco (conversar)**                        | Camino normal comprobado con cuenta sintética: SSE 200, respuesta en español, turno del usuario persistido **cifrado** y el de Eco en claro (ADR 0007 §C). Coste observado **$0,0043** | `ANTHROPIC_API_KEY` ✅ | Cuota FREE de **10 mensajes/día**. El modelo no puede releer el diario: conversa sobre lo presente. Sin reintento si se corta el SSE a mitad                                      |
+| Recorrido                                  | Evidencia                                                                                                                                                                                                                                                                                                                      | Dependencias           | Sus límites                                                                                                                                                                                                                                                           |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Registro y acceso**                      | Cuenta creada por el flujo normal y acceso por el formulario, comprobados el 24-10                                                                                                                                                                                                                                             | ninguna extra          | Ningún guard exige el correo verificado, así que el alta funciona aunque el correo no salga                                                                                                                                                                           |
+| **Lectura de _EEC_**                       | Capítulo 1 con **188 bloques** reales; diez capítulos en sus tres partes. Énfasis reparado: negrita y cursiva de verdad                                                                                                                                                                                                        | ninguna extra          | Queda **1 bloque** con asterisco (un ejercicio). La cita del acento invertido era la nota editorial retirada el 13-11, así que C01 pasa a 187 bloques y 0 asteriscos                                                                                                  |
+| **Progreso: salir y volver**               | Comprobado por API _y_ por pantalla. El 13-11, además, un recorrido guiado a medias **sobrevivió una recarga completa** y volvió a su paso pendiente                                                                                                                                                                           | ninguna extra          | —                                                                                                                                                                                                                                                                     |
+| **Marcas y notas**                         | Una anotación sube `marcasLectura` de 0 a 1, persiste y no se filtra a otra cuenta                                                                                                                                                                                                                                             | ninguna extra          | El resaltado por carácter no existe en móvil (v1 por bloque)                                                                                                                                                                                                          |
+| **Las cinco microguías de C01**            | **Las cinco recorridas escena a escena en pantalla** (MG01 y MG04 el 12-11; MG02, MG03 y MG05 el 13-11), con sus tres prácticas distintas, su salto al pasaje y su recuerdo activo                                                                                                                                             | **decisión B**         | La **pantalla** sólo las ofrece donde hay algo publicado (#848), hoy C01. La **API** admite iniciar cualquier pin del catálogo en código — medido, y son cosas distintas (ver §4)                                                                                     |
+| **Diario cifrado**                         | Entrada escrita, releída tras reabrir sesión, y **recuperada con la frase de respaldo** tras restablecer la contraseña                                                                                                                                                                                                         | ninguna extra          | Sin la frase, una contraseña nueva **no** reabre el diario. La pantalla ya lo dice                                                                                                                                                                                    |
+| **Mapa Emocional**                         | Tras leer un capítulo sigue en **0/6** ejes: leer no fabrica emoción                                                                                                                                                                                                                                                           | ninguna extra          | Necesita check-ins para encenderse; con poca historia dice «Reuniendo datos»                                                                                                                                                                                          |
+| **Mi Evolución**                           | Contadores reales, con aislamiento entre cuentas                                                                                                                                                                                                                                                                               | ninguna extra          | —                                                                                                                                                                                                                                                                     |
+| **Descargar mis datos**                    | Recorrido completo **por pantalla** en staging el 25-10: pedir → «preparando» → consultar → «Lista», con enlace a R2. Y por API: 202 → listo en ~3 s                                                                                                                                                                           | R2                     | El archivo trae ocho secciones y **nombra** lo que no trae. Sin `RESEND_API_KEY` no llega el aviso de «ya está lista»: hay que consultar el estado en la pantalla                                                                                                     |
+| **Los dos estilos y los cuatro ambientes** | Las **ocho** combinaciones recorridas con los controles reales el 24-10, y re-recorridas el 05-11 sobre el texto reparado midiendo fuente y contraste                                                                                                                                                                          | ninguna extra          | Lo medido es tipografía y contraste, no una aceptación estética                                                                                                                                                                                                       |
+| **Eco (conversar)**                        | Camino normal comprobado con cuenta sintética: SSE 200, respuesta en español, turno del usuario persistido **cifrado** y el de Eco en claro (ADR 0007 §C). Coste observado **$0,0043**. Y el **16-11**, su cuota FREE **sobre el artefacto servido**: 10 pasan, el 11 recibe `ECO_QUOTA_EXCEEDED` sin llamar al modelo (§3bis) | `ANTHROPIC_API_KEY` ✅ | Cuota FREE de **10 mensajes/día**, y la pantalla de Mi Plan publica **20 por periodo** — las dos ciertas en su sitio, y una decisión pendiente (§5 · 2bis). El modelo no puede releer el diario: conversa sobre lo presente. Sin reintento si se corta el SSE a mitad |
 
 ---
 
@@ -77,6 +86,17 @@ sus límites están dichos. **Que exista en la API no basta.**
 Comprobado el 13-11 leyendo las 43 claves del recurso de la API: las tres
 marcadas ❌ están **ausentes de la lista**, no vacías.
 
+**Vuelto a medir el 16-11**, en los **tres** recursos y no sólo en la API, porque
+`RESEND_API_KEY` hace falta en API **y** worker: `RESEND_API_KEY`, `EMAIL_FROM`,
+`SENTRY_DSN` y `GOOGLE_CLIENT_ID` siguen **ausentes de la lista** en los tres.
+`VAPID_*` presentes en API y worker, `NEXT_PUBLIC_VAPID_PUBLIC_KEY` en Web, y
+`ANTHROPIC_API_KEY` presente en API y worker — es decir, Eco funciona. Y en el
+almacén de ops **no hay ninguna credencial de correo**: la única cuenta de QA
+pensada para correo es una dirección `@psico.test`, que por la RFC 2606 no puede
+recibir nada. `EMAIL_FROM` ausente **no es un problema**: el esquema lo resuelve a
+`no-reply@feelverse.app` y el informe de salud distingue «elegido» de
+«por defecto», así que lo único que falta de verdad son los dos insumos de abajo.
+
 ### Antes de encender el correo, una precondición que sigue en pie
 
 Staging tiene cuentas sintéticas `@psico.test` —que por la RFC 2606 **no pueden
@@ -103,6 +123,46 @@ La preparación exacta, en este orden:
 4. Sólo entonces, configurar `RESEND_API_KEY` en **API y worker**.
 5. Validar contra esa bandeja: recepción → enlace → cambio de contraseña →
    **acceso con la nueva**.
+
+### 3bis. La cuota FREE de Eco — comprobada sobre el servicio desplegado
+
+Eco está dentro del alcance, y su límite es lo primero que una persona del
+piloto va a encontrar: **10 mensajes por día UTC**. Hasta hoy eso sólo estaba
+probado **en aislamiento** (`eco.service.spec.ts`, «sendMessage — quota gate»),
+que demuestra la aritmética con Prisma simulado. Son dos cosas distintas, y
+conviene no presentar una como la otra.
+
+**Ejecutado el 2026-11-16 contra el artefacto servido**, con una cuenta
+sintética FREE creada para esto: once mensajes cortos. Los diez primeros pasan;
+el **undécimo** recibe `ECO_QUOTA_EXCEEDED` **sin llamar al modelo** —la puerta
+está antes—, así que el coste se acota a diez llamadas. Observado: **10
+mensajes registrados** y la negativa en el undécimo. La puerta **dispara**.
+
+Y el recorrido destapó dos cosas que la prueba aislada no podía ver:
+
+1. **El mensaje que lee la persona era falso dos veces.** El código llegaba bien
+   (`ECO_QUOTA_EXCEEDED`), pero el texto que viajaba en el flujo era «Algo salió
+   mal. Reintenta en unos segundos.» — y la burbuja del chat pinta ese texto tal
+   cual. Nada había salido mal, y reintentar en unos segundos no funciona hasta
+   medianoche UTC. El servicio ya tenía escrita la frase honesta («Has usado tus
+   mensajes de Eco para hoy. Vuelve mañana o hazte Pro.») y un genérico la
+   sustituía. **Arreglado**: una negativa deliberada viaja con su propio mensaje
+   cuando llega en nuestro sobre `{code, message}`; cualquier otra cosa —un
+   fallo de proveedor, o una negativa cuyo «mensaje» es un código máquina como
+   `ECO_THREAD_NOT_FOUND`— conserva el genérico, porque poner un código en una
+   burbuja de chat ya pasó una vez (#741).
+
+2. **La pantalla de Mi Plan y la puerta no dicen lo mismo.** `/api/billing/usage`
+   informó `{"messagesThisPeriod":10,"quota":20}` **en el mismo instante** en que
+   Eco rechazaba el mensaje. No es un error de lectura: la puerta usa
+   `FREE_DAILY_LIMIT = 10` por día UTC y `/usage` publica
+   `PLAN_QUOTAS.FREE.eco = 20` por **periodo de facturación** — dos números y
+   dos periodos distintos, cada uno correcto en su sitio. El efecto para una
+   persona es que su plan dice «10 de 20» justo cuando se le niega el 11.
+
+   **Queda como decisión, no como arreglo** (§5): cuál de los dos es la promesa
+   —10/día o 20/periodo— es una elección de producto, y cambiar el número
+   equivocado sería decidirla por la puerta de atrás.
 
 > **Por qué una bandeja real, y no una `@psico.test`.** Mandar a una dirección
 > de un dominio reservado por la RFC 2606 prueba, como mucho, que el código
@@ -186,20 +246,27 @@ ofrecerse donde no hay nada que recorrer.
    verificado con su clave, y una dirección real donde recibir.
 
 2. **¿Se configura `SENTRY_DSN`?** Traza frente a reproducción. No bloquea.
-3. **B — ¿se amplía el padrón del guía?** Ahora con su alcance medido (§4 y la
-   tabla de abajo). Es la decisión que convierte este piloto en un piloto de
-   **lectura acompañada** en vez de lectura a secas.
-4. ✅ **¿Se oculta la pestaña guiada donde no hay nada publicado?**
-   **Ejecutada el 13-11** por la opción recomendada: la pestaña exige ahora que
-   haya algo que ofrecer — una experiencia publicada **o** un recorrido propio,
-   incluido uno cuyo pin esté archivado, porque esa puerta se conserva. Cuesta
-   una petición de metadatos más por capítulo abierto, y las cuatro pestañas
-   siguen apareciendo en la misma muestra (4 849 ms desde el inicio del
-   documento), así que la guiada no llega más tarde que las demás.
 
-   Lo que queda, si acaso: decidir si para el piloto basta con que esos
-   capítulos no ofrezcan nada, o si se prefiere alguna señal de que el recorrido
-   llegará.
+2bis. **¿Cuál es la promesa de Eco en FREE: 10 al día o 20 al periodo?** Hoy
+coexisten las dos, cada una en su sitio: la puerta niega a los 10 por día UTC
+y la pantalla de Mi Plan publica 20 por periodo (§3bis, medido en el mismo
+instante). Las dos salidas son consistentes con su propia constante, así que
+esto no se arregla «corrigiendo un número»: hay que decidir qué se promete y
+luego alinear la otra. **No bloquea el piloto** —la persona recibe una
+negativa honesta y clara—, pero verá una cifra que no cuadra con lo que le
+pasó. 3. **B — ¿se amplía el padrón del guía?** Ahora con su alcance medido (§4 y la
+tabla de abajo). Es la decisión que convierte este piloto en un piloto de
+**lectura acompañada** en vez de lectura a secas. 4. ✅ **¿Se oculta la pestaña guiada donde no hay nada publicado?**
+**Ejecutada el 13-11** por la opción recomendada: la pestaña exige ahora que
+haya algo que ofrecer — una experiencia publicada **o** un recorrido propio,
+incluido uno cuyo pin esté archivado, porque esa puerta se conserva. Cuesta
+una petición de metadatos más por capítulo abierto, y las cuatro pestañas
+siguen apareciendo en la misma muestra (4 849 ms desde el inicio del
+documento), así que la guiada no llega más tarde que las demás.
+
+Lo que queda, si acaso: decidir si para el piloto basta con que esos
+capítulos no ofrezcan nada, o si se prefiere alguna señal de que el recorrido
+llegará.
 
 ### Qué habilita B, exactamente
 

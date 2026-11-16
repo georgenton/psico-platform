@@ -378,8 +378,28 @@ jobs:
       # B6 — entero, no `--affected`. El razonamiento está en el trabajo `lint`.
       # El `--filter` se queda: excluir mobile no es una optimización, es que
       # se construye por EAS.
+      #
+      # Y el mismo montón que `typecheck`, por la misma razón medida — aplicada a
+      # un paso que se quedó sin ella. El 2026-11-16 este trabajo murió con `exit
+      # 134` / «Ineffective mark-compacts near heap limit» sobre un PR, y la
+      # evidencia de que no era una regresión es que **el mismo commit pasó por un
+      # disparador y falló por el otro**: dos ejecuciones del mismo código, una
+      # SUCCESS y una FAILURE.
+      #
+      # Medido después, no estimado: `pnpm --filter @psico/api build` es `prisma
+      # generate && nest build`, y pica en **3,02 GiB en frío** y **2,96 GiB en
+      # caliente** — casi lo mismo, porque `nest build` no se ahorra la pasada con
+      # un `.tsbuildinfo` como sí hace `typecheck`. Es decir: este paso ha estado
+      # siempre a unos cientos de MB del techo por omisión, y si tipa o no depende
+      # del runner que toque. Eso no es intermitencia: es un margen demasiado fino.
+      #
+      # Esto NO es «subir el número otra vez» —lo que la nota de arriba prohíbe—:
+      # es darle a este paso la holgura que el otro ya tenía desde el 14-11. No
+      # debilita nada: mismos ficheros, mismo compilador, y un error de tipos sigue
+      # rompiendo el trabajo.
       - name: Build (excludes mobile — built via EAS)
         run: pnpm turbo run build --filter=!@psico/mobile
         env:
+          NODE_OPTIONS: --max-old-space-size=6144
           TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
           TURBO_TEAM: ${{ secrets.TURBO_TEAM }}

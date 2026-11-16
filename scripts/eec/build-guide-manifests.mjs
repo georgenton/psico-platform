@@ -10,6 +10,21 @@
  * script, because two generators of the same artifact drift the moment one is
  * fixed and the other is not.
  *
+ * ── Un capítulo reabierto NO se regenera ───────────────────────────────────
+ *
+ * Este guion compara el manuscrito **vivo** con el SHA que los manifiestos
+ * declaran, y eso vale mientras las dos cosas sean la misma revisión. C01 dejó
+ * de serlo el 2026-11-13: se reabrió como v1.1 y sus manifiestos siguen
+ * sellados —y firmados— contra v1.0. Un capítulo en ese estado lo declara con
+ * `canonicalSuperseded` y aquí se **rechaza con su motivo**, en vez de con un
+ * hash suelto que se lee como un build roto.
+ *
+ * Lo vigente para un paquete ya sellado es comprobarlo, no reemitirlo:
+ *
+ *   node scripts/eec/verify-guide-manifests.mjs --chapter=C01
+ *
+ * que usa sólo los ficheros del propio paquete y nunca el manuscrito vivo.
+ *
  * The manifests are the executable contract between the editorial decision, the
  * repository and the CMS. They are GENERATED rather than hand-written for one
  * reason: the checksum has to be reproducible, and a JSON somebody edits by
@@ -936,6 +951,29 @@ const CHAPTERS = {
     out: "artifacts/eec/C01/v1.0/feelverse/guides",
     chapterMd: "content/books/eec/C01/chapter.md",
     suiteId: "EEC-C01-SUITE",
+    // ── La fuente canónica de C01 quedó atrás ──────────────────────────────
+    //
+    // El 2026-11-13 el capítulo se reabrió como v1.1 —encabezado «Referencias»
+    // y la nota interna del gestor bibliográfico retirada—. Estos manifiestos
+    // están sellados contra v1.0, que es la revisión que firmaron las cinco
+    // actas del 12-11, y `v1.0/` no se toca: `checkApprovals` construye lo que
+    // espera desde el manifiesto que el acta firmó, no desde el fichero vivo
+    // del capítulo.
+    //
+    // Así que regenerar aquí NO sería «volver a emitir lo mismo», y por dos
+    // razones independientes: con el canónico nuevo saldrían manifiestos de
+    // otro texto, y el sellado del 12-11 además escribió `publishAllowed: true`
+    // mientras este generador emite `false` — es decir, **ni con el canónico
+    // correcto** reproduciría los ficheros firmados. La receta queda HISTÓRICA.
+    //
+    // `canonicalVersion`/`canonicalSha256` de arriba NO se actualizan: describen
+    // lo sellado, que es su trabajo. Lo que cambia es que el rechazo diga por
+    // qué y adónde ir.
+    canonicalSuperseded: {
+      liveVersion: "EEC_C01_v1.1_TEXT_LOCKED_2026-11-13",
+      on: "2026-11-13",
+      verifyWith: "node scripts/eec/verify-guide-manifests.mjs --chapter=C01",
+    },
     featureFlag: "EEC_C01_GUIDED_SUITE_V1",
     legacyPilot: {
       guideKey: "eec-c1-cuerpo-antes-que-mente",
@@ -1066,6 +1104,34 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const OUT = join(ROOT, ch.out);
   const canonical = sha(readFileSync(join(ROOT, ch.chapterMd), "utf8"));
   if (canonical !== ch.common.canonicalSha256) {
+    const s = ch.canonicalSuperseded;
+    if (s) {
+      // Un rechazo, igual que antes: no se regenera. Lo que se arregla es que
+      // antes decía sólo un hash, y eso se lee como un build roto en vez de
+      // como lo que es — una receta que caducó cuando el capítulo se reabrió.
+      console.error(`FALLO CANONICAL_SUPERSEDED: ${code}`);
+      console.error(
+        `  manuscrito vivo      ${s.liveVersion} (${canonical.slice(0, 12)}…)`,
+      );
+      console.error(
+        `  manifiestos sellados ${ch.common.canonicalVersion} (${ch.common.canonicalSha256.slice(0, 12)}…)`,
+      );
+      console.error(`  el capítulo se reabrió el ${s.on}.`);
+      console.error("");
+      console.error(
+        "  Regenerar aquí produciría manifiestos de otro texto, y las actas",
+      );
+      console.error(
+        "  firmadas dejarían de cubrirlos. Esta receta es HISTÓRICA y no se",
+      );
+      console.error(
+        "  ejecuta. Lo vigente es comprobar que el paquete sellado sigue",
+      );
+      console.error("  siendo el que se firmó:");
+      console.error("");
+      console.error(`      ${s.verifyWith}`);
+      process.exit(1);
+    }
     console.error(`FALLO CANONICAL_SHA: ${canonical}`);
     process.exit(1);
   }

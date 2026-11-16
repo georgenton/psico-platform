@@ -1662,12 +1662,39 @@ revisión anterior, que sigue entera. Comprobado en C01: tras publicar la revisi
 2, la **revisión 1 se preserva** con sus bloques.
 
 **La precondición, y por qué está en el código y no sólo aquí.** El camino nativo
-del lector abría la sesión **poniendo el progreso a cero**. Con 9 sesiones vivas en
-C01 —2 completadas—, publicar una revisión que rompe la regla del espejo habría
-borrado el avance de nueve personas en el momento de la transición, y la reversión
-habría encontrado filas ya puestas a cero. Por eso `openNativeSession` **siembra en
-vez de mover**: sólo escribe sobre una fila en blanco (0 %, 0 s, sin completar, sin
-último bloque). Así la vuelta atrás encuentra las filas legadas como estaban.
+del lector abría la sesión **creando una fila nativa a cero**. La fila legada no se
+tocaba nunca —ni se borraba ni se ponía a cero—, pero el avance de las 9 sesiones
+vivas de C01 —2 completadas— dejaba de verse en el momento de la transición: esas
+personas habrían abierto un capítulo que ya habían leído y lo habrían visto sin
+empezar, con sus cifras intactas en la base. Por eso `openNativeSession` **siembra
+en vez de mover**: sólo escribe sobre una fila en blanco (0 %, 0 s, sin completar,
+sin último bloque), y la legada se queda donde está. Eso es lo que hace reversible
+el corte.
+
+> Esta frase decía que el código anterior «habría **borrado** el avance de nueve
+> personas» y que «la reversión habría encontrado filas ya puestas a cero». Las
+> dos cosas eran falsas: la fila legada siempre sobrevivió, y la que nacía a cero
+> era **otra**, la nativa. Corregido el 2026-11-16.
+
+**Qué vuelve y qué no, con precisión.** Volver a la revisión legada devuelve a esa
+persona a su fila de siempre, con su progreso, su tiempo, su completado y su última
+posición. Lo que **no** vuelve a verse es el avance escrito por la vía **nativa**
+después del corte: sigue almacenado en su fila, intacto, pero nadie lo ve mientras
+se sirva la revisión anterior —y volver a cortar lo recuperaría—. Cualquier
+operación de recuperación tiene que contar con ese efecto visible: a quien leyó
+después del corte, la reversión le retrocede la pantalla, no los datos. Esto no es
+una promesa: lo prueba `reader-cutover-progress.pg-spec.ts` (§ «volver atrás»,
+`lo que NO vuelve es lo escrito por la vía nativa, y se dice`).
+
+**Y la apertura es atómica desde el 2026-11-16.** La siembra decidía mirando si la
+fila estaba en blanco y escribía tres consultas después, condicionando sólo por id;
+y creaba la fila con un `create` suelto. Dos aperturas simultáneas podían dejar a
+una persona sin capítulo (P2002), y un latido o un «capítulo terminado» que llegara
+durante la inicialización quedaba sustituido por las cifras legadas. Hoy la creación
+va por `upsert` sobre la clave única y la siembra por **comparar-y-fijar**: escribe
+sólo mientras la fila siga en blanco, y si alguien ganó la carrera se conserva lo
+suyo y se devuelve el estado actual. Seis regresiones con **dos conexiones** a
+PostgreSQL en `native-session-concurrency.pg-spec.ts`.
 
 **Orden obligatorio**, porque la API sirve el texto y su normalizador tiene que
 reproducir el payload byte a byte:

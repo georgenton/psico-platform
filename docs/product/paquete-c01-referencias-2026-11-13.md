@@ -147,6 +147,11 @@ tres ficheros de contenido (`unit.json`, `anchors.json`, `citations.json`), en
 `scripts/eec/build-guide-manifests.mjs` y **fijada por dos trinquetes**
 (`experience-editorial-seal.spec.ts` ×2 y `experience-editorial-approval.spec.ts`).
 
+> **Precisión del 2026-11-16.** Tras la reapertura esos sitios dejaron de decir
+> lo mismo, y conviene saberlo antes de leer uno solo: los **tres ficheros de
+> contenido** llevan hoy `v1.1`, y el **generador sigue en `v1.0`** a propósito,
+> porque describe el paquete sellado. Dos fuentes, dos trabajos distintos.
+
 **Lo que convierte esto en una firma y no en un commit:** las cinco actas que
 firmaste el 2026-11-12 llevan **dentro del payload firmado**
 
@@ -223,8 +228,20 @@ Las tres preguntas del paquete se resolvieron así:
 
 1. Las dos ediciones en `content/books/eec/C01/chapter.md`.
 2. Re-sellado: `canonical_sha256` (1) y `source_sha256_expected` (12) al nuevo SHA
-   `6c3be6b390dfc15d…`; `canonical_version` en los tres ficheros de contenido y en
-   `build-guide-manifests.mjs`; los trinquetes del sello, derivando.
+   `6c3be6b390dfc15d…`; `canonical_version` en los **tres ficheros de contenido**
+   (`unit.json`, `anchors.json`, `citations.json`); los trinquetes del sello,
+   derivando.
+
+   > **Corregido el 2026-11-16.** Esta línea decía además «y en
+   > `build-guide-manifests.mjs`», y era **falso**: el generador sigue declarando
+   > `EEC_C01_v1.0_TEXT_LOCKED_2026-08-20` y `e10f42ce…`, comprobado en el fichero.
+   > Y es que **no debía cambiarse**: ese generador describe el paquete _sellado_,
+   > que es el que firmaron las cinco actas. Ponerle el canónico nuevo habría
+   > hecho que una regeneración emitiera manifiestos de otro texto con otros
+   > `manifestSha256` — justo lo que las actas dejarían de cubrir. Lo que sí se
+   > arregló, el 16-11, es que su rechazo diga por qué (`CANONICAL_SUPERSEDED`) y
+   > adónde ir.
+
 3. `node scripts/eec/build-chapter.mjs --chapter=C01 --out=artifacts` → **187
    bloques** y el nuevo SHA.
 4. `node dist/content-core/unit-payload-normalize-cli.js …` → **49 normalizados, 0

@@ -24,16 +24,47 @@ e10f42cedf881838578b7337355887c0e8cb2fe37b75dfa4204db509ac023018
 The CLI recomputes it from the file and refuses when they differ. That is what
 makes "these guides are about *this* chapter" a fact rather than a claim.
 
-## Regenerating
+## Regenerating — HISTORICAL, do not run
+
+`node scripts/eec/build-guide-manifests.mjs` was the recipe, and it no longer
+applies to this package. Two independent reasons, both measured on 2026-11-16:
+
+1. **The canonical source moved on.** The chapter was reopened as
+   `EEC_C01_v1.1_TEXT_LOCKED_2026-11-13` (heading renamed to "Referencias", the
+   internal reference-manager note withdrawn), so `content/books/eec/C01/chapter.md`
+   now hashes to `6c3be6b3…`. These manifests are sealed against `e10f42ce…`,
+   which is the revision the five approvals signed. The generator **refuses**,
+   and it is right to: regenerating would emit manifests about a different text.
+2. **Even with the right canonical it would not reproduce these files.** The
+   2026-11-12 reseal wrote `publishAllowed: true` and recomputed every
+   `manifestSha256`; the generator emits `publishAllowed: false`.
+
+Nothing here is edited to silence that refusal. `v1.0/` is frozen — manifests,
+approvals and `SHA256SUMS.txt` — because `checkApprovals` builds what it expects
+from **the manifest each approval signed**, not from the live chapter file, which
+is why reopening the chapter did not invalidate a single act.
+
+### What to run instead
 
 ```bash
-node scripts/eec/build-guide-manifests.mjs
+node scripts/eec/verify-guide-manifests.mjs --chapter=C01
 ```
 
-Deterministic: same inputs, byte-identical output, including `SHA256SUMS.txt`.
-Keys are written in a declared order and `manifestSha256` is computed over the
-manifest **with that field removed**, so a file cannot certify itself. Editing a
-manifest by hand without regenerating is caught on the next `validate`.
+Read-only, and it never looks at the live manuscript. It checks that
+`SHA256SUMS.txt` covers every sealed file and that each one hashes exactly; that
+each manifest's `manifestSha256` recomputes from its own content with that field
+removed (so a file cannot certify itself, and a hand edit is caught); that every
+approval's `canonicalVersion`, `canonicalSha256` and `manifestSha256` match the
+manifest it covers — the three fields `checkApprovals` compares; and that all six
+files declare one single canonical revision.
+
+It does **not** verify a signature: the public key lives in
+`EDITORIAL_APPROVAL_KEYS`, in the environment, never in this repository. It
+proves the package has not moved, not that a signature is valid.
+
+The determinism rules above still describe how these files were built: keys in a
+declared order, two-space indent, `manifestSha256` over the manifest without
+itself.
 
 ## Running them
 

@@ -23,10 +23,8 @@ import {
   resolveReaderChapter,
   type NativeChapterTarget,
 } from "./reader-chapter-resolver";
-import {
-  legacyProgressSeedFor,
-  nativeLastBlockRef,
-} from "./legacy-progress-seed";
+import { nativeLastBlockRef } from "./legacy-progress-seed";
+import { openNativeReadingSession } from "./native-session-open";
 import type {
   ChapterBlockSummary,
   ReaderChapterRef,
@@ -419,52 +417,14 @@ export class LectorService {
    * La fila legada no se toca — ver `legacy-progress-seed.ts` para por qué eso
    * es lo que hace reversible el cambio.
    */
-  private async openNativeSession(userId: string, contentUnitId: string) {
-    const existente = await this.prisma.readingSession.findUnique({
-      where: { userId_contentUnitId: { userId, contentUnitId } },
-    });
-    // Una fila nativa que NUNCA ha registrado nada no es prueba de que esta
-    // persona no tenga avance: es lo que deja una visita en el hueco entre el
-    // corte y el despliegue de esta siembra. Y la pérdida sería de ida: creada
-    // la fila, la siembra no volvería a mirar.
-    //
-    // Así que la condición es «fila en blanco», no «fila ausente». Es
-    // idempotente —sembrar dos veces escribe lo mismo— y deja de aplicar en
-    // cuanto la persona lee algo, porque entonces la fila ya registra.
-    const enBlanco =
-      existente !== null &&
-      existente.progressPct === 0 &&
-      existente.timeSpentSec === 0 &&
-      existente.completedAt === null &&
-      existente.lastBlockId === null;
-    if (existente !== null && !enBlanco) {
-      // Same truthful-recency refresh as the legacy reader, and the same
-      // restraint: only `lastSeenAt`.
-      return this.prisma.readingSession.update({
-        where: { id: existente.id },
-        data: { lastSeenAt: new Date() },
-      });
-    }
-    const semilla = await legacyProgressSeedFor(this.prisma, {
-      userId,
-      unitId: contentUnitId,
-    });
-    if (existente !== null) {
-      // La fila en blanco se siembra en su sitio. Si no había nada que sembrar,
-      // se queda como estaba: sólo se refresca la última vista.
-      return this.prisma.readingSession.update({
-        where: { id: existente.id },
-        data: { lastSeenAt: new Date(), ...(semilla ?? {}) },
-      });
-    }
-    return this.prisma.readingSession.create({
-      data: {
-        userId,
-        contentUnitId,
-        lastSeenAt: new Date(),
-        ...(semilla ?? {}),
-      },
-    });
+  /**
+   * La apertura vive en `native-session-open.ts`, con su razonamiento y sus
+   * costuras de prueba. Aquí queda la delegación: dos aperturas simultáneas
+   * abren la misma sesión, sigue habiendo una sola fila por persona y unidad, y
+   * la siembra del corte escribe sólo mientras la fila siga en blanco.
+   */
+  private openNativeSession(userId: string, contentUnitId: string) {
+    return openNativeReadingSession(this.prisma, { userId, contentUnitId });
   }
 
   private async getNativeChapter(

@@ -4021,7 +4021,7 @@ es la sección que se mantiene; esta entrada es su antecedente fechado.
 
 ---
 
-### 🧭 Trabajo vigente — corte del 2026-11-13
+### 🧭 Trabajo vigente — corte del 2026-11-16
 
 **Esta es la única sección de este archivo que describe el presente.** Todo lo
 de arriba —incluidas las listas de «backlog aprobado» y los «siguientes pasos»
@@ -4029,24 +4029,26 @@ de cada bitácora de sesión— es **antecedente fechado**: explica cómo se lle
 aquí, no lo que toca hacer. Si una instrucción antigua contradice esta
 sección, manda esta sección.
 
-#### El corte — 2026-11-13, segunda tanda
+#### El corte — 2026-11-16
 
-|                                  |                                                                                                                                                                                                                                                                                                                        |
-| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Dónde vive                       | **OVH con Coolify, y sólo ahí.** Vercel y Railway retiradas del plan operativo **y desconectadas del cliente** en este repositorio                                                                                                                                                                                     |
-| `main`                           | **`d3a67e27`** (#854) · **cero PR abiertos** — #851, #852, #853, #855 y #854 integrados esta noche                                                                                                                                                                                                                     |
-| Conexiones de cliente            | ✅ **retiradas** (#851): ni los MCP de Railway, ni el plugin de Vercel —37 skills, 3 agentes, 3 hooks—, ni la skill `use-railway`. Por proyecto, reversible, **sin tocar nada remoto**                                                                                                                                 |
-| La pestaña del guía              | ✅ **arreglada** (#852): reconoce un recorrido propio en otro pin del capítulo, así que el historial no desaparece al cambiar la oferta publicada. Falta desplegar Web                                                                                                                                                 |
-| Decisión **A**                   | ✅ **concedida, firmada, publicada y verificada** el 12-11. Las cinco en `PUBLISHED`                                                                                                                                                                                                                                   |
-| UAT de las cinco                 | ✅ **cerrada el 13-11**: MG02, MG03 y MG05 recorridas escena a escena, con MG01 y MG04 del 12-11. Matriz en [la UAT](docs/informes/uat-2026-11-13-microguias-c01.md)                                                                                                                                                   |
-| Decisión **B**                   | ⬜ **pendiente**, con su **alcance medido en cuatro dimensiones separadas** — y conviene leer la nota de abajo: la **API deja empezar** un recorrido de C02 sin Experience publicada                                                                                                                                   |
-| Decisión **1** (sinopsis de EEC) | ✅ **ejecutada el 13-11**: aplicada en staging con comparar-y-fijar y verificada por SHA en el fichero, la fila y la API                                                                                                                                                                                               |
-| Decisión **2** (nota de C01)     | ✅ **ejecutada el 13-11 como revisión `v1.1`, y SIN firmas nuevas** (#853). Las cinco actas de `v1.0` siguen válidas porque cada una valida contra **su** revisión declarada                                                                                                                                           |
-| Servido en staging               | **API `954265bb`** (13-11 22:18 UTC, `ready=true`, 71 migraciones, 0 pendientes) · **Web `d3a67e27`** (14-11 00:52 UTC, `/` y `/login` en 200) · worker `f15c5c96` — leído del contenedor                                                                                                                              |
-| ¿Coinciden?                      | **Web sí; la API va un commit por detrás y el worker más.** Web se desplegó porque #852 arregla un defecto que #848 dejó **vivo en lo servido**, y un arreglo sin desplegar no arregla nada. Lo que separa a la API de `main` son dos cambios de documentos y el montón del typecheck; al worker, nada de esto le toca |
-| Capítulo 1 de EEC                | **187 bloques servidos**, encabezado «Referencias», nota editorial retirada, cero asteriscos, 22 entradas, 49 bloques con énfasis · **5 experiencias ofrecidas**, las cinco `startable`, 7/7/7/8/8 escenas · la legada archivada no reaparece                                                                          |
-| Avance del lector en C01         | **conservado en el cambio de revisión**: las 9 sesiones que existían siguen con su porcentaje y su tiempo, las 2 completadas siguen completadas. Comprobado en la sesión propia por HTTP (`pct=0.1383`)                                                                                                                |
-| Producción                       | **no existe como recurso.** Tres aplicaciones en el proyecto, las tres de staging                                                                                                                                                                                                                                      |
+|                                  |                                                                                                                                                                                                                                                                                                               |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Dónde vive                       | **OVH con Coolify, y sólo ahí.** Vercel y Railway retiradas del plan operativo **y desconectadas del cliente** en este repositorio                                                                                                                                                                            |
+| `main`                           | **`7ff5798e`** al empezar esta tanda · #851–#856 integrados el 13–14 de noviembre. Esta tanda añade **#857**, que no puede nombrar su propio hash: el commit integrado, el artefacto servido y la fecha de observación van siempre por separado                                                               |
+| Inicialización del avance        | ✅ **cerrada** (#857): la apertura de la sesión nativa era de dos pasos y se podía pisar con quien escribiera a la vez. Creación por `upsert` sobre la clave única + siembra por **comparar-y-fijar**; 6 regresiones con **dos conexiones** a PostgreSQL y 4 mutaciones                                       |
+| Conexiones de cliente            | ✅ **retiradas** (#851): ni los MCP de Railway, ni el plugin de Vercel —37 skills, 3 agentes, 3 hooks—, ni la skill `use-railway`. Por proyecto, reversible, **sin tocar nada remoto**                                                                                                                        |
+| La pestaña del guía              | ✅ **arreglada y servida** (#852): reconoce un recorrido propio en otro pin del capítulo, así que el historial no desaparece al cambiar la oferta publicada                                                                                                                                                   |
+| Decisión **A**                   | ✅ **concedida, firmada, publicada y verificada** el 12-11. Las cinco en `PUBLISHED`                                                                                                                                                                                                                          |
+| UAT de las cinco                 | ✅ **cerrada el 13-11**: MG02, MG03 y MG05 recorridas escena a escena, con MG01 y MG04 del 12-11. Matriz en [la UAT](docs/informes/uat-2026-11-13-microguias-c01.md)                                                                                                                                          |
+| Decisión **B**                   | ⬜ **pendiente**, con su **alcance medido en cuatro dimensiones separadas** — y conviene leer la nota de abajo: la **API deja empezar** un recorrido de C02 sin Experience publicada                                                                                                                          |
+| Decisión **1** (sinopsis de EEC) | ✅ **ejecutada el 13-11**: aplicada en staging con comparar-y-fijar y verificada por SHA en el fichero, la fila y la API                                                                                                                                                                                      |
+| Decisión **2** (nota de C01)     | ✅ **ejecutada el 13-11 como revisión `v1.1`, y SIN firmas nuevas** (#853). Las cinco actas de `v1.0` siguen válidas porque cada una valida contra **su** revisión declarada                                                                                                                                  |
+| Receta de manifiestos            | ✅ **corregida** (#857): regenerar los manifiestos de C01 es **histórico** y se rechaza con su motivo. Lo vigente es `verify-guide-manifests.mjs`, que comprueba el paquete sellado contra sus **propios** ficheros y nunca contra el manuscrito vivo                                                         |
+| Servido en staging               | **API**: la de esta tanda — se despliega con la integración de #857, y el artefacto, su hora y su `ready` quedan leídos del contenedor en Notion §60 · **Web `d3a67e27`** (14-11 00:52 UTC, `/` y `/login` en 200) · worker `f15c5c96`                                                                        |
+| ¿Coinciden?                      | **El arreglo vive en la API, así que sólo la API se despliega.** Web conserva `d3a67e27` y el worker `f15c5c96`: ni el cliente ni los trabajos en segundo plano abren una sesión de lectura. Igualar SHA no es motivo para desplegar                                                                          |
+| Capítulo 1 de EEC                | **187 bloques servidos**, encabezado «Referencias», nota editorial retirada, cero asteriscos, 22 entradas, 49 bloques con énfasis · **5 experiencias ofrecidas**, las cinco `startable`, 7/7/7/8/8 escenas · la legada archivada no reaparece                                                                 |
+| Avance del lector en C01         | **conservado en el cambio de revisión** y ahora también **ante escrituras simultáneas**: las 9 sesiones que existían siguen con su porcentaje y su tiempo, las 2 completadas siguen completadas (`pct=0.1383` por HTTP), y lo que alguien guarde durante la inicialización ya no se sustituye por lo anterior |
+| Producción                       | **no existe como recurso.** Tres aplicaciones en el proyecto, las tres de staging                                                                                                                                                                                                                             |
 
 > **Lo que ya no está pendiente**, y conviene no volver a encargarlo: el
 > archivado del piloto legado (11-11), la creación de los cinco borradores
@@ -4056,8 +4058,13 @@ sección, manda esta sección.
 > por la API. El árbol histórico de abajo describe cómo se llegó ahí; **esta
 > tabla es el presente**.
 >
-> **Lo que sigue pendiente ya casi no es trabajo técnico:** la decisión **B** y
-> los insumos externos del §«Lo que pide una decisión tuya». Las decisiones **1**
+> **Lo que sigue pendiente.** La decisión **B** y los insumos externos del
+> §«Lo que pide una decisión tuya». La frase «ya casi no es trabajo técnico»
+> que había aquí **se retira**: la revisión del 16-11 encontró un defecto
+> funcional acotado en la inicialización del avance, y cerrarlo era trabajo
+> técnico con criterio finito. Está cerrado en #857 — pero la lección es que
+> «nada técnico pendiente» es una afirmación que conviene no hacer sobre un
+> código que nadie ha mirado con esa pregunta. Las decisiones **1**
 > y **2** se ejecutaron el 13-11, y la **2 no necesitó firmas nuevas**: una
 > afirmación anterior de este mismo archivo decía que las pedía, y era falsa —
 > `checkApprovals` construye lo que espera **desde el manifiesto que firmó cada
@@ -4171,6 +4178,8 @@ en [el runbook §4](docs/deploy/coolify-runbook.md).
 | Círculos / Dúo                           | ✅ **habilitado** (06-11) **y recorrido con DOS partes** (07-11) — y son dos cosas distintas: lo primero es que la superficie responda, lo segundo que dos personas completen el intercambio. **33/33**: la contraparte inspecciona y **acepta ella misma** por la Web, los dos confirman, el acuerdo se propone y se confirma por ambos, el seguimiento se abre por reloj y **las dos decisiones lo cierran**, y la retirada da el desenlace que anuncia. El invariante medido está en la ventana intermedia: con uno confirmado y el otro no, **ninguno ve lo del otro** — y eso dejó de ser una ausencia que se aprobaba sola: exige lectura 200, el estado de la etapa y que lo del otro **ya exista** en ese instante (dos mutaciones ejecutadas). ⚠️ Pendiente **editorial**: el vínculo del Dúo cuelga de un pin retirado — propuesta de sucesión completa en la bitácora del 07-11. **Y un defecto corregido el 09-11**: con `pilot`, la misma invitada **sin sesión** abría la sala entera y **con sesión**, fuera del padrón, recibía «Círculos no está disponible todavía» — tener cuenta te dejaba peor que no tenerla. Arreglado acotado (la participación deja de consultar el padrón; **crear lo conserva**) **y comprobado sobre staging** con la API en `87a1192b`: la misma cuenta, con sesión y fuera del padrón, abre ahora la sala entera. **Y la continuidad del asiento, reproducida y cerrada el 09-11** (#837): mi propia atribución era **errónea** — escribí que volver tras cerrar sesión fallaba porque el asiento se pierde al salir, y `logoutAction` no toca `fv_circulo_guest`, que dura 30 días. El recorrido limpio —mismo navegador, misma identidad, misma sala, sin otra invitación ni retirada— pasa: aceptar, entrar, **cerrar sesión** (la sala sigue abriendo), volver a entrar, regresar. **No hay defecto.** La causa real, medida aparte: aceptar una **segunda** invitación sustituye la única cookie invitada. La limitación real es **una credencial de invitada por navegador, acotada a una actividad**; atar el asiento a la cuenta es otra decisión, no tomada                                                                                                                                                                                                                                                                                                                                               |
 | Contenido editorial de C01               | ✅ **las dos decisiones ejecutadas el 13-11**, y la segunda **sin firmas nuevas**. Sinopsis: comparar-y-fijar, SHA verificado en fichero, fila y API, y vista en pantalla. Nota interna: el capítulo se reabrió como **`v1.1`** —encabezado «Referencias», la nota del gestor bibliográfico retirada, 21 entradas con su texto y su orden— y las cinco actas de `v1.0` **siguen válidas**, porque `checkApprovals` construye lo que espera desde el manifiesto que firmó cada acta. Aplicado en staging: 187 bloques, **exactamente dos** diferencias, 49 marcas de énfasis y cero asteriscos visibles. `v1.0/` queda congelado con sus 5 manifiestos y sus 5 actas                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | Tubería del manuscrito                   | ✅ **cerrado un hueco que nadie veía** (#849): el build entrega el énfasis dentro de `content` y la ingesta escribe lo que le dan, así que juntas **deshacían la reparación del 26-10** — 49 de los 188 bloques de C01. Con el paso nuevo, `normalize(build(canónico))` reproduce los 188 bloques publicados, content y meta idénticos                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Avance de lectura · concurrencia         | ✅ **cerrado** (16-11, #857). La apertura de la sesión nativa era de dos pasos: comprobar «en blanco» y escribir tres consultas después, condicionando sólo por id — más un `create` suelto para la primera visita. Dos aperturas simultáneas dejaban a una persona sin capítulo (P2002) y una escritura intercalada quedaba sustituida por las cifras legadas. Hoy: `upsert` por la clave única y **comparar-y-fijar** para la siembra. La protección va sobre **los datos**, no sobre un cerrojo, porque los escritores reales son `upsert`s sueltos que nadie va a reescribir. **6 regresiones con dos conexiones a PostgreSQL · 4 mutaciones, 4 muertas.** Residuo declarado: el latido suma en memoria, así que puede tapar la semilla —la actividad se conserva, que es el invariante—                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Receta de manifiestos sellados           | ✅ **corregida** (16-11, #857). `build-guide-manifests.mjs` comparaba el manuscrito **vivo** de C01 (v1.1) con el hash **sellado** (v1.0) y abortaba con un hash suelto. Queda **histórica** y se rechaza con su motivo; lo vigente es `verify-guide-manifests.mjs`, que comprueba el paquete contra sus **propios** ficheros —cobertura de `SHA256SUMS.txt`, `manifestSha256` recalculado sin sí mismo, y los tres campos que cada acta debe compartir con su manifiesto—, con **tres controles negativos ejecutados** y el paquete restaurado byte a byte. **No verifica firmas y lo dice**: la clave pública vive en el entorno. Cero cambios en `v1.0/`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | Cobros reales                            | ⏸️ **conservan su situación actual** — cerrados                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 
 #### Webhooks ≠ D-ORD
@@ -5079,26 +5088,84 @@ distintas:
       afirmar lo contrario era una conclusión mía sin medir. Este cambio es
       documental: **no abre B ni cambia la política de inicio**.
 
+41. ✅ **La inicialización del avance de lectura ya no se pisa con quien escribe a
+    la vez** (16-11, #857). Dos manifestaciones del mismo defecto, las dos
+    reproducidas **contra PostgreSQL con dos conexiones** antes de arreglarlas:
+    - **Lo escrito durante la inicialización se perdía.** `openNativeSession`
+      comprobaba que la fila estuviera en blanco al leerla y escribía la semilla
+      legada **tres consultas después**, condicionando sólo por id. Un latido o un
+      «capítulo terminado» que llegara en ese hueco quedaba sustituido por las
+      cifras anteriores.
+    - **Una de dos primeras aperturas fallaba.** `findUnique` + `create`: las dos
+      leen «no existe», las dos crean, y la segunda tropieza con la unicidad
+      `(userId, contentUnitId)`. La fila seguía siendo una, pero a esa persona el
+      capítulo no se le abría.
+
+    **La protección va sobre los datos, no sobre un cerrojo**, y la razón es que
+    los escritores reales —`nativeHeartbeat` y `completeNativeChapter`— son
+    `upsert`s sueltos que nadie va a reescribir para pedir permiso: un cerrojo que
+    no tomen no protege nada. Así que la creación va por `upsert` sobre la clave
+    única —cuya rama de conflicto **no siembra**, porque quien ganó pudo ser un
+    latido con avance de verdad— y la siembra por **comparar-y-fijar**, que escribe
+    sólo mientras la fila siga en blanco. Y «en blanco» no es una convención que
+    haya que recordar: son exactamente las cuatro columnas que esos dos escritores
+    tocan, así que cualquier escritura con contenido la rompe por definición.
+
+    **Medido, no supuesto:** el `upsert` de Prisma 7 con el adaptador `pg` resuelve
+    el empate en la base — las dos aperturas simultáneas devuelven la misma fila y
+    ninguna lanza P2002. **4 mutaciones, 4 muertas**: volver al `create` mata las
+    dos pruebas de creación concurrente con P2002; quitar el comparar-y-fijar mata
+    las dos de escritura intercalada (`0.85` donde debía haber `0.1` y `1`); no
+    sembrar nunca mata el control contrario; y no traerse el avance legado en la
+    primera apertura mata otras dos. Las suites de aislamiento, sesión nativa con
+    actividad, posición y vuelta atrás **se conservan y pasan**.
+
+    **Lo que NO promete**, dicho en vez de implícito: el latido calcula
+    `timeSpentSec = existente + delta` en memoria, así que si lee 0 y escribe
+    después de la siembra, la **actividad** se conserva —que es el invariante— y el
+    avance legado queda tapado. La fila legada sigue intacta y ninguna apertura
+    posterior vuelve a sembrar. Cerrar también esa ventana pide un incremento
+    atómico en el latido: otro cambio, otro riesgo.
+
+    **Y dos precisiones documentales del mismo cierre.** El runbook §3.2 decía que
+    el código anterior «habría **borrado** el avance de nueve personas» y que una
+    reversión «habría encontrado filas ya puestas a cero»: las dos cosas eran
+    falsas —la fila legada siempre sobrevivió, y la que nacía a cero era **otra**,
+    la nativa—, y ahora dice qué vuelve y qué no, que es lo que una operación de
+    recuperación necesita saber. Y la receta de manifiestos: `build-guide-manifests.mjs`
+    comparaba el manuscrito **vivo** (v1.1) con el hash sellado (v1.0) y abortaba
+    con un hash suelto que se lee como un build roto. Queda **histórica** y se
+    rechaza con su motivo; lo vigente es `verify-guide-manifests.mjs`, que comprueba
+    el paquete sellado contra sus propios ficheros, con tres controles negativos
+    ejecutados y el paquete restaurado byte a byte. **No se cambió ningún hash
+    firmado, ni se regeneró ninguna acta, ni se tocó `v1.0/`** — y de paso se
+    retiró del paquete operativo una afirmación mía que era falsa: que el
+    re-sellado del 13-11 había actualizado `canonical_version` en el generador. No
+    lo hizo, y **no debía hacerlo**.
+
 #### La siguiente ejecución hacia producción
 
 Cinco cajones, y la diferencia entre ellos es quién puede moverlos.
 
-**1 · Integrado y servido** — `main` `d3a67e27`, **cero PR abiertos**. Los cinco de
-esta tanda entraron con su CI en verde: #851 (retirada del cliente), #852 (pestaña
-del guía), #853 (C01 `v1.1`), **#855** (el montón del typecheck) y #854 (este
-corte).
+**1 · Integrado y servido** — base `7ff5798e`, con #851–#856 ya dentro (#851
+retirada del cliente, #852 pestaña del guía, #853 C01 `v1.1`, #855 el montón del
+typecheck, #854 el alcance de B, #856 el corte anterior). Esta tanda añade **#857**:
+la inicialización concurrente del avance, sus seis regresiones contra PostgreSQL y
+las dos precisiones documentales, agrupadas en un solo HEAD.
 
-**Dos despliegues, y los dos por una razón, no por igualar un SHA.** La **API
-`954265bb`** (13-11 22:18 UTC) porque sirve el texto de C01 y esta tanda lo cambió:
-comprobada sobre el artefacto servido con `ready=true`, 71 migraciones y `pending`
-y `failed` vacías. **Web `d3a67e27`** (14-11 00:52 UTC) porque #852 arregla un
-defecto que **#848 dejó vivo en lo servido** —a quien ya tenía un recorrido en un
-pin del capítulo se le ocultaba su propio historial— y un arreglo sin desplegar no
-arregla nada; `/` y `/login` responden 200. El **worker `f15c5c96`** se queda
-donde está: nada de esto le toca.
+**Un despliegue, y por una razón.** El arreglo vive en el **servicio API** —es
+quien abre la sesión de lectura—, así que la API se despliega con esta integración
+y se comprueba sobre el artefacto servido: disponibilidad, estado de las
+migraciones y el recorrido acotado con una identidad de QA. **Web conserva
+`d3a67e27`** (14-11 00:52 UTC) y el **worker `f15c5c96`**: ni el cliente ni los
+trabajos en segundo plano abren una sesión nativa, así que nada de esto les toca.
+**Igualar SHA sigue sin ser motivo para desplegar.**
 
-Lo que separa a la API de `main` son dos cambios de documentos y el montón del
-typecheck. **Redesplegar para igualar un SHA sigue sin ser motivo.**
+**El commit integrado, el artefacto servido y la fecha de observación son tres
+cosas**, y conviene no colapsarlas: un commit de documentos no cambia la
+aplicación, y un artefacto cuyo SHA coincide con el de ayer puede estar ejecutando
+otra configuración. El artefacto de esta tanda, su hora y su `ready` quedan leídos
+del contenedor en Notion §60.
 
 **Y una nota sobre el bloqueo de esa integración**, porque la palabra importa. El
 trabajo `Typecheck` murió con `exit 134` y «heap out of memory», y lo llamé

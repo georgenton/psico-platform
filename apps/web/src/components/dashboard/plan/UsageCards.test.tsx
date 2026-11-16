@@ -179,4 +179,31 @@ describe("UsageCards", () => {
     );
     expect(screen.getByText("sin límite")).toBeInTheDocument();
   });
+
+  it("la hora del reinicio va en 24 h: ni «a. m.» ni «24:00»", () => {
+    // Medido sobre el artefacto servido el 2026-11-16: la tarjeta decía «vuelve
+    // a las 12:00 a. m.» para las 00:00, porque `es-EC` es de 12 horas por
+    // omisión — y eso se lee como mediodía. Con `hour12: false` la misma hora
+    // sale «24:00» en este ICU, así que la opción correcta es `hourCycle: "h23"`
+    // a secas; pasar las dos devuelve el 24, porque `hour12` gana.
+    //
+    // La aserción NO fija una hora concreta a propósito: la zona la pone la
+    // máquina que corre la prueba, y lo que se está fijando es el FORMATO.
+    render(
+      <UsageCards
+        usage={buildUsage({
+          eco: ecoSlice({
+            used: 0,
+            quota: 10,
+            kind: "utc-day",
+            resetsAt: "2026-11-17T00:00:00.000Z",
+          }),
+        })}
+      />,
+    );
+    const nota = screen.getByText(/hoy · vuelve a las \d{2}:\d{2}$/);
+    expect(nota).toBeInTheDocument();
+    expect(nota.textContent).not.toMatch(/a\.\s?m\.|p\.\s?m\.|AM|PM/);
+    expect(nota.textContent).not.toContain("24:00");
+  });
 });

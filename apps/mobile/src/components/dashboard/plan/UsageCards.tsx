@@ -146,10 +146,23 @@ function ecoWindowNote(eco: UsageEco): string {
   if (eco.quota === null) return "sin límite";
   const resets = eco.resetsAt === null ? null : new Date(eco.resetsAt);
   if (eco.window.kind === "utc-day") {
+    // `hourCycle: "h23"` y NO `hour12: false`, por dos razones medidas el
+    // 2026-11-16 sobre el artefacto servido:
+    //
+    //   1. `es-EC` por omisión es de 12 horas, y la medianoche salía como
+    //      «12:00 a. m.» — la peor forma posible de decir una hora de reinicio,
+    //      porque se lee como mediodía;
+    //   2. con `hour12: false` la misma medianoche sale **«24:00»** en este ICU.
+    //      Y si se pasan las dos, `hour12` gana y vuelve el 24. Así que va sólo
+    //      `hourCycle`.
+    //
+    // Con esto la tarjeta dice «19:00» en Quito, igual que el mensaje que
+    // compone el servidor: una sola forma para el mismo hecho.
     const hora = resets
       ? resets.toLocaleTimeString("es-EC", {
           hour: "2-digit",
           minute: "2-digit",
+          hourCycle: "h23",
         })
       : null;
     return hora ? `hoy · vuelve a las ${hora}` : "hoy";

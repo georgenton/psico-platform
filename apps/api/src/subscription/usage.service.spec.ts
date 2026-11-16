@@ -409,6 +409,35 @@ describe("UsageService", () => {
       expect(prisma.diaryEntry.count).toHaveBeenCalled();
     });
 
+    it("la clave que ESCRIBE sigue cubierta por el patrón que BORRA", async () => {
+      // Esta tanda añadió un segmento a la clave (el día UTC, porque la ventana
+      // de Eco en FREE ES el día UTC). Si ese segmento rompiera el glob de
+      // `invalidate`, la invalidación dejaría de encontrar nada: Eco llama a
+      // `invalidate` después de cada mensaje, así que la persona seguiría viendo
+      // su cuota anterior durante cinco minutos. Se comprueba la relación entre
+      // las dos cosas, no cada una por su lado.
+      const prisma = makePrismaMock({ plan: Plan.FREE });
+      const redis = makeRedisMock();
+      const service = new UsageService(prisma as never, redis as never);
+
+      await service.getUsage(USER_ID);
+      await new Promise((resolve) => setImmediate(resolve));
+
+      const escrita = (redis.set.mock.calls[0]?.[0] ?? "") as string;
+      expect(escrita).not.toBe("");
+
+      await service.invalidate(USER_ID);
+      const patron = (
+        redis.scanStream.mock.calls[0]?.[0] as { match: string } | undefined
+      )?.match;
+      expect(patron).toBeDefined();
+      // El glob de Redis, traducido: `*` es «cualquier cosa».
+      const re = new RegExp(
+        `^${patron!.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*")}$`,
+      );
+      expect(re.test(escrita)).toBe(true);
+    });
+
     it("escribe en cache después de recomputar (fire-and-forget)", async () => {
       const prisma = makePrismaMock({ hasActiveSub: true, plan: Plan.PRO });
       const redis = makeRedisMock();

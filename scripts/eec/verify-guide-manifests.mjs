@@ -56,11 +56,15 @@
  *      un commit **declarado**, que es una referencia independiente de los
  *      propios ficheros. Sin ella, 1 y 2 sólo dicen que el paquete es
  *      coherente consigo mismo — y un paquete reescrito entero también lo
- *      sería.
+ *      sería. Son **doce** lecturas: los once ficheros del inventario y la
+ *      lista de sumas que los ata. Si **cualquiera** de las doce no se puede
+ *      leer, la garantía NO se declara: se informa como lectura incompleta,
+ *      con el nombre de lo que faltó. Una lectura parcial no es media
+ *      garantía — lo que falta por leer puede ser justo lo que cambió.
  *
  * Por eso la salida ya no dice «el paquete no se ha movido» cuando sólo ha
- * comprobado 1 y 2: lo afirma cuando 4 se ha realizado, y cuando no, dice qué
- * comprobó y qué no.
+ * comprobado 1 y 2: lo afirma cuando 4 se ha realizado **completa**, y cuando
+ * no, dice qué comprobó y qué no.
  *
  * Sólo lectura. Salida: `0` todo lo declarado coincide · `1` hay discrepancia.
  */
@@ -204,7 +208,8 @@ function verificar(code) {
     interna: false,
     correspondencia: null, // null = no aplica (sin actas declaradas)
     criptografica: false, // nunca aquí, por diseño
-    historica: null, // null = no realizada
+    historica: null, // null = no realizada (completa)
+    historicaParcial: null, // qué se pudo leer y qué no, cuando faltó algo
   };
 
   // ── 0 · el paquete existe ───────────────────────────────────────────────
@@ -321,7 +326,11 @@ function verificar(code) {
     const m = docs.get(manifestId);
     if (!m) continue;
     // Los tres que `checkApprovals` compara en producción.
-    for (const campo of ["canonicalVersion", "canonicalSha256", "manifestSha256"]) {
+    for (const campo of [
+      "canonicalVersion",
+      "canonicalSha256",
+      "manifestSha256",
+    ]) {
       if (acta[campo] !== m[campo]) {
         fallo(
           `${inv.dir}/${file}: ${campo} del acta no coincide con el manifiesto · acta ${String(acta[campo]).slice(0, 24)}… · manifiesto ${String(m[campo]).slice(0, 24)}…`,
@@ -342,40 +351,68 @@ function verificar(code) {
   if (fallos.length === 0) garantias.interna = true;
 
   // ── 6 · comparación histórica, cuando hay referencia declarada ─────────
+  //
+  // Lo que hace falta leer son los ONCE ficheros del inventario **más** la
+  // lista de sumas, que es lo que los ata entre sí: doce lecturas.
+  //
+  // Y las doce son necesarias para declarar la garantía. La versión anterior
+  // (2026-11-16) trataba la lista de sumas aparte del bucle y sólo miraba
+  // `alcanzable`, que únicamente se enteraba de los once primeros. Reproducido
+  // el 2026-11-17 en un árbol donde el sello declarado contenía los once y NO
+  // la lista: el guion imprimía «✔ contra 0e8a7259 · 11 ficheros» y el cierre
+  // «IDÉNTICO a su referencia histórica declarada», con `exit 0`. Una lectura
+  // parcial se anunciaba como completa — el mismo error de método que el falso
+  // verde de arriba, un paso más adentro.
+  //
+  // Dos cosas se conservan a propósito:
+  //
+  //   - **no se corta** en la primera lectura imposible, porque leer el resto
+  //     dice exactamente QUÉ faltó y permite seguir comparando lo que sí se
+  //     pudo leer. Una diferencia encontrada es un `fallo`, y eso no depende de
+  //     que la garantía esté completa;
+  //   - la consistencia interna y la correspondencia con las actas siguen
+  //     informándose por separado: si son correctas, lo son — no se degradan
+  //     por no haber podido leer el histórico.
   if (inv.sealedAt !== null) {
+    const requeridos = [
+      ...esperados.map((e) => e.file),
+      "SHA256SUMS.txt", // la lista que ata el inventario: lectura requerida
+    ];
+    const ilegibles = [];
     let comparados = 0;
-    let alcanzable = true;
-    for (const { file } of esperados) {
+
+    for (const file of requeridos) {
       const rutaRel = `${inv.dir}/${file}`;
       const historico = blobEn(inv.sealedAt, rutaRel);
       if (historico === null) {
-        alcanzable = false;
-        break;
+        ilegibles.push(rutaRel);
+        continue;
       }
       comparados += 1;
       const actual = existsSync(join(dir, file))
         ? readFileSync(join(dir, file), "utf8")
         : null;
-      if (actual === null) continue; // ya reportado
+      if (actual === null) continue; // ya reportado por el paso 1
       if (actual !== historico) {
         fallo(
           `${rutaRel}: difiere de su versión en ${inv.sealedAt.slice(0, 8)} (referencia histórica declarada)`,
         );
       }
     }
-    // También la lista de sumas, que es lo que ata el inventario.
-    const sumasHist = blobEn(inv.sealedAt, `${inv.dir}/SHA256SUMS.txt`);
-    if (alcanzable && sumasHist !== null) {
-      comparados += 1;
-      if (sumasHist !== readFileSync(join(dir, "SHA256SUMS.txt"), "utf8")) {
-        fallo(
-          `${inv.dir}/SHA256SUMS.txt: difiere de su versión en ${inv.sealedAt.slice(0, 8)}`,
-        );
-      }
-    }
-    garantias.historica = alcanzable
-      ? { ref: inv.sealedAt, nota: inv.sealedAtNote, ficheros: comparados }
-      : null;
+
+    garantias.historica =
+      ilegibles.length === 0
+        ? {
+            ref: inv.sealedAt,
+            nota: inv.sealedAtNote,
+            ficheros: comparados,
+            requeridos: requeridos.length,
+          }
+        : null;
+    garantias.historicaParcial =
+      ilegibles.length === 0
+        ? null
+        : { comparados, requeridos: requeridos.length, ilegibles };
   }
 
   const [una] = [...revisiones];
@@ -406,6 +443,7 @@ const codes = (() => {
 
 let fallosTotales = 0;
 let historicasHechas = 0;
+let historicasParciales = 0;
 
 for (const code of codes) {
   if (!PAQUETES[code]) {
@@ -418,7 +456,9 @@ for (const code of codes) {
   console.log(`${code} · ${r.inv.dir}`);
   if (r.resumen) {
     console.log(`  revisión sellada   ${r.resumen.version}`);
-    console.log(`  canonicalSha256    ${r.resumen.canonicalSha?.slice(0, 16)}…`);
+    console.log(
+      `  canonicalSha256    ${r.resumen.canonicalSha?.slice(0, 16)}…`,
+    );
     console.log(
       `  inventario         ${r.resumen.manifiestos} manifiestos (con la suite) · ${r.resumen.actas} actas · ${r.resumen.sumas} sumas`,
     );
@@ -439,10 +479,22 @@ for (const code of codes) {
   if (r.garantias.historica) {
     historicasHechas += 1;
     console.log(
-      `  comparación histórica     ✔ contra ${r.garantias.historica.ref.slice(0, 8)} · ${r.garantias.historica.ficheros} ficheros${
+      `  comparación histórica     ✔ contra ${r.garantias.historica.ref.slice(0, 8)} · ${r.garantias.historica.ficheros} de ${r.garantias.historica.requeridos} ficheros${
         r.garantias.historica.nota ? ` · ${r.garantias.historica.nota}` : ""
       }`,
     );
+  } else if (r.garantias.historicaParcial) {
+    // Parcial NO es hecha. Se dice cuánto se leyó, qué faltó y por qué eso no
+    // acredita la garantía — nombrar los ficheros es lo que separa «no se pudo
+    // comprobar» de «se comprobó y cuadra».
+    historicasParciales += 1;
+    const p = r.garantias.historicaParcial;
+    console.log(
+      `  comparación histórica     — NO realizada: lectura INCOMPLETA en ${r.inv.sealedAt.slice(0, 8)} · ${p.comparados} de ${p.requeridos} ficheros`,
+    );
+    for (const f of p.ilegibles) {
+      console.log(`      no se pudo leer: ${f}`);
+    }
   } else if (r.inv.sealedAt !== null) {
     console.log(
       `  comparación histórica     — NO realizada: no se pudo leer ${r.inv.sealedAt.slice(0, 8)} con git`,
@@ -472,6 +524,14 @@ if (historicasHechas === codes.length) {
   console.log(
     "\nOK — inventario completo, coherente consigo mismo e IDÉNTICO a su\n" +
       "referencia histórica declarada. El material firmado se conserva.",
+  );
+} else if (historicasParciales > 0) {
+  console.log(
+    "\nOK PARCIAL — inventario completo y coherente consigo mismo, y las\n" +
+      "diferencias encontradas en lo que SÍ se pudo leer están arriba. Pero la\n" +
+      "comparación histórica quedó INCOMPLETA, así que no se afirma que el\n" +
+      "paquete sea el aprobado: lo que falta por leer podría ser justo lo que\n" +
+      "cambió.",
   );
 } else {
   console.log(

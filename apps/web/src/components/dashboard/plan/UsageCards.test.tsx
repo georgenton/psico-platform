@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { EcoQuotaWindowKind, UsageEco, UsageResponse } from "@psico/types";
 import { UsageCards } from "./UsageCards";
 
@@ -56,6 +56,24 @@ function buildUsage(overrides: Partial<UsageResponse> = {}): UsageResponse {
     ...overrides,
   } as UsageResponse;
 }
+
+/**
+ * Fija el instante en que se pinta. La palabra relativa del reinicio («hoy»,
+ * «mañana») se calcula contra `now`, así que sin esto las pruebas medirían el
+ * día en que se ejecutan.
+ */
+function conReloj(iso: string, fn: () => void): void {
+  vi.useFakeTimers({ now: new Date(iso), toFake: ["Date"] });
+  try {
+    fn();
+  } finally {
+    vi.useRealTimers();
+  }
+}
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 // ─── Tests ────────────────────────────────────────────────────────────────
 
@@ -127,19 +145,22 @@ describe("UsageCards", () => {
   });
 
   it("Eco FREE: la tarjeta muestra el consumo DEL DÍA y su límite diario", () => {
-    render(
-      <UsageCards
-        usage={buildUsage({
-          eco: ecoSlice({
-            used: 7,
-            quota: 10,
-            kind: "utc-day",
-            resetsAt: "2026-11-17T00:00:00.000Z",
-            messagesThisPeriod: 83,
-          }),
-        })}
-      />,
-    );
+    conReloj("2026-11-16T22:00:00.000Z", () => {
+      render(
+        <UsageCards
+          usage={buildUsage({
+            timezone: "America/Guayaquil",
+            eco: ecoSlice({
+              used: 7,
+              quota: 10,
+              kind: "utc-day",
+              resetsAt: "2026-11-17T00:00:00.000Z",
+              messagesThisPeriod: 83,
+            }),
+          })}
+        />,
+      );
+    });
     // El cupo que Eco aplica, no el de `PLAN_QUOTAS`.
     expect(screen.getByText("de 10")).toBeInTheDocument();
     // Y la ventana, dicha, para que el 7 se pueda interpretar.
@@ -184,26 +205,167 @@ describe("UsageCards", () => {
     // Medido sobre el artefacto servido el 2026-11-16: la tarjeta decía «vuelve
     // a las 12:00 a. m.» para las 00:00, porque `es-EC` es de 12 horas por
     // omisión — y eso se lee como mediodía. Con `hour12: false` la misma hora
-    // sale «24:00» en este ICU, así que la opción correcta es `hourCycle: "h23"`
-    // a secas; pasar las dos devuelve el 24, porque `hour12` gana.
-    //
-    // La aserción NO fija una hora concreta a propósito: la zona la pone la
-    // máquina que corre la prueba, y lo que se está fijando es el FORMATO.
-    render(
-      <UsageCards
-        usage={buildUsage({
-          eco: ecoSlice({
-            used: 0,
-            quota: 10,
-            kind: "utc-day",
-            resetsAt: "2026-11-17T00:00:00.000Z",
-          }),
-        })}
-      />,
-    );
-    const nota = screen.getByText(/hoy · vuelve a las \d{2}:\d{2}$/);
-    expect(nota).toBeInTheDocument();
+    // sale «24:00» en este ICU, así que la hora se arma desde `formatToParts` y
+    // el «24» se normaliza.
+    conReloj("2026-11-16T22:00:00.000Z", () => {
+      render(
+        <UsageCards
+          usage={buildUsage({
+            timezone: "UTC",
+            eco: ecoSlice({
+              used: 0,
+              quota: 10,
+              kind: "utc-day",
+              resetsAt: "2026-11-17T00:00:00.000Z",
+            }),
+          })}
+        />,
+      );
+    });
+    // Con la zona en UTC y `now` a las 22:00Z del 16, el reinicio (00:00Z del
+    // 17) cae MAÑANA — y eso también se calcula, no se da por supuesto.
+    const nota = screen.getByText(/vuelve .*0?0:00$/);
+    expect(nota.textContent).toBe("hoy · vuelve mañana a las 00:00");
     expect(nota.textContent).not.toMatch(/a\.\s?m\.|p\.\s?m\.|AM|PM/);
     expect(nota.textContent).not.toContain("24:00");
+  });
+
+  // ─── La zona de la persona, no la del servidor ──────────────────────────
+  //
+  // Reproducido el 2026-11-17: `/dashboard/plan` es una página de SERVIDOR que
+  // importa esta tarjeta directamente, y la tarjeta formateaba sin `timeZone`.
+  // Con el contenedor en UTC, una cuenta declarada en Quito veía «00:00» aquí y
+  // «19:00» en el mensaje de Eco — el mismo instante, dos horas distintas.
+  //
+  // Estas pruebas valen bajo CUALQUIER `TZ` del proceso, que es la propiedad
+  // fuerte: la zona ya no la pone la máquina que pinta.
+  describe("la hora y el día salen de la zona de la persona", () => {
+    it("Quito: el reinicio de las 00:00 UTC es HOY a las 19:00", () => {
+      // 2026-11-16T22:00Z = 17:00 del 16 en Quito. El reinicio (00:00Z del 17)
+      // es las 19:00 del MISMO día local, así que «hoy» es lo correcto.
+      conReloj("2026-11-16T22:00:00.000Z", () => {
+        render(
+          <UsageCards
+            usage={buildUsage({
+              timezone: "America/Guayaquil",
+              eco: ecoSlice({
+                used: 10,
+                quota: 10,
+                kind: "utc-day",
+                resetsAt: "2026-11-17T00:00:00.000Z",
+              }),
+            })}
+          />,
+        );
+      });
+      expect(screen.getByText("hoy · vuelve a las 19:00")).toBeInTheDocument();
+    });
+
+    it("Madrid: el mismo instante es MAÑANA a la 01:00", () => {
+      // El mismo `resetsAt`, otra zona: a las 22:00Z del 16 en Madrid son las
+      // 23:00 del 16, y el reinicio cae a la 01:00 del 17 — mañana. La palabra
+      // relativa se calcula; no es una etiqueta fija.
+      conReloj("2026-11-16T22:00:00.000Z", () => {
+        render(
+          <UsageCards
+            usage={buildUsage({
+              timezone: "Europe/Madrid",
+              eco: ecoSlice({
+                used: 10,
+                quota: 10,
+                kind: "utc-day",
+                resetsAt: "2026-11-17T00:00:00.000Z",
+              }),
+            })}
+          />,
+        );
+      });
+      expect(
+        screen.getByText("hoy · vuelve mañana a las 01:00"),
+      ).toBeInTheDocument();
+    });
+
+    it("sin zona declarada: se cuenta en UTC y se dice", () => {
+      // El caso de una Web nueva contra una API anterior, y de una cuenta que
+      // nunca declaró zona. Resultado definido: la hora UTC, etiquetada.
+      conReloj("2026-11-16T22:00:00.000Z", () => {
+        render(
+          <UsageCards
+            usage={buildUsage({
+              eco: ecoSlice({
+                used: 3,
+                quota: 10,
+                kind: "utc-day",
+                resetsAt: "2026-11-17T00:00:00.000Z",
+              }),
+            })}
+          />,
+        );
+      });
+      expect(
+        screen.getByText("hoy · vuelve mañana a las 00:00 UTC"),
+      ).toBeInTheDocument();
+    });
+
+    it("una zona inválida no se cuela como si fuera válida", () => {
+      conReloj("2026-11-16T22:00:00.000Z", () => {
+        render(
+          <UsageCards
+            usage={buildUsage({
+              timezone: "No/Existe",
+              eco: ecoSlice({
+                used: 3,
+                quota: 10,
+                kind: "utc-day",
+                resetsAt: "2026-11-17T00:00:00.000Z",
+              }),
+            })}
+          />,
+        );
+      });
+      expect(screen.getByText(/ 00:00 UTC$/)).toBeInTheDocument();
+    });
+
+    it("el periodo también se lee en el calendario de la persona", () => {
+      // Un periodo que acaba el 1 de diciembre a las 00:00 UTC acaba el 30 de
+      // noviembre para quien vive en Quito. La ventana no cambia; cambia en qué
+      // calendario se lee.
+      conReloj("2026-11-16T22:00:00.000Z", () => {
+        render(
+          <UsageCards
+            usage={buildUsage({
+              timezone: "America/Guayaquil",
+              period: {
+                start: "2026-11-01T00:00:00.000Z",
+                end: "2026-12-01T00:00:00.000Z",
+              },
+            } as unknown as Partial<UsageResponse>)}
+          />,
+        );
+      });
+      expect(screen.getByText("31 oct – 30 nov")).toBeInTheDocument();
+    });
+
+    it("PRO: el fin del periodo también se nombra en su zona", () => {
+      conReloj("2026-11-16T22:00:00.000Z", () => {
+        render(
+          <UsageCards
+            usage={buildUsage({
+              timezone: "America/Guayaquil",
+              eco: ecoSlice({
+                used: 120,
+                quota: 200,
+                kind: "subscription",
+                resetsAt: "2026-12-03T02:30:00.000Z",
+              }),
+            })}
+          />,
+        );
+      });
+      // 02:30 UTC del 3 son las 21:30 del 2 en Quito.
+      expect(
+        screen.getByText("este periodo · hasta el 2 de diciembre"),
+      ).toBeInTheDocument();
+    });
   });
 });

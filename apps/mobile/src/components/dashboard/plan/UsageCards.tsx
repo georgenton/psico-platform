@@ -1,5 +1,6 @@
 import { StyleSheet, Text, View } from "react-native";
 import type { UsageEco, UsageResponse } from "@psico/types";
+import { ecoResetParts, effectiveTimezone } from "@psico/types";
 import { Colors, Radius, Spacing } from "@/theme";
 
 /**
@@ -37,7 +38,7 @@ export function UsageCards({ usage }: { usage: UsageResponse | null }) {
       current: usage.eco.used,
       quota: usage.eco.quota,
       unit: "",
-      windowNote: ecoWindowNote(usage.eco),
+      windowNote: ecoWindowNote(usage.eco, usage.timezone),
     },
     {
       icon: "🎙️",
@@ -60,7 +61,7 @@ export function UsageCards({ usage }: { usage: UsageResponse | null }) {
       <View style={styles.header}>
         <Text style={styles.title}>Tu uso este período</Text>
         <Text style={styles.period}>
-          {formatPeriod(usage.period.start, usage.period.end)}
+          {formatPeriod(usage.period.start, usage.period.end, usage.timezone)}
         </Text>
       </View>
 
@@ -142,40 +143,50 @@ function UsageCard({
 }
 
 /** Gemela de la de web, palabra por palabra. */
-function ecoWindowNote(eco: UsageEco): string {
+/**
+ * Las mismas piezas que usa el mensaje de Eco, por `ecoResetParts`.
+ *
+ * Aquí el formateador corre en el dispositivo, así que sin `timeZone` usaría la
+ * zona del teléfono — que normalmente coincide con la declarada, y por eso este
+ * defecto se vio primero en la Web. Pero no es lo mismo: si alguien viaja, o
+ * declaró su zona desde otro aparato, el teléfono contaría una hora y el
+ * mensaje de Eco otra. Se cuenta con la **declarada**, igual que el servidor.
+ */
+function ecoWindowNote(
+  eco: UsageEco,
+  timezone: string | null | undefined,
+): string {
   if (eco.quota === null) return "sin límite";
   const resets = eco.resetsAt === null ? null : new Date(eco.resetsAt);
-  if (eco.window.kind === "utc-day") {
-    // `hourCycle: "h23"` y NO `hour12: false`, por dos razones medidas el
-    // 2026-11-16 sobre el artefacto servido:
-    //
-    //   1. `es-EC` por omisión es de 12 horas, y la medianoche salía como
-    //      «12:00 a. m.» — la peor forma posible de decir una hora de reinicio,
-    //      porque se lee como mediodía;
-    //   2. con `hour12: false` la misma medianoche sale **«24:00»** en este ICU.
-    //      Y si se pasan las dos, `hour12` gana y vuelve el 24. Así que va sólo
-    //      `hourCycle`.
-    //
-    // Con esto la tarjeta dice «19:00» en Quito, igual que el mensaje que
-    // compone el servidor: una sola forma para el mismo hecho.
-    const hora = resets
-      ? resets.toLocaleTimeString("es-EC", {
-          hour: "2-digit",
-          minute: "2-digit",
-          hourCycle: "h23",
-        })
-      : null;
-    return hora ? `hoy · vuelve a las ${hora}` : "hoy";
+  if (resets === null) {
+    return eco.window.kind === "utc-day" ? "hoy" : "este periodo";
   }
-  const hasta = resets
-    ? resets.toLocaleDateString("es-EC", { day: "numeric", month: "short" })
-    : null;
-  return hasta ? `este periodo · hasta el ${hasta}` : "este periodo";
+
+  const p = ecoResetParts(resets, timezone, new Date());
+  const zona = p.zoneDeclared ? "" : " UTC";
+
+  if (eco.window.kind === "utc-day") {
+    if (p.relative === "today") return `hoy · vuelve a las ${p.time}${zona}`;
+    if (p.relative === "tomorrow") {
+      return `hoy · vuelve mañana a las ${p.time}${zona}`;
+    }
+    return `hoy · vuelve el ${p.dayLabel} a las ${p.time}${zona}`;
+  }
+  return `este periodo · hasta el ${p.dayLabel}`;
 }
 
-function formatPeriod(start: Date | string, end: Date | string): string {
+function formatPeriod(
+  start: Date | string,
+  end: Date | string,
+  timezone: string | null | undefined,
+): string {
+  const tz = effectiveTimezone(timezone);
   const fmt = (d: Date) =>
-    d.toLocaleDateString("es-EC", { day: "numeric", month: "short" });
+    d.toLocaleDateString("es-EC", {
+      day: "numeric",
+      month: "short",
+      timeZone: tz,
+    });
   return `${fmt(new Date(start))} – ${fmt(new Date(end))}`;
 }
 

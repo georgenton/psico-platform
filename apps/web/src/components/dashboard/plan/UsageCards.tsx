@@ -1,4 +1,5 @@
 import type { UsageEco, UsageResponse } from "@psico/types";
+import { ecoResetParts, effectiveTimezone } from "@psico/types";
 
 /**
  * UsageCards — Sprint front-fase1 (Mi Plan web).
@@ -54,7 +55,7 @@ export function UsageCards({ usage }: { usage: UsageResponse | null }) {
       current: usage.eco.used,
       quota: usage.eco.quota,
       unit: "",
-      windowNote: ecoWindowNote(usage.eco),
+      windowNote: ecoWindowNote(usage.eco, usage.timezone),
     },
     {
       icon: "🎙️",
@@ -82,7 +83,7 @@ export function UsageCards({ usage }: { usage: UsageResponse | null }) {
           Tu uso este período
         </h2>
         <span className="text-xs" style={{ color: "var(--color-warm-400)" }}>
-          {formatPeriod(usage.period.start, usage.period.end)}
+          {formatPeriod(usage.period.start, usage.period.end, usage.timezone)}
         </span>
       </div>
 
@@ -215,47 +216,72 @@ function UsageCard({
 }
 
 /**
- * «hoy · vuelve a las 19:00» · «este periodo · hasta el 3 de dic» · «sin límite».
+ * «hoy · vuelve a las 19:00» · «este periodo · hasta el 3 de diciembre» ·
+ * «sin límite».
  *
- * La hora sale del reloj de quien mira, porque `resetsAt` es un instante y el
- * navegador lo pinta en su zona. El reinicio de FREE son las 00:00 UTC, que en
- * Quito es a las 19:00 del MISMO día — decir «mañana» sería falso.
+ * ── La zona es de la persona, y hay que pasarla ────────────────────────────
+ *
+ * Esta tarjeta se pinta en el **servidor**: `/dashboard/plan` es una página de
+ * servidor que la importa directamente. Así que un `toLocaleTimeString` sin
+ * `timeZone` se resuelve en la zona del CONTENEDOR, no en la de quien mira — y
+ * el contenedor está en UTC. Medido el 2026-11-17 sobre el artefacto servido:
+ * una cuenta con `America/Guayaquil` declarada veía «00:00» aquí mientras el
+ * mensaje de Eco, compuesto por el servidor con esa misma zona, decía «19:00».
+ * El comentario anterior atribuía la conversión al navegador; ese recorrido no
+ * pasa por el navegador.
+ *
+ * Por eso la hora, el día y la palabra relativa salen de `ecoResetParts`, que
+ * es la MISMA función que usa el mensaje de Eco. No es que coincidan: es que no
+ * pueden discrepar.
+ *
+ * Sin zona declarada válida se cuenta en UTC y **se dice** («a las 00:00 UTC»),
+ * en vez de hacer pasar una hora UTC por una hora local.
  */
-function ecoWindowNote(eco: UsageEco): string {
+function ecoWindowNote(
+  eco: UsageEco,
+  timezone: string | null | undefined,
+): string {
   if (eco.quota === null) return "sin límite";
   const resets = eco.resetsAt === null ? null : new Date(eco.resetsAt);
-  if (eco.window.kind === "utc-day") {
-    // `hourCycle: "h23"` y NO `hour12: false`, por dos razones medidas el
-    // 2026-11-16 sobre el artefacto servido:
-    //
-    //   1. `es-EC` por omisión es de 12 horas, y la medianoche salía como
-    //      «12:00 a. m.» — la peor forma posible de decir una hora de reinicio,
-    //      porque se lee como mediodía;
-    //   2. con `hour12: false` la misma medianoche sale **«24:00»** en este ICU.
-    //      Y si se pasan las dos, `hour12` gana y vuelve el 24. Así que va sólo
-    //      `hourCycle`.
-    //
-    // Con esto la tarjeta dice «19:00» en Quito, igual que el mensaje que
-    // compone el servidor: una sola forma para el mismo hecho.
-    const hora = resets
-      ? resets.toLocaleTimeString("es-EC", {
-          hour: "2-digit",
-          minute: "2-digit",
-          hourCycle: "h23",
-        })
-      : null;
-    return hora ? `hoy · vuelve a las ${hora}` : "hoy";
+  if (resets === null) {
+    return eco.window.kind === "utc-day" ? "hoy" : "este periodo";
   }
-  const hasta = resets
-    ? resets.toLocaleDateString("es-EC", { day: "numeric", month: "short" })
-    : null;
-  return hasta ? `este periodo · hasta el ${hasta}` : "este periodo";
+
+  const p = ecoResetParts(resets, timezone, new Date());
+  const zona = p.zoneDeclared ? "" : " UTC";
+
+  if (eco.window.kind === "utc-day") {
+    // «hoy» describe la CIFRA (el consumo de hoy); la palabra del reinicio se
+    // calcula aparte, porque son dos días distintos: en Quito el reinicio de
+    // las 00:00 UTC cae hoy a las 19:00, y en Madrid mañana a la 01:00.
+    if (p.relative === "today") return `hoy · vuelve a las ${p.time}${zona}`;
+    if (p.relative === "tomorrow") {
+      return `hoy · vuelve mañana a las ${p.time}${zona}`;
+    }
+    return `hoy · vuelve el ${p.dayLabel} a las ${p.time}${zona}`;
+  }
+  return `este periodo · hasta el ${p.dayLabel}`;
 }
 
-function formatPeriod(start: Date | string, end: Date | string): string {
+/**
+ * El rango del periodo, también en la zona de la persona.
+ *
+ * Mismo motivo: estas fechas se pintaban en el servidor. Un periodo que acaba
+ * el 1 de diciembre a las 00:00 UTC acaba el 30 de noviembre para quien vive en
+ * Quito, y antes se le decía «1 dic». No cambia ninguna ventana ni ningún
+ * contador: cambia en qué calendario se leen sus límites.
+ */
+function formatPeriod(
+  start: Date | string,
+  end: Date | string,
+  timezone: string | null | undefined,
+): string {
+  const tz = effectiveTimezone(timezone);
   const fmt = (d: Date) =>
-    d.toLocaleDateString("es-EC", { day: "numeric", month: "short" });
-  const startD = new Date(start);
-  const endD = new Date(end);
-  return `${fmt(startD)} – ${fmt(endD)}`;
+    d.toLocaleDateString("es-EC", {
+      day: "numeric",
+      month: "short",
+      timeZone: tz,
+    });
+  return `${fmt(new Date(start))} – ${fmt(new Date(end))}`;
 }

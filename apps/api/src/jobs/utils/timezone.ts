@@ -103,20 +103,12 @@ export function userLocalWeekday(
 }
 
 /**
- * Lightweight IANA validator. We delegate to `Intl.DateTimeFormat`:
- * unknown names throw RangeError, valid names construct silently.
+ * Lightweight IANA validator — same function the Eco reset label uses.
  *
- * We DON'T import the full IANA list (4 KB+); the constructor
- * validation is canonical and lives in Node's ICU bundle.
+ * It moved to `@psico/types/eco-reset` when the Mi Plan card started needing
+ * it: the card has to resolve the person's effective zone the same way the
+ * server does, and two copies of "is this a real zone?" are two chances to
+ * disagree. Re-exported here so the crons and `UsersService` keep importing it
+ * from where they always did.
  */
-export function isValidTimezone(tz: string): boolean {
-  if (typeof tz !== "string") return false;
-  if (tz.length === 0 || tz.length > 64) return false;
-  try {
-    // Throws RangeError on invalid IANA names.
-    new Intl.DateTimeFormat("en-US", { timeZone: tz });
-    return true;
-  } catch {
-    return false;
-  }
-}
+export { isValidIanaTimezone as isValidTimezone } from "@psico/types";

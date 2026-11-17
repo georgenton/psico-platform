@@ -54,6 +54,25 @@ function buildUsage(overrides: Partial<UsageResponse> = {}): UsageResponse {
   } as UsageResponse;
 }
 
+/**
+ * Fija el instante en que se pinta. La palabra relativa del reinicio («hoy»,
+ * «mañana») se calcula contra `now`, así que sin esto las pruebas medirían el
+ * día en que se ejecutan.
+ */
+function conReloj(iso: string, fn: () => void): void {
+  jest.useFakeTimers({ doNotFake: ["nextTick", "setImmediate"] });
+  jest.setSystemTime(new Date(iso));
+  try {
+    fn();
+  } finally {
+    jest.useRealTimers();
+  }
+}
+
+afterEach(() => {
+  jest.useRealTimers();
+});
+
 describe("UsageCards (mobile)", () => {
   it("shows the fallback empty state when usage is null", () => {
     render(<UsageCards usage={null} />);
@@ -112,19 +131,22 @@ describe("UsageCards (mobile)", () => {
   });
 
   it("Eco FREE: la tarjeta muestra el consumo DEL DÍA y su límite diario", () => {
-    render(
-      <UsageCards
-        usage={buildUsage({
-          eco: ecoSlice({
-            used: 7,
-            quota: 10,
-            kind: "utc-day",
-            resetsAt: "2026-11-17T00:00:00.000Z",
-            messagesThisPeriod: 83,
-          }),
-        })}
-      />,
-    );
+    conReloj("2026-11-16T22:00:00.000Z", () => {
+      render(
+        <UsageCards
+          usage={buildUsage({
+            timezone: "America/Guayaquil",
+            eco: ecoSlice({
+              used: 7,
+              quota: 10,
+              kind: "utc-day",
+              resetsAt: "2026-11-17T00:00:00.000Z",
+              messagesThisPeriod: 83,
+            }),
+          })}
+        />,
+      );
+    });
     expect(screen.getByText("de 10")).toBeOnTheScreen();
     expect(screen.getByText(/hoy · vuelve a las/)).toBeOnTheScreen();
     expect(screen.getByText(/83/)).toBeOnTheScreen();
@@ -159,24 +181,74 @@ describe("UsageCards (mobile)", () => {
   });
 
   it("la hora del reinicio va en 24 h: ni «a. m.» ni «24:00»", () => {
-    // Gemela de la de web, y por el mismo motivo medido. La hora concreta
-    // depende de la zona de la máquina; lo que se fija es el formato.
-    render(
-      <UsageCards
-        usage={buildUsage({
-          eco: ecoSlice({
-            used: 0,
-            quota: 10,
-            kind: "utc-day",
-            resetsAt: "2026-11-17T00:00:00.000Z",
-          }),
-        })}
-      />,
-    );
-    const nota = screen.getByText(/hoy · vuelve a las \d{2}:\d{2}$/);
+    // Gemela de la de web, y por el mismo motivo medido.
+    conReloj("2026-11-16T22:00:00.000Z", () => {
+      render(
+        <UsageCards
+          usage={buildUsage({
+            timezone: "America/Guayaquil",
+            eco: ecoSlice({
+              used: 0,
+              quota: 10,
+              kind: "utc-day",
+              resetsAt: "2026-11-17T00:00:00.000Z",
+            }),
+          })}
+        />,
+      );
+    });
+    const nota = screen.getByText("hoy · vuelve a las 19:00");
     expect(nota).toBeOnTheScreen();
     const texto = String(nota.props.children);
     expect(texto).not.toMatch(/a\.\s?m\.|p\.\s?m\.|AM|PM/);
     expect(texto).not.toContain("24:00");
+  });
+
+  // Aquí el formateador corre en el dispositivo, así que sin zona usaría la del
+  // teléfono — que suele coincidir con la declarada, y por eso el defecto se
+  // vio primero en la Web. Pero no es lo mismo: quien viaja, o declaró su zona
+  // desde otro aparato, vería una hora distinta de la del mensaje de Eco. Estas
+  // pruebas valen bajo cualquier `TZ` del proceso.
+  describe("la hora y el día salen de la zona DECLARADA", () => {
+    it("Madrid: el mismo instante es mañana a la 01:00", () => {
+      conReloj("2026-11-16T22:00:00.000Z", () => {
+        render(
+          <UsageCards
+            usage={buildUsage({
+              timezone: "Europe/Madrid",
+              eco: ecoSlice({
+                used: 10,
+                quota: 10,
+                kind: "utc-day",
+                resetsAt: "2026-11-17T00:00:00.000Z",
+              }),
+            })}
+          />,
+        );
+      });
+      expect(
+        screen.getByText("hoy · vuelve mañana a las 01:00"),
+      ).toBeOnTheScreen();
+    });
+
+    it("sin zona declarada: se cuenta en UTC y se dice", () => {
+      conReloj("2026-11-16T22:00:00.000Z", () => {
+        render(
+          <UsageCards
+            usage={buildUsage({
+              eco: ecoSlice({
+                used: 3,
+                quota: 10,
+                kind: "utc-day",
+                resetsAt: "2026-11-17T00:00:00.000Z",
+              }),
+            })}
+          />,
+        );
+      });
+      expect(
+        screen.getByText("hoy · vuelve mañana a las 00:00 UTC"),
+      ).toBeOnTheScreen();
+    });
   });
 });

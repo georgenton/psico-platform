@@ -58,7 +58,7 @@ guarantees**, because collapsing them was itself a defect:
 | **Internal consistency** — the declared inventory is complete (five manifests, the suite, five approvals, *by `manifestId`*), every file hashes what `SHA256SUMS.txt` says, every `manifestSha256` recomputes from its own content with that field removed, required fields are present, and all six files declare one canonical revision | always |
 | **Manifest ↔ approval correspondence** — `canonicalVersion`, `canonicalSha256` and `manifestSha256` agree; the three fields `checkApprovals` compares | where approvals are declared (only C01) |
 | **Cryptographic verification** | **never here.** The public key lives in `EDITORIAL_APPROVAL_KEYS`, in the environment. `checkApprovals` acredits a valid signature against that keyring; this script does not |
-| **Historical comparison** — every sealed file against its blob at a *declared* commit (`2bee9db5`, #844, where the five approvals were written) | when git can read that ref |
+| **Historical comparison** — every sealed file against its blob at a *declared* commit (`2bee9db5`, #844, where the five approvals were written). Twelve reads: the eleven inventory files plus the `SHA256SUMS.txt` that ties them together, and **all twelve** are required | when git can read that ref — **completely** |
 
 The distinction in the last two rows is the point. Internal consistency alone
 says the package agrees **with itself** — and a package rewritten end to end
@@ -75,6 +75,17 @@ was approved. The script's own output says which of the four it performed.
 > `manifestId`s still count five. The expectation is now written down, identity
 > by identity, and `apps/api/src/content-core/verify-guide-manifests.spec.ts`
 > keeps it that way.
+
+> **And why a partial read is not half a guarantee.** On 2026-11-17 the same
+> script, pointed at a sealed ref that contained the eleven inventory files but
+> **not** `SHA256SUMS.txt`, printed "comparación histórica ✔ contra … · 11
+> ficheros" and closed with "IDÉNTICO a su referencia histórica declarada", exit
+> 0. It tracked reachability only across the eleven and treated the twelfth as
+> optional. The missing read can be exactly the one that changed, so any
+> unreadable file now withholds the guarantee, names what it could not read, and
+> closes with `OK PARCIAL` — while internal consistency and approval
+> correspondence are still reported on their own, because they were checked and
+> an unreadable history does not undo that.
 
 The determinism rules above still describe how these files were built: keys in a
 declared order, two-space indent, `manifestSha256` over the manifest without

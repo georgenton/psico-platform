@@ -33,6 +33,7 @@ function makePrismaMock(opts: {
   legacyChapterCount?: number;
   chapterToBook?: Array<{ id: string; bookId: string }>;
   voiceSecondsSum?: number;
+  timezone?: string | null;
 }) {
   return {
     subscription: {
@@ -47,7 +48,11 @@ function makePrismaMock(opts: {
       ),
     },
     user: {
-      findUnique: vi.fn().mockResolvedValue({ plan: opts.plan ?? Plan.FREE }),
+      findUnique: vi.fn().mockResolvedValue({
+        plan: opts.plan ?? Plan.FREE,
+        profile:
+          opts.timezone === undefined ? null : { timezone: opts.timezone },
+      }),
     },
     diaryEntry: {
       count: vi.fn().mockResolvedValue(opts.diaryCount ?? 0),
@@ -454,6 +459,66 @@ describe("UsageService", () => {
         "EX",
         5 * 60,
       );
+    });
+  });
+
+  /**
+   * La zona declarada tiene que VIAJAR en la respuesta.
+   *
+   * Mi Plan es una página de servidor, así que es la respuesta la que decide en
+   * qué zona se cuentan sus instantes: sin este campo la tarjeta los contaba en
+   * la del contenedor (UTC) mientras el mensaje de Eco los contaba en la de la
+   * persona. Una lectura del `select` que la dejara fuera volvería a abrir el
+   * mismo hueco sin romper nada más, así que se fija aquí.
+   */
+  describe("la zona de la persona viaja en la respuesta", () => {
+    it("devuelve la zona declarada, tal cual", async () => {
+      const prisma = makePrismaMock({
+        plan: Plan.FREE,
+        timezone: "America/Guayaquil",
+      });
+      const service = new UsageService(
+        prisma as never,
+        makeRedisMock() as never,
+      );
+
+      const usage = await service.getUsage(USER_ID);
+
+      expect(usage.timezone).toBe("America/Guayaquil");
+      // Y se lee en el MISMO `select` que ya traía el plan: ninguna consulta
+      // nueva por petición.
+      expect(prisma.user.findUnique).toHaveBeenCalledTimes(1);
+      expect(prisma.user.findUnique).toHaveBeenCalledWith({
+        where: { id: USER_ID },
+        select: { plan: true, profile: { select: { timezone: true } } },
+      });
+    });
+
+    it("sin perfil o sin zona declarada devuelve null, no undefined", async () => {
+      for (const tz of [undefined, null]) {
+        const prisma = makePrismaMock({ plan: Plan.FREE, timezone: tz });
+        const service = new UsageService(
+          prisma as never,
+          makeRedisMock() as never,
+        );
+        const usage = await service.getUsage(USER_ID);
+        expect(usage.timezone).toBeNull();
+      }
+    });
+
+    it("sobrevive al camino cacheado", async () => {
+      const prisma = makePrismaMock({
+        plan: Plan.FREE,
+        timezone: "Asia/Tokyo",
+      });
+      const redis = makeRedisMock();
+      const service = new UsageService(prisma as never, redis as never);
+
+      const fresco = await service.getUsage(USER_ID);
+      redis.get.mockResolvedValue(JSON.stringify(fresco));
+      const cacheado = await service.getUsage(USER_ID);
+
+      expect(cacheado.timezone).toBe("Asia/Tokyo");
     });
   });
 });

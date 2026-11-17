@@ -221,18 +221,31 @@ async function bootstrap(): Promise<void> {
     // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
     const { IntegrationsService } = require("./health/integrations.service");
     const svc = app.get(IntegrationsService);
-    const issues: Array<{ key: string; reason: "missing" | "stub" }> =
-      svc.bootIssues();
+    const issues: Array<{
+      key: string;
+      reason: "missing" | "stub" | "invalid";
+    }> = svc.bootIssues();
     if (issues.length > 0) {
       console.warn(
         `\n⚠️  Integration check · ${issues.length} item(s) need attention:`,
       );
       for (const { key, reason } of issues) {
-        const tag = reason === "missing" ? "MISSING" : "STUB";
+        // `INVALID` no es `MISSING`: significa que hay un valor y que no sirve,
+        // y en el caso de EMAIL_ALLOWLIST eso apaga el correo también en
+        // producción. Colapsarlo en `STUB` escondería la urgencia.
+        const tag =
+          reason === "missing"
+            ? "MISSING"
+            : reason === "invalid"
+              ? "INVALID"
+              : "STUB";
         console.warn(`   [${tag}] ${key}`);
       }
+      // El panel es el de Coolify: Railway y Vercel están retiradas del plan
+      // operativo desde el 2026-11-05 y mandar ahí a quien lea esto es mandarlo
+      // a un sitio donde el arreglo no surte efecto.
       console.warn(
-        "   Fix in Railway / Vercel env panel. See docs/ROADMAP.md §3.\n",
+        "   Fix in the Coolify env panel (API + worker). See docs/deploy/coolify-runbook.md §2.5.\n",
       );
     } else if (process.env.NODE_ENV !== "production") {
       console.log("  All external integrations configured ✅");

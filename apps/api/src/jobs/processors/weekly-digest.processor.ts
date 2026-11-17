@@ -1,6 +1,9 @@
 import { Processor, WorkerHost } from "@nestjs/bullmq";
 import { Logger } from "@nestjs/common";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { ConfigService } from "@nestjs/config";
 import type { Job } from "bullmq";
+import type { Env } from "../../config";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { PrismaService } from "../../prisma";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
@@ -55,8 +58,37 @@ export class WeeklyDigestProcessor extends WorkerHost {
     private readonly prisma: PrismaService,
     private readonly resend: ResendService,
     private readonly push: PushService,
+    private readonly config: ConfigService<Env, true>,
   ) {
     super();
+  }
+
+  /**
+   * La base del enlace a Patrones, desde la configuración del entorno.
+   *
+   * Hasta el 2026-11-17 esto era un literal apuntando a la Web de la
+   * plataforma de alojamiento anterior, con el comentario «Hardcoded for v1».
+   * No era una conexión con ese proveedor ni un despliegue allí — era peor: un
+   * **enlace de producto** que se habría enviado a cada persona suscrita al
+   * digest el día que el correo se encienda, apuntando a una Web que ya no es
+   * la del producto.
+   *
+   * El dominio viejo no se transcribe aquí a propósito: `mail-gate.spec.ts`
+   * tiene un trinquete que falla si una superficie de correo lo contiene, y
+   * carvarle una excepción para un comentario lo volvería menos fiable de lo
+   * que cuesta reformular la frase.
+   *
+   * `APP_URL` es la variable que el resto de los correos ya usa
+   * (`AuthService`, `UsersService`, `DataExportProcessor`), así que esto
+   * también la usa: un solo sitio donde cambiar el destino por entorno.
+   *
+   * La barra final se recorta porque el esquema pide que no la lleve y una
+   * sola de más produciría `//dashboard/patrones`, que algunos servidores
+   * sirven y otros no.
+   */
+  private patronesUrl(): string {
+    const appUrl = this.config.get("APP_URL", { infer: true });
+    return `${appUrl.replace(/\/+$/, "")}/dashboard/patrones`;
   }
 
   async process(job: Job<WeeklyDigestJobPayload>): Promise<void> {
@@ -207,8 +239,7 @@ export class WeeklyDigestProcessor extends WorkerHost {
       ecoMessages,
       dominantMood,
       topTags,
-      // Web base URL — config later. Hardcoded for v1 (matches Vercel).
-      patronesUrl: "https://psico-platform-web.vercel.app/dashboard/patrones",
+      patronesUrl: this.patronesUrl(),
       narrative: summary
         ? { headline: summary.headline, body: summary.narrative }
         : undefined,

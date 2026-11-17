@@ -32,6 +32,19 @@ function buildPush(
 }
 
 /**
+ * El enlace a Patrones sale de `APP_URL`, como en los demás correos. Por
+ * omisión se usa el de staging, que es el entorno en el que el digest se
+ * encendería primero.
+ */
+const STAGING_APP_URL = "https://staging.feelverse.app";
+
+function buildConfig(appUrl: string = STAGING_APP_URL) {
+  return {
+    get: (key: string) => (key === "APP_URL" ? appUrl : undefined),
+  } as never;
+}
+
+/**
  * Sprint S53 — Tests pin `nowIso` to Monday 07:00 UTC so the per-user
  * TZ gate fires for users whose `profile.timezone` is null (the gate
  * falls back to UTC for those, and Monday 07:00 UTC matches the digest
@@ -58,6 +71,7 @@ describe("WeeklyDigestProcessor", () => {
       buildPrisma(),
       buildResend(),
       buildPush(),
+      buildConfig(),
     );
     await expect(
       proc.process({ name: "wrong-name", data: {} } as never),
@@ -93,7 +107,7 @@ describe("WeeklyDigestProcessor", () => {
     });
     const resend = buildResend();
     const push = buildPush([{ status: "ok" }]);
-    const proc = new WeeklyDigestProcessor(prisma, resend, push);
+    const proc = new WeeklyDigestProcessor(prisma, resend, push, buildConfig());
 
     await proc.process(jobOf({}));
 
@@ -142,7 +156,12 @@ describe("WeeklyDigestProcessor", () => {
       deviceToken: { deleteMany: vi.fn() },
     });
     const resend = buildResend();
-    const proc = new WeeklyDigestProcessor(prisma, resend, buildPush());
+    const proc = new WeeklyDigestProcessor(
+      prisma,
+      resend,
+      buildPush(),
+      buildConfig(),
+    );
 
     await proc.process(jobOf({}));
 
@@ -170,7 +189,7 @@ describe("WeeklyDigestProcessor", () => {
     ]);
     const resend = buildResend();
     const push = buildPush();
-    const proc = new WeeklyDigestProcessor(prisma, resend, push);
+    const proc = new WeeklyDigestProcessor(prisma, resend, push, buildConfig());
 
     await proc.process(jobOf({}));
 
@@ -191,7 +210,7 @@ describe("WeeklyDigestProcessor", () => {
     ]);
     const resend = buildResend();
     const push = buildPush();
-    const proc = new WeeklyDigestProcessor(prisma, resend, push);
+    const proc = new WeeklyDigestProcessor(prisma, resend, push, buildConfig());
 
     await proc.process(jobOf({}));
 
@@ -223,7 +242,12 @@ describe("WeeklyDigestProcessor", () => {
       { status: "ok" },
       { status: "error", invalidToken: "ExponentPushToken[stale]" },
     ]);
-    const proc = new WeeklyDigestProcessor(prisma, buildResend(), push);
+    const proc = new WeeklyDigestProcessor(
+      prisma,
+      buildResend(),
+      push,
+      buildConfig(),
+    );
 
     await proc.process(jobOf({}));
 
@@ -250,7 +274,12 @@ describe("WeeklyDigestProcessor", () => {
       },
     );
     const resend = buildResend();
-    const proc = new WeeklyDigestProcessor(prisma, resend, buildPush());
+    const proc = new WeeklyDigestProcessor(
+      prisma,
+      resend,
+      buildPush(),
+      buildConfig(),
+    );
 
     await proc.process(jobOf({}));
 
@@ -290,7 +319,12 @@ describe("WeeklyDigestProcessor", () => {
       weeklySummary: { findUnique },
     });
     const resend = buildResend();
-    const proc = new WeeklyDigestProcessor(prisma, resend, buildPush());
+    const proc = new WeeklyDigestProcessor(
+      prisma,
+      resend,
+      buildPush(),
+      buildConfig(),
+    );
 
     await proc.process(jobOf({}));
 
@@ -335,7 +369,12 @@ describe("WeeklyDigestProcessor", () => {
         .mockRejectedValueOnce(new Error("u1 failed"))
         .mockResolvedValueOnce(undefined),
     } as never;
-    const proc = new WeeklyDigestProcessor(prisma, resend, buildPush());
+    const proc = new WeeklyDigestProcessor(
+      prisma,
+      resend,
+      buildPush(),
+      buildConfig(),
+    );
 
     await expect(proc.process(jobOf({}))).resolves.toBeUndefined();
     expect(
@@ -358,7 +397,12 @@ describe("WeeklyDigestProcessor", () => {
       };
       const prisma = buildPrisma([userRow]);
       const resend = buildResend();
-      const proc = new WeeklyDigestProcessor(prisma, resend, buildPush());
+      const proc = new WeeklyDigestProcessor(
+        prisma,
+        resend,
+        buildPush(),
+        buildConfig(),
+      );
 
       // Monday 12:00 UTC === Monday 07:00 Guayaquil
       await proc.process(
@@ -381,7 +425,12 @@ describe("WeeklyDigestProcessor", () => {
       };
       const prisma = buildPrisma([userRow]);
       const resend = buildResend();
-      const proc = new WeeklyDigestProcessor(prisma, resend, buildPush());
+      const proc = new WeeklyDigestProcessor(
+        prisma,
+        resend,
+        buildPush(),
+        buildConfig(),
+      );
 
       await proc.process(
         jobOf({ nowIso: "2026-06-08T07:00:00Z" }, { defaultNow: false }),
@@ -403,7 +452,12 @@ describe("WeeklyDigestProcessor", () => {
       };
       const prisma = buildPrisma([userRow]);
       const resend = buildResend();
-      const proc = new WeeklyDigestProcessor(prisma, resend, buildPush());
+      const proc = new WeeklyDigestProcessor(
+        prisma,
+        resend,
+        buildPush(),
+        buildConfig(),
+      );
 
       await proc.process(
         jobOf({ nowIso: "2026-06-07T22:00:00Z" }, { defaultNow: false }),
@@ -425,7 +479,12 @@ describe("WeeklyDigestProcessor", () => {
       };
       const prisma = buildPrisma([userRow]);
       const resend = buildResend();
-      const proc = new WeeklyDigestProcessor(prisma, resend, buildPush());
+      const proc = new WeeklyDigestProcessor(
+        prisma,
+        resend,
+        buildPush(),
+        buildConfig(),
+      );
 
       await proc.process(
         jobOf({ nowIso: "2026-06-08T07:00:00Z" }, { defaultNow: false }),
@@ -433,6 +492,93 @@ describe("WeeklyDigestProcessor", () => {
       expect(
         (resend as { send: ReturnType<typeof vi.fn> }).send,
       ).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  /**
+   * §67 — el digest llevaba un literal a la antigua Web de Vercel.
+   *
+   * No era una conexión con el proveedor retirado ni un despliegue allí: era un
+   * ENLACE DE PRODUCTO que se habría enviado a cada persona suscrita el día que
+   * el correo se encienda, apuntando a una Web que ya no es la del producto.
+   *
+   * Se comprueba sobre el mensaje RENDERIZADO —HTML y texto plano—, porque la
+   * plantilla usa el enlace en los dos sitios y arreglar sólo uno dejaría el
+   * defecto a medias.
+   */
+  describe("el enlace a Patrones sale del entorno (§67)", () => {
+    const usuario = {
+      id: "u-link",
+      email: "u1@test.com",
+      firstName: "Carla",
+      name: "Carla Pérez",
+      notificationSettings: { dailyReminder: false },
+      deviceTokens: [],
+    };
+
+    async function correoCon(appUrl: string) {
+      const prisma = buildPrisma([usuario], {
+        diaryEntry: {
+          findMany: vi.fn().mockResolvedValue([
+            {
+              moodNormalized: "calma",
+              moodEligibleForDynamics: true,
+              tags: [],
+            },
+          ]),
+        },
+      });
+      const resend = buildResend();
+      const proc = new WeeklyDigestProcessor(
+        prisma,
+        resend,
+        buildPush(),
+        buildConfig(appUrl),
+      );
+      await proc.process(jobOf({}));
+      const send = resend.send as unknown as ReturnType<typeof vi.fn>;
+      expect(send).toHaveBeenCalledTimes(1);
+      return send.mock.calls[0]![0] as { html: string; text: string };
+    }
+
+    it("en staging apunta a la Web de staging, en HTML y en texto", async () => {
+      const email = await correoCon("https://staging.feelverse.app");
+      const esperado = "https://staging.feelverse.app/dashboard/patrones";
+      expect(email.html).toContain(esperado);
+      expect(email.text).toContain(esperado);
+    });
+
+    it("con la configuración de producción apunta al dominio de producción", async () => {
+      const email = await correoCon("https://feelverse.app");
+      const esperado = "https://feelverse.app/dashboard/patrones";
+      expect(email.html).toContain(esperado);
+      expect(email.text).toContain(esperado);
+      // Y no se cuela el de staging por el camino.
+      expect(email.html).not.toContain("staging.feelverse.app");
+    });
+
+    it("la ruta de Patrones se conserva", async () => {
+      const email = await correoCon("https://feelverse.app");
+      expect(email.html).toContain("/dashboard/patrones");
+      expect(email.text).toContain("/dashboard/patrones");
+    });
+
+    it("el mensaje NO recupera un dominio de una plataforma retirada", async () => {
+      for (const appUrl of [
+        "https://staging.feelverse.app",
+        "https://feelverse.app",
+      ]) {
+        const email = await correoCon(appUrl);
+        for (const cuerpo of [email.html, email.text]) {
+          expect(cuerpo).not.toMatch(/vercel\.app|railway\.app|up\.railway/i);
+        }
+      }
+    });
+
+    it("una barra final de más no produce `//dashboard`", async () => {
+      const email = await correoCon("https://feelverse.app/");
+      expect(email.html).toContain("https://feelverse.app/dashboard/patrones");
+      expect(email.html).not.toContain("//dashboard");
     });
   });
 });

@@ -89,14 +89,19 @@ export const envSchema = z
     // direcciones completas (`qa@dominio.com`) o sufijos de dominio (`@dominio.com`).
     //
     // Fuera de producción esta variable es la que ABRE el correo, no la clave:
-    // con `RESEND_API_KEY` y la lista vacía no sale nada, y el arranque lo dice.
-    // El motivo está en `notifications/mail-gate.ts`, y el corto es que en
-    // staging hay cuatro caminos que no dispara una persona —el digest semanal
-    // entre ellos—, así que teclear una credencial bastaría para mandar correo
-    // a cada cuenta que la base tenga con el digest activo.
+    // con `RESEND_API_KEY` y sin lista no sale nada, y el arranque lo dice. El
+    // motivo está en `notifications/mail-gate.ts`, y el corto es que de las
+    // cinco superficies que mandan correo hay **una que dispara un cron** —el
+    // digest semanal— y que escribe a cada cuenta con `weeklyReport=true`, así
+    // que teclear una credencial bastaría para mandar correo a toda la base.
     //
-    // En producción, vacía significa «escribe a tus usuarios», que es lo
-    // correcto allí; con valor actúa igual, como canario deliberado.
+    // Tres estados, no dos, y la diferencia decide si producción envía:
+    //   - SIN CONFIGURAR (ausente o vacía) → producción escribe a sus usuarios,
+    //     que es lo correcto allí; fuera de producción no sale nada.
+    //   - CON VALOR Y SIN ENTRADAS UTILIZABLES → no sale nada **en ningún
+    //     entorno**. Un error al escribir una restricción no puede terminar
+    //     permitiendo cualquier destinatario.
+    //   - CON ENTRADAS → restringe. Mezclar válidas e ilegibles no amplía nada.
     EMAIL_ALLOWLIST: z.string().optional(),
 
     // Google OAuth — required if the frontend exposes "Sign in with Google".

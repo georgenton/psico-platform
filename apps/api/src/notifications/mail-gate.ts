@@ -50,14 +50,52 @@ import type { PsicoEnvironment } from "../shared/psico-environment";
  * `production` se reconoce por `PSICO_ENV`, que es obligatoria en cualquier
  * caja desplegada (`resolveEnvironment()` se niega a arrancar sin ella), así
  * que esta decisión no depende de adivinar dónde corre el proceso.
+ *
+ * ── Y una tercera situación que la primera versión no distinguía ───────────
+ *
+ * «Sin lista» tenía un solo significado —`entries.length === 0`— y eso juntaba
+ * dos cosas opuestas: **que nadie la configurara** y **que alguien la
+ * configurara mal**. Con `EMAIL_ALLOWLIST=dominio.com` —un dominio suelto, que
+ * se rechaza a propósito— la lista utilizable quedaba vacía, y en producción
+ * eso caía en `production-open`: **un error al escribir una restricción
+ * terminaba permitiendo cualquier destinatario**. Reproducido el 2026-11-17
+ * contra el fichero de `main`.
+ *
+ * Son tres estados, no dos:
+ *
+ *   - `absent`   — nadie la configuró. Es la ausencia deliberada, y conserva
+ *                  el comportamiento de producción: escribe a tus usuarios.
+ *                  Un valor vacío cuenta como ausencia porque así es como se
+ *                  guarda una variable borrada en Coolify.
+ *   - `unusable` — hay valor y no deja ni una entrada utilizable. **Nunca abre,
+ *                  en ningún entorno**, producción incluida: quien escribió algo
+ *                  ahí quería restringir, y lo que hay que arreglar es el valor,
+ *                  no el alcance.
+ *   - `usable`   — al menos una entrada. Restringe, y mezclar entradas válidas
+ *                  con ilegibles **no amplía** nada: las ilegibles no coinciden
+ *                  con ninguna dirección.
+ *
+ * Fallar cerrado en producción tiene un coste real —el correo transaccional,
+ * restablecer contraseñas incluido, deja de salir— y por eso el arranque y
+ * `/api/health/integrations` tienen que nombrarlo en voz alta. Es el lado
+ * correcto del que equivocarse: un correo que no sale se nota y se arregla; uno
+ * que sale a quien no debía no se deshace.
  */
 
 export type MailGateVerdict =
   | { send: true; reason: "allowlisted" | "production-open" }
   | {
       send: false;
-      reason: "not-allowlisted" | "no-allowlist-outside-production";
+      reason:
+        | "not-allowlisted"
+        | "no-allowlist-outside-production"
+        | "allowlist-unusable";
     };
+
+/**
+ * `absent` ≠ `unusable`, y la diferencia decide si producción envía.
+ */
+export type MailAllowlistState = "absent" | "unusable" | "usable";
 
 export interface MailAllowlist {
   /** Entradas utilizables: direcciones completas o sufijos `@dominio`. */
@@ -68,6 +106,12 @@ export interface MailAllowlist {
    * porque una lista mal escrita que calla se lee como una lista que funciona.
    */
   malformed: string[];
+  /**
+   * Qué clase de «sin entradas» es ésta. Derivado del valor crudo, no del
+   * recuento: `entries.length === 0` no distingue una variable que nadie puso
+   * de una que alguien escribió mal, y esa confusión abría producción.
+   */
+  state: MailAllowlistState;
 }
 
 /**
@@ -82,6 +126,12 @@ export interface MailAllowlist {
 export function parseMailAllowlist(raw: string | undefined): MailAllowlist {
   const entries: string[] = [];
   const malformed: string[] = [];
+
+  // Ausencia deliberada: la variable no existe, o existe vacía. Lo segundo
+  // cuenta igual a propósito — borrar una variable en Coolify la deja como
+  // cadena vacía, así que tratarla como «configurada» convertiría un borrado
+  // en un corte de correo en producción.
+  const configured = (raw ?? "").trim().length > 0;
 
   for (const piece of (raw ?? "").split(",")) {
     const value = piece.trim().toLowerCase();
@@ -108,7 +158,10 @@ export function parseMailAllowlist(raw: string | undefined): MailAllowlist {
     malformed.push(value);
   }
 
-  return { entries, malformed };
+  const state: MailAllowlistState =
+    entries.length > 0 ? "usable" : configured ? "unusable" : "absent";
+
+  return { entries, malformed, state };
 }
 
 /** Una dirección contra la lista: exacta, o por sufijo `@dominio`. */
@@ -132,9 +185,14 @@ export function mailGate(
   allowlist: MailAllowlist,
   environment: PsicoEnvironment,
 ): MailGateVerdict {
-  const open = allowlist.entries.length === 0;
+  // Configurada y sin nada utilizable: no sale, y tampoco en producción. Es el
+  // caso que antes caía en `production-open` y convertía una restricción mal
+  // escrita en un permiso para todos.
+  if (allowlist.state === "unusable") {
+    return { send: false, reason: "allowlist-unusable" };
+  }
 
-  if (open) {
+  if (allowlist.state === "absent") {
     return environment === "production"
       ? { send: true, reason: "production-open" }
       : { send: false, reason: "no-allowlist-outside-production" };
@@ -157,6 +215,10 @@ export function mailGate(
  * La frase del arranque y del informe de salud. Describe el estado, no lo
  * recomienda: quien la lee tiene que poder distinguir «no sale nada» de «sale
  * a todos» sin abrir el código.
+ *
+ * Se deriva del **mismo** `state` que decide `mailGate`, no de un recuento
+ * paralelo: un banner que diga «abierto» mientras la guarda retiene es peor
+ * que no tener banner.
  */
 export function describeMailGate(
   allowlist: MailAllowlist,
@@ -171,10 +233,16 @@ export function describeMailGate(
   if (!hasKey) {
     return `sin RESEND_API_KEY: ningún correo sale de esta caja (se registra en consola)${mal}`;
   }
-  if (allowlist.entries.length > 0) {
+  if (allowlist.state === "usable") {
     return `restringido a ${allowlist.entries.length} destinatario(s) autorizado(s)${mal}`;
+  }
+  if (allowlist.state === "unusable") {
+    // El caso que más conviene gritar: hay clave, hay lista, y no sale NADA —
+    // tampoco en producción, donde eso incluye restablecer contraseñas. Lo que
+    // hay que arreglar es el valor.
+    return `BLOQUEADO: EMAIL_ALLOWLIST tiene valor pero ninguna entrada utilizable, así que NADA sale (${environment}) — corrige el valor, no el alcance${mal}`;
   }
   return environment === "production"
     ? `abierto: producción escribe a cualquier usuario${mal}`
-    : `RETENIDO: hay clave pero EMAIL_ALLOWLIST está vacía, así que NADA sale (${environment})${mal}`;
+    : `RETENIDO: hay clave y EMAIL_ALLOWLIST no está configurada, así que NADA sale (${environment})${mal}`;
 }

@@ -1435,10 +1435,10 @@ los dos procesos: desde #859 el contrato de uso de Eco cambió de forma, y desde
 Las dos combinaciones están definidas a propósito, y conviene saber cuál se
 tiene:
 
-| Combinación                | Qué pasa                                                                                                                                                                                |
-| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Web nueva · API anterior** | `usage.timezone` llega `undefined`. `effectiveTimezone` lo resuelve a UTC y la tarjeta lo **dice** («vuelve a las 00:00 UTC»). Degrada a una hora honesta, no a una hora falsa          |
-| **Web anterior · API nueva** | el campo viaja y la Web antigua lo ignora: vuelve a contar en la zona del contenedor, que es el defecto que #861 cierra. Funciona; informa peor                                        |
+| Combinación                  | Qué pasa                                                                                                                                                                       |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Web nueva · API anterior** | `usage.timezone` llega `undefined`. `effectiveTimezone` lo resuelve a UTC y la tarjeta lo **dice** («vuelve a las 00:00 UTC»). Degrada a una hora honesta, no a una hora falsa |
+| **Web anterior · API nueva** | el campo viaja y la Web antigua lo ignora: vuelve a contar en la zona del contenedor, que es el defecto que #861 cierra. Funciona; informa peor                                |
 
 Es decir: **ninguna de las dos se rompe**, y la que conviene evitar es la
 segunda. Si hay que revertir sólo uno de los dos, revertir la **Web** es el

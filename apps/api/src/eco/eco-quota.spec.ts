@@ -7,6 +7,9 @@ import {
   ecoResetsAt,
   nextAvailabilityLabel,
 } from "./eco-quota";
+// El criterio compartido vive en el paquete de tipos, porque lo cuentan la API,
+// la web y el móvil. Se prueba desde aquí, igual que `analyzeReflectionText`.
+import { ecoResetParts } from "@psico/types";
 
 /**
  * La política de cuota de Eco, fijada donde se puede leer.
@@ -247,5 +250,82 @@ describe("el mensaje de agotamiento", () => {
     });
     expect(m).toContain("1 mensaje de Eco");
     expect(m).not.toContain("1 mensajes");
+  });
+});
+
+/**
+ * Las PIEZAS del reinicio, que es lo que comparten las dos superficies.
+ *
+ * `nextAvailabilityLabel` (arriba) es la frase del servidor; la tarjeta de Mi
+ * Plan necesita las piezas por separado, porque además de la hora tiene que
+ * decir de qué ventana es la cifra. Que las dos salgan de aquí es lo que hace
+ * imposible que cuenten horas distintas — antes del 2026-11-17 la tarjeta
+ * formateaba sin zona y, pintada en el servidor, decía «00:00» a quien el
+ * mensaje de Eco le decía «19:00».
+ */
+describe("ecoResetParts — el criterio compartido", () => {
+  const RESET = new Date("2026-11-17T00:00:00.000Z");
+
+  it("Quito: mismo día local, así que «hoy» a las 19:00", () => {
+    const p = ecoResetParts(RESET, QUITO, new Date("2026-11-16T22:00:00.000Z"));
+    expect(p).toMatchObject({
+      time: "19:00",
+      relative: "today",
+      dayLabel: "16 de noviembre",
+      zoneDeclared: true,
+    });
+  });
+
+  it("Tokio: el mismo instante cae mañana a las 09:00", () => {
+    const p = ecoResetParts(RESET, TOKIO, new Date("2026-11-16T22:00:00.000Z"));
+    // 22:00Z del 16 son las 07:00 del 17 en Tokio; el reinicio, las 09:00 del
+    // 17 — el MISMO día local. Que la palabra depende de la zona es el punto.
+    expect(p.time).toBe("09:00");
+    expect(p.relative).toBe("today");
+  });
+
+  it("Madrid: mañana a la 01:00", () => {
+    const p = ecoResetParts(
+      RESET,
+      "Europe/Madrid",
+      new Date("2026-11-16T22:00:00.000Z"),
+    );
+    expect(p).toMatchObject({ time: "01:00", relative: "tomorrow" });
+  });
+
+  it("sin zona declarada se cuenta en UTC, y se dice", () => {
+    for (const tz of [null, undefined, "No/Existe", ""]) {
+      const p = ecoResetParts(RESET, tz, new Date("2026-11-16T22:00:00.000Z"));
+      expect(p.zoneDeclared).toBe(false);
+      expect(p.time).toBe("00:00");
+      expect(p.relative).toBe("tomorrow");
+    }
+  });
+
+  it("medianoche no sale como «24:00» ni como «12:00 a. m.»", () => {
+    const p = ecoResetParts(RESET, "UTC", new Date("2026-11-16T22:00:00.000Z"));
+    expect(p.time).toBe("00:00");
+  });
+
+  it("un reinicio lejano se nombra por su día, no como «hoy»", () => {
+    const p = ecoResetParts(
+      new Date("2026-12-03T02:30:00.000Z"),
+      QUITO,
+      new Date("2026-11-16T22:00:00.000Z"),
+    );
+    // 02:30Z del 3 son las 21:30 del 2 en Quito.
+    expect(p).toMatchObject({
+      relative: null,
+      dayLabel: "2 de diciembre",
+      time: "21:30",
+    });
+  });
+
+  it("la frase del servidor se deriva de las mismas piezas", () => {
+    const now = new Date("2026-11-16T22:00:00.000Z");
+    const p = ecoResetParts(RESET, QUITO, now);
+    expect(nextAvailabilityLabel(RESET, QUITO, now)).toBe(
+      `hoy a las ${p.time}`,
+    );
   });
 });

@@ -78,7 +78,11 @@ export class UsageService {
     ] = await Promise.all([
       this.prisma.user.findUnique({
         where: { id: userId },
-        select: { plan: true },
+        // La zona declarada viaja en la respuesta porque es lo que decide cómo
+        // se cuentan sus instantes, y Mi Plan los pinta en el SERVIDOR. Sin
+        // ella la tarjeta los contaba en la zona del contenedor. Va en el mismo
+        // `select` que ya se hacía: ninguna consulta nueva.
+        select: { plan: true, profile: { select: { timezone: true } } },
       }),
       this.prisma.diaryEntry.count({
         where: {
@@ -202,6 +206,7 @@ export class UsageService {
         quota: quotas.voice,
       },
       diary: { entriesThisPeriod: diaryEntriesCount, quota: quotas.diary },
+      timezone: user?.profile?.timezone ?? null,
     };
 
     // Fire-and-forget cache write — a failure here is harmless and we don't

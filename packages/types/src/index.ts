@@ -271,6 +271,23 @@ export interface UsageResponse {
   eco: UsageEco;
   voice: UsageVoice;
   diary: UsageDiary;
+  /**
+   * La zona declarada por la persona (`Profile.timezone`), tal cual — sin
+   * validar aquí. `null` cuando no ha declarado ninguna.
+   *
+   * Está en la respuesta porque es lo que decide cómo se CUENTAN sus instantes,
+   * y quien los pinta es Mi Plan, que es una página de **servidor**: sin este
+   * campo la tarjeta los contaba en la zona del contenedor (UTC) mientras el
+   * mensaje de Eco los contaba en la de la persona, y la misma cuenta veía
+   * «00:00» en un sitio y «19:00» en el otro.
+   *
+   * Opcional en el tipo a propósito: una Web nueva contra una API anterior lo
+   * recibe `undefined`, y `effectiveTimezone` lo resuelve a UTC con
+   * `zoneDeclared: false`, que la tarjeta dice en voz alta. Un `undefined` que
+   * se lee como «sin zona declarada» es el comportamiento correcto, no un
+   * agujero.
+   */
+  timezone?: string | null;
 }
 
 // ─── Invoices (Sprint S7) ─────────────────────────────────────────────────────
@@ -3993,3 +4010,8 @@ export * from "./experience";
 export * from "./guide-anchor";
 export * from "./practice";
 export * from "./crisis-hotline";
+
+// El reinicio de la cuota de Eco, contado en la zona de la persona. Compartido
+// porque lo cuentan DOS superficies —el mensaje del servidor y la tarjeta de Mi
+// Plan— y contarlo dos veces es cómo acabaron diciendo horas distintas.
+export * from "./eco-reset";

@@ -1,7 +1,7 @@
 import type { Plan } from "@prisma/client";
 import type { EcoQuotaWindowKind } from "@psico/types";
+import { nextAvailabilityLabel } from "@psico/types";
 import { PLAN_QUOTAS } from "../subscription/quotas";
-import { isValidTimezone } from "../jobs/utils/timezone";
 
 /**
  * La ventana de cuota de Eco — UNA sola, para la puerta y para el informe.
@@ -129,80 +129,14 @@ export function ecoRemaining(
 
 // ─── El mensaje de agotamiento ───────────────────────────────────────────────
 
-const MESES = [
-  "enero",
-  "febrero",
-  "marzo",
-  "abril",
-  "mayo",
-  "junio",
-  "julio",
-  "agosto",
-  "septiembre",
-  "octubre",
-  "noviembre",
-  "diciembre",
-] as const;
-
-/** La zona efectiva: la de la persona si es válida, UTC si no. */
-function zona(timezone: string | null): string {
-  return timezone !== null && isValidTimezone(timezone) ? timezone : "UTC";
-}
-
-/** `{ y, m, d, hh, mm }` del instante, en la zona pedida. */
-function partes(
-  at: Date,
-  tz: string,
-): { y: number; m: number; d: number; hh: string; mm: string } {
-  const f = new Intl.DateTimeFormat("en-CA", {
-    timeZone: tz,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).formatToParts(at);
-  const g = (t: string) => f.find((p) => p.type === t)?.value ?? "00";
-  // `hour12: false` puede dar «24» a medianoche en algunos ICU; se normaliza,
-  // que es precisamente el instante del reinicio de FREE.
-  const h = g("hour") === "24" ? "00" : g("hour");
-  return {
-    y: Number(g("year")),
-    m: Number(g("month")),
-    d: Number(g("day")),
-    hh: h,
-    mm: g("minute"),
-  };
-}
-
 /**
- * «hoy a las 19:00» · «mañana a las 09:00» · «el 3 de diciembre a las 00:00».
- *
- * El día sólo se nombra cuando difiere del día local de la persona en el
- * momento de la negativa. En Quito, las 00:00 UTC son las 19:00 del MISMO día
- * local, así que decir «vuelve mañana» sería falso — y era lo que decía el
- * mensaje anterior.
+ * La frase del reinicio ya no se compone aquí: vive en
+ * `@psico/types/eco-reset`, porque la tarjeta de Mi Plan tiene que contar el
+ * MISMO instante y la contaba en la zona del servidor. Se re-exporta para que
+ * quien importe `nextAvailabilityLabel` de este módulo —su spec, entre otros—
+ * siga encontrándola donde estaba.
  */
-export function nextAvailabilityLabel(
-  at: Date,
-  timezone: string | null,
-  now: Date,
-): string {
-  const tz = zona(timezone);
-  const a = partes(at, tz);
-  const h = partes(now, tz);
-  const hora = `${a.hh}:${a.mm}`;
-
-  if (a.y === h.y && a.m === h.m && a.d === h.d) return `hoy a las ${hora}`;
-
-  const manana = partes(new Date(now.getTime() + 24 * 60 * 60 * 1000), tz);
-  if (a.y === manana.y && a.m === manana.m && a.d === manana.d) {
-    return `mañana a las ${hora}`;
-  }
-
-  return `el ${a.d} de ${MESES[a.m - 1]} a las ${hora}`;
-}
+export { nextAvailabilityLabel } from "@psico/types";
 
 /**
  * Qué se le dice a quien agotó su cuota.

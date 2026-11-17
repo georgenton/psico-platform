@@ -1424,6 +1424,34 @@ Un rollback de **datos** es otra cosa y no se improvisa: exige el restore drill
 documentado desde el backup de R2. Una migración `expand → deploy → contract` se
 revierte deshaciendo el paso _contract_ primero, y sólo si ese paso aún no corrió.
 
+### 3.0 La pareja API/Web, y por qué no basta decir «no hay migración»
+
+Un redeploy de nivel 1 reapunta **un** servicio, así que casi siempre quedan
+una API y una Web de alturas distintas sirviendo a la vez. Que un cambio no
+traiga migración dice algo de la base de datos y **nada** del contrato entre
+los dos procesos: desde #859 el contrato de uso de Eco cambió de forma, y desde
+#861 la respuesta de uso lleva además la zona declarada de la persona.
+
+Las dos combinaciones están definidas a propósito, y conviene saber cuál se
+tiene:
+
+| Combinación                | Qué pasa                                                                                                                                                                                |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Web nueva · API anterior** | `usage.timezone` llega `undefined`. `effectiveTimezone` lo resuelve a UTC y la tarjeta lo **dice** («vuelve a las 00:00 UTC»). Degrada a una hora honesta, no a una hora falsa          |
+| **Web anterior · API nueva** | el campo viaja y la Web antigua lo ignora: vuelve a contar en la zona del contenedor, que es el defecto que #861 cierra. Funciona; informa peor                                        |
+
+Es decir: **ninguna de las dos se rompe**, y la que conviene evitar es la
+segunda. Si hay que revertir sólo uno de los dos, revertir la **Web** es el
+movimiento seguro; revertir la **API** dejando la Web nueva también lo es,
+porque la ausencia del campo tiene resultado definido.
+
+Lo que NO está comprobado es cualquier pareja más antigua que #859: la forma de
+`UsageEco` cambió ahí (`used`/`quota`/`window`/`resetsAt` donde antes había
+`messagesThisPeriod` emparejado con un cupo que no se aplicaba). Una Web
+posterior a #859 contra una API anterior a #859 leería campos que esa API no
+emite. Los candidatos de reversión por servicio están en §3.1; al elegir, se
+mira el par, no sólo el servicio que molesta.
+
 ### 3.1 Volver atrás cuando hay reclamaciones pendientes
 
 Un redeploy de la versión anterior no siempre es gratis, y hay un caso

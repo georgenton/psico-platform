@@ -85,6 +85,20 @@ export const envSchema = z
     // when the sender was defaulted rather than chosen.
     EMAIL_FROM: z.string().email().default(DEFAULT_EMAIL_FROM),
 
+    // A quién se puede escribir de verdad. Lista separada por comas de
+    // direcciones completas (`qa@dominio.com`) o sufijos de dominio (`@dominio.com`).
+    //
+    // Fuera de producción esta variable es la que ABRE el correo, no la clave:
+    // con `RESEND_API_KEY` y la lista vacía no sale nada, y el arranque lo dice.
+    // El motivo está en `notifications/mail-gate.ts`, y el corto es que en
+    // staging hay cuatro caminos que no dispara una persona —el digest semanal
+    // entre ellos—, así que teclear una credencial bastaría para mandar correo
+    // a cada cuenta que la base tenga con el digest activo.
+    //
+    // En producción, vacía significa «escribe a tus usuarios», que es lo
+    // correcto allí; con valor actúa igual, como canario deliberado.
+    EMAIL_ALLOWLIST: z.string().optional(),
+
     // Google OAuth — required if the frontend exposes "Sign in with Google".
     // Optional otherwise so existing deployments without OAuth keep working.
     // The clientId is also used to *verify* ID tokens server-side, so any

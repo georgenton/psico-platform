@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import type { ConfigService } from "@nestjs/config";
 import { IntegrationsService } from "./integrations.service";
 
@@ -94,6 +94,10 @@ describe("IntegrationsService.bootIssues", () => {
         VAPID_PRIVATE_KEY: "real",
         R2_ACCOUNT_ID: "real",
         EMAIL_FROM_EXPLICIT: true,
+        // Desde el 2026-11-17, «todo configurado» incluye decir A QUIÉN se
+        // puede escribir: fuera de producción una clave sin lista retiene todo
+        // el correo, y eso es una línea de la lista de arranque, no un detalle.
+        EMAIL_ALLOWLIST: "qa@dominio.com",
       } as never),
     );
     // La procedencia entra por el doble, como cualquier otra clave validada:
@@ -167,6 +171,72 @@ describe("IntegrationsService — el remitente, en la capa rápida", () => {
   it("el informe contesta UNA pregunta, no tres", () => {
     const r = withFlag({ RESEND_API_KEY: "re_real" }, true).report();
     expect(Object.keys(r.resendFrom)).toEqual(["configured"]);
-    expect(JSON.stringify(r)).not.toMatch(/verified|delivered|domain/i);
+    expect(JSON.stringify(r)).not.toMatch(/verified|delivered/i);
+  });
+
+  it("hay clave y no sale nada: eso se dice, porque explica el «no me llegó» de después", () => {
+    const issues = withFlag({ RESEND_API_KEY: "re_real" }, true).bootIssues();
+    expect(issues.some((i) => i.key.startsWith("EMAIL_ALLOWLIST"))).toBe(true);
+  });
+
+  it("una lista ilegible se nombra aparte: no autoriza a nadie y no se ve", () => {
+    const issues = withFlag(
+      { RESEND_API_KEY: "re_real", EMAIL_ALLOWLIST: "qa@dominio.com, basura" },
+      true,
+    ).bootIssues();
+    const linea = issues.find((i) => i.key.startsWith("EMAIL_ALLOWLIST"));
+    expect(linea?.reason).toBe("stub");
+    expect(linea?.key).toContain("1 entrada(s) ilegible(s)");
+  });
+});
+
+describe("IntegrationsService — a quién puede llegar un correo", () => {
+  const anterior = process.env.PSICO_ENV;
+  afterEach(() => {
+    if (anterior === undefined) delete process.env.PSICO_ENV;
+    else process.env.PSICO_ENV = anterior;
+  });
+
+  it("sin clave: nada sale, y no se finge que haya una restricción", () => {
+    const r = new IntegrationsService(makeConfig({})).report();
+    expect(r.mailRecipients.mode).toBe("no-key");
+    expect(r.mailRecipients.recipients).toBe(0);
+  });
+
+  it("clave sin lista fuera de producción: RETENIDO", () => {
+    process.env.PSICO_ENV = "staging";
+    const r = new IntegrationsService(
+      makeConfig({ RESEND_API_KEY: "re_real" }),
+    ).report();
+    expect(r.mailRecipients).toMatchObject({
+      mode: "withheld",
+      recipients: 0,
+      environment: "staging",
+    });
+  });
+
+  it("clave con lista: restringido, y se cuenta sin enumerar", () => {
+    process.env.PSICO_ENV = "staging";
+    const r = new IntegrationsService(
+      makeConfig({
+        RESEND_API_KEY: "re_real",
+        EMAIL_ALLOWLIST: "qa@dominio.com, @autorizado.com",
+      }),
+    ).report();
+    expect(r.mailRecipients).toMatchObject({
+      mode: "allowlisted",
+      recipients: 2,
+    });
+    // Una dirección es un dato personal y este informe lo lee cualquier ADMIN.
+    expect(JSON.stringify(r)).not.toContain("qa@dominio.com");
+    expect(JSON.stringify(r)).not.toContain("autorizado.com");
+  });
+
+  it("producción sin lista: abierto, que allí es lo correcto", () => {
+    process.env.PSICO_ENV = "production";
+    const r = new IntegrationsService(
+      makeConfig({ RESEND_API_KEY: "re_real" }),
+    ).report();
+    expect(r.mailRecipients.mode).toBe("open");
   });
 });

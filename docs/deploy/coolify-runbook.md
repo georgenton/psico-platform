@@ -718,13 +718,28 @@ directorio del script hacia arriba, y desde `/tmp` no encuentra `@aws-sdk/client
 
 **La clave sola no es el interruptor, y por diseño.** Hasta el 2026-11-17 sí lo
 era, y eso hacía insegura la operación más sencilla del mundo: pegar
-`RESEND_API_KEY` en staging. De los seis caminos de correo, **cuatro no los
-dispara una persona** —el digest semanal del lunes, el aviso de inactividad, la
-exportación de datos y lo que encole la revisión de autoría—, así que teclear
-una credencial habría bastado para que el siguiente lunes saliera un digest a
-cada cuenta de la base de staging con `weeklyReport=true`: cuentas de prueba de
-meses pasados y cualquier dirección real que haya quedado ahí. Eso no es una
-prueba de correo; es una comunicación no autorizada, y no se deshace.
+`RESEND_API_KEY` en staging.
+
+Cinco superficies mandan correo, y lo que importa es **quién las dispara**:
+
+| Correo                                    | Lo dispara        | Va a                                 |
+| ----------------------------------------- | ----------------- | ------------------------------------ |
+| verificar cuenta · restablecer contraseña | la propia persona | ella                                 |
+| cambio de dirección                       | la propia persona | ella                                 |
+| exportación lista                         | ella lo pidió     | ella, más tarde                      |
+| revisión de autoría aprobada / rechazada  | un **ADMIN**      | un **tercero**: el autor             |
+| **digest semanal**                        | un **cron**       | **cada** cuenta con el digest activo |
+
+La última basta ella sola: teclear una credencial habría hecho que el siguiente
+lunes saliera un digest a cada cuenta de la base de staging con
+`weeklyReport=true` — cuentas de prueba de meses pasados y cualquier dirección
+real que haya quedado ahí. Eso no es una prueba de correo; es una comunicación
+no autorizada, y no se deshace.
+
+> El **aviso de inactividad** no manda correo: es push, y su propio código lo
+> dice. Una versión anterior de esta sección lo contaba entre los caminos de
+> correo y hablaba de «cuatro que nadie dispara». Era falso, y el recuento
+> inflado no hacía falta: el digest lo justifica solo.
 
 Fuera de producción, quien abre el correo es **`EMAIL_ALLOWLIST`**:
 
@@ -745,7 +760,7 @@ entrada ilegible no autoriza a nadie y se nombra en el arranque.
 
 ```bash
 # 1. PRIMERO la lista, en los tres recursos (API, Web no la necesita; worker SÍ:
-#    el digest y el aviso de inactividad corren ahí).
+#    el digest semanal corre ahí).
 #      EMAIL_ALLOWLIST=<la bandeja autorizada>
 # 2. DESPUÉS la credencial y el remitente:
 #      RESEND_API_KEY=<...>   EMAIL_FROM=no-reply@feelverse.app

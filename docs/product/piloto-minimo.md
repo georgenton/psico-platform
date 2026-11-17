@@ -109,8 +109,8 @@ local. Así que poner `RESEND_API_KEY` sin más **mandaría correo real a esas
 bandejas** el lunes siguiente, sin que nadie lo hubiera pedido.
 
 > ✅ **Lo que esa precondición pedía de nosotros, hecho el 17-11.** El riesgo
-> era que una variable bastara para abrir seis caminos, cuatro de los cuales no
-> dispara nadie. Ya no basta: **fuera de producción el correo lo abre
+> era que una variable bastara para abrir las cinco superficies de correo, una de
+> ellas un **cron** que escribe a cada cuenta con el digest activo. Ya no basta: **fuera de producción el correo lo abre
 > `EMAIL_ALLOWLIST`, no la clave**. Con clave y la lista vacía no sale **nada**
 > —el arranque y `/api/health/integrations` lo dicen con la palabra
 > `RETENIDO`/`withheld`—, así que incorporar una credencial no puede mandar el

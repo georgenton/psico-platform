@@ -8,24 +8,31 @@ import type { PsicoEnvironment } from "../shared/psico-environment";
  * Hasta hoy, `RESEND_API_KEY` era el único interruptor: sin clave,
  * `ResendService` escribe el correo en el registro y no sale nada; con clave,
  * sale TODO. Y "todo" en staging no es sólo el correo que alguien está
- * probando — son seis caminos, y cuatro no los dispara una persona:
+ * probando. Las cinco superficies que mandan correo, y quién las dispara:
  *
- *   - verificación de cuenta y restablecimiento de contraseña (`AuthService`),
- *   - cambio de correo y exportación de datos (cola `email`, `data-export`),
- *   - el **digest semanal** (`WeeklyDigestProcessor`, lunes 07:00 de cada
- *     persona) y lo que encole `author-review`.
+ *   - verificación de cuenta y restablecimiento de contraseña (`AuthService`)
+ *     y cambio de correo (cola `email`) → los pide la propia persona;
+ *   - exportación lista (`DataExportProcessor`) → lo pidió ella, llega después;
+ *   - revisión de autoría aprobada o rechazada (`author-review` → cola `email`)
+ *     → la dispara un **ADMIN** y el correo va a un **tercero**, el autor;
+ *   - el **digest semanal** (`WeeklyDigestProcessor`) → lo dispara un **cron**,
+ *     y va a CADA cuenta con `weeklyReport=true`.
  *
- * O sea: el día que llegue una credencial, teclearla bastaría para que el
- * siguiente lunes saliera un digest a cada cuenta que la base de staging tenga
- * con `weeklyReport=true`, incluidas las cuentas de pruebas de meses pasados y
- * cualquier dirección real que haya quedado ahí. Eso no es una prueba de
- * correo: es una comunicación no autorizada, y no se deshace.
+ * Esa última es la peligrosa, y basta ella sola: el día que llegue una
+ * credencial, teclearla haría que el siguiente lunes saliera un digest a cada
+ * cuenta que la base de staging tenga con el digest activo — cuentas de prueba
+ * de meses pasados y cualquier dirección real que haya quedado ahí. Eso no es
+ * una prueba de correo: es una comunicación no autorizada, y no se deshace.
+ *
+ * (El aviso de inactividad **no** manda correo: es push, y su propio código lo
+ * dice. Una versión anterior de este comentario lo contaba entre los caminos de
+ * correo, y era falso.)
  *
  * ── Por qué aquí y no en cada camino ──────────────────────────────────────
  *
- * Los seis caminos pasan por `ResendService.send` — comprobado, y con
+ * Las cinco superficies pasan por `ResendService.send` — comprobado, y con
  * trinquete: `mail-gate.spec.ts` falla si alguien vuelve a instanciar el SDK
- * fuera de ese servicio. Un único punto de paso se puede razonar; seis guardas
+ * fuera de ese servicio. Un único punto de paso se puede razonar; cinco guardas
  * repartidas se desincronizan en el primer camino que alguien añada.
  *
  * ── El criterio ───────────────────────────────────────────────────────────

@@ -42,7 +42,7 @@ export interface SendEmailInput {
  *
  * Y una cuarta, desde el 2026-11-17: **con clave, fuera de producción, sólo a
  * destinatarios autorizados** (`EMAIL_ALLOWLIST`). Este es el único punto por
- * el que sale correo real — los seis caminos pasan por `send()` —, así que es
+ * el que sale correo real — las cinco superficies pasan por `send()` —, así que es
  * donde vive la guarda. El razonamiento completo está en `mail-gate.ts`; lo
  * corto: incorporar una credencial no debe activar por accidente el digest
  * semanal a cada cuenta de staging.

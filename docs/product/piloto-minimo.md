@@ -275,10 +275,15 @@ ofrecerse donde no hay nada que recorrer.
    diario de la primera sigue cifrado donde estaba y la nueva empieza vacía.
    **Es la única que bloquea el piloto.**
 
-   Vuelto a comprobar el 13-11 por la noche: la variable sigue **ausente** de la
-   lista de los tres recursos —ausente, no vacía— y no hay ninguna credencial de
-   correo autorizada en el almacén de ops. Hacen falta dos insumos: el dominio
-   verificado con su clave, y una dirección real donde recibir.
+   Vuelto a comprobar el 17-11, y esta vez en **dos** sitios: la variable sigue
+   **ausente** de la lista de los tres recursos —ausente, no vacía— y **también
+   dentro del contenedor servido**, que es el que de verdad distingue las dos
+   cosas; y no hay ninguna credencial de correo autorizada en el almacén de ops.
+   Hacen falta tres insumos: la clave, el dominio verificado y una dirección
+   real donde recibir.
+
+   → Ficha corta con los tres, dónde ponerlos y qué queda después:
+   [docs/operations/correo-insumos-pendientes.md](../operations/correo-insumos-pendientes.md)
 
 2. **¿Se configura `SENTRY_DSN`?** Traza frente a reproducción. No bloquea.
 

@@ -14,8 +14,13 @@
 > ## ⚠️ Qué manda hoy, y qué es antecedente
 >
 > **El trabajo vigente NO está en este documento.** Está en la sección
-> **«🧭 Trabajo vigente»** al final de [CLAUDE.md](../CLAUDE.md), con fecha de
-> corte del 2026-10-24.
+> **«🧭 Trabajo vigente»** al final de [CLAUDE.md](../CLAUDE.md), que lleva su
+> propia fecha de corte — se mueve cada pocos días, así que repetirla aquí sólo
+> conseguía que este puntero envejeciera sin avisar. (Lo consiguió: decía
+> «2026-10-24» cuando el corte ya iba por el 17-11.)
+>
+> El plan hasta producción, pendiente por pendiente, vive en
+> [runbook §4 y §4.1](deploy/coolify-runbook.md).
 >
 > El cuerpo de abajo es el **audit del 2026-06-13** y se conserva como
 > antecedente: explica por qué los módulos quedaron en el orden en que están

@@ -4029,31 +4029,34 @@ de cada bitácora de sesión— es **antecedente fechado**: explica cómo se lle
 aquí, no lo que toca hacer. Si una instrucción antigua contradice esta
 sección, manda esta sección.
 
-#### El corte — 2026-11-17, cuarta tanda
+#### El corte — 2026-11-17, quinta tanda
 
-|                                  |                                                                                                                                                                                                                                                                                                                                |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Dónde vive                       | **OVH con Coolify, y sólo ahí.** Vercel y Railway retiradas del plan operativo **y desconectadas del cliente** en este repositorio                                                                                                                                                                                             |
-| `main`                           | **`6b069d17`** al empezar esta tanda (#857, #858, #859 y #860 ya dentro). Esta tanda añade **#861**, que no puede nombrar su propio hash: el commit integrado, el artefacto servido y la fecha de observación van siempre por separado                                                                                         |
-| Inicialización del avance        | ✅ **cerrada** (#857): la apertura de la sesión nativa era de dos pasos y se podía pisar con quien escribiera a la vez. Creación por `upsert` sobre la clave única + siembra por **comparar-y-fijar**; 6 regresiones con **dos conexiones** a PostgreSQL y 4 mutaciones                                                        |
-| Lo que Eco comunica              | ✅ **conciliado** (#859): Mi Plan y la puerta de Eco preguntan ahora a la **misma función**. Una cuenta FREE ve el consumo **de su día UTC**, su límite de 10, lo que queda y cuándo vuelve; el consumo del periodo se conserva como **estadística aparte**. Los límites **no cambiaron**                                      |
-| El mensaje de agotar la cuota    | ✅ **por plan y por reloj** (#859): a PRO ya no se le recomienda el plan que tiene ni se le promete «mañana», y a nadie se le promete una contratación que el piloto no ofrece. En Quito dice **«hoy a las 19:00»**, que es cuando de verdad vuelve                                                                            |
-| La zona de la tarjeta            | ✅ **cerrada** (#861): Mi Plan es una página de **servidor**, así que la tarjeta contaba en la zona del contenedor. Medido en la ruta real con una cuenta en Quito: **«00:00» → «19:00»**, la misma hora que dice el mensaje de Eco, y el periodo **«1 nov – 1 dic» → «31 oct – 30 nov»**                                      |
-| El verificador de manifiestos    | ✅ **su falso verde, cerrado** (#859) **y su lectura parcial, también** (#861): aceptaba un paquete **vacío** con `exit 0`, y después anunciaba como completa una comparación histórica a la que le faltaba un fichero. Inventario **declarado por identidad**, cuatro garantías separadas, y las **doce** lecturas requeridas |
-| Conexiones de cliente            | ✅ **retiradas** (#851): ni los MCP de Railway, ni el plugin de Vercel —37 skills, 3 agentes, 3 hooks—, ni la skill `use-railway`. Por proyecto, reversible, **sin tocar nada remoto**                                                                                                                                         |
-| La pestaña del guía              | ✅ **arreglada y servida** (#852): reconoce un recorrido propio en otro pin del capítulo, así que el historial no desaparece al cambiar la oferta publicada                                                                                                                                                                    |
-| Decisión **A**                   | ✅ **concedida, firmada, publicada y verificada** el 12-11. Las cinco en `PUBLISHED`                                                                                                                                                                                                                                           |
-| UAT de las cinco                 | ✅ **cerrada el 13-11**: MG02, MG03 y MG05 recorridas escena a escena, con MG01 y MG04 del 12-11. Matriz en [la UAT](docs/informes/uat-2026-11-13-microguias-c01.md)                                                                                                                                                           |
-| Decisión **B**                   | ⬜ **pendiente**, con su **alcance medido en cuatro dimensiones separadas** — y conviene leer la nota de abajo: la **API deja empezar** un recorrido de C02 sin Experience publicada                                                                                                                                           |
-| Decisión **1** (sinopsis de EEC) | ✅ **ejecutada el 13-11**: aplicada en staging con comparar-y-fijar y verificada por SHA en el fichero, la fila y la API                                                                                                                                                                                                       |
-| Decisión **2** (nota de C01)     | ✅ **ejecutada el 13-11 como revisión `v1.1`, y SIN firmas nuevas** (#853). Las cinco actas de `v1.0` siguen válidas porque cada una valida contra **su** revisión declarada                                                                                                                                                   |
-| Receta de manifiestos            | ✅ **corregida** (#857): regenerar los manifiestos de C01 es **histórico** y se rechaza con su motivo. Lo vigente es `verify-guide-manifests.mjs`, que comprueba el paquete sellado contra sus **propios** ficheros y nunca contra el manuscrito vivo                                                                          |
-| Servido en staging               | **API `a1448207`** y **Web `a1448207`** (las dos del 17-11; la API leída sobre su artefacto: `ready=true`, `reason=ok`, **71/71** migraciones, `pending` y `failed` vacíos; Web con `/` y `/login` en 200) · worker **`f15c5c96`**                                                                                             |
-| Recorrido acotado tras desplegar | ✅ **antes y después en la MISMA cuenta**, sintética y declarada en `America/Guayaquil`: la tarjeta pasa de «hoy · vuelve a las 00:00» a **«hoy · vuelve a las 19:00»**, el periodo de «1 nov – 1 dic» a **«31 oct – 30 nov»**, y el campo `timezone` ya viaja en `/api/plan`. Sin gastar una llamada al modelo                |
-| ¿Coinciden?                      | **API y Web sí, y por una dependencia real**: la API publica el campo nuevo y la Web lo consume. El **worker conserva `f15c5c96`** — no sirve `/usage` ni compone ese mensaje. Igualar SHA sigue sin ser motivo para desplegar                                                                                                 |
-| Capítulo 1 de EEC                | **187 bloques servidos**, encabezado «Referencias», nota editorial retirada, cero asteriscos, 22 entradas, 49 bloques con énfasis · **5 experiencias ofrecidas**, las cinco `startable`, 7/7/7/8/8 escenas · la legada archivada no reaparece                                                                                  |
-| Avance del lector en C01         | **conservado en el cambio de revisión** y ahora también **ante escrituras simultáneas**: las 9 sesiones que existían siguen con su porcentaje y su tiempo, las 2 completadas siguen completadas (`pct=0.1383` por HTTP), y lo que alguien guarde durante la inicialización ya no se sustituye por lo anterior                  |
-| Producción                       | **no existe como recurso.** Tres aplicaciones en el proyecto, las tres de staging                                                                                                                                                                                                                                              |
+|                                   |                                                                                                                                                                                                                                                                                                                                                                                            |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Dónde vive                        | **OVH con Coolify, y sólo ahí.** Vercel y Railway retiradas del plan operativo **y desconectadas del cliente** en este repositorio                                                                                                                                                                                                                                                         |
+| `main`                            | **`327a2454`** al empezar esta tanda (#857–#861 ya dentro). Esta tanda añade **#862**, que no puede nombrar su propio hash: el commit integrado, el artefacto servido y la fecha de observación van siempre por separado                                                                                                                                                                   |
+| El correo, ANTES de la credencial | ✅ **la guarda, cerrada** (#862): `RESEND_API_KEY` era el único interruptor, y de los seis caminos de correo **cuatro no los dispara una persona**. Teclear una clave habría mandado el digest del lunes a cada cuenta de staging con el digest activo. Fuera de producción el correo lo abre ahora **`EMAIL_ALLOWLIST`**: con clave y lista vacía **no sale nada**, y el arranque lo dice |
+| Decisión **B**, preparada         | ✅ **redactada para resolverse de una vez** (#862, piloto mínimo §8): audiencia y **tamaño** (tres personas, de una en una), entrada por el flujo normal, alcance **en lenguaje de producto**, duración (dos semanas por persona, tope de seis), seis señales de evaluación, ayuda, tres niveles de retirada, y **recomendación: sí**. Ejecutarla es añadir ids a una lista que ya existe  |
+| El tramo hasta producción         | ✅ **desglosado** (#862, runbook §4.1): siete pendientes con qué falta, qué resultado los cierra, **quién** puede resolverlos y si impiden el piloto, producción o ninguno. Correo bloquea el piloto; nivel 4, aceptación visual, Sentry y lo editorial bloquean **producción**; B y Google, ninguno                                                                                       |
+| Inicialización del avance         | ✅ **cerrada** (#857): la apertura de la sesión nativa era de dos pasos y se podía pisar con quien escribiera a la vez. Creación por `upsert` sobre la clave única + siembra por **comparar-y-fijar**; 6 regresiones con **dos conexiones** a PostgreSQL y 4 mutaciones                                                                                                                    |
+| Lo que Eco comunica               | ✅ **conciliado** (#859): Mi Plan y la puerta de Eco preguntan ahora a la **misma función**. Una cuenta FREE ve el consumo **de su día UTC**, su límite de 10, lo que queda y cuándo vuelve; el consumo del periodo se conserva como **estadística aparte**. Los límites **no cambiaron**                                                                                                  |
+| El mensaje de agotar la cuota     | ✅ **por plan y por reloj** (#859): a PRO ya no se le recomienda el plan que tiene ni se le promete «mañana», y a nadie se le promete una contratación que el piloto no ofrece. En Quito dice **«hoy a las 19:00»**, que es cuando de verdad vuelve                                                                                                                                        |
+| La zona de la tarjeta             | ✅ **cerrada** (#861): Mi Plan es una página de **servidor**, así que la tarjeta contaba en la zona del contenedor. Medido en la ruta real con una cuenta en Quito: **«00:00» → «19:00»**, la misma hora que dice el mensaje de Eco, y el periodo **«1 nov – 1 dic» → «31 oct – 30 nov»**                                                                                                  |
+| El verificador de manifiestos     | ✅ **su falso verde, cerrado** (#859) **y su lectura parcial, también** (#861): aceptaba un paquete **vacío** con `exit 0`, y después anunciaba como completa una comparación histórica a la que le faltaba un fichero. Inventario **declarado por identidad**, cuatro garantías separadas, y las **doce** lecturas requeridas                                                             |
+| Conexiones de cliente             | ✅ **retiradas** (#851): ni los MCP de Railway, ni el plugin de Vercel —37 skills, 3 agentes, 3 hooks—, ni la skill `use-railway`. Por proyecto, reversible, **sin tocar nada remoto**                                                                                                                                                                                                     |
+| La pestaña del guía               | ✅ **arreglada y servida** (#852): reconoce un recorrido propio en otro pin del capítulo, así que el historial no desaparece al cambiar la oferta publicada                                                                                                                                                                                                                                |
+| Decisión **A**                    | ✅ **concedida, firmada, publicada y verificada** el 12-11. Las cinco en `PUBLISHED`                                                                                                                                                                                                                                                                                                       |
+| UAT de las cinco                  | ✅ **cerrada el 13-11**: MG02, MG03 y MG05 recorridas escena a escena, con MG01 y MG04 del 12-11. Matriz en [la UAT](docs/informes/uat-2026-11-13-microguias-c01.md)                                                                                                                                                                                                                       |
+| Decisión **B**                    | ⬜ **sigue pendiente de ti**, ahora con la propuesta entera delante (§8 del piloto mínimo). Su alcance está medido en **cuatro dimensiones separadas**, y conviene no colapsarlas: la **API deja empezar** un recorrido de C02 sin Experience publicada; lo que B abre es **la pantalla de lo que C01 publica**                                                                            |
+| Decisión **1** (sinopsis de EEC)  | ✅ **ejecutada el 13-11**: aplicada en staging con comparar-y-fijar y verificada por SHA en el fichero, la fila y la API                                                                                                                                                                                                                                                                   |
+| Decisión **2** (nota de C01)      | ✅ **ejecutada el 13-11 como revisión `v1.1`, y SIN firmas nuevas** (#853). Las cinco actas de `v1.0` siguen válidas porque cada una valida contra **su** revisión declarada                                                                                                                                                                                                               |
+| Receta de manifiestos             | ✅ **corregida** (#857): regenerar los manifiestos de C01 es **histórico** y se rechaza con su motivo. Lo vigente es `verify-guide-manifests.mjs`, que comprueba el paquete sellado contra sus **propios** ficheros y nunca contra el manuscrito vivo                                                                                                                                      |
+| Servido en staging                | **API `a1448207`** y **Web `a1448207`** (las dos del 17-11; la API leída sobre su artefacto: `ready=true`, `reason=ok`, **71/71** migraciones, `pending` y `failed` vacíos; Web con `/` y `/login` en 200) · worker **`f15c5c96`**                                                                                                                                                         |
+| Recorrido acotado tras desplegar  | ✅ **antes y después en la MISMA cuenta**, sintética y declarada en `America/Guayaquil`: la tarjeta pasa de «hoy · vuelve a las 00:00» a **«hoy · vuelve a las 19:00»**, el periodo de «1 nov – 1 dic» a **«31 oct – 30 nov»**, y el campo `timezone` ya viaja en `/api/plan`. Sin gastar una llamada al modelo                                                                            |
+| ¿Coinciden?                       | **API y Web sí, y por una dependencia real**: la API publica el campo nuevo y la Web lo consume. El **worker conserva `f15c5c96`** — no sirve `/usage` ni compone ese mensaje. Igualar SHA sigue sin ser motivo para desplegar                                                                                                                                                             |
+| Capítulo 1 de EEC                 | **187 bloques servidos**, encabezado «Referencias», nota editorial retirada, cero asteriscos, 22 entradas, 49 bloques con énfasis · **5 experiencias ofrecidas**, las cinco `startable`, 7/7/7/8/8 escenas · la legada archivada no reaparece                                                                                                                                              |
+| Avance del lector en C01          | **conservado en el cambio de revisión** y ahora también **ante escrituras simultáneas**: las 9 sesiones que existían siguen con su porcentaje y su tiempo, las 2 completadas siguen completadas (`pct=0.1383` por HTTP), y lo que alguien guarde durante la inicialización ya no se sustituye por lo anterior                                                                              |
+| Producción                        | **no existe como recurso.** Tres aplicaciones en el proyecto, las tres de staging                                                                                                                                                                                                                                                                                                          |
 
 > **Lo que ya no está pendiente**, y conviene no volver a encargarlo: el
 > archivado del piloto legado (11-11), la creación de los cinco borradores
@@ -4063,8 +4066,11 @@ sección, manda esta sección.
 > por la API. El árbol histórico de abajo describe cómo se llegó ahí; **esta
 > tabla es el presente**.
 >
-> **Lo que sigue pendiente.** La decisión **B** y los insumos externos del
-> §«Lo que pide una decisión tuya». La frase «ya casi no es trabajo técnico»
+> **Lo que sigue pendiente.** La decisión **B** —ya con su propuesta entera
+> delante, §8 del piloto mínimo— y los insumos externos del §«Lo que pide una
+> decisión tuya». **Del correo**, lo nuestro está hecho (#862) y lo que falta son
+> los tres insumos; eso no lo cierra ningún código. La frase «ya casi no es
+> trabajo técnico»
 > que había aquí **se retira**: la revisión del 16-11 encontró un defecto
 > funcional acotado en la inicialización del avance, y cerrarlo era trabajo
 > técnico con criterio finito. Está cerrado en #857 — pero la lección es que
@@ -4187,6 +4193,8 @@ en [el runbook §4](docs/deploy/coolify-runbook.md).
 | Receta de manifiestos sellados           | ✅ **corregida y con su falso verde cerrado** (16-11, #857 y #859). `build-guide-manifests.mjs` comparaba el manuscrito **vivo** de C01 (v1.1) con el hash **sellado** (v1.0) y abortaba con un hash suelto: queda **histórica** y se rechaza con su motivo. Lo vigente es `verify-guide-manifests.mjs`, que el 16-11 **aceptaba un paquete vacío** —sólo un `SHA256SUMS.txt` sin líneas— con `exit 0` y «coincide con lo que se firmó», porque derivaba la cobertura de los ficheros que encontraba. Hoy el inventario es **declarado por identidad** (`manifestId` a `manifestId`, no por recuento) y el informe separa **cuatro garantías**: consistencia interna, correspondencia con las actas, verificación criptográfica —**nunca aquí**, la clave vive en el entorno— y **comparación histórica** contra un commit declarado (`2bee9db5`, #844). Cuatro controles negativos ejecutados y trinquete en `apps/api`. **El material firmado está intacto; el README sí cambió** — «cero cambios en `v1.0/`» era impreciso. **Y el 17-11 (#861) cerró el escalón que quedaba**: la comparación histórica declaraba su garantía mirando sólo los once ficheros del inventario, así que con `SHA256SUMS.txt` ilegible en el sello imprimía «✔ contra … · 11 ficheros» y cerraba con «IDÉNTICO». Las **doce** lecturas son requeridas; cualquiera que falte retira la garantía, nombra lo que no se pudo leer y cierra con `OK PARCIAL`, sin degradar lo que sí se comprobó                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | Eco · cuota FREE                         | ✅ **comprobada sobre el artefacto servido** (16-11, #858): 10 pasan, el 11 recibe `ECO_QUOTA_EXCEEDED` sin llamar al modelo. Destapó un **mensaje falso**, arreglado ese mismo día, y una **cifra que no cuadraba** entre la puerta y Mi Plan. Esa segunda parte quedó **conciliada en #859**, y conviene decir que la presenté mal: no eran «dos cifras ciertas en su sitio» ni una decisión comercial, era una política y una **representación equivocada** de ella — el 20 nunca se aplicó. Los límites no cambiaron                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | Eco · la hora que se muestra             | ✅ **una sola, en la zona de la persona** (17-11, #861). Mi Plan es una página de **servidor**: su tarjeta formateaba sin `timeZone`, así que contaba en la del contenedor. Reproducido en la ruta real con una cuenta declarada en Quito — «00:00» en la tarjeta, «19:00» en el mensaje de Eco, el mismo instante. Ahora las dos superficies derivan hora, día y palabra relativa de **la misma función** (`ecoResetParts`, en `@psico/types`), la palabra relativa se **calcula** —en Madrid el mismo reinicio es «mañana a la 01:00»— y sin zona declarada se cuenta en UTC **y se dice**. 7 mutaciones muertas; las pruebas valen bajo cualquier `TZ` del proceso                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Correo · la guarda de destinatarios      | ✅ **cerrada** (17-11, #862), y era la precondición del piloto, no un adorno: `RESEND_API_KEY` era el único interruptor y **cuatro** de los seis caminos de correo no los dispara una persona, así que teclear una clave habría mandado el digest del lunes a cada cuenta de staging con el digest activo. Fuera de producción abre **`EMAIL_ALLOWLIST`**: con clave y lista vacía **no sale nada**, dicho en el arranque y en `/api/health/integrations`. Punto de paso único con trinquete **y control positivo**; dos huecos reproducidos (dominio suelto, varios destinatarios en `to`). 4 mutaciones muertas. Receta en [runbook §2.5.1](docs/deploy/coolify-runbook.md)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Correo · el recorrido de recuperación    | ❌ **sigue sin poderse hacer** — y lo que falta es **insumo externo**, no trabajo. Comprobado el 17-11 en los tres recursos y dentro del contenedor servido: `RESEND_API_KEY`, `EMAIL_FROM` y `EMAIL_ALLOWLIST` **ausentes** (ausentes, no vacías), y ninguna credencial de correo en el almacén de ops. El único fichero de «correo» que hay es una cuenta de aplicación en `@psico.test`, que por la RFC 2606 **no puede recibir**. Hoy nadie recupera su contraseña                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | Cobros reales                            | ⏸️ **conservan su situación actual** — cerrados                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 
 #### Webhooks ≠ D-ORD
@@ -4241,6 +4249,15 @@ distintas:
    sacan de otro sitio): `RESEND_API_KEY` (correo del digest, de la exportación
    y **del restablecimiento de contraseña**) · `GOOGLE_CLIENT_ID` (acceso con
    Google) · `SENTRY_DSN` (traza de errores). Ninguna bloquea la lectura.
+
+   **Y una que ya no es sólo un insumo:** `RESEND_API_KEY` arrastraba desde el
+   07-11 una precondición —que ponerla no activara correos a otras cuentas— que
+   hasta el 17-11 era una promesa de procedimiento. Ahora es **mecanismo**
+   (#862): fuera de producción el correo lo abre `EMAIL_ALLOWLIST`, así que la
+   clave y la bandeja autorizada entran juntas o no entra nada. Es la diferencia
+   entre «acuérdate de dar de baja del digest a las cuentas reales» y «no puede
+   salir».
+
 5. ✅ **Piloto mínimo propuesto** — [docs/product/piloto-minimo.md](docs/product/piloto-minimo.md):
    un piloto de **lectura acompañada**, una obra, en staging, de una persona a
    la vez, con sus criterios de entrada, salida y suspensión y **seis
@@ -5301,33 +5318,95 @@ distintas:
     ninguna firma. Se desplegaron **API y Web** —la API publica el campo, la Web
     lo consume—; el worker no.
 
+45. ✅ **El correo dejó de ser un interruptor de todo o nada** (17-11, #862), y
+    esto no es una mejora cosmética: era la operación más sencilla del mundo
+    —pegar `RESEND_API_KEY` en staging— y era insegura.
+
+    De los **seis** caminos de correo, **cuatro no los dispara una persona**: el
+    digest semanal del lunes, el aviso de inactividad, la exportación de datos y
+    lo que encole la revisión de autoría. Así que teclear una credencial habría
+    bastado para que el lunes siguiente saliera un digest a **cada cuenta de
+    staging con `weeklyReport=true`** — cuentas de prueba de meses pasados y
+    cualquier dirección real que haya quedado ahí. No es una prueba de correo:
+    es una comunicación no autorizada, y no se deshace.
+
+    **Fuera de producción el correo lo abre `EMAIL_ALLOWLIST`, no la clave.**
+    Con clave y la lista vacía **no sale nada** —`RETENIDO` en el arranque,
+    `withheld` en `/api/health/integrations`— y en producción, vacía significa
+    «escribe a tus usuarios», que es lo correcto allí. La tercera línea de esa
+    tabla es la que importa: **falla cerrado**, y acopla las dos cosas que de
+    verdad van juntas — la credencial y la bandeja autorizada entran en el mismo
+    paso, y sólo esa bandeja recibe.
+
+    La guarda vive en el **único** punto por el que sale correo real
+    (`ResendService.send`, por donde pasan los seis), con trinquete que falla si
+    alguien vuelve a instanciar el SDK en otro sitio, **y con control positivo**
+    para que un patrón roto no lo deje vacuo. Un destinatario retenido se
+    registra y **no lanza**: el digest hace fan-out y una dirección no puede
+    abortar la tanda.
+
+    **Dos huecos reproducidos antes de cerrarlos.** Un dominio suelto se
+    rechaza, porque `endsWith` también aceptaría `x@notdominio.com` y una regla
+    de seguridad que a veces abre de más no es una regla. Y `to` se parte por
+    comas exigiendo que **todas** pasen: comparar la cadena completa contra un
+    sufijo autorizado la aceptaba cuando la **última** dirección era la
+    autorizada, y el correo salía a las dos. Mi primera versión de esa prueba
+    **describía el hueco sin llegar a tocarlo** —datos con direcciones exactas,
+    donde no se alcanza—, así que la mutación sobrevivió; corregida con un
+    sufijo, muere. **4 mutaciones, 4 muertas.**
+
+    El informe de salud **cuenta** las entradas y nunca las enumera: una
+    dirección es un dato personal y lo lee cualquier ADMIN.
+
+    **Y en la misma pasada, lo documental que §65 pedía:** la pareja de
+    recuperación de #861 concretada **y comprobada** contra Coolify (API
+    `21f10095` y Web `6b069d17` siguen ahí; inventario del día: 4 imágenes de
+    API, 5 de Web, 3 del worker, cuyo actual es del 07-11, así que «la versión
+    anterior» no es una altura común), sin preferencia general por revertir Web
+    —se revierte el servicio que tenga el defecto—; el puntero de §3.1 marcado
+    como antecedente del 24-10; y el alcance real de compartir el criterio de
+    zona, que **no** es sincronización instantánea: la respuesta de uso conserva
+    cinco minutos de caché cuya clave no lleva la zona, así que tras editar el
+    perfil la tarjeta puede contar en la anterior un rato y se cura sola.
+    Distinto del defecto de #861, donde contaba en la zona del **contenedor** y
+    ninguna espera lo arreglaba.
+
 #### La siguiente ejecución hacia producción
 
 Cinco cajones, y la diferencia entre ellos es quién puede moverlos.
 
-**1 · Integrado y servido** — base `6b069d17`, con #851–#860 ya dentro (#851
+**1 · Integrado y servido** — base `327a2454`, con #851–#861 ya dentro (#851
 retirada del cliente, #852 pestaña del guía, #853 C01 `v1.1`, #854 el alcance de B,
 #855 el montón del typecheck, #857 la inicialización concurrente del avance, #858 y
-#859 la cuota de Eco, #860 el reloj de 24 h). Esta tanda añade **#861**: la zona de
-la tarjeta de Mi Plan y la lectura histórica parcial del verificador.
+#859 la cuota de Eco, #860 el reloj de 24 h, #861 la zona de la tarjeta y la lectura
+histórica parcial). Esta tanda añade **#862**: la guarda de destinatarios del
+correo, y lo documental de §65.
 
-**Dos despliegues, y por una dependencia real.** El campo `timezone` lo publica la
-**API** y lo consume la **Web**, así que van las dos y se comprueban sobre sus
-artefactos: disponibilidad y migraciones en la API, y el antes/después en la ruta
-real con una identidad de QA. El **worker conserva `f15c5c96`** — no sirve
-`/usage` ni compone el mensaje de Eco. **Igualar SHA sigue sin ser motivo para
-desplegar**, y por eso el worker se queda donde estaba.
+**Dos despliegues, y por una dependencia funcional concreta** — no por igualar
+SHA. La guarda tiene que estar **en el artefacto antes de que pueda estar la
+credencial**: si alguien pegara `RESEND_API_KEY` en una caja que corre la imagen
+anterior, se abrirían los seis caminos de golpe. Y el digest semanal y el aviso
+de inactividad —los dos que nadie dispara— corren en el **worker**, así que la
+guarda tiene que alcanzarlo. API y worker, por tanto; la **Web no manda correo**
+y se queda en `a1448207`.
 
-**La pareja compatible queda escrita** en [el runbook §3.0](docs/deploy/coolify-runbook.md):
-ninguna de las dos combinaciones se rompe —una Web nueva contra una API anterior
-cuenta en UTC y lo dice—, y la que conviene evitar es la contraria. Que un cambio no
-traiga migración dice algo de la base y **nada** del contrato entre los dos procesos.
+Esto responde a la regla de §4 del encargo: el worker no se redespliega para
+cuadrar un documento, pero sí cuando el cambio es suyo. Y el salto es de verdad
+—su imagen era del 07-11—, cosa que conviene decir en voz alta en vez de
+presentarlo como un paso menor.
+
+**La pareja compatible queda escrita y COMPROBADA** en
+[el runbook §3.0](docs/deploy/coolify-runbook.md): las dos imágenes que §65
+nombra siguen disponibles (API `21f10095`, Web `6b069d17`), con el inventario del
+día y sin preferencia general por revertir Web — se revierte el servicio que
+tenga el defecto. Que un cambio no traiga migración dice algo de la base y
+**nada** del contrato entre los dos procesos.
 
 **El commit integrado, el artefacto servido y la fecha de observación son tres
 cosas**, y conviene no colapsarlas: un commit de documentos no cambia la
 aplicación, y un artefacto cuyo SHA coincide con el de ayer puede estar ejecutando
 otra configuración. El artefacto de esta tanda, su hora y su `ready` quedan leídos
-del contenedor en Notion §64.
+del contenedor en Notion §66.
 
 **Y una nota sobre el bloqueo de esa integración**, porque la palabra importa. El
 trabajo `Typecheck` murió con `exit 134` y «heap out of memory», y lo llamé
@@ -5364,13 +5443,23 @@ ataría el libro mayor educativo a un estado editorial, y archivar una Experienc
 rompería el recorrido de quien ya lo empezó.
 
 **3 · Pendiente de un insumo externo** — el recorrido de **correo**
-(`RESEND_API_KEY` + una bandeja autorizada), **Sentry** (`SENTRY_DSN`), **Google**
-(`GOOGLE_CLIENT_ID`, que puede quedar fuera del piloto), el **canal del aviso de
-respaldo** (un destino autorizado) y el **ensayo de nivel 4** (un VPS temporal).
-Comprobado hoy sobre los tres recursos: los tres primeros siguen **ausentes de la
-lista de variables** —ausentes, no vacíos; el token de lectura redacta los
-valores, así que `DATABASE_URL` también se lee vacía y eso no dice nada— y en el
-almacén de ops no hay ninguna credencial suya.
+(`RESEND_API_KEY` + dominio verificado + una bandeja autorizada), **Sentry**
+(`SENTRY_DSN`), **Google** (`GOOGLE_CLIENT_ID`, que puede quedar fuera del
+piloto), el **canal del aviso de respaldo** (un destino autorizado) y el **ensayo
+de nivel 4** (un VPS temporal).
+
+Comprobado el 17-11 en **dos sitios**, no uno: en la lista de variables de los
+tres recursos y **dentro del contenedor servido**. `RESEND_API_KEY`, `EMAIL_FROM`,
+`EMAIL_ALLOWLIST`, `SENTRY_DSN` y `GOOGLE_CLIENT_ID` **no existen** en ninguno de
+los dos — y la segunda lectura importa, porque el token de lectura redacta los
+valores (`DATABASE_URL` también se lee vacía y eso no dice nada), mientras el
+contenedor distingue de verdad «ausente» de «vacía». En el almacén de ops no hay
+ninguna credencial suya.
+
+**Del correo, lo que ya no falta:** la guarda (#862). Lo que falta son los tres
+insumos, y el orden de incorporarlos está escrito — la **lista antes de la
+clave**, para que no haya ni un minuto con credencial y sin destinatarios
+autorizados.
 
 **4 · Pendiente de una decisión del propietario** — del paquete editorial quedan
 **cinco** de las ocho (la 3 el 12-11, la **1 y la 2 el 13-11**) más la **propuesta
@@ -5386,10 +5475,25 @@ preguntas que el paquete llevaba dentro dos se contestaron solas (coexisten las 
 revisiones; no hay que volver a firmar) y la tercera —pasar del espejo legado a
 Content Core— se ejecutó conservando el avance de las nueve sesiones vivas.
 
-**B ya no va detrás de nada.** Su decisión acompañante **se encogió** hasta casi
-desaparecer: desde #848 los capítulos sin nada publicado no ofrecen pestaña, y
-desde #852 quien tenga un recorrido propio en el capítulo la conserva. La pregunta
-que queda es si eso basta.
+**B ya no va detrás de nada, y desde el 17-11 tampoco le falta la propuesta.**
+Está redactada entera en [el piloto mínimo §8](docs/product/piloto-minimo.md):
+una pregunta de sí o no, con **recomendación de sí**, audiencia y **tamaño** (tres
+personas, de una en una), entrada por el flujo normal, alcance en lenguaje de
+producto, duración (dos semanas por persona, tope de seis), seis señales de
+evaluación, cómo pide ayuda, y **tres niveles de retirada** del acceso. Ejecutarla
+es **añadir ids a una lista que ya existe**, en un modo que ya está puesto: ni
+cambiar de modo, ni tocar el interruptor de C01, ni desplegar código.
+
+Un dato operativo que conviene conocer antes de decidir: el padrón identifica por
+**id de servidor**, que sólo existe después de que la persona se registre. Así
+que hay un hueco deliberado —se registra, lee, y su id entra en un segundo
+paso—, y no es un fallo: es el orden que impone identificar a alguien por quien
+es y no por lo que escriba en un formulario.
+
+Su decisión acompañante **se encogió** hasta casi desaparecer: desde #848 los
+capítulos sin nada publicado no ofrecen pestaña, y desde #852 quien tenga un
+recorrido propio en el capítulo la conserva. La pregunta que queda es si eso
+basta.
 
 **5 · Ejecutado y comprobado, que no cambia nada servido ni lo cambiará** — la
 puerta del ensayo, la matriz comercial, la reproducción del Dúo, el precio del
@@ -5430,11 +5534,22 @@ en **[la matriz de F3](https://claude.ai/artifact/UtBZxMUDiqSuSwY3mGh5ah)**:
    su contraseña**, y ninguna credencial autorizada de correo existe en el almacén de
    ops. No se pide en texto ni se saca de otro sitio.
 
-   **Vuelto a comprobar el 13-11**, porque conviene no heredar un estado: en los
-   tres recursos de Coolify `RESEND_API_KEY` está **ausente de la lista de
-   variables** —ausente, no vacía—, y en `~/.psico-ops` no hay ningún fichero con
-   una clave de correo. Así que el recorrido de recuperación sigue sin poderse
-   hacer, y lo que falta son dos insumos tuyos, no trabajo técnico.
+   **Vuelto a comprobar el 17-11**, porque conviene no heredar un estado, y esta
+   vez en dos sitios: en los tres recursos de Coolify `RESEND_API_KEY`,
+   `EMAIL_FROM` y `EMAIL_ALLOWLIST` están **ausentes de la lista de variables**
+   —ausentes, no vacías— y **dentro del contenedor servido** tampoco existen; en
+   `~/.psico-ops` no hay ninguna clave de correo, y el único fichero con
+   «correo» en el nombre es una cuenta de aplicación en `@psico.test`, que por
+   diseño no puede recibir. El recorrido sigue sin poderse hacer, y lo que falta
+   son **insumos tuyos, no trabajo técnico**.
+
+   **Y lo que de verdad faltaba de nuestro lado está hecho** (17-11, #862): la
+   precondición que este punto arrastraba desde el 07-11 —que incorporar una
+   clave no activara por accidente correos a otras cuentas— ya no es una promesa
+   de procedimiento. Fuera de producción abre `EMAIL_ALLOWLIST`, no la clave, así
+   que **la credencial y la bandeja autorizada entran en el mismo paso** y sólo
+   esa bandeja recibe. El orden de las escrituras y lo que esto NO acredita —ni
+   dominio verificado ni entrega— están en el runbook §2.5.1.
 
    Lo demás ya está preparado (06-11, #824): el remitente por defecto reclamaba
    `psico.app`, un dominio que no es del producto y que Resend habría rechazado

@@ -1,14 +1,20 @@
-# Paquete editorial — corte del 2026-11-07, al día el 2026-11-13
+# Paquete editorial — corte del 2026-11-07, al día el 2026-11-17
 
 > **Qué es esto.** Las decisiones editoriales y comerciales abiertas, juntas y
 > con su propuesta, para que se puedan resolver de una sentada en vez de una por
 > una según aparecen. Cada una trae: qué está en juego, qué se propone, qué
 > implica ejecutarla y **qué NO hace**.
 >
-> **Una de las ocho ya está ejecutada** —la 3, el 12-11— y se conserva con su
-> antecedente. El inventario de lo que existe hoy vive en
+> **Tres de las ocho están ejecutadas**: la 3 el 12-11, y la 1 y la 2 el 13-11.
+> Se conservan con su antecedente, porque el razonamiento de cómo se llegó a
+> ellas sigue valiendo. **Quedan cinco**, y cada una tiene su propio alcance —
+> no son un bloque. El inventario de lo que existe hoy vive en
 > [inventario-editorial.md](inventario-editorial.md); esto es lo que hay que
 > decidir sobre él.
+>
+> Esta línea decía «una de las ocho» hasta el 17-11, cuando ya eran tres. Un
+> documento que se usa para decidir no puede llevar su propio recuento
+> desactualizado en la primera pantalla.
 
 ---
 
@@ -19,18 +25,28 @@
 | 1   | Sinopsis de _EEC_                 | ✅ **ejecutada el 2026-11-13** — aplicada en staging, verificada por SHA                                                           | —                               |
 | 2   | Nota interna de C01               | ✅ **ejecutada el 2026-11-13** como revisión `v1.1`, **sin firmas nuevas** — ver §2                                                | —                               |
 | 3   | Publicar las cinco Experiences    | ✅ **ejecutada el 2026-11-12** — aprobada, firmada, publicada y recorrida en pantalla                                              | —                               |
-| 4   | **B** — abrir las cinco a alguien | abrir a **una persona a la vez por invitación**; 1 y 2 ya están ejecutadas y la pestaña de los otros 7 capítulos ya no se ofrece   | el piloto de lectura acompañada |
+| 4   | **B** — abrir las cinco a alguien | **tres personas, de una en una**, por invitación, con registro normal FREE; propuesta completa en [piloto §8](piloto-minimo.md)    | el piloto de lectura acompañada |
 | 5   | Sucesor del Dúo                   | `eec-c1-emocion-informa-no-manda@1`                                                                                                | la entrada del Dúo              |
 | 6   | Las otras dos obras               | autoría y pertenencia **ya resueltas**; falta material: partes y manuscrito de _Familias_, manuscrito de _Parejas_                 | el catálogo                     |
 | 7   | Primer recurso de audio           | capítulo 1 de _EEC_                                                                                                                | la promesa de «Modo Guía»       |
 | 8   | Precios y apertura de cobros      | **propuesta concreta de las 7 filas** + 6 condiciones de lanzamiento; no abrir todavía, resolver ya las 2 que no dependen de nadie | el cobro                        |
 
-**Las dos que de verdad bloquean el piloto ahora mismo son 1 y 2.** La **1 está
-ejecutada** desde el 2026-11-13: la sinopsis aprobada se aplicó en staging y es
-lo que recibe y ve una persona. La **2 resultó no ser una edición pequeña** — dos
-líneas del canónico, sí, pero el canónico está bloqueado por un SHA que las cinco
-actas firmadas del 12-11 llevan dentro, así que ejecutarla pide una firma nueva.
-Su efecto está medido y su paquete está listo. La 4 va detrás de las dos.
+**Las tres que bloqueaban el piloto —1, 2 y 3— están ejecutadas**, y la 2 **sin
+ninguna firma nueva**: cada acta valida contra la revisión que firmó, así que
+reabrir el capítulo como `v1.1` no invalidó ninguna de las cinco. El párrafo que
+aquí decía que «ejecutarla pide una firma nueva» era mi conclusión antes de leer
+`checkApprovals`; se conserva como antecedente en §2, señalado como erróneo.
+
+**Lo que queda son cinco, y cada una tiene su propio alcance.** Conviene no
+agruparlas bajo una sola etiqueta de bloqueo, porque no bloquean lo mismo:
+
+| Pendiente                   | Qué condiciona, exactamente                                                                                                     |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| **4 · B**                   | el **piloto acompañado** que se propone. Sin B el piloto sigue siendo posible, pero mide lectura a secas. No bloquea producción |
+| **5 · Sucesor del Dúo**     | la **entrada del Dúo**, cuyo CTA cuelga hoy de un pin retirado. Acotado a Círculos; no toca el lector ni el piloto propuesto    |
+| **6 · Las otras dos obras** | el **catálogo**: el alcance final de tres obras. No bloquea el piloto, que es de una obra                                       |
+| **7 · Primer audio**        | la promesa pública de «Modo Guía», que hoy muestra un marcador honesto. No bloquea el piloto                                    |
+| **8 · Precios y cobros**    | el **cobro**, con sus seis condiciones de lanzamiento propias. Cerrado a propósito; nada de lo anterior lo abre                 |
 
 ---
 
@@ -151,18 +167,25 @@ bibliografía.
 > 1. **La tubería del manuscrito deshacía la reparación del 26-10** — el build
 >    entrega el énfasis dentro de `content`, así que reingerir habría devuelto
 >    los asteriscos a 49 bloques. **Resuelto** (`unit-payload-normalize`).
-> 2. **Las cinco actas que firmaste el 12-11 llevan dentro del payload firmado
->    el `canonicalSha256` del manuscrito de hoy.** Editarlo las deja
->    atestiguando un texto que ya no existe, y cualquier acto futuro sobre esas
->    cinco sería rechazado con `APPROVAL_REVISION_MISMATCH` hasta volver a
->    firmar. Las cinco publicadas **no se rompen**; su acta ya se consumió.
+> 2. ~~**Las cinco actas que firmaste el 12-11 llevan dentro del payload firmado
+>    el `canonicalSha256` del manuscrito de hoy**, así que editarlo las deja
+>    atestiguando un texto que ya no existe y **pide una firma nueva**.~~
 >
-> Así que esto **pide una firma nueva**, y por eso no se aplicó. El efecto, en
-> cambio, ya está medido: 187 bloques, **exactamente dos diferencias** contra lo
-> publicado, las 49 marcas de énfasis conservadas, las 21 entradas intactas y
-> cero asteriscos visibles después. Las cinco microguías siguen abriendo: sus
-> anclas están en cinco secciones anteriores, y los dos bloques editados son los
-> dos últimos del capítulo.
+>    **ANTECEDENTE, y era FALSO.** La premisa sí es cierta —el SHA del canónico
+>    va dentro del payload firmado—, pero la conclusión no: `checkApprovals`
+>    construye lo que espera **desde el manifiesto que firmó cada acta**, no
+>    desde el fichero más reciente del capítulo. Las cinco actas de `v1.0`
+>    validan contra `v1.0`, que sigue congelado con sus cinco manifiestos. Lo
+>    que había que adaptar era el código que sí leía el fichero vivo, y se
+>    adaptó (`sealedCanonicalSha256`). **No se pidió ninguna firma nueva y no
+>    hace falta pedirla.**
+>
+> El efecto estaba medido antes de aplicarla y se confirmó al aplicarla el
+> 13-11: 187 bloques, **exactamente dos diferencias** contra lo publicado, las
+> 49 marcas de énfasis conservadas, las 21 entradas intactas y cero asteriscos
+> visibles después. Las cinco microguías siguen abriendo: sus anclas están en
+> cinco secciones anteriores, y los dos bloques editados son los dos últimos del
+> capítulo.
 
 ---
 
@@ -251,27 +274,55 @@ de (modo, padrón, usuario): sin libro, sin capítulo, sin plan. Así que **B no
 puede presentar como «sólo C01»**. Lo que acota el alcance es el catálogo
 publicado:
 
-| Superficie o recorrido                     | Fuera del padrón                           | Al entrar                                  | Límite relevante                              |
-| ------------------------------------------ | ------------------------------------------ | ------------------------------------------ | --------------------------------------------- |
-| Leer _EEC_ (10 capítulos)                  | ✅ ya puede                                | igual                                      | ninguno                                       |
-| Iniciar una guía (5 órdenes `POST`)        | **503 `GUIDE_UNAVAILABLE`**                | permitido                                  | el guard no sustituye al derecho de contenido |
-| Pestaña guiada en el lector                | ausente                                    | **presente en 8 de 10 capítulos**          | 7 de esas 8 no tienen nada que recorrer       |
-| Las cinco microguías de C01                | invisibles en el lector                    | **recorribles**                            | es todo lo ejecutable hoy                     |
-| Microguías de C02–C10                      | invisibles                                 | 45 listadas en el menú, **no ejecutables** | ninguna Experience publicada                  |
-| _Familias ensambladas_ (obra PRO retirada) | nada                                       | **nada**: `available: false`               | el padrón **no** cruza la frontera editorial  |
-| Definiciones por la API autenticada        | **ya las obtiene** (alcance aceptado de A) | igual                                      | B no las hace privadas ni más públicas        |
+**Y son cuatro dimensiones distintas**, que conviene no decir con una frase: lo
+que el **catálogo** lista, lo que la **interfaz** ofrece, lo que la **API** deja
+empezar y lo que el **plan** deja leer.
 
-**El alcance resultante es más amplio que las cinco de C01, y hay que decirlo
-antes de decidir:** la pestaña guiada aparece en ocho capítulos, y en siete no
-hay nada publicado detrás. Lo que decía al abrirla —«No pudimos preparar el
-recorrido»— ya está corregido (PR #846): ahora dice «Este capítulo todavía no
-tiene recorrido guiado publicado».
+| Dimensión                             | Fuera del padrón                              | En el padrón                                                                                |
+| ------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| **1 · El catálogo**                   | 50 microguías en el libro mayor **en código** | las mismas 50: B no añade ni quita catálogo                                                 |
+| **2 · La oferta de la interfaz**      | pestaña guiada ausente                        | presente **sólo donde hay una Experience publicada o un recorrido propio** — hoy eso es C01 |
+| **3 · Iniciar una sesión por la API** | **503 `GUIDE_UNAVAILABLE`**                   | permitido para **cualquiera de las 50**, con o sin Experience publicada detrás              |
+| **4 · Derechos de lectura por plan**  | lo que diga su plan                           | **lo mismo**: el guard «never substitutes for entitlement»                                  |
+
+**Lo que B abre, en una frase honesta: la pantalla de lo que C01 publica.** Desde
+#848 los capítulos sin nada publicado **no ofrecen** la pestaña, y desde #852
+quien tenga un recorrido propio la conserva aunque la oferta cambie.
+
+> **Dos frases anteriores de esta sección eran falsas y se corrigen aquí.** Decía
+> que la pestaña aparece «en 8 de 10 capítulos» —dejó de ser cierto con #848— y
+> que las 45 microguías de C02–C10 **no son ejecutables**. Eso último nunca lo
+> fue, y la distinción importa: `POST /api/guide/sessions` para un pin de C02
+> devolvió **201** con sesión `ACTIVE` real y un paso completado, aunque ese
+> capítulo publique **cero** Experiences. **No hay una prohibición técnica
+> universal**: lo que no se podía era **abrirlas desde la pantalla**, porque el
+> libro mayor del guía es el catálogo en código y la Experience es la capa de
+> presentación, así que `start` no consulta el CMS.
+
+| Y lo demás, medido                         | Fuera del padrón                           | En el padrón                 | Evidencia                                    |
+| ------------------------------------------ | ------------------------------------------ | ---------------------------- | -------------------------------------------- |
+| Leer _EEC_ (10 capítulos)                  | ✅ ya puede                                | igual                        | libro `FREE` y publicado                     |
+| Las cinco microguías de C01                | invisibles en el lector                    | **recorribles**              | UAT del 12 y 13-11                           |
+| _Familias ensambladas_ (obra PRO retirada) | nada                                       | **nada**: `available: false` | el padrón **no** cruza la frontera editorial |
+| Definiciones por la API autenticada        | **ya las obtiene** (alcance aceptado de A) | igual                        | B no las hace privadas ni más públicas       |
 
 ### Propuesta
 
-**Abrir B a una persona a la vez, por invitación, en staging.** Las dos
-condiciones previas **están cumplidas desde el 2026-11-13**, y la decisión
-acompañante se ha encogido hasta casi desaparecer:
+**Abrir B a tres personas, de una en una, por invitación, en staging**, con
+registro normal **FREE**, **dos semanas por persona** y **seis semanas** como
+tope. La propuesta completa —audiencia, entrada, señales de evaluación, ayuda y
+los tres niveles de retirada— está en el [piloto mínimo §8](piloto-minimo.md),
+redactada para resolverse de una sentada.
+
+> **Y una condición de entrada que no se negocia aquí: el correo.** B **puede
+> aprobarse antes** de que el correo esté configurado —son decisiones
+> independientes—, pero **la primera invitación y la entrada de una persona real
+> requieren el recorrido de recuperación por correo completado**. Advertirle que
+> no hay recuperación **no sustituye** la condición: el diario se cifra con su
+> contraseña y nadie más puede devolvérselo.
+
+Las dos condiciones editoriales previas **están cumplidas desde el 2026-11-13**,
+y la decisión acompañante se ha encogido hasta casi desaparecer:
 
 1. ✅ **1 y 2 ejecutadas.** El argumento era editorial, no técnico: las cinco
    microguías viven **dentro** del capítulo 1, y ese capítulo enseñaba una nota de

@@ -63,15 +63,22 @@ export interface IntegrationsReport {
    *
    * Tercera pregunta independiente de las dos de arriba, y la que decide si
    * una credencial recién incorporada escribe a una bandeja o a toda la base:
-   * `open` es «cualquiera», que sólo es correcto en producción. `withheld`
-   * significa que hay clave y no sale nada — el estado en el que conviene que
-   * esté staging mientras no haya una bandeja autorizada.
+   *
+   *   - `no-key`      — no hay credencial; nada sale de ninguna forma.
+   *   - `withheld`    — hay clave y **nadie configuró** la lista. Fuera de
+   *                     producción no sale nada: es el estado seguro de staging.
+   *   - `unusable`    — hay clave y la lista **tiene valor sin nada utilizable**.
+   *                     No sale nada **en ningún entorno**, producción incluida.
+   *                     Distinto de `withheld` porque la causa es otra y el
+   *                     arreglo también: se corrige el valor, no el alcance.
+   *   - `allowlisted` — restringido a las entradas configuradas.
+   *   - `open`        — cualquiera. Sólo se alcanza en producción sin lista.
    *
    * `recipients` cuenta entradas, nunca las enumera: un informe de salud es
    * legible por cualquiera con rol ADMIN y una dirección es un dato personal.
    */
   mailRecipients: {
-    mode: "no-key" | "withheld" | "allowlisted" | "open";
+    mode: "no-key" | "withheld" | "unusable" | "allowlisted" | "open";
     recipients: number;
     malformed: number;
     environment: PsicoEnvironment;
@@ -137,13 +144,17 @@ export class IntegrationsService {
     );
     const environment = resolveEnvironment();
 
+    // El modo se deriva del MISMO `state` que usa `mailGate`, para que el
+    // informe no pueda decir «abierto» mientras la guarda retiene.
     const mode: IntegrationsReport["mailRecipients"]["mode"] = !hasKey
       ? "no-key"
-      : allowlist.entries.length > 0
+      : allowlist.state === "usable"
         ? "allowlisted"
-        : environment === "production"
-          ? "open"
-          : "withheld";
+        : allowlist.state === "unusable"
+          ? "unusable"
+          : environment === "production"
+            ? "open"
+            : "withheld";
 
     return {
       mode,
@@ -203,9 +214,10 @@ export class IntegrationsService {
    * production-impacting state (not configured OR stub). Used by the
    * boot-time banner so ops sees a punch list at startup.
    */
-  bootIssues(): Array<{ key: string; reason: "missing" | "stub" }> {
+  bootIssues(): Array<{ key: string; reason: "missing" | "stub" | "invalid" }> {
     const r = this.report();
-    const out: Array<{ key: string; reason: "missing" | "stub" }> = [];
+    const out: Array<{ key: string; reason: "missing" | "stub" | "invalid" }> =
+      [];
     const check = (key: string, s: IntegrationStatus) => {
       if (!s.configured) out.push({ key, reason: "missing" });
       else if (s.stub) out.push({ key, reason: "stub" });
@@ -230,8 +242,17 @@ export class IntegrationsService {
     // de antemano el «no me llegó» que vendría después.
     if (r.mailRecipients.mode === "withheld") {
       out.push({
-        key: `EMAIL_ALLOWLIST (vacía en ${r.mailRecipients.environment}: no sale ningún correo)`,
+        key: `EMAIL_ALLOWLIST (sin configurar en ${r.mailRecipients.environment}: no sale ningún correo)`,
         reason: "missing",
+      });
+    }
+    // Y éste es el que más urge: hay clave, hay lista, y no sale nada en NINGÚN
+    // entorno. En producción eso incluye restablecer contraseñas, así que no se
+    // parece a `withheld` ni debe leerse igual.
+    if (r.mailRecipients.mode === "unusable") {
+      out.push({
+        key: `EMAIL_ALLOWLIST (con valor y sin entradas utilizables en ${r.mailRecipients.environment}: NADA sale — corrige el valor)`,
+        reason: "invalid",
       });
     }
     if (r.mailRecipients.malformed > 0) {

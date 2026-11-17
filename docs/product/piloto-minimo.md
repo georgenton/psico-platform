@@ -621,10 +621,15 @@ Tres niveles, de menos a más, y los tres son de una variable:
 | **Cerrar el acompañamiento** | `GUIDE_ROLLOUT_MODE=off`                                                               | a todos, QA incluida |
 | **Cerrar el piloto entero**  | lo anterior, y se le dice a ella; su cuenta se conserva o se da de baja según prefiera | a todos              |
 
-**Lo que retirar el acceso NO hace:** no borra lo que escribió, no interrumpe un
-recorrido ya guardado —consultar el propio avance no pasa por este control— y no
-afecta a su lectura, que no depende del padrón. Retirarle el acompañamiento la
-deja exactamente donde está hoy cualquiera: leyendo.
+**«Retirar el acompañamiento» y «cerrar su cuenta» son cosas distintas, y sólo
+la primera está en los dos primeros niveles.** Conviene no decirlas con la misma
+frase: dar de baja una cuenta es un acto que le toca a ella pedir, y aparece sólo
+en el tercer nivel, y aun ahí «se conserva o se da de baja **según prefiera**».
+
+**Lo que retirar el acompañamiento NO hace:** no borra lo que escribió, no
+interrumpe un recorrido ya guardado —consultar el propio avance no pasa por este
+control— y no afecta a su lectura, que no depende del padrón. La deja exactamente
+donde está hoy cualquiera: leyendo, con su diario y su historial intactos.
 
 Las condiciones que **obligan** a detener están en §6.3 y no se renegocian aquí:
 pérdida de lo que escribió, texto del diario fuera del cliente, un cobro de
@@ -651,11 +656,24 @@ Así que ejecutar B es **añadir ids a una lista que ya existe**, en un modo que
 está puesto. No hay que cambiar de modo, ni tocar el interruptor de C01, ni
 desplegar código.
 
-**Y una dependencia que conviene tener delante:** sin correo, una persona que
-olvide su contraseña no recupera la cuenta. Eso no bloquea B —se puede abrir el
-acompañamiento sin correo— pero sí recomienda **el orden**: primero el correo,
-después la primera invitación. Si se invierte, se le advierte a ella por el canal
-directo y se le pide que guarde la contraseña además de las palabras de respaldo.
+**Y una condición de entrada que no es una recomendación de orden.** Sin correo,
+una persona que olvide su contraseña **no recupera la cuenta**, y eso no se
+arregla avisándole.
+
+La regla, con sus dos mitades separadas:
+
+- **B puede aprobarse antes** de que el correo esté configurado. Son decisiones
+  independientes, y aprobarla no pone a nadie dentro.
+- **La primera invitación y la entrada de una persona real requieren el
+  recorrido de recuperación por correo completado** — recepción → enlace →
+  contraseña nueva → acceso, en la bandeja autorizada.
+
+> Una versión anterior de este párrafo permitía invertir el orden «si se le
+> advierte a ella por el canal directo y se le pide que guarde la contraseña».
+> **Esa excepción no está autorizada**, y además contradecía el criterio de
+> entrada del §6.1 de este mismo documento. Advertir que no hay recuperación no
+> es lo mismo que haberla: el diario se cifra con su contraseña, nadie más tiene
+> la clave, y el coste de equivocarse lo paga ella, no nosotros.
 
 ---
 

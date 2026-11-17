@@ -108,22 +108,36 @@ El cron del digest corre **cada hora** y envía a quien cumpla su lunes 07:00
 local. Así que poner `RESEND_API_KEY` sin más **mandaría correo real a esas
 bandejas** el lunes siguiente, sin que nadie lo hubiera pedido.
 
+> ✅ **Lo que esa precondición pedía de nosotros, hecho el 17-11.** El riesgo
+> era que una variable bastara para abrir las cinco superficies de correo, una de
+> ellas un **cron** que escribe a cada cuenta con el digest activo. Ya no basta: **fuera de producción el correo lo abre
+> `EMAIL_ALLOWLIST`, no la clave**. Con clave y la lista vacía no sale **nada**
+> —el arranque y `/api/health/integrations` lo dicen con la palabra
+> `RETENIDO`/`withheld`—, así que incorporar una credencial no puede mandar el
+> digest del lunes a ninguna cuenta de staging. La guarda vive en el único punto
+> por el que sale correo real, con trinquete para que siga siendo único. Receta
+> de operación en el **runbook §2.5.1**.
+>
+> Y acopla las dos cosas que de verdad van juntas: **la credencial y la bandeja
+> autorizada se incorporan en el mismo paso**, y sólo esa bandeja recibe. Dar de
+> baja del digest a las cuentas de dirección real deja de ser un requisito
+> previo —la lista ya las excluye— y pasa a ser una cortesía si algún día el
+> correo se abre de verdad en staging.
+
 La preparación exacta, en este orden:
 
-1. Dar de baja del digest a las cuentas de dirección real, o dejar escrito que
-   se acepta recibirlo. Es la decisión del dueño de esas cuentas, no mía, así
-   que queda propuesta y no ejecutada.
-2. Conseguir una **bandeja de QA controlada y autorizada** — una dirección real
-   que alguien acepta expresamente usar para esto — y acotar los destinatarios
-   de staging a ella.
-3. Verificar `feelverse.app` en Resend (SPF, DKIM, DMARC) y fijar
+1. Conseguir una **bandeja de QA controlada y autorizada** — una dirección real
+   que alguien acepta expresamente usar para esto.
+2. Verificar `feelverse.app` en Resend (SPF, DKIM, DMARC) y fijar
    `EMAIL_FROM=no-reply@feelverse.app`. Ya está preparado desde el 06-11: el
    remitente por defecto reclamaba un dominio ajeno al producto y Resend lo
    habría rechazado, así que la primera prueba habría fallado por eso y habría
    parecido una clave mala.
-4. Sólo entonces, configurar `RESEND_API_KEY` en **API y worker**.
+3. **`EMAIL_ALLOWLIST=<esa bandeja>` PRIMERO**, en API y worker. Antes que la
+   clave: así no hay ni un minuto en el que la clave esté puesta y la lista no.
+4. Sólo entonces, `RESEND_API_KEY` en **API y worker**, y desplegar los dos.
 5. Validar contra esa bandeja: recepción → enlace → cambio de contraseña →
-   **acceso con la nueva**.
+   **acceso con la nueva**, más las protecciones de reutilización del enlace.
 
 ### 3bis. La cuota FREE de Eco — comprobada sobre el servicio desplegado
 
@@ -272,6 +286,11 @@ ofrecerse donde no hay nada que recorrer.
    tabla de abajo). Es la decisión que convierte este piloto en un piloto de
    **lectura acompañada** en vez de lectura a secas.
 
+   → **Redactada para resolverse de una vez en el §8**: audiencia y tamaño,
+   entrada por el flujo normal, alcance en lenguaje de producto, duración,
+   señales de evaluación, cómo pide ayuda, cómo se retira el acceso, y una
+   recomendación. El estado desde el que se decide está comprobado en 8.8.
+
 4. ✅ **¿Se oculta la pestaña guiada donde no hay nada publicado?**
    **Ejecutada el 13-11** por la opción recomendada: la pestaña exige ahora que
    haya algo que ofrecer — una experiencia publicada **o** un recorrido propio,
@@ -387,10 +406,14 @@ persona leyendo un libro real en un entorno de pruebas, para ver qué le pasa.
 - [x] **Versiones y readiness identificados** — 13-11: `main` y los **tres**
       artefactos servidos por separado; `ready=true`, `reason=ok`, 71
       migraciones, `pending` y `failed` vacíos.
+- [x] **La credencial de correo no puede activar envíos a nadie más** — 17-11:
+      fuera de producción el correo lo abre `EMAIL_ALLOWLIST`, no la clave, así
+      que incorporarla con la lista vacía **retiene todo** en vez de mandar el
+      digest del lunes a cada cuenta de staging. Receta en el runbook §2.5.1.
 - [ ] **Decisión 1 del §5 tomada** (`RESEND_API_KEY` con su precondición). Es
       la única que bloquea.
-- [ ] **Decisiones 3 y 4 tomadas** si se quiere que el piloto incluya las
-      microguías.
+- [ ] **Decisión 3 tomada (B)** si se quiere que el piloto incluya las
+      microguías — redactada en el §8, con recomendación.
 - [ ] Una **persona a la vez**, avisada de que es staging, de que recuperar la
       cuenta y recuperar el diario son cosas distintas, y de que conviene
       guardar la frase de respaldo al crearla.
@@ -459,6 +482,175 @@ descartar. No se ha contactado a nadie.
 >    que pasara y no pasó, y si algo te hizo dudar de si era seguro escribirlo.
 >
 > Si algo se rompe, no pasa nada — es justo lo que busco saber.
+
+---
+
+## 8. Decisión B, lista para resolver
+
+Lo de arriba describe el piloto. Esto es **la decisión**, en una página, con
+una recomendación. Lo que falta para que exista es una frase tuya.
+
+### 8.1 La decisión, exacta
+
+> **¿Se abre el modo guiado a personas que no son de QA, para el piloto, con la
+> audiencia y las condiciones de 8.2–8.7?**
+
+Sí o no. No hace falta elegir entre variantes: la propuesta es una.
+
+**Recomendación: sí**, con el grupo de 8.2. Tres razones, y la tercera es la que
+de verdad pesa:
+
+1. **El riesgo está acotado y medido.** Entrar en el padrón no da acceso a
+   contenido que no fuera suyo —la obra PRO retirada sigue sin servirse a un
+   miembro del padrón— y la pantalla sólo ofrece lo que C01 publica. No hay
+   cobros, no hay móvil, no hay terapia.
+2. **Lo que se abre está recorrido.** Las cinco microguías se recorrieron escena
+   a escena en pantalla, con sus tres prácticas distintas (12 y 13-11). No se
+   está abriendo algo que nadie haya mirado.
+3. **Sin B, el piloto mide la mitad.** Leer un capítulo ya se puede hoy. Lo que
+   FeelVerse promete que no promete un PDF es el **acompañamiento**: la
+   microguía, la nota de cuidado, el salto al pasaje, el recuerdo. Si el piloto
+   sale sin eso, lo que aprendemos es si sabemos servir un libro — que no es la
+   pregunta.
+
+**Lo que no es.** B no es «lanzar». Sigue siendo staging, sigue siendo por
+invitación y sigue siendo reversible en una variable.
+
+### 8.2 La audiencia, y cómo se identifica
+
+**No hay lista autorizada de participantes, así que no se inventa ninguna.** Lo
+que se propone es el perfil y el tamaño:
+
+| Qué                     | Propuesta                                                                                                                                |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| **Tamaño**              | **Tres personas**, y **de una en una**: la segunda entra cuando la primera haya cerrado su recorrido o se haya detenido                  |
+| **Perfil**              | Lee por gusto, sin relación con el desarrollo, dispuesta a decir qué no entendió. Adulta. Ninguna en situación de crisis                 |
+| **Quién las elige**     | Jorge. Aquí no se nombra, no se insinúa y no se contacta a nadie                                                                         |
+| **Cómo se identifican** | Por su **id de usuario del servidor**, que sólo existe **después** de que se registren ella misma. El padrón no acepta correos: sólo ids |
+
+Ese último punto tiene una consecuencia operativa que conviene saber de
+antemano: **hay un hueco deliberado**. Se registra, lee, y su id entra en el
+padrón en un segundo paso. Entre lo uno y lo otro ve la biblioteca y el lector
+sin pestaña guiada. No es un fallo: es el orden que impone identificar a alguien
+por quien es y no por lo que escribe en un formulario.
+
+### 8.3 Cómo entra, por el flujo normal
+
+1. Se registra ella en `staging.feelverse.app/register`, con su correo y una
+   contraseña que elige. **Nunca** una cuenta sembrada, nunca una nuestra,
+   ningún rol promovido: entra como **FREE**, que es todo lo que el piloto
+   necesita.
+2. Guarda las **palabras de respaldo** del diario cuando se le muestren.
+3. Su id entra en `GUIDE_PILOT_USER_IDS` y se redespliega. A partir de ahí el
+   lector de C01 le ofrece la pestaña guiada.
+
+El texto de la invitación y las instrucciones están en §7, **redactados y sin
+enviar**.
+
+### 8.4 Qué podrá hacer, y qué no — en lenguaje de producto
+
+La tabla de cuatro dimensiones del §5 es precisa y está escrita para quien toca
+el código. Dicho como se le diría a ella:
+
+**Podrá:** leer _Emociones en Construcción_ completo; subrayar y anotar; abrir
+**las cinco microguías del capítulo 1** y recorrerlas enteras; escribir en su
+diario cifrado; conversar con Eco hasta diez mensajes al día; ver su Mapa
+Emocional y su Evolución; y descargarse todo lo suyo.
+
+**No podrá:** microguías de los demás capítulos —existen, pero el lector no las
+ofrece porque **no hay ninguna publicada detrás**—; la segunda obra, que está
+retirada; Dúo y Círculos; dictado por voz; terapia; nada de pagar; y la
+aplicación de móvil.
+
+**Y tres cosas que conviene no prometerle de más**, porque son verdad y
+distinguen a este piloto de un lanzamiento:
+
+- **Estar en el padrón no le da contenido que no fuera suyo.** Es un permiso de
+  _acompañamiento_, no de catálogo: su plan sigue decidiendo qué libros lee.
+- **Lo que el lector no ofrece no está roto.** Está sin publicar, y así se dice
+  en pantalla («En preparación»), no como una avería.
+- **Si olvida su contraseña y el correo no está activo, no recupera la cuenta.**
+  Y recuperar la cuenta y recuperar el diario son cosas distintas: lo segundo
+  son sus palabras de respaldo, y nadie más las tiene.
+
+### 8.5 Duración, y qué señales dicen si salió bien
+
+**Dos semanas por persona**, contadas desde su primer acceso, con un tope de
+**seis semanas** para las tres. No es una cuota de tiempo que haya que gastar:
+si cierra su recorrido en una tarde, se cierra en una tarde. El tope existe para
+que el piloto no se convierta en un estado permanente sin que nadie lo decida.
+
+Los criterios de **salida** (§6.2) dicen si el producto aguantó. Las señales de
+abajo dicen si el piloto **enseñó algo**, que no es lo mismo:
+
+| Señal                         | Qué se mira                                         | Por qué importa                                                                |
+| ----------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------ |
+| **Vuelve sola**               | si hay una segunda sesión que nadie le pidió        | la única medida honesta de que le sirvió                                       |
+| **Dónde se para**             | en qué bloque o escena deja de avanzar              | distingue «no le interesó» de «no entendió qué hacer»                          |
+| **Qué hace con la microguía** | si la termina, si la abandona a mitad, si la repite | es lo que B abre; si no la toca, B no hizo falta                               |
+| **Si escribe**                | diario o reflexión, aunque sea una línea            | escribir es confiar, y la confianza es la promesa del cifrado                  |
+| **Qué dice del Mapa**         | si alguna cifra le sorprende o le molesta           | el programa V2 existe por esto; una sorpresa ahí es un hallazgo, no un defecto |
+| **Qué no entendió**           | sus palabras, literales                             | el copy es lo más barato de arreglar y lo que más cuesta detectar desde dentro |
+
+Lo que **no** se va a medir: nada automático. Sin `SENTRY_DSN` no hay traza, y
+el Mapa Emocional **no sirve como telemetría del piloto** — mide lo que ella
+reporta de sí misma, no si el producto funciona. Confundirlos sería exactamente
+lo que el programa V2 pasó ocho fases desenredando.
+
+### 8.6 Cómo recibe ayuda
+
+Un canal directo con Jorge, el que ya usen. **Ninguna herramienta nueva, ningún
+formulario, ningún correo automático** —que además hoy no podría salir—. Se le
+dice de antemano que es staging, que puede fallar y que avisar de un fallo es
+justo lo que se le pide.
+
+Si lo que encuentra es algo del §6.3, se detiene antes de arreglarlo.
+
+### 8.7 Cómo se detiene, y cómo se retira el acceso
+
+Tres niveles, de menos a más, y los tres son de una variable:
+
+| Nivel                        | Qué se hace                                                                            | A quién afecta       |
+| ---------------------------- | -------------------------------------------------------------------------------------- | -------------------- |
+| **Retirar a una persona**    | sale su id de `GUIDE_PILOT_USER_IDS` y se redespliega                                  | sólo a ella          |
+| **Cerrar el acompañamiento** | `GUIDE_ROLLOUT_MODE=off`                                                               | a todos, QA incluida |
+| **Cerrar el piloto entero**  | lo anterior, y se le dice a ella; su cuenta se conserva o se da de baja según prefiera | a todos              |
+
+**Lo que retirar el acceso NO hace:** no borra lo que escribió, no interrumpe un
+recorrido ya guardado —consultar el propio avance no pasa por este control— y no
+afecta a su lectura, que no depende del padrón. Retirarle el acompañamiento la
+deja exactamente donde está hoy cualquiera: leyendo.
+
+Las condiciones que **obligan** a detener están en §6.3 y no se renegocian aquí:
+pérdida de lo que escribió, texto del diario fuera del cliente, un cobro de
+cualquier importe, una crisis mal atendida, una obra retirada que vuelva a
+servirse, dos personas que vean datos de la otra, o `GET /api/health/ready` no
+conforme.
+
+### 8.8 El estado desde el que se decide, comprobado hoy
+
+Leído del artefacto servido el **17-11**, para que la decisión no se tome sobre
+un recuerdo:
+
+| Variable                  | Valor hoy                  |
+| ------------------------- | -------------------------- |
+| `GUIDE_ROLLOUT_MODE`      | `pilot`                    |
+| `GUIDE_PILOT_USER_IDS`    | **1 id** (la cuenta de QA) |
+| `EEC_C01_GUIDED_SUITE_V1` | `on`                       |
+| `CIRCLES_ROLLOUT_MODE`    | `pilot`                    |
+| `RESEND_API_KEY`          | **ausente**                |
+| `EMAIL_ALLOWLIST`         | **ausente**                |
+| `SENTRY_DSN`              | **ausente**                |
+
+Así que ejecutar B es **añadir ids a una lista que ya existe**, en un modo que ya
+está puesto. No hay que cambiar de modo, ni tocar el interruptor de C01, ni
+desplegar código.
+
+**Y una dependencia que conviene tener delante:** sin correo, una persona que
+olvide su contraseña no recupera la cuenta. Eso no bloquea B —se puede abrir el
+acompañamiento sin correo— pero sí recomienda **el orden**: primero el correo,
+después la primera invitación. Si se invierte, se le advierte a ella por el canal
+directo y se le pide que guarde la contraseña además de las palabras de respaldo.
 
 ---
 

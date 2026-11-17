@@ -714,6 +714,83 @@ if (process.env.R2_BUCKET_NAME !== EXPECTED) process.exit(3);
 El fichero va a `/app/apps/api/` y no a `/tmp`: Node resuelve `node_modules` desde el
 directorio del script hacia arriba, y desde `/tmp` no encuentra `@aws-sdk/client-s3`.
 
+#### 2.5.1 Correo: incorporar la credencial sin escribir a nadie más
+
+**La clave sola no es el interruptor, y por diseño.** Hasta el 2026-11-17 sí lo
+era, y eso hacía insegura la operación más sencilla del mundo: pegar
+`RESEND_API_KEY` en staging.
+
+Cinco superficies mandan correo, y lo que importa es **quién las dispara**:
+
+| Correo                                    | Lo dispara        | Va a                                 |
+| ----------------------------------------- | ----------------- | ------------------------------------ |
+| verificar cuenta · restablecer contraseña | la propia persona | ella                                 |
+| cambio de dirección                       | la propia persona | ella                                 |
+| exportación lista                         | ella lo pidió     | ella, más tarde                      |
+| revisión de autoría aprobada / rechazada  | un **ADMIN**      | un **tercero**: el autor             |
+| **digest semanal**                        | un **cron**       | **cada** cuenta con el digest activo |
+
+La última basta ella sola: teclear una credencial habría hecho que el siguiente
+lunes saliera un digest a cada cuenta de la base de staging con
+`weeklyReport=true` — cuentas de prueba de meses pasados y cualquier dirección
+real que haya quedado ahí. Eso no es una prueba de correo; es una comunicación
+no autorizada, y no se deshace.
+
+> El **aviso de inactividad** no manda correo: es push, y su propio código lo
+> dice. Una versión anterior de esta sección lo contaba entre los caminos de
+> correo y hablaba de «cuatro que nadie dispara». Era falso, y el recuento
+> inflado no hacía falta: el digest lo justifica solo.
+
+Fuera de producción, quien abre el correo es **`EMAIL_ALLOWLIST`**:
+
+| `RESEND_API_KEY` | `EMAIL_ALLOWLIST` | `PSICO_ENV`  | Qué sale                                     |
+| ---------------- | ----------------- | ------------ | -------------------------------------------- |
+| ausente          | —                 | cualquiera   | nada; el correo se escribe en el registro    |
+| presente         | **vacía**         | `staging`    | **nada** (`RETENIDO`), y el arranque lo dice |
+| presente         | con entradas      | `staging`    | sólo a esas direcciones                      |
+| presente         | vacía             | `production` | a cualquier usuario — correcto allí          |
+| presente         | con entradas      | `production` | sólo a esas direcciones (canario)            |
+
+Formato: direcciones completas (`qa@dominio.com`) o sufijos con arroba
+(`@dominio.com`), separados por comas. Un dominio suelto (`dominio.com`) se
+**rechaza** a propósito: `endsWith` también aceptaría `x@notdominio.com`. Una
+entrada ilegible no autoriza a nadie y se nombra en el arranque.
+
+**El orden de las escrituras importa**, y es al revés de lo que parece:
+
+```bash
+# 1. PRIMERO la lista, en los tres recursos (API, Web no la necesita; worker SÍ:
+#    el digest semanal corre ahí).
+#      EMAIL_ALLOWLIST=<la bandeja autorizada>
+# 2. DESPUÉS la credencial y el remitente:
+#      RESEND_API_KEY=<...>   EMAIL_FROM=no-reply@feelverse.app
+# 3. Desplegar API y worker (Web no manda correo).
+```
+
+Si se invierte, hay una ventana en la que la clave está puesta y la lista no.
+Esa ventana es **segura por construcción** —sin lista no sale nada fuera de
+producción— pero el arranque la informará como incidencia, que es lo correcto:
+hay clave y el correo está retenido.
+
+Se comprueba sin enviar nada:
+
+```
+GET /api/health/integrations      (ADMIN) → mailRecipients
+```
+
+`mode` dice `no-key` · `withheld` (hay clave, no sale nada) · `allowlisted`
+(restringido) · `open` (cualquiera). `recipients` **cuenta** las entradas y
+nunca las enumera: una dirección es un dato personal y este informe lo lee
+cualquier ADMIN. El arranque imprime la misma frase en el registro del
+contenedor.
+
+**Y lo que esto NO acredita**: que el dominio esté verificado en Resend, ni que
+un mensaje llegue. Lo primero vive en la cuenta de Resend; lo segundo sólo lo
+demuestra una entrega. La aceptación del recorrido de recuperación de cuenta es
+recepción → enlace → restablecimiento → acceso, con el correo recibido en una
+bandeja real autorizada — nunca en una cuenta `@psico.test`, que por diseño no
+puede recibir.
+
 ### 2.6 Recorrido funcional mínimo
 
 Registro, inicio de sesión, desbloqueo del Diario (cripto E2E real), una entrada, una
@@ -1440,17 +1517,60 @@ tiene:
 | **Web nueva · API anterior** | `usage.timezone` llega `undefined`. `effectiveTimezone` lo resuelve a UTC y la tarjeta lo **dice** («vuelve a las 00:00 UTC»). Degrada a una hora honesta, no a una hora falsa |
 | **Web anterior · API nueva** | el campo viaja y la Web antigua lo ignora: vuelve a contar en la zona del contenedor, que es el defecto que #861 cierra. Funciona; informa peor                                |
 
-Es decir: **ninguna de las dos se rompe**, y la que conviene evitar es la
-segunda. Si hay que revertir sólo uno de los dos, revertir la **Web** es el
-movimiento seguro; revertir la **API** dejando la Web nueva también lo es,
-porque la ausencia del campo tiene resultado definido.
+Es decir: **ninguna de las dos se rompe.** Así que no hay un servicio
+«preferente» que revertir: se revierte **el que haga falta** por el problema
+que se tenga, y se declara su efecto. Si el problema está en la Web, se
+revierte la Web y la tarjeta vuelve a contar en la zona del contenedor
+(informa peor, funciona). Si está en la API, se revierte la API y la Web nueva
+degrada a una hora UTC dicha en voz alta. La pregunta operativa es cuál de los
+dos servicios tiene el defecto, no cuál de los dos es más barato de mover.
+
+#### La pareja concreta de esta tanda, con disponibilidad comprobada
+
+No basta nombrar un commit: una imagen puede haber sido podada. Comprobado el
+**2026-11-17** contra Coolify (`list_rollback_images` por servicio), las dos
+que hacen falta **siguen ahí**:
+
+| Servicio | Actual (servida)                        | Anterior utilizable                |
+| -------- | --------------------------------------- | ---------------------------------- |
+| API      | `a1448207` · construida 17-11 18:06 UTC | **`21f10095`** · 16-11 21:00 UTC ✔ |
+| Web      | `a1448207` · construida 17-11 18:15 UTC | **`6b069d17`** · 16-11 21:34 UTC ✔ |
+
+El inventario completo del día, por si hay que bajar más de un escalón: la API
+tiene cuatro imágenes (`a1448207`, `21f10095`, `de18c142`, `d55f9669`) y la Web
+cinco (`a1448207`, `6b069d17`, `21f10095`, `d3a67e27`, `fe1fa866`). El worker
+conserva tres (`f15c5c96`, `bcd3e147`, `9a03edd0`) y su actual es del 07-11:
+**«la versión anterior» no es una altura común a los tres servicios**, y pedirle
+al worker el commit de hoy no tiene candidato.
+
+Antes de reapuntar nada se vuelve a listar: esta tabla es del 17-11 y la
+retención de imágenes es finita.
+
+> ⚠️ **El puntero de §3.1 es un antecedente, no el inventario.** Los candidatos
+> que allí se nombran son del **24-10** y ya no coinciden con lo que hay (el
+> conteo del 09-11 —3 API, 4 Web, 3 worker— tampoco). §3.1 sigue siendo la
+> autoridad sobre **cómo** se revierte y qué residuo deja; **qué** imágenes
+> existen se pregunta cada vez.
 
 Lo que NO está comprobado es cualquier pareja más antigua que #859: la forma de
 `UsageEco` cambió ahí (`used`/`quota`/`window`/`resetsAt` donde antes había
 `messagesThisPeriod` emparejado con un cupo que no se aplicaba). Una Web
 posterior a #859 contra una API anterior a #859 leería campos que esa API no
-emite. Los candidatos de reversión por servicio están en §3.1; al elegir, se
-mira el par, no sólo el servicio que molesta.
+emite. De las imágenes de hoy, eso descarta `d3a67e27` y `fe1fa866` como
+pareja de una Web actual. Al elegir se mira el par, no sólo el servicio que
+molesta.
+
+#### Y una precisión de alcance, que no es un defecto
+
+Compartir el criterio de zona **no** es sincronización instantánea. La
+respuesta de `/api/billing/usage` conserva una caché de cinco minutos cuya
+clave no incluye la zona, y `PATCH /api/user/timezone` no la invalida. Así que
+quien cambie su zona puede ver la tarjeta de Mi Plan contando en la anterior
+durante hasta cinco minutos, mientras el mensaje de Eco —que se compone por
+petición— ya cuenta en la nueva. Vence el TTL y se cura solo.
+
+Distinto del defecto que #861 cerró: allí la tarjeta contaba en la zona del
+**contenedor** y ninguna espera lo arreglaba.
 
 ### 3.1 Volver atrás cuando hay reclamaciones pendientes
 
@@ -1760,11 +1880,13 @@ marca de esa persona, visible para ella, no el libro.
 
 **No se ejecuta en esta tarea.** Requiere su propio gate y, antes:
 
-Estado al 2026-11-07, para que la lista sirva de puerta y no de recordatorio:
+Estado al 2026-11-07, para que la lista sirva de puerta y no de recordatorio
+(la puerta 1 se revisó el 17-11; el tramo que queda detrás de las puertas está
+desglosado en **§4.1**):
 
 |     | Precondición                                              | Estado                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | --- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Staging validado y estable                                | ⚠️ **en su mayor parte.** Recorridos funcionales comprobados: lectura, Diario con su recuperación, exportación, Eco, Mapa, Evolución, Círculos con dos partes y las cinco microguías de C01. Faltan la **aceptación estética** y el recorrido de **correo**, que no tiene credencial                                                                                                                                                                                                                          |
+| 1   | Staging validado y estable                                | ⚠️ **en su mayor parte.** Recorridos funcionales comprobados: lectura, Diario con su recuperación, exportación, Eco, Mapa, Evolución, Círculos con dos partes y las cinco microguías de C01. Faltan la **aceptación estética** y el recorrido de **correo**, que no tiene credencial. Lo que el correo pedía de nosotros está hecho (17-11, §2.5.1): incorporar la clave ya no puede escribir a nadie que no esté autorizado                                                                                  |
 | 2   | Números de límites tomados de staging, no inventados      | ✅ **resuelto (07-11).** Medido en reposo, durante un recorrido representativo y en concurrencia acotada: 846 MiB de los 4 GiB declarados (20,7 %), el recorrido de las **cinco** microguías de C01 cuesta +40 KB y 65 filas (~8 KB por recorrido suelto), y ocho lectores concurrentes dan p50 194 ms. **Margen elegido: no cambiar ningún límite**, con la CPU de la API como único número tenso (50,3 % de su cuota para una persona). [Detalle y cómo repetirlo](../operations/capacidad-y-postgresql.md) |
 | 3   | Versión de PostgreSQL de producción consultada y decidida | ✅ **decidida (07-11): `pgvector/pgvector:pg18` fijada por digest**, que es lo que ya corre — PostgreSQL 18.6, `vector 0.8.6`, estable. El pin hace trabajo real: la etiqueta flotante `pg18` apunta hoy a otro digest, así que con la etiqueta a secas una caja nueva traería otra imagen. Producción usa el **mismo digest**. Supuesto fechado: Docker Hub no promete retención indefinida, así que copiar la imagen a un registro propio queda abierto                                                     |
 | 4   | Backup con restore drill **ejecutado**                    | ✅ **hecho.** Restauración comprobada, y el 06-11 además desde fuera del servidor                                                                                                                                                                                                                                                                                                                                                                                                                             |
@@ -1783,6 +1905,43 @@ volver a abrirlas sería trabajo que ya se hizo.
 
 Forma idéntica a staging con recursos **separados**. Ningún recurso con estado se
 comparte entre entornos, y `PSICO_ENV=production`.
+
+### 4.1 El tramo restante, pendiente por pendiente — corte del 2026-11-17
+
+La tabla de arriba son las puertas. Esto es el **trabajo** que queda detrás de
+ellas, con una distinción que conviene no perder: **que algo no impida decidir
+el piloto no lo convierte en cumplido para producción.** Son dos listas de
+requisitos distintas sobre el mismo producto.
+
+La secuencia no cambia:
+**PLATFORM_FIRST → LANDING_APROBADA → FIDELIDAD_VISUAL → EDITORIAL_FINAL.**
+PLATFORM_FIRST está satisfecha como decisión (OVH + Coolify, exclusivo) y le
+queda una comprobación: el ensayo de nivel 4. LANDING_APROBADA está aceptada
+desde el 16-10. Las dos siguientes son las que concentran lo pendiente.
+
+| Pendiente                                      | Qué falta                                                                                                                                                                                          | Qué resultado la cierra                                                                                                                            | Quién puede resolverla                       | ¿Qué impide?                            | Siguiente paso concreto                                                                                                |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| **1 · Recuperación de cuenta por correo**      | tres insumos externos: credencial de Resend utilizable, `feelverse.app` verificado (SPF/DKIM/DMARC) y **una bandeja real autorizada**. Comprobado el 17-11: las tres ausentes de los tres recursos | **una entrega**: recepción → enlace → contraseña nueva → acceso con ella, más que el enlace no se reutilice y la contraseña anterior deje de valer | **Jorge** (los insumos); la ejecución es mía | **el piloto** · y producción            | incorporar `EMAIL_ALLOWLIST` y la clave en ese orden (§2.5.1) y recorrerlo. El lado de código está hecho               |
+| **2 · Decisión B**                             | una frase. Nada técnico: el modo ya es `pilot` y la lista ya existe con un id                                                                                                                      | ids añadidos a `GUIDE_PILOT_USER_IDS` y un redespliegue                                                                                            | **Jorge**                                    | **ninguno de los dos**                  | leer `docs/product/piloto-minimo.md` §8 y decir sí o no                                                                |
+| **3 · Recuperación completa en OVH (nivel 4)** | **la caja**: una instancia temporal cuyo coste no está aprobado                                                                                                                                    | host nuevo → Coolify → los tres recursos → restaurar de R2 → recorrer la aplicación. Una base restaurada sin servicios no atiende a nadie          | **Jorge** (el coste); la ejecución es mía    | **producción**, no el piloto            | aprobar ≈ **$0,57 excl. IVA por 12 h** en `d2-8` (§3). Lo que no necesita la caja está hecho y comprobado              |
+| **4 · Aceptación visual**                      | tu visto bueno. Lo medido es **tipografía y contraste** en las ocho combinaciones (24-10, re-recorridas el 05-11), que no es una aceptación estética                                               | que mires las pantallas y digas sí, o qué cambiar                                                                                                  | **Jorge**, o alguien a quien delegue         | **producción** (puerta 1), no el piloto | recorrer panel y lector en los dos estilos; la landing F2.1 ya está aceptada                                           |
+| **5 · Observabilidad**                         | `SENTRY_DSN`, ausente en los tres recursos. El cableado existe desde S58 en los cuatro frentes                                                                                                     | un error provocado que aparezca en el proyecto de Sentry                                                                                           | **Jorge** (crear el proyecto y dar el DSN)   | **producción**, no el piloto            | crear el proyecto, poner el DSN en API, Web y worker, y validar con un 500 controlado                                  |
+| **6 · Google**                                 | `GOOGLE_CLIENT_ID`, ausente. Sin él el producto simplemente **no ofrece el botón**, que es un estado honesto                                                                                       | el botón aparece y una cuenta entra por él                                                                                                         | **Jorge** (el clientId)                      | **ninguno de los dos**                  | decidir si entra en el alcance de v1; si no, no hace nada                                                              |
+| **7 · Editorial y comercial**                  | **cinco de ocho** del paquete del 07-11: sucesor del Dúo, las otras dos obras, el primer recurso de audio, precios y apertura de cobros, y B. Las tres primeras se ejecutaron el 12 y 13-11        | cada una tiene su propia forma de cerrarse; están redactadas una por una en `docs/product/paquete-editorial-2026-11-07.md`                         | **Jorge**                                    | **producción** (EDITORIAL_FINAL)        | resolverlas juntas, con su propuesta delante. Ninguna abre cobros por sí sola: eso tiene seis condiciones propias (§8) |
+
+**Las condiciones mínimas de observabilidad, dichas**: para el **piloto** no
+hace falta nada automático — una persona a la vez, con un canal directo, y lo
+que cuente es lo que hay. Para **producción** sí: usuarios desatendidos y sin
+traza significa que el primer fallo se investiga reproduciendo a ciegas, que es
+exactamente lo que el cableado de Sentry existe para evitar. El mínimo es un
+DSN en los tres recursos y una validación con un error provocado; los _source
+maps_ de Web y el plugin de dSYM/ProGuard de móvil quedan como mejora, no como
+puerta.
+
+**Lo que esta tabla NO dice**: que producción esté cerca. **No existe como
+recurso** — el proyecto de Coolify tiene tres aplicaciones y las tres son de
+staging. Que el DNS esté pre-apuntado y que haya una copia restaurable son
+avances parciales, no producción a medias.
 
 ---
 

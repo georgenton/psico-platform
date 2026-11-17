@@ -28,6 +28,17 @@ import {
  *   - We DON'T invalidate on writes — a new diary entry just shows up next
  *     fetch. The freshness cost is negligible against the round-trip cost
  *     of broadcast invalidation.
+ *   - ALCANCE, que conviene no describir de más: desde #861 la respuesta lleva
+ *     `timezone` y la tarjeta de Mi Plan cuenta la hora con ella, así que las
+ *     dos superficies comparten el CRITERIO (`@psico/types/eco-reset`). No
+ *     comparten la frescura. `PATCH /api/user/timezone` escribe el perfil y no
+ *     invalida esto —la clave es `usage:<userId>:<periodStart>:<díaUTC>`, no
+ *     lleva la zona—, de modo que durante hasta cinco minutos la tarjeta puede
+ *     seguir contando en la zona anterior mientras el mensaje de Eco, que se
+ *     compone por petición leyendo el perfil, ya cuenta en la nueva. Se cura
+ *     solo al vencer el TTL. Es el coste declarado de esta caché, no el defecto
+ *     que #861 cerró: ahí la tarjeta contaba en la zona del CONTENEDOR y no
+ *     había espera que lo arreglara.
  *
  * Period:
  *   - Active subscribers: use Subscription.currentPeriodStart/End.

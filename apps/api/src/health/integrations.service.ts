@@ -2,6 +2,11 @@
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import type { Env } from "../config";
+import { parseMailAllowlist } from "../notifications/mail-gate";
+import {
+  resolveEnvironment,
+  type PsicoEnvironment,
+} from "../shared/psico-environment";
 
 /**
  * Report shape returned by `GET /api/health/integrations`.
@@ -53,6 +58,24 @@ export interface IntegrationsReport {
    * here and are not claimed.
    */
   resendFrom: IntegrationStatus;
+  /**
+   * A quién puede llegar un correo real desde esta caja.
+   *
+   * Tercera pregunta independiente de las dos de arriba, y la que decide si
+   * una credencial recién incorporada escribe a una bandeja o a toda la base:
+   * `open` es «cualquiera», que sólo es correcto en producción. `withheld`
+   * significa que hay clave y no sale nada — el estado en el que conviene que
+   * esté staging mientras no haya una bandeja autorizada.
+   *
+   * `recipients` cuenta entradas, nunca las enumera: un informe de salud es
+   * legible por cualquiera con rol ADMIN y una dirección es un dato personal.
+   */
+  mailRecipients: {
+    mode: "no-key" | "withheld" | "allowlisted" | "open";
+    recipients: number;
+    malformed: number;
+    environment: PsicoEnvironment;
+  };
   google: IntegrationStatus;
   redis: IntegrationStatus;
   webPush: IntegrationStatus;
@@ -106,6 +129,30 @@ function status(v: string | undefined): IntegrationStatus {
 export class IntegrationsService {
   constructor(private readonly config: ConfigService<Env, true>) {}
 
+  /** El estado de la guarda de destinatarios, derivado del mismo criterio. */
+  private mailRecipients(): IntegrationsReport["mailRecipients"] {
+    const hasKey = Boolean(this.config.get("RESEND_API_KEY", { infer: true }));
+    const allowlist = parseMailAllowlist(
+      this.config.get("EMAIL_ALLOWLIST", { infer: true }),
+    );
+    const environment = resolveEnvironment();
+
+    const mode: IntegrationsReport["mailRecipients"]["mode"] = !hasKey
+      ? "no-key"
+      : allowlist.entries.length > 0
+        ? "allowlisted"
+        : environment === "production"
+          ? "open"
+          : "withheld";
+
+    return {
+      mode,
+      recipients: allowlist.entries.length,
+      malformed: allowlist.malformed.length,
+      environment,
+    };
+  }
+
   /**
    * Build the report from the live env values. Stripe price IDs are the
    * highest-signal field for an ops sanity check — if any of the three
@@ -143,6 +190,7 @@ export class IntegrationsService {
       resendFrom: {
         configured: this.config.get("EMAIL_FROM_EXPLICIT", { infer: true }),
       },
+      mailRecipients: this.mailRecipients(),
       google: status(this.config.get("GOOGLE_CLIENT_ID", { infer: true })),
       redis: status(this.config.get("REDIS_URL", { infer: true })),
       webPush: status(this.config.get("VAPID_PRIVATE_KEY", { infer: true })),
@@ -176,6 +224,21 @@ export class IntegrationsService {
     // difference between mail arriving and mail being refused.
     if (r.resend.configured && !r.resendFrom.configured) {
       out.push({ key: "EMAIL_FROM (defaulted, not chosen)", reason: "stub" });
+    }
+    // Hay clave y no sale nada. Es el estado SEGURO para staging, no una
+    // avería — pero tiene que estar en la lista del arranque, porque explica
+    // de antemano el «no me llegó» que vendría después.
+    if (r.mailRecipients.mode === "withheld") {
+      out.push({
+        key: `EMAIL_ALLOWLIST (vacía en ${r.mailRecipients.environment}: no sale ningún correo)`,
+        reason: "missing",
+      });
+    }
+    if (r.mailRecipients.malformed > 0) {
+      out.push({
+        key: `EMAIL_ALLOWLIST (${r.mailRecipients.malformed} entrada(s) ilegible(s), que no autorizan a nadie)`,
+        reason: "stub",
+      });
     }
     check("GOOGLE_CLIENT_ID", r.google);
     check("REDIS_URL", r.redis);

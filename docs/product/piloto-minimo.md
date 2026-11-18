@@ -562,10 +562,19 @@ el código. Dicho como se le diría a ella:
 diario cifrado; conversar con Eco hasta diez mensajes al día; ver su Mapa
 Emocional y su Evolución; y descargarse todo lo suyo.
 
-**No podrá:** microguías de los demás capítulos —existen, pero el lector no las
-ofrece porque **no hay ninguna publicada detrás**—; la segunda obra, que está
-retirada; Dúo y Círculos; dictado por voz; terapia; nada de pagar; y la
-aplicación de móvil.
+**No encontrará en el lector:** microguías de los demás capítulos. Existen en el
+catálogo y **no hay ninguna publicada detrás**, así que la pestaña no se ofrece
+ahí — no es que algo se lo prohíba, es que no hay nada que abrir. Lo mismo para
+la segunda obra, retirada a propósito.
+
+**Y queda fuera del piloto:** Dúo y Círculos, dictado por voz, terapia, nada de
+pagar, y la aplicación de móvil.
+
+> Este párrafo decía «No podrá», y eso describía un permiso que no existe. Lo
+> que hay es **ausencia de oferta en la interfaz**, que no es lo mismo: la
+> diferencia importa porque las cuatro dimensiones de disponibilidad son
+> distintas, y confundirlas hace creer que el producto bloquea algo cuando lo
+> que pasa es que no publica nada.
 
 **Y tres cosas que conviene no prometerle de más**, porque son verdad y
 distinguen a este piloto de un lanzamiento:

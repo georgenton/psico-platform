@@ -24,7 +24,7 @@ contenedor servido**, que sí lo distingue.
 | Insumo                          | Estado hoy                                                                                                                                                                  |
 | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Credencial de Resend**        | **ausente** en API, Web y worker, y ausente dentro del contenedor. Tampoco hay ninguna en el almacén de operaciones                                                         |
-| **`feelverse.app` verificado**  | **PENDIENTE DE COMPROBAR, no demostrado ausente.** Vive en la cuenta de Resend, no en las variables de Coolify, así que el inventario de arriba no dice nada sobre esto     |
+| **`feelverse.app` verificado**  | **COMPROBADO el 18-11 por DNS público: el dominio NO está configurado para enviar.** Detalle justo debajo                                                                   |
 | **Una bandeja real autorizada** | **no existe.** El único fichero con «correo» en el nombre del almacén de operaciones es una cuenta de aplicación en `@psico.test`, que por la RFC 2606 **no puede recibir** |
 | **Remitente** (`EMAIL_FROM`)    | **ausente**, así que hoy toma el valor por omisión `no-reply@feelverse.app`. El informe de salud delata que nadie lo eligió                                                 |
 
@@ -33,11 +33,42 @@ mano sólo tiene sentido cuando el dominio esté verificado.
 
 > **Dos estados que conviene no confundir, porque uno es un hecho y el otro una
 > laguna.** La credencial y la bandeja están **comprobadas ausentes**: busqué
-> donde tendrían que estar y no están. La verificación del dominio está
-> **pendiente de comprobar**: la respuesta vive en una cuenta a la que no
-> accedo, así que no afirmo que falte. Resumirlas juntas como «las tres
-> ausentes» —que es lo que hice el 17-11— convierte un «no lo sé» en un «no
-> hay», y eso puede llevar a rehacer un trabajo que quizá ya esté hecho.
+> donde tendrían que estar y no están. Resumirlas junto con el dominio como «las
+> tres ausentes» —que es lo que hice el 17-11— convertía un «no lo sé» en un «no
+> hay».
+
+### El dominio: comprobado, y lo que falta es concreto
+
+El 17-11 dejé esto como «pendiente de comprobar» porque la respuesta vive en la
+cuenta de Resend. **Pero hay una fuente que sí lo acredita y no necesita
+credencial: el DNS público**, que es exactamente lo que mira un servidor que
+recibe. Consultado el **2026-11-18**, con control positivo y negativo:
+
+| Registro                              | Qué hay hoy                                                                                   | Qué pide Resend     |
+| ------------------------------------- | --------------------------------------------------------------------------------------------- | ------------------- |
+| `feelverse.app` TXT (SPF)             | `v=spf1 include:spf.efwd.registrar-servers.com ~all` — **reenvío del registrador**, no Resend | su propio `include` |
+| `resend._domainkey.feelverse.app` TXT | **sin registro**                                                                              | la clave DKIM       |
+| `send.feelverse.app` TXT / MX         | **sin registro**                                                                              | ambos               |
+| `_dmarc.feelverse.app` TXT            | **sin registro**                                                                              | recomendado         |
+| `feelverse.app` MX                    | `eforward1…5.registrar-servers.com` — reenvío                                                 | —                   |
+
+**Conclusión, dicha con su alcance:** el dominio **no está configurado para
+enviar** a través de Resend. Lo que esto demuestra es que **hoy no se puede
+enviar desde `@feelverse.app`** aunque llegara la credencial — Resend no
+verifica un dominio sin esos registros. Lo que **no** demuestra es qué hay
+dentro de la cuenta de Resend: alguien pudo añadir el dominio y no publicar los
+registros todavía.
+
+**Y una cosa útil de paso:** el dominio **sí** tiene reenvío de correo
+configurado en el registrador. Eso hace plausible que una dirección
+`@feelverse.app` reciba, pero **no lo doy por hecho ni lo uso**: cuál es la
+bandeja autorizada lo dices tú.
+
+**Así que al insumo «dominio verificado» se le puede poner un paso concreto:**
+añadir el dominio en Resend, publicar los registros que te dé (DKIM, y el SPF y
+MX del subdominio de envío) y esperar a que marque verificado. Un `_dmarc`
+aunque sea en `p=none` ayuda a que el correo no acabe en spam, que para un
+restablecimiento de contraseña importa más de lo que parece.
 
 ---
 

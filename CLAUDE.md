@@ -4029,12 +4029,16 @@ de cada bitácora de sesión— es **antecedente fechado**: explica cómo se lle
 aquí, no lo que toca hacer. Si una instrucción antigua contradice esta
 sección, manda esta sección.
 
-#### El corte — 2026-11-17, sexta tanda
+#### El corte — 2026-11-18, séptima tanda
 
 |                                   |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Dónde vive                        | **OVH con Coolify, y sólo ahí.** Vercel y Railway retiradas del plan operativo **y desconectadas del cliente** en este repositorio                                                                                                                                                                                                                                                                                                                                                                                        |
-| `main`                            | **`6b845edb`** al empezar esta tanda (#857–#862 ya dentro). Esta tanda añade **#863**, que no puede nombrar su propio hash: el commit integrado, el artefacto servido y la fecha de observación van siempre por separado                                                                                                                                                                                                                                                                                                  |
+| `main`                            | **`0e5baf20`** al empezar esta tanda (#857–#863 ya dentro). **Esta tanda no añade ningún PR: es documental y de operación**, así que no hay commit de código ni despliegue, que no puede nombrar su propio hash: el commit integrado, el artefacto servido y la fecha de observación van siempre por separado                                                                                                                                                                                                             |
+| El dominio del correo             | ✅ **comprobado el 18-11, y ya no es «pendiente»**: el DNS público —la fuente que de verdad mira un servidor que recibe— dice que `feelverse.app` **NO está configurado para enviar**. Sin DKIM de Resend, sin `send.`, y el SPF es el del registrador. Lo que falta es concreto: publicar los registros que dé Resend. No demuestra qué hay dentro de esa cuenta                                                                                                                                                         |
+| Ejecución de B                    | ✅ **preparada, no ejecutada** ([piloto-b-ejecucion.md](docs/operations/piloto-b-ejecucion.md)): cómo se obtiene su `id` tras el registro sin sacar su correo de donde está, cómo se incorpora (el padrón vive **sólo en la API**, así que redespliega **un** servicio), cómo se la acompaña y los **tres niveles** de retirada. Sin nombrar a nadie y sin enviar nada                                                                                                                                                    |
+| Aceptación visual                 | ✅ **material listo** ([aceptacion-visual-2026-11-18.md](docs/product/aceptacion-visual-2026-11-18.md)): **18 pantallas** en el orden en que una persona conoce el producto, con cuenta sintética FREE **fuera del padrón** — lo que verá alguien antes de B. Separa lo funcional aceptado de **diez decisiones** tuyas                                                                                                                                                                                                   |
+| ⚠️ Lo que destapó esa revisión    | **el producto ofrece comprar en dos sitios** —el muro de Patrones y Mi plan, con importes y botones— mientras los cobros están cerrados y el piloto dice que pagar queda fuera. Y las cinco variables de Stripe **están presentes** en la caja, así que **no puedo afirmar que pulsar no haga nada**; no lo pulsé. La landing sí lleva su aviso «No disponible para compra»; dentro del producto no hay equivalente                                                                                                       |
 | Una lista ilegible                | ✅ **cerrada** (#863), y era la peor de las dos: `entries.length === 0` juntaba «nadie la configuró» con «alguien la configuró mal», así que `EMAIL_ALLOWLIST=dominio.com` —un dominio suelto, rechazado a propósito— caía en **`production-open`** y un error al escribir una restricción terminaba permitiendo **cualquier** destinatario. Reproducido contra el fichero de `main`. Hoy son **tres estados**: ausente abre en producción (deliberado), **ilegible no abre en ningún entorno**, y con entradas restringe |
 | El enlace del digest              | ✅ **cerrado** (#863): llevaba un literal a la Web del alojamiento anterior — no una conexión con ese proveedor, sino **un enlace de producto** que se habría enviado a cada suscrito el día que el correo se encienda. Ahora sale de `APP_URL`, comprobado sobre el mensaje **renderizado** en HTML y texto plano, con trinquete acotado a las superficies de correo                                                                                                                                                     |
 | El correo, ANTES de la credencial | ✅ **la guarda, cerrada** (#862): `RESEND_API_KEY` era el único interruptor, y de las cinco superficies de correo **una la dispara un cron y va a cada cuenta con el digest activo**. Teclear una clave habría mandado el digest del lunes a toda la base de staging. Fuera de producción el correo lo abre ahora **`EMAIL_ALLOWLIST`**: con clave y lista vacía **no sale nada**, y el arranque lo dice                                                                                                                  |
@@ -4053,8 +4057,8 @@ sección, manda esta sección.
 | Decisión **1** (sinopsis de EEC)  | ✅ **ejecutada el 13-11**: aplicada en staging con comparar-y-fijar y verificada por SHA en el fichero, la fila y la API                                                                                                                                                                                                                                                                                                                                                                                                  |
 | Decisión **2** (nota de C01)      | ✅ **ejecutada el 13-11 como revisión `v1.1`, y SIN firmas nuevas** (#853). Las cinco actas de `v1.0` siguen válidas porque cada una valida contra **su** revisión declarada                                                                                                                                                                                                                                                                                                                                              |
 | Receta de manifiestos             | ✅ **corregida** (#857): regenerar los manifiestos de C01 es **histórico** y se rechaza con su motivo. Lo vigente es `verify-guide-manifests.mjs`, que comprueba el paquete sellado contra sus **propios** ficheros y nunca contra el manuscrito vivo                                                                                                                                                                                                                                                                     |
-| Servido en staging                | **API `85ab7c86`** y **worker `85ab7c86`** (las dos del 17-11 por la noche; la API leída sobre su artefacto: `ready=true`, `reason=ok`, **71/71** migraciones, `pending` y `failed` vacíos) · **Web `a1448207`**, que no manda correo y **no se desplegó para igualar su SHA**                                                                                                                                                                                                                                            |
-| Verificación tras desplegar       | ✅ **sobre los dos artefactos nuevos**: API y worker imprimen el estado de la guarda, el worker levanta sus **12 colas** con `weekly-digest` entre ellas, y en el worker servido `APP_URL = https://staging.feelverse.app` — el valor del que ahora sale el enlace del digest (`…/dashboard/patrones`). **Lo que esto NO demuestra:** la rama con clave. Un banner sin credencial acredita arranque y ausencia, no comportamiento con credencial; esa rama la cubren las pruebas con el proveedor sustituido              |
+| Servido en staging                | **API y worker `85ab7c86`** · **Web `a1448207`** — **sin cambios**: esta tanda no toca código, así que no hay nada que desplegar. Revalidado el 18-11 sobre los contenedores                                                                                                                                                                                                                                                                                                                                              |
+| Verificación de esta tanda        | ✅ **sondas con control positivo y negativo**, que hicieron falta: la primera volvió a romperse por el escapado y daba «ausente» para `PSICO_ENV`, lo cual es imposible. Repetida pidiendo **sólo nombres** de variables, nunca valores: `RESEND_API_KEY`, `EMAIL_FROM`, `EMAIL_ALLOWLIST`, `SENTRY_DSN` y `GOOGLE_CLIENT_ID` **ausentes**; `PSICO_ENV` y `APP_URL` presentes                                                                                                                                             |
 | ¿Coinciden?                       | **API y worker sí, y por una dependencia funcional**: la guarda tiene que estar en el artefacto **antes** de que pueda estar la credencial, y el digest semanal —el único correo que dispara un cron— corre en el worker. La **Web conserva `a1448207`**: no manda correo. Igualar SHA sigue sin ser motivo para desplegar                                                                                                                                                                                                |
 | Capítulo 1 de EEC                 | **187 bloques servidos**, encabezado «Referencias», nota editorial retirada, cero asteriscos, 22 entradas, 49 bloques con énfasis · **5 experiencias ofrecidas**, las cinco `startable`, 7/7/7/8/8 escenas · la legada archivada no reaparece                                                                                                                                                                                                                                                                             |
 | Avance del lector en C01          | **conservado en el cambio de revisión** y ahora también **ante escrituras simultáneas**: las 9 sesiones que existían siguen con su porcentaje y su tiempo, las 2 completadas siguen completadas (`pct=0.1383` por HTTP), y lo que alguien guarde durante la inicialización ya no se sustituye por lo anterior                                                                                                                                                                                                             |
@@ -5439,17 +5443,66 @@ distintas:
     destructivo no se encadena detrás de uno que puede fallar**, y
     `prettier --write` sobre un directorio entero no es una pasada documental.
 
+47. ✅ **Tanda sin código: el dominio del correo, la ejecución de B y el
+    material para la aceptación visual** (18-11). Ningún PR, ningún despliegue
+    — lo que había que hacer era operación y preparación, no cambiar el
+    producto.
+
+    **El dominio dejó de ser «pendiente de comprobar».** El 17-11 lo dejé así
+    porque la respuesta vive en la cuenta de Resend, a la que no accedo. Pero
+    hay una fuente que lo acredita sin credencial y es la que de verdad importa:
+    el **DNS público**, que es lo que mira un servidor cuando recibe. Dice que
+    `feelverse.app` **no está configurado para enviar**: sin DKIM de Resend, sin
+    `send.`, con el SPF del registrador y sin DMARC. Alcance dicho: demuestra
+    que **hoy no se puede enviar** desde ese dominio aunque llegara la clave; no
+    demuestra qué hay dentro de esa cuenta. Y deja el insumo con un paso
+    concreto en vez de una laguna.
+
+    **La ejecución de B queda escrita y no ejecutada.** El padrón identifica por
+    **id de servidor**, que sólo existe tras el registro, así que el orden es
+    forzoso y el hueco de dos pasos es deliberado. Se obtiene el id con una
+    consulta de **sólo lectura** que devuelve el id y nada más, con el correo
+    pasado por entorno para que no quede escrito. Y un dato que ahorra un
+    despliegue: `GUIDE_PILOT_USER_IDS` vive **sólo en la API**, así que
+    incorporar a alguien redespliega **un** servicio.
+
+    **El material para la aceptación visual son 18 pantallas** en el orden en
+    que una persona conoce el producto, con una cuenta sintética FREE **fuera
+    del padrón** — lo que verá alguien **antes** de B, que es justo lo que hay
+    que mirar. Separa lo funcional ya aceptado de **diez decisiones**.
+
+    **Y la revisión destapó algo que no buscaba**, que es lo que suelen hacer
+    las revisiones: **el producto ofrece comprar en dos sitios** —el muro de
+    Patrones y Mi plan, con importes y botones de «Actualizar a Pro»— mientras
+    los cobros están cerrados y el piloto dice que pagar queda fuera. Las cinco
+    variables de Stripe **están presentes** en la caja servida, así que **no
+    puedo afirmar que pulsar no haga nada**, y **no lo pulsé**: iniciar un flujo
+    de compra no es algo que haga por mi cuenta. La landing ya resolvió esto con
+    un aviso de «No disponible para compra»; dentro del producto no hay nada
+    equivalente. Es la única de las diez que yo resolvería **antes** de invitar a
+    una persona real.
+
+    **Dos frases residuales, corregidas en la pasada normal** como pedía §69: la
+    fila agregada del runbook contaba B entre las editoriales y etiquetaba el
+    bloque como producción —de modo que B aparecía dos veces con dos impactos
+    distintos en la misma tabla—, y el «No podrá» del piloto describía un
+    permiso que no existe donde lo que hay es **ausencia de oferta en la
+    interfaz**.
+
+    **Y la sonda volvió a romperse por el escapado**, como el 17-11: daba
+    «ausente» para `PSICO_ENV`, que es imposible. El control negativo la pilló.
+    Repetida pidiendo **sólo nombres** de variables —nunca valores— y con los
+    dos controles.
+
 #### La siguiente ejecución hacia producción
 
 Cinco cajones, y la diferencia entre ellos es quién puede moverlos.
 
-**1 · Integrado y servido** — base `6b845edb`, con #851–#862 ya dentro (#851
-retirada del cliente, #852 pestaña del guía, #853 C01 `v1.1`, #854 el alcance de B,
-#855 el montón del typecheck, #857 la inicialización concurrente del avance, #858 y
-#859 la cuota de Eco, #860 el reloj de 24 h, #861 la zona de la tarjeta y la lectura
-histórica parcial, #862 la guarda de destinatarios). Esta tanda añade **#863**: el
-agujero de esa guarda en producción, el enlace del digest, y la conciliación que
-pedía §67.
+**1 · Integrado y servido** — base `0e5baf20`, con #851–#863 dentro. **Esta
+tanda no añade ningún PR**: lo que tocaba era operación, preparación y
+documentos, así que **no hay despliegue** — API y worker siguen en `85ab7c86`
+y la Web en `a1448207`, revalidados sobre los contenedores. Desplegar para
+cuadrar un SHA sigue sin ser motivo.
 
 **Dos despliegues otra vez, y por la misma clase de razón** — no por igualar
 SHA. El arreglo de la guarda vive en `mail-gate.ts`, que **API y worker**
@@ -5528,10 +5581,12 @@ valores (`DATABASE_URL` también se lee vacía y eso no dice nada), mientras el
 contenedor distingue de verdad «ausente» de «vacía». En el almacén de ops no hay
 ninguna credencial suya.
 
-**Del correo, lo que ya no falta:** la guarda (#862). Lo que falta son los tres
-insumos, y el orden de incorporarlos está escrito — la **lista antes de la
-clave**, para que no haya ni un minuto con credencial y sin destinatarios
-autorizados.
+**Del correo, lo que ya no falta:** la guarda (#862 y #863), y desde el 18-11
+tampoco la **incógnita del dominio** — está comprobado por DNS que no está
+configurado para enviar, y el paso que falta es publicar los registros de
+Resend. Quedan **dos insumos**: la credencial y la bandeja autorizada. El orden
+de incorporarlos está escrito — la **dirección exacta antes de la clave**, para
+que no haya ni un minuto con credencial y sin destinatarios autorizados.
 
 **4 · Pendiente de una decisión del propietario** — del paquete editorial quedan
 **cinco** de las ocho (la 3 el 12-11, la **1 y la 2 el 13-11**) más la **propuesta
@@ -5628,16 +5683,24 @@ en **[la matriz de F3](https://claude.ai/artifact/UtBZxMUDiqSuSwY3mGh5ah)**:
    esa bandeja recibe. El orden de las escrituras y lo que esto NO acredita —ni
    dominio verificado ni entrega— están en el runbook §2.5.1.
 
+   **Y el 18-11 el dominio dejó de ser una incógnita.** Lo comprobé por **DNS
+   público** —la fuente que de verdad mira un servidor que recibe, y que no
+   necesita credencial—: `feelverse.app` **no está configurado para enviar**.
+   Sin DKIM de Resend (`resend._domainkey`), sin `send.`, con el SPF del
+   registrador y sin DMARC. Lo que eso demuestra es que **hoy no se puede
+   enviar desde ese dominio aunque llegara la clave**; lo que no demuestra es
+   qué hay dentro de la cuenta de Resend. Así que el insumo ya tiene un paso
+   concreto: **añadir el dominio en Resend y publicar los registros que dé**.
+   Tabla completa en la ficha.
+
    Lo demás ya está preparado (06-11, #824): el remitente por defecto reclamaba
    `psico.app`, un dominio que no es del producto y que Resend habría rechazado
    —así que la primera prueba de una clave nueva habría fallado por eso y habría
-   parecido una clave mala—. Hace falta: **dominio** `feelverse.app` verificado
-   en Resend con sus registros DNS, **remitente** `no-reply@feelverse.app`
-   (`EMAIL_FROM`, que el informe de salud ya delata cuando nadie lo elige), y un
-   **buzón real autorizado** para QA, porque las cuentas de prueba usan
-   `@psico.test` y por diseño no pueden recibir nada. El recorrido a comprobar
-   es completo: recepción → enlace → restablecimiento → **acceso con la
-   contraseña nueva**.
+   parecido una clave mala—. Así que hacen falta **dos insumos tuyos** más ese
+   paso de DNS: la **credencial** y un **buzón real autorizado** para QA,
+   porque las cuentas de prueba usan `@psico.test` y por diseño no pueden
+   recibir nada. El recorrido a comprobar es completo: recepción → enlace →
+   restablecimiento → **acceso con la contraseña nueva**.
 
 2. **`SENTRY_DSN`** — sin él, un fallo en el piloto se investiga a ciegas.
 3. **`GOOGLE_CLIENT_ID`** — puede quedar fuera del piloto: sin clave el producto

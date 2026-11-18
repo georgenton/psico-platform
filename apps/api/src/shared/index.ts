@@ -19,3 +19,9 @@ export * from "./throttler/throttler.module";
 export * from "./throttler/redis-throttler.storage";
 
 export * from "./content-asset";
+
+// La puerta de las compras de planes. Vive en el núcleo compartido —y no en el
+// módulo de facturación— porque la consultan tres sitios que no deben poder
+// discrepar: la propia creación de checkout, el envolvente de Mi plan y el
+// muro de Patrones.
+export * from "./purchase-availability";

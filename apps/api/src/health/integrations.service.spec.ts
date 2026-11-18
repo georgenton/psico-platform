@@ -240,3 +240,69 @@ describe("IntegrationsService — a quién puede llegar un correo", () => {
     expect(r.mailRecipients.mode).toBe("open");
   });
 });
+
+describe("IntegrationsService · la puerta de las compras", () => {
+  it("sin configurar: cerradas, y el informe lo dice con su causa", () => {
+    const r = new IntegrationsService(makeConfig({})).report();
+    expect(r.purchases).toEqual({ open: false, state: "absent" });
+  });
+
+  it("un valor ilegible cierra, y se distingue de la ausencia", () => {
+    const r = new IntegrationsService(
+      makeConfig({ BILLING_PURCHASES: "ábrelas" }),
+    ).report();
+    expect(r.purchases).toEqual({ open: false, state: "invalid" });
+  });
+
+  it("abiertas sólo con un sí explícito", () => {
+    const r = new IntegrationsService(
+      makeConfig({ BILLING_PURCHASES: "on" }),
+    ).report();
+    expect(r.purchases).toEqual({ open: true, state: "on" });
+  });
+
+  it("tener las cinco variables de Stripe NO abre compras", () => {
+    // La confusión que conviene no dejar pasar: credenciales presentes y
+    // compras abiertas son dos cosas, y el informe tiene que separarlas.
+    const r = new IntegrationsService(
+      makeConfig({
+        STRIPE_SECRET_KEY: "sk_live_real",
+        STRIPE_WEBHOOK_SECRET: "whsec_real",
+        STRIPE_PRO_MONTHLY_PRICE_ID: "price_real_m",
+        STRIPE_PRO_YEARLY_PRICE_ID: "price_real_y",
+        STRIPE_B2B_PRICE_ID: "price_real_b",
+      }),
+    ).report();
+    expect(r.stripe.secretKey.configured).toBe(true);
+    expect(r.purchases.open).toBe(false);
+  });
+
+  it("el arranque sólo nombra la puerta cuando hay una ERRATA", () => {
+    const issue = (billing?: string) =>
+      new IntegrationsService(
+        makeConfig(billing ? { BILLING_PURCHASES: billing } : {}),
+      )
+        .bootIssues()
+        .filter((i) => i.key.startsWith("BILLING_PURCHASES"));
+
+    // Cerradas por ausencia o por un «off» explícito es la postura deliberada
+    // de hoy: ponerla cada arranque sería ruido en una lista cuyo valor es que
+    // toda línea importe.
+    expect(issue(undefined)).toEqual([]);
+    expect(issue("off")).toEqual([]);
+    expect(issue("on")).toEqual([]);
+
+    // Una errata cierra igual, pero quien la escribió creía estar decidiendo
+    // algo. Eso sí se dice, y con la razón que distingue «no sirve» de «falta».
+    const erratas = issue("ábrelas");
+    expect(erratas).toHaveLength(1);
+    expect(erratas[0]?.reason).toBe("invalid");
+  });
+
+  it("el informe no publica el valor de la variable", () => {
+    const r = new IntegrationsService(
+      makeConfig({ BILLING_PURCHASES: "ábrelas-por-favor" }),
+    ).report();
+    expect(JSON.stringify(r)).not.toContain("ábrelas-por-favor");
+  });
+});

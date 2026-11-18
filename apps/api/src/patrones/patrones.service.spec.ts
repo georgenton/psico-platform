@@ -39,6 +39,20 @@ function buildAi(
   } as unknown as ConstructorParameters<typeof PatronesService>[1];
 }
 
+/**
+ * El doble de configuración, sólo para la puerta de las compras.
+ *
+ * Por omisión la deja CERRADA, que es la postura de hoy: así el estado que
+ * estas pruebas ejercitan es el que sirve producción, y no uno que nadie tiene.
+ */
+function buildConfig(billingPurchases?: string) {
+  return {
+    get: vi.fn((key: string) =>
+      key === "BILLING_PURCHASES" ? billingPurchases : undefined,
+    ),
+  } as unknown as ConstructorParameters<typeof PatronesService>[2];
+}
+
 // PR-2B — Patrones reads the server-vouched projection: a mood counts only
 // when the row is eligible for dynamics AND carries a normalized value. The
 // helper produces an eligible + normalized row so existing "mood counts" tests
@@ -89,7 +103,7 @@ describe("PatronesService.getPatrones", () => {
         count: vi.fn().mockResolvedValue(5),
       } as never,
     });
-    const svc = new PatronesService(prisma, buildAi());
+    const svc = new PatronesService(prisma, buildAi(), buildConfig());
     const result = await svc.getPatrones("u-1", "FREE" as Plan, "30d");
 
     expect(result.tier).toBe("free");
@@ -98,6 +112,55 @@ describe("PatronesService.getPatrones", () => {
     expect(result.moodMap).toHaveLength(0);
     expect(result.hourMood).toHaveLength(0);
     expect(result.weeklySummary).toBeNull();
+  });
+
+  // ── La puerta de las compras, publicada en la respuesta ─────────────────
+  //
+  // El muro de FREE ofrecía «Hazte Pro →». Que esa oferta aparezca o no es una
+  // decisión del servidor, no de la pantalla: aquí se comprueba que viaja, con
+  // el mismo criterio y la misma variable que rechazan un checkout.
+
+  it("el muro de FREE recibe `purchases` CERRADAS por omisión", async () => {
+    const prisma = buildPrisma({
+      diaryEntry: {
+        findMany: vi.fn(),
+        count: vi.fn().mockResolvedValue(5),
+      } as never,
+    });
+    const svc = new PatronesService(prisma, buildAi(), buildConfig());
+    const result = await svc.getPatrones("u-1", "FREE" as Plan, "30d");
+
+    expect(result.purchases).toEqual({ open: false });
+  });
+
+  it("un valor ilegible NO abre el muro — la errata cierra", async () => {
+    const prisma = buildPrisma({
+      diaryEntry: {
+        findMany: vi.fn(),
+        count: vi.fn().mockResolvedValue(5),
+      } as never,
+    });
+    const svc = new PatronesService(
+      prisma,
+      buildAi(),
+      buildConfig("sí, ábrelas"),
+    );
+    const result = await svc.getPatrones("u-1", "FREE" as Plan, "30d");
+
+    expect(result.purchases).toEqual({ open: false });
+  });
+
+  it("con las compras abiertas el muro lo refleja", async () => {
+    const prisma = buildPrisma({
+      diaryEntry: {
+        findMany: vi.fn(),
+        count: vi.fn().mockResolvedValue(5),
+      } as never,
+    });
+    const svc = new PatronesService(prisma, buildAi(), buildConfig("on"));
+    const result = await svc.getPatrones("u-1", "FREE" as Plan, "30d");
+
+    expect(result.purchases).toEqual({ open: true });
   });
 
   it("aggregates moodMap by day (latest entry wins) for PRO callers", async () => {
@@ -111,7 +174,7 @@ describe("PatronesService.getPatrones", () => {
         count: vi.fn(),
       } as never,
     });
-    const svc = new PatronesService(prisma, buildAi());
+    const svc = new PatronesService(prisma, buildAi(), buildConfig());
     const result = await svc.getPatrones("u-1", "PRO" as Plan, "30d");
 
     expect(result.tier).toBe("pro");
@@ -135,7 +198,7 @@ describe("PatronesService.getPatrones", () => {
         count: vi.fn(),
       } as never,
     });
-    const svc = new PatronesService(prisma, buildAi());
+    const svc = new PatronesService(prisma, buildAi(), buildConfig());
     const result = await svc.getPatrones("u-1", "PRO" as Plan, "30d");
 
     expect(result.hourMood).toHaveLength(24);
@@ -157,7 +220,7 @@ describe("PatronesService.getPatrones", () => {
         findMany: vi.fn().mockResolvedValue([]),
       } as never,
     });
-    const svc = new PatronesService(prisma, buildAi());
+    const svc = new PatronesService(prisma, buildAi(), buildConfig());
     const result = await svc.getPatrones("u-1", "PRO" as Plan, "30d");
 
     expect(result.moodMap[0]?.swatch).toBe("#C7C0B5");
@@ -176,7 +239,7 @@ describe("PatronesService.getPatrones", () => {
         count: vi.fn(),
       } as never,
     });
-    const svc = new PatronesService(prisma, buildAi());
+    const svc = new PatronesService(prisma, buildAi(), buildConfig());
     const result = await svc.getPatrones("u-1", "PRO" as Plan, "30d");
 
     // Only the eligible day is on the heatmap.
@@ -195,7 +258,7 @@ describe("PatronesService.regenerateWeeklySummary", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("throws ForbiddenException for FREE", async () => {
-    const svc = new PatronesService(buildPrisma(), buildAi());
+    const svc = new PatronesService(buildPrisma(), buildAi(), buildConfig());
     await expect(
       svc.regenerateWeeklySummary("u-1", "FREE" as Plan),
     ).rejects.toBeInstanceOf(ForbiddenException);
@@ -213,7 +276,7 @@ describe("PatronesService.regenerateWeeklySummary", () => {
         count: vi.fn(),
       } as never,
     });
-    const svc = new PatronesService(prisma, buildAi());
+    const svc = new PatronesService(prisma, buildAi(), buildConfig());
     await expect(
       svc.regenerateWeeklySummary("u-1", "PRO" as Plan),
     ).rejects.toThrow("NOT_ENOUGH_ENTRIES");
@@ -240,7 +303,7 @@ describe("PatronesService.regenerateWeeklySummary", () => {
         upsert: upsertSpy,
       } as never,
     });
-    const svc = new PatronesService(prisma, buildAi());
+    const svc = new PatronesService(prisma, buildAi(), buildConfig());
     const result = await svc.regenerateWeeklySummary("u-1", "PRO" as Plan);
 
     expect(upsertSpy).toHaveBeenCalled();
@@ -281,7 +344,7 @@ describe("PatronesService.regenerateWeeklySummary", () => {
         upsert: upsertSpy,
       } as never,
     });
-    const svc = new PatronesService(prisma, ai);
+    const svc = new PatronesService(prisma, ai, buildConfig());
     const result = await svc.regenerateWeeklySummary("u-1", "PRO" as Plan);
 
     expect(
@@ -337,7 +400,7 @@ describe("PatronesService.regenerateWeeklySummary", () => {
         }),
       } as never,
     });
-    const svc = new PatronesService(prisma, ai);
+    const svc = new PatronesService(prisma, ai, buildConfig());
     await svc.regenerateWeeklySummary("u-1", "PRO" as Plan);
 
     const passed = gen.mock.calls[0]![0] as Record<string, unknown>;
@@ -372,7 +435,7 @@ describe("PatronesService.regenerateWeeklySummary", () => {
         }),
       } as never,
     });
-    const svc = new PatronesService(prisma, ai);
+    const svc = new PatronesService(prisma, ai, buildConfig());
     await svc.regenerateWeeklySummary("u-1", "PRO" as Plan);
 
     const passed = gen.mock.calls[0]![0] as Record<string, unknown>;
@@ -411,7 +474,7 @@ describe("PatronesService.regenerateWeeklySummary", () => {
         upsert: upsertSpy,
       } as never,
     });
-    const svc = new PatronesService(prisma, ai);
+    const svc = new PatronesService(prisma, ai, buildConfig());
     const result = await svc.regenerateWeeklySummary("u-1", "PRO" as Plan);
 
     // The rule-based composer mentions the dominant mood by name.
@@ -449,7 +512,7 @@ describe("PatronesService.regenerateWeeklySummary", () => {
         }),
       } as never,
     });
-    const svc = new PatronesService(prisma, ai);
+    const svc = new PatronesService(prisma, ai, buildConfig());
     await svc.regenerateWeeklySummary("u-1", "PRO" as Plan);
 
     const passed = gen.mock.calls[0]![0] as Record<string, unknown>;
@@ -490,7 +553,7 @@ describe("PatronesService.regenerateWeeklySummary", () => {
         upsert: upsertSpy,
       } as never,
     });
-    const svc = new PatronesService(prisma, ai);
+    const svc = new PatronesService(prisma, ai, buildConfig());
     const result = await svc.regenerateWeeklySummary("u-1", "PRO" as Plan);
 
     const blob = `${result.headline}\n${result.narrative}`.toLowerCase();
@@ -502,7 +565,7 @@ describe("PatronesService.regenerateWeeklySummary", () => {
 
 describe("PatronesService.shareWithTherapist", () => {
   it("returns the v1 stub", () => {
-    const svc = new PatronesService(buildPrisma(), buildAi());
+    const svc = new PatronesService(buildPrisma(), buildAi(), buildConfig());
     expect(svc.shareWithTherapist()).toEqual({ ok: true, status: "stub" });
   });
 });

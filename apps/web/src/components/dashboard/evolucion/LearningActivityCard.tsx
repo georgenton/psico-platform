@@ -22,6 +22,22 @@ import {
  * Nothing here reaches the Emotional Map. Finishing a video says nothing about
  * how someone feels (`EXPERIENCE_CAUSAL_INFERENCE=false`); the map only ever
  * receives what a person explicitly chooses to express.
+ *
+ * ── Un cero NO significa que el formato no exista ─────────────────────────
+ *
+ * La revisión visual del 2026-11-18 anotó que «0 audiolibros» podría sugerir
+ * que el formato está disponible y que la persona no lo usó. Medido contra el
+ * manifiesto que sirve staging para el capítulo 1 del libro ancla: el PODCAST
+ * está `AVAILABLE` (edición de demostración, 52 s) y el audiolibro y el video
+ * están `COMING_SOON`. Así que la suposición que motivaba la nota —«ninguno
+ * existe»— es falsa para uno de los tres.
+ *
+ * No se añade aquí ninguna etiqueta de disponibilidad, y es deliberado: la
+ * disponibilidad es POR CAPÍTULO y esta tarjeta recibe totales. Una nota global
+ * diría algo falso para el podcast hoy, y para los otros dos el día que ops
+ * suba un fichero. El sitio donde la disponibilidad se conoce es el lector, y
+ * allí ya se dice: `ChapterMediaListen` rinde «En producción» para un formato
+ * sin máster, y la pestaña «Ver» queda deshabilitada con «Próximamente».
  */
 export function LearningActivityCard({ stats }: { stats: EvolucionStats }) {
   const rows = [

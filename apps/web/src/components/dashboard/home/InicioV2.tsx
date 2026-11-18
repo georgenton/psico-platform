@@ -32,10 +32,19 @@ const ACTIVITY_ICON: Record<
 /** Sprint F3 — surface what each activity contributes to the user's map.
  *  Mirrors the design's `.a-fed` chip ("+ mapa", "+ patrón", "+ calma").
  *  Keep these short — they're the third column of a row that already has
- *  a title + subtitle. */
+ *  a title + subtitle.
+ *
+ *  `reading` decía «+ comprensión», y eso describe actividad como si midiera
+ *  entendimiento: leer alimenta **Mi Evolución** —marcas de lectura, minutos,
+ *  formatos terminados— y bajo V2 no toca ningún eje del mapa (invariante con
+ *  trinquete: «+highlights ⇒ el mapa no cambia»). Dice el destino real.
+ *
+ *  Los otros tres siguen como estaban, a propósito: cambiarlos es una decisión
+ *  editorial y va en la lista de aceptación visual, no en este commit.
+ *  — ver docs/product/aceptacion-visual-2026-11-18.md */
 const ACTIVITY_FED: Record<ActivityFeedItemType, string> = {
   diary: "+ mapa",
-  reading: "+ comprensión",
+  reading: "+ evolución",
   eco: "+ patrón",
   voice: "+ calma",
 };
@@ -185,7 +194,20 @@ export function InicioV2({ home }: { home: HomeResponse }) {
         </div>
       </div>
 
-      <div className="sec-label">Tu progreso de comprensión</div>
+      {/*
+        «Tu actividad», no «tu progreso de comprensión».
+
+        Los cinco contadores de abajo son actividad —reflexiones de la semana,
+        insights de Eco, patrones detectados, minutos de lectura y días
+        seguidos— y ninguno mide cuánto entiende alguien de sí mismo. Todo el
+        programa V2 del Mapa se dedicó a separar APRENDIZAJE de MUNDO INTERIOR,
+        y este título los volvía a juntar en la pantalla de Inicio, que es la
+        primera que se ve.
+
+        No es un defecto de cálculo: las cifras son correctas. Era la etiqueta
+        la que prometía más de lo que hay debajo.
+      */}
+      <div className="sec-label">Tu actividad</div>
       <div className="metrics">
         <div className="metric">
           <span className="mg">

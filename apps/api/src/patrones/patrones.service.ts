@@ -1,4 +1,6 @@
 import { ForbiddenException, Injectable, Logger } from "@nestjs/common";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { ConfigService } from "@nestjs/config";
 import { Plan } from "@prisma/client";
 import type {
   PatronesHourMoodBucket,
@@ -9,8 +11,13 @@ import type {
   PatronesShareWithTherapistResponse,
   PatronesWeeklySummary,
 } from "@psico/types";
+import type { Env } from "../config";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { PrismaService } from "../prisma";
+import {
+  purchaseAvailabilityForWire,
+  resolvePurchaseGate,
+} from "../shared/purchase-availability";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { AIService } from "../ai";
 
@@ -46,6 +53,13 @@ export class PatronesService {
     // `ANTHROPIC_API_KEY` or a transient LLM error never breaks the user
     // flow.
     private readonly aiService: AIService,
+    /**
+     * Sólo para la puerta de las compras. Se lee la MISMA variable con la MISMA
+     * función que usa `PaymentService` para rechazar un checkout; inyectar
+     * `PaymentService` aquí arrastraría todo el módulo de facturación dentro de
+     * Patrones para resolver un booleano.
+     */
+    private readonly config: ConfigService<Env, true>,
   ) {}
 
   // ── GET /api/patrones?period=30d ──────────────────────────────────────
@@ -407,6 +421,15 @@ export class PatronesService {
       ecoNotes: [],
       vocab: [],
       weeklySummary: partial.weeklySummary ?? null,
+      // Mismo criterio que Mi plan, misma función, misma variable. El muro de
+      // FREE enseñaba «Hazte Pro →», que es una llamada accionable a contratar;
+      // ahora obedece lo que el servidor dice que se puede hacer. Va también en
+      // la respuesta PRO: cuesta nada y evita que el campo exista a veces.
+      purchases: purchaseAvailabilityForWire(
+        resolvePurchaseGate(
+          this.config.get("BILLING_PURCHASES", { infer: true }),
+        ),
+      ),
     };
   }
 }

@@ -15,6 +15,7 @@ import type {
   PatronesResponse,
   PatronesWeeklySummary,
 } from "@psico/types";
+import { PURCHASES_CLOSED_HEADLINE } from "@psico/types";
 
 import { Colors, Radius, Spacing } from "@/theme";
 
@@ -99,6 +100,8 @@ export default function PatronesScreen() {
         <PaywallCard
           entryCount={data.entryCount}
           onCta={() => router.push("/plan")}
+          // `?? false`: la ausencia de un permiso no es un permiso.
+          purchasesOpen={data.purchases?.open ?? false}
         />
       ) : data.entryCount < 7 ? (
         <EmptyState
@@ -149,9 +152,12 @@ function PeriodTabs({
 function PaywallCard({
   entryCount,
   onCta,
+  purchasesOpen,
 }: {
   entryCount: number;
   onCta: () => void;
+  /** Lo decide el servidor, con la misma función que rechaza un checkout. */
+  purchasesOpen: boolean;
 }) {
   return (
     <View style={styles.paywall}>
@@ -177,9 +183,26 @@ function PaywallCard({
       <Text style={styles.paywallFootnote}>
         Llevas {entryCount} entradas este período. Suficiente para empezar.
       </Text>
-      <Pressable style={styles.proCta} onPress={onCta}>
-        <Text style={styles.proCtaText}>Hazte Pro</Text>
-      </Pressable>
+      {/*
+        «Hazte Pro» es una llamada accionable a contratar; con los cobros
+        cerrados no hay nada que contratar. Queda dicho lo que es cierto, y un
+        enlace a Mi plan que no parece el primer paso de una compra.
+      */}
+      {purchasesOpen ? (
+        <Pressable style={styles.proCta} onPress={onCta}>
+          <Text style={styles.proCtaText}>Hazte Pro</Text>
+        </Pressable>
+      ) : (
+        <View style={{ marginTop: 16 }}>
+          <Text style={styles.paywallClosed}>
+            {PURCHASES_CLOSED_HEADLINE}, así que esta función todavía no se
+            puede activar.
+          </Text>
+          <Pressable onPress={onCta} style={{ marginTop: 10 }}>
+            <Text style={styles.paywallClosedLink}>Ver mi plan</Text>
+          </Pressable>
+        </View>
+      )}
     </View>
   );
 }
@@ -511,6 +534,17 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.75)",
     fontSize: 11.5,
     marginTop: 14,
+  },
+  paywallClosed: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: "rgba(255,255,255,.9)",
+  },
+  paywallClosedLink: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: Colors.white,
+    textDecorationLine: "underline",
   },
   proCta: {
     marginTop: 16,

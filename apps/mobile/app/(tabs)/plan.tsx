@@ -20,6 +20,11 @@ import type {
   UsageResponse,
   UserPlan,
 } from "@psico/types";
+import {
+  PURCHASES_CLOSED_BODY,
+  PURCHASES_CLOSED_HEADLINE,
+  PURCHASES_PROPOSAL_NOTICE,
+} from "@psico/types";
 import { useAuth } from "@/context/auth";
 import { InvoicesList } from "@/components/dashboard/plan/InvoicesList";
 import { SubscriptionActions } from "@/components/dashboard/plan/SubscriptionActions";
@@ -100,6 +105,12 @@ export default function PlanScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
+  /**
+   * ¿Se puede contratar? Lo decide el servidor y llega en `GET /api/plan`. El
+   * estado arranca en `false` a propósito: antes de la primera respuesta —y si
+   * ésa falla— la pantalla no ofrece una compra que el servidor rechazaría.
+   */
+  const [purchasesOpen, setPurchasesOpen] = useState(false);
 
   /**
    * Loads everything Mi Plan needs in one shot. The promises are kept
@@ -118,6 +129,7 @@ export default function PlanScreen() {
       setSubscription(plan.subscription);
       setUsage(plan.usage);
       setInvoices({ invoices: plan.invoices });
+      setPurchasesOpen(plan.purchases?.open ?? false);
     } catch {
       // Don't blank existing state on a transient failure — the user
       // probably still has the latest snapshot from the previous load.
@@ -185,10 +197,21 @@ export default function PlanScreen() {
         <Text style={styles.eyebrow}>Tu suscripción</Text>
         <Text style={styles.title}>Mi Plan</Text>
         <Text style={styles.subtitle}>
-          Lo que está incluido hoy, lo que puedes desbloquear y cuánto has usado
-          este ciclo.
+          {purchasesOpen
+            ? "Lo que está incluido hoy, lo que puedes desbloquear y cuánto has usado este ciclo."
+            : "Lo que está incluido hoy y cuánto has usado este ciclo."}
         </Text>
       </View>
+
+      {/* Compras cerradas — se dice antes de que nadie busque un botón. */}
+      {!purchasesOpen && (
+        <View style={styles.closedNotice}>
+          <Text style={styles.closedNoticeTitle}>
+            {PURCHASES_CLOSED_HEADLINE}
+          </Text>
+          <Text style={styles.closedNoticeBody}>{PURCHASES_CLOSED_BODY}</Text>
+        </View>
+      )}
 
       {/* Current plan banner */}
       <View style={styles.currentPlan}>
@@ -258,8 +281,31 @@ export default function PlanScreen() {
                     ))}
                   </View>
 
-                  {/* Checkout options */}
-                  {options.length > 0 ? (
+                  {/*
+                    Checkout options — sólo con las compras abiertas. No se deja
+                    un botón deshabilitado: un `disabled` sigue siendo una
+                    llamada a contratar.
+                  */}
+                  {!purchasesOpen ? (
+                    options.length > 0 ? (
+                      <View style={styles.closedBox}>
+                        {/*
+                          Los importes se conservan como información —son los
+                          mismos que publica la landing— pero sin acción y
+                          marcados como propuesta, con el mismo texto que allí.
+                        */}
+                        {options.map((opt) => (
+                          <View key={opt.billingPlan} style={styles.closedRow}>
+                            <Text style={styles.closedLabel}>{opt.label}</Text>
+                            <Text style={styles.closedPrice}>{opt.price}</Text>
+                          </View>
+                        ))}
+                        <Text style={styles.closedProposal}>
+                          {PURCHASES_PROPOSAL_NOTICE}
+                        </Text>
+                      </View>
+                    ) : null
+                  ) : options.length > 0 ? (
                     <View style={styles.checkoutOptions}>
                       {options.map((opt) => (
                         <Pressable
@@ -360,6 +406,48 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.warm[600],
     lineHeight: 20,
+  },
+  closedNotice: {
+    backgroundColor: Colors.warm[100],
+    borderWidth: 1.5,
+    borderColor: Colors.warm[200],
+    borderRadius: Radius.lg,
+    padding: Spacing.md,
+    gap: 4,
+    marginBottom: Spacing.md,
+  },
+  closedNoticeTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: Colors.warm[800],
+  },
+  closedNoticeBody: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: Colors.warm[600],
+  },
+  closedBox: {
+    marginTop: Spacing.sm,
+    gap: 6,
+  },
+  closedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  closedLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: Colors.warm[700],
+  },
+  closedPrice: {
+    fontSize: 13,
+    color: Colors.warm[600],
+  },
+  closedProposal: {
+    marginTop: 2,
+    fontSize: 11.5,
+    color: Colors.warm[500],
   },
   currentPlan: {
     backgroundColor: Colors.lavender[500],

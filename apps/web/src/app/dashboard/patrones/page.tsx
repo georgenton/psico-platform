@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import type { PatronesPeriod, PatronesResponse } from "@psico/types";
+import { PURCHASES_CLOSED_HEADLINE } from "@psico/types";
 
 import { getAccessToken, isNextThrow, serverFetch } from "@/lib/api.server";
 import { HourMoodChart } from "@/components/dashboard/patrones/HourMoodChart";
@@ -78,7 +79,12 @@ export default async function PatronesPage({
     return (
       <>
         <ScreenHead period={period} />
-        <PaywallCard entryCount={data.entryCount} />
+        <PaywallCard
+          entryCount={data.entryCount}
+          // `?? false` por la misma razón que en Mi plan: un cliente nuevo
+          // contra una API anterior no debe acabar ofreciendo una compra.
+          purchasesOpen={data.purchases?.open ?? false}
+        />
       </>
     );
   }
@@ -260,7 +266,18 @@ function Toolbar() {
   );
 }
 
-function PaywallCard({ entryCount }: { entryCount: number }) {
+function PaywallCard({
+  entryCount,
+  purchasesOpen,
+}: {
+  entryCount: number;
+  /**
+   * La decide el servidor y llega en la propia respuesta de Patrones, con la
+   * misma función y la misma variable que rechazan un checkout. Decidirlo aquí
+   * por separado sería tener dos criterios capaces de contradecirse.
+   */
+  purchasesOpen: boolean;
+}) {
   return (
     <section
       style={{
@@ -340,24 +357,56 @@ function PaywallCard({ entryCount }: { entryCount: number }) {
         Llevas <strong>{entryCount}</strong> entradas este período. Suficiente
         para empezar.
       </p>
-      <Link
-        href="/dashboard/plan"
-        style={{
-          marginTop: 24,
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 6,
-          borderRadius: 16,
-          padding: "12px 24px",
-          fontSize: 13,
-          fontWeight: 600,
-          background: "var(--bg-surface)",
-          color: "var(--color-lavender-700)",
-          textDecoration: "none",
-        }}
-      >
-        Hazte Pro →
-      </Link>
+      {/*
+        El enlace de abajo es una llamada accionable a contratar, y mientras los
+        cobros estén cerrados no hay nada que contratar. Se sustituye por lo que
+        sí es cierto —qué es esto y dónde se ve el plan— sin un enlace que
+        parezca el primer paso de una compra.
+
+        El texto del botón NO se escribe en este comentario a propósito: el
+        trinquete cuenta sus apariciones en el fichero, y repetirlo aquí lo
+        haría fallar. Reformular sale más barato que carvarle una excepción.
+      */}
+      {purchasesOpen ? (
+        <Link
+          href="/dashboard/plan"
+          style={{
+            marginTop: 24,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            borderRadius: 16,
+            padding: "12px 24px",
+            fontSize: 13,
+            fontWeight: 600,
+            background: "var(--bg-surface)",
+            color: "var(--color-lavender-700)",
+            textDecoration: "none",
+          }}
+        >
+          Hazte Pro →
+        </Link>
+      ) : (
+        <div style={{ marginTop: 24 }}>
+          <p style={{ fontSize: 13, color: "rgba(255,255,255,.9)", margin: 0 }}>
+            {PURCHASES_CLOSED_HEADLINE}, así que esta función todavía no se
+            puede activar.
+          </p>
+          <Link
+            href="/dashboard/plan"
+            style={{
+              marginTop: 10,
+              display: "inline-block",
+              fontSize: 13,
+              fontWeight: 600,
+              color: "white",
+              textDecoration: "underline",
+            }}
+          >
+            Ver mi plan
+          </Link>
+        </div>
+      )}
     </section>
   );
 }

@@ -23,41 +23,119 @@ Leído del contenedor que sirve hoy (`85ab7c86`):
 | `GUIDE_ROLLOUT_MODE`      | `pilot`                    | **API** y **worker** |
 | `GUIDE_PILOT_USER_IDS`    | **1 id** (la cuenta de QA) | **sólo la API**      |
 | `EEC_C01_GUIDED_SUITE_V1` | `on`                       | **sólo la API**      |
+| `EMAIL_ALLOWLIST`         | **ausente**                | **API** y **worker** |
 
-**Consecuencia operativa:** incorporar a alguien es **añadir un id a una lista
-que ya existe**, en un modo que ya está puesto, y **redespliega un solo
-servicio** — la API. Ni cambiar de modo, ni tocar el interruptor de C01, ni
-desplegar la Web ni el worker.
+**Incorporar a una persona son DOS cosas distintas**, y conviene no colapsarlas
+porque viven en sitios distintos y se aplican en momentos distintos:
+
+| Qué se incorpora                 | Dónde                  | Servicios a desplegar |
+| -------------------------------- | ---------------------- | --------------------- |
+| su **dirección** de correo       | `EMAIL_ALLOWLIST`      | **API y worker**      |
+| su **identificador** de servidor | `GUIDE_PILOT_USER_IDS` | **sólo la API**       |
+
+El «sólo la API» de este documento describe **el cambio del padrón del guía**.
+No describe la incorporación completa: cuando además cambia la configuración
+del correo —que es siempre, para una persona nueva— se despliegan **los dos**,
+porque el worker es quien manda el digest semanal y quien procesa la cola de
+correo. Decir «sólo la API» de todo el procedimiento dejaría al worker con una
+lista de destinatarios anterior, y el correo que él manda es justo el que
+nadie pidió.
 
 **Y la precondición que no se negocia:** B puede aprobarse antes de que el
 correo funcione, pero **la primera invitación y la entrada de una persona real
 esperan el recorrido de recuperación por correo completado**. Sin eso, quien
 olvide su contraseña pierde su cuenta y nadie puede devolvérsela.
 
+**Lo que una prueba con la bandeja de QA SÍ acredita, y lo que NO.** Que el
+transporte funciona, que el dominio está verificado y que el recorrido de
+restablecimiento cierra. **No** habilita el correo de otra persona: la guarda
+restringe por destinatario, así que una dirección que no esté en la lista
+simplemente no recibe —ni la verificación de su cuenta, ni el enlace para
+recuperarla—. Cada participante necesita su propia entrada.
+
 ---
 
-## 1 · Cómo se identifica a cada persona, después de su registro
+## 1 · La secuencia completa, de siete pasos
 
-**El padrón identifica por `id` de servidor, no por correo.** El resolutor lo
-dice en su propio comentario: «server-side user ids only: no email, no token»,
-y valida cada entrada contra `^[A-Za-z0-9_-]{1,128}$`. Así que **el id no existe
-hasta que ella se registra**, y de ahí sale el orden de los pasos:
+El orden no es una preferencia: **el correo va antes del registro** porque al
+registrarse se dispara el correo de verificación de su cuenta
+(`auth.service.ts` lo lanza dentro de `register`). Si su dirección no está
+autorizada todavía, ese mensaje se retiene y ella se queda con una cuenta sin
+verificar y sin saber por qué.
 
-1. Ella se registra en `staging.feelverse.app/register`, con su correo y una
-   contraseña que elige. Entra como **FREE**, sin rol promovido.
-2. Nos dice que ya está. En ese momento **lee y navega como cualquiera**: la
-   biblioteca, el libro, el diario. Lo único que no ve todavía es la pestaña
-   guiada.
-3. Se obtiene su `id` a partir del correo que ella usó.
+**El padrón, en cambio, va después del registro**, y tampoco por gusto:
+identifica por `id` de servidor —el resolutor lo dice en su propio comentario,
+«server-side ids only: no email, no token», y valida contra
+`^[A-Za-z0-9_-]{1,128}$`— y ese id **no existe hasta que ella se registra**.
 
-**El hueco entre 1 y 3 es deliberado**, y conviene decírselo a ella: es el
-precio de identificarla por quien es y no por lo que escriba en un formulario.
+| #   | Paso                                                                      | Quién   | Dónde                                    |
+| --- | ------------------------------------------------------------------------- | ------- | ---------------------------------------- |
+| 1   | Su **autorización** y su **dirección exacta** para el correo de su cuenta | Jorge   | canal directo                            |
+| 2   | Añadir esa dirección a `EMAIL_ALLOWLIST`, **conservando** las previas     | nuestro | Coolify · **API y worker**               |
+| 3   | Aplicar y **comprobar la configuración efectiva** antes del registro      | nuestro | despliegue + arranque + informe de salud |
+| 4   | Ella se **registra** por el flujo normal                                  | ella    | `staging.feelverse.app/register`         |
+| 5   | Obtener su **identificador** de servidor                                  | nuestro | consulta de sólo lectura                 |
+| 6   | Añadir ese id a `GUIDE_PILOT_USER_IDS`                                    | nuestro | Coolify · **sólo la API**                |
+| 7   | **Comprobar el alcance** obtenido, con sus controles contrarios           | nuestro | su sesión + una cuenta de fuera          |
 
-### Obtener el `id` sin sacar su correo de donde está
+### Paso 1 · Su autorización y su dirección
 
-El correo lo aporta Jorge por el canal directo y **no se escribe en el
-repositorio, en Notion ni en ningún informe**. La consulta corre dentro del
-contenedor, en **sólo lectura**, y devuelve **únicamente el id**:
+Lo que se le pide es explícito: una dirección a la que podamos escribirle **las
+comunicaciones necesarias de su cuenta** —verificar el correo, restablecer la
+contraseña, su exportación si la pide— y, si lo quiere, el digest semanal, que
+es opcional y se apaga desde su perfil.
+
+El correo lo aporta Jorge por el canal directo. **No se escribe en el
+repositorio, en Notion ni en ningún informe**, y no se deduce de ningún sitio.
+
+### Paso 2 · Su dirección en la lista, sin borrar las que ya estaban
+
+```bash
+# PRIMERO se lee la lista actual, porque esto AÑADE y no sustituye. Quitar sin
+# querer la bandeja de QA dejaría sin correo el recorrido que acredita que el
+# transporte funciona, y nadie se enteraría hasta que alguien lo necesitara.
+#
+# Se escribe en los DOS recursos: API y worker.
+EMAIL_ALLOWLIST=<las previas>,<su dirección exacta>
+```
+
+**Direcciones completas, no el dominio.** `alguien@dominio.com` autoriza a una
+persona; `@dominio.com` autoriza a todo el dominio, y en un piloto de tres eso
+es más alcance del necesario. Un dominio suelto (`dominio.com`) se **rechaza** a
+propósito, y una lista con valor y sin nada utilizable **no abre nada en ningún
+entorno** — el arranque lo dice con la palabra `BLOQUEADO`.
+
+### Paso 3 · Comprobar que la configuración está efectiva ANTES del registro
+
+Desplegar **API y worker**, y luego comprobar las dos cosas que importan:
+
+```
+GET /api/health/integrations   → mailRecipients.mode = "allowlisted"
+                                 mailRecipients.recipients = <cuántas>
+```
+
+El informe **cuenta** las entradas y nunca las enumera. Y en el arranque de los
+dos procesos tiene que leerse `[correo] restringido a N destinatario(s)`; si
+dice `RETENIDO` la lista no llegó, y si dice `BLOQUEADO` hay una errata.
+
+**No se sigue al paso 4 sin esto.** Es el paso cuya omisión produce el fallo
+silencioso: ella se registra, no le llega nada, y el síntoma aparece una semana
+más tarde cuando intente recuperar la contraseña.
+
+### Paso 4 · Se registra por el flujo normal
+
+En `staging.feelverse.app/register`, con su correo y una contraseña que elige
+ella. Entra como **FREE**, sin rol promovido. En ese momento **lee y navega
+como cualquiera**: la biblioteca, el libro, el diario. Lo único que no ve
+todavía es la pestaña guiada.
+
+Nos dice que ya está. **El hueco entre el paso 4 y el 6 es deliberado**, y
+conviene decírselo: es el precio de identificarla por quien es y no por lo que
+escriba en un formulario.
+
+### Paso 5 · Obtener el `id` sin sacar su correo de donde está
+
+La consulta corre dentro del contenedor, en **sólo lectura**, y devuelve **únicamente el id**:
 
 ```bash
 # Dentro del contenedor de la API. `BEGIN READ ONLY` es la salvaguarda: si la
@@ -84,7 +162,9 @@ más, hay que resolverlo antes de tocar nada.
 
 ---
 
-## 2 · Cómo se incorpora su acceso
+## 2 · Pasos 6 y 7 · su acceso al recorrido, y qué se comprueba
+
+### Paso 6 · Su identificador en el padrón
 
 1. **Leer el padrón actual**, para **añadir y no sustituir**. Se lee del
    contenedor de la API (`GUIDE_PILOT_USER_IDS`). Son ids, no secretos, pero no
@@ -95,7 +175,13 @@ más, hay que resolverlo antes de tocar nada.
 3. **Desplegar la API.** Sólo la API: el worker no lee esa lista y la Web no
    participa.
 
-**Qué comprobar después, con su propia sesión:**
+**Y aquí «sólo la API» sí es literal**, a diferencia del paso 2. Son dos
+despliegues distintos en la secuencia, y el de arriba era de los dos
+servicios; si se juntan en uno, se despliegan los dos.
+
+### Paso 7 · Comprobar el alcance obtenido
+
+Con su propia sesión:
 
 ```
 GET /api/guide/availability     → available: true
@@ -138,11 +224,25 @@ desplegar.
 
 Tres niveles, de menos a más, y **ninguno de los dos primeros toca su cuenta**:
 
-| Nivel                        | Qué se hace                          | A quién afecta       | Servicio a desplegar |
-| ---------------------------- | ------------------------------------ | -------------------- | -------------------- |
-| **Retirar a una persona**    | sale su id de `GUIDE_PILOT_USER_IDS` | sólo a ella          | **sólo la API**      |
-| **Cerrar el acompañamiento** | `GUIDE_ROLLOUT_MODE=off`             | a todos, QA incluida | **API y worker**     |
-| **Cerrar el piloto entero**  | lo anterior, y se habla con ella     | a todos              | ídem                 |
+| Nivel                        | Qué se hace                          | A quién afecta       | Servicio a desplegar | Su correo       |
+| ---------------------------- | ------------------------------------ | -------------------- | -------------------- | --------------- |
+| **Retirar a una persona**    | sale su id de `GUIDE_PILOT_USER_IDS` | sólo a ella          | **sólo la API**      | **se conserva** |
+| **Cerrar el acompañamiento** | `GUIDE_ROLLOUT_MODE=off`             | a todos, QA incluida | **API y worker**     | **se conserva** |
+| **Cerrar el piloto entero**  | lo anterior, y se habla con ella     | a todos              | ídem                 | **se conserva** |
+
+> ### ⚠️ Su dirección NO sale del correo autorizado
+>
+> Ninguno de los tres niveles toca `EMAIL_ALLOWLIST`, y es una regla, no un
+> descuido. Mientras su cuenta exista, su cuenta tiene que poder recuperarse: si
+> su dirección sale de la lista, el enlace de restablecimiento se retiene y ella
+> queda con una cuenta viva, con lo que escribió dentro, y **sin ninguna forma
+> de volver a entrar** si olvida la contraseña. Nadie puede devolvérsela: su
+> diario está cifrado con una clave derivada de ese password.
+>
+> Su dirección sale de la lista **sólo** cuando su cuenta se da de baja, y eso
+> es un acto que le toca pedir a ella — nunca un efecto secundario de cerrar el
+> piloto. El orden, cuando llegue, es al revés que el de la incorporación:
+> primero se da de baja la cuenta, después sale la dirección.
 
 **Lo que retirar el acompañamiento NO hace**, y conviene decírselo a ella con
 estas palabras: no borra lo que escribió, no interrumpe un recorrido ya

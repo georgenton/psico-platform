@@ -72,17 +72,17 @@ sus límites están dichos. **Que exista en la API no basta.**
 
 ## 3. Integraciones, recorrido por recorrido
 
-| Integración               | Estado                | Qué recorrido necesita                                                                                                                                                                |
-| ------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Base, Redis, R2           | ✅                    | **Todo.** Imprescindibles                                                                                                                                                             |
-| `ANTHROPIC_API_KEY`       | ✅                    | Eco y la narrativa del Mapa                                                                                                                                                           |
-| `EDITORIAL_APPROVAL_KEYS` | ✅ (desde el 12-11)   | La publicación editorial. Ya cumplió su función; no hace falta tocarla                                                                                                                |
-| `OPENAI_API_KEY`          | ✅                    | Voz. Fuera de alcance                                                                                                                                                                 |
-| `VAPID_*`                 | ✅ (desde el 05-11)   | Sólo push web. Fuera de alcance                                                                                                                                                       |
-| `STRIPE_*` (5)            | ✅, **modo test**     | Nada aquí: los cobros están cerrados                                                                                                                                                  |
-| **`RESEND_API_KEY`**      | ❌ **ausente**        | **Restablecer la contraseña por correo**, el digest semanal y el aviso de exportación lista. **No** bloquea registro, lectura, microguías, diario, mapa ni la descarga                |
-| `GOOGLE_CLIENT_ID`        | ❌, **bien resuelto** | Sólo «Acceder con Google». Sin la clave, ni `/login` ni `/register` muestran el botón ni la palabra: el producto no ofrece lo que no puede cumplir. **No es una decisión del piloto** |
-| `SENTRY_DSN`              | ❌ **ausente**        | Ningún recorrido de la persona. Lo que se pierde es **nuestra** traza                                                                                                                 |
+| Integración               | Estado                | Qué recorrido necesita                                                                                                                                                                                            |
+| ------------------------- | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Base, Redis, R2           | ✅                    | **Todo.** Imprescindibles                                                                                                                                                                                         |
+| `ANTHROPIC_API_KEY`       | ✅                    | Eco y la narrativa del Mapa                                                                                                                                                                                       |
+| `EDITORIAL_APPROVAL_KEYS` | ✅ (desde el 12-11)   | La publicación editorial. Ya cumplió su función; no hace falta tocarla                                                                                                                                            |
+| `OPENAI_API_KEY`          | ✅                    | Voz. Fuera de alcance                                                                                                                                                                                             |
+| `VAPID_*`                 | ✅ (desde el 05-11)   | Sólo push web. Fuera de alcance                                                                                                                                                                                   |
+| `STRIPE_*` (5)            | ✅, **modo test**     | Nada aquí, y desde el 18-11 **con mecanismo**: `BILLING_PURCHASES` falla cerrada, la interfaz no ofrece contratar y el servidor contesta `503 PURCHASES_CLOSED`. Que las claves estén puestas **no abre compras** |
+| **`RESEND_API_KEY`**      | ❌ **ausente**        | **Restablecer la contraseña por correo**, el digest semanal y el aviso de exportación lista. **No** bloquea registro, lectura, microguías, diario, mapa ni la descarga                                            |
+| `GOOGLE_CLIENT_ID`        | ❌, **bien resuelto** | Sólo «Acceder con Google». Sin la clave, ni `/login` ni `/register` muestran el botón ni la palabra: el producto no ofrece lo que no puede cumplir. **No es una decisión del piloto**                             |
+| `SENTRY_DSN`              | ❌ **ausente**        | Ningún recorrido de la persona. Lo que se pierde es **nuestra** traza                                                                                                                                             |
 
 Comprobado el 13-11 leyendo las 43 claves del recurso de la API: las tres
 marcadas ❌ están **ausentes de la lista**, no vacías.
@@ -465,6 +465,12 @@ descartar. No se ha contactado a nadie.
 > par de cosas y contarme lo que no entendiste o lo que te chirrió. No hay nada
 > que pagar y no hay nada que instalar.
 >
+> **«No hay nada que pagar» dejó de ser sólo una promesa nuestra.** Hasta el
+> 18-11 la interfaz ofrecía contratar en dos sitios —el muro de Patrones y Mi
+> plan, con importes y botones— mientras esta propuesta decía que pagar quedaba
+> fuera. Ya no: la pantalla explica que las compras no están disponibles y el
+> servidor las rechaza. Así que la frase de la invitación la sostiene el producto.
+
 > Dos avisos honestos: es un **entorno de pruebas**, así que puede fallar y
 > puedo tener que borrar datos; y hay una parte —el diario— que se **cifra con
 > tu contraseña**, de modo que si la pierdes no la puedo recuperar yo. Al crearla
@@ -541,15 +547,34 @@ por quien es y no por lo que escribe en un formulario.
 
 ### 8.3 Cómo entra, por el flujo normal
 
-1. Se registra ella en `staging.feelverse.app/register`, con su correo y una
+**Son dos incorporaciones, no una**, y van en este orden por una razón medible:
+al registrarse se dispara el correo de verificación de su cuenta, así que si su
+dirección no está autorizada todavía, ese mensaje se retiene y ella se queda con
+una cuenta sin verificar y sin saber por qué.
+
+1. Jorge aporta su **autorización y su dirección exacta** para el correo de su
+   cuenta.
+2. Esa dirección entra en `EMAIL_ALLOWLIST` —**conservando** las que ya
+   estuvieran— en **API y worker**, se despliegan los dos y se comprueba que la
+   configuración está efectiva.
+3. Se registra ella en `staging.feelverse.app/register`, con su correo y una
    contraseña que elige. **Nunca** una cuenta sembrada, nunca una nuestra,
    ningún rol promovido: entra como **FREE**, que es todo lo que el piloto
    necesita.
-2. Guarda las **palabras de respaldo** del diario cuando se le muestren.
-3. Su id entra en `GUIDE_PILOT_USER_IDS` y se redespliega. A partir de ahí el
-   lector de C01 le ofrece la pestaña guiada.
+4. Guarda las **palabras de respaldo** del diario cuando se le muestren.
+5. Se obtiene su **id de servidor**.
+6. Ese id entra en `GUIDE_PILOT_USER_IDS`, en la **API únicamente**, y se
+   redespliega. A partir de ahí el lector de C01 le ofrece la pestaña guiada.
+7. Se comprueba el alcance obtenido, con sus controles contrarios.
 
-El texto de la invitación y las instrucciones están en §7, **redactados y sin
+**«Sólo la API» describe el paso 6**, no la incorporación entera: el paso 2
+cambia la configuración del correo, y ahí el worker también la necesita —es
+quien manda el digest semanal—.
+
+El procedimiento completo, con los comandos y qué comprobar después de cada
+paso, está en
+[docs/operations/piloto-b-ejecucion.md](../operations/piloto-b-ejecucion.md). El
+texto de la invitación y las instrucciones están en §7, **redactados y sin
 enviar**.
 
 ### 8.4 Qué podrá hacer, y qué no — en lenguaje de producto

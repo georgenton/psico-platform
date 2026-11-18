@@ -146,6 +146,23 @@ export const envSchema = z
     // Payment gateway selection (Phase 1: stripe | Phase 2: payphone)
     DEFAULT_PAYMENT_PROVIDER: z.enum(["stripe", "payphone"]).default("stripe"),
 
+    /**
+     * ¿Están abiertas las compras de planes? Puerta que falla CERRADA.
+     *
+     * Se queda como `string` a propósito, en vez de un `z.enum`. El enum
+     * rechazaría el arranque ante una errata, y eso suena más seguro de lo que
+     * es: convertiría un valor mal escrito en una caja que no arranca, cuando
+     * lo que queremos es una caja que arranca con las compras cerradas y lo
+     * dice. La interpretación vive en `shared/purchase-availability.ts`, que
+     * distingue ausente, apagada e ILEGIBLE — y ninguna de las tres abre.
+     *
+     * La presencia de credenciales del proveedor NO abre compras, y no abrirlas
+     * no retira ninguna credencial: son dos cosas separadas a propósito, para
+     * que cerrar la puerta no rompa las facturas, las cancelaciones ni el
+     * webhook de una suscripción que ya existe.
+     */
+    BILLING_PURCHASES: z.string().optional(),
+
     // AI companion
     ANTHROPIC_API_KEY: z.string().min(1, "ANTHROPIC_API_KEY is required"),
     VOYAGE_API_KEY: z.string().min(1, "VOYAGE_API_KEY is required"),

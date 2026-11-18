@@ -2,7 +2,11 @@ import { Inject, Injectable, Logger } from "@nestjs/common";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { ConfigService } from "@nestjs/config";
 import type { InvoiceSummary } from "@psico/types";
+import { PURCHASES_CLOSED_CODE, PURCHASES_CLOSED_MESSAGE } from "@psico/types";
 import type { Env } from "../config";
+import { ExpectedUnavailableException } from "../shared/filters/expected-unavailable.exception";
+import type { PurchaseGate } from "../shared/purchase-availability";
+import { resolvePurchaseGate } from "../shared/purchase-availability";
 import type { BillingPlan } from "./dto/checkout-session.dto";
 import type { CreatePortalSessionDto } from "./dto/create-portal-session.dto";
 import { ProviderCapabilityUnsupportedError } from "./provider-errors";
@@ -58,18 +62,59 @@ export class PaymentService {
 
   // ─── Delegation ────────────────────────────────────────────────────────────
 
+  /**
+   * ÚNICO punto por el que se crea un checkout de plan, y por eso la puerta
+   * está aquí.
+   *
+   * Las dos rutas existentes —`/api/subscriptions/checkout` (legada) y
+   * `/api/billing/checkout-session`— delegan en `SubscriptionService`, que
+   * delega aquí; y este método es el único que llama a
+   * `provider.createCheckoutSession`. Poner la guarda un nivel más arriba
+   * dejaría sin cubrir a cualquier llamante futuro de este servicio.
+   *
+   * El orden importa: se rechaza ANTES de `selectProvider()`, así que no se
+   * crea ningún cliente en el proveedor, no se guarda ningún identificador y
+   * no se hace ninguna llamada a su API. La implementación de Stripe empieza
+   * con `getOrCreateStripeCustomer`, que escribe en nuestra base: una guarda
+   * dentro del proveedor llegaría tarde.
+   */
   createCheckoutSession(
     userId: string,
     billingPlan: BillingPlan,
     successUrl: string,
     cancelUrl: string,
   ): Promise<CheckoutSessionResult> {
+    this.assertPurchasesOpen();
     return this.selectProvider().createCheckoutSession(
       userId,
       billingPlan,
       successUrl,
       cancelUrl,
     );
+  }
+
+  /** La puerta de las compras de planes, resuelta con el criterio compartido. */
+  purchaseGate(): PurchaseGate {
+    return resolvePurchaseGate(
+      this.config.get("BILLING_PURCHASES", { infer: true }),
+    );
+  }
+
+  /**
+   * 503 declarado: no es un fallo, es la respuesta. `ExpectedUnavailableException`
+   * evita que el filtro global lo trate como un 5xx inesperado y llene el
+   * registro y Sentry con la misma traza.
+   *
+   * El `code` es el estable; el `message` va en castellano porque hay clientes
+   * que lo pintan tal cual — reenviar el código pondría `PURCHASES_CLOSED` en
+   * un diálogo, que es el defecto que ya cometimos una vez con Eco.
+   */
+  private assertPurchasesOpen(): void {
+    if (this.purchaseGate().open) return;
+    throw new ExpectedUnavailableException({
+      code: PURCHASES_CLOSED_CODE,
+      message: PURCHASES_CLOSED_MESSAGE,
+    });
   }
 
   createPortalSession(

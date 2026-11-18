@@ -1,5 +1,10 @@
 import type { Metadata } from "next";
 import type { PlanInfo, PlanResponse, Subscription } from "@psico/types";
+import {
+  PURCHASES_CLOSED_BODY,
+  PURCHASES_CLOSED_HEADLINE,
+  PURCHASES_PROPOSAL_NOTICE,
+} from "@psico/types";
 
 import { isNextThrow, serverFetch, getSessionUser } from "@/lib/api.server";
 import {
@@ -23,14 +28,62 @@ function formatDate(date: Date | string): string {
   });
 }
 
+// ── Aviso de compras cerradas ─────────────────────────────────────────────
+
+/**
+ * Lo que la pantalla dice cuando no se puede contratar.
+ *
+ * El texto y el aviso de importes vienen de `@psico/types` para que la portada
+ * y el producto digan lo mismo: alguien que lee «Propuesta de precios · No
+ * disponible para compra» en la landing y encuentra un botón de compra dentro
+ * concluye, con razón, que una de las dos miente.
+ */
+function PurchasesClosedNotice() {
+  return (
+    <div
+      className="mb-6 rounded-2xl px-5 py-4"
+      style={{
+        background: "var(--color-warm-100)",
+        border: "1.5px solid var(--color-warm-200)",
+      }}
+    >
+      <p
+        className="text-sm font-semibold"
+        style={{ color: "var(--color-warm-800)" }}
+      >
+        {PURCHASES_CLOSED_HEADLINE}
+      </p>
+      <p
+        className="mt-1 text-sm"
+        style={{ color: "var(--color-warm-600)", lineHeight: 1.5 }}
+      >
+        {PURCHASES_CLOSED_BODY}
+      </p>
+      <p
+        className="mt-2 text-xs font-medium"
+        style={{ color: "var(--color-warm-500)" }}
+      >
+        {PURCHASES_PROPOSAL_NOTICE}
+      </p>
+    </div>
+  );
+}
+
 // ── Upgrade card (shown to FREE users) ────────────────────────────────────
 
 function UpgradeCard({
   plan,
   isFeatured,
+  purchasesOpen,
 }: {
   plan: PlanInfo;
   isFeatured: boolean;
+  /**
+   * Decidido por el servidor, no por esta pantalla. Con las compras cerradas
+   * la tarjeta sigue describiendo el plan —es información útil— pero no ofrece
+   * una acción que el servidor va a rechazar.
+   */
+  purchasesOpen: boolean;
 }) {
   const isMonthly = plan.plan === "PRO";
   const billingPlan = isMonthly ? "PRO_MONTHLY" : "PRO_YEARLY";
@@ -82,6 +135,18 @@ function UpgradeCard({
       >
         {priceLabel}
       </p>
+      {!purchasesOpen && (
+        <p
+          className="mb-1 text-xs font-medium"
+          style={{
+            color: isFeatured
+              ? "rgba(255,255,255,0.85)"
+              : "var(--color-warm-500)",
+          }}
+        >
+          {PURCHASES_PROPOSAL_NOTICE}
+        </p>
+      )}
       <p
         className="mb-5 text-sm"
         style={{
@@ -117,25 +182,50 @@ function UpgradeCard({
         ))}
       </ul>
 
-      <form action={checkoutWithPlan} className="mt-auto">
-        <button
-          type="submit"
-          className="w-full rounded-2xl py-3 text-sm font-semibold transition-opacity hover:opacity-90"
+      {/*
+        Con las compras cerradas NO se renderiza el formulario. No es un botón
+        deshabilitado: un `disabled` sigue siendo una llamada a contratar, y la
+        pantalla pasaría a prometer algo para «más tarde» que nadie ha decidido
+        cuándo es. Queda una línea que dice lo que hay.
+      */}
+      {purchasesOpen ? (
+        <form action={checkoutWithPlan} className="mt-auto">
+          <button
+            type="submit"
+            className="w-full rounded-2xl py-3 text-sm font-semibold transition-opacity hover:opacity-90"
+            style={
+              isFeatured
+                ? {
+                    background: "var(--bg-surface)",
+                    color: "var(--color-lavender-700)",
+                  }
+                : {
+                    background: "var(--color-lavender-100)",
+                    color: "var(--color-lavender-700)",
+                  }
+            }
+          >
+            Actualizar a {plan.name}
+          </button>
+        </form>
+      ) : (
+        <p
+          className="mt-auto rounded-2xl py-3 text-center text-sm font-medium"
           style={
             isFeatured
               ? {
-                  background: "var(--bg-surface)",
-                  color: "var(--color-lavender-700)",
+                  background: "rgba(255,255,255,0.15)",
+                  color: "rgba(255,255,255,0.9)",
                 }
               : {
-                  background: "var(--color-lavender-100)",
-                  color: "var(--color-lavender-700)",
+                  background: "var(--color-warm-100)",
+                  color: "var(--color-warm-600)",
                 }
           }
         >
-          Actualizar a {plan.name}
-        </button>
-      </form>
+          Sin contratación disponible
+        </p>
+      )}
     </div>
   );
 }
@@ -251,6 +341,12 @@ export default async function PlanPage() {
     (p) => p.plan === "PRO" || p.plan === "ANNUAL",
   );
 
+  // La decide el servidor (`GET /api/plan`). El `?? false` no es una
+  // formalidad: un cliente nuevo contra una API anterior —o un `/plan` que
+  // falló y dejó `plan` en null— no debe acabar ofreciendo una compra. La
+  // ausencia de un permiso no es un permiso.
+  const purchasesOpen = plan?.purchases?.open ?? false;
+
   return (
     <div className="max-w-3xl">
       {/* Sprint G3 — generic screen-head sweep. */}
@@ -262,7 +358,9 @@ export default async function PlanPage() {
       </div>
       <p className="screen-sub" style={{ margin: "-14px 0 26px" }}>
         {isFreePlan
-          ? "Mejora tu experiencia con acceso completo al contenido."
+          ? purchasesOpen
+            ? "Mejora tu experiencia con acceso completo al contenido."
+            : "Esto es lo que incluye tu plan actual y lo que estamos preparando."
           : "Gestiona tu suscripción activa."}
       </p>
 
@@ -288,11 +386,13 @@ export default async function PlanPage() {
             </p>
           </div>
 
+          {!purchasesOpen && <PurchasesClosedNotice />}
+
           <h2
             className="mb-5 text-lg font-semibold"
             style={{ color: "var(--color-warm-800)" }}
           >
-            Elige tu plan
+            {purchasesOpen ? "Elige tu plan" : "Los planes que estamos armando"}
           </h2>
 
           <div className="grid gap-5 sm:grid-cols-2">
@@ -301,6 +401,7 @@ export default async function PlanPage() {
                 key={plan.plan}
                 plan={plan}
                 isFeatured={plan.plan === "PRO"}
+                purchasesOpen={purchasesOpen}
               />
             ))}
           </div>

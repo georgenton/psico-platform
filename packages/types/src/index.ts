@@ -1,3 +1,8 @@
+// Los contratos de este fichero referencian tipos que viven en módulos propios.
+// Se re-exportan más abajo con `export * from`; el import es para poder
+// NOMBRARLOS aquí.
+import type { PurchaseAvailability } from "./purchases";
+
 // ─── Enums ────────────────────────────────────────────────────────────────────
 
 export type UserRole = "USER" | "AUTHOR" | "PSYCHOLOGIST" | "ADMIN";
@@ -378,6 +383,14 @@ export interface PlanResponse {
   usage: UsageResponse;
   invoices: InvoiceSummary[];
   plans: PlanInfo[];
+  /**
+   * ¿Se puede contratar hoy? La decide el servidor y la pantalla la obedece,
+   * para que no haya dos criterios capaces de contradecirse (ver
+   * `purchases.ts`). Opcional por tolerancia: un cliente nuevo contra una API
+   * anterior no debe romperse — y lo trata como CERRADO, porque la ausencia
+   * de un permiso no es un permiso.
+   */
+  purchases?: PurchaseAvailability;
 }
 
 /**
@@ -3043,6 +3056,13 @@ export interface PatronesResponse {
   ecoNotes: PatronesEcoNote[];
   vocab: PatronesVocabWord[];
   weeklySummary: PatronesWeeklySummary | null;
+  /**
+   * El muro de Patrones ofrecía «Hazte Pro →», que es una llamada accionable a
+   * contratar. Para no decidir aquí por separado lo que Mi plan decide en su
+   * propio payload, el servidor publica la misma disponibilidad y el muro la
+   * obedece. Opcional y tolerante igual que en `PlanResponse`.
+   */
+  purchases?: PurchaseAvailability;
 }
 
 export interface PatronesRegenerateResponse {
@@ -4015,3 +4035,8 @@ export * from "./crisis-hotline";
 // porque lo cuentan DOS superficies —el mensaje del servidor y la tarjeta de Mi
 // Plan— y contarlo dos veces es cómo acabaron diciendo horas distintas.
 export * from "./eco-reset";
+
+// Disponibilidad de compras de planes. Misma razón que arriba: la decisión la
+// toma el servidor, la publica en el contrato, y la pantalla la obedece — para
+// que no haya dos criterios que puedan contradecirse.
+export * from "./purchases";

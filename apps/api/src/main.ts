@@ -254,6 +254,22 @@ async function bootstrap(): Promise<void> {
     // Non-fatal — the banner is observability, not a contract.
   }
 
+  // ── 6b. La puerta de las compras de planes ────────────────────────────────
+  // Se dice SIEMPRE, abierta o cerrada, por la misma razón que el detector de
+  // respaldos registra también los días que van bien: una puerta que sólo habla
+  // cuando falla no se distingue de una que dejó de existir. Y es la primera
+  // línea que querrá leer quien investigue por qué no aparece un botón.
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
+    const gates = require("./shared/purchase-availability");
+    const gate = gates.resolvePurchaseGate(process.env.BILLING_PURCHASES);
+    const line = `  [compras] ${gates.describePurchaseGate(gate)}`;
+    if (gate.state === "invalid") console.warn(line);
+    else console.log(line);
+  } catch {
+    // Non-fatal — observability, not a contract.
+  }
+
   // ── 7. Emotional-map identity ─────────────────────────────────────────────
   // PR-0.1 — log the identity (versions, fingerprints, epochs, flags) and
   // publish it so `GET /api/health/emotional-map` can compare it against the

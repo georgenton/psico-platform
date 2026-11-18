@@ -118,6 +118,47 @@ describe("InicioV2", () => {
     );
   });
 
+  it("los contadores se presentan como ACTIVIDAD, no como comprensión", () => {
+    // Los cinco son actividad: reflexiones de la semana, insights de Eco,
+    // patrones detectados, minutos de lectura y días seguidos. Llamarlos
+    // «progreso de comprensión» volvía a juntar aprendizaje y mundo interior en
+    // la primera pantalla, que es justo lo que el programa V2 separó.
+    render(<InicioV2 home={buildHome()} />);
+    expect(screen.getByText("Tu actividad")).toBeInTheDocument();
+    expect(screen.queryByText(/progreso de comprensión/i)).toBeNull();
+  });
+
+  it("la fila de lectura dice su destino real, no «comprensión»", () => {
+    // El chip decía «+ comprensión». Leer alimenta Mi Evolución y, bajo V2, no
+    // toca ningún eje del mapa — invariante con trinquete en la API
+    // («+highlights ⇒ el mapa no cambia»).
+    //
+    // El fixture por omisión trae la lista de actividad VACÍA, así que hay que
+    // sembrar una fila de lectura: sin ella esta prueba aprobaría cualquier
+    // texto en el chip, que es exactamente lo que pasó al mutarla la primera
+    // vez.
+    render(
+      <InicioV2
+        home={buildHome({
+          activity: {
+            items: [
+              {
+                id: "a-read",
+                type: "reading",
+                title: "Emociones en Construcción",
+                subtitle: "Capítulo 1",
+                timestamp: new Date().toISOString(),
+                href: null,
+              },
+            ],
+          },
+        })}
+      />,
+    );
+    expect(screen.getByText("+ evolución")).toBeInTheDocument();
+    expect(document.body.textContent ?? "").not.toContain("comprensión");
+  });
+
   it("PR-0.2: shows a maintenance note (not an empty radar) when emotionalMap is null", () => {
     render(<InicioV2 home={buildHome({ emotionalMap: null })} />);
     // The kill switch is off — a plain "in pause for maintenance" line, and NO

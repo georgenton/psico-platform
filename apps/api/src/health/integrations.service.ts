@@ -7,6 +7,10 @@ import {
   resolveEnvironment,
   type PsicoEnvironment,
 } from "../shared/psico-environment";
+import {
+  resolvePurchaseGate,
+  type PurchaseGateState,
+} from "../shared/purchase-availability";
 
 /**
  * Report shape returned by `GET /api/health/integrations`.
@@ -83,6 +87,17 @@ export interface IntegrationsReport {
     malformed: number;
     environment: PsicoEnvironment;
   };
+  /**
+   * ¿Están abiertas las compras de planes? Pregunta independiente de las tres
+   * de Stripe que hay arriba, y conviene no confundirlas: que las cinco
+   * variables del proveedor estén presentes **no** abre compras, y cerrarlas
+   * **no** retira ninguna credencial.
+   *
+   * Aquí sí va el motivo —el operador necesita distinguir «nadie la
+   * configuró» de «hay una errata»— mientras el contrato que ven los clientes
+   * sólo lleva `open`. Este informe exige rol ADMIN.
+   */
+  purchases: { open: boolean; state: PurchaseGateState };
   google: IntegrationStatus;
   redis: IntegrationStatus;
   webPush: IntegrationStatus;
@@ -202,6 +217,12 @@ export class IntegrationsService {
         configured: this.config.get("EMAIL_FROM_EXPLICIT", { infer: true }),
       },
       mailRecipients: this.mailRecipients(),
+      purchases: (() => {
+        const gate = resolvePurchaseGate(
+          this.config.get("BILLING_PURCHASES", { infer: true }),
+        );
+        return { open: gate.open, state: gate.state };
+      })(),
       google: status(this.config.get("GOOGLE_CLIENT_ID", { infer: true })),
       redis: status(this.config.get("REDIS_URL", { infer: true })),
       webPush: status(this.config.get("VAPID_PRIVATE_KEY", { infer: true })),
@@ -259,6 +280,17 @@ export class IntegrationsService {
       out.push({
         key: `EMAIL_ALLOWLIST (${r.mailRecipients.malformed} entrada(s) ilegible(s), que no autorizan a nadie)`,
         reason: "stub",
+      });
+    }
+    // Compras cerradas por ausencia o por un «off» explícito es la postura
+    // deliberada de hoy, y ya se lee en el informe: ponerla aquí cada arranque
+    // sería ruido en una lista cuyo valor es que toda línea importe. Un valor
+    // ILEGIBLE sí entra: cierra igual, pero por una errata, y quien la escribió
+    // creía estar decidiendo algo.
+    if (r.purchases.state === "invalid") {
+      out.push({
+        key: "BILLING_PURCHASES (valor ilegible: las compras quedan CERRADAS — corrige el valor)",
+        reason: "invalid",
       });
     }
     check("GOOGLE_CLIENT_ID", r.google);

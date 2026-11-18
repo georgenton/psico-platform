@@ -2,6 +2,8 @@ import { Injectable } from "@nestjs/common";
 import type { PlanResponse, UserPlan } from "@psico/types";
 
 import { PrismaService } from "../prisma";
+import { purchaseAvailabilityForWire } from "../shared/purchase-availability";
+import { PaymentService } from "../subscription/payment.service";
 import { SubscriptionService } from "../subscription/subscription.service";
 
 /**
@@ -30,6 +32,13 @@ export class PlanService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly subscriptionService: SubscriptionService,
+    /**
+     * Inyectado SÓLO para preguntarle por la puerta de las compras, que es la
+     * misma que consulta su propio `createCheckoutSession`. Derivar aquí el
+     * estado por nuestra cuenta sería tener dos criterios: la pantalla podría
+     * ofrecer un botón que el servidor rechaza, o esconder uno que acepta.
+     */
+    private readonly paymentService: PaymentService,
   ) {}
 
   async getPlan(userId: string): Promise<PlanResponse> {
@@ -56,6 +65,7 @@ export class PlanService {
       usage,
       invoices: invoiceList.invoices,
       plans,
+      purchases: purchaseAvailabilityForWire(this.paymentService.purchaseGate()),
     };
   }
 }

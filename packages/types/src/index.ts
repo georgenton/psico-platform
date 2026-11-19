@@ -4036,6 +4036,11 @@ export * from "./crisis-hotline";
 // Plan— y contarlo dos veces es cómo acabaron diciendo horas distintas.
 export * from "./eco-reset";
 
+// Cuándo la Biblioteca explica que el catálogo tiene una sola obra. Lo usan
+// las dos pantallas, y la sutileza —un uno filtrado no es un catálogo de uno—
+// es la misma en ambas.
+export * from "./biblioteca";
+
 // Disponibilidad de compras de planes. Misma razón que arriba: la decisión la
 // toma el servidor, la publica en el contrato, y la pantalla la obedece — para
 // que no haya dos criterios que puedan contradecirse.

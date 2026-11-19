@@ -1,5 +1,9 @@
 import type { Metadata } from "next";
 import type { BookListResponse } from "@psico/types";
+import {
+  CATALOGO_UNA_OBRA_NOTA,
+  esCatalogoDeUnaObra,
+} from "@psico/types";
 
 import { getAccessToken, isNextThrow, serverFetch } from "@/lib/api.server";
 import { BookCard } from "@/components/dashboard/biblioteca/BookCard";
@@ -60,6 +64,28 @@ export default async function BibliotecaPage({
     | "recos"
     | "favoritos"
     | "guardados";
+  /**
+   * ¿El catálogo COMPLETO disponible tiene una sola obra?
+   *
+   * La pregunta no es «¿este listado trae un resultado?». Una búsqueda que
+   * filtra hasta uno trae un resultado y el catálogo puede tener diez; decir
+   * ahí «por ahora una obra publicada» sería falso. Así que sólo cuenta la
+   * vista del catálogo entero, sin término de búsqueda y sin filtros, y
+   * entonces `pagination.total` sí es el tamaño del catálogo.
+   *
+   * Y vale la pena explicarlo porque el vacío desconcierta: una pantalla con
+   * buscador, filtros y una rejilla de una tarjeta se lee como algo que falló
+   * al cargar. La nota dice lo que pasa, sin fecha y sin lista —eso sería
+   * prometer un catálogo que todavía no existe.
+   */
+  const catalogoDeUnaObra = esCatalogoDeUnaObra({
+    view,
+    q: searchParams.q,
+    categoryId: searchParams.categoryId,
+    authorId: searchParams.authorId,
+    total: data.pagination.total,
+  });
+
   const sectionTitle =
     view === "mis"
       ? "Mis libros"
@@ -120,6 +146,15 @@ export default async function BibliotecaPage({
           {data.books.length} resultado{data.books.length === 1 ? "" : "s"}
         </span>
       </div>
+
+      {catalogoDeUnaObra && (
+        <p
+          className="mb-3 text-[12.5px]"
+          style={{ color: "var(--color-warm-500)", lineHeight: 1.5 }}
+        >
+          {CATALOGO_UNA_OBRA_NOTA}
+        </p>
+      )}
 
       {/* Grid */}
       {data.books.length === 0 ? (

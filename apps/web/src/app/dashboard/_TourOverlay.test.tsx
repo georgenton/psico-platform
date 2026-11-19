@@ -22,6 +22,14 @@ vi.mock("@psico/api-client", () => ({
   },
 }));
 
+// La ruta en la que se monta. El tour sólo corre en Inicio, así que estas
+// pruebas tienen que declarar dónde están; por omisión, en Inicio, que es
+// donde el tour existe.
+let rutaActual = "/dashboard";
+vi.mock("next/navigation", () => ({
+  usePathname: () => rutaActual,
+}));
+
 import { onboardingApi } from "@psico/api-client";
 
 /** The catalog as it crosses the wire. */
@@ -58,7 +66,51 @@ async function advanceTo(title: string) {
 describe("TourOverlay", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    rutaActual = "/dashboard";
     vi.mocked(onboardingApi.completeTour).mockResolvedValue({ ok: true });
+  });
+
+  describe("dónde corre: sólo en Inicio", () => {
+    it("en Inicio aparece, como hasta ahora", async () => {
+      vi.mocked(onboardingApi.getTour).mockResolvedValue({ steps: STEPS });
+      render(<TourOverlay />);
+      await waitFor(() =>
+        expect(screen.getByText(STEPS[0]!.title)).toBeInTheDocument(),
+      );
+    });
+
+    it("en el lector NO aparece — habla de una pantalla que no está delante", async () => {
+      // Quien elige un libro en el onboarding aterriza en su capítulo, y eso
+      // se conserva. El layout de `/dashboard` envuelve también al lector, así
+      // que sin esta condición el paso 1 («Tu Inicio») salía encima del texto.
+      rutaActual = "/dashboard/biblioteca/emociones-en-construccion/lector/1";
+      vi.mocked(onboardingApi.getTour).mockResolvedValue({ steps: STEPS });
+      render(<TourOverlay />);
+
+      // Espera larga a propósito: una ausencia necesita darle tiempo a la
+      // carga del catálogo para desmentirla.
+      await new Promise((r) => setTimeout(r, 120));
+      expect(screen.queryByText(STEPS[0]!.title)).toBeNull();
+    });
+
+    it("y queda PENDIENTE: no se registra como visto ni como saltado", async () => {
+      // La diferencia entre posponer y cancelar. Si esta llamada ocurriera,
+      // `tourCompletedAt` dejaría de ser nulo y la persona no lo vería nunca.
+      rutaActual = "/dashboard/biblioteca/emociones-en-construccion/lector/1";
+      vi.mocked(onboardingApi.getTour).mockResolvedValue({ steps: STEPS });
+      render(<TourOverlay />);
+      await new Promise((r) => setTimeout(r, 120));
+      expect(onboardingApi.completeTour).not.toHaveBeenCalled();
+    });
+
+    it("tampoco en otras pantallas del panel", async () => {
+      rutaActual = "/dashboard/reflexiones";
+      vi.mocked(onboardingApi.getTour).mockResolvedValue({ steps: STEPS });
+      render(<TourOverlay />);
+      await new Promise((r) => setTimeout(r, 120));
+      expect(screen.queryByText(STEPS[0]!.title)).toBeNull();
+      expect(onboardingApi.completeTour).not.toHaveBeenCalled();
+    });
   });
 
   it("the fixture really is the API catalog, and it has something to show", () => {

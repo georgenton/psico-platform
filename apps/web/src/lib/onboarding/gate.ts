@@ -50,3 +50,38 @@ export function resolveOnboardingGate(
   const showTour = completed && !state?.tourCompletedAt;
   return { kind: "dashboard", showTour };
 }
+
+/** Dónde corre el tour: la pantalla de la que habla su primer paso. */
+export const TOUR_ROUTE = "/dashboard";
+
+/**
+ * ¿Encaja el tour en ESTA pantalla?
+ *
+ * ── Qué arregla, medido ───────────────────────────────────────────────────
+ *
+ * Al terminar el onboarding, quien elige un libro aterriza en su capítulo
+ * (`/dashboard/biblioteca/:libro/lector/1`), que es lo que pidió — y eso se
+ * conserva. Pero el tour se monta en el layout de `/dashboard`, que envuelve
+ * también al lector, así que aparecía encima del capítulo. El problema no era
+ * que tapara el texto: era que el **paso 1 de 5 dice «Tu Inicio · Este es tu
+ * punto de partida cada día»** mientras la persona está mirando otra pantalla.
+ * Los cinco pasos describen la navegación, y la navegación se entiende desde
+ * Inicio.
+ *
+ * Así que el tour se pospone, no se cancela: `tourCompletedAt` sigue en nulo
+ * —nadie lo ha visto ni lo ha saltado— y la primera vez que esa persona pase
+ * por Inicio, ahí está. `resolveOnboardingGate` sigue contestando QUIÉN lo ve;
+ * esto contesta DÓNDE, que es una pregunta de navegación y por eso se evalúa
+ * en el cliente.
+ *
+ * La barra final se normaliza porque `/dashboard` y `/dashboard/` son la misma
+ * pantalla y nada garantiza cuál llega.
+ */
+export function tourFitsRoute(pathname: string | null | undefined): boolean {
+  if (!pathname) return false;
+  const normalizado =
+    pathname.length > 1 && pathname.endsWith("/")
+      ? pathname.replace(/\/+$/, "")
+      : pathname;
+  return normalizado === TOUR_ROUTE;
+}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveOnboardingGate } from "./gate";
+import { resolveOnboardingGate, tourFitsRoute } from "./gate";
 
 /**
  * The gate that decides, on every dashboard navigation, whether somebody is
@@ -127,5 +127,46 @@ describe("resolveOnboardingGate", () => {
         }
       }
     }
+  });
+});
+
+describe("tourFitsRoute · dónde corre el tour", () => {
+  it("corre en Inicio", () => {
+    expect(tourFitsRoute("/dashboard")).toBe(true);
+  });
+
+  it("y también con la barra final, que es la misma pantalla", () => {
+    expect(tourFitsRoute("/dashboard/")).toBe(true);
+  });
+
+  it("no corre en el lector, que es donde aterriza quien elige un libro", () => {
+    expect(
+      tourFitsRoute("/dashboard/biblioteca/emociones-en-construccion/lector/1"),
+    ).toBe(false);
+  });
+
+  it("ni en ninguna otra pantalla del panel", () => {
+    for (const ruta of [
+      "/dashboard/reflexiones",
+      "/dashboard/eco",
+      "/dashboard/plan",
+      "/dashboard/mapa",
+      "/dashboard/biblioteca",
+    ]) {
+      expect(tourFitsRoute(ruta)).toBe(false);
+    }
+  });
+
+  it("sin ruta no corre — un «todavía no sé» nunca abre nada", () => {
+    expect(tourFitsRoute(null)).toBe(false);
+    expect(tourFitsRoute(undefined)).toBe(false);
+    expect(tourFitsRoute("")).toBe(false);
+  });
+
+  it("una ruta que sólo EMPIEZA por la de Inicio no cuenta", () => {
+    // El control que distingue comparar de «empieza por»: con `startsWith`,
+    // todo el panel sería Inicio y el arreglo no haría nada.
+    expect(tourFitsRoute("/dashboard-admin")).toBe(false);
+    expect(tourFitsRoute("/dashboardx")).toBe(false);
   });
 });

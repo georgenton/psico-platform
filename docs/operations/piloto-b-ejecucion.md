@@ -107,7 +107,8 @@ entorno** — el arranque lo dice con la palabra `BLOQUEADO`.
 
 ### Paso 3 · Comprobar que la configuración está efectiva ANTES del registro
 
-Desplegar **API y worker**, y luego comprobar las dos cosas que importan:
+Desplegar **API y worker**, y luego comprobar **tres** cosas. Las dos primeras
+son el estado general:
 
 ```
 GET /api/health/integrations   → mailRecipients.mode = "allowlisted"
@@ -117,6 +118,45 @@ GET /api/health/integrations   → mailRecipients.mode = "allowlisted"
 El informe **cuenta** las entradas y nunca las enumera. Y en el arranque de los
 dos procesos tiene que leerse `[correo] restringido a N destinatario(s)`; si
 dice `RETENIDO` la lista no llegó, y si dice `BLOQUEADO` hay una errata.
+
+**Pero ninguna de las dos dice CUÁL**, y eso no es un detalle: `recipients: 1`
+sale **idéntico** con la dirección correcta y con una errata de una letra que
+produzca otra dirección válida. Medido en el contenedor real, lista de una
+entrada, `membresla` por `membresia`:
+
+| Lo que se consulta       | Dirección correcta              | Errata de una letra                     |
+| ------------------------ | ------------------------------- | --------------------------------------- |
+| informe de salud         | `mode=allowlisted recipients=1` | `mode=allowlisted recipients=1` ← igual |
+| la comprobación de abajo | `SÍ SALE (allowlisted)`         | **`NO SALE (not-allowlisted)`**         |
+
+Así que la tercera comprobación es **la pertenencia de la dirección exacta, en
+los dos procesos**. No se reimplementa la regla: se le pregunta a la **guarda
+compilada del propio contenedor**, la misma que decide el envío, así que no
+puede discrepar con ella.
+
+```bash
+printf '%s' "$DIRECCION" | sudo docker exec -i <contenedor> sh -lc \
+  'cd /app/apps/api && /mise/installs/node/20/bin/node scripts/check-mail-recipient.cjs'
+```
+
+Con los **dos** contenedores, el de la API y el del worker — el digest semanal
+lo manda el worker, así que una lista que sólo llegó a uno deja medio correo
+restringido y medio retenido. Salida esperada:
+`estado=usable entradas=N entorno=staging → SÍ SALE (allowlisted)`, código 0.
+
+La dirección entra por **stdin**, no por argumento: no queda en el historial
+del shell ni la ve un `ps`. La salida es un veredicto — no imprime la
+dirección, ni el valor de la lista, ni sus entradas.
+
+**Lo que esto sigue sin acreditar:** que el proveedor acepte el dominio, y que
+el mensaje **llegue**. Eso sólo lo demuestra una recepción, que es el paso 4 de
+las cuatro preguntas del correo
+([ficha](correo-insumos-pendientes.md)).
+
+**El guion viaja en la imagen** (`apps/api/scripts/check-mail-recipient.cjs`), y
+lo llevan los dos contenedores. El que sirve hoy es anterior a él, así que estará
+disponible tras el despliegue de este mismo paso — obligatorio de todas formas
+para que las variables surtan efecto.
 
 **No se sigue al paso 4 sin esto.** Es el paso cuya omisión produce el fallo
 silencioso: ella se registra, no le llega nada, y el síntoma aparece una semana
@@ -210,13 +250,13 @@ desplegar.
 
 ## 3 · Cómo se la acompaña
 
-| Qué                            | Cómo                                                                                                                                                                          |
-| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Canal**                      | el directo que ya usen con Jorge. **Ninguna herramienta nueva**, ningún formulario, ningún correo automático                                                                  |
-| **Qué se le dice antes**       | que es un entorno de pruebas, que puede fallar, que avisar de un fallo es justo lo que se le pide, y que **guarde las palabras de respaldo** del diario al crearlas           |
-| **Qué se mira**                | las seis señales del §8.5 del piloto: si vuelve sola, dónde se para, qué hace con la microguía, si escribe, qué dice del Mapa, y qué no entendió — con sus palabras           |
-| **Qué NO se mira**             | nada automático. Sin `SENTRY_DSN` no hay traza, y el **Mapa Emocional no sirve como telemetría del piloto**: mide lo que ella reporta de sí misma, no si el producto funciona |
-| **Si encuentra algo del §6.3** | se detiene **antes** de arreglarlo                                                                                                                                            |
+| Qué                            | Cómo                                                                                                                                                                                                                                                                        |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Canal**                      | el directo que ya usen con Jorge. **Ninguna herramienta nueva**, ningún formulario, ningún correo automático                                                                                                                                                                |
+| **Qué se le dice antes**       | que es un entorno de pruebas, que puede fallar, que avisar de un fallo es justo lo que se le pide, y que **guarde las palabras de respaldo** del diario al crearlas — con la distinción dicha: el correo recupera **su cuenta**, las palabras recuperan **lo que escribió** |
+| **Qué se mira**                | las seis señales del §8.5 del piloto: si vuelve sola, dónde se para, qué hace con la microguía, si escribe, qué dice del Mapa, y qué no entendió — con sus palabras                                                                                                         |
+| **Qué NO se mira**             | nada automático. Sin `SENTRY_DSN` no hay traza, y el **Mapa Emocional no sirve como telemetría del piloto**: mide lo que ella reporta de sí misma, no si el producto funciona                                                                                               |
+| **Si encuentra algo del §6.3** | se detiene **antes** de arreglarlo                                                                                                                                                                                                                                          |
 
 ---
 
@@ -236,8 +276,19 @@ Tres niveles, de menos a más, y **ninguno de los dos primeros toca su cuenta**:
 > descuido. Mientras su cuenta exista, su cuenta tiene que poder recuperarse: si
 > su dirección sale de la lista, el enlace de restablecimiento se retiene y ella
 > queda con una cuenta viva, con lo que escribió dentro, y **sin ninguna forma
-> de volver a entrar** si olvida la contraseña. Nadie puede devolvérsela: su
-> diario está cifrado con una clave derivada de ese password.
+> de volver a entrar** si olvida la contraseña.
+>
+> **Y son dos recuperaciones distintas**, que conviene no colapsar porque se
+> pierden por separado:
+>
+> | Si pierde…                | lo recupera con…                              | y si no lo tiene…                                                                                |
+> | ------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+> | el **acceso a su cuenta** | el **correo** de restablecimiento             | nadie puede entrar por ella — de ahí que su dirección no salga de la lista                       |
+> | la **clave del diario**   | sus **palabras de respaldo**, que guardó ella | lo que escribió **antes** queda ilegible para siempre; la cuenta sigue y puede escribir de nuevo |
+>
+> El correo no abre el diario, y las palabras no abren la cuenta. Una contraseña
+> nueva deja entrar, pero el contenido cifrado con la anterior sólo vuelve por
+> las palabras: nosotros nunca tenemos esa clave (ADR 0007).
 >
 > Su dirección sale de la lista **sólo** cuando su cuenta se da de baja, y eso
 > es un acto que le toca pedir a ella — nunca un efecto secundario de cerrar el

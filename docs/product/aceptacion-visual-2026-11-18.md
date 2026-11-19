@@ -75,43 +75,43 @@ Bienvenida → ¿qué te trae aquí? → ¿cómo te sientes ahora? → ¿cómo t
 La recomendación cae en **_Emociones en Construcción_**, que es lo correcto: es
 la única obra publicada, y el camino de respaldo funciona.
 
-> ### 🔶 DECISIÓN A · los siete motivos y los cinco ánimos
+> ### ✅ DECIDIDA · las dos listas se mantienen
 >
 > **Capturas:** `05-onboarding-2-motivos.jpg` y `06-onboarding-3-animo.jpg`.
 >
 > Es la primera vez que le pedimos algo a alguien, y lo que elija aquí decide
-> qué libro se le recomienda y con qué ánimo arranca su mapa.
+> qué libro se le recomienda y con qué ánimo arranca su mapa. La recomendación
+> era dejar las dos listas y revisar sólo la redacción si algo sonaba a
+> formulario; **el propietario la mantuvo tal cual**, así que no se tocan.
 >
-> **Recomiendo dejar las dos listas como están y revisar sólo la redacción.**
-> La lista corta funciona —siete opciones caben en una pantalla y el camino de
-> respaldo ya cubre el caso de que ninguna encaje—, y los cinco ánimos son la
-> escala que alimenta el modelo afectivo: cambiar su número cambia la
-> matemática, no sólo el copy. Lo barato y útil hoy es leer las siete frases
-> en voz alta y corregir la que suene a formulario.
->
-> **Coste:** nulo si es sólo copy.
+> Conviene dejar escrito por qué la lista de ánimos no es una lista cualquiera:
+> sus cinco niveles son la escala que alimenta el modelo afectivo, así que
+> cambiar su número cambia la matemática, no sólo el copy.
 
 ### 09 · El tour, encima del lector
 
 Al terminar el onboarding, la persona **aterriza directamente en el capítulo 1**
 y el tour de cinco pasos aparece sobre él.
 
-> ### 🔶 DECISIÓN B · dónde aterriza y dónde corre el tour
+> ### ✅ RESUELTA · el libro se conserva, el tour espera en Inicio
 >
-> **Captura:** `09-tour-sobre-el-lector.jpg`.
+> **Captura:** `09-tour-sobre-el-lector.jpg` — **anterior** al cambio.
 >
-> Lo que se ve, y es más concreto que «el tour tapa el texto»: el **paso 1 de
-> 5** dice «**Tu Inicio** · Este es tu punto de partida cada día. Verás tu
-> lectura en curso, una pregunta para reflexionar y accesos rápidos» — mientras
-> la persona está mirando **el lector**. El tour describe una pantalla que no
-> tiene delante, y encima cubre la apertura del capítulo.
+> Lo que se veía, y era más concreto que «el tour tapa el texto»: el **paso 1
+> de 5** decía «**Tu Inicio** · Este es tu punto de partida cada día» mientras
+> la persona estaba mirando **el lector**. El tour describía una pantalla que
+> no tenía delante, y encima cubría la apertura del capítulo.
 >
-> **Recomiendo aterrizar en Inicio** al terminar el onboarding y correr el tour
-> ahí. Los cinco pasos hablan de la navegación, y la navegación se entiende
-> desde Inicio. El libro queda a un clic —la recomendación del paso 5 ya lo
-> señala— y la primera impresión del capítulo llega sin un panel encima.
+> **Las dos mitades se separaron en vez de elegir una.** Quien elige un libro
+> sigue aterrizando en su capítulo —es lo que pidió, y «Empezar a leer» lleva
+> ahí— y el tour **se pospone hasta Inicio**, que es la pantalla de la que
+> habla. No se cancela: `tourCompletedAt` sigue en nulo porque nadie lo vio ni
+> lo saltó, y aparece la primera vez que esa persona pase por Inicio.
 >
-> **Coste:** cambiar el destino posterior al onboarding. No toca el tour.
+> Hay trinquete en los dos clientes, y la mutación que importa es la que
+> comprueba que **no se marca como visto** mientras espera: posponer y
+> cancelar se parecen mucho en el código y no se parecen en nada para quien
+> nunca vuelve a ver el tour.
 
 ### 10 · El lector
 
@@ -122,23 +122,31 @@ un tema: «**El cuerpo sabe antes que la mente**».
 **No aparece la pestaña de recorrido guiado**, y es correcto: esta cuenta no
 está en el padrón. Eso es exactamente lo que verá una persona **antes** de B.
 
-> ### ✅ RETIRADA · «Escuchar» sí tiene material detrás
+> ### ⚠️ CORREGIDA · «Escuchar» tiene material, pero **no para una cuenta FREE**
 >
-> **Mi nota del 18-11 era incorrecta y conviene decirlo.** Escribí que
-> «Escuchar» y «Ver» estaban ahí sin nada detrás. Medido el 19-11 contra el
-> manifiesto que sirve staging para este capítulo:
+> **Mi nota del 18-11 era incorrecta, y su primera corrección también se quedó
+> corta.** Escribí que «Escuchar» y «Ver» estaban ahí sin nada detrás; después
+> lo retiré porque el podcast existe. Las dos veces faltaba el dato que
+> decide. Medido contra el manifiesto y contra la ruta de reproducción, con una
+> cuenta **FREE** sobre el artefacto servido:
 >
-> | Formato          | Estado                                      |
-> | ---------------- | ------------------------------------------- |
-> | **Podcast**      | `AVAILABLE` — edición de demostración, 52 s |
-> | Audiolibro       | `COMING_SOON`                               |
-> | Videoexplicación | `COMING_SOON`                               |
+> | Formato          | Estado                                      | ¿Puede reproducirlo una cuenta FREE? |
+> | ---------------- | ------------------------------------------- | ------------------------------------ |
+> | **Podcast**      | `AVAILABLE` — edición de demostración, 52 s | **No.** `403 · PRO_REQUIRED`         |
+> | Audiolibro       | `COMING_SOON`                               | No — no existe                       |
+> | Videoexplicación | `COMING_SOON`                               | No — no existe                       |
 >
-> Así que «Escuchar» está habilitado **porque hay un podcast que escuchar**, y
-> «Ver» aparece deshabilitado con «Próximamente» **porque el video no existe**.
-> El lector ya distingue las dos cosas: `ChapterMediaListen` rinde «En
-> producción» para un formato sin máster. **No hay nada que decidir aquí.**
+> Su política en el catálogo es `PRO_ONLY`, y el piloto entra como **FREE**.
+> Así que **ese podcast no amplía el piloto** y **no sustituye el audio
+> editorial definitivo**, que sigue sin existir: lo que hay es una
+> demostración de 52 s detrás de un plan que el piloto no tiene.
 >
+> **Lo que el producto sí hace bien, comprobado:** el lector no deja caer el
+> 403 en la cara de nadie. La pestaña muestra «**El podcast es parte de Pro ·
+> Puedes seguir leyendo el capítulo completo**», que es honesto y, además, no
+> ofrece contratar. **No hay nada que decidir aquí**; lo que hay es un hecho
+> que conviene no volver a contar al revés.
+
 > ### ✅ RETIRADA · el nombre del tema de Eco
 >
 > Que el tema que propone Eco coincida con el nombre de una experiencia
@@ -170,18 +178,21 @@ cinco contadores a cero bajo el rótulo «**Tu progreso de comprensión**».
 Un resultado: _Emociones en Construcción_, **Jorge Quizamanchuro**, «Una guía
 práctica desde adentro», 10 capítulos, 328 min. La autoría reparada se ve.
 
-> ### 🔶 DECISIÓN C · una biblioteca de un solo libro
+> ### ✅ RESUELTA · la biblioteca explica por qué hay una sola obra
 >
-> **Captura:** `12-biblioteca.jpg`.
+> **Captura:** `12-biblioteca.jpg` — **anterior** al cambio.
 >
 > Un resultado, con buscador, filtros y espacio para una rejilla. Honesto, y
-> también desconcertante: parece que algo falló al cargar.
+> también desconcertante: se lee como algo que falló al cargar. Ahora, bajo el
+> contador, dice «**Por ahora una obra publicada. Estamos preparando las
+> siguientes.**» — sin fecha y sin lista, que sería prometer un catálogo que
+> todavía no existe.
 >
-> **Recomiendo una línea bajo el resultado** del tipo «Por ahora una obra
-> publicada. Estamos preparando las siguientes» — sin fecha y sin lista, que
-> sería prometer. Quita la sensación de error sin inventar un catálogo.
->
-> **Coste:** una frase. Es la más barata de las cuatro.
+> **La condición no es «este listado trae un resultado».** Una búsqueda que
+> filtra hasta uno también trae uno, y el catálogo puede tener diez; decir ahí
+> esa frase sería falso. Así que la nota sólo aparece en el catálogo entero,
+> sin búsqueda y sin filtros. La regla y el texto viven en `@psico/types` para
+> que web y móvil no acaben con dos criterios parecidos.
 
 ### 13–14 · Reflexiones y Eco, los dos muros de cifrado
 
@@ -209,23 +220,16 @@ EXPERIMENTAL» en estado «Reuniendo datos — 0 de ~8 registros», «Mis
 resonancias» vacío, y «Tu actividad … son parte de tu recorrido, **no una
 medida de tu mundo interior**».
 
-> ### 🔶 DECISIÓN D · el mapa vacío del primer día
+> ### ✅ DECIDIDA · el vacío del primer día se mantiene
 >
-> **Captura:** `15-mapa-emocional.jpg`.
+> La pantalla está casi toda vacía y dice cuatro veces que falta información.
+> Es exactamente lo que el programa V2 se propuso: ningún eje al 50 %
+> inventado, ningún porcentaje global, «Reuniendo datos» donde no hay señal.
 >
-> El primer día la pantalla está casi toda vacía y dice cuatro veces que falta
-> información. Es exactamente lo que el programa V2 se propuso: ningún eje al
-> 50 % inventado, ningún porcentaje global, «Reuniendo datos» donde no hay
-> señal.
->
-> **Recomiendo dejarlo tal cual para el piloto.** Cambiarlo para que «se vea
-> lleno» sería deshacer el trabajo entero, y en un piloto acompañado el riesgo
-> de desánimo es bajo: hay alguien a quien preguntar. Lo que sí propongo es
-> **mirar esta pantalla en la señal 6 del piloto** («qué no entendió, con sus
-> palabras»): si tres personas dicen lo mismo, eso es un dato y entonces se
-> decide con él.
->
-> **Coste:** ninguno hoy.
+> **El propietario la mantiene tal cual.** Cambiarla para que «se vea llena»
+> sería deshacer el trabajo entero. Lo que sigue en pie es mirarla en la señal
+> 6 del piloto —«qué no entendió, con sus palabras»—: si tres personas dicen lo
+> mismo, eso es un dato y entonces se decide con él.
 
 ### 16 · Mi Evolución
 
@@ -234,11 +238,13 @@ tienes, **no cómo estás**»), los contadores del trimestre, y una sección de
 actividad de aprendizaje con «**0 audiolibros**» y «**0 podcasts** escuchados
 hasta el final».
 
-> ### ✅ RETIRADA · el supuesto que la motivaba es falso
+> ### ✅ RETIRADA · el contador no es el sitio donde se decide esto
 >
 > Escribí que audiolibros y podcasts «no existen todavía». Medido: el
-> **podcast** del capítulo 1 está `AVAILABLE`. Así que «0 podcasts escuchados
-> hasta el final» es un dato correcto y no sugiere nada falso.
+> **podcast** del capítulo 1 está `AVAILABLE` —aunque es `PRO_ONLY`, así que
+> una cuenta FREE recibe `403 · PRO_REQUIRED` al intentar reproducirlo—. En
+> cualquier caso «0 podcasts escuchados hasta el final» es un dato correcto: la
+> persona no ha escuchado ninguno, lo pudiera o no.
 >
 > Para el audiolibro y el video, que sí están `COMING_SOON`, **no se añade aquí
 > ninguna etiqueta de disponibilidad**, y es deliberado: la disponibilidad es
@@ -284,34 +290,34 @@ nada», con un botón «**Hazte Pro →**».
 
 ---
 
-## Parte C — lo que queda por decidir
+## Parte C — las diez, cerradas
 
-**De las diez que levantó este recorrido, seis están cerradas** —una resuelta en
-código, cuatro retiradas porque el supuesto que las motivaba no se sostenía al
-medirlo, y una resuelta de copy—. Quedan **cuatro**, cada una con su captura y
-una recomendación:
+**Las diez están cerradas**, y no de la misma forma: cuatro cambiaron el
+producto, dos las decidiste manteniéndolas, y cuatro se retiraron porque el
+supuesto que las motivaba no se sostuvo al medirlo.
 
-| #     | Pantalla   | Qué hay que decidir                                   | Recomiendo                                   | Captura                    |
-| ----- | ---------- | ----------------------------------------------------- | -------------------------------------------- | -------------------------- |
-| **A** | Onboarding | los siete motivos y los cinco ánimos                  | dejarlos; revisar sólo la redacción          | `05-…motivos`, `06-…animo` |
-| **B** | Tour       | aterrizar en el libro con el tour encima, o en Inicio | **aterrizar en Inicio** y correr el tour ahí | `09-tour-sobre-el-lector`  |
-| **C** | Biblioteca | una sola obra, sin explicación                        | una línea: «Por ahora una obra publicada…»   | `12-biblioteca`            |
-| **D** | Mapa       | el vacío del primer día                               | dejarlo; mirarlo en la señal 6 del piloto    | `15-mapa-emocional`        |
+| #      | Pantalla             | Qué pasó                                                                                                                                               |
+| ------ | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **1**  | Mi plan / Patrones   | **Resuelta en código.** No se ofrece contratar y el servidor rechaza el checkout por las dos rutas                                                     |
+| **2**  | Inicio               | **Resuelta en código.** «Tu actividad», y «+ evolución» en el chip de la fila de lectura                                                               |
+| **3**  | Mi Evolución         | **Retirada.** Un cero es un dato correcto; la disponibilidad no se decide en un contador de totales                                                    |
+| **4**  | Lector · medios      | **Corregida con el dato.** El podcast existe y es `PRO_ONLY`: una cuenta FREE recibe `403 · PRO_REQUIRED`. El lector ya lo dice, y no ofrece contratar |
+| **5**  | Lector · tema de Eco | **Retirada.** Una coincidencia no justifica un cambio editorial sobre contenido aprobado                                                               |
+| **6**  | Tour                 | **Resuelta en código.** El libro se conserva; el tour espera en Inicio y **sigue pendiente** mientras                                                  |
+| **7**  | Onboarding           | **Decidida: se mantienen** las dos listas                                                                                                              |
+| **8**  | Biblioteca           | **Resuelta en código.** Una línea, sólo cuando el catálogo entero —sin filtros— tiene una obra                                                         |
+| **9**  | Mapa                 | **Decidida: se mantiene** el vacío del primer día                                                                                                      |
+| **10** | Cifrado              | **Retirada.** Es un solo desbloqueo; los vi los dos por no abrir ninguno                                                                               |
 
-**Ninguna de las cuatro bloquea el piloto.** La B es la que más cambia la
-primera impresión; la C es la más barata; la A es copy; la D es no hacer nada.
+**Cuatro de las diez eran correcciones de mis propias notas**, no del producto:
+las tres retiradas y la del podcast. Es lo que pasa al escribir una
+observación desde una pantalla y comprobarla después contra el dato — y en el
+caso del podcast hicieron falta **dos** correcciones, porque la primera se
+quedó en «existe» sin preguntar quién puede reproducirlo.
 
-### Las seis cerradas, y por qué
+### Lo que esto NO cierra
 
-| #   | Qué decía la nota                                     | Qué pasó                                                              |
-| --- | ----------------------------------------------------- | --------------------------------------------------------------------- |
-| 1   | botones de compra con los cobros cerrados             | **resuelta en código** — ver §17 y §18                                |
-| 2   | «Tu progreso de comprensión» sobre actividad          | **resuelta en código** — «Tu actividad», y «+ evolución» en el chip   |
-| 3   | contadores de audiolibros y podcasts «que no existen» | **retirada** — el podcast de C01 está `AVAILABLE`                     |
-| 4   | «Escuchar» y «Ver» sin material detrás                | **retirada** — «Escuchar» tiene podcast; «Ver» ya dice «Próximamente» |
-| 5   | el tema de Eco repite el nombre de una experiencia    | **retirada** — una coincidencia no justifica un cambio editorial      |
-| 10  | dos muros de cifrado seguidos                         | **retirada** — es un solo desbloqueo; los vi los dos por no abrir     |
-
-**Tres de esas seis son correcciones de mis propias notas**, no del producto. Es
-lo que pasa al escribir una observación a partir de una pantalla y comprobarla
-después contra el dato: la pantalla sugería una cosa y el dato decía otra.
+La **aceptación estética** sigue siendo tuya: lo medido aquí y en octubre es
+tipografía, contraste y qué dice cada pantalla, no si el conjunto te gusta.
+Y el **audio editorial definitivo sigue sin existir** — la demostración de
+52 s detrás de Pro no lo sustituye.

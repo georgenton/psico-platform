@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Redirect, Tabs } from "expo-router";
+import { Redirect, Tabs, usePathname } from "expo-router";
 import { ActivityIndicator, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { apiClient } from "@psico/api-client";
@@ -8,6 +8,7 @@ import { Colors } from "@/theme";
 import { useAuth } from "@/context/auth";
 import { DiaryKeyProvider } from "@/crypto/diary-key-context";
 import { TourOverlay } from "@/components/TourOverlay";
+import { tourFitsRoute } from "@/lib/onboarding/tour-route";
 
 type IconProps = {
   color: string;
@@ -39,6 +40,8 @@ export default function TabsLayout() {
   // Sprint S37: mirrors the web logic — show the tour overlay once for
   // users who finished onboarding but never saw it.
   const [showTour, setShowTour] = useState(false);
+  // Dónde está la persona ahora mismo: el tour sólo corre en Inicio.
+  const pathname = usePathname();
 
   useEffect(() => {
     if (!user) return;
@@ -247,7 +250,18 @@ export default function TabsLayout() {
           }}
         />
       </Tabs>
-      {showTour ? <TourOverlay onClose={() => setShowTour(false)} /> : null}
+      {/*
+        El tour corre SÓLO en Inicio. Quien elige un libro al terminar el
+        onboarding aterriza en ese libro —y eso se conserva—, pero este layout
+        envuelve todas las pestañas, así que el paso 1 («Tu Inicio») salía
+        encima de una pantalla de la que no habla.
+
+        Se pospone, no se cancela: `tourCompletedAt` sigue en nulo mientras
+        tanto, y aparece la primera vez que esa persona pase por Inicio.
+      */}
+      {showTour && tourFitsRoute(pathname) ? (
+        <TourOverlay onClose={() => setShowTour(false)} />
+      ) : null}
     </DiaryKeyProvider>
   );
 }

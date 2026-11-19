@@ -22,9 +22,18 @@
  * ── Qué garantiza, y qué no ───────────────────────────────────────────────
  *
  * Pregunta a la guarda **real** del contenedor —`mailGate` y
- * `parseMailAllowlist` compilados, los mismos que decide el envío—, así que no
- * puede discrepar con ella. Lo que NO acredita: que el proveedor acepte el
- * dominio, ni que el mensaje llegue. Eso sólo lo demuestra una recepción.
+ * `parseMailAllowlist` compilados, los mismos que deciden el envío— y resuelve
+ * el entorno con `resolveEnvironment()`, el mismo criterio que `ResendService`.
+ * Así no puede discrepar con el servicio.
+ *
+ * Son **tres afirmaciones distintas** y esto contesta sólo la primera:
+ *
+ *   1. «la guarda permitiría esta dirección»  → lo dice este guion
+ *   2. «el proveedor funciona»                → lo dice la cuenta de Resend
+ *   3. «el mensaje llegó»                     → lo dice una recepción real
+ *
+ * Un `SÍ SALE` no es una entrega. No envía nada: ni abre una conexión, ni
+ * encola, ni toca el SDK.
  *
  * ── Privacidad ────────────────────────────────────────────────────────────
  *
@@ -46,21 +55,50 @@ const GUARDA =
   process.env.MAIL_GATE_PATH ??
   path.join(__dirname, "..", "dist", "notifications", "mail-gate.js");
 
-let guarda;
-try {
-  guarda = require(GUARDA);
-} catch (err) {
+/**
+ * El mismo módulo del que el servicio de correo saca su entorno.
+ *
+ * Leer `PSICO_ENV` a pelo —que es lo que hacía la primera versión— no es
+ * equivalente: `resolveEnvironment()` recorta y pasa a minúsculas, y en una
+ * caja desplegada **rechaza** cualquier palabra que no sea `production` o
+ * `staging`. Con `PSICO_ENV=" Production "` el servicio decide sobre
+ * `"production"` y este guion habría decidido sobre `" Production "`, que no
+ * es producción para `mailGate`: con la lista ausente, uno abre y el otro
+ * dice que no sale. La diferencia aparece justo en el entorno donde la guarda
+ * abre, que es donde una respuesta equivocada cuesta más.
+ */
+const RESOLUTOR =
+  process.env.PSICO_ENVIRONMENT_PATH ??
+  path.join(__dirname, "..", "dist", "shared", "psico-environment.js");
+
+function cargar(ruta, queEs) {
+  try {
+    return require(ruta);
+  } catch (err) {
+    console.log(`NO SE PUDO PREGUNTAR — no se encontró ${queEs} en ${ruta}`);
+    console.log(`  (${err && err.message ? err.message : err})`);
+    process.exit(2);
+  }
+}
+
+const guarda = cargar(GUARDA, "la guarda compilada");
+const entornoMod = cargar(RESOLUTOR, "el resolutor de entorno compilado");
+
+const { mailGate, parseMailAllowlist } = guarda;
+if (
+  typeof mailGate !== "function" ||
+  typeof parseMailAllowlist !== "function"
+) {
   console.log(
-    `NO SE PUDO PREGUNTAR — no se encontró la guarda compilada en ${GUARDA}`,
+    "NO SE PUDO PREGUNTAR — la guarda compilada no exporta mailGate/parseMailAllowlist",
   );
-  console.log(`  (${err && err.message ? err.message : err})`);
   process.exit(2);
 }
 
-const { mailGate, parseMailAllowlist } = guarda;
-if (typeof mailGate !== "function" || typeof parseMailAllowlist !== "function") {
+const { resolveEnvironment } = entornoMod;
+if (typeof resolveEnvironment !== "function") {
   console.log(
-    "NO SE PUDO PREGUNTAR — la guarda compilada no exporta mailGate/parseMailAllowlist",
+    "NO SE PUDO PREGUNTAR — el módulo de entorno no exporta resolveEnvironment",
   );
   process.exit(2);
 }
@@ -77,9 +115,17 @@ process.stdin.on("end", () => {
     process.exit(2);
   }
 
-  const entorno = process.env.PSICO_ENV;
-  if (!entorno) {
-    console.log("NO SE PUDO PREGUNTAR — PSICO_ENV no está definida");
+  // El mismo criterio que el servicio, no una lectura paralela de la variable.
+  // Si la caja está desplegada y no declara su postura, esto lanza — y lanzar
+  // es la respuesta correcta: significa que el servicio tampoco arrancaría.
+  let entorno;
+  try {
+    entorno = resolveEnvironment();
+  } catch (err) {
+    console.log(
+      "NO SE PUDO PREGUNTAR — el entorno no se pudo resolver con el mismo criterio que el servicio",
+    );
+    console.log(`  (${err && err.message ? err.message : err})`);
     process.exit(2);
   }
 

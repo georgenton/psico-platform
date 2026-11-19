@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -28,15 +28,53 @@ import { Colors, Radius, Spacing } from "@/theme";
 export default function BooksScreen() {
   const { user } = useAuth();
   const router = useRouter();
-  const [books, setBooks] = useState<BookListItem[]>([]);
   const [categories, setCategories] = useState<BookCategory[]>([]);
   const [view, setView] = useState<BookListView>("catalogo");
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [total, setTotal] = useState(0);
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  /**
+   * Los libros, su total y **la consulta que los produjo**, en una sola pieza.
+   *
+   * ── Por qué van juntos ────────────────────────────────────────────────────
+   *
+   * La nota de «una sola obra» se decide con cuatro datos: vista, búsqueda,
+   * categoría y total. Si el total viene de la respuesta y los otros tres se
+   * leen del estado vivo, basta que una respuesta llegue tarde para que se
+   * combinen datos de dos consultas distintas y la nota mienta.
+   *
+   * El caso concreto, reproducido en `index.race.test.tsx`: se busca algo que
+   * devuelve **una** obra, se borra la búsqueda y vuelve el catálogo de
+   * **diez** — y la respuesta de la búsqueda llega **después**. Con el total
+   * suelto, la pantalla acaba diciendo «por ahora una obra publicada» sobre un
+   * catálogo de diez, que es justo lo contrario de lo que esa frase promete.
+   *
+   * Guardarlos juntos hace que la nota se evalúe siempre contra una consulta
+   * coherente consigo misma, incluso en el render intermedio.
+   */
+  const [resultado, setResultado] = useState<{
+    books: BookListItem[];
+    total: number;
+    query: { view: BookListView; q: string; categoryId?: string };
+  }>({
+    books: [],
+    total: 0,
+    query: { view: "catalogo", q: "" },
+  });
+  const books = resultado.books;
+
+  /**
+   * Cuál es la consulta vigente.
+   *
+   * Lo anterior aplicaba toda respuesta que llegara, así que una petición
+   * antigua podía sustituir a una más nueva. No es una carrera teórica: el
+   * rebote de 250 ms de la búsqueda dispara una petición por cada pausa al
+   * teclear, y la red no promete el orden de llegada.
+   */
+  const peticionRef = useRef(0);
 
   // Debounce search → query.
   useEffect(() => {
@@ -46,20 +84,31 @@ export default function BooksScreen() {
 
   const load = useCallback(async () => {
     setError(null);
+    const query: Parameters<typeof booksApi.list>[0] = { view };
+    if (categoryId) query.categoryId = categoryId;
+    if (debouncedSearch.trim()) query.q = debouncedSearch.trim();
+
+    const token = (peticionRef.current += 1);
     try {
-      const query: Parameters<typeof booksApi.list>[0] = { view };
-      if (categoryId) query.categoryId = categoryId;
-      if (debouncedSearch.trim()) query.q = debouncedSearch.trim();
       const data = await booksApi.list(query);
-      setBooks(data.books);
-      // El total de ESTA consulta. Con filtros no dice nada del catálogo, y
-      // por eso la regla compartida también mira los filtros.
-      setTotal(data.pagination.total);
+      // Una respuesta que ya no es la de la consulta vigente se descarta
+      // entera: ni sus libros, ni su total, ni su estado de carga.
+      if (token !== peticionRef.current) return;
+      setResultado({
+        books: data.books,
+        total: data.pagination.total,
+        query: {
+          view: query.view ?? "catalogo",
+          q: query.q ?? "",
+          categoryId: query.categoryId,
+        },
+      });
       if (categories.length === 0) setCategories(data.categories);
     } catch {
+      if (token !== peticionRef.current) return;
       setError("No se pudo cargar la biblioteca.");
     } finally {
-      setLoading(false);
+      if (token === peticionRef.current) setLoading(false);
     }
   }, [view, categoryId, debouncedSearch, categories.length]);
 
@@ -246,10 +295,8 @@ export default function BooksScreen() {
           */
           ListHeaderComponent={
             esCatalogoDeUnaObra({
-              view,
-              q: debouncedSearch.trim(),
-              categoryId: categoryId ?? undefined,
-              total,
+              ...resultado.query,
+              total: resultado.total,
             }) ? (
               <Text style={styles.catalogoNota}>{CATALOGO_UNA_OBRA_NOTA}</Text>
             ) : null

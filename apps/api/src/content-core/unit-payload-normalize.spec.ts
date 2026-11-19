@@ -54,7 +54,12 @@ function versionDeC01(): string {
 async function buildC01(): Promise<PayloadBlock[]> {
   const mod = (await import(
     /* @vite-ignore */ join(ROOT, "scripts/eec/build-chapter.mjs")
-  )) as { build: (a: { chapter: string; out: string }) => void };
+  )) as {
+    // `pdf?: boolean` no es decoración: esta suite lo pasa a `false`
+    // porque no comprueba el PDF, y una declaración que no lo admita
+    // convierte esa llamada en una mentira de tipos.
+    build: (a: { chapter: string; out: string; pdf?: boolean }) => void;
+  };
   // Sin PDF: ver la nota en eec-chapter-build.spec.ts.
   mod.build({ chapter: "C01", out: OUT, pdf: false });
   const payload = JSON.parse(

@@ -5966,39 +5966,15 @@ El token de Coolify **ya no está en esta lista**: se recuperó el 05-11 y con �
 desplegó Web y se activó el push web. Quedan nueve, con su recomendación y su efecto
 en **[la matriz de F3](https://claude.ai/artifact/UtBZxMUDiqSuSwY3mGh5ah)**:
 
-1. **Pegar la credencial de correo.** Es lo único que separa al producto de que
-   una persona pueda recuperar su contraseña — y desde el 19-11 ya **no** es un
-   insumo que falte, sino un pegado.
+1. **El correo ya no está aquí: se cerró el 19-11.** Una persona que olvida su
+   contraseña **la recupera** — recepción real en la bandeja principal,
+   contraseña nueva y acceso con ella, más el aviso del worker. Aceptado por el
+   propietario. Lo que sigue vivo de ese frente es una tarea aparte y acotada:
+   [permitir pedir otro enlace de verificación](docs/product/tarea-reenvio-verificacion.md),
+   que **no** condiciona el piloto.
 
-   → **Ficha corta, para decidir en una pantalla:**
-   [docs/operations/correo-insumos-pendientes.md](docs/operations/correo-insumos-pendientes.md)
-
-   **Lo que se montó el 19-11**, todo comprobado: la organización es **Syntavera**
-   con dominio verificado **`syntavera.dev`** (establecido por los usuarios del
-   inquilino, no deducido del nombre comercial); dos **buzones compartidos**
-   reales y gratis, `qa@` y `soporte@syntavera.dev`, con tu acceso y la ida y
-   vuelta comprobada; **`feelverse.app` verificado en Resend** con sus cuatro
-   registros publicados en Cloudflare; y una credencial de **sólo envío**
-   limitada a ese dominio.
-
-   **Lo que falta es un pegado, no una decisión:** el valor de esa credencial
-   como `RESEND_API_KEY` en `feelverse-staging-api` y `feelverse-staging-worker`.
-   La variable ya está creada y **vacía** —que el esquema lee como ausente, así
-   que el estado es seguro— y `EMAIL_FROM=no-reply@feelverse.app` ya está puesto.
-   El asistente no lo hace porque **una clave de API no se transcribe**: para
-   llegar a Coolify tendría que pasar por el registro de la conversación.
-
-   **Y dos cosas que la ejecución dejó aprendidas.** Resend pidió **CNAME**, no
-   el par MX/TXT —el caso que su documentación anuncia para dominios recientes—,
-   así que la cautela de no escribir aquí una receta genérica **estaba
-   justificada**. Y la recepción de `feelverse.app` sigue en el **reenvío de
-   Namecheap**, cuya cuenta no es accesible: sin poder acreditar sus destinos sus
-   MX se conservan, y por eso el recorrido se hace contra el dominio corporativo.
-   `qa@`/`soporte@feelverse.app` quedan como el punto pendiente de marca.
-
-   Después del pegado, el recorrido completo es mío: recepción → enlace →
-   restablecimiento → **acceso con la contraseña nueva**, más el envío dirigido
-   del worker.
+   → El estado del correo, en
+   [docs/operations/correo-insumos-pendientes.md](docs/operations/correo-insumos-pendientes.md).
 
 2. **`SENTRY_DSN`** — sin él, un fallo en el piloto se investiga a ciegas.
 3. **`GOOGLE_CLIENT_ID`** — puede quedar fuera del piloto: sin clave el producto
@@ -6095,6 +6071,13 @@ en **[la matriz de F3](https://claude.ai/artifact/UtBZxMUDiqSuSwY3mGh5ah)**:
    cerrados, y el servidor rechaza el checkout. Abrirlos es poner
    `BILLING_PURCHASES` a un sí explícito, un acto deliberado que puede esperar a
    que las seis condiciones estén resueltas.
+
+   > **Las tres fichas que preparan lo que queda**, para no reconstruirlo cada
+   > vez: el tramo a producción con su coste y sus destinatarios en
+   > [docs/operations/tramo-a-produccion.md](docs/operations/tramo-a-produccion.md);
+   > la primera incorporación al piloto, con la invitación ya redactada, en
+   > [docs/operations/piloto-b-primera-incorporacion.md](docs/operations/piloto-b-primera-incorporacion.md).
+
 7. **La aceptación ESTÉTICA del conjunto.** La lista de decisiones está cerrada —
    diez de diez en
    [docs/product/aceptacion-visual-2026-11-18.md](docs/product/aceptacion-visual-2026-11-18.md),

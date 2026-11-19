@@ -6,7 +6,8 @@
 > aprobación llegue, no haya que inventar nada: cada paso está escrito, con lo
 > que hay que comprobar después de darlo.
 >
-> Corte del **2026-11-18**, con la configuración leída del artefacto servido.
+> Corte del **2026-11-18**, con el frente de correo actualizado el **2026-11-19**
+> y la configuración leída del artefacto servido.
 >
 > **Lo que este documento NO hace:** no amplía el padrón, no nombra a ninguna
 > persona, no envía ninguna invitación y no autoriza nada. Aquí no se escribe
@@ -16,14 +17,17 @@
 
 ## 0 · El estado desde el que se parte, comprobado
 
-Leído del contenedor que sirve hoy (`85ab7c86`):
+Las tres variables del guía, leídas del contenedor que servía el 18-11
+(`85ab7c86`); las de correo, del corte del 19-11:
 
-| Variable                  | Valor                      | Dónde vive           |
-| ------------------------- | -------------------------- | -------------------- |
-| `GUIDE_ROLLOUT_MODE`      | `pilot`                    | **API** y **worker** |
-| `GUIDE_PILOT_USER_IDS`    | **1 id** (la cuenta de QA) | **sólo la API**      |
-| `EEC_C01_GUIDED_SUITE_V1` | `on`                       | **sólo la API**      |
-| `EMAIL_ALLOWLIST`         | **ausente**                | **API** y **worker** |
+| Variable                  | Valor                                      | Dónde vive           |
+| ------------------------- | ------------------------------------------ | -------------------- |
+| `GUIDE_ROLLOUT_MODE`      | `pilot`                                    | **API** y **worker** |
+| `GUIDE_PILOT_USER_IDS`    | **1 id** (la cuenta de QA)                 | **sólo la API**      |
+| `EEC_C01_GUIDED_SUITE_V1` | `on`                                       | **sólo la API**      |
+| `RESEND_API_KEY`          | **presente** desde el 19-11                | **API** y **worker** |
+| `EMAIL_FROM`              | `no-reply@feelverse.app`                   | **API** y **worker** |
+| `EMAIL_ALLOWLIST`         | **1 entrada**: la bandeja autorizada de QA | **API** y **worker** |
 
 **Incorporar a una persona son DOS cosas distintas**, y conviene no colapsarlas
 porque viven en sitios distintos y se aplican en momentos distintos:
@@ -41,17 +45,43 @@ correo. Decir «sólo la API» de todo el procedimiento dejaría al worker con u
 lista de destinatarios anterior, y el correo que él manda es justo el que
 nadie pidió.
 
-**Y la precondición que no se negocia:** B puede aprobarse antes de que el
-correo funcione, pero **la primera invitación y la entrada de una persona real
-esperan el recorrido de recuperación por correo completado**. Sin eso, quien
-olvide su contraseña pierde su cuenta y nadie puede devolvérsela.
+### ✅ La precondición de correo se cumplió el 19-11
 
-**Lo que una prueba con la bandeja de QA SÍ acredita, y lo que NO.** Que el
-transporte funciona, que el dominio está verificado y que el recorrido de
-restablecimiento cierra. **No** habilita el correo de otra persona: la guarda
-restringe por destinatario, así que una dirección que no esté en la lista
-simplemente no recibe —ni la verificación de su cuenta, ni el enlace para
-recuperarla—. Cada participante necesita su propia entrada.
+Este apartado decía que **la primera invitación y la entrada de una persona real
+esperaban el recorrido de recuperación por correo completado**. **Ese recorrido
+está completado**: el 19-11 se cerró de punta a punta contra la bandeja
+autorizada —correo recibido en bandeja principal, contraseña nueva **204**,
+acceso con ella en sesión limpia **200**, enlace ya usado **410** y contraseña
+anterior **401**—, y el propietario lo aceptó. El motivo por el que esa
+precondición existía sigue siendo cierto y por eso se conserva escrito: sin ese
+recorrido, quien olvida su contraseña pierde el acceso a su cuenta y nadie puede
+devolvérselo.
+
+**Lo que queda de verdad son dos cosas, y ninguna es técnica:**
+
+| Qué                                        | De quién                                                                                       |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------- |
+| **La aprobación de B**                     | Jorge — la propuesta entera está en [piloto-minimo.md §8](../product/piloto-minimo.md)         |
+| **La autorización de la persona concreta** | Jorge — su consentimiento y su **dirección exacta**, que es el paso 1 de la secuencia de abajo |
+
+> ### ⚠️ La prueba con QA NO autoriza el correo de otro destinatario
+>
+> Es el error más fácil de cometer al leer un frente que acaba de cerrarse, así
+> que conviene decirlo entero.
+>
+> **Lo que el recorrido del 19-11 SÍ acredita:** que el transporte funciona, que
+> el dominio está verificado por el proveedor, que el mensaje aterriza en bandeja
+> principal y que el restablecimiento cierra — **para `qa@syntavera.dev`**.
+>
+> **Lo que NO acredita:** nada sobre ninguna otra dirección. La guarda restringe
+> por **destinatario exacto**, hasta el punto de que la misma dirección con una
+> letra cambiada da `NO SALE` (medido). Una dirección que no esté en la lista
+> **simplemente no recibe** — ni la verificación de su cuenta, ni el enlace para
+> recuperarla, ni el aviso de su exportación.
+>
+> Así que **cada participante necesita su propia entrada** en `EMAIL_ALLOWLIST`,
+> en **API y worker**, **conservando** las anteriores. Es el paso 2 de la
+> secuencia, y vuelve con cada persona.
 
 ---
 
@@ -62,6 +92,15 @@ registrarse se dispara el correo de verificación de su cuenta
 (`auth.service.ts` lo lanza dentro de `register`). Si su dirección no está
 autorizada todavía, ese mensaje se retiene y ella se queda con una cuenta sin
 verificar y sin saber por qué.
+
+> **Y no hay vuelta atrás barata**, que es lo que convierte ese orden en una
+> regla y no en una recomendación: `sendVerificationEmail` **sólo** se dispara
+> desde `register()`, así que **no existe reemisión** —ni por pantalla ni por
+> API—. Una cuenta dada de alta sin su dirección autorizada se queda sin
+> verificar y hay que **rehacerla**. Pasó el 19-11 con una cuenta de prueba,
+> porque la actualización progresiva aún servía el contenedor anterior: de ahí
+> que el paso 3 exija comprobar **qué imagen está sirviendo de verdad** antes de
+> seguir, y no fiarse de que el despliegue diga «terminado».
 
 **El padrón, en cambio, va después del registro**, y tampoco por gusto:
 identifica por `id` de servidor —el resolutor lo dice en su propio comentario,
@@ -107,8 +146,10 @@ entorno** — el arranque lo dice con la palabra `BLOQUEADO`.
 
 ### Paso 3 · Comprobar que la configuración está efectiva ANTES del registro
 
-Desplegar **API y worker**, y luego comprobar **tres** cosas. Las dos primeras
-son el estado general:
+Desplegar **API y worker**, **confirmar qué imagen está sirviendo cada
+contenedor** —no la que el despliegue dice haber terminado: son dos instantes
+distintos y el 19-11 no coincidieron— y luego comprobar **tres** cosas. Las dos
+primeras son el estado general:
 
 ```
 GET /api/health/integrations   → mailRecipients.mode = "allowlisted"
@@ -148,15 +189,19 @@ La dirección entra por **stdin**, no por argumento: no queda en el historial
 del shell ni la ve un `ps`. La salida es un veredicto — no imprime la
 dirección, ni el valor de la lista, ni sus entradas.
 
-**Lo que esto sigue sin acreditar:** que el proveedor acepte el dominio, y que
-el mensaje **llegue**. Eso sólo lo demuestra una recepción, que es el paso 4 de
-las cuatro preguntas del correo
-([ficha](correo-insumos-pendientes.md)).
+**Lo que esto acredita, y lo que sigue sin acreditar.** El proveedor acepta el
+dominio y un mensaje llega: las dos cosas quedaron demostradas el 19-11 contra
+la bandeja de QA, con el recorrido completo
+([runbook §2.5.1](../deploy/coolify-runbook.md)). Lo que esta comprobación añade
+para **una dirección nueva** es lo único que falta saber de ella: que la guarda
+la dejaría salir. Que su buzón concreto la reciba y no la mande a correo no
+deseado es una pregunta de su proveedor, y se mira con el mensaje delante.
 
 **El guion viaja en la imagen** (`apps/api/scripts/check-mail-recipient.cjs`), y
-lo llevan los dos contenedores. El que sirve hoy es anterior a él, así que estará
-disponible tras el despliegue de este mismo paso — obligatorio de todas formas
-para que las variables surtan efecto.
+lo llevan los dos contenedores — ya está en el artefacto servido desde el
+despliegue del 19-11, así que no hay que esperar a nada para usarlo. El
+despliegue de este paso sigue siendo obligatorio de todas formas, porque sin él
+la entrada nueva de la lista no surte efecto.
 
 **No se sigue al paso 4 sin esto.** Es el paso cuya omisión produce el fallo
 silencioso: ella se registra, no le llega nada, y el síntoma aparece una semana
@@ -252,7 +297,7 @@ desplegar.
 
 | Qué                            | Cómo                                                                                                                                                                                                                                                                        |
 | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Canal**                      | el directo que ya usen con Jorge. **Ninguna herramienta nueva**, ningún formulario, ningún correo automático                                                                                                                                                                |
+| **Canal**                      | el directo que ya usen con Jorge. **Ninguna herramienta nueva**, ningún formulario, ningún correo automático **de soporte** — los que sí le llegan son los de su cuenta y, si lo quiere, el digest semanal                                                                  |
 | **Qué se le dice antes**       | que es un entorno de pruebas, que puede fallar, que avisar de un fallo es justo lo que se le pide, y que **guarde las palabras de respaldo** del diario al crearlas — con la distinción dicha: el correo recupera **su cuenta**, las palabras recuperan **lo que escribió** |
 | **Qué se mira**                | las seis señales del §8.5 del piloto: si vuelve sola, dónde se para, qué hace con la microguía, si escribe, qué dice del Mapa, y qué no entendió — con sus palabras                                                                                                         |
 | **Qué NO se mira**             | nada automático. Sin `SENTRY_DSN` no hay traza, y el **Mapa Emocional no sirve como telemetría del piloto**: mide lo que ella reporta de sí misma, no si el producto funciona                                                                                               |
@@ -277,6 +322,10 @@ Tres niveles, de menos a más, y **ninguno de los dos primeros toca su cuenta**:
 > su dirección sale de la lista, el enlace de restablecimiento se retiene y ella
 > queda con una cuenta viva, con lo que escribió dentro, y **sin ninguna forma
 > de volver a entrar** si olvida la contraseña.
+>
+> Desde que el correo funciona, esa lista **es** su recuperación: su entrada no
+> es una cortesía de configuración, es la única pieza que le devuelve el acceso.
+> Sacarla de ahí no «reduce su alcance en el piloto» — le quita la recuperación.
 >
 > **Y son dos recuperaciones distintas**, que conviene no colapsar porque se
 > pierden por separado:

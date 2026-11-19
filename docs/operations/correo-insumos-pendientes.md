@@ -80,9 +80,11 @@ Consultado el **2026-11-18**, con control positivo y negativo:
 | `send.feelverse.app` TXT / MX         | **sin registro**                                                                              |
 | `_dmarc.feelverse.app` TXT            | **sin registro**                                                                              |
 
-Los tres nombres de abajo son **los que se consultaron**, elegidos porque son
-los que Resend usaba cuando se escribió esto. No son «los registros que pide la
-cuenta»: eso es la pregunta 2.
+Las cinco filas de arriba son **las que se consultaron**, elegidas porque son
+los nombres que Resend usaba cuando se escribió esto: dos que el dominio ya
+tiene (el SPF y los MX del ápice, del registrador) y tres que estarían si
+estuviera configurado para enviar. No son «los registros que pide la cuenta»:
+eso es la pregunta 2, y sólo la contesta su pestaña de registros.
 
 **Lo que acredita:** hoy **no se puede enviar desde `@feelverse.app`** aunque
 llegara la credencial, porque no hay ni firma DKIM ni subdominio de envío
@@ -194,6 +196,18 @@ dominio.
 2. Desplegar **API y worker** (la Web no manda correo).
 3. Comprobar en el arranque que el estado pasa de `RETENIDO` a «restringido a 1
    destinatario», y que `GET /api/health/integrations` dice `allowlisted`.
+
+   > **Qué acredita esa comprobación, exactamente.** Que hay una lista y
+   > cuántas entradas tiene — **no cuáles**. El informe cuenta y nunca enumera,
+   > a propósito: una dirección es un dato personal y ese informe lo lee
+   > cualquier ADMIN. Así que `recipients: 1` confirma que la guarda está
+   > restringiendo, y **no** confirma que la dirección sea la correcta.
+   >
+   > Lo que sí lo confirma es el paso 4: un mensaje que **llega a esa bandeja**.
+   > Hasta entonces, lo único que hay es el valor que se pegó en el panel, y la
+   > forma de no equivocarse es releerlo ahí antes de desplegar — no deducirlo
+   > de un contador.
+
 4. Recorrer la recuperación de verdad, en la bandeja autorizada:
    **solicitar → recibir → abrir el enlace → contraseña nueva → entrar con
    ella**, y comprobar que el enlace **usado deja de valer** y que la contraseña

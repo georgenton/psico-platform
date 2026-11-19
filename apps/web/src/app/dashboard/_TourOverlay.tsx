@@ -1,11 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { onboardingApi } from "@psico/api-client";
 import type {
   OnboardingTourStep,
   OnboardingTourStepLearnMore,
 } from "@psico/types";
+
+import { tourFitsRoute } from "@/lib/onboarding/gate";
 
 /**
  * TourOverlay — Sprint S37 (web).
@@ -32,6 +35,7 @@ import type {
  *   optional (per design §Estados).
  */
 export function TourOverlay() {
+  const pathname = usePathname();
   const [steps, setSteps] = useState<OnboardingTourStep[] | null>(null);
   const [stepIdx, setStepIdx] = useState(0);
   const [dismissed, setDismissed] = useState(false);
@@ -94,6 +98,17 @@ export function TourOverlay() {
     },
     [steps, stepIdx],
   );
+
+  // El tour habla de la navegación, y su primer paso dice «Tu Inicio». Si la
+  // persona acaba de elegir un libro, el onboarding la deja en su capítulo —y
+  // eso se conserva, porque es lo que pidió—, pero este layout envuelve
+  // también al lector, así que el tour aparecía encima de una pantalla de la
+  // que no habla.
+  //
+  // Se POSPONE, no se cancela: `tourCompletedAt` sigue en nulo porque nadie lo
+  // vio ni lo saltó, y la primera vez que pase por Inicio está ahí. Nada se
+  // registra desde aquí — la única escritura es `close()`, y no se alcanza.
+  if (!tourFitsRoute(pathname)) return null;
 
   if (dismissed || !steps) return null;
   const step = steps[stepIdx];

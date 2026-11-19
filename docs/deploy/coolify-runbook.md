@@ -1511,6 +1511,36 @@ revierte deshaciendo el paso _contract_ primero, y sólo si ese paso aún no cor
 
 ### 3.0 La pareja API/Web, y por qué no basta decir «no hay migración»
 
+> ### ⚠️ Volver a una imagen anterior a #864 RETIRA la guarda de compras
+>
+> Es el caso de reversión con más consecuencias hoy, y conviene tenerlo antes
+> que la tabla de abajo: desde #864 la negativa a crear un checkout vive en el
+> **código de la API** (`PaymentService.assertPurchasesOpen`), no en una
+> variable que una imagen vieja pueda leer. Una imagen anterior **no conoce
+> `BILLING_PURCHASES`**: la ignora entera y acepta el checkout como antes.
+>
+> Qué pasa según lo que se revierta:
+>
+> | Se revierte     | Qué queda                                                                                                                                                                                                                                                                     |
+> | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+> | **Sólo la API** | La Web sigue sin pintar el botón, así que nadie llega por la interfaz normal — pero el servidor **vuelve a aceptar** un checkout por cualquier otra vía: una pestaña vieja ya cargada, una petición directa, un cliente móvil. La puerta deja de existir, no se queda cerrada |
+> | **Sólo la Web** | La Web vuelve a ofrecer «Actualizar a Pro» y la API lo rechaza con `503 PURCHASES_CLOSED`. Nadie compra, y quien lo intente se lleva un error                                                                                                                                 |
+> | **Las dos**     | Vuelve el estado anterior completo: la interfaz ofrece y el servidor acepta, incluida la creación de un cliente en el proveedor y el guardado de su identificador                                                                                                             |
+>
+> **Y la pareja candidata de hoy es exactamente ese caso.** Las dos imágenes
+> que §3.1 nombra como reversión disponible —API `21f10095` y Web `6b069d17`—
+> son **anteriores a #864**, así que revertir a ellas **reabre las compras**.
+> No es un motivo para no revertir: es un motivo para saberlo antes y decidir
+> si se acepta esa ventana, porque las cinco variables de Stripe siguen
+> puestas y nada más las detiene.
+>
+> **Lo que NO arregla el problema:** poner `BILLING_PURCHASES=off`. Una imagen
+> que no lee esa variable no cambia de comportamiento porque se escriba. Si
+> hiciera falta revertir y mantener los cobros cerrados, la vía es retirar las
+> credenciales del proveedor en ese servicio —que es un acto distinto, con sus
+> propias consecuencias sobre facturas, portal y webhook— o revertir a una
+> imagen posterior a #864.
+
 Un redeploy de nivel 1 reapunta **un** servicio, así que casi siempre quedan
 una API y una Web de alturas distintas sirviendo a la vez. Que un cambio no
 traiga migración dice algo de la base de datos y **nada** del contrato entre

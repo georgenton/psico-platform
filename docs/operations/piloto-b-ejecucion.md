@@ -118,6 +118,14 @@ El informe **cuenta** las entradas y nunca las enumera. Y en el arranque de los
 dos procesos tiene que leerse `[correo] restringido a N destinatario(s)`; si
 dice `RETENIDO` la lista no llegó, y si dice `BLOQUEADO` hay una errata.
 
+**Lo que ese número NO dice es cuál.** `recipients: 1` acredita que la guarda
+restringe, no que restrinja a la dirección correcta — y no puede: enumerarlas
+convertiría un informe que lee cualquier ADMIN en una lista de direcciones. La
+dirección exacta se confirma releyendo el valor en el panel antes de desplegar,
+y queda demostrada cuando un mensaje **llega** a esa bandeja. Con una sola
+entrada, un error aquí no manda correo a quien no debe: manda correo a nadie y
+la persona se queda sin verificar.
+
 **No se sigue al paso 4 sin esto.** Es el paso cuya omisión produce el fallo
 silencioso: ella se registra, no le llega nada, y el síntoma aparece una semana
 más tarde cuando intente recuperar la contraseña.

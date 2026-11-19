@@ -12,6 +12,7 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { booksApi } from "@psico/api-client";
 import type { BookCategory, BookListItem, BookListView } from "@psico/types";
+import { CATALOGO_UNA_OBRA_NOTA, esCatalogoDeUnaObra } from "@psico/types";
 import { useAuth } from "@/context/auth";
 import { coverColor } from "@/components/dashboard/cover-colors";
 import { relativeTime } from "@/lib/relative-time";
@@ -32,6 +33,7 @@ export default function BooksScreen() {
   const [view, setView] = useState<BookListView>("catalogo");
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [total, setTotal] = useState(0);
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -50,6 +52,9 @@ export default function BooksScreen() {
       if (debouncedSearch.trim()) query.q = debouncedSearch.trim();
       const data = await booksApi.list(query);
       setBooks(data.books);
+      // El total de ESTA consulta. Con filtros no dice nada del catálogo, y
+      // por eso la regla compartida también mira los filtros.
+      setTotal(data.pagination.total);
       if (categories.length === 0) setCategories(data.categories);
     } catch {
       setError("No se pudo cargar la biblioteca.");
@@ -232,6 +237,23 @@ export default function BooksScreen() {
           data={books}
           keyExtractor={(b) => b.id}
           numColumns={2}
+          /*
+            La explicación va en la cabecera de la lista para que desplace con
+            ella. Misma regla y mismas palabras que la Biblioteca de web —la
+            función y el texto viven en `@psico/types`— porque la sutileza es
+            la misma: un uno que viene de un filtro no es un catálogo de una
+            obra, y decirlo ahí sería falso.
+          */
+          ListHeaderComponent={
+            esCatalogoDeUnaObra({
+              view,
+              q: debouncedSearch.trim(),
+              categoryId: categoryId ?? undefined,
+              total,
+            }) ? (
+              <Text style={styles.catalogoNota}>{CATALOGO_UNA_OBRA_NOTA}</Text>
+            ) : null
+          }
           contentContainerStyle={styles.gridContent}
           columnWrapperStyle={styles.gridRow}
           showsVerticalScrollIndicator={false}
@@ -450,6 +472,13 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: Colors.warm[900],
     textAlign: "center",
+  },
+  catalogoNota: {
+    fontSize: 12.5,
+    lineHeight: 19,
+    color: Colors.warm[500],
+    paddingHorizontal: Spacing.md,
+    paddingBottom: Spacing.sm,
   },
   emptySub: {
     fontSize: 13,

@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -98,6 +99,23 @@ describe("findPdfEngine · disponible significa que puede, no que está", () => 
     const engine = findPdfEngine(only("pandoc", "pdflatex", "tectonic"));
 
     expect(engine!.dependsOn).toBe("tectonic");
+  });
+
+  it("el PDF sigue encendido por omisión: apagarlo es de los specs, no del build", async () => {
+    // Los dos specs que construyen capítulos pasan `pdf: false` porque no
+    // afirman nada del PDF y compilarlo cuesta ~100 s y toca la red. El riesgo
+    // que eso abre es que alguien mueva el valor por omisión y las
+    // construcciones REALES dejen de producir PDF en silencio.
+    //
+    // Esto es una afirmación sobre el texto de la fuente, y su límite es
+    // conocido: no ejercita el build. Se elige a propósito porque ejercitarlo
+    // costaría los ~100 s que este cambio quita. Lo que sí hace es fijar
+    // exactamente esa mutación.
+    const src = readFileSync(
+      join(ROOT, "scripts/eec/build-chapter.mjs"),
+      "utf8",
+    );
+    expect(src).toMatch(/export function build\(\{[^}]*pdf = true[^}]*\}\)/);
   });
 
   it("un conversor sin dependencias se elige por presencia, como antes", async () => {

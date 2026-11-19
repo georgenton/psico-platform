@@ -65,7 +65,11 @@ async function buildChapter(chapter: string): Promise<void> {
   const mod = await import(
     /* @vite-ignore */ join(ROOT, "scripts/eec/build-chapter.mjs")
   );
-  mod.build({ chapter, out: OUT });
+  // Sin PDF: estos tests comprueban FeelVerse, DOCX y EPUB, y no afirman
+  // nada del PDF. Compilarlo cuesta ~100 s por capítulo y, con Tectonic,
+  // descarga paquetes de la red — dos cosas que no deben estar en la ruta
+  // de los tests. La elección de motor tiene su propia prueba enfocada.
+  mod.build({ chapter, out: OUT, pdf: false });
 }
 
 const readJson = <T>(p: string): T => JSON.parse(readFileSync(p, "utf8")) as T;

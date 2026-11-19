@@ -444,7 +444,22 @@ export function findPdfEngine(exists = binaryExists) {
 }
 
 // ── main ───────────────────────────────────────────────────────────────────
-export function build({ chapter, out }) {
+/**
+ * `pdf` existe por una razón medida, no por gusto de configurar.
+ *
+ * Compilar el PDF cuesta ~100 s por capítulo y, con Tectonic, **descarga
+ * paquetes LaTeX de la red**. Los dos specs que construyen capítulos no
+ * afirman nada sobre el PDF: comprueban FeelVerse, DOCX y EPUB. Dejarlo
+ * encendido ahí añadía minutos a cada `pnpm test` —y por tanto a cada
+ * `git push`— y metía la red en la ruta de los tests, que es justo donde no
+ * debe estar.
+ *
+ * La elección de motor tiene su propia prueba enfocada
+ * (`pdf-engine-selection.spec.ts`), así que apagarlo en los specs no deja de
+ * comprobar nada. En la línea de órdenes sigue encendido: ahí producir el PDF
+ * es el objetivo.
+ */
+export function build({ chapter, out, pdf = true }) {
   const src = join(ROOT, "content/books/eec", chapter);
   const unit = JSON.parse(readFileSync(join(src, "unit.json"), "utf8"));
   const version = unit.canonical_version.match(/_v([\d.]+)_/)?.[1] ?? "1.0";
@@ -694,19 +709,35 @@ export function build({ chapter, out }) {
   zipDir(epubTmp, epub, "mimetype", canonicalDate);
   report.outputs.epub = relative(ROOT, epub);
 
-  // 3d · PDF, solo con un motor real.
-  const pdfEngine = findPdfEngine();
-  if (pdfEngine) {
-    const pdf = join(dest, `print/EEC_${chapter}_PRINT_v${version}_READY.pdf`);
-    execFileSync(pdfEngine.bin, pdfEngine.args(docx, pdf), { cwd: ROOT });
+  // 3d · PDF, solo con un motor real — y sólo si se pide.
+  const pdfEngine = pdf ? findPdfEngine() : null;
+  if (!pdf) {
+    report.outputs.pdf = null;
+    report.checks.pdfEngine = null;
+    report.checks.pdfLatexEngine = null;
+    report.blockers.push({
+      code: "SKIPPED_PDF_NOT_REQUESTED",
+      detail:
+        "El PDF no se pidió en esta construcción. No es que falte un motor: " +
+        "nadie lo solicitó.",
+    });
+  } else if (pdfEngine) {
+    // `pdfPath`, no `pdf`: el parámetro de la función ya se llama así y
+    // sombrearlo aquí haría ilegible cuál de los dos manda.
+    const pdfPath = join(
+      dest,
+      `print/EEC_${chapter}_PRINT_v${version}_READY.pdf`,
+    );
+    execFileSync(pdfEngine.bin, pdfEngine.args(docx, pdfPath), { cwd: ROOT });
     if (pdfEngine.producesSourceName) {
       const produced = docx.replace(/\.docx$/, ".pdf");
-      if (produced !== pdf && existsSync(produced)) renameSync(produced, pdf);
+      if (produced !== pdfPath && existsSync(produced))
+        renameSync(produced, pdfPath);
     }
-    if (!existsSync(pdf)) {
+    if (!existsSync(pdfPath)) {
       throw new Error(`PDF_ENGINE_PRODUCED_NOTHING:${pdfEngine.bin}`);
     }
-    report.outputs.pdf = relative(ROOT, pdf);
+    report.outputs.pdf = relative(ROOT, pdfPath);
     report.checks.pdfEngine = pdfEngine.bin;
     report.checks.pdfLatexEngine = pdfEngine.dependsOn ?? null;
   } else {

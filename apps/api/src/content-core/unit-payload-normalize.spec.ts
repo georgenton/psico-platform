@@ -55,7 +55,8 @@ async function buildC01(): Promise<PayloadBlock[]> {
   const mod = (await import(
     /* @vite-ignore */ join(ROOT, "scripts/eec/build-chapter.mjs")
   )) as { build: (a: { chapter: string; out: string }) => void };
-  mod.build({ chapter: "C01", out: OUT });
+  // Sin PDF: ver la nota en eec-chapter-build.spec.ts.
+  mod.build({ chapter: "C01", out: OUT, pdf: false });
   const payload = JSON.parse(
     readFileSync(
       join(ROOT, OUT, "eec/C01", versionDeC01(), "feelverse/unit-payload.json"),

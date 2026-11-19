@@ -1,6 +1,6 @@
 # Correo — qué falta para que alguien recupere su cuenta
 
-> Ficha corta, para decidir en una pantalla. Corte del **2026-11-18**.
+> Ficha corta, para decidir en una pantalla. Corte del **2026-11-19**.
 >
 > El recorrido completo de operación está en
 > [runbook §2.5.1](../deploy/coolify-runbook.md); el tramo hasta producción, en
@@ -13,17 +13,21 @@ Lo que se sabe del correo son cuatro cosas separadas, y cada una se acredita con
 una fuente distinta. Resumirlas en un «el correo está / no está» fue el error
 que esta ficha arrastró dos cortes.
 
-| #   | Pregunta                                                 | Quién la contesta                       | Hoy                                                     |
-| --- | -------------------------------------------------------- | --------------------------------------- | ------------------------------------------------------- |
-| 1   | ¿Qué hay publicado en el **DNS** del dominio?            | el DNS público — no necesita credencial | ✅ **comprobado**: no hay nada de Resend                |
-| 2   | ¿Qué registros **exactos** pide la cuenta de Resend?     | sólo la cuenta, en su pestaña Records   | ❓ **no comprobado** — no tenemos acceso                |
-| 3   | ¿El proveedor marca el dominio **verificado**?           | sólo la cuenta                          | ❓ **no comprobado**                                    |
-| 4   | ¿**Llega** un mensaje y se recupera el acceso de verdad? | una entrega real a una bandeja real     | ❌ **no**, y es la única que acredita que esto funciona |
+| #   | Pregunta                                                 | Quién la contesta                       | Hoy                                                                              |
+| --- | -------------------------------------------------------- | --------------------------------------- | -------------------------------------------------------------------------------- |
+| 1   | ¿Qué hay publicado en el **DNS** del dominio?            | el DNS público — no necesita credencial | ✅ **consultado**: en los **cinco nombres** que se miraron no hay nada de Resend |
+| 2   | ¿Qué registros **exactos** pide la cuenta de Resend?     | sólo la cuenta, en su pestaña Records   | ❓ **no comprobado** — no tenemos acceso                                         |
+| 3   | ¿El proveedor marca el dominio **verificado**?           | sólo la cuenta                          | ❓ **no comprobado**                                                             |
+| 4   | ¿**Llega** un mensaje y se recupera el acceso de verdad? | una entrega real a una bandeja real     | ❌ **no**, y es la única que acredita que esto funciona                          |
 
-**La 1 no implica la 2.** Que en el DNS no haya nada de Resend demuestra que
-**hoy no se puede enviar** desde `@feelverse.app`; **no** demuestra qué hay
-dentro de la cuenta. Alguien pudo añadir el dominio y no publicar los registros,
-y en ese caso la 2 ya está contestada y nosotros no lo sabemos.
+**La 1 no implica la 2.** Lo que la consulta acredita es **ausencia en los
+cinco nombres que se miraron** — los que Resend usaba cuando se escribió esto.
+Su propia documentación advierte que para dominios creados después de agosto de
+2026 **puede pedir CNAME** en vez del par MX/TXT, así que la ausencia de estos
+cinco no dice nada sobre otros nombres. Lo que la cuenta pide, y si ya lo marcó
+verificado, vive dentro de la cuenta: alguien pudo añadir el dominio y no
+publicar los registros, y en ese caso la 2 ya está contestada y nosotros no lo
+sabemos.
 
 **Y la 3 no implica la 4.** Un dominio verificado dice que el proveedor acepta
 firmar nuestros mensajes. Que Resend acepte la petición dice que el mensaje

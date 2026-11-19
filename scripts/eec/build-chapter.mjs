@@ -351,10 +351,27 @@ ${bibHtml}
  * WeasyPrint, además, ni siquiera lee DOCX — solo HTML —, así que aquí no
  * figura como conversor de este build.
  */
+/**
+ * Motores LaTeX que Pandoc sabe conducir, en orden de preferencia. Tectonic va
+ * primero porque se basta solo: trae lo que necesita y no exige una
+ * instalación de TeX Live completa.
+ */
+const LATEX_ENGINES = ["tectonic", "xelatex", "lualatex", "pdflatex"];
+
 const PDF_ENGINES = [
   {
     bin: "pandoc",
-    args: (docx, pdf) => [docx, "--to=pdf", "-o", pdf],
+    // Pandoc NO produce un PDF por sí mismo: delega en un motor LaTeX. Que el
+    // binario esté en el PATH no dice que pueda; sin motor debajo revienta el
+    // build entero con «'pdflatex' not found» a media construcción.
+    needs: (exists) => LATEX_ENGINES.find((bin) => exists(bin)) ?? null,
+    args: (docx, pdf, latex) => [
+      docx,
+      "--to=pdf",
+      `--pdf-engine=${latex}`,
+      "-o",
+      pdf,
+    ],
     reads: "docx",
   },
   {
@@ -387,14 +404,41 @@ const PDF_ENGINES = [
   },
 ];
 
-function findPdfEngine() {
+function binaryExists(bin) {
+  try {
+    execFileSync("which", [bin], { stdio: "pipe" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * «Disponible» es poder producir un PDF, no que el binario esté en el PATH.
+ *
+ * La versión anterior devolvía el primer binario encontrado, y con Pandoc eso
+ * era un falso positivo: Pandoc está instalado, no hay motor LaTeX debajo, y
+ * el build muere en vez de dejar paso al siguiente conversor. El `else` de
+ * más abajo ya describía la intención correcta —«Ni pandoc/LaTeX ni
+ * LibreOffice»—; lo que faltaba era comprobar la mitad LaTeX.
+ *
+ * Devolver `null` es un estado declarado: el build sigue sin PDF y lo anota
+ * como bloqueo. Eso es preferible a elegir un motor que no puede.
+ *
+ * `exists` se inyecta para poder probar la decisión sin depender de lo que
+ * tenga instalado la máquina que corre los tests.
+ */
+export function findPdfEngine(exists = binaryExists) {
   for (const engine of PDF_ENGINES) {
-    try {
-      execFileSync("which", [engine.bin], { stdio: "pipe" });
-      return engine;
-    } catch {
-      /* siguiente */
-    }
+    if (!exists(engine.bin)) continue;
+    if (!engine.needs) return engine;
+    const dep = engine.needs(exists);
+    if (!dep) continue; // está, y no puede: no es un motor real
+    return {
+      ...engine,
+      dependsOn: dep,
+      args: (docx, pdf) => engine.args(docx, pdf, dep),
+    };
   }
   return null;
 }
@@ -664,9 +708,11 @@ export function build({ chapter, out }) {
     }
     report.outputs.pdf = relative(ROOT, pdf);
     report.checks.pdfEngine = pdfEngine.bin;
+    report.checks.pdfLatexEngine = pdfEngine.dependsOn ?? null;
   } else {
     report.outputs.pdf = null;
     report.checks.pdfEngine = null;
+    report.checks.pdfLatexEngine = null;
     report.blockers.push({
       code: "SKIPPED_NO_RELIABLE_PDF_ENGINE",
       detail:

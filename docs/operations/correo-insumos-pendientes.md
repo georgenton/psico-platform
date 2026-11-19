@@ -67,8 +67,21 @@ Después de eso, lo que queda es ejecución:
 4. Recorrer la recuperación de verdad: **solicitar → recibir → abrir el enlace
    → contraseña nueva → entrar con ella**, más que el enlace usado deja de
    valer y que la contraseña anterior deja de valer.
-5. Comprobar el envío del **worker** por un camino dirigido, y que no salió
-   nada a ninguna otra dirección.
+5. Comprobar un envío real **del worker**, que la recuperación no acredita —
+   esa la manda la API. El camino es la **exportación de datos**:
+   `POST /api/user/data-export` desde el perfil de la cuenta QA →
+   `DataExportProcessor` **en el worker** → R2 → correo a la dirección de esa
+   cuenta, con enlace a `APP_URL`.
+
+   > **No sirve el cambio de correo hacia la propia dirección.**
+   > `users.service.ts:518-522` lanza `ConflictException("Email already in use")`
+   > si **cualquier** usuario tiene esa dirección — incluido el que la pide. Da
+   > **409 antes de encolar nada**, así que no produce ningún envío. Y la
+   > exportación tiene **enfriamiento de 30 días por cuenta**: hay un intento,
+   > conviene no gastarlo por error.
+
+6. Comprobar que **no salió nada a ninguna otra dirección**, contrastando los
+   registros del proveedor con los de la aplicación.
 
 > **Dos trampas que cuestan una hora si no están escritas.**
 >

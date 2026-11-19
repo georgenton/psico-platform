@@ -1,254 +1,190 @@
-# Correo — qué falta para que alguien recupere su cuenta
+# Correo — estado y el paso que falta
 
-> Ficha corta, para decidir en una pantalla. Corte del **2026-11-19**.
+> Ficha corta, para decidir en una pantalla. Corte del **2026-11-19 por la
+> tarde**, después de ejecutar el frente de correo.
 >
 > El recorrido completo de operación está en
 > [runbook §2.5.1](../deploy/coolify-runbook.md); el tramo hasta producción, en
-> §4.1 del mismo documento. Esto es sólo el inventario de lo que falta y dónde
-> ponerlo.
+> §4.1 del mismo documento.
 
-## 0 · Cuatro preguntas distintas, y conviene no colapsarlas
+## 0 · Qué cambió hoy
 
-Lo que se sabe del correo son cuatro cosas separadas, y cada una se acredita con
-una fuente distinta. Resumirlas en un «el correo está / no está» fue el error
-que esta ficha arrastró dos cortes.
+Esta ficha nació como un inventario de **tres insumos ausentes**. Dos de los
+tres dejaron de faltar y el tercero existe pero no está colocado:
 
-| #   | Pregunta                                                 | Quién la contesta                       | Hoy                                                                              |
-| --- | -------------------------------------------------------- | --------------------------------------- | -------------------------------------------------------------------------------- |
-| 1   | ¿Qué hay publicado en el **DNS** del dominio?            | el DNS público — no necesita credencial | ✅ **consultado**: en los **cinco nombres** que se miraron no hay nada de Resend |
-| 2   | ¿Qué registros **exactos** pide la cuenta de Resend?     | sólo la cuenta, en su pestaña Records   | ❓ **no comprobado** — no tenemos acceso                                         |
-| 3   | ¿El proveedor marca el dominio **verificado**?           | sólo la cuenta                          | ❓ **no comprobado**                                                             |
-| 4   | ¿**Llega** un mensaje y se recupera el acceso de verdad? | una entrega real a una bandeja real     | ❌ **no**, y es la única que acredita que esto funciona                          |
+| Antes del 19-11                             | Hoy                                                                                  |
+| ------------------------------------------- | ------------------------------------------------------------------------------------ |
+| Credencial de Resend **ausente**            | **creada**, sólo envío, limitada a `feelverse.app` — falta **pegarla** en Coolify    |
+| `feelverse.app` **sin comprobar** en Resend | **verificado** por el proveedor                                                      |
+| Bandeja real autorizada **inexistente**     | `qa@syntavera.dev`, buzón compartido real, comprobado que recibe y que Jorge lo abre |
 
-**La 1 no implica la 2.** Lo que la consulta acredita es **ausencia en los
-cinco nombres que se miraron** — los que Resend usaba cuando se escribió esto.
-Su propia documentación advierte que para dominios creados después de agosto de
-2026 **puede pedir CNAME** en vez del par MX/TXT, así que la ausencia de estos
-cinco no dice nada sobre otros nombres. Lo que la cuenta pide, y si ya lo marcó
-verificado, vive dentro de la cuenta: alguien pudo añadir el dominio y no
-publicar los registros, y en ese caso la 2 ya está contestada y nosotros no lo
-sabemos.
+**La decisión de arquitectura queda registrada:** Microsoft 365 para las
+bandejas que administra Syntavera; **Resend** para los mensajes automáticos de
+FeelVerse; OVH con Coolify como única infraestructura.
+
+## 1 · Cuatro preguntas distintas, y conviene no colapsarlas
+
+Lo que se sabe del correo son cuatro cosas separadas, cada una con su fuente.
+Resumirlas en un «el correo está / no está» fue el error que esta ficha
+arrastró dos cortes.
+
+| #   | Pregunta                                                 | Quién la contesta                       | Hoy                                                                |
+| --- | -------------------------------------------------------- | --------------------------------------- | ------------------------------------------------------------------ |
+| 1   | ¿Qué hay publicado en el **DNS** del dominio?            | el DNS público — no necesita credencial | ✅ **los cuatro registros de Resend, publicados y propagados**     |
+| 2   | ¿Qué registros **exactos** pide la cuenta de Resend?     | sólo la cuenta, en su pestaña Records   | ✅ **conocidos y publicados** — ver §3                             |
+| 3   | ¿El proveedor marca el dominio **verificado**?           | sólo la cuenta                          | ✅ **Verified**, 19-11                                             |
+| 4   | ¿**Llega** un mensaje y se recupera el acceso de verdad? | una entrega real a una bandeja real     | ❌ **todavía no** — y sigue siendo la única que acredita que sirve |
+
+**La 2 confirmó la advertencia que esta ficha llevaba escrita.** Resend generó
+**CNAME** (`rsend`, `send`) en vez del par MX/TXT, exactamente el caso que su
+documentación anuncia para dominios recientes. Haber escrito aquí una receta
+genérica de nombres habría producido registros equivocados; pedirlos a la
+cuenta era el único camino correcto.
 
 **Y la 3 no implica la 4.** Un dominio verificado dice que el proveedor acepta
-firmar nuestros mensajes. Que Resend acepte la petición dice que el mensaje
-**salió**. Lo único que acredita el recorrido es que una persona **recibió** el
-enlace y **volvió a entrar** con su contraseña nueva.
-
-**Las tres cosas que esta ficha separa a propósito**, porque se confunden con
-facilidad: **guarda comprobada** (nuestra, hecha — ver §3), **proveedor
-verificado** (de la cuenta, pendiente) y **recepción comprobada** (de una
-entrega real, pendiente). Las dos últimas dependen de insumos que no están aquí.
-
-**Por qué importa, en una frase:** hoy, una persona que olvide su contraseña
-**no recupera su cuenta**. Crear otra no es recuperarla — el diario de la
-primera sigue cifrado donde estaba y la nueva empieza vacía. Es el único
-pendiente que bloquea el piloto.
+firmar nuestros mensajes. Lo único que acredita el recorrido es que una persona
+**recibió** el enlace y **volvió a entrar** con su contraseña nueva.
 
 ---
 
-## 1 · Qué falta exactamente
+## 2 · Lo único que falta
 
-Comprobado el 2026-11-17 en **dos** sitios, porque no son equivalentes: la lista
-de variables de los tres recursos de Coolify (donde el token de lectura redacta
-los valores, así que no distingue «ausente» de «vacía») **y dentro del
-contenedor servido**, que sí lo distingue.
+**Pegar el valor de la credencial** como `RESEND_API_KEY` en los dos recursos
+de Coolify: `feelverse-staging-api` y `feelverse-staging-worker`. La Web no
+manda correo y no necesita nada.
 
-| Insumo                          | Estado hoy                                                                                                                                                                         |
-| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Credencial de Resend**        | **ausente** en API, Web y worker, y ausente dentro del contenedor. Tampoco hay ninguna en el almacén de operaciones                                                                |
-| **`feelverse.app` verificado**  | **No comprobado** — lo dice la cuenta de Resend, y no tenemos acceso. Lo que sí está comprobado (18-11, por DNS) es que **en los cinco nombres consultados no hay nada de Resend** |
-| **Una bandeja real autorizada** | **no existe.** El único fichero con «correo» en el nombre del almacén de operaciones es una cuenta de aplicación en `@psico.test`, que por la RFC 2606 **no puede recibir**        |
-| **Remitente** (`EMAIL_FROM`)    | **ausente**, así que hoy toma el valor por omisión `no-reply@feelverse.app`. El informe de salud delata que nadie lo eligió                                                        |
+La credencial ya existe en Resend con el nombre **`feelverse-staging`**,
+permiso **sólo envío** y **limitada a `feelverse.app`**. Su valor no se
+transcribe en este repositorio, ni en Notion, ni en ningún informe: una clave
+de API se pega directamente en el panel protegido y en ningún otro sitio.
 
-Los tres primeros son tuyos. El cuarto se resuelve con el segundo: fijarlo a
-mano sólo tiene sentido cuando el dominio esté verificado.
+Después de eso, lo que queda es ejecución:
 
-> **Dos estados que conviene no confundir, porque uno es un hecho y el otro una
-> laguna.** La credencial y la bandeja están **comprobadas ausentes**: busqué
-> donde tendrían que estar y no están. Resumirlas junto con el dominio como «las
-> tres ausentes» —que es lo que hice el 17-11— convertía un «no lo sé» en un «no
-> hay».
+1. `EMAIL_FROM=no-reply@feelverse.app` en los dos recursos.
+2. Desplegar **API y worker** (la Web no).
+3. Comprobar que el arranque pasa de `sin RESEND_API_KEY` a «restringido a 1
+   destinatario» y que `GET /api/health/integrations` dice `allowlisted`.
+4. Recorrer la recuperación de verdad: **solicitar → recibir → abrir el enlace
+   → contraseña nueva → entrar con ella**, más que el enlace usado deja de
+   valer y que la contraseña anterior deja de valer.
+5. Comprobar un envío real **del worker**, que la recuperación no acredita —
+   esa la manda la API. El camino es la **exportación de datos**:
+   `POST /api/user/data-export` desde el perfil de la cuenta QA →
+   `DataExportProcessor` **en el worker** → R2 → correo a la dirección de esa
+   cuenta, con enlace a `APP_URL`.
 
-### El dominio: lo que el DNS sí acredita, y lo que no
+   > **No sirve el cambio de correo hacia la propia dirección.**
+   > `users.service.ts:518-522` lanza `ConflictException("Email already in use")`
+   > si **cualquier** usuario tiene esa dirección — incluido el que la pide. Da
+   > **409 antes de encolar nada**, así que no produce ningún envío. Y la
+   > exportación tiene **enfriamiento de 30 días por cuenta**: hay un intento,
+   > conviene no gastarlo por error.
 
-El DNS público es la fuente que mira un servidor que recibe, y no necesita
-credencial. Lo que acredita es la **pregunta 1** de arriba: qué hay publicado.
-No es «la configuración de Resend» — eso es la pregunta 2, y vive en la cuenta.
-Consultado el **2026-11-18**, con control positivo y negativo:
+6. Comprobar que **no salió nada a ninguna otra dirección**, contrastando los
+   registros del proveedor con los de la aplicación.
 
-| Nombre consultado                     | Qué hay hoy                                                                                   |
-| ------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `feelverse.app` TXT (SPF)             | `v=spf1 include:spf.efwd.registrar-servers.com ~all` — **reenvío del registrador**, no Resend |
-| `feelverse.app` MX                    | `eforward1…5.registrar-servers.com` — reenvío del registrador                                 |
-| `resend._domainkey.feelverse.app` TXT | **sin registro**                                                                              |
-| `send.feelverse.app` TXT / MX         | **sin registro**                                                                              |
-| `_dmarc.feelverse.app` TXT            | **sin registro**                                                                              |
-
-Las cinco filas de arriba son **las que se consultaron**, elegidas porque son
-los nombres que Resend usaba cuando se escribió esto: dos que el dominio ya
-tiene (el SPF y los MX del ápice, del registrador) y tres que estarían si
-estuviera configurado para enviar. No son «los registros que pide la cuenta»:
-eso es la pregunta 2, y sólo la contesta su pestaña de registros.
-
-**Lo que acredita:** en los cinco nombres consultados **no hay nada de Resend
-publicado**. **Lo que no acredita**, y conviene no estirarlo —es el límite que
-señaló la revisión del 18-11—: ni la **configuración exacta** que ese dominio
-necesita, ni el **estado del proveedor**. Las dos cosas viven en la cuenta.
-
-Y el motivo de ese límite es concreto, no una cautela de cortesía: los cinco
-nombres son los que Resend usaba cuando se escribió esto, y su propia
-documentación advierte que para dominios creados después de agosto de 2026
-**puede generar registros CNAME** en vez del par MX/TXT. Si la cuenta pidiera
-otros nombres, la ausencia de estos cinco no diría nada sobre ellos. Así que la
-lectura correcta es «falta lo que buscamos», no «el dominio no está
-configurado».
-
-**Y una cosa útil de paso:** el dominio **sí** tiene reenvío de correo
-configurado en el registrador. Eso hace plausible que una dirección
-`@feelverse.app` reciba, pero **no lo doy por hecho ni lo uso**: cuál es la
-bandeja autorizada lo dices tú.
-
-### El paso concreto, sin receta genérica
-
-Añadir el dominio en Resend y publicar **exactamente los registros que muestre
-la pestaña Records de ese dominio**. No los que diga este documento: la
-documentación de Resend advierte que para dominios creados después de agosto de
-2026 «puede generar registros CNAME para el envío en vez del par MX y TXT», así
-que una receta escrita aquí se habría quedado vieja antes de usarse.
-
-**Lo que NO hay que tocar, y es la parte que importa:** el **SPF del ápice** y
-los **MX del ápice** son el reenvío del registrador y se **conservan**. Los
-registros de envío de Resend van en `send.feelverse.app` y
-`resend._domainkey.feelverse.app`, de modo que no colisionan con lo que el
-dominio ya tiene para recibir — su propia documentación lo dice: «los registros
-MX sólo afectan al subdominio al que están asociados». Sustituir el SPF del
-ápice por el de Resend rompería el reenvío que hoy funciona, y nadie lo ha
-pedido.
-
-Un `_dmarc` aunque sea en `p=none` ayuda a que el correo no acabe en spam, que
-para un restablecimiento de contraseña importa más de lo que parece. Resend no
-lo exige para verificar.
+> **Dos trampas que cuestan una hora si no están escritas.**
+>
+> **`EMAIL_FROM` sólo admite una dirección pelada.** Es `z.string().email()` y
+> la validación es **fatal al arrancar**: con `Nombre <correo@dominio>` la API
+> y el worker **no arrancan**, con `• EMAIL_FROM: Invalid email address`. El
+> nombre visible del remitente se configura en Resend, no aquí.
+>
+> **La lista va antes que la clave.** Si se invierte, hay una ventana con
+> credencial y sin destinatarios declarados. Hoy la lista ya está puesta, así
+> que la clave entra sobre terreno seguro.
 
 ---
 
-## 2 · Dónde incorporarlo, de forma segura
+## 3 · Lo que quedó montado, y por qué así
 
-**En el panel de variables de Coolify**, en los recursos `feelverse-staging-api`
-y `feelverse-staging-worker`. La Web **no** manda correo y no necesita nada.
+### Las bandejas, en Microsoft
 
-- **No** en el repositorio, que es público.
-- **No** en Notion ni en un mensaje.
-- **No** hace falta que nadie dicte la clave en texto: se pega en el panel.
+| Dirección               | Qué es                                   | Licencia        | Acceso              |
+| ----------------------- | ---------------------------------------- | --------------- | ------------------- |
+| `qa@syntavera.dev`      | buzón **compartido** «FeelVerse QA»      | ninguna, gratis | Jorge, acceso total |
+| `soporte@syntavera.dev` | buzón **compartido** «FeelVerse Soporte» | ninguna, gratis | Jorge, acceso total |
 
-Tres variables, y el **orden importa**:
+Son **buzones compartidos**, no usuarios con licencia: no cuestan nada, siguen
+el patrón que la organización ya usaba (había cuatro) y conservan bloqueado el
+inicio de sesión directo. Se comprobó la ida y la vuelta entre los dos y que
+ambos abren en OWA con la identidad de Jorge.
 
-```bash
-# 1 · PRIMERO quién puede recibir, y para la primera prueba la DIRECCIÓN EXACTA
-#     —no un dominio entero—. Sin esto, la clave no abre nada: así no hay ni un
-#     minuto con credencial y sin destinatarios.
-EMAIL_ALLOWLIST=<la dirección exacta autorizada>   # API y worker
+**Por qué en `syntavera.dev` y no en `feelverse.app`.** `feelverse.app` **no
+está añadido en Microsoft**, y su recepción vive hoy en el **reenvío de
+Namecheap** (cinco MX `eforward1..5`). Esa cuenta de registrador **no es
+accesible**, así que los destinos de ese reenvío **no se pueden acreditar** —
+y la regla es que, cuando no se pueden acreditar, sus MX se conservan y el
+recorrido se termina con una bandeja corporativa real. Eso es lo que se hizo.
 
-# 2 · El remitente, cuando el dominio esté verificado en Resend.
-EMAIL_FROM=no-reply@feelverse.app                  # API y worker
+> **El punto pendiente de la dirección de marca.** `qa@feelverse.app` y
+> `soporte@feelverse.app` siguen sin existir. Cuando se decida, hay dos
+> caminos: añadir una regla de reenvío en Namecheap (no cambia ningún MX) o
+> añadir `feelverse.app` a Microsoft y trasladar su recepción (sí lo cambia, y
+> exige antes inventariar los reenvíos existentes). El buzón compartido ya
+> creado puede recibir la dirección de marca como **alias** sin migrar nada.
 
-# 3 · Y por último la credencial.
-RESEND_API_KEY=<...>                               # API y worker
-```
+### El envío, en Resend
 
-`EMAIL_ALLOWLIST` acepta direcciones completas (`alguien@dominio.com`) o
-sufijos con arroba (`@dominio.com`), separados por comas. Un dominio suelto
-(`dominio.com`) se **rechaza** a propósito.
+La cuenta **ya existía** (equipo `georgenton`, de hace ~5 meses, con una
+credencial «Onboarding» sin usar desde hace cuatro). `feelverse.app` quedó
+añadido y **verificado**, región **São Paulo (sa-east-1)**.
 
-**Para la primera prueba va una sola dirección completa.** Un sufijo
-`@dominio.com` autoriza todo el dominio, y en una primera entrega eso es más
-alcance del necesario: lo que hay que demostrar es que un mensaje llega a **esa**
-bandeja. Abrir el dominio es una decisión posterior y aparte.
+### Los registros DNS, y lo que no se tocó
 
-**Y un valor mal escrito no abre nada.** Si la lista tiene contenido y ninguna
-entrada utilizable —un dominio suelto, por ejemplo— no sale correo **en ningún
-entorno**, producción incluida, y el arranque lo dice con la palabra
-`BLOQUEADO`. Es deliberado: un error al escribir una restricción no puede
-terminar permitiendo cualquier destinatario.
+La zona de `feelverse.app` (Cloudflare) pasó de **10 a 14** registros. Los
+cuatro nuevos van todos en **subdominios**:
+
+| Tipo  | Nombre              | Para qué                        |
+| ----- | ------------------- | ------------------------------- |
+| TXT   | `resend._domainkey` | DKIM — verificación del dominio |
+| CNAME | `rsend`             | envío (**dns-only**, sin proxy) |
+| CNAME | `send`              | envío (**dns-only**, sin proxy) |
+| TXT   | `_dmarc`            | `v=DMARC1; p=none;`             |
+
+**No se publicó** el host de «Enable receiving» de Resend: activaría una
+recepción que competiría con la que mantenemos. Queda deliberadamente fuera.
+
+**Revalidado por `dig` después de escribir**, porque es la parte que importa:
+los **cinco MX del ápice**, el **SPF del ápice** y los **tres A** siguen
+exactamente como estaban. El reenvío actual no se rozó.
+
+### La guarda de destinatarios
+
+`EMAIL_ALLOWLIST=qa@syntavera.dev` está escrita en **API y worker**, y se
+escribió **antes** de que existiera ninguna credencial. Comprobada dentro de
+los **dos** contenedores con `scripts/check-mail-recipient.cjs`:
+
+| Dirección probada       | Veredicto de la guarda  |
+| ----------------------- | ----------------------- |
+| la autorizada exacta    | `SÍ SALE (allowlisted)` |
+| con **una letra menos** | `NO SALE`               |
+| un tercero cualquiera   | `NO SALE`               |
+
+Esa tercera fila es, además, la comprobación de rechazo que pide el
+procedimiento **sin invocar al proveedor**: no hace falta mandarle un mensaje a
+nadie para demostrar que se habría bloqueado.
+
+El informe de salud (`GET /api/health/integrations`, ADMIN) **cuenta** los
+destinatarios y nunca los enumera, así que confirma que la guarda restringe y
+**no** confirma cuál es la dirección: sale idéntico con una errata que produzca
+otra dirección válida. Para eso está el guion.
 
 ---
 
-## 3 · Qué está ya preparado
+## 4 · Qué significa cada palabra, para no darlo por hecho
 
-- **La guarda de destinatarios** (2026-11-17). Fuera de producción el correo lo
-  abre `EMAIL_ALLOWLIST`, **no** la credencial: con clave y lista vacía **no
-  sale nada**, y el arranque lo dice. Esto es lo que hace segura la operación de
-  pegar una clave en staging — antes no lo era, porque el **digest semanal** es
-  un cron que escribe a cada cuenta con `weeklyReport=true`.
-- **El remitente por defecto** ya nombra un dominio del producto (2026-11-06).
-  Antes reclamaba uno ajeno, de modo que la primera prueba de una clave nueva
-  habría fallado por eso y habría parecido una clave mala.
-- **Las plantillas y los seis correos** existen y llevan la marca correcta desde
-  el 2026-10-24.
-- **El informe de salud** (`GET /api/health/integrations`, ADMIN) dice en qué
-  estado está todo esto sin exponer ningún valor: `mailRecipients.mode` vale
-  `no-key`, `withheld`, `unusable`, `allowlisted` u `open`, y **cuenta** los
-  destinatarios sin enumerarlos.
+Seis estados, que conviene no mezclar:
 
-**Qué significa «guarda comprobada», exactamente.** Que el mecanismo está
-escrito, con pruebas y mutaciones, y que el arranque y el informe de salud
-derivan del mismo estado. Es nuestra parte y está hecha. **No** significa que
-una entrega haya ocurrido: eso es la pregunta 4, y para ella hacen falta los
-insumos de arriba.
+| Estado                          | Hoy | Qué lo acredita                                     |
+| ------------------------------- | --- | --------------------------------------------------- |
+| **Configurado**                 | ✅  | variables escritas, buzones creados, DNS publicado  |
+| **Verificado por el proveedor** | ✅  | Resend marca `feelverse.app` como Verified          |
+| **Integrado**                   | ✅  | el código del transporte y su guarda, en `main`     |
+| **Desplegado**                  | ✅  | API y worker sirviendo `dbce7e39`, API `ready=true` |
+| **Mensaje recibido**            | ❌  | una entrega real a `qa@syntavera.dev`               |
+| **Recuperación completada**     | ❌  | entrar con la contraseña nueva                      |
 
----
-
-## 4 · Qué queda por ejecutar cuando lleguen
-
-Los cinco pasos son míos. **No llevan duración cerrada**: cuánto tarda depende
-de cuándo se verifique el dominio en el proveedor y de si la primera entrega
-llega a la bandeja o al spam, y nada de eso se decide desde aquí. El paso 1 son
-minutos; el 4 puede necesitar una segunda vuelta por DMARC o por reputación del
-dominio.
-
-1. Escribir las tres variables en el orden de arriba, en API y worker.
-2. Desplegar **API y worker** (la Web no manda correo).
-3. Comprobar en el arranque que el estado pasa de `RETENIDO` a «restringido a 1
-   destinatario», y que `GET /api/health/integrations` dice `allowlisted`.
-
-   > **Qué acredita esa comprobación, exactamente.** Que hay una lista y
-   > cuántas entradas tiene — **no cuáles**. El informe cuenta y nunca enumera,
-   > a propósito: una dirección es un dato personal y ese informe lo lee
-   > cualquier ADMIN. Así que `recipients: 1` confirma que la guarda está
-   > restringiendo, y **no** confirma que la dirección sea la correcta: sale
-   > idéntico con una errata de una letra que produzca otra dirección válida.
-
-   Y por eso hay un **3bis**, que es el que sí acredita la dirección exacta:
-
-   ```bash
-   printf '%s' "$DIRECCION" | sudo docker exec -i <contenedor> sh -lc \
-     'cd /app/apps/api && /mise/installs/node/20/bin/node scripts/check-mail-recipient.cjs'
-   ```
-
-   Le pregunta a la **guarda compilada del propio contenedor** —la misma que
-   decide el envío, así que no puede discrepar con ella— si un mensaje a esa
-   dirección saldría. Se corre en los **dos** procesos, el de la API y el del
-   worker. La dirección entra por **stdin**, no por argumento: no queda en el
-   historial ni la ve un `ps`, y la salida es un veredicto, nunca el valor.
-   Comprobado contra los contenedores reales, con control positivo y con la
-   errata de una letra, que el informe de salud no distingue y esto sí.
-
-   Lo que **ni una ni otra** acreditan es que el mensaje **llegue**. Eso es el
-   paso 4.
-
-   > **El guion viaja en la imagen**, en `apps/api/scripts/`, y los dos
-   > contenedores lo llevan. El que sirve hoy (`c19358a4`) es anterior a él, así
-   > que estará disponible tras el despliegue del paso 2 — que es obligatorio de
-   > todas formas para que las variables surtan efecto, de modo que el orden
-   > encaja sin pasos extra.
-
-4. Recorrer la recuperación de verdad, en la bandeja autorizada:
-   **solicitar → recibir → abrir el enlace → contraseña nueva → entrar con
-   ella**, y comprobar que el enlace **usado deja de valer** y que la contraseña
-   **anterior deja de valer**.
-5. Comprobar que **no salió nada a ninguna otra dirección**.
-
-**La aceptación es que una persona recupera el acceso.** Una variable puesta no
-basta, y tampoco basta que Resend acepte la petición: eso dice que el mensaje
-salió, no que llegó. Los tres hitos se informan por separado —guarda
-comprobada, proveedor verificado, recepción comprobada— y sólo el tercero cierra
-la puerta 1 del tramo a producción.
+**La aceptación es la última fila.** Una variable puesta no basta, y tampoco
+basta que Resend acepte la petición: eso dice que el mensaje salió, no que
+llegó.

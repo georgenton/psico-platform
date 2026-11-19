@@ -351,10 +351,27 @@ ${bibHtml}
  * WeasyPrint, además, ni siquiera lee DOCX — solo HTML —, así que aquí no
  * figura como conversor de este build.
  */
+/**
+ * Motores LaTeX que Pandoc sabe conducir, en orden de preferencia. Tectonic va
+ * primero porque se basta solo: trae lo que necesita y no exige una
+ * instalación de TeX Live completa.
+ */
+const LATEX_ENGINES = ["tectonic", "xelatex", "lualatex", "pdflatex"];
+
 const PDF_ENGINES = [
   {
     bin: "pandoc",
-    args: (docx, pdf) => [docx, "--to=pdf", "-o", pdf],
+    // Pandoc NO produce un PDF por sí mismo: delega en un motor LaTeX. Que el
+    // binario esté en el PATH no dice que pueda; sin motor debajo revienta el
+    // build entero con «'pdflatex' not found» a media construcción.
+    needs: (exists) => LATEX_ENGINES.find((bin) => exists(bin)) ?? null,
+    args: (docx, pdf, latex) => [
+      docx,
+      "--to=pdf",
+      `--pdf-engine=${latex}`,
+      "-o",
+      pdf,
+    ],
     reads: "docx",
   },
   {
@@ -387,20 +404,62 @@ const PDF_ENGINES = [
   },
 ];
 
-function findPdfEngine() {
+function binaryExists(bin) {
+  try {
+    execFileSync("which", [bin], { stdio: "pipe" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * «Disponible» es poder producir un PDF, no que el binario esté en el PATH.
+ *
+ * La versión anterior devolvía el primer binario encontrado, y con Pandoc eso
+ * era un falso positivo: Pandoc está instalado, no hay motor LaTeX debajo, y
+ * el build muere en vez de dejar paso al siguiente conversor. El `else` de
+ * más abajo ya describía la intención correcta —«Ni pandoc/LaTeX ni
+ * LibreOffice»—; lo que faltaba era comprobar la mitad LaTeX.
+ *
+ * Devolver `null` es un estado declarado: el build sigue sin PDF y lo anota
+ * como bloqueo. Eso es preferible a elegir un motor que no puede.
+ *
+ * `exists` se inyecta para poder probar la decisión sin depender de lo que
+ * tenga instalado la máquina que corre los tests.
+ */
+export function findPdfEngine(exists = binaryExists) {
   for (const engine of PDF_ENGINES) {
-    try {
-      execFileSync("which", [engine.bin], { stdio: "pipe" });
-      return engine;
-    } catch {
-      /* siguiente */
-    }
+    if (!exists(engine.bin)) continue;
+    if (!engine.needs) return engine;
+    const dep = engine.needs(exists);
+    if (!dep) continue; // está, y no puede: no es un motor real
+    return {
+      ...engine,
+      dependsOn: dep,
+      args: (docx, pdf) => engine.args(docx, pdf, dep),
+    };
   }
   return null;
 }
 
 // ── main ───────────────────────────────────────────────────────────────────
-export function build({ chapter, out }) {
+/**
+ * `pdf` existe por una razón medida, no por gusto de configurar.
+ *
+ * Compilar el PDF cuesta ~100 s por capítulo y, con Tectonic, **descarga
+ * paquetes LaTeX de la red**. Los dos specs que construyen capítulos no
+ * afirman nada sobre el PDF: comprueban FeelVerse, DOCX y EPUB. Dejarlo
+ * encendido ahí añadía minutos a cada `pnpm test` —y por tanto a cada
+ * `git push`— y metía la red en la ruta de los tests, que es justo donde no
+ * debe estar.
+ *
+ * La elección de motor tiene su propia prueba enfocada
+ * (`pdf-engine-selection.spec.ts`), así que apagarlo en los specs no deja de
+ * comprobar nada. En la línea de órdenes sigue encendido: ahí producir el PDF
+ * es el objetivo.
+ */
+export function build({ chapter, out, pdf = true }) {
   const src = join(ROOT, "content/books/eec", chapter);
   const unit = JSON.parse(readFileSync(join(src, "unit.json"), "utf8"));
   const version = unit.canonical_version.match(/_v([\d.]+)_/)?.[1] ?? "1.0";
@@ -650,23 +709,41 @@ export function build({ chapter, out }) {
   zipDir(epubTmp, epub, "mimetype", canonicalDate);
   report.outputs.epub = relative(ROOT, epub);
 
-  // 3d · PDF, solo con un motor real.
-  const pdfEngine = findPdfEngine();
-  if (pdfEngine) {
-    const pdf = join(dest, `print/EEC_${chapter}_PRINT_v${version}_READY.pdf`);
-    execFileSync(pdfEngine.bin, pdfEngine.args(docx, pdf), { cwd: ROOT });
+  // 3d · PDF, solo con un motor real — y sólo si se pide.
+  const pdfEngine = pdf ? findPdfEngine() : null;
+  if (!pdf) {
+    report.outputs.pdf = null;
+    report.checks.pdfEngine = null;
+    report.checks.pdfLatexEngine = null;
+    report.blockers.push({
+      code: "SKIPPED_PDF_NOT_REQUESTED",
+      detail:
+        "El PDF no se pidió en esta construcción. No es que falte un motor: " +
+        "nadie lo solicitó.",
+    });
+  } else if (pdfEngine) {
+    // `pdfPath`, no `pdf`: el parámetro de la función ya se llama así y
+    // sombrearlo aquí haría ilegible cuál de los dos manda.
+    const pdfPath = join(
+      dest,
+      `print/EEC_${chapter}_PRINT_v${version}_READY.pdf`,
+    );
+    execFileSync(pdfEngine.bin, pdfEngine.args(docx, pdfPath), { cwd: ROOT });
     if (pdfEngine.producesSourceName) {
       const produced = docx.replace(/\.docx$/, ".pdf");
-      if (produced !== pdf && existsSync(produced)) renameSync(produced, pdf);
+      if (produced !== pdfPath && existsSync(produced))
+        renameSync(produced, pdfPath);
     }
-    if (!existsSync(pdf)) {
+    if (!existsSync(pdfPath)) {
       throw new Error(`PDF_ENGINE_PRODUCED_NOTHING:${pdfEngine.bin}`);
     }
-    report.outputs.pdf = relative(ROOT, pdf);
+    report.outputs.pdf = relative(ROOT, pdfPath);
     report.checks.pdfEngine = pdfEngine.bin;
+    report.checks.pdfLatexEngine = pdfEngine.dependsOn ?? null;
   } else {
     report.outputs.pdf = null;
     report.checks.pdfEngine = null;
+    report.checks.pdfLatexEngine = null;
     report.blockers.push({
       code: "SKIPPED_NO_RELIABLE_PDF_ENGINE",
       detail:

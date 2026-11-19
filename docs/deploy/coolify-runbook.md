@@ -714,11 +714,52 @@ if (process.env.R2_BUCKET_NAME !== EXPECTED) process.exit(3);
 El fichero va a `/app/apps/api/` y no a `/tmp`: Node resuelve `node_modules` desde el
 directorio del script hacia arriba, y desde `/tmp` no encuentra `@aws-sdk/client-s3`.
 
-#### 2.5.1 Correo: incorporar la credencial sin escribir a nadie más
+#### 2.5.1 Correo: seis estados, y los dos que faltan
 
-**La clave sola no es el interruptor, y por diseño.** Hasta el 2026-11-17 sí lo
-era, y eso hacía insegura la operación más sencilla del mundo: pegar
-`RESEND_API_KEY` en staging.
+El 2026-11-19 este frente dejó de ser «faltan tres insumos». Lo que queda es
+**un paso**, y conviene saber exactamente cuál: «el correo funciona» son en
+realidad seis afirmaciones distintas, y sólo la última le sirve a una persona
+que perdió su contraseña.
+
+| Estado                              | Qué lo acredita                                                                                               | Hoy                                                 |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| **1 · configurado**                 | los registros de envío que pide la cuenta del proveedor, publicados en la zona                                | ✅ 19-11                                            |
+| **2 · verificado por el proveedor** | la **propia cuenta** marca el dominio como verificado; no lo decide un `dig` nuestro                          | ✅ 19-11, 15:25 (UTC-5)                             |
+| **3 · integrado**                   | la guarda de destinatarios resuelta y la bandeja autorizada escrita en los **dos** recursos que mandan correo | ✅ 19-11, comprobado **dentro** de los contenedores |
+| **4 · desplegado**                  | API y worker sirviendo una imagen que lee esas variables                                                      | ✅ 19-11, `dbce7e39`, con `ready=true`              |
+| **5 · mensaje recibido**            | una entrega real en la bandeja autorizada                                                                     | ❌ depende de la credencial                         |
+| **6 · recuperación completada**     | recepción → enlace → contraseña nueva → **acceso con ella**                                                   | ❌ depende del 5                                    |
+
+**El único paso pendiente** es pegar el valor de la credencial de Resend como
+`RESEND_API_KEY` en los dos recursos. Detrás van `EMAIL_FROM`, un despliegue de
+los dos y el recorrido de los estados 5 y 6.
+
+«Integrado» aquí significa que **la decisión de a quién se le puede escribir
+está tomada y escrita donde se lee**. La credencial no cuenta como parte de ese
+estado a propósito: va **después** de la lista, por la razón que explica el
+orden de las escrituras más abajo.
+
+**Y por qué ese paso no lo da el asistente.** Una clave de API no se transcribe
+—ni completa ni en fragmentos—, así que el valor sale de la cuenta de Resend y
+entra en Coolify por tu mano. Todo lo demás de este frente está hecho.
+
+> ##### ⚠️ `EMAIL_FROM` admite sólo la dirección pelada
+>
+> `EMAIL_FROM` se valida como `z.string().email()`, y la validación de entorno
+> es **fatal al arrancar**. Un remitente con nombre —`FeelVerse <no-reply@feelverse.app>`,
+> que es la forma habitual en otros productos— hace que **la API y el worker no
+> arranquen**, con `• EMAIL_FROM: Invalid email address` en el registro. No es
+> un correo que sale mal: son dos servicios que no suben, y con ellos el lector,
+> Eco y el diario.
+>
+> El valor es `no-reply@feelverse.app`: dirección pelada, sin nombre y sin
+> ángulos. Si hace falta un nombre visible, se decide en la plantilla, no aquí.
+
+##### Por qué la clave sola no es el interruptor
+
+**Y es por diseño.** Hasta el 2026-11-17 la clave sí era el interruptor, y eso
+hacía insegura la operación más sencilla del mundo: pegar `RESEND_API_KEY` en
+staging.
 
 Cinco superficies mandan correo, y lo que importa es **quién las dispara**:
 
@@ -753,18 +794,32 @@ Fuera de producción, quien abre el correo es **`EMAIL_ALLOWLIST`**:
 
 Formato: direcciones completas (`qa@dominio.com`) o sufijos con arroba
 (`@dominio.com`), separados por comas. Un dominio suelto (`dominio.com`) se
-**rechaza** a propósito: `endsWith` también aceptaría `x@notdominio.com`. Una
-entrada ilegible no autoriza a nadie y se nombra en el arranque.
+**rechaza** a propósito: `endsWith` también aceptaría `x@notdominio.com`.
 
-**El orden de las escrituras importa**, y es al revés de lo que parece:
+Y la variable tiene **tres** estados, no dos — la confusión entre los dos
+primeros fue un agujero real, cerrado el 17-11:
+
+| Estado       | Qué es                               | Qué hace                                                    |
+| ------------ | ------------------------------------ | ----------------------------------------------------------- |
+| **ausente**  | nadie la puso; una vacía cuenta aquí | en producción abre a tus usuarios, que es lo correcto allí  |
+| **ilegible** | hay valor y nada utilizable          | **no abre en ningún entorno**, producción incluida          |
+| **usable**   | al menos una entrada bien formada    | restringe; mezclar válidas con ilegibles **no amplía** nada |
+
+El arranque dice el estado que sea, y el informe de salud deriva del mismo dato,
+así que no pueden discrepar.
+
+##### El orden de las escrituras: la lista ANTES que la clave
+
+**Es al revés de lo que parece**, y por eso se escribe:
 
 ```bash
-# 1. PRIMERO la lista, en los tres recursos (API, Web no la necesita; worker SÍ:
-#    el digest semanal corre ahí).
-#      EMAIL_ALLOWLIST=<la bandeja autorizada>
-# 2. DESPUÉS la credencial y el remitente:
+# 1. PRIMERO la bandeja autorizada, en los DOS recursos que mandan correo: la
+#    API y el worker. La Web no manda ninguno; el worker SÍ, porque el digest
+#    semanal corre ahí.
+#      EMAIL_ALLOWLIST=<la bandeja autorizada>        ← hecho el 19-11
+# 2. DESPUÉS la credencial y el remitente, en esos mismos dos:
 #      RESEND_API_KEY=<...>   EMAIL_FROM=no-reply@feelverse.app
-# 3. Desplegar API y worker (Web no manda correo).
+# 3. Desplegar API y worker, de uno en uno (§1.5).
 ```
 
 Si se invierte, hay una ventana en la que la clave está puesta y la lista no.
@@ -772,7 +827,15 @@ Esa ventana es **segura por construcción** —sin lista no sale nada fuera de
 producción— pero el arranque la informará como incidencia, que es lo correcto:
 hay clave y el correo está retenido.
 
-Se comprueba sin enviar nada:
+El 19-11 se siguió ese orden de forma literal: `EMAIL_ALLOWLIST=qa@syntavera.dev`
+se escribió en la API (`aft7nt3p6wsormno2cejtavj`) y en el worker
+(`hwxntaqogysfzgt1ehqq3ufl`) **antes de que la credencial existiera**. No es
+ceremonia: así no hay ningún instante en el que la clave esté puesta sin que la
+lista acote a quién se le puede escribir.
+
+##### Cómo se comprueba sin enviar nada
+
+Dos lecturas, y hacen falta las dos. La primera, por HTTP:
 
 ```
 GET /api/health/integrations      (ADMIN) → mailRecipients
@@ -784,12 +847,150 @@ nunca las enumera: una dirección es un dato personal y este informe lo lee
 cualquier ADMIN. El arranque imprime la misma frase en el registro del
 contenedor.
 
-**Y lo que esto NO acredita**: que el dominio esté verificado en Resend, ni que
-un mensaje llegue. Lo primero vive en la cuenta de Resend; lo segundo sólo lo
-demuestra una entrega. La aceptación del recorrido de recuperación de cuenta es
-recepción → enlace → restablecimiento → acceso, con el correo recibido en una
-bandeja real autorizada — nunca en una cuenta `@psico.test`, que por diseño no
-puede recibir.
+La segunda, **dentro** de cada contenedor, con `scripts/check-mail-recipient.cjs`
+y la dirección por `stdin` — que es la que acredita lo que la guarda haría con
+una dirección concreta, no sólo en qué modo está. Resuelve el entorno con el
+mismo `resolveEnvironment()` que usa el servicio, así que no puede discrepar de
+él. Medido el 19-11 en **los dos**, API y worker:
+
+| Caso                                | Resultado               |
+| ----------------------------------- | ----------------------- |
+| la dirección autorizada, exacta     | `SÍ SALE (allowlisted)` |
+| la misma con **una letra cambiada** | `NO SALE`               |
+| un tercero cualquiera               | `NO SALE`               |
+
+Los tres con `estado=usable entradas=1 entorno=staging`. El caso de la errata es
+el que importa: una lista que aceptara «parecido» no sería una lista, y es el
+control que distingue una guarda de una buena intención.
+
+**Y antes de habilitar nada, la cola.** El 19-11 la cola `email` estaba **vacía**
+(`wait`, `delayed` y `failed` a cero), así que no hay trabajo acumulado esperando
+una credencial para salir de golpe en cuanto se escriba. Los `delayed=1` de las
+otras colas son la **única ocurrencia futura** de cada planificador, no trabajo
+atascado: conviene no leerlos como cola pendiente.
+
+`APP_URL=https://staging.feelverse.app` en los dos contenedores, que es de donde
+sale el enlace del digest desde #863 — comprobado ahí mismo, porque un enlace
+correcto en el repositorio y mal en el contenedor se envía igual.
+
+##### Qué hay montado: dos proveedores, dos oficios
+
+Decisión registrada el **2026-11-19**: **Microsoft 365** para las bandejas que
+administra Syntavera, **Resend** para los mensajes automáticos de FeelVerse, y
+**OVH con Coolify** como única infraestructura. No compiten: una cosa es que
+personas lean y escriban correo, y otra que un servicio entregue un enlace de
+restablecimiento a las tres de la mañana.
+
+**Microsoft 365** — inquilino _Syntavera_, con `syntavera.dev` como dominio por
+omisión y verificado, más `syntavera.onmicrosoft.com`. **`feelverse.app` NO está
+añadido en Microsoft**, y es deliberado: ese dominio lo usa Resend para enviar.
+Hay **una sola identidad con licencia**, la de Jorge en `syntavera.dev`; todo lo
+demás son buzones sin licencia, y eso es lo que mantiene el coste en cero.
+
+Dos **buzones compartidos** creados — sin licencia, por tanto sin coste, y con
+el inicio de sesión directo bloqueado por omisión, que es justamente lo que los
+hace buzones y no cuentas:
+
+| Buzón                   | Nombre            | Para                                 |
+| ----------------------- | ----------------- | ------------------------------------ |
+| `qa@syntavera.dev`      | FeelVerse QA      | la bandeja autorizada de este frente |
+| `soporte@syntavera.dev` | FeelVerse Soporte | el canal con las personas del piloto |
+
+Los dos con Jorge como miembro con acceso total, y los dos abiertos en OWA con
+su identidad. La ida y vuelta se comprobó en **los dos sentidos** (QA → soporte,
+y la respuesta de soporte → QA). **Microsoft avisa de hasta 60 minutos** para
+que la delegación surta efecto: QA propagó en minutos y soporte tardó unos 20,
+así que un buzón que «no aparece» recién creado no es un fallo, es propagación.
+
+`syntavera.dev` **recibe en Microsoft**: MX a
+`syntavera-dev.mail.protection.outlook.com`, SPF
+`v=spf1 include:spf.protection.outlook.com -all`, y autodiscover a
+`autodiscover.outlook.com`. **No** tiene DKIM —los selectores `selector1` y
+`selector2` están ausentes— ni DMARC. Es suficiente para **recibir**, que es su
+oficio; queda pendiente el día que ese dominio tenga que **enviar**.
+
+**Resend** — la cuenta **ya existía**: equipo `georgenton`, unos cinco meses de
+antigüedad, con una credencial vieja llamada «Onboarding» que nunca se usó. Se
+entró por la sesión de Google ya autenticada del navegador, sin crear ninguna
+cuenta nueva. `feelverse.app` quedó **añadido y verificado**: región **São Paulo
+(`sa-east-1`)**, Forge listo, DNS verificado a las 15:24 y dominio verificado a
+las 15:25 (UTC-5).
+
+La credencial nueva se llama **`feelverse-staging`** y está acotada por dos
+lados: permiso de **sólo envío** y **limitada a `feelverse.app`**. Su valor no se
+transcribe en ningún sitio — ni aquí, ni en un registro, ni en un mensaje.
+
+##### El inventario DNS, antes y después
+
+Zona de Cloudflare `cb3497490563507d8a0ab748b1bdc8d0`. Pasó de **10 a 14**
+registros: cuatro altas, cero modificaciones, cero bajas.
+
+**Lo que se añadió**, que son los registros **exactos** que pidió la cuenta:
+
+| Tipo  | Nombre              | Valor                       | Para qué                 |
+| ----- | ------------------- | --------------------------- | ------------------------ |
+| TXT   | `resend._domainkey` | la clave DKIM (218 car.)    | firmar los envíos        |
+| CNAME | `rsend`             | `rsend-sae1.forge.rmta.net` | **dns-only**, sin proxy  |
+| CNAME | `send`              | `send.forge.rmta.net`       | **dns-only**, sin proxy  |
+| TXT   | `_dmarc`            | `v=DMARC1; p=none;`         | observa, no rechaza nada |
+
+**Resend generó CNAME, no el par MX/TXT.** Es exactamente la advertencia que
+este frente llevaba escrita —el proveedor pide una forma u otra según cuándo se
+creó el dominio—, así que una receta genérica escrita de memoria habría sido
+**errónea**. La regla queda confirmada por un caso real: se publica lo que
+muestre la pestaña de registros de **esa** cuenta, no lo que recuerde quien lo
+escriba.
+
+Los dos CNAME van **sin proxy** a propósito: el proxy de Cloudflare sustituye la
+respuesta por sus propias direcciones, y aquí lo que el proveedor necesita es que
+el nombre resuelva a su infraestructura.
+
+**Y uno que NO se publicó**: el host `receive-sae1…` de «Enable receiving».
+Habilitar la recepción en Resend **competiría con la recepción que ya funciona**,
+así que queda fuera deliberadamente. Si algún día hace falta recibir en
+`feelverse.app`, es una decisión aparte y empieza por mirar qué se rompe.
+
+**Lo que no se tocó**, revalidado con `dig` **después** de escribir —no antes,
+que es la comprobación que vale—:
+
+| Registro                                | Valor                                                            |
+| --------------------------------------- | ---------------------------------------------------------------- |
+| **MX del ápice** (cinco)                | `eforward1..5.registrar-servers.com`, prioridades 10/10/10/15/20 |
+| **SPF del ápice**                       | `v=spf1 include:spf.efwd.registrar-servers.com ~all`             |
+| **A** (ápice, `staging`, `api-staging`) | `148.113.254.26`                                                 |
+| **CNAME** `www`                         | el canónico                                                      |
+
+El reenvío de Namecheap queda intacto.
+
+> ##### La regla: si no puedes acreditar a dónde entrega una recepción que funciona, conserva sus MX
+>
+> **Namecheap no está accesible** desde aquí: no hay sesión y no se puede iniciar
+> una. Eso significa que **los destinos de ese reenvío no se pueden acreditar** —
+> no se sabe a qué buzones entrega hoy ni quién los lee. Un MX se cambia sabiendo
+> qué deja de llegar y a quién; sin eso, cambiarlo es apostar con el correo de
+> otra persona.
+>
+> Por eso los cinco MX del ápice se conservan **sin tocar**, y por eso los
+> registros de envío viven en subdominios (`send`, `rsend`,
+> `resend._domainkey`), que no compiten con la recepción. Enviar y recibir son
+> dos funciones distintas del mismo dominio, y ésta es la razón concreta por la
+> que aquí se mantienen separadas.
+
+##### Lo que esto NO acredita
+
+Cuatro estados en verde no son una entrega. Sigue **sin estar demostrado**:
+
+- que un mensaje **llegue** — sólo lo demuestra una entrega real en
+  `qa@syntavera.dev`, y nada más;
+- que el **recorrido de recuperación** funcione de punta a punta: recepción →
+  enlace → contraseña nueva → **acceso con ella**, más que el enlace no se pueda
+  reutilizar y que la contraseña anterior deje de valer;
+- que la entrega aterrice en la bandeja y no en correo no deseado, que es una
+  pregunta de reputación y se mira con el mensaje delante.
+
+Y una cuenta `@psico.test` **no sirve** para nada de esto: por la RFC 2606 ese
+dominio no puede recibir, así que una prueba contra una cuenta sintética no
+probaría más que el camino de ida.
 
 ### 2.6 Recorrido funcional mínimo
 
@@ -1548,10 +1749,11 @@ revierte deshaciendo el paso _contract_ primero, y sólo si ese paso aún no cor
 > git merge-base --is-ancestor c19358a4 <etiqueta> && echo "lleva guarda" || echo "NO la lleva"
 > ```
 >
-> Lo que eso da **hoy** está en la tabla de abajo, y conviene decirlo sin
-> rodeos: de las tres imágenes conservadas de la API, **la única con guarda es
-> la que está sirviendo**. Es decir, **hoy no hay reversión de API que
-> mantenga las compras cerradas.** Qué hacer entonces, en §3.0bis.
+> Lo que eso da **hoy** está en la tabla de abajo, y la respuesta cambió a
+> mitad del 2026-11-19: por la mañana la única imagen de la API con guarda era
+> la que estaba sirviendo —así que no había reversión posible que mantuviera las
+> compras cerradas—, y por la tarde, tras desplegar `dbce7e39`, **ya hay dos**.
+> La opción 1 de §3.0bis vale ahora también para la API.
 
 Un redeploy de nivel 1 reapunta **un** servicio, así que casi siempre quedan
 una API y una Web de alturas distintas sirviendo a la vez. Que un cambio no
@@ -1575,11 +1777,61 @@ revierte la Web y la tarjeta vuelve a contar en la zona del contenedor
 degrada a una hora UTC dicha en voz alta. La pregunta operativa es cuál de los
 dos servicios tiene el defecto, no cuál de los dos es más barato de mover.
 
-#### El inventario de hoy, con la guarda comprobada imagen a imagen
+#### El inventario, con la guarda comprobada imagen a imagen
 
-No basta nombrar un commit: una imagen puede haber sido podada, y la de la
-tabla anterior lo fue. Leído el **2026-11-19** por las dos vías —
-`list_rollback_images` de Coolify y `docker images` en el VPS, que coinciden—:
+No basta nombrar un commit: una imagen puede haber sido podada, y la de la tabla
+del 17-11 lo fue. Y tampoco basta leerlo una vez al día: el **2026-11-19** el
+inventario cambió **dos veces**, porque desplegar añade una imagen.
+
+> **Y una suposición que la medición desmintió.** Al leer el inventario de la
+> mañana se dieron por tres las imágenes conservadas, y de ahí se dedujo que
+> desplegar desalojaría la más vieja. **Medido después del despliegue de la
+> tarde: la retención conserva cuatro y no desalojó ninguna.** Es la diferencia
+> entre contar lo que había y conocer la política de retención — así que la
+> cuenta se lee, no se predice.
+
+##### Después del despliegue de la tarde del 2026-11-19
+
+Desplegados API y worker a `dbce7e39`, de uno en uno, para incorporar la bandeja
+autorizada y el comprobador de destinatario (§2.5.1):
+
+| Servicio   | Imagen servida               | ¿Con guarda de compras?                     |
+| ---------- | ---------------------------- | ------------------------------------------- |
+| **API**    | `dbce7e39`                   | sí — y `c19358a4`, conservada, **también**  |
+| **Web**    | `0ae5db7d` (sin cambios hoy) | sí — y `c19358a4`, conservada, también      |
+| **worker** | `dbce7e39`                   | no aplica: el worker no decide esa frontera |
+
+**Lo que esto cierra:** la API pasó de **una** imagen conservada con guarda a
+**dos**, así que ya existe una candidata de reversión que mantiene las compras
+cerradas. La limitación escrita esta misma mañana —«hoy no hay reversión de API
+que mantenga las compras cerradas»— queda cerrada por **historia**, que era
+exactamente lo que le faltaba, no por mecanismo nuevo.
+
+**El conjunto completo, enumerado después del despliegue** (leído de Coolify el
+19-11 y comprobado commit a commit con el `merge-base` de arriba, no por fecha):
+
+| Servicio   | Conservadas                                                | Con guarda                  |
+| ---------- | ---------------------------------------------------------- | --------------------------- |
+| **API**    | `dbce7e39` (actual) · `c19358a4` · `85ab7c86` · `3ef7c822` | **`dbce7e39` y `c19358a4`** |
+| **worker** | `dbce7e39` (actual) · `85ab7c86` · `3ef7c822` · `f15c5c96` | no aplica a esta frontera   |
+
+**La candidata de reversión de la API es `c19358a4`**, y es utilizable hoy:
+lleva la guarda y **no hay ninguna migración** entre ella y la imagen servida
+(`git diff --name-only c19358a4 dbce7e39 -- apps/api/prisma/migrations`, vacío).
+
+**Aun así, no se hereda.** Antes de revertir se vuelve a leer por las dos vías
+(`list_rollback_images` de Coolify y `docker images` en el VPS, que coinciden),
+porque la retención puede haberse llevado una imagen entre tanto — que es
+exactamente lo que le pasó a `21f10095`.
+
+El despliegue de la tarde **no trajo migración nueva**: la API informó `71/71`,
+el mismo recuento que antes, con `ready=true`, `reason=ok` y `pending` y `failed`
+vacíos. El worker arrancó con sus 12 colas y «Awaiting jobs from Redis…», que es
+la única señal que da —no tiene healthcheck.
+
+##### Antecedente del mismo día: el inventario de la mañana
+
+Leído el **2026-11-19**, antes de ese despliegue, por las mismas dos vías:
 
 | Servicio   | Imágenes conservadas (de más nueva a más vieja)                                        | ¿Cuáles llevan la guarda?                   |
 | ---------- | -------------------------------------------------------------------------------------- | ------------------------------------------- |
@@ -1606,14 +1858,18 @@ propósito, porque nada de lo último le toca.
 
 #### 3.0bis Qué hacer cuando hay que revertir la API y no hay candidata con guarda
 
-Es la situación de hoy, y conviene tener la respuesta escrita antes de
-necesitarla. Tres opciones, en orden, con su estado honesto:
+**Desde la tarde del 19-11 ya no es la situación**: la API conserva dos imágenes
+con guarda, así que la opción 1 vale también para ella. Esto se conserva porque
+la situación **vuelve** cada vez que la retención se lleva la penúltima imagen
+con guarda, que es cómo apareció la primera vez.
 
-| Opción                                                         | Ejecutable hoy                                                 | Qué deja                                                                                                                                                                        |
-| -------------------------------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **1 · El defecto está en la Web** → revertir Web               | **sí**, `c19358a4` está conservada y lleva la interfaz cerrada | Nada que arreglar: la API guardada sigue rechazando y la pantalla sigue sin ofrecer                                                                                             |
-| **2 · Rehacer hacia adelante** desde un commit sano con guarda | **no ensayado**                                                | Coolify guarda `git_commit_sha` por aplicación (hoy `HEAD`); fijarlo a un SHA sano, desplegar y devolverlo a `HEAD` reconstruye en vez de intercambiar. Cuesta una construcción |
-| **3 · Aceptar una API sin guarda** por una ventana acotada     | **sí**, y es lo que hay si la API falla ahora                  | Hay que mantener la **Web en una imagen con guarda**. Entonces **ninguna pantalla ofrece contratar** y lo que queda abierto es el endpoint                                      |
+Tres opciones, en orden, con su estado honesto:
+
+| Opción                                                         | Ejecutable hoy                                                                                              | Qué deja                                                                                                                                                                                                  |
+| -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **1 · Revertir el servicio que tiene el defecto** (Web o API)  | **sí para los dos** desde la tarde del 19-11                                                                | `c19358a4` está conservada en los dos servicios: en la Web lleva la interfaz cerrada y en la API lleva la guarda dentro. Nada que arreglar — el servidor sigue rechazando y la pantalla sigue sin ofrecer |
+| **2 · Rehacer hacia adelante** desde un commit sano con guarda | **no ensayado**                                                                                             | Coolify guarda `git_commit_sha` por aplicación (hoy `HEAD`); fijarlo a un SHA sano, desplegar y devolverlo a `HEAD` reconstruye en vez de intercambiar. Cuesta una construcción                           |
+| **3 · Aceptar una API sin guarda** por una ventana acotada     | **sí**, pero desde el 19-11 **ya no es la única salida**: sólo si no queda ninguna imagen de API con guarda | Hay que mantener la **Web en una imagen con guarda**. Entonces **ninguna pantalla ofrece contratar** y lo que queda abierto es el endpoint                                                                |
 
 Sobre la **opción 2**, con el alcance exacto de lo comprobado: el campo
 `git_commit_sha` **se lee hoy** en `get_application` (vale `HEAD`) y **es
@@ -1631,12 +1887,18 @@ por `apps/web/src/app/dashboard/purchases-closed.contract.test.ts`, que además
 mata la mutación `?? true`. De modo que esa ventana no reabre la oferta: reabre
 la **puerta**, alcanzable por una petición directa, una pestaña vieja ya
 cargada o un cliente móvil antiguo. Se acepta sabiendo eso y se cierra cuanto
-antes por la opción 2.
+antes por la opción 2 — y desde el 19-11, antes de llegar aquí, se agota la
+opción 1, que hoy también sirve para la API.
 
-**Y la buena noticia estructural:** en cuanto haya un segundo despliegue de API
-con guarda, la opción 1 vale también para la API — la retención conserva tres
-imágenes, así que el conjunto con guarda crece solo. Lo que falta hoy es
-historia, no mecanismo.
+**Y la buena noticia estructural se cumplió el mismo día.** Esto decía «en
+cuanto haya un segundo despliegue de API con guarda, la opción 1 vale también
+para la API; lo que falta hoy es historia, no mecanismo». Ese segundo despliegue
+ocurrió la tarde del 19-11 (`dbce7e39`), y con él la fila 1 dejó de ser sólo de
+la Web.
+
+Lo que no cambia es el método: **se comprueba la guarda de la candidata antes de
+revertir**, con el `merge-base`, porque la retención puede haberse llevado
+precisamente la que se recuerda — ya pasó con `21f10095`.
 
 Lo que NO está comprobado es cualquier pareja más antigua que #859: la forma de
 `UsageEco` cambió ahí (`used`/`quota`/`window`/`resetsAt` donde antes había
@@ -1967,18 +2229,18 @@ marca de esa persona, visible para ella, no el libro.
 **No se ejecuta en esta tarea.** Requiere su propio gate y, antes:
 
 Estado al 2026-11-07, para que la lista sirva de puerta y no de recordatorio
-(la puerta 1 se revisó el 17-11; el tramo que queda detrás de las puertas está
-desglosado en **§4.1**):
+(la puerta 1 se revisó el 19-11 y la 6 ganó un matiz ese mismo día; el tramo que
+queda detrás de las puertas está desglosado en **§4.1**):
 
-|     | Precondición                                              | Estado                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| --- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Staging validado y estable                                | ⚠️ **en su mayor parte.** Recorridos funcionales comprobados: lectura, Diario con su recuperación, exportación, Eco, Mapa, Evolución, Círculos con dos partes y las cinco microguías de C01. Faltan la **aceptación estética** y el recorrido de **correo**, que no tiene credencial. Lo que el correo pedía de nosotros está hecho (17-11, §2.5.1): incorporar la clave ya no puede escribir a nadie que no esté autorizado                                                                                  |
-| 2   | Números de límites tomados de staging, no inventados      | ✅ **resuelto (07-11).** Medido en reposo, durante un recorrido representativo y en concurrencia acotada: 846 MiB de los 4 GiB declarados (20,7 %), el recorrido de las **cinco** microguías de C01 cuesta +40 KB y 65 filas (~8 KB por recorrido suelto), y ocho lectores concurrentes dan p50 194 ms. **Margen elegido: no cambiar ningún límite**, con la CPU de la API como único número tenso (50,3 % de su cuota para una persona). [Detalle y cómo repetirlo](../operations/capacidad-y-postgresql.md) |
-| 3   | Versión de PostgreSQL de producción consultada y decidida | ✅ **decidida (07-11): `pgvector/pgvector:pg18` fijada por digest**, que es lo que ya corre — PostgreSQL 18.6, `vector 0.8.6`, estable. El pin hace trabajo real: la etiqueta flotante `pg18` apunta hoy a otro digest, así que con la etiqueta a secas una caja nueva traería otra imagen. Producción usa el **mismo digest**. Supuesto fechado: Docker Hub no promete retención indefinida, así que copiar la imagen a un registro propio queda abierto                                                     |
-| 4   | Backup con restore drill **ejecutado**                    | ✅ **hecho.** Restauración comprobada, y el 06-11 además desde fuera del servidor                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| 5   | Artefacto versionado por commit SHA, nunca `latest`       | ✅ **hecho**, y reforzado: las imágenes se etiquetan por SHA, y las buenas tienen además una etiqueta **estable** (`feelverse-api-known-good:<fecha>-<sha>`), porque la del commit ya demostró que otra construcción la sobrescribe                                                                                                                                                                                                                                                                           |
-| 6   | Rollback de nivel 1 ensayado                              | ✅ **hecho** el 2026-10-24 (§3.1)                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| 7   | Nivel 4 ensayado, o asumido como riesgo abierto           | ❌ **no ensayado**, y ahora **preparado**: lo que no necesita la caja está hecho y comprobado, y lo que falta es el recurso, con su coste abierto en dos preguntas concretas (ver arriba). Es la única recuperación frente a perder el servidor, y retirar las plataformas anteriores no la sustituye: lo que la sustituía antes era un DNS de vuelta, y ese camino ya no existe                                                                                                                              |
+|     | Precondición                                              | Estado                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| --- | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Staging validado y estable                                | ⚠️ **en su mayor parte, y el 19-11 un poco menos a medias.** Recorridos funcionales comprobados: lectura, Diario con su recuperación, exportación, Eco, Mapa, Evolución, Círculos con dos partes y las cinco microguías de C01. Siguen faltando dos: la **aceptación estética** y el **recorrido de recuperación por correo**. Del correo ya no faltan tres insumos: el dominio está configurado y **verificado por el proveedor**, la bandeja autorizada está escrita y desplegada, y lo que queda es **pegar la credencial y recorrerlo** (§2.5.1) |
+| 2   | Números de límites tomados de staging, no inventados      | ✅ **resuelto (07-11).** Medido en reposo, durante un recorrido representativo y en concurrencia acotada: 846 MiB de los 4 GiB declarados (20,7 %), el recorrido de las **cinco** microguías de C01 cuesta +40 KB y 65 filas (~8 KB por recorrido suelto), y ocho lectores concurrentes dan p50 194 ms. **Margen elegido: no cambiar ningún límite**, con la CPU de la API como único número tenso (50,3 % de su cuota para una persona). [Detalle y cómo repetirlo](../operations/capacidad-y-postgresql.md)                                        |
+| 3   | Versión de PostgreSQL de producción consultada y decidida | ✅ **decidida (07-11): `pgvector/pgvector:pg18` fijada por digest**, que es lo que ya corre — PostgreSQL 18.6, `vector 0.8.6`, estable. El pin hace trabajo real: la etiqueta flotante `pg18` apunta hoy a otro digest, así que con la etiqueta a secas una caja nueva traería otra imagen. Producción usa el **mismo digest**. Supuesto fechado: Docker Hub no promete retención indefinida, así que copiar la imagen a un registro propio queda abierto                                                                                            |
+| 4   | Backup con restore drill **ejecutado**                    | ✅ **hecho.** Restauración comprobada, y el 06-11 además desde fuera del servidor                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| 5   | Artefacto versionado por commit SHA, nunca `latest`       | ✅ **hecho**, y reforzado: las imágenes se etiquetan por SHA, y las buenas tienen además una etiqueta **estable** (`feelverse-api-known-good:<fecha>-<sha>`), porque la del commit ya demostró que otra construcción la sobrescribe                                                                                                                                                                                                                                                                                                                  |
+| 6   | Rollback de nivel 1 ensayado                              | ✅ **hecho** el 2026-10-24 (§3.1). Entre el 18 y el 19-11 arrastró una condición: para la **API** no quedaba candidata que conservara la guarda de compras. El despliegue de la tarde del 19-11 la cerró — la API conserva ahora **dos** imágenes con guarda (§3.0)                                                                                                                                                                                                                                                                                  |
+| 7   | Nivel 4 ensayado, o asumido como riesgo abierto           | ❌ **no ensayado**, y ahora **preparado**: lo que no necesita la caja está hecho y comprobado, y lo que falta es el recurso, con su coste abierto en dos preguntas concretas (ver arriba). Es la única recuperación frente a perder el servidor, y retirar las plataformas anteriores no la sustituye: lo que la sustituía antes era un DNS de vuelta, y ese camino ya no existe                                                                                                                                                                     |
 
 Así que **queda una puerta cerrada** —la 7, el ensayo de nivel 4— y la 1 está a
 medias. Las puertas 2 y 3 **se cerraron el 07-11** y no vuelven a contarse: la
@@ -1992,12 +2254,17 @@ volver a abrirlas sería trabajo que ya se hizo.
 Forma idéntica a staging con recursos **separados**. Ningún recurso con estado se
 comparte entre entornos, y `PSICO_ENV=production`.
 
-### 4.1 El tramo restante, pendiente por pendiente — corte del 2026-11-17
+### 4.1 El tramo restante, pendiente por pendiente — corte del 2026-11-19
 
 La tabla de arriba son las puertas. Esto es el **trabajo** que queda detrás de
 ellas, con una distinción que conviene no perder: **que algo no impida decidir
 el piloto no lo convierte en cumplido para producción.** Son dos listas de
 requisitos distintas sobre el mismo producto.
+
+> **Qué se movió el 19-11**, para no releer la tabla entera: sólo la fila 1. El
+> correo dejó de ser «faltan tres insumos externos» y pasó a «falta pegar una
+> credencial y recorrerlo». El resto de las filas es del corte del 17 y 18-11 y
+> no cambió.
 
 La secuencia no cambia:
 **PLATFORM_FIRST → LANDING_APROBADA → FIDELIDAD_VISUAL → EDITORIAL_FINAL.**
@@ -2005,25 +2272,26 @@ PLATFORM_FIRST está satisfecha como decisión (OVH + Coolify, exclusivo) y le
 queda una comprobación: el ensayo de nivel 4. LANDING_APROBADA está aceptada
 desde el 16-10. Las dos siguientes son las que concentran lo pendiente.
 
-| Pendiente                                      | Qué falta                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | Qué resultado la cierra                                                                                                                            | Quién puede resolverla                       | ¿Qué impide?                             | Siguiente paso concreto                                                                                                                                                                                                                                                                         |
-| ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **1 · Recuperación de cuenta por correo**      | tres insumos externos: **credencial** de Resend y **bandeja real autorizada** —las dos comprobadas ausentes, revalidadas el 18-11 con sonda de nombres y sus controles— y `feelverse.app` **configurado para enviar**, cuyo estado el 18-11 se acotó por DNS: **en los cinco nombres consultados no hay nada de Resend** (sin DKIM, sin `send.`, SPF del registrador). Lo que ese DNS **no** dice es qué registros pide la cuenta ni si el proveedor marca el dominio verificado — eso vive dentro de ella. Falta publicar los registros **exactos** que muestre Resend | **una entrega**: recepción → enlace → contraseña nueva → acceso con ella, más que el enlace no se reutilice y la contraseña anterior deje de valer | **Jorge** (los insumos); la ejecución es mía | **el piloto** · y producción             | incorporar `EMAIL_ALLOWLIST` con la **dirección exacta** y después la clave (§2.5.1), y recorrerlo. El lado de código está hecho                                                                                                                                                                |
-| **2 · Decisión B**                             | una frase. Nada técnico: el modo ya es `pilot` y la lista ya existe con un id                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | ids añadidos a `GUIDE_PILOT_USER_IDS` y un redespliegue                                                                                            | **Jorge**                                    | **el piloto ACOMPAÑADO** · no producción | leer `docs/product/piloto-minimo.md` §8 y decir sí o no                                                                                                                                                                                                                                         |
-| **3 · Recuperación completa en OVH (nivel 4)** | **la caja**: una instancia temporal cuyo coste no está aprobado                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | host nuevo → Coolify → los tres recursos → restaurar de R2 → recorrer la aplicación. Una base restaurada sin servicios no atiende a nadie          | **Jorge** (el coste); la ejecución es mía    | **producción**, no el piloto             | aprobar un **importe máximo** para una instancia `d2-8` (§3). La cifra de referencia —≈ $0,57 excl. IVA por 12 h— es del **09-11**: antes de contratar se relee el precio vigente, porque una estimación anterior no es un permiso de gasto. Lo que no necesita la caja está hecho y comprobado |
-| **4 · Aceptación visual**                      | **sólo tu visto bueno**, y ya no hay preguntas sueltas: las **diez** decisiones que levantó el recorrido están cerradas —cuatro en código, dos decididas manteniéndolas, cuatro retiradas al medirlas (`docs/product/aceptacion-visual-2026-11-18.md`)—. Lo que queda es la **aceptación estética** del conjunto, que ninguna medición cierra                                                                                                                                                                                                                           | que mires las dieciocho pantallas, con sus capturas de antes y después, y digas si el conjunto te convence                                         | **Jorge**, o alguien a quien delegue         | **producción** (puerta 1), no el piloto  | abrir la página de las 18 pantallas y decir si te convence. La landing F2.1 ya está aceptada                                                                                                                                                                                                    |
-| **5 · Observabilidad**                         | `SENTRY_DSN`, **revalidado ausente el 18-11** en los tres recursos y dentro del contenedor servido. El cableado existe desde S58 en los cuatro frentes                                                                                                                                                                                                                                                                                                                                                                                                                  | un error provocado que aparezca en el proyecto de Sentry                                                                                           | **Jorge** (crear el proyecto y dar el DSN)   | **producción**, no el piloto             | crear el proyecto, poner el DSN en API, Web y worker, y validar con un 500 controlado                                                                                                                                                                                                           |
-| **6 · Google**                                 | `GOOGLE_CLIENT_ID`, ausente. Sin él el producto simplemente **no ofrece el botón**, que es un estado honesto                                                                                                                                                                                                                                                                                                                                                                                                                                                            | el botón aparece y una cuenta entra por él                                                                                                         | **Jorge** (el clientId)                      | **ninguno de los dos**                   | decidir si entra en el alcance de v1; si no, no hace nada                                                                                                                                                                                                                                       |
-| **7 · Editorial y comercial**                  | **cuatro** del paquete del 07-11: sucesor del Dúo, las otras dos obras, el primer recurso de audio, y precios con apertura de cobros. Las tres primeras del paquete se ejecutaron el 12 y 13-11; **B es la fila 2 de esta tabla y no se cuenta aquí**                                                                                                                                                                                                                                                                                                                   | cada una tiene su propia forma de cerrarse; están redactadas una por una en `docs/product/paquete-editorial-2026-11-07.md`                         | **Jorge**                                    | **producción** (EDITORIAL_FINAL)         | resolverlas juntas, con su propuesta delante. Ninguna abre cobros por sí sola: eso tiene seis condiciones propias (§8)                                                                                                                                                                          |
-| **8 · Recursos de producción**                 | **no existen.** El proyecto de Coolify tiene tres aplicaciones y las tres son de staging. Hacen falta API, Web, worker, PostgreSQL y Redis **separados**, con `PSICO_ENV=production` y ningún recurso con estado compartido                                                                                                                                                                                                                                                                                                                                             | los cinco recursos creados, con su entorno completo y sus dominios                                                                                 | **yo**, una vez abiertas las puertas 1 y 7   | **producción**                           | no se empieza antes de las puertas: crear producción con el correo sin comprobar sería crear una caja que nadie puede recuperar                                                                                                                                                                 |
-| **9 · Despliegue, validación y corte**         | el procedimiento está escrito (§1, §2, §5, §6) y **nunca se ha ejecutado** contra producción                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | `ready=true` con `pending` y `failed` vacíos, el recorrido de §2.6 y el corte de DNS de §5                                                         | **yo**, después de la 8                      | **producción**                           | va detrás de la 8, y la 8 detrás de las puertas                                                                                                                                                                                                                                                 |
+| Pendiente                                      | Qué falta                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Qué resultado la cierra                                                                                                                            | Quién puede resolverla                         | ¿Qué impide?                             | Siguiente paso concreto                                                                                                                                                                                                                                                                         |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **1 · Recuperación de cuenta por correo**      | **un paso**, no tres insumos. Al 19-11: `feelverse.app` **configurado y verificado por Resend** (región `sa-east-1`), la bandeja autorizada `qa@syntavera.dev` **creada** en Microsoft 365, **escrita** en la API y el worker y **desplegada** (`dbce7e39`), con la guarda comprobada dentro de los dos contenedores. Falta **pegar el valor de la credencial** como `RESEND_API_KEY`, que no se transcribe, y después `EMAIL_FROM` — **dirección pelada**, con nombre no arranca (§2.5.1) | **una entrega**: recepción → enlace → contraseña nueva → acceso con ella, más que el enlace no se reutilice y la contraseña anterior deje de valer | **Jorge** (la credencial); la ejecución es mía | **el piloto** · y producción             | pegar `RESEND_API_KEY` y `EMAIL_FROM` en los **dos** recursos, desplegar los dos, y recorrer los estados 5 y 6 de §2.5.1                                                                                                                                                                        |
+| **2 · Decisión B**                             | una frase. Nada técnico: el modo ya es `pilot` y la lista ya existe con un id                                                                                                                                                                                                                                                                                                                                                                                                              | ids añadidos a `GUIDE_PILOT_USER_IDS` y un redespliegue                                                                                            | **Jorge**                                      | **el piloto ACOMPAÑADO** · no producción | leer `docs/product/piloto-minimo.md` §8 y decir sí o no                                                                                                                                                                                                                                         |
+| **3 · Recuperación completa en OVH (nivel 4)** | **la caja**: una instancia temporal cuyo coste no está aprobado                                                                                                                                                                                                                                                                                                                                                                                                                            | host nuevo → Coolify → los tres recursos → restaurar de R2 → recorrer la aplicación. Una base restaurada sin servicios no atiende a nadie          | **Jorge** (el coste); la ejecución es mía      | **producción**, no el piloto             | aprobar un **importe máximo** para una instancia `d2-8` (§3). La cifra de referencia —≈ $0,57 excl. IVA por 12 h— es del **09-11**: antes de contratar se relee el precio vigente, porque una estimación anterior no es un permiso de gasto. Lo que no necesita la caja está hecho y comprobado |
+| **4 · Aceptación visual**                      | **sólo tu visto bueno**, y ya no hay preguntas sueltas: las **diez** decisiones que levantó el recorrido están cerradas —cuatro en código, dos decididas manteniéndolas, cuatro retiradas al medirlas (`docs/product/aceptacion-visual-2026-11-18.md`)—. Lo que queda es la **aceptación estética** del conjunto, que ninguna medición cierra                                                                                                                                              | que mires las dieciocho pantallas, con sus capturas de antes y después, y digas si el conjunto te convence                                         | **Jorge**, o alguien a quien delegue           | **producción** (puerta 1), no el piloto  | abrir la página de las 18 pantallas y decir si te convence. La landing F2.1 ya está aceptada                                                                                                                                                                                                    |
+| **5 · Observabilidad**                         | `SENTRY_DSN`, **revalidado ausente el 18-11** en los tres recursos y dentro del contenedor servido. El cableado existe desde S58 en los cuatro frentes                                                                                                                                                                                                                                                                                                                                     | un error provocado que aparezca en el proyecto de Sentry                                                                                           | **Jorge** (crear el proyecto y dar el DSN)     | **producción**, no el piloto             | crear el proyecto, poner el DSN en API, Web y worker, y validar con un 500 controlado                                                                                                                                                                                                           |
+| **6 · Google**                                 | `GOOGLE_CLIENT_ID`, ausente. Sin él el producto simplemente **no ofrece el botón**, que es un estado honesto                                                                                                                                                                                                                                                                                                                                                                               | el botón aparece y una cuenta entra por él                                                                                                         | **Jorge** (el clientId)                        | **ninguno de los dos**                   | decidir si entra en el alcance de v1; si no, no hace nada                                                                                                                                                                                                                                       |
+| **7 · Editorial y comercial**                  | **cuatro** del paquete del 07-11: sucesor del Dúo, las otras dos obras, el primer recurso de audio, y precios con apertura de cobros. Las tres primeras del paquete se ejecutaron el 12 y 13-11; **B es la fila 2 de esta tabla y no se cuenta aquí**                                                                                                                                                                                                                                      | cada una tiene su propia forma de cerrarse; están redactadas una por una en `docs/product/paquete-editorial-2026-11-07.md`                         | **Jorge**                                      | **producción** (EDITORIAL_FINAL)         | resolverlas juntas, con su propuesta delante. Ninguna abre cobros por sí sola: eso tiene seis condiciones propias (§8)                                                                                                                                                                          |
+| **8 · Recursos de producción**                 | **no existen.** El proyecto de Coolify tiene tres aplicaciones y las tres son de staging. Hacen falta API, Web, worker, PostgreSQL y Redis **separados**, con `PSICO_ENV=production` y ningún recurso con estado compartido                                                                                                                                                                                                                                                                | los cinco recursos creados, con su entorno completo y sus dominios                                                                                 | **yo**, una vez abiertas las puertas 1 y 7     | **producción**                           | no se empieza antes de las puertas: crear producción con el correo sin comprobar sería crear una caja que nadie puede recuperar                                                                                                                                                                 |
+| **9 · Despliegue, validación y corte**         | el procedimiento está escrito (§1, §2, §5, §6) y **nunca se ha ejecutado** contra producción                                                                                                                                                                                                                                                                                                                                                                                               | `ready=true` con `pending` y `failed` vacíos, el recorrido de §2.6 y el corte de DNS de §5                                                         | **yo**, después de la 8                        | **producción**                           | va detrás de la 8, y la 8 detrás de las puertas                                                                                                                                                                                                                                                 |
 
-### El siguiente paso concreto de cada frente — 2026-11-18
+### El siguiente paso concreto de cada frente — 2026-11-18, con la fila de correo del 19-11
 
 Una tabla distinta de la de arriba a propósito: aquélla dice **qué falta**,
 ésta **qué se hace a continuación**, que no siempre es lo mismo.
 
 | Frente                  | Siguiente paso, concreto                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Correo** _(19-11)_    | **pegar el valor de la credencial `feelverse-staging` como `RESEND_API_KEY`** en la API y en el worker, y con ella `EMAIL_FROM=no-reply@feelverse.app` — **dirección pelada**: con nombre, ninguno de los dos arranca. Después, desplegar los dos de uno en uno y recorrer la recuperación de cuenta contra `qa@syntavera.dev`. Todo lo demás de este frente está hecho y comprobado (§2.5.1): dominio verificado, bandeja creada, lista escrita y desplegada, guarda comprobada dentro de los dos contenedores, cola `email` vacía                                                                                                                                                                                                                                                                                                                                                             |
 | **Ensayo de nivel 4**   | **presentar la contratación y el presupuesto, y esperar su aprobación.** **Componentes:** una instancia `d2-8` de Public Cloud (4 vCore / 8 GB, con sus 50 GB incluidos) a $0,0439/h + una IPv4 obligatoria a $0,038. **Coste total estimado: ≈ $0,57 excl. IVA por 12 h** (≈ $1,13 por 24 h). **Estimación condicionada, no límite autorizado**: el importe real depende de la región y los recursos que se seleccionen, y el límite lo fijas tú al aprobarlo. **Condición de cierre:** la evidencia se extrae ANTES de destruir nada —el detector y los registros viven dentro de la caja—, luego se borra la instancia, después el almacenamiento, las instantáneas y los respaldos que no se borran solos, se libera la IP flotante si quedó desasociada (≈ $2,33/mes si no), y se comprueba la facturación del mes siguiente. Con presupuesto aprobado, el procedimiento está escrito (§3) |
 | **Aceptación visual**   | **leer las dieciocho pantallas y contestar** — visto bueno, o la lista de cambios. Las diez decisiones están cerradas (la de los botones de compra, en #864; el tour y la biblioteca, en #865); lo que espera es si el conjunto te convence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | **Observabilidad**      | crear el proyecto en Sentry y dar el DSN. Después: ponerlo en los **tres** recursos, desplegar y validar con **un 500 provocado**. Sin ampliar la recogida de contenido personal — el cableado ya trae la repetición de sesión y las capturas **apagadas** a propósito                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |

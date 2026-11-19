@@ -4047,7 +4047,7 @@ sección, manda esta sección.
 | La incorporación al piloto, doble      | ✅ **el correo va ANTES del registro**, y la razón es medible: al registrarse se dispara la verificación de su cuenta, así que sin su dirección autorizada ese mensaje se retiene. Siete pasos, y «sólo la API» describe **el padrón**, no la incorporación entera                                                                                                                                                                                                                                                        |
 | El diagnóstico del correo              | ✅ **cuatro preguntas separadas** en vez de una: lo que dice el DNS, los registros que pide la cuenta, la verificación del proveedor y la **recepción real**. La primera está comprobada; las otras tres no, y la última es la única que acredita que esto funciona                                                                                                                                                                                                                                                       |
 | `main`                                 | **`c19358a4`** al empezar esta tanda (#864 ya dentro). Esta tanda **cierra el hueco de verificación** de #864 y resuelve las cuatro decisiones visuales que quedaban; despliega **sólo Web**. El commit integrado, el artefacto servido y la fecha de observación siguen yendo por separado                                                                                                                                                                                                                               |
-| El dominio del correo                  | ✅ **comprobado el 18-11, y ya no es «pendiente»**: el DNS público —la fuente que de verdad mira un servidor que recibe— dice que `feelverse.app` **NO está configurado para enviar**. Sin DKIM de Resend, sin `send.`, y el SPF es el del registrador. Lo que falta es concreto: publicar los registros que dé Resend. No demuestra qué hay dentro de esa cuenta                                                                                                                                                         |
+| El dominio del correo                  | ⚠️ **acotado, no concluido** — y mi redacción del 18-11 estiraba el dato: por **DNS público** en los **cinco nombres consultados** no hay nada de Resend, lo cual acredita **ausencia en lo consultado** y **no** que el dominio no esté configurado. La configuración exacta y el estado del proveedor viven en la cuenta, y Resend puede pedir **CNAME** para dominios recientes. El paso no cambia: publicar los registros exactos que muestre                                                                         |
 | Ejecución de B                         | ✅ **preparada, no ejecutada** ([piloto-b-ejecucion.md](docs/operations/piloto-b-ejecucion.md)): cómo se obtiene su `id` tras el registro sin sacar su correo de donde está, cómo se incorpora (el padrón vive **sólo en la API**, así que redespliega **un** servicio), cómo se la acompaña y los **tres niveles** de retirada. Sin nombrar a nadie y sin enviar nada                                                                                                                                                    |
 | Aceptación visual                      | ✅ **cerrada como lista de decisiones**: diez de diez. Lo que **sigue siendo tuyo** es la aceptación estética del conjunto — lo medido aquí y en octubre es tipografía, contraste y qué dice cada pantalla, no si te gusta                                                                                                                                                                                                                                                                                                |
 | Lo que destapó esa revisión            | ✅ **resuelto en #864**: el producto ofrecía comprar en dos sitios mientras los cobros estaban cerrados. No lo pulsé entonces y no hacía falta — hoy el servidor rechaza esas dos rutas con **503** antes de tocar al proveedor, y la interfaz ya no lo ofrece                                                                                                                                                                                                                                                            |
@@ -5460,15 +5460,22 @@ distintas:
     — lo que había que hacer era operación y preparación, no cambiar el
     producto.
 
-    **El dominio dejó de ser «pendiente de comprobar».** El 17-11 lo dejé así
-    porque la respuesta vive en la cuenta de Resend, a la que no accedo. Pero
-    hay una fuente que lo acredita sin credencial y es la que de verdad importa:
-    el **DNS público**, que es lo que mira un servidor cuando recibe. Dice que
-    `feelverse.app` **no está configurado para enviar**: sin DKIM de Resend, sin
-    `send.`, con el SPF del registrador y sin DMARC. Alcance dicho: demuestra
-    que **hoy no se puede enviar** desde ese dominio aunque llegara la clave; no
-    demuestra qué hay dentro de esa cuenta. Y deja el insumo con un paso
-    concreto en vez de una laguna.
+    **El dominio dejó de ser una laguna, con su alcance medido.** El 17-11 lo
+    dejé en «pendiente» porque la respuesta vive en la cuenta de Resend, a la
+    que no accedo. Hay una fuente que no necesita credencial —el **DNS
+    público**, que es lo que mira un servidor cuando recibe— y dice que en los
+    **cinco nombres consultados** no hay nada de Resend: sin DKIM, sin `send.`,
+    con el SPF del registrador y sin DMARC.
+
+    **Corregido el 19-11 tras la revisión**, porque mi redacción estiraba el
+    dato: escribí «no está configurado para enviar» y «hoy no se puede enviar
+    aunque llegara la clave», y eso es más de lo que una ausencia en cinco
+    nombres sostiene. Los cinco son los que Resend usaba cuando lo escribí, y su
+    documentación advierte que para dominios creados después de agosto de 2026
+    **puede pedir CNAME** en vez del par MX/TXT. Lo que acredita es **ausencia
+    en lo consultado**; la **configuración exacta** y el **estado del
+    proveedor** siguen desconocidos. El paso concreto no cambia: añadir el
+    dominio en Resend y publicar los registros que muestre su pestaña.
 
     **La ejecución de B queda escrita y no ejecutada.** El padrón identifica por
     **id de servidor**, que sólo existe tras el registro, así que el orden es
@@ -5856,7 +5863,8 @@ en **[la matriz de F3](https://claude.ai/artifact/UtBZxMUDiqSuSwY3mGh5ah)**:
    → **Ficha corta, para decidir en una pantalla:**
    [docs/operations/correo-insumos-pendientes.md](docs/operations/correo-insumos-pendientes.md)
    — qué falta, dónde ponerlo de forma segura, qué está ya preparado y qué queda
-   por ejecutar después (media hora, y es mío).
+   por ejecutar después, que es mío — sin prometer cuánto tarda antes de tener
+   los insumos delante.
 
    **Vuelto a comprobar el 17-11**, porque conviene no heredar un estado, y esta
    vez en dos sitios: en los tres recursos de Coolify `RESEND_API_KEY`,
@@ -5875,14 +5883,16 @@ en **[la matriz de F3](https://claude.ai/artifact/UtBZxMUDiqSuSwY3mGh5ah)**:
    esa bandeja recibe. El orden de las escrituras y lo que esto NO acredita —ni
    dominio verificado ni entrega— están en el runbook §2.5.1.
 
-   **Y el 18-11 el dominio dejó de ser una incógnita.** Lo comprobé por **DNS
-   público** —la fuente que de verdad mira un servidor que recibe, y que no
-   necesita credencial—: `feelverse.app` **no está configurado para enviar**.
-   Sin DKIM de Resend (`resend._domainkey`), sin `send.`, con el SPF del
-   registrador y sin DMARC. Lo que eso demuestra es que **hoy no se puede
-   enviar desde ese dominio aunque llegara la clave**; lo que no demuestra es
-   qué hay dentro de la cuenta de Resend. Así que el insumo ya tiene un paso
-   concreto: **añadir el dominio en Resend y publicar los registros que dé**.
+   **Y el 18-11 el dominio dejó de ser una laguna**, con el alcance que de
+   verdad tiene. Por **DNS público** —la fuente que mira un servidor que recibe,
+   y que no necesita credencial— en los **cinco nombres consultados** no hay
+   nada de Resend: sin DKIM (`resend._domainkey`), sin `send.`, con el SPF del
+   registrador y sin DMARC. Eso acredita **ausencia en lo consultado**; **no**
+   acredita la configuración exacta que pide ese dominio ni si el proveedor lo
+   marca verificado, porque las dos cosas viven en la cuenta —y porque Resend
+   puede pedir **CNAME** en vez del par MX/TXT para dominios recientes, así que
+   la ausencia de estos cinco no habla de otros nombres. El paso concreto:
+   **añadir el dominio en Resend y publicar los registros exactos que muestre**.
    Tabla completa en la ficha.
 
    Lo demás ya está preparado (06-11, #824): el remitente por defecto reclamaba

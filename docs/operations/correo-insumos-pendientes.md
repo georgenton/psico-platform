@@ -49,12 +49,12 @@ de variables de los tres recursos de Coolify (donde el token de lectura redacta
 los valores, así que no distingue «ausente» de «vacía») **y dentro del
 contenedor servido**, que sí lo distingue.
 
-| Insumo                          | Estado hoy                                                                                                                                                                  |
-| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Credencial de Resend**        | **ausente** en API, Web y worker, y ausente dentro del contenedor. Tampoco hay ninguna en el almacén de operaciones                                                         |
-| **`feelverse.app` verificado**  | **No comprobado** — lo dice la cuenta de Resend, y no tenemos acceso. Lo que sí está comprobado (18-11, por DNS) es que **hoy no hay publicado ningún registro de envío**   |
-| **Una bandeja real autorizada** | **no existe.** El único fichero con «correo» en el nombre del almacén de operaciones es una cuenta de aplicación en `@psico.test`, que por la RFC 2606 **no puede recibir** |
-| **Remitente** (`EMAIL_FROM`)    | **ausente**, así que hoy toma el valor por omisión `no-reply@feelverse.app`. El informe de salud delata que nadie lo eligió                                                 |
+| Insumo                          | Estado hoy                                                                                                                                                                         |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Credencial de Resend**        | **ausente** en API, Web y worker, y ausente dentro del contenedor. Tampoco hay ninguna en el almacén de operaciones                                                                |
+| **`feelverse.app` verificado**  | **No comprobado** — lo dice la cuenta de Resend, y no tenemos acceso. Lo que sí está comprobado (18-11, por DNS) es que **en los cinco nombres consultados no hay nada de Resend** |
+| **Una bandeja real autorizada** | **no existe.** El único fichero con «correo» en el nombre del almacén de operaciones es una cuenta de aplicación en `@psico.test`, que por la RFC 2606 **no puede recibir**        |
+| **Remitente** (`EMAIL_FROM`)    | **ausente**, así que hoy toma el valor por omisión `no-reply@feelverse.app`. El informe de salud delata que nadie lo eligió                                                        |
 
 Los tres primeros son tuyos. El cuarto se resuelve con el segundo: fijarlo a
 mano sólo tiene sentido cuando el dominio esté verificado.
@@ -86,9 +86,18 @@ tiene (el SPF y los MX del ápice, del registrador) y tres que estarían si
 estuviera configurado para enviar. No son «los registros que pide la cuenta»:
 eso es la pregunta 2, y sólo la contesta su pestaña de registros.
 
-**Lo que acredita:** hoy **no se puede enviar desde `@feelverse.app`** aunque
-llegara la credencial, porque no hay ni firma DKIM ni subdominio de envío
-publicados. **Lo que no acredita:** qué hay dentro de la cuenta de Resend.
+**Lo que acredita:** en los cinco nombres consultados **no hay nada de Resend
+publicado**. **Lo que no acredita**, y conviene no estirarlo —es el límite que
+señaló la revisión del 18-11—: ni la **configuración exacta** que ese dominio
+necesita, ni el **estado del proveedor**. Las dos cosas viven en la cuenta.
+
+Y el motivo de ese límite es concreto, no una cautela de cortesía: los cinco
+nombres son los que Resend usaba cuando se escribió esto, y su propia
+documentación advierte que para dominios creados después de agosto de 2026
+**puede generar registros CNAME** en vez del par MX/TXT. Si la cuenta pidiera
+otros nombres, la ausencia de estos cinco no diría nada sobre ellos. Así que la
+lectura correcta es «falta lo que buscamos», no «el dominio no está
+configurado».
 
 **Y una cosa útil de paso:** el dominio **sí** tiene reenvío de correo
 configurado en el registrador. Eso hace plausible que una dirección
@@ -201,12 +210,32 @@ dominio.
    > cuántas entradas tiene — **no cuáles**. El informe cuenta y nunca enumera,
    > a propósito: una dirección es un dato personal y ese informe lo lee
    > cualquier ADMIN. Así que `recipients: 1` confirma que la guarda está
-   > restringiendo, y **no** confirma que la dirección sea la correcta.
-   >
-   > Lo que sí lo confirma es el paso 4: un mensaje que **llega a esa bandeja**.
-   > Hasta entonces, lo único que hay es el valor que se pegó en el panel, y la
-   > forma de no equivocarse es releerlo ahí antes de desplegar — no deducirlo
-   > de un contador.
+   > restringiendo, y **no** confirma que la dirección sea la correcta: sale
+   > idéntico con una errata de una letra que produzca otra dirección válida.
+
+   Y por eso hay un **3bis**, que es el que sí acredita la dirección exacta:
+
+   ```bash
+   printf '%s' "$DIRECCION" | sudo docker exec -i <contenedor> sh -lc \
+     'cd /app/apps/api && /mise/installs/node/20/bin/node scripts/check-mail-recipient.cjs'
+   ```
+
+   Le pregunta a la **guarda compilada del propio contenedor** —la misma que
+   decide el envío, así que no puede discrepar con ella— si un mensaje a esa
+   dirección saldría. Se corre en los **dos** procesos, el de la API y el del
+   worker. La dirección entra por **stdin**, no por argumento: no queda en el
+   historial ni la ve un `ps`, y la salida es un veredicto, nunca el valor.
+   Comprobado contra los contenedores reales, con control positivo y con la
+   errata de una letra, que el informe de salud no distingue y esto sí.
+
+   Lo que **ni una ni otra** acreditan es que el mensaje **llegue**. Eso es el
+   paso 4.
+
+   > **El guion viaja en la imagen**, en `apps/api/scripts/`, y los dos
+   > contenedores lo llevan. El que sirve hoy (`c19358a4`) es anterior a él, así
+   > que estará disponible tras el despliegue del paso 2 — que es obligatorio de
+   > todas formas para que las variables surtan efecto, de modo que el orden
+   > encaja sin pasos extra.
 
 4. Recorrer la recuperación de verdad, en la bandeja autorizada:
    **solicitar → recibir → abrir el enlace → contraseña nueva → entrar con

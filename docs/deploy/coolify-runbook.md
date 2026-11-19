@@ -1615,10 +1615,14 @@ necesitarla. Tres opciones, en orden, con su estado honesto:
 | **2 · Rehacer hacia adelante** desde un commit sano con guarda | **no ensayado**                                                | Coolify guarda `git_commit_sha` por aplicación (hoy `HEAD`); fijarlo a un SHA sano, desplegar y devolverlo a `HEAD` reconstruye en vez de intercambiar. Cuesta una construcción |
 | **3 · Aceptar una API sin guarda** por una ventana acotada     | **sí**, y es lo que hay si la API falla ahora                  | Hay que mantener la **Web en una imagen con guarda**. Entonces **ninguna pantalla ofrece contratar** y lo que queda abierto es el endpoint                                      |
 
-Sobre la **opción 2**: el campo existe y se lee hoy en `get_application`, y la
-actualización de aplicación acepta los mismos campos que el REST. **No se ha
-ejercitado**, así que se escribe como el siguiente acto concreto de este
-frente, no como recuperación disponible.
+Sobre la **opción 2**, con el alcance exacto de lo comprobado: el campo
+`git_commit_sha` **se lee hoy** en `get_application` (vale `HEAD`) y **es
+escribible** — la referencia de la API de Coolify lo declara como campo
+opcional del cuerpo de `PATCH /applications/{uuid}`, junto a `git_branch`, y no
+lo marca de sólo lectura. Lo que **no** está comprobado es su semántica: si
+escribirlo **fija** el commit de la siguiente construcción o sólo guarda el
+dato. Por eso esto se escribe como el **siguiente acto concreto** de este
+frente —ensayarlo— y no como recuperación disponible.
 
 Sobre la **opción 3**, lo que sí está comprobado: una API anterior a #864 **no
 publica `purchases`** en `/api/plan` (`git grep` sobre `85ab7c86`, vacío), y

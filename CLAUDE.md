@@ -4042,7 +4042,7 @@ sección, manda esta sección.
 | La prueba que detecta invertir         | ✅ **el hueco de la tanda anterior, cerrado**: las afirmaciones eran de **texto por posición**, así que intercambiar las dos ramas del ternario de compra dejaba la prueba en verde. Las dos piezas se extrajeron a componentes propios y ahora se **montan**: el estado cerrado exige que no haya botón de contratar **ni formulario**, y el abierto que sí los haya                                                                                                                                                     |
 | El tour, pospuesto en vez de encima    | ✅ **las dos mitades a la vez**: «Empezar a leer» sigue llevando al capítulo elegido —es lo que la persona pidió— y el tour **espera en Inicio**, que es la pantalla de la que habla su paso 1 de 5. Se **pospone, no se cancela**: `tourCompletedAt` sigue en nulo y hay prueba de que `completeTour` **no** se llama mientras espera                                                                                                                                                                                    |
 | La biblioteca dice por qué hay una     | ✅ una línea sobria sobre la rejilla, y **sólo** cuando el catálogo entero —vista catálogo, sin búsqueda ni filtros— tiene una obra. La regla vive en `@psico/types` para que web y móvil no puedan divergir: la implementación obvia y equivocada (`total === 1`) mostraría la nota al filtrar hasta un resultado                                                                                                                                                                                                        |
-| Revertir la API borra la guarda        | ⚠️ **escrito donde se decide** ([runbook §3.0](docs/deploy/coolify-runbook.md)): una imagen anterior a #864 **no conoce** `BILLING_PURCHASES`, así que volver a ella **reabre las compras** — y el candidato de reversión del §3.1 (API `21f10095`) es justo una de ésas. Poner la variable en `off` no ayuda: ese código no la lee                                                                                                                                                                                       |
+| Revertir la API borra la guarda        | ⚠️ **escrito donde se decide** ([runbook §3.0](docs/deploy/coolify-runbook.md)): una imagen anterior a #864 **no conoce** `BILLING_PURCHASES`, así que volver a ella **reabre las compras**, y poner la variable en `off` no ayuda. Lo que esta fila decía del candidato quedó superado al medirlo el 19-11: ese candidato **ya no existe** y no hay otro con guarda — ver las dos filas de arriba                                                                                                                        |
 | Las compras, cerradas de verdad        | ✅ **la contradicción más visible del producto, cerrada**: la interfaz ofrecía contratar en **dos** sitios mientras los cobros estaban cerrados, y el recorrido llegaba a crear un cliente en el proveedor. Ahora la decisión la toma el servidor UNA vez, **falla cerrada** —ausencia, cadena vacía, «off» y cualquier valor ilegible cierran— y viaja en el contrato. Las dos rutas contestan **503 `PURCHASES_CLOSED`** antes de tocar al proveedor                                                                    |
 | Lo que ya no se puede pulsar           | ✅ Mi plan explica que no se puede contratar y conserva los importes **como propuesta**, con el aviso de la landing palabra por palabra; el muro de Patrones deja de ofrecer «Hazte Pro». **Sin botón deshabilitado**: un `disabled` sigue siendo una llamada a contratar                                                                                                                                                                                                                                                 |
 | Lo que NO se tocó al cerrarla          | consultas de plan y consumo, facturas, portal, cancelaciones, reactivaciones, webhook y el pago de una sesión de terapia. **Ni una credencial retirada**: cerrar la puerta y quitar las claves son dos cosas, a propósito                                                                                                                                                                                                                                                                                                 |
@@ -5797,12 +5797,15 @@ afirma por posición de texto sobre un fichero que contiene las dos ramas. Es la
 misma lección de la tanda anterior con la guarda del correo —un mecanismo
 comprobado en un solo caso— aplicada esta vez al instrumento.
 
-**La pareja compatible queda escrita y COMPROBADA** en
-[el runbook §3.0](docs/deploy/coolify-runbook.md): las dos imágenes que §65
-nombra siguen disponibles (API `21f10095`, Web `6b069d17`), con el inventario del
-día y sin preferencia general por revertir Web — se revierte el servicio que
-tenga el defecto. Que un cambio no traiga migración dice algo de la base y
-**nada** del contrato entre los dos procesos.
+**La pareja de reversión, releída el 19-11 — y ya no es la que decía §65.**
+`21f10095` **ya no existe**: la retención se lo llevó. El inventario vigente y
+el criterio para elegir están en
+[el runbook §3.0](docs/deploy/coolify-runbook.md), y el saldo es que **hoy no
+hay reversión de API que mantenga las compras cerradas** (sólo la imagen viva
+lleva la guarda); la Web sí, con `c19358a4`. Sigue sin haber preferencia
+general por revertir Web: se revierte el servicio que tenga el defecto. Y que
+un cambio no traiga migración dice algo de la base y **nada** del contrato
+entre los dos procesos.
 
 **El commit integrado, el artefacto servido y la fecha de observación son tres
 cosas**, y conviene no colapsarlas: un commit de documentos no cambia la

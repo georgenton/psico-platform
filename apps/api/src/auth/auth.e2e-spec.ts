@@ -274,6 +274,95 @@ describe("Auth · E2E", () => {
     });
   });
 
+  // ── resend-verification ───────────────────────────────────────────────────
+  //
+  // The service spec covers the branches. What only the HTTP boundary can
+  // show is that they are INDISTINGUISHABLE from outside — same status, same
+  // body — which is the whole point of the no-leak contract. A unit test
+  // asserting "resolves" can't see the status code the caller actually reads.
+
+  describe("resend-verification", () => {
+    const unverifiedLocal = {
+      id: "user-1",
+      email: "user@example.com",
+      name: "Ana Pérez",
+      isActive: true,
+      authProvider: "LOCAL",
+      emailVerified: false,
+    };
+
+    it("answers 200 { ok: true } for an unknown address", async () => {
+      h.prisma.user.findUnique.mockResolvedValue(null);
+
+      const res = await request(h.app.getHttpServer())
+        .post("/api/auth/resend-verification")
+        .send({ email: "ghost@example.com" });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ ok: true });
+    });
+
+    it("answers exactly the same for an address already verified", async () => {
+      h.prisma.user.findUnique.mockResolvedValue({
+        ...unverifiedLocal,
+        emailVerified: true,
+      });
+
+      const res = await request(h.app.getHttpServer())
+        .post("/api/auth/resend-verification")
+        .send({ email: "user@example.com" });
+
+      // Byte-for-byte the previous case. Anything that differed here —
+      // status, code, body, even a message — would answer "does this address
+      // have a confirmed account?" to anyone who asked.
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ ok: true });
+    });
+
+    it("answers the same again for one that does get an email", async () => {
+      // The control for the two above: if the success path ALSO 200'd with a
+      // different body, the pair of tests above would prove nothing about
+      // indistinguishability.
+      h.prisma.user.findUnique.mockResolvedValue(unverifiedLocal);
+
+      const res = await request(h.app.getHttpServer())
+        .post("/api/auth/resend-verification")
+        .send({ email: "user@example.com" });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ ok: true });
+      expect(h.prisma.emailVerificationToken.create).toHaveBeenCalledTimes(1);
+    });
+
+    it("validates the address format → 400 envelope", async () => {
+      const res = await request(h.app.getHttpServer())
+        .post("/api/auth/resend-verification")
+        .send({ email: "not-an-email" });
+
+      expect(res.status).toBe(400);
+      expect(res.body.code).toBe("VALIDATION_ERROR");
+    });
+
+    it("throttles the 4th request from one IP within the hour", async () => {
+      h.prisma.user.findUnique.mockResolvedValue(null);
+
+      const send = () =>
+        request(h.app.getHttpServer())
+          .post("/api/auth/resend-verification")
+          .set("X-Forwarded-For", "203.0.113.9")
+          .send({ email: "ghost@example.com" });
+
+      for (let i = 0; i < 3; i++) {
+        expect((await send()).status).toBe(200);
+      }
+
+      // 3/hour/IP. Without the decorator this one is a 200 like the rest.
+      const blocked = await send();
+      expect(blocked.status).toBe(429);
+      expect(blocked.body.code).toBe("RATE_LIMIT_EXCEEDED");
+    });
+  });
+
   // ── S2: OAuth Google ──────────────────────────────────────────────────────
 
   describe("oauth/google", () => {

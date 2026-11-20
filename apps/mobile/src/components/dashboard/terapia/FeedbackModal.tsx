@@ -151,7 +151,7 @@ export function FeedbackModal({ sessionId, visible, onClose, onDone }: Props) {
           />
           {note && !key ? (
             <Text style={styles.helperText}>
-              Desbloqueá tu Diario para cifrar la nota.
+              Desbloquea tu Diario para cifrar la nota.
             </Text>
           ) : null}
 

@@ -41,7 +41,7 @@ const CRISIS_BY_COUNTRY: Record<string, CrisisResponse> = {
       "Si el impulso está fuerte, aleja objetos peligrosos y llama al 911.",
     ],
     nextSteps: [
-      "Llamá una línea de la lista de arriba. Estás haciendo lo correcto.",
+      "Llama a una línea de la lista de arriba. Estás haciendo lo correcto.",
       "Si estás bajo medicación, no la dejes sin hablar con tu médico.",
       "Mañana, agenda una consulta. Hoy alcanzaste a pedir ayuda.",
     ],
@@ -59,9 +59,9 @@ const CRISIS_BY_COUNTRY: Record<string, CrisisResponse> = {
     ],
     safetyTipsShort: [
       "Respira lento.",
-      "Llamá la línea 106 — es gratis y anónima.",
+      "Llama a la línea 106 — es gratis y anónima.",
     ],
-    nextSteps: ["Llamá la línea 106."],
+    nextSteps: ["Llama a la línea 106."],
   },
   MX: {
     country: "MX",
@@ -75,7 +75,7 @@ const CRISIS_BY_COUNTRY: Record<string, CrisisResponse> = {
       },
     ],
     safetyTipsShort: ["Respira lento.", "SAPTEL responde 24/7."],
-    nextSteps: ["Llamá SAPTEL."],
+    nextSteps: ["Llama a SAPTEL."],
   },
 };
 

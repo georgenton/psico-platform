@@ -166,6 +166,18 @@ export const authApi = {
       body: { token },
     }),
 
+  /**
+   * Asks for another verification link. Answers 200 for every address —
+   * unknown, already confirmed, or over its hourly budget — so the caller
+   * can't use it to find out which addresses have accounts. The UI therefore
+   * shows one message in all cases and must not try to infer more.
+   */
+  resendVerification: (email: string) =>
+    apiFetch<{ ok: true }>("/auth/resend-verification", {
+      method: "POST",
+      body: { email },
+    }),
+
   // Sprint S58 — Google Sign-In. idToken comes from Google Identity Services
   // in the browser (or `expo-auth-session` on mobile).
   oauthGoogle: (idToken: string) =>

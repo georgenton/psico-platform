@@ -324,7 +324,7 @@ export function SessionDetailShell({
                 color: "var(--color-warm-700)",
               }}
             >
-              🔐 Desbloqueá tu Diario para escribir tu intención.
+              🔐 Desbloquea tu Diario para escribir tu intención.
             </div>
           ) : data.session.paymentStatus !== "PAID" ? (
             <div
@@ -334,7 +334,7 @@ export function SessionDetailShell({
                 color: "var(--color-rose-700)",
               }}
             >
-              Confirmá el pago para empezar a preparar tu sesión.
+              Confirma el pago para empezar a preparar tu sesión.
             </div>
           ) : (
             <>

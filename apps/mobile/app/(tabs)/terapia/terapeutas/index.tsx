@@ -104,7 +104,7 @@ export default function DirectorioScreen() {
 
       {data && data.total > data.items.length ? (
         <Text style={styles.moreText}>
-          Mostrando {data.items.length} de {data.total}. Refiná la búsqueda para
+          Mostrando {data.items.length} de {data.total}. Refina la búsqueda para
           ver más.
         </Text>
       ) : null}

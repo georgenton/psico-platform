@@ -154,7 +154,7 @@ export default function ReservarScreen() {
       ) : null}
       {!slotsByDay || slotsByDay.length === 0 ? (
         <Text style={styles.emptyText}>
-          Sin horarios disponibles. Reintentá más tarde.
+          Sin horarios disponibles. Reintenta más tarde.
         </Text>
       ) : (
         <View>

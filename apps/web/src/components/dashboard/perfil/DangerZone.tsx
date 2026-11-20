@@ -30,7 +30,7 @@ export function DangerZone({ me }: { me: UserMeResponse }) {
         className="mt-0.5 text-[12px]"
         style={{ color: "var(--color-warm-500)" }}
       >
-        Acciones irreversibles o con cooldown. Pensá dos veces.
+        Acciones irreversibles o con cooldown. Piénsalo dos veces.
       </p>
 
       <div className="mt-4 space-y-3">

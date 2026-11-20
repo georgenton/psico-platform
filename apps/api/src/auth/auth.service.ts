@@ -26,6 +26,7 @@ import type { LoginDto } from "./dto/login.dto";
 import type { ForgotPasswordDto } from "./dto/forgot-password.dto";
 import type { ResetPasswordDto } from "./dto/reset-password.dto";
 import type { VerifyEmailDto } from "./dto/verify-email.dto";
+import type { ResendVerificationDto } from "./dto/resend-verification.dto";
 import type { OAuthGoogleDto } from "./dto/oauth-google.dto";
 import type { AuthResponseDto } from "./dto/auth-response.dto";
 import type { JwtPayload } from "./strategies/jwt.strategy";
@@ -39,6 +40,32 @@ import { GoogleVerifier } from "./oauth/google-verifier";
 
 const VERIFY_EMAIL_TTL_HOURS = 24;
 const PASSWORD_RESET_TTL_HOURS = 1;
+
+/**
+ * Per-address ceiling on verification emails: at most
+ * `RESEND_VERIFICATION_MAX_PER_WINDOW` in any trailing
+ * `RESEND_VERIFICATION_WINDOW_HOURS`.
+ *
+ * WHY A SECOND LIMIT. The controller's `@Throttle` keys by IP, which protects
+ * our own cost but not the person being targeted: anyone with a handful of
+ * addresses — or a handful of IPs — could use the endpoint to bomb one
+ * inbox. The limit that protects the victim has to be keyed by the victim.
+ *
+ * WHY IT'S DERIVED, NOT COUNTED SEPARATELY. The budget is read straight off
+ * `EmailVerificationToken` rows, one of which is written for every send. So
+ * the limit counts the very thing it limits and there is no second ledger to
+ * drift out of step, no new table, and no migration. It also survives a Redis
+ * restart, which a cache-backed counter would not.
+ *
+ * Two consequences worth knowing. The email `register()` sends counts, so a
+ * brand-new account has two resends left in its first hour — which is the
+ * right reading: they already received one. And a row is written before the
+ * provider is called, so a failing provider spends budget; that is the
+ * deliberate direction, because otherwise an outage turns this into an
+ * unmetered retry loop against Resend.
+ */
+const RESEND_VERIFICATION_WINDOW_HOURS = 1;
+const RESEND_VERIFICATION_MAX_PER_WINDOW = 3;
 
 /**
  * Per-request context carried alongside the DTOs to populate the audit log
@@ -112,7 +139,8 @@ export class AuthService {
 
     // Fire-and-forget verification email. We don't await to avoid blocking
     // the register response on Resend latency — if the email fails to send,
-    // the user can re-request later via /auth/resend-verification (future).
+    // or if the 24h link lapses before it's clicked, the person asks for
+    // another one via POST /auth/resend-verification.
     // The audit log captures the request regardless.
     void this.sendVerificationEmail(user.id, user.email, user.name).catch(
       (err) => {
@@ -585,6 +613,140 @@ export class AuthService {
     return { ok: true, userId: stored.user.id };
   }
 
+  // ── resend verification ───────────────────────────────────────────────────
+
+  /**
+   * Issues a fresh verification link for an address. **Always resolves
+   * successfully**, whatever happens inside — same contract, and same reason,
+   * as `forgotPassword`: an answer that varied would turn this endpoint into
+   * an oracle for "does this address have an account here", and the
+   * already-verified branch would leak a second bit on top.
+   *
+   * Six internal paths, every one of them audited as
+   * EMAIL_VERIFICATION_REQUESTED so the real outcome is recoverable from the
+   * log even though the caller can't see it:
+   *   - LOCAL user, not yet verified, within budget → send the email.
+   *   - Address unknown → nothing to do.
+   *   - Account inactive → treated exactly like unknown.
+   *   - OAuth user → the provider already vouched for the address; we have no
+   *     verification of our own to offer, and no password-less account to let
+   *     through.
+   *   - Already verified → nothing left to verify. Silent on purpose.
+   *   - Over the per-address budget → refuse to send, still resolve.
+   *
+   * What this deliberately does NOT do: change who may use the product. No
+   * guard in this codebase requires a verified address, and this endpoint
+   * doesn't introduce one — it closes the hole where a lapsed link left
+   * deleting the account as the only way forward.
+   */
+  async resendVerification(
+    dto: ResendVerificationDto,
+    ctx: AuthRequestContext = {},
+  ): Promise<void> {
+    const normalizedEmail = dto.email.trim().toLowerCase();
+
+    const user = await this.prisma.user.findUnique({
+      where: { email: normalizedEmail },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        isActive: true,
+        authProvider: true,
+        emailVerified: true,
+      },
+    });
+
+    if (!user || !user.isActive) {
+      await this.recordEvent({
+        type: AuthEventType.EMAIL_VERIFICATION_REQUESTED,
+        userId: null,
+        email: normalizedEmail,
+        ctx,
+        metadata: {
+          skipped: true,
+          reason: user ? "INACTIVE" : "USER_NOT_FOUND",
+        },
+      });
+      return;
+    }
+
+    if (user.authProvider !== "LOCAL") {
+      await this.recordEvent({
+        type: AuthEventType.EMAIL_VERIFICATION_REQUESTED,
+        userId: user.id,
+        email: user.email,
+        ctx,
+        metadata: {
+          skipped: true,
+          reason: "OAUTH_USER",
+          provider: user.authProvider,
+        },
+      });
+      return;
+    }
+
+    if (user.emailVerified) {
+      await this.recordEvent({
+        type: AuthEventType.EMAIL_VERIFICATION_REQUESTED,
+        userId: user.id,
+        email: user.email,
+        ctx,
+        metadata: { skipped: true, reason: "ALREADY_VERIFIED" },
+      });
+      return;
+    }
+
+    const sentInWindow = await this.prisma.emailVerificationToken.count({
+      where: {
+        userId: user.id,
+        createdAt: {
+          gte: new Date(
+            Date.now() - RESEND_VERIFICATION_WINDOW_HOURS * 3600 * 1000,
+          ),
+        },
+      },
+    });
+
+    if (sentInWindow >= RESEND_VERIFICATION_MAX_PER_WINDOW) {
+      await this.recordEvent({
+        type: AuthEventType.EMAIL_VERIFICATION_REQUESTED,
+        userId: user.id,
+        email: user.email,
+        ctx,
+        metadata: {
+          skipped: true,
+          reason: "ADDRESS_RATE_LIMITED",
+          sentInWindow,
+        },
+      });
+      return;
+    }
+
+    // Best-effort send, like `forgotPassword`. A provider failure must not
+    // become a 500 here: the response is 200 by contract, so the only place
+    // the failure can be recorded is the audit row below.
+    let sendFailed = false;
+    try {
+      await this.sendVerificationEmail(user.id, user.email, user.name);
+    } catch (err) {
+      sendFailed = true;
+      this.logger.error(
+        `Verification email resend failed for user ${user.id}: ${(err as Error).message}`,
+      );
+    }
+
+    await this.recordEvent({
+      type: AuthEventType.EMAIL_VERIFICATION_REQUESTED,
+      userId: user.id,
+      email: user.email,
+      ctx,
+      // `sendFailed` says our call to the provider threw — not that the
+      // message failed to arrive, which we have no way of knowing here.
+      metadata: sendFailed ? { sendFailed: true } : undefined,
+    });
+  }
+
   // ── OAuth · Google ────────────────────────────────────────────────────────
 
   /**
@@ -725,8 +887,12 @@ export class AuthService {
 
   /**
    * Generates a verification token and sends the welcome email. Called from
-   * `register()` fire-and-forget and (future) from a resend-verification
-   * endpoint.
+   * `register()` fire-and-forget and from `resendVerification()`.
+   *
+   * Writes the token row BEFORE calling the provider, which is what makes the
+   * row count usable as the per-address budget in `resendVerification` — see
+   * RESEND_VERIFICATION_MAX_PER_WINDOW. Throws if either step fails; both
+   * callers catch.
    */
   private async sendVerificationEmail(
     userId: string,

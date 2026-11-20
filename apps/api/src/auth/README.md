@@ -4,16 +4,17 @@ JWT-based authentication with rotating refresh tokens, audit logging, and per-IP
 
 **Endpoints:** all under `/api/auth/*` (post Sprint 0.A). All return JSON envelopes via the global `HttpExceptionFilter`.
 
-| Method | Path                        | Auth                  | Throttle              | Body                        | Returns                                   |
-| ------ | --------------------------- | --------------------- | --------------------- | --------------------------- | ----------------------------------------- |
-| POST   | `/api/auth/register`        | —                     | 10 / hour / IP        | `{ email, password, name }` | `201 { accessToken, refreshToken, user }` |
-| POST   | `/api/auth/login`           | —                     | 5 / 15 min / IP       | `{ email, password }`       | `200 { accessToken, refreshToken, user }` |
-| POST   | `/api/auth/refresh`         | refresh token in body | global default 60/min | `{ refreshToken }`          | `200 { accessToken, refreshToken, user }` |
-| POST   | `/api/auth/logout`          | bearer                | global default        | `{ refreshToken }`          | `204 No Content`                          |
-| POST   | `/api/auth/forgot-password` | —                     | 3 / hour / IP         | `{ email }`                 | `200 { ok: true }` (no-leak — always 200) |
-| POST   | `/api/auth/reset-password`  | —                     | 5 / 15 min / IP       | `{ token, newPassword }`    | `204 No Content`                          |
-| POST   | `/api/auth/verify-email`    | —                     | global default        | `{ token }`                 | `200 { ok: true, userId }`                |
-| POST   | `/api/auth/oauth/google`    | —                     | 10 / 15 min / IP      | `{ idToken }`               | `200 { accessToken, refreshToken, user }` |
+| Method | Path                            | Auth                  | Throttle              | Body                        | Returns                                   |
+| ------ | ------------------------------- | --------------------- | --------------------- | --------------------------- | ----------------------------------------- |
+| POST   | `/api/auth/register`            | —                     | 10 / hour / IP        | `{ email, password, name }` | `201 { accessToken, refreshToken, user }` |
+| POST   | `/api/auth/login`               | —                     | 5 / 15 min / IP       | `{ email, password }`       | `200 { accessToken, refreshToken, user }` |
+| POST   | `/api/auth/refresh`             | refresh token in body | global default 60/min | `{ refreshToken }`          | `200 { accessToken, refreshToken, user }` |
+| POST   | `/api/auth/logout`              | bearer                | global default        | `{ refreshToken }`          | `204 No Content`                          |
+| POST   | `/api/auth/forgot-password`     | —                     | 3 / hour / IP         | `{ email }`                 | `200 { ok: true }` (no-leak — always 200) |
+| POST   | `/api/auth/reset-password`      | —                     | 5 / 15 min / IP       | `{ token, newPassword }`    | `204 No Content`                          |
+| POST   | `/api/auth/verify-email`        | —                     | global default        | `{ token }`                 | `200 { ok: true, userId }`                |
+| POST   | `/api/auth/resend-verification` | —                     | 3 / hour / IP         | `{ email }`                 | `200 { ok: true }` (no-leak — always 200) |
+| POST   | `/api/auth/oauth/google`        | —                     | 10 / 15 min / IP      | `{ idToken }`               | `200 { accessToken, refreshToken, user }` |
 
 ## Token model
 
@@ -48,9 +49,35 @@ Throttler config is global (see `apps/api/src/shared/throttler/throttler.module.
 
 - `/api/auth/login` — **5 / 15 min / IP**. OWASP-recommended baseline. Keys by IP+route so an attacker cycling emails shares one budget.
 - `/api/auth/register` — **10 / hour / IP**. Slows email-spam bots.
+- `/api/auth/forgot-password` and `/api/auth/resend-verification` — **3 / hour / IP** each. Same shape of endpoint: unauthenticated, takes an address, sends mail.
 - `/api/auth/refresh` and `/api/auth/logout` — fall back to global default (60/min/user).
 
 When exceeded, returns `429 RATE_LIMIT_EXCEEDED` with the standard envelope.
+
+### The second limit on `resend-verification`, and why it exists
+
+The throttler keys by **IP**, which protects our own mail cost but not the
+person being targeted: anyone with a handful of addresses — or a handful of
+IPs — could use the endpoint to bomb one inbox. So `resendVerification` also
+enforces **3 verification emails per hour per account**, keyed by the account
+rather than the caller.
+
+That budget is **derived**, not bookkept: it is a `count` of
+`EmailVerificationToken` rows in the trailing hour, and one such row is
+written for every send. The limit therefore counts the very thing it limits —
+no second ledger to drift, no new table, no migration, and it survives a Redis
+restart, which a cache-backed counter would not.
+
+Two consequences worth knowing before changing it:
+
+- The email `register()` sends counts, so a brand-new account has two resends
+  left in its first hour. That is the right reading: they already got one.
+- The row is written **before** the provider is called, so a failing provider
+  spends budget. Deliberate — otherwise a Resend outage turns the endpoint
+  into an unmetered retry loop.
+
+Being over budget is invisible to the caller (still `200 { ok: true }`); the
+`AuthEvent` row carries `metadata.reason = "ADDRESS_RATE_LIMITED"`.
 
 ## Constant-time login (timing attack mitigation)
 
@@ -76,11 +103,12 @@ When exceeded, returns `429 RATE_LIMIT_EXCEEDED` with the standard envelope.
 
 ## Email flows (Sprint S2)
 
-| Endpoint          | What it does                                                                                                                                            | Token TTL |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
-| `forgot-password` | If email matches LOCAL user: generates token, emails reset link, audits PASSWORD_RESET_REQUESTED. Always returns 200 (no-leak).                         | 1 hour    |
-| `reset-password`  | Consumes token in transaction with: password rotation + revoke ALL refresh tokens (forces re-login everywhere). 410 GONE if token invalid/expired/used. | —         |
-| `verify-email`    | Consumes token, sets `User.emailVerified=true`. Sent automatically after `register()` (fire-and-forget).                                                | 24 hours  |
+| Endpoint              | What it does                                                                                                                                                            | Token TTL |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| `forgot-password`     | If email matches LOCAL user: generates token, emails reset link, audits PASSWORD_RESET_REQUESTED. Always returns 200 (no-leak).                                         | 1 hour    |
+| `reset-password`      | Consumes token in transaction with: password rotation + revoke ALL refresh tokens (forces re-login everywhere). 410 GONE if token invalid/expired/used.                 | —         |
+| `verify-email`        | Consumes token, sets `User.emailVerified=true`. Sent automatically after `register()` (fire-and-forget).                                                                | 24 hours  |
+| `resend-verification` | Issues another verification link for an address. Always returns 200 (no-leak), whether the address is unknown, already verified, OAuth, or over its per-address budget. | 24 hours  |
 
 Token storage strategy (`PasswordResetToken`, `EmailVerificationToken` tables):
 
@@ -104,7 +132,6 @@ If `GOOGLE_CLIENT_ID` is not configured, the endpoint returns `400 OAUTH_NOT_CON
 
 | Feature                                        | Sprint                                   |
 | ---------------------------------------------- | ---------------------------------------- |
-| `/auth/resend-verification`                    | S2.5 (small)                             |
 | `/auth/oauth/apple`                            | deferred — needs Apple Developer account |
 | MFA via TOTP                                   | post-v1                                  |
 | WebAuthn passkeys                              | post-v1                                  |
@@ -114,7 +141,14 @@ If `GOOGLE_CLIENT_ID` is not configured, the endpoint returns `400 OAUTH_NOT_CON
 
 ## Testing
 
-- **Unit:** `auth.service.spec.ts` — 21 tests covering all flows + audit events + constant-time guarantee.
-- **E2E:** `auth.e2e-spec.ts` — 10 tests booting the full AppModule with mocked Prisma. Covers global prefix, validation envelope, throttler, JwtAuthGuard, and end-to-end register → login → logout.
+- **Unit:** `auth.service.spec.ts` — 45 tests covering all flows + audit events + constant-time guarantee. (The count said 21 until 2026-11-19; it had been stale for several sprints.)
+- **E2E:** `auth.e2e-spec.ts` — 23 tests booting the full AppModule with mocked Prisma. Covers global prefix, validation envelope, throttler, JwtAuthGuard, and end-to-end register → login → logout.
+
+On the two no-leak endpoints the split between the two files is not arbitrary.
+The service spec proves each branch does the right thing; only the E2E can
+show the branches are **indistinguishable from outside** — same status, same
+body — because a unit test asserting "resolves" never sees the status code the
+caller reads. `resend-verification` has both, including a control that the
+success path answers identically to the refusals.
 
 Run: `pnpm --filter @psico/api test`

@@ -58,6 +58,7 @@ const mockPrisma = {
     create: vi.fn().mockResolvedValue(undefined),
     findUnique: vi.fn(),
     update: vi.fn(),
+    count: vi.fn(),
   },
   $transaction: vi.fn(),
 };
@@ -96,6 +97,10 @@ describe("AuthService", () => {
     // Re-establish default async resolutions cleared by clearAllMocks.
     mockPrisma.authEvent.create.mockResolvedValue(undefined);
     mockPrisma.emailVerificationToken.create.mockResolvedValue(undefined);
+    // Default: nothing sent in the window, so the per-address budget is open.
+    // A default that happened to be at the ceiling would make every
+    // resendVerification test exercise the rate-limited branch by accident.
+    mockPrisma.emailVerificationToken.count.mockResolvedValue(0);
     mockResend.send.mockResolvedValue(undefined);
     mockGoogleVerifier.isEnabled.mockReturnValue(true);
     // $transaction handles both callback and array forms.
@@ -677,6 +682,219 @@ describe("AuthService", () => {
       ).rejects.toMatchObject({
         status: 410,
       });
+    });
+  });
+
+  // ── resendVerification ────────────────────────────────────────────────────
+
+  describe("resendVerification", () => {
+    /** An unverified LOCAL account — the one case that should receive mail. */
+    const unverifiedLocal = {
+      id: "user-1",
+      email: "user@example.com",
+      name: "Ana Pérez",
+      isActive: true,
+      authProvider: "LOCAL",
+      emailVerified: false,
+    };
+
+    /** The audit row for the request (there is exactly one per call). */
+    const auditedEvent = () =>
+      mockPrisma.authEvent.create.mock.calls[0][0].data;
+
+    it("sends a fresh link to an unverified LOCAL account and audits it", async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(unverifiedLocal);
+
+      await service.resendVerification(
+        { email: "user@example.com" },
+        { ipAddress: "1.2.3.4" },
+      );
+
+      // A new token row, hashed — the raw value only ever goes in the email.
+      const tokenCall =
+        mockPrisma.emailVerificationToken.create.mock.calls[0][0];
+      expect(tokenCall.data.userId).toBe("user-1");
+      expect(tokenCall.data.tokenHash).toMatch(/^[a-f0-9]{64}$/);
+      expect(tokenCall.data.expiresAt).toBeInstanceOf(Date);
+
+      const sendCall = mockResend.send.mock.calls[0][0];
+      expect(sendCall.to).toBe("user@example.com");
+      expect(sendCall.tag).toBe("verify-email");
+      expect(sendCall.html).toContain(
+        "https://app.example.com/verify-email?token=",
+      );
+
+      const event = auditedEvent();
+      expect(event.type).toBe("EMAIL_VERIFICATION_REQUESTED");
+      expect(event.userId).toBe("user-1");
+      expect(event.ipAddress).toBe("1.2.3.4");
+      // No `skipped` marker: this one actually went out.
+      expect(event.metadata).toBeUndefined();
+    });
+
+    // ── the no-leak contract ────────────────────────────────────────────────
+    //
+    // Each of these asserts the SAME observable outcome — resolves, sends
+    // nothing — for a different internal reason. That sameness IS the
+    // property: an endpoint whose answer varied by branch would be an oracle
+    // for "which addresses have accounts here", and the already-verified
+    // branch would leak a second bit on top of that.
+
+    it("resolves without leaking when the address is unknown", async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.resendVerification({ email: "ghost@example.com" }),
+      ).resolves.toBeUndefined();
+
+      expect(mockPrisma.emailVerificationToken.create).not.toHaveBeenCalled();
+      expect(mockResend.send).not.toHaveBeenCalled();
+
+      const event = auditedEvent();
+      expect(event.type).toBe("EMAIL_VERIFICATION_REQUESTED");
+      expect(event.userId).toBeNull();
+      expect(event.email).toBe("ghost@example.com");
+      expect(event.metadata).toMatchObject({
+        skipped: true,
+        reason: "USER_NOT_FOUND",
+      });
+    });
+
+    it("resolves without leaking when the account is already verified", async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        ...unverifiedLocal,
+        emailVerified: true,
+      });
+
+      await expect(
+        service.resendVerification({ email: "user@example.com" }),
+      ).resolves.toBeUndefined();
+
+      // Nothing to verify — and, just as important, nothing in the response
+      // that says so.
+      expect(mockPrisma.emailVerificationToken.create).not.toHaveBeenCalled();
+      expect(mockResend.send).not.toHaveBeenCalled();
+      expect(auditedEvent().metadata).toMatchObject({
+        skipped: true,
+        reason: "ALREADY_VERIFIED",
+      });
+    });
+
+    it("resolves without leaking when the account is inactive", async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        ...unverifiedLocal,
+        isActive: false,
+      });
+
+      await expect(
+        service.resendVerification({ email: "user@example.com" }),
+      ).resolves.toBeUndefined();
+
+      expect(mockResend.send).not.toHaveBeenCalled();
+      const event = auditedEvent();
+      // Indistinguishable from unknown to the caller; the log keeps the
+      // difference, and does it without asserting an identity we refused.
+      expect(event.userId).toBeNull();
+      expect(event.metadata).toMatchObject({
+        skipped: true,
+        reason: "INACTIVE",
+      });
+    });
+
+    it("skips OAuth accounts — the provider already vouched for the address", async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        ...unverifiedLocal,
+        email: "user@gmail.com",
+        authProvider: "GOOGLE",
+      });
+
+      await service.resendVerification({ email: "user@gmail.com" });
+
+      expect(mockResend.send).not.toHaveBeenCalled();
+      expect(auditedEvent().metadata).toMatchObject({
+        skipped: true,
+        reason: "OAUTH_USER",
+        provider: "GOOGLE",
+      });
+    });
+
+    it("normalises the address before looking it up", async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(unverifiedLocal);
+
+      await service.resendVerification({ email: "  User@Example.COM \n" });
+
+      expect(mockPrisma.user.findUnique.mock.calls[0][0].where).toEqual({
+        email: "user@example.com",
+      });
+      expect(mockResend.send).toHaveBeenCalledTimes(1);
+    });
+
+    // ── the per-address budget ──────────────────────────────────────────────
+
+    it("refuses to send once the address is at its hourly ceiling", async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(unverifiedLocal);
+      mockPrisma.emailVerificationToken.count.mockResolvedValue(3);
+
+      await expect(
+        service.resendVerification({ email: "user@example.com" }),
+      ).resolves.toBeUndefined();
+
+      expect(mockPrisma.emailVerificationToken.create).not.toHaveBeenCalled();
+      expect(mockResend.send).not.toHaveBeenCalled();
+      expect(auditedEvent().metadata).toMatchObject({
+        skipped: true,
+        reason: "ADDRESS_RATE_LIMITED",
+        sentInWindow: 3,
+      });
+    });
+
+    it("still sends one below the ceiling", async () => {
+      // The control for the test above. Without it, a ceiling of zero — or a
+      // comparison stuck at `true` — would read as a passing rate limit.
+      mockPrisma.user.findUnique.mockResolvedValue(unverifiedLocal);
+      mockPrisma.emailVerificationToken.count.mockResolvedValue(2);
+
+      await service.resendVerification({ email: "user@example.com" });
+
+      expect(mockResend.send).toHaveBeenCalledTimes(1);
+      expect(auditedEvent().metadata).toBeUndefined();
+    });
+
+    it("counts the budget per account over a trailing hour", async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(unverifiedLocal);
+
+      const before = Date.now();
+      await service.resendVerification({ email: "user@example.com" });
+      const after = Date.now();
+
+      const where = mockPrisma.emailVerificationToken.count.mock.calls[0][0]
+        .where as { userId: string; createdAt: { gte: Date } };
+
+      // Keyed by the account under attack, not by the caller.
+      expect(where.userId).toBe("user-1");
+      // One hour back, give or take the time the call itself took. Asserting
+      // the window — rather than just "some date" — is what keeps the budget
+      // from quietly widening to a day.
+      expect(where.createdAt.gte.getTime()).toBeGreaterThanOrEqual(
+        before - 3600_000 - 1000,
+      );
+      expect(where.createdAt.gte.getTime()).toBeLessThanOrEqual(
+        after - 3600_000 + 1000,
+      );
+    });
+
+    it("still resolves, and records the failure, when the provider throws", async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(unverifiedLocal);
+      mockResend.send.mockRejectedValueOnce(new Error("resend is down"));
+
+      await expect(
+        service.resendVerification({ email: "user@example.com" }),
+      ).resolves.toBeUndefined();
+
+      // The row was written before the send, so the attempt spent budget —
+      // deliberate, so an outage can't become an unmetered retry loop.
+      expect(mockPrisma.emailVerificationToken.create).toHaveBeenCalledTimes(1);
+      expect(auditedEvent().metadata).toMatchObject({ sendFailed: true });
     });
   });
 

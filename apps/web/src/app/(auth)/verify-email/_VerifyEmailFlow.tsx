@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import { authApi, ApiError } from "@/lib/api";
+import ResendVerificationPanel from "./_ResendVerificationPanel";
 
 type Phase =
   | { kind: "verifying" }
@@ -41,30 +42,6 @@ export default function VerifyEmailFlow() {
       }
     })();
   }, [token]);
-
-  if (phase.kind === "no-token") {
-    return (
-      <>
-        <h1
-          className="text-2xl font-bold mb-1"
-          style={{ color: "var(--color-warm-800)" }}
-        >
-          Enlace incompleto
-        </h1>
-        <p className="text-sm mb-6" style={{ color: "var(--color-warm-500)" }}>
-          El enlace de verificación no incluye un token. Pedile al sistema que
-          te envíe uno nuevo desde la pantalla de login.
-        </p>
-        <Link
-          href="/login"
-          className="rounded-xl py-2.5 px-4 text-sm font-medium text-white inline-block"
-          style={{ background: "var(--bg-brand-strong)" }}
-        >
-          Volver al login
-        </Link>
-      </>
-    );
-  }
 
   if (phase.kind === "verifying") {
     return (
@@ -105,53 +82,40 @@ export default function VerifyEmailFlow() {
     );
   }
 
-  if (phase.kind === "expired") {
-    return (
-      <>
-        <h1
-          className="text-2xl font-bold mb-1"
-          style={{ color: "var(--color-warm-800)" }}
-        >
-          El enlace expiró
-        </h1>
-        <p className="text-sm mb-6" style={{ color: "var(--color-warm-500)" }}>
-          Los enlaces de verificación valen 24 horas. Iniciá sesión para que te
-          enviemos uno nuevo automáticamente.
-        </p>
-        <Link
-          href="/login"
-          className="rounded-xl py-2.5 px-4 text-sm font-medium text-white inline-block"
-          style={{ background: "var(--bg-brand-strong)" }}
-        >
-          Volver al login
-        </Link>
-      </>
-    );
-  }
+  // ── Los cuatro callejones sin salida ──────────────────────────────────────
+  //
+  // Los cuatro comparten remedio —pedir otro enlace— y hasta hoy ninguno lo
+  // ofrecía: dos mandaban a iniciar sesión «para que te enviemos uno nuevo
+  // automáticamente», y ese recorrido no existía en el producto. Ahora los
+  // cuatro llevan el formulario que de verdad lo pide, y el texto describe lo
+  // que va a pasar.
+  const DEAD_END: Record<
+    "expired" | "invalid" | "no-token" | "error",
+    { titulo: string; cuerpo: string }
+  > = {
+    expired: {
+      titulo: "El enlace expiró",
+      cuerpo:
+        "Los enlaces de verificación valen 24 horas. Pide uno nuevo con tu correo y te lo enviamos.",
+    },
+    invalid: {
+      titulo: "Enlace inválido",
+      cuerpo:
+        "Este enlace no es válido. Es probable que ya lo hayas usado o que haya llegado cortado. Si todavía necesitas confirmar tu correo, pide uno nuevo.",
+    },
+    "no-token": {
+      titulo: "Enlace incompleto",
+      cuerpo:
+        "Este enlace no trae el código que necesitamos para confirmar tu correo. Suele pasar cuando el correo lo parte en dos líneas. Pide uno nuevo y ábrelo de una sola vez.",
+    },
+    error: {
+      titulo: "Algo salió mal",
+      cuerpo:
+        "No pudimos confirmar tu correo. Reintenta en unos minutos, o pide un enlace nuevo.",
+    },
+  };
 
-  if (phase.kind === "invalid") {
-    return (
-      <>
-        <h1
-          className="text-2xl font-bold mb-1"
-          style={{ color: "var(--color-warm-800)" }}
-        >
-          Enlace inválido
-        </h1>
-        <p className="text-sm mb-6" style={{ color: "var(--color-warm-500)" }}>
-          Este enlace no es válido. Es probable que ya lo hayas usado o que haya
-          sido modificado.
-        </p>
-        <Link
-          href="/login"
-          className="rounded-xl py-2.5 px-4 text-sm font-medium text-white inline-block"
-          style={{ background: "var(--bg-brand-strong)" }}
-        >
-          Volver al login
-        </Link>
-      </>
-    );
-  }
+  const { titulo, cuerpo } = DEAD_END[phase.kind];
 
   return (
     <>
@@ -159,19 +123,23 @@ export default function VerifyEmailFlow() {
         className="text-2xl font-bold mb-1"
         style={{ color: "var(--color-warm-800)" }}
       >
-        Algo salió mal
+        {titulo}
       </h1>
       <p className="text-sm mb-6" style={{ color: "var(--color-warm-500)" }}>
-        No pudimos confirmar tu correo. Reintenta en unos minutos o iniciá
-        sesión para pedir un enlace nuevo.
+        {cuerpo}
       </p>
-      <Link
-        href="/login"
-        className="rounded-xl py-2.5 px-4 text-sm font-medium text-white inline-block"
-        style={{ background: "var(--bg-brand-strong)" }}
-      >
-        Volver al login
-      </Link>
+
+      <ResendVerificationPanel />
+
+      <div className="flex justify-center mt-4">
+        <Link
+          href="/login"
+          className="text-sm"
+          style={{ color: "var(--color-lavender-700)" }}
+        >
+          ← Volver al login
+        </Link>
+      </div>
     </>
   );
 }

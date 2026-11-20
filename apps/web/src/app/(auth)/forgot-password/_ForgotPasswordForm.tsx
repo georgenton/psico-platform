@@ -75,7 +75,7 @@ export default function ForgotPasswordForm() {
         Restablecer contraseña
       </h1>
       <p className="text-sm mb-6" style={{ color: "var(--color-warm-500)" }}>
-        Ingresá tu email y te mandamos un enlace para crear una nueva.
+        Ingresa tu email y te mandamos un enlace para crear una nueva.
       </p>
 
       {/* `method="post"` para que el envío nativo —el que ocurre si React aún

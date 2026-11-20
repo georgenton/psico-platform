@@ -4021,6 +4021,180 @@ es la sección que se mantiene; esta entrada es su antecedente fechado.
 
 ---
 
+### Sesión — 2026-11-19 ✅ COMPLETADA — Pedir otro enlace de verificación
+
+**Rama:** `claude/brave-merkle-ebccad` · commiteada ahí junto con la tanda siguiente · **sin PR, sin desplegar**
+**Tests:** API 4497 pasados / 91 saltados (+16: 11 de servicio, 5 E2E) · Web 2641 en 233 ficheros (+8) · typecheck ×2 · eslint · OpenAPI `generate:check` en OK
+**Mutación:** 12 mutaciones, 12 muertas, 0 supervivientes, 0 sin aplicar
+
+**El hueco que cierra.** `sendVerificationEmail` sólo se disparaba desde
+`register()`: no había ninguna otra ruta, y el propio código lo anticipaba en
+un comentario («the user can re-request later via /auth/resend-verification
+(future)») que llevaba ahí desde la S2. Si el enlace de 24 horas caducaba, la
+única salida era borrar la cuenta. Y la pantalla lo empeoraba: el estado
+«el enlace expiró» decía **«Iniciá sesión para que te enviemos uno nuevo
+automáticamente»** — voseo, y encima un recorrido que no existía. Los otros
+dos callejones decían variantes de lo mismo («Pedile al sistema que te envíe
+uno nuevo», «iniciá sesión para pedir un enlace nuevo»): **tres** mentiras, no
+una.
+
+**`POST /api/auth/resend-verification`**, sin autenticar y con el contrato
+no-leak de su gemelo `forgot-password`: contesta **200 `{ ok: true }` para
+toda dirección** —desconocida, inactiva, de Google, ya confirmada o pasada de
+cupo—, porque una respuesta que variara sería un oráculo de «¿esta dirección
+tiene cuenta aquí?», y la rama de «ya confirmada» filtraría un segundo bit
+encima. Las seis ramas quedan en el `AuthEvent`
+(`EMAIL_VERIFICATION_REQUESTED`, con su `metadata.reason`), que es el único
+sitio donde el resultado real se puede recuperar.
+
+**Dos límites, y el segundo es el que protege a la víctima.** El `@Throttle`
+del controller va **por IP** (3/hora, igual que `forgot-password`) y protege
+nuestro coste de correo, no a la persona apuntada: con un puñado de
+direcciones —o de IPs— se le llena el buzón igual. Así que el servicio
+impone además **3 correos por hora y por cuenta**, y ese cupo es **derivado,
+no contabilizado aparte**: es un `count` de filas de `EmailVerificationToken`
+en la hora anterior, y se escribe una por cada envío. Cuenta exactamente lo
+que limita, así que no hay un segundo libro que se desincronice, **no hay
+tabla nueva y no hay migración** —`AuthEvent.type` ya es `String`— y sobrevive
+a un reinicio de Redis, que un contador en caché no. Dos consecuencias
+escritas donde se deciden: el correo de `register()` cuenta (una cuenta nueva
+tiene dos reenvíos en su primera hora, que es la lectura correcta), y la fila
+se escribe **antes** de llamar al proveedor, así que una caída gasta cupo —
+deliberado, para que una avería de Resend no se convierta en un bucle de
+reintentos sin medidor.
+
+**La pantalla ahora dice lo que pasa.** Los cuatro callejones —vencido,
+inválido, sin token, fallo nuestro— comparten remedio y ninguno lo ofrecía;
+los cuatro llevan hoy `ResendVerificationPanel`, el formulario que de verdad
+lo pide, ahí mismo y sin pasar por el login (quien llega acaba de pulsar un
+enlace muerto: es probable que no tenga sesión). El aviso habla en
+condicional —«Si ese correo tiene una cuenta sin confirmar…»— porque una
+tarjeta que dijera «te lo enviamos» filtraría por la interfaz justo lo que el
+servidor se cuida de no decir.
+
+**Lo que NO hace, a propósito:** no cambia la política de acceso —ningún guard
+exige correo verificado y eso se queda igual—, no toca el transporte de correo
+ni la recuperación de contraseña (cerradas el 19-11, PR #868), no convierte el
+borrado de cuenta en procedimiento, y no amplía `EMAIL_ALLOWLIST`.
+
+**El trinquete de voseo, con su cuenta hecha.** `iniciá` no estaba en
+`IMPERATIVO_AR` —de ahí que la frase sobreviviera en verde— y entró. Eso
+forzó corregir sus **cuatro** apariciones, dos de ellas fuera de esta
+pantalla: `_ResetPasswordForm.tsx:92` y `actions/auth.ts:224`, cambios de una
+palabra en flujos cerrados. Al añadirlo se midió el resto, y **siguen fuera
+nueve formas, ~17 apariciones**: `desbloqueá` (4) · `llamá` (4) · `solicitá`
+(2) · `confirmá` (2) · `ingresá` (1) · `pensá` (1) · `contactá` (1) ·
+`reintentá` (1) · `refiná` (1). No se añadieron en la misma pasada porque
+viven en terapia, en el perfil, en dos pantallas de móvil y —las cuatro de
+`llamá`— en `apps/api/src/terapia/crisis-catalog.ts`, que es el texto que
+alguien lee en una crisis. Queda como su propio trabajo, con la cuenta
+escrita en el propio fichero de la prueba.
+
+> **Hecho el mismo día.** «Siguen fuera nueve formas» dejó de ser cierto unas
+> horas después: el propietario pidió hacer esa limpieza en la misma sesión y
+> las nueve entraron, con mutación y control contrario por cada una. Ver la
+> entrada siguiente.
+
+**Dos defectos de mis propios instrumentos**, los dos del mismo tipo que este
+archivo ya ha registrado varias veces. El guion de mutación informó «línea
+base ROJA» porque pasaba la ruta del grupo `(auth)` sin entrecomillar y el
+shell se comió los paréntesis. Y su contador daba por **muerta** una mutación
+que **no se había aplicado** (ancla con la sangría mal), así que anunció «11
+muertas» sobre una que no probó nada: ahora «sin aplicar» es su propio
+desenlace y hace fallar la pasada. La mutación del trinquete también estaba
+mal planteada —retiraba el detector **y** metía el defecto a la vez, lo que
+deja verde por construcción—; reformulada para mutar sólo el copy, más su
+control contrario que comprueba que la muerte se debe a `iniciá` y no a otra
+entrada de la lista.
+
+**Deuda abierta:** sin PR · **sin comprobar contra staging**, que
+exigiría una entrega real a una dirección ya autorizada (y el encargo pide no
+ampliar la lista) · `packages/api-client/src/auth.ts` no expone el método
+porque móvil no tiene pantalla de verificación, igual que no expone
+`forgotPassword` · `_ResetPasswordForm.tsx` arrastra deriva de formato previa
+(un import partido en cuatro líneas) que `lint-staged` normalizará al
+commitear · el recuento de tests del README del módulo estaba obsoleto desde
+varios sprints (decía 21/10 contra 45/23 reales) y queda corregido con nota.
+
+---
+
+### Sesión — 2026-11-19 ✅ COMPLETADA — Las nueve formas de voseo que faltaban
+
+**Rama:** `claude/brave-merkle-ebccad` · commiteada ahí junto con la tanda anterior, en un solo commit · **sin PR, sin desplegar**
+**Tests:** API 4497 pasados / 91 saltados · Web 2641 en 233 ficheros · Móvil 229 en 32 suites · typecheck ×3 · eslint ×3 · prettier limpio
+**Mutación:** 9 formas × 2 pasadas = 18 ejecuciones · **9 de 9 acreditadas** (mutación ROJA + control contrario VERDE)
+
+**Qué cierra.** La entrada anterior midió nueve formas de imperativo voseante
+en -ar que `IMPERATIVO_AR` no detectaba y las dejó fuera a propósito, con la
+cuenta escrita. El propietario pidió cerrarlas en la misma sesión. Las **17
+apariciones** están corregidas y las nueve formas están en el trinquete:
+`desbloqueá` (4) · `llamá` (4) · `solicitá` (2) · `confirmá` (2) · `ingresá`
+(1) · `pensá` (1) · `contactá` (1) · `reintentá` (1) · `refiná` (1).
+
+**El catálogo de crisis se revisó entero antes de tocarlo**, que era la
+cautela que justificaba haberlo dejado para después. Lo que decidió el cambio
+no fue una preferencia de registro: **la propia entrada de Ecuador ya tuteaba**
+—«llama al 911» en `safetyTipsShort`, «no la dejes» y «agenda una consulta» en
+`nextSteps`—, así que las cuatro formas voseantes eran la excepción dentro de
+su mismo párrafo. Ninguna prueba fijaba esas cadenas: web y móvil las
+renderizan verbatim con `.map()`, de modo que el cambio llega directo a quien
+lee la pantalla y no había nada que actualizar.
+
+**Y ahí apareció un segundo defecto, que no es de voseo y conviene no
+confundir con él.** `llamar` por teléfono pide preposición, y las cuatro
+frases no la tenían: «Llamá **una** línea», «Llamá **la** línea 106», «Llamá
+SAPTEL». Eso era igual de incorrecto en voseo que en tuteo, así que arreglar
+sólo el verbo habría dejado «Llama una línea de la lista de arriba» como
+estado final de una línea que estaba editando. Quedan «Llama **a** una
+línea…», «Llama **a** la línea 106» y «Llama **a** SAPTEL», con el mismo
+patrón que la línea 41 del fichero ya usaba («llama al 911»). **Es un cambio
+separable del de voseo**: si se prefiere revertir sólo esa parte, son cuatro
+preposiciones.
+
+**Dos reformulaciones donde el cambio palabra-por-palabra no era lo correcto.**
+`pensar` diptonga, así que «Pensá dos veces» no da «Pensa» sino «Piensa»; se
+dejó **«Piénsalo dos veces»**, que es la colocación establecida. Y «contactá
+soporte» pasó a «contacta **a** soporte», con la preposición que pide un
+complemento de persona. Las otras siete son sustituciones directas.
+
+**La verificación es por forma, no por lote**, y lleva su control contrario:
+para cada una se reintroduce su voseo en su fichero real con el trinquete
+intacto —tiene que ponerse **ROJO**— y después, con ese voseo puesto, se
+retira **esa** entrada de `IMPERATIVO_AR` —tiene que volver a **VERDE**—. Sin
+la segunda mitad no se sabría si la muerte se debe a la entrada nueva o a otra
+ya existente de la lista. Las nueve pasan las dos.
+
+**El comentario del trinquete dejó de declarar una deuda que ya no existe.**
+Antes enumeraba las nueve como pendientes; ahora explica por qué esto es una
+lista enumerada y no una regla —«cualquier palabra acabada en -á» marcaría
+`está`, `verá`, `podrá`, `acá`, `quizá` y `sofá`, más de 450 apariciones
+correctas en este repositorio— y separa eso de **lo que la prueba sigue sin
+cubrir**: los imperativos ambiguos en -í/-é, que son un límite del idioma
+(`escribí` es orden voseante y pretérito a la vez) y no una lista por
+terminar. Para esos sólo salta si la frase lleva además un marcador de
+segunda persona.
+
+**Comprobado que no queda nada:** una búsqueda con los mismos límites de
+palabra que usa el trinquete no encuentra ninguna de las nueve formas en
+`apps/web/src`, `apps/mobile/src`, `apps/mobile/app`, `apps/api/src` ni
+`packages/types/src`, fuera del propio fichero de la prueba. Y su segunda
+prueba —la que exige haber recorrido más de 300 ficheros, para que un refactor
+no deje el trinquete verde por vacío— sigue pasando.
+
+**Deuda abierta:** sin PR · **falta el changeset** de `@psico/api-client`, que
+es la convención del repositorio antes de fusionar (el contrato generado ganó
+un endpoint; `minor`) y no se añadió por no decidir el salto de versión en
+nombre de nadie · el copy de crisis **no se ha visto en
+pantalla** tras el cambio, sólo en el fichero (lo renderizan
+`/dashboard/terapia/crisis` en web y `(tabs)/terapia/crisis` en móvil) · los
+ambiguos en -í/-é siguen dependiendo de que alguien lea la pantalla, y eso
+está declarado en la prueba · `_ResetPasswordForm.tsx` llevaba deriva de
+formato previa (un import partido en cuatro líneas) y se normalizó al editarlo
+de verdad en esta pasada: son cuatro líneas de ruido ajeno en ese diff, lo que
+`lint-staged` habría hecho igual al commitear.
+
+---
+
 ### 🧭 Trabajo vigente — corte del 2026-11-19
 
 **Esta es la única sección de este archivo que describe el presente.** Todo lo

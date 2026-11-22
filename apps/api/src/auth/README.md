@@ -68,16 +68,59 @@ written for every send. The limit therefore counts the very thing it limits —
 no second ledger to drift, no new table, no migration, and it survives a Redis
 restart, which a cache-backed counter would not.
 
-Two consequences worth knowing before changing it:
+**Checking it and spending it are one indivisible step.** The first version
+counted and then created in two separate statements, so two simultaneous
+requests with two sends already in the window could both read «two», both
+pass, and leave four. Both now run in one transaction that first takes
+`pg_advisory_xact_lock` keyed by the account — the same mechanism billing uses
+to serialise one person's subscription events. The lock, the count and the
+reservation live in `verification-send-budget.ts`, and
+`verification-send-budget.pg-spec.ts` proves it with two real PostgreSQL
+connections racing for the last slot: only one gets it, and the test also
+checks that the loser was seen **waiting on the lock** — so a pass can't come
+from two requests that simply didn't overlap.
 
-- The email `register()` sends counts, so a brand-new account has two resends
-  left in its first hour. That is the right reading: they already got one.
-- The row is written **before** the provider is called, so a failing provider
+Three consequences worth knowing before changing it:
+
+- The email `register()` sends counts, and it reserves its slot through the
+  **same** locked step, so a resend racing a registration can't push the
+  account past the ceiling. A brand-new account has two resends left in its
+  first hour. That is the right reading: they already got one.
+- The row is written **before** anything is sent, so a failing provider
   spends budget. Deliberate — otherwise a Resend outage turns the endpoint
   into an unmetered retry loop.
+- **Sending happens outside the transaction.** A lock held across the
+  provider's latency would make every other request for that account wait on
+  Resend.
 
 Being over budget is invisible to the caller (still `200 { ok: true }`); the
 `AuthEvent` row carries `metadata.reason = "ADDRESS_RATE_LIMITED"`.
+
+### The response does not wait for the provider
+
+The first version awaited Resend on the one branch that sends, so a slow
+provider made «this address can get a resend» measurably slower than every
+other answer. `resendVerification` now hands the rendered email to the
+**`email` queue** — the BullMQ path the email-change and data-export notices
+already use, with 3 attempts and backoff — and the **worker** delivers it. The
+`AuthEvent` row records `{ queued: true }` (or `{ enqueueFailed: true }` if
+Redis refused the job); the provider's own outcome is in the queue's
+attempts/failed list and the worker's log.
+
+What the response still awaits is our own infrastructure: the locked
+reservation (one short PostgreSQL transaction) and the enqueue (one Redis
+write). The E2E pins this with a **controlled 1.5 s provider delay**: the
+sending branch answers under that, and the provider is not called inside the
+request.
+
+**What the tests do NOT prove.** Equal status and equal body (pinned in the
+E2E) plus «no provider wait» (pinned with the delay) is not the same as
+equal latency. The sending branch still does a transaction and a queue write
+the other branches skip. Nothing here claims the branches are
+indistinguishable in time.
+
+`register()` keeps delivering in-process and un-awaited, as it did when the
+mail journey was accepted (PR 868): its latency was never on its response.
 
 ## Constant-time login (timing attack mitigation)
 
@@ -141,8 +184,9 @@ If `GOOGLE_CLIENT_ID` is not configured, the endpoint returns `400 OAUTH_NOT_CON
 
 ## Testing
 
-- **Unit:** `auth.service.spec.ts` — 45 tests covering all flows + audit events + constant-time guarantee. (The count said 21 until 2026-11-19; it had been stale for several sprints.)
-- **E2E:** `auth.e2e-spec.ts` — 23 tests booting the full AppModule with mocked Prisma. Covers global prefix, validation envelope, throttler, JwtAuthGuard, and end-to-end register → login → logout.
+- **Unit:** `auth.service.spec.ts` — 49 tests covering all flows + audit events + constant-time guarantee. (The count said 21 until 2026-11-19; it had been stale for several sprints.)
+- **PostgreSQL:** `verification-send-budget.pg-spec.ts` — 4 tests, two real connections racing for the per-account budget (CI `test:locks`).
+- **E2E:** `auth.e2e-spec.ts` — 25 tests booting the full AppModule with mocked Prisma. Covers global prefix, validation envelope, throttler, JwtAuthGuard, and end-to-end register → login → logout.
 
 On the two no-leak endpoints the split between the two files is not arbitrary.
 The service spec proves each branch does the right thing; only the E2E can

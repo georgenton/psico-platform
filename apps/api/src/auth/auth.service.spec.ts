@@ -61,6 +61,11 @@ const mockPrisma = {
     count: vi.fn(),
   },
   $transaction: vi.fn(),
+  // The verification budget takes `pg_advisory_xact_lock` through the
+  // callback-form transaction, which this mock runs on itself. Its real
+  // serialising effect is proven against PostgreSQL in
+  // `verification-send-budget.pg-spec.ts`, not here.
+  $executeRaw: vi.fn(),
 };
 
 const mockJwtService = {
@@ -87,6 +92,10 @@ const mockGoogleVerifier = {
   verify: vi.fn(),
 };
 
+const mockJobs = {
+  enqueueEmail: vi.fn().mockResolvedValue(undefined),
+};
+
 // ─── Suite ────────────────────────────────────────────────────────────────────
 
 describe("AuthService", () => {
@@ -102,6 +111,8 @@ describe("AuthService", () => {
     // resendVerification test exercise the rate-limited branch by accident.
     mockPrisma.emailVerificationToken.count.mockResolvedValue(0);
     mockResend.send.mockResolvedValue(undefined);
+    mockJobs.enqueueEmail.mockResolvedValue(undefined);
+    mockPrisma.$executeRaw.mockResolvedValue(0);
     mockGoogleVerifier.isEnabled.mockReturnValue(true);
     // $transaction handles both callback and array forms.
     mockPrisma.$transaction.mockImplementation(
@@ -118,6 +129,7 @@ describe("AuthService", () => {
       mockConfigService as unknown as ConfigService,
       mockResend as never,
       mockGoogleVerifier as never,
+      mockJobs as never,
     );
   });
 
@@ -702,7 +714,7 @@ describe("AuthService", () => {
     const auditedEvent = () =>
       mockPrisma.authEvent.create.mock.calls[0][0].data;
 
-    it("sends a fresh link to an unverified LOCAL account and audits it", async () => {
+    it("reserves a slot, queues a fresh link, and audits it", async () => {
       mockPrisma.user.findUnique.mockResolvedValue(unverifiedLocal);
 
       await service.resendVerification(
@@ -717,19 +729,53 @@ describe("AuthService", () => {
       expect(tokenCall.data.tokenHash).toMatch(/^[a-f0-9]{64}$/);
       expect(tokenCall.data.expiresAt).toBeInstanceOf(Date);
 
-      const sendCall = mockResend.send.mock.calls[0][0];
-      expect(sendCall.to).toBe("user@example.com");
-      expect(sendCall.tag).toBe("verify-email");
-      expect(sendCall.html).toContain(
-        "https://app.example.com/verify-email?token=",
-      );
+      // Into the queue, not to the provider: the response must not wait on
+      // Resend. The worker delivers it.
+      expect(mockJobs.enqueueEmail).toHaveBeenCalledTimes(1);
+      expect(mockResend.send).not.toHaveBeenCalled();
+      const job = mockJobs.enqueueEmail.mock.calls[0][0];
+      expect(job.to).toBe("user@example.com");
+      expect(job.tag).toBe("verify-email");
+      expect(job.html).toContain("https://app.example.com/verify-email?token=");
 
       const event = auditedEvent();
       expect(event.type).toBe("EMAIL_VERIFICATION_REQUESTED");
       expect(event.userId).toBe("user-1");
       expect(event.ipAddress).toBe("1.2.3.4");
-      // No `skipped` marker: this one actually went out.
-      expect(event.metadata).toBeUndefined();
+      // `queued`, not `sent`: reaching the queue says nothing about delivery.
+      expect(event.metadata).toEqual({ queued: true });
+    });
+
+    it("takes the budget lock before counting, inside one transaction", async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(unverifiedLocal);
+      const order: string[] = [];
+      mockPrisma.$executeRaw.mockImplementation(async () => {
+        order.push("lock");
+        return 0;
+      });
+      mockPrisma.emailVerificationToken.count.mockImplementation(async () => {
+        order.push("count");
+        return 0;
+      });
+      mockPrisma.emailVerificationToken.create.mockImplementation(async () => {
+        order.push("create");
+        return undefined;
+      });
+
+      await service.resendVerification({ email: "user@example.com" });
+
+      // The mock can't show the lock SERIALISES anything — that's what the
+      // PostgreSQL suite is for. What it can show is the shape: one callback
+      // transaction, the lock first, then the count, then the reservation.
+      expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(typeof mockPrisma.$transaction.mock.calls[0][0]).toBe("function");
+      expect(order).toEqual(["lock", "count", "create"]);
+      const sql = mockPrisma.$executeRaw.mock
+        .calls[0][0] as TemplateStringsArray;
+      expect(sql.join("?")).toContain("pg_advisory_xact_lock");
+      expect(mockPrisma.$executeRaw.mock.calls[0][1]).toBe(
+        "email-verification:user-1",
+      );
     });
 
     // ── the no-leak contract ────────────────────────────────────────────────
@@ -748,7 +794,7 @@ describe("AuthService", () => {
       ).resolves.toBeUndefined();
 
       expect(mockPrisma.emailVerificationToken.create).not.toHaveBeenCalled();
-      expect(mockResend.send).not.toHaveBeenCalled();
+      expect(mockJobs.enqueueEmail).not.toHaveBeenCalled();
 
       const event = auditedEvent();
       expect(event.type).toBe("EMAIL_VERIFICATION_REQUESTED");
@@ -773,7 +819,7 @@ describe("AuthService", () => {
       // Nothing to verify — and, just as important, nothing in the response
       // that says so.
       expect(mockPrisma.emailVerificationToken.create).not.toHaveBeenCalled();
-      expect(mockResend.send).not.toHaveBeenCalled();
+      expect(mockJobs.enqueueEmail).not.toHaveBeenCalled();
       expect(auditedEvent().metadata).toMatchObject({
         skipped: true,
         reason: "ALREADY_VERIFIED",
@@ -790,7 +836,7 @@ describe("AuthService", () => {
         service.resendVerification({ email: "user@example.com" }),
       ).resolves.toBeUndefined();
 
-      expect(mockResend.send).not.toHaveBeenCalled();
+      expect(mockJobs.enqueueEmail).not.toHaveBeenCalled();
       const event = auditedEvent();
       // Indistinguishable from unknown to the caller; the log keeps the
       // difference, and does it without asserting an identity we refused.
@@ -810,7 +856,7 @@ describe("AuthService", () => {
 
       await service.resendVerification({ email: "user@gmail.com" });
 
-      expect(mockResend.send).not.toHaveBeenCalled();
+      expect(mockJobs.enqueueEmail).not.toHaveBeenCalled();
       expect(auditedEvent().metadata).toMatchObject({
         skipped: true,
         reason: "OAUTH_USER",
@@ -826,7 +872,7 @@ describe("AuthService", () => {
       expect(mockPrisma.user.findUnique.mock.calls[0][0].where).toEqual({
         email: "user@example.com",
       });
-      expect(mockResend.send).toHaveBeenCalledTimes(1);
+      expect(mockJobs.enqueueEmail).toHaveBeenCalledTimes(1);
     });
 
     // ── the per-address budget ──────────────────────────────────────────────
@@ -840,7 +886,7 @@ describe("AuthService", () => {
       ).resolves.toBeUndefined();
 
       expect(mockPrisma.emailVerificationToken.create).not.toHaveBeenCalled();
-      expect(mockResend.send).not.toHaveBeenCalled();
+      expect(mockJobs.enqueueEmail).not.toHaveBeenCalled();
       expect(auditedEvent().metadata).toMatchObject({
         skipped: true,
         reason: "ADDRESS_RATE_LIMITED",
@@ -856,8 +902,8 @@ describe("AuthService", () => {
 
       await service.resendVerification({ email: "user@example.com" });
 
-      expect(mockResend.send).toHaveBeenCalledTimes(1);
-      expect(auditedEvent().metadata).toBeUndefined();
+      expect(mockJobs.enqueueEmail).toHaveBeenCalledTimes(1);
+      expect(auditedEvent().metadata).toEqual({ queued: true });
     });
 
     it("counts the budget per account over a trailing hour", async () => {
@@ -883,18 +929,81 @@ describe("AuthService", () => {
       );
     });
 
-    it("still resolves, and records the failure, when the provider throws", async () => {
+    it("still resolves, and records it, when the email can't be queued", async () => {
       mockPrisma.user.findUnique.mockResolvedValue(unverifiedLocal);
-      mockResend.send.mockRejectedValueOnce(new Error("resend is down"));
+      mockJobs.enqueueEmail.mockRejectedValueOnce(new Error("redis is down"));
 
       await expect(
         service.resendVerification({ email: "user@example.com" }),
       ).resolves.toBeUndefined();
 
-      // The row was written before the send, so the attempt spent budget —
+      // The row was written before queueing, so the attempt spent budget —
       // deliberate, so an outage can't become an unmetered retry loop.
       expect(mockPrisma.emailVerificationToken.create).toHaveBeenCalledTimes(1);
-      expect(auditedEvent().metadata).toMatchObject({ sendFailed: true });
+      expect(auditedEvent().metadata).toEqual({ enqueueFailed: true });
+    });
+
+    it("still resolves when the reservation itself fails", async () => {
+      // The reservation only runs on the branch that CAN receive a resend.
+      // If a database error escaped as a 500 here, that 500 would itself say
+      // "this address has an unverified account".
+      mockPrisma.user.findUnique.mockResolvedValue(unverifiedLocal);
+      mockPrisma.$transaction.mockRejectedValueOnce(new Error("db hiccup"));
+
+      await expect(
+        service.resendVerification({ email: "user@example.com" }),
+      ).resolves.toBeUndefined();
+
+      expect(mockJobs.enqueueEmail).not.toHaveBeenCalled();
+      expect(auditedEvent().metadata).toMatchObject({
+        skipped: true,
+        reason: "RESERVE_FAILED",
+      });
+    });
+  });
+
+  // ── register shares the same budget ───────────────────────────────────────
+
+  describe("register · verification email", () => {
+    /** Lets the fire-and-forget chain in register() run to completion. */
+    const flush = () => new Promise((r) => setTimeout(r, 0));
+
+    beforeEach(() => {
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+      mockPrisma.user.create.mockResolvedValue(mockUser);
+      mockPrisma.refreshToken.create.mockResolvedValue(mockRefreshToken);
+    });
+
+    it("spends a slot through the same locked reservation, then sends in-process", async () => {
+      await service.register({
+        email: "test@example.com",
+        password: "Password123!",
+        name: "Test User",
+      });
+      await flush();
+
+      expect(mockPrisma.$executeRaw.mock.calls[0][1]).toBe(
+        `email-verification:${mockUser.id}`,
+      );
+      expect(mockPrisma.emailVerificationToken.create).toHaveBeenCalledTimes(1);
+      // In-process, as accepted with the mail journey: register doesn't
+      // await it, so its latency was never on the response.
+      expect(mockResend.send).toHaveBeenCalledTimes(1);
+      expect(mockJobs.enqueueEmail).not.toHaveBeenCalled();
+    });
+
+    it("doesn't send when a racing resend already spent the budget", async () => {
+      mockPrisma.emailVerificationToken.count.mockResolvedValue(3);
+
+      await service.register({
+        email: "test@example.com",
+        password: "Password123!",
+        name: "Test User",
+      });
+      await flush();
+
+      expect(mockPrisma.emailVerificationToken.create).not.toHaveBeenCalled();
+      expect(mockResend.send).not.toHaveBeenCalled();
     });
   });
 

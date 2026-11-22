@@ -21,8 +21,16 @@ import { authApi, ApiError } from "@/lib/api";
  * cupo— para que nadie pueda usarlo como oráculo de «¿esta dirección tiene
  * cuenta aquí?». Si esta tarjeta dijera «ya está confirmada» o «no existe»
  * estaría filtrando por la interfaz justo lo que el servidor se cuida de no
- * decir, así que el texto habla en condicional y no promete más de lo que
- * sabe.
+ * decir.
+ *
+ * Y TAMPOCO ASEGURA UN ENVÍO. La versión anterior decía «te enviamos un enlace
+ * nuevo», en condicional sobre la cuenta pero en firme sobre el envío. Eso era
+ * falso en dos casos que el servidor no cuenta: la solicitud pudo retenerse
+ * por el cupo de la cuenta, o el correo pudo no salir por un fallo del
+ * proveedor. Lo único que esta pantalla sabe es que la solicitud se recibió,
+ * así que eso es lo que dice; lo demás, en condicional y con lo que la
+ * persona puede hacer: esperar, mirar el correo no deseado, no pedir otro
+ * enseguida.
  */
 export default function ResendVerificationPanel() {
   const [error, setError] = useState<string | null>(null);
@@ -78,10 +86,15 @@ export default function ResendVerificationPanel() {
         }}
         role="status"
       >
-        <p className="font-medium mb-1">Revisa tu correo</p>
+        <p className="font-medium mb-1">Recibimos tu solicitud</p>
+        <p className="mb-2">
+          Si podemos procesarla, en unos minutos te llegará un enlace para
+          confirmar tu correo. Vale 24 horas.
+        </p>
         <p>
-          Si ese correo tiene una cuenta sin confirmar, te enviamos un enlace
-          nuevo. Vence en 24 horas. Si no te llega, revisa la carpeta de spam.
+          Revisa tu bandeja de entrada y la carpeta de correo no deseado. Si
+          pediste otro enlace hace poco, espera un rato antes de volver a
+          pedirlo: cualquiera que no haya vencido te sirve.
         </p>
       </div>
     );
@@ -152,7 +165,7 @@ export default function ResendVerificationPanel() {
           className="rounded-xl py-2.5 text-sm font-medium text-white transition-all disabled:opacity-60 disabled:cursor-not-allowed"
           style={{ background: "var(--bg-brand-strong)" }}
         >
-          {isPending ? "Enviando..." : "Enviar enlace nuevo"}
+          {isPending ? "Enviando solicitud…" : "Pedir un enlace nuevo"}
         </button>
       </form>
     </div>

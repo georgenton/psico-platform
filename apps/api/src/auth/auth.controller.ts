@@ -197,7 +197,7 @@ export class AuthController {
    *
    * The IP budget is not the one that protects the person being targeted —
    * that one is keyed by address and lives in the service (see
-   * RESEND_VERIFICATION_MAX_PER_WINDOW).
+   * VERIFICATION_SEND_MAX_PER_WINDOW in `verification-send-budget.ts`).
    */
   @Post("resend-verification")
   @HttpCode(HttpStatus.OK)

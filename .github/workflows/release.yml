@@ -45,9 +45,15 @@ jobs:
           TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
           TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
 
+      # Same heap as the Typecheck step of ci.yml, for the reason measured there.
+      # Without it this step only passes while the turbo cache hits; the first
+      # change to apps/api runs tsc cold and dies with exit 134 (af671664, #870).
+      # It does not weaken the gate: same files, same compiler.
+      # Ratchet: apps/web/src/ci-heap-policy.test.ts.
       - name: Typecheck
         run: pnpm turbo run typecheck
         env:
+          NODE_OPTIONS: --max-old-space-size=6144
           TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
           TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
 
@@ -57,9 +63,12 @@ jobs:
           TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
           TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
 
+      # Same heap as the Build step of ci.yml (nest build in apps/api peaks at
+      # ~3 GiB cold or warm — see the comment there).
       - name: Build
         run: pnpm turbo run build --filter=!@psico/mobile
         env:
+          NODE_OPTIONS: --max-old-space-size=6144
           TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
           TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
 

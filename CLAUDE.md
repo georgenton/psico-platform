@@ -4023,6 +4023,13 @@ es la sección que se mantiene; esta entrada es su antecedente fechado.
 
 ### Sesión — 2026-11-19 ✅ COMPLETADA — Pedir otro enlace de verificación
 
+> **Corregido el 2026-11-22, en el mismo PR (#870).** La revisión encontró
+> cuatro casos que estas pruebas no cubrían, y dos frases de esta entrada
+> dejaron de ser ciertas: el cupo ya no es un `count` seguido de un `create`
+> sueltos —eran dos sentencias, y dos peticiones a la vez podían pasar las
+> dos—, y el aviso ya no dice «te enviamos un enlace». Ver la entrada
+> «Revisión del reenvío», dos más abajo.
+
 **Rama:** `claude/brave-merkle-ebccad` · commiteada ahí junto con la tanda siguiente · **sin PR, sin desplegar**
 **Tests:** API 4497 pasados / 91 saltados (+16: 11 de servicio, 5 E2E) · Web 2641 en 233 ficheros (+8) · typecheck ×2 · eslint · OpenAPI `generate:check` en OK
 **Mutación:** 12 mutaciones, 12 muertas, 0 supervivientes, 0 sin aplicar
@@ -4192,6 +4199,74 @@ está declarado en la prueba · `_ResetPasswordForm.tsx` llevaba deriva de
 formato previa (un import partido en cuatro líneas) y se normalizó al editarlo
 de verdad en esta pasada: son cuatro líneas de ruido ajeno en ese diff, lo que
 `lint-staged` habría hecho igual al commitear.
+
+---
+
+### Sesión — 2026-11-22 ✅ COMPLETADA — Revisión del reenvío: cuatro hallazgos que las pruebas no veían
+
+**PR:** [#870](https://github.com/georgenton/psico-platform/pull/870), mismo PR que las dos entradas anteriores
+**Tests:** API 4503 / 91 saltados (+6) · Web 2646 (+5) · `verification-send-budget.pg-spec.ts` 4/4 contra PostgreSQL real · typecheck ×2 · eslint y prettier en lo tocado
+**Mutación:** 9 de 9 muertas — 2 en el cerrojo, 2 en la dependencia del proveedor, 5 en la pantalla
+
+La CI estaba en verde y la revisión encontró cuatro casos que no medía.
+
+**1 · El cupo por cuenta no aguantaba dos peticiones a la vez.** Se contaba y
+después se creaba, en dos sentencias: con dos envíos en la ventana, dos
+peticiones simultáneas leían «dos», pasaban, y la cuenta quedaba con cuatro.
+Comprobar y reservar van ahora en una transacción que primero toma
+`pg_advisory_xact_lock` por cuenta —el mismo mecanismo que serializa los
+eventos de cobro de una persona—, en `auth/verification-send-budget.ts`. El
+correo del registro reserva su hueco por el mismo camino, y un intento
+reservado sigue consumiendo cupo aunque la entrega falle después. El envío
+queda **fuera** de la transacción: un cerrojo sostenido durante la respuesta
+del proveedor haría esperar a Resend a todas las demás peticiones de esa
+cuenta.
+
+La regresión pone **dos conexiones reales** a competir por el último hueco, y
+su costura tuvo que resolver un problema propio: una cita que esperase a las
+dos se bloquearía para siempre con el arreglo puesto, porque la segunda no
+puede contar mientras la primera tiene el cerrojo. Así que la puerta se abre
+por la primera de dos razones —**la otra también contó** (sólo posible sin
+cerrojo: el defecto, reproducido de forma determinista) o **la otra está
+esperando el cerrojo**, visto en `pg_locks` desde una tercera conexión—, y la
+prueba exige saber cuál fue. Sin eso, dos peticiones que por azar no se
+solaparan pasarían sin haber competido. Sin cerrojo da cuatro filas; con un
+cerrojo global, dos cuentas distintas se esperan. Las dos mutaciones mueren.
+
+**2 · La respuesta esperaba a Resend en la única rama que envía.** El reenvío
+entrega ahora por la **cola `email` de BullMQ** —la que ya usan el cambio de
+correo y la exportación— y la entrega el **worker**. El E2E retrasa el
+proveedor 1,5 s de forma controlada: la rama que envía contesta por debajo, y
+la variante «encola y además espera al proveedor» muere en **1 509 ms**.
+**Lo que eso NO prueba**, y se dice donde se decide: igualar código y cuerpo, y
+quitar al proveedor, no es igualar la latencia; la rama que envía sigue
+haciendo una transacción y una escritura en Redis que las otras no. Un fallo de
+la reserva o de la cola tampoco se vuelve un 500, que filtraría la rama.
+
+Y un dato que salió de paso: la prueba E2E previa de «la que sí recibe» llevaba
+la cola **real** sobre ioredis-mock, que no puede ejecutarla (su Lua necesita
+`cmsgpack`), así que pasaba por la rama de cola fallida sin que nadie lo
+viera. Ahora la cola se observa en todo el bloque.
+
+**3 · Quien nunca recibió el primer correo no tenía cómo llegar.** El login
+enlaza al mismo formulario —«¿No te llegó el correo para confirmar tu cuenta?
+Pide otro enlace»—, con un texto propio en vez de «enlace incompleto». La
+prueba sigue el `href` del login en vez de escribir la URL final.
+
+**4 · La confirmación aseguraba un envío que pudo no ocurrir.** Dice ahora que
+la solicitud **se recibió**, que el enlace llegará **si puede procesarse**, y
+orienta sobre la bandeja, el correo no deseado y las solicitudes recientes. El
+estado de enlace vencido y el mensaje del 410 dejan de prometer, o de mandar a
+un perfil que no ofrece nada.
+
+**Lo que no cambia:** la política de acceso de las cuentas sin verificar, la
+guarda de destinatarios, el cierre del correo y de la recuperación (#868), el
+changeset `minor` ya aprobado, el tuteo y el catálogo de crisis.
+
+**Lo que se determinó del worker:** su código de entrega (`EmailProcessor`,
+`ResendService`) no cambia, así que no hace falta desplegarlo; lo que cambia
+es que ahora procesa también estos trabajos. Despliegue, recorridos en staging
+y lo que sigue pendiente de observar: en el cuerpo de #870 y en FV-47.
 
 ---
 
@@ -6059,9 +6134,9 @@ respaldo** (un destino autorizado) y el **ensayo de nivel 4** (un VPS temporal).
 están resueltos: la **bandeja** existe (`qa@syntavera.dev`, buzón compartido real,
 comprobado que recibe), el **dominio** está **verificado** en Resend con sus
 cuatro registros publicados, y la **credencial** está creada con permiso de sólo
-envío y limitada a `feelverse.app`. Lo que queda no es un insumo que falte: es
-**pegar su valor** en los dos recursos, porque una clave de API no se transcribe.
-La variable ya está creada y vacía, y `EMAIL_FROM` puesto.
+envío y limitada a `feelverse.app`. Y está **instalada**: Jorge pegó su valor
+en los dos recursos el mismo 19-11 —una intervención manual hecha una vez, no
+una política— y el recorrido se cerró con recepción real (#868).
 
 De paso quedó escrito un destino plausible para el **aviso de respaldo**, que
 seguía esperando «una dirección autorizada»: `soporte@syntavera.dev` ya existe y
@@ -6143,9 +6218,11 @@ en **[la matriz de F3](https://claude.ai/artifact/UtBZxMUDiqSuSwY3mGh5ah)**:
 1. **El correo ya no está aquí: se cerró el 19-11.** Una persona que olvida su
    contraseña **la recupera** — recepción real en la bandeja principal,
    contraseña nueva y acceso con ella, más el aviso del worker. Aceptado por el
-   propietario. Lo que sigue vivo de ese frente es una tarea aparte y acotada:
-   [permitir pedir otro enlace de verificación](docs/product/tarea-reenvio-verificacion.md),
-   que **no** condiciona el piloto.
+   propietario. La tarea aparte que quedaba —
+   [pedir otro enlace de verificación](docs/product/tarea-reenvio-verificacion.md)—
+   está implementada en #870; su recepción positiva sigue pendiente de una
+   identidad de pruebas sin verificar dentro de la lista de destinatarios. **No**
+   condiciona el piloto.
 
    → El estado del correo, en
    [docs/operations/correo-insumos-pendientes.md](docs/operations/correo-insumos-pendientes.md).

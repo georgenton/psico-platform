@@ -138,3 +138,9 @@ servía el contenedor **anterior**, que no tenía la credencial: el correo no
 salió y no hay forma de reemitir una verificación —`sendVerificationEmail` sólo
 se dispara desde `register()`—. Hubo que rehacer la cuenta. Antes de la primera
 prueba, confirma que sólo hay **un** contenedor en marcha.
+
+> _Nota del 2026-11-22._ «No hay forma de reemitir» era cierto ese día y dejó
+> de serlo con #870: hoy se pide otro enlace desde el login. La trampa no
+> cambia —el reenvío también lo atiende el contenedor que sirve— y el nuevo
+> enlace sale por la cola `email`, así que el worker también tiene que estar en
+> marcha y con la misma lista de destinatarios.

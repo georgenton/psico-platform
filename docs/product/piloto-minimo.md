@@ -1,15 +1,45 @@
 # Piloto mínimo — propuesta para revisión
 
-**Fecha:** 2026-11-16 (quinta versión) · **Estado:** propuesta, **no** una
-autorización. Nada de aquí abre rollout, publica contenido ni activa cobros.
+**Fecha:** 2026-11-16, con el frente de correo actualizado el **2026-11-19** ·
+**Estado:** propuesta, **no** una autorización. Nada de aquí abre rollout,
+publica contenido ni activa cobros.
 
-> **Qué cambió el 16-11.** Un defecto del lector que la cuarta versión no podía
-> conocer, y un insumo vuelto a medir:
+> **✅ Qué cambió el 19-11: el correo dejó de ser lo que bloqueaba.**
+>
+> **El frente de correo se cerró esa noche con recepción real, y el propietario
+> lo aceptó.** Lo que este documento llamaba «la única decisión que bloquea el
+> piloto» **ya está resuelto**:
+>
+> | Lo que decía la quinta versión                          | Hoy                                                                                                                                  |
+> | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+> | `RESEND_API_KEY` **ausente** en los tres recursos       | ✅ **instalada** por Jorge y **efectiva**: los dos procesos arrancan con el cliente inicializado y la lista de destinatarios acotada |
+> | «Sin ella **no se recupera el acceso** a una cuenta»    | ✅ **recuperación comprobada de punta a punta** contra `qa@syntavera.dev`                                                            |
+> | «Sin `RESEND_API_KEY` no llega el aviso de exportación» | ✅ **llega**, comprobado por la cola del worker                                                                                      |
+> | «Ningún correo automático podría salir» (§8.6)          | ✅ **puede**, y sólo a las direcciones autorizadas                                                                                   |
+>
+> **Lo que NO cambió, y conviene no leerlo de más.** La prueba cerrada con la
+> bandeja de QA **no autoriza el correo de otra persona**: la guarda restringe
+> por dirección exacta, así que cada participante necesita **su propia entrada**
+> en `EMAIL_ALLOWLIST`, en **API y worker**, conservando las anteriores. Y
+> cerrar el correo **no toca** el estado global de F3, la aceptación estética ni
+> ninguna de las demás condiciones de producción: lo que se cerró es un
+> recorrido, no una puerta de producción.
+>
+> **Lo que sigue pendiente de ti:** la **decisión B** (§8). Es ahora la **única
+> decisión que condiciona este piloto** — las otras dos de la lista del §5,
+> Sentry y Google, no lo bloquean, y así están marcadas.
+>
+> Detalle operativo, con los siete estados y las dos trampas, en el
+> **[runbook §2.5.1](../deploy/coolify-runbook.md)**.
+
+> **Qué cambió el 16-11** _(antecedente)_. Un defecto del lector que la cuarta
+> versión no podía conocer, y un insumo vuelto a medir — cuya fila de correo
+> quedó superada tres días después, como dice el bloque de arriba:
 >
 > |                              |                                                                                                                                                                                                                                                                                                                                                                                                                           |
 > | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 > | **Progreso: salir y volver** | ✅ **reforzado** (#857). El recorrido de la cuarta versión era secuencial y pasaba; la **inicialización concurrente** no. Dos aperturas simultáneas podían dejar a una persona sin capítulo, y una escritura durante la inicialización quedaba sustituida por las cifras anteriores. Cerrado con 6 regresiones contra PostgreSQL y 4 mutaciones. Importa aquí porque un piloto se camina con pestañas abiertas y recargas |
-> | **`RESEND_API_KEY`**         | ⬜ **sigue ausente**, re-medido hoy en los **tres** recursos (ausente de la lista, no vacía), y **no hay** ninguna credencial de correo autorizada en el almacén de ops. Los dos insumos siguen siendo los mismos                                                                                                                                                                                                         |
+> | **`RESEND_API_KEY`**         | ⬜ **sigue ausente**, re-medido ese día en los **tres** recursos (ausente de la lista, no vacía), y **no hay** ninguna credencial de correo autorizada en el almacén de ops. Los dos insumos siguen siendo los mismos. **→ Superado el 19-11: instalada, efectiva y con el recorrido cerrado**                                                                                                                            |
 > | **Cuota FREE de Eco**        | ✅ **comprobada contra el artefacto servido** (§3bis): 10 pasan, el 11 recibe `ECO_QUOTA_EXCEEDED` sin llamar al modelo                                                                                                                                                                                                                                                                                                   |
 > | **Lo que Eco comunica**      | ✅ **conciliado el 16-11.** Mi Plan y la puerta preguntan ahora a la misma función: consumo de la ventana que limita, su límite, lo que queda, qué periodo abarca y cuándo vuelve. El mensaje de agotamiento distingue el plan y dice la hora **en el reloj de la persona** —en Quito, las 19:00— sin prometer una contratación que el piloto no ofrece. Los límites **no cambiaron**                                     |
 > | **Decisión B**               | ⬜ **sin cambios.** Esta versión no la amplía ni la condiciona a nada nuevo                                                                                                                                                                                                                                                                                                                                               |
@@ -42,7 +72,7 @@ sus límites están dichos. **Que exista en la API no basta.**
 
 | Recorrido                                  | Evidencia                                                                                                                                                                                                                                                                                                                      | Dependencias           | Sus límites                                                                                                                                                                                                                                               |
 | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Registro y acceso**                      | Cuenta creada por el flujo normal y acceso por el formulario, comprobados el 24-10                                                                                                                                                                                                                                             | ninguna extra          | Ningún guard exige el correo verificado, así que el alta funciona aunque el correo no salga                                                                                                                                                               |
+| **Registro y acceso**                      | Cuenta creada por el flujo normal y acceso por el formulario, comprobados el 24-10. Y el **19-11**, el alta completa con su correo real: verificación recibida y abierta, con `emailVerified: true` en la base                                                                                                                 | ninguna extra          | Ningún guard exige el correo verificado, así que el alta funcionaba ya antes de que el correo saliera. Y la verificación **sólo se dispara desde el registro**: no hay reemisión, así que un alta hecha sin correo autorizado se queda sin verificar      |
 | **Lectura de _EEC_**                       | Capítulo 1 con **188 bloques** reales; diez capítulos en sus tres partes. Énfasis reparado: negrita y cursiva de verdad                                                                                                                                                                                                        | ninguna extra          | Queda **1 bloque** con asterisco (un ejercicio). La cita del acento invertido era la nota editorial retirada el 13-11, así que C01 pasa a 187 bloques y 0 asteriscos                                                                                      |
 | **Progreso: salir y volver**               | Comprobado por API _y_ por pantalla. El 13-11, además, un recorrido guiado a medias **sobrevivió una recarga completa** y volvió a su paso pendiente                                                                                                                                                                           | ninguna extra          | —                                                                                                                                                                                                                                                         |
 | **Marcas y notas**                         | Una anotación sube `marcasLectura` de 0 a 1, persiste y no se filtra a otra cuenta                                                                                                                                                                                                                                             | ninguna extra          | El resaltado por carácter no existe en móvil (v1 por bloque)                                                                                                                                                                                              |
@@ -50,7 +80,7 @@ sus límites están dichos. **Que exista en la API no basta.**
 | **Diario cifrado**                         | Entrada escrita, releída tras reabrir sesión, y **recuperada con la frase de respaldo** tras restablecer la contraseña                                                                                                                                                                                                         | ninguna extra          | Sin la frase, una contraseña nueva **no** reabre el diario. La pantalla ya lo dice                                                                                                                                                                        |
 | **Mapa Emocional**                         | Tras leer un capítulo sigue en **0/6** ejes: leer no fabrica emoción                                                                                                                                                                                                                                                           | ninguna extra          | Necesita check-ins para encenderse; con poca historia dice «Reuniendo datos»                                                                                                                                                                              |
 | **Mi Evolución**                           | Contadores reales, con aislamiento entre cuentas                                                                                                                                                                                                                                                                               | ninguna extra          | —                                                                                                                                                                                                                                                         |
-| **Descargar mis datos**                    | Recorrido completo **por pantalla** en staging el 25-10: pedir → «preparando» → consultar → «Lista», con enlace a R2. Y por API: 202 → listo en ~3 s                                                                                                                                                                           | R2                     | El archivo trae ocho secciones y **nombra** lo que no trae. Sin `RESEND_API_KEY` no llega el aviso de «ya está lista»: hay que consultar el estado en la pantalla                                                                                         |
+| **Descargar mis datos**                    | Recorrido completo **por pantalla** en staging el 25-10: pedir → «preparando» → consultar → «Lista», con enlace a R2. Y por API: 202 → listo en ~3 s. El **19-11**, además, **el aviso por correo**: `Building data export… → [email sent] → READY · 2306 bytes`                                                               | R2                     | El archivo trae ocho secciones y **nombra** lo que no trae. El aviso **ya llega** y enlaza al perfil **pidiendo iniciar sesión** — el fichero no viaja en un enlace público. Enfriamiento de **30 días por cuenta**                                       |
 | **Los dos estilos y los cuatro ambientes** | Las **ocho** combinaciones recorridas con los controles reales el 24-10, y re-recorridas el 05-11 sobre el texto reparado midiendo fuente y contraste                                                                                                                                                                          | ninguna extra          | Lo medido es tipografía y contraste, no una aceptación estética                                                                                                                                                                                           |
 | **Eco (conversar)**                        | Camino normal comprobado con cuenta sintética: SSE 200, respuesta en español, turno del usuario persistido **cifrado** y el de Eco en claro (ADR 0007 §C). Coste observado **$0,0043**. Y el **16-11**, su cuota FREE **sobre el artefacto servido**: 10 pasan, el 11 recibe `ECO_QUOTA_EXCEEDED` sin llamar al modelo (§3bis) | `ANTHROPIC_API_KEY` ✅ | Cuota FREE de **10 mensajes/día**, y desde el 16-11 Mi Plan muestra **esa misma ventana** con su consumo, lo que queda y cuándo vuelve (§3bis). El modelo no puede releer el diario: conversa sobre lo presente. Sin reintento si se corta el SSE a mitad |
 
@@ -72,33 +102,39 @@ sus límites están dichos. **Que exista en la API no basta.**
 
 ## 3. Integraciones, recorrido por recorrido
 
-| Integración               | Estado                | Qué recorrido necesita                                                                                                                                                                                            |
-| ------------------------- | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Base, Redis, R2           | ✅                    | **Todo.** Imprescindibles                                                                                                                                                                                         |
-| `ANTHROPIC_API_KEY`       | ✅                    | Eco y la narrativa del Mapa                                                                                                                                                                                       |
-| `EDITORIAL_APPROVAL_KEYS` | ✅ (desde el 12-11)   | La publicación editorial. Ya cumplió su función; no hace falta tocarla                                                                                                                                            |
-| `OPENAI_API_KEY`          | ✅                    | Voz. Fuera de alcance                                                                                                                                                                                             |
-| `VAPID_*`                 | ✅ (desde el 05-11)   | Sólo push web. Fuera de alcance                                                                                                                                                                                   |
-| `STRIPE_*` (5)            | ✅, **modo test**     | Nada aquí, y desde el 18-11 **con mecanismo**: `BILLING_PURCHASES` falla cerrada, la interfaz no ofrece contratar y el servidor contesta `503 PURCHASES_CLOSED`. Que las claves estén puestas **no abre compras** |
-| **`RESEND_API_KEY`**      | ❌ **ausente**        | **Restablecer la contraseña por correo**, el digest semanal y el aviso de exportación lista. **No** bloquea registro, lectura, microguías, diario, mapa ni la descarga                                            |
-| `GOOGLE_CLIENT_ID`        | ❌, **bien resuelto** | Sólo «Acceder con Google». Sin la clave, ni `/login` ni `/register` muestran el botón ni la palabra: el producto no ofrece lo que no puede cumplir. **No es una decisión del piloto**                             |
-| `SENTRY_DSN`              | ❌ **ausente**        | Ningún recorrido de la persona. Lo que se pierde es **nuestra** traza                                                                                                                                             |
+| Integración               | Estado                | Qué recorrido necesita                                                                                                                                                                                                                                            |
+| ------------------------- | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Base, Redis, R2           | ✅                    | **Todo.** Imprescindibles                                                                                                                                                                                                                                         |
+| `ANTHROPIC_API_KEY`       | ✅                    | Eco y la narrativa del Mapa                                                                                                                                                                                                                                       |
+| `EDITORIAL_APPROVAL_KEYS` | ✅ (desde el 12-11)   | La publicación editorial. Ya cumplió su función; no hace falta tocarla                                                                                                                                                                                            |
+| `OPENAI_API_KEY`          | ✅                    | Voz. Fuera de alcance                                                                                                                                                                                                                                             |
+| `VAPID_*`                 | ✅ (desde el 05-11)   | Sólo push web. Fuera de alcance                                                                                                                                                                                                                                   |
+| `STRIPE_*` (5)            | ✅, **modo test**     | Nada aquí, y desde el 18-11 **con mecanismo**: `BILLING_PURCHASES` falla cerrada, la interfaz no ofrece contratar y el servidor contesta `503 PURCHASES_CLOSED`. Que las claves estén puestas **no abre compras**                                                 |
+| **`RESEND_API_KEY`**      | ✅ (desde el 19-11)   | **Restablecer la contraseña por correo**, la verificación del alta, el digest semanal y el aviso de exportación lista. Instalada, efectiva y **con el recorrido cerrado**; fuera de producción lo que abre el envío es `EMAIL_ALLOWLIST`, dirección por dirección |
+| `GOOGLE_CLIENT_ID`        | ❌, **bien resuelto** | Sólo «Acceder con Google». Sin la clave, ni `/login` ni `/register` muestran el botón ni la palabra: el producto no ofrece lo que no puede cumplir. **No es una decisión del piloto**                                                                             |
+| `SENTRY_DSN`              | ❌ **ausente**        | Ningún recorrido de la persona. Lo que se pierde es **nuestra** traza                                                                                                                                                                                             |
 
-Comprobado el 13-11 leyendo las 43 claves del recurso de la API: las tres
-marcadas ❌ están **ausentes de la lista**, no vacías.
+Comprobado el 13-11 leyendo las 43 claves del recurso de la API: las dos que
+siguen marcadas ❌ están **ausentes de la lista**, no vacías.
 
-**Vuelto a medir el 16-11**, en los **tres** recursos y no sólo en la API, porque
-`RESEND_API_KEY` hace falta en API **y** worker: `RESEND_API_KEY`, `EMAIL_FROM`,
-`SENTRY_DSN` y `GOOGLE_CLIENT_ID` siguen **ausentes de la lista** en los tres.
-`VAPID_*` presentes en API y worker, `NEXT_PUBLIC_VAPID_PUBLIC_KEY` en Web, y
-`ANTHROPIC_API_KEY` presente en API y worker — es decir, Eco funciona. Y en el
-almacén de ops **no hay ninguna credencial de correo**: la única cuenta de QA
-pensada para correo es una dirección `@psico.test`, que por la RFC 2606 no puede
-recibir nada. `EMAIL_FROM` ausente **no es un problema**: el esquema lo resuelve a
-`no-reply@feelverse.app` y el informe de salud distingue «elegido» de
-«por defecto», así que lo único que falta de verdad son los dos insumos de abajo.
+**El corte vigente del correo es el del 19-11:** `RESEND_API_KEY` y `EMAIL_FROM`
+**puestas en API y worker**, con `EMAIL_FROM=no-reply@feelverse.app` —dirección
+pelada, que es lo único que admite el esquema—, `feelverse.app` verificado por el
+proveedor y `EMAIL_ALLOWLIST` con la bandeja autorizada. Los dos procesos
+arrancan diciendo que el cliente está inicializado y que el envío está
+restringido a un destinatario. Siguen **ausentes** `SENTRY_DSN` y
+`GOOGLE_CLIENT_ID`, en los tres recursos.
 
-### Antes de encender el correo, una precondición que sigue en pie
+> **Antecedente del 16-11**, conservado porque es el corte sobre el que se
+> escribió la quinta versión: ese día `RESEND_API_KEY`, `EMAIL_FROM`,
+> `SENTRY_DSN` y `GOOGLE_CLIENT_ID` estaban **ausentes de la lista** en los
+> tres recursos, y en el almacén de ops no había **ninguna** credencial de
+> correo — la única cuenta de QA pensada para eso era una dirección
+> `@psico.test`, que por la RFC 2606 no puede recibir nada. `VAPID_*` presentes
+> en API y worker, `NEXT_PUBLIC_VAPID_PUBLIC_KEY` en Web, y `ANTHROPIC_API_KEY`
+> en API y worker — es decir, Eco ya funcionaba.
+
+### La precondición de encender el correo, y cómo se resolvió
 
 Staging tiene cuentas sintéticas `@psico.test` —que por la RFC 2606 **no pueden
 recibir correo**— y cuentas con dirección real del propietario **suscritas al
@@ -106,7 +142,9 @@ digest semanal**.
 
 El cron del digest corre **cada hora** y envía a quien cumpla su lunes 07:00
 local. Así que poner `RESEND_API_KEY` sin más **mandaría correo real a esas
-bandejas** el lunes siguiente, sin que nadie lo hubiera pedido.
+bandejas** el lunes siguiente, sin que nadie lo hubiera pedido. Es el riesgo que
+la lista de destinatarios acota, y el 19-11 la clave entró **con la lista ya
+escrita** en los dos recursos, que es el orden que lo evita.
 
 > ✅ **Lo que esa precondición pedía de nosotros, hecho el 17-11.** El riesgo
 > era que una variable bastara para abrir las cinco superficies de correo, una de
@@ -124,20 +162,37 @@ bandejas** el lunes siguiente, sin que nadie lo hubiera pedido.
 > previo —la lista ya las excluye— y pasa a ser una cortesía si algún día el
 > correo se abre de verdad en staging.
 
-La preparación exacta, en este orden:
+La preparación exacta, en este orden — **ejecutada entera el 19-11**, y
+conservada porque el paso 3 vuelve con cada persona que entre al piloto:
 
-1. Conseguir una **bandeja de QA controlada y autorizada** — una dirección real
-   que alguien acepta expresamente usar para esto.
-2. Verificar `feelverse.app` en Resend (SPF, DKIM, DMARC) y fijar
-   `EMAIL_FROM=no-reply@feelverse.app`. Ya está preparado desde el 06-11: el
-   remitente por defecto reclamaba un dominio ajeno al producto y Resend lo
-   habría rechazado, así que la primera prueba habría fallado por eso y habría
-   parecido una clave mala.
-3. **`EMAIL_ALLOWLIST=<esa bandeja>` PRIMERO**, en API y worker. Antes que la
+1. ✅ Conseguir una **bandeja de QA controlada y autorizada** — una dirección
+   real que alguien acepta expresamente usar para esto. Es `qa@syntavera.dev`,
+   un buzón compartido creado para esto.
+2. ✅ Verificar `feelverse.app` en Resend y fijar
+   `EMAIL_FROM=no-reply@feelverse.app`. Preparado desde el 06-11 —el remitente
+   por defecto reclamaba un dominio ajeno al producto y Resend lo habría
+   rechazado, así que la primera prueba habría fallado por eso y habría parecido
+   una clave mala— y verificado el 19-11. **Dirección pelada**: con nombre y
+   ángulos, la validación de entorno es fatal y ninguno de los dos procesos
+   arranca.
+3. ✅ **`EMAIL_ALLOWLIST=<esa bandeja>` PRIMERO**, en API y worker. Antes que la
    clave: así no hay ni un minuto en el que la clave esté puesta y la lista no.
-4. Sólo entonces, `RESEND_API_KEY` en **API y worker**, y desplegar los dos.
-5. Validar contra esa bandeja: recepción → enlace → cambio de contraseña →
+   **Este paso se repite con cada participante**, añadiendo su dirección y
+   conservando las anteriores.
+4. ✅ Sólo entonces, `RESEND_API_KEY` en **API y worker**, y desplegar los dos.
+   La instaló Jorge; es lo único de este frente que no pasó por aquí, porque una
+   clave de API no se transcribe.
+5. ✅ Validar contra esa bandeja: recepción → enlace → cambio de contraseña →
    **acceso con la nueva**, más las protecciones de reutilización del enlace.
+   Cerrado el 19-11: enlace ya usado **410**, contraseña anterior **401** —y que
+   sea 401 y no 429 es la mitad del valor, porque un 429 probaría el limitador y
+   no que la contraseña dejó de servir.
+
+> **Una trampa de ejecución que costó rehacer una cuenta.** Hay que confirmar
+> **qué contenedor sirve** antes de registrar nada: el 19-11 se dio de alta una
+> cuenta mientras la actualización progresiva aún servía el contenedor anterior,
+> sin credencial. Como la verificación **sólo se dispara desde el registro** y no
+> hay reemisión, esa cuenta se quedó sin verificar y hubo que rehacerla.
 
 ### 3bis. La cuota FREE de Eco — comprobada sobre el servicio desplegado
 
@@ -212,13 +267,13 @@ Y el recorrido destapó dos cosas que la prueba aislada no podía ver:
 
 ## 4. Lo que no hay que confundir
 
-| Frente             | Comprobado                                                                                       | Pendiente                                                                                                |
-| ------------------ | ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
-| **Microguías C01** | **Las cinco, en pantalla, escena a escena**, con sus tres interacciones distintas y su veredicto | La **disponibilidad** para alguien que no sea QA: es **B**                                               |
-| **Eco**            | El **camino normal** y el **error controlado**                                                   | La **cuota** por ejercer: nadie ha chocado con el tope de 10/día                                         |
-| **Retención**      | El **planificador**: los crons corren y evalúan el filtro por huso                               | La **entrega completa**: corrieron con `candidates=0` y sin correo configurado                           |
-| **Exportación**    | El **recorrido completo**, worker incluido, y con pantalla                                       | Su **alcance**: ocho secciones, lo ausente nombrado, y material bajo **D-EXP** que ni viaja ni se nombra |
-| **Lectura**        | 188 bloques reales, con énfasis real, legibles en los ocho estilos × ambientes                   | Dos bloques con asterisco, excluidos por decisión editorial                                              |
+| Frente             | Comprobado                                                                                                                                       | Pendiente                                                                                                                  |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| **Microguías C01** | **Las cinco, en pantalla, escena a escena**, con sus tres interacciones distintas y su veredicto                                                 | La **disponibilidad** para alguien que no sea QA: es **B**                                                                 |
+| **Eco**            | El **camino normal** y el **error controlado**                                                                                                   | La **cuota** por ejercer: nadie ha chocado con el tope de 10/día                                                           |
+| **Retención**      | El **planificador**: los crons corren y evalúan el filtro por huso. Y desde el 19-11, la **ruta de correo del worker**, por exportación de datos | La **entrega del digest**: sus corridas fueron con `candidates=0`, así que su planificador está acreditado y su entrega no |
+| **Exportación**    | El **recorrido completo**, worker incluido, y con pantalla                                                                                       | Su **alcance**: ocho secciones, lo ausente nombrado, y material bajo **D-EXP** que ni viaja ni se nombra                   |
+| **Lectura**        | 188 bloques reales, con énfasis real, legibles en los ocho estilos × ambientes                                                                   | Dos bloques con asterisco, excluidos por decisión editorial                                                                |
 
 ### La pestaña guiada ya sólo aparece donde hay algo publicado
 
@@ -269,27 +324,37 @@ ofrecerse donde no hay nada que recorrer.
 
 ## 5. Decisiones que hacen falta
 
-1. **¿Se configura `RESEND_API_KEY`?** Con su precondición del §3. Sin ella no
-   hay restablecimiento por correo, así que **no se recupera el acceso** a una
-   cuenta cuya contraseña se olvidó. Crear otra cuenta **no es recuperarla**: el
-   diario de la primera sigue cifrado donde estaba y la nueva empieza vacía.
-   **Es la única que bloquea el piloto.**
+1. ✅ **¿Se configura `RESEND_API_KEY`?** **RESUELTA el 19-11**, y era la única
+   que bloqueaba el piloto. Los tres insumos que pedía —la clave, el dominio
+   verificado y una dirección real donde recibir— están los tres: credencial
+   instalada por Jorge, `feelverse.app` verificado por el proveedor y
+   `qa@syntavera.dev` como bandeja autorizada. El recorrido que de verdad
+   importaba **está cerrado**: una persona que olvida su contraseña la recupera,
+   comprobado de punta a punta.
 
-   Vuelto a comprobar el 17-11, y esta vez en **dos** sitios: la variable sigue
-   **ausente** de la lista de los tres recursos —ausente, no vacía— y **también
-   dentro del contenedor servido**, que es el que de verdad distingue las dos
-   cosas; y no hay ninguna credencial de correo autorizada en el almacén de ops.
-   Hacen falta tres insumos: la clave, el dominio verificado y una dirección
-   real donde recibir.
+   El argumento por el que bloqueaba sigue siendo cierto y conviene conservarlo,
+   porque es el que impide reabrirla a la ligera: sin restablecimiento por correo
+   **no se recupera el acceso** a una cuenta cuya contraseña se olvidó, y crear
+   otra cuenta **no es recuperarla** —el diario de la primera sigue cifrado donde
+   estaba y la nueva empieza vacía.
 
-   → Ficha corta con los tres, dónde ponerlos y qué queda después:
+   **Lo que de esto vuelve con cada persona:** su dirección en
+   `EMAIL_ALLOWLIST`, en API y worker, conservando las anteriores. La prueba con
+   QA acredita el transporte y el recorrido **para esa dirección**, no para la
+   siguiente.
+
+   → Ficha del frente, con los siete resultados y las dos trampas:
    [docs/operations/correo-insumos-pendientes.md](../operations/correo-insumos-pendientes.md)
+   · receta de operación en el
+   [runbook §2.5.1](../deploy/coolify-runbook.md)
 
 2. **¿Se configura `SENTRY_DSN`?** Traza frente a reproducción. No bloquea.
 
 3. **B — ¿se amplía el padrón del guía?** Ahora con su alcance medido (§4 y la
    tabla de abajo). Es la decisión que convierte este piloto en un piloto de
-   **lectura acompañada** en vez de lectura a secas.
+   **lectura acompañada** en vez de lectura a secas, y desde que la 1 se cerró
+   el 19-11 es **la única de esta lista que condiciona el piloto** — la 2 y la 4
+   no lo bloquean.
 
    → **Redactada para resolverse de una vez en el §8**: audiencia y tamaño,
    entrada por el flujo normal, alcance en lenguaje de producto, duración,
@@ -400,8 +465,10 @@ persona leyendo un libro real en un entorno de pruebas, para ver qué le pasa.
 - [x] **QA autenticada completada** — 24-10, panel y lector en los dos estilos ×
       cuatro ambientes; re-recorrida el 05-11 sobre el texto reparado.
 - [x] **Recuperación de cuenta comprobada** — por el flujo previsto; la
-      contraseña vieja deja de valer. _Con el correo configurado hay que
-      repetirla por su transporte real._
+      contraseña vieja deja de valer. Y **repetida por su transporte real el
+      19-11**, que es lo que esta línea pedía: correo recibido en la bandeja
+      autorizada, contraseña nueva **204**, acceso con ella en sesión limpia
+      **200**, enlace ya usado **410** y contraseña anterior **401**.
 - [x] **Recuperación del diario comprobada** — la frase de respaldo devuelve el
       contenido original. El diario entra en el piloto.
 - [x] **Exportación web validada** — recorrida en staging el 25-10.
@@ -414,11 +481,20 @@ persona leyendo un libro real en un entorno de pruebas, para ver qué le pasa.
 - [x] **La credencial de correo no puede activar envíos a nadie más** — 17-11:
       fuera de producción el correo lo abre `EMAIL_ALLOWLIST`, no la clave, así
       que incorporarla con la lista vacía **retiene todo** en vez de mandar el
-      digest del lunes a cada cuenta de staging. Receta en el runbook §2.5.1.
-- [ ] **Decisión 1 del §5 tomada** (`RESEND_API_KEY` con su precondición). Es
-      la única que bloquea.
+      digest del lunes a cada cuenta de staging. Receta en el runbook §2.5.1. Y
+      **ejercido el 19-11**: con la clave puesta, el registro del proveedor de
+      esa ejecución tiene tres mensajes y los tres van a la dirección
+      autorizada.
+- [x] **Decisión 1 del §5 tomada** (`RESEND_API_KEY` con su precondición) —
+      **19-11**, con el recorrido de recuperación cerrado y aceptado. Era la
+      única que bloqueaba.
 - [ ] **Decisión 3 tomada (B)** si se quiere que el piloto incluya las
-      microguías — redactada en el §8, con recomendación.
+      microguías — redactada en el §8, con recomendación. **Es la única decisión
+      pendiente que condiciona este piloto.**
+- [ ] **La dirección de esa persona en `EMAIL_ALLOWLIST`**, en API y worker,
+      conservando las anteriores, y **antes** de que se registre: la
+      verificación de su cuenta sólo se dispara desde el registro y no hay
+      reemisión.
 - [ ] Una **persona a la vez**, avisada de que es staging, de que recuperar la
       cuenta y recuperar el diario son cosas distintas, y de que conviene
       guardar la frase de respaldo al crearla.
@@ -608,9 +684,12 @@ distinguen a este piloto de un lanzamiento:
   _acompañamiento_, no de catálogo: su plan sigue decidiendo qué libros lee.
 - **Lo que el lector no ofrece no está roto.** Está sin publicar, y así se dice
   en pantalla («En preparación»), no como una avería.
-- **Si olvida su contraseña y el correo no está activo, no recupera la cuenta.**
-  Y recuperar la cuenta y recuperar el diario son cosas distintas: lo segundo
-  son sus palabras de respaldo, y nadie más las tiene.
+- **Si olvida su contraseña, la recupera por correo** — desde el 19-11 ese
+  recorrido está cerrado, **siempre que su dirección esté en la lista
+  autorizada**. Y recuperar la cuenta y recuperar el diario siguen siendo cosas
+  distintas: lo segundo son sus palabras de respaldo, y nadie más las tiene. Una
+  contraseña nueva la deja entrar; lo que escribió con la anterior sólo vuelve
+  por esas palabras.
 
 ### 8.5 Duración, y qué señales dicen si salió bien
 
@@ -639,9 +718,16 @@ lo que el programa V2 pasó ocho fases desenredando.
 ### 8.6 Cómo recibe ayuda
 
 Un canal directo con Jorge, el que ya usen. **Ninguna herramienta nueva, ningún
-formulario, ningún correo automático** —que además hoy no podría salir—. Se le
-dice de antemano que es staging, que puede fallar y que avisar de un fallo es
-justo lo que se le pide.
+formulario, ningún correo automático de soporte.** Se le dice de antemano que es
+staging, que puede fallar y que avisar de un fallo es justo lo que se le pide.
+
+> Esta línea decía «ningún correo automático —que además hoy no podría salir—».
+> La segunda mitad **dejó de ser cierta el 19-11**: el correo sale, y a su
+> dirección si está autorizada. Lo que se conserva es la decisión, no la
+> imposibilidad: el acompañamiento va por el canal directo **porque así se
+> decidió**, no porque el transporte faltara. Los correos que sí le llegan son
+> los de su cuenta —verificación, restablecimiento, su exportación— y el digest
+> semanal, que es opcional y se apaga desde su perfil.
 
 Si lo que encuentra es algo del §6.3, se detiene antes de arreglarlo.
 
@@ -673,41 +759,50 @@ conforme.
 
 ### 8.8 El estado desde el que se decide, comprobado hoy
 
-Leído del artefacto servido el **17-11**, para que la decisión no se tome sobre
-un recuerdo:
+Leído del artefacto servido, el guía y Círculos el **17-11** y el correo el
+**19-11**, para que la decisión no se tome sobre un recuerdo:
 
-| Variable                  | Valor hoy                  |
-| ------------------------- | -------------------------- |
-| `GUIDE_ROLLOUT_MODE`      | `pilot`                    |
-| `GUIDE_PILOT_USER_IDS`    | **1 id** (la cuenta de QA) |
-| `EEC_C01_GUIDED_SUITE_V1` | `on`                       |
-| `CIRCLES_ROLLOUT_MODE`    | `pilot`                    |
-| `RESEND_API_KEY`          | **ausente**                |
-| `EMAIL_ALLOWLIST`         | **ausente**                |
-| `SENTRY_DSN`              | **ausente**                |
+| Variable                  | Valor hoy                                  |
+| ------------------------- | ------------------------------------------ |
+| `GUIDE_ROLLOUT_MODE`      | `pilot`                                    |
+| `GUIDE_PILOT_USER_IDS`    | **1 id** (la cuenta de QA)                 |
+| `EEC_C01_GUIDED_SUITE_V1` | `on`                                       |
+| `CIRCLES_ROLLOUT_MODE`    | `pilot`                                    |
+| `RESEND_API_KEY`          | **presente** (19-11)                       |
+| `EMAIL_FROM`              | `no-reply@feelverse.app`                   |
+| `EMAIL_ALLOWLIST`         | **1 entrada**: la bandeja autorizada de QA |
+| `SENTRY_DSN`              | **ausente**                                |
 
 Así que ejecutar B es **añadir ids a una lista que ya existe**, en un modo que ya
 está puesto. No hay que cambiar de modo, ni tocar el interruptor de C01, ni
 desplegar código.
 
-**Y una condición de entrada que no es una recomendación de orden.** Sin correo,
-una persona que olvide su contraseña **no recupera la cuenta**, y eso no se
-arregla avisándole.
+**Y la condición de entrada que acompañaba a B ya se cumplió.** Decía que la
+primera invitación esperaba el recorrido de recuperación por correo completado
+—recepción → enlace → contraseña nueva → acceso, en la bandeja autorizada—, y
+eso se cerró el **19-11**. El argumento que la sostenía sigue en pie, y por eso
+se conserva: sin ese recorrido, una persona que olvide su contraseña **no
+recupera la cuenta**, y eso no se arregla avisándole.
 
-La regla, con sus dos mitades separadas:
+Lo que queda de esa regla, en dos mitades:
 
-- **B puede aprobarse antes** de que el correo esté configurado. Son decisiones
-  independientes, y aprobarla no pone a nadie dentro.
-- **La primera invitación y la entrada de una persona real requieren el
-  recorrido de recuperación por correo completado** — recepción → enlace →
-  contraseña nueva → acceso, en la bandeja autorizada.
+- **B es una decisión independiente del correo.** Podía aprobarse antes y puede
+  aprobarse ahora; aprobarla no pone a nadie dentro.
+- **Entrar una persona real exige su dirección en la lista autorizada**, en API
+  y worker, **antes** de que se registre. El recorrido cerrado con la bandeja de
+  QA acredita el transporte **para esa dirección**; la guarda restringe por
+  dirección exacta, así que sin su entrada ella no recibe ni la verificación de
+  su cuenta ni el enlace para recuperarla.
 
 > Una versión anterior de este párrafo permitía invertir el orden «si se le
 > advierte a ella por el canal directo y se le pide que guarde la contraseña».
-> **Esa excepción no está autorizada**, y además contradecía el criterio de
+> **Esa excepción no estaba autorizada**, y además contradecía el criterio de
 > entrada del §6.1 de este mismo documento. Advertir que no hay recuperación no
 > es lo mismo que haberla: el diario se cifra con su contraseña, nadie más tiene
-> la clave, y el coste de equivocarse lo paga ella, no nosotros.
+> la clave, y el coste de equivocarse lo paga ella, no nosotros. Hoy la
+> excepción ya no hace falta, pero el razonamiento se conserva por si alguna vez
+> se piensa en entrar a alguien sin su dirección en la lista: sería la misma
+> apuesta con otro nombre.
 
 ---
 

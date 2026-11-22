@@ -39,6 +39,8 @@ import { ResetPasswordDto } from "./dto/reset-password.dto";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { VerifyEmailDto } from "./dto/verify-email.dto";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { ResendVerificationDto } from "./dto/resend-verification.dto";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { OAuthGoogleDto } from "./dto/oauth-google.dto";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
 import type { AuthenticatedUser } from "./strategies/jwt.strategy";
@@ -183,6 +185,32 @@ export class AuthController {
   })
   verifyEmail(@Body() dto: VerifyEmailDto, @Req() req: Request) {
     return this.authService.verifyEmail(dto, extractAuthContext(req));
+  }
+
+  /**
+   * Ask for another verification link. **Always returns 200** whatever the
+   * address turns out to be — unknown, already verified, OAuth, or over
+   * budget — because a response that varied would let anyone probe which
+   * addresses have accounts here. Same no-leak contract as
+   * `forgot-password`, and the same 3/hour/IP budget: both are
+   * unauthenticated, both take an address, both send mail.
+   *
+   * The IP budget is not the one that protects the person being targeted —
+   * that one is keyed by address and lives in the service (see
+   * VERIFICATION_SEND_MAX_PER_WINDOW in `verification-send-budget.ts`).
+   */
+  @Post("resend-verification")
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 3, ttl: 60 * 60_000 } })
+  @ApiOperation({
+    summary: "Request a fresh verification email (no-leak, always 200)",
+  })
+  async resendVerification(
+    @Body() dto: ResendVerificationDto,
+    @Req() req: Request,
+  ) {
+    await this.authService.resendVerification(dto, extractAuthContext(req));
+    return { ok: true };
   }
 
   // ── S2: OAuth · Google ───────────────────────────────────────────────────

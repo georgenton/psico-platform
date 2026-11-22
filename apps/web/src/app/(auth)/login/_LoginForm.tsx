@@ -191,6 +191,27 @@ export default function LoginForm() {
           Regístrate gratis
         </Link>
       </p>
+
+      {/* La entrada al reenvío del enlace de verificación para quien NUNCA
+          recibió el primero. Las pantallas de enlace caducado, inválido o
+          incompleto ya llevan el formulario; pero quien no tiene ningún enlace
+          no puede llegar a ellas, y el login es donde vuelve quien se registró
+          y no encuentra el correo. Lleva al MISMO formulario, no a una copia.
+          Dentro de un párrafo, así que le aplica la excepción de enlace en
+          texto corrido de WCAG 2.5.8, como al «Regístrate» de arriba. */}
+      <p
+        className="mt-2 text-center text-sm"
+        style={{ color: "var(--color-warm-500)" }}
+      >
+        ¿No te llegó el correo para confirmar tu cuenta?{" "}
+        <Link
+          href="/verify-email?resend=1"
+          className="font-medium"
+          style={{ color: "var(--color-lavender-700)" }}
+        >
+          Pide otro enlace
+        </Link>
+      </p>
     </>
   );
 }

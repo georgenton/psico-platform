@@ -32,6 +32,16 @@ export const AuthEventType = {
   PASSWORD_RESET_COMPLETED: "PASSWORD_RESET_COMPLETED",
   /** Email verification token consumed → User.emailVerified=true. */
   EMAIL_VERIFIED: "EMAIL_VERIFIED",
+  /**
+   * Another verification email was requested via `/auth/resend-verification`
+   * (the one `register()` sends is covered by its REGISTER row). Written on
+   * EVERY request, including the ones we refuse: the endpoint always answers
+   * 200 so it can't be used to probe which addresses have accounts, which
+   * means this row is the only place the real outcome is recorded. See
+   * `metadata.reason` for refusals, and `queued` / `enqueueFailed` for the
+   * one branch that hands an email to the queue.
+   */
+  EMAIL_VERIFICATION_REQUESTED: "EMAIL_VERIFICATION_REQUESTED",
 
   // ── OAuth (Sprint S2) ──────────────────────────────────────────────────
   /** First-time OAuth signup — a new User row was created. */

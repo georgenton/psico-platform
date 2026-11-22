@@ -90,6 +90,10 @@ function makePrismaMock() {
       findUnique: fn(),
       create: vi.fn().mockResolvedValue(undefined),
       update: fn(),
+      // `resendVerification` reads the per-address budget off this count.
+      // Zero = "nothing sent in the window", so the default lets a send
+      // through instead of silently exercising the rate-limited branch.
+      count: vi.fn().mockResolvedValue(0),
     },
     profile: {
       upsert: fn(),
@@ -294,6 +298,12 @@ export async function createE2EApp(
     });
     // Restore the always-resolved default for authEvent.create.
     prisma.authEvent.create.mockResolvedValue(undefined);
+    // And the per-address budget `resendVerification` reads. Without this the
+    // reset above leaves it resolving `undefined`, and `undefined >= 3` is
+    // false — so the budget would still be open, but by accident rather than
+    // by declaration, and the next comparison written against it could land
+    // either way.
+    prisma.emailVerificationToken.count.mockResolvedValue(0);
     // Wipe the in-memory Redis (throttler counters, idempotency cache).
     await redis.flushall();
   };

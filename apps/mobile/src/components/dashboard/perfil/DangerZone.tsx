@@ -55,7 +55,7 @@ export function DangerZone({
         <Text style={styles.scheduledTitle}>Borrado programado</Text>
         <Text style={styles.scheduledHint}>
           Tu cuenta se eliminará el {at.toLocaleString("es-419")}. Hasta
-          entonces, contactá soporte para cancelar.
+          entonces, contacta a soporte para cancelar.
         </Text>
       </View>
     );

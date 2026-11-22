@@ -4021,6 +4021,263 @@ es la sección que se mantiene; esta entrada es su antecedente fechado.
 
 ---
 
+### Sesión — 2026-11-19 ✅ COMPLETADA — Pedir otro enlace de verificación
+
+> **Corregido el 2026-11-22, en el mismo PR (#870).** La revisión encontró
+> cuatro casos que estas pruebas no cubrían, y dos frases de esta entrada
+> dejaron de ser ciertas: el cupo ya no es un `count` seguido de un `create`
+> sueltos —eran dos sentencias, y dos peticiones a la vez podían pasar las
+> dos—, y el aviso ya no dice «te enviamos un enlace». Ver la entrada
+> «Revisión del reenvío», dos más abajo.
+
+**Rama:** `claude/brave-merkle-ebccad` · commiteada ahí junto con la tanda siguiente · **sin PR, sin desplegar**
+**Tests:** API 4497 pasados / 91 saltados (+16: 11 de servicio, 5 E2E) · Web 2641 en 233 ficheros (+8) · typecheck ×2 · eslint · OpenAPI `generate:check` en OK
+**Mutación:** 12 mutaciones, 12 muertas, 0 supervivientes, 0 sin aplicar
+
+**El hueco que cierra.** `sendVerificationEmail` sólo se disparaba desde
+`register()`: no había ninguna otra ruta, y el propio código lo anticipaba en
+un comentario («the user can re-request later via /auth/resend-verification
+(future)») que llevaba ahí desde la S2. Si el enlace de 24 horas caducaba, la
+única salida era borrar la cuenta. Y la pantalla lo empeoraba: el estado
+«el enlace expiró» decía **«Iniciá sesión para que te enviemos uno nuevo
+automáticamente»** — voseo, y encima un recorrido que no existía. Los otros
+dos callejones decían variantes de lo mismo («Pedile al sistema que te envíe
+uno nuevo», «iniciá sesión para pedir un enlace nuevo»): **tres** mentiras, no
+una.
+
+**`POST /api/auth/resend-verification`**, sin autenticar y con el contrato
+no-leak de su gemelo `forgot-password`: contesta **200 `{ ok: true }` para
+toda dirección** —desconocida, inactiva, de Google, ya confirmada o pasada de
+cupo—, porque una respuesta que variara sería un oráculo de «¿esta dirección
+tiene cuenta aquí?», y la rama de «ya confirmada» filtraría un segundo bit
+encima. Las seis ramas quedan en el `AuthEvent`
+(`EMAIL_VERIFICATION_REQUESTED`, con su `metadata.reason`), que es el único
+sitio donde el resultado real se puede recuperar.
+
+**Dos límites, y el segundo es el que protege a la víctima.** El `@Throttle`
+del controller va **por IP** (3/hora, igual que `forgot-password`) y protege
+nuestro coste de correo, no a la persona apuntada: con un puñado de
+direcciones —o de IPs— se le llena el buzón igual. Así que el servicio
+impone además **3 correos por hora y por cuenta**, y ese cupo es **derivado,
+no contabilizado aparte**: es un `count` de filas de `EmailVerificationToken`
+en la hora anterior, y se escribe una por cada envío. Cuenta exactamente lo
+que limita, así que no hay un segundo libro que se desincronice, **no hay
+tabla nueva y no hay migración** —`AuthEvent.type` ya es `String`— y sobrevive
+a un reinicio de Redis, que un contador en caché no. Dos consecuencias
+escritas donde se deciden: el correo de `register()` cuenta (una cuenta nueva
+tiene dos reenvíos en su primera hora, que es la lectura correcta), y la fila
+se escribe **antes** de llamar al proveedor, así que una caída gasta cupo —
+deliberado, para que una avería de Resend no se convierta en un bucle de
+reintentos sin medidor.
+
+**La pantalla ahora dice lo que pasa.** Los cuatro callejones —vencido,
+inválido, sin token, fallo nuestro— comparten remedio y ninguno lo ofrecía;
+los cuatro llevan hoy `ResendVerificationPanel`, el formulario que de verdad
+lo pide, ahí mismo y sin pasar por el login (quien llega acaba de pulsar un
+enlace muerto: es probable que no tenga sesión). El aviso habla en
+condicional —«Si ese correo tiene una cuenta sin confirmar…»— porque una
+tarjeta que dijera «te lo enviamos» filtraría por la interfaz justo lo que el
+servidor se cuida de no decir.
+
+**Lo que NO hace, a propósito:** no cambia la política de acceso —ningún guard
+exige correo verificado y eso se queda igual—, no toca el transporte de correo
+ni la recuperación de contraseña (cerradas el 19-11, PR #868), no convierte el
+borrado de cuenta en procedimiento, y no amplía `EMAIL_ALLOWLIST`.
+
+**El trinquete de voseo, con su cuenta hecha.** `iniciá` no estaba en
+`IMPERATIVO_AR` —de ahí que la frase sobreviviera en verde— y entró. Eso
+forzó corregir sus **cuatro** apariciones, dos de ellas fuera de esta
+pantalla: `_ResetPasswordForm.tsx:92` y `actions/auth.ts:224`, cambios de una
+palabra en flujos cerrados. Al añadirlo se midió el resto, y **siguen fuera
+nueve formas, ~17 apariciones**: `desbloqueá` (4) · `llamá` (4) · `solicitá`
+(2) · `confirmá` (2) · `ingresá` (1) · `pensá` (1) · `contactá` (1) ·
+`reintentá` (1) · `refiná` (1). No se añadieron en la misma pasada porque
+viven en terapia, en el perfil, en dos pantallas de móvil y —las cuatro de
+`llamá`— en `apps/api/src/terapia/crisis-catalog.ts`, que es el texto que
+alguien lee en una crisis. Queda como su propio trabajo, con la cuenta
+escrita en el propio fichero de la prueba.
+
+> **Hecho el mismo día.** «Siguen fuera nueve formas» dejó de ser cierto unas
+> horas después: el propietario pidió hacer esa limpieza en la misma sesión y
+> las nueve entraron, con mutación y control contrario por cada una. Ver la
+> entrada siguiente.
+
+**Dos defectos de mis propios instrumentos**, los dos del mismo tipo que este
+archivo ya ha registrado varias veces. El guion de mutación informó «línea
+base ROJA» porque pasaba la ruta del grupo `(auth)` sin entrecomillar y el
+shell se comió los paréntesis. Y su contador daba por **muerta** una mutación
+que **no se había aplicado** (ancla con la sangría mal), así que anunció «11
+muertas» sobre una que no probó nada: ahora «sin aplicar» es su propio
+desenlace y hace fallar la pasada. La mutación del trinquete también estaba
+mal planteada —retiraba el detector **y** metía el defecto a la vez, lo que
+deja verde por construcción—; reformulada para mutar sólo el copy, más su
+control contrario que comprueba que la muerte se debe a `iniciá` y no a otra
+entrada de la lista.
+
+**Deuda abierta:** sin PR · **sin comprobar contra staging**, que
+exigiría una entrega real a una dirección ya autorizada (y el encargo pide no
+ampliar la lista) · `packages/api-client/src/auth.ts` no expone el método
+porque móvil no tiene pantalla de verificación, igual que no expone
+`forgotPassword` · `_ResetPasswordForm.tsx` arrastra deriva de formato previa
+(un import partido en cuatro líneas) que `lint-staged` normalizará al
+commitear · el recuento de tests del README del módulo estaba obsoleto desde
+varios sprints (decía 21/10 contra 45/23 reales) y queda corregido con nota.
+
+---
+
+### Sesión — 2026-11-19 ✅ COMPLETADA — Las nueve formas de voseo que faltaban
+
+**Rama:** `claude/brave-merkle-ebccad` · commiteada ahí junto con la tanda anterior, en un solo commit · **sin PR, sin desplegar**
+**Tests:** API 4497 pasados / 91 saltados · Web 2641 en 233 ficheros · Móvil 229 en 32 suites · typecheck ×3 · eslint ×3 · prettier limpio
+**Mutación:** 9 formas × 2 pasadas = 18 ejecuciones · **9 de 9 acreditadas** (mutación ROJA + control contrario VERDE)
+
+**Qué cierra.** La entrada anterior midió nueve formas de imperativo voseante
+en -ar que `IMPERATIVO_AR` no detectaba y las dejó fuera a propósito, con la
+cuenta escrita. El propietario pidió cerrarlas en la misma sesión. Las **17
+apariciones** están corregidas y las nueve formas están en el trinquete:
+`desbloqueá` (4) · `llamá` (4) · `solicitá` (2) · `confirmá` (2) · `ingresá`
+(1) · `pensá` (1) · `contactá` (1) · `reintentá` (1) · `refiná` (1).
+
+**El catálogo de crisis se revisó entero antes de tocarlo**, que era la
+cautela que justificaba haberlo dejado para después. Lo que decidió el cambio
+no fue una preferencia de registro: **la propia entrada de Ecuador ya tuteaba**
+—«llama al 911» en `safetyTipsShort`, «no la dejes» y «agenda una consulta» en
+`nextSteps`—, así que las cuatro formas voseantes eran la excepción dentro de
+su mismo párrafo. Ninguna prueba fijaba esas cadenas: web y móvil las
+renderizan verbatim con `.map()`, de modo que el cambio llega directo a quien
+lee la pantalla y no había nada que actualizar.
+
+**Y ahí apareció un segundo defecto, que no es de voseo y conviene no
+confundir con él.** `llamar` por teléfono pide preposición, y las cuatro
+frases no la tenían: «Llamá **una** línea», «Llamá **la** línea 106», «Llamá
+SAPTEL». Eso era igual de incorrecto en voseo que en tuteo, así que arreglar
+sólo el verbo habría dejado «Llama una línea de la lista de arriba» como
+estado final de una línea que estaba editando. Quedan «Llama **a** una
+línea…», «Llama **a** la línea 106» y «Llama **a** SAPTEL», con el mismo
+patrón que la línea 41 del fichero ya usaba («llama al 911»). **Es un cambio
+separable del de voseo**: si se prefiere revertir sólo esa parte, son cuatro
+preposiciones.
+
+**Dos reformulaciones donde el cambio palabra-por-palabra no era lo correcto.**
+`pensar` diptonga, así que «Pensá dos veces» no da «Pensa» sino «Piensa»; se
+dejó **«Piénsalo dos veces»**, que es la colocación establecida. Y «contactá
+soporte» pasó a «contacta **a** soporte», con la preposición que pide un
+complemento de persona. Las otras siete son sustituciones directas.
+
+**La verificación es por forma, no por lote**, y lleva su control contrario:
+para cada una se reintroduce su voseo en su fichero real con el trinquete
+intacto —tiene que ponerse **ROJO**— y después, con ese voseo puesto, se
+retira **esa** entrada de `IMPERATIVO_AR` —tiene que volver a **VERDE**—. Sin
+la segunda mitad no se sabría si la muerte se debe a la entrada nueva o a otra
+ya existente de la lista. Las nueve pasan las dos.
+
+**El comentario del trinquete dejó de declarar una deuda que ya no existe.**
+Antes enumeraba las nueve como pendientes; ahora explica por qué esto es una
+lista enumerada y no una regla —«cualquier palabra acabada en -á» marcaría
+`está`, `verá`, `podrá`, `acá`, `quizá` y `sofá`, más de 450 apariciones
+correctas en este repositorio— y separa eso de **lo que la prueba sigue sin
+cubrir**: los imperativos ambiguos en -í/-é, que son un límite del idioma
+(`escribí` es orden voseante y pretérito a la vez) y no una lista por
+terminar. Para esos sólo salta si la frase lleva además un marcador de
+segunda persona.
+
+**Comprobado que no queda nada:** una búsqueda con los mismos límites de
+palabra que usa el trinquete no encuentra ninguna de las nueve formas en
+`apps/web/src`, `apps/mobile/src`, `apps/mobile/app`, `apps/api/src` ni
+`packages/types/src`, fuera del propio fichero de la prueba. Y su segunda
+prueba —la que exige haber recorrido más de 300 ficheros, para que un refactor
+no deje el trinquete verde por vacío— sigue pasando.
+
+**Deuda abierta:** sin PR · **falta el changeset** de `@psico/api-client`, que
+es la convención del repositorio antes de fusionar (el contrato generado ganó
+un endpoint; `minor`) y no se añadió por no decidir el salto de versión en
+nombre de nadie · el copy de crisis **no se ha visto en
+pantalla** tras el cambio, sólo en el fichero (lo renderizan
+`/dashboard/terapia/crisis` en web y `(tabs)/terapia/crisis` en móvil) · los
+ambiguos en -í/-é siguen dependiendo de que alguien lea la pantalla, y eso
+está declarado en la prueba · `_ResetPasswordForm.tsx` llevaba deriva de
+formato previa (un import partido en cuatro líneas) y se normalizó al editarlo
+de verdad en esta pasada: son cuatro líneas de ruido ajeno en ese diff, lo que
+`lint-staged` habría hecho igual al commitear.
+
+---
+
+### Sesión — 2026-11-22 ✅ COMPLETADA — Revisión del reenvío: cuatro hallazgos que las pruebas no veían
+
+**PR:** [#870](https://github.com/georgenton/psico-platform/pull/870), mismo PR que las dos entradas anteriores
+**Tests:** API 4503 / 91 saltados (+6) · Web 2646 (+5) · `verification-send-budget.pg-spec.ts` 4/4 contra PostgreSQL real · typecheck ×2 · eslint y prettier en lo tocado
+**Mutación:** 9 de 9 muertas — 2 en el cerrojo, 2 en la dependencia del proveedor, 5 en la pantalla
+
+La CI estaba en verde y la revisión encontró cuatro casos que no medía.
+
+**1 · El cupo por cuenta no aguantaba dos peticiones a la vez.** Se contaba y
+después se creaba, en dos sentencias: con dos envíos en la ventana, dos
+peticiones simultáneas leían «dos», pasaban, y la cuenta quedaba con cuatro.
+Comprobar y reservar van ahora en una transacción que primero toma
+`pg_advisory_xact_lock` por cuenta —el mismo mecanismo que serializa los
+eventos de cobro de una persona—, en `auth/verification-send-budget.ts`. El
+correo del registro reserva su hueco por el mismo camino, y un intento
+reservado sigue consumiendo cupo aunque la entrega falle después. El envío
+queda **fuera** de la transacción: un cerrojo sostenido durante la respuesta
+del proveedor haría esperar a Resend a todas las demás peticiones de esa
+cuenta.
+
+La regresión pone **dos conexiones reales** a competir por el último hueco, y
+su costura tuvo que resolver un problema propio: una cita que esperase a las
+dos se bloquearía para siempre con el arreglo puesto, porque la segunda no
+puede contar mientras la primera tiene el cerrojo. Así que la puerta se abre
+por la primera de dos razones —**la otra también contó** (sólo posible sin
+cerrojo: el defecto, reproducido de forma determinista) o **la otra está
+esperando el cerrojo**, visto en `pg_locks` desde una tercera conexión—, y la
+prueba exige saber cuál fue. Sin eso, dos peticiones que por azar no se
+solaparan pasarían sin haber competido. Sin cerrojo da cuatro filas; con un
+cerrojo global, dos cuentas distintas se esperan. Las dos mutaciones mueren.
+
+**2 · La respuesta esperaba a Resend en la única rama que envía.** El reenvío
+entrega ahora por la **cola `email` de BullMQ** —la que ya usan el cambio de
+correo y la exportación— y la entrega el **worker**. El E2E retrasa el
+proveedor 1,5 s de forma controlada: la rama que envía contesta por debajo, y
+la variante «encola y además espera al proveedor» muere en **1 509 ms**.
+**Lo que eso NO prueba**, y se dice donde se decide: igualar código y cuerpo, y
+quitar al proveedor, no es igualar la latencia; la rama que envía sigue
+haciendo una transacción y una escritura en Redis que las otras no. Un fallo de
+la reserva o de la cola tampoco se vuelve un 500, que filtraría la rama.
+
+Y un dato que salió de paso: la prueba E2E previa de «la que sí recibe» llevaba
+la cola **real** sobre ioredis-mock, que no puede ejecutarla (su Lua necesita
+`cmsgpack`), así que pasaba por la rama de cola fallida sin que nadie lo
+viera. Ahora la cola se observa en todo el bloque.
+
+**3 · Quien nunca recibió el primer correo no tenía cómo llegar.** El login
+enlaza al mismo formulario —«¿No te llegó el correo para confirmar tu cuenta?
+Pide otro enlace»—, con un texto propio en vez de «enlace incompleto». La
+prueba sigue el `href` del login en vez de escribir la URL final.
+
+**4 · La confirmación aseguraba un envío que pudo no ocurrir.** Dice ahora que
+la solicitud **se recibió**, que el enlace llegará **si puede procesarse**, y
+orienta sobre la bandeja, el correo no deseado y las solicitudes recientes. El
+estado de enlace vencido y el mensaje del 410 dejan de prometer, o de mandar a
+un perfil que no ofrece nada.
+
+**Lo que no cambia:** la política de acceso de las cuentas sin verificar, la
+guarda de destinatarios, el cierre del correo y de la recuperación (#868), el
+changeset `minor` ya aprobado, el tuteo y el catálogo de crisis.
+
+**Y una protección del 19-11 que no aguantó.** La candidata de reversión de la
+API, `c19358a4`, llevaba una segunda etiqueta «fuera de lo que Coolify poda».
+El 22-11 esa etiqueta ya no existía —el servidor tiene `force_docker_cleanup`
+con limpieza diaria a las 00:00— y la imagen sobrevivía sólo por la retención.
+Ahora está guardada **fuera** del almacén de Docker con `docker save`, junto con
+`6fe5ff3f`, y el runbook §3.0 corrige la afirmación en su sitio. La carga no
+está ensayada.
+
+**Lo que se determinó del worker:** su código de entrega (`EmailProcessor`,
+`ResendService`) no cambia, así que no hace falta desplegarlo; lo que cambia
+es que ahora procesa también estos trabajos. Despliegue, recorridos en staging
+y lo que sigue pendiente de observar: en el cuerpo de #870 y en FV-47.
+
+---
+
 ### 🧭 Trabajo vigente — corte del 2026-11-19
 
 **Esta es la única sección de este archivo que describe el presente.** Todo lo
@@ -5885,9 +6142,9 @@ respaldo** (un destino autorizado) y el **ensayo de nivel 4** (un VPS temporal).
 están resueltos: la **bandeja** existe (`qa@syntavera.dev`, buzón compartido real,
 comprobado que recibe), el **dominio** está **verificado** en Resend con sus
 cuatro registros publicados, y la **credencial** está creada con permiso de sólo
-envío y limitada a `feelverse.app`. Lo que queda no es un insumo que falte: es
-**pegar su valor** en los dos recursos, porque una clave de API no se transcribe.
-La variable ya está creada y vacía, y `EMAIL_FROM` puesto.
+envío y limitada a `feelverse.app`. Y está **instalada**: Jorge pegó su valor
+en los dos recursos el mismo 19-11 —una intervención manual hecha una vez, no
+una política— y el recorrido se cerró con recepción real (#868).
 
 De paso quedó escrito un destino plausible para el **aviso de respaldo**, que
 seguía esperando «una dirección autorizada»: `soporte@syntavera.dev` ya existe y
@@ -5969,9 +6226,11 @@ en **[la matriz de F3](https://claude.ai/artifact/UtBZxMUDiqSuSwY3mGh5ah)**:
 1. **El correo ya no está aquí: se cerró el 19-11.** Una persona que olvida su
    contraseña **la recupera** — recepción real en la bandeja principal,
    contraseña nueva y acceso con ella, más el aviso del worker. Aceptado por el
-   propietario. Lo que sigue vivo de ese frente es una tarea aparte y acotada:
-   [permitir pedir otro enlace de verificación](docs/product/tarea-reenvio-verificacion.md),
-   que **no** condiciona el piloto.
+   propietario. La tarea aparte que quedaba —
+   [pedir otro enlace de verificación](docs/product/tarea-reenvio-verificacion.md)—
+   está implementada en #870; su recepción positiva sigue pendiente de una
+   identidad de pruebas sin verificar dentro de la lista de destinatarios. **No**
+   condiciona el piloto.
 
    → El estado del correo, en
    [docs/operations/correo-insumos-pendientes.md](docs/operations/correo-insumos-pendientes.md).

@@ -326,14 +326,14 @@ export default function SesionDetalleScreen() {
           {!key ? (
             <View style={styles.lockedNote}>
               <Text style={styles.lockedNoteText}>
-                🔐 Desbloqueá tu Diario en la pestaña Diario para escribir tu
+                🔐 Desbloquea tu Diario en la pestaña Diario para escribir tu
                 intención.
               </Text>
             </View>
           ) : data.session.paymentStatus !== "PAID" ? (
             <View style={styles.lockedNote}>
               <Text style={styles.lockedNoteText}>
-                Confirmá el pago para empezar a preparar tu sesión.
+                Confirma el pago para empezar a preparar tu sesión.
               </Text>
             </View>
           ) : (

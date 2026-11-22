@@ -78,9 +78,48 @@ const PRONOMBRE = palabra("vos|Vos|sos|Sos", "");
 /**
  * Imperativos voseantes de verbos en -ar. Terminan en -á, y la primera persona
  * del pretérito termina en -é, así que no se confunden con nada.
+ *
+ * ────────────────────────────────────────────────────────────────────────────
+ * POR QUÉ ESTO ES UNA LISTA Y NO UNA REGLA.
+ *
+ * La regla obvia —«cualquier palabra que acabe en -á»— está descartada con
+ * números, no por gusto: marcaría `está`, `verá`, `aparecerá`, `podrá`,
+ * `llegará`, `acá`, `quizá`, `allá` y `sofá`, que en este repositorio suman
+ * más de 450 apariciones perfectamente correctas. Una prueba que marca copy
+ * bueno es una prueba que la gente aprende a desactivar.
+ *
+ * La factura de enumerar es que la lista se queda corta en silencio, y se
+ * pagó el 2026-11-19: `iniciá` no estaba, así que la pantalla de verificación
+ * de correo pudo decir «Iniciá sesión para que te enviemos uno nuevo» —voseo,
+ * y encima prometiendo un recorrido que no existía— con esta prueba en verde
+ * por encima.
+ *
+ * Al añadir `iniciá` se midió el árbol entero y quedaron nueve formas fuera,
+ * ~17 apariciones. Las nueve entraron el mismo día, en la pasada siguiente:
+ *
+ *   desbloqueá (4) · llamá (4) · solicitá (2) · confirmá (2) · ingresá (1)
+ *   pensá (1) · contactá (1) · reintentá (1) · refiná (1)
+ *
+ * Las cuatro de `llamá` vivían en `apps/api/src/terapia/crisis-catalog.ts`,
+ * que es el texto que alguien lee en una crisis, así que se revisó el fichero
+ * entero antes de tocarlo. Lo que decidió el cambio no fue una preferencia:
+ * esa misma entrada ya decía «llama al 911», «no la dejes» y «agenda una
+ * consulta» en tuteo, de modo que las cuatro formas voseantes eran la
+ * excepción dentro de su propio párrafo.
+ *
+ * LO QUE ESTA PRUEBA SIGUE SIN CUBRIR, que es distinto de estar incompleta
+ * por descuido: los imperativos ambiguos en -í/-é, por la razón explicada
+ * arriba —`escribí` es a la vez orden voseante y pretérito en primera
+ * persona, y ninguna expresión regular los separa—. Para esos sólo salta si
+ * la frase lleva además un marcador de segunda persona. Esa parte es un
+ * límite del idioma, no una lista por terminar.
+ * ────────────────────────────────────────────────────────────────────────────
  */
 const IMPERATIVO_AR = palabra(
-  "mirá|dejá|contá|usá|guardá|probá|entrá|buscá|tocá|cerrá|hablá|tomá|llevá|mandá|esperá|cambiá|agregá|andá|pasá|marcá|anotá|empezá|intentá|revisá|descansá|respirá|activá|apagá|cargá|borrá|enviá",
+  "mirá|dejá|contá|usá|guardá|probá|entrá|buscá|tocá|cerrá|hablá|tomá|llevá|mandá|esperá|cambiá|agregá|andá|pasá|marcá|anotá|empezá|intentá|revisá|descansá|respirá|activá|apagá|cargá|borrá|enviá|iniciá|" +
+    // Entraron el 2026-11-19 en la segunda pasada, con mutación y control
+    // contrario por cada una (ver la bitácora de esa sesión en CLAUDE.md).
+    "desbloqueá|llamá|solicitá|confirmá|ingresá|pensá|contactá|reintentá|refiná",
 );
 
 /** Formas ambiguas: sólo cuentan acompañadas de un marcador de segunda persona. */

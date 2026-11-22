@@ -5,11 +5,15 @@ import {
   beforeAll,
   afterAll,
   beforeEach,
+  afterEach,
   vi,
+  type MockInstance,
 } from "vitest";
 import request from "supertest";
 import * as bcrypt from "bcryptjs";
 import { createE2EApp, closeE2EApp, type E2EHarness } from "../test/e2e-app";
+import { ResendService } from "../notifications";
+import { JobsService } from "../jobs";
 
 /**
  * First end-to-end test of the API stack. Exercises:
@@ -271,6 +275,183 @@ describe("Auth · E2E", () => {
 
       expect(res.status).toBe(410);
       expect(res.body.code).toBe("TOKEN_INVALID_OR_EXPIRED");
+    });
+  });
+
+  // ── resend-verification ───────────────────────────────────────────────────
+  //
+  // The service spec covers the branches. What only the HTTP boundary can
+  // show is that they are INDISTINGUISHABLE from outside — same status, same
+  // body — which is the whole point of the no-leak contract. A unit test
+  // asserting "resolves" can't see the status code the caller actually reads.
+
+  describe("resend-verification", () => {
+    const unverifiedLocal = {
+      id: "user-1",
+      email: "user@example.com",
+      name: "Ana Pérez",
+      isActive: true,
+      authProvider: "LOCAL",
+      emailVerified: false,
+    };
+
+    // The queue is BullMQ's, already in production for the email-change and
+    // export notices, and it can't run on the in-memory Redis this harness
+    // uses (its Lua needs `cmsgpack`). What these tests care about is only
+    // that the service hands the email to it — so it is observed, not run.
+    let enqueueSpy: MockInstance<
+      Parameters<JobsService["enqueueEmail"]>,
+      ReturnType<JobsService["enqueueEmail"]>
+    >;
+    beforeEach(() => {
+      enqueueSpy = vi
+        .spyOn(h.app.get(JobsService), "enqueueEmail")
+        .mockResolvedValue(undefined);
+    });
+    afterEach(() => {
+      enqueueSpy.mockRestore();
+    });
+
+    it("answers 200 { ok: true } for an unknown address", async () => {
+      h.prisma.user.findUnique.mockResolvedValue(null);
+
+      const res = await request(h.app.getHttpServer())
+        .post("/api/auth/resend-verification")
+        .send({ email: "ghost@example.com" });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ ok: true });
+    });
+
+    it("answers exactly the same for an address already verified", async () => {
+      h.prisma.user.findUnique.mockResolvedValue({
+        ...unverifiedLocal,
+        emailVerified: true,
+      });
+
+      const res = await request(h.app.getHttpServer())
+        .post("/api/auth/resend-verification")
+        .send({ email: "user@example.com" });
+
+      // Byte-for-byte the previous case. Anything that differed here —
+      // status, code, body, even a message — would answer "does this address
+      // have a confirmed account?" to anyone who asked.
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ ok: true });
+    });
+
+    it("answers the same again for one that does get an email", async () => {
+      // The control for the two above: if the success path ALSO 200'd with a
+      // different body, the pair of tests above would prove nothing about
+      // indistinguishability.
+      h.prisma.user.findUnique.mockResolvedValue(unverifiedLocal);
+
+      const res = await request(h.app.getHttpServer())
+        .post("/api/auth/resend-verification")
+        .send({ email: "user@example.com" });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ ok: true });
+      expect(h.prisma.emailVerificationToken.create).toHaveBeenCalledTimes(1);
+      expect(enqueueSpy).toHaveBeenCalledTimes(1);
+    });
+
+    // ── the provider is not on the response path ─────────────────────────
+    //
+    // The first version awaited Resend on the one branch that sends, so a
+    // slow provider made "this address can get a resend" measurably slower
+    // than every other answer. These two pin the fix with a CONTROLLED
+    // delay: the provider takes 1.5 s, and neither answer may wait for it.
+    //
+    // What they prove, exactly: the response does not include the provider's
+    // latency. What they do NOT prove: that the branches are indistinguishable
+    // in time. The sending branch still does a short locked transaction and a
+    // queue write that the others skip; equal status and body (pinned above)
+    // plus no provider wait (pinned here) is not the same as equal latency.
+
+    describe("with the provider delayed", () => {
+      const PROVIDER_DELAY_MS = 1_500;
+      let sendSpy: MockInstance<
+        Parameters<ResendService["send"]>,
+        ReturnType<ResendService["send"]>
+      >;
+
+      beforeEach(() => {
+        sendSpy = vi
+          .spyOn(h.app.get(ResendService), "send")
+          .mockImplementation(
+            () => new Promise((r) => setTimeout(r, PROVIDER_DELAY_MS)),
+          );
+      });
+
+      afterEach(() => {
+        sendSpy.mockRestore();
+      });
+
+      async function timed(email: string) {
+        const t0 = performance.now();
+        const res = await request(h.app.getHttpServer())
+          .post("/api/auth/resend-verification")
+          .send({ email });
+        return { res, ms: performance.now() - t0 };
+      }
+
+      it("the sending branch answers without waiting for the provider", async () => {
+        h.prisma.user.findUnique.mockResolvedValue(unverifiedLocal);
+
+        const { res, ms } = await timed("user@example.com");
+
+        expect(res.status).toBe(200);
+        expect(res.body).toEqual({ ok: true });
+        // First, the measured fact: the provider's delay is not in the answer.
+        expect(ms).toBeLessThan(PROVIDER_DELAY_MS);
+        // Then why: it did take the sending branch — a slot was reserved and
+        // the email went to the queue — and the provider was never called
+        // inside the request.
+        expect(h.prisma.emailVerificationToken.create).toHaveBeenCalledTimes(1);
+        expect(enqueueSpy).toHaveBeenCalledTimes(1);
+        expect(sendSpy).not.toHaveBeenCalled();
+      });
+
+      it("control: a non-sending branch answers in the same envelope, also without the delay", async () => {
+        h.prisma.user.findUnique.mockResolvedValue(null);
+
+        const { res, ms } = await timed("ghost@example.com");
+
+        expect(res.status).toBe(200);
+        expect(res.body).toEqual({ ok: true });
+        expect(enqueueSpy).not.toHaveBeenCalled();
+        expect(sendSpy).not.toHaveBeenCalled();
+        expect(ms).toBeLessThan(PROVIDER_DELAY_MS);
+      });
+    });
+
+    it("validates the address format → 400 envelope", async () => {
+      const res = await request(h.app.getHttpServer())
+        .post("/api/auth/resend-verification")
+        .send({ email: "not-an-email" });
+
+      expect(res.status).toBe(400);
+      expect(res.body.code).toBe("VALIDATION_ERROR");
+    });
+
+    it("throttles the 4th request from one IP within the hour", async () => {
+      h.prisma.user.findUnique.mockResolvedValue(null);
+
+      const send = () =>
+        request(h.app.getHttpServer())
+          .post("/api/auth/resend-verification")
+          .set("X-Forwarded-For", "203.0.113.9")
+          .send({ email: "ghost@example.com" });
+
+      for (let i = 0; i < 3; i++) {
+        expect((await send()).status).toBe(200);
+      }
+
+      // 3/hour/IP. Without the decorator this one is a 200 like the rest.
+      const blocked = await send();
+      expect(blocked.status).toBe(429);
+      expect(blocked.body.code).toBe("RATE_LIMIT_EXCEEDED");
     });
   });
 

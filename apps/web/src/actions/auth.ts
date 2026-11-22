@@ -221,7 +221,7 @@ export async function loginWithGoogleAction(
     if (err instanceof ApiError) {
       const message =
         err.status === 409
-          ? "Esta cuenta ya existe con email/contraseña. Iniciá sesión con esa modalidad."
+          ? "Esta cuenta ya existe con email/contraseña. Inicia sesión con esa modalidad."
           : err.status === 401
             ? "No pudimos verificar tu cuenta de Google."
             : "Error al iniciar sesión con Google.";

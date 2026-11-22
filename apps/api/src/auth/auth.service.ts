@@ -26,6 +26,7 @@ import type { LoginDto } from "./dto/login.dto";
 import type { ForgotPasswordDto } from "./dto/forgot-password.dto";
 import type { ResetPasswordDto } from "./dto/reset-password.dto";
 import type { VerifyEmailDto } from "./dto/verify-email.dto";
+import type { ResendVerificationDto } from "./dto/resend-verification.dto";
 import type { OAuthGoogleDto } from "./dto/oauth-google.dto";
 import type { AuthResponseDto } from "./dto/auth-response.dto";
 import type { JwtPayload } from "./strategies/jwt.strategy";
@@ -36,9 +37,25 @@ import {
   type AuthEventType as AuthEventTypeT,
 } from "./auth-event.type";
 import { GoogleVerifier } from "./oauth/google-verifier";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { JobsService, type EmailJobPayload } from "../jobs";
+import { reserveVerificationSend } from "./verification-send-budget";
 
 const VERIFY_EMAIL_TTL_HOURS = 24;
 const PASSWORD_RESET_TTL_HOURS = 1;
+
+/** What `prepareVerificationEmail` hands back: a reserved, rendered message, or none. */
+interface PreparedVerificationEmail {
+  /** Emails already counted in the trailing window before this request. */
+  sentInWindow: number;
+  /** Null when the account's budget was already spent; nothing was reserved. */
+  mail: EmailJobPayload | null;
+}
+
+// The per-account budget for verification emails —
+// VERIFICATION_SEND_MAX_PER_WINDOW in a trailing hour, shared by register()
+// and resendVerification() — lives in `verification-send-budget.ts`, together
+// with the lock that makes checking it and spending it one step.
 
 /**
  * Per-request context carried alongside the DTOs to populate the audit log
@@ -60,6 +77,7 @@ export class AuthService {
     private readonly configService: ConfigService<Env, true>,
     private readonly resend: ResendService,
     private readonly googleVerifier: GoogleVerifier,
+    private readonly jobs: JobsService,
   ) {}
 
   // ── register ──────────────────────────────────────────────────────────────
@@ -112,15 +130,29 @@ export class AuthService {
 
     // Fire-and-forget verification email. We don't await to avoid blocking
     // the register response on Resend latency — if the email fails to send,
-    // the user can re-request later via /auth/resend-verification (future).
-    // The audit log captures the request regardless.
-    void this.sendVerificationEmail(user.id, user.email, user.name).catch(
-      (err) => {
+    // or if the 24h link lapses before it's clicked, the person asks for
+    // another one via POST /auth/resend-verification.
+    //
+    // It spends a slot of the same per-account budget as every resend, and it
+    // takes it through the same locked reservation: a resend racing this one
+    // can't push the account past the ceiling. Delivery stays in-process, as
+    // it was when the mail journey was accepted (PR 868) — only the budget is
+    // new here.
+    void this.prepareVerificationEmail(user.id, user.email, user.name)
+      .then(async (prepared) => {
+        if (!prepared.mail) {
+          this.logger.warn(
+            `Verification email not sent for user ${user.id}: budget already spent (${prepared.sentInWindow} in window)`,
+          );
+          return;
+        }
+        await this.resend.send(prepared.mail);
+      })
+      .catch((err) => {
         this.logger.warn(
           `Verification email send failed for user ${user.id}: ${(err as Error).message}`,
         );
-      },
-    );
+      });
 
     return this.issueTokens(user, this.prisma, ctx);
   }
@@ -558,7 +590,7 @@ export class AuthService {
       throw new GoneException({
         code: "TOKEN_INVALID_OR_EXPIRED",
         message:
-          "Este enlace ya no es válido. Solicita uno nuevo desde tu perfil.",
+          "Este enlace ya no es válido. Puedes pedir uno nuevo con tu correo.",
       });
     }
 
@@ -583,6 +615,179 @@ export class AuthService {
     });
 
     return { ok: true, userId: stored.user.id };
+  }
+
+  // ── resend verification ───────────────────────────────────────────────────
+
+  /**
+   * Issues a fresh verification link for an address. **Always resolves
+   * successfully**, whatever happens inside — same contract, and same reason,
+   * as `forgotPassword`: an answer that varied would turn this endpoint into
+   * an oracle for "does this address have an account here", and the
+   * already-verified branch would leak a second bit on top.
+   *
+   * Six internal paths, every one of them audited as
+   * EMAIL_VERIFICATION_REQUESTED so the real outcome is recoverable from the
+   * log even though the caller can't see it:
+   *   - LOCAL user, not yet verified, within budget → reserve a slot and
+   *     queue the email.
+   *   - Address unknown → nothing to do.
+   *   - Account inactive → treated exactly like unknown.
+   *   - OAuth user → the provider already vouched for the address; we have no
+   *     verification of our own to offer, and no password-less account to let
+   *     through.
+   *   - Already verified → nothing left to verify. Silent on purpose.
+   *   - Over the per-address budget → refuse to send, still resolve.
+   *
+   * ── The response never waits for the provider ─────────────────────────
+   *
+   * The first version awaited Resend on the one branch that sends, so a slow
+   * provider made "this address can receive a resend" measurably slower than
+   * every other answer. The email now goes through the `email` queue — the
+   * same BullMQ path the email-change and data-export notices already use,
+   * with its 3 attempts and backoff — and the worker delivers it. What the
+   * response still awaits is our own infrastructure: the locked reservation
+   * (one short PostgreSQL transaction) and the enqueue (one Redis write).
+   *
+   * That removes the provider from the timing. It does NOT make the branches
+   * indistinguishable in time, and nothing here claims so: the sending branch
+   * still does a transaction and a Redis write that the others don't. Equal
+   * status and equal body are what the tests pin; equal latency is not.
+   *
+   * What this deliberately does NOT do: change who may use the product. No
+   * guard in this codebase requires a verified address, and this endpoint
+   * doesn't introduce one — it closes the hole where a lapsed link left
+   * deleting the account as the only way forward.
+   */
+  async resendVerification(
+    dto: ResendVerificationDto,
+    ctx: AuthRequestContext = {},
+  ): Promise<void> {
+    const normalizedEmail = dto.email.trim().toLowerCase();
+
+    const user = await this.prisma.user.findUnique({
+      where: { email: normalizedEmail },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        isActive: true,
+        authProvider: true,
+        emailVerified: true,
+      },
+    });
+
+    if (!user || !user.isActive) {
+      await this.recordEvent({
+        type: AuthEventType.EMAIL_VERIFICATION_REQUESTED,
+        userId: null,
+        email: normalizedEmail,
+        ctx,
+        metadata: {
+          skipped: true,
+          reason: user ? "INACTIVE" : "USER_NOT_FOUND",
+        },
+      });
+      return;
+    }
+
+    if (user.authProvider !== "LOCAL") {
+      await this.recordEvent({
+        type: AuthEventType.EMAIL_VERIFICATION_REQUESTED,
+        userId: user.id,
+        email: user.email,
+        ctx,
+        metadata: {
+          skipped: true,
+          reason: "OAUTH_USER",
+          provider: user.authProvider,
+        },
+      });
+      return;
+    }
+
+    if (user.emailVerified) {
+      await this.recordEvent({
+        type: AuthEventType.EMAIL_VERIFICATION_REQUESTED,
+        userId: user.id,
+        email: user.email,
+        ctx,
+        metadata: { skipped: true, reason: "ALREADY_VERIFIED" },
+      });
+      return;
+    }
+
+    // One locked step: check the account's budget and, if there is room,
+    // take a slot. Two requests racing for the last slot can't both get it.
+    //
+    // Caught for the same reason as the enqueue below: this transaction only
+    // runs on the branch that can receive a resend, so letting a database
+    // error surface as a 500 would answer "this address has an unverified
+    // account" to whoever was probing.
+    let prepared: PreparedVerificationEmail;
+    try {
+      prepared = await this.prepareVerificationEmail(
+        user.id,
+        user.email,
+        user.name,
+      );
+    } catch (err) {
+      this.logger.error(
+        `Verification budget could not be reserved for user ${user.id}: ${(err as Error).message}`,
+      );
+      await this.recordEvent({
+        type: AuthEventType.EMAIL_VERIFICATION_REQUESTED,
+        userId: user.id,
+        email: user.email,
+        ctx,
+        metadata: { skipped: true, reason: "RESERVE_FAILED" },
+      });
+      return;
+    }
+
+    if (!prepared.mail) {
+      await this.recordEvent({
+        type: AuthEventType.EMAIL_VERIFICATION_REQUESTED,
+        userId: user.id,
+        email: user.email,
+        ctx,
+        metadata: {
+          skipped: true,
+          reason: "ADDRESS_RATE_LIMITED",
+          sentInWindow: prepared.sentInWindow,
+        },
+      });
+      return;
+    }
+
+    // Hand the email to the queue instead of the provider. A failure here is
+    // OUR infrastructure (Redis), not Resend's, and it must not become a 500
+    // either: the response is 200 by contract, so the audit row is where it
+    // gets recorded. The slot stays spent — see verification-send-budget.ts.
+    //
+    // The job carries the rendered message, raw link included, exactly like
+    // the email-change notice in UsersService. BullMQ keeps completed jobs for
+    // a day; the link it contains is a 24-hour, verify-only token.
+    let enqueueFailed = false;
+    try {
+      await this.jobs.enqueueEmail(prepared.mail);
+    } catch (err) {
+      enqueueFailed = true;
+      this.logger.error(
+        `Verification email could not be queued for user ${user.id}: ${(err as Error).message}`,
+      );
+    }
+
+    await this.recordEvent({
+      type: AuthEventType.EMAIL_VERIFICATION_REQUESTED,
+      userId: user.id,
+      email: user.email,
+      ctx,
+      // `queued` says the job reached the email queue — not that the message
+      // was delivered. The provider's answer is recorded by the queue itself
+      // (attempts, failures) and the worker's log, not here.
+      metadata: enqueueFailed ? { enqueueFailed: true } : { queued: true },
+    });
   }
 
   // ── OAuth · Google ────────────────────────────────────────────────────────
@@ -724,24 +929,33 @@ export class AuthService {
   // ── helpers ───────────────────────────────────────────────────────────────
 
   /**
-   * Generates a verification token and sends the welcome email. Called from
-   * `register()` fire-and-forget and (future) from a resend-verification
-   * endpoint.
+   * Reserves a slot in the account's verification budget and, if it got one,
+   * renders the email. Returns `mail: null` when the budget is already spent.
+   *
+   * It does NOT send. The reservation is a locked transaction, and sending
+   * inside it would hold the lock across the provider's latency; so the
+   * caller delivers afterwards — `register()` in-process, as it always has,
+   * and `resendVerification()` through the email queue. Both share the
+   * budget, which is what makes the ceiling hold for the account as a whole.
+   *
+   * The raw token exists only here and in the rendered message; the database
+   * gets its hash.
    */
-  private async sendVerificationEmail(
+  private async prepareVerificationEmail(
     userId: string,
     email: string,
     name: string,
-  ): Promise<void> {
+  ): Promise<PreparedVerificationEmail> {
     const rawToken = randomBytes(32).toString("hex");
-    const tokenHash = this.hashToken(rawToken);
     const expiresAt = new Date(
       Date.now() + VERIFY_EMAIL_TTL_HOURS * 3600 * 1000,
     );
 
-    await this.prisma.emailVerificationToken.create({
-      data: { userId, tokenHash, expiresAt },
-    });
+    const { reserved, sentInWindow } = await reserveVerificationSend(
+      this.prisma,
+      { userId, tokenHash: this.hashToken(rawToken), expiresAt },
+    );
+    if (!reserved) return { sentInWindow, mail: null };
 
     const appUrl = this.configService.get("APP_URL", { infer: true });
     const verifyUrl = `${appUrl}/verify-email?token=${rawToken}`;
@@ -751,13 +965,16 @@ export class AuthService {
       expiresHours: VERIFY_EMAIL_TTL_HOURS,
     });
 
-    await this.resend.send({
-      to: email,
-      subject: rendered.subject,
-      html: rendered.html,
-      text: rendered.text,
-      tag: rendered.tag,
-    });
+    return {
+      sentInWindow,
+      mail: {
+        to: email,
+        subject: rendered.subject,
+        html: rendered.html,
+        text: rendered.text,
+        tag: rendered.tag,
+      },
+    };
   }
 
   // ── internals ─────────────────────────────────────────────────────────────

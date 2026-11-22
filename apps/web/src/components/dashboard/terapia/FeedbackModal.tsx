@@ -162,7 +162,7 @@ export function FeedbackModal({
             className="mt-1 text-[11px]"
             style={{ color: "var(--color-warm-500)" }}
           >
-            Desbloqueá tu Diario para cifrar la nota.
+            Desbloquea tu Diario para cifrar la nota.
           </p>
         ) : null}
 

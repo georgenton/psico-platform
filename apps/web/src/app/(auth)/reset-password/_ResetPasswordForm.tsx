@@ -5,10 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { type FormEvent, useState, useTransition } from "react";
 
 import { authApi, ApiError } from "@/lib/api";
-import {
-  PASSWORD_HINT,
-  PASSWORD_MIN_LENGTH,
-} from "@psico/types";
+import { PASSWORD_HINT, PASSWORD_MIN_LENGTH } from "@psico/types";
 
 // El mínimo lo fija la política compartida, no esta pantalla: aquí decía 10
 // mientras el servidor aceptaba 8, y las dos cifras eran noticias para quien
@@ -46,7 +43,7 @@ export default function ResetPasswordForm() {
       } catch (err) {
         const msg =
           err instanceof ApiError && err.status === 410
-            ? "El enlace expiró o ya fue usado. Solicitá uno nuevo."
+            ? "El enlace expiró o ya fue usado. Solicita uno nuevo."
             : err instanceof ApiError
               ? "No pudimos restablecer tu contraseña. Reintenta."
               : "Algo salió mal. Reintenta.";
@@ -65,7 +62,7 @@ export default function ResetPasswordForm() {
           Enlace inválido
         </h1>
         <p className="text-sm mb-6" style={{ color: "var(--color-warm-500)" }}>
-          El enlace que abriste no incluye un token. Solicitá uno nuevo desde la
+          El enlace que abriste no incluye un token. Solicita uno nuevo desde la
           pantalla de login.
         </p>
         <Link
@@ -89,7 +86,7 @@ export default function ResetPasswordForm() {
           Listo ✨
         </h1>
         <p className="text-sm mb-6" style={{ color: "var(--color-warm-500)" }}>
-          Tu contraseña se actualizó. Iniciá sesión con la nueva.
+          Tu contraseña se actualizó. Inicia sesión con la nueva.
         </p>
         <Link
           href="/login"

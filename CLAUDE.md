@@ -4263,6 +4263,14 @@ un perfil que no ofrece nada.
 guarda de destinatarios, el cierre del correo y de la recuperación (#868), el
 changeset `minor` ya aprobado, el tuteo y el catálogo de crisis.
 
+**Y una protección del 19-11 que no aguantó.** La candidata de reversión de la
+API, `c19358a4`, llevaba una segunda etiqueta «fuera de lo que Coolify poda».
+El 22-11 esa etiqueta ya no existía —el servidor tiene `force_docker_cleanup`
+con limpieza diaria a las 00:00— y la imagen sobrevivía sólo por la retención.
+Ahora está guardada **fuera** del almacén de Docker con `docker save`, junto con
+`6fe5ff3f`, y el runbook §3.0 corrige la afirmación en su sitio. La carga no
+está ensayada.
+
 **Lo que se determinó del worker:** su código de entrega (`EmailProcessor`,
 `ResendService`) no cambia, así que no hace falta desplegarlo; lo que cambia
 es que ahora procesa también estos trabajos. Despliegue, recorridos en staging

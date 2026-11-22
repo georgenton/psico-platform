@@ -1943,11 +1943,30 @@ lleva la guarda y **no hay ninguna migración** entre ella y la imagen servida
 porque la retención puede haberse llevado una imagen entre tanto — que es
 exactamente lo que le pasó a `21f10095`.
 
-**Y desde el 19-11 esa candidata está protegida de la poda**, que es lo que le
-faltaba: `c19358a4` lleva además una **segunda etiqueta**,
-`feelverse-api-rollback-candidate`, fuera del espacio que Coolify poda. Las dos
-etiquetas apuntan al **mismo id**, así que no es una copia: es el mismo
-artefacto con un nombre que la retención no toca.
+~~**Y desde el 19-11 esa candidata está protegida de la poda**~~ — **falso,
+medido el 22-11.** Se le puso una **segunda etiqueta**,
+`feelverse-api-rollback-candidate`, creyendo que quedaba fuera de lo que Coolify
+poda. **No aguantó**: el 22-11 la etiqueta ya no existía, y de la API se habían
+ido además `85ab7c86` y `3ef7c822`. El servidor tiene `force_docker_cleanup`
+activado con limpieza **diaria a las 00:00 (America/Guayaquil)**, leído con
+`get_server`, y esa limpieza no respeta una etiqueta extra **dentro** del
+almacén de Docker. `c19358a4` sobrevivió con su etiqueta de Coolify, pero por la
+retención, no por la protección.
+
+**Lo que protege de verdad es sacar la imagen del almacén.** Desde el 22-11
+están guardadas, fuera de Docker, en
+`/home/ubuntu/feelverse-rollback/api-c19358a4-6fe5ff3f-20261122.tar` (600, con
+su `.sha256`):
+
+| Etiqueta dentro del archivo          | Por qué                                                            |
+| ------------------------------------ | ------------------------------------------------------------------ |
+| `aft7nt3p6wsormno2cejtavj:c19358a4…` | la candidata con guarda de compras y sin migraciones de diferencia |
+| `aft7nt3p6wsormno2cejtavj:6fe5ff3f…` | la que servía la API antes de #870: la vuelta atrás natural        |
+
+Restaurar es `sudo docker load -i <archivo>`, que devuelve las dos etiquetas
+originales y con ellas la imagen a `list_rollback_images`. **La carga no está
+ensayada**: lo comprobado es la suma y que el manifiesto lista las dos
+etiquetas.
 
 ##### El inventario tras el despliegue de la noche del 19-11
 
@@ -1966,7 +1985,9 @@ revertir** y no se deduce.
 **La candidata sigue siendo `c19358a4`** y es utilizable: lleva la guarda y
 **no hay ninguna migración** entre ella y la imagen servida
 (`git diff --name-only c19358a4 6fe5ff3f -- apps/api/prisma/migrations`,
-vacío). Y la etiqueta de protección sigue apuntando al mismo id, comprobado.
+vacío). ~~Y la etiqueta de protección sigue apuntando al mismo id,
+comprobado.~~ Cierto esa noche; el 22-11 la etiqueta había desaparecido — ver
+arriba.
 
 **Una etiqueta no es un ensayo**, y conviene no leerla como tal. El único
 ensayo de reversión ejecutado sigue siendo el **histórico del 2026-10-24**

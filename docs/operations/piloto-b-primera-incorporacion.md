@@ -52,8 +52,9 @@ verificar sin saber por qué.
 ### Lo que cada paso significa en concreto
 
 **Paso 2 — la lista se amplía, no se sustituye.** Hoy vale
-`qa@syntavera.dev`. Queda `qa@syntavera.dev,<su dirección>`. Perder la primera
-dejaría la bandeja de pruebas fuera.
+`qa@syntavera.dev,qa-verificacion@syntavera.dev,qa-verificacion-2@syntavera.dev`
+—las tres de QA, desde el 23-11—. Queda esa misma lista más `,<su dirección>`.
+Perder cualquiera de ellas dejaría fuera una bandeja de pruebas.
 
 **Paso 3 — se despliegan los dos.** El worker manda el digest semanal y el
 aviso de exportación; dejarlo con una lista anterior sería dejar fuera

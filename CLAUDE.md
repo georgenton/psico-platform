@@ -4336,6 +4336,67 @@ ejecute. Leído en Coolify: API en `af671664` (desplegada el 22-11 a las
 
 ---
 
+### Sesión — 2026-11-23 ✅ COMPLETADA — #870 y #874 cerrados en staging, con recepción real del reenvío
+
+**PR:** [#874](https://github.com/georgenton/psico-platform/pull/874), squash `6521dc6f` (HEAD revisado `681a941b`, 15/15) · Release de `6521dc6f` ([run 45221926237](https://github.com/georgenton/psico-platform/actions/runs/45221926237)) con Full CI y Changesets en verde, `@psico/api` y `@psico/web` en frío
+**Servido:** API, worker y Web en `6521dc6f` · `EMAIL_ALLOWLIST` con tres entradas exactas en API y worker
+**Horas en UTC** (Quito = UTC−5)
+
+**Los tres controles, separados.**
+
+- **A · cuenta QA ya verificada** (`qa@`, 16:20:18): `200 {ok:true}`,
+  `ALREADY_VERIFIED`, sin reserva nueva y sin trabajo en el worker. No se repitió
+  tras #874: no le afecta.
+- **B · sintética retenida**, una cuenta `@psico.test` sin verificar **con
+  mayúsculas en su dirección** (17:20:41): encuentra la cuenta, reserva un token
+  nuevo, `{queued: true}`, el worker procesa el trabajo 2 y la guarda lo retiene
+  (`[email · retenido] … motivo=not-allowlisted`) **antes** de llamar al
+  proveedor; Resend no tiene ningún mensaje a `@psico.test`.
+- **C · recepción real**, con `qa-verificacion-2@syntavera.dev`, alias
+  secundario del buzón de QA y reservado para este control. El correo inicial
+  lo envió la API (17:22:54, id de Resend `01a2096e…`) y **no se abrió**; justo
+  antes del reenvío la cuenta seguía sin verificar. El reenvío se pidió desde el
+  login → «Pide otro enlace» (17:23:20), reservó el token `19bc35863e…`, lo
+  entregó el **worker** (trabajo 3, id `01a2096f…`), llegó a la bandeja
+  principal, y se abrió **sólo** su enlace —identificado por la huella del
+  token, porque el asunto es el mismo—. A las 17:25:26 ese token quedó
+  consumido, la cuenta verificada, y el token del inicial (`2e63494032…`), sin
+  consumir.
+
+**Dos defectos que sólo salieron así**, corregidos en #874 con su CI y por
+mutación:
+
+1. **El control B dio `USER_NOT_FOUND` sobre una cuenta que existe.**
+   `register()` guarda la dirección tal cual y `login()` la busca exacta —3 de 19
+   cuentas de staging tienen mayúsculas—; el reenvío y `forgotPassword` pasaban a
+   minúsculas y buscaban exacta, así que para esas cuentas contestaban 200 y no
+   enviaban nada. Ahora comparten `findAccountByTypedAddress`: exacta primero y,
+   si falla, sin distinguir mayúsculas sólo si la coincidencia es única.
+2. **La confirmación decía «Confirmamos tu correo .»**: la API no devuelve la
+   dirección y la pantalla la interpolaba igual. Observada corregida en la Web
+   servida: «Confirmamos tu correo. Ya puedes iniciar sesión.».
+
+**El primer alias, `qa-verificacion@`, no sirvió para C**: su enlace inicial se
+consumió a las 16:38:59 UTC, antes del reenvío, y la cuenta quedó verificada.
+No se desverificó ni se borró. Se usó como control de `ALREADY_VERIFIED` desde
+la pantalla (16:44:32).
+
+**Pantallas, en un navegador sin sesión** (Playwright, contexto limpio, porque
+los navegadores con sesión abierta no muestran `/login` y no se cerró la sesión
+de nadie): login con «Pide otro enlace» → formulario propio → «Recibimos tu
+solicitud», y los estados de enlace con token desconocido, mal formado y sin
+token, los tres con el formulario. **Crisis**: observado en la Web servida para
+**Ecuador** —«Llama a una línea…», los tres `tel:` y su orden—; Colombia y
+México, **por la API**, no en pantalla.
+
+**De paso:** el «reinicio» de Coolify para cargar una variable **reconstruye** si
+`main` avanzó; la API pasó así de `af671664` a `e4e1f4be` con el mismo código.
+Y la etiqueta que protegía la candidata de reversión no sobrevivió a la limpieza
+diaria: hoy las candidatas viven en un archivo fuera de Docker, con suma, carga
+**no ensayada**.
+
+---
+
 ### 🧭 Trabajo vigente — corte del 2026-11-23
 
 **Esta es la única sección de este archivo que describe el presente.** Todo lo
@@ -4344,7 +4405,23 @@ de cada bitácora de sesión— es **antecedente fechado**: explica cómo se lle
 aquí, no lo que toca hacer. Si una instrucción antigua contradice esta
 sección, manda esta sección.
 
-#### El corte — 2026-11-23, Release y versionado
+#### El corte — 2026-11-23 (tarde), #870 y #874 cerrados en staging
+
+|                          |                                                                                                                                                                   |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `main`                   | **`6521dc6f`** — #874. Release en verde, sin nada que versionar ni publicar                                                                                       |
+| Servido en staging       | API, worker y Web en **`6521dc6f`**, leídos del contenedor. `EMAIL_ALLOWLIST`: **tres** direcciones exactas de QA en API y worker, comprobadas dentro             |
+| Reenvío de verificación  | ✅ **cerrado en staging**: controles A, B y C, con recepción real y verificación por el enlace del reenvío. Detalle en la sesión de arriba y en #870              |
+| Recuperación             | ✅ cerrada desde el 19-11 (#868); #874 sólo le corrige el lookup de direcciones con mayúsculas                                                                    |
+| Recuperación de imágenes | candidatas en un archivo fuera de Docker, con suma comprobada; **carga y reversión no ensayadas**                                                                 |
+| Piloto B                 | ⬜ **decisión pendiente tuya**, separada de autorizar a la primera persona y el envío a su dirección                                                              |
+| Producción               | **No existe como recurso.** Puerta 1: la aceptación estética. Puerta 7: el nivel 4, con US\$ 15 como **propuesta** hasta que haya autorización explícita de gasto |
+
+> **Lo que esta tanda NO hace.** No invita a nadie, no amplía el padrón, no abre
+> cobros, no publica contenido editorial y no declara producción. Las dos
+> cuentas nuevas son de QA. Infraestructura: OVH con Coolify, y sólo ahí.
+
+#### Antecedente — 2026-11-23 (madrugada), Release y versionado
 
 |                       |                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

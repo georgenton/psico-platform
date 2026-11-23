@@ -161,7 +161,9 @@ export const authApi = {
     }),
 
   verifyEmail: (token: string) =>
-    apiFetch<{ ok: true; email: string }>("/auth/verify-email", {
+    // The API answers `{ ok, userId }` — no address. Typed as it is, so no
+    // screen can interpolate a field that never arrives.
+    apiFetch<{ ok: true; userId: string }>("/auth/verify-email", {
       method: "POST",
       body: { token },
     }),

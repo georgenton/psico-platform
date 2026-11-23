@@ -142,13 +142,31 @@ describe("VerifyEmailFlow · los callejones sin salida ofrecen el remedio real",
     // Sin esta, «el formulario está en la página» pasaría por ser siempre
     // cierto, y las cuatro pruebas de arriba no medirían nada.
     mockToken.mockReturnValue("t".repeat(64));
-    mockVerifyEmail.mockResolvedValue({ ok: true, email: "ana@example.com" });
+    mockVerifyEmail.mockResolvedValue({ ok: true, userId: "u-1" });
 
     render(<VerifyEmailFlow />);
 
     expect(await screen.findByText(/¡listo!/i)).toBeInTheDocument();
     expect(campoCorreo()).not.toBeInTheDocument();
     expect(botonEnviar()).not.toBeInTheDocument();
+  });
+
+  it("la confirmación no deja un hueco donde iba la dirección", async () => {
+    // La API contesta `{ ok, userId }`, sin la dirección. La versión anterior
+    // la interpolaba igual y decía «Confirmamos tu correo .» — visto en
+    // staging el 2026-11-23. Con la forma real de la respuesta:
+    mockToken.mockReturnValue("t".repeat(64));
+    mockVerifyEmail.mockResolvedValue({ ok: true, userId: "u-1" });
+
+    const { container } = render(<VerifyEmailFlow />);
+
+    expect(
+      await screen.findByText(
+        "Confirmamos tu correo. Ya puedes iniciar sesión.",
+      ),
+    ).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/\s\./);
+    expect(container.textContent).not.toMatch(/undefined/);
   });
 });
 
@@ -327,7 +345,7 @@ describe("Entrada desde el login, para quien nunca recibió el correo", () => {
   it("CONTROL: un token presente gana a `resend`", async () => {
     mockToken.mockReturnValue("t".repeat(64));
     mockOtros = { resend: "1" };
-    mockVerifyEmail.mockResolvedValue({ ok: true, email: "ana@example.com" });
+    mockVerifyEmail.mockResolvedValue({ ok: true, userId: "u-1" });
 
     render(<VerifyEmailFlow />);
 

@@ -89,8 +89,7 @@ producto.
 >
 > Es una versión de pruebas. Eso significa dos cosas concretas: puede fallar, y
 > **no es un servicio de salud ni sustituye atención profesional**. Si en algún
-> momento te sientes mal, la aplicación te muestra líneas de ayuda y puedes
-> usarlas sin tener cuenta.
+> momento te sientes mal, no esperes a la aplicación: en Ecuador llama al 911.
 >
 > Lo que tendrías que hacer: crear tu cuenta en
 > `https://staging.feelverse.app` con esta misma dirección, leer un capítulo y
@@ -108,6 +107,11 @@ producto.
 >
 > Un abrazo,
 > Jorge
+
+> **Corregido el 2026-11-23.** Decía que las líneas de ayuda se usan «sin tener
+> cuenta». La API es pública, pero la pantalla de la Web pide iniciar sesión y no
+> está en el menú. Recomendado: publicarla **antes** de invitar a nadie
+> ([ficha §2.5](tramo-a-produccion.md)).
 
 **Lo que esa invitación evita a propósito:** promete poco, nombra el riesgo
 real del cifrado antes de que la persona escriba nada, dice que no se paga, y

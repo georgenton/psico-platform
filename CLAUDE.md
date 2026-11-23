@@ -4397,6 +4397,50 @@ diaria: hoy las candidatas viven en un archivo fuera de Docker, con suma, carga
 
 ---
 
+### Sesión — 2026-11-23 (noche) ✅ COMPLETADA — Aceptación estética para responder, imágenes cargadas y ficha única de decisiones
+
+**Sin código ni despliegues:** documentación, una página privada y una carga
+acotada en Docker. Horas en UTC (Quito = UTC−5).
+
+**La página de aceptación se rehízo** en
+[su mismo enlace](https://claude.ai/artifact/56P67k18svei385pZ2Whn3): 29 pantallas
+en cuatro bloques capturadas sobre `6521dc6f`, escritorio y teléfono, con
+verificación y confirmación y con el Diario y Eco **por dentro**. Más de la mitad
+de las guardadas medían 400 px. Termina en un texto para copiar; si no se elige
+nada, **no** dice que aceptas. Cuenta sintética nueva, fuera del padrón.
+
+**Lo que salió al mirarlas, medido:** la cabecera de la portada se parte en dos
+líneas en todos los anchos de escritorio desde **#783**, un día después de aceptar
+F2.1 —la evidencia de aquella PR ya lo mostraba—; el título del muro de Patrones
+tiene contraste 1,3:1; la caja de Eco queda 44 px bajo el borde a 1440 × 900; el
+avatar dice «AV» para todos porque es un literal. Y frases que no se cumplen:
+registro, acceso y Seguridad prometen que sólo tú ves tus charlas con Eco (ADR
+0007 §C dice otra cosa), Biblioteca y Reflexiones dicen que leer y escribir
+alimentan el Mapa, y **las líneas de ayuda piden iniciar sesión** en la Web.
+
+**Las imágenes archivadas** (20:25–20:30): archivo íntegro por dentro y por fuera,
+cargadas e identificadas las dos —`c19358a4`, que ya no existía en Docker, y
+`6fe5ff3f`—, 43 contenedores sin cambios. **Reversión no ensayada**; nivel 4
+pendiente. El disco va por el 89 % (era 56 % el 09-11).
+
+**Sentry no era «falta un DSN».** Con el `initSentry` real compilado contra un
+sumidero local: los errores salen limpios salvo la IP, pero **1 de cada 10
+peticiones** se enviaría como traza con `authorization`, cookies, sesión de
+invitada, atestación, token de URL, **cuerpo** e IP, porque `beforeSend` no cubre
+transacciones; staging se etiqueta `production`; y no hay `release`. La Web no lo
+carga: en la imagen servida no hay `instrumentation` y `instrumentationHook` es
+falso. Sin acceso a ninguna organización. No hubo fuga: nunca hubo DSN.
+
+**El precio de OVH no subió**: US$ 0,0439/h es la filial World y US$ 0,0461 la de
+Estados Unidos, otra entidad; el VPS resuelve a `vps.ovh.ca`.
+
+**Un error mío de instrumento:** el primer
+experimento de Sentry acusó fugas en los errores que eran los señuelos de mi
+propio guion, porque el SDK adjunta el código fuente de la traza. Repetido con
+señuelos aleatorios.
+
+---
+
 ### 🧭 Trabajo vigente — corte del 2026-11-23
 
 **Esta es la única sección de este archivo que describe el presente.** Todo lo
@@ -4405,7 +4449,25 @@ de cada bitácora de sesión— es **antecedente fechado**: explica cómo se lle
 aquí, no lo que toca hacer. Si una instrucción antigua contradice esta
 sección, manda esta sección.
 
-#### El corte — 2026-11-23 (tarde), #870 y #874 cerrados en staging
+#### El corte — 2026-11-23 (noche), para decidir el lanzamiento
+
+|                      |                                                                                                                                                 |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Qué se decide**    | **[la ficha](docs/operations/tramo-a-produccion.md)** — es la **única** lista vigente: doce filas con recomendación, efecto y trabajo posterior |
+| `main` y servido     | `0fd6bffd` (documental) más esta tanda · API, worker y Web en **`6521dc6f`**, sin redesplegar                                                   |
+| Correo y reenvío     | ✅ cerrados y aceptados (#868, #870, #874). No se repiten                                                                                       |
+| Aceptación estética  | ⬜ tuya. [29 pantallas](https://claude.ai/artifact/56P67k18svei385pZ2Whn3); 16 observaciones, 13 recomendadas. Las diez decisiones, cerradas    |
+| Imágenes archivadas  | ✅ íntegras, cargadas e identificadas · ❌ reversión no ensayada · ❌ reconstrucción del servidor pendiente                                     |
+| Trabajo sin decisión | ⚠️ Sentry —cuatro arreglos **antes** del DSN— y la página pública de ayuda en crisis                                                            |
+| Nivel 4              | ⬜ propuesta completa: `d2-8` en BHS5, US$ 1,13 por 24 h, **máximo propuesto US$ 15 sin impuestos, no autorizado**                              |
+| Piloto B             | ⬜ dos autorizaciones separadas. La invitación dejó de prometer ayuda «sin tener cuenta»                                                        |
+| Producción           | **No existe como recurso.** Puertas 1 y 7, y un requisito nuevo: el disco del servidor, al 89 %                                                 |
+
+> **Lo que esta tanda NO hace.** No contrata, no despliega, no invita, no abre
+> cobros, no publica contenido y no declara producción preparada. OVH con Coolify,
+> y sólo ahí.
+
+#### Antecedente — 2026-11-23 (tarde), #870 y #874 cerrados en staging
 
 |                          |                                                                                                                                                                   |
 | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -6370,6 +6432,10 @@ credencial de correo y una aceptación estética)**. Ninguna de las dos se desbl
 escribiendo código.
 
 #### Lo que pide una decisión tuya
+
+> **Desde el 2026-11-23 la lista vigente es
+> [la ficha de decisiones](docs/operations/tramo-a-produccion.md).** Lo de abajo
+> es antecedente: explica cómo se llegó, y su recuento quedó superado.
 
 El token de Coolify **ya no está en esta lista**: se recuperó el 05-11 y con él se
 desplegó Web y se activó el push web. Quedan nueve, con su recomendación y su efecto

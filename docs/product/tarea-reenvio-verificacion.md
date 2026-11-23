@@ -2,7 +2,7 @@
 
 > Tarea **separada y acotada**, registrada el **2026-11-19**.
 >
-> **Estado al 2026-11-22: implementada en #870.** Lo que se entregó y lo que
+> **Estado al 2026-11-23: implementada en #870 y comprobada en staging, con #874.** Lo que se entregó y lo que
 > queda está en [§6](#6--lo-que-se-entregó-y-lo-que-queda). El resto de este
 > documento es el encargo tal como se escribió.
 >
@@ -99,9 +99,22 @@ Implementada en **#870**. Del §3:
    ramas, y no se afirma.
 4. **Tuteo**, con `iniciá` y otras nueve formas en el trinquete.
 
-**Lo que queda pendiente de observar:** la **recepción real de un reenvío**.
-La única bandeja autorizada hoy, `qa@syntavera.dev`, ya está verificada, y
-ampliar la lista de destinatarios no está autorizado; así que el recorrido
-positivo —pedir, recibir y abrir el nuevo enlace— necesita una identidad de
-pruebas sin verificar dentro de la restricción. Lo comprobado sobre staging, y
-lo que falta, está en el cuerpo de #870.
+**Observado en staging el 2026-11-23**, con las versiones que lo sirven (API,
+worker y Web en `6521dc6f`, tras #874):
+
+- **Reenvío recibido y enlace abierto.** Con una cuenta sintética nueva,
+  `qa-verificacion-2@syntavera.dev` —alias del buzón de QA, autorizado para
+  esto—, sin abrir el correo inicial: el reenvío se pidió desde el login →
+  «Pide otro enlace», lo reservó la API, lo entregó el **worker**, Resend lo
+  aceptó y llegó a la bandeja principal. Se abrió **sólo** el enlace del
+  reenvío —identificado por la huella de su token, no por el asunto, que es el
+  mismo— y la cuenta quedó verificada; el token del correo inicial sigue sin
+  consumir.
+- **Retención acreditada.** Una cuenta sintética `@psico.test` sin verificar y
+  con mayúsculas en su dirección recorrió reserva → cola → worker, y la guarda la
+  retuvo antes de llamar al proveedor.
+- **Dos defectos que sólo salieron así**, los dos corregidos en #874: el reenvío
+  y la recuperación no encontraban cuentas guardadas con mayúsculas, y la
+  confirmación decía «Confirmamos tu correo .».
+
+El detalle, con identificadores y horas, está en el cuerpo de #870.

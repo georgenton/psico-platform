@@ -750,8 +750,9 @@ Resend client initialised (from=no-reply@feelverse.app)
 [correo] restringido a 1 destinatario(s) autorizado(s)
 ```
 
-Las dos líneas juntas son el estado que se busca: hay transporte **y** está
-acotado. Una sola de las dos no dice nada — la primera sin la segunda sería una
+El número es el de **entradas** de la lista: decía 1 el 19-11 y dice **3**
+desde el 23-11 (las tres direcciones de QA). Las dos líneas juntas son el estado
+que se busca: hay transporte **y** está acotado. Una sola de las dos no dice nada — la primera sin la segunda sería una
 clave sin lista, y la segunda sin la primera, una lista sin transporte.
 
 **Desplegado**, de uno en uno: `dbce7e39` trajo la lista y el comprobador de

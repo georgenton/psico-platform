@@ -88,6 +88,14 @@ Esa última fila es el **rechazo acreditado sin invocar al proveedor**. Y el
 resultado en vivo lo confirma: el registro de Resend de esta ejecución tiene
 **tres mensajes y los tres van a la misma dirección**.
 
+> **Desde el 2026-11-23 la lista tiene tres entradas exactas**:
+> `qa@syntavera.dev`, `qa-verificacion@syntavera.dev` y
+> `qa-verificacion-2@syntavera.dev`. Las dos últimas son **alias secundarios
+> del mismo buzón de QA**, añadidos para comprobar el reenvío de verificación
+> (#870) con una cuenta todavía sin verificar. Siguen siendo direcciones
+> exactas: ningún dominio entero entra en la lista. `qa-verificacion-2@` quedó
+> reservada para ese control y no es del piloto B.
+
 ## 3 · Cómo está montado
 
 ### Las bandejas, en Microsoft

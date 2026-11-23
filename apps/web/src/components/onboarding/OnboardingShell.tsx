@@ -3,12 +3,13 @@
 import Link from "next/link";
 
 import { FeelVerseLockup } from "@/components/brand/FeelVerse";
+import { RUTA_AYUDA } from "@/lib/ayuda";
 import type { ReactNode } from "react";
 
 /**
  * OnboardingShell — wraps each step with shared chrome:
  *   - top: progress dots (4 steps) + skip
- *   - bottom: nothing — primary CTA lives inside each step component
+ *   - bottom: the public help link — primary CTA lives inside each step
  *
  * `currentStep` is 0-indexed; 0 = welcome, 1 = motivos, …, 4 = recommendation.
  *
@@ -76,6 +77,16 @@ export function OnboardingShell({
         </div>
       </header>
       <main className="flex flex-1 flex-col">{children}</main>
+      {/* Nadie debería tener que terminar la bienvenida para llegar aquí. */}
+      <footer className="mt-6 text-center">
+        <a
+          href={RUTA_AYUDA}
+          className="inline-flex min-h-[44px] items-center text-sm font-semibold underline underline-offset-4"
+          style={{ color: "var(--fg-link-strong)" }}
+        >
+          ¿Necesitas ayuda ahora? Ver líneas de ayuda
+        </a>
+      </footer>
     </div>
   );
 }

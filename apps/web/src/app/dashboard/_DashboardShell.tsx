@@ -8,6 +8,7 @@ import type { AmbientId, DiaryMoodId } from "@psico/types";
 
 import { logoutAction } from "@/actions/auth";
 import type { SessionUser } from "@/lib/api.server";
+import { hrefAyuda, origenSegunRuta } from "@/lib/ayuda";
 import { DiaryKeyProvider } from "@/lib/crypto/diary-key-context";
 import { MoodChip } from "@/components/dashboard/shell/MoodChip";
 import { MoodCheckinProvider } from "@/components/dashboard/shell/mood-checkin-context";
@@ -279,6 +280,18 @@ function Sidebar({
           onNav={onNav}
         />
       ))}
+
+      {/* La ayuda inmediata va suelta y no dentro del menú de cuenta, que está
+          plegado: tiene que verse sin abrir nada. Enlace nativo y no
+          `NavLink`, porque sale del panel a una página pública que debe
+          cargar aunque el código del cliente no responda. */}
+      <a
+        href={hrefAyuda({ desde: origenSegunRuta(pathname) })}
+        className="nav-item"
+        style={{ minHeight: "var(--fv-target-min)" }}
+      >
+        Ayuda inmediata
+      </a>
 
       {user?.role === "ADMIN" ? (
         <>

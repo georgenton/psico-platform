@@ -3,6 +3,7 @@
 import { ControlApariencia } from "./ControlApariencia";
 import { useLanding } from "./estado";
 import { FeelVerseLockup } from "@/components/brand/FeelVerse";
+import { RUTA_AYUDA } from "@/lib/ayuda";
 
 /**
  * Cierre y pie corporativo.
@@ -37,6 +38,9 @@ const EN_PREPARACION_MARCA = [
 ];
 
 const AYUDA: ReadonlyArray<{ href?: string; texto: string }> = [
+  // Primera de su columna, y sin cuenta de por medio: es la única de esta
+  // lista que alguien puede necesitar con prisa.
+  { href: RUTA_AYUDA, texto: "Ayuda inmediata" },
   { href: "#planes", texto: "Planes" },
   { href: "#faq", texto: "Preguntas frecuentes" },
   { texto: "Privacidad" },

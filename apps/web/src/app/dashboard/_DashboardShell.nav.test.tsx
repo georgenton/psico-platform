@@ -1,8 +1,10 @@
 import { render } from "@testing-library/react";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
+let ruta = "/dashboard/mapa";
+
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/dashboard/mapa",
+  usePathname: () => ruta,
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
   useSearchParams: () => new URLSearchParams(),
 }));
@@ -126,5 +128,45 @@ describe("la navegación del carril", () => {
     );
     expect(salir).toBeDefined();
     expect(salir?.querySelectorAll("svg")).toHaveLength(0);
+  });
+});
+
+/**
+ * La ayuda inmediata, a la vista en el carril.
+ *
+ * Antes sólo se llegaba por Terapia, que está dentro del menú de cuenta
+ * plegado: dos pasos y saber que estaba ahí.
+ */
+describe("la ayuda inmediata en el carril", () => {
+  const ayuda = (container: HTMLElement) =>
+    [...container.querySelectorAll("aside.side a")].find(
+      (a) => a.textContent?.trim() === "Ayuda inmediata",
+    );
+
+  it("está sin abrir nada, y con el menú de cuenta plegado", () => {
+    ruta = "/dashboard/mapa";
+    const { container } = montar();
+    expect(ayuda(container)).toHaveAttribute("href", "/ayuda");
+    expect(
+      container.querySelector("aside.side button[aria-expanded]"),
+    ).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it.each([
+    ["/dashboard/eco", "/ayuda?desde=eco"],
+    ["/dashboard/terapia", "/ayuda?desde=terapia"],
+    ["/dashboard/terapia/sesiones", "/ayuda?desde=terapia"],
+    ["/dashboard", "/ayuda"],
+  ])("desde %s recuerda a dónde volver", (pathname, href) => {
+    ruta = pathname;
+    const { container } = montar();
+    expect(ayuda(container)).toHaveAttribute("href", href);
+  });
+
+  it("nunca se marca como ruta activa: no es una ruta del panel", () => {
+    ruta = "/dashboard/eco";
+    const { container } = montar();
+    expect(ayuda(container)?.getAttribute("aria-current")).toBeNull();
+    expect(ayuda(container)).not.toHaveClass("on");
   });
 });

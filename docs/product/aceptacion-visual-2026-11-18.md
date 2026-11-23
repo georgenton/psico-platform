@@ -15,6 +15,18 @@
 > identidad visual y no toca nada por iniciativa propia. Las decisiones de
 > abajo son tuyas.
 
+> ### Desde el 2026-11-23, la página se rehízo para responder en ella
+>
+> El mismo enlace de abajo lleva ahora a las pantallas **que sirve staging**
+> (`6521dc6f`), en cuatro bloques, escritorio y teléfono, con las de verificación
+> y su confirmación, y con el Diario y Eco **por dentro**. Termina en un texto
+> para copiar: «acepto el conjunto» o la lista por pantalla. Se recapturaron
+> porque más de la mitad de las de noviembre medían 400 px.
+>
+> Este documento sigue siendo el registro de las **diez decisiones cerradas**, que
+> no se reabren. Qué se decide ahora, en
+> [la ficha](../operations/tramo-a-produccion.md).
+
 ## 📷 Las capturas, para abrirlas mientras lees
 
 **→ [Las 18 pantallas, con sus decisiones](https://claude.ai/artifact/56P67k18svei385pZ2Whn3)**

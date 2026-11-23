@@ -48,7 +48,7 @@ sobre lo que sirve staging (`6521dc6f`), en escritorio y teléfono, con las de
 verificación y su confirmación. Abajo se arma la respuesta: «acepto el conjunto»
 o la lista por pantalla.
 
-Se recapturaron porque más de la mitad de las guardadas medían 400 px. Las
+Se recapturaron porque de las dieciocho guardadas siete medían 400 px y once 800. Las
 anteriores, con su antes y después, siguen en el archivo privado. **Las diez
 decisiones cerradas no se reabren.**
 

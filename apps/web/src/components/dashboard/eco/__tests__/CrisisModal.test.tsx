@@ -108,6 +108,15 @@ describe("CrisisModal · lo que hace, no cómo se pinta", () => {
     expect(screen.getByText(/si no estás en ecuador/i)).toBeInTheDocument();
   });
 
+  it("lleva a todas las líneas, sin cerrar este aviso", () => {
+    montar();
+    const mas = screen.getByRole("link", { name: /más líneas de ayuda/i });
+    // La página pública, con su vuelta a Eco; nunca una pantalla con puerta.
+    expect(mas).toHaveAttribute("href", "/ayuda?desde=eco");
+    expect(mas).toHaveAttribute("target", "_blank");
+    expect(mas).toHaveAttribute("rel", expect.stringContaining("noopener"));
+  });
+
   it("se cierra con «Entendido», y con el teclado", async () => {
     const onClose = montar();
     const usuario = userEvent.setup();

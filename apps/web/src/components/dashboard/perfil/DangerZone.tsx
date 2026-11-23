@@ -3,9 +3,9 @@
 import { useState } from "react";
 import type { UserMeResponse } from "@psico/types";
 
+import { logoutAction } from "@/actions/auth";
 import {
   getDataExportDownloadAction,
-  logoutFromPerfilAction,
   requestAccountDeleteAction,
   requestDataExportAction,
 } from "@/actions/profile";
@@ -383,7 +383,7 @@ function DeleteRow({
 
 function LogoutRow() {
   return (
-    <form action={logoutFromPerfilAction}>
+    <form action={logoutAction}>
       <div
         className="flex items-center justify-between gap-4 rounded-xl px-4 py-3"
         style={{ background: "var(--color-warm-50)" }}

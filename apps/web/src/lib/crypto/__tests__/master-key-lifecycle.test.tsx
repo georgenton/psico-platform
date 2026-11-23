@@ -2,10 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { useEffect, useRef, useState } from "react";
 import {
+  bytesToBase64Url,
   deriveMasterKey,
+  encryptString,
   isValidSeedPhrase,
   MASTER_KEY_LEN,
   masterKeyToSeedPhrase,
+  randomBytes,
   seedPhraseToMasterKey,
 } from "@psico/crypto";
 
@@ -52,6 +55,8 @@ vi.mock("@/actions/diary-session", () => ({
 }));
 
 const SALT = "YWJjZGVmZ2hpamtsbW5vcA";
+/** La sal de OTRA cuenta en el mismo navegador. */
+const SAL_AJENA = "MTIzNDU2Nzg5MDEyMzQ1Ng";
 const CONTRASENA = "una-contrasena-de-prueba";
 const CONTRASENA_NUEVA = "otra-contrasena-distinta";
 
@@ -70,10 +75,10 @@ function Sonda({ onCtx }: { onCtx: (c: DiaryKeyContextValue) => void }) {
   );
 }
 
-function montar(initialWrapKey: string | null = null) {
+function montar(initialWrapKey: string | null = null, sal: string = SALT) {
   let ctx: DiaryKeyContextValue | null = null;
   const vista = render(
-    <DiaryKeyProvider cryptoSalt={SALT} initialWrapKey={initialWrapKey}>
+    <DiaryKeyProvider cryptoSalt={sal} initialWrapKey={initialWrapKey}>
       <Sonda
         onCtx={(c) => {
           ctx = c;
@@ -251,6 +256,86 @@ describe("«Recordar en este dispositivo»", () => {
     // Falla cerrado y limpia, para no reintentar contra basura en cada carga.
     expect(window.localStorage.getItem("psico:diary:wrapped")).toBeNull();
   }, 20000);
+});
+
+describe("el sobre es de una cuenta, no del navegador", () => {
+  it("otra cuenta en el mismo equipo no hereda la clave, y el sobre se retira", async () => {
+    // La primera persona desbloquea y se va sin que nadie borre la galleta
+    // —salir por un camino que no la tocaba, o que la sesión caduque sola—.
+    const primera = montar();
+    await act(async () => {
+      await primera.ctx().unlock(CONTRASENA);
+    });
+    const llaveDelSobre = cookieDelSobre.valor;
+    expect(llaveDelSobre).not.toBeNull();
+    primera.vista.unmount();
+
+    // La segunda entra en el mismo navegador: misma galleta, mismo
+    // localStorage, OTRA sal.
+    const segunda = montar(llaveDelSobre, SAL_AJENA);
+    await waitFor(() => expect(segunda.ctx().restoring).toBe(false));
+
+    expect(estado()).toBe("bloqueado");
+    expect(segunda.ctx().key).toBeNull();
+    expect(segunda.ctx().ecoKey).toBeNull();
+    expect(segunda.ctx().masterKey).toBeNull();
+    // Y no queda nada que volver a intentar.
+    expect(window.localStorage.getItem("psico:diary:wrapped")).toBeNull();
+    expect(cookieDelSobre.borrada).toBe(true);
+  }, 30000);
+
+  it("un sobre que no dice de quién es se descarta: se pide la contraseña una vez", async () => {
+    // El formato anterior: la clave maestra sola dentro del sobre.
+    const maestra = await deriveMasterKey(CONTRASENA, SALT);
+    const envoltorio = randomBytes(32);
+    const antiguo = encryptString(bytesToBase64Url(maestra), envoltorio);
+    window.localStorage.setItem(
+      "psico:diary:wrapped",
+      JSON.stringify({ ...antiguo, savedAt: "2026-11-01T00:00:00.000Z" }),
+    );
+
+    const { ctx } = montar(bytesToBase64Url(envoltorio));
+    await waitFor(() => expect(ctx().restoring).toBe(false));
+    expect(estado()).toBe("bloqueado");
+    expect(window.localStorage.getItem("psico:diary:wrapped")).toBeNull();
+
+    // Y con la contraseña vuelve a recordarse, ya con dueño.
+    await act(async () => {
+      await ctx().unlock(CONTRASENA);
+    });
+    expect(estado()).toBe("abierto");
+    expect(window.localStorage.getItem("psico:diary:wrapped")).not.toBeNull();
+  }, 40000);
+
+  it("la marca del dueño va cifrada: la sal no queda legible en el dispositivo", async () => {
+    const { ctx } = montar();
+    await act(async () => {
+      await ctx().unlock(CONTRASENA);
+    });
+    expect(window.localStorage.getItem("psico:diary:wrapped")).not.toContain(
+      SALT,
+    );
+  }, 30000);
+
+  it("tras cambiar la contraseña, la recarga con la sal nueva restaura", async () => {
+    const primera = montar();
+    await act(async () => {
+      await primera.ctx().unlock(CONTRASENA);
+    });
+    // Lo que hace `ChangePasswordCard`: clave nueva Y sal nueva.
+    const maestraNueva = await deriveMasterKey(CONTRASENA_NUEVA, SAL_AJENA);
+    act(() => {
+      primera.ctx().adoptMasterKey(maestraNueva, SAL_AJENA);
+    });
+    await waitFor(() => expect(cookieDelSobre.valor).not.toBeNull());
+    const claveNueva = Array.from(primera.ctx().key!);
+    const llaveDelSobre = cookieDelSobre.valor;
+    primera.vista.unmount();
+
+    const segunda = montar(llaveDelSobre, SAL_AJENA);
+    await waitFor(() => expect(estado()).toBe("abierto"));
+    expect(Array.from(segunda.ctx().key!)).toEqual(claveNueva);
+  }, 40000);
 });
 
 describe("después de cambiar la contraseña, la sesión sigue abierta", () => {

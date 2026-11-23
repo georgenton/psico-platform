@@ -285,6 +285,32 @@ suite("el cupo de verificación por cuenta, con peticiones simultáneas", () => 
     expect(ultimo!.metadata).toMatchObject({ reason: "AMBIGUOUS_CASE" });
   });
 
+  it("recuperar contraseña también encuentra la cuenta guardada con mayúsculas", async () => {
+    // Mismo defecto, mismo arreglo: forgotPassword comparte el lookup. Sin él,
+    // una cuenta como ésta no podía recuperar su contraseña.
+    const resend = { send: vi.fn().mockResolvedValue(undefined) };
+    const auth = new AuthService(
+      prismaA as never,
+      { sign: () => "token-de-prueba" } as never,
+      { get: () => "https://app.example.test" } as never,
+      resend as never,
+      { isEnabled: () => false } as never,
+      { enqueueEmail: vi.fn() } as never,
+    );
+    const guardada = "Recupera-Mayus@Test.local";
+    const u = await prismaA.user.create({
+      data: { email: guardada, name: "Recupera" },
+    });
+
+    await auth.forgotPassword({ email: "recupera-mayus@test.local" });
+
+    expect(
+      await prismaA.passwordResetToken.count({ where: { userId: u.id } }),
+    ).toBe(1);
+    expect(resend.send).toHaveBeenCalledTimes(1);
+    expect(resend.send.mock.calls[0]![0].to).toBe(guardada);
+  });
+
   it("el correo del registro cuenta en el mismo cupo que los reenvíos", async () => {
     // Por el servicio entero y contra la base real: el registro reserva su
     // hueco por el mismo camino, de modo que tras él sólo caben dos reenvíos.

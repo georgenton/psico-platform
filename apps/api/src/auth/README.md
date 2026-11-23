@@ -107,9 +107,11 @@ back to a **case-insensitive** match only when that match is **unique**. Two
 accounts that differ only by case are not guessed between: same 200, audited
 as `AMBIGUOUS_CASE`. The email goes to the address **as stored**.
 
-`forgotPassword` has the same lowercase-then-exact lookup. It belongs to the
-recovery flow accepted in PR 868, so it is not changed here; it is flagged as
-its own task.
+`forgotPassword` had the very same lowercase-then-exact lookup, so an account
+stored with capitals could not recover its password either. Both flows now go
+through `findAccountByTypedAddress`, so they can't drift apart again. That is
+the only change to the recovery flow accepted in PR 868: templates, TTL, the
+recipient guard and the no-leak contract are untouched.
 
 ### The response does not wait for the provider
 

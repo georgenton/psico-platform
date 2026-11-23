@@ -417,17 +417,10 @@ export class AuthService {
   ): Promise<void> {
     const normalizedEmail = dto.email.trim().toLowerCase();
 
-    const user = await this.prisma.user.findUnique({
-      where: { email: normalizedEmail },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        firstName: true,
-        isActive: true,
-        authProvider: true,
-      },
-    });
+    // Same lookup as resendVerification, for the same reason: an account
+    // stored with capitals has to be reachable. See findAccountByTypedAddress.
+    const lookup = await this.findAccountByTypedAddress(dto.email);
+    const user = lookup.user;
 
     if (!user || !user.isActive) {
       await this.recordEvent({
@@ -437,7 +430,7 @@ export class AuthService {
         ctx,
         metadata: {
           skipped: true,
-          reason: user ? "INACTIVE" : "USER_NOT_FOUND",
+          reason: user ? "INACTIVE" : lookup.reason,
         },
       });
       return;
@@ -632,7 +625,7 @@ export class AuthService {
    *   - LOCAL user, not yet verified, within budget → reserve a slot and
    *     queue the email.
    *   - Address unknown → nothing to do. The lookup is exact first and then
-   *     case-insensitive only when unambiguous (see findAccountForResend);
+   *     case-insensitive only when unambiguous (see findAccountByTypedAddress);
    *     two accounts that differ only by case count as unknown.
    *   - Account inactive → treated exactly like unknown.
    *   - OAuth user → the provider already vouched for the address; we have no
@@ -667,7 +660,7 @@ export class AuthService {
   ): Promise<void> {
     const normalizedEmail = dto.email.trim().toLowerCase();
 
-    const lookup = await this.findAccountForResend(dto.email);
+    const lookup = await this.findAccountByTypedAddress(dto.email);
     const user = lookup.user;
 
     if (!user || !user.isActive) {
@@ -922,8 +915,9 @@ export class AuthService {
   // ── helpers ───────────────────────────────────────────────────────────────
 
   /**
-   * Finds the account a resend request is about, the way the address was
-   * actually stored.
+   * Finds the account an address-only request is about —
+   * `resendVerification` and `forgotPassword` — the way the address was
+   * actually stored. Both flows share it so they can't drift apart again.
    *
    * WHY NOT JUST LOWERCASE. `register()` stores the address exactly as typed,
    * and `login()` looks it up exactly, so an account registered as
@@ -931,7 +925,8 @@ export class AuthService {
    * 2026-11-23: 3 of 19 accounts. The first version lowercased before an exact
    * lookup, so for those accounts it answered 200 and did nothing, in silence:
    * the person most likely to need a resend (the one whose link never arrived)
-   * could be the one it never reached.
+   * could be the one it never reached. `forgotPassword` had the very same
+   * shape, so an account like that could not recover its password either.
    *
    * So: the exact address first, trimmed — the same key `login()` uses. Only
    * if that misses, a case-insensitive match, and only when it is UNAMBIGUOUS.
@@ -940,11 +935,12 @@ export class AuthService {
    * that is not a guess to make with someone's inbox. Ambiguity is treated
    * like "not found" — same 200 to the caller — and audited as such.
    */
-  private async findAccountForResend(typed: string): Promise<{
+  private async findAccountByTypedAddress(typed: string): Promise<{
     user: {
       id: string;
       email: string;
       name: string;
+      firstName: string | null;
       isActive: boolean;
       authProvider: string;
       emailVerified: boolean;
@@ -955,6 +951,7 @@ export class AuthService {
       id: true,
       email: true,
       name: true,
+      firstName: true,
       isActive: true,
       authProvider: true,
       emailVerified: true,

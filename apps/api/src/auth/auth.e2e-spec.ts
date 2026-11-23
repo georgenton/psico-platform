@@ -223,6 +223,14 @@ describe("Auth · E2E", () => {
   // ── S2: email flows ───────────────────────────────────────────────────────
 
   describe("forgot-password / reset-password / verify-email", () => {
+    // forgot-password shares the address lookup with resend-verification:
+    // exact first, then a case-insensitive `findMany`. The reset mock answers
+    // `undefined` where real Prisma answers `[]`, and that would turn an
+    // unknown address into a 500 — the one answer no-leak can't give.
+    beforeEach(() => {
+      h.prisma.user.findMany.mockResolvedValue([]);
+    });
+
     it("forgot-password always returns 200 (no leak) — even on unknown email", async () => {
       h.prisma.user.findUnique.mockResolvedValue(null);
 
@@ -307,6 +315,12 @@ describe("Auth · E2E", () => {
       enqueueSpy = vi
         .spyOn(h.app.get(JobsService), "enqueueEmail")
         .mockResolvedValue(undefined);
+      // The lookup falls back to a case-insensitive `findMany` when the exact
+      // address misses. Real Prisma always answers with an array; the reset
+      // mock answers `undefined`, which would turn "unknown address" into a
+      // 500 — the one answer the no-leak contract can't give. So the default
+      // here is the real one: no case-insensitive match.
+      h.prisma.user.findMany.mockResolvedValue([]);
     });
     afterEach(() => {
       enqueueSpy.mockRestore();

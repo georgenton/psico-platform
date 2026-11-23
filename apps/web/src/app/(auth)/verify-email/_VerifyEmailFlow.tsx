@@ -9,7 +9,7 @@ import ResendVerificationPanel from "./_ResendVerificationPanel";
 
 type Phase =
   | { kind: "verifying" }
-  | { kind: "success"; email: string }
+  | { kind: "success" }
   | { kind: "request" }
   | { kind: "expired" }
   | { kind: "invalid" }
@@ -43,8 +43,13 @@ export default function VerifyEmailFlow() {
     ranRef.current = true;
     void (async () => {
       try {
-        const res = await authApi.verifyEmail(token);
-        setPhase({ kind: "success", email: res.email });
+        await authApi.verifyEmail(token);
+        // La API contesta `{ ok, userId }`: no devuelve la dirección. La
+        // primera versión de esta pantalla interpolaba `res.email`, que nunca
+        // llegaba, y decía «Confirmamos tu correo .» — visto en staging el
+        // 2026-11-23. La frase no necesita la dirección: quien la lee acaba de
+        // abrir el enlace desde su propio correo.
+        setPhase({ kind: "success" });
       } catch (err) {
         if (err instanceof ApiError && err.status === 410) {
           setPhase({ kind: "expired" });
@@ -83,7 +88,7 @@ export default function VerifyEmailFlow() {
           ¡Listo! ✨
         </h1>
         <p className="text-sm mb-6" style={{ color: "var(--color-warm-500)" }}>
-          Confirmamos tu correo {phase.email}. Ya puedes iniciar sesión.
+          Confirmamos tu correo. Ya puedes iniciar sesión.
         </p>
         <Link
           href="/login"

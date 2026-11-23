@@ -38,6 +38,7 @@ const mockPrisma = {
     findFirst: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
+    findMany: vi.fn().mockResolvedValue([]),
   },
   refreshToken: {
     findUnique: vi.fn(),
@@ -112,6 +113,8 @@ describe("AuthService", () => {
     mockPrisma.emailVerificationToken.count.mockResolvedValue(0);
     mockResend.send.mockResolvedValue(undefined);
     mockJobs.enqueueEmail.mockResolvedValue(undefined);
+    // No case-insensitive match unless a test says so.
+    mockPrisma.user.findMany.mockResolvedValue([]);
     mockPrisma.$executeRaw.mockResolvedValue(0);
     mockGoogleVerifier.isEnabled.mockReturnValue(true);
     // $transaction handles both callback and array forms.
@@ -537,6 +540,94 @@ describe("AuthService", () => {
       expect(event.metadata).toMatchObject({ skipped: true });
     });
 
+    it("reaches an account stored with capitals when it's typed in lowercase", async () => {
+      // Same defect as resendVerification, measured on staging on 2026-11-23:
+      // register() stores the address as typed, and lowercasing before an
+      // exact lookup meant an account like this could not recover at all.
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+      mockPrisma.user.findMany.mockResolvedValue([
+        {
+          id: "user-caps",
+          email: "Ana@Example.com",
+          name: "Ana",
+          firstName: "Ana",
+          isActive: true,
+          authProvider: "LOCAL",
+          emailVerified: true,
+        },
+      ]);
+      mockPrisma.passwordResetToken.create.mockResolvedValue({});
+
+      await service.forgotPassword({ email: "ana@example.com" });
+
+      expect(mockPrisma.user.findUnique.mock.calls[0][0].where).toEqual({
+        email: "ana@example.com",
+      });
+      expect(mockPrisma.user.findMany.mock.calls[0][0].where).toEqual({
+        email: { equals: "ana@example.com", mode: "insensitive" },
+      });
+      // To the address as STORED.
+      expect(mockResend.send.mock.calls[0][0].to).toBe("Ana@Example.com");
+      expect(mockPrisma.authEvent.create.mock.calls[0][0].data.userId).toBe(
+        "user-caps",
+      );
+    });
+
+    it("prefers the exact address, and never guesses between case twins", async () => {
+      // Exact hit: no fallback query at all.
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: "user-1",
+        email: "user@example.com",
+        name: "User",
+        firstName: "User",
+        isActive: true,
+        authProvider: "LOCAL",
+        emailVerified: true,
+      });
+      mockPrisma.passwordResetToken.create.mockResolvedValue({});
+      await service.forgotPassword({ email: "  user@example.com " });
+      expect(mockPrisma.user.findUnique.mock.calls[0][0].where).toEqual({
+        email: "user@example.com",
+      });
+      expect(mockPrisma.user.findMany).not.toHaveBeenCalled();
+
+      // Two accounts that differ only by case: nothing is sent.
+      vi.clearAllMocks();
+      mockPrisma.authEvent.create.mockResolvedValue(undefined);
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+      mockPrisma.user.findMany.mockResolvedValue([
+        {
+          id: "a",
+          email: "Ana@Example.com",
+          name: "A",
+          firstName: null,
+          isActive: true,
+          authProvider: "LOCAL",
+          emailVerified: true,
+        },
+        {
+          id: "b",
+          email: "ANA@example.com",
+          name: "B",
+          firstName: null,
+          isActive: true,
+          authProvider: "LOCAL",
+          emailVerified: true,
+        },
+      ]);
+      await expect(
+        service.forgotPassword({ email: "ana@example.com" }),
+      ).resolves.toBeUndefined();
+      expect(mockPrisma.passwordResetToken.create).not.toHaveBeenCalled();
+      expect(mockResend.send).not.toHaveBeenCalled();
+      expect(
+        mockPrisma.authEvent.create.mock.calls[0][0].data.metadata,
+      ).toMatchObject({
+        skipped: true,
+        reason: "AMBIGUOUS_CASE",
+      });
+    });
+
     it("skips email for OAuth users (no password to reset)", async () => {
       mockPrisma.user.findUnique.mockResolvedValue({
         id: "user-google",
@@ -864,15 +955,60 @@ describe("AuthService", () => {
       });
     });
 
-    it("normalises the address before looking it up", async () => {
+    it("looks the address up exactly first, trimmed — the key login() uses", async () => {
       mockPrisma.user.findUnique.mockResolvedValue(unverifiedLocal);
 
       await service.resendVerification({ email: "  User@Example.COM \n" });
 
+      // Trimmed, NOT lowercased: register() stores the address as typed.
       expect(mockPrisma.user.findUnique.mock.calls[0][0].where).toEqual({
-        email: "user@example.com",
+        email: "User@Example.COM",
       });
+      // An exact hit never needs the fallback.
+      expect(mockPrisma.user.findMany).not.toHaveBeenCalled();
       expect(mockJobs.enqueueEmail).toHaveBeenCalledTimes(1);
+    });
+
+    it("reaches an account stored with capitals when it's typed in lowercase", async () => {
+      // The defect found on staging on 2026-11-23: the account exists as
+      // `Ana@Example.com`, the request says `ana@example.com`, and the first
+      // version answered 200 and did nothing — audited as USER_NOT_FOUND.
+      const stored = { ...unverifiedLocal, email: "Ana@Example.com" };
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+      mockPrisma.user.findMany.mockResolvedValue([stored]);
+
+      await service.resendVerification({ email: "ana@example.com" });
+
+      expect(mockPrisma.user.findMany.mock.calls[0][0].where).toEqual({
+        email: { equals: "ana@example.com", mode: "insensitive" },
+      });
+      // Delivered to the address as it was STORED.
+      expect(mockJobs.enqueueEmail).toHaveBeenCalledTimes(1);
+      expect(mockJobs.enqueueEmail.mock.calls[0][0].to).toBe("Ana@Example.com");
+      expect(auditedEvent().metadata).toEqual({ queued: true });
+    });
+
+    it("refuses to guess when two accounts differ only by case", async () => {
+      // The column is unique case-sensitively, so this can exist. Picking one
+      // would send a link to whichever row came first.
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+      mockPrisma.user.findMany.mockResolvedValue([
+        { ...unverifiedLocal, id: "user-a", email: "Ana@Example.com" },
+        { ...unverifiedLocal, id: "user-b", email: "ANA@example.com" },
+      ]);
+
+      await expect(
+        service.resendVerification({ email: "ana@example.com" }),
+      ).resolves.toBeUndefined();
+
+      expect(mockPrisma.emailVerificationToken.create).not.toHaveBeenCalled();
+      expect(mockJobs.enqueueEmail).not.toHaveBeenCalled();
+      const event = auditedEvent();
+      expect(event.userId).toBeNull();
+      expect(event.metadata).toMatchObject({
+        skipped: true,
+        reason: "AMBIGUOUS_CASE",
+      });
     });
 
     // ── the per-address budget ──────────────────────────────────────────────

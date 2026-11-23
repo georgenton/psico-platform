@@ -21,7 +21,7 @@
 > (`6521dc6f`), en cuatro bloques, escritorio y teléfono, con las de verificación
 > y su confirmación, y con el Diario y Eco **por dentro**. Termina en un texto
 > para copiar: «acepto el conjunto» o la lista por pantalla. Se recapturaron
-> porque más de la mitad de las de noviembre medían 400 px.
+> porque de las dieciocho siete medían 400 px y once 800.
 >
 > Este documento sigue siendo el registro de las **diez decisiones cerradas**, que
 > no se reabren. Qué se decide ahora, en

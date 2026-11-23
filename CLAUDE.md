@@ -4405,8 +4405,8 @@ acotada en Docker. Horas en UTC (Quito = UTC−5).
 **La página de aceptación se rehízo** en
 [su mismo enlace](https://claude.ai/artifact/56P67k18svei385pZ2Whn3): 29 pantallas
 en cuatro bloques capturadas sobre `6521dc6f`, escritorio y teléfono, con
-verificación y confirmación y con el Diario y Eco **por dentro**. Más de la mitad
-de las guardadas medían 400 px. Termina en un texto para copiar; si no se elige
+verificación y confirmación y con el Diario y Eco **por dentro**. De las dieciocho
+guardadas, siete medían 400 px y once 800. Termina en un texto para copiar; si no se elige
 nada, **no** dice que aceptas. Cuenta sintética nueva, fuera del padrón.
 
 **Lo que salió al mirarlas, medido:** la cabecera de la portada se parte en dos

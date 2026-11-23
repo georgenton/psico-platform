@@ -4278,7 +4278,65 @@ y lo que sigue pendiente de observar: en el cuerpo de #870 y en FV-47.
 
 ---
 
-### 🧭 Trabajo vigente — corte del 2026-11-19
+### Sesión — 2026-11-22/23 ✅ COMPLETADA — Release con el mismo montón que CI, y la versión del cliente integrada
+
+**PR:** [#871](https://github.com/georgenton/psico-platform/pull/871), squash `1382b34d` · [#872](https://github.com/georgenton/psico-platform/pull/872) (versión), squash `9314afaa`
+**Tests:** trinquete nuevo `apps/web/src/ci-heap-policy.test.ts` 6/6 · rojo contra el `release.yml` anterior · 8 mutaciones con el resultado esperado
+
+**Lo que falló.** El Release de `af671664` (#870) murió en **Full CI ›
+Typecheck** con `exit 134` —«JavaScript heap out of memory» en
+`@psico/api#typecheck`—, y como **Changesets** tiene `needs: ci` quedó
+**saltado**: el changeset de `@psico/api-client` no produjo su PR de versión.
+`ci.yml` ya daba 6 GiB a Typecheck y Build; `release.yml` no. Los Release
+anteriores pasaban porque la caché de Turbo acertaba, y el primer cambio en
+`apps/api` hizo correr `tsc` en frío.
+
+**El arreglo (#871)** pone `NODE_OPTIONS: --max-old-space-size=6144` en esos dos
+pasos de `release.yml`, con un comentario que remite al de `ci.yml`. No quita
+pasos, no filtra workspaces y no toca el trabajo de changesets: mismos
+ficheros, mismo compilador, y un error de tipos sigue rompiendo el trabajo.
+
+**El trinquete protege las invocaciones y formatos actuales; no es un
+analizador de YAML.** Lee los workflows como texto con la forma que tienen en
+este repositorio —mapeos de bloque, sangría de dos espacios, `run:` en línea o
+como bloque `|`/`>`— y resuelve el `NODE_OPTIONS` que ve cada paso (paso, luego
+trabajo, luego workflow). Exige ≥ 6144 MB a todo `run:` que contenga `turbo` y
+`typecheck` o `build`. **No ve** una compilación lanzada sin `turbo`
+(`pnpm --filter … typecheck`), dentro de un script o de una acción compuesta, ni
+un `env` en estilo `{…}`, anclas o un `NODE_OPTIONS` escrito en `$GITHUB_ENV`.
+Se comprueba a sí mismo: tiene que encontrar los cinco pasos conocidos, y hay
+casos de control contrario.
+
+**Release de `1382b34d`** ([run 45105126005](https://github.com/georgenton/psico-platform/actions/runs/45105126005)):
+Full CI ✅ y Changesets ✅, que abrió #872 a las 03:25 UTC. Lo que acredita es
+**más que la integración del workflow**: la caché de Turbo se restauró de
+`turbo-release-8ff3e8e5`, anterior a #870, así que 8 de 12 tareas de typecheck
+acertaron pero **`@psico/api:typecheck` y `@psico/api:build` fueron `cache
+miss`** y corrieron en frío con el montón nuevo.
+
+**La PR de versión nace sin comprobaciones**, y no es un fallo: la empuja
+`github-actions[bot]`, así que sus cuatro workflows de `pull_request` quedan en
+`action_required`. Se relanzaron sobre el HEAD revisado `4fc23398`, igual que
+se hizo con #807, y pasaron las 9. El diff era exactamente lo previsto: el
+changeset borrado, la entrada `0.4.0` del `CHANGELOG` y `0.3.1 → 0.4.0` en
+`packages/api-client/package.json`, con `"private": true` intacto. Ningún otro
+paquete, ningún cambio funcional.
+
+**Cuatro estados, separados:** changeset preparado (en `af671664`) · PR creada
+(#872) · versión integrada (`9314afaa`) · **publicación externa: ninguna**. El
+paquete es privado, `access` es `restricted`, y el Release de `9314afaa`
+([run 45107211926](https://github.com/georgenton/psico-platform/actions/runs/45107211926),
+Full CI y Changesets en verde) lo confirma en su registro: «No unpublished
+projects to publish», sin tag `api-client@0.4.0` ni GitHub Release. No se tocó
+ningún permiso de publicación.
+
+**Servicios: ninguno redesplegado.** #871 y #872 no cambian código que se
+ejecute. Leído en Coolify: API en `af671664` (desplegada el 22-11 a las
+18:51 UTC), worker en `6fe5ff3f` y Web en `0ae5db7d`.
+
+---
+
+### 🧭 Trabajo vigente — corte del 2026-11-23
 
 **Esta es la única sección de este archivo que describe el presente.** Todo lo
 de arriba —incluidas las listas de «backlog aprobado» y los «siguientes pasos»
@@ -4286,7 +4344,24 @@ de cada bitácora de sesión— es **antecedente fechado**: explica cómo se lle
 aquí, no lo que toca hacer. Si una instrucción antigua contradice esta
 sección, manda esta sección.
 
-#### El corte — 2026-11-19, undécima tanda (frente de correo)
+#### El corte — 2026-11-23, Release y versionado
+
+|                       |                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `main`                | **`9314afaa`** — #871 (`1382b34d`, el montón de Release) y #872 (`9314afaa`, la versión). Commits y horas, en la sesión del 22/23-11 de arriba                                                                                                                                                                                                                                                                                                |
+| Release               | ✅ `1382b34d`: Full CI y Changesets en verde, `@psico/api` en frío dentro del propio run · ✅ `9314afaa`: Full CI y Changesets en verde ([run 45107211926](https://github.com/georgenton/psico-platform/actions/runs/45107211926)), caché restaurada de `1382b34d` (9 de 12 typecheck en caché). Changesets: «No unpublished projects to publish» — sin tag, sin GitHub Release y sin PR de versión abierta                                   |
+| `@psico/api-client`   | **`0.4.0` integrada.** Privado, sin publicación externa                                                                                                                                                                                                                                                                                                                                                                                       |
+| Servido en staging    | API **`af671664`** · worker **`6fe5ff3f`** · Web **`0ae5db7d`**, leídos en Coolify el 23-11 hacia las 03:20 UTC. **Ninguno redesplegado**: nada de esta tanda se ejecuta                                                                                                                                                                                                                                                                      |
+| #870 en staging       | ⚠️ **a medias, y conviene no darlo por cerrado.** El endpoint está servido, porque la API va en `af671664`. **La parte web no**: el formulario de reenvío en `/verify-email` y el enlace del login son 12 ficheros de `apps/web`, y la Web va en `0ae5db7d`. Siguen pendientes la **recepción real de un reenvío**, que necesita una identidad de pruebas **sin verificar** dentro de la lista, y ver en pantalla el copy de crisis corregido |
+| Correo y recuperación | ✅ **cerrados** (19-11, #868). Nada de esta tanda los toca                                                                                                                                                                                                                                                                                                                                                                                    |
+| Piloto B              | ⬜ **decisión pendiente tuya**, y separada de autorizar a la primera persona y el envío a su dirección. Preparado en `docs/operations/piloto-b-primera-incorporacion.md`                                                                                                                                                                                                                                                                      |
+| Producción            | **No existe como recurso.** Quedan la puerta 7 (el ensayo de nivel 4 necesita la caja y su importe, ≤ US\$ 15) y la 1 (la aceptación estética)                                                                                                                                                                                                                                                                                                |
+
+> **Lo que esta tanda NO hace.** No redespliega, no amplía destinatarios ni
+> padrón, no abre cobros, no publica contenido editorial ni paquetes, y no
+> toca FV-42. Infraestructura: OVH con Coolify, y sólo ahí.
+
+#### Antecedente — 2026-11-19, undécima tanda (frente de correo)
 
 |                                        |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

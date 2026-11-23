@@ -307,6 +307,12 @@ describe("Auth · E2E", () => {
       enqueueSpy = vi
         .spyOn(h.app.get(JobsService), "enqueueEmail")
         .mockResolvedValue(undefined);
+      // The lookup falls back to a case-insensitive `findMany` when the exact
+      // address misses. Real Prisma always answers with an array; the reset
+      // mock answers `undefined`, which would turn "unknown address" into a
+      // 500 — the one answer the no-leak contract can't give. So the default
+      // here is the real one: no case-insensitive match.
+      h.prisma.user.findMany.mockResolvedValue([]);
     });
     afterEach(() => {
       enqueueSpy.mockRestore();

@@ -245,6 +245,46 @@ suite("el cupo de verificación por cuenta, con peticiones simultáneas", () => 
     expect(estado.abiertaPor).toBe("las-dos-contaron");
   });
 
+  it("una cuenta guardada con mayúsculas recibe el reenvío aunque se pida en minúsculas", async () => {
+    // El defecto medido en staging el 2026-11-23: `register()` guarda la
+    // dirección tal cual, y 3 de 19 cuentas tenían mayúsculas. El reenvío la
+    // pasaba a minúsculas antes de una búsqueda exacta, contestaba 200 y no
+    // hacía nada. Aquí contra PostgreSQL, que es donde `mode: "insensitive"`
+    // tiene que funcionar de verdad.
+    const jobs = { enqueueEmail: vi.fn().mockResolvedValue(undefined) };
+    const auth = new AuthService(
+      prismaA as never,
+      { sign: () => "token-de-prueba" } as never,
+      { get: () => "https://app.example.test" } as never,
+      { send: vi.fn() } as never,
+      { isEnabled: () => false } as never,
+      jobs as never,
+    );
+    const guardada = "Mayus-Cupo@Test.local";
+    const u = await prismaA.user.create({
+      data: { email: guardada, name: "Mayúsculas" },
+    });
+
+    await auth.resendVerification({ email: "mayus-cupo@test.local" });
+
+    expect(await enVentana(u.id)).toBe(1);
+    expect(jobs.enqueueEmail).toHaveBeenCalledTimes(1);
+    // Se entrega a la dirección COMO ESTÁ GUARDADA.
+    expect(jobs.enqueueEmail.mock.calls[0]![0].to).toBe(guardada);
+
+    // Y si dos cuentas difieren sólo en mayúsculas, no se adivina.
+    await prismaA.user.create({
+      data: { email: "MAYUS-CUPO@test.local", name: "Gemela" },
+    });
+    await auth.resendVerification({ email: "mayus-cupo@test.local" });
+    expect(jobs.enqueueEmail).toHaveBeenCalledTimes(1);
+    const ultimo = await prismaA.authEvent.findFirst({
+      where: { type: "EMAIL_VERIFICATION_REQUESTED", userId: null },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    });
+    expect(ultimo!.metadata).toMatchObject({ reason: "AMBIGUOUS_CASE" });
+  });
+
   it("el correo del registro cuenta en el mismo cupo que los reenvíos", async () => {
     // Por el servicio entero y contra la base real: el registro reserva su
     // hueco por el mismo camino, de modo que tras él sólo caben dos reenvíos.

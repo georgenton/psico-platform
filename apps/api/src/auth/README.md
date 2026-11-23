@@ -96,6 +96,21 @@ Three consequences worth knowing before changing it:
 Being over budget is invisible to the caller (still `200 { ok: true }`); the
 `AuthEvent` row carries `metadata.reason = "ADDRESS_RATE_LIMITED"`.
 
+### How the address is matched
+
+`register()` stores the address exactly as typed and `login()` looks it up
+exactly, so some accounts carry capitals — 3 of 19 on staging, measured on
+2026-11-23. The first version of `resendVerification` lowercased before an
+exact lookup, so for those accounts it answered 200 and did nothing, audited as
+`USER_NOT_FOUND`. Now it tries the **exact** address (trimmed) first and falls
+back to a **case-insensitive** match only when that match is **unique**. Two
+accounts that differ only by case are not guessed between: same 200, audited
+as `AMBIGUOUS_CASE`. The email goes to the address **as stored**.
+
+`forgotPassword` has the same lowercase-then-exact lookup. It belongs to the
+recovery flow accepted in PR 868, so it is not changed here; it is flagged as
+its own task.
+
 ### The response does not wait for the provider
 
 The first version awaited Resend on the one branch that sends, so a slow

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { SEED_PHRASE_WORD_COUNT, masterKeyToSeedPhrase } from "@psico/crypto";
+import { ECO_PRIVACY_NOTE } from "@psico/types";
 import { OnboardingService } from "./onboarding.service";
 import { ONBOARDING_INTRO, TOUR_STEPS } from "./constants";
 
@@ -708,6 +709,24 @@ describe("OnboardingService", () => {
       // can open the diary. The tour asked people to store something that
       // powerful without ever saying so.
       expect(everyTourSentence().join(" ")).toMatch(/no la compartas/i);
+    });
+
+    it("says about Eco exactly what every other surface says", () => {
+      // The tour was the only place that described Eco's encryption right
+      // while login, register, Seguridad and the unlock gate promised «solo tú
+      // puedes verlos». The sentence now lives once in `@psico/types`; the tour
+      // keeps its own literal because `prisma/seed.ts` loads the constants with
+      // ts-node, so this is what holds the two together.
+      const eco = TOUR_STEPS.find((s) => s.target === "eco");
+      expect(eco?.learnMore?.points.join(" ")).toContain(ECO_PRIVACY_NOTE);
+    });
+
+    it("does not say that writing fills the Emotional Map", () => {
+      const text = everyTourSentence().join(" ");
+      expect(text).not.toMatch(/mapa[^.]*a medida que reflexionas/i);
+      expect(text).toMatch(
+        /Mapa Emocional que se llena con lo que tú registras y confirmas/,
+      );
     });
 
     it("does not claim a catalogue of audio it has not measured", () => {

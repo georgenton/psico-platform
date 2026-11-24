@@ -23,23 +23,23 @@ import { CrisisModal } from "../CrisisModal";
 const TEXTO =
   "Lo que estás sintiendo importa.\nHay gente preparada para acompañarte.";
 /**
- * La línea REAL que el servidor emite (`apps/api/src/eco/crisis.ts`), no una
- * inventada.
+ * Lo que el servidor emite de verdad (`crisisNotice`), no algo inventado: con
+ * número acreditado, y sin él. Las dos formas las fija
+ * `apps/api/src/eco/crisis-notice.spec.ts`; si cambian allí, cambian aquí.
  *
- * La primera versión de estas pruebas fijaba `"171 (opción 6)"`, y con esa
- * cadena el saneador del modal daba `tel:171` y todo parecía correcto. Con la
- * línea real daba `tel:1800-4-SALUD`: el paréntesis que descartaba era la
- * ÚNICA forma íntegramente numérica de la cadena. La prueba se llamaba
- * «número marcable» y certificaba lo contrario, porque el dato que usaba
- * nunca ejercitaba el caso real.
+ * Por qué importa que sea la real: la primera versión de estas pruebas fijaba
+ * una línea de fixture con la que el saneador de entonces parecía correcto, y
+ * con la que se servía marcaba letras.
  */
-const LINEA = "1800-4-SALUD (1800-472583)";
+const LINEA = "911 (Ecuador)";
+const SIN_NUMERO = "número de emergencias de tu país";
 
-function montar(onClose = vi.fn(), hotline: string = LINEA) {
+function montar(onClose = vi.fn(), hotline: string = LINEA, country?: string) {
   render(
     <CrisisModal
       text={TEXTO}
       hotline={hotline}
+      country={country}
       crisisPath="/dashboard/terapia/crisis"
       onClose={onClose}
     />,
@@ -48,14 +48,40 @@ function montar(onClose = vi.fn(), hotline: string = LINEA) {
 }
 
 describe("CrisisModal · lo que hace, no cómo se pinta", () => {
-  it("sin forma marcable no finge un enlace que no lleva a ninguna parte", () => {
-    // Un `tel:` muerto en esta pantalla parece ayuda y no hace nada, así que
-    // se enseña la línea como texto y se deja de prometer una llamada.
-    montar(vi.fn(), "Busca tu línea local");
+  it("sin número no hay botón de llamada, ni nada que se le parezca", () => {
+    // Un `tel:` muerto en esta pantalla parece ayuda y no hace nada. Y un
+    // bloque rojo con un teléfono que no llama, también: qué hacer ya lo dice
+    // el texto del servidor.
+    montar(vi.fn(), SIN_NUMERO);
+    const dialogo = screen.getByRole("alertdialog");
+    expect(dialogo.querySelector('a[href^="tel:"]')).toBeNull();
+    expect(dialogo.textContent).not.toContain("📞");
+    expect(dialogo.textContent).not.toMatch(/llamar|llama al/i);
+
+    // Lo demás sigue: el texto, los recursos, el directorio y la salida.
+    expect(screen.getByText(/Lo que estás sintiendo/)).toBeInTheDocument();
     expect(
-      screen.queryByRole("link", { name: /llamar ahora/i }),
-    ).not.toBeInTheDocument();
-    expect(screen.getByText(/Busca tu línea local/)).toBeInTheDocument();
+      screen.getByRole("link", { name: /más recursos de ayuda/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /entendido/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("con número, el botón dice de qué país es", () => {
+    montar();
+    const llamar = screen.getByRole("link", { name: /llamar ahora/i });
+    expect(llamar).toHaveTextContent("📞 Llamar ahora · 911 (Ecuador)");
+    expect(llamar).toHaveAttribute("href", "tel:911");
+  });
+
+  it("una línea con mnemotecnia sigue marcándose por sus dígitos", () => {
+    // Un servidor anterior puede mandarla. La línea es inventada.
+    montar(vi.fn(), "0800-4-LETRAS (0800-453872)");
+    expect(screen.getByRole("link", { name: /llamar ahora/i })).toHaveAttribute(
+      "href",
+      "tel:0800-453872",
+    );
   });
 
   it("se anuncia como diálogo de alerta modal y con su título", () => {
@@ -79,9 +105,9 @@ describe("CrisisModal · lo que hace, no cómo se pinta", () => {
   it("el recurso de crisis no cambia: número marcable y línea internacional", () => {
     montar();
     const llamar = screen.getByRole("link", { name: /llamar ahora/i });
-    // El `tel:` lleva la forma que un marcador entiende; el número que se
-    // ENSEÑA es el que escribió el servidor, con su mnemotecnia incluida.
-    expect(llamar).toHaveAttribute("href", "tel:1800-472583");
+    // El `tel:` lleva la forma que un marcador entiende; lo que se ENSEÑA es
+    // lo que escribió el servidor, con su país.
+    expect(llamar).toHaveAttribute("href", "tel:911");
     expect(llamar).toHaveTextContent(LINEA);
     // Y nunca letras: un `tel:` con mnemotecnia no se marca de forma fiable.
     expect(llamar.getAttribute("href")?.slice("tel:".length)).not.toMatch(
@@ -103,14 +129,29 @@ describe("CrisisModal · lo que hace, no cómo se pinta", () => {
     );
   });
 
-  it("el contenido de ayuda nombra la alternativa para quien no está en Ecuador", () => {
-    montar();
-    expect(screen.getByText(/si no estás en ecuador/i)).toBeInTheDocument();
+  it("nombra la alternativa para quien está en otro país, y como directorio", () => {
+    // Antes decía «si no estás en Ecuador» también a quien declaró otro país,
+    // y llamaba «números internacionales» a un directorio de líneas.
+    montar(vi.fn(), SIN_NUMERO, "CO");
+    const pie = screen.getByText(/si estás en otro país/i);
+    expect(pie).toHaveTextContent("en el directorio findahelpline.com");
+    expect(screen.queryByText(/ecuador/i)).not.toBeInTheDocument();
   });
 
-  it("lleva a todas las líneas, sin cerrar este aviso", () => {
+  it.each([
+    ["CO", "/ayuda?pais=CO&desde=eco"],
+    ["EC", "/ayuda?pais=EC&desde=eco"],
+    [undefined, "/ayuda?desde=eco"],
+  ])("la ayuda se abre en el país que dice el servidor (%j)", (pais, href) => {
+    montar(vi.fn(), SIN_NUMERO, pais);
+    expect(
+      screen.getByRole("link", { name: /más recursos de ayuda/i }),
+    ).toHaveAttribute("href", href);
+  });
+
+  it("lleva a la ayuda pública, sin cerrar este aviso", () => {
     montar();
-    const mas = screen.getByRole("link", { name: /más líneas de ayuda/i });
+    const mas = screen.getByRole("link", { name: /más recursos de ayuda/i });
     // La página pública, con su vuelta a Eco; nunca una pantalla con puerta.
     expect(mas).toHaveAttribute("href", "/ayuda?desde=eco");
     expect(mas).toHaveAttribute("target", "_blank");

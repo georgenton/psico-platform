@@ -1,6 +1,6 @@
 "use client";
 
-import { dialableHotline } from "@psico/types";
+import { dialableHotline, type CrisisCountry } from "@psico/types";
 
 import { hrefAyuda } from "@/lib/ayuda";
 
@@ -19,23 +19,29 @@ import { hrefAyuda } from "@/lib/ayuda";
  *   - Body text comes from the server (canned in `crisis.ts`) — we render
  *     it as-is. Localising or rewriting it client-side would defeat the
  *     audit trail.
+ *   - The call button exists only if there is a number to call. The server
+ *     sends it with its country — `911 (Ecuador)` — so the button says whose
+ *     it is. Without one, the text already says what to do, and a red block
+ *     that calls nobody would look like a button.
  */
 export function CrisisModal({
   text,
   hotline,
+  country,
   onClose,
 }: {
   text: string;
   hotline: string;
   /** Path within the app where the full crisis page lives. */
   crisisPath: string;
+  /** Country the help page should open in, if the server knows it. */
+  country?: string;
   onClose: () => void;
 }) {
   // Derivado, no escrito a mano en el JSX. El saneador anterior
   // —`hotline.replace(/\s|\(.+?\)/g, "")`— descartaba justo la forma
-  // numérica de la línea real: «1800-4-SALUD (1800-472583)» salía como
-  // `tel:1800-4-SALUD`, letras en el único botón donde una pulsación tiene
-  // que funcionar a la primera.
+  // numérica de una línea con mnemotecnia y dejaba letras en el único botón
+  // donde una pulsación tiene que funcionar a la primera.
   const marcable = dialableHotline(hotline);
 
   return (
@@ -87,31 +93,26 @@ export function CrisisModal({
             >
               📞 Llamar ahora · {hotline}
             </a>
-          ) : (
-            // Sin forma marcable no se finge un enlace: un `tel:` muerto en
-            // esta pantalla parece ayuda y no hace nada. Se muestra la línea
-            // tal cual, que es lo que alguien puede teclear.
-            <p
-              className="mt-5 block w-full rounded-2xl px-5 py-3 text-center text-sm font-bold text-white"
-              style={{ background: "#B91C1C" }}
-            >
-              📞 Llama al {hotline}
-            </p>
-          )}
+          ) : null}
 
           {/* La ruta que manda el servidor nunca se enseñaba, así que desde
               aquí sólo se veía UNA línea. Se enlaza la ayuda pública por su
               nombre y no por `crisisPath`: es la misma página, y el destino no
-              depende de lo que traiga el flujo. En otra pestaña, como el
-              directorio: este aviso se queda a la vista mientras se marca. */}
+              depende de lo que traiga el flujo. El país sí viaja, para que se
+              abra en el suyo: es una palabra, y la página cae al país por
+              omisión si no la conoce. En otra pestaña, como el directorio: este
+              aviso se queda a la vista mientras se marca. */}
           <a
-            href={hrefAyuda({ desde: "eco" })}
+            href={hrefAyuda({
+              pais: country as CrisisCountry | undefined,
+              desde: "eco",
+            })}
             target="_blank"
             rel="noopener noreferrer"
             className="mt-3 block w-full rounded-2xl px-5 py-3 text-center text-sm font-semibold underline underline-offset-4"
             style={{ color: "var(--fg-link-strong)" }}
           >
-            Ver más líneas de ayuda
+            Ver más recursos de ayuda
           </a>
 
           <button
@@ -153,8 +154,7 @@ export function CrisisModal({
             // no como arreglo de un incumplimiento que no existía.
             style={{ color: "var(--fv-muted)" }}
           >
-            Si no estás en Ecuador, busca tu línea local — los números
-            internacionales están en{" "}
+            Si estás en otro país, busca una línea de ahí en el directorio{" "}
             <a
               href="https://findahelpline.com"
               target="_blank"

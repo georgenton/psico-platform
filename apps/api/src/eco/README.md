@@ -34,8 +34,7 @@ the build if `logger.*` or `console.*` calls reference `textPlaintext`,
 1. **Layer 1 — server regex (pre-LLM)**: `crisis.ts` runs `isCrisisText()`
    over the plaintext. Patterns target unambiguous signals
    (`suicid`, `quitarme la vida`, `no quiero vivir`, English fallbacks).
-   If match → no LLM call, emit `crisis` SSE event with the canned
-   message + Línea 1800-4-SALUD hotline.
+   If match → no LLM call, emit `crisis` SSE event with the canned notice.
 
 2. **Layer 2 — LLM sentinel (in-flight)**: the system prompt instructs
    the model to respond ONLY with `[CRISIS]` if it detects risk signals
@@ -43,7 +42,26 @@ the build if `logger.*` or `console.*` calls reference `textPlaintext`,
    replaces the (empty) reply with the canned crisis message.
 
 Both layers persist a `kind=CRISIS` `EcoMessage` so the thread is
-re-readable with the same content the user saw.
+re-readable with the same content the user saw. Nothing rewrites it later: an
+old notice keeps the text it was sent with (`crisis-notice.spec.ts` pins it).
+
+### What the notice says
+
+`crisisNotice(country)` composes it from the shared catalogue in
+`@psico/types` (`crisis-catalog.ts`), which only serves what a primary source
+accredits — see `docs/product/ayuda-evidencia.md`. No number is written here.
+
+| `Profile.country`                       | Number           | `hotline`                          |
+| --------------------------------------- | ---------------- | ---------------------------------- |
+| Declared, emergency accredited (`EC`)   | that one         | `911 (Ecuador)`                    |
+| Not declared                            | the starting one | `911 (Ecuador)`, named in the text |
+| Declared, none accredited (`CO`, `MX`…) | none             | `número de emergencias de tu país` |
+
+Eco does not choose: it never takes «the first line of the list», and a
+declared country never gets another country's number. `hotline` without a
+number is a phrase because clients without a dialable form paint «Llama al
+{hotline}». The legacy `/ai/chat` prompt uses the same guidance
+(`crisisGuidance`), and both prompts forbid giving any other phone number.
 
 ## Quota enforcement
 
@@ -62,7 +80,7 @@ Server-Sent Events on `POST /api/eco/messages`. Event types (typed in
 
 ```
 event: delta        data: { text: "..." }
-event: crisis       data: { text, hotline, crisisPath }
+event: crisis       data: { text, hotline, crisisPath, country? }
 event: suggestion   data: { bookId, rationale }
 event: done         data: { messageId, quotaRemaining }
 event: error        data: { code, message }

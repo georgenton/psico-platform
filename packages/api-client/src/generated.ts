@@ -4883,9 +4883,9 @@ export interface components {
             city?: string | null;
             /**
              * @description ISO 3166-1 alpha-2 country code (exactly 2 chars, e.g. `"EC"`,
-             *     `"PE"`). Used by `/terapia/crisis` to pick the right hotline. Pass
-             *     `null` to clear — the service then falls back to a generic
-             *     international list.
+             *     `"PE"`). Eco's crisis notice uses it: it gives that country's emergency
+             *     number if there is an accredited one, and none otherwise. Pass `null` to
+             *     clear — the notice then starts from the product's country, saying which.
              */
             country?: string | null;
             /**

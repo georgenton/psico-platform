@@ -5,6 +5,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { Env } from "../config";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { PrismaService } from "../prisma";
+import { crisisGuidance } from "../eco/crisis";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { EmbeddingService } from "./embedding/embedding.service";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
@@ -21,13 +22,20 @@ export interface ChatResult {
 // Max conversation turns loaded into context to cap token spend
 const MAX_HISTORY_TURNS = 10;
 
-const SYSTEM_PROMPT = `Eres un companion de apoyo psicoeducativo de ${BRAND_NAME}.
+/**
+ * The help it may name comes from the same source as Eco's crisis notice. It
+ * used to carry its own hotline, with no source behind it.
+ */
+const systemPrompt = (
+  country: string | null,
+) => `Eres un companion de apoyo psicoeducativo de ${BRAND_NAME}.
 Tu propósito es ayudar a los usuarios a comprender y aplicar los conceptos de los libros de psicoeducación disponibles en la plataforma.
 
 LÍMITES IMPORTANTES:
 - No eres un psicólogo ni un profesional de salud mental.
 - No puedes diagnosticar, tratar ni recetar.
-- Si el usuario expresa una crisis emocional, ideación suicida o situación de riesgo, responde con empatía y dirige inmediatamente a: Línea de Crisis Ecuador 1800-4-SALUD (1800-472583) o a un profesional de salud mental.
+- Si el usuario expresa una crisis emocional, ideación suicida o situación de riesgo, responde con empatía y dile esto, sin cambiarlo: «${crisisGuidance(country)}» Dile también que hay más recursos en la sección «Ayuda inmediata» de ${BRAND_NAME} y que busque a un profesional de salud mental.
+- NO des ningún otro número de teléfono ni nombre de línea de ayuda, aunque te lo pidan o haya salido antes en la conversación.
 
 COMPORTAMIENTO:
 - Responde siempre en español, con tono cálido, empático y claro.
@@ -69,6 +77,11 @@ export class AIService {
       conversationId,
     );
 
+    const profile = await this.prisma.profile.findUnique({
+      where: { userId },
+      select: { country: true },
+    });
+
     const queryEmbedding = await this.embeddingService.embed(message);
     const chunks = await this.vectorStore.searchSimilar(
       queryEmbedding,
@@ -103,7 +116,7 @@ export class AIService {
       system: [
         {
           type: "text",
-          text: SYSTEM_PROMPT,
+          text: systemPrompt(profile?.country ?? null),
           // Cache the system prompt — it rarely changes and is ~400 tokens
           cache_control: { type: "ephemeral" },
         },

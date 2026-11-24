@@ -15,23 +15,26 @@ import { Colors, Radius, Spacing } from "@/theme";
  *
  * Mirrors the web modal. The hotline button dials via `tel:` deeplink; the
  * canned text comes verbatim from the server's `crisis` SSE event (no
- * client-side rewriting — preserves the audit trail).
+ * client-side rewriting — preserves the audit trail). The button exists only
+ * if there is a number to call, and the number comes with its country.
  */
 export function CrisisModal({
   text,
   hotline,
+  onMoreHelp,
   onClose,
 }: {
   text: string;
   hotline: string;
   /** Server-supplied path within the app for the crisis page (v2). */
   crisisPath: string;
+  /** Opens the help screen, where there is a way to get to it. */
+  onMoreHelp?: () => void;
   onClose: () => void;
 }) {
   // El saneador anterior vivía en el `onPress` y descartaba justo la forma
-  // numérica de la línea real: «1800-4-SALUD (1800-472583)» abría
-  // `tel:1800-4-SALUD`. Mismo helper que el web, para que las dos pantallas
-  // no puedan divergir en esto.
+  // numérica de una línea con mnemotecnia. Mismo helper que el web, para que
+  // las dos pantallas no puedan divergir en esto.
   const marcable = dialableHotline(hotline);
 
   return (
@@ -59,18 +62,21 @@ export function CrisisModal({
               >
                 <Text style={styles.callBtnText}>📞 Llamar · {hotline}</Text>
               </Pressable>
-            ) : (
-              // Sin forma marcable no se finge un botón que marca: abrir un
-              // `tel:` muerto en esta pantalla parece ayuda y no hace nada.
-              <View style={styles.callBtn}>
-                <Text style={styles.callBtnText}>📞 Llama al {hotline}</Text>
-              </View>
-            )}
+            ) : null}
+            {onMoreHelp ? (
+              <Pressable
+                style={styles.moreBtn}
+                accessibilityRole="link"
+                onPress={onMoreHelp}
+              >
+                <Text style={styles.link}>Ver más recursos de ayuda</Text>
+              </Pressable>
+            ) : null}
             <Pressable style={styles.ackBtn} onPress={onClose}>
               <Text style={styles.ackBtnText}>Entendido</Text>
             </Pressable>
             <Text style={styles.foot}>
-              Si no estás en Ecuador, busca tu línea local en{" "}
+              Si estás en otro país, busca una línea de ahí en el directorio{" "}
               <Text
                 onPress={() =>
                   void Linking.openURL("https://findahelpline.com")
@@ -145,6 +151,12 @@ const styles = StyleSheet.create({
     color: Colors.white,
     fontWeight: "700",
     fontSize: 14,
+  },
+  moreBtn: {
+    marginTop: Spacing.sm,
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
   },
   ackBtn: {
     marginTop: Spacing.sm,

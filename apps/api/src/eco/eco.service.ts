@@ -44,13 +44,7 @@ import {
   toSafeFailure,
   type EcoFailureCategory,
 } from "./eco-failure";
-import {
-  CRISIS_HOTLINE,
-  CRISIS_LLM_SENTINEL,
-  CRISIS_MESSAGE,
-  CRISIS_PATH,
-  isCrisisText,
-} from "./crisis";
+import { CRISIS_LLM_SENTINEL, crisisNotice, isCrisisText } from "./crisis";
 import { ECO_PERSONA, buildSystemPrompt } from "./persona";
 
 // La cuota de FREE —10 mensajes por día UTC— vivía aquí como constante local,
@@ -194,7 +188,7 @@ export class EcoService {
    *   3. Insert the USER message (ciphertext only — plaintext stays in RAM).
    *   4. Run layer-1 crisis detection on the plaintext.
    *      → if positive: emit `crisis` event, persist a CRISIS message
-   *        (assistantText = hard-coded copy), bump quota, done.
+   *        (assistantText = the canned notice), bump quota, done.
    *   5. Otherwise: kick off Anthropic stream with RAG-augmented system prompt.
    *      → on the first content delta, check for `[CRISIS]` sentinel.
    *      → if sentinel: same path as #4.
@@ -429,7 +423,7 @@ export class EcoService {
 
     // ── 4. Layer-1 crisis detection ──────────────────────────────────────
     if (isCrisisText(body.textPlaintext)) {
-      await this.emitCrisis(thread.id, subject);
+      await this.emitCrisis(thread.id, subject, cuota.country);
       await this.bumpQuotaAndEmitDone(
         userId,
         userMessage.id,
@@ -564,7 +558,7 @@ export class EcoService {
 
     // ── 6. Persist + finalise ────────────────────────────────────────────
     if (crisisDetected) {
-      await this.emitCrisis(thread.id, subject);
+      await this.emitCrisis(thread.id, subject, cuota.country);
     } else {
       const assistant = await this.prisma.ecoMessage.create({
         data: {
@@ -644,26 +638,19 @@ export class EcoService {
   private async emitCrisis(
     threadId: string,
     subject: Subject<{ data: EcoSseEvent }>,
+    country: string | null,
   ): Promise<void> {
+    const notice = crisisNotice(country);
     // Persist the crisis-derivation message so the thread is re-readable
     // with the same content the user saw at the time.
     await this.prisma.ecoMessage.create({
       data: {
         threadId,
         kind: "CRISIS",
-        assistantText: CRISIS_MESSAGE,
+        assistantText: notice.text,
       },
     });
-    subject.next({
-      data: {
-        event: "crisis",
-        data: {
-          text: CRISIS_MESSAGE,
-          hotline: CRISIS_HOTLINE,
-          crisisPath: CRISIS_PATH,
-        },
-      },
-    });
+    subject.next({ data: { event: "crisis", data: notice } });
   }
 
   private async bumpQuotaAndEmitDone(
@@ -715,17 +702,24 @@ export class EcoService {
    * Devuelve la ventana entera, no sólo el resto, porque el mensaje de
    * agotamiento necesita saber cuánto cabía y cuándo vuelve — y la zona de la
    * persona, para decir la hora en su reloj y no en UTC.
+   *
+   * El país del perfil viaja en la misma consulta: así el aviso de crisis no
+   * depende de una lectura más que pueda fallar justo ahí.
    */
   private async resolveEcoQuota(userId: string): Promise<{
     window: EcoQuotaWindow;
     used: number;
     remaining: number | null;
     timezone: string | null;
+    country: string | null;
   }> {
     const [user, sub] = await Promise.all([
       this.prisma.user.findUnique({
         where: { id: userId },
-        select: { plan: true, profile: { select: { timezone: true } } },
+        select: {
+          plan: true,
+          profile: { select: { timezone: true, country: true } },
+        },
       }),
       this.prisma.subscription.findUnique({
         where: { userId },
@@ -753,6 +747,7 @@ export class EcoService {
       used,
       remaining: ecoRemaining(window, used),
       timezone: user?.profile?.timezone ?? null,
+      country: user?.profile?.country ?? null,
     };
   }
 

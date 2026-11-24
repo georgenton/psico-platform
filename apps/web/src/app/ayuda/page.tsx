@@ -39,7 +39,7 @@ export function generateMetadata({ searchParams }: Props): Metadata {
     // El país va en el título: es lo primero que se oye al cambiarlo.
     title: `Ayuda inmediata en ${CRISIS_COUNTRY_NAMES[pais]}`,
     description:
-      "Líneas de ayuda por país, con su teléfono y su horario. No necesitas una cuenta de FeelVerse.",
+      "Recursos de ayuda por país, con la fuente de cada uno. No necesitas una cuenta de FeelVerse.",
   };
 }
 

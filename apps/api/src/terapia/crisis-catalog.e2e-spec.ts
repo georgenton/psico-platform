@@ -7,18 +7,35 @@ import { closeE2EApp, createE2EApp, type E2EHarness } from "../test/e2e-app";
 import { getCrisisFor } from "./crisis-catalog";
 
 /**
- * `GET /api/terapia/crisis` sirve EXACTAMENTE este catálogo, y sin sesión.
+ * `GET /api/terapia/crisis` sirve EXACTAMENTE esto, y sin sesión.
  *
  * ── Por qué el catálogo está escrito dos veces ────────────────────────────
  *
- * Los literales de abajo se generaron ejecutando el catálogo ANTERIOR, cuando
- * vivía dentro de la API, antes de mover una sola línea a `@psico/types`. No
- * se derivan del módulo que se comprueba: si se derivaran, mover el catálogo y
- * estropear un teléfono por el camino pasaría en verde.
+ * Los literales de abajo no se derivan del módulo que se comprueba: si se
+ * derivaran, estropear un teléfono por el camino pasaría en verde. Tocar un
+ * número, un horario, un orden o una frase obliga a tocarlo también aquí, a la
+ * vista. Es deliberado: son los datos que alguien lee en el peor momento, y un
+ * cambio tiene que ser una decisión y no un efecto lateral.
  *
- * Así que tocar un número, un horario, un orden o una frase obliga a tocarlo
- * también aquí, a la vista. Es deliberado: son los datos que alguien lee en el
- * peor momento, y un cambio tiene que ser una decisión y no un efecto lateral.
+ * ── Qué cambió el 2026-11-24, y por qué ───────────────────────────────────
+ *
+ * Los literales anteriores eran los que el catálogo traía de origen, sin
+ * fuente. Contrastados uno a uno con las páginas de cada organismo
+ * (`docs/product/ayuda-evidencia.md`):
+ *
+ *   · EC — salen CETAD (su número es la central de un ministerio) y Teléfono de
+ *     la Amistad (sin fuente). El 911 se queda como lo que es, emergencias, y
+ *     pierde el rótulo «SAS · 911 Salud Mental».
+ *   · CO — la 106 deja de decirse «anónima»: el Ministerio dice confidencial.
+ *   · MX — SAPTEL deja de decirse «24/7»: su sitio publica dos horarios.
+ *   · Internacional — sale el teléfono, que es de Estados Unidos y no de IASP.
+ *     Queda un directorio, en su propio campo, y las frases en español.
+ *
+ * ── Lo que NO cambió ──────────────────────────────────────────────────────
+ *
+ * La forma. Hay aplicaciones instaladas que leen `phone`, `availability`,
+ * `languages`, `lines`, `safetyTipsShort` y `nextSteps`; siguen siendo lo que
+ * eran. `notes`, `source` y `directory` son nuevos y opcionales.
  *
  * ── Y por qué sobre HTTP ──────────────────────────────────────────────────
  *
@@ -30,25 +47,17 @@ const EC = {
   country: "EC",
   lines: [
     {
-      id: "ec-sas-911",
-      name: "SAS · 911 Salud Mental",
+      id: "ec-911",
+      name: "ECU 911 · Emergencias",
       phone: "911",
-      availability: "24/7",
+      availability: "24 horas, todos los días",
       languages: ["es"],
-    },
-    {
-      id: "ec-cetad",
-      name: "CETAD · Centro de Escucha Telefónica",
-      phone: "+593-2-3960-100",
-      availability: "Lun–Vie 08:00–20:00",
-      languages: ["es"],
-    },
-    {
-      id: "ec-telefono-amistad",
-      name: "Teléfono de la Amistad Quito",
-      phone: "+593-2-2563-141",
-      availability: "Diario 16:00–22:00",
-      languages: ["es"],
+      notes: ["Gratuito", "Todo Ecuador"],
+      source: {
+        label: "gob.ec",
+        url: "https://www.gob.ec/ecu-911/tramites/solicitud-atencion-emergencia-traves-diferentes-mecanismos-alerta",
+        checkedOn: "2026-11-24",
+      },
     },
   ],
   safetyTipsShort: [
@@ -58,7 +67,7 @@ const EC = {
     "Si el impulso está fuerte, aleja objetos peligrosos y llama al 911.",
   ],
   nextSteps: [
-    "Llama a una línea de la lista de arriba. Estás haciendo lo correcto.",
+    "Si hay peligro, llama al 911. Estás haciendo lo correcto.",
     "Si estás bajo medicación, no la dejes sin hablar con tu médico.",
     "Mañana, agenda una consulta. Hoy alcanzaste a pedir ayuda.",
   ],
@@ -68,18 +77,30 @@ const CO = {
   country: "CO",
   lines: [
     {
-      id: "co-linea-106",
-      name: "Línea 106 · Apoyo Emocional",
+      id: "co-106",
+      name: "Línea 106 · Ministerio de Salud",
       phone: "106",
-      availability: "24/7",
+      availability: "24 horas, todos los días",
       languages: ["es"],
+      notes: [
+        "Gratuita y confidencial, según el Ministerio de Salud",
+        "Algunos territorios tienen su propia 106, que puede tener otro horario",
+      ],
+      source: {
+        label: "minsalud.gov.co",
+        url: "https://www.minsalud.gov.co/salud/publica/salud-mental/Paginas/linea-106.aspx",
+        checkedOn: "2026-11-24",
+      },
     },
   ],
   safetyTipsShort: [
     "Respira lento.",
-    "Llama a la línea 106 — es gratis y anónima.",
+    "Llama a la línea 106. Es gratuita y confidencial, según el Ministerio de Salud.",
   ],
-  nextSteps: ["Llama a la línea 106."],
+  nextSteps: [
+    "Llama a la línea 106. Si tu territorio tiene la suya, puede tener otro horario.",
+    "Si nadie contesta o hay peligro, llama al número de emergencias de tu país.",
+  ],
 };
 
 const MX = {
@@ -89,36 +110,76 @@ const MX = {
       id: "mx-saptel",
       name: "SAPTEL",
       phone: "+52-55-5259-8121",
-      availability: "24/7",
+      availability: "Horario sin confirmar",
       languages: ["es"],
+      notes: [
+        "Servicio gratuito",
+        "Su sitio publica dos horarios: 24 horas y de 9:00 a 21:00",
+      ],
+      source: {
+        label: "saptel.org.mx",
+        url: "https://www.saptel.org.mx/",
+        checkedOn: "2026-11-24",
+      },
     },
   ],
-  safetyTipsShort: ["Respira lento.", "SAPTEL responde 24/7."],
-  nextSteps: ["Llama a SAPTEL."],
+  safetyTipsShort: [
+    "Respira lento.",
+    "SAPTEL es un servicio gratuito. Su horario está sin confirmar.",
+  ],
+  nextSteps: [
+    "Llama a SAPTEL.",
+    "Si nadie contesta o hay peligro, llama al número de emergencias de tu país.",
+  ],
 };
 
 const INTL = {
   country: "INTL",
-  lines: [
-    {
-      id: "intl-iasp",
-      name: "IASP · Directorio internacional",
-      phone: "+1-800-273-8255",
-      chatUrl: "https://findahelpline.com",
-      availability: "24/7",
-      languages: ["es", "en"],
-    },
-  ],
+  lines: [],
   safetyTipsShort: [
-    "Breathe slow. 4 seconds in, 6 seconds out.",
-    "Reach out to someone you trust.",
-    "If you have access, remove dangerous objects from reach.",
+    "Respira lento. 4 segundos al inhalar, 6 al exhalar.",
+    "Busca a alguien de confianza.",
+    "Si tienes objetos peligrosos cerca, aléjalos.",
   ],
   nextSteps: [
-    "Visit findahelpline.com to find a local line.",
-    "Tell one person what you are feeling.",
+    "Busca una línea de tu país en findahelpline.com. Es un directorio, no un chat.",
+    "Si hay peligro, llama al número de emergencias de tu país.",
+    "Cuéntale a una persona lo que sientes.",
   ],
+  directory: {
+    id: "intl-findahelpline",
+    name: "findahelpline.com",
+    url: "https://findahelpline.com",
+    note: "Es un directorio de líneas por país, de ThroughLine. No es un chat ni atiende llamadas.",
+    source: {
+      label: "iasp.info",
+      url: "https://www.iasp.info/crisis-centres-helplines/",
+      checkedOn: "2026-11-24",
+    },
+  },
 };
+
+/**
+ * Lo que hoy NO se puede servir, escrito a mano: lo retirado y lo que está en
+ * validación. Publicar una de las segundas es borrarla de aquí, a la vista.
+ */
+const NO_SE_SIRVE: ReadonlyArray<string | RegExp> = [
+  // Retirado.
+  /3960-?100/,
+  /2563-?141/,
+  /472583/,
+  /273-?8255/,
+  "CETAD",
+  "Teléfono de la Amistad",
+  "4-SALUD",
+  "Salud Mental",
+  // En validación.
+  /\b171\b/,
+  /800 ?911 ?2000/,
+  /\b123\b/,
+  "mx-911",
+  "Línea de la Vida",
+];
 
 /** [lo que se pide, lo que se responde]. `undefined` es pedir sin país. */
 const CASOS: ReadonlyArray<[string | undefined, unknown]> = [
@@ -137,7 +198,7 @@ const CASOS: ReadonlyArray<[string | undefined, unknown]> = [
   ["__proto__", INTL],
 ];
 
-describe("el catálogo de crisis no cambió al mudarse de paquete", () => {
+describe("el catálogo de ayuda es exactamente éste", () => {
   it.each(CASOS)("getCrisisFor(%j)", (pais, esperado) => {
     expect(getCrisisFor(pais)).toStrictEqual(esperado);
   });
@@ -169,6 +230,17 @@ describe("GET /api/terapia/crisis", () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toStrictEqual(esperado);
+  });
+
+  it.each(CASOS)("?country=%j no sirve nada sin publicar", async (pais) => {
+    const res = await request(h.app.getHttpServer())
+      .get("/api/terapia/crisis")
+      .query(pais === undefined ? {} : { country: pais });
+    const cuerpo = JSON.stringify(res.body);
+    for (const huella of NO_SE_SIRVE) {
+      if (typeof huella === "string") expect(cuerpo).not.toContain(huella);
+      else expect(cuerpo).not.toMatch(huella);
+    }
   });
 
   it("no consulta la base: una base caída no puede dejar a nadie sin líneas", async () => {

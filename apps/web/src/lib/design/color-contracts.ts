@@ -146,8 +146,8 @@ export const CONTRATOS: readonly ContratoDePar[] = [
     bg: "var(--fv-surface)",
     tamano: "normal",
     usadoEn:
-      "el texto auxiliar de 11 px del modal de crisis —«Si no estás en " +
-      "Ecuador…» y el enlace a findahelpline.com, que hereda su color— sobre " +
+      "el texto auxiliar de 11 px del modal de crisis —«Si estás en otro " +
+      "país…» y el enlace a findahelpline.com, que hereda su color— sobre " +
       "la superficie de la tarjeta. Venía de `--color-warm-500`, que es una " +
       "RAMPA: este mismo archivo prohíbe que un contrato apunte a una, así " +
       "que ese texto no tenía suelo vigilado. El cambio es de garantía, no " +

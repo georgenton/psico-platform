@@ -2,10 +2,15 @@ import { describe, expect, it } from "vitest";
 
 import { dialableHotline } from "@psico/types";
 
-import { CRISIS_HOTLINE } from "./crisis";
+import { crisisNotice } from "./crisis";
 
+/*
+ * La línea con mnemotecnia de este fichero es la que Eco sirvió hasta el
+ * 2026-11-24. Se retiró porque ninguna fuente la sostiene; como CASO sigue
+ * valiendo, que es por lo que nació el helper, y aquí no la lee nadie.
+ */
 describe("dialableHotline", () => {
-  it("marca la forma numérica de la línea que la API sirve de verdad", () => {
+  it("marca la forma numérica de una línea con mnemotecnia", () => {
     // El caso que motivó todo esto. El saneador anterior devolvía
     // «1800-4-SALUD»: letras en un `tel:`, en el único botón donde una
     // pulsación tiene que funcionar a la primera.
@@ -33,13 +38,20 @@ describe("dialableHotline", () => {
     expect(dialableHotline("(1)")).toBeNull();
   });
 
-  it("la línea que este repositorio sirve ES marcable", () => {
+  it("no confunde el país entre paréntesis con un número", () => {
+    expect(dialableHotline("911 (Ecuador)")).toBe("911");
+  });
+
+  it("el número que Eco sirve ES marcable", () => {
     // La garantía que de verdad importa, y la que faltaba: las pruebas del
-    // modal fijaban una línea de fixture, así que cambiar `CRISIS_HOTLINE`
-    // por algo no marcable no rompía nada.
-    const marcable = dialableHotline(CRISIS_HOTLINE);
-    expect(marcable).not.toBeNull();
-    expect(marcable).not.toMatch(/[a-zA-Z]/);
+    // modal fijaban una línea de fixture, así que servir algo no marcable no
+    // rompía nada.
+    expect(crisisNotice("EC").hotline).toBe("911 (Ecuador)");
+    expect(dialableHotline(crisisNotice("EC").hotline)).toBe("911");
+  });
+
+  it("y cuando no hay número acreditado, no se finge uno", () => {
+    expect(dialableHotline(crisisNotice("CO").hotline)).toBeNull();
   });
 
   it("nunca devuelve letras", () => {

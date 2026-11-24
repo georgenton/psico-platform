@@ -194,7 +194,7 @@ export const TOUR_STEPS: OnboardingTourStep[] = [
         // ts-node y hoy no arrastra ningún paquete compilado. Que coincida con
         // `ECO_PRIVACY_NOTE` de `@psico/types` lo fija `onboarding.service.spec`.
         "🔒 Para responderte, Eco procesa lo que escribes mediante servicios de inteligencia artificial. Tu mensaje se guarda cifrado; su respuesta, no. No es lo mismo que tus reflexiones.",
-        "🩺 Si aparecen señales de crisis, te muestra líneas de ayuda. No detecta todos los casos y no sustituye a una urgencia.",
+        "🩺 Si aparecen señales de crisis, te muestra dónde pedir ayuda. No detecta todos los casos y no sustituye a una urgencia.",
         "🙋 Complementa el trabajo con un terapeuta — no lo reemplaza.",
       ],
     },

@@ -84,7 +84,7 @@ describe("la losa de error sale del sistema, no de la mano", () => {
   });
 
   it("los textos auxiliares del modal salen de un token legible en Noche", () => {
-    // El párrafo de 11 px —«Si no estás en Ecuador…», con el enlace a
+    // El párrafo de 11 px —«Si estás en otro país…», con el enlace a
     // findahelpline.com heredando su color: comprobado que el color computado
     // de los dos es el mismo— sale de `--fv-muted` y no de `--color-warm-500`.
     //
@@ -114,8 +114,11 @@ describe("la losa de error sale del sistema, no de la mano", () => {
     expect(aux![1]).toBe("var(--fv-muted)");
 
     // Y el texto, la URL y la semántica del enlace siguen intactos: esto es un
-    // recurso de ayuda, no un adorno.
-    expect(modal).toContain("Si no estás en Ecuador");
+    // recurso de ayuda, no un adorno. El texto cambió a propósito el
+    // 2026-11-24: decía «si no estás en Ecuador» también a quien declaró otro
+    // país, y llamaba «números internacionales» a un directorio.
+    expect(modal).toContain("Si estás en otro país");
+    expect(modal).toContain("en el directorio");
     expect(modal).toContain('href="https://findahelpline.com"');
     expect(modal).toContain('rel="noopener noreferrer"');
   });

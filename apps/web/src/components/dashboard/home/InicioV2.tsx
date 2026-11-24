@@ -301,7 +301,9 @@ export function InicioV2({ home }: { home: HomeResponse }) {
             <div className="c-foot">
               <span className="note">
                 <IconBook size={15} />
-                Es lo último que leíste
+                {/* Vale en los dos casos: a mitad de un capítulo, o justo
+                    después de terminar uno, cuando esto es el siguiente. */}
+                Por aquí sigue tu lectura
               </span>
               <Link
                 // Same server-owned ref as ContinueBookCard — the two Home

@@ -116,6 +116,10 @@ describe("InicioV2", () => {
     expect(screen.getByText("Emociones")).toBeInTheDocument();
     expect(screen.getByText("La pausa")).toBeInTheDocument();
     expect(screen.queryByText(/Capítulo\s*\d/)).toBeNull();
+    // Esta tarjeta también sale justo después de TERMINAR un capítulo, con el
+    // siguiente: «Es lo último que leíste» era falso en ese caso.
+    expect(screen.getByText("Por aquí sigue tu lectura")).toBeInTheDocument();
+    expect(screen.queryByText(/último que leíste/)).toBeNull();
     // CTA → the chapter's STABLE identity. Position 3 appears nowhere in the
     // href, so restructuring the book cannot redirect this card.
     const link = screen.getByRole("link", { name: /Seguir leyendo/i });

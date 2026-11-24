@@ -199,14 +199,9 @@ function ScreenHead({ period }: { period: PatronesPeriod }) {
     <>
       <div
         className="screen-head"
-        style={{
-          display: "flex",
-          alignItems: "flex-end",
-          justifyContent: "space-between",
-          gap: 24,
-          flexWrap: "wrap",
-          marginBottom: 14,
-        }}
+        // Sólo lo que de verdad es de esta pantalla: repetir aquí lo que ya
+        // hace `.screen-head` le ganaba también a su regla de teléfono.
+        style={{ flexWrap: "wrap", marginBottom: 14 }}
       >
         <h1 className="screen-title">
           <span className="eb">Lo más valioso que descubrirás</span>

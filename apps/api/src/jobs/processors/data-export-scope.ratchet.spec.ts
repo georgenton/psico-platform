@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { DATA_EXPORT_SCOPE } from "@psico/types";
+import { DATA_EXPORT_SCOPE, DATA_EXPORT_SUMMARY } from "@psico/types";
 
 import { EXPORT_INVENTORY } from "./data-export-inventory";
 
@@ -44,5 +44,35 @@ describe("el alcance que la pantalla promete y el que el archivo cumple", () => 
     ).length;
     expect(pendientes).toBeGreaterThan(0);
     expect(DATA_EXPORT_SCOPE.noIncluye.at(-1)).toMatch(/todav[íi]a|m[áa]s/i);
+  });
+});
+
+/**
+ * La frase corta que Perfil enseña en web y en móvil. No puede decir más que la
+ * lista larga ni menos: cada cosa incluida tiene que estar, y lo que falta tiene
+ * que quedar abierto.
+ */
+describe("el resumen del alcance en una frase", () => {
+  const [incluye, excluye] = DATA_EXPORT_SUMMARY.split("No incluye");
+
+  it("nombra todo lo que el archivo trae", () => {
+    for (const cosa of DATA_EXPORT_SCOPE.incluye) {
+      // Los tres «ajustes de…» se dicen juntos; lo demás, con sus palabras.
+      const dicho = cosa.startsWith("los ajustes") ? "ajustes" : cosa;
+      expect(incluye, `el resumen no dice «${cosa}»`).toContain(dicho);
+    }
+  });
+
+  it("dice que el Diario y Eco no vienen, y que no es lo único que falta", () => {
+    expect(excluye).toContain("tu Diario");
+    expect(excluye).toContain("conversaciones con Eco");
+    expect(excluye).toContain("entre otras cosas");
+    expect(incluye).not.toMatch(/Diario|Eco/);
+  });
+
+  it("dice el formato con el que de verdad se guarda", () => {
+    // El procesador lo sube como `application/json` en una clave `.json`;
+    // `data-export.processor.spec.ts` comprueba las dos cosas.
+    expect(incluye).toContain("archivo JSON");
   });
 });

@@ -9,6 +9,7 @@ import {
   View,
 } from "react-native";
 import { usersApi } from "@psico/api-client";
+import { DATA_EXPORT_SUMMARY } from "@psico/types";
 import type { UserMeResponse } from "@psico/types";
 import { Colors, Radius, Spacing } from "@/theme";
 
@@ -70,7 +71,7 @@ export function DangerZone({
         <View style={{ flex: 1 }}>
           <Text style={styles.rowLabel}>Exportar mis datos</Text>
           <Text style={styles.rowHint}>
-            ZIP con tu perfil + actividad. Solo 1 vez cada 30 días.
+            {DATA_EXPORT_SUMMARY} Solo 1 vez cada 30 días.
           </Text>
         </View>
         <Pressable

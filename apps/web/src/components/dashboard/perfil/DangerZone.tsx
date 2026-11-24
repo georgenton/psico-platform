@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { DATA_EXPORT_SUMMARY } from "@psico/types";
 import type { UserMeResponse } from "@psico/types";
 
 import { logoutAction } from "@/actions/auth";
@@ -69,10 +70,10 @@ function ExportRow({
 
   return (
     <div
-      className="flex items-center justify-between gap-4 rounded-xl px-4 py-3"
+      className="flex flex-wrap items-center justify-between gap-4 rounded-xl px-4 py-3"
       style={{ background: "var(--color-warm-50)" }}
     >
-      <div className="flex-1">
+      <div className="min-w-[180px] flex-1">
         <p
           className="text-[13px] font-medium"
           style={{ color: "var(--color-warm-900)" }}
@@ -80,7 +81,7 @@ function ExportRow({
           Exportar mis datos
         </p>
         <p className="text-[11px]" style={{ color: "var(--color-warm-500)" }}>
-          Recibes un ZIP con tu perfil y tu actividad. Solo 1 vez cada 30 días.
+          {DATA_EXPORT_SUMMARY} Solo 1 vez cada 30 días.
         </p>
         {done ? (
           <p

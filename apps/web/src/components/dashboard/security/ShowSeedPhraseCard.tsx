@@ -45,7 +45,15 @@ export function ShowSeedPhraseCard({
 function Inner() {
   const { masterKey } = useDiaryKey();
   const [step, setStep] = useState<"idle" | "unlocking" | "shown">("idle");
-  const [revealed, setRevealed] = useState<string | null>(null);
+  // De qué clave son las palabras que se están enseñando. Si esa clave ya no es
+  // la abierta —otra cuenta en la misma pestaña, o ninguna—, dejan de verse: la
+  // frase ES la clave, y no puede quedarse en pantalla cuando ella se retira.
+  const [mostrada, setMostrada] = useState<{
+    de: Uint8Array;
+    palabras: string;
+  } | null>(null);
+  const revealed =
+    mostrada !== null && mostrada.de === masterKey ? mostrada.palabras : null;
 
   // When unlock completes, the context gets masterKey. We don't auto-reveal
   // — the user still has to click "Mostrar mi frase" so they're aware of
@@ -55,12 +63,15 @@ function Inner() {
       setStep("unlocking");
       return;
     }
-    setRevealed(masterKeyToSeedPhrase(masterKey));
+    setMostrada({
+      de: masterKey,
+      palabras: masterKeyToSeedPhrase(masterKey),
+    });
     setStep("shown");
   }
 
   function hide() {
-    setRevealed(null);
+    setMostrada(null);
     setStep("idle");
   }
 

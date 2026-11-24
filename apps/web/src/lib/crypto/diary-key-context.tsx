@@ -22,6 +22,7 @@ import {
   randomBytes,
 } from "@psico/crypto";
 import { clearDiaryWrapKey, saveDiaryWrapKey } from "@/actions/diary-session";
+import { useSesionVigente } from "./sesion-vigente";
 
 /**
  * DiaryKeyContext — provides the user's derived diary key during a session.
@@ -39,6 +40,9 @@ import { clearDiaryWrapKey, saveDiaryWrapKey } from "@/actions/diary-session";
  *     restores against the new master.
  *   - On manual `lock()` or `logout`: we wipe RAM, localStorage, and the
  *     wrap-key cookie.
+ *   - When the session becomes ANOTHER account with this provider still
+ *     mounted: the keys stop being handed out in that same render, and are
+ *     wiped right after. See `ClavesAbiertas`.
  *
  * Why this design (vs RAM-only):
  *   - Friction. Asking for the password on every full navigation makes the
@@ -117,6 +121,96 @@ interface WrappedPayload {
   /** ISO timestamp when the bundle was written. Helps debug stale entries. */
   savedAt: string;
 }
+
+/**
+ * Lo que hay dentro del sobre guardado, o null si esta mitad de la llave no lo
+ * abre — porque no hay sobre, está roto, es de otra sesión o es del formato que
+ * todavía no decía de quién era.
+ */
+function abrirSobre(
+  llaveB64u: string | null,
+): { dueno: string; master: Uint8Array } | null {
+  if (llaveB64u === null) return null;
+  try {
+    const raw = window.localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (!raw) return null;
+    const payload = JSON.parse(raw) as WrappedPayload;
+    const wrap = base64UrlToBytes(llaveB64u);
+    const opened = decryptString(
+      { ciphertext: payload.ciphertext, nonce: payload.nonce },
+      wrap,
+    );
+    wrap.fill(0);
+    const [dueno, masterB64u, ...rest] = opened.split(OWNER_SEPARATOR);
+    if (dueno === undefined || masterB64u === undefined || rest.length > 0) {
+      return null;
+    }
+    const master = base64UrlToBytes(masterB64u);
+    return esClaveMaestraValida(master) ? { dueno, master } : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Las claves abiertas, junto con la cuenta de la que son.
+ *
+ * EL FALLO QUE ESTO IMPIDE. Las tres claves vivían en tres estados sueltos, sin
+ * nada que dijera de quién eran. La sesión es una cookie del navegador entero:
+ * si otra pestaña entra con otra cuenta, el layout de ésta trae la sal nueva en
+ * el siguiente refresco —guardar Perfil, repetir el tour, marcar «Recordar»,
+ * guardar una reflexión— SIN desmontar este proveedor. Las claves de la primera
+ * persona seguían en el contexto, y lo que escribiera la segunda quedaba
+ * cifrado con ellas.
+ *
+ * Ahora van juntas y con dueño, y el contexto sólo las entrega si son de la
+ * cuenta actual. Esa pregunta se hace en el RENDER (`abiertas`, abajo): limpiar
+ * en un efecto llega un render tarde.
+ */
+interface ClavesAbiertas {
+  /** La sal con la que se derivaron: la cuenta a la que pertenecen. */
+  dueno: string;
+  /**
+   * Sólo tras un cambio de contraseña, que trae sal nueva: la que la cuenta
+   * tenía hasta entonces. El proveedor la sigue recibiendo hasta que el layout
+   * se entere, y en ese hueco la sesión es la misma y sigue abierta.
+   */
+  salAnterior: string | null;
+  master: Uint8Array;
+  diary: Uint8Array;
+  eco: Uint8Array;
+}
+
+function abrirClaves(
+  master: Uint8Array,
+  dueno: string,
+  salAnterior: string | null = null,
+): ClavesAbiertas {
+  return {
+    dueno,
+    salAnterior,
+    master,
+    diary: deriveSubKey(master, DIARY_KEY_INFO),
+    eco: deriveSubKey(master, ECO_KEY_INFO),
+  };
+}
+
+function sonDe(claves: ClavesAbiertas, cuenta: string | null): boolean {
+  return (
+    cuenta !== null &&
+    (claves.dueno === cuenta || claves.salAnterior === cuenta)
+  );
+}
+
+function ponerACero(claves: ClavesAbiertas): void {
+  claves.master.fill(0);
+  claves.diary.fill(0);
+  claves.eco.fill(0);
+}
+
+/** Lo que dice la reja si la sesión dejó de ser de quien abrió esta pestaña. */
+const SESION_CAMBIADA =
+  "Tu sesión cambió en otra pestaña. Recarga esta página para continuar.";
 
 export interface DiaryKeyState {
   /** 32-byte diary subkey. null = locked. */
@@ -221,9 +315,15 @@ export function DiaryKeyProvider({
    */
   initialWrapKey: string | null;
 }) {
-  const [key, setKey] = useState<Uint8Array | null>(null);
-  const [ecoKey, setEcoKey] = useState<Uint8Array | null>(null);
-  const [masterKey, setMasterKey] = useState<Uint8Array | null>(null);
+  // La cuenta a la que se le pueden entregar claves AHORA. null: no tiene
+  // cifrado, o esta pestaña ya no sabe de quién es la sesión.
+  const vigente = useSesionVigente();
+  const cuenta = vigente ? cryptoSalt : null;
+
+  const [guardadas, setGuardadas] = useState<ClavesAbiertas | null>(null);
+  const abiertas =
+    guardadas !== null && sonDe(guardadas, cuenta) ? guardadas : null;
+
   const [unlocking, setUnlocking] = useState(false);
   const [remember, setRememberState] = useState<boolean>(readRememberPref);
   const [restoring, setRestoring] = useState<boolean>(
@@ -236,12 +336,17 @@ export function DiaryKeyProvider({
   // recent wrap key around without re-reading the cookie.
   const wrapKeyRef = useRef<string | null>(initialWrapKey);
 
-  // De quién es el sobre que se va a guardar. Sigue a la cuenta del servidor;
-  // sólo se adelanta a ella cuando un cambio de contraseña trae sal nueva.
-  const ownerRef = useRef<string | null>(cryptoSalt);
+  // La misma cuenta, para preguntarla al TERMINAR algo que tardó: una
+  // derivación, un cambio de contraseña con dos peticiones por medio, un botón
+  // de una pantalla que ya no está. Vale null fuera del panel, así que nada
+  // iniciado aquí puede guardar un sobre después de salir.
+  const cuentaRef = useRef<string | null>(cuenta);
   useEffect(() => {
-    ownerRef.current = cryptoSalt;
-  }, [cryptoSalt]);
+    cuentaRef.current = cuenta;
+    return () => {
+      cuentaRef.current = null;
+    };
+  }, [cuenta]);
 
   // ── Persistence helpers ────────────────────────────────────────────────
 
@@ -250,35 +355,38 @@ export function DiaryKeyProvider({
    * ciphertext to localStorage and the K_wrap to the diary session cookie.
    * Best-effort: a single failure (cookie blocked, storage quota) falls
    * back to RAM-only behaviour without crashing the unlock.
+   *
+   * `dueno` es el de la CLAVE, no el de la sesión: quien llama dice de quién es
+   * lo que entrega, y eso es lo que se escribe dentro.
    */
-  const persistMasterKey = useCallback(async (master: Uint8Array) => {
-    if (typeof window === "undefined") return;
-    // Sin sal no hay cuenta a la que atarlo: se queda sólo en memoria.
-    const owner = ownerRef.current;
-    if (owner === null) return;
-    try {
-      const wrap = randomBytes(32);
-      const masterB64u = bytesToBase64Url(master);
-      const envelope = encryptString(
-        `${owner}${OWNER_SEPARATOR}${masterB64u}`,
-        wrap,
-      );
-      const payload: WrappedPayload = {
-        ciphertext: envelope.ciphertext,
-        nonce: envelope.nonce,
-        savedAt: new Date().toISOString(),
-      };
-      window.localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(payload));
-      const wrapB64u = bytesToBase64Url(wrap);
-      wrapKeyRef.current = wrapB64u;
-      // Server Action runs over fetch — fire-and-forget; the cookie is set
-      // on the response and the browser persists it automatically.
-      void saveDiaryWrapKey(wrapB64u);
-      wrap.fill(0);
-    } catch {
-      // Persistence failed; the in-memory keys still work for this session.
-    }
-  }, []);
+  const persistMasterKey = useCallback(
+    async (master: Uint8Array, dueno: string) => {
+      if (typeof window === "undefined") return;
+      try {
+        const wrap = randomBytes(32);
+        const masterB64u = bytesToBase64Url(master);
+        const envelope = encryptString(
+          `${dueno}${OWNER_SEPARATOR}${masterB64u}`,
+          wrap,
+        );
+        const payload: WrappedPayload = {
+          ciphertext: envelope.ciphertext,
+          nonce: envelope.nonce,
+          savedAt: new Date().toISOString(),
+        };
+        window.localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(payload));
+        const wrapB64u = bytesToBase64Url(wrap);
+        wrapKeyRef.current = wrapB64u;
+        // Server Action runs over fetch — fire-and-forget; the cookie is set
+        // on the response and the browser persists it automatically.
+        void saveDiaryWrapKey(wrapB64u);
+        wrap.fill(0);
+      } catch {
+        // Persistence failed; the in-memory keys still work for this session.
+      }
+    },
+    [],
+  );
 
   /**
    * Wipe localStorage + cookie. Safe to call multiple times.
@@ -309,49 +417,71 @@ export function DiaryKeyProvider({
       setRestoring(false);
       return;
     }
-    try {
-      const raw = window.localStorage.getItem(LOCAL_STORAGE_KEY);
-      if (!raw) {
-        // Cookie says we should be unlocked, but localStorage is gone
-        // (probably cleared in privacy settings). Drop the cookie too so
-        // subsequent loads don't keep retrying.
-        wipePersistence();
-        setRestoring(false);
-        return;
-      }
-      const payload = JSON.parse(raw) as WrappedPayload;
-      const wrap = base64UrlToBytes(initialWrapKey);
-      const opened = decryptString(
-        { ciphertext: payload.ciphertext, nonce: payload.nonce },
-        wrap,
-      );
-      wrap.fill(0);
-      const [owner, masterB64u, ...rest] = opened.split(OWNER_SEPARATOR);
-      // De otra cuenta, o de antes de que el sobre dijera de quién es.
-      if (owner !== cryptoSalt || masterB64u === undefined || rest.length > 0) {
-        throw new Error("NOT_THIS_ACCOUNT");
-      }
-      const master = base64UrlToBytes(masterB64u);
-      if (!esClaveMaestraValida(master)) throw new Error("INVALID_LENGTH");
-      const diaryKey = deriveSubKey(master, DIARY_KEY_INFO);
-      const ecoSub = deriveSubKey(master, ECO_KEY_INFO);
-      setMasterKey(master);
-      setKey(diaryKey);
-      setEcoKey(ecoSub);
-    } catch {
-      // Stale wrap (password changed elsewhere), tampered storage, or a bundle
-      // that belongs to another account. Reset both sides so the next
+    const sobre = abrirSobre(initialWrapKey);
+    if (sobre === null || sobre.dueno !== cryptoSalt) {
+      // No bundle (the cookie says we should be unlocked but localStorage is
+      // gone), a stale wrap (password changed elsewhere), tampered storage, or
+      // a bundle that belongs to another account. Reset both sides so the next
       // interaction prompts for the password.
+      sobre?.master.fill(0);
       wipePersistence();
-    } finally {
-      setRestoring(false);
+    } else {
+      setGuardadas(abrirClaves(sobre.master, sobre.dueno));
     }
+    setRestoring(false);
   }, [restoring, cryptoSalt, initialWrapKey, remember, wipePersistence]);
+
+  // ── La cuenta cambia con el proveedor montado ──────────────────────────
+
+  // Las claves que dejaron de entregarse se borran. `abiertas` ya las ocultó en
+  // el mismo render; esto es lo que impide que sigan en memoria, y que vuelvan
+  // a valer si la sesión regresa a la primera cuenta.
+  useEffect(() => {
+    if (guardadas === null) return;
+    if (!sonDe(guardadas, cuenta)) {
+      ponerACero(guardadas);
+      setGuardadas(null);
+    } else if (guardadas.salAnterior !== null && guardadas.dueno === cuenta) {
+      // Llegó la sal nueva: la anterior deja de ser de esta cuenta.
+      setGuardadas({ ...guardadas, salAnterior: null });
+    }
+  }, [guardadas, cuenta]);
+
+  // Lo que estuviera en marcha en la reja era de la cuenta anterior: ni su
+  // espera ni su error son de la que llega.
+  const cuentaPreviaRef = useRef(cuenta);
+  useEffect(() => {
+    if (cuentaPreviaRef.current === cuenta) return;
+    cuentaPreviaRef.current = cuenta;
+    setUnlocking(false);
+    setError(null);
+  }, [cuenta]);
+
+  // Y lo guardado en el dispositivo, sólo si se SABE que no es de la cuenta que
+  // llega. Su propio sobre —desbloqueó en otra pestaña— no se toca, y tampoco se
+  // abre aquí: pide su contraseña una vez, o recarga. Uno que ninguna de las dos
+  // llaves abre no se sabe de quién es, y lo decide el arranque siguiente.
+  //
+  // Mira `cryptoSalt` y no `cuenta`: que esta pestaña no sepa de quién es la
+  // sesión no es motivo para borrar nada.
+  const salPreviaRef = useRef(cryptoSalt);
+  useEffect(() => {
+    if (salPreviaRef.current === cryptoSalt) return;
+    salPreviaRef.current = cryptoSalt;
+    const sobre = abrirSobre(wrapKeyRef.current) ?? abrirSobre(initialWrapKey);
+    if (sobre === null) return;
+    sobre.master.fill(0);
+    if (sobre.dueno !== cryptoSalt) wipePersistence();
+  }, [cryptoSalt, initialWrapKey, wipePersistence]);
 
   // ── Actions ────────────────────────────────────────────────────────────
 
   const unlock = useCallback(
     async (password: string) => {
+      if (!vigente) {
+        setError(SESION_CAMBIADA);
+        return;
+      }
       if (!cryptoSalt) {
         setError("Tu cuenta no tiene cifrado E2E activado.");
         return;
@@ -360,14 +490,17 @@ export function DiaryKeyProvider({
       setError(null);
       try {
         const derivedMaster = await deriveMasterKey(password, cryptoSalt);
-        const diaryKey = deriveSubKey(derivedMaster, DIARY_KEY_INFO);
-        const ecoSub = deriveSubKey(derivedMaster, ECO_KEY_INFO);
-        setMasterKey(derivedMaster);
-        setKey(diaryKey);
-        setEcoKey(ecoSub);
+        // Argon2id tarda. Si entretanto la sesión es de otra persona, o ya no
+        // hay panel, esta clave no es de nadie que esté mirando.
+        if (cuentaRef.current !== cryptoSalt) {
+          derivedMaster.fill(0);
+          return;
+        }
+        setGuardadas(abrirClaves(derivedMaster, cryptoSalt));
         // Only persist across sessions when the user opted to be remembered.
-        if (remember) await persistMasterKey(derivedMaster);
+        if (remember) await persistMasterKey(derivedMaster, cryptoSalt);
       } catch (err) {
+        if (cuentaRef.current !== cryptoSalt) return;
         const code =
           err instanceof Error ? err.message : "CRYPTO_UNKNOWN_ERROR";
         setError(
@@ -376,7 +509,8 @@ export function DiaryKeyProvider({
             : "No pudimos derivar tu clave. Reintenta.",
         );
       } finally {
-        setUnlocking(false);
+        // La reja de otra cuenta no es de este desbloqueo.
+        if (cuentaRef.current === cryptoSalt) setUnlocking(false);
       }
     },
     // `remember` va aquí porque la línea de arriba lo lee.
@@ -387,27 +521,27 @@ export function DiaryKeyProvider({
     // el texto dice «Desmárcalo si es un equipo compartido», veía cómo se
     // guardaba el sobre igualmente. `adoptMasterKey`, cuatro líneas más abajo,
     // sí lo declaraba; sólo este se había quedado atrás.
-    [cryptoSalt, persistMasterKey, remember],
+    [cryptoSalt, vigente, persistMasterKey, remember],
   );
 
   const adoptMasterKey = useCallback(
     (nextMaster: Uint8Array, nextCryptoSalt?: string) => {
+      // Esta función nació con la cuenta `cuenta`. Quien la llama puede haberla
+      // guardado antes de dos peticiones —el cambio de contraseña lo hace—, y si
+      // al terminar la sesión es de otra persona, no se adopta ni se guarda.
+      if (cuenta === null || cuentaRef.current !== cuenta) return;
       if (!esClaveMaestraValida(nextMaster)) {
         setError("La clave maestra tiene un tamaño inválido.");
         return;
       }
-      const diaryKey = deriveSubKey(nextMaster, DIARY_KEY_INFO);
-      const ecoSub = deriveSubKey(nextMaster, ECO_KEY_INFO);
       // We copy `nextMaster` so the caller can safely zero its own buffer.
       const owned = new Uint8Array(nextMaster);
-      setMasterKey(owned);
-      setKey(diaryKey);
-      setEcoKey(ecoSub);
+      const dueno = nextCryptoSalt ?? cuenta;
+      setGuardadas(abrirClaves(owned, dueno, dueno === cuenta ? null : cuenta));
       setError(null);
-      if (nextCryptoSalt !== undefined) ownerRef.current = nextCryptoSalt;
-      if (remember) void persistMasterKey(owned);
+      if (remember) void persistMasterKey(owned, dueno);
     },
-    [remember, persistMasterKey],
+    [cuenta, remember, persistMasterKey],
   );
 
   const setRemember = useCallback(
@@ -424,30 +558,28 @@ export function DiaryKeyProvider({
         // Stop remembering: drop the persisted wrap so the next session asks
         // for the password. The current in-memory key stays valid.
         wipePersistence();
-      } else if (masterKey) {
+      } else if (abiertas !== null && cuentaRef.current === cuenta) {
         // Re-enabling: persist the key we already hold so reloads restore.
-        void persistMasterKey(masterKey);
+        // The ref check is for a stale callback: its buffer may be zeroed by
+        // now, and a zeroed master key must never reach the device.
+        void persistMasterKey(abiertas.master, abiertas.dueno);
       }
     },
-    [masterKey, wipePersistence, persistMasterKey],
+    [abiertas, cuenta, wipePersistence, persistMasterKey],
   );
 
   const lock = useCallback(() => {
-    if (key) key.fill(0);
-    if (ecoKey) ecoKey.fill(0);
-    if (masterKey) masterKey.fill(0);
-    setKey(null);
-    setEcoKey(null);
-    setMasterKey(null);
+    if (guardadas !== null) ponerACero(guardadas);
+    setGuardadas(null);
     setError(null);
     wipePersistence();
-  }, [key, ecoKey, masterKey, wipePersistence]);
+  }, [guardadas, wipePersistence]);
 
   const value = useMemo<DiaryKeyContextValue>(
     () => ({
-      key,
-      ecoKey,
-      masterKey,
+      key: abiertas?.diary ?? null,
+      ecoKey: abiertas?.eco ?? null,
+      masterKey: abiertas?.master ?? null,
       isLegacyAccount: cryptoSalt === null,
       remember,
       unlocking,
@@ -459,9 +591,7 @@ export function DiaryKeyProvider({
       setRemember,
     }),
     [
-      key,
-      ecoKey,
-      masterKey,
+      abiertas,
       cryptoSalt,
       remember,
       unlocking,

@@ -6,6 +6,7 @@ import { type FormEvent, useState, useTransition } from "react";
 import { registerAction } from "@/actions/auth";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { PrivacyInfoButton } from "@/components/privacy/PrivacyInfoButton";
+import { RetirarMarcaDeCuenta } from "@/lib/crypto/sesion-vigente";
 import { PASSWORD_HINT, PASSWORD_MIN_LENGTH } from "@psico/types";
 
 export default function RegisterPage() {
@@ -38,6 +39,7 @@ export default function RegisterPage() {
 
   return (
     <>
+      <RetirarMarcaDeCuenta />
       <p
         className="mb-1 text-[11px] font-bold uppercase tracking-[0.6px]"
         style={{ color: "var(--color-lavender-700)" }}

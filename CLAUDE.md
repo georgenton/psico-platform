@@ -4441,7 +4441,70 @@ señuelos aleatorios.
 
 ---
 
-### 🧭 Trabajo vigente — corte del 2026-11-23
+### Sesión — 2026-11-24 ✅ COMPLETADA — Catorce ajustes antes de aceptar, ayuda pública y Sentry sin fugas
+
+**PR:** [#878](https://github.com/georgenton/psico-platform/pull/878) llave del diario · [#879](https://github.com/georgenton/psico-platform/pull/879) ayuda pública · [#880](https://github.com/georgenton/psico-platform/pull/880) presentación · [#881](https://github.com/georgenton/psico-platform/pull/881) Sentry · [#883](https://github.com/georgenton/psico-platform/pull/883) promesas exactas · [#884](https://github.com/georgenton/psico-platform/pull/884) tres remates · [#885](https://github.com/georgenton/psico-platform/pull/885) arnés de pruebas
+**Servido:** API y worker en `31c843f4`, Web en `46878ca5` · **Horas en UTC** (Quito = UTC−5)
+
+**Los catorce asuntos** —los trece ajustes de la página y Mi plan— quedaron
+corregidos, con dos acreditados dentro de ellos y uno pendiente dicho en pantalla:
+los hitos de días seguidos no se pueden conseguir porque nadie escribe la racha.
+El detalle, asunto por asunto, en [la ficha §2.1](docs/operations/tramo-a-produccion.md).
+**La aceptación estética sigue pendiente**: autorizar los ajustes no la cerró.
+
+**Lo que más importa de cada uno:**
+
+- **Eco no es el Diario.** Registro, acceso, Seguridad y la explicación común
+  decían de Eco «solo tú puedes verlos». Ahora las superficies comparten la frase
+  del tour (`@psico/types/eco-privacy`), y un trinquete lee el texto visible.
+- **El libro recomendado** se contrastó con los **diez capítulos canónicos**:
+  «burnout» y «rabia productiva» no aparecen en ninguno. Fijado por prueba.
+- **Mi plan**: cada línea tiene una regla del servidor detrás. Sin tocar precios,
+  cuotas ni derechos.
+- **`/ayuda` es pública**, sin cuenta, sin JavaScript y sin la API; el catálogo
+  pasó a `@psico/types` sin cambiar un dato.
+
+**Sentry: preparado y sin activar.** El evento se reconstruye desde una lista
+cerrada y el transporte sólo deja pasar errores. No bastaba `tracesSampleRate: 0`:
+en la 8.x prevalece la decisión heredada. Ensayado en cinco superficies con
+señuelos aleatorios y un control negativo contra el código anterior, y repetido
+sobre el candidato integrado: 44 de 44. El DSN sigue ausente; eso es de hoy, no
+de toda la historia.
+
+**Un defecto que salió al escribir la privacidad:** cerrar sesión desde Perfil
+dejaba la llave del diario en el navegador, y la llave no decía de qué cuenta era.
+Corregido en #878; a quien tuviera «Recordar» se le pedirá la contraseña una vez.
+
+**El disco no había crecido.** El 89 % del 23-11 era el acumulado del día: la
+limpieza diaria de Coolify (05:00 UTC) vuelve a 54–59 %. Se esperó a esa limpieza
+y no se podó nada a mano. Lo que cuesta cada despliegue, medido: 12 GB el primero
+tras la limpieza, 10 el segundo y 5 el tercero, casi todo caché de construcción.
+
+**Recapturar encontró tres cosas más** (#884), todas de teléfono o de texto:
+títulos alineados a la derecha, el aviso de la caja de Eco cortado por la mitad y
+«Es lo último que leíste» bajo el capítulo que aún no se ha leído. Su primer
+`git push` falló y **yo había recortado la salida a una línea**, que no distingue
+el hook de un rechazo remoto: su causa queda **sin acreditar**.
+
+**Dos fallos de `pre-push` con causa conocida**, los dos con la salida entera. Un
+árbol de trabajo nuevo sin `prisma generate` (cien ficheros con `Cannot find module
+'.prisma/client/default'`). Y un 404 donde la validación siempre contesta 400: la
+petición había llegado a **otro programa del Mac**, porque supertest escucha en
+`::` y conecta a `127.0.0.1`, y en macOS gana quien ya tuviera ese puerto en
+`127.0.0.1`. El mecanismo se reprodujo aparte (14 de 20 000 conexiones; ninguna
+escuchando en loopback) y se arregló en el arnés
+([#885](https://github.com/georgenton/psico-platform/pull/885)). Repetir sólo esas
+pruebas no discrimina —6 de 6 en verde con y sin el arreglo—: la probabilidad crece
+con la batería entera. El de #884 es compatible con esto, y no más que compatible.
+
+**Lo que no se tocó y conviene saber:** Terapia es visible con seis fichas de
+demostración «verificadas»; Eco y el catálogo dan líneas de ayuda distintas; la
+baja no se puede cancelar; el cambio de correo no termina. Está en la ficha §2.7 y
+§2.8 y, con fichero y línea, junto a los borradores legales en Notion.
+
+---
+
+### 🧭 Trabajo vigente — corte del 2026-11-24
 
 **Esta es la única sección de este archivo que describe el presente.** Todo lo
 de arriba —incluidas las listas de «backlog aprobado» y los «siguientes pasos»
@@ -4449,7 +4512,26 @@ de cada bitácora de sesión— es **antecedente fechado**: explica cómo se lle
 aquí, no lo que toca hacer. Si una instrucción antigua contradice esta
 sección, manda esta sección.
 
-#### El corte — 2026-11-23 (noche), para decidir el lanzamiento
+#### El corte — 2026-11-24, el resultado para aceptar
+
+|                     |                                                                                                                                                                 |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Qué se decide**   | **[la ficha](docs/operations/tramo-a-produccion.md)** — la **única** lista vigente: trece filas                                                                 |
+| Servido             | API y worker en **`31c843f4`**, Web en **`46878ca5`**, leído del contenedor · sin migraciones nuevas · compras cerradas, padrón y destinatarios sin cambio      |
+| Aceptación estética | ⬜ tuya, sobre el **resultado**: [la página](https://claude.ai/artifact/56P67k18svei385pZ2Whn3) lleva el antes y el ahora de los catorce y «acepto el conjunto» |
+| Ayuda en crisis     | ✅ pública en `/ayuda`. ⬜ falta que alguien valide las líneas                                                                                                  |
+| Sentry              | ✅ preparado y servido · ⬜ sin activar: organización y región                                                                                                  |
+| Nivel 4             | ⬜ propuesta: **US$ 15 en total, todo incluido**, no autorizado. La filial se confirma en la cuenta o el pedido                                                 |
+| Piloto B            | ⬜ dos autorizaciones separadas; antes, decidir Terapia                                                                                                         |
+| Textos públicos     | borradores en Notion, sin publicar; faltan los datos del responsable                                                                                            |
+| Imágenes            | tres cosas distintas: archivadas y cargadas ✅ · reversión ❌ · recuperación completa ❌                                                                        |
+| Producción          | **No existe como recurso** y no está preparada                                                                                                                  |
+
+> **Lo que esta tanda NO hace.** No contrata, no activa avisos ni Sentry, no abre
+> B ni cobros, no invita, no publica contenido y no declara producción. OVH con
+> Coolify, y sólo ahí.
+
+#### Antecedente — 2026-11-23 (noche), para decidir el lanzamiento
 
 |                      |                                                                                                                                                 |
 | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |

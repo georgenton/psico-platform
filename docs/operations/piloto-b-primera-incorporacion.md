@@ -9,8 +9,8 @@
 
 ## 0 · Qué falta para poder ejecutarla
 
-**Nada técnico.** Lo que falta son **dos decisiones registradas**, y conviene
-no confundirlas porque son distintas:
+**Nada técnico de la incorporación.** Lo que falta son **dos decisiones
+registradas**, y conviene no confundirlas porque son distintas:
 
 | #   | Decisión                                               | Qué autoriza                                                             |
 | --- | ------------------------------------------------------ | ------------------------------------------------------------------------ |
@@ -89,7 +89,9 @@ producto.
 >
 > Es una versión de pruebas. Eso significa dos cosas concretas: puede fallar, y
 > **no es un servicio de salud ni sustituye atención profesional**. Si en algún
-> momento te sientes mal, no esperes a la aplicación: en Ecuador llama al 911.
+> momento te sientes mal, no esperes a la aplicación: en Ecuador llama al 911, o
+> abre `https://staging.feelverse.app/ayuda`, que tiene líneas de ayuda y no pide
+> cuenta.
 >
 > Lo que tendrías que hacer: crear tu cuenta en
 > `https://staging.feelverse.app` con esta misma dirección, leer un capítulo y
@@ -108,10 +110,13 @@ producto.
 > Un abrazo,
 > Jorge
 
-> **Corregido el 2026-11-23.** Decía que las líneas de ayuda se usan «sin tener
-> cuenta». La API es pública, pero la pantalla de la Web pide iniciar sesión y no
-> está en el menú. Recomendado: publicarla **antes** de invitar a nadie
-> ([ficha §2.5](tramo-a-produccion.md)).
+> **Corregido el 2026-11-24.** El 23-11 se le quitó la frase «sin tener cuenta»
+> porque la Web pedía iniciar sesión. Desde #879 la ayuda es pública y la frase
+> vuelve, ya siendo cierta.
+
+> **Antes de enviarla**, decidir qué pasa con Terapia
+> ([ficha §2.8](tramo-a-produccion.md)): está visible en el menú con seis fichas
+> de demostración que dicen «licencia verificada».
 
 **Lo que esa invitación evita a propósito:** promete poco, nombra el riesgo
 real del cifrado antes de que la persona escriba nada, dice que no se paga, y

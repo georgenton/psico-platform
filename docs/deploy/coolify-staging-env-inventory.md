@@ -305,7 +305,7 @@ convención: es una propiedad del medio. Cualquiera que abra el navegador la lee
 ```
 NEXT_PUBLIC_API_URL       NEXT_PUBLIC_APP_URL
 NEXT_PUBLIC_PSICO_ENV     NEXT_PUBLIC_SENTRY_DSN
-NEXT_PUBLIC_SENTRY_RELEASE
+NEXT_PUBLIC_RELEASE_SHA
 EXPO_PUBLIC_API_URL       EXPO_PUBLIC_WEB_ORIGIN
 EXPO_PUBLIC_SENTRY_DSN    EXPO_PUBLIC_SENTRY_RELEASE
 ```
@@ -533,7 +533,12 @@ bundle por definición.
 aplica todavía: `SENTRY_DSN` y `SENTRY_RELEASE` están **ausentes** en las variables de la
 API de producción — verificado con `describe-service`, que devuelve nombres sin valores.
 
-Sentry está cableado en el código desde el Sprint 2 y **nunca se le configuró un DSN en
+> **Corregido el 2026-11-24 (#881).** `SENTRY_RELEASE` y `NEXT_PUBLIC_SENTRY_RELEASE`
+> ya no se leen: la versión sale del commit (`SOURCE_COMMIT`). Y la frase de abajo
+> decía «nunca se le configuró un DSN en producción»: lo comprobado es que **no
+> estaba** en las variables el día que se miró, que no es lo mismo.
+
+Sentry está cableado en el código desde el Sprint 2 y **no constaba un DSN en
 producción**. Así que la decisión real es «configurarlo por primera vez o dejarlo fuera
 del smoke inicial», y lo segundo no cuesta nada: ninguna variable de Sentry es
 obligatoria y `environment=staging` funcionará el día que llegue el DSN, gracias a
@@ -630,7 +635,6 @@ MANUAL_COOLIFY_BUILD_TIME_FLAGS =
   NEXT_PUBLIC_PSICO_ENV
   NEXT_PUBLIC_GOOGLE_CLIENT_ID     (si OAuth entra)
   NEXT_PUBLIC_SENTRY_DSN
-  NEXT_PUBLIC_SENTRY_RELEASE
   PSICO_ENV
   NODE_ENV
 ```

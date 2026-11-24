@@ -138,6 +138,8 @@ async function abrir(ctx: () => DiaryKeyContextValue) {
 
 beforeEach(() => {
   window.localStorage.clear();
+  // Lo corriente: esta cuenta ya tenía el panel abierto en el navegador.
+  window.localStorage.setItem(CLAVE, MARCA_A);
   ir.mockReset();
   galleta.historia = [];
   preguntas = [];
@@ -167,18 +169,19 @@ afterEach(() => {
 
 describe("la marca", () => {
   it("se escribe al montar el panel y no dice nada de la persona", () => {
+    window.localStorage.clear();
     montar();
     expect(window.localStorage.getItem(CLAVE)).toBe(MARCA_A);
     expect(estado()).toBe("vigente · cerrado");
   });
 
   it("el acceso y el registro la retiran", () => {
-    window.localStorage.setItem(CLAVE, MARCA_A);
     render(<RetirarMarcaDeCuenta />);
     expect(window.localStorage.getItem(CLAVE)).toBeNull();
   });
 
   it("sin cuenta conocida no se escribe ni se vigila", async () => {
+    window.localStorage.clear();
     render(
       <SesionVigenteProvider marca={null}>
         <p data-testid="nada" />
@@ -187,6 +190,71 @@ describe("la marca", () => {
     expect(window.localStorage.getItem(CLAVE)).toBeNull();
     await otraPestana(MARCA_B);
     expect(preguntas).toHaveLength(0);
+  });
+});
+
+/**
+ * Una pestaña que tardó en cargar monta DESPUÉS de que en otra se saliera y se
+ * entrara con otra cuenta. No recibió ningún evento: no existía.
+ */
+describe("al montar", () => {
+  it("si la marca ya es la suya, no hay nada que preguntar", () => {
+    montar();
+    expect(preguntas).toHaveLength(0);
+  });
+
+  it("si es la de otra cuenta, no la pisa: cierra y pregunta", async () => {
+    window.localStorage.setItem(CLAVE, MARCA_B);
+    montar();
+    expect(estado()).toBe("en duda · cerrado");
+    expect(window.localStorage.getItem(CLAVE)).toBe(MARCA_B);
+    expect(preguntas).toHaveLength(1);
+
+    await servidorDice(json({ marca: MARCA_B }));
+    expect(ir.mock.calls).toEqual([["/dashboard"]]);
+    expect(window.localStorage.getItem(CLAVE)).toBe(MARCA_B);
+    expect(estado()).toBe("en duda · cerrado");
+  });
+
+  it("si es la de otra y el servidor dice que es ésta, la recupera", async () => {
+    window.localStorage.setItem(CLAVE, MARCA_B);
+    montar();
+    await servidorDice(json({ marca: MARCA_A }));
+    expect(window.localStorage.getItem(CLAVE)).toBe(MARCA_A);
+    expect(estado()).toBe("vigente · cerrado");
+    expect(ir).not.toHaveBeenCalled();
+  });
+
+  it("si no hay ninguna, pregunta sin cerrar, y se va si no es la suya", async () => {
+    // Quien entró después no ha llegado a ningún panel: no dejó marca.
+    window.localStorage.clear();
+    const ctx = montar();
+    expect(preguntas).toHaveLength(1);
+    await abrir(ctx);
+    await servidorDice(json({ marca: MARCA_B }));
+    expect(estado()).toBe("en duda · cerrado");
+    expect(ir.mock.calls).toEqual([["/dashboard"]]);
+  });
+
+  it("si no hay ninguna y sí es la suya, no se nota", async () => {
+    window.localStorage.clear();
+    const ctx = montar();
+    await abrir(ctx);
+    await servidorDice(json({ marca: MARCA_A }));
+    expect(estado()).toBe("vigente · abierto");
+    expect(ir).not.toHaveBeenCalled();
+    expect(preguntas).toHaveLength(1);
+  });
+
+  it("si no hay ninguna y no contesta, no cierra a nadie, e insiste", async () => {
+    vi.useFakeTimers();
+    window.localStorage.clear();
+    const ctx = montar();
+    await abrir(ctx);
+    await act(async () => preguntas[0]!.fallar());
+    expect(estado()).toBe("vigente · abierto");
+    await act(async () => vi.advanceTimersByTimeAsync(5_000));
+    expect(preguntas).toHaveLength(2);
   });
 });
 
@@ -284,7 +352,7 @@ describe("otra pestaña cambió de cuenta", () => {
       () => window.dispatchEvent(new Event("pageshow")),
       () => document.dispatchEvent(new Event("visibilitychange")),
     ]) {
-      window.localStorage.clear();
+      window.localStorage.setItem(CLAVE, MARCA_A);
       preguntas = [];
       const vista = render(<Pantalla />);
       // Sin evento: la pestaña estaba congelada o en la caché de «atrás».
@@ -370,9 +438,83 @@ describe("lo que contesta el servidor", () => {
     expect(estado()).toBe("vigente · cerrado");
     expect(ir).not.toHaveBeenCalled();
     await abrir(ctx);
+    // Contestada la duda, volver a la pestaña no cierra nada.
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+    });
+    expect(estado()).toBe("vigente · abierto");
+    expect(preguntas).toHaveLength(1);
     // Y sigue vigilando.
     await otraPestana(MARCA_B);
     expect(estado()).toBe("en duda · cerrado");
+    expect(preguntas).toHaveLength(2);
+  });
+
+  it("una respuesta de antes no vale: si entretanto cambió, pregunta otra vez", async () => {
+    const ctx = montar();
+    await abrir(ctx);
+    await otraPestana(null);
+    // Mientras contesta, en la otra pestaña ya entró B.
+    await otraPestana(MARCA_B);
+    expect(preguntas).toHaveLength(1);
+    await servidorDice(json({ marca: MARCA_A }));
+
+    expect(estado()).toBe("en duda · cerrado");
+    expect(window.localStorage.getItem(CLAVE)).toBe(MARCA_B);
+    expect(preguntas).toHaveLength(2);
+    await servidorDice(json({ marca: MARCA_B }));
+    expect(ir.mock.calls).toEqual([["/dashboard"]]);
+  });
+
+  it("tampoco si el cambio llegó sin avisar", async () => {
+    montar();
+    await otraPestana(null);
+    window.localStorage.setItem(CLAVE, MARCA_B);
+    await servidorDice(json({ marca: MARCA_A }));
+    expect(estado()).toBe("en duda · cerrado");
+    expect(window.localStorage.getItem(CLAVE)).toBe(MARCA_B);
+    expect(preguntas).toHaveLength(2);
+  });
+
+  it("tampoco la que se hizo al montar, aunque no hubiera nada cerrado", async () => {
+    window.localStorage.clear();
+    montar();
+    await otraPestana(MARCA_B);
+    expect(estado()).toBe("en duda · cerrado");
+    await servidorDice(json({ marca: MARCA_A }));
+    expect(estado()).toBe("en duda · cerrado");
+    expect(preguntas).toHaveLength(2);
+  });
+
+  it("tampoco si entró y salió alguien, y la marca quedó como estaba", async () => {
+    montar();
+    await otraPestana(null);
+    await otraPestana(MARCA_B);
+    await otraPestana(null);
+    await servidorDice(json({ marca: MARCA_A }));
+    expect(estado()).toBe("en duda · cerrado");
+    expect(preguntas).toHaveLength(2);
+  });
+
+  it("y si estaba abierta, la cierra mientras vuelve a preguntar", async () => {
+    window.localStorage.clear();
+    const ctx = montar();
+    await abrir(ctx);
+    // Sin evento, y con la pregunta del montaje todavía en el aire.
+    window.localStorage.setItem(CLAVE, MARCA_B);
+    await servidorDice(json({ marca: MARCA_A }));
+    expect(estado()).toBe("en duda · cerrado");
+    expect(window.localStorage.getItem(CLAVE)).toBe(MARCA_B);
+  });
+
+  it("y si otra vez dice que es ésta, se sigue", async () => {
+    montar();
+    await otraPestana(null);
+    await otraPestana(MARCA_B);
+    await servidorDice(json({ marca: MARCA_A }));
+    await servidorDice(json({ marca: MARCA_A }));
+    expect(estado()).toBe("vigente · cerrado");
+    expect(window.localStorage.getItem(CLAVE)).toBe(MARCA_A);
     expect(preguntas).toHaveLength(2);
   });
 
@@ -421,15 +563,46 @@ describe("el servidor no contesta: sigue cerrada hasta que lo haga", () => {
     expect(estado()).toBe("vigente · cerrado");
   });
 
-  it("no espera para siempre: corta, y vuelve a preguntar", async () => {
+  it("no corta una pregunta en vuelo: perdería el token que renueva", async () => {
     vi.useFakeTimers();
     montar();
     await otraPestana(MARCA_B);
-    const señal = preguntas[0]!.init.signal!;
-    await act(async () => vi.advanceTimersByTimeAsync(9_999));
-    expect(señal.aborted).toBe(false);
-    await act(async () => vi.advanceTimersByTimeAsync(1));
-    expect(señal.aborted).toBe(true);
+    expect(preguntas[0]!.init.signal).toBeUndefined();
+    await act(async () => vi.advanceTimersByTimeAsync(120_000));
+    expect(preguntas).toHaveLength(1);
+    expect(estado()).toBe("en duda · cerrado");
+    // Y cuando llega, vale.
+    await servidorDice(json({ marca: MARCA_A }));
+    expect(estado()).toBe("vigente · cerrado");
+  });
+
+  it("que la marca vuelva a ser la suya no contesta nada: sigue preguntando", async () => {
+    vi.useFakeTimers();
+    montar();
+    await otraPestana(MARCA_B);
+    await act(async () => preguntas[0]!.fallar());
+    await otraPestana(MARCA_A);
+    expect(estado()).toBe("en duda · cerrado");
+    expect(preguntas).toHaveLength(2);
+  });
+
+  it("volver muchas veces no multiplica los reintentos", async () => {
+    vi.useFakeTimers();
+    montar();
+    await otraPestana(MARCA_B);
+    await act(async () => preguntas.at(-1)!.fallar());
+    for (let i = 0; i < 5; i++) {
+      await act(async () => {
+        window.dispatchEvent(new Event("focus"));
+      });
+      await act(async () => preguntas.at(-1)!.fallar());
+    }
+    expect(preguntas).toHaveLength(6);
+    for (let i = 1; i <= 4; i++) {
+      await act(async () => vi.advanceTimersByTimeAsync(5_000));
+      expect(preguntas).toHaveLength(6 + i);
+      await act(async () => preguntas.at(-1)!.fallar());
+    }
   });
 
   it("volver a la pestaña pregunta sin esperar al reintento", async () => {
@@ -456,6 +629,20 @@ describe("el servidor no contesta: sigue cerrada hasta que lo haga", () => {
   });
 });
 
+describe("varias pestañas a la vez", () => {
+  it("preguntan por turno, si el navegador sabe", async () => {
+    const turno = vi.fn(async (_: string, f: () => unknown) => f());
+    vi.stubGlobal("navigator", { ...navigator, locks: { request: turno } });
+    montar();
+    await otraPestana(MARCA_B);
+    expect(turno).toHaveBeenCalledTimes(1);
+    expect(turno.mock.calls[0]![0]).toBe(CLAVE);
+    expect(preguntas).toHaveLength(1);
+    await servidorDice(json({ marca: MARCA_A }));
+    expect(estado()).toBe("vigente · cerrado");
+  });
+});
+
 describe("lo que NO cierra nada", () => {
   it("otra pestaña de la misma cuenta, u otra clave del almacenamiento", async () => {
     const ctx = montar();
@@ -471,6 +658,7 @@ describe("lo que NO cierra nada", () => {
   });
 
   it("un navegador que no deja escribir: no hay con qué comparar", async () => {
+    window.localStorage.clear();
     const escribir = vi
       .spyOn(Storage.prototype, "setItem")
       .mockImplementation(() => {

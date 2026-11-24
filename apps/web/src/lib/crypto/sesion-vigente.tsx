@@ -37,14 +37,19 @@ import { createContext, useContext, useEffect, useState } from "react";
  * contraseña una vez. Si es otra, o ninguna, la pestaña se va: una carga nueva,
  * que no deja nada de la anterior en memoria. Y si no contesta, sigue cerrada
  * hasta que lo haga.
+ *
+ * Una respuesta vale para el momento en que se preguntó. Si la marca se movió
+ * mientras tanto, se vuelve a preguntar antes de creerla.
+ *
+ * Y la pregunta NO se corta: puede llevar dentro la renovación del token, y
+ * abandonarla perdería las cookies nuevas, con lo que la siguiente usaría un
+ * refresco ya gastado y cerraría una sesión buena. Esperar cerrada es seguro.
  */
 
 const CLAVE_MARCA = "psico:cuenta";
 const RUTA = "/dashboard/cuenta-vigente";
 /** Cada cuánto se vuelve a preguntar si no hubo respuesta. */
 const REINTENTO_MS = 5_000;
-/** Una pregunta que no contesta no puede dejar la pestaña esperando siempre. */
-const ESPERA_MS = 10_000;
 
 const SesionVigenteContext = createContext(true);
 
@@ -76,16 +81,15 @@ function escribirMarca(marca: string): boolean {
  * `undefined` si no se pudo saber, que es otra cosa y no abre nada.
  */
 async function marcaDelServidor(): Promise<string | null | undefined> {
-  const corte = new AbortController();
-  const limite = setTimeout(() => corte.abort(), ESPERA_MS);
   try {
-    const res = await fetch(RUTA, {
-      cache: "no-store",
-      credentials: "same-origin",
-      // El middleware contesta con una redirección cuando no hay sesión.
-      redirect: "manual",
-      signal: corte.signal,
-    });
+    const res = await porTurno(() =>
+      fetch(RUTA, {
+        cache: "no-store",
+        credentials: "same-origin",
+        // El middleware contesta con una redirección cuando no hay sesión.
+        redirect: "manual",
+      }),
+    );
     if (res.type === "opaqueredirect") return null;
     if (!res.ok) return undefined;
     const cuerpo = (await res.json()) as { marca?: unknown };
@@ -93,9 +97,17 @@ async function marcaDelServidor(): Promise<string | null | undefined> {
     return typeof cuerpo.marca === "string" ? cuerpo.marca : undefined;
   } catch {
     return undefined;
-  } finally {
-    clearTimeout(limite);
   }
+}
+
+/**
+ * Las pestañas preguntan de una en una. A la vez, con el token vencido, cada una
+ * renovaría el mismo refresco y todas menos la primera lo encontrarían gastado.
+ */
+async function porTurno(pregunta: () => Promise<Response>): Promise<Response> {
+  // Sin ello —un navegador viejo, o una página sin HTTPS— se pregunta igual.
+  const turnos: LockManager | undefined = navigator.locks;
+  return turnos ? await turnos.request(CLAVE_MARCA, pregunta) : pregunta();
 }
 
 export function SesionVigenteProvider({
@@ -109,38 +121,60 @@ export function SesionVigenteProvider({
   const [vigente, setVigente] = useState(true);
 
   useEffect(() => {
-    if (marca === null || !escribirMarca(marca)) return;
+    if (marca === null) return;
+
+    // Al montar: la marca de OTRA cuenta no se pisa, porque puede ser la buena
+    // —esta pestaña pudo tardar en cargar— y se pregunta con todo cerrado. Sin
+    // marca ninguna se escribe la nuestra y se pregunta igual, sin cerrar: es lo
+    // normal tras entrar, y también lo que queda si quien entró después no ha
+    // llegado a ningún panel.
+    const alMontar = leerMarca();
+    if (alMontar === null && !escribirMarca(marca)) return;
 
     let vigilando = true;
     let enDuda = false;
     let preguntando = false;
+    let seMovio = false;
     let reintento: ReturnType<typeof setTimeout> | undefined;
 
-    const preguntar = async () => {
-      preguntando = true;
+    const dudar = () => {
       enDuda = true;
       setVigente(false);
+    };
+    const preguntar = async () => {
+      preguntando = true;
+      seMovio = false;
+      clearTimeout(reintento);
+      const vista = leerMarca();
 
       const dicha = await marcaDelServidor();
       preguntando = false;
       if (!vigilando) return;
 
       if (dicha === undefined) {
-        reintento = setTimeout(comparar, REINTENTO_MS);
-      } else if (dicha === marca) {
+        reintento = setTimeout(() => void preguntar(), REINTENTO_MS);
+      } else if (dicha !== marca) {
+        dudar();
+        // Otra cuenta, o ninguna. Una carga nueva y no un refresco: se lleva la
+        // memoria de esta pestaña, y ninguna navegación la puede descartar.
+        window.location.replace("/dashboard");
+      } else if (seMovio || leerMarca() !== vista) {
+        // Contestó de antes: entretanto alguien más entró o salió.
+        dudar();
+        void preguntar();
+      } else {
         enDuda = false;
         // Si ya no se puede escribir, no se vuelve a comparar: daría siempre no.
         if (!escribirMarca(marca)) vigilando = false;
         setVigente(true);
-      } else {
-        // Otra cuenta, o ninguna. Una carga nueva y no un refresco: se lleva la
-        // memoria de esta pestaña, y ninguna navegación la puede descartar.
-        window.location.replace("/dashboard");
       }
     };
     const comparar = () => {
-      if (!vigilando || preguntando) return;
-      if (enDuda || leerMarca() !== marca) void preguntar();
+      if (!vigilando) return;
+      if (!enDuda && leerMarca() === marca) return;
+      dudar();
+      if (preguntando) seMovio = true;
+      else void preguntar();
     };
     const alGuardar = (e: StorageEvent) => {
       // `key` null es un `clear()`: se lo llevó todo, la marca incluida.
@@ -150,6 +184,10 @@ export function SesionVigenteProvider({
     window.addEventListener("focus", comparar);
     window.addEventListener("pageshow", comparar);
     document.addEventListener("visibilitychange", comparar);
+
+    if (alMontar === null) void preguntar();
+    else comparar();
+
     return () => {
       vigilando = false;
       clearTimeout(reintento);

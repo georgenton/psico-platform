@@ -12,6 +12,7 @@ import {
   deriveSubKey,
   DIARY_KEY_INFO,
   ECO_KEY_INFO,
+  MASTER_KEY_LEN,
 } from "@psico/crypto";
 import { diaryKeyStore } from "./diary-key-store";
 import { lockPrefs } from "./lock-prefs";
@@ -261,7 +262,11 @@ export function DiaryKeyProvider({
     async (nextMaster: Uint8Array) => {
       // Quien la llama puede haberla guardado antes de una petición.
       if (cryptoSalt === null || cuentaRef.current !== cryptoSalt) return;
-      if (nextMaster.length !== 32) {
+      // La longitud la manda el esquema. Un 32 escrito aquí —la de la v1— no lo
+      // cumplía ninguna clave desde la v2, así que recuperar con la frase y
+      // adoptar la clave nueva no hacían nada. Las SUBCLAVES sí miden 32: son
+      // otra cosa y salen de `deriveSubKey`.
+      if (nextMaster.length !== MASTER_KEY_LEN) {
         setError("La clave maestra tiene un tamaño inválido.");
         return;
       }

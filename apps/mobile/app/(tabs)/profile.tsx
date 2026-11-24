@@ -9,10 +9,15 @@ import {
   Text,
   View,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { usersApi } from "@psico/api-client";
-import type { UserMeResponse, UserPlan } from "@psico/types";
+import { terapiaApi, usersApi } from "@psico/api-client";
+import { therapyHistoryEntry } from "@psico/types";
+import type {
+  TherapyHistoryEntry,
+  UserMeResponse,
+  UserPlan,
+} from "@psico/types";
 
 import { useAuth } from "@/context/auth";
 import { Colors, Radius, Spacing } from "@/theme";
@@ -43,6 +48,7 @@ export default function ProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [historial, setHistorial] = useState<TherapyHistoryEntry | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -59,6 +65,26 @@ export default function ProfileScreen() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Aparte del perfil: ni lo espera ni puede romperlo. Si la lectura falla no
+  // se sabe si hay historial, y entonces no se enseña nada; se vuelve a
+  // preguntar cada vez que se entra aquí.
+  const loadHistorial = useCallback(() => {
+    let cancelado = false;
+    terapiaApi
+      .getHub()
+      .then((hub) => {
+        if (!cancelado) setHistorial(therapyHistoryEntry(hub));
+      })
+      .catch(() => {
+        if (!cancelado) setHistorial(null);
+      });
+    return () => {
+      cancelado = true;
+    };
+  }, []);
+
+  useFocusEffect(loadHistorial);
 
   const handleLogout = () => {
     Alert.alert("Cerrar sesión", "¿Estás seguro que deseas salir?", [
@@ -89,6 +115,7 @@ export default function ProfileScreen() {
           onRefresh={() => {
             setRefreshing(true);
             void load();
+            loadHistorial();
           }}
         />
       }
@@ -181,6 +208,17 @@ export default function ProfileScreen() {
           onPress={() => router.push("/(tabs)/plan")}
         />
       </View>
+
+      {/* Sólo para quien tiene algo: la pestaña de Terapia no está, y sin esta
+          fila una sesión ya reservada no se podría ver ni cancelar. */}
+      {historial ? (
+        <ShortcutRow
+          icon="time-outline"
+          label={historial.title}
+          hint={historial.hint}
+          onPress={() => router.push("/(tabs)/terapia")}
+        />
+      ) : null}
 
       {/* Danger zone (Sprint S57) */}
       {me ? <DangerZone me={me} onChanged={() => void load()} /> : null}

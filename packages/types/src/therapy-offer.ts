@@ -48,6 +48,40 @@ export interface TherapyHistoryPresence {
   notifications: boolean;
 }
 
+/** La entrada al historial desde Perfil. */
+export interface TherapyHistoryEntry {
+  title: string;
+  hint: string;
+}
+
+/**
+ * ¿Lleva Perfil una entrada al historial de terapia, y qué dice?
+ *
+ * Con la oferta cerrada ningún menú enlaza Terapia y en el móvil no hay barra
+ * de direcciones: sin esta entrada, quien ya tuviera una sesión no podría verla
+ * ni cancelarla. `null` = no se enseña nada, tanto si no hay historial como si
+ * no se sabe: quien no tiene nada no ve la palabra «terapia» en Perfil.
+ *
+ * La presencia no depende de la oferta; la frase sí, porque «hoy no se ofrecen»
+ * sería falso con la oferta abierta.
+ */
+export function therapyHistoryEntry(
+  hub: {
+    offer?: TherapyOfferAvailability;
+    history?: TherapyHistoryPresence;
+  } | null,
+): TherapyHistoryEntry | null {
+  const h = hub?.history;
+  if (!h || !(h.sessions || h.prescriptions || h.notifications)) return null;
+  return {
+    title: "Tu historial de terapia",
+    hint:
+      (hub?.offer?.open ?? false)
+        ? "Lo que ya tenías sigue aquí."
+        : "Lo que ya tenías sigue aquí. Hoy no se ofrecen sesiones nuevas.",
+  };
+}
+
 /** Código máquina del rechazo por oferta cerrada (503). */
 export const THERAPY_OFFER_CLOSED_CODE = "THERAPY_OFFER_CLOSED";
 

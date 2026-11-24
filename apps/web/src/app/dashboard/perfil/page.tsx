@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import type { UserMeResponse } from "@psico/types";
@@ -8,6 +9,7 @@ import { AvatarUploadCard } from "@/components/dashboard/perfil/AvatarUploadCard
 import { DangerZone } from "@/components/dashboard/perfil/DangerZone";
 import { EditProfileCard } from "@/components/dashboard/perfil/EditProfileCard";
 import { EmailChangeCard } from "@/components/dashboard/perfil/EmailChangeCard";
+import { HistorialDeTerapia } from "@/components/dashboard/perfil/HistorialDeTerapia";
 import { PreferencesCard } from "@/components/dashboard/perfil/PreferencesCard";
 import { ProfileHeader } from "@/components/dashboard/perfil/ProfileHeader";
 import { StatsGrid } from "@/components/dashboard/perfil/StatsGrid";
@@ -95,6 +97,10 @@ export default async function PerfilPage() {
       <PreferencesCard initial={me.preferences} />
       <AchievementsGrid achievements={me.achievements} />
       <ShortcutsGrid />
+      {/* Aparte: Perfil no espera esta lectura ni depende de ella. */}
+      <Suspense fallback={null}>
+        <HistorialDeTerapia />
+      </Suspense>
       <DangerZone me={me} />
     </div>
   );

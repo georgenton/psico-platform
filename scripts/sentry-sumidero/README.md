@@ -71,7 +71,10 @@ afirma lo que dice la tabla.
 
 El hueco era sólo de ese lote: los de Edge, navegador —con la acción de servidor— y
 trazas sí se revisaban antes de vaciarse. Los guiones de API y worker no cambian, y
-sus baterías no se repitieron.
+sus baterías no se repitieron. Queda una cosa en ellos, sin tocar: en sus lotes de
+**trazas** los señuelos se imprimen pero no deciden el ✔, así que ese dato es una
+lectura y no una comprobación; y los del fallo fatal **sin** DSN no los mira nadie.
+Nada se atribuye a esos lotes.
 
 ## Control negativo
 

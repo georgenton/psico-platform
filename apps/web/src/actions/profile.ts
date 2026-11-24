@@ -27,7 +27,9 @@ export async function updateProfileAction(
     body: JSON.stringify(fields),
     headers: { "Content-Type": "application/json" },
   });
-  revalidatePath("/dashboard/perfil");
+  // El nombre ya no vive sólo en esta pantalla: el armazón lo pinta en la barra
+  // y en el carril. Se invalida el layout entero para que cambie en los tres.
+  revalidatePath("/dashboard", "layout");
   return me;
 }
 

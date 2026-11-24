@@ -419,13 +419,13 @@ export function ChatArea({
 
   return (
     <>
+      {/* El alto NO se fija aquí: depende de dónde esté montado el chat, y eso
+          lo sabe `.eco-chat-caja` (`dashboard-design.css`). En la pantalla de
+          Eco toma lo que deja la columna; en el panel del lector, lo de
+          siempre. */}
       <section
-        className="flex flex-col rounded-3xl bg-white"
-        style={{
-          border: "1.5px solid var(--color-warm-200)",
-          minHeight: "calc(100vh - 180px)",
-          maxHeight: "calc(100vh - 180px)",
-        }}
+        className="eco-chat-caja flex flex-col rounded-3xl bg-white"
+        style={{ border: "1.5px solid var(--color-warm-200)" }}
       >
         {/* Header with persona */}
         <header

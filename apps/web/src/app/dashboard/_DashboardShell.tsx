@@ -9,6 +9,7 @@ import type { AmbientId, DiaryMoodId } from "@psico/types";
 import { logoutAction } from "@/actions/auth";
 import type { SessionUser } from "@/lib/api.server";
 import { hrefAyuda, origenSegunRuta } from "@/lib/ayuda";
+import { identidadDeCuenta, type IdentidadDeCuenta } from "@/lib/identidad";
 import { DiaryKeyProvider } from "@/lib/crypto/diary-key-context";
 import { MoodChip } from "@/components/dashboard/shell/MoodChip";
 import { MoodCheckinProvider } from "@/components/dashboard/shell/mood-checkin-context";
@@ -188,10 +189,6 @@ function matchesRoute(href: string, pathname: string, exact: boolean): boolean {
   return exact ? pathname === href : pathname.startsWith(href);
 }
 
-function getInitials(email: string): string {
-  return email.charAt(0).toUpperCase();
-}
-
 // ── Sidebar nav row ────────────────────────────────────────────────────────
 
 function NavLink({
@@ -229,6 +226,7 @@ function NavLink({
 
 function Sidebar({
   user,
+  identidad,
   pathname,
   onNav,
   userMenuOpen,
@@ -237,6 +235,7 @@ function Sidebar({
   inert,
 }: {
   user: SessionUser | null;
+  identidad: IdentidadDeCuenta;
   pathname: string;
   onNav: () => void;
   userMenuOpen: boolean;
@@ -338,10 +337,15 @@ function Sidebar({
         type="button"
         onClick={onToggleUserMenu}
         aria-expanded={userMenuOpen}
+        // Contiene el texto visible y dice además qué es: «Ana» a secas no
+        // anuncia que esto despliega las opciones de la cuenta.
+        aria-label={
+          identidad.nombre ? `Cuenta de ${identidad.nombre}` : "Tu cuenta"
+        }
         className="nav-item"
-        // The only place in the shell that renders the account's address.
-        // Marked so documentation captures can redact exactly this box instead
-        // of cropping the sidebar away and hiding the layout with it.
+        // The place in the shell that names the account's holder. Marked so
+        // documentation captures can redact exactly this box instead of
+        // cropping the sidebar away and hiding the layout with it.
         data-account-block
         style={{ marginTop: 14, justifyContent: "space-between" }}
       >
@@ -360,9 +364,11 @@ function Sidebar({
               fontSize: 12,
             }}
           >
-            {user ? getInitials(user.email) : "?"}
+            {identidad.iniciales}
           </span>
           <span
+            // El nombre puede no caber: la elipsis lo corta y esto lo completa.
+            title={identidad.nombre ?? undefined}
             style={{
               textOverflow: "ellipsis",
               overflow: "hidden",
@@ -384,7 +390,9 @@ function Sidebar({
               lineHeight: 1.35,
             }}
           >
-            {user?.email ?? "Usuario"}
+            {/* El nombre, nunca el correo: quien mira la pantalla por encima
+                del hombro no tiene por qué leer una dirección. */}
+            {identidad.nombre ?? "Tu cuenta"}
           </span>
         </span>
         <IconChevronDown size={14} />
@@ -417,6 +425,7 @@ function Sidebar({
 // ── Topbar ─────────────────────────────────────────────────────────────────
 
 function Topbar({
+  identidad,
   initialMood,
   initialAmbient,
   navOpen,
@@ -424,6 +433,7 @@ function Topbar({
   toggleRef,
   barRef,
 }: {
+  identidad: IdentidadDeCuenta;
   initialMood: DiaryMoodId | null;
   initialAmbient: AmbientId;
   navOpen: boolean;
@@ -467,10 +477,12 @@ function Topbar({
       <Link
         href="/dashboard/perfil"
         className="tb-ava"
-        aria-label="Perfil"
+        aria-label={
+          identidad.nombre ? `Perfil de ${identidad.nombre}` : "Tu perfil"
+        }
         style={{ textDecoration: "none" }}
       >
-        AV
+        {identidad.iniciales}
       </Link>
     </div>
   );
@@ -480,6 +492,7 @@ function Topbar({
 
 export function DashboardShell({
   user,
+  identidad = identidadDeCuenta({ correo: user?.email }),
   cryptoSalt,
   showTour,
   initialDiaryWrapKey,
@@ -488,6 +501,12 @@ export function DashboardShell({
   children,
 }: {
   user: SessionUser | null;
+  /**
+   * Nombre e iniciales, resueltos por el layout desde `/user/me`. Si esa
+   * respuesta no llegó, queda el respaldo: la inicial del correo de la sesión
+   * y ningún nombre.
+   */
+  identidad?: IdentidadDeCuenta;
   cryptoSalt: string | null;
   showTour: boolean;
   initialDiaryWrapKey: string | null;
@@ -607,6 +626,7 @@ export function DashboardShell({
         <div className="app" data-nav-open={navOpen ? "true" : "false"}>
           <Sidebar
             user={user}
+            identidad={identidad}
             pathname={pathname}
             onNav={() => {
               setUserMenuOpen(false);
@@ -631,6 +651,7 @@ export function DashboardShell({
 
           <div className="main">
             <Topbar
+              identidad={identidad}
               initialMood={initialMood}
               initialAmbient={initialAmbient}
               navOpen={navOpen}

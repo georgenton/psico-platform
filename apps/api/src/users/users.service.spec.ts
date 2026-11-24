@@ -201,6 +201,41 @@ describe("UsersService", () => {
       expect(me.achievements).toEqual([]);
     });
 
+    it("writes a pending achievement as what is left to do, without re-seeding", async () => {
+      // The stored sentence is the one written for the day it is earned. The
+      // row is NOT what decides how a pending milestone reads.
+      const stored = {
+        id: "first-reflection",
+        label: "Primera reflexión",
+        description: "Escribiste tu primera entrada en el diario.",
+        icon: "pencil",
+        progressTarget: 1,
+      };
+      mockPrisma.user.findUnique.mockResolvedValue({
+        ...baseUser,
+        achievements: [
+          { achievement: stored, progressCurrent: 0, unlockedAt: null },
+          {
+            achievement: {
+              ...stored,
+              id: "first-chapter",
+              description:
+                "Terminaste tu primer capítulo. Inicio del recorrido.",
+            },
+            progressCurrent: 1,
+            unlockedAt: new Date("2026-11-20T10:00:00Z"),
+          },
+        ],
+      });
+
+      const me = await service.getMe(userId);
+
+      expect(me.achievements.map((a) => a.description)).toEqual([
+        "Escribe tu primera entrada en el diario.",
+        "Terminaste tu primer capítulo. Inicio del recorrido.",
+      ]);
+    });
+
     it("maps PRO plan to tier='pro'", async () => {
       mockPrisma.user.findUnique.mockResolvedValue({
         ...baseUser,

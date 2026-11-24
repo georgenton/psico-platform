@@ -80,6 +80,10 @@ const ICON_BY_TOKEN: Record<
   (p: { size?: number }) => React.JSX.Element
 > = {
   "book-open": IconBook,
+  // Los dos que de verdad manda el catálogo. Sin ellos, los hitos de lectura y
+  // de escritura caían al icono de respaldo y no se distinguían entre sí.
+  book: IconBook,
+  pencil: IconReflections,
   flame: IconFlame,
   star: IconPatterns,
   patterns: IconPatterns,

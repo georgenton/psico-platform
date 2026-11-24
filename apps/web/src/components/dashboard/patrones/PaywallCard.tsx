@@ -24,15 +24,18 @@ export function PaywallCard({
   purchasesOpen: boolean;
 }) {
   return (
+    // El par de superficie de marca, no la rampa — la misma corrección que
+    // `PaywallPro` (#728), por el mismo motivo. El gradiente iba de
+    // `lavender-500` a `lavender-800`: sobre el 500 el blanco da 3,63, y en
+    // Noche el 800 se aclara, así que el texto blanco del pie quedaba en 1,40.
     <section
       style={{
         marginTop: 16,
         overflow: "hidden",
         borderRadius: 24,
         padding: 36,
-        color: "white",
-        background:
-          "radial-gradient(circle at top right, var(--color-lavender-500), var(--color-lavender-800))",
+        color: "var(--fg-on-brand-surface)",
+        background: "var(--bg-brand-surface)",
       }}
     >
       <p
@@ -41,13 +44,22 @@ export function PaywallCard({
           fontWeight: 700,
           textTransform: "uppercase",
           letterSpacing: ".14em",
-          color: "rgba(255,255,255,.7)",
+          color: "var(--fg-on-brand-surface-muted)",
           margin: 0,
         }}
       >
         Función Pro
       </p>
-      <h2 style={{ font: "700 24px/1.1 var(--font-sans)", marginTop: 8 }}>
+      {/* El color va explícito: la regla global de encabezados
+          (`h1…h6 { color: var(--fg-heading) }`) pisa el que se hereda de la
+          tarjeta, y el título salía en tinta oscura sobre morado — 1,30:1. */}
+      <h2
+        style={{
+          font: "700 24px/1.1 var(--font-sans)",
+          marginTop: 8,
+          color: "var(--fg-on-brand-surface)",
+        }}
+      >
         Tu mapa emocional · sin descifrar nada
       </h2>
       <p
@@ -56,7 +68,7 @@ export function PaywallCard({
           maxWidth: 460,
           fontSize: 14,
           lineHeight: 1.5,
-          color: "rgba(255,255,255,.85)",
+          color: "var(--fg-on-brand-surface-muted)",
         }}
       >
         Hicimos los patrones para que veas tu propio ritmo: cuándo escribes, qué
@@ -72,7 +84,7 @@ export function PaywallCard({
           flexDirection: "column",
           gap: 8,
           fontSize: 13.5,
-          color: "rgba(255,255,255,.9)",
+          color: "var(--fg-on-brand-surface)",
         }}
       >
         {[
@@ -96,7 +108,7 @@ export function PaywallCard({
         style={{
           marginTop: 20,
           fontSize: 11.5,
-          color: "rgba(255,255,255,.7)",
+          color: "var(--fg-on-brand-surface-muted)",
         }}
       >
         Llevas <strong>{entryCount}</strong> entradas este período. Suficiente
@@ -133,7 +145,13 @@ export function PaywallCard({
         </Link>
       ) : (
         <div style={{ marginTop: 24 }}>
-          <p style={{ fontSize: 13, color: "rgba(255,255,255,.9)", margin: 0 }}>
+          <p
+            style={{
+              fontSize: 13,
+              color: "var(--fg-on-brand-surface)",
+              margin: 0,
+            }}
+          >
             {PURCHASES_CLOSED_HEADLINE}, así que esta función todavía no se
             puede activar.
           </p>
@@ -144,7 +162,7 @@ export function PaywallCard({
               display: "inline-block",
               fontSize: 13,
               fontWeight: 600,
-              color: "white",
+              color: "var(--fg-on-brand-surface)",
               textDecoration: "underline",
             }}
           >

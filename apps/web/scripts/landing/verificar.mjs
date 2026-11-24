@@ -96,6 +96,61 @@ for (const w of [320, 360, 390, 768, 1024, 1280, 1440]) {
   }
 }
 
+// ── 1b · La cabecera cabe en una línea ─────────────────────────────────────
+// La referencia cabía; al añadir «Crear cuenta» dejó de caber y nadie lo midió:
+// cuatro rótulos se partían en dos líneas a cualquier ancho de escritorio. Se
+// miden los rótulos —no sólo el alto de la barra, que tiene un mínimo de 72 px
+// y no cambia cuando un enlace se parte por dentro— y que las acciones sigan
+// siendo alcanzables con el dedo.
+// eslint-disable-next-line no-console
+console.log("\n1b · Cabecera en una línea");
+for (const w of [320, 360, 390, 414, 768, 1024, 1141, 1280, 1440, 1920]) {
+  for (const tema of ["contemporary", "renaissance"]) {
+    const { ctx, page } = await abrir(w);
+    await page.evaluate(
+      (t) => document.getElementById("fh").setAttribute("data-theme", t),
+      tema,
+    );
+    await page.waitForTimeout(200);
+    const r = await page.evaluate(() => {
+      const lineas = (el) => {
+        const tops = new Set();
+        const tw = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+        while (tw.nextNode()) {
+          if (!tw.currentNode.textContent.trim()) continue;
+          const rango = document.createRange();
+          rango.selectNodeContents(tw.currentNode);
+          for (const c of rango.getClientRects())
+            if (c.width > 1) tops.add(Math.round(c.top));
+        }
+        return tops.size;
+      };
+      const items = [...document.querySelectorAll(".fh-head-in a, .fh-head-in button")]
+        .filter((e) => e.offsetParent !== null)
+        .map((e) => ({ t: e.textContent.trim(), b: e.getBoundingClientRect(), l: lineas(e) }));
+      const centros = new Set(items.map((i) => Math.round(i.b.top + i.b.height / 2)));
+      return {
+        partidos: items.filter((i) => i.l > 1).map((i) => i.t),
+        filas: centros.size,
+        pequenos: items.filter((i) => i.b.height < 44 || i.b.width < 44).map((i) => i.t),
+        crear: items.some((i) => i.t === "Crear cuenta"),
+        entrar: items.some((i) => i.t === "Entrar" || i.t === "Menú"),
+      };
+    });
+    comprobar(
+      r.partidos.length === 0 && r.filas === 1,
+      `${w}px · ${tema} en una línea`,
+      r.partidos.length ? `se parten: ${r.partidos.join(", ")}` : `${r.filas} fila(s)`,
+    );
+    comprobar(
+      r.crear && r.entrar && r.pequenos.length === 0,
+      `${w}px · ${tema} «Crear cuenta» y el acceso a mano, a 44 px`,
+      r.pequenos.join(", "),
+    );
+    await ctx.close();
+  }
+}
+
 // ── 2 · Espaciado de texto ampliado (WCAG 2.2) ─────────────────────────────
 // Si el contenido se recorta al aplicar estos valores, el texto se pierde.
 // eslint-disable-next-line no-console

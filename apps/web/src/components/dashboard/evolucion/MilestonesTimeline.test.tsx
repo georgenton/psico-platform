@@ -109,4 +109,46 @@ describe("MilestonesTimeline", () => {
     expect(screen.queryByText("Pendiente 3")).not.toBeInTheDocument();
     expect(screen.queryByText("Pendiente 4")).not.toBeInTheDocument();
   });
+
+  it("lo pendiente se distingue con palabras, no sólo con el borde punteado", () => {
+    // La frase llega ya escrita para su estado desde la API; lo que añade la
+    // tarjeta es decir que es un paso por dar y cuánto falta.
+    const { container } = render(
+      <MilestonesTimeline
+        milestones={[
+          milestone({ id: "hecho" }),
+          milestone({
+            id: "falta",
+            label: "Primer capítulo",
+            description: "Termina tu primer capítulo.",
+            unlockedAt: null,
+            progressCurrent: 0,
+          }),
+        ]}
+      />,
+    );
+    const [hecho, falta] = [
+      ...container.querySelectorAll<HTMLElement>(".tl-item"),
+    ];
+    expect(hecho?.textContent).not.toMatch(/Próximo paso|Falta/);
+    expect(falta?.textContent).toMatch(/Próximo paso/);
+    expect(falta?.textContent).toMatch(/Termina tu primer capítulo\./);
+    expect(falta?.textContent).toMatch(/Falta: 1/);
+  });
+
+  it("reconoce los iconos que el catálogo manda de verdad", () => {
+    const dibujo = (icon: string) => {
+      const { container, unmount } = render(
+        <MilestonesTimeline milestones={[milestone({ icon })]} />,
+      );
+      const svg = container.querySelector(".tl-dot svg")?.innerHTML;
+      unmount();
+      return svg;
+    };
+    const respaldo = dibujo("token-desconocido");
+    for (const token of ["pencil", "book", "flame"]) {
+      expect(dibujo(token), token).not.toBe(respaldo);
+    }
+    expect(new Set(["pencil", "book", "flame"].map(dibujo)).size).toBe(3);
+  });
 });

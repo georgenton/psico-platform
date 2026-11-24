@@ -174,19 +174,23 @@ export function EcoShell({
   // takes the wide column, the rail (threads + disclaimer) the narrow one.
   return (
     <div className="eco-layout">
-      <div className="min-w-0">
+      {/* Con conversación abierta, la columna mide lo que queda de pantalla y
+          reparte: las sugerencias ceden antes que la caja de escritura. */}
+      <div className={activeThreadId ? "eco-columna" : "min-w-0"}>
         {activeThreadId ? (
           <>
             {showSuggestions && (
-              <EcoSuggestions
-                apiBase={apiBase}
-                token={token}
-                onPick={(s) => {
-                  setComposerSeed(s.prompt);
-                  setScope(s.scope ?? undefined);
-                  setShowSuggestions(false);
-                }}
-              />
+              <div className="eco-sugerencias">
+                <EcoSuggestions
+                  apiBase={apiBase}
+                  token={token}
+                  onPick={(s) => {
+                    setComposerSeed(s.prompt);
+                    setScope(s.scope ?? undefined);
+                    setShowSuggestions(false);
+                  }}
+                />
+              </div>
             )}
             <ChatArea
               // La conversación ES esta pantalla, así que su título visible es

@@ -45,7 +45,10 @@ const ENLACES: ReadonlyArray<{ href: string; texto: string }> = [
  *
  * «Ver una experiencia» se conserva —es parte del diseño aprobado y es lo que
  * hace la página explorable— pero pasa a secundaria: en una cabecera sólo
- * puede haber una llamada principal, y ahora es otra.
+ * puede haber una llamada principal, y ahora es otra. Entre 1.141 y 1.239 px no
+ * cabe en la fila junto a las demás y ahí la ofrece sólo el hero, que la repite
+ * justo debajo: partir los rótulos en dos líneas era la alternativa, y es lo
+ * que pasaba a todos los anchos de escritorio (ajuste 7 del generador).
  */
 export function Cabecera() {
   const { abrirEscenario } = useLanding();

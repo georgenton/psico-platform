@@ -13,11 +13,7 @@ const userId = "user-1";
  * `findRecommendableBook` filtra por `isPublished: true`, así que para el
  * libro retenido la consulta no devuelve fila.
  */
-const onlyAnchorIsPublished = async ({
-  where,
-}: {
-  where: { slug: string };
-}) =>
+const onlyAnchorIsPublished = async ({ where }: { where: { slug: string } }) =>
   where.slug === "emociones-en-construccion"
     ? {
         id: "book-ec",
@@ -320,6 +316,43 @@ describe("OnboardingService", () => {
         create: { userId, recommendedBookId: "book-fe" },
         update: { recommendedBookId: "book-fe" },
       });
+    });
+
+    it("paints each book with ITS cover, the same one the library shows", async () => {
+      // Derived from a hash of the id, the token said "mixed" for a book whose
+      // row says "warm". The ids here are picked so that the old hash would
+      // disagree with every one of the three rows.
+      mockPrisma.onboardingState.findUnique.mockResolvedValue({
+        motivosIds: [],
+      });
+      mockPrisma.book.findFirst.mockResolvedValue({
+        id: "cover-primary",
+        slug: "emociones-en-construccion",
+        title: "Emociones en Construcción",
+        description: "…",
+        cover: "warm",
+      });
+      mockPrisma.book.findMany.mockResolvedValue([
+        {
+          id: "cover-a",
+          slug: "a",
+          title: "A",
+          description: "…",
+          cover: "cool",
+        },
+        {
+          id: "libro-c",
+          slug: "b",
+          title: "B",
+          description: "…",
+          cover: "mixed",
+        },
+      ]);
+
+      const res = await service.getRecommendation(userId);
+
+      expect(res.recommendation.cover).toBe("warm");
+      expect(res.alternatives.map((a) => a.cover)).toEqual(["cool", "mixed"]);
     });
 
     it("falls back to the anchor book when no motivo matches", async () => {

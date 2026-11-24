@@ -15,6 +15,7 @@ import type {
 import { AUTHORSHIP_UNCONFIRMED } from "@psico/types";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { PrismaService } from "../prisma";
+import { toCoverToken } from "../shared/cover-token";
 import type { OnboardingStep1Dto } from "./dto/step1.dto";
 import type { OnboardingStep2Dto } from "./dto/step2.dto";
 import type { OnboardingStep3Dto } from "./dto/step3.dto";
@@ -444,6 +445,7 @@ export class OnboardingService {
       title: string;
       description: string | null;
       plan: string;
+      cover: string;
       author: { name: string } | null;
     },
     matchedMotivo: string | null,
@@ -468,26 +470,15 @@ export class OnboardingService {
       author: book.author?.name ?? AUTHORSHIP_UNCONFIRMED,
       // What it costs to open, stated BEFORE the CTA promises a read.
       tierRequired: book.plan === "FREE" ? ("free" as const) : ("pro" as const),
-      cover: this.pickCoverToken(book.id),
+      // The book's own cover, the same one the library paints. It was derived
+      // from a hash of the id back when the column did not exist, and outlived
+      // the reason: the recommendation and the library disagreed about the
+      // colour of the same book.
+      cover: toCoverToken(book.cover),
       // Until ContentModule exposes chapter 1 preview, use the description as
       // a stand-in. Sprint S5 plugs the real chapter 1 first paragraph.
       chapter1Preview: book.description ?? "",
       why,
     };
-  }
-
-  /**
-   * Deterministic cover token derived from the book id. The design supports
-   * "cool" / "warm" / "mixed"; we pick by hash so the same book always gets
-   * the same tone. When BookCover lands in S22 (Author module), this falls
-   * back to a real DB column.
-   */
-  private pickCoverToken(bookId: string): "cool" | "warm" | "mixed" {
-    const tokens: ("cool" | "warm" | "mixed")[] = ["cool", "warm", "mixed"];
-    let hash = 0;
-    for (let i = 0; i < bookId.length; i++) {
-      hash = (hash * 31 + bookId.charCodeAt(i)) >>> 0;
-    }
-    return tokens[hash % tokens.length]!;
   }
 }

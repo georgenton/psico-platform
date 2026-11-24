@@ -19,6 +19,7 @@ import type {
   OnboardingMotivo,
   OnboardingVoicePreference,
 } from "@psico/types";
+import { coverColor } from "@/components/dashboard/cover-colors";
 import { Colors, Radius, Spacing } from "@/theme";
 
 /**
@@ -531,7 +532,10 @@ function RecommendationStep({
         <View
           style={[
             styles.recommendationCover,
-            { backgroundColor: coverColorForOnboarding(primary.cover) },
+            // La misma portada que Biblioteca y la ficha. Aquí había otra
+            // paleta —terracota para `warm`, que en el resto es salvia—, así
+            // que el libro cambiaba de color al abrirlo.
+            { backgroundColor: coverColor(primary.cover) },
           ]}
         >
           <Text style={styles.recommendationAuthor}>{primary.author}</Text>
@@ -573,22 +577,6 @@ function RecommendationStep({
       ) : null}
     </View>
   );
-}
-
-// ── Helpers ────────────────────────────────────────────────────────────
-
-function coverColorForOnboarding(
-  cover: OnboardingBookRecommendation["cover"],
-): string {
-  switch (cover) {
-    case "cool":
-      return Colors.lavender[500];
-    case "warm":
-      return "#C76A4D";
-    case "mixed":
-    default:
-      return Colors.sage[500];
-  }
 }
 
 // ── Styles ─────────────────────────────────────────────────────────────

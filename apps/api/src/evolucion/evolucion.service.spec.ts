@@ -61,6 +61,39 @@ describe("EvolucionService — Sprint E2 (catalog + auto-unlock)", () => {
     expect(result.milestones.every((m) => m.unlockedAt === null)).toBe(true);
   });
 
+  it("writes each milestone for its state: pending as a next step, unlocked as done", async () => {
+    prisma.user.findUnique.mockResolvedValue({
+      currentStreakDays: 0,
+      longestStreakDays: 0,
+    });
+    // One entry: "first-reflection" unlocks in this very request, the rest wait.
+    prisma.diaryEntry.count.mockResolvedValue(1);
+    prisma.readingSession.findMany.mockResolvedValue([]);
+    prisma.diaryEntry.findMany.mockResolvedValue([]);
+    prisma.userAchievement.findMany.mockResolvedValue([]);
+
+    const service = new EvolucionService(prisma as never);
+    const { milestones } = await service.getForUser("user-1");
+    const byId = new Map(milestones.map((m) => [m.id, m]));
+
+    expect(byId.get("first-reflection")?.unlockedAt).not.toBeNull();
+    expect(byId.get("first-reflection")?.description).toBe(
+      "Escribiste tu primera entrada en el diario.",
+    );
+    expect(byId.get("first-chapter")?.unlockedAt).toBeNull();
+    expect(byId.get("first-chapter")?.description).toBe(
+      "Termina tu primer capítulo.",
+    );
+
+    // And nothing pending says it already happened, whichever entry it is.
+    for (const entry of ACHIEVEMENT_CATALOG) {
+      const m = byId.get(entry.id)!;
+      expect(m.description).toBe(
+        m.unlockedAt ? entry.description : entry.pendingDescription,
+      );
+    }
+  });
+
   it("GR-2: counts learning activity from the V1 log, and only completions", async () => {
     prisma.user.findUnique.mockResolvedValue({
       currentStreakDays: 0,

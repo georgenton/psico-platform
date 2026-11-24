@@ -33,20 +33,6 @@ export async function updateProfileAction(
   return me;
 }
 
-export async function requestEmailChangeAction(
-  newEmail: string,
-): Promise<{ ok: true; verificationSentTo: string }> {
-  const res = await serverFetch<{ ok: true; verificationSentTo: string }>(
-    "/user/email-change-request",
-    {
-      method: "POST",
-      body: JSON.stringify({ newEmail }),
-      headers: { "Content-Type": "application/json" },
-    },
-  );
-  return res;
-}
-
 export async function requestDataExportAction(): Promise<{
   ok: true;
   expectedAt: string;

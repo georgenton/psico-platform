@@ -15,9 +15,8 @@
  *
  * Así que antes de que alguien se registre hay que acreditar la **pertenencia
  * de la dirección exacta**, y en **los dos procesos** que mandan correo: la
- * API (verificación de cuenta, restablecimiento, cambio de dirección,
- * exportación, avisos de autoría) y el worker (el digest semanal, que lo
- * dispara un cron).
+ * API (verificación de cuenta, restablecimiento, exportación, avisos de
+ * autoría) y el worker (el digest semanal, que lo dispara un cron).
  *
  * ── Qué garantiza, y qué no ───────────────────────────────────────────────
  *

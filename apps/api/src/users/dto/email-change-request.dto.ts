@@ -1,26 +1,18 @@
 import { IsEmail } from "class-validator";
 
 /**
- * Body for `POST /api/user/email-change-request` — request to change
- * the account email.
+ * Body for `POST /api/user/email-change-request`.
  *
- * Two-step flow (the second step is the email verification link):
- *
- *   1. POST this — server creates an `EmailChangeRequest` row + sends
- *      a confirmation link to `newEmail`. Service responds 409
- *      `EMAIL_ALREADY_REGISTERED` if the new email belongs to another
- *      account.
- *   2. User clicks the link in their inbox → consumed by a separate
- *      endpoint (`/user/email-change/:token`) → `User.email` updated.
- *
- * Until step 2 completes, the user can still log in with the old
- * email. The pending change is visible in profile settings.
+ * Withdrawn: every valid body is answered 503 `EMAIL_CHANGE_UNAVAILABLE`,
+ * before any row is created or any email queued. The second step this used to
+ * describe — consuming the link and updating `User.email` — was never built:
+ * no endpoint and no page exist for it. See
+ * `docs/product/tarea-cambio-de-correo.md`.
  */
 export class EmailChangeRequestDto {
   /**
-   * Target email the user wants to switch to. Must be a valid RFC 5321
-   * address and NOT already registered (409 `EMAIL_ALREADY_REGISTERED`
-   * on conflict). Case is normalized server-side.
+   * Target address. Validated as an email and not used: the operation is
+   * withdrawn and the answer does not depend on it.
    */
   @IsEmail()
   newEmail!: string;

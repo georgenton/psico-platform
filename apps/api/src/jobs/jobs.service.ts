@@ -393,7 +393,7 @@ export class JobsService implements OnModuleInit {
    *
    * Use this when:
    *  - The email is non-critical to the calling request's success
-   *    (e.g. email-change confirmation — registration already succeeded).
+   *    (e.g. the author-review notice — the decision is already saved).
    *  - The send latency is meaningful (Resend ~500ms).
    *  - You want retry-on-failure for free.
    *

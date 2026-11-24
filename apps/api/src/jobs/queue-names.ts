@@ -18,8 +18,8 @@ export const QueueName = {
    * Outbound transactional email (Resend).
    *
    * Producer: `JobsService.enqueueEmail` (called from any feature service
-   * that needs to send an email asynchronously — e.g. UsersService for
-   * email-change-request).
+   * that needs to send an email asynchronously — e.g. AuthService for another
+   * verification link).
    *
    * Consumer: `apps/api/src/jobs/processors/email.processor.ts`
    *

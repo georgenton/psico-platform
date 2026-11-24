@@ -10,15 +10,16 @@ import {
   UnauthorizedException,
 } from "@nestjs/common";
 import { completedBookCount } from "../content-core/read/book-completion";
-import { createHash, randomBytes } from "crypto";
 import type { Redis } from "ioredis";
 import * as bcrypt from "bcryptjs";
-import { BRAND_NAME } from "@psico/types";
+import {
+  EMAIL_CHANGE_UNAVAILABLE_CODE,
+  EMAIL_CHANGE_UNAVAILABLE_NOTICE,
+} from "@psico/types";
 import type {
   AvatarUploadResponse,
   DataExportRequestResponse,
   DeleteAccountResponse,
-  EmailChangeRequestResponse,
   UserMeResponse,
 } from "@psico/types";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
@@ -35,7 +36,7 @@ import { REDIS_CLIENT } from "../redis";
 import { bumpGeneration } from "../emotional-map/cache-identity";
 import { describeMilestone } from "../evolucion/achievement-catalog";
 import { lockUserExclusive } from "../emotional-map/privacy-barrier";
-import { emailShell, escape } from "../notifications/templates/base";
+import { ExpectedUnavailableException } from "../shared/filters/expected-unavailable.exception";
 import { contentAssetPath } from "../shared/content-asset";
 import { assertUploadableImage, imageObjectKey } from "../shared/image-upload";
 import {
@@ -51,7 +52,6 @@ import type { UpdateReaderPreferencesDto } from "./dto/update-reader-preferences
 import type { UpdateNotificationsDto } from "./dto/update-notifications.dto";
 import type { UpdatePrivacyDto } from "./dto/update-privacy.dto";
 import type { UpdateMoodDto } from "./dto/update-mood.dto";
-import type { EmailChangeRequestDto } from "./dto/email-change-request.dto";
 import type { PasswordChangeDto } from "./dto/password-change.dto";
 import type { DeleteRequestDto } from "./dto/delete-request.dto";
 
@@ -92,7 +92,6 @@ const DEFAULT_PRIVACY = {
   localTextAnalysis: false,
 };
 
-const EMAIL_VERIFICATION_TTL_HOURS = 24;
 const DATA_EXPORT_EXPECTED_HOURS = 24;
 /**
  * How long a download URL for an export lives. **ACCESS TTL, not retention.**
@@ -516,63 +515,25 @@ export class UsersService {
 
   // ── POST /api/user/email-change-request ────────────────────────────────────
 
-  async requestEmailChange(
-    userId: string,
-    dto: EmailChangeRequestDto,
-  ): Promise<EmailChangeRequestResponse> {
-    const normalized = dto.newEmail.trim().toLowerCase();
-
-    const conflict = await this.prisma.user.findUnique({
-      where: { email: normalized },
-      select: { id: true },
+  /**
+   * Withdrawn. It used to create an `EmailChangeRequest` row and queue an email
+   * linking to `/verify-email-change`, a page that does not exist — so nobody
+   * could ever finish, and a 409 told the caller which addresses have an
+   * account. What finishing it takes is in
+   * `docs/product/tarea-cambio-de-correo.md`.
+   *
+   * It takes no arguments on purpose: an answer that cannot see the address
+   * cannot vary with it. Nothing is read, written or queued. The model and the
+   * rows that already exist are left alone.
+   *
+   * `ExpectedUnavailableException` because this 503 is the answer, not a fault:
+   * one warn line, no stack and no alert.
+   */
+  requestEmailChange(): never {
+    throw new ExpectedUnavailableException({
+      code: EMAIL_CHANGE_UNAVAILABLE_CODE,
+      message: EMAIL_CHANGE_UNAVAILABLE_NOTICE,
     });
-    if (conflict) throw new ConflictException("Email already in use");
-
-    const rawToken = randomBytes(32).toString("hex");
-    const tokenHash = createHash("sha256").update(rawToken).digest("hex");
-    const expiresAt = new Date(
-      Date.now() + EMAIL_VERIFICATION_TTL_HOURS * 3600 * 1000,
-    );
-
-    await this.prisma.emailChangeRequest.create({
-      data: { userId, newEmail: normalized, tokenHash, expiresAt },
-    });
-
-    // Send the verification email via the BullMQ email queue. We enqueue
-    // rather than awaiting Resend directly because:
-    //  - The user-facing response should return immediately.
-    //  - BullMQ retries on transient Resend failures (3 attempts).
-    //  - If the worker is down, the job persists in Redis and runs when
-    //    the worker comes back.
-    const appUrl = this.config.get("APP_URL", { infer: true });
-    const verifyUrl = `${appUrl}/verify-email-change?token=${rawToken}`;
-    const html = emailShell({
-      preheader: "Confirma tu nuevo correo — el enlace vence en 24 horas.",
-      bodyHtml: `
-        <p style="margin:0 0 16px; font-size:17px; font-weight:600;">Cambia tu correo</p>
-        <p style="margin:0 0 16px;">
-          Solicitaste cambiar el correo de tu cuenta a <strong>${escape(normalized)}</strong>.
-          Haz clic para confirmar.
-        </p>
-        <p style="margin:24px 0;">
-          <a href="${escape(verifyUrl)}"
-             style="display:inline-block; padding:14px 28px; border-radius:14px; background:#7C5BC4; color:#FFFFFF; text-decoration:none; font-weight:600; font-size:15px;">
-            Confirmar nuevo correo
-          </a>
-        </p>
-        <p style="margin:24px 0 0; color:#7E6F5F; font-size:13px;">
-          Este enlace vence en ${EMAIL_VERIFICATION_TTL_HOURS} horas. Si no solicitaste este cambio, ignora este mensaje.
-        </p>`,
-    });
-    await this.jobs.enqueueEmail({
-      to: normalized,
-      subject: `Confirma tu nuevo correo · ${BRAND_NAME}`,
-      html,
-      text: `Confirma tu nuevo correo abriendo: ${verifyUrl}\n\nEste enlace vence en ${EMAIL_VERIFICATION_TTL_HOURS} horas.`,
-      tag: "email-change",
-    });
-
-    return { ok: true, verificationSentTo: normalized };
   }
 
   // ── POST /api/user/password-change ─────────────────────────────────────────

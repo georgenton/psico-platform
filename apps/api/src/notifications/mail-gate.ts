@@ -11,7 +11,8 @@ import type { PsicoEnvironment } from "../shared/psico-environment";
  * probando. Las cinco superficies que mandan correo, y quién las dispara:
  *
  *   - verificación de cuenta y restablecimiento de contraseña (`AuthService`)
- *     y cambio de correo (cola `email`) → los pide la propia persona;
+ *     → los pide la propia persona. El cambio de correo también enviaba, y
+ *     está retirado: `docs/product/tarea-cambio-de-correo.md`;
  *   - exportación lista (`DataExportProcessor`) → lo pidió ella, llega después;
  *   - revisión de autoría aprobada o rechazada (`author-review` → cola `email`)
  *     → la dispara un **ADMIN** y el correo va a un **tercero**, el autor;

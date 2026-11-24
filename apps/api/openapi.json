@@ -5195,14 +5195,7 @@
         },
         "responses": {
           "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
+            "description": ""
           },
           "400": {
             "description": "",
@@ -5224,8 +5217,8 @@
               }
             }
           },
-          "409": {
-            "description": "Requested email is already in use by another account.",
+          "503": {
+            "description": "Changing the account email is not available. Answers `EMAIL_CHANGE_UNAVAILABLE` to every valid body.",
             "content": {
               "application/json": {
                 "schema": {
@@ -26198,7 +26191,7 @@
         "properties": {
           "newEmail": {
             "type": "string",
-            "description": "Target email the user wants to switch to. Must be a valid RFC 5321\naddress and NOT already registered (409 `EMAIL_ALREADY_REGISTERED`\non conflict). Case is normalized server-side.",
+            "description": "Target address. Validated as an email and not used: the operation is\nwithdrawn and the answer does not depend on it.",
             "format": "email"
           }
         },

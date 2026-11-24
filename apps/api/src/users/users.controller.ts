@@ -14,7 +14,7 @@ import {
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
-  ApiConflictResponse,
+  ApiServiceUnavailableResponse,
   ApiTags,
   ApiUnauthorizedResponse,
 } from "@nestjs/swagger";
@@ -129,17 +129,18 @@ export class UsersController {
     return this.usersService.updateMood(user.userId, dto);
   }
 
+  // Withdrawn — every valid body gets the same 503. The body is still declared
+  // so the route keeps its shape and its validation.
   @Post("email-change-request")
   @HttpCode(HttpStatus.OK)
-  @ApiConflictResponse({
+  @ApiServiceUnavailableResponse({
     type: ErrorEnvelopeDto,
-    description: "Requested email is already in use by another account.",
+    description:
+      "Changing the account email is not available. Answers " +
+      "`EMAIL_CHANGE_UNAVAILABLE` to every valid body.",
   })
-  requestEmailChange(
-    @CurrentUser() user: AuthenticatedUser,
-    @Body() dto: EmailChangeRequestDto,
-  ) {
-    return this.usersService.requestEmailChange(user.userId, dto);
+  requestEmailChange(@Body() _dto: EmailChangeRequestDto): never {
+    return this.usersService.requestEmailChange();
   }
 
   @Post("password-change")

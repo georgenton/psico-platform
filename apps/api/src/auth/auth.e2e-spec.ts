@@ -303,10 +303,9 @@ describe("Auth · E2E", () => {
       emailVerified: false,
     };
 
-    // The queue is BullMQ's, already in production for the email-change and
-    // export notices, and it can't run on the in-memory Redis this harness
-    // uses (its Lua needs `cmsgpack`). What these tests care about is only
-    // that the service hands the email to it — so it is observed, not run.
+    // The queue is BullMQ's and it can't run on the in-memory Redis this
+    // harness uses (its Lua needs `cmsgpack`). What these tests care about is
+    // only that the service hands the email to it — so it is observed, not run.
     let enqueueSpy: MockInstance<
       Parameters<JobsService["enqueueEmail"]>,
       ReturnType<JobsService["enqueueEmail"]>

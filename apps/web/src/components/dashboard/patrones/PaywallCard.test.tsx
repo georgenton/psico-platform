@@ -70,6 +70,27 @@ describe("PaywallCard · con las compras CERRADAS", () => {
     render(<PaywallCard entryCount={12} purchasesOpen={false} />);
     expect(screen.getByText("12")).toBeInTheDocument();
   });
+
+  it("con cero entradas no dice que sean suficientes", () => {
+    render(<PaywallCard entryCount={0} purchasesOpen={false} />);
+    expect(
+      screen.getByText("Aún no tienes entradas en este período."),
+    ).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/Suficiente|Llevas 0/);
+  });
+
+  it("habla de patrones: no es el Mapa ni promete terapia", () => {
+    render(<PaywallCard entryCount={1} purchasesOpen={false} />);
+    expect(
+      screen.getByRole("heading", {
+        name: "Tus patrones · sin descifrar nada",
+      }),
+    ).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(
+      /mapa emocional|terapeuta|heatmap|moods/i,
+    );
+    expect(document.body.textContent).toContain("1 entrada en este período");
+  });
 });
 
 describe("PaywallCard · con las compras ABIERTAS", () => {

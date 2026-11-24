@@ -162,26 +162,25 @@ function PaywallCard({
   return (
     <View style={styles.paywall}>
       <Text style={styles.paywallEyebrow}>FUNCIÓN PRO</Text>
-      <Text style={styles.paywallTitle}>
-        Tu mapa emocional · sin descifrar nada
-      </Text>
+      <Text style={styles.paywallTitle}>Tus patrones · sin descifrar nada</Text>
       <Text style={styles.paywallBody}>
         Hicimos los patrones para que veas tu propio ritmo: cuándo escribes, qué
         emociones se repiten, qué semanas estuvieron pesadas. Todo desde la
         metadata de tu diario, sin que el servidor toque tu texto.
       </Text>
       {[
-        "Heatmap del mes con tus moods.",
+        "Tus ánimos del mes, día a día.",
         "Hora del día con más entradas.",
         "Resumen de tu semana con conteos: lo redacta una IA o, si falla, una plantilla.",
-        "Compartir con tu terapeuta (próximamente).",
       ].map((line) => (
         <Text key={line} style={styles.paywallBullet}>
           ✓ {line}
         </Text>
       ))}
       <Text style={styles.paywallFootnote}>
-        Llevas {entryCount} entradas este período. Suficiente para empezar.
+        {entryCount === 0
+          ? "Aún no tienes entradas en este período."
+          : `Llevas ${entryCount} ${entryCount === 1 ? "entrada" : "entradas"} en este período.`}
       </Text>
       {/*
         «Hazte Pro» es una llamada accionable a contratar; con los cobros

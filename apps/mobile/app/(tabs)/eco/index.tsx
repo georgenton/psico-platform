@@ -175,7 +175,7 @@ export default function EcoScreen() {
           }}
           onMoreHelp={(country) =>
             router.push({
-              pathname: "/(tabs)/terapia/crisis",
+              pathname: "/(tabs)/ayuda",
               params: country ? { pais: country } : {},
             })
           }

@@ -1,5 +1,58 @@
 # @psico/types
 
+## 0.13.0
+
+### Minor Changes
+
+- d5df5e6: El catálogo de líneas de crisis pasa a vivir aquí.
+
+  Vivía dentro de la API, así que la única forma de que una pantalla enseñara un
+  teléfono era pedírselo por red. Ahora es dato puro más un resolutor puro, y la
+  página pública de ayuda lo lee sin red: las líneas se ven aunque la API esté
+  caída. La API sigue sirviendo `GET /api/terapia/crisis` desde **este** módulo —el
+  mismo objeto, el mismo resolutor—, de modo que no hay dos copias que puedan
+  separarse.
+
+  Superficie nueva, sin tocar la que había: `getCrisisFor`, `CRISIS_COUNTRIES`,
+  `CRISIS_COUNTRY_NAMES`, `CRISIS_DEFAULT_COUNTRY`, `CRISIS_FALLBACK`,
+  `isCrisisCountry` y el tipo `CrisisCountry`. `CRISIS_COUNTRY_NAMES` está tipado
+  contra el catálogo: añadir un país sin ponerle nombre no compila.
+
+  **Ni un dato cambió.** Países, teléfonos, enlaces, horarios, idiomas, consejos,
+  pasos y orden son los mismos, y la respuesta HTTP se compara, país por país, con
+  literales capturados antes de mover nada.
+
+- 61d508f: La observabilidad de errores pasa de redactar a reconstruir.
+
+  `@psico/types/observability` (también desde la raíz del paquete) lleva ahora la
+  **lista blanca** de lo que puede salir hacia un colector de errores:
+  `safeEvent` y `safeEnvelope` rehacen el evento y su sobre desde campos
+  enumerados, `guardTransport` envuelve el transporte de cualquier cliente para que
+  sólo salgan errores, y `nodeFrames` comprueba cada marco contra los ficheros del
+  despliegue. La comparten la API, el worker, los tres procesos de Web y el móvil.
+
+  Se retiran `sanitizeSentryEvent`, `sanitizeBreadcrumb`, `scrubUrl`,
+  `redactHeaders` y `REDACTED`. Borraban lo conocido: contra un receptor local, el
+  binario anterior mandaba las transacciones enteras, la IP y los argumentos de una
+  consulta dentro del mensaje de un error. `SENSITIVE_HEADERS` se conserva para los
+  diagnósticos de texto.
+
+  Es una entrada nueva del paquete y no sólo una exportación más: importarla desde
+  la raíz arrastraba los catálogos al middleware.
+
+- 8ee866a: Copy compartido que web y móvil decían cada uno a su manera, y de más.
+  - **`ECO_PRIVACY_NOTE` y `ECO_PRIVACY_CRISIS_NOTE`** — lo que pasa con lo que se
+    le escribe a Eco (ADR 0007 §C): el mensaje se procesa con servicios de IA y se
+    guarda cifrado; sus respuestas y los mensajes de crisis, no. Acceso, registro,
+    Seguridad, las rejas y el componente de privacidad prometían de Eco la
+    protección del diario.
+  - **`LECTURA_Y_MAPA_NOTA` y `REFLEXION_Y_MAPA_NOTA`** — leer y escribir cuentan
+    en Mi Evolución; al Mapa Emocional sólo entra lo que la persona registra,
+    confirma o autoriza.
+  - **`insightOrigen`, `INSIGHT_*`, `ECO_IDEAS_TITULO` y `ecoIdeasOrigen`** — de
+    dónde salen las sugerencias de Inicio. Las eligen reglas, no un modelo, y
+    cuando ninguna se cumple la frase es fija.
+
 ## 0.12.0
 
 ### Minor Changes

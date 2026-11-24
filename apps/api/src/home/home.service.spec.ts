@@ -330,6 +330,70 @@ describe("HomeService.getHome", () => {
     );
   });
 
+  describe("what the daily insight says about itself", () => {
+    const insight = async (
+      user: Record<string, unknown>,
+      moods: Array<{ mood: string }>,
+    ) => {
+      prisma.user.findUnique.mockResolvedValue({
+        ...fakeUserRow,
+        ...user,
+        preferences: { weeklyGoalMinutes: 60 },
+      });
+      prisma.readingSession.findMany.mockResolvedValue([]);
+      prisma.userProgress.findMany.mockResolvedValue([]);
+      prisma.userProgress.count.mockResolvedValue(0);
+      prisma.book.findMany.mockResolvedValue([]);
+      prisma.conversation.findFirst.mockResolvedValue(null);
+      prisma.dismissedReflectionPrompt.findMany.mockResolvedValue([]);
+      prisma.reflectionPrompt.findFirst.mockResolvedValue(null);
+      prisma.moodLog.findMany.mockResolvedValue(moods);
+      return (await service.getHome("user-1")).insightToday;
+    };
+
+    it("is null for a new account — no rule fired, so the client must not claim activity", async () => {
+      expect(await insight({ currentStreakDays: 0 }, [])).toBeNull();
+    });
+
+    it("greets at night without saying that somebody is reading", async () => {
+      // «Te leo en la noche», in the product whose promise is that nobody can.
+      vi.useFakeTimers();
+      try {
+        vi.setSystemTime(new Date(2026, 0, 15, 23, 0, 0));
+        await insight({ currentStreakDays: 0 }, []);
+        const { greeting } = await service.getHome("user-1");
+        expect(greeting.text).toBe("Buenas noches");
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("names the mood the way the interface does, over the window it really reads", async () => {
+      const r = await insight({ currentStreakDays: 0 }, [
+        { mood: "good" },
+        { mood: "good" },
+        { mood: "good" },
+      ]);
+      expect(r?.kind).toBe("mood-trend");
+      // It used to read «Has registrado "good" varias veces esta semana»: the
+      // token is not a word of the product, and the window is three days.
+      expect(r?.headline).toContain("«Bien»");
+      expect(r?.headline).not.toMatch(/good|esta semana/);
+    });
+
+    it("every kind the engine can emit has its provenance written down", async () => {
+      // The client explains each kind by the rule that fired. A new rule
+      // without its line would be signed with a generic sentence.
+      const { INSIGHT_ORIGEN } = await import("@psico/types");
+      expect(Object.keys(INSIGHT_ORIGEN).sort()).toEqual([
+        "book-progress",
+        "mood-trend",
+        "neutral",
+        "streak",
+      ]);
+    });
+  });
+
   it("names the chapter in the mid-book insight, and never numbers it", async () => {
     // «Parejas que Perduran» keeps its preface at order 1, so the book's own
     // chapter 1 arrives as order 2. The insight used to read «Capítulo 2»
@@ -390,6 +454,10 @@ describe("HomeService.getHome", () => {
     const result = await service.getHome("user-1");
 
     expect(result.insightToday?.kind).toBe("book-progress");
+    // The rule fires between 1 % and 99 %: «a la mitad» was almost never true.
+    expect(result.insightToday?.headline).toBe(
+      "Vas leyendo «Parejas que perduran»",
+    );
     expect(result.insightToday?.body).toContain("Cuando amar también sana");
     expect(result.insightToday?.body).not.toMatch(/Cap\.\s*\d/);
     expect(result.insightToday?.body).not.toMatch(/Capítulo\s*\d/);

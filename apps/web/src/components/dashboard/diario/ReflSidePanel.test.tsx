@@ -50,8 +50,15 @@ describe("ReflSidePanel", () => {
     expect(screen.queryByText(/Tu mejor racha/i)).not.toBeInTheDocument();
   });
 
-  it("always renders the recurring-themes empty-state card", () => {
+  it("las etiquetas no prometen un resumen de temas ni alimentar el mapa", () => {
+    // Decía que aquí aparecerían los temas más repetidos —nadie los calcula— y
+    // que Eco los usaba «para refinar tu mapa» —el mapa no lee etiquetas—.
     render(<ReflSidePanel stats={buildStats()} />);
-    expect(screen.getByText(/Temas recurrentes/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/No cuentan en tu Mapa Emocional/),
+    ).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(
+      /refinar tu mapa|aquí van a aparecer/i,
+    );
   });
 });

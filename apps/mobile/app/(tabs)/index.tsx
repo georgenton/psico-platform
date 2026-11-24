@@ -13,7 +13,12 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { homeApi, moodApi } from "@psico/api-client";
 import type { CheckinItem, HomeResponse, LogMoodRequest } from "@psico/types";
-import { CHECKIN_SCALE } from "@psico/types";
+import {
+  CHECKIN_SCALE,
+  ECO_IDEAS_TITULO,
+  ecoIdeasOrigen,
+  insightOrigen,
+} from "@psico/types";
 import { useAuth } from "@/context/auth";
 import { setEcoReaderHandoff } from "@/lib/eco/reader-handoff";
 import { Colors, Radius, Spacing } from "@/theme";
@@ -29,9 +34,9 @@ import { readerRoutePath } from "@/components/dashboard/lector/reader-route";
  *   1. m-head    · eyebrow date · greeting · sub
  *   2. m-mood    · "¿Cómo llegas hoy?" + 5 face buttons + done state
  *   3. m-insight · "Insight del día" quote (insightToday from /home)
- *   4. m-metrics · 4 mini cards (Reflexiones · Insights · Patrones · Días)
+ *   4. m-metrics · 4 mini cards (Reflexiones · Resúmenes · Etiquetas · Días)
  *   5. m-continue-wrap · book cover + chapter + progress
- *   6. m-eco     · "Eco te sugiere" card with prompt + CTA
+ *   6. m-eco     · "Ideas para conversar con Eco" card with prompt + CTA
  *
  * Data wires from `homeApi.get()` — same aggregator that the web Inicio
  * uses. Mood log uses `moodApi.log()` (POST /api/mood, Sprint B1).
@@ -258,10 +263,14 @@ export default function HomeScreen() {
           <Text style={styles.mCardTag}>Insight del día</Text>
           <Text style={styles.mInsightBody}>“{home.insightToday.body}”</Text>
           <View style={styles.miFoot}>
+            {/* Firmaba «Generado por Eco · privado». La elige una regla del
+                servidor: ni es de Eco ni la ve sólo la persona. */}
             <View style={styles.miFootAv}>
-              <Ionicons name="leaf" size={12} color={Colors.lavender[600]} />
+              <Ionicons name="home" size={12} color={Colors.lavender[600]} />
             </View>
-            <Text style={styles.miFootText}>Generado por Eco · privado</Text>
+            <Text style={styles.miFootText}>
+              {insightOrigen(home.insightToday.kind)}
+            </Text>
           </View>
         </View>
       ) : null}
@@ -277,12 +286,12 @@ export default function HomeScreen() {
         <Metric
           icon="star-outline"
           value={home.stats.insightsCount}
-          label="Insights"
+          label="Resúmenes semanales"
         />
         <Metric
           icon="ellipse-outline"
           value={home.stats.patternsCount}
-          label="Patrones"
+          label="Etiquetas"
         />
         <Metric
           icon="flame-outline"
@@ -340,7 +349,7 @@ export default function HomeScreen() {
         </Pressable>
       ) : null}
 
-      {/* m-eco — Eco te sugiere */}
+      {/* m-eco — ideas para conversar con Eco */}
       {home.ecoMoment ? (
         <Pressable
           style={[styles.mCard, styles.mEco]}
@@ -353,10 +362,12 @@ export default function HomeScreen() {
               <Ionicons name="leaf" size={17} color={Colors.white} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.meN}>Eco te sugiere</Text>
+              <Text style={styles.meN}>{ECO_IDEAS_TITULO}</Text>
               <View style={styles.meSWrap}>
                 <View style={styles.meSDot} />
-                <Text style={styles.meS}>Disponible ahora</Text>
+                <Text style={styles.meS}>
+                  {ecoIdeasOrigen(home.ecoMoment.suggestions)}
+                </Text>
               </View>
             </View>
           </View>
@@ -390,7 +401,7 @@ export default function HomeScreen() {
             </View>
           ) : null}
           <View style={styles.meBtn}>
-            <Text style={styles.meBtnText}>Ver la conexión →</Text>
+            <Text style={styles.meBtnText}>Conversar →</Text>
           </View>
         </Pressable>
       ) : null}
@@ -694,6 +705,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   miFootText: {
+    flex: 1,
     fontSize: 11,
     color: Colors.warm[500],
   },

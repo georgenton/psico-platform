@@ -109,7 +109,8 @@ export default function ExploracionesScreen() {
               <Text style={styles.sub}>
                 No son cursos ni libros sueltos — son recorridos guiados hacia
                 algo que quieres trabajar en ti. Cada uno combina lectura,
-                ejercicios y reflexión, y alimenta tu mapa.
+                ejercicios y reflexión. A tu Mapa Emocional solo entra lo que tú
+                registras o confirmas.
               </Text>
             </View>
 

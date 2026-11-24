@@ -8,16 +8,24 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { ECO_PRIVACY_CRISIS_NOTE, ECO_PRIVACY_NOTE } from "@psico/types";
 import { Colors, Radius, Spacing } from "@/theme";
 
 /**
  * DiarySecurityInfo (mobile) — "¿Por qué?" chip that opens a detailed modal
  * explaining the E2E lock in plain language: it's your account password, only
  * you can read it, and YOU decide remember-vs-ask / biometrics. Parity with
- * the web PrivacyInfoButton "diario" variant.
+ * the web PrivacyInfoButton: the diary's lockbox is the DIARY'S, so both
+ * variants carry what happens to an Eco message (ADR 0007 §C), and the "eco"
+ * one — the Eco unlock gate — opens with it.
  */
-export function DiarySecurityInfo() {
+export function DiarySecurityInfo({
+  context = "diario",
+}: {
+  context?: "diario" | "eco";
+} = {}) {
   const [open, setOpen] = useState(false);
+  const esEco = context === "eco";
 
   return (
     <>
@@ -25,7 +33,11 @@ export function DiarySecurityInfo() {
         style={styles.chip}
         onPress={() => setOpen(true)}
         accessibilityRole="button"
-        accessibilityLabel="Cómo protegemos tu diario"
+        accessibilityLabel={
+          esEco
+            ? "Cómo se guarda lo que hablas con Eco"
+            : "Cómo protegemos tu diario y qué pasa con Eco"
+        }
       >
         <Ionicons
           name="information-circle-outline"
@@ -44,12 +56,27 @@ export function DiarySecurityInfo() {
         <View style={styles.backdrop}>
           <View style={styles.card}>
             <ScrollView showsVerticalScrollIndicator={false}>
-              <Text style={styles.emoji}>🔒</Text>
-              <Text style={styles.title}>Solo tú puedes leer tu diario</Text>
+              <Text style={styles.emoji}>{esEco ? "🌿" : "🔒"}</Text>
+              <Text style={styles.title}>
+                {esEco
+                  ? "Cómo se guarda lo que hablas con Eco"
+                  : "Solo tú puedes leer tu diario"}
+              </Text>
+              {esEco ? (
+                <>
+                  <Text style={styles.lead}>{ECO_PRIVACY_NOTE}</Text>
+                  <Text style={styles.sectionBody}>
+                    {ECO_PRIVACY_CRISIS_NOTE}
+                  </Text>
+                  <Text style={styles.sectionTitle}>
+                    🔒 Tu diario va aparte
+                  </Text>
+                </>
+              ) : null}
               <Text style={styles.lead}>
                 Piensa en tu diario como una{" "}
                 <Text style={styles.b}>caja fuerte con una llave única</Text> —
-                tú eres el único que la tiene.
+                solo tú la tienes.
               </Text>
 
               <Row emoji="🔑">
@@ -60,8 +87,9 @@ export function DiarySecurityInfo() {
                 . No memorizas una clave aparte.
               </Row>
               <Row emoji="👀">
-                Ni nuestro equipo puede abrir tu diario. Solo vemos texto
-                revuelto que no significa nada.
+                Ni nuestro equipo puede abrir tu diario. De lo que escribes
+                vemos texto revuelto; la fecha y, si los pones, el ánimo y las
+                etiquetas sí se ven.
               </Row>
               <Row emoji="📝">
                 Si olvidas tu contraseña, recuperar la cuenta y recuperar el
@@ -73,12 +101,25 @@ export function DiarySecurityInfo() {
                 guárdala bien, porque es lo que vuelve a abrirlo.
               </Row>
 
+              {esEco ? null : (
+                <>
+                  <View style={styles.divider} />
+                  <Text style={styles.sectionTitle}>
+                    🌿 Con Eco es distinto
+                  </Text>
+                  <Text style={styles.sectionBody}>{ECO_PRIVACY_NOTE}</Text>
+                  <Text style={styles.sectionBody}>
+                    {ECO_PRIVACY_CRISIS_NOTE}
+                  </Text>
+                </>
+              )}
+
               <View style={styles.divider} />
 
               <Text style={styles.sectionTitle}>🤝 Tú decides cómo entrar</Text>
               <Text style={styles.sectionBody}>
-                Como nadie más que tú puede abrirlo, también eres tú quien
-                decide qué tan cómodo o qué tan estricto quieres que sea:
+                Como nadie más que tú puede abrir tu diario, también eres tú
+                quien decide qué tan cómodo o qué tan estricto quieres que sea:
               </Text>
               <Row emoji="💾">
                 <Text style={styles.b}>Recordar en este dispositivo:</Text>{" "}

@@ -4047,3 +4047,16 @@ export * from "./biblioteca";
 // toma el servidor, la publica en el contrato, y la pantalla la obedece — para
 // que no haya dos criterios que puedan contradecirse.
 export * from "./purchases";
+
+// Lo que pasa con lo que se le escribe a Eco. Compartido porque lo cuentan el
+// tour, las rejas, Seguridad y el componente de privacidad de web y móvil, y
+// varios decían de Eco lo que sólo es cierto del diario.
+export * from "./eco-privacy";
+
+// Qué entra al Mapa Emocional y qué no. Misma razón: web y móvil lo explican en
+// las mismas pantallas y una de las dos acababa prometiendo de más.
+export * from "./mapa-fuentes";
+
+// De dónde sale lo que Inicio sugiere. Son reglas, no un modelo, y la tarjeta
+// tiene que decirlo igual en web y en móvil.
+export * from "./inicio-origen";

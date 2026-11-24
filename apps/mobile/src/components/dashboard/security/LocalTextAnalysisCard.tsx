@@ -87,9 +87,10 @@ export function LocalTextAnalysisCard() {
           </Text>
           <Text style={styles.cardSubtitle}>
             Con tu permiso, la app analiza el texto de tus reflexiones en tu
-            dispositivo — el texto nunca sale de él; solo suben números que
-            ayudan a tu Mapa Emocional. Si lo desactivas, borramos esos datos
-            derivados.
+            dispositivo — el texto nunca sale de él; solo suben números. En tu
+            Mapa Emocional los ves como «Patrones de lenguaje»: describen cómo
+            escribes y no puntúan ninguna dimensión. Si lo desactivas, borramos
+            esos datos derivados.
           </Text>
         </View>
         <Switch

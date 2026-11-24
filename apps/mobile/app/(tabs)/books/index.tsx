@@ -12,7 +12,11 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { booksApi } from "@psico/api-client";
 import type { BookCategory, BookListItem, BookListView } from "@psico/types";
-import { CATALOGO_UNA_OBRA_NOTA, esCatalogoDeUnaObra } from "@psico/types";
+import {
+  CATALOGO_UNA_OBRA_NOTA,
+  LECTURA_Y_MAPA_NOTA,
+  esCatalogoDeUnaObra,
+} from "@psico/types";
 import { useAuth } from "@/context/auth";
 import { coverColor } from "@/components/dashboard/cover-colors";
 import { relativeTime } from "@/lib/relative-time";
@@ -140,11 +144,11 @@ export default function BooksScreen() {
       <View style={styles.header}>
         <Text style={styles.eyebrow}>Tu sala de lectura privada</Text>
         <Text style={styles.title}>Mi Biblioteca</Text>
-        <Text style={styles.subtitle}>
-          {user.plan === "FREE"
-            ? "1 libro gratuito · 7 disponibles con Pro. Cada lectura alimenta tu mapa."
-            : "Acceso completo · Eco lee contigo. Cada lectura alimenta tu mapa."}
-        </Text>
+        {/* Decía «1 libro gratuito · 7 disponibles con Pro» —un recuento que
+            no salía de ningún sitio— o «Eco lee contigo», y en los dos casos
+            «cada lectura alimenta tu mapa». Cuántos libros hay lo dice la
+            rejilla; qué plan necesita cada uno, su ficha. */}
+        <Text style={styles.subtitle}>{LECTURA_Y_MAPA_NOTA}</Text>
       </View>
 
       {/* Search */}

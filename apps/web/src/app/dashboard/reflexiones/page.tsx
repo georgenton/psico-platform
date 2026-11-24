@@ -5,6 +5,7 @@ import type {
   EvolucionResponse,
   UserMeResponse,
 } from "@psico/types";
+import { REFLEXION_Y_MAPA_NOTA } from "@psico/types";
 
 import { getAccessToken, serverFetch } from "@/lib/api.server";
 import { DiarioShell } from "@/components/dashboard/diario/DiarioShell";
@@ -61,8 +62,7 @@ export default async function ReflexionesPage() {
             two competing entry points. The capture card IS the CTA. */}
       </div>
       <p className="screen-sub" style={{ margin: "0 0 26px" }}>
-        Cada cosa que escribes aquí le da forma a tu Mapa Emocional. No es un
-        diario que se archiva — es la materia prima de tu evolución.
+        {REFLEXION_Y_MAPA_NOTA}
       </p>
 
       <div className="refl-grid">

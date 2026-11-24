@@ -25,7 +25,7 @@ import type {
   InsightToday,
   UpdateUserMoodResponse,
 } from "@psico/types";
-import { AMBIENT_IDS, AUTHORSHIP_UNCONFIRMED } from "@psico/types";
+import { AMBIENT_IDS, AUTHORSHIP_UNCONFIRMED, DIARY_MOODS } from "@psico/types";
 import { toCoverToken } from "../shared/cover-token";
 
 // ─── Greeting rules ──────────────────────────────────────────────────────────
@@ -48,7 +48,9 @@ const GREETINGS: Record<TimeBucket, { text: string; subtitle: string | null }> =
       subtitle: "Cierra el día con una pequeña práctica.",
     },
     night: {
-      text: "Te leo en la noche",
+      // Decía «Te leo en la noche». Nadie lee a nadie: lo que la persona
+      // escribe se cifra en su dispositivo.
+      text: "Buenas noches",
       subtitle: "Una lectura corta antes de dormir.",
     },
   };
@@ -177,6 +179,11 @@ export class HomeService {
    *
    * v2 swaps this for an LLM call against the same input shape (analog to
    * PatronesService.composeNarrative). Keep the shape stable.
+   *
+   * Two things the client says out loud hang from this: that a RULE picks it
+   * and not a model, and that `null` means a fixed sentence which does not come
+   * from anybody's activity (`@psico/types/inicio-origen`). If either stops
+   * being true here, that copy has to change in the same commit.
    */
   private async composeInsightToday(
     userId: string,
@@ -212,7 +219,9 @@ export class HomeService {
       if (n >= 3) {
         return {
           kind: "mood-trend",
-          headline: `Has registrado "${dominant}" varias veces esta semana`,
+          // La ventana son los últimos tres días, no la semana; y el token
+          // («good») no es una palabra de la interfaz.
+          headline: `Has marcado «${DIARY_MOODS.find((m) => m.id === dominant)?.label ?? dominant}» varias veces estos días`,
           body: "Cuando un mismo estado se repite, suele tener algo que decirte. ¿Lo exploramos en una reflexión?",
           ctaHref: "/dashboard/reflexiones",
           ctaLabel: "Escribir sobre esto",
@@ -228,7 +237,8 @@ export class HomeService {
     ) {
       return {
         kind: "book-progress",
-        headline: `Estás a la mitad de "${continueBook.title}"`,
+        // La regla es 1 % < avance < 99 %: «a la mitad» era falso casi siempre.
+        headline: `Vas leyendo «${continueBook.title}»`,
         // Named by its title, not numbered. `chapterN` is `Chapter.order` —
         // where the unit sits in the reading sequence, which is not the
         // book's own chapter number: a book whose first unit is a preface

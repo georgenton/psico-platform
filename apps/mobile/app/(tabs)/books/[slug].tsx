@@ -650,8 +650,8 @@ export default function BookDetailScreen() {
               Este libro está disponible con Pro
             </Text>
             <Text style={styles.paywallSub}>
-              Por $7/mes accedes a todos los libros, audios guiados y Eco dentro
-              del capítulo.
+              Con Pro lees todos sus capítulos publicados. En Mi plan está lo
+              que incluye.
             </Text>
             <Pressable
               style={styles.paywallCta}

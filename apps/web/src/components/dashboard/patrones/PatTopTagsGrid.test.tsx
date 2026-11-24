@@ -10,7 +10,12 @@ function theme(id: string, label: string, count: number): PatronesTheme {
 describe("PatTopTagsGrid", () => {
   it("renders the empty-state card when no themes exist", () => {
     render(<PatTopTagsGrid themes={[]} entryCount={0} period="30d" />);
-    expect(screen.getByText(/Patrones por descubrir/i)).toBeInTheDocument();
+    // La API devuelve `themes: []` siempre, así que ésta es la ÚNICA cara que
+    // se ve hoy: no puede prometer un cálculo que nadie hace.
+    expect(
+      screen.getByText(/Todavía no calculamos qué temas se repiten/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/aquí verás/i)).toBeNull();
   });
 
   it("renders up to 5 cards sorted by count desc", () => {

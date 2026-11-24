@@ -162,26 +162,25 @@ function PaywallCard({
   return (
     <View style={styles.paywall}>
       <Text style={styles.paywallEyebrow}>FUNCIÓN PRO</Text>
-      <Text style={styles.paywallTitle}>
-        Tu mapa emocional · sin descifrar nada
-      </Text>
+      <Text style={styles.paywallTitle}>Tus patrones · sin descifrar nada</Text>
       <Text style={styles.paywallBody}>
         Hicimos los patrones para que veas tu propio ritmo: cuándo escribes, qué
         emociones se repiten, qué semanas estuvieron pesadas. Todo desde la
         metadata de tu diario, sin que el servidor toque tu texto.
       </Text>
       {[
-        "Heatmap del mes con tus moods.",
+        "Tus ánimos del mes, día a día.",
         "Hora del día con más entradas.",
-        "Resumen semanal generado por Eco (opt-in).",
-        "Compartir con tu terapeuta (próximamente).",
+        "Resumen de tu semana con conteos: lo redacta una IA o, si falla, una plantilla.",
       ].map((line) => (
         <Text key={line} style={styles.paywallBullet}>
           ✓ {line}
         </Text>
       ))}
       <Text style={styles.paywallFootnote}>
-        Llevas {entryCount} entradas este período. Suficiente para empezar.
+        {entryCount === 0
+          ? "Aún no tienes entradas en este período."
+          : `Llevas ${entryCount} ${entryCount === 1 ? "entrada" : "entradas"} en este período.`}
       </Text>
       {/*
         «Hazte Pro» es una llamada accionable a contratar; con los cobros
@@ -286,7 +285,7 @@ function WeeklyCard({
 
   return (
     <View style={styles.weeklyCard}>
-      <Text style={styles.weeklyEyebrow}>RESUMEN SEMANAL · IA</Text>
+      <Text style={styles.weeklyEyebrow}>RESUMEN SEMANAL</Text>
       {current ? (
         <>
           <Text style={styles.weeklyHeadline}>{current.headline}</Text>
@@ -304,8 +303,9 @@ function WeeklyCard({
         <>
           <Text style={styles.weeklyHeadline}>Tu resumen de la semana</Text>
           <Text style={styles.weeklyBody}>
-            Pídele a Eco un párrafo editorial sobre tu semana — sin tocar el
-            contenido cifrado de tus entradas.
+            Un párrafo sobre tu semana, a partir de cuántas veces escribiste,
+            los ánimos que marcaste y tus etiquetas. Lo redacta una IA o, si
+            falla, una plantilla — sin tocar el texto de tus entradas.
           </Text>
         </>
       )}
@@ -331,7 +331,9 @@ function MoodHeatmap({ days }: { days: PatronesResponse["moodMap"] }) {
   if (days.length === 0) {
     return (
       <View style={styles.card}>
-        <Text style={styles.muted}>Tu mapa aparecerá cuando escribas más.</Text>
+        <Text style={styles.muted}>
+          Aún no hay días con ánimo marcado en tus reflexiones.
+        </Text>
       </View>
     );
   }
@@ -348,7 +350,7 @@ function MoodHeatmap({ days }: { days: PatronesResponse["moodMap"] }) {
 
   return (
     <View>
-      <Text style={styles.sectionLabel}>MAPA EMOCIONAL · DÍA A DÍA</Text>
+      <Text style={styles.sectionLabel}>TU ÁNIMO · DÍA A DÍA</Text>
       <View style={styles.card}>
         <View style={styles.heatmapGrid}>
           {cells.map((c) => (

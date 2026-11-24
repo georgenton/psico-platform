@@ -152,7 +152,7 @@ export default async function PatronesPage({
             </h3>
             <p style={{ margin: 0 }}>
               {data.weeklySummary?.narrative ??
-                "Cuando tengas un puñado de reflexiones más, Eco va a tejer las conexiones que aparecen entre tus moods, tus temas y tus rachas."}
+                "Con siete reflexiones en la misma semana puedes generar un resumen a partir de tus conteos, tus ánimos y tus etiquetas."}
             </p>
           </div>
           <PatRegenerateCta
@@ -237,8 +237,8 @@ function ScreenHead({ period }: { period: PatronesPeriod }) {
         </nav>
       </div>
       <p className="screen-sub" style={{ margin: "0 0 26px" }}>
-        Tendencias, conexiones y fortalezas que Eco detecta en tu actividad.
-        Tócalas para explorar de dónde vienen y hacia dónde te llevan.
+        Qué se repite en tus reflexiones: los ánimos que marcas y un resumen de
+        tu semana.
       </p>
     </>
   );
@@ -253,11 +253,7 @@ function Toolbar() {
           type="button"
           className={`chip${chip.active ? " on" : ""}`}
           disabled={!chip.active}
-          title={
-            chip.active
-              ? undefined
-              : "Próximamente — cuando tengas más data, Eco categoriza los patrones"
-          }
+          title={chip.active ? undefined : "Todavía no está disponible"}
         >
           {chip.label}
         </button>
@@ -265,4 +261,3 @@ function Toolbar() {
     </div>
   );
 }
-

@@ -17,9 +17,19 @@ export const COVER_GRADIENTS: Record<CoverToken, string> = {
     "linear-gradient(135deg, var(--color-lavender-300) 0%, var(--color-sage-500) 100%)",
 };
 
+/**
+ * El tono de una portada, con la misma reserva que el degradado: lo que no se
+ * reconoce es `cool`. Para quien lo pinta con una CLASE y no con un estilo en
+ * línea, que taparía la regla de portadas de Renacimiento.
+ */
+export function coverTone(
+  token: CoverToken | string | null | undefined,
+): CoverToken {
+  return token === "warm" || token === "mixed" ? token : "cool";
+}
+
 export function coverGradient(
   token: CoverToken | string | null | undefined,
 ): string {
-  if (token === "warm" || token === "mixed") return COVER_GRADIENTS[token];
-  return COVER_GRADIENTS.cool;
+  return COVER_GRADIENTS[coverTone(token)];
 }

@@ -45,8 +45,9 @@ export function DiaryLockCard() {
         <b style={{ color: "var(--color-warm-700)" }}>
           la misma contraseña de tu cuenta
         </b>
-        . Solo tú puedes leerlos — ni nuestro equipo. Tú decides si recordamos
-        la clave en este dispositivo o te la pedimos cada vez.
+        . Lo que escribes en tu diario solo puedes leerlo tú; las respuestas de
+        Eco se guardan sin cifrar. Tú decides si recordamos la clave en este
+        dispositivo o te la pedimos cada vez.
       </p>
 
       {/* Remember toggle — mirrors the unlock gate control. */}

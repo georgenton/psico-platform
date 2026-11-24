@@ -30,8 +30,8 @@ const PRO: PlanInfo = {
   plan: "PRO",
   name: "Pro",
   prices: { monthly: 7, currency: "USD" },
-  description: "Acceso completo a todos los libros y capítulos.",
-  features: ["Acceso ilimitado a todos los libros", "Diario personal"],
+  description: "Lectura de todos los libros y capítulos publicados.",
+  features: ["Todos los capítulos de los libros Pro", "Dictado por voz"],
 };
 
 const ANUAL: PlanInfo = {
@@ -72,11 +72,27 @@ describe("UpgradeCard · con las compras CERRADAS", () => {
   it("sigue describiendo el plan: nombre, descripción y lo que incluye", () => {
     // Cerrar la puerta no es esconder la información; la tarjeta sigue
     // sirviendo para saber qué habría en ese plan.
-    render(<UpgradeCard plan={ANUAL} isFeatured={false} purchasesOpen={false} />);
+    render(
+      <UpgradeCard plan={ANUAL} isFeatured={false} purchasesOpen={false} />,
+    );
     expect(screen.getByText("Pro Anual")).toBeInTheDocument();
     expect(screen.getByText("$59/año")).toBeInTheDocument();
     expect(screen.getByText("Todo lo incluido en Pro")).toBeInTheDocument();
   });
+});
+
+describe("UpgradeCard · sin datos que no existen", () => {
+  it.each([true, false])(
+    "el plan destacado no dice «más popular» (compras abiertas: %s)",
+    (purchasesOpen) => {
+      // No hay compradores de los que sacar una popularidad. El realce visual
+      // se queda; la afirmación, no.
+      render(
+        <UpgradeCard plan={PRO} isFeatured purchasesOpen={purchasesOpen} />,
+      );
+      expect(document.body.textContent).not.toMatch(/popular/i);
+    },
+  );
 });
 
 describe("UpgradeCard · con las compras ABIERTAS", () => {
@@ -105,8 +121,6 @@ describe("PurchasesClosedNotice", () => {
     expect(
       screen.getByText("Las compras todavía no están disponibles"),
     ).toBeInTheDocument();
-    expect(
-      screen.getByText(/Tu plan actual sigue igual/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Tu plan actual sigue igual/)).toBeInTheDocument();
   });
 });

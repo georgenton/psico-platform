@@ -72,8 +72,10 @@ export function LocalTextAnalysisCard({
           >
             Con tu permiso, la app analiza el texto de tus reflexiones{" "}
             <b>en tu dispositivo</b> — el texto nunca sale de él; solo suben
-            números (frecuencias de tipos de palabras) que ayudan a tu Mapa
-            Emocional. Si lo desactivas, borramos esos datos derivados.
+            números (frecuencias de tipos de palabras). En tu Mapa Emocional los
+            ves como «Patrones de lenguaje»: describen cómo escribes y no
+            puntúan ninguna dimensión. Si lo desactivas, borramos esos datos
+            derivados.
           </p>
         </div>
         <button

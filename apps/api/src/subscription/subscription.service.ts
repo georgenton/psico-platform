@@ -11,6 +11,7 @@ import type { BillingPlan } from "./dto/checkout-session.dto";
 import type { CreatePortalSessionDto } from "./dto/create-portal-session.dto";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { PaymentService } from "./payment.service";
+import { PLAN_QUOTAS } from "./quotas";
 import type {
   CheckoutSessionResult,
   PortalSessionResult,
@@ -36,6 +37,30 @@ export class SubscriptionService {
 
   // ─── Plans (provider-agnostic) ────────────────────────────────────────────
 
+  /**
+   * Lo que incluye cada plan, y SÓLO lo que el servidor aplica de verdad.
+   *
+   * Cada línea de `features` tiene detrás una regla comprobable, que es la que
+   * fija `subscription.plans.spec.ts`:
+   *
+   *   - lectura → `isContentLockedByPlan`: los libros FREE se leen enteros; de
+   *     los PRO, el primer capítulo;
+   *   - audio y podcast → `LectorService.getAudio` y la política `PRO_ONLY` de
+   *     los medios. «Que lo tengan publicado» no es un adorno: es la segunda
+   *     condición, y hoy la mayoría no lo tiene;
+   *   - Patrones → `PatronesService` (FREE recibe `locked`);
+   *   - dictado → `PLAN_QUOTAS.*.voice` (FREE: 0).
+   *
+   * Se retiró lo que no tenía nada detrás: meditaciones en audio (no hay
+   * ninguna), «diario personal con IA» (el diario es de extremo a extremo y la
+   * IA no lo lee), soporte por correo, prioritario y dedicado (no hay canal ni
+   * procedimiento de atención), «2 meses gratis» ($59 frente a 12 × $7 no son
+   * dos meses), y las funciones de equipo del plan B2B (no existen cuentas de
+   * equipo: ADR 0011, multi-rol sin multi-tenant).
+   *
+   * Eco no figura como ventaja de Pro a propósito: FREE tiene 10 mensajes por
+   * día y Pro, 200 por periodo. Presentarlo como «más» sería falso.
+   */
   getPlans(): PlanInfo[] {
     return [
       {
@@ -44,24 +69,23 @@ export class SubscriptionService {
         prices: { currency: "USD" },
         description: "Acceso básico a contenido psicoeducativo seleccionado.",
         features: [
-          "Acceso al primer capítulo de cada libro",
+          "Lectura completa de los libros gratuitos",
+          "El primer capítulo de los libros Pro",
           "Ejercicios de respiración y reflexión",
           "Progreso guardado",
-          "Soporte por email",
         ],
       },
       {
         plan: "PRO",
         name: "Pro",
         prices: { monthly: 7, yearly: 59, currency: "USD" },
-        description: "Acceso completo a todos los libros y capítulos.",
+        description: "Lectura de todos los libros y capítulos publicados.",
         features: [
           "Todo lo incluido en Gratuito",
-          "Acceso ilimitado a todos los libros",
-          "Audio meditaciones y ejercicios completos",
-          "Diario personal con IA",
-          "Soporte prioritario",
-          "2 meses gratis al pagar anual",
+          "Todos los capítulos de los libros Pro, a medida que se publiquen",
+          "El audio y el podcast de los capítulos que los tengan publicados",
+          "Patrones de tus reflexiones y resumen de tu semana",
+          `Dictado por voz, hasta ${PLAN_QUOTAS.PRO.voice} minutos por periodo`,
         ],
       },
       {
@@ -69,7 +93,7 @@ export class SubscriptionService {
         name: "Pro Anual",
         prices: { yearly: 59, currency: "USD" },
         description:
-          "Plan Pro al mejor precio — $59/año (equivale a $4.92/mes).",
+          "El plan Pro con pago anual — $59/año (equivale a $4.92/mes).",
         features: [
           "Todo lo incluido en Pro",
           "Precio equivalente a $4.92/mes",
@@ -81,14 +105,10 @@ export class SubscriptionService {
         name: "Equipos",
         prices: { monthly: 120, currency: "USD" },
         description:
-          "Para instituciones, clínicas y equipos de hasta 50 usuarios.",
+          "Propuesta para instituciones y equipos. Todavía no hay cuentas de equipo.",
         features: [
           "Todo lo incluido en Pro",
-          "Hasta 50 usuarios por cuenta",
-          "Panel de administración",
-          "Reportes de progreso del equipo",
-          "Integración con plataformas institucionales",
-          "Soporte dedicado",
+          "Mensajes con Eco y dictado por voz sin límite",
         ],
       },
     ];

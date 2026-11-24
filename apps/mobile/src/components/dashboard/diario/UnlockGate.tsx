@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { isValidSeedPhrase, seedPhraseToMasterKey } from "@psico/crypto";
+import { ECO_PRIVACY_NOTE } from "@psico/types";
 import { useDiaryKey } from "@/crypto/diary-key-context";
 import { DiarySecurityInfo } from "./DiarySecurityInfo";
 import { Colors, Radius, Spacing } from "@/theme";
@@ -51,8 +52,8 @@ export function UnlockGate({
       ? {
           icon: "leaf" as const,
           title: "Desbloquea Eco",
-          subtitle:
-            "Eco usa la misma llave cifrada de tu diario. Escribe la misma contraseña con la que iniciaste sesión para abrir tus conversaciones. Solo tú puedes leerlas.",
+          // Same key as the diary, different guarantee: see ADR 0007 §C.
+          subtitle: `Escribe la misma contraseña con la que iniciaste sesión para abrir tus conversaciones. ${ECO_PRIVACY_NOTE}`,
         }
       : {
           icon: "lock-closed" as const,
@@ -169,7 +170,7 @@ export function UnlockGate({
       <Text style={styles.subtitle}>{copy.subtitle}</Text>
 
       <View style={{ marginTop: 6 }}>
-        <DiarySecurityInfo />
+        <DiarySecurityInfo context={context} />
       </View>
 
       {/* Biometric shortcut when a cached key is gated behind Face ID / huella. */}
@@ -247,8 +248,8 @@ export function UnlockGate({
       </Pressable>
 
       <Text style={styles.helper}>
-        ⓘ La derivación toma ~1 segundo. Tu contraseña nunca sale del
-        dispositivo.
+        ⓘ Toma cerca de un segundo. La llave se crea aquí: en este paso tu
+        contraseña no se envía.
       </Text>
     </View>
   );

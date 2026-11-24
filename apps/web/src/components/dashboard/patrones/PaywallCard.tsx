@@ -60,7 +60,7 @@ export function PaywallCard({
           color: "var(--fg-on-brand-surface)",
         }}
       >
-        Tu mapa emocional · sin descifrar nada
+        Tus patrones · sin descifrar nada
       </h2>
       <p
         style={{
@@ -88,10 +88,9 @@ export function PaywallCard({
         }}
       >
         {[
-          "Heatmap del mes con tus moods.",
+          "Tus ánimos del mes, día a día.",
           "Hora del día con más entradas.",
-          "Resumen semanal generado por Eco (opt-in).",
-          "Compartir snapshot con tu terapeuta (próximamente).",
+          "Resumen de tu semana con conteos: lo redacta una IA o, si falla, una plantilla.",
         ].map((line) => (
           <li
             key={line}
@@ -111,8 +110,15 @@ export function PaywallCard({
           color: "var(--fg-on-brand-surface-muted)",
         }}
       >
-        Llevas <strong>{entryCount}</strong> entradas este período. Suficiente
-        para empezar.
+        {/* «Llevas 0 entradas… Suficiente para empezar» se leía tal cual. */}
+        {entryCount === 0 ? (
+          "Aún no tienes entradas en este período."
+        ) : (
+          <>
+            Llevas <strong>{entryCount}</strong>{" "}
+            {entryCount === 1 ? "entrada" : "entradas"} en este período.
+          </>
+        )}
       </p>
       {/*
         El enlace de abajo es una llamada accionable a contratar, y mientras los

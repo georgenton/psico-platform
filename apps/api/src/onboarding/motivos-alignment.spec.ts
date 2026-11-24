@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { FIXTURE_AUTHOR_SLUGS } from "../catalog/authorship-sources";
 import {
@@ -165,5 +167,102 @@ describe("copy del onboarding ↔ identidades de fixture", () => {
         ).toBe(false);
       }
     }
+  });
+});
+
+/**
+ * Lo que la recomendación dice del libro está en el libro.
+ *
+ * «Un capítulo entero sobre la ansiedad», «tres capítulos sobre cómo habitar la
+ * tristeza» y «un capítulo sobre cómo el burnout y la rabia productiva…» eran
+ * las razones que veía una persona al terminar el onboarding. Ninguna se
+ * sostiene: los diez capítulos canónicos no dedican uno a la ansiedad ni tres a
+ * la tristeza, y «burnout» no aparece ni una vez. Se comprueba contra el TEXTO
+ * completo y no contra los títulos, que no bastan para decir que un tema falta.
+ */
+describe("razones de «Emociones en construcción» ↔ manuscrito canónico", () => {
+  const EEC = join(__dirname, "..", "..", "..", "..", "content/books/eec");
+  const CAPITULOS = Array.from({ length: 10 }, (_, i) => i + 1);
+  const texto = (n: number) =>
+    readFileSync(
+      join(EEC, `C${String(n).padStart(2, "0")}`, "chapter.md"),
+      "utf8",
+    );
+  const veces = (n: number, re: RegExp) =>
+    [...texto(n).matchAll(new RegExp(re, "giu"))].length;
+  const razon = (motivo: string) =>
+    RECOMMENDATION_REASON[`${motivo}:emociones-en-construccion`];
+  const L = "\\p{L}";
+  const palabra = (alt: string) =>
+    new RegExp(`(?<!${L})(?:${alt})(?!${L})`, "iu");
+
+  it("lee los diez capítulos", () => {
+    for (const n of CAPITULOS) expect(texto(n).length).toBeGreaterThan(20_000);
+  });
+
+  it("ninguna razón promete capítulos dedicados que no existen", () => {
+    for (const [clave, copy] of Object.entries(RECOMMENDATION_REASON)) {
+      if (!clave.endsWith(":emociones-en-construccion")) continue;
+      expect(copy, clave).not.toMatch(
+        /cap[ií]tulo entero|(?:dos|tres|cuatro|\d+) cap[ií]tulos|un cap[ií]tulo sobre/i,
+      );
+    }
+    // Y no nombra lo que el libro no nombra.
+    const todo = CAPITULOS.map(texto).join("\n");
+    expect(palabra("burn-?out").test(todo)).toBe(false);
+    expect(Object.values(RECOMMENDATION_REASON).join(" ")).not.toMatch(
+      /burn-?out|rabia productiva/i,
+    );
+  });
+
+  it("ansiedad: miedo y cuerpo con sección propia, ansiedad como ejemplo en varios", () => {
+    expect(razon("ansiedad")).toMatch(/miedo.*señales del cuerpo.*ansiedad/s);
+    expect(texto(3)).toContain("## No hay un botón de miedo");
+    expect(texto(4)).toContain("## Interocepción");
+    const conAnsiedad = CAPITULOS.filter(
+      (n) => veces(n, palabra("ansiedad|ansios[oa]s?")) > 0,
+    );
+    expect(conAnsiedad.length).toBeGreaterThanOrEqual(4);
+    // Y ningún encabezado la convierte en el tema de un capítulo.
+    for (const n of CAPITULOS)
+      expect(
+        texto(n)
+          .split("\n")
+          .filter((l) => /^#+ /.test(l) && palabra("ansiedad").test(l)),
+      ).toEqual([]);
+  });
+
+  it("tristeza: vuelve en varios capítulos, sin capítulo propio", () => {
+    expect(razon("tristeza")).toMatch(/vuelve en varios capítulos/);
+    const conTristeza = CAPITULOS.filter(
+      (n) => veces(n, palabra("tristezas?|tristes?")) > 0,
+    );
+    expect(conTristeza.length).toBeGreaterThanOrEqual(5);
+    expect(texto(2)).toContain("¿Qué aprendí en mi familia sobre la tristeza?");
+    expect(texto(9)).toContain("aceptar una tristeza sin que disminuya");
+  });
+
+  it("trabajo: una parte del ÚLTIMO capítulo, con agotamiento, carga y pedir ayuda", () => {
+    expect(razon("trabajo")).toMatch(
+      /último capítulo.*agotamiento.*carga.*pedir ayuda/s,
+    );
+    const c10 = texto(10);
+    const seccion = c10
+      .split("\n## ")
+      .find((s) => s.startsWith("En el trabajo"));
+    expect(seccion).toBeDefined();
+    expect(seccion).toMatch(/agotamiento/);
+    expect(seccion).toMatch(/carga/);
+    expect(seccion).toMatch(/pedir ayuda/);
+  });
+
+  it("duelo: el SEGUNDO capítulo lo abre y trata las pérdidas no reconocidas", () => {
+    expect(razon("duelo")).toMatch(
+      /segundo capítulo empieza con un duelo.*no siempre reconoce/s,
+    );
+    const c2 = texto(2);
+    expect(c2.slice(0, 1_500)).toMatch(/duelo/);
+    expect(c2).toContain("duelo no reconocido");
+    expect(c2).toContain("pérdida ambigua");
   });
 });

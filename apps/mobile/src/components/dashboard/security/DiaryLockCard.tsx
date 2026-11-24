@@ -39,8 +39,9 @@ export function DiaryLockCard() {
         <View style={{ flex: 1 }}>
           <Text style={styles.cardTitle}>Bloqueo del diario y Eco</Text>
           <Text style={styles.cardSubtitle}>
-            Se abren con la misma contraseña de tu cuenta. Solo tú puedes
-            leerlos.
+            Se abren con la misma contraseña de tu cuenta. Lo que escribes en tu
+            diario solo puedes leerlo tú; las respuestas de Eco se guardan sin
+            cifrar.
           </Text>
         </View>
       </View>

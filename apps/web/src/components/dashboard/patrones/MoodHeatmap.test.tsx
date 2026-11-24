@@ -15,7 +15,9 @@ describe("MoodHeatmap", () => {
   it("renders the empty-state copy when there are no days", () => {
     render(<MoodHeatmap days={[]} />);
     expect(
-      screen.getByText(/Necesitas escribir un poco más/i),
+      // Decía «Necesitas escribir un poco más para ver tu mapa emocional»: no es
+      // el Mapa, y escribir sin marcar un ánimo no pinta ningún día.
+      screen.getByText(/Aún no hay días con ánimo marcado/i),
     ).toBeInTheDocument();
   });
 
@@ -58,6 +60,7 @@ describe("MoodHeatmap", () => {
 
   it("exposes the section heading", () => {
     render(<MoodHeatmap days={[day("2026-06-01", "#A4C6FF")]} />);
-    expect(screen.getByText(/Mapa emocional/i)).toBeInTheDocument();
+    expect(screen.getByText(/Tu ánimo · día a día/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Mapa emocional/i)).toBeNull();
   });
 });

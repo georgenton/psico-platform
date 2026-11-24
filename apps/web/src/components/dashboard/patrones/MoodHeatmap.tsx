@@ -22,7 +22,7 @@ export function MoodHeatmap({ days }: { days: PatronesMoodMapDay[] }) {
           color: "var(--color-warm-500)",
         }}
       >
-        Necesitas escribir un poco más para ver tu mapa emocional.
+        Aún no hay días con ánimo marcado en tus reflexiones.
       </p>
     );
   }
@@ -52,7 +52,7 @@ export function MoodHeatmap({ days }: { days: PatronesMoodMapDay[] }) {
         className="mb-3 text-[12px] font-bold uppercase tracking-[0.14em]"
         style={{ color: "var(--color-warm-500)" }}
       >
-        Mapa emocional · día a día
+        Tu ánimo · día a día
       </h3>
       <div
         className="grid gap-1.5 rounded-2xl border-[1.5px] bg-white p-4"

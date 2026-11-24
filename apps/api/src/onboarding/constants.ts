@@ -56,8 +56,11 @@ export const TOUR_STEPS: OnboardingTourStep[] = [
       points: [
         "📖 El libro que estás leyendo y por dónde vas.",
         "✍️ Una pregunta del día pensada para invitarte a escribir.",
-        "🌿 Un saludo de Eco cuando quieras conversar.",
-        "📊 Un mini Mapa Emocional que se va llenando a medida que reflexionas.",
+        "🌿 Ideas para empezar una conversación con Eco.",
+        // Decía «que se va llenando a medida que reflexionas»: escribir no
+        // llena ninguna punta del mapa (bajo V2, sólo el ánimo que se marca,
+        // los check-ins y los temas confirmados).
+        "📊 Un mini Mapa Emocional que se llena con lo que tú registras y confirmas.",
       ],
     },
   },
@@ -187,6 +190,9 @@ export const TOUR_STEPS: OnboardingTourStep[] = [
       title: "¿Qué es exactamente Eco?",
       points: [
         "🌿 Es una IA conversacional: responde con calma y no te juzga.",
+        // Escrita aquí y no importada: `prisma/seed.ts` carga este fichero con
+        // ts-node y hoy no arrastra ningún paquete compilado. Que coincida con
+        // `ECO_PRIVACY_NOTE` de `@psico/types` lo fija `onboarding.service.spec`.
         "🔒 Para responderte, Eco procesa lo que escribes mediante servicios de inteligencia artificial. Tu mensaje se guarda cifrado; su respuesta, no. No es lo mismo que tus reflexiones.",
         "🩺 Si aparecen señales de crisis, te muestra líneas de ayuda. No detecta todos los casos y no sustituye a una urgencia.",
         "🙋 Complementa el trabajo con un terapeuta — no lo reemplaza.",
@@ -257,20 +263,42 @@ export const FALLBACK_BOOK_SLUG = "emociones-en-construccion";
 // screen above was already de-personalised and signs "— FeelVerse"; this
 // finishes that pass. An attribution belongs in `BookAuthor`, behind a
 // source, and `authorship-sources.ts` records where each one comes from.
+//
+// And it describes the book that EXISTS. Four of these promised chapters the
+// ten canonical ones do not contain — «un capítulo entero sobre la ansiedad»,
+// «tres capítulos sobre cómo habitar la tristeza», «un capítulo sobre cómo el
+// burnout y la rabia productiva se sienten en el cuerpo» (the words «burnout»
+// and «rabia productiva» appear nowhere in the book). They now say what is
+// there and how much of it, read from `content/books/eec/C01…C10/chapter.md`:
+//
+//   · ansiedad — no chapter; fear is a whole section (C01 LeDoux, C03 «No hay un
+//     botón de miedo») and anxiety turns up in eight of the ten.
+//   · tristeza — no chapter; it comes back in C02 (what a family teaches about
+//     showing it), C06, C07 and C09 («puedes aceptar una tristeza sin que
+//     disminuya»).
+//   · trabajo — one section, the last chapter's «En el trabajo: enseñar
+//     equilibrio o secar el suelo» (C10).
+//   · duelo — C02 opens with one and its «Rituales» section covers ambiguous and
+//     unrecognised loss.
+//
+// `motivos-alignment.spec.ts` checks each one against those files.
 
 export const RECOMMENDATION_REASON: Record<string, string> = {
   "ansiedad:emociones-en-construccion":
-    "Un capítulo entero sobre la ansiedad y cómo nombrarla sin pelearla.",
+    "Se detiene en el miedo, en las señales del cuerpo y en cómo las interpretamos; la ansiedad aparece en varios capítulos.",
   "tristeza:emociones-en-construccion":
-    "Tres capítulos sobre cómo habitar la tristeza sin que tome el volante.",
+    "La tristeza vuelve en varios capítulos: qué aprendemos sobre mostrarla y cómo elegir qué hacer mientras sigue ahí.",
+  // The two below belong to a book the catalogue withholds: `getRecommendation`
+  // only offers `isPublished` books, so nobody reads them today. They are not
+  // checked against a manuscript because there is none in this repository.
   "relaciones:familias-ensambladas":
     "Justo para los vínculos cuando las dinámicas familiares se vuelven complejas.",
   "vinculos:familias-ensambladas":
     "Sobre los vínculos que cargamos desde nuestra historia y los que estamos construyendo.",
   "trabajo:emociones-en-construccion":
-    "Un capítulo sobre cómo el burnout y la rabia productiva se sienten en el cuerpo.",
+    "Su último capítulo incluye una parte sobre el trabajo: el agotamiento, la carga y cuánto cuesta pedir ayuda.",
   "duelo:emociones-en-construccion":
-    "Habla del duelo no solo cuando alguien muere, también cuando algo termina.",
+    "Su segundo capítulo empieza con un duelo y se detiene en las pérdidas que el entorno no siempre reconoce.",
   "explorar:emociones-en-construccion":
     "Un buen punto de partida para reconocer tus emociones sin etiquetas rígidas.",
 };

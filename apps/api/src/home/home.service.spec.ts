@@ -355,6 +355,19 @@ describe("HomeService.getHome", () => {
       expect(await insight({ currentStreakDays: 0 }, [])).toBeNull();
     });
 
+    it("greets at night without saying that somebody is reading", async () => {
+      // «Te leo en la noche», in the product whose promise is that nobody can.
+      vi.useFakeTimers();
+      try {
+        vi.setSystemTime(new Date(2026, 0, 15, 23, 0, 0));
+        await insight({ currentStreakDays: 0 }, []);
+        const { greeting } = await service.getHome("user-1");
+        expect(greeting.text).toBe("Buenas noches");
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it("names the mood the way the interface does, over the window it really reads", async () => {
       const r = await insight({ currentStreakDays: 0 }, [
         { mood: "good" },

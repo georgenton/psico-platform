@@ -87,6 +87,17 @@ describe("EditProfileCard", () => {
     expect(screen.getByDisplayValue("EC")).toBeInTheDocument();
   });
 
+  it("dice para qué se usan los datos, y no que Eco los vea", () => {
+    // Decía «Solo el nombre se muestra a Eco; ciudad y país nos ayudan a
+    // recomendar». El prompt de Eco no lleva el nombre, y ninguna sugerencia
+    // mira la ciudad ni el país.
+    render(<EditProfileCard me={buildMe()} />);
+    expect(screen.getByText(/No se envían a Eco/)).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(
+      /se muestra a Eco|ayudan a recomendar/i,
+    );
+  });
+
   it("save button is disabled when nothing changed", () => {
     render(<EditProfileCard me={buildMe()} />);
     expect(screen.getByText("Guardar")).toBeDisabled();

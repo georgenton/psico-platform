@@ -9,7 +9,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { ecoApi } from "@psico/api-client";
 import type { EcoPersona, EcoScope, EcoThreadRailItem } from "@psico/types";
@@ -31,6 +31,7 @@ import { Colors, Radius, Spacing } from "@/theme";
  */
 export default function EcoScreen() {
   const { ecoKey, isLegacyAccount } = useDiaryKey();
+  const router = useRouter();
 
   const [persona, setPersona] = useState<EcoPersona | null>(null);
   const [rail, setRail] = useState<EcoThreadRailItem[]>([]);
@@ -172,6 +173,12 @@ export default function EcoScreen() {
             setShowSuggestions(false);
             void refreshRail();
           }}
+          onMoreHelp={(country) =>
+            router.push({
+              pathname: "/(tabs)/ayuda",
+              params: country ? { pais: country } : {},
+            })
+          }
         />
       ) : (
         <View style={styles.centered}>

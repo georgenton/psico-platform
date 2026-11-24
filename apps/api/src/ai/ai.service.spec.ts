@@ -36,6 +36,9 @@ const mockConversation = {
 };
 
 const mockPrisma = {
+  profile: {
+    findUnique: vi.fn().mockResolvedValue(null),
+  },
   conversation: {
     create: vi.fn().mockResolvedValue(mockConversation),
     findFirst: vi.fn().mockResolvedValue(mockConversation),
@@ -78,6 +81,9 @@ describe("AIService", () => {
     vi.clearAllMocks();
     // Restore defaults after clearAllMocks
     (
+      mockPrisma.profile.findUnique as ReturnType<typeof vi.fn>
+    ).mockResolvedValue(null);
+    (
       mockPrisma.conversation.create as ReturnType<typeof vi.fn>
     ).mockResolvedValue(mockConversation);
     (
@@ -99,6 +105,61 @@ describe("AIService", () => {
       mockVectorStore.searchSimilar as ReturnType<typeof vi.fn>
     ).mockResolvedValue([]);
     mockCreate.mockResolvedValue(makeClaudeResponse());
+  });
+
+  /**
+   * Este prompt llevaba su propia línea de crisis, escrita a mano y sin
+   * fuente. Ahora nombra lo mismo que el aviso de Eco, y nada más.
+   */
+  describe("chat — la ayuda que puede nombrar", () => {
+    async function prompt(country: string | null | undefined) {
+      (
+        mockPrisma.profile.findUnique as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(country === undefined ? null : { country });
+      await service.chat("user-1", "hola");
+      return (
+        mockCreate.mock.calls.at(-1)![0] as {
+          system: Array<{ text: string }>;
+        }
+      ).system[0]!.text;
+    }
+
+    it.each([["EC"], [null], [undefined]])(
+      "perfil %j: el 911, diciendo el país, y ningún otro número",
+      async (country) => {
+        const texto = await prompt(country);
+        expect(texto).toContain(
+          "En Ecuador, el número de emergencias es el 911.",
+        );
+        expect(texto.match(/\d{3,}/g)).toEqual(["911"]);
+      },
+    );
+
+    it.each([["CO"], ["MX"], ["PE"]])(
+      "perfil %j: ningún número",
+      async (country) => {
+        const texto = await prompt(country);
+        expect(texto).toContain(
+          "llama ahora al número de emergencias de tu país",
+        );
+        expect(texto).not.toMatch(/\d{3,}/);
+      },
+    );
+
+    it("el país es el del perfil de quien pregunta", async () => {
+      await prompt("EC");
+      expect(mockPrisma.profile.findUnique).toHaveBeenCalledWith({
+        where: { userId: "user-1" },
+        select: { country: true },
+      });
+    });
+
+    it("y se le dice que no dé otros", async () => {
+      const texto = await prompt("EC");
+      expect(texto).toContain("NO des ningún otro número de teléfono");
+      expect(texto).toContain("haya salido antes en la conversación");
+      expect(texto).not.toMatch(/24\s*\/\s*7|gratuit|confidencial/i);
+    });
   });
 
   describe("chat — new conversation", () => {

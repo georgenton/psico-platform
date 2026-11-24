@@ -45,6 +45,7 @@ export function EcoChat({
   seed,
   onSeedConsumed,
   onMessageSent,
+  onMoreHelp,
   scope,
 }: {
   threadId: string;
@@ -53,6 +54,12 @@ export function EcoChat({
   seed?: string | null;
   onSeedConsumed?: () => void;
   onMessageSent?: () => void;
+  /**
+   * Opens the help screen from the crisis notice, in the country the server
+   * names. The reader's companion sheet does not pass it: it is a modal, and a
+   * screen pushed from it would open underneath.
+   */
+  onMoreHelp?: (country?: string) => void;
   /** Fase H — reading context (scopes RAG + enables the resonance offer). */
   scope?: EcoScope;
 }) {
@@ -73,6 +80,7 @@ export function EcoChat({
     text: string;
     hotline: string;
     crisisPath: string;
+    country?: string;
   } | null>(null);
   const [reportingId, setReportingId] = useState<string | null>(null);
   const [reportFlash, setReportFlash] = useState<string | null>(null);
@@ -171,8 +179,12 @@ export function EcoChat({
     ]);
 
     let buffered = "";
-    let crisis: { text: string; hotline: string; crisisPath: string } | null =
-      null;
+    let crisis: {
+      text: string;
+      hotline: string;
+      crisisPath: string;
+      country?: string;
+    } | null = null;
     let doneMessageId: string | null = null;
 
     try {
@@ -430,6 +442,14 @@ export function EcoChat({
           text={crisisData.text}
           hotline={crisisData.hotline}
           crisisPath={crisisData.crisisPath}
+          onMoreHelp={
+            onMoreHelp
+              ? () => {
+                  setCrisisData(null);
+                  onMoreHelp(crisisData.country);
+                }
+              : undefined
+          }
           onClose={() => setCrisisData(null)}
         />
       ) : null}

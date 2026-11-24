@@ -545,9 +545,19 @@ export type EcoSseEvent =
       event: "crisis";
       data: {
         text: string;
-        /** Localised hotline + crisis page slug for client routing. */
+        /**
+         * The number to call with the country it belongs to —`911 (Ecuador)`—,
+         * or a phrase with no number when none is accredited. A client offers
+         * a call only if `dialableHotline` can dial it.
+         */
         hotline: string;
+        /** Crisis page slug for client routing. */
         crisisPath: string;
+        /**
+         * Country declared in the profile, when the catalogue knows it. Only
+         * so the help page can open there.
+         */
+        country?: string;
       };
     }
   | {
@@ -3650,6 +3660,19 @@ export interface RegisterDeviceResponse {
 
 export type TherapyModality = "INDIVIDUAL" | "COUPLE" | "FAMILY";
 
+/** Where a help resource's data comes from, and when it was last checked. */
+export interface CrisisSource {
+  /** How a screen names it: the site, as a person would read it. */
+  label: string;
+  url: string;
+  /** Day of the last check against that source, `YYYY-MM-DD`. */
+  checkedOn: string;
+}
+
+/**
+ * The shape installed apps already read — `phone` included, always a string.
+ * Whatever came later is optional.
+ */
 export interface CrisisLine {
   id: string;
   name: string;
@@ -3658,13 +3681,27 @@ export interface CrisisLine {
   chatUrl?: string;
   availability: string;
   languages: string[];
+  /** What the source accredits besides the hours, and its caveats. */
+  notes?: string[];
+  source?: CrisisSource;
+}
+
+/** A web directory: a place to look for a line, never a line itself. */
+export interface CrisisDirectory {
+  id: string;
+  name: string;
+  url: string;
+  note: string;
+  source: CrisisSource;
 }
 
 export interface CrisisResponse {
   country: string;
+  /** May be empty: a country nobody has accredited a line for. */
   lines: CrisisLine[];
   safetyTipsShort: string[];
   nextSteps: string[];
+  directory?: CrisisDirectory;
 }
 
 export type CrisisTrigger =

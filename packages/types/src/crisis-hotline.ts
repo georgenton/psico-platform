@@ -4,11 +4,12 @@
  * ── The defect this exists to stop ────────────────────────────────────────
  *
  * Both crisis modals built their `tel:` with `hotline.replace(/\s|\(.+?\)/g,
- * "")` — strip the spaces, strip whatever is in brackets. Against the line
- * the API really serves, `"1800-4-SALUD (1800-472583)"`, that discards the
- * ONE fully numeric form the string contains and keeps the mnemonic:
+ * "")` — strip the spaces, strip whatever is in brackets. Against a line with
+ * a mnemonic, which is what the API served at the time, that discards the ONE
+ * fully numeric form the string contains and keeps the letters. With a made-up
+ * line of the same shape:
  *
- *     "1800-4-SALUD (1800-472583)"  ->  tel:1800-4-SALUD
+ *     "0800-4-LETRAS (0800-453872)"  ->  tel:0800-4-LETRAS
  *
  * A `tel:` with letters in it is not reliably dialled by anything; the
  * mnemonic is for a human reading a poster, not for a dialler. So the button

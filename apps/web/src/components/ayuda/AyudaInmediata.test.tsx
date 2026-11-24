@@ -1,9 +1,10 @@
 import { render, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import {
   CRISIS_COUNTRIES,
   CRISIS_COUNTRY_NAMES,
   getCrisisFor,
+  recursosDeAyuda,
   type CrisisCountry,
   type CrisisLine,
 } from "@psico/types";
@@ -17,15 +18,43 @@ import { AyudaInmediata, Linea } from "./AyudaInmediata";
  * prueba que calculase el número con el mismo código que la pantalla no
  * comprobaría nada. Es la tabla de lo que hay que marcar, y cambiar un teléfono
  * obliga a cambiarla a la vista.
+ *
+ * El 2026-11-24 salieron dos de las tres de Ecuador, por no tener fuente, y la
+ * que queda perdió un rótulo que tampoco la tenía. La evidencia está en
+ * `docs/product/ayuda-evidencia.md`.
  */
 const MARCAR: Record<CrisisCountry, ReadonlyArray<[string, string]>> = {
-  EC: [
-    ["SAS · 911 Salud Mental", "tel:911"],
-    ["CETAD · Centro de Escucha Telefónica", "tel:+593-2-3960-100"],
-    ["Teléfono de la Amistad Quito", "tel:+593-2-2563-141"],
-  ],
-  CO: [["Línea 106 · Apoyo Emocional", "tel:106"]],
+  EC: [["ECU 911 · Emergencias", "tel:911"]],
+  CO: [["Línea 106 · Ministerio de Salud", "tel:106"]],
   MX: [["SAPTEL", "tel:+52-55-5259-8121"]],
+};
+
+/** Lo que dice la tarjeta de cada país, a mano: ni más ni menos. */
+const DICE: Record<CrisisCountry, readonly string[]> = {
+  EC: [
+    "24 horas, todos los días · español",
+    "Gratuito",
+    "Todo Ecuador",
+    "Fuente: gob.ec (se abre en otra pestaña) · comprobado el 24 nov 2026",
+  ],
+  CO: [
+    "24 horas, todos los días · español",
+    "Gratuita y confidencial, según el Ministerio de Salud",
+    "Algunos territorios tienen su propia 106, que puede tener otro horario",
+    "Fuente: minsalud.gov.co (se abre en otra pestaña) · comprobado el 24 nov 2026",
+  ],
+  MX: [
+    "Horario sin confirmar · español",
+    "Servicio gratuito",
+    "Su sitio publica dos horarios: 24 horas y de 9:00 a 21:00",
+    "Fuente: saptel.org.mx (se abre en otra pestaña) · comprobado el 24 nov 2026",
+  ],
+};
+
+const FUENTES: Record<CrisisCountry, string> = {
+  EC: "https://www.gob.ec/ecu-911/tramites/solicitud-atencion-emergencia-traves-diferentes-mecanismos-alerta",
+  CO: "https://www.minsalud.gov.co/salud/publica/salud-mental/Paginas/linea-106.aspx",
+  MX: "https://www.saptel.org.mx/",
 };
 
 const VUELTA = { href: "/", texto: "Volver a la portada" };
@@ -69,6 +98,42 @@ describe.each(CRISIS_COUNTRIES)("la ayuda en %s", (pais) => {
       }).parentElement!;
       expect(tarjeta).toHaveTextContent(linea.availability);
       expect(tarjeta).toHaveTextContent("español");
+    }
+  });
+
+  it("dice de cada línea lo acreditado, su salvedad, su fuente y la fecha", () => {
+    const { container } = montar(pais);
+    const tarjeta = container.querySelector("#lineas ul li h3")!.parentElement!;
+    const frases = [...tarjeta.querySelectorAll("p")].map((p) => p.textContent);
+    expect(frases).toEqual(DICE[pais]);
+
+    const fuente = within(tarjeta).getByRole("link", {
+      name: /\.(ec|co|mx) \(se abre en otra pestaña\)$/,
+    });
+    expect(fuente).toHaveAttribute("href", FUENTES[pais]);
+    expect(fuente).toHaveAttribute("target", "_blank");
+    expect(fuente).toHaveAttribute("rel", "noopener noreferrer");
+  });
+
+  it("no pinta nada que no esté publicado", () => {
+    const { container } = montar(pais);
+    const sinPublicar = recursosDeAyuda(pais).filter(
+      (r) => r.estado !== "publicado",
+    );
+    for (const { linea } of sinPublicar) {
+      expect(container.textContent).not.toContain(linea.name);
+    }
+    // Y lo retirado, escrito a mano.
+    for (const huella of [
+      "3960",
+      "2563",
+      "472583",
+      "4-SALUD",
+      "CETAD",
+      "Amistad",
+      "Salud Mental",
+    ]) {
+      expect(container.innerHTML).not.toContain(huella);
     }
   });
 
@@ -136,9 +201,52 @@ describe("elegir país", () => {
     const directorio = screen.getByRole("link", { name: /findahelpline\.com/ });
     expect(directorio).toHaveAttribute("href", "https://findahelpline.com");
     expect(directorio).toHaveAttribute("rel", "noopener noreferrer");
-    // La entrada internacional trae un 1-800 que ninguna pantalla ha enseñado.
+    // Hasta el 2026-11-24 la entrada internacional traía un teléfono, de otro
+    // país y mal atribuido. Se retiró; esto impide que vuelva.
     expect(container.textContent).not.toContain("273-8255");
     expect(container.innerHTML).not.toContain("273-8255");
+  });
+});
+
+describe("el directorio", () => {
+  it("se dice como directorio, con su fuente, y no como un chat", () => {
+    montar("EC");
+    const seccion = screen.getByRole("region", {
+      name: "Si estás en otro país",
+    });
+    expect(seccion).toHaveTextContent(
+      "Es un directorio de líneas por país, de ThroughLine. No es un chat ni atiende llamadas.",
+    );
+    expect(seccion).toHaveTextContent(
+      "Fuente: iasp.info (se abre en otra pestaña) · comprobado el 24 nov 2026",
+    );
+    expect(seccion.textContent).not.toMatch(/24\s*\/\s*7|24 horas/);
+    expect(
+      within(seccion).queryByRole("link", { name: /chat/i }),
+    ).not.toBeInTheDocument();
+    expect(seccion.querySelector('a[href^="tel:"]')).toBeNull();
+  });
+});
+
+describe("un país que se queda sin ninguna línea", () => {
+  const recurso = recursosDeAyuda("EC").find((r) => r.linea.id === "ec-911")!;
+  afterEach(() => {
+    recurso.estado = "publicado";
+  });
+
+  it("se dice, y la página sigue en pie", () => {
+    recurso.estado = "en-validacion";
+    const { container } = montar("EC");
+    expect(
+      screen.getByText("Ahora no tenemos una línea comprobada en Ecuador."),
+    ).toBeInTheDocument();
+    expect(container.querySelector('a[href^="tel:"]')).toBeNull();
+    expect(
+      screen.getByRole("link", { name: /findahelpline\.com/ }),
+    ).toBeInTheDocument();
+    expect(container.textContent).toContain(
+      "llama ahora al número de emergencias de tu país",
+    );
   });
 });
 
@@ -172,8 +280,16 @@ describe("lo que dice", () => {
     const t = container.textContent!.toLowerCase();
     expect(t).not.toMatch(/\bhub\b/);
     expect(t).not.toMatch(/\bacá\b/);
-    // Dos de las tres líneas de Ecuador tienen horario.
     expect(t).not.toContain("ahora mismo");
+  });
+
+  it.each(CRISIS_COUNTRIES)("sin prometer de más en %s", (pais) => {
+    const { container } = montar(pais);
+    const t = container.textContent!.toLowerCase();
+    // «Con su teléfono y su horario»: de una no se conoce el horario.
+    expect(t).not.toContain("su teléfono y su horario");
+    expect(t).not.toMatch(/24\s*\/\s*7/);
+    expect(t).not.toMatch(/an[oó]nim/);
   });
 
   it("tiene un solo título de página y un solo landmark principal", () => {

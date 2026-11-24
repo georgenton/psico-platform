@@ -60,6 +60,8 @@ function makePrisma(
     hasActiveSub?: boolean;
     /** La zona de la persona, que el mensaje de agotamiento usa. */
     timezone?: string | null;
+    /** El país del perfil, que el aviso de crisis usa. */
+    country?: string | null;
   } = {},
 ) {
   return {
@@ -67,7 +69,12 @@ function makePrisma(
       findUnique: vi.fn().mockResolvedValue({
         plan: opts.plan ?? Plan.PRO,
         profile:
-          opts.timezone === undefined ? null : { timezone: opts.timezone },
+          opts.timezone === undefined && opts.country === undefined
+            ? null
+            : {
+                timezone: opts.timezone ?? null,
+                country: opts.country ?? null,
+              },
       }),
     },
     subscription: {
@@ -129,10 +136,6 @@ function makeConfig() {
   };
 }
 
-// `makeAnthropicMock` is a helper kept here for future tests that exercise
-// the LLM streaming path (currently mocked in §"sendMessage — happy path"
-// which isn't in this file because it requires extra Prisma plumbing).
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function makeAnthropicMock(chunks: string[]) {
   let listener: ((chunk: string) => void) | null = null;
   const stream = {
@@ -440,6 +443,123 @@ describe("EcoService", () => {
       );
       expect(kinds).toContain("USER");
       expect(kinds).toContain("CRISIS");
+    });
+  });
+
+  /**
+   * El aviso, de punta a punta: lo que sale por el flujo y lo que se guarda.
+   * El texto exacto lo fija `crisis-notice.spec.ts`; aquí, que llega el del
+   * país del perfil por las DOS capas, y que se guarda el mismo que se mandó.
+   */
+  describe("sendMessage — el aviso de crisis y el país del perfil", () => {
+    async function avisar(
+      opts: Parameters<typeof makePrisma>[0],
+      capa: "regex" | "centinela",
+    ) {
+      const prisma = makePrisma({
+        plan: Plan.PRO,
+        hasActiveSub: true,
+        userMessagesInPeriod: 0,
+        ...opts,
+      });
+      const { service } = makeService({ prisma });
+      if (capa === "centinela") {
+        (
+          service as unknown as {
+            anthropic: { messages: { stream: ReturnType<typeof vi.fn> } };
+          }
+        ).anthropic.messages.stream.mockImplementation(() =>
+          makeAnthropicMock(["[CRISIS]"]),
+        );
+      }
+      const events = await lastValueFrom(
+        service
+          .sendMessage(USER_ID, {
+            threadId: THREAD_ID,
+            textPlaintext:
+              capa === "regex" ? "quiero quitarme la vida" : "no puedo más",
+            textCiphertext: "ct",
+            textNonce: "n",
+          })
+          .pipe(toArray()),
+      );
+      const evento = events
+        .map((e) => e.data)
+        .find((e) => e.event === "crisis");
+      const guardado = prisma.ecoMessage.create.mock.calls
+        .map(
+          (c) =>
+            (c[0] as { data: { kind: string; assistantText?: string } }).data,
+        )
+        .find((d) => d.kind === "CRISIS");
+      return {
+        prisma,
+        evento: evento?.data as {
+          text: string;
+          hotline: string;
+          crisisPath: string;
+          country?: string;
+        },
+        guardado,
+      };
+    }
+
+    const CASOS = [
+      [{ country: "EC" }, "911 (Ecuador)", "EC"],
+      [{}, "911 (Ecuador)", undefined],
+      [{ country: null }, "911 (Ecuador)", undefined],
+      [{ country: "CO" }, "número de emergencias de tu país", "CO"],
+      [{ country: "MX" }, "número de emergencias de tu país", "MX"],
+      [{ country: "PE" }, "número de emergencias de tu país", undefined],
+    ] as const;
+
+    for (const capa of ["regex", "centinela"] as const) {
+      it.each(CASOS)(`${capa} · perfil %j`, async (opts, hotline, country) => {
+        const { evento, guardado } = await avisar(opts, capa);
+        expect(evento.hotline).toBe(hotline);
+        expect(evento.crisisPath).toBe("/terapia/crisis");
+        expect(evento.country).toBe(country);
+        if (hotline.includes("911")) {
+          expect(evento.text).toContain("En Ecuador, el número de emergencias");
+        } else {
+          expect(evento.text).not.toMatch(/\d/);
+        }
+        // Se guarda lo mismo que se mandó, para releerlo tal cual.
+        expect(guardado?.assistantText).toBe(evento.text);
+      });
+    }
+
+    it("el país sale de la consulta que ya se hacía, sin una lectura más", async () => {
+      // Los dobles devuelven el país lo pida o no la consulta: hay que mirarla.
+      const { prisma } = await avisar({ country: "EC" }, "regex");
+      expect(prisma.user.findUnique).toHaveBeenCalledTimes(1);
+      expect(prisma.user.findUnique).toHaveBeenCalledWith({
+        where: { id: USER_ID },
+        select: {
+          plan: true,
+          profile: { select: { timezone: true, country: true } },
+        },
+      });
+    });
+
+    it("un aviso antiguo se devuelve como se guardó, y no se escribe nada", async () => {
+      const ANTIGUO = "Aviso antiguo, con la **línea** que se daba entonces.";
+      const prisma = makePrisma({ country: "EC" });
+      prisma.ecoMessage.findMany.mockResolvedValue([
+        {
+          id: "m-viejo",
+          kind: "CRISIS",
+          textCiphertext: null,
+          textNonce: null,
+          assistantText: ANTIGUO,
+          suggestedBookId: null,
+          createdAt: new Date("2026-06-01"),
+        },
+      ]);
+      const { service } = makeService({ prisma });
+      const hilo = await service.getThread(USER_ID, THREAD_ID, undefined);
+      expect(hilo.messages[0]?.assistantText).toBe(ANTIGUO);
+      expect(prisma.ecoMessage.create).not.toHaveBeenCalled();
     });
   });
 

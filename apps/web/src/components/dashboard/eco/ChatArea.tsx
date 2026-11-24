@@ -98,6 +98,7 @@ export function ChatArea({
     text: string;
     hotline: string;
     crisisPath: string;
+    country?: string;
   } | null>(null);
   const [reportingId, setReportingId] = useState<string | null>(null);
   const [reportFlash, setReportFlash] = useState<string | null>(null);
@@ -282,8 +283,12 @@ export function ChatArea({
     // con un id inventado y sin `done`. El intento se marca aquí y se cierra
     // abajo, en un solo sitio.
     let fallo: string | null = null;
-    let crisis: { text: string; hotline: string; crisisPath: string } | null =
-      null;
+    let crisis: {
+      text: string;
+      hotline: string;
+      crisisPath: string;
+      country?: string;
+    } | null = null;
     let doneMessageId: string | null = null;
 
     /**
@@ -629,6 +634,7 @@ export function ChatArea({
           text={crisisData.text}
           hotline={crisisData.hotline}
           crisisPath={crisisData.crisisPath}
+          country={crisisData.country}
           onClose={() => setCrisisData(null)}
         />
       ) : null}

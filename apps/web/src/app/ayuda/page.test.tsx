@@ -106,6 +106,14 @@ describe("el país", () => {
   });
 });
 
+it("la descripción no promete lo que la página no da", () => {
+  const descripcion = String(
+    generateMetadata({ searchParams: {} }).description,
+  );
+  expect(descripcion).toContain("con la fuente de cada uno");
+  expect(descripcion).not.toMatch(/horario/);
+});
+
 it("no le pide nada a nadie: ni las líneas ni un registro de que se abrió", () => {
   galletas = { [TOKEN_NAMES.access]: "x", [TOKEN_NAMES.refresh]: "x" };
   abrir({ pais: "MX", desde: "eco" });

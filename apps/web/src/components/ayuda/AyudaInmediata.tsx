@@ -1,11 +1,13 @@
 import {
   CRISIS_COUNTRIES,
   CRISIS_COUNTRY_NAMES,
-  CRISIS_FALLBACK,
+  crisisCheckedOn,
+  crisisDirectory,
   dialableHotline,
   getCrisisFor,
   type CrisisCountry,
   type CrisisLine,
+  type CrisisSource,
 } from "@psico/types";
 
 import { FeelVerseLockup } from "@/components/brand/FeelVerse";
@@ -75,8 +77,8 @@ export function AyudaInmediata({
       <main className="mt-4 flex-1 sm:mt-8">
         <h1 className="text-[30px] sm:text-[36px]">Ayuda inmediata</h1>
         <p className="mt-3 text-[17px] leading-relaxed">
-          Buscar ayuda está bien. Aquí tienes líneas de ayuda con su teléfono y
-          su horario. No necesitas una cuenta.
+          Buscar ayuda está bien. Aquí tienes recursos por país, con la fuente
+          de cada uno. No necesitas una cuenta.
         </p>
 
         <p
@@ -117,17 +119,25 @@ export function AyudaInmediata({
             </ul>
           </nav>
 
-          <ul className="mt-4 list-none space-y-3 p-0">
-            {datos.lines.map((linea) => (
-              <li
-                key={linea.id}
-                className="rounded-2xl border p-4 sm:p-5"
-                style={TARJETA}
-              >
-                <Linea linea={linea} />
-              </li>
-            ))}
-          </ul>
+          {datos.lines.length > 0 ? (
+            <ul className="mt-4 list-none space-y-3 p-0">
+              {datos.lines.map((linea) => (
+                <li
+                  key={linea.id}
+                  className="rounded-2xl border p-4 sm:p-5"
+                  style={TARJETA}
+                >
+                  <Linea linea={linea} />
+                </li>
+              ))}
+            </ul>
+          ) : (
+            // Retirar una línea puede dejar a un país sin ninguna. Se dice, en
+            // vez de pintar un hueco.
+            <p className="mt-4 text-[16px] leading-relaxed">
+              Ahora no tenemos una línea comprobada en {nombrePais}.
+            </p>
+          )}
         </section>
 
         <section aria-labelledby="titulo-mientras" className="mt-8">
@@ -207,8 +217,8 @@ function EnlacePais({
 /** Una línea del catálogo, con las formas de contacto que declare. */
 export function Linea({ linea }: { linea: CrisisLine }) {
   // Derivado con el mismo criterio que el modal de Eco, no saneado a mano:
-  // quitar todo lo que no sea dígito convierte «1800-4-SALUD (1800-472583)» en
-  // un número que no existe.
+  // quitar todo lo que no sea dígito junta la mnemotecnia de una línea con sus
+  // dígitos y marca un número que no existe.
   const marcable = dialableHotline(linea.phone);
   const whatsapp = linea.whatsapp?.replace(/[^0-9]/g, "");
 
@@ -221,6 +231,15 @@ export function Linea({ linea }: { linea: CrisisLine }) {
       >
         {linea.availability} · {linea.languages.map(nombreIdioma).join(", ")}
       </p>
+      {linea.notes?.map((nota) => (
+        <p
+          key={nota}
+          className="text-[15px] leading-relaxed"
+          style={{ color: "var(--fv-muted)" }}
+        >
+          {nota}
+        </p>
+      ))}
 
       <div className="mt-3 flex flex-wrap gap-2">
         {marcable ? (
@@ -273,23 +292,46 @@ export function Linea({ linea }: { linea: CrisisLine }) {
           </a>
         ) : null}
       </div>
+
+      {linea.source ? (
+        <Fuente fuente={linea.source} color="var(--fv-muted)" />
+      ) : null}
     </>
   );
 }
 
 /**
- * Para quien no está en un país del catálogo: el directorio que el propio
- * catálogo declara en su entrada internacional, y NADA más de ella.
+ * De dónde sale el dato y cuándo se comprobó. Enlaza a la propia fuente.
  *
- * Esa entrada no es un país. Trae además un teléfono 1-800 y unas frases en
- * inglés que ninguna pantalla ha enseñado nunca; ponerlo aquí como un botón de
- * «Llamar» para cualquier país del mundo sería estrenarlo sin que nadie haya
- * comprobado que se puede marcar desde fuera. El modal de Eco ya remite a este
- * mismo directorio, y aquí se dice lo mismo.
+ * El color lo pone quien la usa: el apagado está medido sobre la tarjeta, no
+ * sobre la página.
+ */
+function Fuente({ fuente, color }: { fuente: CrisisSource; color: string }) {
+  return (
+    <p className="mt-3 text-[14px] leading-relaxed" style={{ color }}>
+      Fuente:{" "}
+      <a
+        href={fuente.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="underline underline-offset-4"
+        style={{ color: "inherit" }}
+      >
+        {fuente.label}
+        <span className="sr-only"> (se abre en otra pestaña)</span>
+      </a>{" "}
+      · comprobado el {crisisCheckedOn(fuente)}
+    </p>
+  );
+}
+
+/**
+ * Para quien no está en un país del catálogo: un directorio, dicho como lo que
+ * es. No es un chat ni un servicio que atienda, y no trae ningún teléfono.
  */
 function OtrosPaises() {
-  const url = CRISIS_FALLBACK.lines.find((l) => l.chatUrl)?.chatUrl;
-  if (!url) return null;
+  const directorio = crisisDirectory();
+  if (!directorio) return null;
 
   return (
     <section aria-labelledby="titulo-otros" className="mt-8">
@@ -297,20 +339,21 @@ function OtrosPaises() {
         Si estás en otro país
       </h2>
       <p className="mt-3 text-[16px] leading-relaxed">
-        Puedes buscar una línea cercana en este directorio internacional:
+        Puedes buscar una línea cercana aquí. {directorio.note}
       </p>
       <p className="mt-1">
         <a
-          href={url}
+          href={directorio.url}
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex min-h-[44px] items-center text-[16px] font-semibold underline underline-offset-4"
           style={{ color: "var(--fg-link-strong)" }}
         >
-          {new URL(url).hostname}
+          {directorio.name}
           <span className="sr-only"> (se abre en otra pestaña)</span>
         </a>
       </p>
+      <Fuente fuente={directorio.source} color="var(--fg-body)" />
     </section>
   );
 }

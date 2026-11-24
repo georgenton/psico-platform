@@ -11,11 +11,16 @@
       "import": "./dist/index.mjs",
       "require": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./observability": {
+      "import": "./dist/observability-allowlist.mjs",
+      "require": "./dist/observability-allowlist.js",
+      "types": "./dist/observability-allowlist.d.ts"
     }
   },
   "scripts": {
-    "build": "tsup src/index.ts --format cjs,esm --dts --clean",
-    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
+    "build": "tsup src/index.ts src/observability-allowlist.ts --format cjs,esm --dts --clean --no-splitting",
+    "dev": "tsup src/index.ts src/observability-allowlist.ts --format cjs,esm --dts --watch --no-splitting",
     "lint": "eslint src/",
     "typecheck": "tsc --noEmit"
   },

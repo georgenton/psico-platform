@@ -1,102 +1,148 @@
-/**
- * Sentry initialization for API + worker.
- *
- * Both entry points (apps/api/src/main.ts and apps/api/src/worker.ts) call
- * `initSentry()` BEFORE NestFactory boots. The init must happen first so
- * Sentry's auto-instrumentation can patch http / pg / undici modules
- * before any user code requires them.
- *
- * Init is a no-op when SENTRY_DSN is not set — keeps dev/test workflows
- * silent without forcing every contributor to provision a Sentry project.
- *
- * Privacy: `sendDefaultPii: false`. Combined with the E2E encryption on
- * Diario/Eco bodies (ADR-0007), this means no diary text, eco messages,
- * or auth credentials can reach Sentry. Stack traces + a SANITIZED route
- * only — enough to triage prod bugs without leaking user content.
- */
+import { join } from "node:path";
 import * as Sentry from "@sentry/node";
-import { sanitizeSentryEvent as redactEvent } from "@psico/types";
+import { guardTransport, guardedOptions } from "@psico/types";
+import { API_ROOT, nodePolicy, type NodeService } from "./policy";
 
 /**
- * The last privacy boundary before an event leaves the process.
+ * Errores de la API y del worker hacia Sentry. Inerte sin `SENTRY_DSN`.
  *
- * The rule itself lives in `@psico/types/observability-redaction`, shared with
- * the Web's three Sentry runtimes. It used to live here, and the Web had
- * nothing — which is backwards: the Web is where `/i#<token>` is opened, so it
- * is the runtime whose URLs carry a one-shot invitation.
+ * ── Por qué NO se usa `Sentry.init()` ──────────────────────────────────────
  *
- * What it does, in one line each: redacts the sensitive headers whatever their
- * casing (now including `x-circle-guest-session` and `x-client-attestation`,
- * which are credentials in their own right), drops the raw request URL, query
- * and body outright, cleans the same fields out of breadcrumbs, and reduces
- * any surviving URL to a route shape with its ids replaced.
+ * `init()` instala el SDK entero: parchea `http` y `fetch` con OpenTelemetry,
+ * guarda cabeceras y cuerpo de cada petición, adjunta líneas de código y
+ * variables locales, abre sesiones y lee una docena de variables de entorno.
+ * Dos de ellas cambian lo que sale sin que nadie toque el código:
+ * `SENTRY_TRACES_SAMPLE_RATE` enciende las trazas y `SENTRY_SPOTLIGHT` manda una
+ * copia de cada sobre por un camino que no es el transporte.
  *
- * The value ops actually needs for triage — the matched route template —
- * already travels as `contexts.custom.path`, put there by
- * `HttpExceptionFilter` via `safeRequestPath()`.
+ * Aquí se construye el cliente a mano, con tres integraciones y nada más:
+ * encadenar causas, y las dos que ven una excepción que nadie atrapó. Sin
+ * OpenTelemetry registrado no hay trazas que muestrear, ni cabeceras
+ * `sentry-trace`/`baggage` en las peticiones salientes.
+ *
+ * Lo que sale, además, pasa dos veces por la lista blanca
+ * (`@psico/types/observability-allowlist`): en `beforeSend` y en el transporte,
+ * que es la puerta que cubre lo que `beforeSend` no ve.
+ *
+ * Qué sale y qué no, cómo se activa y qué falta: `README.md`, al lado.
  */
-export function sanitizeSentryEvent<E extends Sentry.Event>(event: E): E {
-  return redactEvent(event as never) as E;
-}
 
 let initialised = false;
-// Tracks whether `Sentry.init` was actually called with a DSN — not just
-// whether `initSentry` ran. Without this we couldn't distinguish "init
-// completed as no-op" from "init wired up the SDK", and `captureException`
-// would forward to a no-op SDK instead of returning early.
-let sentryEnabled = false;
+// `initialised` sólo dice que `initSentry` corrió. Sin DSN corre y no hace
+// nada, y `captureException` tiene que saber distinguirlo.
+let client: Sentry.NodeClient | null = null;
 
-export function initSentry(): void {
-  // Idempotent: both main.ts and the worker call this, and our test harness
-  // imports the module multiple times during a Vitest run.
+export function initSentry(service: NodeService): void {
+  // Idempotente: los tests importan el módulo varias veces por proceso.
   if (initialised) return;
-  const dsn = process.env.SENTRY_DSN;
-  if (!dsn) {
-    initialised = true;
-    return;
-  }
-
-  Sentry.init({
-    dsn,
-    environment: process.env.NODE_ENV ?? "development",
-    release: process.env.SENTRY_RELEASE,
-    // Performance traces sampled at 10% in prod — enough to surface slow
-    // endpoints without blowing up the Sentry quota when traffic scales.
-    tracesSampleRate: process.env.NODE_ENV === "production" ? 0.1 : 1.0,
-    sendDefaultPii: false,
-    beforeSend: sanitizeSentryEvent,
-  });
   initialised = true;
-  sentryEnabled = true;
+  const dsn = process.env.SENTRY_DSN?.trim();
+  if (!dsn) return;
+
+  try {
+    const policy = nodePolicy(service);
+    const candidate = new Sentry.NodeClient({
+      ...(guardedOptions(policy) as Partial<Sentry.NodeOptions>),
+      dsn,
+      stackParser: Sentry.defaultStackParser,
+      transport: guardTransport(Sentry.makeNodeTransport, policy),
+      integrations: [
+        Sentry.linkedErrorsIntegration(),
+        // Como haría Node por su cuenta: si nadie más escucha, el proceso
+        // termina con código 1. Si alguien más escucha, no se le quita la
+        // decisión.
+        Sentry.onUncaughtExceptionIntegration({
+          exitEvenIfOtherHandlersAreRegistered: false,
+        }),
+        // `strict`, y es lo que hace falta: el modo por defecto de esta
+        // integración AVISA y sigue, que es justo lo que Node no hace. Un
+        // arranque fallido acabaría con código 0.
+        Sentry.onUnhandledRejectionIntegration({ mode: "strict" }),
+      ],
+    });
+    // Un DSN ilegible deja el cliente sin destino.
+    if (!candidate.getDsn()) {
+      console.warn(
+        "[observabilidad] SENTRY_DSN no es un DSN: no se envía nada.",
+      );
+      return;
+    }
+    Sentry.getCurrentScope().setClient(candidate);
+    candidate.init();
+    client = candidate;
+  } catch {
+    // La observabilidad no puede impedir que el servicio arranque.
+    console.warn("[observabilidad] No se pudo iniciar: no se envía nada.");
+  }
 }
 
+/** Nombre de la etiqueta por cada campo del contexto que se acepta. */
+const TAG_OF: Readonly<Record<string, string>> = {
+  method: "method",
+  path: "route",
+  statusCode: "status",
+  code: "code",
+  surface: "surface",
+  stage: "stage",
+  dependency: "dependency",
+  category: "category",
+  upstreamStatus: "upstream_status",
+  queue: "queue",
+  job: "job",
+};
+
 /**
- * Capture an exception to Sentry. No-op when Sentry was never wired
- * to a real DSN (e.g. dev without env var). Safe to call from anywhere
- * in the codebase.
+ * Manda un error. No hace nada sin DSN, y nunca lanza: quien llama está
+ * gestionando ya un fallo.
+ *
+ * Del contexto sólo se usan los campos de `TAG_OF`, y cada uno se contrasta con
+ * su conjunto cerrado antes de salir. Lo demás se ignora.
  */
 export function captureException(
   err: unknown,
   context?: Record<string, unknown>,
 ): void {
-  if (!sentryEnabled) return;
-  if (context) {
+  if (!client) return;
+  try {
     Sentry.withScope((scope) => {
-      scope.setContext("custom", context);
-      Sentry.captureException(err);
+      for (const [field, tag] of Object.entries(TAG_OF)) {
+        const value = context?.[field];
+        if (typeof value === "string" || typeof value === "number") {
+          scope.setTag(tag, value);
+        }
+      }
+      Sentry.captureException(relocate(err, context?.frames));
     });
-  } else {
-    Sentry.captureException(err);
+  } catch {
+    // Nada que hacer: perder un informe es mejor que romper la respuesta.
   }
 }
 
-/** Exposed for tests so they can assert init status without poking the SDK. */
+/**
+ * Eco no manda el error original sino uno sintético, y aparte los marcos ya
+ * verificados de dónde ocurrió de verdad (`eco-failure.ts`). Sin esto, todos los
+ * fallos de Eco señalarían al mismo `catch`.
+ */
+function relocate(err: unknown, frames: unknown): unknown {
+  if (!(err instanceof Error) || !Array.isArray(frames)) return err;
+  const lines = frames
+    .filter((f): f is string => typeof f === "string" && !f.includes("\n"))
+    .map((f) => `    at ${join(API_ROOT, f)}`);
+  if (lines.length === 0) return err;
+  const moved = new Error(err.message);
+  moved.name = err.name;
+  moved.stack = `${err.name}\n${lines.join("\n")}`;
+  return moved;
+}
+
+/** Si el arranque ya pasó por aquí, con DSN o sin él. */
 export function isSentryInitialised(): boolean {
   return initialised;
 }
 
-/** Reset state — TESTING ONLY. */
-export function _resetSentryForTests(): void {
+/** SÓLO PARA TESTS. */
+export async function _resetSentryForTests(): Promise<void> {
+  await client?.close(1000);
   initialised = false;
-  sentryEnabled = false;
+  client = null;
 }

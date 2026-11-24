@@ -1,23 +1,46 @@
 /**
- * Sentry init for the mobile app (Sprint 2 del roadmap).
+ * Errores de la app móvil hacia Sentry. Inerte sin `EXPO_PUBLIC_SENTRY_DSN`.
  *
- * Imported and invoked once from `app/_layout.tsx` so the SDK boots
- * before any screen renders. No-op when `EXPO_PUBLIC_SENTRY_DSN` is not
- * set — keeps the dev experience clean without forcing every contributor
- * to provision a Sentry project.
+ * Se invoca una vez desde `app/_layout.tsx`, antes de pintar ninguna pantalla.
  *
- * Privacy:
- *   - `sendDefaultPii: false` — never ships IPs / device IDs.
- *   - The E2E ciphers from Diario/Eco live in component state, never
- *     thrown as errors. Stack traces only carry messages + frames.
- *   - We do NOT enable session replay or screenshots on errors — they
- *     would record the open Diario composer (decrypted plaintext on
- *     screen) and violate ADR-0007.
+ * Privacidad: la misma lista blanca que la API y la Web
+ * (`@psico/types/observability-allowlist`). Además, sólo habla la parte de
+ * JavaScript: el SDK nativo manda sus propios informes sin pasar por
+ * `beforeSend`, así que no se enciende. Ni capturas, ni jerarquía de vistas, ni
+ * migas, ni sesiones, ni trazas: con el Diario abierto hay texto descifrado en
+ * pantalla.
+ *
+ * La app no está publicada en ninguna parte, y a diferencia de los otros cuatro
+ * procesos esto NO se ha ensayado contra un receptor. Antes de ponerle un DSN
+ * hay que hacerlo, en un dispositivo.
  */
 import * as Sentry from "@sentry/react-native";
+import {
+  closedEnvironment,
+  closedRelease,
+  guardedOptions,
+  isMinifiedFunction,
+  type ObservabilityPolicy,
+} from "@psico/types";
 import { appEnvironment } from "@/config/environment";
 
 let initialised = false;
+
+const BUNDLE = /(?:^|\/)(main\.jsbundle|index\.(?:ios|android)\.bundle)$/;
+
+function policy(): ObservabilityPolicy {
+  return {
+    service: "feelverse-mobile",
+    environment: closedEnvironment(appEnvironment()),
+    release: closedRelease(process.env.EXPO_PUBLIC_SENTRY_RELEASE),
+    platform: "javascript",
+    file: (raw) => {
+      const name = raw.match(BUNDLE)?.[1];
+      return name ? { name, inApp: true } : null;
+    },
+    fn: (name) => isMinifiedFunction(name),
+  };
+}
 
 export function initSentry(): void {
   if (initialised) return;
@@ -30,6 +53,7 @@ export function initSentry(): void {
     return;
   }
   Sentry.init({
+    ...(guardedOptions(policy()) as Partial<Sentry.ReactNativeOptions>),
     dsn,
     // The app's OWN posture. This read `EXPO_PUBLIC_VERCEL_ENV` until now — a
     // deployment detail of a platform this client does not run on, and which is
@@ -39,9 +63,9 @@ export function initSentry(): void {
     // infrastructure does, and until then every mobile event was tagged
     // `development` because the variable was never set on a phone.
     environment: appEnvironment(),
-    release: process.env.EXPO_PUBLIC_SENTRY_RELEASE,
-    tracesSampleRate: 0.1,
-    enableAutoSessionTracking: true,
+    // El SDK nativo informa por su cuenta y no pasa por la lista blanca.
+    enableNative: false,
+    enableAutoSessionTracking: false,
     // Hard-off screenshots + view hierarchy — would leak Diario plaintext.
     attachScreenshot: false,
     attachViewHierarchy: false,

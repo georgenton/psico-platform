@@ -3,6 +3,7 @@ import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
 import { Newsreader, Source_Serif_4 } from "next/font/google";
 import { feelVerseFaviconHref } from "@/components/brand/FeelVerse";
+import { ObservabilityBoot } from "@/components/observability/ObservabilityBoot";
 import "./globals.css";
 
 /**
@@ -53,6 +54,7 @@ export default function RootLayout({
       className={`${GeistSans.variable} ${GeistMono.variable} ${newsreader.variable} ${sourceSerif.variable}`}
     >
       <body className="min-h-screen bg-warm-50 font-sans antialiased">
+        <ObservabilityBoot />
         {children}
       </body>
     </html>

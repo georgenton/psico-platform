@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
+import type { NextFetchEvent, NextRequest } from "next/server";
 
 import { TOKEN_NAMES, cookieOptions } from "@/lib/cookies";
+import { markAsReported } from "@/lib/observability/reported";
 
 const PROTECTED_PREFIXES = ["/dashboard"];
 const AUTH_PREFIXES = ["/login", "/register"];
@@ -227,7 +228,33 @@ export function circulosCspFor(
   ].join("; ");
 }
 
-export async function middleware(request: NextRequest) {
+/**
+ * Un fallo aquí lo ve la persona como una página de error, igual que antes. Lo
+ * que se añade es que se sepa: el middleware corre en Edge, y Next 14.2 no tiene
+ * gancho para sus errores.
+ *
+ * El informe no se espera. `waitUntil` lo mantiene vivo sin retrasar la
+ * respuesta, y el módulo sólo se carga si hay DSN y algo falló.
+ */
+export async function middleware(
+  request: NextRequest,
+  event?: NextFetchEvent,
+): Promise<NextResponse> {
+  try {
+    return await respond(request);
+  } catch (error) {
+    if (process.env.SENTRY_DSN?.trim()) {
+      markAsReported(error);
+      const report = import("@/lib/observability/edge").then((m) =>
+        m.reportEdgeError(error),
+      );
+      event?.waitUntil(report);
+    }
+    throw error;
+  }
+}
+
+async function respond(request: NextRequest): Promise<NextResponse> {
   const { pathname } = request.nextUrl;
 
   // The path check comes first: this middleware runs on every request in the

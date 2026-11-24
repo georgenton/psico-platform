@@ -590,13 +590,18 @@ const CONTROLS = [
   },
   {
     property: "GUEST_CREDENTIAL_NEVER_REACHES_SENTRY",
-    mutation: "the guest session header is dropped from the redaction list",
-    file: f("../../packages/types/src/observability-redaction.ts"),
-    // A guest has no account, so this header IS the identity. Removing one
-    // line from a list is exactly how it would go missing, and nothing would
-    // fail — the events would simply start carrying a working key.
-    find: `  "x-circle-guest-session",`,
-    replace: ``,
+    mutation: "the event is copied instead of rebuilt",
+    file: f("../../packages/types/src/observability-allowlist.ts"),
+    // A guest has no account, so the guest header IS the identity. What keeps
+    // it inside is that the event is REBUILT from enumerated fields; the way
+    // that guarantee would go missing is somebody spreading the original in
+    // «to not lose anything», and nothing would fail — the events would simply
+    // start carrying a working key.
+    find: `  const out: SafeEvent = {
+    platform: policy.platform,`,
+    replace: `  const out: SafeEvent = {
+    ...(event as object),
+    platform: policy.platform,`,
     // `@psico/types` resolves through its package exports to `dist/`, so the
     // API imports the BUILT redactor and not the file this control edits.
     // Without a rebuild the mutated source would never reach the test, which

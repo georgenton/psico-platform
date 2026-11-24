@@ -507,7 +507,12 @@ export function DashboardShell({
    * y ningún nombre.
    */
   identidad?: IdentidadDeCuenta;
-  cryptoSalt: string | null;
+  /**
+   * La sal de la cuenta. `null`: no tiene cifrado. `undefined`: en este refresco
+   * no se supo, y se sigue con la última que se supo. No puede ser la de otra
+   * persona: el layout monta un armazón por cuenta.
+   */
+  cryptoSalt: string | null | undefined;
   showTour: boolean;
   initialDiaryWrapKey: string | null;
   initialMood: DiaryMoodId | null;
@@ -516,6 +521,11 @@ export function DashboardShell({
 }) {
   const pathname = usePathname();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+
+  const ultimaSal = useRef<string | null>(null);
+  useEffect(() => {
+    if (cryptoSalt !== undefined) ultimaSal.current = cryptoSalt;
+  }, [cryptoSalt]);
 
   // ── Compact navigation (GR-2 responsive gate) ────────────────────────────
   //
@@ -619,7 +629,7 @@ export function DashboardShell({
   return (
     <MoodCheckinProvider>
       <DiaryKeyProvider
-        cryptoSalt={cryptoSalt}
+        cryptoSalt={cryptoSalt === undefined ? ultimaSal.current : cryptoSalt}
         initialWrapKey={initialDiaryWrapKey}
       >
         <AmbientThemeApplier ambient={initialAmbient} />

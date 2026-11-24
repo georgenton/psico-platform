@@ -94,15 +94,53 @@ export function DiaryKeyProvider({
   const [biometricLabel, setBiometricLabel] = useState("biometría");
   const [needsBiometric, setNeedsBiometric] = useState(false);
 
+  // De qué cuenta son las claves que hay aquí, abiertas o esperando a la
+  // huella. Sólo se entregan si es la cuenta actual, y la pregunta se hace en el
+  // render: limpiar en un efecto llega un render tarde. Igual que en web.
+  const [dueno, setDueno] = useState<string | null>(null);
+  const mias = dueno !== null && dueno === cryptoSalt;
+
+  // La misma cuenta, para preguntarla al TERMINAR algo que tardó. Vale null sin
+  // proveedor, así que un desbloqueo no puede guardar nada después de salir.
+  const cuentaRef = useRef<string | null>(cryptoSalt);
+  useEffect(() => {
+    cuentaRef.current = cryptoSalt;
+    return () => {
+      cuentaRef.current = null;
+    };
+  }, [cryptoSalt]);
+
   // Cached subkeys loaded from SecureStore but held back until biometrics pass.
   const pendingRef = useRef<{
     d: Uint8Array | null;
     e: Uint8Array | null;
   } | null>(null);
 
+  // La cuenta cambió con el proveedor montado.
+  useEffect(() => {
+    if (dueno === null || dueno === cryptoSalt) return;
+    for (const k of [key, ecoKey, masterKey]) k?.fill(0);
+    setKey(null);
+    setEcoKey(null);
+    setMasterKey(null);
+    setDueno(null);
+    pendingRef.current = null;
+    setNeedsBiometric(false);
+  }, [dueno, cryptoSalt, key, ecoKey, masterKey]);
+
+  // Y lo que estuviera en marcha en la reja era de la cuenta anterior.
+  const cuentaPreviaRef = useRef(cryptoSalt);
+  useEffect(() => {
+    if (cuentaPreviaRef.current === cryptoSalt) return;
+    cuentaPreviaRef.current = cryptoSalt;
+    setUnlocking(false);
+    setError(null);
+  }, [cryptoSalt]);
+
   // On mount: resolve prefs + capability, then decide how to restore.
   useEffect(() => {
     let active = true;
+    const sigueIgual = () => active && cuentaRef.current === cryptoSalt;
     (async () => {
       const [rememberPref, bioPref, cap] = await Promise.all([
         lockPrefs.getRemember(),
@@ -134,10 +172,11 @@ export function DiaryKeyProvider({
       if (bioPref && cap.available) {
         // Hold the key behind a biometric prompt.
         pendingRef.current = { d: storedDiary, e: storedEco };
+        setDueno(cryptoSalt);
         setNeedsBiometric(true);
         setLoadingPersisted(false);
         const ok = await promptBiometric("Desbloquea tu diario");
-        if (!active) return;
+        if (!sigueIgual()) return;
         if (ok) {
           setKey(storedDiary);
           if (storedEco) setEcoKey(storedEco);
@@ -149,6 +188,11 @@ export function DiaryKeyProvider({
       }
 
       // No biometric gate → reveal directly (legacy "remember" behaviour).
+      if (!sigueIgual()) {
+        setLoadingPersisted(false);
+        return;
+      }
+      setDueno(cryptoSalt);
       setKey(storedDiary);
       if (storedEco) setEcoKey(storedEco);
       setLoadingPersisted(false);
@@ -158,6 +202,8 @@ export function DiaryKeyProvider({
     return () => {
       active = false;
     };
+    // Sólo al montar: restaura para la cuenta con la que se montó.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const unlock = useCallback(
@@ -170,6 +216,10 @@ export function DiaryKeyProvider({
       setError(null);
       try {
         const derivedMaster = await deriveMasterKey(password, cryptoSalt);
+        if (cuentaRef.current !== cryptoSalt) {
+          derivedMaster.fill(0);
+          return;
+        }
         const diaryKey = deriveSubKey(derivedMaster, DIARY_KEY_INFO);
         const ecoSub = deriveSubKey(derivedMaster, ECO_KEY_INFO);
         // Persist only if the user wants to be remembered on this device.
@@ -179,12 +229,20 @@ export function DiaryKeyProvider({
         } else {
           await diaryKeyStore.clear();
         }
+        if (cuentaRef.current !== cryptoSalt) {
+          // Se salió mientras se guardaba: lo guardado se retira.
+          for (const k of [derivedMaster, diaryKey, ecoSub]) k.fill(0);
+          await diaryKeyStore.clear();
+          return;
+        }
+        setDueno(cryptoSalt);
         setMasterKey(derivedMaster);
         setKey(diaryKey);
         setEcoKey(ecoSub);
         pendingRef.current = null;
         setNeedsBiometric(false);
       } catch (err) {
+        if (cuentaRef.current !== cryptoSalt) return;
         const code =
           err instanceof Error ? err.message : "CRYPTO_UNKNOWN_ERROR";
         setError(
@@ -193,7 +251,7 @@ export function DiaryKeyProvider({
             : "No pudimos derivar tu clave. Reintenta.",
         );
       } finally {
-        setUnlocking(false);
+        if (cuentaRef.current === cryptoSalt) setUnlocking(false);
       }
     },
     [cryptoSalt, remember],
@@ -201,6 +259,8 @@ export function DiaryKeyProvider({
 
   const adoptMasterKey = useCallback(
     async (nextMaster: Uint8Array) => {
+      // Quien la llama puede haberla guardado antes de una petición.
+      if (cryptoSalt === null || cuentaRef.current !== cryptoSalt) return;
       if (nextMaster.length !== 32) {
         setError("La clave maestra tiene un tamaño inválido.");
         return;
@@ -214,6 +274,12 @@ export function DiaryKeyProvider({
       } else {
         await diaryKeyStore.clear();
       }
+      if (cuentaRef.current !== cryptoSalt) {
+        for (const k of [owned, diaryKey, ecoSub]) k.fill(0);
+        await diaryKeyStore.clear();
+        return;
+      }
+      setDueno(cryptoSalt);
       setMasterKey(owned);
       setKey(diaryKey);
       setEcoKey(ecoSub);
@@ -221,7 +287,7 @@ export function DiaryKeyProvider({
       setNeedsBiometric(false);
       setError(null);
     },
-    [remember],
+    [cryptoSalt, remember],
   );
 
   const lock = useCallback(async () => {
@@ -231,6 +297,7 @@ export function DiaryKeyProvider({
     setKey(null);
     setEcoKey(null);
     setMasterKey(null);
+    setDueno(null);
     setError(null);
     pendingRef.current = null;
     setNeedsBiometric(false);
@@ -248,11 +315,13 @@ export function DiaryKeyProvider({
     }
     const d = pendingRef.current?.d ?? (await diaryKeyStore.load());
     const e = pendingRef.current?.e ?? (await diaryKeyStore.loadEco());
+    if (cuentaRef.current !== cryptoSalt) return;
+    setDueno(cryptoSalt);
     if (d) setKey(d);
     if (e) setEcoKey(e);
     pendingRef.current = null;
     setNeedsBiometric(false);
-  }, []);
+  }, [cryptoSalt]);
 
   const setRemember = useCallback(
     (next: boolean) => {
@@ -262,12 +331,14 @@ export function DiaryKeyProvider({
         // Stop caching; keep the current in-memory key for this session.
         void diaryKeyStore.clear();
       } else {
-        // Re-enable: persist whatever we currently hold.
+        // Re-enable: persist whatever we currently hold. Not from a callback of
+        // a previous account: its buffers may be zeroed by now.
+        if (!mias || cuentaRef.current !== cryptoSalt) return;
         if (key) void diaryKeyStore.save(key);
         if (ecoKey) void diaryKeyStore.saveEco(ecoKey);
       }
     },
-    [key, ecoKey],
+    [mias, cryptoSalt, key, ecoKey],
   );
 
   const setBiometricLock = useCallback(
@@ -289,9 +360,9 @@ export function DiaryKeyProvider({
 
   const value = useMemo<DiaryKeyContextValue>(
     () => ({
-      key,
-      ecoKey,
-      masterKey,
+      key: mias ? key : null,
+      ecoKey: mias ? ecoKey : null,
+      masterKey: mias ? masterKey : null,
       isLegacyAccount: cryptoSalt === null,
       unlocking,
       loadingPersisted,
@@ -300,7 +371,7 @@ export function DiaryKeyProvider({
       biometricLock,
       biometricAvailable,
       biometricLabel,
-      needsBiometric,
+      needsBiometric: mias && needsBiometric,
       unlock,
       adoptMasterKey,
       lock,
@@ -309,6 +380,7 @@ export function DiaryKeyProvider({
       setBiometricLock,
     }),
     [
+      mias,
       key,
       ecoKey,
       masterKey,

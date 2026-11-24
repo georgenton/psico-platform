@@ -18,7 +18,9 @@ import {
   isNextThrow,
   serverFetch,
 } from "@/lib/api.server";
+import { SesionVigenteProvider } from "@/lib/crypto/sesion-vigente";
 import { identidadDeCuenta } from "@/lib/identidad";
+import { marcaDeCuenta } from "@/lib/marca-de-cuenta.server";
 import { resolveOnboardingGate } from "@/lib/onboarding/gate";
 import { deriveGuideRecoveryActorScope } from "@/lib/guide-recovery-scope.server";
 import { getDiaryWrapKey } from "@/actions/diary-session";
@@ -41,7 +43,11 @@ export default async function DashboardLayout({
   // DiaryKeyProvider can be hoisted above the entire /dashboard subtree.
   // That way the diary unlock survives navigation (e.g. Diario → Seguridad
   // → back), which the password-change-with-rekey flow specifically needs.
-  let cryptoSalt: string | null = null;
+  //
+  // `undefined` es «no se sabe»: `/user/me` no contestó. No es lo mismo que
+  // `null`, «esta cuenta no tiene cifrado», y confundirlos cerraría el Diario
+  // —y se llevaría lo que se esté escribiendo— por un fallo pasajero.
+  let cryptoSalt: string | null | undefined;
   let me: UserMeResponse | null = null;
   try {
     me = await serverFetch<UserMeResponse>("/user/me");
@@ -54,8 +60,9 @@ export default async function DashboardLayout({
     // refresh loop. Surface anything that ISN'T a missing-cryptoSalt error
     // — non-auth errors get re-thrown too so the error boundary catches.
     if (isNextThrow(err)) throw err;
-    // Other non-redirect errors: leave cryptoSalt as null. The Diario
-    // UnlockGate will render the empty state instead of crashing.
+    // Other non-redirect errors: leave cryptoSalt unknown. On a first load the
+    // Diario UnlockGate renders the empty state instead of crashing; on a
+    // refresh the shell keeps the one it already had for this account.
   }
 
   // Sprint S4-front: redirect new users to /onboarding before they can
@@ -137,23 +144,33 @@ export default async function DashboardLayout({
     correo: me?.user.email ?? user?.email,
   });
 
+  // Otra cuenta es otro panel. La sesión es del navegador entero, así que un
+  // refresco puede traer la de otra persona sin recargar: con la `key`, todo lo
+  // que colgaba de la primera —claves, borradores, sus hilos de Eco— se desmonta
+  // y el panel arranca como en una carga nueva. Es el identificador y no la sal,
+  // que también cambia al cambiar la contraseña, y eso no debe cerrar nada.
   return (
-    <DashboardShell
-      user={user}
-      identidad={identidad}
-      cryptoSalt={cryptoSalt}
-      showTour={showTour}
-      initialDiaryWrapKey={initialWrapKey}
-      initialMood={initialMood}
-      initialAmbient={initialAmbient}
+    <SesionVigenteProvider
+      key={user?.userId}
+      marca={marcaDeCuenta(user?.userId)}
     >
-      <ApiClientBootstrap apiBase={API_ROOT} accessToken={accessToken} />
-      <TimezoneSync needsProbe={needsTimezoneProbe} />
-      <GuideActorScopeProvider scope={guideActorScope}>
-        <GuideAvailabilityProvider available={guideAvailable}>
-          {children}
-        </GuideAvailabilityProvider>
-      </GuideActorScopeProvider>
-    </DashboardShell>
+      <DashboardShell
+        user={user}
+        identidad={identidad}
+        cryptoSalt={cryptoSalt}
+        showTour={showTour}
+        initialDiaryWrapKey={initialWrapKey}
+        initialMood={initialMood}
+        initialAmbient={initialAmbient}
+      >
+        <ApiClientBootstrap apiBase={API_ROOT} accessToken={accessToken} />
+        <TimezoneSync needsProbe={needsTimezoneProbe} />
+        <GuideActorScopeProvider scope={guideActorScope}>
+          <GuideAvailabilityProvider available={guideAvailable}>
+            {children}
+          </GuideAvailabilityProvider>
+        </GuideActorScopeProvider>
+      </DashboardShell>
+    </SesionVigenteProvider>
   );
 }

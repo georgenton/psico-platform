@@ -45,6 +45,27 @@ Both layers persist a `kind=CRISIS` `EcoMessage` so the thread is
 re-readable with the same content the user saw. Nothing rewrites it later: an
 old notice keeps the text it was sent with (`crisis-notice.spec.ts` pins it).
 
+### The notice goes first
+
+Layer 1 runs before the quota, before the thread and before any write. What it
+waits for is the profile's country, and only one second: a failed or late read
+is «not declared». Everything after the notice is best effort with a deadline of
+three seconds, so a database that does not answer does not keep the stream open
+— the installed clients paint the notice when the stream closes. A failure there
+is logged, with neither text nor ciphertext, and is never an `error` event
+(`eco.crisis-first.spec.ts`, `eco-crisis.e2e-spec.ts`).
+
+- **No quota left.** The notice goes out and both messages are saved: the
+  person's one only as ciphertext, the notice in the clear. It counts like any
+  other message, so `used` can pass the limit and what is left stays at zero.
+- **A thread that is not theirs, or does not exist.** The notice, and nothing
+  written. Both look the same.
+- **`done`** follows `crisis` when the message was saved and the quota could be
+  read; otherwise the stream just closes. Layer 2 does not emit it.
+
+What can still stand in front of it is what runs before this module: the session
+guard (which reads the database), the rate limit and the body validation.
+
 ### What the notice says
 
 `crisisNotice(country)` composes it from the shared catalogue in
@@ -69,7 +90,7 @@ number is a phrase because clients without a dialable form paint «Llama al
 - **PRO / ANNUAL**: 200 user messages per billing period (from `PLAN_QUOTAS`).
 - **B2B**: unlimited.
 
-Pre-flight check before any LLM call. Counted via `EcoMessage` rows with
+Pre-flight check before any LLM call, and after layer 1. Counted via `EcoMessage` rows with
 `kind=USER` joined to the thread. Successful sends invalidate
 `UsageService` cache so Mi Plan reflects the new count.
 

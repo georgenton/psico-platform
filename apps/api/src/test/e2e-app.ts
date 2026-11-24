@@ -230,6 +230,19 @@ function makePrismaMock() {
     therapyTechnicalReport: {
       create: fn(),
     },
+    // Eco — a message: whose thread, what is written, and what the quota reads.
+    ecoThread: {
+      findFirst: fn(),
+      update: fn(),
+    },
+    ecoMessage: {
+      create: fn(),
+      findMany: fn(),
+      count: fn(),
+    },
+    subscription: {
+      findUnique: fn(),
+    },
     // Other models added on demand by future sprints.
   };
   // Callback-form $transaction passes the mock itself as the tx client, so

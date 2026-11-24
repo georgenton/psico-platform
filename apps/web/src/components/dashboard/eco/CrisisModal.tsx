@@ -1,6 +1,10 @@
 "use client";
 
-import { dialableHotline, type CrisisCountry } from "@psico/types";
+import {
+  crisisDirectory,
+  dialableHotline,
+  type CrisisCountry,
+} from "@psico/types";
 
 import { hrefAyuda } from "@/lib/ayuda";
 
@@ -43,6 +47,8 @@ export function CrisisModal({
   // numérica de una línea con mnemotecnia y dejaba letras en el único botón
   // donde una pulsación tiene que funcionar a la primera.
   const marcable = dialableHotline(hotline);
+  // Del catálogo, para que retirarlo ahí lo retire también de aquí.
+  const directorio = crisisDirectory();
 
   return (
     <div
@@ -130,41 +136,43 @@ export function CrisisModal({
             Entendido
           </button>
 
-          <p
-            className="mt-4 text-center text-[11px]"
-            // `--fv-muted` en vez de `--color-warm-500`, y la razón NO es
-            // el contraste: es que una rampa no promete nada.
-            //
-            // Conviene decirlo así porque la medida, sola, no sostiene el
-            // cambio. En el panel, sobre la superficie de la tarjeta:
-            // Noche 5,99 → 7,10 · Calma sin cambio · Enfoque 6,93 → 5,29 y
-            // 6,05 · Energía 5,85 → 5,29 y 6,05. Mejora uno y empeora dos, y
-            // los ocho estados estaban ya por encima de 4,5 antes y después.
-            // Como reparación de contraste, no lo es.
-            //
-            // Lo que sí cambia es la garantía. `--color-warm-500` es un valor
-            // de rampa: `color-contracts.ts` prohíbe expresamente que un
-            // contrato apunte a una —«las rampas no prometen nada, y por eso
-            // no se prueban»—, así que este texto no tenía ningún suelo
-            // vigilado y su valor puede moverse por tema y por ambiente sin
-            // que nada lo note. `--fv-muted` es el token auxiliar del sistema
-            // aprobado, está bajo contrato y se mide en los ocho estados.
-            //
-            // Se cambia por eso, y se declara como alineación con el sistema,
-            // no como arreglo de un incumplimiento que no existía.
-            style={{ color: "var(--fv-muted)" }}
-          >
-            Si estás en otro país, busca una línea de ahí en el directorio{" "}
-            <a
-              href="https://findahelpline.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline"
+          {directorio ? (
+            <p
+              className="mt-4 text-center text-[11px]"
+              // `--fv-muted` en vez de `--color-warm-500`, y la razón NO es
+              // el contraste: es que una rampa no promete nada.
+              //
+              // Conviene decirlo así porque la medida, sola, no sostiene el
+              // cambio. En el panel, sobre la superficie de la tarjeta:
+              // Noche 5,99 → 7,10 · Calma sin cambio · Enfoque 6,93 → 5,29 y
+              // 6,05 · Energía 5,85 → 5,29 y 6,05. Mejora uno y empeora dos, y
+              // los ocho estados estaban ya por encima de 4,5 antes y después.
+              // Como reparación de contraste, no lo es.
+              //
+              // Lo que sí cambia es la garantía. `--color-warm-500` es un valor
+              // de rampa: `color-contracts.ts` prohíbe expresamente que un
+              // contrato apunte a una —«las rampas no prometen nada, y por eso
+              // no se prueban»—, así que este texto no tenía ningún suelo
+              // vigilado y su valor puede moverse por tema y por ambiente sin
+              // que nada lo note. `--fv-muted` es el token auxiliar del sistema
+              // aprobado, está bajo contrato y se mide en los ocho estados.
+              //
+              // Se cambia por eso, y se declara como alineación con el sistema,
+              // no como arreglo de un incumplimiento que no existía.
+              style={{ color: "var(--fv-muted)" }}
             >
-              findahelpline.com
-            </a>
-            .
-          </p>
+              Si estás en otro país, busca una línea de ahí en el directorio{" "}
+              <a
+                href={directorio.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline"
+              >
+                {directorio.name}
+              </a>
+              .
+            </p>
+          ) : null}
         </div>
       </div>
     </div>

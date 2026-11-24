@@ -40,7 +40,8 @@ import { ReportMessageModal } from "./ReportMessageModal";
  *
  * Crisis events take over the UI: we set `crisisData` and render the
  * modal — per ADR 0007 + 08-eco.md design, the user MUST see the
- * derivation message.
+ * derivation message. It is painted when it ARRIVES, not when the stream
+ * closes, so nothing that happens to the connection afterwards takes it away.
  */
 export function ChatArea({
   threadId,
@@ -283,13 +284,31 @@ export function ChatArea({
     // con un id inventado y sin `done`. El intento se marca aquí y se cierra
     // abajo, en un solo sitio.
     let fallo: string | null = null;
-    let crisis: {
-      text: string;
-      hotline: string;
-      crisisPath: string;
-      country?: string;
-    } | null = null;
+    let avisado = false;
     let doneMessageId: string | null = null;
+
+    /**
+     * El aviso se pinta al llegar, y no es parte del intento: lo que le pase
+     * después a la conexión rebobina lo que la persona escribió, no esto.
+     */
+    const avisar = (
+      aviso: Extract<EcoSseEvent, { event: "crisis" }>["data"],
+    ) => {
+      avisado = true;
+      setCrisisData(aviso);
+      setMessages((m) => [
+        ...m,
+        {
+          id: `crisis-${Date.now()}`,
+          kind: "crisis",
+          textCiphertext: null,
+          textNonce: null,
+          assistantText: aviso.text,
+          suggestedBookId: null,
+          createdAt: new Date(),
+        },
+      ]);
+    };
 
     /**
      * Deshacer este intento: ni burbuja huérfana, ni texto perdido, ni fase
@@ -324,7 +343,7 @@ export function ChatArea({
                 setStreamTarget(buffered);
                 break;
               case "crisis":
-                crisis = ev.data;
+                avisar(ev.data);
                 break;
               case "suggestion":
                 // v1 just appends a note. Future: render a book/exercise card.
@@ -363,20 +382,8 @@ export function ChatArea({
     }
 
     // Crisis takes over immediately — it should feel urgent, not gently typed.
-    if (crisis) {
-      setCrisisData(crisis);
-      setMessages((m) => [
-        ...m,
-        {
-          id: doneMessageId ?? `crisis-${Date.now()}`,
-          kind: "crisis",
-          textCiphertext: null,
-          textNonce: null,
-          assistantText: crisis!.text,
-          suggestedBookId: null,
-          createdAt: new Date(),
-        },
-      ]);
+    // It is already on screen; what is left is to close the attempt.
+    if (avisado) {
       finalizeRef.current = null;
       setStreamTarget("");
       setPhase("idle");

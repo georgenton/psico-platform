@@ -1,8 +1,16 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type * as Catalogo from "@psico/types";
+import { crisisDirectory } from "@psico/types";
 import { describe, expect, it, vi } from "vitest";
 
 import { CrisisModal } from "../CrisisModal";
+
+// El catálogo de verdad; cada prueba lo cambia si le hace falta.
+vi.mock("@psico/types", async (original) => {
+  const real = await original<typeof Catalogo>();
+  return { ...real, crisisDirectory: vi.fn(real.crisisDirectory) };
+});
 
 /**
  * El modal de crisis, por lo que HACE.
@@ -117,10 +125,7 @@ describe("CrisisModal · lo que hace, no cómo se pinta", () => {
     const internacional = screen.getByRole("link", {
       name: /findahelpline\.com/i,
     });
-    expect(internacional).toHaveAttribute(
-      "href",
-      expect.stringContaining("findahelpline.com"),
-    );
+    expect(internacional).toHaveAttribute("href", "https://findahelpline.com");
     // Abre fuera para que el modal siga a la vista mientras se marca.
     expect(internacional).toHaveAttribute("target", "_blank");
     expect(internacional).toHaveAttribute(
@@ -136,6 +141,42 @@ describe("CrisisModal · lo que hace, no cómo se pinta", () => {
     const pie = screen.getByText(/si estás en otro país/i);
     expect(pie).toHaveTextContent("en el directorio findahelpline.com");
     expect(screen.queryByText(/ecuador/i)).not.toBeInTheDocument();
+  });
+
+  it("el directorio sale del catálogo: despublicarlo lo retira de aquí", () => {
+    // Estaba escrito a mano, así que retirarlo del catálogo lo dejaba puesto.
+    vi.mocked(crisisDirectory).mockReturnValueOnce(null);
+    montar();
+    const dialogo = screen.getByRole("alertdialog");
+    expect(dialogo.textContent).not.toMatch(/otro país|directorio|findahelp/i);
+    expect(dialogo.innerHTML).not.toContain("https://");
+    // Y lo demás se queda.
+    expect(screen.getByRole("link", { name: /llamar ahora/i })).toHaveAttribute(
+      "href",
+      "tel:911",
+    );
+    expect(
+      screen.getByRole("link", { name: /más recursos de ayuda/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /entendido/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("y cambiarlo allí lo cambia aquí", () => {
+    vi.mocked(crisisDirectory).mockReturnValueOnce({
+      id: "x",
+      name: "otro.example",
+      url: "https://otro.example/lineas",
+      note: "Nota.",
+      source: { label: "x", url: "https://x.example", checkedOn: "2026-01-01" },
+    });
+    montar();
+    expect(screen.getByRole("link", { name: "otro.example" })).toHaveAttribute(
+      "href",
+      "https://otro.example/lineas",
+    );
+    expect(screen.queryByText(/findahelpline/)).not.toBeInTheDocument();
   });
 
   it.each([

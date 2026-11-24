@@ -116,10 +116,13 @@ describe("la losa de error sale del sistema, no de la mano", () => {
     // Y el texto, la URL y la semántica del enlace siguen intactos: esto es un
     // recurso de ayuda, no un adorno. El texto cambió a propósito el
     // 2026-11-24: decía «si no estás en Ecuador» también a quien declaró otro
-    // país, y llamaba «números internacionales» a un directorio.
+    // país, y llamaba «números internacionales» a un directorio. La URL dejó de
+    // estar escrita aquí ese mismo día: sale del catálogo, y cuál es lo fija
+    // `CrisisModal.test.tsx` sobre el enlace pintado.
     expect(modal).toContain("Si estás en otro país");
     expect(modal).toContain("en el directorio");
-    expect(modal).toContain('href="https://findahelpline.com"');
+    expect(modal).toContain("href={directorio.url}");
+    expect(modal).not.toContain("https://");
     expect(modal).toContain('rel="noopener noreferrer"');
   });
 

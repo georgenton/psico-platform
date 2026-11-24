@@ -1,7 +1,14 @@
 import { Linking } from "react-native";
 import { fireEvent, render, screen } from "@testing-library/react-native";
+import { crisisDirectory } from "@psico/types";
 
 import { CrisisModal } from "./CrisisModal";
+
+// El catálogo de verdad; cada prueba lo cambia si le hace falta.
+jest.mock("@psico/types", () => {
+  const real = jest.requireActual("@psico/types");
+  return { ...real, crisisDirectory: jest.fn(real.crisisDirectory) };
+});
 
 /**
  * El aviso de crisis en móvil, con lo que el servidor emite de verdad: con
@@ -64,6 +71,28 @@ describe("CrisisModal (móvil)", () => {
     expect(screen.queryByText(/Ecuador/)).toBeNull();
     fireEvent.press(screen.getByText("findahelpline.com"));
     expect(abrir).toHaveBeenCalledWith("https://findahelpline.com");
+  });
+
+  it("el directorio sale del catálogo: despublicarlo lo retira de aquí", () => {
+    jest.mocked(crisisDirectory).mockReturnValueOnce(null);
+    montar("911 (Ecuador)");
+    expect(screen.queryByText(/otro país|directorio|findahelp/i)).toBeNull();
+    expect(screen.getByText("📞 Llamar · 911 (Ecuador)")).toBeOnTheScreen();
+    expect(screen.getByText("Entendido")).toBeOnTheScreen();
+  });
+
+  it("y cambiarlo allí lo cambia aquí", () => {
+    jest.mocked(crisisDirectory).mockReturnValueOnce({
+      id: "x",
+      name: "otro.example",
+      url: "https://otro.example/lineas",
+      note: "Nota.",
+      source: { label: "x", url: "https://x.example", checkedOn: "2026-01-01" },
+    });
+    montar("911 (Ecuador)");
+    fireEvent.press(screen.getByText("otro.example"));
+    expect(abrir).toHaveBeenCalledWith("https://otro.example/lineas");
+    expect(screen.queryByText(/findahelpline/)).toBeNull();
   });
 
   it("se cierra", () => {

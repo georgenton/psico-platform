@@ -310,8 +310,10 @@ export function acta() {
   const filas = [];
   return {
     filas,
-    comprueba(nombre, ok, detalle = "") {
-      filas.push({ nombre, ok, detalle });
+    /** Los sobres que alguna comprobación de lote miró. */
+    revisados: new Set(),
+    comprueba(nombre, ok, detalle = "", mas = {}) {
+      filas.push({ nombre, ok, detalle, ...mas });
       console.log(
         `${ok ? "✔" : "✗"} ${nombre}${detalle ? ` · ${detalle}` : ""}`,
       );
@@ -323,6 +325,74 @@ export function acta() {
     fallo: () => filas.some((f) => !f.ok),
   };
 }
+
+const esSobre = (r) => /\/envelope\//.test(r.url ?? "");
+
+/**
+ * Revisa UN lote de sobres, con su nombre delante.
+ *
+ * No basta con que no salga ningún señuelo. El lote tiene que traer los eventos
+ * del contexto que dice comprobar, poderse leer, y haber recibido señuelos: un
+ * lote vacío, o el de otro proceso, aprobaría siempre. Es lo que pasó con el
+ * servidor de Web (ver `README.md`).
+ *
+ * `contextos`: `[nombre, cuántos como mínimo, qué evento es]`.
+ * `enCabeceras`: señuelos que viajan en la conexión HTTP por naturaleza, y que
+ * por eso sólo se buscan en la dirección y en el cuerpo.
+ */
+export function compruebaLote(
+  a,
+  lote,
+  recibidos,
+  { valores, introducidos, contextos, enCabeceras = [] },
+) {
+  const sobres = recibidos.filter(esSobre);
+  for (const r of sobres) a.revisados.add(r);
+  const ilegibles = sobres.filter((r) => {
+    const suyos = elementos([r]);
+    return suyos.length === 0 || suyos.some((e) => e.tipo === "ilegible");
+  }).length;
+  const eventos = elementos(sobres).filter((e) => e.tipo === "event");
+  const presentes = contextos.map(([nombre, minimo, es]) => ({
+    nombre,
+    minimo,
+    hay: eventos.filter((e) => es(e.carga)).length,
+  }));
+  const salen = [
+    ...new Set([
+      ...fugas(
+        sobres.map(({ url, cuerpo }) => ({ url, cuerpo })),
+        valores,
+      ),
+      ...fugas(sobres, valores).filter((k) => !enCabeceras.includes(k)),
+    ]),
+  ];
+  const respaldo =
+    ilegibles === 0 &&
+    introducidos.length > 0 &&
+    presentes.length > 0 &&
+    presentes.every((c) => c.hay >= c.minimo);
+  return a.comprueba(
+    // Sin respaldo no se escribe un cero: se lee como un resultado.
+    `señuelos en el lote «${lote}»: ${respaldo || salen.length ? `${salen.length} de ${Object.keys(valores).length}` : "SIN RESPALDO"}`,
+    respaldo && salen.length === 0,
+    [
+      `${introducidos.length} introducidos en este lote`,
+      `${eventos.length} evento(s) en ${sobres.length} sobre(s)`,
+      ...presentes.map(
+        (c) =>
+          `${c.nombre}: ${c.hay}${c.hay < c.minimo ? ` (FALTAN, se esperaban ${c.minimo})` : ""}`,
+      ),
+      ...(ilegibles ? [`ILEGIBLES: ${ilegibles}`] : []),
+      ...(salen.length ? [`SALEN: ${salen.join(", ")}`] : []),
+    ].join(" · "),
+    { lote, salen },
+  );
+}
+
+/** Los sobres que llegaron y ninguna comprobación de lote miró. */
+export const sinRevisar = (a, recibidos) =>
+  recibidos.filter((r) => esSobre(r) && !a.revisados.has(r));
 
 /** Lo que hace útil a un evento, en una frase. */
 export function resumen(evento) {

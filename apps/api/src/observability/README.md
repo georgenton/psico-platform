@@ -93,7 +93,14 @@ encienden trazas y copias por fuera del transporte.
    no se deduzca (`infer_ip: never`), pero la conexión llega desde una IP y lo que
    haga el receptor con ella se decide allí. Lo mismo el agente de usuario: no va
    en el evento, pero el navegador lo manda en la conexión.
-3. Los DSN, y tres eventos controlados antes de darlo por bueno.
+3. Los DSN.
+4. **Cinco** eventos controlados, recibidos en el proveedor real, antes de darlo por
+   bueno: uno de la API, uno del worker, uno del servidor de Web, uno de Edge y uno
+   del navegador. Cada uno con su `service`, `environment: staging`, el SHA servido
+   en `release` y ningún señuelo. Ninguno cubre a otro: Edge no usa el SDK y escribe
+   su propio sobre, y el navegador sólo manda si se reconstruyó con su DSN.
+
+**Sentry sigue sin activar.** Organización, región y recepción están pendientes.
 
 La librería de videollamadas (`@daily-co/daily-js`) trae dentro su propio informe
 de errores a Daily. Sólo se carga en la sala de terapia y no pasa por aquí.
@@ -102,4 +109,6 @@ de errores a Daily. Sólo se carga en la sala de terapia y no pasa por aquí.
 
 `node scripts/sentry-sumidero/ensayo.mjs todo` — los cinco procesos, construidos,
 contra un receptor local y con señuelos generados al ejecutar. Ver
-[`scripts/sentry-sumidero`](../../../../scripts/sentry-sumidero/README.md).
+[`scripts/sentry-sumidero`](../../../../scripts/sentry-sumidero/README.md), también
+por un número del servidor de Web que se publicó sin respaldo y su resultado nuevo.
+Un ensayo local no es la evidencia de la activación.

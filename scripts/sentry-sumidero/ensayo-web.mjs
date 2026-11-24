@@ -27,18 +27,35 @@ import {
   TRAZA,
   cabeceras,
   cabecerasDeTraza,
+  compruebaLote,
   elementos,
   espera,
-  fugas,
   porTipo,
   proceso,
   receptor,
   resumen,
   senuelos,
+  sinRevisar,
 } from "./lib.mjs";
 
 let WEB = join(RAIZ, "apps/web");
 const ANCLA = "  const { pathname } = request.nextUrl;\n";
+
+/** Hasta dónde se puede llegar con `--hasta=…`, en el orden en que se ejecuta. */
+export const PARTES = ["servidor", "edge", "navegador", "trazas", "sin-dsn"];
+
+/**
+ * El control negativo por lotes (`--fuga=…`): qué señuelo se deja salir, en qué
+ * sobre y qué comprobación tiene que caer. `cuerpoRuta` sólo se introduce en el
+ * cuerpo de la petición al manejador de ruta, o sea, en el lote inicial.
+ */
+export const FUGAS = {
+  servidor: {
+    lote: "servidor inicial",
+    marca: "zz-sonda/ruta",
+    senuelo: "cuerpoRuta",
+  },
+};
 
 function construir(env, red) {
   try {
@@ -83,7 +100,7 @@ async function evento(cond, ms = 8000) {
   return false;
 }
 
-export async function ensayoWeb({ n, web: otraWeb, sdk }, a) {
+export async function ensayoWeb({ n, web: otraWeb, sdk, hasta, fuga }, a) {
   if (otraWeb) WEB = otraWeb;
   const SONDA = join(WEB, "src/app/zz-sonda");
   const MIDDLEWARE = join(WEB, "src/middleware.ts");
@@ -108,6 +125,43 @@ export async function ensayoWeb({ n, web: otraWeb, sdk }, a) {
     "cuerpoRuta",
     "tituloEdge",
   ]);
+  // Los señuelos introducidos desde que se abrió el lote.
+  let introducidos = new Set();
+  const introduce = (...cosas) => {
+    const bruto = JSON.stringify(cosas);
+    for (const [k, v] of Object.entries(s))
+      if (bruto.includes(v)) introducidos.add(k);
+  };
+  /** Cierra el lote abierto: lo saca del receptor para revisarlo entero. */
+  const cierra = () => {
+    const puestos = [...introducidos];
+    introducidos = new Set();
+    return { recibidos: rx.vaciar(), puestos };
+  };
+  const revisa = (lote, { recibidos, puestos }, contextos, enCabeceras) =>
+    compruebaLote(a, lote, recibidos, {
+      valores: s,
+      introducidos: puestos,
+      contextos,
+      enCabeceras,
+    });
+  /** La última línea: nada de lo que llegó se quedó sin mirar. */
+  const cuentas = () => {
+    const sueltos = sinRevisar(a, rx.todos);
+    return a.comprueba(
+      "ningún sobre se descartó sin revisar",
+      sueltos.length === 0 && a.revisados.size > 0,
+      `${a.revisados.size} revisados, ${sueltos.length} sin revisar`,
+    );
+  };
+  const de = (servicio, marca) => (e) =>
+    e.tags?.service === servicio &&
+    (!marca ||
+      e.exception?.values?.some((v) =>
+        v.stacktrace?.frames?.some((f) => f.filename.includes(marca)),
+      ));
+  let web;
+  let navegador;
   const puerto = 20_000 + Math.floor(Math.random() * 20_000);
   const base = `http://127.0.0.1:${puerto}`;
   const arranca = (extra) =>
@@ -116,6 +170,7 @@ export async function ensayoWeb({ n, web: otraWeb, sdk }, a) {
       [
         "-r",
         join(AQUI, "sonda-red.cjs"),
+        ...(fuga ? ["-r", join(AQUI, "sonda-fuga.cjs")] : []),
         join(WEB, "node_modules/next/dist/bin/next"),
         "start",
         "-p",
@@ -190,13 +245,20 @@ export async function ensayoWeb({ n, web: otraWeb, sdk }, a) {
 
     // ── Servidor ──
     console.log("\n— Web · servidor —");
-    let web = await arranca({ SENTRY_DSN: rx.dsn });
-    const pide = (ruta, init = {}, conTraza = false) =>
-      fetch(`${base}${ruta}`, {
-        redirect: "manual",
-        ...init,
-        headers: { ...cabeceras(s, conTraza), ...init.headers },
-      });
+    web = await arranca({
+      SENTRY_DSN: rx.dsn,
+      ...(fuga
+        ? {
+            SONDA_FUGA_MARCA: FUGAS[fuga].marca,
+            SONDA_FUGA_VALOR: s[FUGAS[fuga].senuelo],
+          }
+        : {}),
+    });
+    const pide = (ruta, init = {}, conTraza = false) => {
+      const headers = { ...cabeceras(s, conTraza), ...init.headers };
+      introduce(ruta, headers, init.body);
+      return fetch(`${base}${ruta}`, { redirect: "manual", ...init, headers });
+    };
     const rsc = (await pide(`/zz-sonda/rsc?t=${s.query}`)).status;
     const ruta = (
       await pide(`/zz-sonda/ruta/${s.ruta}?t=${s.query}`, {
@@ -235,10 +297,14 @@ export async function ensayoWeb({ n, web: otraWeb, sdk }, a) {
       ruta === 500 && bien(con("zz-sonda/ruta")[0]),
       `HTTP ${ruta}, ${con("zz-sonda/ruta").length} informe(s)`,
     );
+    revisa("servidor inicial", cierra(), [
+      ["componente de servidor", 1, de("feelverse-web-server", "zz-sonda/rsc")],
+      ["manejador de ruta", 1, de("feelverse-web-server", "zz-sonda/ruta")],
+    ]);
+    if (hasta === "servidor") return cuentas();
 
     // ── Edge ──
     console.log("\n— Web · Edge (middleware) —");
-    rx.vaciar();
     const edge = (await pide(`/zz-sonda/edge/${s.ruta}?t=${s.query}`, {}, true))
       .status;
     await evento(() => elementos(rx.recibidos).length > 0);
@@ -268,19 +334,14 @@ export async function ensayoWeb({ n, web: otraWeb, sdk }, a) {
           .stacktrace.frames.some((f) => f.in_app && f.lineno && f.colno),
       `HTTP ${edge}, ${suyos.length} informe(s) de Edge, repetido en Node: ${repetido}`,
     );
-    a.comprueba(
-      "señuelos en el sobre de Edge: 0",
-      fugas(rx.recibidos, s).length === 0,
-      fugas(rx.recibidos, s).join(", "),
-    );
-    const todosServidor = [...rx.recibidos];
+    revisa("Edge", cierra(), [["middleware", 1, de("feelverse-web-edge")]]);
+    if (hasta === "edge") return cuentas();
 
     // ── Navegador (incluye la acción de servidor, que se lanza desde ahí) ──
     console.log("\n— Web · navegador —");
-    rx.vaciar();
     const require = createRequire(join(WEB, "package.json"));
     const { chromium } = require("playwright");
-    const navegador = await chromium.launch();
+    navegador = await chromium.launch();
     const contexto = await navegador.newContext({
       userAgent: `Mozilla/5.0 Chrome/130 Navegador/${s.agente}`,
     });
@@ -293,6 +354,7 @@ export async function ensayoWeb({ n, web: otraWeb, sdk }, a) {
       },
     ]);
     const pagina = await contexto.newPage();
+    introduce(s.agente, s.cookie, s.query, s.fragmento, s.campo);
     const abrir = async () => {
       await pagina.goto(
         `${base}/zz-sonda/navegador?t=${s.query}#${s.fragmento}`,
@@ -340,6 +402,10 @@ export async function ensayoWeb({ n, web: otraWeb, sdk }, a) {
     );
     a.comprueba("lo que no es un error no se informa", !llegan.cadena);
 
+    // Otro proceso, y por eso otro lote: lo que sale aquí lo manda el servidor.
+    const puestosNavegador = [...introducidos];
+    introducidos = new Set();
+    introduce(s.agente, s.cookie, s.formulario);
     await pagina.goto(`${base}/zz-sonda/accion`);
     await pagina.fill("#texto", s.formulario);
     const antesAccion = cuenta();
@@ -357,10 +423,11 @@ export async function ensayoWeb({ n, web: otraWeb, sdk }, a) {
       accion.length >= 1,
       `${accion.length} informe(s)`,
     );
-    const alReceptor = rx.recibidos.filter((r) => /envelope/.test(r.url));
+    const { recibidos: alReceptor, puestos: puestosAccion } = cierra();
+    const delNavegador = (r) => r.cabeceras.some((c) => /^origin$/i.test(c));
     const cabecerasNavegador = JSON.stringify(
       alReceptor
-        .filter((r) => r.cabeceras.some((c) => /^origin$/i.test(c)))
+        .filter(delNavegador)
         .map((r) => r.cabeceras.filter((_, i) => i % 2 === 0)),
     ).toLowerCase();
     a.comprueba(
@@ -368,48 +435,46 @@ export async function ensayoWeb({ n, web: otraWeb, sdk }, a) {
       !/"cookie"|"referer"/.test(cabecerasNavegador),
       cabecerasNavegador.slice(0, 220),
     );
-    const enHttp = Object.entries(s)
-      .filter(([k]) => k !== "agente")
-      .filter(([, v]) => JSON.stringify(alReceptor).includes(v))
-      .map(([k]) => k);
-    const enSobre = fugas(
-      alReceptor.map((r) => ({ url: r.url, cuerpo: r.cuerpo })),
-      s,
+    revisa(
+      "navegador",
+      { recibidos: alReceptor.filter(delNavegador), puestos: puestosNavegador },
+      // Los seis que se provocan arriba.
+      [["navegador", 6, de("feelverse-web-browser")]],
+      ["agente"],
     );
-    a.comprueba(
-      `señuelos en los sobres del navegador (texto en pantalla, campo, almacenamiento, fragmento): 0 de ${Object.keys(s).length}`,
-      enSobre.length === 0 && enHttp.length === 0,
-      [...enSobre, ...enHttp].join(", "),
+    revisa(
+      "acción de servidor",
+      {
+        recibidos: alReceptor.filter((r) => !delNavegador(r)),
+        puestos: puestosAccion,
+      },
+      [["acción", 1, de("feelverse-web-server", "zz-sonda/accion")]],
     );
     a.anota(
       `el agente de usuario viaja en la cabecera HTTP de la conexión, como en cualquier petición: ${JSON.stringify(alReceptor).includes(s.agente)}`,
     );
-
-    const f = fugas(todosServidor, s);
-    a.comprueba(
-      `señuelos en los sobres del servidor: 0 de ${Object.keys(s).length}`,
-      f.length === 0,
-      f.join(", "),
-    );
+    if (hasta === "navegador") return cuentas();
 
     // ── Trazas ──
     console.log(`\n— Web · trazas, N=${n} por caso —`);
     for (const conTraza of [false, true]) {
-      rx.vaciar();
+      const caso = `${conTraza ? "CON" : "SIN"} sentry-trace`;
       for (let i = 0; i < n; i++) {
         await pide(i % 2 ? "/login" : `/dashboard?t=${s.query}`, {}, conTraza);
       }
       await espera(5000);
       const t = porTipo(rx.recibidos);
       a.comprueba(
-        `servidor y Edge, ${conTraza ? "CON" : "SIN"} sentry-trace: 0 transacciones y 0 sesiones`,
+        `servidor y Edge, ${caso}: 0 transacciones y 0 sesiones`,
         // La API de mentira responde `{}` y el panel falla al leerla: esos son
-        // errores de verdad, y tienen que llegar limpios.
-        Object.keys(t).every((k) => k === "event") &&
-          fugas(rx.recibidos, s).length === 0,
-        `${n} peticiones · ${JSON.stringify(t)} · señuelos: ${fugas(rx.recibidos, s).join(", ") || "ninguno"}`,
+        // errores de verdad, y tienen que llegar limpios. Si no llega ninguno,
+        // el cero no dice nada.
+        t.event > 0 && Object.keys(t).every((k) => k === "event"),
+        `${n} peticiones · ${JSON.stringify(t)}`,
       );
-      rx.vaciar();
+      revisa(`trazas del servidor, ${caso}`, cierra(), [
+        ["servidor", 1, de("feelverse-web-server")],
+      ]);
       const p = await contexto.newPage();
       if (conTraza) {
         await p.addInitScript(
@@ -458,6 +523,7 @@ export async function ensayoWeb({ n, web: otraWeb, sdk }, a) {
     );
     await navegador.close();
     await web.parar();
+    if (hasta === "trazas") return cuentas();
 
     // ── Sin DSN ──
     console.log("\n— Web · sin DSN —");
@@ -512,8 +578,11 @@ export async function ensayoWeb({ n, web: otraWeb, sdk }, a) {
         trozos.every((x) => esDeDaily(x)),
       trozos.join(" ") || "ninguno",
     );
+    cuentas();
   } finally {
     limpiar();
+    await navegador?.close();
+    await web?.parar();
     await rx.cerrar();
     await api.cerrar();
     rmSync(tmp, { recursive: true, force: true });

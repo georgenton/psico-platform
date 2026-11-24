@@ -20,7 +20,6 @@ import { StatsGrid } from "@/components/dashboard/perfil/StatsGrid";
 import { AchievementsList } from "@/components/dashboard/perfil/AchievementsList";
 import { DangerZone } from "@/components/dashboard/perfil/DangerZone";
 import { EmailChangeCard } from "@/components/dashboard/perfil/EmailChangeCard";
-import { PrivacyCard } from "@/components/dashboard/perfil/PrivacyCard";
 
 const PLAN_LABEL: Record<UserPlan, string> = {
   FREE: "Gratuito",
@@ -134,16 +133,6 @@ export default function ProfileScreen() {
       {/* Email change (Sprint S59) */}
       {me ? <EmailChangeCard me={me} /> : null}
 
-      {/* Privacy (Sprint Perfil) */}
-      {me ? (
-        <PrivacyCard
-          initial={me.privacy}
-          onChanged={(next) =>
-            setMe((prev) => (prev ? { ...prev, privacy: next } : prev))
-          }
-        />
-      ) : null}
-
       {/* Achievements (Sprint S57) */}
       {me ? <AchievementsList achievements={me.achievements} /> : null}
 
@@ -182,7 +171,7 @@ export default function ProfileScreen() {
         <ShortcutRow
           icon="key-outline"
           label="Seguridad"
-          hint="Contraseña, frase de respaldo"
+          hint="Contraseña, frase de respaldo, análisis de tus reflexiones"
           onPress={() => router.push("/(tabs)/security")}
         />
         <ShortcutRow

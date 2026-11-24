@@ -7,7 +7,6 @@ import { PreferencesCard } from "../PreferencesCard";
 const mockAction = vi.fn();
 vi.mock("@/app/dashboard/perfil/actions", () => ({
   updatePreferencesAction: (...args: unknown[]) => mockAction(...args),
-  updatePrivacyAction: vi.fn(),
 }));
 
 beforeEach(() => {

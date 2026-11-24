@@ -9,7 +9,6 @@ import { DangerZone } from "@/components/dashboard/perfil/DangerZone";
 import { EditProfileCard } from "@/components/dashboard/perfil/EditProfileCard";
 import { EmailChangeCard } from "@/components/dashboard/perfil/EmailChangeCard";
 import { PreferencesCard } from "@/components/dashboard/perfil/PreferencesCard";
-import { PrivacyCard } from "@/components/dashboard/perfil/PrivacyCard";
 import { ProfileHeader } from "@/components/dashboard/perfil/ProfileHeader";
 import { StatsGrid } from "@/components/dashboard/perfil/StatsGrid";
 
@@ -94,7 +93,6 @@ export default async function PerfilPage() {
       <EditProfileCard me={me} />
       <EmailChangeCard me={me} />
       <PreferencesCard initial={me.preferences} />
-      <PrivacyCard initial={me.privacy} />
       <AchievementsGrid achievements={me.achievements} />
       <ShortcutsGrid />
       <DangerZone me={me} />
@@ -113,7 +111,7 @@ function ShortcutsGrid() {
     {
       href: "/dashboard/security",
       title: "Seguridad",
-      hint: "Contraseña, frase de respaldo",
+      hint: "Contraseña, frase de respaldo, análisis de tus reflexiones",
       icon: "🔐",
     },
     {

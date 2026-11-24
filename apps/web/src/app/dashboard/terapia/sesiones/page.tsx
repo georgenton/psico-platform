@@ -162,7 +162,7 @@ function SessionRow({
         />
       </div>
       <div className="mt-3 flex gap-2">
-        {kind === "upcoming" ? (
+        {kind === "upcoming" || session.status === "SCHEDULED" ? (
           <Link
             href={`/dashboard/terapia/sesiones/${session.id}`}
             className="rounded-xl border-[1.5px] bg-white px-3 py-1.5 text-[12px] font-medium"

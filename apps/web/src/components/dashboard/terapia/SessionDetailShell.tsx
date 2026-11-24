@@ -55,6 +55,10 @@ export function SessionDetailShell({
   const [pending, startTransition] = useTransition();
   const lastSavedIntention = useRef("");
 
+  // `router.refresh()` trae datos nuevos sin desmontar: sin esto, una sesión
+  // recién cancelada seguía diciendo «Programada» y ofreciendo cancelarla.
+  useEffect(() => setData(initial), [initial]);
+
   // Decrypt the existing intention once the key is available.
   useEffect(() => {
     if (!key || intentionLoaded) return;

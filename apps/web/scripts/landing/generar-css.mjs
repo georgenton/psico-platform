@@ -241,9 +241,13 @@ partes.push(`
 
    (El motivo hexagonal del pie también sobresale, pero su pie ya es
    «overflow:hidden», así que está recortado y no empuja el documento.
-   Parecía el culpable hasta medirlo.) */
+   Parecía el culpable hasta medirlo.)
+
+   Esa cuenta es de cuando la fila llevaba «Entrar». Desde que lleva
+   «Crear cuenta» —45 px más ancha— la del hueco vive en el ajuste 7, que es
+   quien reparte la cabecera; aquí queda el margen lateral. */
 @media (max-width:359px){
-  .fh .fh-head-in{gap:8px;padding-left:12px;padding-right:12px}
+  .fh .fh-head-in{padding-left:12px;padding-right:12px}
 }
 
 /* 3 · Biblioteca de tres obras, centrada.
@@ -365,6 +369,61 @@ partes.push(`
 }
 @media (max-width:760px){
   .fh .fh-enter-link{display:none}
+}
+
+/* 7 · La cabecera, en una sola línea.
+
+   La referencia cabía en una: marca, cinco enlaces, «Entrar» y «Ver una
+   experiencia» suman 1.024 px en los 1.104 que deja el ancho máximo de página.
+   El ajuste 6 añadió «Crear cuenta» —124 px— sin volver a hacer la cuenta, y
+   desde entonces la fila pedía 1.127: como los elementos flexibles se
+   comprimen, cuatro rótulos se partían en dos líneas a CUALQUIER ancho de
+   escritorio (el máximo de página es 1.200, así que más pantalla no da más
+   sitio), y en el teléfono se partía «Crear cuenta».
+
+   Lo que se cede es espacio en blanco, no texto: ni un rótulo se recorta, se
+   encoge ni desaparece de la página.
+
+   · Escritorio: los enlaces pierden 2 px de relleno por lado y el hueco entre
+     grupos baja de 20 a 16. Suma 1.091 de 1.104.
+   · De 1.141 a 1.239 px el margen lateral todavía no llegó a su tope y no
+     caben todos: se retira «Ver una experiencia», que es la acción secundaria
+     y la repite el hero inmediatamente debajo. El corte deja 40 px de más
+     sobre el ancho justo porque una barra de desplazamiento clásica se come 17.
+   · Teléfono: se estrechan los huecos y los rellenos, y por debajo de 410 px
+     «Menú» pierde su icono, que es decorativo. Se quita el icono y no la
+     palabra por la razón del ajuste 1: un icono solo se entiende peor justo
+     donde menos sitio hay. El objetivo táctil de 44 px se conserva.
+
+   Y una salida que no es un desborde: «nowrap» deja de partir los rótulos, así
+   que con el espaciado de texto ampliado (WCAG 1.4.12), o mientras carga la
+   tipografía, la fila podría no caber. «flex-wrap» la deja pasar entera a una
+   segunda línea en vez de empujar la página a lo ancho.
+
+   Lo comprueba «scripts/landing/verificar.mjs» en cada ancho y en los dos
+   temas. */
+.fh .fh-head-in{flex-wrap:wrap;gap:0 16px}
+.fh .fh-head-in a,
+.fh .fh-head-in button{white-space:nowrap}
+.fh .fh-nav a,
+.fh .fh-enter-link{padding:0 10px}
+@media (min-width:1141px) and (max-width:1239px){
+  .fh .fh-head .fh-cta-desk{display:none}
+}
+@media (max-width:430px){
+  .fh .fh-head-in{column-gap:10px}
+}
+@media (max-width:409px){
+  .fh .fh-head-in{column-gap:8px;padding-left:16px;padding-right:16px}
+  .fh .fh-head-in .fh-btn-sm{padding:0 12px}
+  .fh .fh-menu-btn{padding:0 12px}
+  .fh .fh-menu-btn .fh-ico{display:none}
+}
+@media (max-width:359px){
+  .fh .fh-head-in{column-gap:6px;padding-left:12px;padding-right:12px}
+  .fh .fh-head-in .fh-btn-sm{padding:0 10px}
+  .fh .fh-menu-btn{padding:0 8px}
+  .fh .fh-brand > *{zoom:.9}
 }
 `);
 

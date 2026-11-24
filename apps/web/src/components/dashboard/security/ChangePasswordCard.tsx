@@ -205,7 +205,7 @@ export function ChangePasswordCard({
       const result = (await res.json()) as PasswordChangeWithRekeyResponse;
 
       // ── Step 5: adopt the new key into context ──────────────────────────
-      adoptMasterKey(newMasterKey);
+      adoptMasterKey(newMasterKey, newSaltB64);
       // Zero our local copy now that the context owns it.
       newMasterKey.fill(0);
 

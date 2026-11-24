@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import type { UserMeResponse } from "@psico/types";
 
 import { serverFetch } from "@/lib/api.server";
@@ -91,13 +90,4 @@ export async function requestAccountDeleteAction(
       headers: { "Content-Type": "application/json" },
     },
   );
-}
-
-export async function logoutFromPerfilAction(): Promise<never> {
-  const { cookies } = await import("next/headers");
-  const { TOKEN_NAMES } = await import("@/lib/cookies");
-  const store = cookies();
-  store.delete(TOKEN_NAMES.access);
-  store.delete(TOKEN_NAMES.refresh);
-  redirect("/login");
 }

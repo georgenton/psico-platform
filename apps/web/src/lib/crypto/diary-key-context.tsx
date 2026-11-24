@@ -57,6 +57,26 @@ import { clearDiaryWrapKey, saveDiaryWrapKey } from "@/actions/diary-session";
 const LOCAL_STORAGE_KEY = "psico:diary:wrapped";
 
 /**
+ * El sobre lleva dentro, cifrado junto a la clave, de qué cuenta es.
+ *
+ * EL FALLO QUE ESTO IMPIDE. El sobre y la galleta son del NAVEGADOR, no de la
+ * cuenta. Si una persona salía por un camino que no borraba la galleta —o su
+ * sesión caducaba sin salir— y otra entraba en el mismo equipo, el arranque en
+ * frío restauraba la clave de la primera sin preguntar de quién era: lo que
+ * escribiera la segunda quedaba cifrado con la llave ajena, y «Mostrar frase»
+ * enseñaba las doce palabras de otra persona.
+ *
+ * La marca es la sal de la cuenta, que ya es única por persona y que este
+ * contexto ya recibe. Va DENTRO del texto cifrado: no se añade nada legible al
+ * almacenamiento y no se puede cambiar sin la mitad de la llave que guarda el
+ * servidor. El punto no existe en base64url, así que separa sin ambigüedad.
+ *
+ * Un sobre anterior a esta marca no dice de quién es, y se trata como ajeno:
+ * se descarta y se pide la contraseña una vez.
+ */
+const OWNER_SEPARATOR = ".";
+
+/**
  * ¿Es esto una clave maestra de este esquema?
  *
  * La longitud la manda `MASTER_KEY_LEN`, no un número escrito aquí. Antes había
@@ -160,8 +180,12 @@ export interface DiaryKeyActions {
    * diaryKey and seeds it into the context, exactly as `unlock` would.
    * Also re-persists a fresh wrap pair so the next reload restores
    * against this new master.
+   *
+   * `cryptoSalt` sólo hace falta cuando la clave nueva llega con una sal nueva
+   * —el cambio de contraseña—: el proveedor todavía sostiene la anterior, y la
+   * recarga siguiente llegará con la nueva.
    */
-  adoptMasterKey: (masterKey: Uint8Array) => void;
+  adoptMasterKey: (masterKey: Uint8Array, cryptoSalt?: string) => void;
   /** Forget the key + clear persisted wrap pair (RAM + storage + cookie). */
   lock: () => void;
   /**
@@ -212,6 +236,13 @@ export function DiaryKeyProvider({
   // recent wrap key around without re-reading the cookie.
   const wrapKeyRef = useRef<string | null>(initialWrapKey);
 
+  // De quién es el sobre que se va a guardar. Sigue a la cuenta del servidor;
+  // sólo se adelanta a ella cuando un cambio de contraseña trae sal nueva.
+  const ownerRef = useRef<string | null>(cryptoSalt);
+  useEffect(() => {
+    ownerRef.current = cryptoSalt;
+  }, [cryptoSalt]);
+
   // ── Persistence helpers ────────────────────────────────────────────────
 
   /**
@@ -222,10 +253,16 @@ export function DiaryKeyProvider({
    */
   const persistMasterKey = useCallback(async (master: Uint8Array) => {
     if (typeof window === "undefined") return;
+    // Sin sal no hay cuenta a la que atarlo: se queda sólo en memoria.
+    const owner = ownerRef.current;
+    if (owner === null) return;
     try {
       const wrap = randomBytes(32);
       const masterB64u = bytesToBase64Url(master);
-      const envelope = encryptString(masterB64u, wrap);
+      const envelope = encryptString(
+        `${owner}${OWNER_SEPARATOR}${masterB64u}`,
+        wrap,
+      );
       const payload: WrappedPayload = {
         ciphertext: envelope.ciphertext,
         nonce: envelope.nonce,
@@ -284,11 +321,16 @@ export function DiaryKeyProvider({
       }
       const payload = JSON.parse(raw) as WrappedPayload;
       const wrap = base64UrlToBytes(initialWrapKey);
-      const masterB64u = decryptString(
+      const opened = decryptString(
         { ciphertext: payload.ciphertext, nonce: payload.nonce },
         wrap,
       );
       wrap.fill(0);
+      const [owner, masterB64u, ...rest] = opened.split(OWNER_SEPARATOR);
+      // De otra cuenta, o de antes de que el sobre dijera de quién es.
+      if (owner !== cryptoSalt || masterB64u === undefined || rest.length > 0) {
+        throw new Error("NOT_THIS_ACCOUNT");
+      }
       const master = base64UrlToBytes(masterB64u);
       if (!esClaveMaestraValida(master)) throw new Error("INVALID_LENGTH");
       const diaryKey = deriveSubKey(master, DIARY_KEY_INFO);
@@ -297,8 +339,9 @@ export function DiaryKeyProvider({
       setKey(diaryKey);
       setEcoKey(ecoSub);
     } catch {
-      // Stale wrap (password changed elsewhere) or tampered storage. Reset
-      // both sides so the next interaction prompts for the password.
+      // Stale wrap (password changed elsewhere), tampered storage, or a bundle
+      // that belongs to another account. Reset both sides so the next
+      // interaction prompts for the password.
       wipePersistence();
     } finally {
       setRestoring(false);
@@ -348,7 +391,7 @@ export function DiaryKeyProvider({
   );
 
   const adoptMasterKey = useCallback(
-    (nextMaster: Uint8Array) => {
+    (nextMaster: Uint8Array, nextCryptoSalt?: string) => {
       if (!esClaveMaestraValida(nextMaster)) {
         setError("La clave maestra tiene un tamaño inválido.");
         return;
@@ -361,6 +404,7 @@ export function DiaryKeyProvider({
       setKey(diaryKey);
       setEcoKey(ecoSub);
       setError(null);
+      if (nextCryptoSalt !== undefined) ownerRef.current = nextCryptoSalt;
       if (remember) void persistMasterKey(owned);
     },
     [remember, persistMasterKey],

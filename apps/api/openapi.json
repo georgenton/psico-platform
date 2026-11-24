@@ -5526,6 +5526,72 @@
         ]
       }
     },
+    "/api/user/delete-request/cancel": {
+      "post": {
+        "operationId": "UsersController_cancelDeleteRequest",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "ACCOUNT_DELETION_WINDOW_CLOSED — the 30 days have run out; the request can no longer be cancelled.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "ACCOUNT_ALREADY_DELETED — the deletion finished before the cancellation could.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Users"
+        ]
+      }
+    },
     "/api/onboarding/intro": {
       "get": {
         "operationId": "OnboardingController_getIntro",

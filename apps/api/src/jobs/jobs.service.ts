@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
 import { InjectQueue } from "@nestjs/bullmq";
 import type { Queue } from "bullmq";
+import { ACCOUNT_DELETION_COOLDOWN_MS } from "../users/account-deletion-window";
 import {
   JobName,
   QueueName,
@@ -18,7 +19,6 @@ import {
   type WeeklySummaryGenerationJobPayload,
 } from "./queue-names";
 
-const DAYS = 24 * 60 * 60 * 1000;
 // Repeatable-job id for the nightly usage rollup. Using a stable id means
 // re-deploys don't pile up duplicate cron entries — BullMQ's
 // upsertJobScheduler upserts on it.
@@ -432,6 +432,32 @@ export class JobsService implements OnModuleInit {
   }
 
   /**
+   * Put an export back in the queue, if nothing already there will run it.
+   *
+   * For the one way an export is dropped without anybody being told:
+   * `DataExportProcessor` skips it when its owner has asked for their account to
+   * be deleted, the job COMPLETES, and the row stays as it was. Cancelling that
+   * deletion does not bring the job back.
+   *
+   * Looking first is what keeps it to one file and one email. The job may still
+   * be waiting —a worker that was down, a retry backing off— and then it will
+   * run on its own now that the request it would have skipped for is gone.
+   */
+  async resumeDataExport(payload: DataExportJobPayload): Promise<boolean> {
+    const live = await this.dataExportQueue.getJobs([
+      "waiting",
+      "delayed",
+      "active",
+      "paused",
+    ]);
+    if (live.some((job) => job?.data.requestId === payload.requestId)) {
+      return false;
+    }
+    await this.enqueueDataExport(payload);
+    return true;
+  }
+
+  /**
    * Enqueue account-deletion finalisation, DELAYED by 30 days. The worker
    * re-checks `User.deleteRequestedAt` before executing — if the user
    * cancelled in the meantime, the job no-ops.
@@ -451,7 +477,7 @@ export class JobsService implements OnModuleInit {
       JobName.FINALIZE_ACCOUNT_DELETION,
       payload,
       {
-        delay: 30 * DAYS,
+        delay: ACCOUNT_DELETION_COOLDOWN_MS,
         attempts: 5,
         backoff: { type: "exponential", delay: 60_000 }, // 1m / 5m / 25m / ...
         removeOnComplete: { age: 30 * 24 * 60 * 60 }, // keep 30 days for audit

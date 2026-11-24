@@ -10,6 +10,10 @@ import { UsersService } from "./users.service";
 import { generationKey } from "../emotional-map/cache-identity";
 import { isAllowedAssetKey } from "../shared/content-asset";
 import { ExpectedUnavailableException } from "../shared/filters/expected-unavailable.exception";
+import {
+  ACCOUNT_DELETION_COOLDOWN_MS,
+  accountDeletionDueAt,
+} from "./account-deletion-window";
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -67,6 +71,8 @@ const mockPrisma = {
   },
   privacySettings: {
     upsert: vi.fn(),
+    // The mirror of `User.deleteRequestedAt`, cleared with it.
+    updateMany: vi.fn().mockResolvedValue({ count: 1 }),
     // PR-0.1 — "consent changed" now means the VALUE moved, not "the field was
     // in the DTO", so the revocation reads the stored value first.
     findUnique: vi.fn().mockResolvedValue({ localTextAnalysis: true }),
@@ -81,6 +87,7 @@ const mockPrisma = {
   dataExportRequest: {
     findFirst: vi.fn(),
     findUnique: vi.fn(),
+    findMany: vi.fn().mockResolvedValue([]),
     create: vi.fn(),
   },
   userProgress: {
@@ -121,6 +128,7 @@ const mockStorage = {
 const mockJobs = {
   enqueueEmail: vi.fn().mockResolvedValue(undefined),
   enqueueDataExport: vi.fn().mockResolvedValue(undefined),
+  resumeDataExport: vi.fn().mockResolvedValue(true),
   enqueueAccountDeletion: vi.fn().mockResolvedValue(undefined),
 };
 
@@ -196,6 +204,7 @@ describe("UsersService", () => {
       expect(me.privacy.shareDiaryWithTherapist).toBe(false);
       expect(me.privacy.dataExportRequested).toBeNull();
       expect(me.privacy.accountDeleteRequested).toBeNull();
+      expect(me.privacy.accountDeleteScheduledFor).toBeNull();
       expect(me.stats.currentStreakDays).toBe(3);
       expect(me.stats.longestStreakDays).toBe(7);
       expect(me.achievements).toEqual([]);
@@ -755,6 +764,226 @@ describe("UsersService", () => {
       await expect(
         service.requestDelete(userId, { password: "nope" }),
       ).rejects.toThrow(UnauthorizedException);
+    });
+  });
+
+  // ── The date a person is shown ───────────────────────────────────────────
+
+  describe("the date of a pending deletion", () => {
+    it("tells the day it will HAPPEN, thirty days after the day it was asked for", async () => {
+      // Fixed instants, and a month end between them on purpose: the two dates
+      // must differ in everything a person would read.
+      const requestedAt = new Date("2026-11-24T14:05:00.000Z");
+      mockPrisma.user.findUnique.mockResolvedValue({
+        ...baseUser,
+        deleteRequestedAt: requestedAt,
+      });
+
+      const { privacy } = await service.getMe(userId);
+
+      expect(privacy.accountDeleteRequested).toEqual(requestedAt);
+      expect(privacy.accountDeleteScheduledFor).toEqual(
+        new Date("2026-12-24T14:05:00.000Z"),
+      );
+    });
+
+    it("says the same thing on the way in, on a repeat and on a reload", async () => {
+      const currentHash = await bcrypt.hash("secret", 4);
+      mockPrisma.user.findUnique.mockResolvedValue({
+        passwordHash: currentHash,
+        deleteRequestedAt: null,
+        authProvider: "LOCAL",
+      });
+      mockPrisma.user.update.mockResolvedValue({});
+      mockPrisma.privacySettings.upsert.mockResolvedValue({});
+
+      const asked = await service.requestDelete(userId, { password: "secret" });
+      const written = mockPrisma.user.update.mock.calls[0]![0].data
+        .deleteRequestedAt as Date;
+
+      mockPrisma.user.findUnique.mockResolvedValue({
+        ...baseUser,
+        deleteRequestedAt: written,
+      });
+      const repeated = await service.requestDelete(userId, { password: "x" });
+      const reloaded = await service.getMe(userId);
+
+      expect(asked.deleteAt).toEqual(accountDeletionDueAt(written));
+      expect(repeated.deleteAt).toEqual(asked.deleteAt);
+      expect(reloaded.privacy.accountDeleteScheduledFor).toEqual(
+        asked.deleteAt,
+      );
+    });
+  });
+
+  // ── cancelDeleteRequest ───────────────────────────────────────────────────
+  //
+  // The SHAPE of the decision. That the two transactions really do wait for
+  // each other is a claim about PostgreSQL and lives in
+  // `account-deletion-cancel.pg-spec.ts`; a double that serialises nothing
+  // cannot say anything about it.
+
+  describe("cancelDeleteRequest", () => {
+    const pendingSince = (ms: number) => ({
+      deleteRequestedAt: new Date(Date.now() - ms),
+    });
+    const DAY = 24 * 3600 * 1000;
+
+    it("clears the request AND its mirror, under the lock, inside one transaction", async () => {
+      const order: string[] = [];
+      mockPrisma.user.findUnique.mockResolvedValue(pendingSince(5 * DAY));
+      mockPrisma.$queryRaw.mockImplementation(async () => {
+        order.push("lock");
+        return [];
+      });
+      mockPrisma.user.updateMany.mockImplementation(async () => {
+        order.push("user");
+        return { count: 1 };
+      });
+      mockPrisma.privacySettings.updateMany.mockImplementation(async () => {
+        order.push("mirror");
+        return { count: 1 };
+      });
+
+      const res = await service.cancelDeleteRequest(userId);
+
+      expect(res).toEqual({ ok: true, cancelled: true });
+      expect(order).toEqual(["lock", "user", "mirror"]);
+      expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(mockPrisma.privacySettings.updateMany).toHaveBeenCalledWith({
+        where: { userId },
+        data: { accountDeleteRequestedAt: null },
+      });
+    });
+
+    it("writes conditionally: only a request that exists and is inside its window", async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(pendingSince(5 * DAY));
+      mockPrisma.user.updateMany.mockResolvedValue({ count: 1 });
+
+      const before = Date.now();
+      await service.cancelDeleteRequest(userId);
+      const after = Date.now();
+
+      const { where, data } = mockPrisma.user.updateMany.mock.calls[0]![0];
+      expect(data).toEqual({ deleteRequestedAt: null });
+      expect(where.id).toBe(userId);
+      expect(where.deleteRequestedAt.not).toBeNull();
+      const cutoff = (where.deleteRequestedAt.gt as Date).getTime();
+      expect(cutoff).toBeGreaterThanOrEqual(
+        before - ACCOUNT_DELETION_COOLDOWN_MS,
+      );
+      expect(cutoff).toBeLessThanOrEqual(after - ACCOUNT_DELETION_COOLDOWN_MS);
+    });
+
+    it("never claims a cancellation it did not write", async () => {
+      // The row matched nothing: somebody else got there first. Whatever the
+      // reason turns out to be, the answer is not «cancelled» and the mirror
+      // is not touched.
+      mockPrisma.user.findUnique
+        .mockResolvedValueOnce(pendingSince(5 * DAY))
+        .mockResolvedValueOnce(null);
+      mockPrisma.user.updateMany.mockResolvedValue({ count: 0 });
+
+      await expect(service.cancelDeleteRequest(userId)).rejects.toMatchObject({
+        status: 410,
+        response: { code: "ACCOUNT_ALREADY_DELETED" },
+      });
+      expect(mockPrisma.privacySettings.updateMany).not.toHaveBeenCalled();
+    });
+
+    it("says nothing was pending, without writing, and says it again", async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ deleteRequestedAt: null });
+
+      for (let i = 0; i < 2; i++) {
+        expect(await service.cancelDeleteRequest(userId)).toEqual({
+          ok: true,
+          cancelled: false,
+        });
+      }
+      expect(mockPrisma.user.updateMany).not.toHaveBeenCalled();
+      expect(mockPrisma.privacySettings.updateMany).not.toHaveBeenCalled();
+    });
+
+    it("refuses once the window has closed, and leaves the request standing", async () => {
+      for (const overdue of [0, 1, 5 * DAY]) {
+        mockPrisma.user.findUnique.mockResolvedValue(
+          pendingSince(ACCOUNT_DELETION_COOLDOWN_MS + overdue),
+        );
+
+        await expect(service.cancelDeleteRequest(userId)).rejects.toMatchObject(
+          {
+            status: 409,
+            response: {
+              code: "ACCOUNT_DELETION_WINDOW_CLOSED",
+              message: expect.any(String),
+            },
+          },
+        );
+      }
+      expect(mockPrisma.user.updateMany).not.toHaveBeenCalled();
+      expect(mockPrisma.privacySettings.updateMany).not.toHaveBeenCalled();
+    });
+
+    it("puts back the export the pending deletion made the worker skip", async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(pendingSince(1 * DAY));
+      mockPrisma.user.updateMany.mockResolvedValue({ count: 1 });
+      mockPrisma.dataExportRequest.findMany.mockResolvedValueOnce([
+        { id: "export-1" },
+      ]);
+
+      await service.cancelDeleteRequest(userId);
+
+      // Unfinished, and recent enough to be the one refusing a new request.
+      const { where } = mockPrisma.dataExportRequest.findMany.mock.calls[0]![0];
+      expect(where.userId).toBe(userId);
+      expect(where.status.in).toEqual(["PENDING", "PROCESSING"]);
+      expect(Date.now() - where.createdAt.gt.getTime()).toBeGreaterThanOrEqual(
+        30 * DAY,
+      );
+      expect(mockJobs.resumeDataExport.mock.calls).toEqual([
+        [{ requestId: "export-1", userId }],
+      ]);
+    });
+
+    it("has nothing to put back unless it really undid a deletion", async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({ deleteRequestedAt: null });
+
+      await service.cancelDeleteRequest(userId);
+
+      expect(mockPrisma.dataExportRequest.findMany).not.toHaveBeenCalled();
+      expect(mockJobs.resumeDataExport).not.toHaveBeenCalled();
+    });
+
+    it("is still a cancellation when the queue cannot take the export back", async () => {
+      // Already committed. A 500 here would tell somebody their account is
+      // still being deleted when it is not.
+      mockPrisma.user.findUnique.mockResolvedValue(pendingSince(1 * DAY));
+      mockPrisma.user.updateMany.mockResolvedValue({ count: 1 });
+      mockPrisma.dataExportRequest.findMany.mockResolvedValueOnce([
+        { id: "export-1" },
+      ]);
+      mockJobs.resumeDataExport.mockRejectedValueOnce(new Error("redis down"));
+
+      expect(await service.cancelDeleteRequest(userId)).toEqual({
+        ok: true,
+        cancelled: true,
+      });
+    });
+
+    it("asks for no password and touches no session, deletion job or object", async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(pendingSince(1 * DAY));
+      mockPrisma.user.updateMany.mockResolvedValue({ count: 1 });
+
+      await service.cancelDeleteRequest(userId);
+
+      expect(
+        mockPrisma.user.findUnique.mock.calls.every(
+          ([arg]) => !("passwordHash" in (arg.select ?? {})),
+        ),
+      ).toBe(true);
+      expect(mockPrisma.refreshToken.deleteMany).not.toHaveBeenCalled();
+      expect(mockJobs.enqueueAccountDeletion).not.toHaveBeenCalled();
+      expect(mockStorage.deleteObject).not.toHaveBeenCalled();
     });
   });
 

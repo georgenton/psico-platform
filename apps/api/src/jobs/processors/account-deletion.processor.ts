@@ -7,6 +7,7 @@ import { PrismaService } from "../../prisma";
 import { CirclesAccountDeletionService } from "../../circles/circles-account-deletion.service";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { StorageService } from "../../storage";
+import { ACCOUNT_DELETION_COOLDOWN_MS } from "../../users/account-deletion-window";
 import {
   collectUserOwnedObjects,
   isUserOwnedKey,
@@ -23,7 +24,8 @@ import {
  *
  * Self-correcting behaviour:
  *  - Re-fetches `User.deleteRequestedAt` at execution time.
- *  - If the user cancelled (deleteRequestedAt cleared) → no-op, log info.
+ *  - If the user cancelled (`UsersService.cancelDeleteRequest` cleared
+ *    deleteRequestedAt) → no-op, log info.
  *  - If the user was already deleted (manually, by support) → no-op.
  *  - If the user still has `deleteRequestedAt` set AND it's been ≥30 days
  *    since that timestamp → execute `prisma.user.delete()`. Prisma cascades
@@ -44,8 +46,9 @@ import {
 export class AccountDeletionProcessor extends WorkerHost {
   private readonly logger = new Logger(AccountDeletionProcessor.name);
 
-  // Match UsersService.DELETE_COOLDOWN_DAYS
-  private readonly COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000;
+  // The same number the person was shown and can still cancel against — see
+  // `account-deletion-window.ts`.
+  private readonly COOLDOWN_MS = ACCOUNT_DELETION_COOLDOWN_MS;
 
   constructor(
     private readonly prisma: PrismaService,

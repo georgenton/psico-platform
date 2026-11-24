@@ -10,8 +10,8 @@ import { IsOptional, IsString, MaxLength } from "class-validator";
  * cooldown before executing the hard `prisma.user.delete()` cascade
  * (Sprint S3).
  *
- * If the user logs back in within the 30-day window, they can cancel
- * via `Profile.deleteRequestedAt = null` (UI calls a separate endpoint).
+ * Within the 30-day window they can cancel it with
+ * `POST /api/user/delete-request/cancel`, which needs no body.
  * OAuth users (no `passwordHash`) get 400 `OAUTH_USER_NO_PASSWORD`.
  */
 export class DeleteRequestDto {

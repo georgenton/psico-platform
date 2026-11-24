@@ -1,7 +1,10 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
-import type { HomeResponse } from "@psico/types";
+import { describe, expect, it, vi } from "vitest";
+import type { HomeResponse, InsightKind } from "@psico/types";
 import { InicioV2 } from "./InicioV2";
+
+// Las ideas para Eco navegan al tocarse; aquí sólo importa lo que dicen.
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
 function buildHome(overrides: Partial<HomeResponse> = {}): HomeResponse {
   return {
@@ -52,12 +55,15 @@ describe("InicioV2", () => {
     // Reflexiones · 3 / esta semana
     expect(screen.getByText("3")).toBeInTheDocument();
     expect(screen.getByText("Reflexiones")).toBeInTheDocument();
-    // Insights · 12 / de Eco (Sprint G2b — real counter from WeeklySummary.count)
+    // Resúmenes · 12 / semanales (Sprint G2b — real counter from
+    // WeeklySummary.count). Decía «Insights · de Eco».
     expect(screen.getByText("12")).toBeInTheDocument();
-    expect(screen.getByText("Insights")).toBeInTheDocument();
-    // Patrones · 7 / detectados (Sprint G2b — distinct tag count)
+    expect(screen.getByText("Resúmenes")).toBeInTheDocument();
+    // Etiquetas · 7 / que has usado (Sprint G2b — distinct tag count). Decía
+    // «Patrones · detectados», y nadie detecta nada: son las que puso ella.
     expect(screen.getByText("7")).toBeInTheDocument();
-    expect(screen.getByText("Patrones")).toBeInTheDocument();
+    expect(screen.getByText("Etiquetas")).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/de Eco|detectados/);
     // Minutos · 45
     expect(screen.getByText("45")).toBeInTheDocument();
     expect(screen.getByText(/Minutos de lectura/i)).toBeInTheDocument();
@@ -119,10 +125,10 @@ describe("InicioV2", () => {
   });
 
   it("los contadores se presentan como ACTIVIDAD, no como comprensión", () => {
-    // Los cinco son actividad: reflexiones de la semana, insights de Eco,
-    // patrones detectados, minutos de lectura y días seguidos. Llamarlos
-    // «progreso de comprensión» volvía a juntar aprendizaje y mundo interior en
-    // la primera pantalla, que es justo lo que el programa V2 separó.
+    // Los cinco son actividad: reflexiones de la semana, resúmenes semanales,
+    // etiquetas, minutos de lectura y días seguidos. Llamarlos «progreso de
+    // comprensión» volvía a juntar aprendizaje y mundo interior en la primera
+    // pantalla, que es justo lo que el programa V2 separó.
     render(<InicioV2 home={buildHome()} />);
     expect(screen.getByText("Tu actividad")).toBeInTheDocument();
     expect(screen.queryByText(/progreso de comprensión/i)).toBeNull();
@@ -157,6 +163,162 @@ describe("InicioV2", () => {
     );
     expect(screen.getByText("+ evolución")).toBeInTheDocument();
     expect(document.body.textContent ?? "").not.toContain("comprensión");
+  });
+
+  // ── De dónde sale lo que Inicio sugiere ─────────────────────────────────
+  //
+  // La tarjeta firmaba «Generado por Eco» y «solo tú puedes verlo» en los DOS
+  // estados. Se montan los dos: ocultar la firma sólo cuando falta la frase
+  // habría dejado la mitad de la mentira.
+
+  it("cuenta inicial: frase fija, y la pantalla dice que lo es", () => {
+    render(<InicioV2 home={buildHome({ insightToday: null })} />);
+    expect(
+      screen.getByText("Hoy es un buen día para mirarte con calma."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Mensaje general")).toBeInTheDocument();
+    expect(
+      screen.getByText("Es una frase fija: no sale de tu actividad."),
+    ).toBeInTheDocument();
+    const texto = document.body.textContent ?? "";
+    expect(texto).not.toMatch(/Generado por Eco/i);
+    expect(texto).not.toMatch(/solo tú puedes verlo/i);
+    expect(texto).not.toMatch(/Según tu actividad/);
+  });
+
+  it.each([
+    ["streak", "Aparece porque llevas varios días seguidos."],
+    ["mood-trend", "Aparece porque marcaste el mismo ánimo varias veces"],
+    ["book-progress", "Aparece porque tienes un libro empezado."],
+    ["neutral", "Aparece porque leíste o escribiste esta semana."],
+  ] as ReadonlyArray<[InsightKind, string]>)(
+    "cuenta con actividad (%s): dice qué la disparó y que la elige una regla",
+    (kind, causa) => {
+      render(
+        <InicioV2
+          home={buildHome({
+            insightToday: { kind, headline: "—", body: "La frase de hoy." },
+          })}
+        />,
+      );
+      expect(screen.getByText("La frase de hoy.")).toBeInTheDocument();
+      expect(screen.getByText("Según tu actividad")).toBeInTheDocument();
+      expect(screen.getByText(new RegExp(causa))).toHaveTextContent(
+        "La elige una regla, no una IA.",
+      );
+      const texto = document.body.textContent ?? "";
+      expect(texto).not.toMatch(/Generado por Eco/i);
+      expect(texto).not.toMatch(/solo tú puedes verlo/i);
+    },
+  );
+
+  const ecoMoment = (ids: string[]): HomeResponse["ecoMoment"] => ({
+    prompt: "¿Cómo te encontró este día?",
+    lastActiveAt: null,
+    pendingMessages: 0,
+    suggestions: ids.map((id) => ({
+      id,
+      title: `Tema ${id}`,
+      prompt: "…",
+      reason: `Razón ${id}`,
+      scope: null,
+    })) as never,
+  });
+
+  it("las ideas para Eco no se le atribuyen a Eco, y las de reserva no dicen «tu actividad»", () => {
+    const { unmount } = render(
+      <InicioV2 home={buildHome({ ecoMoment: ecoMoment(["cold-start"]) })} />,
+    );
+    expect(
+      screen.getByText("Ideas para conversar con Eco"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Para empezar cuando quieras")).toBeInTheDocument();
+    expect(screen.queryByText("Según tu actividad reciente")).toBeNull();
+    unmount();
+
+    render(
+      <InicioV2
+        home={buildHome({
+          ecoMoment: ecoMoment(["continue-chapter", "cold-start"]),
+        })}
+      />,
+    );
+    expect(screen.getByText("Según tu actividad reciente")).toBeInTheDocument();
+    const texto = document.body.textContent ?? "";
+    expect(texto).not.toMatch(/Eco te sugiere/);
+    // Si Eco responde o no depende de la cuota y del proveedor: nadie lo mira.
+    expect(texto).not.toMatch(/Disponible ahora/);
+  });
+
+  it("la tarjeta de continuar no inventa minutos ni una conexión personal", () => {
+    render(
+      <InicioV2
+        home={buildHome({
+          continueBook: {
+            bookId: "b",
+            bookSlug: "emociones-en-construccion",
+            readerRef: { kind: "unit", id: "u" },
+            title: "Emociones",
+            chapterN: 3,
+            chapterTitle: "La pausa",
+            progressPct: 34,
+          } as never,
+        })}
+      />,
+    );
+    const texto = document.body.textContent ?? "";
+    expect(texto).toContain("34% completado");
+    expect(texto).not.toMatch(/min para terminar/);
+    expect(texto).not.toMatch(/conecta con tu camino/);
+  });
+
+  it.each(["diary", "eco"] as const)(
+    "la fila de %s dice «+ evolución»: no alimenta el mapa ni los patrones",
+    (type) => {
+      render(
+        <InicioV2
+          home={buildHome({
+            activity: {
+              items: [
+                {
+                  id: "a1",
+                  type,
+                  title: "Fila",
+                  subtitle: "—",
+                  timestamp: new Date().toISOString(),
+                  href: null,
+                },
+              ],
+            },
+          })}
+        />,
+      );
+      expect(screen.getByText("+ evolución")).toBeInTheDocument();
+      expect(document.body.textContent).not.toMatch(/\+ (mapa|patrón)/);
+    },
+  );
+
+  it("la fila de dictado no lleva chip: no cuenta en ninguna parte", () => {
+    render(
+      <InicioV2
+        home={buildHome({
+          activity: {
+            items: [
+              {
+                id: "a-voz",
+                type: "voice",
+                title: "Dictado",
+                subtitle: "12s grabados",
+                timestamp: new Date().toISOString(),
+                href: null,
+              },
+            ],
+          },
+        })}
+      />,
+    );
+    expect(screen.getByText("Dictado")).toBeInTheDocument();
+    expect(document.querySelector(".a-fed")).toBeNull();
   });
 
   it("PR-0.2: shows a maintenance note (not an empty radar) when emotionalMap is null", () => {

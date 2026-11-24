@@ -1,15 +1,25 @@
 import Link from "next/link";
 import type { ActivityFeedItemType, HomeResponse } from "@psico/types";
 
+import { coverTone } from "@/components/dashboard/cover-gradients";
 import { MapRadar } from "@/components/dashboard/mapa/MapRadar";
 import { EcoMomentSuggestions } from "@/components/dashboard/home/EcoMomentSuggestions";
 import { chapterHeading } from "@/components/dashboard/lector/chapter-label";
-import { readerChapterPath } from "@psico/types";
+import {
+  ECO_IDEAS_TITULO,
+  INSIGHT_FIRMA,
+  INSIGHT_GENERAL,
+  INSIGHT_GENERAL_FIRMA,
+  ecoIdeasOrigen,
+  insightOrigen,
+  readerChapterPath,
+} from "@psico/types";
 import {
   IconArrowRight,
   IconBook,
   IconEco,
   IconFlame,
+  IconHome,
   IconMap,
   IconPatterns,
   IconPencil,
@@ -29,24 +39,23 @@ const ACTIVITY_ICON: Record<
   voice: IconWind,
 };
 
-/** Sprint F3 — surface what each activity contributes to the user's map.
- *  Mirrors the design's `.a-fed` chip ("+ mapa", "+ patrón", "+ calma").
+/** Sprint F3 — where each activity counts. Mirrors the design's `.a-fed` chip.
  *  Keep these short — they're the third column of a row that already has
  *  a title + subtitle.
  *
- *  `reading` decía «+ comprensión», y eso describe actividad como si midiera
- *  entendimiento: leer alimenta **Mi Evolución** —marcas de lectura, minutos,
- *  formatos terminados— y bajo V2 no toca ningún eje del mapa (invariante con
- *  trinquete: «+highlights ⇒ el mapa no cambia»). Dice el destino real.
+ *  El chip dice el destino REAL de la fila, que no es el Mapa:
  *
- *  Los otros tres siguen como estaban, a propósito: cambiarlos es una decisión
- *  editorial y va en la lista de aceptación visual, no en este commit.
- *  — ver docs/product/aceptacion-visual-2026-11-18.md */
-const ACTIVITY_FED: Record<ActivityFeedItemType, string> = {
-  diary: "+ mapa",
+ *   - reflexiones, lectura y Eco cuentan en **Mi Evolución**
+ *     (`evolucion.service.ts`). Antes decían «+ mapa», «+ comprensión» y
+ *     «+ patrón»: bajo V2 ninguna de las tres mueve una punta del mapa por sí
+ *     sola —una reflexión sólo aporta si se guardó con un ánimo elegido—, y
+ *     Patrones no lee Eco;
+ *   - el dictado no cuenta en ninguna de las dos, así que no lleva chip. Decía
+ *     «+ calma», que además es el nombre de una dimensión del mapa. */
+const ACTIVITY_FED: Partial<Record<ActivityFeedItemType, string>> = {
+  diary: "+ evolución",
   reading: "+ evolución",
-  eco: "+ patrón",
-  voice: "+ calma",
+  eco: "+ evolución",
 };
 
 /** Compact relative timestamp ("ahora", "hace 2h", "ayer", "21 jun").
@@ -111,9 +120,6 @@ export function InicioV2({ home }: { home: HomeResponse }) {
   const ecoMoment = home.ecoMoment;
 
   const continuePct = continueBook?.progressPct ?? 0;
-  const continueEta = continueBook
-    ? Math.max(1, Math.round((100 - continuePct) * 0.25))
-    : 0;
 
   return (
     <>
@@ -140,24 +146,24 @@ export function InicioV2({ home }: { home: HomeResponse }) {
               {insight?.kind === "streak"
                 ? "Tu racha"
                 : insight?.kind === "mood-trend"
-                  ? "Patrón emocional"
+                  ? "Tu ánimo"
                   : insight?.kind === "book-progress"
                     ? "Tu lectura"
                     : "Insight del día"}
             </span>
-            <span className="ins-date">Generado por Eco</span>
+            {/* Firmaba «Generado por Eco» siempre. La elige una regla del
+                servidor, y cuando ninguna se cumple se pinta una frase fija:
+                los dos estados dicen de dónde salen. */}
+            <span className="ins-date">
+              {insight ? INSIGHT_FIRMA : INSIGHT_GENERAL_FIRMA}
+            </span>
           </div>
-          <q>
-            {insight?.body ??
-              "Tu mapa se construye con cada práctica. Hoy es un buen día para mirarte con calma."}
-          </q>
+          <q>{insight?.body ?? INSIGHT_GENERAL}</q>
           <div className="ins-foot">
             <span className="av">
-              <IconEco size={16} />
+              <IconHome size={16} />
             </span>
-            <span>
-              A partir de tu actividad reciente · solo tú puedes verlo
-            </span>
+            <span>{insightOrigen(insight?.kind)}</span>
           </div>
         </div>
 
@@ -198,8 +204,8 @@ export function InicioV2({ home }: { home: HomeResponse }) {
         «Tu actividad», no «tu progreso de comprensión».
 
         Los cinco contadores de abajo son actividad —reflexiones de la semana,
-        insights de Eco, patrones detectados, minutos de lectura y días
-        seguidos— y ninguno mide cuánto entiende alguien de sí mismo. Todo el
+        resúmenes semanales, etiquetas, minutos de lectura y días seguidos— y
+        ninguno mide cuánto entiende alguien de sí mismo. Todo el
         programa V2 del Mapa se dedicó a separar APRENDIZAJE de MUNDO INTERIOR,
         y este título los volvía a juntar en la pantalla de Inicio, que es la
         primera que se ve.
@@ -224,22 +230,26 @@ export function InicioV2({ home }: { home: HomeResponse }) {
           <span className="mg">
             <IconMap size={19} />
           </span>
+          {/* `insightsCount` cuenta filas de `WeeklySummary`. Decía «Insights ·
+              de Eco»; ni son de Eco ni son otra cosa que resúmenes. */}
           <b>{home.stats.insightsCount}</b>
-          <span className="lbl">Insights</span>
+          <span className="lbl">Resúmenes</span>
           <span className="trend">
             <IconTrendUp size={13} />
-            de Eco
+            semanales
           </span>
         </div>
         <div className="metric">
           <span className="mg">
             <IconPatterns size={19} />
           </span>
+          {/* `patternsCount` cuenta etiquetas distintas puestas por la persona.
+              Decía «Patrones · detectados»: nadie detecta nada. */}
           <b>{home.stats.patternsCount}</b>
-          <span className="lbl">Patrones</span>
+          <span className="lbl">Etiquetas</span>
           <span className="trend">
             <IconTrendUp size={13} />
-            detectados
+            que has usado
           </span>
         </div>
         <div className="metric">
@@ -271,7 +281,7 @@ export function InicioV2({ home }: { home: HomeResponse }) {
           <div className="card continue">
             <span className="card-tag">Continúa tu recorrido</span>
             <div className="c-row" style={{ marginTop: 16 }}>
-              <div className="cover">
+              <div className={`cover tono-${coverTone(continueBook.cover)}`}>
                 <IconBook size={24} />
               </div>
               <div className="c-meta">
@@ -285,15 +295,13 @@ export function InicioV2({ home }: { home: HomeResponse }) {
                 <div className="bar">
                   <i style={{ width: `${continuePct}%` }} />
                 </div>
-                <div className="c-pct">
-                  {continuePct}% completado · ~{continueEta} min para terminar
-                </div>
+                <div className="c-pct">{continuePct}% completado</div>
               </div>
             </div>
             <div className="c-foot">
               <span className="note">
-                <IconMap size={15} />
-                Este capítulo conecta con tu camino actual
+                <IconBook size={15} />
+                Es lo último que leíste
               </span>
               <Link
                 // Same server-owned ref as ContinueBookCard — the two Home
@@ -318,8 +326,10 @@ export function InicioV2({ home }: { home: HomeResponse }) {
                 <IconEco size={20} />
               </span>
               <div>
-                <div className="er-name">Eco te sugiere</div>
-                <div className="er-status">Disponible ahora</div>
+                <div className="er-name">{ECO_IDEAS_TITULO}</div>
+                <div className="er-status">
+                  {ecoIdeasOrigen(ecoMoment.suggestions)}
+                </div>
               </div>
             </div>
             <div className="er-body">{ecoMoment.prompt}</div>
@@ -380,7 +390,9 @@ export function InicioV2({ home }: { home: HomeResponse }) {
                     <div className="a-title">{it.title}</div>
                     <div className="a-sub">{it.subtitle}</div>
                   </div>
-                  <span className="a-fed">{ACTIVITY_FED[it.type]}</span>
+                  {ACTIVITY_FED[it.type] ? (
+                    <span className="a-fed">{ACTIVITY_FED[it.type]}</span>
+                  ) : null}
                   <span className="a-time">{relativeFrom(it.timestamp)}</span>
                 </>
               );
@@ -410,8 +422,7 @@ export function InicioV2({ home }: { home: HomeResponse }) {
                   Tres minutos de aire — más fácil de lo que parece
                 </div>
               </div>
-              <span className="a-fed">+ calma</span>
-              <span className="a-time">2 min</span>
+              <span className="a-time">3 min</span>
             </div>
           )}
         </div>

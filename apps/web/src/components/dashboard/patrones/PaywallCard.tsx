@@ -90,7 +90,7 @@ export function PaywallCard({
         {[
           "Heatmap del mes con tus moods.",
           "Hora del día con más entradas.",
-          "Resumen semanal generado por Eco (opt-in).",
+          "Resumen de tu semana con conteos: lo redacta una IA o, si falla, una plantilla.",
           "Compartir snapshot con tu terapeuta (próximamente).",
         ].map((line) => (
           <li

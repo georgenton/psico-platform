@@ -41,10 +41,12 @@ export function PatTopTagsGrid({ themes, entryCount, period }: Props) {
   if (top.length === 0) {
     return (
       <div className="card pat" style={{ gridColumn: "span 2" }}>
-        <span className="card-tag">Patrones por descubrir</span>
+        {/* Prometía «aquí verás cuáles temas se repiten». `PatronesService`
+            devuelve `themes: []` siempre: hoy nadie los calcula. */}
+        <span className="card-tag">Temas</span>
         <p style={{ margin: "12px 0 0", color: "var(--color-warm-500)" }}>
-          Cuando uses tags en tus reflexiones (trabajo, familia, sueño, …), aquí
-          verás cuáles temas se repiten más y cómo evolucionan.
+          Todavía no calculamos qué temas se repiten. Las etiquetas que pongas
+          (trabajo, familia, sueño…) quedan en cada reflexión.
         </p>
       </div>
     );

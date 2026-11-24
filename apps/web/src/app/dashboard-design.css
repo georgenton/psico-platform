@@ -342,6 +342,14 @@
   .continue { padding: 22px; }
   .continue .c-row { display: flex; gap: 16px; align-items: center; }
   .continue .cover { width: 64px; height: 86px; border-radius: 10px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: #fff; background: var(--gradient-cover-lavender); box-shadow: var(--shadow-cover); }
+  /* La portada sigue el tono del libro, con los mismos degradados que Biblioteca
+     y la ficha (`components/dashboard/cover-gradients.ts`, fijados por prueba):
+     antes pintaba siempre lavanda. `:where()` suma cero a la especificidad a
+     propósito — sin él empataría con la regla de Renacimiento de `globals.css`
+     y, al cargarse después, le ganaría el papel y el filete. */
+  .continue .cover:where(.tono-cool) { background: linear-gradient(135deg, var(--color-lavender-300) 0%, var(--color-lavender-700) 100%); }
+  .continue .cover:where(.tono-warm) { background: linear-gradient(135deg, var(--color-sage-300) 0%, var(--color-sage-700) 100%); }
+  .continue .cover:where(.tono-mixed) { background: linear-gradient(135deg, var(--color-lavender-300) 0%, var(--color-sage-500) 100%); }
   .continue .c-meta { flex: 1; min-width: 0; }
   .continue .c-eyebrow { font: 700 10px/1 var(--font-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--color-warm-400); }
   .continue .c-title { font: 600 16px/1.3 var(--font-sans); color: var(--color-warm-900); margin: 7px 0 12px; }

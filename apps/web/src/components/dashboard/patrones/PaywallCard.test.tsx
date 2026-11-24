@@ -55,6 +55,17 @@ describe("PaywallCard · con las compras CERRADAS", () => {
     expect(enlace).toHaveAttribute("href", "/dashboard/plan");
   });
 
+  it("no le atribuye el resumen a Eco ni dice que sea opcional", () => {
+    // `PatronesService.buildNarrative` llama a un modelo con conteos y, si
+    // falla, arma el texto con una plantilla. Y `weeklyReport` nace activado:
+    // «opt-in» era al revés.
+    render(<PaywallCard entryCount={12} purchasesOpen={false} />);
+    expect(
+      screen.getByText(/Resumen de tu semana con conteos/),
+    ).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/generado por Eco|opt-in/i);
+  });
+
   it("sigue contando lo que esta persona ya lleva escrito", () => {
     render(<PaywallCard entryCount={12} purchasesOpen={false} />);
     expect(screen.getByText("12")).toBeInTheDocument();

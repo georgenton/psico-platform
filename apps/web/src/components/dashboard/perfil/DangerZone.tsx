@@ -1,11 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { DATA_EXPORT_SUMMARY } from "@psico/types";
+import {
+  ACCOUNT_DELETION_CANCELLED_NOTE,
+  ACCOUNT_DELETION_CANCEL_PROMPT,
+  DATA_EXPORT_SUMMARY,
+  accountDeletionNotice,
+  cancelAccountDeletionErrorCopy,
+} from "@psico/types";
 import type { UserMeResponse } from "@psico/types";
 
 import { logoutAction } from "@/actions/auth";
 import {
+  cancelAccountDeleteAction,
   getDataExportDownloadAction,
   requestAccountDeleteAction,
   requestDataExportAction,
@@ -13,7 +20,6 @@ import {
 
 export function DangerZone({ me }: { me: UserMeResponse }) {
   const exportRequested = me.privacy.dataExportRequested;
-  const deleteRequested = me.privacy.accountDeleteRequested;
 
   return (
     <section
@@ -36,7 +42,7 @@ export function DangerZone({ me }: { me: UserMeResponse }) {
 
       <div className="mt-4 space-y-3">
         <ExportRow alreadyRequested={exportRequested} />
-        <DeleteRow alreadyRequested={deleteRequested} />
+        <DeleteRow me={me} />
         <LogoutRow />
       </div>
     </section>
@@ -186,19 +192,24 @@ function DownloadExportButton() {
   );
 }
 
-function DeleteRow({
-  alreadyRequested,
-}: {
-  alreadyRequested: Date | string | null;
-}) {
+/**
+ * `null` while nothing is scheduled. `at` is the day the SERVER says it will
+ * happen — never the day it was asked for — and it can be missing on its own: a
+ * server that predates the field says «scheduled» without saying when, and then
+ * no day is printed.
+ */
+type ScheduledDeletion = { at: Date | string | null } | null;
+
+function DeleteRow({ me }: { me: UserMeResponse }) {
   const [open, setOpen] = useState(false);
   const [password, setPassword] = useState("");
   const [reason, setReason] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [scheduledFor, setScheduledFor] = useState<string | null>(
-    alreadyRequested
-      ? new Date(alreadyRequested).toLocaleString("es-419")
+  const [note, setNote] = useState<string | null>(null);
+  const [scheduled, setScheduled] = useState<ScheduledDeletion>(
+    me.privacy.accountDeleteRequested
+      ? { at: me.privacy.accountDeleteScheduledFor ?? null }
       : null,
   );
 
@@ -214,8 +225,7 @@ function DeleteRow({
         password,
         reason || undefined,
       );
-      const at = new Date(res.deleteAt);
-      setScheduledFor(at.toLocaleString("es-419"));
+      setScheduled({ at: res.deleteAt });
       setOpen(false);
       setPassword("");
       setReason("");
@@ -226,29 +236,15 @@ function DeleteRow({
     }
   }
 
-  if (scheduledFor) {
+  if (scheduled) {
     return (
-      <div
-        className="rounded-xl px-4 py-3"
-        style={{
-          background: "var(--color-rose-50)",
-          border: "1.5px solid var(--color-rose-200)",
+      <ScheduledDeletionRow
+        notice={accountDeletionNotice(scheduled.at, me.user.timezone)}
+        onCancelled={() => {
+          setScheduled(null);
+          setNote(ACCOUNT_DELETION_CANCELLED_NOTE);
         }}
-      >
-        <p
-          className="text-[13px] font-medium"
-          style={{ color: "var(--color-rose-700)" }}
-        >
-          Borrado programado
-        </p>
-        <p
-          className="mt-1 text-[12px]"
-          style={{ color: "var(--color-rose-700)" }}
-        >
-          Tu cuenta se eliminará el {scheduledFor}. Hasta entonces, puedes
-          contactar soporte para cancelar el pedido.
-        </p>
-      </div>
+      />
     );
   }
 
@@ -284,11 +280,24 @@ function DeleteRow({
             confirmaron se conserva, porque también es suyo. Lo que propusiste y
             nadie llegó a aceptar se elimina contigo.
           </p>
+          {note ? (
+            <p
+              role="status"
+              className="mt-1 text-[11px]"
+              style={{ color: "var(--color-sage-700)" }}
+              data-testid="delete-cancelled-note"
+            >
+              {note}
+            </p>
+          ) : null}
         </div>
         {!open ? (
           <button
             type="button"
-            onClick={() => setOpen(true)}
+            onClick={() => {
+              setNote(null);
+              setOpen(true);
+            }}
             className="rounded-xl border-[1.5px] px-3 py-1.5 text-[12px] font-medium"
             style={{
               borderColor: "var(--color-rose-300)",
@@ -378,6 +387,122 @@ function DeleteRow({
           </div>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+/** «Borrado programado»: the day it happens, and the way out until then. */
+function ScheduledDeletionRow({
+  notice,
+  onCancelled,
+}: {
+  notice: string;
+  onCancelled: () => void;
+}) {
+  const [confirming, setConfirming] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function cancel() {
+    setPending(true);
+    setError(null);
+    let status: number | null = null;
+    try {
+      const res = await cancelAccountDeleteAction();
+      if (res.ok) {
+        onCancelled();
+        return;
+      }
+      status = res.status;
+    } catch {
+      // The action never answered. Not a refusal: it may even have worked.
+    }
+    setPending(false);
+    setError(cancelAccountDeletionErrorCopy(status));
+  }
+
+  return (
+    <div
+      className="rounded-xl px-4 py-3"
+      style={{
+        background: "var(--color-rose-50)",
+        border: "1.5px solid var(--color-rose-200)",
+      }}
+      data-testid="delete-scheduled"
+    >
+      <p
+        className="text-[13px] font-medium"
+        style={{ color: "var(--color-rose-700)" }}
+      >
+        Borrado programado
+      </p>
+      <p
+        className="mt-1 text-[12px]"
+        style={{ color: "var(--color-rose-700)" }}
+      >
+        {notice}
+      </p>
+      {confirming ? (
+        <p
+          className="mt-2 text-[12px]"
+          style={{ color: "var(--color-rose-700)" }}
+        >
+          {ACCOUNT_DELETION_CANCEL_PROMPT}
+        </p>
+      ) : null}
+      {error ? (
+        <p
+          role="alert"
+          className="mt-2 text-[11px]"
+          style={{ color: "var(--color-rose-700)" }}
+        >
+          {error}
+        </p>
+      ) : null}
+      <div className="mt-2 flex flex-wrap gap-2">
+        {confirming ? (
+          <>
+            <button
+              type="button"
+              onClick={cancel}
+              disabled={pending}
+              className="rounded-xl border-[1.5px] bg-white px-3 py-1.5 text-[12px] font-medium disabled:opacity-50"
+              style={{
+                borderColor: "var(--color-rose-300)",
+                color: "var(--color-rose-700)",
+              }}
+              data-testid="delete-cancel-confirm"
+            >
+              {pending ? "Cancelando..." : "Sí, conservar mi cuenta"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setConfirming(false);
+                setError(null);
+              }}
+              disabled={pending}
+              className="rounded-xl px-3 py-1.5 text-[12px] font-medium disabled:opacity-50"
+              style={{ color: "var(--color-warm-700)" }}
+            >
+              Volver
+            </button>
+          </>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setConfirming(true)}
+            className="rounded-xl border-[1.5px] bg-white px-3 py-1.5 text-[12px] font-medium"
+            style={{
+              borderColor: "var(--color-rose-300)",
+              color: "var(--color-rose-700)",
+            }}
+            data-testid="delete-cancel"
+          >
+            Cancelar la eliminación
+          </button>
+        )}
+      </div>
     </div>
   );
 }

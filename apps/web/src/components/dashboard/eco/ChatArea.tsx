@@ -948,7 +948,10 @@ function Composer({
               onSend();
             }
           }}
-          placeholder="Escribe lo que necesites… (Enter para enviar, Shift+Enter para nueva línea)"
+          // Las teclas no van aquí: en un teléfono no hay Shift, y la frase
+          // larga ocupaba tres líneas en una caja de dos y salía cortada.
+          placeholder="Escribe lo que necesites…"
+          title="Enter para enviar · Shift+Enter para una línea nueva"
           rows={2}
           disabled={streaming}
           className="flex-1 resize-none rounded-xl border-[1.5px] bg-[var(--color-warm-50)] px-3 py-2 text-[14px] outline-none focus:border-[var(--color-lavender-400)] disabled:opacity-60"

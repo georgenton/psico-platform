@@ -164,3 +164,16 @@ describe("el chat no decide su alto", () => {
     expect(hijos[1]).toContain("eco-chat-caja");
   });
 });
+
+describe("lo que dice la caja cabe en la caja", () => {
+  it("el texto de ayuda es corto y no habla de teclas", () => {
+    // En un teléfono ocupaba tres líneas en una caja de dos, y la última salía
+    // cortada; además, ahí no hay Shift.
+    const fuente = readFileSync(join(__dirname, "ChatArea.tsx"), "utf8");
+    const textos = [...fuente.matchAll(/placeholder="([^"]+)"/g)].map(
+      (m) => m[1]!,
+    );
+    expect(textos).toContain("Escribe lo que necesites…");
+    for (const t of textos) expect(t).not.toMatch(/Enter|Shift/);
+  });
+});

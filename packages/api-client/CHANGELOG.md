@@ -1,5 +1,61 @@
 # @psico/api-client
 
+## 0.5.0
+
+### Minor Changes
+
+- bf38195: La baja de una cuenta dice cuándo ocurre, y se puede cancelar.
+  - **`UserPrivacySettings.accountDeleteScheduledFor`** — el día en que la cuenta se
+    elimina, calculado por el servidor con el número que usa el worker. Web y móvil
+    enseñaban el día en que se **pidió**, treinta antes. Es opcional: contra una API
+    que no lo manda no se imprime ninguna fecha.
+  - **`CancelAccountDeletionResponse`** y **`usersApi.cancelAccountDeletion()`** —
+    `POST /user/delete-request/cancel`, sin cuerpo ni contraseña. Idempotente, y con
+    409 cuando ya pasaron los treinta días.
+  - **`accountDeletionDateLabel`, `accountDeletionNotice`,
+    `cancelAccountDeletionErrorCopy`** y sus dos frases — lo que se lee mientras la
+    baja está programada, en la zona de la persona e igual en las dos plataformas.
+
+### Patch Changes
+
+- 8b0d34b: El cambio de correo se retira hasta que el recorrido pueda terminar.
+  - **`EMAIL_CHANGE_UNAVAILABLE_CODE` y `EMAIL_CHANGE_UNAVAILABLE_NOTICE`** — el
+    código del rechazo y la frase que dicen el servidor, la web y el móvil.
+  - El contrato generado documenta la respuesta real de
+    `POST /user/email-change-request`: `503` para cualquier cuerpo válido, en lugar
+    del `409` que distinguía una dirección con cuenta. La ruta y su cuerpo no
+    cambian.
+
+- 259a888: `DATA_EXPORT_SUMMARY`: el alcance de la exportación de datos en una frase.
+
+  Perfil decía en web y en móvil «un ZIP con tu perfil y tu actividad», que no es
+  ni el formato ni el contenido. La frase es una sola para las dos pantallas y una
+  prueba de la API la compara con el inventario de lo que el archivo trae. El
+  formato, el contenido y la descarga no cambian.
+
+- 5e4db64: La oferta de terapia se publica en el contrato, y hoy está cerrada.
+  - **`TherapyOfferAvailability`** y **`TherapyHistoryPresence`** — el hub, la lista
+    de sesiones y el detalle de una sesión publican `offer: { open }`, y el hub
+    además qué historial tiene la persona. Los clientes leen `offer?.open ?? false`.
+  - **`isDemo`** en `TherapistSummary` y `TherapistListItem`: una ficha de
+    demostración no tiene un profesional detrás, con la oferta abierta o cerrada.
+  - **`avgRating`**, **`reviewsCount`** y **`licenseNumber`** admiten `null`. Una
+    ficha de demostración no enseña puntuación, reseñas ni licencia, y antes el
+    tipo obligaba a inventar un número.
+  - **`THERAPY_OFFER_CLOSED_*`** y **`THERAPY_DEMO_*`** — los dos códigos de rechazo
+    y el copy que comparten el servidor, la web y el móvil.
+
+  El cliente generado declara el 503 de las rutas de oferta y el 409 sobre una
+  sesión de demostración.
+
+- Updated dependencies [bf38195]
+- Updated dependencies [8b0d34b]
+- Updated dependencies [259a888]
+- Updated dependencies [9b8efe4]
+- Updated dependencies [1d92337]
+- Updated dependencies [5e4db64]
+  - @psico/types@0.14.0
+
 ## 0.4.1
 
 ### Patch Changes

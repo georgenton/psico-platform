@@ -57,7 +57,7 @@ export const THERAPY_OFFER_CLOSED_MESSAGE =
 
 /** Qué puede hacer la persona mientras tanto. */
 export const THERAPY_OFFER_CLOSED_BODY =
-  "Si necesitas apoyo ahora, en Ayuda inmediata tienes líneas a las que puedes llamar.";
+  "Si necesitas apoyo ahora, en Ayuda inmediata hay recursos de ayuda.";
 
 /**
  * Código máquina del rechazo sobre una sesión ya reservada con una ficha de

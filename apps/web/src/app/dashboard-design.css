@@ -588,6 +588,46 @@
   /* Eco screen */
   .eco-layout { display: grid; grid-template-columns: 1fr 320px; gap: 20px; align-items: start; }
   @media (max-width: 1100px) { .eco-layout { grid-template-columns: 1fr; } }
+
+  /* La columna de la conversación: sugerencias arriba, chat con lo que quede.
+
+     El chat medía `100vh - 180px` por su cuenta, sin saber qué tenía encima.
+     Con una sola sugerencia —la tira mide 100 px— la caja de escritura acababa
+     56 px por debajo del borde a 1440×900, y en un teléfono con tres, 156. La
+     cuenta se hace ahora al revés: la COLUMNA ocupa el alto que deja la barra
+     superior (`--app-topbar-h`, que el armazón publica medida) y los márgenes
+     de la pantalla, y el chat toma el resto. Así la caja de escritura cae
+     siempre dentro, haya sugerencias o no.
+
+     `dvh` y no `vh`: en un teléfono `100vh` es el alto SIN la barra del
+     navegador, o sea más de lo que se ve cuando está puesta. La línea con `vh`
+     queda como respaldo de los navegadores que no lo conocen.
+
+     Si falta sitio cede la tira, no la caja: encoge y se desplaza por dentro
+     hasta que el chat llega a su mínimo (cabecera, unas líneas y la caja). */
+  .eco-columna {
+    --eco-aire: 36px;
+    --eco-debajo: 0px;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 200px;
+    height: calc(100vh - var(--app-topbar-h, 85px) - 2 * var(--eco-aire) - var(--eco-debajo));
+    height: calc(100dvh - var(--app-topbar-h, 85px) - 2 * var(--eco-aire) - var(--eco-debajo));
+  }
+  /* Los márgenes de `.screen` a cada ancho. */
+  @media (max-width: 1023px) { .eco-columna { --eco-aire: 20px; } }
+  @media (max-width: 420px) { .eco-columna { --eco-aire: 16px; } }
+  /* En teléfono el carril de hilos no se muestra y debajo del chat sólo queda
+     el aviso de que Eco no reemplaza a la terapia: se le guarda su sitio para
+     que siga a la vista. */
+  @media (max-width: 639px) { .eco-columna { --eco-debajo: 52px; } }
+  .eco-columna > .eco-sugerencias { flex: 0 1 auto; min-height: 0; max-height: 40%; overflow-y: auto; }
+
+  /* La caja del chat. Dentro de la columna, el alto que le toque; en el panel
+     del lector, donde cuelga sola de una pestaña, el que ya tenía. */
+  .eco-chat-caja { min-height: calc(100vh - 180px); max-height: calc(100vh - 180px); }
+  .eco-columna > .eco-chat-caja { flex: 1 0 200px; min-height: 0; max-height: none; }
   .eco-chat { display: flex; flex-direction: column; min-height: 600px; overflow: hidden; }
   .eco-chead { display: flex; align-items: center; gap: 13px; padding: 18px 22px; border-bottom: 1px solid var(--color-warm-200); }
   .eco-chead .eav { width: 44px; height: 44px; border-radius: 50%; background: var(--gradient-cover-lavender); color: #fff; display: inline-flex; align-items: center; justify-content: center; box-shadow: var(--shadow-soft); flex-shrink: 0; }

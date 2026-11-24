@@ -1,6 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, render, screen } from "@testing-library/react";
-import { Suspense, useState } from "react";
 import type * as Cripto from "@psico/crypto";
 import { MASTER_KEY_LEN } from "@psico/crypto";
 
@@ -19,12 +18,18 @@ import {
  * Dos pestañas, una sesión: la que se quedó atrás se entera y se cierra.
  *
  * La otra pestaña se finge como la finge el navegador: cambia `localStorage` y
- * llega un evento `storage`. El refresco del layout se finge como lo hace Next:
- * una transición que se queda pendiente hasta que llega el resultado.
+ * llega un evento `storage`. Lo que contesta el servidor se suelta cuando la
+ * prueba quiere, porque lo que importa es qué pasa MIENTRAS no contesta.
  */
 
-const router = { refresh: vi.fn(), push: vi.fn() };
-vi.mock("next/navigation", () => ({ useRouter: () => router }));
+const ir = vi.fn();
+/** Las preguntas que hay en el aire, en el orden en que se hicieron. */
+let preguntas: {
+  url: string;
+  init: RequestInit;
+  contestar: (r: Partial<Response>) => void;
+  fallar: () => void;
+}[];
 
 // Aquí no se prueba la derivación, sino qué pasa mientras está en vuelo.
 const derivacion = vi.hoisted(() => ({ soltar: () => {} }));
@@ -52,64 +57,29 @@ const MARCA_A = "marca-de-a-000001";
 const MARCA_B = "marca-de-b-000002";
 const SAL_A = "YWJjZGVmZ2hpamtsbW5vcA";
 
-interface Layout {
-  marca: string;
-  sal: string | null;
+const json = (cuerpo: unknown): Partial<Response> => ({
+  ok: true,
+  type: "basic",
+  json: async () => cuerpo,
+});
+
+/** Contesta la última pregunta. */
+async function servidorDice(r: Partial<Response>) {
+  await act(async () => {
+    preguntas.at(-1)!.contestar(r);
+  });
 }
-/** Lo que el servidor contestará al próximo refresco, y cuándo. */
-let contestar: (l: Layout) => Promise<void>;
 
 function Pantalla({
-  inicial,
   onCtx,
   dentro,
 }: {
-  inicial: Layout;
   onCtx?: (c: DiaryKeyContextValue) => void;
   dentro?: React.ReactNode;
 }) {
-  const [recurso, setRecurso] = useState<{
-    valor?: Layout;
-    promesa?: Promise<void>;
-  }>({ valor: inicial });
-
-  router.refresh.mockImplementation(() => {
-    let soltar!: () => void;
-    const nuevo: { valor?: Layout; promesa?: Promise<void> } = {
-      promesa: new Promise<void>((r) => {
-        soltar = r;
-      }),
-    };
-    contestar = async (l) => {
-      await act(async () => {
-        nuevo.valor = l;
-        soltar();
-        await nuevo.promesa;
-      });
-    };
-    setRecurso(nuevo);
-  });
-
   return (
-    <Suspense fallback={<p>cargando</p>}>
-      <Leido recurso={recurso} onCtx={onCtx} dentro={dentro} />
-    </Suspense>
-  );
-}
-
-function Leido({
-  recurso,
-  onCtx,
-  dentro,
-}: {
-  recurso: { valor?: Layout; promesa?: Promise<void> };
-  onCtx?: (c: DiaryKeyContextValue) => void;
-  dentro?: React.ReactNode;
-}) {
-  if (!recurso.valor) throw recurso.promesa;
-  return (
-    <SesionVigenteProvider marca={recurso.valor.marca}>
-      <DiaryKeyProvider cryptoSalt={recurso.valor.sal} initialWrapKey={null}>
+    <SesionVigenteProvider marca={MARCA_A}>
+      <DiaryKeyProvider cryptoSalt={SAL_A} initialWrapKey={null}>
         <Sonda onCtx={onCtx} />
         {dentro}
       </DiaryKeyProvider>
@@ -150,7 +120,6 @@ function montar(dentro?: React.ReactNode) {
   let ctx: DiaryKeyContextValue | null = null;
   render(
     <Pantalla
-      inicial={{ marca: MARCA_A, sal: SAL_A }}
       onCtx={(c) => {
         ctx = c;
       }}
@@ -169,8 +138,29 @@ async function abrir(ctx: () => DiaryKeyContextValue) {
 
 beforeEach(() => {
   window.localStorage.clear();
-  router.refresh.mockReset();
+  ir.mockReset();
   galleta.historia = [];
+  preguntas = [];
+  vi.stubGlobal("location", { ...window.location, replace: ir });
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(
+      (url: string, init: RequestInit) =>
+        new Promise<Partial<Response>>((contestar, rechazar) => {
+          preguntas.push({
+            url,
+            init,
+            contestar,
+            fallar: () => rechazar(new TypeError("sin red")),
+          });
+        }),
+    ),
+  );
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -196,12 +186,12 @@ describe("la marca", () => {
     );
     expect(window.localStorage.getItem(CLAVE)).toBeNull();
     await otraPestana(MARCA_B);
-    expect(router.refresh).not.toHaveBeenCalled();
+    expect(preguntas).toHaveLength(0);
   });
 });
 
 describe("otra pestaña cambió de cuenta", () => {
-  it("se dejan de entregar claves en el acto y se refresca el layout", async () => {
+  it("se dejan de entregar claves en el acto y se pregunta al servidor", async () => {
     const ctx = montar();
     await abrir(ctx);
     const clave = ctx().key!;
@@ -209,7 +199,7 @@ describe("otra pestaña cambió de cuenta", () => {
 
     expect(estado()).toBe("en duda · cerrado");
     expect(clave.every((x) => x === 0)).toBe(true);
-    expect(router.refresh).toHaveBeenCalledTimes(1);
+    expect(preguntas).toHaveLength(1);
   });
 
   it("salir también cuenta: la marca desaparece", async () => {
@@ -217,7 +207,7 @@ describe("otra pestaña cambió de cuenta", () => {
     await abrir(ctx);
     await otraPestana(null);
     expect(estado()).toBe("en duda · cerrado");
-    expect(router.refresh).toHaveBeenCalledTimes(1);
+    expect(preguntas).toHaveLength(1);
   });
 
   it("lo guardado en el dispositivo no se toca: puede ser ya de la otra", async () => {
@@ -261,7 +251,7 @@ describe("otra pestaña cambió de cuenta", () => {
     expect(ctx().unlocking).toBe(false);
     expect(galleta.historia).toEqual([]);
     // Era una falsa alarma: la reja vuelve a servir.
-    await contestar({ marca: MARCA_A, sal: SAL_A });
+    await servidorDice(json({ marca: MARCA_A }));
     expect(ctx().unlocking).toBe(false);
     expect(ctx().error).toBeNull();
     await abrir(ctx);
@@ -295,10 +285,8 @@ describe("otra pestaña cambió de cuenta", () => {
       () => document.dispatchEvent(new Event("visibilitychange")),
     ]) {
       window.localStorage.clear();
-      router.refresh.mockReset();
-      const vista = render(
-        <Pantalla inicial={{ marca: MARCA_A, sal: SAL_A }} />,
-      );
+      preguntas = [];
+      const vista = render(<Pantalla />);
       // Sin evento: la pestaña estaba congelada o en la caché de «atrás».
       window.localStorage.setItem(CLAVE, MARCA_B);
       expect(estado()).toBe("vigente · cerrado");
@@ -306,7 +294,7 @@ describe("otra pestaña cambió de cuenta", () => {
         volver();
       });
       expect(estado()).toBe("en duda · cerrado");
-      expect(router.refresh).toHaveBeenCalledTimes(1);
+      expect(preguntas).toHaveLength(1);
       vista.unmount();
     }
   });
@@ -327,19 +315,48 @@ describe("otra pestaña cambió de cuenta", () => {
       window.dispatchEvent(new Event("focus"));
     });
     await otraPestana(null);
-    expect(router.refresh).toHaveBeenCalledTimes(1);
+    expect(preguntas).toHaveLength(1);
   });
 });
 
 describe("lo que contesta el servidor", () => {
-  it("es otra cuenta: su marca, y sin claves de nadie", async () => {
+  it("se le pregunta de verdad, sin caché y sin seguir redirecciones", async () => {
+    montar();
+    await otraPestana(MARCA_B);
+    expect(preguntas[0]!.url).toBe("/dashboard/cuenta-vigente");
+    expect(preguntas[0]!.init).toMatchObject({
+      cache: "no-store",
+      credentials: "same-origin",
+      redirect: "manual",
+    });
+  });
+
+  it("es otra cuenta: la pestaña se va, y no abre nada mientras", async () => {
     const ctx = montar();
     await abrir(ctx);
     await otraPestana(MARCA_B);
-    await contestar({ marca: MARCA_B, sal: "MTIzNDU2Nzg5MDEyMzQ1Ng" });
-    expect(estado()).toBe("vigente · cerrado");
+    await servidorDice(json({ marca: MARCA_B }));
+
+    expect(ir.mock.calls).toEqual([["/dashboard"]]);
+    expect(estado()).toBe("en duda · cerrado");
+    // La marca ajena no se pisa: es la buena.
     expect(window.localStorage.getItem(CLAVE)).toBe(MARCA_B);
   });
+
+  it.each([
+    ["una redirección del middleware", { type: "opaqueredirect", ok: false }],
+    ["la propia ruta, sin sesión", json({ marca: null })],
+  ] as [string, Partial<Response>][])(
+    "no hay sesión (%s): la pestaña se va",
+    async (_, r) => {
+      const ctx = montar();
+      await abrir(ctx);
+      await otraPestana(null);
+      await servidorDice(r);
+      expect(ir.mock.calls).toEqual([["/dashboard"]]);
+      expect(estado()).toBe("en duda · cerrado");
+    },
+  );
 
   it("es la misma: se recupera la marca y se puede volver a abrir", async () => {
     // Una pestaña que aún cargaba escribió la suya tarde. La sesión es nuestra.
@@ -347,22 +364,95 @@ describe("lo que contesta el servidor", () => {
     await abrir(ctx);
     await otraPestana(MARCA_B);
     expect(window.localStorage.getItem(CLAVE)).toBe(MARCA_B);
-    await contestar({ marca: MARCA_A, sal: SAL_A });
+    await servidorDice(json({ marca: MARCA_A }));
 
     expect(window.localStorage.getItem(CLAVE)).toBe(MARCA_A);
     expect(estado()).toBe("vigente · cerrado");
+    expect(ir).not.toHaveBeenCalled();
     await abrir(ctx);
     // Y sigue vigilando.
     await otraPestana(MARCA_B);
     expect(estado()).toBe("en duda · cerrado");
-    expect(router.refresh).toHaveBeenCalledTimes(2);
+    expect(preguntas).toHaveLength(2);
   });
 
-  it("mientras no conteste, la marca ajena no se pisa", async () => {
+  it("mientras no conteste, la marca ajena no se pisa y nada se abre", async () => {
     montar();
     await otraPestana(MARCA_B);
     expect(window.localStorage.getItem(CLAVE)).toBe(MARCA_B);
     expect(estado()).toBe("en duda · cerrado");
+  });
+});
+
+describe("el servidor no contesta: sigue cerrada hasta que lo haga", () => {
+  it.each([
+    ["sin red", () => preguntas.at(-1)!.fallar()],
+    ["un 503", () => preguntas.at(-1)!.contestar({ ok: false, type: "basic" })],
+    [
+      "algo que no es la respuesta",
+      () => preguntas.at(-1)!.contestar(json({ otra: "cosa" })),
+    ],
+    [
+      "una página en vez de JSON",
+      () =>
+        preguntas.at(-1)!.contestar({
+          ok: true,
+          type: "basic",
+          json: async () => {
+            throw new SyntaxError("<");
+          },
+        }),
+    ],
+  ] as [string, () => void][])("%s", async (_, pasa) => {
+    vi.useFakeTimers();
+    montar();
+    await otraPestana(MARCA_B);
+    await act(async () => pasa());
+
+    expect(estado()).toBe("en duda · cerrado");
+    expect(ir).not.toHaveBeenCalled();
+    expect(preguntas).toHaveLength(1);
+
+    // Vuelve a preguntar sola, aunque la marca haya vuelto a ser la suya.
+    window.localStorage.setItem(CLAVE, MARCA_A);
+    await act(async () => vi.advanceTimersByTimeAsync(5_000));
+    expect(preguntas).toHaveLength(2);
+    await servidorDice(json({ marca: MARCA_A }));
+    expect(estado()).toBe("vigente · cerrado");
+  });
+
+  it("no espera para siempre: corta, y vuelve a preguntar", async () => {
+    vi.useFakeTimers();
+    montar();
+    await otraPestana(MARCA_B);
+    const señal = preguntas[0]!.init.signal!;
+    await act(async () => vi.advanceTimersByTimeAsync(9_999));
+    expect(señal.aborted).toBe(false);
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(señal.aborted).toBe(true);
+  });
+
+  it("volver a la pestaña pregunta sin esperar al reintento", async () => {
+    vi.useFakeTimers();
+    montar();
+    await otraPestana(MARCA_B);
+    await act(async () => preguntas[0]!.fallar());
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+    });
+    expect(preguntas).toHaveLength(2);
+    // Y el reintento pendiente no hace otra.
+    await act(async () => vi.advanceTimersByTimeAsync(20_000));
+    expect(preguntas).toHaveLength(2);
+  });
+
+  it("lo que llega después de irse no hace nada", async () => {
+    const vista = render(<Pantalla />);
+    await otraPestana(MARCA_B);
+    vista.unmount();
+    await servidorDice(json({ marca: MARCA_B }));
+    expect(ir).not.toHaveBeenCalled();
+    expect(window.localStorage.getItem(CLAVE)).toBe(MARCA_B);
   });
 });
 
@@ -377,7 +467,7 @@ describe("lo que NO cierra nada", () => {
       document.dispatchEvent(new Event("visibilitychange"));
     });
     expect(estado()).toBe("vigente · abierto");
-    expect(router.refresh).not.toHaveBeenCalled();
+    expect(preguntas).toHaveLength(0);
   });
 
   it("un navegador que no deja escribir: no hay con qué comparar", async () => {
@@ -393,17 +483,17 @@ describe("lo que NO cierra nada", () => {
         window.dispatchEvent(new Event("focus"));
       });
       expect(estado()).toBe("vigente · abierto");
-      expect(router.refresh).not.toHaveBeenCalled();
+      expect(preguntas).toHaveLength(0);
     } finally {
       escribir.mockRestore();
     }
   });
 
   it("al desmontar deja de escuchar", async () => {
-    const vista = render(<Pantalla inicial={{ marca: MARCA_A, sal: SAL_A }} />);
+    const vista = render(<Pantalla />);
     vista.unmount();
     await otraPestana(MARCA_B);
-    expect(router.refresh).not.toHaveBeenCalled();
+    expect(preguntas).toHaveLength(0);
   });
 });
 

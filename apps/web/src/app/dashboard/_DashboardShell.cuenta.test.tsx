@@ -130,6 +130,19 @@ describe("los cables del cambio de cuenta", () => {
     expect(layout).toMatch(/let cryptoSalt: string \| null \| undefined;/);
   });
 
+  it("a quién se le pregunta cuelga de /dashboard, donde el middleware renueva", () => {
+    const vigente = leer("../lib/crypto/sesion-vigente.tsx");
+    expect(vigente).toContain('const RUTA = "/dashboard/cuenta-vigente";');
+    expect(leer("../middleware.ts")).toMatch(
+      /const SESSION_PREFIXES = \["\/dashboard"/,
+    );
+    const ruta = leer("dashboard/cuenta-vigente/route.ts");
+    expect(ruta).toContain('export const dynamic = "force-dynamic";');
+    expect(ruta).toContain('"cache-control": "no-store, private"');
+    // Dar por contestada una pregunta porque terminó un refresco fue el fallo.
+    expect(vigente).not.toMatch(/useTransition|\.refresh\(/);
+  });
+
   it("la marca se retira en el acceso y el registro, y en ninguna otra", () => {
     // `verify-email`, `forgot-password` y `reset-password` también se abren CON
     // sesión: retirarla ahí cerraría el Diario de las demás pestañas.

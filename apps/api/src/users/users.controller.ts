@@ -15,6 +15,8 @@ import {
   ApiBadRequestResponse,
   ApiBearerAuth,
   ApiServiceUnavailableResponse,
+  ApiConflictResponse,
+  ApiGoneResponse,
   ApiTags,
   ApiUnauthorizedResponse,
 } from "@nestjs/swagger";
@@ -201,5 +203,31 @@ export class UsersController {
     @Body() dto: DeleteRequestDto,
   ) {
     return this.usersService.requestDelete(user.userId, dto);
+  }
+
+  // On the global limit (60/min) like its neighbours, and not a tighter one of
+  // its own, on purpose. The bucket is the network client, and every web caller
+  // reaches this through our own server — so they share ONE bucket. A handful
+  // per hour would let a few people use up everybody else's chance to keep
+  // their account.
+  /**
+   * Undo a pending account deletion. No body and no password.
+   *
+   * Idempotent: with nothing pending it answers `{ ok: true, cancelled: false }`.
+   */
+  @Post("delete-request/cancel")
+  @HttpCode(HttpStatus.OK)
+  @ApiConflictResponse({
+    type: ErrorEnvelopeDto,
+    description:
+      "ACCOUNT_DELETION_WINDOW_CLOSED — the 30 days have run out; the request can no longer be cancelled.",
+  })
+  @ApiGoneResponse({
+    type: ErrorEnvelopeDto,
+    description:
+      "ACCOUNT_ALREADY_DELETED — the deletion finished before the cancellation could.",
+  })
+  cancelDeleteRequest(@CurrentUser() user: AuthenticatedUser) {
+    return this.usersService.cancelDeleteRequest(user.userId);
   }
 }

@@ -779,7 +779,19 @@ export interface UserPrivacySettings {
    */
   localTextAnalysis: boolean;
   dataExportRequested: Date | null;
+  /** When the person ASKED for their account to be deleted. Not when it goes. */
   accountDeleteRequested: Date | null;
+  /**
+   * When the account will actually be deleted, and the last moment the request
+   * can be cancelled — the same instant, computed by the server from the number
+   * the worker uses. Never derive it in a client from `accountDeleteRequested`:
+   * that is how both platforms ended up printing the day of the REQUEST as the
+   * day of the deletion.
+   *
+   * Optional so a client built today still reads a server that predates it. In
+   * that case it shows no date at all, rather than the wrong one.
+   */
+  accountDeleteScheduledFor?: Date | null;
 }
 
 export interface UserMeResponse {
@@ -917,6 +929,18 @@ export interface DeleteAccountRequest {
 export interface DeleteAccountResponse {
   ok: true;
   deleteAt: Date;
+}
+
+/** POST /api/user/delete-request/cancel — no body. */
+export interface CancelAccountDeletionResponse {
+  ok: true;
+  /**
+   * `true` when this call undid a pending request, `false` when there was none
+   * to undo. Either way the account is NOT scheduled for deletion, which is what
+   * the person asked for — so a double tap, or a retry after a lost answer, is
+   * not an error.
+   */
+  cancelled: boolean;
 }
 
 export interface AvatarUploadResponse {
@@ -4037,6 +4061,10 @@ export * from "./crisis-catalog";
 // porque lo cuentan DOS superficies —el mensaje del servidor y la tarjeta de Mi
 // Plan— y contarlo dos veces es cómo acabaron diciendo horas distintas.
 export * from "./eco-reset";
+
+// Lo que se lee mientras una cuenta tiene la eliminación programada. Compartido
+// porque web y móvil decían, los dos, la fecha en que se PIDIÓ.
+export * from "./account-deletion";
 
 // Cuándo la Biblioteca explica que el catálogo tiene una sola obra. Lo usan
 // las dos pantallas, y la sutileza —un uno filtrado no es un catálogo de uno—

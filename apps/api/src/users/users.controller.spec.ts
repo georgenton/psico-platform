@@ -9,7 +9,7 @@ import { UsersController } from "./users.controller";
 // runs, so we only need to confirm the controller declares it.
 
 describe("UsersController · auth posture", () => {
-  it("declares JwtAuthGuard at the controller level (covers all 14 endpoints)", () => {
+  it("declares JwtAuthGuard at the controller level (covers every endpoint)", () => {
     const guards = Reflect.getMetadata("__guards__", UsersController) as
       | Array<new (...args: unknown[]) => unknown>
       | undefined;
@@ -18,7 +18,7 @@ describe("UsersController · auth posture", () => {
     expect(guards).toContain(JwtAuthGuard);
   });
 
-  it("exposes the expected 16 handlers", () => {
+  it("exposes the expected 17 handlers", () => {
     const proto = UsersController.prototype as unknown as Record<
       string,
       unknown
@@ -45,6 +45,7 @@ describe("UsersController · auth posture", () => {
         "requestDataExport",
         "getDataExportDownload",
         "requestDelete",
+        "cancelDeleteRequest",
       ].sort(),
     );
   });

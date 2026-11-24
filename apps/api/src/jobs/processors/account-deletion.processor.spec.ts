@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Logger } from "@nestjs/common";
 import type { Job } from "bullmq";
 import { AccountDeletionProcessor } from "./account-deletion.processor";
+import { ACCOUNT_DELETION_COOLDOWN_MS } from "../../users/account-deletion-window";
 import { JobName } from "../queue-names";
 
 function buildJob<T>(name: string, data: T) {
@@ -117,6 +118,35 @@ describe("AccountDeletionProcessor", () => {
       where: { id: "user-1" },
     });
   });
+
+  it.each([
+    ["a minute before the window closes", 60_000, false],
+    ["a minute after it has", -60_000, true],
+  ])(
+    "waits for the SAME thirty days a cancellation has: %s",
+    async (_name, left, deletes) => {
+      // The other half of this boundary is `UsersService.cancelDeleteRequest`,
+      // which stops accepting at the instant this starts acting.
+      const requestedAt = new Date(
+        Date.now() - ACCOUNT_DELETION_COOLDOWN_MS + left,
+      );
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: "user-1",
+        deleteRequestedAt: requestedAt,
+      });
+      lockedRow.rows = [{ id: "user-1", deleteRequestedAt: requestedAt }];
+
+      await processor.process(
+        buildJob(JobName.FINALIZE_ACCOUNT_DELETION, {
+          userId: "user-1",
+          requestedAt: requestedAt.toISOString(),
+        }),
+      );
+
+      expect(mockPrisma.user.delete).toHaveBeenCalledTimes(deletes ? 1 : 0);
+      expect(circles.detachUser).toHaveBeenCalledTimes(deletes ? 1 : 0);
+    },
+  );
 
   it("ends Círculos participation BEFORE removing the account", async () => {
     // Order is the assertion, not merely that both happened.

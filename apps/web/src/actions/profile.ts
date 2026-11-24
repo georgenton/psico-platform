@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import type { UserMeResponse } from "@psico/types";
 
-import { serverFetch } from "@/lib/api.server";
+import { ApiError } from "@/lib/api";
+import { isNextThrow, serverFetch } from "@/lib/api.server";
 
 /**
  * Server actions — Sprint S57 (Perfil UI).
@@ -70,7 +71,7 @@ export async function requestAccountDeleteAction(
   password: string,
   reason?: string,
 ): Promise<{ ok: true; deleteAt: string }> {
-  return await serverFetch<{ ok: true; deleteAt: string }>(
+  const res = await serverFetch<{ ok: true; deleteAt: string }>(
     "/user/delete-request",
     {
       method: "POST",
@@ -78,4 +79,36 @@ export async function requestAccountDeleteAction(
       headers: { "Content-Type": "application/json" },
     },
   );
+  revalidatePath("/dashboard/perfil");
+  return res;
+}
+
+export type CancelAccountDeleteResult =
+  | { ok: true }
+  /** `null` when no answer arrived, which is not the same as a refusal. */
+  | { ok: false; status: number | null };
+
+/**
+ * Undo a pending deletion.
+ *
+ * Returns the refusal instead of throwing it: in production Next replaces the
+ * message of an error thrown by an action with a digest, so the screen could
+ * never tell «it is too late» from «try again». The status is enough to choose
+ * the sentence, and the sentence is written in `@psico/types`.
+ *
+ * Revalidates, like the request does. Without it the client router cache keeps
+ * serving the page as it was, and somebody who cancels, looks at another screen
+ * and comes back reads «Borrado programado» again.
+ */
+export async function cancelAccountDeleteAction(): Promise<CancelAccountDeleteResult> {
+  try {
+    await serverFetch("/user/delete-request/cancel", { method: "POST" });
+  } catch (err) {
+    // `redirect("/logout")` travels as a throw. Swallowing it would leave a
+    // person without a session on a page that says «try again».
+    if (isNextThrow(err)) throw err;
+    return { ok: false, status: err instanceof ApiError ? err.status : null };
+  }
+  revalidatePath("/dashboard/perfil");
+  return { ok: true };
 }

@@ -5,7 +5,10 @@ import { JobName } from "./queue-names";
 
 describe("JobsService", () => {
   const mockEmailQueue = { add: vi.fn().mockResolvedValue(undefined) };
-  const mockDataExportQueue = { add: vi.fn().mockResolvedValue(undefined) };
+  const mockDataExportQueue = {
+    add: vi.fn().mockResolvedValue(undefined),
+    getJobs: vi.fn().mockResolvedValue([]),
+  };
   const mockAccountDeletionQueue = {
     add: vi.fn().mockResolvedValue(undefined),
   };
@@ -245,6 +248,39 @@ describe("JobsService", () => {
     } finally {
       process.env.NODE_ENV = previous;
     }
+  });
+
+  describe("resumeDataExport", () => {
+    const payload = { requestId: "export-1", userId: "user-1" };
+
+    it("queues the export again when no job is left to run it", async () => {
+      // Somebody else's job does not count as this one's.
+      mockDataExportQueue.getJobs.mockResolvedValueOnce([
+        { data: { requestId: "export-2", userId: "user-2" } },
+      ]);
+
+      expect(await service.resumeDataExport(payload)).toBe(true);
+
+      const [name, data] = mockDataExportQueue.add.mock.calls[0]!;
+      expect(name).toBe(JobName.RUN_DATA_EXPORT);
+      expect(data).toEqual(payload);
+    });
+
+    it("leaves it alone while its own job is still there: one file, one email", async () => {
+      mockDataExportQueue.getJobs.mockResolvedValueOnce([{ data: payload }]);
+
+      expect(await service.resumeDataExport(payload)).toBe(false);
+
+      expect(mockDataExportQueue.add).not.toHaveBeenCalled();
+      // Every state from which that job could still run — a completed one has
+      // already been skipped, and is the reason to queue another.
+      expect(mockDataExportQueue.getJobs).toHaveBeenCalledWith([
+        "waiting",
+        "delayed",
+        "active",
+        "paused",
+      ]);
+    });
   });
 
   it("enqueueAccountDeletion uses a 30-day delay + 5-attempt retry policy", async () => {

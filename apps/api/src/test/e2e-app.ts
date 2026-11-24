@@ -67,8 +67,22 @@ function makePrismaMock() {
       findMany: fn(),
       create: fn(),
       update: fn(),
+      updateMany: fn(),
       delete: fn(),
       count: fn(),
+    },
+    // The mirror of `User.deleteRequestedAt`, cleared when a deletion is
+    // cancelled.
+    privacySettings: {
+      findUnique: fn(),
+      upsert: fn(),
+      updateMany: fn(),
+    },
+    dataExportRequest: {
+      findFirst: fn(),
+      findUnique: fn(),
+      findMany: fn(),
+      create: fn(),
     },
     refreshToken: {
       findUnique: fn(),
@@ -186,8 +200,10 @@ function makePrismaMock() {
   // `tx.$executeRaw` inside the callback-form transaction; the mock tx client
   // needs the member so the flow is exercisable without real PostgreSQL.
   const $executeRaw = vi.fn().mockResolvedValue(0);
-  const txClient = { ...base, $executeRaw };
-  return { ...base, $transaction, $executeRaw };
+  // Row locks (`SELECT … FOR UPDATE`) taken inside a transaction.
+  const $queryRaw = vi.fn().mockResolvedValue([]);
+  const txClient = { ...base, $executeRaw, $queryRaw };
+  return { ...base, $transaction, $executeRaw, $queryRaw };
 }
 
 export interface E2EHarness {

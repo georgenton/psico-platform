@@ -8,8 +8,15 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { usersApi } from "@psico/api-client";
-import { DATA_EXPORT_SUMMARY } from "@psico/types";
+import { ApiError, usersApi } from "@psico/api-client";
+import {
+  ACCOUNT_DELETION_CANCELLED_NOTE,
+  ACCOUNT_DELETION_CANCEL_PROMPT,
+  DATA_EXPORT_SUMMARY,
+  accountDeletionDateLabel,
+  accountDeletionNotice,
+  cancelAccountDeletionErrorCopy,
+} from "@psico/types";
 import type { UserMeResponse } from "@psico/types";
 import { Colors, Radius, Spacing } from "@/theme";
 
@@ -21,9 +28,15 @@ export function DangerZone({
   onChanged?: () => void;
 }) {
   const [deleteOpen, setDeleteOpen] = useState(false);
+  // The request this screen has already seen cancelled. `me` is reloaded after
+  // it, but a reload that fails must not leave «Borrado programado» on screen
+  // for something the server confirmed is gone. Named by the request, so asking
+  // again later is scheduled like any other.
+  const [undone, setUndone] = useState<string | null>(null);
 
   const alreadyExported = me.privacy.dataExportRequested;
   const alreadyScheduled = me.privacy.accountDeleteRequested;
+  const requestKey = alreadyScheduled ? String(alreadyScheduled) : null;
 
   async function requestExport() {
     if (alreadyExported) {
@@ -49,16 +62,21 @@ export function DangerZone({
     }
   }
 
-  if (alreadyScheduled) {
-    const at = new Date(alreadyScheduled);
+  if (requestKey && requestKey !== undone) {
     return (
-      <View style={[styles.row, styles.scheduledRow]} testID="delete-scheduled">
-        <Text style={styles.scheduledTitle}>Borrado programado</Text>
-        <Text style={styles.scheduledHint}>
-          Tu cuenta se eliminará el {at.toLocaleString("es-419")}. Hasta
-          entonces, contacta a soporte para cancelar.
-        </Text>
-      </View>
+      <ScheduledDeletion
+        notice={accountDeletionNotice(
+          // The day the SERVER says it happens. Absent on a server that
+          // predates the field, and then no day is printed: the request's own
+          // date is not a stand-in for it.
+          me.privacy.accountDeleteScheduledFor,
+          me.user.timezone,
+        )}
+        onCancelled={() => {
+          setUndone(requestKey);
+          onChanged?.();
+        }}
+      />
     );
   }
 
@@ -105,6 +123,7 @@ export function DangerZone({
       </View>
 
       <DeleteAccountModal
+        timezone={me.user.timezone}
         visible={deleteOpen}
         onClose={() => setDeleteOpen(false)}
         onScheduled={() => {
@@ -116,11 +135,78 @@ export function DangerZone({
   );
 }
 
+/** «Borrado programado»: the day it happens, and the way out until then. */
+function ScheduledDeletion({
+  notice,
+  onCancelled,
+}: {
+  notice: string;
+  onCancelled: () => void;
+}) {
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function cancel() {
+    setPending(true);
+    setError(null);
+    try {
+      await usersApi.cancelAccountDeletion();
+    } catch (err) {
+      setPending(false);
+      setError(
+        cancelAccountDeletionErrorCopy(
+          err instanceof ApiError ? err.statusCode : null,
+        ),
+      );
+      return;
+    }
+    Alert.alert("Eliminación cancelada", ACCOUNT_DELETION_CANCELLED_NOTE);
+    onCancelled();
+  }
+
+  function confirm() {
+    Alert.alert("¿Conservar tu cuenta?", ACCOUNT_DELETION_CANCEL_PROMPT, [
+      { text: "Volver", style: "cancel" },
+      { text: "Sí, conservarla", onPress: () => void cancel() },
+    ]);
+  }
+
+  return (
+    <View style={[styles.row, styles.scheduledRow]} testID="delete-scheduled">
+      <View>
+        <Text style={styles.scheduledTitle}>Borrado programado</Text>
+        <Text style={styles.scheduledHint}>{notice}</Text>
+      </View>
+      {error ? (
+        <Text
+          style={styles.scheduledHint}
+          accessibilityRole="alert"
+          testID="delete-cancel-error"
+        >
+          {error}
+        </Text>
+      ) : null}
+      <Pressable
+        onPress={confirm}
+        disabled={pending}
+        style={[styles.btnDanger, pending && { opacity: 0.5 }]}
+        testID="delete-cancel"
+      >
+        <Text style={styles.btnDangerText}>
+          {pending ? "Cancelando..." : "Cancelar la eliminación"}
+        </Text>
+      </Pressable>
+    </View>
+  );
+}
+
 function DeleteAccountModal({
+  timezone,
   visible,
   onClose,
   onScheduled,
 }: {
+  timezone: string | null;
   visible: boolean;
   onClose: () => void;
   onScheduled: () => void;
@@ -142,10 +228,9 @@ function DeleteAccountModal({
         password,
         reason: reason || undefined,
       });
-      const at = new Date(res.deleteAt);
       Alert.alert(
         "Borrado programado",
-        `Tu cuenta se eliminará el ${at.toLocaleString("es-419")}.`,
+        `Tu cuenta se eliminará el ${accountDeletionDateLabel(res.deleteAt, timezone)}.`,
       );
       onScheduled();
     } catch {

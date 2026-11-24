@@ -11,6 +11,7 @@ jest.mock("@psico/api-client", () => ({
 }));
 
 const me = {
+  user: { timezone: null },
   privacy: { dataExportRequested: null, accountDeleteRequested: null },
 } as unknown as UserMeResponse;
 

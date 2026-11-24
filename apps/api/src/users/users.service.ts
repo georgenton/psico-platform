@@ -18,6 +18,7 @@ import {
 } from "@psico/types";
 import type {
   AvatarUploadResponse,
+  CancelAccountDeletionResponse,
   DataExportRequestResponse,
   DeleteAccountResponse,
   UserMeResponse,
@@ -39,6 +40,10 @@ import { lockUserExclusive } from "../emotional-map/privacy-barrier";
 import { ExpectedUnavailableException } from "../shared/filters/expected-unavailable.exception";
 import { contentAssetPath } from "../shared/content-asset";
 import { assertUploadableImage, imageObjectKey } from "../shared/image-upload";
+import {
+  accountDeletionCutoff,
+  accountDeletionDueAt,
+} from "./account-deletion-window";
 import {
   DATA_EXPORT_COOLDOWN_DAYS,
   DATA_EXPORT_RETENTION_DAYS,
@@ -108,7 +113,18 @@ const DATA_EXPORT_EXPECTED_HOURS = 24;
  * prevent.
  */
 const DATA_EXPORT_SIGNED_TTL_SEC = 120;
-const DELETE_COOLDOWN_DAYS = 30;
+
+/** What `cancelDeleteRequest` may do about the row in front of it. */
+function cancellability(
+  row: { deleteRequestedAt: Date | null } | null,
+  now: Date,
+): "open" | "nothing-pending" | "window-closed" | "account-gone" {
+  if (!row) return "account-gone";
+  if (!row.deleteRequestedAt) return "nothing-pending";
+  return row.deleteRequestedAt > accountDeletionCutoff(now)
+    ? "open"
+    : "window-closed";
+}
 
 @Injectable()
 export class UsersService {
@@ -234,6 +250,9 @@ export class UsersService {
         dataExportRequested:
           user.privacySettings?.dataExportRequestedAt ?? null,
         accountDeleteRequested: user.deleteRequestedAt,
+        accountDeleteScheduledFor: user.deleteRequestedAt
+          ? accountDeletionDueAt(user.deleteRequestedAt)
+          : null,
       },
       // E2E crypto salt (Sprint S6-crypto, ADR 0007 §A). Null for legacy
       // accounts. The client uses it to derive the diary master key.
@@ -900,11 +919,10 @@ export class UsersService {
     if (!user) throw new NotFoundException("User not found");
 
     if (user.deleteRequestedAt) {
-      const deleteAt = new Date(
-        user.deleteRequestedAt.getTime() +
-          DELETE_COOLDOWN_DAYS * 24 * 3600 * 1000,
-      );
-      return { ok: true, deleteAt };
+      return {
+        ok: true,
+        deleteAt: accountDeletionDueAt(user.deleteRequestedAt),
+      };
     }
 
     // OAuth users have no password to confirm with. For now, refuse the
@@ -921,9 +939,6 @@ export class UsersService {
     if (!valid) throw new UnauthorizedException("Password is incorrect");
 
     const now = new Date();
-    const deleteAt = new Date(
-      now.getTime() + DELETE_COOLDOWN_DAYS * 24 * 3600 * 1000,
-    );
 
     await this.prisma.$transaction([
       this.prisma.user.update({
@@ -939,7 +954,7 @@ export class UsersService {
 
     // Enqueue the delayed deletion job (+30 days). The worker re-checks
     // `User.deleteRequestedAt` at execution time — if the user cancelled in
-    // the meantime (a future endpoint), the job no-ops. See
+    // the meantime (`cancelDeleteRequest`, below), the job no-ops. See
     // `apps/api/src/jobs/processors/account-deletion.processor.ts`.
     //
     // `dto.reason` is intentionally NOT persisted to keep the deletion
@@ -950,10 +965,166 @@ export class UsersService {
       requestedAt: now.toISOString(),
     });
 
-    return { ok: true, deleteAt };
+    return { ok: true, deleteAt: accountDeletionDueAt(now) };
+  }
+
+  // ── POST /api/user/delete-request/cancel ───────────────────────────────────
+
+  /**
+   * Undo a pending deletion, for as long as it is still the person's to undo.
+   *
+   * Nothing is dequeued. The delayed job stays in Redis and re-reads
+   * `deleteRequestedAt` when it fires; finding it cleared is what makes it step
+   * aside. So what has to be right here is one row, and the order in which this
+   * and `AccountDeletionProcessor` get to it.
+   *
+   * ── The two orders, and there is no third ───────────────────────────────
+   *
+   * Both take the same `User` row exclusively before deciding anything.
+   *
+   *   Cancellation first → the worker waits, re-reads null, and leaves. It had
+   *                        mutated nothing: its first write comes after that
+   *                        read.
+   *   Worker first       → this waits. If the worker deleted, there is no row
+   *                        left to update and the answer is GONE. If it failed
+   *                        and rolled back, the request is past due and the
+   *                        answer is the same refusal any late caller gets.
+   *
+   * ── Why the clock is read after the lock ────────────────────────────────
+   *
+   * A cutoff computed before waiting is a fact about the past. Somebody who
+   * arrives moments before the deadline and waits behind the worker would be
+   * judged by when they knocked, and could be told «cancelled» about an account
+   * whose personal objects were erased while they waited — the worker removes
+   * those from R2 before the rows, and R2 does not roll back.
+   *
+   * ── Why no password ─────────────────────────────────────────────────────
+   *
+   * Asking for the deletion needs one because it destroys. This restores: the
+   * worst a stolen session can do here is keep an account alive.
+   */
+  async cancelDeleteRequest(
+    userId: string,
+  ): Promise<CancelAccountDeletionResponse> {
+    const outcome = await this.prisma.$transaction(async (tx) => {
+      const pending = () =>
+        tx.user.findUnique({
+          where: { id: userId },
+          select: { deleteRequestedAt: true },
+        });
+
+      // Unlocked, and only to answer early. The one transaction that holds this
+      // row for long is the worker deleting the account, and it holds it only
+      // once the request is past due — so a late caller is refused here at once
+      // instead of queueing behind a deletion until Prisma gives up on them.
+      const early = cancellability(await pending(), new Date());
+      if (early !== "open") return early;
+
+      await lockUserExclusive(tx, userId);
+
+      // The decision. Conditional so it stands on its own: whatever happened
+      // while we waited, this either undoes a request that is still inside its
+      // window or touches nothing.
+      const undone = await tx.user.updateMany({
+        where: {
+          id: userId,
+          deleteRequestedAt: {
+            not: null,
+            gt: accountDeletionCutoff(new Date()),
+          },
+        },
+        data: { deleteRequestedAt: null },
+      });
+
+      if (undone.count !== 1) {
+        const now = cancellability(await pending(), new Date());
+        // «open» cannot come back under our own lock. Answered as a refusal
+        // rather than asserted away: the one thing this must never do is claim
+        // a cancellation it did not write.
+        return now === "open" ? ("window-closed" as const) : now;
+      }
+
+      // The mirror, in the same transaction. It is written by `requestDelete`
+      // and travels in the data export, so leaving it behind would hand
+      // somebody a file that says their account is being deleted.
+      await tx.privacySettings.updateMany({
+        where: { userId },
+        data: { accountDeleteRequestedAt: null },
+      });
+      return "cancelled" as const;
+    });
+
+    if (outcome === "account-gone") {
+      throw new HttpException(
+        {
+          code: "ACCOUNT_ALREADY_DELETED",
+          message: "Esta cuenta ya se eliminó.",
+        },
+        HttpStatus.GONE,
+      );
+    }
+    if (outcome === "window-closed") {
+      throw new ConflictException({
+        code: "ACCOUNT_DELETION_WINDOW_CLOSED",
+        message: "Ya pasó el plazo para cancelar la eliminación.",
+      });
+    }
+    if (outcome === "cancelled") {
+      // The request leaves one line when its job is enqueued and no audit row;
+      // this is its counterpart, so the job that later steps aside can be
+      // matched to the person who asked it to.
+      this.logger.log(`Account deletion cancelled · userId=${userId}`);
+      await this.resumeStrandedExports(userId);
+    }
+
+    // Nothing pending is SUCCESS, like `requestDelete` answering an account that
+    // already is. The person asked not to be deleted and they are not going to
+    // be; a 409 would make a double tap look like a failure, and the one retry
+    // that matters is the one after a lost answer.
+    return { ok: true, cancelled: outcome === "cancelled" };
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────
+
+  /**
+   * The exports a pending deletion left on the floor.
+   *
+   * «Download my data, delete my account» is the order people ask in, and an
+   * export still unprocessed when the second arrives is skipped for good: its
+   * row stays PENDING with no job behind it, and it is that very row which
+   * refuses a new one for thirty days. Undoing the deletion has to undo that
+   * too, or the person keeps the account and loses the copy they asked for.
+   *
+   * Only the rows that would block a new request. An older one costs nothing:
+   * they can simply ask again.
+   *
+   * Never allowed to fail the cancellation, which is already committed.
+   */
+  private async resumeStrandedExports(userId: string): Promise<void> {
+    try {
+      const stranded = await this.prisma.dataExportRequest.findMany({
+        where: {
+          userId,
+          status: {
+            in: [DATA_EXPORT_STATUS.PENDING, DATA_EXPORT_STATUS.PROCESSING],
+          },
+          createdAt: {
+            gt: new Date(
+              Date.now() - DATA_EXPORT_COOLDOWN_DAYS * 24 * 3600 * 1000,
+            ),
+          },
+        },
+        select: { id: true },
+      });
+      for (const { id } of stranded) {
+        await this.jobs.resumeDataExport({ requestId: id, userId });
+      }
+    } catch (err) {
+      this.logger.warn(
+        `Could not resume exports after a cancelled deletion · userId=${userId}: ${(err as Error).message}`,
+      );
+    }
+  }
 
   private async computeStats(userId: string) {
     // S6: diaryEntries now reflects the real count. minutesTotal still

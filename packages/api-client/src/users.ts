@@ -1,4 +1,5 @@
 import type {
+  CancelAccountDeletionResponse,
   DataExportRequestResponse,
   DeleteAccountRequest,
   DeleteAccountResponse,
@@ -61,6 +62,13 @@ export const usersApi = {
   /** Sprint S57 — Schedule account deletion (30-day cooldown). */
   requestAccountDeletion: (body: DeleteAccountRequest) =>
     apiClient.post<DeleteAccountResponse>("/user/delete-request", body),
+
+  /** Undo a pending deletion. Idempotent; 409 once its 30 days have run out. */
+  cancelAccountDeletion: () =>
+    apiClient.post<CancelAccountDeletionResponse>(
+      "/user/delete-request/cancel",
+      {},
+    ),
 
   /** Sprint Perfil — Update voice/theme/bestTime/weeklyGoal/moodPrompts/language. */
   updatePreferences: (body: UpdatePreferencesRequest) =>

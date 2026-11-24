@@ -170,6 +170,52 @@ function makePrismaMock() {
       findMany: fn(),
       count: fn(),
     },
+    // Terapia — the offer gate's E2E asserts that NOT ONE of these is touched
+    // while the gate is closed, so they have to exist to be observed.
+    therapist: {
+      findMany: fn(),
+      findUnique: fn(),
+      findFirst: fn(),
+      count: fn(),
+      create: fn(),
+      update: fn(),
+      upsert: fn(),
+    },
+    therapistFavorite: {
+      findMany: fn(),
+      findUnique: fn(),
+      create: fn(),
+      delete: fn(),
+    },
+    therapistReview: {
+      findMany: fn(),
+      count: fn(),
+    },
+    therapySession: {
+      findFirst: fn(),
+      findMany: fn(),
+      findUnique: fn(),
+      create: fn(),
+      update: fn(),
+      updateMany: fn(),
+      delete: fn(),
+    },
+    therapyPrescription: {
+      findMany: fn(),
+      findUnique: fn(),
+      update: fn(),
+    },
+    therapyNotification: {
+      findFirst: fn(),
+      findMany: fn(),
+      findUnique: fn(),
+      count: fn(),
+      update: fn(),
+      updateMany: fn(),
+    },
+    therapyTechnicalReport: {
+      create: fn(),
+    },
     // Other models added on demand by future sprints.
   };
   // Callback-form $transaction passes the mock itself as the tx client, so

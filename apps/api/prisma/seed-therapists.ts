@@ -8,6 +8,8 @@
  * lives where importing it is inert.
  */
 
+import type { DemoTherapistId } from "../src/terapia/demo-therapists";
+
 /**
  * Exactly the surface `seedTherapists` is allowed to touch.
  *
@@ -35,7 +37,28 @@ export interface TherapistSeedClient {
 }
 
 /**
- * Therapists and their weekly availability.
+ * Demo therapists and their weekly availability.
+ *
+ * ── These people do not exist ─────────────────────────────────────────────
+ *
+ * Every entry is a demo profile, declared as such in
+ * `src/terapia/demo-therapists.ts`, and the `satisfies` below makes that
+ * declaration a condition of compiling: an id that is not on the list cannot be
+ * seeded. A real professional is not seed data.
+ *
+ * So the rows are born the way an invented person should be: inactive, with no
+ * verified licence, no rating, no review count, and a licence number that says
+ * DEMO — the old ones looked like Ecuadorian registrations and could have been
+ * somebody's. Until 2026-11-24 they were created active and "verified", with
+ * ratings over as many as 64 reviews that never existed.
+ *
+ * ── A rerun re-affirms nothing ────────────────────────────────────────────
+ *
+ * `update` is EMPTY. It used to write the whole entry back plus
+ * `isActive: true`, so withdrawing a row lasted until the next seed. A row that
+ * already exists governs itself; the seed neither reactivates it nor switches
+ * it off. What keeps a demo row out of the product is its identity, in the
+ * service — not a flag this file could flip.
  *
  * Extracted from `main()` so the preservation rule below can be OBSERVED rather
  * than asserted in prose: `therapist-availability.spec.ts` runs this against a
@@ -54,8 +77,7 @@ export async function seedTherapists(
       name: "Marina Quintana",
       initials: "MQ",
       title: "Psicóloga clínica · Senior Eco",
-      licenseNumber: "PSI-EC-2031",
-      licenseVerified: true,
+      licenseNumber: "DEMO-MARINA",
       coverToken: "warm",
       bioShort:
         "Acompaño procesos de ansiedad, duelo y reconfiguración de identidad después de cambios grandes.",
@@ -72,9 +94,6 @@ export async function seedTherapists(
       genderId: "femenino",
       priceUsd: 45,
       acceptsInsurance: false,
-      avgRating: 4.8,
-      reviewsCount: 47,
-      popularity: 100,
       firstSessionPolicy: "Primera sesión sin cargo si decides no continuar.",
       cancellationPolicy: "Hasta 24h antes sin costo.",
     },
@@ -83,8 +102,7 @@ export async function seedTherapists(
       name: "Andrea Ortiz",
       initials: "AO",
       title: "Psicóloga · Pareja y familia",
-      licenseNumber: "PSI-EC-1885",
-      licenseVerified: true,
+      licenseNumber: "DEMO-ANDREA",
       coverToken: "lavender",
       bioShort:
         "Especializada en terapia de pareja y vínculos familiares. Trabajo desde el enfoque sistémico.",
@@ -101,9 +119,6 @@ export async function seedTherapists(
       genderId: "femenino",
       priceUsd: 55,
       acceptsInsurance: true,
-      avgRating: 4.6,
-      reviewsCount: 31,
-      popularity: 80,
       firstSessionPolicy:
         "Primera sesión: anamnesis + co-construcción de objetivos.",
       cancellationPolicy: "Hasta 48h antes sin costo.",
@@ -113,8 +128,7 @@ export async function seedTherapists(
       name: "Diego Velasco",
       initials: "DV",
       title: "Psicólogo · Adultos jóvenes",
-      licenseNumber: "PSI-EC-2104",
-      licenseVerified: true,
+      licenseNumber: "DEMO-DIEGO",
       coverToken: "mixed",
       bioShort:
         "Trabajo con jóvenes adultos en transiciones de carrera, vínculos y proyectos de vida.",
@@ -127,9 +141,6 @@ export async function seedTherapists(
       genderId: "masculino",
       priceUsd: 35,
       acceptsInsurance: false,
-      avgRating: 4.5,
-      reviewsCount: 19,
-      popularity: 70,
       firstSessionPolicy:
         "Primera sesión enfocada en establecer foco terapéutico.",
       cancellationPolicy: "Hasta 24h antes sin costo.",
@@ -139,8 +150,7 @@ export async function seedTherapists(
       name: "Lucía Pérez",
       initials: "LP",
       title: "Psicóloga · Trauma y abuso",
-      licenseNumber: "PSI-EC-1992",
-      licenseVerified: true,
+      licenseNumber: "DEMO-LUCIA",
       coverToken: "cool",
       bioShort:
         "Especialista en trauma complejo y supervivientes de abuso. Enfoque seguro y a tu ritmo.",
@@ -153,9 +163,6 @@ export async function seedTherapists(
       genderId: "femenino",
       priceUsd: 60,
       acceptsInsurance: true,
-      avgRating: 4.9,
-      reviewsCount: 64,
-      popularity: 95,
       firstSessionPolicy: "Sesión 0 gratuita para evaluar fit y seguridad.",
       cancellationPolicy: "Hasta 72h antes sin costo.",
     },
@@ -164,8 +171,7 @@ export async function seedTherapists(
       name: "Eduardo Salinas",
       initials: "ES",
       title: "Psicólogo · Adicciones",
-      licenseNumber: "PSI-EC-1721",
-      licenseVerified: true,
+      licenseNumber: "DEMO-EDUARDO",
       coverToken: "warm",
       bioShort:
         "20 años trabajando en adicciones químicas y conductuales. Enfoque cognitivo-conductual y mindfulness.",
@@ -182,9 +188,6 @@ export async function seedTherapists(
       genderId: "masculino",
       priceUsd: 50,
       acceptsInsurance: true,
-      avgRating: 4.7,
-      reviewsCount: 38,
-      popularity: 85,
       firstSessionPolicy: "Evaluación inicial: motivacional + sistémica.",
       cancellationPolicy: "Hasta 48h antes sin costo.",
     },
@@ -193,8 +196,7 @@ export async function seedTherapists(
       name: "Camila Torres",
       initials: "CT",
       title: "Psicóloga · Adolescentes y juventud",
-      licenseNumber: "PSI-EC-2240",
-      licenseVerified: true,
+      licenseNumber: "DEMO-CAMILA",
       coverToken: "lavender",
       bioShort:
         "Trabajo con adolescentes y jóvenes en temas de identidad, ansiedad social, autoestima y bullying.",
@@ -216,14 +218,11 @@ export async function seedTherapists(
       genderId: "femenino",
       priceUsd: 40,
       acceptsInsurance: false,
-      avgRating: 4.7,
-      reviewsCount: 25,
-      popularity: 75,
       firstSessionPolicy:
         "Primera sesión con padres + adolescente para alinear objetivos.",
       cancellationPolicy: "Hasta 24h antes sin costo.",
     },
-  ];
+  ] satisfies ReadonlyArray<{ id: DemoTherapistId; [field: string]: unknown }>;
 
   let seededSchedules = 0;
   let preservedSchedules = 0;
@@ -233,14 +232,15 @@ export async function seedTherapists(
       where: { id: t.id },
       create: {
         ...t,
-        isActive: true,
+        isActive: false,
+        licenseVerified: false,
+        avgRating: 0,
+        reviewsCount: 0,
+        popularity: 0,
         currency: "USD",
       },
-      update: {
-        ...t,
-        isActive: true,
-        currency: "USD",
-      },
+      // Nothing. See "A rerun re-affirms nothing" above.
+      update: {},
     });
 
     // Default weekly availability — Mon/Wed/Fri 09:00–13:00 + 15:00–19:00
@@ -303,6 +303,6 @@ export async function seedTherapists(
     seededSchedules += 1;
   }
   console.log(
-    `✅  Therapists: ${therapists.length} terapeutas · ${seededSchedules} schedule(s) seeded · ${preservedSchedules} preserved`,
+    `✅  Therapists: ${therapists.length} fichas de demostración · ${seededSchedules} schedule(s) seeded · ${preservedSchedules} preserved`,
   );
 }

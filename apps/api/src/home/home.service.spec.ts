@@ -217,12 +217,11 @@ describe("HomeService.getHome", () => {
     expect(result.user.streakDays).toBe(3);
     expect(result.continueBook).toBeNull();
     expect(result.recos).toEqual([]);
-    expect(result.shortcuts).toHaveLength(4);
+    // Terapia no es un atajo mientras no se ofrezca.
     expect(result.shortcuts.map((s) => s.id)).toEqual([
       "reflexiones",
       "eco",
       "biblioteca",
-      "terapia",
     ]);
     expect(result.greeting.text).toBeDefined();
   });
@@ -255,7 +254,7 @@ describe("HomeService.getHome", () => {
     expect(result.emotionalMap).toBeNull();
     // The rest of Home is unaffected.
     expect(result.user.firstName).toBe("Jorge");
-    expect(result.shortcuts).toHaveLength(4);
+    expect(result.shortcuts).toHaveLength(3);
   });
 
   it("computes continueBook from the latest ReadingSession", async () => {

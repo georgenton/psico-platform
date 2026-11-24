@@ -13,9 +13,18 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { terapiaApi } from "@psico/api-client";
 import type { TherapistListItem, TherapistListResponse } from "@psico/types";
+import { PuertaDeTerapia } from "@/components/dashboard/terapia/PuertaDeTerapia";
 import { Colors, Radius, Spacing } from "@/theme";
 
 export default function DirectorioScreen() {
+  return (
+    <PuertaDeTerapia>
+      <Directorio />
+    </PuertaDeTerapia>
+  );
+}
+
+function Directorio() {
   const router = useRouter();
   const [data, setData] = useState<TherapistListResponse | null>(null);
   const [search, setSearch] = useState("");

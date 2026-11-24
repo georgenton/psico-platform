@@ -163,6 +163,18 @@ export const envSchema = z
      */
     BILLING_PURCHASES: z.string().optional(),
 
+    /**
+     * ¿Se ofrece terapia? Segunda puerta que falla CERRADA, con el mismo
+     * criterio y por las mismas razones que `BILLING_PURCHASES`: `string` y no
+     * `enum`, para que una errata cierre la oferta en vez de impedir el
+     * arranque. La interpretación vive en `shared/therapy-offer.ts`.
+     *
+     * Abrirla no hace disponible ninguna ficha de demostración: esas están
+     * declaradas en `terapia/demo-therapists.ts` y quedan fuera siempre. Y no
+     * abre las compras de planes, que tienen su propia puerta.
+     */
+    THERAPY_OFFER: z.string().optional(),
+
     // AI companion
     ANTHROPIC_API_KEY: z.string().min(1, "ANTHROPIC_API_KEY is required"),
     VOYAGE_API_KEY: z.string().min(1, "VOYAGE_API_KEY is required"),

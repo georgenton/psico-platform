@@ -17,6 +17,7 @@ import type {
   TherapyModality,
 } from "@psico/types";
 import { webOrigin } from "@/config/environment";
+import { PuertaDeTerapia } from "@/components/dashboard/terapia/PuertaDeTerapia";
 import { Colors, Radius, Spacing } from "@/theme";
 
 const MODALITY_LABEL: Record<TherapyModality, string> = {
@@ -30,6 +31,14 @@ const MODALITY_LABEL: Record<TherapyModality, string> = {
 // a retired platform and no longer even the product's domain.
 
 export default function ReservarScreen() {
+  return (
+    <PuertaDeTerapia>
+      <Reservar />
+    </PuertaDeTerapia>
+  );
+}
+
+function Reservar() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [therapist, setTherapist] = useState<TherapistDetail | null>(null);
   const [availability, setAvailability] =

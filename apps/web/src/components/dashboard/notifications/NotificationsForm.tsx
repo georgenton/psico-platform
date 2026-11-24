@@ -47,11 +47,8 @@ const ROWS: Array<{
     label: "Resumen semanal",
     hint: "Email cada lunes con un resumen de tu semana.",
   },
-  {
-    key: "terapiaReminders",
-    label: "Recordatorios de terapia",
-    hint: "Avisos antes de tu próxima sesión (v2, cuando Terapia esté activa).",
-  },
+  // `terapiaReminders` no se enseña: avisar «antes de tu próxima sesión» es
+  // ofrecerla. La preferencia guardada se conserva, y vuelve con la oferta.
 ];
 
 export function NotificationsForm({

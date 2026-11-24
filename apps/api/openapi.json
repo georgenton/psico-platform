@@ -22738,6 +22738,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Therapy is not being offered (THERAPY_OFFER_CLOSED).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
           }
         },
         "summary": "Opciones disponibles para los filtros del directorio.",
@@ -22886,6 +22896,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Therapy is not being offered (THERAPY_OFFER_CLOSED).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
           }
         },
         "summary": "Directorio paginado de terapeutas activos. Soporta filtros + sort.",
@@ -22930,6 +22950,16 @@
           },
           "401": {
             "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Therapy is not being offered (THERAPY_OFFER_CLOSED).",
             "content": {
               "application/json": {
                 "schema": {
@@ -23007,6 +23037,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Therapy is not being offered (THERAPY_OFFER_CLOSED).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
           }
         },
         "summary": "Reseñas paginadas de un terapeuta.",
@@ -23051,6 +23091,16 @@
           },
           "401": {
             "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Therapy is not being offered (THERAPY_OFFER_CLOSED).",
             "content": {
               "application/json": {
                 "schema": {
@@ -23120,6 +23170,16 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Therapy is not being offered (THERAPY_OFFER_CLOSED).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
           }
         },
         "summary": "Slots disponibles del terapeuta proyectados sobre los próximos 14 días.",
@@ -23175,6 +23235,16 @@
           },
           "409": {
             "description": "The requested slot is already taken (SLOT_TAKEN).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Therapy is not being offered (THERAPY_OFFER_CLOSED).",
             "content": {
               "application/json": {
                 "schema": {
@@ -23292,6 +23362,16 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "The session was booked with a demo profile (THERAPY_DEMO_SESSION).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
           }
         },
         "summary": "Actualizar pre-sesión (intentionCiphertext E2E, mood, entradas compartidas).",
@@ -23336,6 +23416,16 @@
           },
           "401": {
             "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The session was booked with a demo profile (THERAPY_DEMO_SESSION).",
             "content": {
               "application/json": {
                 "schema": {
@@ -23830,7 +23920,17 @@
             }
           },
           "409": {
-            "description": "The new slot is already taken (SLOT_TAKEN).",
+            "description": "The new slot is already taken (SLOT_TAKEN), or the session was booked with a demo profile (THERAPY_DEMO_SESSION).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Therapy is not being offered (THERAPY_OFFER_CLOSED).",
             "content": {
               "application/json": {
                 "schema": {
@@ -23946,6 +24046,26 @@
           },
           "401": {
             "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The session was booked with a demo profile (THERAPY_DEMO_SESSION).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelopeDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Therapy is not being offered (THERAPY_OFFER_CLOSED).",
             "content": {
               "application/json": {
                 "schema": {

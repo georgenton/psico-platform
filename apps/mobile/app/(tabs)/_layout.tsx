@@ -152,13 +152,28 @@ export default function TabsLayout() {
             ),
           }}
         />
+        {/* Sin pestaña mientras no se ofrezca terapia (`THERAPY_OFFER`). La ruta
+            se queda: de ella cuelga el historial de quien lo tenga. */}
         <Tabs.Screen
           name="terapia"
           options={{
+            href: null,
             title: "Terapia",
             headerShown: false,
             tabBarIcon: ({ color, size }: IconProps) => (
               <Ionicons name="chatbubbles" size={size} color={color} />
+            ),
+          }}
+        />
+        {/* La ayuda inmediata colgaba de la pestaña de Terapia. Ocupa su sitio
+            para que retirarla no la esconda. */}
+        <Tabs.Screen
+          name="ayuda"
+          options={{
+            title: "Ayuda inmediata",
+            tabBarLabel: "Ayuda",
+            tabBarIcon: ({ color, size }: IconProps) => (
+              <Ionicons name="heart" size={size} color={color} />
             ),
           }}
         />

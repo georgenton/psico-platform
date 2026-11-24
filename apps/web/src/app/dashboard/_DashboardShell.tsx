@@ -177,12 +177,9 @@ const USER_MENU_ITEMS: readonly NavItem[] = [
     exact: false,
     tourTarget: null,
   },
-  {
-    href: "/dashboard/terapia",
-    label: "Terapia",
-    exact: false,
-    tourTarget: null,
-  },
+  // Terapia no está en el menú mientras no se ofrezca (`THERAPY_OFFER`). Sus
+  // direcciones siguen existiendo: dicen que no se ofrece y enlazan el
+  // historial de quien lo tenga. Vuelve con la apertura, no antes.
 ];
 
 function matchesRoute(href: string, pathname: string, exact: boolean): boolean {

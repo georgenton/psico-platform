@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { TherapistListItem, TherapistSummary } from "@psico/types";
+import { ratingLabel } from "./rating";
 
 const COVER_TOKENS: Record<string, string> = {
   warm: "linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)",
@@ -19,6 +20,7 @@ export function TherapistCard({
   const cover =
     COVER_TOKENS[therapist.coverToken ?? "warm"] ?? COVER_TOKENS.warm;
   const isList = "isFavorite" in therapist;
+  const rating = ratingLabel(therapist);
   return (
     <Link
       href={href}
@@ -60,9 +62,8 @@ export function TherapistCard({
           color: "var(--color-warm-700)",
         }}
       >
-        <span>
-          ⭐ {therapist.avgRating.toFixed(1)} ({therapist.reviewsCount})
-        </span>
+        {/* El hueco se queda aunque no haya nota: el precio va a la derecha. */}
+        <span>{rating ? `⭐ ${rating}` : null}</span>
         <span className="font-semibold">
           ${therapist.priceUsd.toFixed(0)} {therapist.currency}
         </span>

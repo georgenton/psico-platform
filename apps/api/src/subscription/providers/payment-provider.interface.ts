@@ -23,6 +23,11 @@ export interface ReactivateSubscriptionResult {
 export interface TherapyCheckoutOpts {
   userId: string;
   sessionId: string;
+  /**
+   * A quién se paga. Obligatorio para que nadie pueda pedir un cobro sin decir
+   * con quién: es lo que permite a `PaymentService` negarse por identidad.
+   */
+  therapistId: string;
   /** Final amount in `currency`. Stripe receives cents. */
   priceUsd: number;
   currency: string;

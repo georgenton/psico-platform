@@ -1,3 +1,4 @@
+import { ConfigService } from "@nestjs/config";
 import { Test, type TestingModule } from "@nestjs/testing";
 import {
   BadRequestException,
@@ -40,8 +41,13 @@ type PrismaMock = {
   therapyTechnicalReport: {
     create: ReturnType<typeof vi.fn>;
   };
-  therapyPrescription: { findMany: ReturnType<typeof vi.fn>; findUnique: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> };
+  therapyPrescription: {
+    findMany: ReturnType<typeof vi.fn>;
+    findUnique: ReturnType<typeof vi.fn>;
+    update: ReturnType<typeof vi.fn>;
+  };
   therapyNotification: {
+    findFirst: ReturnType<typeof vi.fn>;
     findMany: ReturnType<typeof vi.fn>;
     count: ReturnType<typeof vi.fn>;
     findUnique: ReturnType<typeof vi.fn>;
@@ -54,18 +60,14 @@ function makeVideo(overrides: Partial<IVideoProvider> = {}): IVideoProvider {
   return {
     name: "stub",
     isConfigured: vi.fn().mockReturnValue(false),
-    createRoom: vi
-      .fn()
-      .mockResolvedValue({
-        roomUrl: "fake-room://x",
-        expiresAt: new Date(Date.now() + 7200_000),
-      }),
-    createJoinToken: vi
-      .fn()
-      .mockResolvedValue({
-        joinToken: "fake-token",
-        expiresAt: new Date(Date.now() + 7200_000),
-      }),
+    createRoom: vi.fn().mockResolvedValue({
+      roomUrl: "fake-room://x",
+      expiresAt: new Date(Date.now() + 7200_000),
+    }),
+    createJoinToken: vi.fn().mockResolvedValue({
+      joinToken: "fake-token",
+      expiresAt: new Date(Date.now() + 7200_000),
+    }),
     destroyRoom: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   } as IVideoProvider;
@@ -122,6 +124,7 @@ describe("TerapiaService", () => {
         update: vi.fn(),
       },
       therapyNotification: {
+        findFirst: vi.fn().mockResolvedValue(null),
         findMany: vi.fn().mockResolvedValue([]),
         count: vi.fn().mockResolvedValue(0),
         findUnique: vi.fn(),
@@ -155,6 +158,18 @@ describe("TerapiaService", () => {
               url: "https://checkout.stripe.com/cs_test",
               stripeCheckoutSessionId: "cs_test_xxx",
             }),
+          },
+        },
+        // La oferta va ABIERTA en estas pruebas, que miden la mecánica de cada
+        // ruta. La puerta y las fichas de demostración tienen las suyas en
+        // `terapia-offer.service.spec.ts`. El doble responde POR CLAVE: uno que
+        // contestara "on" a todo abriría también lo que no se preguntó.
+        {
+          provide: ConfigService,
+          useValue: {
+            get: vi.fn((key: string) =>
+              key === "THERAPY_OFFER" ? "on" : undefined,
+            ),
           },
         },
       ],
@@ -222,6 +237,69 @@ describe("TerapiaService", () => {
       expect(res.activeTherapist).toBeNull();
       expect(res.nextSession).toBeNull();
       expect(res.recentPrescriptions).toEqual([]);
+      expect(res.history).toEqual({
+        sessions: false,
+        prescriptions: false,
+        notifications: false,
+      });
+    });
+  });
+
+  // ── Lo que una ficha puede afirmar de sí misma ────────────────────────
+
+  describe("mapeos: una ficha de demostración no afirma nada", () => {
+    /** Los mapeos son privados; se prueban aquí porque son la última línea. */
+    type Mapeos = {
+      toListItem(t: unknown, fav: boolean): Record<string, unknown>;
+      toTherapistSummary(t: unknown): Record<string, unknown>;
+    };
+    const mapeos = () => service as unknown as Mapeos;
+    const demo = () => makeTherapist({ id: "t_marina" });
+
+    it("toListItem: sin credencial, sin licencia, sin puntuación ni recuento", () => {
+      const item = mapeos().toListItem(demo(), false);
+      expect(item).toMatchObject({
+        isDemo: true,
+        title: "Perfil de demostración",
+        licenseNumber: null,
+        licenseVerified: false,
+        avgRating: null,
+        reviewsCount: null,
+      });
+    });
+
+    it("toTherapistSummary: lo mismo, y conserva el nombre con que se reservó", () => {
+      const item = mapeos().toTherapistSummary(demo());
+      expect(item).toMatchObject({
+        isDemo: true,
+        name: "Marina Quintana",
+        title: "Perfil de demostración",
+        avgRating: null,
+        reviewsCount: null,
+      });
+    });
+
+    it("una ficha real conserva lo suyo (control contrario)", () => {
+      const real = makeTherapist({ id: "pro-real-1" });
+      expect(mapeos().toListItem(real, true)).toMatchObject({
+        isDemo: false,
+        title: "Psicóloga clínica",
+        licenseNumber: "PSI-2031",
+        licenseVerified: true,
+        avgRating: 4.7,
+        reviewsCount: 23,
+      });
+      expect(mapeos().toTherapistSummary(real)).toMatchObject({
+        isDemo: false,
+        title: "Psicóloga clínica",
+        avgRating: 4.7,
+        reviewsCount: 23,
+      });
+    });
+
+    it("una ficha real SIN licencia verificada sigue sin ella", () => {
+      const sin = makeTherapist({ id: "pro-real-2", licenseVerified: false });
+      expect(mapeos().toListItem(sin, false).licenseVerified).toBe(false);
     });
   });
 
@@ -237,7 +315,10 @@ describe("TerapiaService", () => {
         { therapistId: "t_1" },
       ]);
 
-      const res = await service.listTherapists("user_a", { page: 1, pageSize: 20 });
+      const res = await service.listTherapists("user_a", {
+        page: 1,
+        pageSize: 20,
+      });
 
       expect(res.total).toBe(2);
       expect(res.totalPages).toBe(1);
@@ -359,7 +440,12 @@ describe("TerapiaService", () => {
       prisma.therapist.findUnique.mockResolvedValue(
         makeTherapist({
           availability: [
-            { dayOfWeek: 1, startMin: 540, endMin: 720, timezone: "America/Guayaquil" },
+            {
+              dayOfWeek: 1,
+              startMin: 540,
+              endMin: 720,
+              timezone: "America/Guayaquil",
+            },
           ],
         }),
       );
@@ -420,9 +506,9 @@ describe("TerapiaService", () => {
 
     it("throws 404 when therapist not found", async () => {
       prisma.therapist.findUnique.mockResolvedValue(null);
-      await expect(service.listReviews("missing", 1, 10)).rejects.toBeInstanceOf(
-        NotFoundException,
-      );
+      await expect(
+        service.listReviews("missing", 1, 10),
+      ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
 
@@ -441,13 +527,48 @@ describe("TerapiaService", () => {
         makeTherapist({
           availability: [
             // Every UTC day — guarantees match regardless of "today"
-            { dayOfWeek: 0, startMin: 540, endMin: 720, timezone: "America/Guayaquil" },
-            { dayOfWeek: 1, startMin: 540, endMin: 720, timezone: "America/Guayaquil" },
-            { dayOfWeek: 2, startMin: 540, endMin: 720, timezone: "America/Guayaquil" },
-            { dayOfWeek: 3, startMin: 540, endMin: 720, timezone: "America/Guayaquil" },
-            { dayOfWeek: 4, startMin: 540, endMin: 720, timezone: "America/Guayaquil" },
-            { dayOfWeek: 5, startMin: 540, endMin: 720, timezone: "America/Guayaquil" },
-            { dayOfWeek: 6, startMin: 540, endMin: 720, timezone: "America/Guayaquil" },
+            {
+              dayOfWeek: 0,
+              startMin: 540,
+              endMin: 720,
+              timezone: "America/Guayaquil",
+            },
+            {
+              dayOfWeek: 1,
+              startMin: 540,
+              endMin: 720,
+              timezone: "America/Guayaquil",
+            },
+            {
+              dayOfWeek: 2,
+              startMin: 540,
+              endMin: 720,
+              timezone: "America/Guayaquil",
+            },
+            {
+              dayOfWeek: 3,
+              startMin: 540,
+              endMin: 720,
+              timezone: "America/Guayaquil",
+            },
+            {
+              dayOfWeek: 4,
+              startMin: 540,
+              endMin: 720,
+              timezone: "America/Guayaquil",
+            },
+            {
+              dayOfWeek: 5,
+              startMin: 540,
+              endMin: 720,
+              timezone: "America/Guayaquil",
+            },
+            {
+              dayOfWeek: 6,
+              startMin: 540,
+              endMin: 720,
+              timezone: "America/Guayaquil",
+            },
           ],
         }),
       );
@@ -494,7 +615,9 @@ describe("TerapiaService", () => {
   });
 
   describe("createBooking", () => {
-    const futureSlot = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    const futureSlot = new Date(
+      Date.now() + 7 * 24 * 60 * 60 * 1000,
+    ).toISOString();
     const baseReq = {
       therapistId: "t_1",
       slotIso: futureSlot,
@@ -503,9 +626,9 @@ describe("TerapiaService", () => {
 
     it("throws 404 when therapist missing", async () => {
       prisma.therapist.findUnique.mockResolvedValue(null);
-      await expect(service.createBooking("user_a", baseReq)).rejects.toBeInstanceOf(
-        NotFoundException,
-      );
+      await expect(
+        service.createBooking("user_a", baseReq),
+      ).rejects.toBeInstanceOf(NotFoundException);
     });
 
     it("throws 400 when modality not offered", async () => {

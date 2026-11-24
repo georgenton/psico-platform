@@ -11,6 +11,10 @@ import {
   resolvePurchaseGate,
   type PurchaseGateState,
 } from "../shared/purchase-availability";
+import {
+  resolveTherapyOfferGate,
+  type TherapyOfferGateState,
+} from "../shared/therapy-offer";
 
 /**
  * Report shape returned by `GET /api/health/integrations`.
@@ -98,6 +102,12 @@ export interface IntegrationsReport {
    * sólo lleva `open`. Este informe exige rol ADMIN.
    */
   purchases: { open: boolean; state: PurchaseGateState };
+  /**
+   * ¿Se ofrece terapia? Otra puerta, otra variable (`THERAPY_OFFER`): ni abre
+   * compras ni las abre quien las abra. Mismo reparto que arriba — el motivo
+   * aquí, que exige rol ADMIN; a los clientes sólo les llega `open`.
+   */
+  therapyOffer: { open: boolean; state: TherapyOfferGateState };
   google: IntegrationStatus;
   redis: IntegrationStatus;
   webPush: IntegrationStatus;
@@ -223,6 +233,12 @@ export class IntegrationsService {
         );
         return { open: gate.open, state: gate.state };
       })(),
+      therapyOffer: (() => {
+        const gate = resolveTherapyOfferGate(
+          this.config.get("THERAPY_OFFER", { infer: true }),
+        );
+        return { open: gate.open, state: gate.state };
+      })(),
       google: status(this.config.get("GOOGLE_CLIENT_ID", { infer: true })),
       redis: status(this.config.get("REDIS_URL", { infer: true })),
       webPush: status(this.config.get("VAPID_PRIVATE_KEY", { infer: true })),
@@ -290,6 +306,14 @@ export class IntegrationsService {
     if (r.purchases.state === "invalid") {
       out.push({
         key: "BILLING_PURCHASES (valor ilegible: las compras quedan CERRADAS — corrige el valor)",
+        reason: "invalid",
+      });
+    }
+    // Misma regla para la oferta de terapia: cerrada es la postura de hoy y no
+    // se repite en cada arranque; una errata sí.
+    if (r.therapyOffer.state === "invalid") {
+      out.push({
+        key: "THERAPY_OFFER (valor ilegible: la oferta de terapia queda CERRADA — corrige el valor)",
         reason: "invalid",
       });
     }

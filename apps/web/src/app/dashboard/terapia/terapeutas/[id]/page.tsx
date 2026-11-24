@@ -2,7 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import type { TherapistDetail, TherapistReviewsResponse } from "@psico/types";
 import { isNextThrow, serverFetch } from "@/lib/api.server";
+import { ofertaDeTerapia } from "@/lib/terapia/oferta";
 import { FavoriteButton } from "@/components/dashboard/terapia/FavoriteButton";
+import { ratingLabel } from "@/components/dashboard/terapia/rating";
+import { TerapiaCerrada } from "@/components/dashboard/terapia/TerapiaCerrada";
 
 export const metadata: Metadata = { title: "Terapeuta · Terapia" };
 export const dynamic = "force-dynamic";
@@ -22,6 +25,9 @@ export default async function TherapistDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const { abierta, historial } = await ofertaDeTerapia();
+  if (!abierta) return <TerapiaCerrada historial={historial} />;
+
   const { id } = await params;
   let therapist: TherapistDetail | null = null;
   let reviews: TherapistReviewsResponse | null = null;
@@ -62,6 +68,7 @@ export default async function TherapistDetailPage({
   }
 
   const cover = COVER_TOKENS[therapist.coverToken] ?? COVER_TOKENS.warm;
+  const rating = ratingLabel(therapist);
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -107,16 +114,17 @@ export default async function TherapistDetailPage({
           </div>
 
           <div className="mt-4 flex flex-wrap items-center gap-3 text-[13px]">
-            <span
-              className="rounded-full px-2.5 py-1 font-medium"
-              style={{
-                background: "var(--color-warm-50)",
-                color: "var(--color-warm-700)",
-              }}
-            >
-              ⭐ {therapist.avgRating.toFixed(1)} ({therapist.reviewsCount}{" "}
-              reseñas)
-            </span>
+            {rating ? (
+              <span
+                className="rounded-full px-2.5 py-1 font-medium"
+                style={{
+                  background: "var(--color-warm-50)",
+                  color: "var(--color-warm-700)",
+                }}
+              >
+                ⭐ {rating} reseñas
+              </span>
+            ) : null}
             <span style={{ color: "var(--color-warm-700)" }}>
               ${therapist.priceUsd.toFixed(0)} {therapist.currency} / sesión
             </span>

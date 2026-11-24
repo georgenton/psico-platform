@@ -274,6 +274,19 @@ async function bootstrap(): Promise<void> {
     // Non-fatal — observability, not a contract.
   }
 
+  // ── 6c. La puerta de la oferta de terapia ─────────────────────────────────
+  // Mismo criterio que la de las compras: se dice siempre, abierta o cerrada.
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
+    const gates = require("./shared/therapy-offer");
+    const gate = gates.resolveTherapyOfferGate(process.env.THERAPY_OFFER);
+    const line = `  [terapia] ${gates.describeTherapyOfferGate(gate)}`;
+    if (gate.state === "invalid") console.warn(line);
+    else console.log(line);
+  } catch {
+    // Non-fatal — observability, not a contract.
+  }
+
   // ── 7. Emotional-map identity ─────────────────────────────────────────────
   // PR-0.1 — log the identity (versions, fingerprints, epochs, flags) and
   // publish it so `GET /api/health/emotional-map` can compare it against the

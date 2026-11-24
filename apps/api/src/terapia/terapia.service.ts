@@ -6,8 +6,18 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+import { ConfigService } from "@nestjs/config";
+import type { Env } from "../config";
 import { PrismaService } from "../prisma";
+import { ExpectedUnavailableException } from "../shared/filters/expected-unavailable.exception";
+import type { TherapyOfferGate } from "../shared/therapy-offer";
+import {
+  resolveTherapyOfferGate,
+  therapyOfferForWire,
+} from "../shared/therapy-offer";
 import { PaymentService } from "../subscription";
+import { DEMO_THERAPIST_IDS, isDemoTherapist } from "./demo-therapists";
 import { VIDEO_PROVIDER } from "./tokens";
 import type { IVideoProvider } from "./providers/video-provider.interface";
 import type {
@@ -39,6 +49,13 @@ import type {
   TherapyTechnicalIssue,
   UpdateSessionPrepRequest,
 } from "@psico/types";
+import {
+  THERAPY_DEMO_SESSION_CODE,
+  THERAPY_DEMO_SESSION_MESSAGE,
+  THERAPY_DEMO_TITLE,
+  THERAPY_OFFER_CLOSED_CODE,
+  THERAPY_OFFER_CLOSED_MESSAGE,
+} from "@psico/types";
 import { getCrisisFor } from "./crisis-catalog";
 
 type SortKey = "rating" | "price-asc" | "price-desc" | "popular";
@@ -58,7 +75,67 @@ export class TerapiaService {
     private readonly prisma: PrismaService,
     @Inject(VIDEO_PROVIDER) private readonly video: IVideoProvider,
     private readonly payments: PaymentService,
+    private readonly config: ConfigService<Env, true>,
   ) {}
+
+  // ── La oferta: dos preguntas distintas ──────────────────────────────────
+  //
+  // La PUERTA dice si hoy se ofrece terapia. La IDENTIDAD dice si detrás de
+  // una ficha hay alguien. Se preguntan por separado porque tienen respuestas
+  // separadas: con la puerta abierta, una ficha de demostración sigue fuera.
+  //
+  // Van en el servicio y no en un guard del controlador por la misma razón que
+  // en `PaymentService`: este servicio se exporta, y una guarda un nivel más
+  // arriba dejaría sin cubrir a quien lo llame sin pasar por HTTP. Van en la
+  // PRIMERA línea de cada método: antes de leer, de escribir y de llamar a un
+  // proveedor.
+
+  private offerGate(): TherapyOfferGate {
+    return resolveTherapyOfferGate(
+      this.config.get("THERAPY_OFFER", { infer: true }),
+    );
+  }
+
+  /**
+   * 503 declarado, igual que las compras, y el mismo para toda la oferta.
+   *
+   * No un 404 por ficha: con la puerta cerrada no se mira ninguna ficha, así
+   * que responder «no existe» sería afirmar algo que no se comprobó, y quien
+   * llama no podría distinguir «no hay oferta» de «ese id está mal».
+   */
+  private assertOfferOpen(): void {
+    if (this.offerGate().open) return;
+    throw new ExpectedUnavailableException({
+      code: THERAPY_OFFER_CLOSED_CODE,
+      message: THERAPY_OFFER_CLOSED_MESSAGE,
+    });
+  }
+
+  /**
+   * Con la puerta abierta, una ficha de demostración responde EXACTAMENTE lo
+   * mismo que un id que no existe: para quien busca un profesional, no existe.
+   */
+  private assertOfferedTherapist(therapistId: string): void {
+    if (isDemoTherapist(therapistId)) {
+      throw new NotFoundException("THERAPIST_NOT_FOUND");
+    }
+  }
+
+  /**
+   * Una sesión ya reservada con una ficha de demostración existe y es de quien
+   * pregunta, así que un 404 sería falso. Se puede ver, cancelar, valorar y
+   * reportar; lo que no se puede es seguir adelante con ella.
+   *
+   * Siempre DESPUÉS de comprobar de quién es la sesión: antes diría algo de la
+   * sesión de otra persona.
+   */
+  private assertRealProfessional(therapistId: string): void {
+    if (!isDemoTherapist(therapistId)) return;
+    throw new ConflictException({
+      code: THERAPY_DEMO_SESSION_CODE,
+      message: THERAPY_DEMO_SESSION_MESSAGE,
+    });
+  }
 
   // ── Crisis (Sprint S62) ─────────────────────────────────────────────────
 
@@ -81,31 +158,57 @@ export class TerapiaService {
   // ── Hub (Sprint S62) ────────────────────────────────────────────────────
 
   async getHub(userId: string): Promise<TherapyHubResponse> {
-    const [lastCompleted, nextSession, prescriptions] = await Promise.all([
-      this.prisma.therapySession.findFirst({
-        where: { userId, status: "COMPLETED" },
-        orderBy: { scheduledAt: "desc" },
-        include: { therapist: true },
-      }),
-      this.prisma.therapySession.findFirst({
-        where: {
-          userId,
-          status: "SCHEDULED",
-          scheduledAt: { gte: new Date() },
-        },
-        orderBy: { scheduledAt: "asc" },
-        include: { therapist: true },
-      }),
-      this.prisma.therapyPrescription.findMany({
-        where: { userId },
-        orderBy: { createdAt: "desc" },
-        take: 3,
-      }),
-    ]);
+    const gate = this.offerGate();
+    const [lastCompleted, nextSession, prescriptions, anySession, anyNotice] =
+      await Promise.all([
+        // «Tu terapeuta» presenta a alguien como disponible y enlaza a su
+        // ficha: con la oferta cerrada no se enseña a nadie, y una ficha de
+        // demostración no lo es nunca. La sesión pasada sigue en el historial.
+        gate.open
+          ? this.prisma.therapySession.findFirst({
+              where: {
+                userId,
+                status: "COMPLETED",
+                therapistId: { notIn: [...DEMO_THERAPIST_IDS] },
+              },
+              orderBy: { scheduledAt: "desc" },
+              include: { therapist: true },
+            })
+          : null,
+        this.prisma.therapySession.findFirst({
+          where: {
+            userId,
+            status: "SCHEDULED",
+            scheduledAt: { gte: new Date() },
+          },
+          orderBy: { scheduledAt: "asc" },
+          include: { therapist: true },
+        }),
+        this.prisma.therapyPrescription.findMany({
+          where: { userId },
+          orderBy: { createdAt: "desc" },
+          take: 3,
+        }),
+        this.prisma.therapySession.findFirst({
+          where: { userId },
+          select: { id: true },
+        }),
+        this.prisma.therapyNotification.findFirst({
+          where: { userId },
+          select: { id: true },
+        }),
+      ]);
 
     return {
-      intro:
-        "Aquí encuentras espacios para hablar con un terapeuta cuando lo necesites. Hablar es un acto valiente — empezar es el paso más grande.",
+      intro: gate.open
+        ? "Aquí encuentras espacios para hablar con un terapeuta cuando lo necesites. Hablar es un acto valiente — empezar es el paso más grande."
+        : THERAPY_OFFER_CLOSED_MESSAGE,
+      offer: therapyOfferForWire(gate),
+      history: {
+        sessions: anySession !== null,
+        prescriptions: prescriptions.length > 0,
+        notifications: anyNotice !== null,
+      },
       activeTherapist: lastCompleted
         ? this.toTherapistSummary(lastCompleted.therapist)
         : null,
@@ -135,8 +238,8 @@ export class TerapiaService {
   /**
    * GET /api/terapia/therapists — paginado + filtros + sort.
    *
-   * Devuelve solo therapists `isActive=true`. `isFavorite` se computa
-   * por user al final con una sola query agregada.
+   * Devuelve solo therapists `isActive=true` que no sean de demostración.
+   * `isFavorite` se computa por user al final con una sola query agregada.
    *
    * `nextSlotIso` queda null en este sprint — se llena en S64 cuando se
    * proyecten los TherapistAvailability sobre los próximos 14 días.
@@ -149,6 +252,7 @@ export class TerapiaService {
       pageSize?: number;
     },
   ): Promise<TherapistListResponse> {
+    this.assertOfferOpen();
     const page = params.page ?? 1;
     const pageSize = params.pageSize ?? 20;
 
@@ -188,8 +292,9 @@ export class TerapiaService {
    * solo lo que llega.
    */
   async getFilters(): Promise<TherapyFilters> {
+    this.assertOfferOpen();
     const all = await this.prisma.therapist.findMany({
-      where: { isActive: true },
+      where: this.offeredWhere(),
       select: {
         specialties: true,
         modalities: true,
@@ -256,10 +361,16 @@ export class TerapiaService {
     userId: string,
     therapistId: string,
   ): Promise<TherapistDetail> {
+    this.assertOfferOpen();
+    this.assertOfferedTherapist(therapistId);
     const [therapist, favorite] = await Promise.all([
       this.prisma.therapist.findUnique({
         where: { id: therapistId },
-        include: { availability: { orderBy: [{ dayOfWeek: "asc" }, { startMin: "asc" }] } },
+        include: {
+          availability: {
+            orderBy: [{ dayOfWeek: "asc" }, { startMin: "asc" }],
+          },
+        },
       }),
       this.prisma.therapistFavorite.findUnique({
         where: { userId_therapistId: { userId, therapistId } },
@@ -295,6 +406,8 @@ export class TerapiaService {
     page: number,
     pageSize: number,
   ): Promise<TherapistReviewsResponse> {
+    this.assertOfferOpen();
+    this.assertOfferedTherapist(therapistId);
     // Confirm therapist exists (else 404)
     const exists = await this.prisma.therapist.findUnique({
       where: { id: therapistId },
@@ -338,6 +451,8 @@ export class TerapiaService {
     userId: string,
     therapistId: string,
   ): Promise<{ isFavorite: boolean }> {
+    this.assertOfferOpen();
+    this.assertOfferedTherapist(therapistId);
     const exists = await this.prisma.therapist.findUnique({
       where: { id: therapistId },
       select: { id: true },
@@ -363,10 +478,30 @@ export class TerapiaService {
 
   // ── helpers ─────────────────────────────────────────────────────────────
 
+  /** Lo que se puede ofrecer: activo y con un profesional detrás. */
+  private offeredWhere() {
+    return { isActive: true, id: { notIn: [...DEMO_THERAPIST_IDS] } };
+  }
+
+  /**
+   * Puntuación y reseñas que una ficha puede enseñar. Las de demostración las
+   * llevan sembradas —hasta «64 reseñas» con cero filas en `TherapistReview`—,
+   * así que no enseñan ninguna, sea lo que sea lo que diga su fila.
+   */
+  private ratingOf(t: {
+    id: string;
+    avgRating: number;
+    reviewsCount: number;
+  }): { avgRating: number | null; reviewsCount: number | null } {
+    return isDemoTherapist(t.id)
+      ? { avgRating: null, reviewsCount: null }
+      : { avgRating: t.avgRating, reviewsCount: t.reviewsCount };
+  }
+
   private buildTherapistWhere(
     params: TherapistFilterParams,
   ): Record<string, unknown> {
-    const where: Record<string, unknown> = { isActive: true };
+    const where: Record<string, unknown> = this.offeredWhere();
     if (params.motivo) where.specialties = { has: params.motivo };
     if (params.modalidad) where.modalities = { has: params.modalidad };
     if (params.genero) where.genderId = params.genero;
@@ -417,15 +552,19 @@ export class TerapiaService {
     },
     isFavorite: boolean,
   ): TherapistListItem {
+    // Una ficha de demostración no llega aquí —no se lista ni se detalla—, y
+    // aun así sale sin credencial: si algún día se abriera un camino nuevo, no
+    // debe ser éste el sitio por donde una licencia inventada pase por buena.
+    const isDemo = isDemoTherapist(t.id);
     return {
       id: t.id,
       name: t.name,
       initials: t.initials,
-      title: t.title,
+      title: isDemo ? THERAPY_DEMO_TITLE : t.title,
       avatarUrl: t.avatarUrl,
       coverToken: t.coverToken,
-      licenseNumber: t.licenseNumber,
-      licenseVerified: t.licenseVerified,
+      licenseNumber: isDemo ? null : t.licenseNumber,
+      licenseVerified: !isDemo && t.licenseVerified,
       bioShort: t.bioShort,
       specialties: t.specialties,
       modalities: t.modalities,
@@ -433,11 +572,11 @@ export class TerapiaService {
       genderId: t.genderId,
       priceUsd: t.priceUsd,
       currency: t.currency,
-      avgRating: t.avgRating,
-      reviewsCount: t.reviewsCount,
+      ...this.ratingOf(t),
       nextSlotIso: null, // S64: proyectado desde availability
       acceptsInsurance: t.acceptsInsurance,
       isFavorite,
+      isDemo,
     };
   }
 
@@ -455,19 +594,22 @@ export class TerapiaService {
     avgRating: number;
     reviewsCount: number;
   }): TherapistSummary {
+    const isDemo = isDemoTherapist(t.id);
     return {
       id: t.id,
+      // El nombre se queda: es con quien la persona reservó, y el historial se
+      // conserva. La credencial no, porque no hay nadie que la tenga.
       name: t.name,
       initials: t.initials,
-      title: t.title,
+      title: isDemo ? THERAPY_DEMO_TITLE : t.title,
       avatarUrl: t.avatarUrl,
       coverToken: t.coverToken,
       modalities: t.modalities,
       specialties: t.specialties,
       priceUsd: t.priceUsd,
       currency: t.currency,
-      avgRating: t.avgRating,
-      reviewsCount: t.reviewsCount,
+      ...this.ratingOf(t),
+      isDemo,
     };
   }
 
@@ -497,6 +639,8 @@ export class TerapiaService {
     therapistId: string,
     days: number,
   ): Promise<TherapistAvailabilityResponse> {
+    this.assertOfferOpen();
+    this.assertOfferedTherapist(therapistId);
     const therapist = await this.prisma.therapist.findUnique({
       where: { id: therapistId },
       include: { availability: true },
@@ -506,9 +650,7 @@ export class TerapiaService {
     }
 
     const horizon = new Date();
-    const endHorizon = new Date(
-      horizon.getTime() + days * 24 * 60 * 60 * 1000,
-    );
+    const endHorizon = new Date(horizon.getTime() + days * 24 * 60 * 60 * 1000);
 
     const booked = await this.prisma.therapySession.findMany({
       where: {
@@ -560,8 +702,7 @@ export class TerapiaService {
     return {
       therapistId,
       days,
-      timezone:
-        therapist.availability[0]?.timezone ?? "America/Guayaquil",
+      timezone: therapist.availability[0]?.timezone ?? "America/Guayaquil",
       slots,
     };
   }
@@ -582,6 +723,8 @@ export class TerapiaService {
     userId: string,
     req: CreateBookingRequest,
   ): Promise<CreateBookingResponse> {
+    this.assertOfferOpen();
+    this.assertOfferedTherapist(req.therapistId);
     const therapist = await this.prisma.therapist.findUnique({
       where: { id: req.therapistId },
     });
@@ -647,6 +790,7 @@ export class TerapiaService {
       const checkout = await this.payments.createTherapyCheckout({
         userId,
         sessionId: created.id,
+        therapistId: created.therapistId,
         priceUsd: created.priceUsd,
         currency: created.currency,
         productName: `Sesión con ${therapist.name} · ${created.scheduledAt.toISOString().slice(0, 16).replace("T", " ")} UTC`,
@@ -710,12 +854,17 @@ export class TerapiaService {
         checkInMood: session.checkInMood,
         sharedEntryIds: session.sharedEntryIds,
       },
+      offer: therapyOfferForWire(this.offerGate()),
     };
   }
 
   /**
    * PATCH /api/terapia/sessions/:id/prep — owner only.
    * Pairing: (intentionCiphertext, intentionNonce) must travel together.
+   *
+   * Leer lo ya escrito se conserva siempre. Escribir para una ficha de
+   * demostración no: sería invitar a preparar una conversación con nadie, y
+   * `sharedEntryIds` a señalarle entradas del diario.
    */
   async updateSessionPrep(
     userId: string,
@@ -724,12 +873,13 @@ export class TerapiaService {
   ): Promise<SessionPrepResponse> {
     const session = await this.prisma.therapySession.findUnique({
       where: { id: sessionId },
-      select: { id: true, userId: true, status: true },
+      select: { id: true, userId: true, status: true, therapistId: true },
     });
     if (!session) throw new NotFoundException("SESSION_NOT_FOUND");
     if (session.userId !== userId) {
       throw new ForbiddenException("NOT_YOUR_SESSION");
     }
+    this.assertRealProfessional(session.therapistId);
     if (session.status !== "SCHEDULED") {
       throw new BadRequestException("PREP_LOCKED");
     }
@@ -778,13 +928,24 @@ export class TerapiaService {
     const now = new Date();
     const upcomingWhere = {
       userId,
-      status: { in: ["SCHEDULED", "IN_PROGRESS"] as ("SCHEDULED" | "IN_PROGRESS")[] },
+      status: {
+        in: ["SCHEDULED", "IN_PROGRESS"] as ("SCHEDULED" | "IN_PROGRESS")[],
+      },
       scheduledAt: { gte: now },
     };
     const pastWhere = {
       userId,
       OR: [
-        { status: { in: ["COMPLETED", "CANCELLED", "NO_SHOW", "MISSED"] as ("COMPLETED" | "CANCELLED" | "NO_SHOW" | "MISSED")[] } },
+        {
+          status: {
+            in: ["COMPLETED", "CANCELLED", "NO_SHOW", "MISSED"] as (
+              | "COMPLETED"
+              | "CANCELLED"
+              | "NO_SHOW"
+              | "MISSED"
+            )[],
+          },
+        },
         { scheduledAt: { lt: now } },
       ],
     };
@@ -814,6 +975,7 @@ export class TerapiaService {
     return {
       upcoming: upcoming.map((s) => this.toSessionListItem(s)),
       past: past.map((s) => this.toSessionListItem(s)),
+      offer: therapyOfferForWire(this.offerGate()),
     };
   }
 
@@ -864,7 +1026,11 @@ export class TerapiaService {
     const updated = await this.prisma.therapyPrescription.update({
       where: { id: prescriptionId },
       data: {
-        completedAt: completed ? new Date() : completed === false ? null : undefined,
+        completedAt: completed
+          ? new Date()
+          : completed === false
+            ? null
+            : undefined,
       },
     });
 
@@ -904,16 +1070,18 @@ export class TerapiaService {
     ]);
 
     return {
-      items: items.map((n): TherapyNotificationItem => ({
-        id: n.id,
-        kind: n.kind,
-        title: n.title,
-        body: n.body,
-        actionUrl: n.actionUrl,
-        createdAt: n.createdAt.toISOString(),
-        readAt: n.readAt?.toISOString() ?? null,
-        sessionId: n.sessionId,
-      })),
+      items: items.map(
+        (n): TherapyNotificationItem => ({
+          id: n.id,
+          kind: n.kind,
+          title: n.title,
+          body: n.body,
+          actionUrl: n.actionUrl,
+          createdAt: n.createdAt.toISOString(),
+          readAt: n.readAt?.toISOString() ?? null,
+          sessionId: n.sessionId,
+        }),
+      ),
       unreadCount,
     };
   }
@@ -959,12 +1127,17 @@ export class TerapiaService {
    * Lifecycle constraint: solo SCHEDULED sessions y solo si el nuevo slot
    * está vacío en el calendario del terapeuta. Auditado vía
    * `rescheduledFromId` que apunta al row original.
+   *
+   * Un hueco nuevo es una reserva nueva, así que con la oferta cerrada no se
+   * mueve ninguna sesión, tampoco una real: esa se conserva como está y se
+   * puede cancelar.
    */
   async rescheduleSession(
     userId: string,
     sessionId: string,
     newSlotIso: string,
   ): Promise<TherapySessionListItem> {
+    this.assertOfferOpen();
     const session = await this.prisma.therapySession.findUnique({
       where: { id: sessionId },
       include: { therapist: true },
@@ -973,6 +1146,7 @@ export class TerapiaService {
     if (session.userId !== userId) {
       throw new ForbiddenException("NOT_YOUR_SESSION");
     }
+    this.assertRealProfessional(session.therapistId);
     if (session.status !== "SCHEDULED") {
       throw new BadRequestException("RESCHEDULE_NOT_ALLOWED");
     }
@@ -1035,9 +1209,7 @@ export class TerapiaService {
       data: {
         status: "CANCELLED",
         cancelledAt: now,
-        cancelReason: refundRequested
-          ? `${reason} [REFUND_REQUESTED]`
-          : reason,
+        cancelReason: refundRequested ? `${reason} [REFUND_REQUESTED]` : reason,
       },
     });
     return { ok: true, cancelledAt: now.toISOString() };
@@ -1056,6 +1228,7 @@ export class TerapiaService {
     successUrl: string,
     cancelUrl: string,
   ): Promise<RetryCheckoutResponse> {
+    this.assertOfferOpen();
     const session = await this.prisma.therapySession.findUnique({
       where: { id: sessionId },
       include: { therapist: true },
@@ -1064,6 +1237,7 @@ export class TerapiaService {
     if (session.userId !== userId) {
       throw new ForbiddenException("NOT_YOUR_SESSION");
     }
+    this.assertRealProfessional(session.therapistId);
     if (session.paymentStatus !== "PENDING") {
       throw new BadRequestException("CHECKOUT_NOT_RETRYABLE");
     }
@@ -1074,6 +1248,7 @@ export class TerapiaService {
     const checkout = await this.payments.createTherapyCheckout({
       userId,
       sessionId: session.id,
+      therapistId: session.therapistId,
       priceUsd: session.priceUsd,
       currency: session.currency,
       productName: `Sesión con ${session.therapist.name} · ${session.scheduledAt.toISOString().slice(0, 16).replace("T", " ")} UTC`,
@@ -1144,6 +1319,10 @@ export class TerapiaService {
    * Owner gate: solo el dueño (paciente) puede pedir su propio token.
    * Cuando aterrice el panel del terapeuta (S19+ Author B2B) se relaja
    * para que el therapist también lo pueda pedir como owner.
+   *
+   * La puerta NO cierra esto: una sesión con un profesional real sigue
+   * abriendo su sala aunque hoy no se ofrezcan más. Una de demostración no, y
+   * se comprueba antes de crear nada en el proveedor de vídeo.
    */
   async joinSession(
     userId: string,
@@ -1157,6 +1336,8 @@ export class TerapiaService {
     if (session.userId !== userId) {
       throw new ForbiddenException("NOT_YOUR_SESSION");
     }
+
+    this.assertRealProfessional(session.therapistId);
 
     const now = Date.now();
     const start = session.scheduledAt.getTime();

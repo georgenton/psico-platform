@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import type { TherapistListResponse, TherapyFilters } from "@psico/types";
 import { isNextThrow, serverFetch } from "@/lib/api.server";
+import { ofertaDeTerapia } from "@/lib/terapia/oferta";
+import { TerapiaCerrada } from "@/components/dashboard/terapia/TerapiaCerrada";
 import { TherapistCard } from "@/components/dashboard/terapia/TherapistCard";
 
 export const metadata: Metadata = { title: "Terapeutas · Terapia" };
@@ -20,6 +22,9 @@ export default async function TerapeutasPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
+  const { abierta, historial } = await ofertaDeTerapia();
+  if (!abierta) return <TerapiaCerrada historial={historial} />;
+
   const params = await searchParams;
   const page = Number(params.page ?? "1");
 
@@ -35,7 +40,9 @@ export default async function TerapeutasPage({
   let loadError: string | null = null;
   try {
     [list, filters] = await Promise.all([
-      serverFetch<TherapistListResponse>(`/terapia/therapists?${qs.toString()}`),
+      serverFetch<TherapistListResponse>(
+        `/terapia/therapists?${qs.toString()}`,
+      ),
       serverFetch<TherapyFilters>("/terapia/therapists/filters"),
     ]);
   } catch (err) {
@@ -57,7 +64,8 @@ export default async function TerapeutasPage({
             className="mt-1 text-[13px]"
             style={{ color: "var(--color-warm-500)" }}
           >
-            {list ? `${list.total} terapeutas verificados` : "Cargando…"}
+            {/* El recuento, sin adjetivo: la verificación es de cada ficha. */}
+            {list ? `${list.total} terapeutas` : "Cargando…"}
           </p>
         </div>
         <Link
@@ -110,10 +118,30 @@ export default async function TerapeutasPage({
       {/* Sort */}
       <div className="flex items-center gap-3 text-[12px]">
         <span style={{ color: "var(--color-warm-500)" }}>Ordenar:</span>
-        <SortLink current={params.sort} value="rating" label="Mejor rating" base={params} />
-        <SortLink current={params.sort} value="price-asc" label="Precio ↑" base={params} />
-        <SortLink current={params.sort} value="price-desc" label="Precio ↓" base={params} />
-        <SortLink current={params.sort} value="popular" label="Más populares" base={params} />
+        <SortLink
+          current={params.sort}
+          value="rating"
+          label="Mejor rating"
+          base={params}
+        />
+        <SortLink
+          current={params.sort}
+          value="price-asc"
+          label="Precio ↑"
+          base={params}
+        />
+        <SortLink
+          current={params.sort}
+          value="price-desc"
+          label="Precio ↓"
+          base={params}
+        />
+        <SortLink
+          current={params.sort}
+          value="popular"
+          label="Más populares"
+          base={params}
+        />
       </div>
 
       {/* Grid */}
@@ -190,7 +218,9 @@ function FilterLink({
       href={`?${next.toString()}`}
       className="rounded-full px-3 py-1 text-[12px] font-medium"
       style={{
-        background: active ? "var(--color-lavender-100)" : "var(--color-warm-50)",
+        background: active
+          ? "var(--color-lavender-100)"
+          : "var(--color-warm-50)",
         color: active ? "var(--color-lavender-700)" : "var(--color-warm-700)",
       }}
     >
@@ -243,10 +273,7 @@ function PageLink({
 }) {
   if (disabled) {
     return (
-      <span
-        className="opacity-30"
-        style={{ color: "var(--color-warm-500)" }}
-      >
+      <span className="opacity-30" style={{ color: "var(--color-warm-500)" }}>
         {label}
       </span>
     );

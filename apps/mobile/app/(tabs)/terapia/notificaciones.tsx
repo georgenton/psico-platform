@@ -111,9 +111,7 @@ export default function NotificacionesScreen() {
 
       {data && data.items.length === 0 ? (
         <View style={styles.emptyCard}>
-          <Text style={styles.emptyText}>
-            Cuando reservés tu próxima sesión, te avisamos por acá.
-          </Text>
+          <Text style={styles.emptyText}>No tienes avisos de terapia.</Text>
         </View>
       ) : null}
 
@@ -130,9 +128,7 @@ export default function NotificacionesScreen() {
             style={[
               styles.notifCard,
               {
-                borderColor: unread
-                  ? Colors.lavender[300]
-                  : Colors.warm[200],
+                borderColor: unread ? Colors.lavender[300] : Colors.warm[200],
                 backgroundColor: unread ? Colors.lavender[50] : Colors.white,
               },
             ]}

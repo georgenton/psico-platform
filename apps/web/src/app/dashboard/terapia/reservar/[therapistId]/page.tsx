@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import type { TherapistDetail } from "@psico/types";
 import { isNextThrow, serverFetch } from "@/lib/api.server";
+import { ofertaDeTerapia } from "@/lib/terapia/oferta";
 import { BookingFlow } from "@/components/dashboard/terapia/BookingFlow";
+import { TerapiaCerrada } from "@/components/dashboard/terapia/TerapiaCerrada";
 
 export const metadata: Metadata = { title: "Reservar · Terapia" };
 export const dynamic = "force-dynamic";
@@ -12,6 +14,9 @@ export default async function ReservarPage({
 }: {
   params: Promise<{ therapistId: string }>;
 }) {
+  const { abierta, historial } = await ofertaDeTerapia();
+  if (!abierta) return <TerapiaCerrada historial={historial} />;
+
   const { therapistId } = await params;
   let therapist: TherapistDetail | null = null;
   let loadError: string | null = null;

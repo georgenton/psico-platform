@@ -1,12 +1,14 @@
 import { HttpException } from "@nestjs/common";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ExpectedUnavailableException } from "../shared/filters/expected-unavailable.exception";
+import { DEMO_THERAPIST_IDS } from "../terapia/demo-therapists";
 import { BillingPlan } from "./dto/checkout-session.dto";
 import { PaymentService } from "./payment.service";
 
 const mockStripeProvider = {
   name: "stripe",
   createCheckoutSession: vi.fn(),
+  createTherapyCheckout: vi.fn(),
   createPortalSession: vi.fn(),
   handleWebhook: vi.fn(),
   listInvoices: vi.fn(),
@@ -18,6 +20,7 @@ const mockStripeProvider = {
 const mockPayphoneProvider = {
   name: "payphone",
   createCheckoutSession: vi.fn(),
+  createTherapyCheckout: vi.fn(),
   createPortalSession: vi.fn(),
   handleWebhook: vi.fn(),
   listInvoices: vi.fn(),
@@ -53,14 +56,17 @@ const SIN_CONFIGURAR = Symbol("sin configurar");
 function makeService(
   defaultProvider: "stripe" | "payphone" = "stripe",
   purchases: string | typeof SIN_CONFIGURAR = "on",
+  therapyOffer: string | typeof SIN_CONFIGURAR = SIN_CONFIGURAR,
 ) {
+  const valor = (v: string | typeof SIN_CONFIGURAR) =>
+    v === SIN_CONFIGURAR ? undefined : v;
   const mockConfig = {
     get: vi.fn((key: string) =>
       key === "BILLING_PURCHASES"
-        ? purchases === SIN_CONFIGURAR
-          ? undefined
-          : purchases
-        : defaultProvider,
+        ? valor(purchases)
+        : key === "THERAPY_OFFER"
+          ? valor(therapyOffer)
+          : defaultProvider,
     ),
   };
   return new PaymentService(
@@ -238,6 +244,107 @@ describe("PaymentService", () => {
       await expect(service.reactivate("user-1")).resolves.toEqual({ ok: true });
       await expect(
         service.createPortalSession("user-1", { returnUrl: "https://r.com" }),
+      ).resolves.toEqual({ url: "u" });
+    });
+  });
+
+  // ─── El cobro de una sesión de terapia ────────────────────────────────────
+  //
+  // La segunda guarda, aislada: aquí no está `TerapiaService`, que es la
+  // primera. Si alguien llamara a este método por otro camino, esto es lo único
+  // que hay entre esa llamada y el proveedor de pago.
+
+  describe("createTherapyCheckout", () => {
+    const PROFESIONAL = "pro-real-1";
+    const opts = (therapistId: string) => ({
+      userId: "user-1",
+      sessionId: "s-1",
+      therapistId,
+      priceUsd: 40,
+      currency: "USD",
+      productName: "Sesión",
+      successUrl: "https://success.invalid",
+      cancelUrl: "https://cancel.invalid",
+    });
+
+    async function intentar(service: PaymentService, therapistId: string) {
+      try {
+        await service.createTherapyCheckout(opts(therapistId));
+        return null;
+      } catch (e: unknown) {
+        return e;
+      }
+    }
+
+    const sinProveedor = () => {
+      expect(mockStripeProvider.createTherapyCheckout).not.toHaveBeenCalled();
+      expect(mockPayphoneProvider.createTherapyCheckout).not.toHaveBeenCalled();
+    };
+
+    it.each([
+      ["sin configurar", SIN_CONFIGURAR],
+      ["cadena vacía", ""],
+      ["sólo espacios", "   "],
+      ["apagada", "off"],
+      ["valor ilegible", "ábrela"],
+    ] as Array<[string, string | typeof SIN_CONFIGURAR]>)(
+      "oferta cerrada (%s) → 503 y no toca el proveedor",
+      async (_caso, raw) => {
+        // Las compras van ABIERTAS a propósito: son otra puerta, y abrirlas no
+        // puede dejar pasar un cobro de terapia.
+        const err = await intentar(
+          makeService("stripe", "on", raw),
+          PROFESIONAL,
+        );
+        expect(err).toBeInstanceOf(ExpectedUnavailableException);
+        expect((err as HttpException).getResponse()).toEqual({
+          code: "THERAPY_OFFER_CLOSED",
+          message: "Todavía no ofrecemos sesiones de terapia.",
+        });
+        sinProveedor();
+      },
+    );
+
+    it.each([...DEMO_THERAPIST_IDS])(
+      "oferta abierta y %s, de demostración → 409 y no toca el proveedor",
+      async (id) => {
+        const err = await intentar(makeService("stripe", "on", "on"), id);
+        expect((err as HttpException).getStatus()).toBe(409);
+        expect((err as HttpException).getResponse()).toMatchObject({
+          code: "THERAPY_DEMO_SESSION",
+        });
+        sinProveedor();
+      },
+    );
+
+    it("oferta abierta y profesional real → delega con los mismos datos", async () => {
+      // Control contrario: sin él, una guarda que cerrara siempre aprobaría.
+      mockStripeProvider.createTherapyCheckout.mockResolvedValue({
+        url: "https://checkout.invalid/x",
+        stripeCheckoutSessionId: "cs_x",
+      });
+      const res = await makeService(
+        "stripe",
+        // Y con las compras CERRADAS: ninguna de las dos puertas abre la otra.
+        SIN_CONFIGURAR,
+        "on",
+      ).createTherapyCheckout(opts(PROFESIONAL));
+      expect(res.stripeCheckoutSessionId).toBe("cs_x");
+      expect(mockStripeProvider.createTherapyCheckout).toHaveBeenCalledWith(
+        opts(PROFESIONAL),
+      );
+    });
+
+    it("cerrar terapia no cierra las compras de planes", async () => {
+      mockStripeProvider.createCheckoutSession.mockResolvedValue({ url: "u" });
+      const service = makeService("stripe", "on", "off");
+      await expect(
+        service.createCheckoutSession(
+          "user-1",
+          BillingPlan.PRO_MONTHLY,
+          "https://success.com",
+          "https://cancel.com",
+        ),
       ).resolves.toEqual({ url: "u" });
     });
   });

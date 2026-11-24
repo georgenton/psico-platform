@@ -1,22 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import type { TherapyHubResponse } from "@psico/types";
-import { isNextThrow, serverFetch } from "@/lib/api.server";
 import { hrefAyuda } from "@/lib/ayuda";
+import { ofertaDeTerapia } from "@/lib/terapia/oferta";
+import { TerapiaCerrada } from "@/components/dashboard/terapia/TerapiaCerrada";
 import { TherapistCard } from "@/components/dashboard/terapia/TherapistCard";
 
 export const metadata: Metadata = { title: "Terapia" };
 export const dynamic = "force-dynamic";
 
 export default async function TerapiaHubPage() {
-  let hub: TherapyHubResponse | null = null;
-  let loadError: string | null = null;
-  try {
-    hub = await serverFetch<TherapyHubResponse>("/terapia/hub");
-  } catch (err) {
-    if (isNextThrow(err)) throw err;
-    loadError = err instanceof Error ? err.message : "Error desconocido";
-  }
+  const { abierta, hub, historial } = await ofertaDeTerapia();
+  if (!abierta || !hub) return <TerapiaCerrada historial={historial} />;
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -31,26 +25,12 @@ export default async function TerapiaHubPage() {
           className="mt-1 text-[14px] leading-relaxed"
           style={{ color: "var(--color-warm-700)" }}
         >
-          {hub?.intro ??
-            "Aquí encuentras espacios para hablar con un terapeuta cuando lo necesites."}
+          {hub.intro}
         </p>
       </header>
 
-      {loadError ? (
-        <div
-          className="rounded-2xl border-[1.5px] bg-white p-5 text-[13px]"
-          style={{
-            borderColor: "var(--color-rose-200)",
-            color: "var(--color-rose-700)",
-          }}
-        >
-          No pudimos cargar el hub:{" "}
-          <span className="font-mono">{loadError}</span>
-        </div>
-      ) : null}
-
       {/* Next session card */}
-      {hub?.nextSession ? (
+      {hub.nextSession && !hub.nextSession.therapist.isDemo ? (
         <section
           className="rounded-2xl border-[1.5px] bg-white p-5"
           style={{ borderColor: "var(--color-warm-200)" }}
@@ -188,7 +168,7 @@ export default async function TerapiaHubPage() {
       </section>
 
       {/* Active therapist */}
-      {hub?.activeTherapist ? (
+      {hub.activeTherapist ? (
         <section>
           <p
             className="mb-2 text-[12px] font-semibold uppercase tracking-wide"
@@ -204,7 +184,7 @@ export default async function TerapiaHubPage() {
       ) : null}
 
       {/* Recent prescriptions */}
-      {hub && hub.recentPrescriptions.length > 0 ? (
+      {hub.recentPrescriptions.length > 0 ? (
         <section>
           <p
             className="mb-2 text-[12px] font-semibold uppercase tracking-wide"

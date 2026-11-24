@@ -5,6 +5,8 @@ import type {
   TherapySessionsListResponse,
 } from "@psico/types";
 import { isNextThrow, serverFetch } from "@/lib/api.server";
+import { ofertaDeTerapia } from "@/lib/terapia/oferta";
+import { TerapiaCerrada } from "@/components/dashboard/terapia/TerapiaCerrada";
 
 export const metadata: Metadata = { title: "Mis sesiones · Terapia" };
 export const dynamic = "force-dynamic";
@@ -19,6 +21,18 @@ export default async function MisSesionesPage() {
   } catch (err) {
     if (isNextThrow(err)) throw err;
     loadError = err instanceof Error ? err.message : "Error desconocido";
+  }
+
+  const ofertaAbierta = data?.offer?.open ?? false;
+  // Sin sesiones y sin oferta no hay nada que listar: se dice lo que hay.
+  if (
+    data &&
+    !ofertaAbierta &&
+    data.upcoming.length === 0 &&
+    data.past.length === 0
+  ) {
+    const { historial } = await ofertaDeTerapia();
+    return <TerapiaCerrada historial={historial} />;
   }
 
   return (
@@ -72,12 +86,14 @@ export default async function MisSesionesPage() {
             }}
           >
             No tienes sesiones programadas.{" "}
-            <Link
-              href="/dashboard/terapia/terapeutas"
-              style={{ color: "var(--color-lavender-700)" }}
-            >
-              Buscar terapeuta →
-            </Link>
+            {ofertaAbierta ? (
+              <Link
+                href="/dashboard/terapia/terapeutas"
+                style={{ color: "var(--color-lavender-700)" }}
+              >
+                Buscar terapeuta →
+              </Link>
+            ) : null}
           </p>
         )}
       </section>

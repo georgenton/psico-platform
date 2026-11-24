@@ -13,6 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Stack } from "expo-router";
 import { terapiaApi } from "@psico/api-client";
 import type { TherapySessionsListResponse } from "@psico/types";
+import { TerapiaCerrada } from "@/components/dashboard/terapia/TerapiaCerrada";
 import { Colors, Radius, Spacing } from "@/theme";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -78,6 +79,17 @@ export default function MisSesionesScreen() {
 
   const upcoming = data?.upcoming ?? [];
   const past = data?.past ?? [];
+  const ofertaAbierta = data?.offer?.open ?? false;
+
+  // Sin sesiones y sin oferta no hay nada que listar ni que proponer.
+  if (data && !ofertaAbierta && upcoming.length === 0 && past.length === 0) {
+    return (
+      <>
+        <Stack.Screen options={{ title: "Mis sesiones" }} />
+        <TerapiaCerrada />
+      </>
+    );
+  }
 
   return (
     <>
@@ -97,15 +109,16 @@ export default function MisSesionesScreen() {
         {upcoming.length === 0 && past.length === 0 ? (
           <View style={styles.emptyCard}>
             <Text style={styles.emptyText}>
-              Aún no tienes sesiones. Cuando reserves la primera, la verás
-              acá.
+              Aún no tienes sesiones. Cuando reserves la primera, la verás aquí.
             </Text>
-            <Pressable
-              onPress={() => router.push("/(tabs)/terapia/terapeutas")}
-              style={styles.ctaButton}
-            >
-              <Text style={styles.ctaButtonText}>Buscar terapeuta →</Text>
-            </Pressable>
+            {ofertaAbierta ? (
+              <Pressable
+                onPress={() => router.push("/(tabs)/terapia/terapeutas")}
+                style={styles.ctaButton}
+              >
+                <Text style={styles.ctaButtonText}>Buscar terapeuta →</Text>
+              </Pressable>
+            ) : null}
           </View>
         ) : null}
 
@@ -116,9 +129,7 @@ export default function MisSesionesScreen() {
               <SessionRow
                 key={s.id}
                 session={s}
-                onPress={() =>
-                  router.push(`/(tabs)/terapia/sesiones/${s.id}`)
-                }
+                onPress={() => router.push(`/(tabs)/terapia/sesiones/${s.id}`)}
               />
             ))}
           </>
@@ -131,9 +142,7 @@ export default function MisSesionesScreen() {
               <SessionRow
                 key={s.id}
                 session={s}
-                onPress={() =>
-                  router.push(`/(tabs)/terapia/sesiones/${s.id}`)
-                }
+                onPress={() => router.push(`/(tabs)/terapia/sesiones/${s.id}`)}
               />
             ))}
           </>
@@ -161,9 +170,7 @@ function SessionRow({
     <Pressable onPress={onPress} style={styles.sessionCard}>
       <View style={styles.sessionHeader}>
         <Text style={styles.sessionName}>{session.therapist.name}</Text>
-        <View
-          style={[styles.statusPill, { backgroundColor: colors.bg }]}
-        >
+        <View style={[styles.statusPill, { backgroundColor: colors.bg }]}>
           <Text style={[styles.statusText, { color: colors.fg }]}>
             {STATUS_LABEL[session.status] ?? session.status}
           </Text>

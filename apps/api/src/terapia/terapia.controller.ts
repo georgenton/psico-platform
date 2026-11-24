@@ -16,6 +16,7 @@ import {
   ApiBadRequestResponse,
   ApiConflictResponse,
   ApiOperation,
+  ApiServiceUnavailableResponse,
   ApiTags,
   ApiUnauthorizedResponse,
 } from "@nestjs/swagger";
@@ -59,6 +60,26 @@ import { UpdatePrescriptionDto } from "./dto/update-prescription.dto";
 import { RescheduleSessionDto } from "./dto/reschedule-session.dto";
 import { CancelSessionDto } from "./dto/cancel-session.dto";
 import { RetryCheckoutDto } from "./dto/retry-checkout.dto";
+
+/**
+ * Documenta una ruta de OFERTA: descubrir, reservar, pagar o mover. La puerta
+ * `THERAPY_OFFER` la cierra con 503, y quien decide es `TerapiaService`; esto
+ * sólo lo cuenta en el contrato. `terapia-offer.e2e-spec.ts` obliga a
+ * clasificar toda ruta nueva de este controlador.
+ */
+const OfferRoute = () =>
+  ApiServiceUnavailableResponse({
+    type: ErrorEnvelopeDto,
+    description: "Therapy is not being offered (THERAPY_OFFER_CLOSED).",
+  });
+
+/** Documenta el rechazo sobre una sesión de una ficha de demostración. */
+const DemoSessionConflict = () =>
+  ApiConflictResponse({
+    type: ErrorEnvelopeDto,
+    description:
+      "The session was booked with a demo profile (THERAPY_DEMO_SESSION).",
+  });
 
 /**
  * Terapia controller — Sprint S62 + S63.
@@ -130,6 +151,7 @@ export class TerapiaController {
   // no caiga en el segmento dinámico.
   @Get("therapists/filters")
   @UseGuards(JwtAuthGuard)
+  @OfferRoute()
   @ApiOperation({
     summary: "Opciones disponibles para los filtros del directorio.",
   })
@@ -139,6 +161,7 @@ export class TerapiaController {
 
   @Get("therapists")
   @UseGuards(JwtAuthGuard)
+  @OfferRoute()
   @ApiOperation({
     summary:
       "Directorio paginado de terapeutas activos. Soporta filtros + sort.",
@@ -152,6 +175,7 @@ export class TerapiaController {
 
   @Get("therapists/:id")
   @UseGuards(JwtAuthGuard)
+  @OfferRoute()
   @ApiOperation({ summary: "Detalle de un terapeuta." })
   async getTherapist(
     @CurrentUser() user: { userId: string },
@@ -162,6 +186,7 @@ export class TerapiaController {
 
   @Get("therapists/:id/reviews")
   @UseGuards(JwtAuthGuard)
+  @OfferRoute()
   @ApiOperation({ summary: "Reseñas paginadas de un terapeuta." })
   async listReviews(
     @Param("id") id: string,
@@ -172,6 +197,7 @@ export class TerapiaController {
 
   @Post("therapists/:id/favorite")
   @UseGuards(JwtAuthGuard)
+  @OfferRoute()
   @ApiOperation({ summary: "Toggle de favorito sobre un terapeuta." })
   @HttpCode(HttpStatus.OK)
   async toggleFavorite(
@@ -185,6 +211,7 @@ export class TerapiaController {
 
   @Get("therapists/:id/availability")
   @UseGuards(JwtAuthGuard)
+  @OfferRoute()
   @ApiOperation({
     summary:
       "Slots disponibles del terapeuta proyectados sobre los próximos 14 días.",
@@ -198,6 +225,7 @@ export class TerapiaController {
 
   @Post("bookings")
   @UseGuards(JwtAuthGuard)
+  @OfferRoute()
   @ApiOperation({
     summary:
       "Reservar una sesión. v1: crea la session en SCHEDULED + PENDING; Stripe wiring llega en S65.",
@@ -226,6 +254,7 @@ export class TerapiaController {
 
   @Patch("sessions/:id/prep")
   @UseGuards(JwtAuthGuard)
+  @DemoSessionConflict()
   @ApiOperation({
     summary:
       "Actualizar pre-sesión (intentionCiphertext E2E, mood, entradas compartidas).",
@@ -242,6 +271,7 @@ export class TerapiaController {
 
   @Post("sessions/:id/join")
   @UseGuards(JwtAuthGuard)
+  @DemoSessionConflict()
   @ApiOperation({
     summary:
       "Emite token de sala. Solo válido en window [-5min, +duration+15min].",
@@ -357,13 +387,15 @@ export class TerapiaController {
 
   @Patch("sessions/:id/reschedule")
   @UseGuards(JwtAuthGuard)
+  @OfferRoute()
   @ApiOperation({
     summary:
       "Re-agendar sesión a un slot libre del mismo terapeuta. Solo SCHEDULED.",
   })
   @ApiConflictResponse({
     type: ErrorEnvelopeDto,
-    description: "The new slot is already taken (SLOT_TAKEN).",
+    description:
+      "The new slot is already taken (SLOT_TAKEN), or the session was booked with a demo profile (THERAPY_DEMO_SESSION).",
   })
   async rescheduleSession(
     @CurrentUser() user: { userId: string },
@@ -392,6 +424,8 @@ export class TerapiaController {
 
   @Post("bookings/:id/retry-checkout")
   @UseGuards(JwtAuthGuard)
+  @OfferRoute()
+  @DemoSessionConflict()
   @ApiOperation({
     summary:
       "Emitir un nuevo Stripe Checkout para una session PENDING. Útil tras fallo o cierre del tab.",

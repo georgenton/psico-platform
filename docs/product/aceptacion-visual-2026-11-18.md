@@ -27,6 +27,14 @@
 > no se reabren. Qué se decide ahora, en
 > [la ficha](../operations/tramo-a-produccion.md).
 
+> ### Y desde el 2026-11-24, muestra el resultado corregido
+>
+> El mismo enlace lleva los catorce asuntos con su **antes y su ahora**, capturados
+> sobre lo que sirve staging tras #878–#884, y el conjunto entero. Las capturas
+> del 23-11 se conservan como antecedente. Uno de los tres chips de actividad de
+> Inicio que aquí quedaban como decisión editorial —«+ mapa», «+ patrón» y
+> «+ calma»— ya cambió con los demás: ninguno de los tres era cierto.
+
 ## 📷 Las capturas, para abrirlas mientras lees
 
 **→ [Las 18 pantallas, con sus decisiones](https://claude.ai/artifact/56P67k18svei385pZ2Whn3)**

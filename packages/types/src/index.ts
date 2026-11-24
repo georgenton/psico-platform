@@ -4048,6 +4048,10 @@ export * from "./biblioteca";
 // que no haya dos criterios que puedan contradecirse.
 export * from "./purchases";
 
+// El cambio de correo está retirado. El rechazo del servidor y las dos
+// pantallas dicen la misma frase.
+export * from "./email-change";
+
 // Lo que pasa con lo que se le escribe a Eco. Compartido porque lo cuentan el
 // tour, las rejas, Seguridad y el componente de privacidad de web y móvil, y
 // varios decían de Eco lo que sólo es cierto del diario.

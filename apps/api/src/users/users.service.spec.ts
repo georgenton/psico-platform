@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
-  ConflictException,
   HttpException,
   UnauthorizedException,
   NotFoundException,
@@ -10,6 +9,7 @@ import * as bcrypt from "bcryptjs";
 import { UsersService } from "./users.service";
 import { generationKey } from "../emotional-map/cache-identity";
 import { isAllowedAssetKey } from "../shared/content-asset";
+import { ExpectedUnavailableException } from "../shared/filters/expected-unavailable.exception";
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -602,39 +602,29 @@ describe("UsersService", () => {
   // ── requestEmailChange ────────────────────────────────────────────────────
 
   describe("requestEmailChange", () => {
-    it("creates a verification request when the new email is free + enqueues email", async () => {
-      mockPrisma.user.findUnique.mockResolvedValue(null);
-      mockPrisma.emailChangeRequest.create.mockResolvedValue({});
+    // Withdrawn. The HTTP side — every valid body, zero writes, nothing queued —
+    // is in `email-change-unavailable.e2e-spec.ts`; here, the exact error.
+    it("refuses without reading, writing or queueing anything", () => {
+      let error: unknown;
+      try {
+        service.requestEmailChange();
+      } catch (e) {
+        error = e;
+      }
 
-      const res = await service.requestEmailChange(userId, {
-        newEmail: "Janet@Example.com ",
+      // The class, not just the status: the global filter gives this one a
+      // single warn line, and any other 503 a stack and an alert.
+      expect(error).toBeInstanceOf(ExpectedUnavailableException);
+      expect(
+        (error as ExpectedUnavailableException).getResponse(),
+      ).toMatchObject({
+        code: "EMAIL_CHANGE_UNAVAILABLE",
+        message: "Por ahora no se puede cambiar el correo desde la app.",
       });
 
-      expect(res).toEqual({
-        ok: true,
-        verificationSentTo: "janet@example.com",
-      });
-      const createCall = mockPrisma.emailChangeRequest.create.mock.calls[0][0];
-      expect(createCall.data.newEmail).toBe("janet@example.com");
-      // tokenHash is SHA-256 hex (64 chars), never the raw token
-      expect(createCall.data.tokenHash).toMatch(/^[a-f0-9]{64}$/);
-
-      // Confirmation email enqueued (NOT sent synchronously — Sprint S3).
-      expect(mockJobs.enqueueEmail).toHaveBeenCalledTimes(1);
-      const enq = mockJobs.enqueueEmail.mock.calls[0][0];
-      expect(enq.to).toBe("janet@example.com");
-      expect(enq.tag).toBe("email-change");
-      expect(enq.html).toContain(
-        "https://app.example.com/verify-email-change?token=",
-      );
-    });
-
-    it("throws ConflictException when the email is taken", async () => {
-      mockPrisma.user.findUnique.mockResolvedValue({ id: "other-user" });
-
-      await expect(
-        service.requestEmailChange(userId, { newEmail: "taken@example.com" }),
-      ).rejects.toThrow(ConflictException);
+      expect(mockPrisma.user.findUnique).not.toHaveBeenCalled();
+      expect(mockPrisma.emailChangeRequest.create).not.toHaveBeenCalled();
+      expect(mockJobs.enqueueEmail).not.toHaveBeenCalled();
     });
   });
 

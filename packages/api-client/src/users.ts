@@ -47,7 +47,7 @@ export const usersApi = {
   updateProfile: (body: UpdateProfileRequest) =>
     apiClient.patch<UserMeResponse>("/user/profile", body),
 
-  /** Sprint S57 — Trigger email-change verification flow. */
+  /** Withdrawn: the server answers 503 to every request and no screen calls it. */
   requestEmailChange: (body: EmailChangeRequestPayload) =>
     apiClient.post<EmailChangeRequestResponse>(
       "/user/email-change-request",

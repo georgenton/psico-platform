@@ -5009,9 +5009,8 @@ export interface components {
         EmailChangeRequestDto: {
             /**
              * Format: email
-             * @description Target email the user wants to switch to. Must be a valid RFC 5321
-             *     address and NOT already registered (409 `EMAIL_ALREADY_REGISTERED`
-             *     on conflict). Case is normalized server-side.
+             * @description Target address. Validated as an email and not used: the operation is
+             *     withdrawn and the answer does not depend on it.
              */
             newEmail: string;
         };
@@ -10058,9 +10057,7 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": Record<string, never>;
-                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -10078,8 +10075,8 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelopeDto"];
                 };
             };
-            /** @description Requested email is already in use by another account. */
-            409: {
+            /** @description Changing the account email is not available. Answers `EMAIL_CHANGE_UNAVAILABLE` to every valid body. */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

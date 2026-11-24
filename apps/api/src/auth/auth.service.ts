@@ -639,10 +639,10 @@ export class AuthService {
    * The first version awaited Resend on the one branch that sends, so a slow
    * provider made "this address can receive a resend" measurably slower than
    * every other answer. The email now goes through the `email` queue — the
-   * same BullMQ path the email-change and data-export notices already use,
-   * with its 3 attempts and backoff — and the worker delivers it. What the
-   * response still awaits is our own infrastructure: the locked reservation
-   * (one short PostgreSQL transaction) and the enqueue (one Redis write).
+   * same BullMQ path the author-review notices use, with its 3 attempts and
+   * backoff — and the worker delivers it. What the response still awaits is
+   * our own infrastructure: the locked reservation (one short PostgreSQL
+   * transaction) and the enqueue (one Redis write).
    *
    * That removes the provider from the timing. It does NOT make the branches
    * indistinguishable in time, and nothing here claims so: the sending branch
@@ -751,9 +751,9 @@ export class AuthService {
     // either: the response is 200 by contract, so the audit row is where it
     // gets recorded. The slot stays spent — see verification-send-budget.ts.
     //
-    // The job carries the rendered message, raw link included, exactly like
-    // the email-change notice in UsersService. BullMQ keeps completed jobs for
-    // a day; the link it contains is a 24-hour, verify-only token.
+    // The job carries the rendered message, raw link included. BullMQ keeps
+    // completed jobs for a day; the link it contains is a 24-hour, verify-only
+    // token.
     let enqueueFailed = false;
     try {
       await this.jobs.enqueueEmail(prepared.mail);

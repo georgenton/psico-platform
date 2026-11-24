@@ -146,6 +146,19 @@ describe("la página servida", () => {
     expect(container.querySelectorAll(".pend").length).toBe(5);
   });
 
+  it("el pie enlaza la ayuda inmediata, que existe y no pide cuenta", () => {
+    const { container } = render(<Landing />);
+    const columna = [...container.querySelectorAll(".fh-foot-col")].find(
+      (c) => c.querySelector("h2")?.textContent === "Ayuda y confianza",
+    );
+    const enlaces = [...(columna?.querySelectorAll("a") ?? [])].map((a) => [
+      a.textContent,
+      a.getAttribute("href"),
+    ]);
+    // La primera de su columna.
+    expect(enlaces[0]).toEqual(["Ayuda inmediata", "/ayuda"]);
+  });
+
   it("dice que no sustituye la atención profesional", () => {
     const { container } = render(<Landing />);
     expect((container.textContent ?? "").toLowerCase()).toContain(

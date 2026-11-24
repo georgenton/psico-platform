@@ -1,6 +1,63 @@
+// ── La CSP de la ayuda pública ───────────────────────────────────────────────
+//
+// `/ayuda` tiene que verse cuando todo lo demás falla, y no contarle a nadie
+// quién la abre. Hoy no carga nada de fuera —comprobado sobre el build servido:
+// ni siquiera el `@import` de Google Fonts con el que abre `globals.css`, que
+// no sobrevive a la compilación—, pero eso es una circunstancia, no una
+// garantía. Esta cabecera la convierte en una: una fuente, una analítica o un
+// informe de errores que mañana se añadiera al layout raíz no podrá pedirse
+// desde esta página, y la página seguirá en pie sin ellos.
+//
+// A diferencia de la de Círculos no necesita nonce —aquí no hay secreto en la
+// URL ni datos de nadie—, por eso puede ser una cabecera estática: los scripts
+// en línea de Next se permiten, los de fuera no. `'unsafe-eval'` y el websocket
+// son sólo del servidor de desarrollo.
+const enDesarrollo = process.env.NODE_ENV === "development";
+const cspAyuda = [
+  "default-src 'self'",
+  `script-src 'self' 'unsafe-inline'${enDesarrollo ? " 'unsafe-eval'" : ""}`,
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data:",
+  "font-src 'self'",
+  `connect-src 'self'${enDesarrollo ? " ws:" : ""}`,
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+  "base-uri 'none'",
+  "object-src 'none'",
+].join("; ");
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   transpilePackages: ["@psico/ui", "@psico/types"],
+
+  // ── Las direcciones antiguas de la ayuda en crisis ─────────────────────────
+  //
+  // `/dashboard/terapia/crisis` es donde vivía la pantalla, y `/terapia/crisis`
+  // es la ruta que la API manda en el evento de crisis de Eco. Las dos acaban
+  // en la página pública.
+  //
+  // Van AQUÍ y no en `middleware.ts` ni en un `redirect()` de página por una
+  // razón de orden: Next aplica estas redirecciones ANTES del middleware, así
+  // que ocurren antes de la puerta de sesión. Un enlace antiguo abierto sin
+  // cuenta —o con la sesión vencida y la API caída, que es cuando el middleware
+  // respondería 503— llega a las líneas y no a un formulario de acceso.
+  //
+  // Temporales (307) a propósito: un 308 se queda en la caché del navegador
+  // para siempre, y ésta no es una decisión que convenga no poder deshacer.
+  async redirects() {
+    return [
+      {
+        source: "/dashboard/terapia/crisis",
+        destination: "/ayuda?desde=terapia",
+        permanent: false,
+      },
+      {
+        source: "/terapia/crisis",
+        destination: "/ayuda?desde=eco",
+        permanent: false,
+      },
+    ];
+  },
 
   // Google Identity Services (the "Continuar con Google" button) opens a
   // popup or uses FedCM and needs to call `window.postMessage` back to the
@@ -30,6 +87,16 @@ const nextConfig = {
             key: "Cross-Origin-Opener-Policy",
             value: "same-origin-allow-popups",
           },
+        ],
+      },
+      // La ayuda pública: nada de terceros, y ninguna página a la que se salga
+      // desde ella se entera de que se venía de ahí.
+      {
+        source: "/ayuda",
+        headers: [
+          { key: "Content-Security-Policy", value: cspAyuda },
+          { key: "Referrer-Policy", value: "no-referrer" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
         ],
       },
       // ── Círculos: the invitation door, the room, and their handlers ────────

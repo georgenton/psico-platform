@@ -4030,6 +4030,7 @@ export * from "./experience";
 export * from "./guide-anchor";
 export * from "./practice";
 export * from "./crisis-hotline";
+export * from "./crisis-catalog";
 
 // El reinicio de la cuota de Eco, contado en la zona de la persona. Compartido
 // porque lo cuentan DOS superficies —el mensaje del servidor y la tarjeta de Mi

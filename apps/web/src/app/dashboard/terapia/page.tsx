@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import type { TherapyHubResponse } from "@psico/types";
 import { isNextThrow, serverFetch } from "@/lib/api.server";
+import { hrefAyuda } from "@/lib/ayuda";
 import { TherapistCard } from "@/components/dashboard/terapia/TherapistCard";
 
 export const metadata: Metadata = { title: "Terapia" };
@@ -14,8 +15,7 @@ export default async function TerapiaHubPage() {
     hub = await serverFetch<TherapyHubResponse>("/terapia/hub");
   } catch (err) {
     if (isNextThrow(err)) throw err;
-    loadError =
-      err instanceof Error ? err.message : "Error desconocido";
+    loadError = err instanceof Error ? err.message : "Error desconocido";
   }
 
   return (
@@ -44,7 +44,8 @@ export default async function TerapiaHubPage() {
             color: "var(--color-rose-700)",
           }}
         >
-          No pudimos cargar el hub: <span className="font-mono">{loadError}</span>
+          No pudimos cargar el hub:{" "}
+          <span className="font-mono">{loadError}</span>
         </div>
       ) : null}
 
@@ -73,7 +74,8 @@ export default async function TerapiaHubPage() {
             className="mt-0.5 text-[13px]"
             style={{ color: "var(--color-warm-700)" }}
           >
-            con {hub.nextSession.therapist.name} · {hub.nextSession.durationMin} min
+            con {hub.nextSession.therapist.name} · {hub.nextSession.durationMin}{" "}
+            min
           </p>
           <div className="mt-4 flex gap-2">
             <Link
@@ -120,8 +122,8 @@ export default async function TerapiaHubPage() {
             Catálogo + filtros por enfoque, idioma, precio.
           </p>
         </Link>
-        <Link
-          href="/dashboard/terapia/crisis"
+        <a
+          href={hrefAyuda({ desde: "terapia" })}
           className="rounded-2xl border-[1.5px] bg-white p-5 transition hover:border-[var(--color-rose-400)]"
           style={{ borderColor: "var(--color-warm-200)" }}
         >
@@ -140,7 +142,7 @@ export default async function TerapiaHubPage() {
           >
             Líneas de crisis y primeros pasos.
           </p>
-        </Link>
+        </a>
         <Link
           href="/dashboard/terapia/recetas"
           className="rounded-2xl border-[1.5px] bg-white p-5 transition hover:border-[var(--color-sage-400)]"

@@ -124,6 +124,7 @@ describe("las superficies standalone conservan el suyo", () => {
     ],
     ["components/circulos/SalaDuo.tsx", "/compartir"],
     ["components/onboarding/OnboardingShell.tsx", "el onboarding"],
+    ["components/ayuda/AyudaInmediata.tsx", "la ayuda pública"],
   ] as const;
 
   for (const [rel, quien] of standalone) {

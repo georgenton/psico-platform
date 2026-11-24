@@ -2,6 +2,8 @@
 
 import { dialableHotline } from "@psico/types";
 
+import { hrefAyuda } from "@/lib/ayuda";
+
 /**
  * CrisisModal — Sprint front-eco.
  *
@@ -96,6 +98,21 @@ export function CrisisModal({
               📞 Llama al {hotline}
             </p>
           )}
+
+          {/* La ruta que manda el servidor nunca se enseñaba, así que desde
+              aquí sólo se veía UNA línea. Se enlaza la ayuda pública por su
+              nombre y no por `crisisPath`: es la misma página, y el destino no
+              depende de lo que traiga el flujo. En otra pestaña, como el
+              directorio: este aviso se queda a la vista mientras se marca. */}
+          <a
+            href={hrefAyuda({ desde: "eco" })}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-3 block w-full rounded-2xl px-5 py-3 text-center text-sm font-semibold underline underline-offset-4"
+            style={{ color: "var(--fg-link-strong)" }}
+          >
+            Ver más líneas de ayuda
+          </a>
 
           <button
             type="button"

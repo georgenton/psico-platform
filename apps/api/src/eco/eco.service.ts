@@ -20,7 +20,7 @@ import type {
   EcoThreadResponse,
 } from "@psico/types";
 import { chapterConcept } from "@psico/types";
-import { Observable, Subject } from "rxjs";
+import { Observable, ReplaySubject, Subject } from "rxjs";
 import type { Env } from "../config";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { EmbeddingService } from "../ai/embedding/embedding.service";
@@ -44,7 +44,12 @@ import {
   toSafeFailure,
   type EcoFailureCategory,
 } from "./eco-failure";
-import { CRISIS_LLM_SENTINEL, crisisNotice, isCrisisText } from "./crisis";
+import {
+  CRISIS_LLM_SENTINEL,
+  crisisNotice,
+  isCrisisText,
+  type CrisisNotice,
+} from "./crisis";
 import { ECO_PERSONA, buildSystemPrompt } from "./persona";
 
 // La cuota de FREE —10 mensajes por día UTC— vivía aquí como constante local,
@@ -57,6 +62,22 @@ const MAX_HISTORY_TURNS = 8;
 
 /** Max messages returned per `getThread` page. */
 const THREAD_PAGE_SIZE = 50;
+
+/** How long the crisis notice waits for the profile's country. */
+const CRISIS_COUNTRY_WAIT_MS = 1_000;
+
+/**
+ * How long the stream stays open, after the notice, for what is written next.
+ * The installed clients paint the notice when the stream CLOSES, so waiting
+ * without a limit for the database would hold it back just the same.
+ */
+const CRISIS_RECORD_WAIT_MS = 3_000;
+
+/** What is read of a person to answer them: plan, zone and country. */
+interface EcoUser {
+  plan: Plan;
+  profile: { timezone: string | null; country: string | null } | null;
+}
 
 @Injectable()
 export class EcoService {
@@ -183,15 +204,17 @@ export class EcoService {
    * onto the response.
    *
    * The flow is:
-   *   1. Validate quota.
-   *   2. Validate thread ownership.
-   *   3. Insert the USER message (ciphertext only — plaintext stays in RAM).
-   *   4. Run layer-1 crisis detection on the plaintext.
-   *      → if positive: emit `crisis` event, persist a CRISIS message
-   *        (assistantText = the canned notice), bump quota, done.
-   *   5. Otherwise: kick off Anthropic stream with RAG-augmented system prompt.
+   *   1. Run layer-1 crisis detection on the plaintext, before anything that
+   *      can refuse or fail.
+   *      → if positive: emit the `crisis` event, and only then, as best effort,
+   *        persist the USER message and the CRISIS one (assistantText = the
+   *        canned notice) and emit `done`. See `runCrisis`.
+   *   2. Validate quota.
+   *   3. Validate thread ownership.
+   *   4. Insert the USER message (ciphertext only — plaintext stays in RAM).
+   *   5. Kick off Anthropic stream with RAG-augmented system prompt.
    *      → on the first content delta, check for `[CRISIS]` sentinel.
-   *      → if sentinel: same path as #4.
+   *      → if sentinel: emit the notice, then persist it.
    *      → otherwise: relay tokens as `delta` events until completion.
    *   6. Persist ASSISTANT message (LLM-generated plaintext).
    *   7. Bust the /usage cache + emit `done` with remaining quota.
@@ -200,7 +223,10 @@ export class EcoService {
     userId: string,
     body: EcoSendMessageRequest,
   ): Observable<{ data: EcoSseEvent }> {
-    const subject = new Subject<{ data: EcoSseEvent }>();
+    // A replay: the runner starts now and Nest subscribes some ticks later.
+    // The crisis notice may have next to nothing to wait for, and whether it
+    // arrives must not depend on which of the two takes more ticks.
+    const subject = new ReplaySubject<{ data: EcoSseEvent }>();
     // Fire-and-forget. The runner is responsible for emitting at least one
     // event AND completing the subject — never just one or the other.
     void this.runSendMessage(userId, body, subject);
@@ -286,36 +312,7 @@ export class EcoService {
       //
       // `toSafeFailure` deja sólo constantes del código, un número de estado,
       // marcos de pila sin su primera línea y una correlación validada.
-      const seguro = toSafeFailure(err, { threadId: acreditado.threadId });
-      const atribucion = {
-        stage: seguro.stage,
-        dependency: seguro.dependency,
-        category: seguro.category,
-        upstreamStatus: seguro.upstreamStatus,
-      };
-      const linea = `Eco sendMessage failed · ${describeEcoFailure(atribucion, {
-        threadId: seguro.threadId ?? undefined,
-      })}`;
-
-      if (atribucion.category === "deliberate_refusal") {
-        // Una cuota agotada o un hilo ajeno no son una caída: el servicio dijo
-        // que no a propósito. Se registran como aviso y sin traza, igual que
-        // `HttpExceptionFilter` hace con cualquier 4xx — y no se envían a
-        // Sentry, que es para lo que hay que ir a mirar.
-        this.logger.warn(linea);
-      } else {
-        // Ni el stack crudo como segundo argumento: los marcos ya van en la
-        // línea, sin la primera —que es el mensaje del proveedor—.
-        this.logger.error(
-          seguro.frames.length > 0
-            ? `${linea} frames=${seguro.frames.join(" | ")}`
-            : linea,
-        );
-        // Este camino nunca pasaba por el filtro HTTP —el error viaja DENTRO
-        // del stream SSE—, así que ningún fallo de Eco llegaba a Sentry. Va un
-        // error SINTÉTICO con la etiqueta segura, nunca el original.
-        captureException(new Error(`eco.sendMessage ${linea}`), { ...seguro });
-      }
+      const categoria = this.logFailure(err, acreditado);
       subject.next({
         data: {
           event: "error",
@@ -335,13 +332,51 @@ export class EcoService {
             // FREE agotada, el código llegaba bien (`ECO_QUOTA_EXCEEDED`) y la
             // burbuja del chat enseñaba el genérico, porque la pantalla pinta
             // `ev.data.message` tal cual.
-            message: this.messageForClient(err, atribucion.category),
+            message: this.messageForClient(err, categoria),
           },
         },
       });
     } finally {
       subject.complete();
     }
+  }
+
+  /** Deja constancia del fallo, sin nada de la persona ni del proveedor. */
+  private logFailure(
+    err: unknown,
+    acreditado: { threadId?: string },
+  ): EcoFailureCategory {
+    const seguro = toSafeFailure(err, { threadId: acreditado.threadId });
+    const atribucion = {
+      stage: seguro.stage,
+      dependency: seguro.dependency,
+      category: seguro.category,
+      upstreamStatus: seguro.upstreamStatus,
+    };
+    const linea = `Eco sendMessage failed · ${describeEcoFailure(atribucion, {
+      threadId: seguro.threadId ?? undefined,
+    })}`;
+
+    if (atribucion.category === "deliberate_refusal") {
+      // Una cuota agotada o un hilo ajeno no son una caída: el servicio dijo
+      // que no a propósito. Se registran como aviso y sin traza, igual que
+      // `HttpExceptionFilter` hace con cualquier 4xx — y no se envían a
+      // Sentry, que es para lo que hay que ir a mirar.
+      this.logger.warn(linea);
+    } else {
+      // Ni el stack crudo como segundo argumento: los marcos ya van en la
+      // línea, sin la primera —que es el mensaje del proveedor—.
+      this.logger.error(
+        seguro.frames.length > 0
+          ? `${linea} frames=${seguro.frames.join(" | ")}`
+          : linea,
+      );
+      // Este camino nunca pasaba por el filtro HTTP —el error viaja DENTRO
+      // del stream SSE—, así que ningún fallo de Eco llegaba a Sentry. Va un
+      // error SINTÉTICO con la etiqueta segura, nunca el original.
+      captureException(new Error(`eco.sendMessage ${linea}`), { ...seguro });
+    }
+    return atribucion.category;
   }
 
   private extractCode(err: HttpException): string {
@@ -376,7 +411,15 @@ export class EcoService {
     subject: Subject<{ data: EcoSseEvent }>,
     acreditado: { threadId?: string } = {},
   ): Promise<void> {
-    // ── 1. Quota gate ────────────────────────────────────────────────────
+    // ── 1. Layer-1 crisis detection ──────────────────────────────────────
+    // First, before the quota: whoever asks for help gets the notice, not «you
+    // have no messages left».
+    if (isCrisisText(body.textPlaintext)) {
+      await this.runCrisis(userId, body, subject, acreditado);
+      return;
+    }
+
+    // ── 2. Quota gate ────────────────────────────────────────────────────
     const cuota = await this.resolveEcoQuota(userId);
     const remainingBefore = cuota.remaining;
     if (remainingBefore !== null && remainingBefore <= 0) {
@@ -399,39 +442,15 @@ export class EcoService {
       );
     }
 
-    // ── 2. Thread ownership ──────────────────────────────────────────────
-    const thread = await this.prisma.ecoThread.findFirst({
-      where: { id: body.threadId, userId },
-      select: { id: true },
-    });
-    if (!thread) throw new NotFoundException("ECO_THREAD_NOT_FOUND");
+    // ── 3. Thread ownership ──────────────────────────────────────────────
+    const thread = await this.requireOwnThread(userId, body.threadId);
     // Desde aquí el identificador está acreditado: la consulta de arriba
     // comprobó que existe Y que es de esta persona. Antes de este punto no
     // hay correlación que registrar.
     acreditado.threadId = thread.id;
 
-    // ── 3. Persist the user message (ciphertext only) ────────────────────
-    const userMessage = await this.prisma.ecoMessage.create({
-      data: {
-        threadId: thread.id,
-        kind: "USER",
-        textCiphertext: body.textCiphertext,
-        textNonce: body.textNonce,
-      },
-      select: { id: true },
-    });
-
-    // ── 4. Layer-1 crisis detection ──────────────────────────────────────
-    if (isCrisisText(body.textPlaintext)) {
-      await this.emitCrisis(thread.id, subject, cuota.country);
-      await this.bumpQuotaAndEmitDone(
-        userId,
-        userMessage.id,
-        subject,
-        remainingBefore,
-      );
-      return;
-    }
+    // ── 4. Persist the user message (ciphertext only) ────────────────────
+    await this.saveUserMessage(thread.id, body);
 
     // ── 5. RAG lookup + Anthropic stream ─────────────────────────────────
     // Fase H — reading scope: when the message comes from the reader dock,
@@ -558,7 +577,8 @@ export class EcoService {
 
     // ── 6. Persist + finalise ────────────────────────────────────────────
     if (crisisDetected) {
-      await this.emitCrisis(thread.id, subject, cuota.country);
+      const notice = this.emitCrisis(subject, cuota.country);
+      await this.afterNotice(this.saveNotice(thread.id, notice), acreditado);
     } else {
       const assistant = await this.prisma.ecoMessage.create({
         data: {
@@ -579,7 +599,7 @@ export class EcoService {
         userId,
         assistant.id,
         subject,
-        remainingBefore,
+        remainingBefore === null ? null : Math.max(0, remainingBefore - 1),
         // Fase H — surface the retrieved book/chapter sources and (for reader
         // conversations) the confirmable resonance offer.
         { sources, resonanceOffer },
@@ -635,14 +655,97 @@ export class EcoService {
     return sources;
   }
 
-  private async emitCrisis(
-    threadId: string,
+  // ─── Crisis (private) ──────────────────────────────────────────────────────
+
+  /**
+   * The person's own text asks for help, so the notice goes out first: nothing
+   * that can refuse, fail or hang stands in front of it.
+   *
+   * It waits for one thing, the profile's country, and only for
+   * `CRISIS_COUNTRY_WAIT_MS`: with the right country it is a better notice. A
+   * read that fails or is late counts as «nobody has declared one», which the
+   * notice already knows how to say.
+   */
+  private async runCrisis(
+    userId: string,
+    body: EcoSendMessageRequest,
+    subject: Subject<{ data: EcoSseEvent }>,
+    acreditado: { threadId?: string },
+  ): Promise<void> {
+    const user = this.readUser(userId);
+    const country = await within(user, CRISIS_COUNTRY_WAIT_MS).then(
+      (row) => row?.profile?.country ?? null,
+      () => null,
+    );
+    const notice = this.emitCrisis(subject, country);
+    await this.afterNotice(
+      this.recordCrisis(userId, user, body, notice, subject, acreditado),
+      acreditado,
+    );
+  }
+
+  /** Sends the notice. It reads and writes nothing. */
+  private emitCrisis(
     subject: Subject<{ data: EcoSseEvent }>,
     country: string | null,
-  ): Promise<void> {
+  ): CrisisNotice {
     const notice = crisisNotice(country);
-    // Persist the crisis-derivation message so the thread is re-readable
-    // with the same content the user saw at the time.
+    subject.next({ data: { event: "crisis", data: notice } });
+    return notice;
+  }
+
+  /**
+   * What happens after the notice: best effort, with a deadline, and its
+   * failure is logged and goes no further. An `error` event here would tell
+   * somebody who has just been helped that something went wrong.
+   */
+  private async afterNotice(
+    work: Promise<void>,
+    acreditado: { threadId?: string },
+  ): Promise<void> {
+    try {
+      await within(work, CRISIS_RECORD_WAIT_MS);
+    } catch (err) {
+      this.logFailure(err, acreditado);
+    }
+  }
+
+  /**
+   * Keeps the exchange in the thread and emits `done`.
+   *
+   * The message is written even with no quota left: it was sent, and without
+   * it the notice would be re-read with nothing before it. It counts like any
+   * other, so `used` can pass the limit; `ecoRemaining` stays at zero.
+   *
+   * A thread that is not theirs gets nothing written and no `done`, exactly
+   * like one that does not exist. `done` also needs a saved message to name
+   * and a quota that could be read; without them the stream just closes.
+   */
+  private async recordCrisis(
+    userId: string,
+    user: Promise<EcoUser | null>,
+    body: EcoSendMessageRequest,
+    notice: CrisisNotice,
+    subject: Subject<{ data: EcoSseEvent }>,
+    acreditado: { threadId?: string },
+  ): Promise<void> {
+    const thread = await this.requireOwnThread(userId, body.threadId);
+    acreditado.threadId = thread.id;
+    const userMessage = await this.saveUserMessage(thread.id, body);
+    await this.saveNotice(thread.id, notice);
+    // Counted after the write, so the live count already includes it.
+    const { remaining } = await this.resolveEcoQuota(userId, user);
+    await this.bumpQuotaAndEmitDone(userId, userMessage.id, subject, remaining);
+  }
+
+  /**
+   * Persist the crisis-derivation message so the thread is re-readable with
+   * the same content the user saw at the time.
+   */
+  private async saveNotice(
+    threadId: string,
+    notice: CrisisNotice,
+  ): Promise<void> {
     await this.prisma.ecoMessage.create({
       data: {
         threadId,
@@ -650,14 +753,44 @@ export class EcoService {
         assistantText: notice.text,
       },
     });
-    subject.next({ data: { event: "crisis", data: notice } });
+  }
+
+  // ─── Shared steps (private) ────────────────────────────────────────────────
+
+  /** The same 404 for a thread that is not theirs and for one that is not. */
+  private async requireOwnThread(
+    userId: string,
+    threadId: string,
+  ): Promise<{ id: string }> {
+    const thread = await this.prisma.ecoThread.findFirst({
+      where: { id: threadId, userId },
+      select: { id: true },
+    });
+    if (!thread) throw new NotFoundException("ECO_THREAD_NOT_FOUND");
+    return thread;
+  }
+
+  /** Ciphertext only: the plaintext never reaches the database. */
+  private async saveUserMessage(
+    threadId: string,
+    body: EcoSendMessageRequest,
+  ): Promise<{ id: string }> {
+    return this.prisma.ecoMessage.create({
+      data: {
+        threadId,
+        kind: "USER",
+        textCiphertext: body.textCiphertext,
+        textNonce: body.textNonce,
+      },
+      select: { id: true },
+    });
   }
 
   private async bumpQuotaAndEmitDone(
     userId: string,
     messageId: string,
     subject: Subject<{ data: EcoSseEvent }>,
-    remainingBefore: number | null,
+    quotaRemaining: number | null,
     // Fase H — normal (non-crisis) replies carry the retrieved sources and
     // the optional reader resonance offer. Crisis paths omit both.
     extras?: {
@@ -674,15 +807,12 @@ export class EcoService {
     // counts. We don't INCR a Redis counter because /usage SUMs live.
     await this.usageService.invalidate(userId);
 
-    const remainingAfter =
-      remainingBefore === null ? null : Math.max(0, remainingBefore - 1);
-
     subject.next({
       data: {
         event: "done",
         data: {
           messageId,
-          quotaRemaining: remainingAfter,
+          quotaRemaining,
           ...(extras?.sources && extras.sources.length > 0
             ? { sources: extras.sources }
             : {}),
@@ -704,9 +834,13 @@ export class EcoService {
    * persona, para decir la hora en su reloj y no en UTC.
    *
    * El país del perfil viaja en la misma consulta: así el aviso de crisis no
-   * depende de una lectura más que pueda fallar justo ahí.
+   * depende de una lectura más que pueda fallar justo ahí. Quien ya la tenga
+   * en vuelo —el aviso de la capa 1, que la necesita antes— la pasa.
    */
-  private async resolveEcoQuota(userId: string): Promise<{
+  private async resolveEcoQuota(
+    userId: string,
+    reading: Promise<EcoUser | null> = this.readUser(userId),
+  ): Promise<{
     window: EcoQuotaWindow;
     used: number;
     remaining: number | null;
@@ -714,13 +848,7 @@ export class EcoService {
     country: string | null;
   }> {
     const [user, sub] = await Promise.all([
-      this.prisma.user.findUnique({
-        where: { id: userId },
-        select: {
-          plan: true,
-          profile: { select: { timezone: true, country: true } },
-        },
-      }),
+      reading,
       this.prisma.subscription.findUnique({
         where: { userId },
         select: {
@@ -749,6 +877,17 @@ export class EcoService {
       timezone: user?.profile?.timezone ?? null,
       country: user?.profile?.country ?? null,
     };
+  }
+
+  /** Plan, zona y país, en una sola consulta. */
+  private async readUser(userId: string): Promise<EcoUser | null> {
+    return this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        plan: true,
+        profile: { select: { timezone: true, country: true } },
+      },
+    });
   }
 
   private async computeQuotaRemaining(userId: string): Promise<number | null> {
@@ -787,5 +926,22 @@ export class EcoService {
     kind: DbKind,
   ): "user" | "assistant" | "crisis" | "suggestion" {
     return kind.toLowerCase() as "user" | "assistant" | "crisis" | "suggestion";
+  }
+}
+
+/**
+ * Waits for `work` up to `ms`, then gives up on waiting. It does not cancel
+ * it: whatever it still does, it does on its own, and its late failure is
+ * handled by the race rather than left loose.
+ */
+async function within<T>(work: Promise<T>, ms: number): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  const deadline = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => reject(new Error("ECO_DEADLINE")), ms);
+  });
+  try {
+    return await Promise.race([work, deadline]);
+  } finally {
+    clearTimeout(timer);
   }
 }

@@ -410,6 +410,42 @@ describe("EcoService", () => {
     });
   });
 
+  describe("sendMessage — lo que queda tras un mensaje corriente", () => {
+    it.each([
+      [Plan.PRO, 5, 194],
+      [Plan.FREE, 9, 0],
+      [Plan.B2B, 5, null],
+    ])("%s · %i usados antes → quedan %s", async (plan, usados, quedan) => {
+      const prisma = makePrisma({ plan, userMessagesInPeriod: usados });
+      const { service } = makeService({ prisma });
+      (
+        service as unknown as {
+          anthropic: { messages: { stream: ReturnType<typeof vi.fn> } };
+        }
+      ).anthropic.messages.stream.mockImplementation(() =>
+        makeAnthropicMock(["Te escucho."]),
+      );
+      const events = await lastValueFrom(
+        service
+          .sendMessage(USER_ID, {
+            threadId: THREAD_ID,
+            textPlaintext: "hola",
+            textCiphertext: "ct",
+            textNonce: "n",
+          })
+          .pipe(toArray()),
+      );
+      expect(events.at(-1)?.data).toEqual({
+        event: "done",
+        data: {
+          messageId: "msg-1",
+          quotaRemaining: quedan,
+          resonanceOffer: null,
+        },
+      });
+    });
+  });
+
   describe("sendMessage — crisis detection (layer 1)", () => {
     it("intercepts a crisis plaintext BEFORE calling the LLM", async () => {
       const prisma = makePrisma({

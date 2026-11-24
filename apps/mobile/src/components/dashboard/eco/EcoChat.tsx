@@ -179,13 +179,29 @@ export function EcoChat({
     ]);
 
     let buffered = "";
-    let crisis: {
-      text: string;
-      hotline: string;
-      crisisPath: string;
-      country?: string;
-    } | null = null;
+    let avisado = false;
     let doneMessageId: string | null = null;
+
+    // El aviso se pinta al llegar, y no es parte del intento: lo que le pase
+    // después a la conexión rebobina lo que la persona escribió, no esto.
+    const avisar = (
+      aviso: Extract<EcoSseEvent, { event: "crisis" }>["data"],
+    ) => {
+      avisado = true;
+      setCrisisData(aviso);
+      setMessages((m) => [
+        ...m,
+        {
+          id: `crisis-${Date.now()}`,
+          kind: "crisis",
+          textCiphertext: null,
+          textNonce: null,
+          assistantText: aviso.text,
+          suggestedBookId: null,
+          createdAt: new Date(),
+        },
+      ]);
+    };
 
     try {
       const token = apiClient.getAccessToken();
@@ -207,7 +223,7 @@ export function EcoChat({
                 setStreamTarget(buffered);
                 break;
               case "crisis":
-                crisis = ev.data;
+                avisar(ev.data);
                 break;
               case "suggestion":
                 buffered += `\n\n📚 Sugerencia: ${ev.data.rationale}`;
@@ -244,20 +260,7 @@ export function EcoChat({
       return;
     }
 
-    if (crisis) {
-      setCrisisData(crisis);
-      setMessages((m) => [
-        ...m,
-        {
-          id: doneMessageId ?? `crisis-${Date.now()}`,
-          kind: "crisis",
-          textCiphertext: null,
-          textNonce: null,
-          assistantText: crisis!.text,
-          suggestedBookId: null,
-          createdAt: new Date(),
-        },
-      ]);
+    if (avisado) {
       finalizeRef.current = null;
       setStreamTarget("");
       setPhase("idle");

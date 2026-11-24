@@ -6,7 +6,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { dialableHotline } from "@psico/types";
+import { crisisDirectory, dialableHotline } from "@psico/types";
 
 import { Colors, Radius, Spacing } from "@/theme";
 
@@ -36,6 +36,8 @@ export function CrisisModal({
   // numérica de una línea con mnemotecnia. Mismo helper que el web, para que
   // las dos pantallas no puedan divergir en esto.
   const marcable = dialableHotline(hotline);
+  // Del catálogo, para que retirarlo ahí lo retire también de aquí.
+  const directorio = crisisDirectory();
 
   return (
     <Modal
@@ -75,18 +77,18 @@ export function CrisisModal({
             <Pressable style={styles.ackBtn} onPress={onClose}>
               <Text style={styles.ackBtnText}>Entendido</Text>
             </Pressable>
-            <Text style={styles.foot}>
-              Si estás en otro país, busca una línea de ahí en el directorio{" "}
-              <Text
-                onPress={() =>
-                  void Linking.openURL("https://findahelpline.com")
-                }
-                style={styles.link}
-              >
-                findahelpline.com
+            {directorio ? (
+              <Text style={styles.foot}>
+                Si estás en otro país, busca una línea de ahí en el directorio{" "}
+                <Text
+                  onPress={() => void Linking.openURL(directorio.url)}
+                  style={styles.link}
+                >
+                  {directorio.name}
+                </Text>
+                .
               </Text>
-              .
-            </Text>
+            ) : null}
           </View>
         </View>
       </View>

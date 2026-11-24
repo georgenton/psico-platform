@@ -16,12 +16,26 @@ const PERSONA: EcoPersona = { name: "Eco", voice: "Companion.", caps: [] };
 
 let guion: EcoSseEvent[] = [];
 let historial: Array<Record<string, unknown>> = [];
+/** Cómo acaba el flujo después del guion: se cierra, se cae o no acaba. */
+let final: "cierra" | "cae" | "cuelga" = "cierra";
 
 vi.mock("@psico/api-client", () => ({
+  // Sin esta clase, el `catch` del chat lanza al preguntar `instanceof` y el
+  // rebobinado no llega a ejecutarse.
+  ApiError: class ApiError extends Error {
+    constructor(
+      public statusCode: number,
+      message: string,
+    ) {
+      super(message);
+    }
+  },
   ecoApi: {
     sendMessage: vi.fn(
       async (_cuerpo: unknown, opts: { onEvent: (e: EcoSseEvent) => void }) => {
         for (const ev of guion) opts.onEvent(ev);
+        if (final === "cae") throw new TypeError("network error");
+        if (final === "cuelga") await new Promise(() => {});
       },
     ),
   },
@@ -61,6 +75,8 @@ async function enviar() {
 beforeEach(() => {
   guion = [];
   historial = [];
+  final = "cierra";
+  vi.spyOn(console, "error").mockImplementation(() => {});
   vi.spyOn(globalThis, "fetch").mockImplementation(
     async () =>
       new Response(JSON.stringify({ messages: historial, hasMore: false }), {
@@ -109,6 +125,105 @@ describe("el aviso de crisis llega entero", () => {
     expect(
       screen.getByRole("link", { name: /más recursos de ayuda/i }),
     ).toHaveAttribute("href", "/ayuda?desde=eco");
+  });
+});
+
+/**
+ * El aviso que ya llegó no se va.
+ *
+ * Antes se guardaba en una variable y se pintaba al CERRARSE el flujo: si la
+ * conexión caía en medio, el rebobinado lo descartaba con el intento.
+ */
+describe("si llegó, se queda en pantalla", () => {
+  const AVISO = crisis({
+    text: "Aviso que llegó.",
+    hotline: "911 (Ecuador)",
+    country: "EC",
+  });
+  const caja = () => screen.findByRole("textbox");
+  /** El aviso, por su diálogo y por su burbuja. */
+  async function seVe() {
+    const dialogo = await screen.findByRole("alertdialog");
+    expect(dialogo).toHaveTextContent("Aviso que llegó.");
+    expect(screen.getByRole("link", { name: /llamar ahora/i })).toHaveAttribute(
+      "href",
+      "tel:911",
+    );
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: /entendido/i }));
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Aviso que llegó.")).toHaveLength(1);
+  }
+
+  it("aunque la conexión caiga después, y lo escrito vuelve como siempre", async () => {
+    guion = [AVISO];
+    final = "cae";
+    await enviar();
+    await seVe();
+    expect(await caja()).toHaveValue("hola");
+    expect(
+      screen.getByText("No pudimos enviar tu mensaje. Inténtalo de nuevo."),
+    ).toBeInTheDocument();
+  });
+
+  it("aunque después llegue un error por el flujo", async () => {
+    guion = [
+      AVISO,
+      {
+        event: "error",
+        data: { code: "ECO_UNKNOWN", message: "Algo salió mal." },
+      },
+    ];
+    await enviar();
+    await seVe();
+    expect(screen.queryByText("Algo salió mal.")).not.toBeInTheDocument();
+  });
+
+  it("y sin esperar a que el flujo se cierre", async () => {
+    guion = [AVISO];
+    final = "cuelga";
+    await enviar();
+    await seVe();
+  });
+
+  it("con su cierre normal, se ve una sola vez", async () => {
+    guion = [
+      AVISO,
+      { event: "done", data: { messageId: "m-1", quotaRemaining: 0 } },
+    ];
+    await enviar();
+    await seVe();
+    expect(await caja()).toHaveValue("");
+  });
+
+  it("sin cierre, también: un hilo que no se pudo guardar no lo manda", async () => {
+    guion = [AVISO];
+    await enviar();
+    await seVe();
+    expect(await caja()).toHaveValue("");
+  });
+
+  it("si no llegó ninguno, una caída no se inventa uno", async () => {
+    final = "cae";
+    await enviar();
+    expect(await caja()).toHaveValue("hola");
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  });
+
+  it("tras la caída se puede volver a escribir", async () => {
+    guion = [AVISO];
+    final = "cae";
+    await enviar();
+    await seVe();
+    final = "cierra";
+    guion = [];
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: /enviar/i }));
+    expect(await caja()).toHaveValue("");
+    // Y el aviso anterior sigue en la conversación.
+    expect(screen.getByText("Aviso que llegó.")).toBeInTheDocument();
   });
 });
 

@@ -122,7 +122,7 @@ export default function EcoScreen() {
 
   if (isLegacyAccount) {
     return (
-      <Centered text="Tu cuenta no tiene cifrado E2E activado. Contacta soporte." />
+      <Centered text="Tu cuenta aún no tiene activada la protección de privacidad. Contacta soporte para habilitarla antes de usar Eco." />
     );
   }
 

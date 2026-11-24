@@ -426,11 +426,12 @@ export default function MapaScreen() {
               ))}
               <View style={styles.modalPrivacy}>
                 <Text style={styles.modalPrivacyText}>
-                  🔒 Privacidad primero. El análisis nunca lee el texto de tu
-                  diario ni de tus charlas con Eco — están cifrados de extremo a
-                  extremo. Solo usamos señales sin contenido: tu ánimo, tus
-                  etiquetas, tus respuestas al check-in y los temas que tú
-                  confirmas — nunca el texto.
+                  🔒 Privacidad primero. El mapa no usa el texto de tu diario ni
+                  el de tus charlas con Eco. Usa señales sin contenido: el ánimo
+                  que marcas, tus respuestas al check-in y los temas que tú
+                  confirmas. Si activas el análisis en Seguridad, se suman
+                  números que tu dispositivo calcula de tus reflexiones — nunca
+                  el texto.
                 </Text>
               </View>
             </ScrollView>

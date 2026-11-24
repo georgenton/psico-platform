@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { isValidSeedPhrase, seedPhraseToMasterKey } from "@psico/crypto";
+import { ECO_PRIVACY_NOTE } from "@psico/types";
 import { useDiaryKey } from "@/lib/crypto/diary-key-context";
 import { PrivacyInfoButton } from "@/components/privacy/PrivacyInfoButton";
 
@@ -60,8 +61,10 @@ export function UnlockGate({
       ? {
           icon: "🌿",
           title: "Desbloquea Eco",
-          blurb:
-            "Eco usa la misma llave cifrada de tu diario. Escribe la misma contraseña con la que iniciaste sesión para abrir tus conversaciones. Solo tú puedes leerlas.",
+          // The gate derives the same key as the diary, and that used to
+          // carry the diary's promise along with it («Solo tú puedes leerlas»).
+          // Same key, different guarantee: see ADR 0007 §C.
+          blurb: `Escribe la misma contraseña con la que iniciaste sesión para abrir tus conversaciones. ${ECO_PRIVACY_NOTE}`,
         }
       : {
           icon: "🔒",
@@ -254,7 +257,7 @@ export function UnlockGate({
         {copy.blurb}
       </p>
       <div className="mt-2 flex justify-center">
-        <PrivacyInfoButton variant="diario" label="¿Por qué?" />
+        <PrivacyInfoButton variant={context} label="¿Por qué?" />
       </div>
       <label
         htmlFor="diary-password"
@@ -341,8 +344,8 @@ export function UnlockGate({
         className="mt-3 text-center text-[11px]"
         style={{ color: "var(--color-warm-500)" }}
       >
-        ⓘ La derivación toma ~1 segundo. Tu contraseña nunca sale del
-        dispositivo.
+        ⓘ Toma cerca de un segundo. La llave se crea aquí: en este paso tu
+        contraseña no se envía.
       </p>
     </form>
   );

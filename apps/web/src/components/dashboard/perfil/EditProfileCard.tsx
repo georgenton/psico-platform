@@ -52,8 +52,8 @@ export function EditProfileCard({ me }: { me: UserMeResponse }) {
         className="mt-0.5 text-[12px]"
         style={{ color: "var(--color-warm-500)" }}
       >
-        Solo el nombre se muestra a Eco; ciudad y país nos ayudan a recomendar
-        contenido relevante.
+        Tu nombre y tu ciudad aparecen en tu Inicio; en las reseñas que
+        publiques, tus iniciales y tu ciudad. No se envían a Eco.
       </p>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">

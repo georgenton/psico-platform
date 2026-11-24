@@ -50,6 +50,16 @@ describe("DiaryLockCard (mobile)", () => {
     ).toBeTruthy();
   });
 
+  it("no le atribuye a Eco la protección del diario", () => {
+    // Decía «Solo tú puedes leerlos» bajo el título «Bloqueo del diario y Eco».
+    mockUseDiaryKey.mockReturnValue(base());
+    const { getByText, queryByText } = render(<DiaryLockCard />);
+    expect(queryByText(/Solo tú puedes leerlos/)).toBeNull();
+    expect(
+      getByText(/las respuestas de Eco se guardan\s+sin cifrar/),
+    ).toBeTruthy();
+  });
+
   it("shows the biometric row only when the device supports it", () => {
     mockUseDiaryKey.mockReturnValue(base({ biometricAvailable: false }));
     const { queryByText } = render(<DiaryLockCard />);

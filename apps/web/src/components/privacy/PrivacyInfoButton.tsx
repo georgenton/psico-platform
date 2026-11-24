@@ -1,29 +1,40 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ECO_PRIVACY_CRISIS_NOTE, ECO_PRIVACY_NOTE } from "@psico/types";
 
 /**
  * Inline info button that opens a friendly modal explaining what "solo
- * tú puedes verlo" actually means. Replaces the previous "cifrado E2E"
+ * tú puedes leerlo" actually means. Replaces the previous "cifrado E2E"
  * copy that most users don't understand.
  *
  * Use it next to any copy that mentions the privacy guarantee (register,
  * login, unlock gates, etc.). The button itself is unobtrusive; the modal
  * uses an analogy (a lockbox with a single key) plus three concrete
  * consequences the user can act on.
+ *
+ * THE LOCKBOX IS THE DIARY'S, AND ONLY THE DIARY'S. This modal used to end with
+ * «Lo mismo aplica a tus conversaciones con Eco», which is false (ADR 0007
+ * §C): what you write to Eco travels in clear so an AI service can answer, and
+ * Eco's replies are stored unencrypted. Every variant now carries the Eco
+ * section, because every place this button sits next to talks about both.
  */
+type Variant = "basic" | "diario" | "eco";
+
 export function PrivacyInfoButton({
   label = "¿Cómo?",
   variant = "basic",
 }: {
   label?: string;
   /**
-   * "basic" — the short lockbox explanation (register / login / Eco).
+   * "basic" — the short lockbox explanation (register / login).
    * "diario" — adds two extra sections used at the diary unlock gate and in
    * Ajustes → Seguridad: (a) the key is your account password, and (b) why
    * YOU decide between "recordar en este dispositivo" and "pedir cada vez".
+   * "eco" — the Eco unlock gate. Same key, different promise: it opens with
+   * what happens to an Eco message and only then explains the diary.
    */
-  variant?: "basic" | "diario";
+  variant?: Variant;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -41,7 +52,11 @@ export function PrivacyInfoButton({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        aria-label="Cómo protegemos tu diario"
+        aria-label={
+          variant === "eco"
+            ? "Cómo se guarda lo que hablas con Eco"
+            : "Cómo protegemos tu diario y qué pasa con Eco"
+        }
         className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[12px] font-medium transition-colors"
         // Texto de acento sobre un fondo de acento: usa el escalón de TEXTO de
         // la rampa. Con lavender-600 este botón medía 3.76:1 en Energía, cuyo
@@ -82,9 +97,11 @@ function PrivacyModal({
   variant,
   onClose,
 }: {
-  variant: "basic" | "diario";
+  variant: Variant;
   onClose: () => void;
 }) {
+  const esEco = variant === "eco";
+
   return (
     <div
       role="dialog"
@@ -123,7 +140,7 @@ function PrivacyModal({
             textAlign: "center",
           }}
         >
-          🔒
+          {esEco ? "🌿" : "🔒"}
         </div>
         <h2
           id="privacy-modal-title"
@@ -135,19 +152,24 @@ function PrivacyModal({
             color: "var(--color-warm-900)",
           }}
         >
-          Solo tú puedes leer tu diario
+          {esEco
+            ? "Cómo se guarda lo que hablas con Eco"
+            : "Solo tú puedes leer tu diario"}
         </h2>
-        <p
-          style={{
-            fontSize: 15,
-            lineHeight: 1.55,
-            color: "var(--color-warm-700)",
-            marginBottom: 20,
-            textAlign: "center",
-          }}
-        >
+
+        {esEco ? (
+          <>
+            <p style={{ ...leadStyle, marginBottom: 8 }}>{ECO_PRIVACY_NOTE}</p>
+            <p style={{ ...leadStyle, fontSize: 13.5 }}>
+              {ECO_PRIVACY_CRISIS_NOTE}
+            </p>
+            <h3 style={sectionTitleStyle}>🔒 Tu diario va aparte</h3>
+          </>
+        ) : null}
+
+        <p style={{ ...leadStyle, marginBottom: 20 }}>
           Piensa en tu diario como una <b>caja fuerte con una llave única</b> —
-          tú eres el único que la tiene.
+          solo tú la tienes.
         </p>
 
         <ul
@@ -170,15 +192,16 @@ function PrivacyModal({
           <li style={rowStyle}>
             <span style={dotStyle}>👀</span>
             <span>
-              Ni nuestro equipo puede abrir tu diario. Nosotros solo vemos texto
-              revuelto que no significa nada.
+              Ni nuestro equipo puede abrir tu diario. De lo que escribes vemos
+              texto revuelto; la fecha y, si los pones, el ánimo y las etiquetas
+              sí se ven.
             </span>
           </li>
           <li style={rowStyle}>
             <span style={dotStyle}>📝</span>
             <span>
-              Si olvidas tu contraseña, recuperar la <b>cuenta</b> y recuperar el{" "}
-              <b>diario</b> son dos cosas distintas. La cuenta vuelve con el
+              Si olvidas tu contraseña, recuperar la <b>cuenta</b> y recuperar
+              el <b>diario</b> son dos cosas distintas. La cuenta vuelve con el
               correo de restablecimiento; el diario, no — su contenido está
               cifrado con una clave que nace de tu contraseña, y una contraseña
               nueva no la reconstruye. Para eso está la{" "}
@@ -189,19 +212,17 @@ function PrivacyModal({
           </li>
         </ul>
 
-        <p
-          style={{
-            fontSize: 12,
-            lineHeight: 1.5,
-            color: "var(--color-warm-500)",
-            marginBottom: variant === "diario" ? 24 : 20,
-            textAlign: "center",
-          }}
-        >
-          Lo mismo aplica a tus conversaciones con Eco.
-        </p>
+        {esEco ? null : (
+          <div style={sectionStyle}>
+            <h3 style={sectionTitleStyle}>🌿 Con Eco es distinto</h3>
+            <p style={sectionBodyStyle}>{ECO_PRIVACY_NOTE}</p>
+            <p style={{ ...sectionBodyStyle, marginTop: 8 }}>
+              {ECO_PRIVACY_CRISIS_NOTE}
+            </p>
+          </div>
+        )}
 
-        {variant === "diario" ? (
+        {variant !== "basic" ? (
           <>
             <div style={sectionStyle}>
               <h3 style={sectionTitleStyle}>🔑 Es tu misma contraseña</h3>
@@ -279,6 +300,14 @@ function PrivacyModal({
     </div>
   );
 }
+
+const leadStyle: React.CSSProperties = {
+  fontSize: 15,
+  lineHeight: 1.55,
+  color: "var(--color-warm-700)",
+  marginBottom: 20,
+  textAlign: "center",
+};
 
 const rowStyle: React.CSSProperties = {
   display: "flex",

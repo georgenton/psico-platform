@@ -54,6 +54,12 @@ declare global {
  *
  * If the env is unset, the button is hidden — we don't want to render a
  * broken control in dev environments.
+ *
+ * El separador «o» también vive aquí, y es a propósito. Lo pintaban el acceso y
+ * el registro por su cuenta, sin saber si el botón iba a existir, así que sin
+ * la clave de Google quedaba una «o» suelta separando el formulario de nada.
+ * Con las dos cosas en el mismo sitio y bajo la misma condición no pueden
+ * discrepar: si no hay otra forma de entrar, no hay nada que separar.
  */
 export function GoogleSignInButton({
   text = "continue_with",
@@ -216,6 +222,7 @@ export function GoogleSignInButton({
 
   return (
     <>
+      <SeparadorDeAcceso />
       <Script
         src="https://accounts.google.com/gsi/client"
         strategy="afterInteractive"
@@ -242,5 +249,26 @@ export function GoogleSignInButton({
         ) : null}
       </div>
     </>
+  );
+}
+
+function SeparadorDeAcceso() {
+  return (
+    <div
+      className="my-5 flex items-center gap-3"
+      data-testid="separador-de-acceso"
+    >
+      <div
+        className="h-px flex-1"
+        style={{ background: "var(--color-warm-200)" }}
+      />
+      <span className="text-[11px]" style={{ color: "var(--color-warm-500)" }}>
+        o
+      </span>
+      <div
+        className="h-px flex-1"
+        style={{ background: "var(--color-warm-200)" }}
+      />
+    </div>
   );
 }

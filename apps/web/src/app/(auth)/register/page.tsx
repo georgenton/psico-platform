@@ -6,10 +6,7 @@ import { type FormEvent, useState, useTransition } from "react";
 import { registerAction } from "@/actions/auth";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { PrivacyInfoButton } from "@/components/privacy/PrivacyInfoButton";
-import {
-  PASSWORD_HINT,
-  PASSWORD_MIN_LENGTH,
-} from "@psico/types";
+import { PASSWORD_HINT, PASSWORD_MIN_LENGTH } from "@psico/types";
 
 export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null);
@@ -57,9 +54,10 @@ export default function RegisterPage() {
         className="mb-6 text-[14px] leading-[20px]"
         style={{ color: "var(--color-warm-600)" }}
       >
-        Empieza gratis — no necesitas tarjeta de crédito. Tu diario y tus
-        conversaciones con Eco quedan protegidos: <b>solo tú puedes verlos</b>,
-        ni siquiera nuestro equipo. <PrivacyInfoButton />
+        Empieza gratis — no necesitas tarjeta de crédito. Lo que escribas en tu
+        diario <b>solo podrás leerlo tú</b>, ni siquiera nuestro equipo. Eco
+        funciona con inteligencia artificial y se protege de otra forma.{" "}
+        <PrivacyInfoButton />
       </p>
 
       {/* `method="post"` no es decoración: es la única defensa que NO depende
@@ -237,22 +235,8 @@ export default function RegisterPage() {
         </button>
       </form>
 
-      <div className="my-5 flex items-center gap-3">
-        <div
-          className="h-px flex-1"
-          style={{ background: "var(--color-warm-200)" }}
-        />
-        <span
-          className="text-[11px]"
-          style={{ color: "var(--color-warm-500)" }}
-        >
-          o
-        </span>
-        <div
-          className="h-px flex-1"
-          style={{ background: "var(--color-warm-200)" }}
-        />
-      </div>
+      {/* El separador «o» viaja dentro del botón: sólo se pinta si hay otra
+          forma de entrar de la que separarse. */}
       <GoogleSignInButton text="signup_with" />
 
       <p

@@ -53,8 +53,9 @@ export default function LoginForm() {
         className="mb-6 text-[14px] leading-[20px]"
         style={{ color: "var(--color-warm-600)" }}
       >
-        Ingresa tus datos para continuar. Tu diario y tus conversaciones con Eco
-        siguen protegidos — <b>solo tú puedes verlos</b>. <PrivacyInfoButton />
+        Ingresa tus datos para continuar. Lo que escribes en tu diario{" "}
+        <b>solo puedes leerlo tú</b>. Eco funciona con inteligencia artificial y
+        se protege de otra forma. <PrivacyInfoButton />
       </p>
 
       {/* `method="post"` para que el envío nativo —el que ocurre si React aún
@@ -175,7 +176,8 @@ export default function LoginForm() {
         </button>
       </form>
 
-      <Divider />
+      {/* El separador «o» viaja dentro del botón: sólo se pinta si hay otra
+          forma de entrar de la que separarse. */}
       <GoogleSignInButton text="signin_with" from={from} />
 
       <p
@@ -213,23 +215,5 @@ export default function LoginForm() {
         </Link>
       </p>
     </>
-  );
-}
-
-function Divider() {
-  return (
-    <div className="my-5 flex items-center gap-3">
-      <div
-        className="h-px flex-1"
-        style={{ background: "var(--color-warm-200)" }}
-      />
-      <span className="text-[11px]" style={{ color: "var(--color-warm-500)" }}>
-        o
-      </span>
-      <div
-        className="h-px flex-1"
-        style={{ background: "var(--color-warm-200)" }}
-      />
-    </div>
   );
 }

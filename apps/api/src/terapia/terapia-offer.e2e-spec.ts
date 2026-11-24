@@ -241,6 +241,12 @@ function llamadasPrisma(h: E2EHarness): string[] {
   return out.sort();
 }
 
+/** Todos los valores sueltos de una respuesta, a cualquier profundidad. */
+function hojas(v: unknown): unknown[] {
+  if (v === null || typeof v !== "object") return [v];
+  return Object.values(v).flatMap(hojas);
+}
+
 const ESCRITURA = /\.(create|update|updateMany|upsert|delete|deleteMany)$/;
 
 function ficha(id: string) {
@@ -591,9 +597,11 @@ describe("la oferta de terapia, por HTTP", () => {
           expect(t.avgRating).toBeNull();
           expect(t.reviewsCount).toBeNull();
           expect(t.name).toBe("Nombre de la ficha");
-          const texto = JSON.stringify(res.body);
-          for (const prohibido of ["4.9", "64", "LIC-1", "Psicóloga clínica"]) {
-            expect(texto).not.toContain(prohibido);
+          // Los VALORES y no el texto: buscar «64» en el JSON entero encuentra
+          // también la hora, y la prueba fallaba según el milisegundo.
+          const valores = hojas(res.body);
+          for (const prohibido of [4.9, 64, "LIC-1", "Psicóloga clínica"]) {
+            expect(valores).not.toContain(prohibido);
           }
         }
         // Lo escrito se conserva: no se borra nada por ser de demostración.

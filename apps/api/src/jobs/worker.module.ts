@@ -88,6 +88,32 @@ export const WORKER_QUEUES: readonly string[] = [
   QueueName.DATA_EXPORT_RETENTION,
 ];
 
+/**
+ * Los procesadores: el registro Y la lista que recorre `worker.ts` para
+ * informar de los trabajos que fallaron. Misma razón que `WORKER_QUEUES`: una
+ * lista que es las dos cosas no puede discrepar consigo misma.
+ */
+export const WORKER_PROCESSORS = [
+  EmailProcessor,
+  DataExportProcessor,
+  AccountDeletionProcessor,
+  DailyUsageProcessor,
+  // Sprint S44 — notification processors.
+  WeeklyDigestProcessor,
+  InactiveNudgeProcessor,
+  // Sprint S46 — pre-generation of WeeklySummary so digest finds the row.
+  WeeklySummaryGenerationProcessor,
+  // Sprint S50 — platform-wide daily snapshot for Pulso time series.
+  PlatformSnapshotProcessor,
+  // Sprint S51 — weekly cohort retention recomputation.
+  CohortRetentionProcessor,
+  // Círculos — expiry and follow-up transitions.
+  CirclesSweepProcessor,
+  // Sprint G2 — monthly emotional-map snapshot.
+  EmotionalMapSnapshotProcessor,
+  DataExportRetentionProcessor,
+] as const;
+
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, validate }),
@@ -107,25 +133,6 @@ export const WORKER_QUEUES: readonly string[] = [
     }),
     BullModule.registerQueue(...WORKER_QUEUES.map((name) => ({ name }))),
   ],
-  providers: [
-    EmailProcessor,
-    DataExportProcessor,
-    AccountDeletionProcessor,
-    DailyUsageProcessor,
-    // Sprint S44 — notification processors.
-    WeeklyDigestProcessor,
-    InactiveNudgeProcessor,
-    // Sprint S46 — pre-generation of WeeklySummary so digest finds the row.
-    WeeklySummaryGenerationProcessor,
-    // Sprint S50 — platform-wide daily snapshot for Pulso time series.
-    PlatformSnapshotProcessor,
-    // Sprint S51 — weekly cohort retention recomputation.
-    CohortRetentionProcessor,
-    // Círculos — expiry and follow-up transitions.
-    CirclesSweepProcessor,
-    // Sprint G2 — monthly emotional-map snapshot.
-    EmotionalMapSnapshotProcessor,
-    DataExportRetentionProcessor,
-  ],
+  providers: [...WORKER_PROCESSORS],
 })
 export class WorkerAppModule {}

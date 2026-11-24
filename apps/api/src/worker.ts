@@ -1,14 +1,20 @@
 import "reflect-metadata";
 // Sentry first — same rationale as main.ts.
 import { initSentry } from "./observability/sentry";
-initSentry();
+initSentry("feelverse-worker");
 
+import type { WorkerHost } from "@nestjs/bullmq";
 import { Logger } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import type { Redis } from "ioredis";
-import { WORKER_QUEUES, WorkerAppModule } from "./jobs/worker.module";
+import {
+  WORKER_PROCESSORS,
+  WORKER_QUEUES,
+  WorkerAppModule,
+} from "./jobs/worker.module";
 import { assertEmotionalMapConfigured } from "./emotional-map/cache-identity";
 import { MapIdentityService } from "./health/map-identity.service";
+import { reportWorkerFailures } from "./observability/worker-failures";
 import { REDIS_CLIENT } from "./redis";
 
 /**
@@ -43,6 +49,12 @@ async function bootstrap(): Promise<void> {
   // fire on SIGTERM / SIGINT — Prisma closes its connection pool, BullMQ
   // workers stop accepting new jobs and drain.
   app.enableShutdownHooks();
+
+  // Un trabajo que agota sus intentos no es una excepción que nadie atrapó:
+  // BullMQ la atrapa. Sin esto, ningún fallo del worker llegaría a verse.
+  for (const processor of WORKER_PROCESSORS) {
+    reportWorkerFailures(app.get<WorkerHost>(processor).worker);
+  }
 
   // Read from the registration itself, never retyped. An operator checking
   // whether the Círculos sweep is running reads this line and acts on it.

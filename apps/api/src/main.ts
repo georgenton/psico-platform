@@ -1,9 +1,9 @@
 import "reflect-metadata";
-// Sentry init must run BEFORE any other import so the SDK's HTTP/PG
-// instrumentation can patch those modules at require time. Splitting it
-// from the rest of the imports below is deliberate.
+// Antes que cualquier otro import, para que un fallo al CARGAR un módulo también
+// se vea. Ya no es por la instrumentación de HTTP: no se instala ninguna
+// (`observability/sentry.ts` dice por qué).
 import { initSentry } from "./observability/sentry";
-initSentry();
+initSentry("feelverse-api");
 
 import { writeFileSync } from "fs";
 import { join } from "path";
@@ -19,6 +19,7 @@ import { AppModule } from "./app.module";
 import { HttpExceptionFilter } from "./shared";
 import { assertEmotionalMapConfigured } from "./emotional-map/cache-identity";
 import { releaseSha } from "./shared/release-sha";
+import { registerRouteTemplates } from "./observability/route-templates";
 import { GUIDE_START_LOCK_PROTOCOL } from "./guide/guide-active-capability";
 import { EXPERIENCE_BINDING_PROTOCOL } from "./experience/experience-binding-lock";
 
@@ -205,6 +206,9 @@ async function bootstrap(): Promise<void> {
   );
 
   await app.listen(port);
+  // Con las rutas ya montadas: la observabilidad sólo acepta como «ruta» una
+  // plantilla que el enrutador tenga registrada.
+  registerRouteTemplates(app.getHttpAdapter().getInstance());
   console.log(`API running on http://localhost:${port}`);
   console.log(`  Routes mounted under /api/*`);
   if (process.env.NODE_ENV !== "production") {

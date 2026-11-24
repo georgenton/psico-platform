@@ -240,12 +240,11 @@ export const envSchema = z
     VAPID_PRIVATE_KEY: z.string().optional(),
     VAPID_SUBJECT: z.string().optional(),
 
-    // Sentry observability (Sprint 2 del roadmap). When unset, the SDK
-    // init is a no-op and `captureException` swallows the call. Both
-    // API and worker share the same DSN — same project from a triage
-    // standpoint.
+    // Errores hacia Sentry. Sin DSN no se envía nada. API y worker comparten
+    // proyecto y se distinguen por la etiqueta `service`. La versión NO se
+    // configura: sale del commit (`shared/release-sha`). Qué sale y qué no, en
+    // `observability/README.md`.
     SENTRY_DSN: urlOpcional(),
-    SENTRY_RELEASE: z.string().optional(),
 
     // GR-2 — Cloudflare Stream, the video provider for the chapter explainer.
     //

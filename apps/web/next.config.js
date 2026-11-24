@@ -59,6 +59,30 @@ const nextConfig = {
     ];
   },
 
+  experimental: {
+    // Next 14.2 no ejecuta `src/instrumentation.ts` sin esto.
+    instrumentationHook: true,
+    // El cliente de errores del servidor se carga de `node_modules` en vez de
+    // empaquetarse, y sólo si hay DSN. Empaquetarlo arrastraría todas sus
+    // instrumentaciones, que no se usan.
+    serverComponentsExternalPackages: ["@sentry/node"],
+  },
+
+  // Lo que se incrusta en la CONSTRUCCIÓN para el navegador. Con el DSN vacío,
+  // la condición de `ObservabilityBoot` es falsa al compilar y el fragmento del
+  // SDK no se genera. Ninguna de las tres es un secreto: van a la vista en el
+  // JavaScript de la página.
+  env: {
+    NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN?.trim() || "",
+    NEXT_PUBLIC_PSICO_ENV:
+      process.env.NEXT_PUBLIC_PSICO_ENV || process.env.PSICO_ENV || "",
+    NEXT_PUBLIC_RELEASE_SHA:
+      process.env.NEXT_PUBLIC_RELEASE_SHA ||
+      process.env.SOURCE_COMMIT ||
+      process.env.RELEASE_SHA ||
+      "",
+  },
+
   // Google Identity Services (the "Continuar con Google" button) opens a
   // popup or uses FedCM and needs to call `window.postMessage` back to the
   // parent window. Modern browsers block that call when the parent has

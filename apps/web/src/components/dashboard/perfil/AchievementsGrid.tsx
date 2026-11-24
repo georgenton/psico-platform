@@ -60,20 +60,27 @@ export function AchievementsGrid({
                 // contraste no se perdía en el color, se perdía en la opacidad.
                 //
                 // Que un logro está pendiente ya lo dicen tres cosas: el 🔒 en
-                // lugar del icono, el borde neutro en lugar del verde, y la
+                // lugar del trofeo, el borde neutro en lugar del verde, y la
                 // barra de progreso que sólo aparece en los pendientes. La
                 // jerarquía se mantiene sin dejar el texto a medio leer.
               }}
               data-testid={`achievement-${a.id}`}
             >
+              {/* `a.icon` es un identificador («pencil», «book», «flame»), no
+                  un dibujo: se estaba pintando la palabra en inglés, y el 🔒 no
+                  llegaba a salir nunca. */}
               <div className="text-[20px]" aria-hidden>
-                {a.icon || (unlocked ? "🏆" : "🔒")}
+                {unlocked ? "🏆" : "🔒"}
               </div>
               <p
                 className="mt-1 text-[12px] font-semibold leading-tight"
                 style={{ color: "var(--fg-strong)" }}
               >
                 {a.label}
+                {/* El dibujo y el borde no llegan a un lector de pantalla. */}
+                <span className="sr-only">
+                  {unlocked ? " · Conseguido" : " · Pendiente"}
+                </span>
               </p>
               <p
                 className="mt-1 text-[11px] leading-tight"

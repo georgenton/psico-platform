@@ -9,8 +9,8 @@ function build(
   return {
     id: "ach-1",
     label: "Primer paso",
-    description: "Escribí tu primera entrada del diario",
-    icon: "📝",
+    description: "Escribe tu primera entrada en el diario.",
+    icon: "pencil",
     progressCurrent: 0,
     progressTarget: 1,
     unlockedAt: null,
@@ -66,5 +66,47 @@ describe("AchievementsGrid", () => {
       />,
     );
     expect(screen.queryByText("1/1")).not.toBeInTheDocument();
+  });
+
+  it("dibuja el estado, no el identificador del icono", () => {
+    // `icon` es un token («pencil», «book», «flame»). La tarjeta lo pintaba tal
+    // cual: se leía la palabra en inglés y el candado no salía nunca.
+    render(
+      <AchievementsGrid
+        achievements={[
+          build({ id: "falta", icon: "pencil", unlockedAt: null }),
+          build({
+            id: "hecho",
+            icon: "book",
+            unlockedAt: new Date("2026-06-01"),
+          }),
+        ]}
+      />,
+    );
+    const falta = screen.getByTestId("achievement-falta");
+    const hecho = screen.getByTestId("achievement-hecho");
+    expect(falta).toHaveTextContent("🔒");
+    expect(hecho).toHaveTextContent("🏆");
+    for (const tarjeta of [falta, hecho]) {
+      expect(tarjeta.textContent).not.toMatch(/pencil|book|flame/);
+    }
+  });
+
+  it("dice con palabras si está conseguido o falta", () => {
+    // El candado y el borde son sólo para quien ve la pantalla.
+    render(
+      <AchievementsGrid
+        achievements={[
+          build({ id: "falta", unlockedAt: null }),
+          build({ id: "hecho", unlockedAt: new Date("2026-06-01") }),
+        ]}
+      />,
+    );
+    expect(screen.getByTestId("achievement-falta")).toHaveTextContent(
+      "Pendiente",
+    );
+    expect(screen.getByTestId("achievement-hecho")).toHaveTextContent(
+      "Conseguido",
+    );
   });
 });

@@ -58,6 +58,9 @@ type IconName = React.ComponentProps<typeof Ionicons>["name"];
 
 const ICON_BY_TOKEN: Record<string, IconName> = {
   "book-open": "book-outline",
+  // Los dos que de verdad manda el catálogo.
+  book: "book-outline",
+  pencil: "create-outline",
   flame: "flame-outline",
   star: "star-outline",
   patterns: "stats-chart-outline",

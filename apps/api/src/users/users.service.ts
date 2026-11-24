@@ -33,6 +33,7 @@ import { ConfigService } from "@nestjs/config";
 import type { Env } from "../config";
 import { REDIS_CLIENT } from "../redis";
 import { bumpGeneration } from "../emotional-map/cache-identity";
+import { describeMilestone } from "../evolucion/achievement-catalog";
 import { lockUserExclusive } from "../emotional-map/privacy-barrier";
 import { emailShell, escape } from "../notifications/templates/base";
 import { contentAssetPath } from "../shared/content-asset";
@@ -162,7 +163,13 @@ export class UsersService {
       achievements: user.achievements.map((ua) => ({
         id: ua.achievement.id,
         label: ua.achievement.label,
-        description: ua.achievement.description,
+        // Same rule as /evolucion: a milestone still pending reads as what is
+        // left to do, not as something already done.
+        description: describeMilestone(
+          ua.achievement.id,
+          ua.achievement.description,
+          ua.unlockedAt,
+        ),
         icon: ua.achievement.icon,
         progressCurrent: ua.progressCurrent,
         progressTarget: ua.achievement.progressTarget,

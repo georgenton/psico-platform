@@ -29,11 +29,20 @@ export function AchievementsList({
               key={a.id}
               style={[
                 styles.card,
-                unlocked
-                  ? { borderColor: Colors.sage[400] }
-                  : { borderColor: Colors.warm[200], opacity: 0.7 },
+                // Sin atenuar la tarjeta pendiente: la opacidad bajaba el
+                // contraste de su texto, y que falta ya lo dicen el 🔒 y la
+                // barra de progreso. Misma decisión que en la web.
+                {
+                  borderColor: unlocked ? Colors.sage[400] : Colors.warm[200],
+                },
               ]}
               testID={`achievement-${a.id}`}
+              accessible
+              accessibilityLabel={`${a.label}. ${
+                unlocked
+                  ? "Conseguido"
+                  : `Pendiente, ${a.progressCurrent} de ${a.progressTarget}`
+              }. ${a.description}`}
             >
               <View style={styles.row}>
                 <Text style={styles.icon}>{unlocked ? "🏆" : "🔒"}</Text>

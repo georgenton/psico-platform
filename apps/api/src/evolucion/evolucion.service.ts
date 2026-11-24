@@ -3,13 +3,14 @@ import { Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma";
 import { matchesFactsIdentity } from "../emotional-map/cache-identity";
 import { flagEnabled } from "../shared/flags";
-import { ACHIEVEMENT_CATALOG } from "./achievement-catalog";
+import { ACHIEVEMENT_CATALOG, describeMilestone } from "./achievement-catalog";
 import type { AchievementSeed, ProgressKey } from "./achievement-catalog";
 
 export interface EvolucionMilestone {
   /** Stable Achievement.id from the catalog. */
   id: string;
   label: string;
+  /** Written for the milestone's CURRENT state — see `describeMilestone`. */
   description: string;
   /** Lucide-style icon token (`book-open`, `flame`, …). */
   icon: string;
@@ -320,7 +321,9 @@ export class EvolucionService {
       items.push({
         id: entry.id,
         label: entry.label,
-        description: entry.description,
+        // Pendiente, se lee como lo que falta por hacer; conseguido, como lo
+        // que se hizo. La frase sembrada sólo sirve para lo segundo.
+        description: describeMilestone(entry.id, entry.description, unlockedAt),
         icon: entry.icon,
         progressTarget: entry.progressTarget,
         progressCurrent,

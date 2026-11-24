@@ -232,6 +232,53 @@ describe("Perfil no depende de esta lectura", () => {
     ).toHaveLength(0);
   });
 
+  it("no espera más de segundo y medio: al guardar, retendría la pantalla", async () => {
+    vi.useFakeTimers();
+    try {
+      api({ "/user/me": ME, "/terapia/hub": new Promise(() => undefined) });
+      const { HistorialDeTerapia } =
+        await import("@/components/dashboard/perfil/HistorialDeTerapia");
+      let resultado: unknown = "esperando";
+      void HistorialDeTerapia().then((r) => {
+        resultado = r;
+      });
+      await vi.advanceTimersByTimeAsync(1_499);
+      expect(resultado).toBe("esperando");
+      await vi.advanceTimersByTimeAsync(1);
+      expect(resultado).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("si contesta, no deja el reloj en marcha; y si falla tarde, no pasa nada", async () => {
+    vi.useFakeTimers();
+    try {
+      const { HistorialDeTerapia } =
+        await import("@/components/dashboard/perfil/HistorialDeTerapia");
+      api({ "/user/me": ME, "/terapia/hub": hub() });
+      expect(await HistorialDeTerapia()).toBeNull();
+      expect(vi.getTimerCount()).toBe(0);
+
+      let fallar!: (e: Error) => void;
+      isNextThrow.mockReturnValue(true);
+      api({
+        "/user/me": ME,
+        "/terapia/hub": new Promise((_, no) => {
+          fallar = no;
+        }),
+      });
+      const tarde = HistorialDeTerapia();
+      await vi.advanceTimersByTimeAsync(1_500);
+      expect(await tarde).toBeNull();
+      // Un rechazo suelto tumbaría esta prueba.
+      fallar(new Error("NEXT_REDIRECT"));
+      await vi.advanceTimersByTimeAsync(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("una sesión rechazada no se traga: sigue llevando a salir", async () => {
     const rebote = Object.assign(new Error("NEXT_REDIRECT"), {
       digest: "NEXT_REDIRECT;replace;/logout;307;",

@@ -35,7 +35,7 @@ export const QueueName = {
    * Producer: `JobsService.enqueueDataExport` (UsersService.requestDataExport)
    * Consumer: `apps/api/src/jobs/processors/data-export.processor.ts`
    *
-   * Retry: 2 attempts. ZIP generation is deterministic; failing twice in
+   * Retry: 2 attempts. Building the JSON is deterministic; failing twice in
    * a row signals a real problem (R2 down, DB corruption) — bail.
    */
   DATA_EXPORT: "data-export",

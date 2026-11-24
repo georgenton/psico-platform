@@ -47,3 +47,15 @@ export const DATA_EXPORT_SCOPE = {
     "y algunas cosas más que todavía estamos decidiendo cómo entregarte",
   ],
 } as const;
+
+/**
+ * Lo mismo en una frase, para las filas de Perfil, donde las dos listas no
+ * caben. Decían otro formato y otro contenido.
+ *
+ * «Entre otras cosas» no es relleno: sin eso, nombrar sólo el Diario y Eco se
+ * leería como que lo demás sí está.
+ */
+export const DATA_EXPORT_SUMMARY =
+  "Un archivo JSON con tu perfil, tus preferencias y ajustes, tu progreso de " +
+  "lectura, tu suscripción y tus sesiones de guía. No incluye, entre otras " +
+  "cosas, tu Diario ni las conversaciones con Eco.";

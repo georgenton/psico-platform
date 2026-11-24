@@ -54,7 +54,7 @@ export const usersApi = {
       body,
     ),
 
-  /** Sprint S57 — Trigger ZIP export (sent by email when ready). */
+  /** Sprint S57 — Request the data export (a JSON file; an email says when). */
   requestDataExport: () =>
     apiClient.post<DataExportRequestResponse>("/user/data-export", {}),
 

@@ -129,6 +129,12 @@ describe("WeeklyDigestProcessor", () => {
     const [tokens] = (push.sendToTokens as ReturnType<typeof vi.fn>).mock
       .calls[0]!;
     expect(tokens).toEqual(["ExponentPushToken[abc]"]);
+
+    // El resumen semanal y Patrones no son el Mapa Emocional: son conteos de la
+    // semana. El aviso decía «Revisa tu mapa» y enlazaba a Patrones.
+    const [, aviso] = (push.sendToTokens as ReturnType<typeof vi.fn>).mock
+      .calls[0]!;
+    expect((aviso as { body: string }).body).toContain("Revisa tus patrones");
   });
 
   it("#3 (PR-2B): an ineligible mood is not counted — a raw 'hard' with eligible=false yields dominantMood=null; tags + entry count still stand", async () => {
@@ -572,6 +578,14 @@ describe("WeeklyDigestProcessor", () => {
         for (const cuerpo of [email.html, email.text]) {
           expect(cuerpo).not.toMatch(/vercel\.app|railway\.app|up\.railway/i);
         }
+      }
+    });
+
+    it("el enlace se llama como lo que abre, no «tu mapa»", async () => {
+      const email = await correoCon("https://feelverse.app");
+      expect(email.html).toContain("Ver tus patrones →");
+      for (const cuerpo of [email.html, email.text]) {
+        expect(cuerpo).not.toMatch(/\bmapa\b/i);
       }
     });
 

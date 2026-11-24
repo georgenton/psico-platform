@@ -267,7 +267,7 @@ export class WeeklyDigestProcessor extends WorkerHost {
           body:
             entries.length === 0
               ? "Esta semana no escribiste. Empieza con una entrada hoy."
-              : `${entries.length} entradas, ${ecoMessages} con Eco. Revisa tu mapa.`,
+              : `${entries.length} entradas, ${ecoMessages} con Eco. Revisa tus patrones.`,
           url: "/(tabs)/patrones",
         });
         // Self-cleaning: prune Expo's DeviceNotRegistered tokens.

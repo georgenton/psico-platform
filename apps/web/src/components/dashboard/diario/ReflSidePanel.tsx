@@ -5,8 +5,10 @@ import type { EvolucionStats } from "@psico/types";
  *
  * Right-hand sidepanel for `/dashboard/reflexiones`. Mirrors the `.refl-side`
  * column from `docs/design/redesign-v2/dashboard/index.html` (s-reflexiones):
- * a card showing "Tu mes en reflexiones" + an empty-state card hint for
- * future recurring-themes when the backend exposes them.
+ * a card showing "Tu mes en reflexiones" + one about the tags, which says
+ * where they stay. It used to promise a ranking of recurring themes nobody
+ * computes, and that Eco used the tags «para refinar tu mapa» — the map does
+ * not read tags under V2.
  *
  * Uses real `EvolucionStats` data (reflexiones count, racha actual, días
  * activos en 30d). When stats are null (fetch failed) we render a neutral
@@ -60,7 +62,7 @@ export function ReflSidePanel({ stats }: Props) {
 
       <div className="card rs-card">
         <span className="card-tag" style={{ display: "inline-flex" }}>
-          Temas recurrentes
+          Tus etiquetas
         </span>
         <p
           style={{
@@ -70,9 +72,8 @@ export function ReflSidePanel({ stats }: Props) {
             lineHeight: 1.5,
           }}
         >
-          Cuando tagees tus reflexiones (trabajo, familia, sueño…), aquí van a
-          aparecer los temas que se repiten más, ordenados por frecuencia. Eco
-          usa esa señal para refinar tu mapa.
+          Las etiquetas que pongas a tus reflexiones (trabajo, familia, sueño…)
+          quedan en cada una. No cuentan en tu Mapa Emocional.
         </p>
       </div>
     </>

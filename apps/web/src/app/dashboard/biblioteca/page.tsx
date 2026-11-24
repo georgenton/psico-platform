@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { BookListResponse } from "@psico/types";
 import {
   CATALOGO_UNA_OBRA_NOTA,
+  LECTURA_Y_MAPA_NOTA,
   esCatalogoDeUnaObra,
 } from "@psico/types";
 
@@ -90,7 +91,7 @@ export default async function BibliotecaPage({
     view === "mis"
       ? "Mis libros"
       : view === "recos"
-        ? "Sugerencias para ti"
+        ? "Sugerencias · lo más reciente"
         : view === "favoritos"
           ? "Tus favoritos"
           : view === "guardados"
@@ -100,8 +101,9 @@ export default async function BibliotecaPage({
   return (
     <div className="mx-auto max-w-[1080px]">
       {/* Sprint F3 — paridad con design `s-biblioteca`: screen-head con eb
-          eyebrow + lib-note callout que recuerda al usuario que los libros
-          son herramienta del mapa, no destino. */}
+          eyebrow + lib-note callout. Decía «cada lectura alimenta tu Mapa
+          Emocional», que el propio Mapa desmiente: leer cuenta en Mi Evolución
+          (`@psico/types/mapa-fuentes`). */}
       <div className="screen-head">
         <h1 className="screen-title">
           <span className="eb">El vehículo, no el destino</span>
@@ -123,9 +125,7 @@ export default async function BibliotecaPage({
         >
           <path d="M12 3 L13.7 10.3 L21 12 L13.7 13.7 L12 21 L10.3 13.7 L3 12 L10.3 10.3 Z" />
         </svg>
-        Aquí los libros son una herramienta de tu crecimiento. Cada lectura
-        alimenta tu Mapa Emocional — no se trata de cuántos terminas, sino de
-        qué descubres en ellos.
+        {`Aquí los libros son una herramienta de tu crecimiento: no se trata de cuántos terminas, sino de qué descubres en ellos. ${LECTURA_Y_MAPA_NOTA}`}
       </div>
 
       {/* Filters */}
@@ -194,8 +194,8 @@ function EmptyResults({
         }
       : view === "recos"
         ? {
-            title: "Tus sugerencias están en camino",
-            sub: "Lee algunas páginas y Eco aprenderá qué recomendarte.",
+            title: "No hay sugerencias por ahora",
+            sub: "Aquí aparecen los libros publicados, del más reciente al más antiguo.",
           }
         : view === "favoritos"
           ? {

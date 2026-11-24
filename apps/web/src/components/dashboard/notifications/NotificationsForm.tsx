@@ -45,7 +45,7 @@ const ROWS: Array<{
   {
     key: "weeklyReport",
     label: "Resumen semanal",
-    hint: "Email cada lunes con tu mapa emocional de la semana pasada.",
+    hint: "Email cada lunes con un resumen de tu semana.",
   },
   {
     key: "terapiaReminders",

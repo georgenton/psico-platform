@@ -99,7 +99,7 @@ export function weeklyDigestEmail(props: WeeklyDigestProps): RenderedEmail {
             style="display:inline-block; background:#8B73C0; color:#FFFFFF;
                    text-decoration:none; padding:10px 18px; border-radius:24px;
                    font-weight:600; font-size:14px;">
-           Ver tu mapa emocional →
+           Ver tus patrones →
          </a>
        </p>`
     : "";
@@ -137,7 +137,7 @@ export function weeklyDigestEmail(props: WeeklyDigestProps): RenderedEmail {
       (props.topTags.length > 0
         ? `· Tags: ${props.topTags.slice(0, 5).join(", ")}\n`
         : "") +
-      (props.patronesUrl ? `\nVer tu mapa: ${props.patronesUrl}\n` : "") +
+      (props.patronesUrl ? `\nVer tus patrones: ${props.patronesUrl}\n` : "") +
       `\nDesactivar: Perfil → Notificaciones → Resumen semanal.`;
 
   return {

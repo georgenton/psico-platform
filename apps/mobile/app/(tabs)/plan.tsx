@@ -74,7 +74,9 @@ function getCheckoutOptions(plan: PlanInfo): CheckoutOption[] {
         label: "Anual",
         price: `$${plan.prices.yearly} USD/año`,
         billingPlan: "PRO_YEARLY",
-        highlight: "2 meses gratis",
+        // Decía «2 meses gratis». $59 frente a 12 × $7 no son dos meses; lo
+        // que sí es cierto es a cuánto sale el mes.
+        highlight: `equivale a $${(plan.prices.yearly / 12).toFixed(2)}/mes`,
       });
     }
   }
@@ -83,7 +85,7 @@ function getCheckoutOptions(plan: PlanInfo): CheckoutOption[] {
       label: "Anual",
       price: `$${plan.prices.yearly} USD/año`,
       billingPlan: "PRO_YEARLY",
-      highlight: "$4.92/mes",
+      highlight: `equivale a $${(plan.prices.yearly / 12).toFixed(2)}/mes`,
     });
   }
   if (plan.plan === "B2B" && plan.prices.monthly) {
@@ -364,7 +366,7 @@ export default function PlanScreen() {
                 Estás en el mejor plan disponible
               </Text>
               <Text style={styles.topPlanSub}>
-                Tienes acceso completo a todo el contenido.
+                Tienes acceso a todo el contenido publicado.
               </Text>
             </View>
           ) : null}

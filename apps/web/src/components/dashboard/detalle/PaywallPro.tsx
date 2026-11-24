@@ -16,7 +16,10 @@ import Link from "next/link";
  */
 export function PaywallPro({
   titulo = "Este libro está disponible con Pro",
-  cuerpo = "Por $7/mes accedes a todos los libros, audios guiados y Eco dentro del capítulo. Cancelas cuando quieras.",
+  // Decía «por $7/mes accedes a todos los libros, audios guiados y Eco dentro
+  // del capítulo. Cancelas cuando quieras». No hay audios guiados, Eco en el
+  // capítulo no es de Pro, y el importe vive en Mi plan con su aviso.
+  cuerpo = "Con Pro lees todos sus capítulos publicados. En Mi plan está lo que incluye.",
   volver,
 }: {
   titulo?: string;

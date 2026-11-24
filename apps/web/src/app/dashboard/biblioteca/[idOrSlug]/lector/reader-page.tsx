@@ -192,7 +192,7 @@ export function LectorBloqueado() {
     <div className="mx-auto max-w-2xl px-4 py-12">
       <PaywallPro
         titulo="Este capítulo está disponible con Pro"
-        cuerpo="El primer capítulo de cada libro es gratuito. Para seguir leyendo este, y todos los demás, hazte Pro por $7/mes. Cancelas cuando quieras."
+        cuerpo="El primer capítulo de cada libro es gratuito. Este, y los que siguen, se leen con Pro. En Mi plan está lo que incluye."
         volver={{
           href: "/dashboard/biblioteca",
           texto: "Volver a la biblioteca",

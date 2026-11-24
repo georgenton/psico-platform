@@ -176,7 +176,8 @@ export default async function PlanPage() {
               <span style={{ color: "var(--color-lavender-700)" }}>
                 Gratuito
               </span>{" "}
-              — acceso al libro introductorio.
+              — lectura de los libros gratuitos y del primer capítulo de los
+              libros Pro.
             </p>
           </div>
 

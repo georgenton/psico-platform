@@ -113,15 +113,8 @@ export function UpgradeCard({
             }
       }
     >
-      {isFeatured && (
-        <span
-          className="absolute -top-3.5 left-1/2 -translate-x-1/2 rounded-full px-4 py-1 text-xs font-bold"
-          style={{ background: "var(--bg-action)", color: "white" }}
-        >
-          Más popular
-        </span>
-      )}
-
+      {/* Aquí había un «Más popular». No hay compradores: la insignia no tenía
+          ningún dato detrás. El realce visual del plan se conserva. */}
       <h3
         className="mb-1 text-lg font-bold"
         style={{ color: isFeatured ? "white" : "var(--color-warm-800)" }}

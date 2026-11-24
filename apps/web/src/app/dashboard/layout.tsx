@@ -18,6 +18,7 @@ import {
   isNextThrow,
   serverFetch,
 } from "@/lib/api.server";
+import { identidadDeCuenta } from "@/lib/identidad";
 import { resolveOnboardingGate } from "@/lib/onboarding/gate";
 import { deriveGuideRecoveryActorScope } from "@/lib/guide-recovery-scope.server";
 import { getDiaryWrapKey } from "@/actions/diary-session";
@@ -128,9 +129,18 @@ export default async function DashboardLayout({
     if (isNextThrow(err)) throw err;
   }
 
+  // Nombre e iniciales del armazón. Salen de `/user/me` y no del token: el
+  // token sólo lleva el correo, que es lo que el carril enseñaba en su lugar.
+  const identidad = identidadDeCuenta({
+    nombre: me?.user.firstName,
+    iniciales: me?.user.initials,
+    correo: me?.user.email ?? user?.email,
+  });
+
   return (
     <DashboardShell
       user={user}
+      identidad={identidad}
       cryptoSalt={cryptoSalt}
       showTour={showTour}
       initialDiaryWrapKey={initialWrapKey}

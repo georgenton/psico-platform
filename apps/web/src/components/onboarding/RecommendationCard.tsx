@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { completeOnboarding } from "@/actions/onboarding";
+import { coverGradient } from "@/components/dashboard/cover-gradients";
 import {
   accessCopy,
   resolveBookAccess,
@@ -12,13 +13,6 @@ interface Props {
   primary: IncomingRecommendation;
   alternatives: IncomingRecommendation[];
 }
-
-const COVER_BG: Record<IncomingRecommendation["cover"], string> = {
-  cool: "linear-gradient(135deg, var(--color-lavender-300), var(--color-lavender-600))",
-  warm: "linear-gradient(135deg, #F4B080, #C76A4D)",
-  mixed:
-    "linear-gradient(135deg, var(--color-lavender-300), var(--color-sage-400))",
-};
 
 /** Badge palettes, one per resolved access state. */
 const BADGE_STYLE = {
@@ -79,9 +73,12 @@ export function RecommendationCard({ primary, alternatives }: Props) {
           className="mt-6 overflow-hidden rounded-3xl border-[1.5px] bg-white"
           style={{ borderColor: "var(--color-warm-200)" }}
         >
+          {/* La misma portada que pintan Biblioteca y la ficha. Aquí había otra
+              paleta —naranja para `warm`, que en el resto es salvia—, así que
+              el libro cambiaba de color al abrirlo. */}
           <div
             className="flex h-40 items-end px-6 pb-5"
-            style={{ background: COVER_BG[active.cover] }}
+            style={{ background: coverGradient(active.cover) }}
           >
             <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-white/85">
               {active.author}

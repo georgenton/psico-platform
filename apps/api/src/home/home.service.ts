@@ -11,7 +11,6 @@ import { ActivityService } from "../activity";
 import { EcoSuggestionService } from "../eco/eco-suggestions.service";
 import type {
   AmbientId,
-  CoverToken,
   DismissReflectionPromptResponse,
   HomeContinueBook,
   HomeEcoMoment,
@@ -27,6 +26,7 @@ import type {
   UpdateUserMoodResponse,
 } from "@psico/types";
 import { AMBIENT_IDS, AUTHORSHIP_UNCONFIRMED } from "@psico/types";
+import { toCoverToken } from "../shared/cover-token";
 
 // ─── Greeting rules ──────────────────────────────────────────────────────────
 //
@@ -73,8 +73,6 @@ const MOOD_OVERRIDES: Record<string, { text: string; subtitle: string }> = {
     subtitle: "Una página, un pensamiento.",
   },
 };
-
-const COVER_BUCKETS: CoverToken[] = ["cool", "warm", "mixed"];
 
 const SHORTCUTS_DEFAULT: HomeShortcut[] = [
   { id: "reflexiones", label: "Reflexiones", badge: null },
@@ -466,7 +464,7 @@ export class HomeService {
       bookSlug: chapter.book.slug,
       title: chapter.book.title,
       author: chapter.book.author?.name ?? "—",
-      cover: this.toCoverToken(chapter.book.cover),
+      cover: toCoverToken(chapter.book.cover),
       readerRef: { kind: "chapter" as const, id: chapter.id },
     };
   }
@@ -527,7 +525,7 @@ export class HomeService {
       bookSlug: unit.edition.slug,
       title: book.title,
       author: book.author?.name ?? "—",
-      cover: this.toCoverToken(book.cover),
+      cover: toCoverToken(book.cover),
       chapterN: entry.order,
       // The unit id, not the placement's order. `entry` was looked up to prove
       // the unit is still in the published manifest and to read its title —
@@ -612,7 +610,7 @@ export class HomeService {
       // o un sello: una atribución inventada que nadie puede distinguir de una
       // real. Va solo en su línea, así que lleva marcador declarado.
       byline: b.author?.name ?? AUTHORSHIP_UNCONFIRMED,
-      cover: this.toCoverToken(b.cover),
+      cover: toCoverToken(b.cover),
       reason: "Nuevo en la biblioteca",
       lockedByTier: userTier === "free" && b.plan !== "FREE",
     }));
@@ -722,9 +720,5 @@ export class HomeService {
     if (hour < 18) return "afternoon";
     if (hour < 22) return "evening";
     return "night";
-  }
-
-  private toCoverToken(value: string): CoverToken {
-    return value === "warm" || value === "mixed" ? value : COVER_BUCKETS[0];
   }
 }

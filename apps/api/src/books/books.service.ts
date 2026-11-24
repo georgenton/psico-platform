@@ -26,7 +26,6 @@ import type {
   BookReviewsResponse,
   BookToggleResponse,
   ChapterListItem,
-  CoverToken,
   CreateBookReviewResponse,
   Pagination,
   StartBookResponse,
@@ -41,6 +40,7 @@ import type { CreateBookReviewDto } from "./dto/create-review.dto";
 import { ConfigService } from "@nestjs/config";
 import type { Env } from "../config";
 import { resolveStoredCoverUrl } from "../shared/content-asset";
+import { toCoverToken } from "../shared/cover-token";
 import {
   loadEffectiveChapters,
   continueCandidateForEffectiveChapters,
@@ -424,7 +424,7 @@ export class BooksService {
         slug: book.slug,
         title: book.title,
         subtitle: book.subtitle,
-        cover: this.toCoverToken(book.cover),
+        cover: toCoverToken(book.cover),
         coverArtUrl: this.coverUrl(book.coverArtUrl),
         summary: book.summary,
         description: book.description,
@@ -814,7 +814,7 @@ export class BooksService {
       subtitle: row.subtitle,
       authorId: row.authorId,
       authorName: author?.name ?? null,
-      cover: this.toCoverToken(row.cover),
+      cover: toCoverToken(row.cover),
       coverArtUrl: this.coverUrl(row.coverArtUrl),
       categoryId: row.categoryId,
       categorySlug: category?.slug ?? null,
@@ -855,10 +855,6 @@ export class BooksService {
       progressPct,
       completedAt: completed.length === total && total > 0 ? new Date() : null,
     };
-  }
-
-  private toCoverToken(value: string): CoverToken {
-    return value === "warm" || value === "mixed" ? value : "cool";
   }
 
   /**
@@ -1031,7 +1027,7 @@ export class BooksService {
           .map((w) => w.charAt(0).toUpperCase())
           .join("") || "•",
       avatarUrl: row.avatarUrl,
-      cover: this.toCoverToken(row.cover),
+      cover: toCoverToken(row.cover),
       bookCount: 0,
       title: row.title,
       bio: row.bio,
@@ -1079,7 +1075,7 @@ export class BooksService {
           .map((w) => w.charAt(0).toUpperCase())
           .join("") || "•",
       avatarUrl: row.avatarUrl,
-      cover: this.toCoverToken(row.cover),
+      cover: toCoverToken(row.cover),
       bookCount: row._count.books,
     }));
   }

@@ -2,15 +2,14 @@ import { Injectable } from "@nestjs/common";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { PrismaService } from "../prisma";
 import type {
-  CoverToken,
   JourneyBookSummary,
   JourneyCoverToken,
   JourneyListItem,
   JourneyListResponse,
 } from "@psico/types";
+import { toCoverToken } from "../shared/cover-token";
 
 const VALID_COVER_TOKENS: JourneyCoverToken[] = ["cool", "warm", "mixed"];
-const VALID_BOOK_COVERS: CoverToken[] = ["cool", "warm", "mixed"];
 
 /**
  * JourneysService — Sprint B5.
@@ -62,9 +61,9 @@ export class JourneysService {
             slug: b.slug,
             title: b.title,
             authorName: b.author?.name ?? null,
-            cover: VALID_BOOK_COVERS.includes(b.cover as CoverToken)
-              ? (b.cover as CoverToken)
-              : "mixed",
+            // The book's tone, resolved like everywhere else. The journey's own
+            // token below is a different thing: it belongs to the journey.
+            cover: toCoverToken(b.cover),
             durationMinutes: b.durationMinutes,
           } satisfies JourneyBookSummary;
         })

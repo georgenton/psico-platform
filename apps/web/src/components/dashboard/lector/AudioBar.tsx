@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { LectorAudioResponse } from "@psico/types";
 import { assetUrl } from "@/lib/asset-url";
+import { coverGradient } from "../cover-gradients";
 
 const SPEED_OPTIONS = [0.75, 1, 1.25, 1.5] as const;
 type SpeedRate = (typeof SPEED_OPTIONS)[number];
@@ -421,12 +422,7 @@ export function AudioBar({
                       aria-hidden
                       className="h-12 w-12 rounded-md"
                       style={{
-                        background:
-                          data.metadata.artworkUrl === "warm"
-                            ? "linear-gradient(135deg, var(--color-warm-200), var(--color-warm-400))"
-                            : data.metadata.artworkUrl === "mixed"
-                              ? "linear-gradient(135deg, var(--color-lavender-200), var(--color-warm-300))"
-                              : "linear-gradient(135deg, var(--color-lavender-200), var(--color-lavender-500))",
+                        background: coverGradient(data.metadata.artworkUrl),
                       }}
                     />
                   )}

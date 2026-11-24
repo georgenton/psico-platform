@@ -17,6 +17,7 @@ import { CHECKIN_SCALE } from "@psico/types";
 import { useAuth } from "@/context/auth";
 import { setEcoReaderHandoff } from "@/lib/eco/reader-handoff";
 import { Colors, Radius, Spacing } from "@/theme";
+import { coverColor } from "@/components/dashboard/cover-colors";
 import { readerRoutePath } from "@/components/dashboard/lector/reader-route";
 
 /**
@@ -309,7 +310,12 @@ export default function HomeScreen() {
         >
           <Text style={styles.mCardTag}>Continúa tu recorrido</Text>
           <View style={styles.mContinue}>
-            <View style={styles.mContinueCover}>
+            <View
+              style={[
+                styles.mContinueCover,
+                { backgroundColor: coverColor(home.continueBook.cover) },
+              ]}
+            >
               <Ionicons name="book" size={20} color={Colors.white} />
             </View>
             <View style={styles.mContinueMeta}>
@@ -741,7 +747,6 @@ const styles = StyleSheet.create({
     width: 54,
     height: 72,
     borderRadius: 10,
-    backgroundColor: Colors.lavender[500],
     alignItems: "center",
     justifyContent: "center",
   },

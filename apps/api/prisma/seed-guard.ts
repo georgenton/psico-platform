@@ -3,12 +3,14 @@
  *
  * Until C.0A1 the API's pre-deploy ran `migrate:deploy && prisma db seed`, so
  * every single production deployment replayed the whole seed. That is not a
- * theoretical concern: the seed wipes and reinserts `TherapistAvailability`,
- * rewrites `Journey.publishedAt` to the deploy timestamp, and forces
- * `isActive: true` on therapists and `isPublished: true` on books and
+ * theoretical concern: the seed wiped and reinserted `TherapistAvailability`,
+ * rewrites `Journey.publishedAt` to the deploy timestamp, forced
+ * `isActive: true` on therapists and forces `isPublished: true` on books and
  * chapters — silently reverting anything operations or the content team had
- * changed. "Idempotent" describes the final state against the constants in the
- * file; it does not describe the damage on the way there.
+ * changed. (The two therapist writes are gone since: schedules are preserved,
+ * and a demo therapist row is never rewritten.) "Idempotent" describes the
+ * final state against the constants in the file; it does not describe the
+ * damage on the way there.
  *
  * The seed command has been removed from the pre-deploy, and this guard is the
  * second line: if it is ever wired back in, or run by hand against production,

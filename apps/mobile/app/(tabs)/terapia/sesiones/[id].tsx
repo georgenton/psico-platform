@@ -14,7 +14,11 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { decryptString, encryptString } from "@psico/crypto";
 import { terapiaApi } from "@psico/api-client";
-import { THERAPY_MOODS } from "@psico/types";
+import {
+  THERAPY_DEMO_SESSION_MESSAGE,
+  THERAPY_MOODS,
+  THERAPY_OFFER_CLOSED_MESSAGE,
+} from "@psico/types";
 import type { SessionPrepResponse } from "@psico/types";
 import { Colors, Radius, Spacing } from "@/theme";
 import { useDiaryKey } from "@/crypto/diary-key-context";
@@ -231,7 +235,15 @@ export default function SesionDetalleScreen() {
     (data.session.status === "SCHEDULED" ||
       data.session.status === "IN_PROGRESS") &&
     data.session.paymentStatus === "PAID";
-  const canEditPrep = data.session.paymentStatus === "PAID" && key !== null;
+  // Qué se ofrece todavía sobre ESTA sesión: si hoy hay oferta (mover a otro
+  // hueco lo es) y si detrás hay un profesional. El servidor rechaza igual lo
+  // que aquí no se enseña.
+  const isDemo = data.session.therapist.isDemo;
+  const puedeContratar = (data.offer?.open ?? false) && !isDemo;
+  const canEditPrep =
+    data.session.paymentStatus === "PAID" && key !== null && !isDemo;
+  // Lo ya escrito para una sesión de demostración se puede leer, no editar.
+  const tieneIntencion = data.prep.intentionCiphertext !== null;
 
   const paymentColors =
     data.session.paymentStatus === "PAID"
@@ -266,7 +278,22 @@ export default function SesionDetalleScreen() {
           </View>
         </View>
 
-        {inJoinWindow && data.session.status === "SCHEDULED" ? (
+        {isDemo ? (
+          <View style={styles.infoNote}>
+            <Text style={styles.infoNoteText}>
+              {THERAPY_DEMO_SESSION_MESSAGE}
+            </Text>
+          </View>
+        ) : data.session.paymentStatus === "PENDING" &&
+          data.session.status === "SCHEDULED" &&
+          !puedeContratar ? (
+          <View style={styles.infoNote}>
+            <Text style={styles.infoNoteText}>
+              {THERAPY_OFFER_CLOSED_MESSAGE} Esta sesión no se puede pagar
+              ahora; puedes cancelarla.
+            </Text>
+          </View>
+        ) : inJoinWindow && data.session.status === "SCHEDULED" ? (
           <Pressable
             onPress={handleJoin}
             disabled={acting}
@@ -285,13 +312,15 @@ export default function SesionDetalleScreen() {
 
         {data.session.status === "SCHEDULED" && !canCloseSession ? (
           <View style={styles.actionRow}>
-            <Pressable
-              onPress={() => setRescheduleOpen(true)}
-              disabled={acting}
-              style={styles.rescheduleButton}
-            >
-              <Text style={styles.rescheduleButtonText}>Re-agendar</Text>
-            </Pressable>
+            {puedeContratar ? (
+              <Pressable
+                onPress={() => setRescheduleOpen(true)}
+                disabled={acting}
+                style={styles.rescheduleButton}
+              >
+                <Text style={styles.rescheduleButtonText}>Re-agendar</Text>
+              </Pressable>
+            ) : null}
             <Pressable
               onPress={handleCancel}
               disabled={acting}
@@ -315,7 +344,16 @@ export default function SesionDetalleScreen() {
         ) : null}
       </View>
 
-      {data.session.status === "SCHEDULED" ? (
+      {isDemo && tieneIntencion ? (
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Lo que escribiste</Text>
+          <Text style={styles.sectionBody}>
+            {key ? intention : "🔐 Desbloquea tu Diario para leerlo."}
+          </Text>
+        </View>
+      ) : null}
+
+      {data.session.status === "SCHEDULED" && !isDemo ? (
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Pre-sesión</Text>
           <Text style={styles.sectionBody}>
@@ -412,7 +450,7 @@ export default function SesionDetalleScreen() {
         />
       ) : null}
 
-      {rescheduleOpen ? (
+      {rescheduleOpen && puedeContratar ? (
         <RescheduleModal
           sessionId={data.session.id}
           therapistId={data.session.therapist.id}

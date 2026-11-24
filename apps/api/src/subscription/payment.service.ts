@@ -1,12 +1,21 @@
-import { Inject, Injectable, Logger } from "@nestjs/common";
+import { ConflictException, Inject, Injectable, Logger } from "@nestjs/common";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 import { ConfigService } from "@nestjs/config";
 import type { InvoiceSummary } from "@psico/types";
-import { PURCHASES_CLOSED_CODE, PURCHASES_CLOSED_MESSAGE } from "@psico/types";
+import {
+  PURCHASES_CLOSED_CODE,
+  PURCHASES_CLOSED_MESSAGE,
+  THERAPY_DEMO_SESSION_CODE,
+  THERAPY_DEMO_SESSION_MESSAGE,
+  THERAPY_OFFER_CLOSED_CODE,
+  THERAPY_OFFER_CLOSED_MESSAGE,
+} from "@psico/types";
 import type { Env } from "../config";
 import { ExpectedUnavailableException } from "../shared/filters/expected-unavailable.exception";
 import type { PurchaseGate } from "../shared/purchase-availability";
 import { resolvePurchaseGate } from "../shared/purchase-availability";
+import { resolveTherapyOfferGate } from "../shared/therapy-offer";
+import { isDemoTherapist } from "../terapia/demo-therapists";
 import type { BillingPlan } from "./dto/checkout-session.dto";
 import type { CreatePortalSessionDto } from "./dto/create-portal-session.dto";
 import { ProviderCapabilityUnsupportedError } from "./provider-errors";
@@ -130,10 +139,43 @@ export class PaymentService {
 
   // ─── Sprint S66.A ─────────────────────────────────────────────────────────
 
+  /**
+   * ÚNICO punto por el que se pide un cobro de terapia al proveedor, y la
+   * segunda de las dos guardas: la primera está en `TerapiaService`, antes de
+   * leer o escribir nada.
+   *
+   * Repetirla aquí no es desconfianza decorativa. El cobro de terapia no pasaba
+   * por ninguna puerta, y un llamante futuro que no sea `TerapiaService` la
+   * heredaría de aquí y no de allí. Como en las compras, se rechaza ANTES de
+   * `selectProvider()`: la implementación de Stripe empieza creando un cliente
+   * y guardando su identificador.
+   *
+   * La identidad se mira además de la puerta, y después: con la oferta abierta,
+   * una ficha de demostración sigue sin poder cobrarse.
+   */
   createTherapyCheckout(
     opts: TherapyCheckoutOpts,
   ): Promise<TherapyCheckoutResult> {
+    this.assertTherapyChargeable(opts.therapistId);
     return this.selectProvider().createTherapyCheckout(opts);
+  }
+
+  private assertTherapyChargeable(therapistId: string): void {
+    const gate = resolveTherapyOfferGate(
+      this.config.get("THERAPY_OFFER", { infer: true }),
+    );
+    if (!gate.open) {
+      throw new ExpectedUnavailableException({
+        code: THERAPY_OFFER_CLOSED_CODE,
+        message: THERAPY_OFFER_CLOSED_MESSAGE,
+      });
+    }
+    if (isDemoTherapist(therapistId)) {
+      throw new ConflictException({
+        code: THERAPY_DEMO_SESSION_CODE,
+        message: THERAPY_DEMO_SESSION_MESSAGE,
+      });
+    }
   }
 
   // ─── Sprint S7 ─────────────────────────────────────────────────────────────

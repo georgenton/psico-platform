@@ -2,6 +2,10 @@
 // Se re-exportan más abajo con `export * from`; el import es para poder
 // NOMBRARLOS aquí.
 import type { PurchaseAvailability } from "./purchases";
+import type {
+  TherapyHistoryPresence,
+  TherapyOfferAvailability,
+} from "./therapy-offer";
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
 
@@ -3686,12 +3690,26 @@ export interface TherapistSummary {
   specialties: string[];
   priceUsd: number;
   currency: string;
-  avgRating: number;
-  reviewsCount: number;
+  /** `null` cuando no hay puntuación que enseñar (una ficha de demostración). */
+  avgRating: number | null;
+  /** `null` cuando no hay reseñas que contar (una ficha de demostración). */
+  reviewsCount: number | null;
+  /**
+   * Ficha de demostración: no hay un profesional detrás. No depende de
+   * `offer.open` — no se reserva ni se cobra aunque la oferta se abra.
+   */
+  isDemo: boolean;
 }
 
 export interface TherapyHubResponse {
   intro: string;
+  /**
+   * Opcional y tolerante: una pantalla nueva contra una API anterior lee
+   * `offer?.open ?? false`, o sea cerrada.
+   */
+  offer?: TherapyOfferAvailability;
+  /** Qué historial enlazar. Ausente = no se sabe, y no se enlaza nada. */
+  history?: TherapyHistoryPresence;
   activeTherapist: TherapistSummary | null;
   nextSession: {
     id: string;
@@ -3728,7 +3746,7 @@ export interface TherapistListItem {
   title: string;
   avatarUrl: string | null;
   coverToken: string;
-  licenseNumber: string;
+  licenseNumber: string | null;
   licenseVerified: boolean;
   bioShort: string;
   specialties: string[];
@@ -3737,11 +3755,12 @@ export interface TherapistListItem {
   genderId: string | null;
   priceUsd: number;
   currency: string;
-  avgRating: number;
-  reviewsCount: number;
+  avgRating: number | null;
+  reviewsCount: number | null;
   nextSlotIso: string | null;
   acceptsInsurance: boolean;
   isFavorite: boolean;
+  isDemo: boolean;
 }
 
 export interface TherapistListResponse {
@@ -3841,6 +3860,8 @@ export interface SessionPrepResponse {
     checkInMood: string | null;
     sharedEntryIds: string[];
   };
+  /** Pagar y cambiar de hueco son oferta: con la puerta cerrada no se ofrecen. */
+  offer?: TherapyOfferAvailability;
 }
 
 export interface UpdateSessionPrepRequest {
@@ -3911,6 +3932,8 @@ export interface TherapySessionListItem {
 export interface TherapySessionsListResponse {
   upcoming: TherapySessionListItem[];
   past: TherapySessionListItem[];
+  /** Para no invitar a buscar terapeuta cuando no hay oferta. */
+  offer?: TherapyOfferAvailability;
 }
 
 export type TherapyPrescriptionKind = "BOOK" | "AUDIO" | "EXERCISE" | "CARTA";
@@ -4079,6 +4102,9 @@ export * from "./purchases";
 // El cambio de correo está retirado. El rechazo del servidor y las dos
 // pantallas dicen la misma frase.
 export * from "./email-change";
+// Disponibilidad de la oferta de terapia. Misma razón y mismo patrón que las
+// compras: la decide el servidor y las pantallas la obedecen.
+export * from "./therapy-offer";
 
 // Lo que pasa con lo que se le escribe a Eco. Compartido porque lo cuentan el
 // tour, las rejas, Seguridad y el componente de privacidad de web y móvil, y

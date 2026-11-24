@@ -72,7 +72,7 @@ export default async function NotificacionesPage() {
             color: "var(--color-warm-500)",
           }}
         >
-          Cuando reservés tu próxima sesión, te avisamos por acá.
+          No tienes avisos de terapia.
         </p>
       ) : null}
 

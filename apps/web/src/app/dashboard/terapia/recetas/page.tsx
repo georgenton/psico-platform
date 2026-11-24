@@ -67,8 +67,7 @@ export default async function RecetasPage() {
             color: "var(--color-warm-500)",
           }}
         >
-          Cuando tengas tu primera sesión, las sugerencias que te dé tu
-          terapeuta aparecerán acá.
+          No tienes sugerencias de un terapeuta.
         </p>
       ) : null}
 

@@ -1,4 +1,6 @@
 import type { PurchaseAvailability } from "@psico/types";
+import type { ExplicitGate, ExplicitGateState } from "./explicit-gate";
+import { resolveExplicitGate } from "./explicit-gate";
 
 /**
  * ¿Están abiertas las compras de planes? — resolutor único, que falla cerrado.
@@ -28,47 +30,18 @@ import type { PurchaseAvailability } from "@psico/types";
  * cancelaciones, las reactivaciones, el portal del proveedor ni el webhook. Una
  * suscripción que ya existe se sigue gestionando: cerrar la puerta de entrada
  * no es dejar dentro a nadie sin salida. Tampoco alcanza al pago de una sesión
- * de terapia, que es un cobro de otra naturaleza con su propia puerta.
+ * de terapia, que es un cobro de otra naturaleza con su propia puerta: la de
+ * `therapy-offer.ts`, que resuelve con este mismo criterio.
  */
 
-/**
- * Las cuatro situaciones distinguibles. Tres cierran; sólo una abre.
- *
- * - `absent`  — nadie la configuró (incluida la cadena vacía, que es cómo
- *               Coolify guarda una variable borrada).
- * - `off`     — alguien dijo explícitamente que no.
- * - `invalid` — hay un valor y no se entiende. Cierra, y se dice en voz alta:
- *               una errata no puede pasar por una decisión.
- * - `on`      — alguien dijo explícitamente que sí.
- */
-export type PurchaseGateState = "absent" | "off" | "invalid" | "on";
+/** Las cuatro situaciones distinguibles; las describe `explicit-gate`. */
+export type PurchaseGateState = ExplicitGateState;
 
-export interface PurchaseGate {
-  state: PurchaseGateState;
-  /** Verdadero sólo con `state === "on"`. */
-  open: boolean;
-  /** El valor crudo recortado, cuando es ilegible, para el mensaje del operador. */
-  rawWhenInvalid: string | null;
-}
-
-const AFFIRMATIVE = new Set(["on", "true", "1", "open", "abierto"]);
-const NEGATIVE = new Set(["off", "false", "0", "closed", "cerrado"]);
+export type PurchaseGate = ExplicitGate;
 
 /** Resuelve el estado de la puerta desde el valor crudo de `BILLING_PURCHASES`. */
 export function resolvePurchaseGate(raw: string | undefined): PurchaseGate {
-  const trimmed = (raw ?? "").trim();
-  if (trimmed.length === 0) {
-    return { state: "absent", open: false, rawWhenInvalid: null };
-  }
-
-  const normalized = trimmed.toLowerCase();
-  if (AFFIRMATIVE.has(normalized)) {
-    return { state: "on", open: true, rawWhenInvalid: null };
-  }
-  if (NEGATIVE.has(normalized)) {
-    return { state: "off", open: false, rawWhenInvalid: null };
-  }
-  return { state: "invalid", open: false, rawWhenInvalid: trimmed };
+  return resolveExplicitGate(raw);
 }
 
 /**

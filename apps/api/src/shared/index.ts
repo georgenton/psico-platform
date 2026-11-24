@@ -25,3 +25,4 @@ export * from "./content-asset";
 // discrepar: la propia creación de checkout, el envolvente de Mi plan y el
 // muro de Patrones.
 export * from "./purchase-availability";
+export * from "./therapy-offer";

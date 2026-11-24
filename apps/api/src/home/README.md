@@ -26,7 +26,7 @@ screen needs.
   recos:       [ /* max 3 books */ ]
   stats:       { minutesThisWeek, entriesThisWeek, streakDays, weeklyGoalPct }
   reflectionPrompt: { id, text } | null
-  shortcuts:   [ /* diario, eco, biblioteca, terapia */ ]
+  shortcuts:   [ /* reflexiones, eco, biblioteca */ ]
 }
 ```
 

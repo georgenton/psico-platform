@@ -12,9 +12,18 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { terapiaApi } from "@psico/api-client";
 import type { TherapistDetail } from "@psico/types";
+import { PuertaDeTerapia } from "@/components/dashboard/terapia/PuertaDeTerapia";
 import { Colors, Radius, Spacing } from "@/theme";
 
 export default function TerapeutaPerfilScreen() {
+  return (
+    <PuertaDeTerapia>
+      <TerapeutaPerfil />
+    </PuertaDeTerapia>
+  );
+}
+
+function TerapeutaPerfil() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const [therapist, setTherapist] = useState<TherapistDetail | null>(null);
@@ -99,9 +108,7 @@ export default function TerapeutaPerfilScreen() {
           <Ionicons
             name={therapist.isFavorite ? "heart" : "heart-outline"}
             size={22}
-            color={
-              therapist.isFavorite ? Colors.rose[600] : Colors.warm[400]
-            }
+            color={therapist.isFavorite ? Colors.rose[600] : Colors.warm[400]}
           />
         </Pressable>
       </View>

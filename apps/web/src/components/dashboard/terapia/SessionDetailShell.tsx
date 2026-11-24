@@ -4,7 +4,11 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { decryptString, encryptString } from "@psico/crypto";
-import { THERAPY_MOODS } from "@psico/types";
+import {
+  THERAPY_DEMO_SESSION_MESSAGE,
+  THERAPY_MOODS,
+  THERAPY_OFFER_CLOSED_MESSAGE,
+} from "@psico/types";
 import type { SessionPrepResponse } from "@psico/types";
 import { useDiaryKey } from "@/lib/crypto/diary-key-context";
 import {
@@ -155,7 +159,16 @@ export function SessionDetailShell({
     (data.session.status === "SCHEDULED" ||
       data.session.status === "IN_PROGRESS") &&
     data.session.paymentStatus === "PAID";
-  const canEditPrep = data.session.paymentStatus === "PAID" && key !== null;
+  // Qué se ofrece todavía sobre ESTA sesión. Son dos preguntas: si hoy hay
+  // oferta (pagar y mover lo son) y si detrás hay un profesional. El servidor
+  // rechaza igual lo que aquí no se enseña.
+  const isDemo = data.session.therapist.isDemo;
+  const puedeContratar = (data.offer?.open ?? false) && !isDemo;
+  const canEditPrep =
+    data.session.paymentStatus === "PAID" && key !== null && !isDemo;
+  // A una sesión de demostración no se le prepara nada, pero lo que la persona
+  // ya escribió sigue siendo suyo y se puede leer.
+  const tieneIntencion = data.prep.intentionCiphertext !== null;
 
   return (
     <div className="mx-auto max-w-2xl space-y-5">
@@ -214,16 +227,33 @@ export function SessionDetailShell({
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
-          {data.session.paymentStatus === "PENDING" ? (
-            <button
-              type="button"
-              onClick={handleRetry}
-              disabled={pending}
-              className="rounded-xl px-4 py-2 text-[13px] font-medium text-white"
-              style={{ background: "var(--bg-brand-strong)" }}
+          {isDemo ? (
+            <p
+              className="text-[13px] leading-relaxed"
+              style={{ color: "var(--color-warm-700)" }}
             >
-              Pagar ahora
-            </button>
+              {THERAPY_DEMO_SESSION_MESSAGE}
+            </p>
+          ) : data.session.paymentStatus === "PENDING" ? (
+            puedeContratar ? (
+              <button
+                type="button"
+                onClick={handleRetry}
+                disabled={pending}
+                className="rounded-xl px-4 py-2 text-[13px] font-medium text-white"
+                style={{ background: "var(--bg-brand-strong)" }}
+              >
+                Pagar ahora
+              </button>
+            ) : data.session.status === "SCHEDULED" ? (
+              <p
+                className="text-[13px] leading-relaxed"
+                style={{ color: "var(--color-warm-700)" }}
+              >
+                {THERAPY_OFFER_CLOSED_MESSAGE} Esta sesión no se puede pagar
+                ahora; puedes cancelarla.
+              </p>
+            ) : null
           ) : inJoinWindow && data.session.status === "SCHEDULED" ? (
             <Link
               href={`/dashboard/terapia/sesiones/${data.session.id}/sala`}
@@ -243,18 +273,20 @@ export function SessionDetailShell({
 
           {data.session.status === "SCHEDULED" && !canCloseSession ? (
             <>
-              <button
-                type="button"
-                onClick={() => setRescheduleOpen(true)}
-                disabled={pending}
-                className="rounded-xl border-[1.5px] bg-white px-4 py-2 text-[13px] font-medium"
-                style={{
-                  borderColor: "var(--color-lavender-300)",
-                  color: "var(--color-lavender-700)",
-                }}
-              >
-                Re-agendar
-              </button>
+              {puedeContratar ? (
+                <button
+                  type="button"
+                  onClick={() => setRescheduleOpen(true)}
+                  disabled={pending}
+                  className="rounded-xl border-[1.5px] bg-white px-4 py-2 text-[13px] font-medium"
+                  style={{
+                    borderColor: "var(--color-lavender-300)",
+                    color: "var(--color-lavender-700)",
+                  }}
+                >
+                  Re-agendar
+                </button>
+              ) : null}
               <button
                 type="button"
                 onClick={handleCancel}
@@ -296,8 +328,29 @@ export function SessionDetailShell({
         ) : null}
       </section>
 
+      {/* Lo que ya escribió para una sesión de demostración: sólo lectura. */}
+      {isDemo && tieneIntencion ? (
+        <section
+          className="rounded-2xl border-[1.5px] bg-white p-5"
+          style={{ borderColor: "var(--color-warm-200)" }}
+        >
+          <h2
+            className="text-[15px] font-semibold"
+            style={{ color: "var(--color-warm-900)" }}
+          >
+            Lo que escribiste
+          </h2>
+          <p
+            className="mt-2 whitespace-pre-wrap text-[13px] leading-relaxed"
+            style={{ color: "var(--color-warm-700)" }}
+          >
+            {key ? intention : "🔐 Desbloquea tu Diario para leerlo."}
+          </p>
+        </section>
+      ) : null}
+
       {/* Pre-session prep */}
-      {data.session.status === "SCHEDULED" ? (
+      {data.session.status === "SCHEDULED" && !isDemo ? (
         <section
           className="rounded-2xl border-[1.5px] bg-white p-5"
           style={{ borderColor: "var(--color-warm-200)" }}
@@ -413,7 +466,7 @@ export function SessionDetailShell({
         />
       ) : null}
 
-      {rescheduleOpen ? (
+      {rescheduleOpen && puedeContratar ? (
         <RescheduleModal
           sessionId={data.session.id}
           therapistId={data.session.therapist.id}

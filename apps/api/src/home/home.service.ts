@@ -76,11 +76,11 @@ const MOOD_OVERRIDES: Record<string, { text: string; subtitle: string }> = {
   },
 };
 
+// Terapia no está: un atajo es una oferta, y hoy no se ofrece (`THERAPY_OFFER`).
 const SHORTCUTS_DEFAULT: HomeShortcut[] = [
   { id: "reflexiones", label: "Reflexiones", badge: null },
   { id: "eco", label: "Eco", badge: null },
   { id: "biblioteca", label: "Biblioteca", badge: null },
-  { id: "terapia", label: "Terapia", badge: null },
 ];
 
 @Injectable()

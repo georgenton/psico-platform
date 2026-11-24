@@ -306,3 +306,40 @@ describe("IntegrationsService · la puerta de las compras", () => {
     expect(JSON.stringify(r)).not.toContain("ábrelas-por-favor");
   });
 });
+
+describe("IntegrationsService · la puerta de la oferta de terapia", () => {
+  it.each([
+    ["sin configurar", undefined, { open: false, state: "absent" }],
+    ["apagada", "off", { open: false, state: "off" }],
+    ["ilegible", "ábrela", { open: false, state: "invalid" }],
+    ["abierta", "on", { open: true, state: "on" }],
+  ] as const)("%s", (_caso, valor, esperado) => {
+    const r = new IntegrationsService(
+      makeConfig(valor === undefined ? {} : { THERAPY_OFFER: valor }),
+    ).report();
+    expect(r.therapyOffer).toEqual(esperado);
+  });
+
+  it("las dos puertas no se confunden", () => {
+    const r = new IntegrationsService(
+      makeConfig({ BILLING_PURCHASES: "on" }),
+    ).report();
+    expect(r.purchases.open).toBe(true);
+    expect(r.therapyOffer.open).toBe(false);
+  });
+
+  it("el arranque sólo la nombra cuando hay una errata, y sin el valor", () => {
+    const issues = (valor?: string) =>
+      new IntegrationsService(makeConfig(valor ? { THERAPY_OFFER: valor } : {}))
+        .bootIssues()
+        .filter((i) => i.key.startsWith("THERAPY_OFFER"));
+
+    expect(issues(undefined)).toEqual([]);
+    expect(issues("off")).toEqual([]);
+    expect(issues("on")).toEqual([]);
+    const erratas = issues("ábrela-ya");
+    expect(erratas).toHaveLength(1);
+    expect(erratas[0]?.reason).toBe("invalid");
+    expect(JSON.stringify(erratas)).not.toContain("ábrela-ya");
+  });
+});

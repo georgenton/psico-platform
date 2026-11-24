@@ -107,8 +107,7 @@ export default function RecetasScreen() {
       {items && items.length === 0 ? (
         <View style={styles.emptyCard}>
           <Text style={styles.emptyText}>
-            Cuando tengas tu primera sesión, las sugerencias que te dé tu
-            terapeuta aparecerán acá.
+            No tienes sugerencias de un terapeuta.
           </Text>
         </View>
       ) : null}

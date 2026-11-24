@@ -185,9 +185,10 @@ describe("seed · therapist availability is preserved, not rewritten", () => {
   });
 
   it("upserts the therapist row itself on every run", async () => {
-    // Deliberately NOT preserved: name, bio and specialties are curated catalog
-    // content, which is what a catalog seed is for. Only the SCHEDULE is
-    // operational state. Keeping the distinction visible is the point.
+    // The upsert runs every time because a row may be missing, not because the
+    // existing one is rewritten: its `update` is empty since 2026-11-24. What
+    // the write may and may not assert lives in `demo-therapist-seed.spec.ts`;
+    // here only the call sequence is pinned.
     const ids = await therapistIds();
     const { calls, client } = recorder(
       Object.fromEntries(ids.map((id) => [id, 8])),

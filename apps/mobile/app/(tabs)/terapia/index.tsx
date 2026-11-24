@@ -12,6 +12,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { terapiaApi } from "@psico/api-client";
 import type { TherapyHubResponse } from "@psico/types";
+import { TerapiaCerrada } from "@/components/dashboard/terapia/TerapiaCerrada";
 import { Colors, Radius, Spacing } from "@/theme";
 
 export default function TerapiaHubScreen() {
@@ -57,6 +58,12 @@ export default function TerapiaHubScreen() {
     );
   }
 
+  // Cerrada también si la API no contesta o no publica `offer`: la ausencia de
+  // un permiso no es un permiso.
+  if (!hub || !(hub.offer?.open ?? false)) {
+    return <TerapiaCerrada historial={hub?.history ?? null} />;
+  }
+
   return (
     <ScrollView
       contentContainerStyle={styles.scroll}
@@ -65,7 +72,7 @@ export default function TerapiaHubScreen() {
       }
     >
       <Text style={styles.h1}>Terapia</Text>
-      <Text style={styles.intro}>{hub?.intro ?? ""}</Text>
+      <Text style={styles.intro}>{hub.intro}</Text>
 
       {error ? (
         <View style={styles.errorCard}>
@@ -73,7 +80,7 @@ export default function TerapiaHubScreen() {
         </View>
       ) : null}
 
-      {hub?.nextSession ? (
+      {hub.nextSession && !hub.nextSession.therapist.isDemo ? (
         <Pressable
           onPress={() =>
             router.push(`/(tabs)/terapia/sesiones/${hub.nextSession!.id}`)
@@ -163,7 +170,7 @@ export default function TerapiaHubScreen() {
         <Ionicons name="chevron-forward" size={18} color={Colors.warm[500]} />
       </Pressable>
 
-      {hub?.activeTherapist ? (
+      {hub.activeTherapist ? (
         <>
           <Text style={styles.sectionLabel}>Tu terapeuta</Text>
           <Pressable
@@ -187,7 +194,7 @@ export default function TerapiaHubScreen() {
         </>
       ) : null}
 
-      {hub?.recentPrescriptions && hub.recentPrescriptions.length > 0 ? (
+      {hub.recentPrescriptions.length > 0 ? (
         <>
           <Text style={styles.sectionLabel}>Lo que tu terapeuta sugirió</Text>
           {hub.recentPrescriptions.slice(0, 3).map((p) => (

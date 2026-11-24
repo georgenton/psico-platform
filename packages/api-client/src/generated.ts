@@ -18521,6 +18521,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelopeDto"];
                 };
             };
+            /** @description Therapy is not being offered (THERAPY_OFFER_CLOSED). */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
         };
     };
     TerapiaController_listTherapists: {
@@ -18599,6 +18608,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelopeDto"];
                 };
             };
+            /** @description Therapy is not being offered (THERAPY_OFFER_CLOSED). */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
         };
     };
     TerapiaController_getTherapist: {
@@ -18629,6 +18647,15 @@ export interface operations {
                 };
             };
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            /** @description Therapy is not being offered (THERAPY_OFFER_CLOSED). */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -18676,6 +18703,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelopeDto"];
                 };
             };
+            /** @description Therapy is not being offered (THERAPY_OFFER_CLOSED). */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
         };
     };
     TerapiaController_toggleFavorite: {
@@ -18706,6 +18742,15 @@ export interface operations {
                 };
             };
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            /** @description Therapy is not being offered (THERAPY_OFFER_CLOSED). */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -18758,6 +18803,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelopeDto"];
                 };
             };
+            /** @description Therapy is not being offered (THERAPY_OFFER_CLOSED). */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
         };
     };
     TerapiaController_createBooking: {
@@ -18799,6 +18853,15 @@ export interface operations {
             };
             /** @description The requested slot is already taken (SLOT_TAKEN). */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            /** @description Therapy is not being offered (THERAPY_OFFER_CLOSED). */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -18884,6 +18947,15 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelopeDto"];
                 };
             };
+            /** @description The session was booked with a demo profile (THERAPY_DEMO_SESSION). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
         };
     };
     TerapiaController_joinSession: {
@@ -18914,6 +18986,15 @@ export interface operations {
                 };
             };
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            /** @description The session was booked with a demo profile (THERAPY_DEMO_SESSION). */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -19263,8 +19344,17 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelopeDto"];
                 };
             };
-            /** @description The new slot is already taken (SLOT_TAKEN). */
+            /** @description The new slot is already taken (SLOT_TAKEN), or the session was booked with a demo profile (THERAPY_DEMO_SESSION). */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            /** @description Therapy is not being offered (THERAPY_OFFER_CLOSED). */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -19345,6 +19435,24 @@ export interface operations {
                 };
             };
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            /** @description The session was booked with a demo profile (THERAPY_DEMO_SESSION). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelopeDto"];
+                };
+            };
+            /** @description Therapy is not being offered (THERAPY_OFFER_CLOSED). */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

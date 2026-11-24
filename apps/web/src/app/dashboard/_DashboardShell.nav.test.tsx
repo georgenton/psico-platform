@@ -1,4 +1,4 @@
-import { render } from "@testing-library/react";
+import { fireEvent, render } from "@testing-library/react";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 let ruta = "/dashboard/mapa";
@@ -132,9 +132,34 @@ describe("la navegación del carril", () => {
 });
 
 /**
+ * Terapia no se ofrece, y lo primero que la ofrecía era el menú de cuenta.
+ *
+ * Con el menú ABIERTO, que es donde estaba: con el menú plegado la prueba
+ * aprobaría siempre. Y en todo el armazón, no sólo en ese menú.
+ */
+describe("el armazón no ofrece terapia", () => {
+  it("ni en el menú de cuenta ni en ningún otro sitio", () => {
+    ruta = "/dashboard/mapa";
+    const { container } = montar();
+    fireEvent.click(
+      container.querySelector("aside.side button[aria-expanded]")!,
+    );
+    const enlaces = [...container.querySelectorAll("a")];
+    // Control: el menú se abrió y sus otros destinos están.
+    expect(enlaces.map((a) => a.getAttribute("href"))).toContain(
+      "/dashboard/security",
+    );
+    for (const a of enlaces) {
+      expect(a.getAttribute("href") ?? "").not.toMatch(/^\/dashboard\/terapia/);
+      expect(a.textContent ?? "").not.toMatch(/terapia/i);
+    }
+  });
+});
+
+/**
  * La ayuda inmediata, a la vista en el carril.
  *
- * Antes sólo se llegaba por Terapia, que está dentro del menú de cuenta
+ * Antes sólo se llegaba por Terapia, que estaba dentro del menú de cuenta
  * plegado: dos pasos y saber que estaba ahí.
  */
 describe("la ayuda inmediata en el carril", () => {

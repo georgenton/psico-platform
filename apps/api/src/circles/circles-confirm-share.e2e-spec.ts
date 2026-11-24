@@ -140,7 +140,8 @@ describe("circles · the confirm-share boundary (real Nest pipeline)", () => {
       }),
     );
     app.useGlobalFilters(new HttpExceptionFilter());
-    await app.init();
+    // Loopback, not "::": see test/e2e-app.ts for what answers otherwise.
+    await app.listen(0, "127.0.0.1");
   }, 30_000);
 
   afterAll(async () => {

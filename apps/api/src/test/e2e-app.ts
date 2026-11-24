@@ -270,7 +270,13 @@ export async function createE2EApp(
   );
   app.useGlobalFilters(new HttpExceptionFilter());
 
-  await app.init();
+  // Listen on the loopback address, not on "::". Left to itself, supertest
+  // calls `listen(0)` per request and then connects to 127.0.0.1; on macOS a
+  // program already bound to 127.0.0.1 on that same port wins the connection,
+  // so the request is answered by Notion, VS Code or Docker instead of by this
+  // app (measured: 14 of 20 000). Binding 127.0.0.1 makes the kernel skip the
+  // ports those programs hold, and one port per harness replaces one per call.
+  await app.listen(0, "127.0.0.1");
 
   const resetMocks = async (): Promise<void> => {
     // Reset prisma mock state (clears calls, restores default impl).

@@ -13,11 +13,20 @@ import { createContext, useContext, useEffect, useState } from "react";
  * cuenta bajo las claves de la primera. Reproducido en un navegador: lo escrito
  * ahí quedaba en la cuenta B y sólo se abría con la clave de A.
  *
- * CÓMO. Cada panel escribe al montarse una marca de su cuenta en `localStorage`,
- * y el acceso y el registro la retiran. Las demás pestañas reciben el evento
- * `storage`; si la marca ya no es la suya dejan de entregar claves y preguntan.
- * Además se compara al volver a la pestaña, porque una congelada o recuperada
- * con «atrás» no recibe eventos.
+ * CÓMO. Cada panel escribe una marca de su cuenta en `localStorage` cuando el
+ * servidor la CONFIRMA, y el acceso y el registro la mueven a un valor que no es
+ * de nadie. Las demás pestañas reciben el evento `storage`; si la marca ya no es
+ * la suya dejan de entregar claves y preguntan. Además se compara al volver a la
+ * pestaña, porque una congelada o recuperada con «atrás» no recibe eventos.
+ *
+ * AL MONTAR, LA IDENTIDAD ESTÁ PENDIENTE. El panel que llega trae en su HTML la
+ * cuenta que tenía la sesión al pedirlo, y pudo tardar: sólo una marca que ya es
+ * la suya —escrita por otra pestaña confirmada— la da por buena sin preguntar.
+ * Sin marca, o con otra, no se entregan claves, no se abre la reja, no se toca
+ * lo guardado en el dispositivo y no se anuncia nada hasta que el servidor diga.
+ * Que la respuesta tarde, falle o se reintente no cambia eso. Reproducido con la
+ * aplicación entera: B en el onboarding, una pestaña tardía de A escribía su
+ * marca, se abría sola, y lo escrito quedaba en B bajo la llave de A.
  *
  * La marca es un resumen corto del identificador de la cuenta, calculado en el
  * servidor (`lib/marca-de-cuenta.server.ts`). No es un secreto ni autoriza nada:
@@ -118,29 +127,20 @@ export function SesionVigenteProvider({
   marca: string | null;
   children: React.ReactNode;
 }) {
-  const [vigente, setVigente] = useState(true);
+  // Pendiente desde el primer render, y no desde el primer efecto: los hijos
+  // corren los suyos antes, y uno de ellos restaura la llave recordada.
+  const [vigente, setVigente] = useState(marca === null);
 
   useEffect(() => {
     if (marca === null) return;
 
-    // Al montar: la marca de OTRA cuenta no se pisa, porque puede ser la buena
-    // —esta pestaña pudo tardar en cargar— y se pregunta con todo cerrado. Sin
-    // marca ninguna se escribe la nuestra y se pregunta igual, sin cerrar: es lo
-    // normal tras entrar, y también lo que queda si quien entró después no ha
-    // llegado a ningún panel.
-    const alMontar = leerMarca();
-    if (alMontar === null && !escribirMarca(marca)) return;
-
     let vigilando = true;
-    let enDuda = false;
+    let enDuda = leerMarca() !== marca;
     let preguntando = false;
     let seMovio = false;
     let reintento: ReturnType<typeof setTimeout> | undefined;
 
-    const dudar = () => {
-      enDuda = true;
-      setVigente(false);
-    };
+    // Siempre con todo cerrado: sólo se llega aquí en duda.
     const preguntar = async () => {
       preguntando = true;
       seMovio = false;
@@ -154,13 +154,11 @@ export function SesionVigenteProvider({
       if (dicha === undefined) {
         reintento = setTimeout(() => void preguntar(), REINTENTO_MS);
       } else if (dicha !== marca) {
-        dudar();
         // Otra cuenta, o ninguna. Una carga nueva y no un refresco: se lleva la
         // memoria de esta pestaña, y ninguna navegación la puede descartar.
         window.location.replace("/dashboard");
       } else if (seMovio || leerMarca() !== vista) {
         // Contestó de antes: entretanto alguien más entró o salió.
-        dudar();
         void preguntar();
       } else {
         enDuda = false;
@@ -172,21 +170,23 @@ export function SesionVigenteProvider({
     const comparar = () => {
       if (!vigilando) return;
       if (!enDuda && leerMarca() === marca) return;
-      dudar();
-      if (preguntando) seMovio = true;
-      else void preguntar();
+      enDuda = true;
+      setVigente(false);
+      if (!preguntando) void preguntar();
     };
     const alGuardar = (e: StorageEvent) => {
       // `key` null es un `clear()`: se lo llevó todo, la marca incluida.
-      if (e.key === CLAVE_MARCA || e.key === null) comparar();
+      if (e.key !== CLAVE_MARCA && e.key !== null) return;
+      seMovio = true;
+      comparar();
     };
     window.addEventListener("storage", alGuardar);
     window.addEventListener("focus", comparar);
     window.addEventListener("pageshow", comparar);
     document.addEventListener("visibilitychange", comparar);
 
-    if (alMontar === null) void preguntar();
-    else comparar();
+    if (enDuda) void preguntar();
+    else setVigente(true);
 
     return () => {
       vigilando = false;
@@ -206,18 +206,40 @@ export function SesionVigenteProvider({
 }
 
 /**
+ * Un valor que no es la marca de nadie y no se repite. Se escribe en vez de
+ * borrar: borrar lo que ya no está no se nota, y una respuesta de antes pasaría
+ * por buena.
+ */
+function moverMarca(): string {
+  const unico = `nadie:${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  try {
+    window.localStorage.setItem(CLAVE_MARCA, unico);
+  } catch {
+    // Sin almacenamiento no hay marca que mover.
+  }
+  return unico;
+}
+
+/**
  * En el acceso y el registro, que sólo se alcanzan SIN sesión —el middleware
  * devuelve al panel a quien la tiene—. Las otras pantallas de `(auth)` se abren
  * también con sesión, así que ahí no va: cerraría el Diario de las demás
  * pestañas por abrir el enlace de verificación.
+ *
+ * Al salir, si otra pestaña puso después la suya, se mira de quién es la sesión:
+ * quien entra desde un acceso que llevaba abierto puede quedarse fuera de todo
+ * panel —en el onboarding—, y entonces nadie más la movería. Si la que hay es la
+ * de la sesión, no se toca: ya está confirmada.
  */
 export function RetirarMarcaDeCuenta() {
   useEffect(() => {
-    try {
-      window.localStorage.removeItem(CLAVE_MARCA);
-    } catch {
-      // Sin almacenamiento no hay marca que retirar.
-    }
+    const mia = moverMarca();
+    return () => {
+      if (leerMarca() === mia) return;
+      void marcaDelServidor().then((dicha) => {
+        if (dicha !== undefined && dicha !== leerMarca()) moverMarca();
+      });
+    };
   }, []);
   return null;
 }

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, render, screen } from "@testing-library/react";
 import type * as Cripto from "@psico/crypto";
-import { MASTER_KEY_LEN } from "@psico/crypto";
+import { bytesToBase64Url, encryptString, MASTER_KEY_LEN } from "@psico/crypto";
 
 import {
   DiaryKeyProvider,
@@ -56,6 +56,17 @@ const SOBRE = "psico:diary:wrapped";
 const MARCA_A = "marca-de-a-000001";
 const MARCA_B = "marca-de-b-000002";
 const SAL_A = "YWJjZGVmZ2hpamtsbW5vcA";
+const SAL_B = "MTIzNDU2Nzg5MDEyMzQ1Ng";
+
+/** Un sobre guardado en el dispositivo, y la llave de su galleta. */
+function sobreDe(sal: string) {
+  const envoltorio = new Uint8Array(32).fill(sal.charCodeAt(0));
+  const maestra = new Uint8Array(MASTER_KEY_LEN).fill(sal.charCodeAt(1));
+  const guardado = JSON.stringify(
+    encryptString(`${sal}.${bytesToBase64Url(maestra)}`, envoltorio),
+  );
+  return { guardado, galleta: bytesToBase64Url(envoltorio) };
+}
 
 const json = (cuerpo: unknown): Partial<Response> => ({
   ok: true,
@@ -73,13 +84,15 @@ async function servidorDice(r: Partial<Response>) {
 function Pantalla({
   onCtx,
   dentro,
+  galletaDelHtml = null,
 }: {
   onCtx?: (c: DiaryKeyContextValue) => void;
   dentro?: React.ReactNode;
+  galletaDelHtml?: string | null;
 }) {
   return (
     <SesionVigenteProvider marca={MARCA_A}>
-      <DiaryKeyProvider cryptoSalt={SAL_A} initialWrapKey={null}>
+      <DiaryKeyProvider cryptoSalt={SAL_A} initialWrapKey={galletaDelHtml}>
         <Sonda onCtx={onCtx} />
         {dentro}
       </DiaryKeyProvider>
@@ -116,7 +129,7 @@ async function otraPestana(marca: string | null, clave = CLAVE) {
   });
 }
 
-function montar(dentro?: React.ReactNode) {
+function montar(dentro?: React.ReactNode, galletaDelHtml?: string) {
   let ctx: DiaryKeyContextValue | null = null;
   render(
     <Pantalla
@@ -124,6 +137,7 @@ function montar(dentro?: React.ReactNode) {
         ctx = c;
       }}
       dentro={dentro}
+      galletaDelHtml={galletaDelHtml}
     />,
   );
   return () => ctx as unknown as DiaryKeyContextValue;
@@ -168,93 +182,226 @@ afterEach(() => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe("la marca", () => {
-  it("se escribe al montar el panel y no dice nada de la persona", () => {
+  it("no se escribe hasta que el servidor la confirma, y no dice nada de la persona", async () => {
     window.localStorage.clear();
     montar();
+    expect(window.localStorage.getItem(CLAVE)).toBeNull();
+    await servidorDice(json({ marca: MARCA_A }));
     expect(window.localStorage.getItem(CLAVE)).toBe(MARCA_A);
     expect(estado()).toBe("vigente · cerrado");
-  });
-
-  it("el acceso y el registro la retiran", () => {
-    render(<RetirarMarcaDeCuenta />);
-    expect(window.localStorage.getItem(CLAVE)).toBeNull();
   });
 
   it("sin cuenta conocida no se escribe ni se vigila", async () => {
     window.localStorage.clear();
     render(
       <SesionVigenteProvider marca={null}>
-        <p data-testid="nada" />
+        <DiaryKeyProvider cryptoSalt={SAL_A} initialWrapKey={null}>
+          <Sonda />
+        </DiaryKeyProvider>
       </SesionVigenteProvider>,
     );
     expect(window.localStorage.getItem(CLAVE)).toBeNull();
     await otraPestana(MARCA_B);
     expect(preguntas).toHaveLength(0);
+    // Y no deja a nadie esperando una respuesta que no va a pedir.
+    expect(estado()).toBe("vigente · cerrado");
   });
+});
+
+describe("el acceso y el registro", () => {
+  const marcaAhora = () => window.localStorage.getItem(CLAVE);
+
+  it("mueven la marca a un valor que no es de nadie, distinto cada vez", () => {
+    render(<RetirarMarcaDeCuenta />);
+    const una = marcaAhora();
+    expect(una).toMatch(/^nadie:/);
+    render(<RetirarMarcaDeCuenta />);
+    expect(marcaAhora()).toMatch(/^nadie:/);
+    expect(marcaAhora()).not.toBe(una);
+  });
+
+  it("al salir no preguntan si nadie puso la suya después", () => {
+    const vista = render(<RetirarMarcaDeCuenta />);
+    const mia = marcaAhora();
+    vista.unmount();
+    expect(preguntas).toHaveLength(0);
+    expect(marcaAhora()).toBe(mia);
+  });
+
+  it("si otra pestaña puso la suya y la sesión ya es de otra cuenta, la mueven", async () => {
+    // El acceso llevaba abierto desde antes; ahí entró B y se fue al onboarding.
+    const vista = render(<RetirarMarcaDeCuenta />);
+    window.localStorage.setItem(CLAVE, MARCA_A);
+    vista.unmount();
+    expect(preguntas).toHaveLength(1);
+    await servidorDice(json({ marca: MARCA_B }));
+    expect(marcaAhora()).toMatch(/^nadie:/);
+  });
+
+  it.each([
+    ["sigue siendo la de esa cuenta", json({ marca: MARCA_A })],
+    ["no contesta", { ok: false, type: "basic" }],
+  ] as [string, Partial<Response>][])(
+    "si otra pestaña puso la suya y %s, no la tocan",
+    async (_, r) => {
+      const vista = render(<RetirarMarcaDeCuenta />);
+      window.localStorage.setItem(CLAVE, MARCA_A);
+      vista.unmount();
+      await servidorDice(r);
+      expect(marcaAhora()).toBe(MARCA_A);
+    },
+  );
 });
 
 /**
  * Una pestaña que tardó en cargar monta DESPUÉS de que en otra se saliera y se
  * entrara con otra cuenta. No recibió ningún evento: no existía.
+ *
+ * Hasta que el servidor diga de quién es la sesión, la identidad está pendiente:
+ * ni claves, ni reja, ni lo guardado en el dispositivo, ni marca.
  */
 describe("al montar", () => {
-  it("si la marca ya es la suya, no hay nada que preguntar", () => {
+  it("si la marca ya es la suya —otra pestaña la confirmó—, no pregunta", () => {
     montar();
+    expect(estado()).toBe("vigente · cerrado");
     expect(preguntas).toHaveLength(0);
   });
 
-  it("si es la de otra cuenta, no la pisa: cierra y pregunta", async () => {
-    window.localStorage.setItem(CLAVE, MARCA_B);
-    montar();
-    expect(estado()).toBe("en duda · cerrado");
-    expect(window.localStorage.getItem(CLAVE)).toBe(MARCA_B);
-    expect(preguntas).toHaveLength(1);
+  const SIN_CONFIRMAR: [string, string | null][] = [
+    ["no hay ninguna", null],
+    ["es la de otra cuenta", MARCA_B],
+    ["no es de nadie", "nadie:abc"],
+  ];
 
-    await servidorDice(json({ marca: MARCA_B }));
-    expect(ir.mock.calls).toEqual([["/dashboard"]]);
-    expect(window.localStorage.getItem(CLAVE)).toBe(MARCA_B);
-    expect(estado()).toBe("en duda · cerrado");
+  describe.each(SIN_CONFIRMAR)("si %s", (_, previa) => {
+    beforeEach(() => {
+      if (previa === null) window.localStorage.clear();
+      else window.localStorage.setItem(CLAVE, previa);
+    });
+
+    it("pregunta sin anunciarse, y no abre nada mientras", async () => {
+      const ctx = montar();
+      expect(estado()).toBe("en duda · cerrado");
+      expect(window.localStorage.getItem(CLAVE)).toBe(previa);
+      expect(preguntas).toHaveLength(1);
+
+      await act(async () => ctx().unlock("lo-que-sea"));
+      await act(async () =>
+        ctx().adoptMasterKey(new Uint8Array(MASTER_KEY_LEN).fill(9)),
+      );
+      expect(estado()).toBe("en duda · cerrado");
+      expect(ctx().error).toMatch(/Estamos confirmando tu sesión/);
+      expect(window.localStorage.getItem(SOBRE)).toBeNull();
+      expect(galleta.historia).toEqual([]);
+    });
+
+    it("no abre lo recordado hasta confirmarla, y entonces sí", async () => {
+      const { guardado, galleta: k } = sobreDe(SAL_A);
+      window.localStorage.setItem(SOBRE, guardado);
+      montar(undefined, k);
+      expect(estado()).toBe("en duda · cerrado");
+      await servidorDice(json({ marca: MARCA_A }));
+      expect(estado()).toBe("vigente · abierto");
+      expect(window.localStorage.getItem(CLAVE)).toBe(MARCA_A);
+      expect(window.localStorage.getItem(SOBRE)).toBe(guardado);
+    });
+
+    it("no toca el sobre de otra cuenta, aunque su llave no lo abra", async () => {
+      // El HTML es de A; lo que hay en el dispositivo ya es de B.
+      const { guardado } = sobreDe(SAL_B);
+      window.localStorage.setItem(SOBRE, guardado);
+      montar(undefined, sobreDe(SAL_A).galleta);
+      await servidorDice(json({ marca: MARCA_B }));
+      expect(ir.mock.calls).toEqual([["/dashboard"]]);
+      expect(window.localStorage.getItem(SOBRE)).toBe(guardado);
+      expect(galleta.historia).toEqual([]);
+    });
+
+    it("bloquear o dejar de recordar tampoco lo tocan mientras no se sabe", async () => {
+      const { guardado } = sobreDe(SAL_B);
+      window.localStorage.setItem(SOBRE, guardado);
+      window.localStorage.setItem("psico:diary:remember", "1");
+      const ctx = montar();
+      await act(async () => ctx().setRemember(false));
+      await act(async () => ctx().lock());
+      expect(window.localStorage.getItem(SOBRE)).toBe(guardado);
+      expect(window.localStorage.getItem("psico:diary:remember")).toBe("1");
+      expect(galleta.historia).toEqual([]);
+    });
+
+    it("y con «pedir cada vez» no borra lo de nadie hasta saberlo", async () => {
+      const { guardado, galleta: k } = sobreDe(SAL_A);
+      window.localStorage.setItem(SOBRE, guardado);
+      window.localStorage.setItem("psico:diary:remember", "0");
+      montar(undefined, k);
+      expect(window.localStorage.getItem(SOBRE)).toBe(guardado);
+      expect(galleta.historia).toEqual([]);
+      await servidorDice(json({ marca: MARCA_A }));
+      expect(window.localStorage.getItem(SOBRE)).toBeNull();
+      expect(estado()).toBe("vigente · cerrado");
+    });
+
+    it("si es otra cuenta, se va sin haberse anunciado", async () => {
+      montar();
+      await servidorDice(json({ marca: MARCA_B }));
+      expect(ir.mock.calls).toEqual([["/dashboard"]]);
+      expect(window.localStorage.getItem(CLAVE)).toBe(previa);
+      expect(estado()).toBe("en duda · cerrado");
+    });
+
+    it("si tarda, falla o reintenta, sigue protegida todo ese rato", async () => {
+      vi.useFakeTimers();
+      const { guardado, galleta: k } = sobreDe(SAL_A);
+      window.localStorage.setItem(SOBRE, guardado);
+      const ctx = montar(undefined, k);
+      await act(async () => vi.advanceTimersByTimeAsync(60_000));
+      expect(estado()).toBe("en duda · cerrado");
+      expect(preguntas).toHaveLength(1);
+      for (let i = 1; i <= 3; i++) {
+        await act(async () => preguntas.at(-1)!.fallar());
+        await act(async () => ctx().unlock("lo-que-sea"));
+        expect(estado()).toBe("en duda · cerrado");
+        expect(window.localStorage.getItem(CLAVE)).toBe(previa);
+        await act(async () => vi.advanceTimersByTimeAsync(5_000));
+        expect(preguntas).toHaveLength(1 + i);
+      }
+      await servidorDice(json({ marca: MARCA_A }));
+      expect(estado()).toBe("vigente · abierto");
+    });
+
+    it("y cuando el servidor confirma, se usa como siempre", async () => {
+      const ctx = montar();
+      await servidorDice(json({ marca: MARCA_A }));
+      expect(estado()).toBe("vigente · cerrado");
+      expect(ctx().error).toBeNull();
+      await abrir(ctx);
+      expect(preguntas).toHaveLength(1);
+    });
   });
 
-  it("si es la de otra y el servidor dice que es ésta, la recupera", async () => {
-    window.localStorage.setItem(CLAVE, MARCA_B);
+  it("volver a la pestaña mientras se confirma no pregunta de más", async () => {
+    window.localStorage.clear();
     montar();
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    expect(preguntas).toHaveLength(1);
     await servidorDice(json({ marca: MARCA_A }));
-    expect(window.localStorage.getItem(CLAVE)).toBe(MARCA_A);
     expect(estado()).toBe("vigente · cerrado");
-    expect(ir).not.toHaveBeenCalled();
-  });
-
-  it("si no hay ninguna, pregunta sin cerrar, y se va si no es la suya", async () => {
-    // Quien entró después no ha llegado a ningún panel: no dejó marca.
-    window.localStorage.clear();
-    const ctx = montar();
     expect(preguntas).toHaveLength(1);
-    await abrir(ctx);
-    await servidorDice(json({ marca: MARCA_B }));
-    expect(estado()).toBe("en duda · cerrado");
-    expect(ir.mock.calls).toEqual([["/dashboard"]]);
   });
 
-  it("si no hay ninguna y sí es la suya, no se nota", async () => {
+  it("una respuesta de antes no la confirma si alguien entró entretanto", async () => {
     window.localStorage.clear();
-    const ctx = montar();
-    await abrir(ctx);
+    montar();
+    await otraPestana("nadie:otro-acceso");
     await servidorDice(json({ marca: MARCA_A }));
-    expect(estado()).toBe("vigente · abierto");
-    expect(ir).not.toHaveBeenCalled();
-    expect(preguntas).toHaveLength(1);
-  });
-
-  it("si no hay ninguna y no contesta, no cierra a nadie, e insiste", async () => {
-    vi.useFakeTimers();
-    window.localStorage.clear();
-    const ctx = montar();
-    await abrir(ctx);
-    await act(async () => preguntas[0]!.fallar());
-    expect(estado()).toBe("vigente · abierto");
-    await act(async () => vi.advanceTimersByTimeAsync(5_000));
+    expect(estado()).toBe("en duda · cerrado");
+    expect(window.localStorage.getItem(CLAVE)).toBe("nadie:otro-acceso");
     expect(preguntas).toHaveLength(2);
+    await servidorDice(json({ marca: MARCA_B }));
+    expect(ir.mock.calls).toEqual([["/dashboard"]]);
   });
 });
 
@@ -298,7 +445,7 @@ describe("otra pestaña cambió de cuenta", () => {
       ctx().adoptMasterKey(new Uint8Array(MASTER_KEY_LEN).fill(9)),
     );
     expect(estado()).toBe("en duda · cerrado");
-    expect(ctx().error).toMatch(/sesión cambió en otra pestaña/);
+    expect(ctx().error).toMatch(/Estamos confirmando tu sesión/);
     // Y no se confunde con una cuenta sin cifrado.
     expect(ctx().isLegacyAccount).toBe(false);
   });
@@ -476,16 +623,6 @@ describe("lo que contesta el servidor", () => {
     expect(preguntas).toHaveLength(2);
   });
 
-  it("tampoco la que se hizo al montar, aunque no hubiera nada cerrado", async () => {
-    window.localStorage.clear();
-    montar();
-    await otraPestana(MARCA_B);
-    expect(estado()).toBe("en duda · cerrado");
-    await servidorDice(json({ marca: MARCA_A }));
-    expect(estado()).toBe("en duda · cerrado");
-    expect(preguntas).toHaveLength(2);
-  });
-
   it("tampoco si entró y salió alguien, y la marca quedó como estaba", async () => {
     montar();
     await otraPestana(null);
@@ -494,17 +631,6 @@ describe("lo que contesta el servidor", () => {
     await servidorDice(json({ marca: MARCA_A }));
     expect(estado()).toBe("en duda · cerrado");
     expect(preguntas).toHaveLength(2);
-  });
-
-  it("y si estaba abierta, la cierra mientras vuelve a preguntar", async () => {
-    window.localStorage.clear();
-    const ctx = montar();
-    await abrir(ctx);
-    // Sin evento, y con la pregunta del montaje todavía en el aire.
-    window.localStorage.setItem(CLAVE, MARCA_B);
-    await servidorDice(json({ marca: MARCA_A }));
-    expect(estado()).toBe("en duda · cerrado");
-    expect(window.localStorage.getItem(CLAVE)).toBe(MARCA_B);
   });
 
   it("y si otra vez dice que es ésta, se sigue", async () => {
@@ -643,6 +769,26 @@ describe("varias pestañas a la vez", () => {
   });
 });
 
+describe("con la sesión confirmada, lo guardado se gobierna como siempre", () => {
+  it("bloquear lo retira", async () => {
+    const ctx = montar();
+    await abrir(ctx);
+    expect(window.localStorage.getItem(SOBRE)).not.toBeNull();
+    await act(async () => ctx().lock());
+    expect(window.localStorage.getItem(SOBRE)).toBeNull();
+    expect(galleta.historia.at(-1)).toBe("borrar");
+  });
+
+  it("dejar de recordar también, y volver a recordar lo guarda", async () => {
+    const ctx = montar();
+    await abrir(ctx);
+    await act(async () => ctx().setRemember(false));
+    expect(window.localStorage.getItem(SOBRE)).toBeNull();
+    await act(async () => ctx().setRemember(true));
+    expect(window.localStorage.getItem(SOBRE)).not.toBeNull();
+  });
+});
+
 describe("lo que NO cierra nada", () => {
   it("otra pestaña de la misma cuenta, u otra clave del almacenamiento", async () => {
     const ctx = montar();
@@ -657,7 +803,7 @@ describe("lo que NO cierra nada", () => {
     expect(preguntas).toHaveLength(0);
   });
 
-  it("un navegador que no deja escribir: no hay con qué comparar", async () => {
+  it("un navegador que no deja escribir: se confirma una vez y no compara más", async () => {
     window.localStorage.clear();
     const escribir = vi
       .spyOn(Storage.prototype, "setItem")
@@ -666,12 +812,14 @@ describe("lo que NO cierra nada", () => {
       });
     try {
       const ctx = montar();
+      expect(estado()).toBe("en duda · cerrado");
+      await servidorDice(json({ marca: MARCA_A }));
       await abrir(ctx);
       await act(async () => {
         window.dispatchEvent(new Event("focus"));
       });
       expect(estado()).toBe("vigente · abierto");
-      expect(preguntas).toHaveLength(0);
+      expect(preguntas).toHaveLength(1);
     } finally {
       escribir.mockRestore();
     }

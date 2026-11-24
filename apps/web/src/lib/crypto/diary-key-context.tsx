@@ -208,9 +208,13 @@ function ponerACero(claves: ClavesAbiertas): void {
   claves.eco.fill(0);
 }
 
-/** Lo que dice la reja si la sesión dejó de ser de quien abrió esta pestaña. */
-const SESION_CAMBIADA =
-  "Tu sesión cambió en otra pestaña. Recarga esta página para continuar.";
+/**
+ * Lo que dice la reja mientras no se sabe de quién es la sesión: al llegar, o si
+ * cambió en otra pestaña. Se resuelve solo —o la pestaña se va—, así que no pide
+ * recargar.
+ */
+const SESION_SIN_CONFIRMAR =
+  "Estamos confirmando tu sesión. Inténtalo de nuevo en un momento.";
 
 export interface DiaryKeyState {
   /** 32-byte diary subkey. null = locked. */
@@ -405,7 +409,9 @@ export function DiaryKeyProvider({
   // ── Cold-start restore ─────────────────────────────────────────────────
 
   useEffect(() => {
-    if (!restoring) return;
+    // Hasta que se sepa de quién es la sesión no se abre lo recordado, y tampoco
+    // se tira: lo que hay en el dispositivo puede ser ya de otra cuenta.
+    if (!restoring || !vigente) return;
     if (cryptoSalt === null || initialWrapKey === null) {
       setRestoring(false);
       return;
@@ -429,7 +435,14 @@ export function DiaryKeyProvider({
       setGuardadas(abrirClaves(sobre.master, sobre.dueno));
     }
     setRestoring(false);
-  }, [restoring, cryptoSalt, initialWrapKey, remember, wipePersistence]);
+  }, [
+    restoring,
+    vigente,
+    cryptoSalt,
+    initialWrapKey,
+    remember,
+    wipePersistence,
+  ]);
 
   // ── La cuenta cambia con el proveedor montado ──────────────────────────
 
@@ -479,7 +492,7 @@ export function DiaryKeyProvider({
   const unlock = useCallback(
     async (password: string) => {
       if (!vigente) {
-        setError(SESION_CAMBIADA);
+        setError(SESION_SIN_CONFIRMAR);
         return;
       }
       if (!cryptoSalt) {
@@ -546,6 +559,9 @@ export function DiaryKeyProvider({
 
   const setRemember = useCallback(
     (next: boolean) => {
+      // Sin saber de quién es la sesión no se toca lo guardado, ni la
+      // preferencia, que es del navegador entero.
+      if (!vigente) return;
       setRememberState(next);
       if (typeof window !== "undefined") {
         try {
@@ -565,15 +581,15 @@ export function DiaryKeyProvider({
         void persistMasterKey(abiertas.master, abiertas.dueno);
       }
     },
-    [abiertas, cuenta, wipePersistence, persistMasterKey],
+    [vigente, abiertas, cuenta, wipePersistence, persistMasterKey],
   );
 
   const lock = useCallback(() => {
     if (guardadas !== null) ponerACero(guardadas);
     setGuardadas(null);
     setError(null);
-    wipePersistence();
-  }, [guardadas, wipePersistence]);
+    if (vigente) wipePersistence();
+  }, [vigente, guardadas, wipePersistence]);
 
   const value = useMemo<DiaryKeyContextValue>(
     () => ({

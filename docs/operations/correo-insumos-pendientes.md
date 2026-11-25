@@ -70,7 +70,8 @@ fichero **no viaja en un enlace público**.
 > **No sirve el cambio de correo hacia la propia dirección.**
 > `users.service.ts:518-522` lanza `ConflictException("Email already in use")`
 > si **cualquier** usuario tiene esa dirección — incluido el que la pide. Da
-> **409 antes de encolar nada**. Y la exportación tiene **enfriamiento de 30
+> **409 antes de encolar nada**. (Desde #887, 25-11, el cambio de correo está retirado
+> y responde `503 EMAIL_CHANGE_UNAVAILABLE`.) Y la exportación tiene **enfriamiento de 30
 > días por cuenta**: antes de pedirla, se mira si ya hay una.
 
 ### La restricción de destinatarios

@@ -58,7 +58,7 @@ Psico Platform is a psychoeducation SaaS. The repo is a Turborepo monorepo manag
 | 08 — Eco (compañero IA)          | `EcoModule` (7 endpoints, SSE streaming, crisis layers, cipher+nonce)                                                                                         | ✅ `/dashboard/eco` (chat + ThreadRail + crisis modal + reports)                                                         | ✅ `(tabs)/eco` (paridad + long-press reports)                                       | ✅ **Completo**                                                                    |
 | 09 — Mi Plan (billing)           | `BillingModule` (11 endpoints, doble exposure 90d con `SubscriptionModule` legacy)                                                                            | ✅ `/dashboard/plan`                                                                                                     | ✅ `(tabs)/plan`                                                                     | ✅ **Completo**                                                                    |
 | 10 — Perfil                      | `UsersModule` (15 endpoints — profile, prefs, notifs, privacy, timezone, password rekey, data export, delete)                                                 | ✅ `/dashboard/perfil` + `/dashboard/security` + `/dashboard/notifications`                                              | ✅ `(tabs)/profile` + `(tabs)/security` + `(tabs)/notifications` (deep-link only)    | ✅ **Completo**                                                                    |
-| 11 — Terapia (18 sub-pantallas)  | `TerapiaModule` (24 endpoints — Therapist, Sessions, Prescriptions, Crisis, Notifications, Reports) + `CrisisLog` público sin auth                            | ✅ `/dashboard/terapia/*` (10 rutas: hub, terapeutas, perfil, reservar, sesiones, sala, recetas, notificaciones, crisis) | ✅ `(tabs)/terapia/*` (paridad excepto admin)                                        | ✅ **Completo** (gated por flag)                                                   |
+| 11 — Terapia (18 sub-pantallas)  | `TerapiaModule` (24 endpoints — Therapist, Sessions, Prescriptions, Crisis, Notifications, Reports) + `CrisisLog` público sin auth                            | ✅ `/dashboard/terapia/*` (10 rutas: hub, terapeutas, perfil, reservar, sesiones, sala, recetas, notificaciones, crisis) | ✅ `(tabs)/terapia/*` (paridad excepto admin)                                        | ✅ Superficie construida · **oferta cerrada** desde #891 (`THERAPY_OFFER`)         |
 | 12 — Patrones (insights)         | `PatronesModule` (3 endpoints) + `WeeklySummary` (LLM-backed) + cron domingo                                                                                  | ✅ `/dashboard/patrones` (paywall FREE)                                                                                  | ✅ `(tabs)/patrones` (paywall FREE)                                                  | ✅ **Completo**                                                                    |
 | 13 — Rutas (bundles)             | —                                                                                                                                                             | —                                                                                                                        | —                                                                                    | ❌ **No implementado** (no priorizado v1 — bundles de libros temáticos)            |
 | 14 — Dynamic Island              | `LiveActivitiesModule` (stub backend con `LiveActivityToken` schema + APNs strategy ADR-0012)                                                                 | —                                                                                                                        | —                                                                                    | ⚠️ **Backend stub solo** — falta iOS Live Activity surface + sesión activa cliente |
@@ -4469,7 +4469,8 @@ cerrada y el transporte sólo deja pasar errores. No bastaba `tracesSampleRate: 
 en la 8.x prevalece la decisión heredada. Ensayado en cinco superficies con
 señuelos aleatorios y un control negativo contra el código anterior, y repetido
 sobre el candidato integrado: 44 de 44. El DSN sigue ausente; eso es de hoy, no
-de toda la historia.
+de toda la historia. **(Corregido el mismo día: en esas 44 entraba la fila del
+servidor de Web, cuyo lote se vaciaba sin mirarlo. Ver la sesión siguiente.)**
 
 **Un defecto que salió al escribir la privacidad:** cerrar sesión desde Perfil
 dejaba la llave del diario en el navegador, y la llave no decía de qué cuenta era.
@@ -4504,7 +4505,120 @@ baja no se puede cancelar; el cambio de correo no termina. Está en la ficha §2
 
 ---
 
-### 🧭 Trabajo vigente — corte del 2026-11-24
+### Sesión — 2026-11-24/25 ✅ COMPLETADA — La llave al cambiar de cuenta, Terapia cerrada, ayuda con fuente y cuatro recorridos de cuenta
+
+**PR:** [#892](https://github.com/georgenton/psico-platform/pull/892) llave · [#891](https://github.com/georgenton/psico-platform/pull/891) Terapia · [#893](https://github.com/georgenton/psico-platform/pull/893) baja · [#887](https://github.com/georgenton/psico-platform/pull/887) cambio de correo · [#888](https://github.com/georgenton/psico-platform/pull/888) interruptores · [#889](https://github.com/georgenton/psico-platform/pull/889) exportación · [#890](https://github.com/georgenton/psico-platform/pull/890) ensayo de Sentry · [#895](https://github.com/georgenton/psico-platform/pull/895) recursos de ayuda · [#896](https://github.com/georgenton/psico-platform/pull/896) clave en móvil · [#897](https://github.com/georgenton/psico-platform/pull/897) aviso de crisis · [#898](https://github.com/georgenton/psico-platform/pull/898) historial · [#899](https://github.com/georgenton/psico-platform/pull/899) cuenta vigente · [#900](https://github.com/georgenton/psico-platform/pull/900) acceso que vuelve tarde · [#894](https://github.com/georgenton/psico-platform/pull/894) versión
+**Servido:** API y Web en **`eabe123a`**, worker en `31c843f4` (sin redesplegar: su comportamiento no cambia) · **Horas en UTC** (Quito = UTC−5)
+
+**La llave del Diario cuando cambia la cuenta con el panel abierto** (#892). #878
+cerró el caso de salir; faltaba el otro. Con dos cuentas sintéticas y dos pestañas,
+**reproducido en staging antes del arreglo**: tras entrar como B en la segunda, la
+primera pasaba a B al guardar Perfil, enseñaba Reflexiones **abierto sin
+contraseña**, y apagar y encender «Recordar» guardaba un sobre con **dueño B y clave
+de A**. En local se reprodujo además escribir en B con la clave de A y la tarjeta de
+la frase **ya desbloqueada por A** enseñando sus doce palabras; cerrada, pedía la
+contraseña. Las claves llevan ahora la cuenta de la que son, y la pregunta se hace
+en el **render**: un efecto llega un render tarde, y en ese render ya se pintó. Lo
+que estaba en vuelo pregunta al **terminar**. Comprobado sobre lo servido: con tres
+pestañas, **16 de 16** —una de ellas sin recibir avisos—; el acceso que vuelve tarde, **13 de 13**,
+con la respuesta de B retenida después de pasar el middleware de staging; la identidad
+pendiente, **12 de 12**. En las dos últimas, la primera pasada dio un ✗ que era de mi
+comprobación: exigía otra ruta, y la pestaña se recarga en la misma ya como panel de B.
+Ahora mira que la carga sea nueva y la marca, exactamente la de B.
+
+**Terapia no se ofrece** (#891). Quitar el menú no bastaba: la API dejaba reservar y
+pedir el cobro sobre seis personas inventadas con «licencia verificada». La puerta
+`THERAPY_OFFER` **falla cerrada** y responde 503 antes de leer, escribir o llamar a
+un proveedor; y la identidad de demostración vive en código, así que ni con la
+oferta abierta se lista, se reserva o se cobra. La semilla no reactiva nada.
+**Filas e historial intactos**: cero sesiones reales. Volver a una imagen de API
+anterior **reabre la oferta**, como pasa con las compras.
+
+**La ayuda dice sólo lo que una fuente acredita** (#895). Una sola fuente para
+el aviso nuevo de Eco, el chat anterior, la API y `/ayuda`. Comprobado sin llamar a
+nadie: el número «CETAD» es la **central del Ministerio de Agricultura**, el teléfono
+«IASP» es el 988 de Estados Unidos, y «1800-4-SALUD» y «Teléfono de la Amistad» no
+tienen ninguna. Quedan **sin publicar, en validación**, 171 opción 6 y Línea de la
+Vida. Los mensajes que Eco ya guardó no se reescriben.
+
+**Los cuatro recorridos de cuenta.** La baja dice el día en que ocurre —antes, el de
+la solicitud— y se cancela hasta ese instante, con cancelación y borrado
+serializados por la misma fila (#893, 14 de 14 contra PostgreSQL con dos
+conexiones). El cambio de correo se **retiró** porque no podía terminar (#887). Tres
+interruptores de privacidad que no movían nada salieron de la pantalla sin borrar
+sus valores (#888). La exportación se dice lo que es: un JSON, y qué trae (#889).
+
+**Una cifra mía sin respaldo, corregida** (#890). El ensayo de Sentry vaciaba el
+lote del servidor de Web sin mirarlo, así que el «0 de 18» que publiqué por la
+mañana no salía de ninguna comprobación — y el «44 de 44» incluía esa. Repetido
+mirando cada lote: 72 sobres revisados, 0 sin revisar, 0 de 18 en las **cinco**
+superficies que son (API, worker, servidor de Web, Edge, navegador). Con una fuga
+abierta a propósito cae **sólo** esa fila. Sigue siendo local: Sentry no se activó.
+
+**Dos revisiones independientes antes de desplegar.** Alguien que no escribió ni
+revisó esto buscó fallos reales en lo delicado; la segunda, sobre las correcciones.
+
+- **Uno lo introduje yo** (#892, corregido en #899): una pestaña que no recibió el
+  aviso preguntaba refrescando el layout y daba por contestada la pregunta cuando la
+  transición acababa; en Next, navegar a la vez **descarta** ese refresco. Volver
+  pulsando un enlace dejaba la sesión de B dada por buena bajo el panel de A. Ahora se
+  pregunta al servidor directamente y, sin respuesta, se queda cerrada.
+- **La segunda encontró cuatro más en esa corrección**, entre ellas una línea que yo
+  había quitado porque su mutación sobrevivía y la di por equivalente. No lo era: los
+  reintentos se multiplicaban. Desde ahí, una mutación viva se cubre, no se explica.
+- **Y el propietario, el que faltaba: «sin marca».** Sin marca local el panel se daba por
+  bueno y sólo preguntaba. Reproducido con la aplicación real: con B dentro pero fuera
+  del panel, una pestaña tardía de A se abría sola y **lo escrito quedaba en la cuenta B,
+  legible sólo con la llave de A**; y además borraba el sobre de B. Ahora la identidad
+  **nace pendiente**: sin claves, sin abrir la reja, sin tocar lo guardado y sin
+  anunciarse hasta que el servidor confirme. 66 comprobaciones con la aplicación real,
+  los 18 recorridos y 46 de 46 mutaciones.
+- **Y otro suyo, sobre esa corrección: un acceso que vuelve tarde** (#900). Con dos
+  formularios abiertos sin sesión, la respuesta de B podía llegar con el panel de A ya
+  confirmado y su Diario abierto. Al salir del formulario se preguntaba al servidor y
+  **sólo entonces** se movía la marca; una prueba mía daba por bueno conservarla si
+  nadie contestaba. Reproducido con la aplicación construida en sus ocho variantes —y
+  al reproducirlo salió que ni siquiera hacía falta la consulta: bastaba con que
+  tardara el **destino** de B, porque el formulario seguía montado—. Ahora la marca se
+  mueve **en cuanto vuelve lo enviado**, sin preguntar nada. Y como ni eso basta si la
+  respuesta se queda parada después de dejar la cookie (reproducido también), las
+  pantallas que juntan una llave del panel con su propio token **comprueban que son de
+  la misma cuenta** antes de montarse. **162 comprobaciones** con la aplicación real —las
+  ocho variantes, tres con la respuesta parada, cinco controles contrarios y los
+  recorridos anteriores repetidos— y 29 de 29 mutaciones. Cuesta una cosa: si en otra
+  pestaña entra **la misma** cuenta, quien tenía su Diario abierto teclea la contraseña
+  una vez.
+- **Uno era anterior y grave** (#897): el aviso de crisis de Eco no siempre salía. Sin
+  mensajes por hoy, quien pedía ayuda leía «vuelves mañana»; y un fallo al guardar lo
+  convertía en error. Ahora sale lo primero y nada posterior lo quita.
+- **Uno, consecuencia de cerrar Terapia** (#898): el historial se quedó sin entrada.
+  Perfil la enseña sólo a quien tiene algo, y espera segundo y medio como mucho.
+
+Lo que no se corrigió está en la ficha §2.10. Lo más serio es **Eco en el móvil**, y son
+tres cosas distintas: el código del componente está corregido (#897); el **transporte
+real sigue defectuoso** —no recibe respuestas, tampoco el aviso de crisis; reproducido
+con la librería de red de la app, sin dispositivo—; y la **app no está distribuida**.
+Hay que arreglarlo antes de distribuirla. Nada de esta tanda es un recorrido móvil.
+
+**Dos pruebas que dependían de algo ajeno.** La de Terapia buscaba «64» en la
+respuesta entera y la encontró en el milisegundo de la hora: ahora mira valores. Y
+la de exportación móvil no traía el campo que la baja lee, invisible hasta juntar
+las dos ramas.
+
+**El móvil, a petición del propietario** (#896). `adoptMasterKey` exigía 32
+bytes y la clave mide 16: recuperar con las doce palabras no abría nunca el Diario, y
+tras cambiar la contraseña la app seguía con la clave anterior. Reproducidos los dos
+con la criptografía real —la prueba que había la sustituía—. **Y una deducción mía
+que no se sostuvo:** no es cierto que lo escrito después quedara guardado con la clave
+vieja; el cambio revoca todas las sesiones en la misma transacción, la siguiente
+petición se rechaza y el dispositivo borra sus claves.
+
+**Lo que se vio y no se tocó**, con impacto y siguiente acción en
+[la ficha §2.10](docs/operations/tramo-a-produccion.md).
+
+---
+
+### 🧭 Trabajo vigente — corte del 2026-11-25
 
 **Esta es la única sección de este archivo que describe el presente.** Todo lo
 de arriba —incluidas las listas de «backlog aprobado» y los «siguientes pasos»
@@ -4512,7 +4626,27 @@ de cada bitácora de sesión— es **antecedente fechado**: explica cómo se lle
 aquí, no lo que toca hacer. Si una instrucción antigua contradice esta
 sección, manda esta sección.
 
-#### El corte — 2026-11-24, el resultado para aceptar
+#### El corte — 2026-11-25, siete decisiones y lo demás en su cajón
+
+|                     |                                                                                                                                                                                  |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Qué se decide**   | **[la ficha](docs/operations/tramo-a-produccion.md)** — la **única** lista vigente: **siete** decisiones; lo demás es verificación, material o ejecución (§0)                    |
+| Servido             | API y Web en **`eabe123a`**, worker en **`31c843f4`**, leído del contenedor · `ready=true`, 71/71, listas vacías · compras y terapia cerradas, padrón y destinatarios sin cambio |
+| Aceptación estética | ⬜ tuya. [La página](https://claude.ai/artifact/56P67k18svei385pZ2Whn3) conserva el conjunto del 24-11 y enseña **aparte** lo que cambió después                                 |
+| Ayuda en crisis     | ✅ una fuente, sólo lo acreditado · ⬜ falta quién la valide                                                                                                                     |
+| Terapia             | ✅ cerrada y servida; no es una decisión pendiente                                                                                                                               |
+| Sentry              | ✅ preparado, ensayo corregido · ⬜ sin activar: organización y región                                                                                                           |
+| Nivel 4             | ⬜ propuesta: **US$ 15 en total, todo incluido**, no autorizado                                                                                                                  |
+| Piloto B            | ⬜ dos autorizaciones separadas                                                                                                                                                  |
+| Textos públicos     | borradores en Notion, sin publicar; faltan los datos del responsable                                                                                                             |
+| Imágenes            | tres cosas distintas: archivadas y cargadas ✅ · reversión ❌ · recuperación completa ❌                                                                                         |
+| Producción          | **No existe como recurso** y no está preparada                                                                                                                                   |
+
+> **Lo que esta tanda NO hace.** No contrata, no activa avisos ni Sentry, no abre
+> B ni cobros, no invita, no publica contenido editorial y no declara producción.
+> El alcance vigente son las **tres obras**. OVH con Coolify, y sólo ahí.
+
+#### Antecedente — 2026-11-24, el resultado para aceptar
 
 |                     |                                                                                                                                                                 |
 | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |

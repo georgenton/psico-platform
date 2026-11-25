@@ -4,6 +4,7 @@ import Script from "next/script";
 import { useEffect, useRef, useState, useTransition } from "react";
 
 import { loginWithGoogleAction } from "@/actions/auth";
+import { enviarAcceso } from "@/lib/crypto/sesion-vigente";
 
 declare global {
   interface Window {
@@ -122,7 +123,9 @@ export function GoogleSignInButton({
       callback: ({ credential }) => {
         setError(null);
         startTransition(async () => {
-          const res = await loginWithGoogleAction(credential, from);
+          const res = await enviarAcceso(() =>
+            loginWithGoogleAction(credential, from),
+          );
           // On success, the action calls redirect() — code below won't run.
           if (res?.error) setError(res.error);
         });

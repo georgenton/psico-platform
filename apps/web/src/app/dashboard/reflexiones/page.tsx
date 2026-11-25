@@ -8,6 +8,7 @@ import type {
 import { REFLEXION_Y_MAPA_NOTA } from "@psico/types";
 
 import { getAccessToken, serverFetch } from "@/lib/api.server";
+import { PantallaDeLaSesion } from "@/components/dashboard/PantallaDeLaSesion";
 import { DiarioShell } from "@/components/dashboard/diario/DiarioShell";
 import { ReflSidePanel } from "@/components/dashboard/diario/ReflSidePanel";
 
@@ -41,7 +42,7 @@ export default async function ReflexionesPage() {
   const accessToken = getAccessToken();
 
   return (
-    <>
+    <PantallaDeLaSesion>
       <div
         className="screen-head"
         // Sólo lo que de verdad es de esta pantalla: repetir aquí lo que ya
@@ -74,6 +75,6 @@ export default async function ReflexionesPage() {
           <ReflSidePanel stats={evolucion?.stats ?? null} />
         </div>
       </div>
-    </>
+    </PantallaDeLaSesion>
   );
 }

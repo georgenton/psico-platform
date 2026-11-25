@@ -6,7 +6,10 @@ import { type FormEvent, useState, useTransition } from "react";
 import { registerAction } from "@/actions/auth";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { PrivacyInfoButton } from "@/components/privacy/PrivacyInfoButton";
-import { RetirarMarcaDeCuenta } from "@/lib/crypto/sesion-vigente";
+import {
+  enviarAcceso,
+  RetirarMarcaDeCuenta,
+} from "@/lib/crypto/sesion-vigente";
 import { PASSWORD_HINT, PASSWORD_MIN_LENGTH } from "@psico/types";
 
 export default function RegisterPage() {
@@ -28,11 +31,13 @@ export default function RegisterPage() {
     setError(null);
 
     startTransition(async () => {
-      const result = await registerAction({
-        name: data.get("name") as string,
-        email: data.get("email") as string,
-        password,
-      });
+      const result = await enviarAcceso(() =>
+        registerAction({
+          name: data.get("name") as string,
+          email: data.get("email") as string,
+          password,
+        }),
+      );
       if (result?.error) setError(result.error);
     });
   }

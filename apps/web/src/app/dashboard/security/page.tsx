@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { UserMeResponse } from "@psico/types";
 
 import { getAccessToken, serverFetch } from "@/lib/api.server";
+import { PantallaDeLaSesion } from "@/components/dashboard/PantallaDeLaSesion";
 import { ChangePasswordCard } from "@/components/dashboard/security/ChangePasswordCard";
 import { DataExportCard } from "@/components/dashboard/security/DataExportCard";
 import { DiaryLockCard } from "@/components/dashboard/security/DiaryLockCard";
@@ -25,45 +26,47 @@ export default async function SecurityPage() {
   const token = getAccessToken();
 
   return (
-    <div className="mx-auto max-w-[720px]">
-      {/* Sprint G3 — generic screen-head for consistency with the design's
-          internal screens. Design HTML v2 doesn't cover settings pages, so
-          we apply the same eb + title pattern as a coherence sweep. */}
-      <div className="screen-head">
-        <h1 className="screen-title">
-          <span className="eb">Cuenta y privacidad</span>
-          Seguridad
-        </h1>
-      </div>
-      <p className="screen-sub" style={{ margin: "-14px 0 26px" }}>
-        Cambia tu contraseña, gestiona el acceso a tu cuenta, revisa tu frase de
-        recuperación y descarga tus datos.
-      </p>
+    <PantallaDeLaSesion>
+      <div className="mx-auto max-w-[720px]">
+        {/* Sprint G3 — generic screen-head for consistency with the design's
+            internal screens. Design HTML v2 doesn't cover settings pages, so
+            we apply the same eb + title pattern as a coherence sweep. */}
+        <div className="screen-head">
+          <h1 className="screen-title">
+            <span className="eb">Cuenta y privacidad</span>
+            Seguridad
+          </h1>
+        </div>
+        <p className="screen-sub" style={{ margin: "-14px 0 26px" }}>
+          Cambia tu contraseña, gestiona el acceso a tu cuenta, revisa tu frase
+          de recuperación y descarga tus datos.
+        </p>
 
-      <div className="space-y-5">
-        <ChangePasswordCard
-          cryptoSalt={meResult.cryptoSalt}
-          apiBase={API_BASE}
-          token={token}
-        />
-        <DiaryLockCard />
-        <LocalTextAnalysisCard
-          initialEnabled={meResult.privacy.localTextAnalysis}
-          apiBase={API_BASE}
-          token={token}
-        />
-        <ShowSeedPhraseCard cryptoSalt={meResult.cryptoSalt} />
-        <DataExportCard
-          apiBase={API_BASE}
-          token={token}
-          solicitadaEl={
-            meResult.privacy.dataExportRequested
-              ? String(meResult.privacy.dataExportRequested)
-              : null
-          }
-        />
-        <ReplayTourCard />
+        <div className="space-y-5">
+          <ChangePasswordCard
+            cryptoSalt={meResult.cryptoSalt}
+            apiBase={API_BASE}
+            token={token}
+          />
+          <DiaryLockCard />
+          <LocalTextAnalysisCard
+            initialEnabled={meResult.privacy.localTextAnalysis}
+            apiBase={API_BASE}
+            token={token}
+          />
+          <ShowSeedPhraseCard cryptoSalt={meResult.cryptoSalt} />
+          <DataExportCard
+            apiBase={API_BASE}
+            token={token}
+            solicitadaEl={
+              meResult.privacy.dataExportRequested
+                ? String(meResult.privacy.dataExportRequested)
+                : null
+            }
+          />
+          <ReplayTourCard />
+        </div>
       </div>
-    </div>
+    </PantallaDeLaSesion>
   );
 }

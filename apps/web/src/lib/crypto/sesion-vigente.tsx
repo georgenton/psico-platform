@@ -15,9 +15,12 @@ import { createContext, useContext, useEffect, useState } from "react";
  *
  * CÓMO. Cada panel escribe una marca de su cuenta en `localStorage` cuando el
  * servidor la CONFIRMA, y el acceso y el registro la mueven a un valor que no es
- * de nadie. Las demás pestañas reciben el evento `storage`; si la marca ya no es
- * la suya dejan de entregar claves y preguntan. Además se compara al volver a la
- * pestaña, porque una congelada o recuperada con «atrás» no recibe eventos.
+ * de nadie: al abrirse y, otra vez, en cuanto vuelve lo que enviaron. Las demás
+ * pestañas reciben el evento `storage`; si la marca ya no es la suya dejan de
+ * entregar claves y preguntan. Además se compara al volver a la pestaña, porque
+ * una congelada o recuperada con «atrás» no recibe eventos. Y lo que no puede
+ * depender de que otra pestaña avise —juntar la llave del panel con el token de
+ * una pantalla— se compara en la propia pantalla (`SoloDeEstaCuenta`).
  *
  * AL MONTAR, LA IDENTIDAD ESTÁ PENDIENTE. El panel que llega trae en su HTML la
  * cuenta que tenía la sesión al pedirlo, y pudo tardar: sólo una marca que ya es
@@ -61,6 +64,8 @@ const RUTA = "/dashboard/cuenta-vigente";
 const REINTENTO_MS = 5_000;
 
 const SesionVigenteContext = createContext(true);
+/** La cuenta del panel. null: sin panel por encima, o no se sabe de quién es. */
+const MarcaDelPanelContext = createContext<string | null>(null);
 
 /** Sin proveedor por encima, la respuesta es sí: no hay con quién compararse. */
 export function useSesionVigente(): boolean {
@@ -199,10 +204,43 @@ export function SesionVigenteProvider({
   }, [marca]);
 
   return (
-    <SesionVigenteContext.Provider value={vigente}>
-      {children}
-    </SesionVigenteContext.Provider>
+    <MarcaDelPanelContext.Provider value={marca}>
+      <SesionVigenteContext.Provider value={vigente}>
+        {children}
+      </SesionVigenteContext.Provider>
+    </MarcaDelPanelContext.Provider>
   );
+}
+
+/**
+ * Una pantalla que llegó con la sesión de otra cuenta no se monta.
+ *
+ * App Router conserva el panel al navegar y trae sólo la pantalla, con el token
+ * de quien tenga la sesión al pedirla. El aviso de las demás pestañas no basta
+ * para que la llave del panel no se junte con un token ajeno: llega cuando la
+ * página que entró consigue ejecutar su código, y su respuesta puede quedarse
+ * parada después de haber dejado ya la cookie. Reproducido reteniéndola justo
+ * ahí: la marca seguía siendo la de A y lo escrito quedaba en B.
+ *
+ * Aquí se comparan las dos cosas que se van a juntar, sin esperar a nadie. Si no
+ * son de la misma cuenta se carga de nuevo, que es lo que decide el servidor.
+ */
+export function SoloDeEstaCuenta({
+  marca,
+  children,
+}: {
+  /** De quién era la sesión cuando se pidió esta pantalla. */
+  marca: string | null;
+  children: React.ReactNode;
+}) {
+  const delPanel = useContext(MarcaDelPanelContext);
+  const ajena = marca !== null && delPanel !== null && marca !== delPanel;
+
+  useEffect(() => {
+    if (ajena) window.location.reload();
+  }, [ajena]);
+
+  return ajena ? null : <>{children}</>;
 }
 
 /**
@@ -210,14 +248,13 @@ export function SesionVigenteProvider({
  * borrar: borrar lo que ya no está no se nota, y una respuesta de antes pasaría
  * por buena.
  */
-function moverMarca(): string {
+function moverMarca(): void {
   const unico = `nadie:${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
   try {
     window.localStorage.setItem(CLAVE_MARCA, unico);
   } catch {
     // Sin almacenamiento no hay marca que mover.
   }
-  return unico;
 }
 
 /**
@@ -225,21 +262,43 @@ function moverMarca(): string {
  * devuelve al panel a quien la tiene—. Las otras pantallas de `(auth)` se abren
  * también con sesión, así que ahí no va: cerraría el Diario de las demás
  * pestañas por abrir el enlace de verificación.
- *
- * Al salir, si otra pestaña puso después la suya, se mira de quién es la sesión:
- * quien entra desde un acceso que llevaba abierto puede quedarse fuera de todo
- * panel —en el onboarding—, y entonces nadie más la movería. Si la que hay es la
- * de la sesión, no se toca: ya está confirmada.
  */
 export function RetirarMarcaDeCuenta() {
   useEffect(() => {
-    const mia = moverMarca();
-    return () => {
-      if (leerMarca() === mia) return;
-      void marcaDelServidor().then((dicha) => {
-        if (dicha !== undefined && dicha !== leerMarca()) moverMarca();
-      });
-    };
+    moverMarca();
   }, []);
   return null;
+}
+
+/**
+ * Envía un acceso —entrar, registrarse, Google— y deja pendiente la identidad de
+ * las demás pestañas en cuanto vuelve, ANTES de navegar y sin preguntar nada.
+ *
+ * EL FALLO QUE ESTO IMPIDE. Un acceso enviado sin sesión puede volver cuando en
+ * otro formulario ya entró A y abrió su Diario. La respuesta trae la cookie de B
+ * y la marca sigue siendo la de A. Antes se preguntaba al salir del formulario y
+ * sólo entonces se movía: si la pregunta tardaba o fallaba, la marca se quedaba;
+ * y si lo que tardaba era el destino, ni siquiera se preguntaba, porque el
+ * formulario seguía montado. Reproducido con la aplicación entera: lo que A
+ * escribía quedaba en la cuenta de B bajo la llave de A.
+ *
+ * Aquí no se pregunta de quién es la sesión: eso lo hace cada panel, protegido y
+ * con sus reintentos. Sólo un rechazo claro —`{ error }`— deja la marca, porque
+ * entonces no se abrió ninguna sesión. Si la acción lanza no se sabe, y se mueve.
+ *
+ * Y si la página se va con el envío en el aire, también: ya no habrá quién avise.
+ */
+export async function enviarAcceso<R extends { error: string } | undefined>(
+  enviar: () => Promise<R>,
+): Promise<R> {
+  let rechazado = false;
+  window.addEventListener("pagehide", moverMarca);
+  try {
+    const r = await enviar();
+    rechazado = Boolean(r?.error);
+    return r;
+  } finally {
+    window.removeEventListener("pagehide", moverMarca);
+    if (!rechazado) moverMarca();
+  }
 }

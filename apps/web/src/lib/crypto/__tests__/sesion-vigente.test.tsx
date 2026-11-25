@@ -9,8 +9,10 @@ import {
   type DiaryKeyContextValue,
 } from "../diary-key-context";
 import {
+  enviarAcceso,
   RetirarMarcaDeCuenta,
   SesionVigenteProvider,
+  SoloDeEstaCuenta,
   useSesionVigente,
 } from "../sesion-vigente";
 
@@ -23,6 +25,7 @@ import {
  */
 
 const ir = vi.fn();
+const recargar = vi.fn();
 /** Las preguntas que hay en el aire, en el orden en que se hicieron. */
 let preguntas: {
   url: string;
@@ -155,9 +158,14 @@ beforeEach(() => {
   // Lo corriente: esta cuenta ya tenía el panel abierto en el navegador.
   window.localStorage.setItem(CLAVE, MARCA_A);
   ir.mockReset();
+  recargar.mockReset();
   galleta.historia = [];
   preguntas = [];
-  vi.stubGlobal("location", { ...window.location, replace: ir });
+  vi.stubGlobal("location", {
+    ...window.location,
+    replace: ir,
+    reload: recargar,
+  });
   vi.stubGlobal(
     "fetch",
     vi.fn(
@@ -220,37 +228,303 @@ describe("el acceso y el registro", () => {
     expect(marcaAhora()).not.toBe(una);
   });
 
-  it("al salir no preguntan si nadie puso la suya después", () => {
-    const vista = render(<RetirarMarcaDeCuenta />);
-    const mia = marcaAhora();
-    vista.unmount();
-    expect(preguntas).toHaveLength(0);
-    expect(marcaAhora()).toBe(mia);
-  });
-
-  it("si otra pestaña puso la suya y la sesión ya es de otra cuenta, la mueven", async () => {
-    // El acceso llevaba abierto desde antes; ahí entró B y se fue al onboarding.
+  it("salir sin haber enviado nada no la toca, aunque otra pestaña haya puesto la suya", () => {
     const vista = render(<RetirarMarcaDeCuenta />);
     window.localStorage.setItem(CLAVE, MARCA_A);
     vista.unmount();
-    expect(preguntas).toHaveLength(1);
-    await servidorDice(json({ marca: MARCA_B }));
+    expect(marcaAhora()).toBe(MARCA_A);
+    expect(preguntas).toHaveLength(0);
+  });
+});
+
+/**
+ * Un acceso enviado sin sesión puede volver cuando en otro formulario ya entró A
+ * y abrió su Diario: la respuesta trae la cookie de B, y la marca es la de A.
+ */
+describe("enviar un acceso", () => {
+  const marcaAhora = () => window.localStorage.getItem(CLAVE);
+  type Resultado = { error: string } | undefined;
+
+  /** Un envío en el aire: vuelve, o revienta, cuando la prueba quiera. */
+  function enElAire() {
+    let volver!: (r: Resultado) => void;
+    let reventar!: (e: Error) => void;
+    const fin = enviarAcceso<Resultado>(
+      () =>
+        new Promise<Resultado>((si, no) => {
+          volver = si;
+          reventar = no;
+        }),
+    );
+    return { fin, volver, reventar };
+  }
+
+  it("mientras está en el aire no toca la marca: no se sabe aún que haya sesión", async () => {
+    const { fin, volver } = enElAire();
+    await Promise.resolve();
+    expect(marcaAhora()).toBe(MARCA_A);
+    volver({ error: "no" });
+    await fin;
+  });
+
+  it("en cuanto vuelve la mueve, antes de que nadie navegue y sin preguntar", async () => {
+    const { fin, volver } = enElAire();
+    volver(undefined);
+    // Lo primero que corre al volver ya la encuentra movida.
+    await fin.then(() => expect(marcaAhora()).toMatch(/^nadie:/));
+    expect(preguntas).toHaveLength(0);
+  });
+
+  it("un rechazo claro la deja: no se abrió ninguna sesión", async () => {
+    const { fin, volver } = enElAire();
+    volver({ error: "Email o contraseña incorrectos." });
+    expect(await fin).toEqual({ error: "Email o contraseña incorrectos." });
+    expect(marcaAhora()).toBe(MARCA_A);
+  });
+
+  it("si revienta no se sabe: la mueve, y el error sigue su camino", async () => {
+    const { fin, reventar } = enElAire();
+    reventar(new TypeError("sin red"));
+    await expect(fin).rejects.toThrow("sin red");
     expect(marcaAhora()).toMatch(/^nadie:/);
   });
 
+  it("si la página se va con el envío en el aire, la mueve: ya no habrá quién avise", async () => {
+    const { fin, volver } = enElAire();
+    window.dispatchEvent(new Event("pagehide"));
+    expect(marcaAhora()).toMatch(/^nadie:/);
+    volver({ error: "no" });
+    await fin;
+  });
+
   it.each([
-    ["sigue siendo la de esa cuenta", json({ marca: MARCA_A })],
-    ["no contesta", { ok: false, type: "basic" }],
-  ] as [string, Partial<Response>][])(
-    "si otra pestaña puso la suya y %s, no la tocan",
+    ["rechazado", { error: "no" }],
+    ["aceptado", undefined],
+  ] as [string, Resultado][])(
+    "ya %s, que la página se vaya no mueve nada",
     async (_, r) => {
-      const vista = render(<RetirarMarcaDeCuenta />);
+      const { fin, volver } = enElAire();
+      volver(r);
+      await fin;
       window.localStorage.setItem(CLAVE, MARCA_A);
-      vista.unmount();
-      await servidorDice(r);
+      window.dispatchEvent(new Event("pagehide"));
       expect(marcaAhora()).toBe(MARCA_A);
     },
   );
+
+  it("un navegador que no deja escribir no impide entrar", async () => {
+    const escribir = vi
+      .spyOn(Storage.prototype, "setItem")
+      .mockImplementation(() => {
+        throw new Error("QuotaExceededError");
+      });
+    try {
+      const { fin, volver } = enElAire();
+      volver(undefined);
+      await expect(fin).resolves.toBeUndefined();
+    } finally {
+      escribir.mockRestore();
+    }
+  });
+
+  /**
+   * El recorrido entero: A confirmada y abierta, y en otra pestaña vuelve el
+   * acceso de B. Desde ahí la pestaña de A no depende de ninguna consulta para
+   * estar protegida; sólo para saber a dónde ir.
+   */
+  describe("con el Diario de A abierto en otra pestaña", () => {
+    /** El acceso de B vuelve allí; aquí llega el evento. */
+    async function vuelveElDeB() {
+      const { fin, volver } = enElAire();
+      const antes = marcaAhora();
+      await act(async () => {
+        volver(undefined);
+        await fin;
+        window.dispatchEvent(
+          new StorageEvent("storage", {
+            key: CLAVE,
+            oldValue: antes,
+            newValue: marcaAhora(),
+          }),
+        );
+      });
+    }
+
+    /** Nada de A se usa ni se guarda, y la marca de A no vuelve. */
+    async function sigueProtegida(
+      ctx: () => DiaryKeyContextValue,
+      sobre: string | null,
+    ) {
+      expect(estado()).toBe("en duda · cerrado");
+      expect(marcaAhora()).toMatch(/^nadie:/);
+      await act(async () => ctx().unlock("la-de-a"));
+      await act(async () =>
+        ctx().adoptMasterKey(new Uint8Array(MASTER_KEY_LEN).fill(9)),
+      );
+      expect(estado()).toBe("en duda · cerrado");
+      expect(window.localStorage.getItem(SOBRE)).toBe(sobre);
+      expect(galleta.historia).toEqual([]);
+      expect(ir).not.toHaveBeenCalled();
+    }
+
+    async function preparar() {
+      const ctx = montar();
+      await abrir(ctx);
+      const sobre = window.localStorage.getItem(SOBRE);
+      galleta.historia = [];
+      await vuelveElDeB();
+      return { ctx, sobre };
+    }
+
+    it("la consulta tarda: protegida todo ese rato, con una sola pregunta", async () => {
+      vi.useFakeTimers();
+      const { ctx, sobre } = await preparar();
+      expect(preguntas).toHaveLength(1);
+      await sigueProtegida(ctx, sobre);
+      await act(async () => vi.advanceTimersByTimeAsync(120_000));
+      await sigueProtegida(ctx, sobre);
+      expect(preguntas).toHaveLength(1);
+      await servidorDice(json({ marca: MARCA_B }));
+      expect(ir.mock.calls).toEqual([["/dashboard"]]);
+    });
+
+    it.each([
+      ["falla la red", () => preguntas.at(-1)!.fallar()],
+      [
+        "contesta un 503",
+        () => preguntas.at(-1)!.contestar({ ok: false, type: "basic" }),
+      ],
+      [
+        "contesta algo que no se entiende",
+        () => preguntas.at(-1)!.contestar(json({ otra: "cosa" })),
+      ],
+    ] as [string, () => void][])(
+      "la consulta %s: no queda la marca de A, y se reintenta de una en una",
+      async (_, pasa) => {
+        vi.useFakeTimers();
+        const { ctx, sobre } = await preparar();
+        for (let i = 1; i <= 3; i++) {
+          await act(async () => pasa());
+          await sigueProtegida(ctx, sobre);
+          await act(async () => vi.advanceTimersByTimeAsync(5_000));
+          expect(preguntas).toHaveLength(1 + i);
+        }
+        await servidorDice(json({ marca: MARCA_B }));
+        expect(ir.mock.calls).toEqual([["/dashboard"]]);
+      },
+    );
+
+    it("si al final la sesión es la de A, se sigue con A", async () => {
+      const { ctx } = await preparar();
+      await servidorDice(json({ marca: MARCA_A }));
+      expect(estado()).toBe("vigente · cerrado");
+      expect(marcaAhora()).toBe(MARCA_A);
+      await abrir(ctx);
+      expect(ir).not.toHaveBeenCalled();
+    });
+
+    it("una respuesta pedida antes de que volviera el de B no la confirma", async () => {
+      const ctx = montar();
+      await abrir(ctx);
+      await otraPestana("nadie:el-otro-formulario");
+      expect(preguntas).toHaveLength(1);
+      await vuelveElDeB();
+      await servidorDice(json({ marca: MARCA_A }));
+      expect(estado()).toBe("en duda · cerrado");
+      expect(marcaAhora()).toMatch(/^nadie:/);
+      expect(preguntas).toHaveLength(2);
+      await servidorDice(json({ marca: MARCA_B }));
+      expect(ir.mock.calls).toEqual([["/dashboard"]]);
+    });
+  });
+});
+
+/**
+ * La respuesta del acceso puede quedarse parada después de dejar la cookie: la
+ * marca sigue siendo la de A y nadie ha avisado. Entonces App Router trae bajo
+ * el panel de A una pantalla con el token de B.
+ */
+describe("una pantalla que llegó con la sesión de otra cuenta", () => {
+  function Dentro({ alMontar }: { alMontar: (k: unknown) => void }) {
+    alMontar(useDiaryKey().key);
+    return <p>la pantalla</p>;
+  }
+
+  function bajoElPanelDeA(
+    marca: string | null,
+    panel: string | null = MARCA_A,
+  ) {
+    const vista = vi.fn();
+    render(
+      <SesionVigenteProvider marca={panel}>
+        <DiaryKeyProvider cryptoSalt={SAL_A} initialWrapKey={null}>
+          <SoloDeEstaCuenta marca={marca}>
+            <Dentro alMontar={vista} />
+          </SoloDeEstaCuenta>
+        </DiaryKeyProvider>
+      </SesionVigenteProvider>,
+    );
+    return vista;
+  }
+
+  it("no llega a montarse, ni una vez, y se carga de nuevo", () => {
+    const vista = bajoElPanelDeA(MARCA_B);
+    expect(vista).not.toHaveBeenCalled();
+    expect(screen.queryByText("la pantalla")).toBeNull();
+    expect(recargar).toHaveBeenCalledTimes(1);
+  });
+
+  it("al navegar, se desmonta la de A y la de B no recibe su llave", async () => {
+    const vista = vi.fn();
+    let ctx: DiaryKeyContextValue | null = null;
+    const arbol = (marca: string) => (
+      <SesionVigenteProvider marca={MARCA_A}>
+        <DiaryKeyProvider cryptoSalt={SAL_A} initialWrapKey={null}>
+          <Captura
+            onCtx={(c) => {
+              ctx = c;
+            }}
+          />
+          <SoloDeEstaCuenta key={marca} marca={marca}>
+            <Dentro alMontar={vista} />
+          </SoloDeEstaCuenta>
+        </DiaryKeyProvider>
+      </SesionVigenteProvider>
+    );
+    const pagina = render(arbol(MARCA_A));
+    await act(async () =>
+      (ctx as unknown as DiaryKeyContextValue).adoptMasterKey(
+        new Uint8Array(MASTER_KEY_LEN).fill(7),
+      ),
+    );
+    expect(vista.mock.lastCall![0]).not.toBeNull();
+    vista.mockClear();
+    pagina.rerender(arbol(MARCA_B));
+    expect(vista).not.toHaveBeenCalled();
+    expect(recargar).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["es de la misma cuenta", MARCA_A, MARCA_A],
+    ["no se sabe de quién es la pantalla", null, MARCA_A],
+    ["no se sabe de quién es el panel", MARCA_B, null],
+  ] as [string, string | null, string | null][])(
+    "si %s, se usa como siempre",
+    (_, marca, panel) => {
+      expect(bajoElPanelDeA(marca, panel)).toHaveBeenCalled();
+      expect(recargar).not.toHaveBeenCalled();
+    },
+  );
+
+  it("fuera de un panel no estorba", () => {
+    render(
+      <SoloDeEstaCuenta marca={MARCA_B}>
+        <p>suelta</p>
+      </SoloDeEstaCuenta>,
+    );
+    expect(screen.getByText("suelta")).toBeInTheDocument();
+    expect(recargar).not.toHaveBeenCalled();
+  });
 });
 
 /**

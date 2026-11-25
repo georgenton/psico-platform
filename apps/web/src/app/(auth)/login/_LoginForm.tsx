@@ -7,6 +7,7 @@ import { type FormEvent, useState, useTransition } from "react";
 import { loginAction } from "@/actions/auth";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { PrivacyInfoButton } from "@/components/privacy/PrivacyInfoButton";
+import { enviarAcceso } from "@/lib/crypto/sesion-vigente";
 
 export default function LoginForm() {
   const searchParams = useSearchParams();
@@ -21,11 +22,13 @@ export default function LoginForm() {
     setError(null);
 
     startTransition(async () => {
-      const result = await loginAction({
-        email: data.get("email") as string,
-        password: data.get("password") as string,
-        from,
-      });
+      const result = await enviarAcceso(() =>
+        loginAction({
+          email: data.get("email") as string,
+          password: data.get("password") as string,
+          from,
+        }),
+      );
       if (result?.error) setError(result.error);
     });
   }

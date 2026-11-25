@@ -105,6 +105,19 @@
 - `dataExportRequested` y `accountDeleteRequested` están limitados a 1 vez cada 30 días.
 - El borrado de cuenta es soft delete con cooldown — el usuario puede cancelar dentro de 30 días.
 
+> **Lo construido, al 2026-11-25** (el diseño de arriba se conserva como se pensó):
+>
+> - **Cambiar email** está retirado porque no podía terminar (#887): responde
+>   `503 EMAIL_CHANGE_UNAVAILABLE`. La tarea está en
+>   [tarea-cambio-de-correo](../../product/tarea-cambio-de-correo.md).
+> - **Exportar** entrega un **JSON**, no un ZIP, y su alcance está dicho en pantalla
+>   (#889).
+> - **Privacidad**: de sus interruptores sólo se enseñan los que mueven algo; tres
+>   salieron de la pantalla sin borrar sus valores (#888).
+> - **Eliminar cuenta**: la fecha prevista la da el servidor
+>   (`accountDeleteScheduledFor`) y cancelar es
+>   `POST /api/user/delete-request/cancel` (#893). No se manda correo de confirmación.
+
 ---
 
 ## Endpoints de esta área

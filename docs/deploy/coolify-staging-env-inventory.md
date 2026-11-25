@@ -109,7 +109,7 @@ EXPLICIT_BOOT_VALUES=28
 `OPENAI_API_KEY` por `VOICE_PROVIDER=whisper` (§1.3) · `NODE_ENV` porque su default es
 `development` · 12 barreras de caja desplegada (§1.4).
 
-Y 7 condiciones que el perfil satisface **sin poner nada**, listadas aquí para que no
+Y 9 condiciones que el perfil satisface **sin poner nada**, listadas aquí para que no
 se confundan con «no se comprueban»:
 
 ```
@@ -118,6 +118,8 @@ VIDEO_PROVIDER              default console → DAILY_* no se exige
 trio VAPID                  todo-sin-poner es un estado aceptado
 trio CLOUDFLARE_STREAM      todo-sin-poner es aceptado
 CIRCLES_ROLLOUT_MODE        sin poner → off → la clave de cifrado no se lee
+BILLING_PURCHASES           sin poner → compras cerradas (503 antes de tocar al proveedor)
+THERAPY_OFFER               sin poner → oferta de terapia cerrada (503 antes de leer o escribir)
 EMOTIONAL_MAP_PROVIDER      sin poner → anthropic
 PORT                        default 3001, y en Coolify es configuración del recurso
 ```

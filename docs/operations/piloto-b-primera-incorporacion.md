@@ -90,7 +90,7 @@ producto.
 > Es una versión de pruebas. Eso significa dos cosas concretas: puede fallar, y
 > **no es un servicio de salud ni sustituye atención profesional**. Si en algún
 > momento te sientes mal, no esperes a la aplicación: en Ecuador llama al 911, o
-> abre `https://staging.feelverse.app/ayuda`, que tiene líneas de ayuda y no pide
+> abre `https://staging.feelverse.app/ayuda`, que dice dónde pedir ayuda y no pide
 > cuenta.
 >
 > Lo que tendrías que hacer: crear tu cuenta en
@@ -114,9 +114,10 @@ producto.
 > porque la Web pedía iniciar sesión. Desde #879 la ayuda es pública y la frase
 > vuelve, ya siendo cierta.
 
-> **Antes de enviarla**, decidir qué pasa con Terapia
-> ([ficha §2.8](tramo-a-produccion.md)): está visible en el menú con seis fichas
-> de demostración que dicen «licencia verificada».
+> **Resuelto el 2026-11-25.** Antes de enviarla había que decidir qué pasaba con
+> Terapia: está cerrada en el servidor y fuera de los menús
+> ([ficha §2.9](tramo-a-produccion.md)). Y `/ayuda` sólo enseña lo que una fuente
+> acredita: en Ecuador, el 911.
 
 **Lo que esa invitación evita a propósito:** promete poco, nombra el riesgo
 real del cifrado antes de que la persona escriba nada, dice que no se paga, y

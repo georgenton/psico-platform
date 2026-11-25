@@ -88,15 +88,15 @@ sus límites están dichos. **Que exista en la API no basta.**
 
 ## 2. Qué queda fuera, y por qué
 
-| Recorrido              | Motivo                                                                                                                                                         | Qué faltaría para entrar                                                          |
-| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| **Microguías de C02+** | No hay ninguna Experience publicada fuera de C01                                                                                                               | Su propia decisión editorial, obra a obra                                         |
-| **Dúo / Círculos**     | Abierto en `pilot` para QA desde el 06-11, pero su entrada cuelga de un pin retirado                                                                           | La decisión 5 del paquete editorial                                               |
-| **Cobros**             | Cerrados por decisión; D-ORD operativo y comercial sigue abierto                                                                                               | Los seis criterios del ADR                                                        |
-| **Voz**                | Depende de cuota Pro, y Pro no se vende aquí                                                                                                                   | Alcance, no avería: técnicamente vivo                                             |
-| **Terapia**            | Fuera del piloto. **Corregido el 24-11:** aquí decía «detrás de su flag» y no es así: está en el menú de cuenta, con seis fichas de demostración «verificadas» | Ocultarla o abrirla de verdad ([ficha §2.8](../operations/tramo-a-produccion.md)) |
-| **Móvil**              | El piloto se camina en web                                                                                                                                     | Su propia validación                                                              |
-| **Producción**         | No existe como recurso en Coolify                                                                                                                              | Su propio gate                                                                    |
+| Recorrido              | Motivo                                                                                                                                  | Qué faltaría para entrar                                                                    |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| **Microguías de C02+** | No hay ninguna Experience publicada fuera de C01                                                                                        | Su propia decisión editorial, obra a obra                                                   |
+| **Dúo / Círculos**     | Abierto en `pilot` para QA desde el 06-11, pero su entrada cuelga de un pin retirado                                                    | La decisión 5 del paquete editorial                                                         |
+| **Cobros**             | Cerrados por decisión; D-ORD operativo y comercial sigue abierto                                                                        | Los seis criterios del ADR                                                                  |
+| **Voz**                | Depende de cuota Pro, y Pro no se vende aquí                                                                                            | Alcance, no avería: técnicamente vivo                                                       |
+| **Terapia**            | Fuera del piloto, **y desde el 25-11 cerrada**: el servidor no la ofrece ni la cobra y las fichas de demostración no se muestran (#891) | Profesionales reales y su propia puerta ([ficha §2.9](../operations/tramo-a-produccion.md)) |
+| **Móvil**              | El piloto se camina en web                                                                                                              | Su propia validación                                                                        |
+| **Producción**         | No existe como recurso en Coolify                                                                                                       | Su propio gate                                                                              |
 
 ---
 

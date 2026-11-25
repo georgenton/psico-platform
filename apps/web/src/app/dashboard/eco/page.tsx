@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { EcoPersona, EcoThreadListResponse } from "@psico/types";
 import { getAccessToken, serverFetch } from "@/lib/api.server";
+import { PantallaDeLaSesion } from "@/components/dashboard/PantallaDeLaSesion";
 import { EcoShell } from "@/components/dashboard/eco/EcoShell";
 
 export const metadata: Metadata = { title: "Eco" };
@@ -38,11 +39,13 @@ export default async function EcoPage() {
   // el título "Eco" vive dentro del chat header (`.eco-chead`). El shell
   // ya orquesta el `.eco-layout` grid + disclaimer en el rail.
   return (
-    <EcoShell
-      caps={caps}
-      initialRail={initialRail}
-      apiBase={API_BASE}
-      token={accessToken}
-    />
+    <PantallaDeLaSesion>
+      <EcoShell
+        caps={caps}
+        initialRail={initialRail}
+        apiBase={API_BASE}
+        token={accessToken}
+      />
+    </PantallaDeLaSesion>
   );
 }

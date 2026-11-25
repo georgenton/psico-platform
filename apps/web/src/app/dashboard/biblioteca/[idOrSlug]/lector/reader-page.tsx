@@ -11,6 +11,7 @@ import { classifyMarksReadFailure, shouldFetchUnitMarks } from "@psico/types";
 import { ApiError } from "@/lib/api";
 import { PaywallPro } from "@/components/dashboard/detalle/PaywallPro";
 import { getAccessToken, isNextThrow, serverFetch } from "@/lib/api.server";
+import { PantallaDeLaSesion } from "@/components/dashboard/PantallaDeLaSesion";
 import { LectorShell } from "@/components/dashboard/lector/LectorShell";
 
 export const dynamic = "force-dynamic";
@@ -147,17 +148,19 @@ export async function renderReader(fetchChapter: ChapterFetch) {
   }
 
   return (
-    <LectorShell
-      apiBase={API_BASE}
-      token={accessToken}
-      initial={chapter}
-      unit={unit}
-      marks={marks}
-      marksUnavailable={marksUnavailable}
-      // The canonical slug from the envelope — the shell builds stable
-      // hrefs from it, and `idOrSlug` may be an id.
-      bookSlug={chapter.book.slug}
-    />
+    <PantallaDeLaSesion>
+      <LectorShell
+        apiBase={API_BASE}
+        token={accessToken}
+        initial={chapter}
+        unit={unit}
+        marks={marks}
+        marksUnavailable={marksUnavailable}
+        // The canonical slug from the envelope — the shell builds stable
+        // hrefs from it, and `idOrSlug` may be an id.
+        bookSlug={chapter.book.slug}
+      />
+    </PantallaDeLaSesion>
   );
 }
 

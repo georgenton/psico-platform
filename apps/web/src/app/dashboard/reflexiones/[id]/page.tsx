@@ -4,6 +4,7 @@ import type { DiaryDetailResponse } from "@psico/types";
 
 import { ApiError } from "@/lib/api";
 import { getAccessToken, serverFetch } from "@/lib/api.server";
+import { PantallaDeLaSesion } from "@/components/dashboard/PantallaDeLaSesion";
 import { EntryDetailView } from "@/components/dashboard/diario/EntryDetailView";
 
 export const metadata: Metadata = { title: "Entrada de diario" };
@@ -37,8 +38,14 @@ export default async function DiaryEntryDetailPage({
   const accessToken = getAccessToken();
 
   return (
-    <div className="mx-auto max-w-[720px]">
-      <EntryDetailView detail={detail} apiBase={API_BASE} token={accessToken} />
-    </div>
+    <PantallaDeLaSesion>
+      <div className="mx-auto max-w-[720px]">
+        <EntryDetailView
+          detail={detail}
+          apiBase={API_BASE}
+          token={accessToken}
+        />
+      </div>
+    </PantallaDeLaSesion>
   );
 }
